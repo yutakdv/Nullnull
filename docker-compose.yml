@@ -1,0 +1,47 @@
+# 널널(Nullnull) — 한 번에 기동: docker compose up -d --build
+#   FE+API 프록시: http://localhost:3000   (웹앱·/api·/docs 모두 이 포트로)
+#   BE 직접 접근:  http://localhost:8000
+# API 키는 .env에서 읽는다(.env.example 참고). 키가 없어도 데모 모드로 전 기능 동작.
+services:
+  backend:
+    build: .
+    container_name: nullnull-backend
+    env_file: .env
+    environment:
+      # .env의 상대경로 SQLite 대신 볼륨 경로 강제(컨테이너 재생성에도 데이터 유지)
+      DATABASE_URL: sqlite:////data/nullnull.db
+      TZ: Asia/Seoul          # 30일 예측 창·'다가오는 토요일' 계산 기준을 KST로
+    ports:
+      - "8000:8000"
+    volumes:
+      - nullnull-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ./nullnull-travel-webapp
+    container_name: nullnull-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+  # 일배치(수집→보정→재계산)를 수동 실행할 때:
+  #   docker compose run --rm batch
+  batch:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////data/nullnull.db
+      TZ: Asia/Seoul
+    volumes:
+      - nullnull-data:/data
+    command: python -m app.batch.daily
+    profiles: ["batch"]
+
+volumes:
+  nullnull-data:

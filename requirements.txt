@@ -1,0 +1,11 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0.36
+pydantic>=2.9
+pydantic-settings>=2.5
+httpx>=0.27
+PyYAML>=6.0
+pytest>=8.3
+
+# PostgreSQL 운영 배포 시 주석 해제 (개발/데모는 SQLite로 동작)
+# psycopg2-binary>=2.9

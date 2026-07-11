@@ -1,0 +1,36 @@
+# 널널(Nullnull) 스코어링 가중치 — 기획서 9-1 ~ 9-5
+# 초기값이며 8월 백테스트(9-5)에서 ±0.05 단위로 조정한다.
+# 결측 항은 제외 후 남은 가중치를 재정규화한다(합계 유지 원칙).
+
+congestion_risk:            # 9-1 널널도(혼잡 위험)
+  concentration: 0.55       # 관광지 집중률 예측값
+  region_visitor: 0.20      # 지역 방문자수 상대지수
+  demand: 0.15              # 지역 관광 수요 강도
+  calendar_weather: 0.10    # 요일/공휴일/날씨 보정값(날씨는 단기예보 범위 내 조건부)
+
+alternative_score:          # 9-2 대안지 추천 점수
+  theme: 0.30               # 테마 유사도
+  relief: 0.25              # 혼잡 완화 효과
+  mobility: 0.15            # 이동 편의성
+  hidden: 0.10              # 숨은 명소성
+  weather: 0.10             # 날씨/운영 적합성(예보 범위 밖이면 제외 후 재정규화)
+  load_penalty: 0.10        # 추천 부하(F8) — 감산 항
+
+theme_similarity:           # 9-2 테마 유사도 결합비
+  jaccard: 0.6              # 카테고리 코드 집합 자카드
+  related: 0.4              # 연관 관광지 API similarity(정규화)
+
+course_score:               # 9-3 코스 점수
+  move_penalty_per_10min: 0.02
+  category_repeat_penalty: 0.05
+  dispersion_bonus: 0.05    # 서로 다른 시군구 1곳 추가마다
+
+feedback:                   # 9-4 피드백 보정
+  alpha: 0.2                # adjusted = risk × (1 + alpha × bias)
+  min_count: 30             # 30건 미만 장소는 보정 미적용(콜드스타트 왜곡 방지)
+  ewma_span: 10             # EWMA 스팬(최근 30건 대상)
+  window: 30                # bias 계산에 쓰는 최근 피드백 수
+
+recommendation_load:        # 9-2 추천 부하(F8)
+  window_days: 7            # 최근 7일
+  select_weight: 2          # 노출 1점 + 선택 2점
