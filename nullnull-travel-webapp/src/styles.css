@@ -1753,3 +1753,405 @@ button {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ══ 서비스 발전 단계(3중 분산 가시화) 추가 스타일 ══════════════ */
+
+/* 히어로 — 브랜드 태그라인 + 3중 분산 필러 */
+.hero-tagline {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.hero-pillars {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 4px;
+  flex-wrap: wrap;
+}
+
+.hero-pillars span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+}
+
+/* 시간 이동 제안 칩(행동형 시간 분산) */
+.suggestion-row {
+  display: grid;
+  gap: 10px;
+}
+
+.suggestion-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  text-align: left;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.15s ease;
+}
+
+.suggestion-chip:hover {
+  transform: translateY(-1px);
+}
+
+.suggestion-chip span {
+  display: grid;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.suggestion-chip small {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+/* 피드백 보정 고지(9-4) */
+.adjusted-chip {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--primary-deep);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+/* 30일 널널 캘린더 히트맵 */
+.calendar-note {
+  margin: 2px 0 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.calendar-heat {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.heat-head {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+
+.heat-cell {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(31, 45, 39, 0.75);
+  display: grid;
+  place-items: center;
+  transition: transform 0.12s ease;
+}
+
+.heat-cell:hover:not(.is-blank) {
+  transform: scale(1.08);
+}
+
+.heat-cell.is-blank {
+  background: transparent;
+  pointer-events: none;
+}
+
+.heat-cell.is-selected {
+  outline: 3px solid var(--primary-deep);
+  outline-offset: 1px;
+}
+
+.heat-cell.is-holiday {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.heat-1 { background: #dff6e9; }
+.heat-2 { background: #edf8cf; }
+.heat-3 { background: #fff5c7; }
+.heat-4 { background: #ffe7ca; }
+.heat-5 { background: #ffe0dc; }
+
+/* 시간대 카드 — 탭해서 전환 */
+.time-card.is-active {
+  outline: 2px solid var(--primary-deep);
+  outline-offset: -2px;
+}
+
+button.time-card {
+  text-align: center;
+  display: grid;
+  justify-items: center;
+}
+
+/* 대안 카드 칩(숨은 명소 · F8 로테이션) */
+.alt-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.chip-gem {
+  background: var(--surface-soft);
+  color: var(--primary-deep);
+}
+
+.chip-rotation {
+  background: #fef1e2;
+  color: #b8641f;
+}
+
+/* 추천 이유 모달 — 점수 분해 바 */
+.breakdown {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 4px;
+  text-align: left;
+}
+
+.proof-bar.is-negative b {
+  background: #e2726e;
+}
+
+.proof-bar.is-muted {
+  opacity: 0.55;
+}
+
+/* Leaflet 지도 */
+.leaflet-host {
+  min-height: 360px;
+  z-index: 0;
+}
+
+.leaflet-host .leaflet-container {
+  border-radius: 24px;
+}
+
+.map-pin {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid var(--primary-deep);
+  color: var(--primary-deep);
+  font-size: 0.68rem;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(53, 82, 70, 0.3);
+}
+
+.map-pin.is-origin {
+  background: var(--primary-deep);
+  color: #ffffff;
+  font-size: 0.6rem;
+}
+
+/* 검색 자동완성 드롭다운 */
+.search-wrap {
+  position: relative;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.search-results button {
+  display: grid;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+  color: var(--ink);
+}
+
+.search-results button:hover {
+  background: var(--surface-soft);
+}
+
+.search-results small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+/* 관리자 화면(#admin) */
+.admin-screen {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.admin-head h1 {
+  margin: 8px 0 4px;
+  font-size: 1.4rem;
+}
+
+.admin-head p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.admin-token-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-token-card .search-bar {
+  flex: 1;
+}
+
+.admin-error {
+  color: #db4c42;
+  font-weight: 700;
+  margin: 0;
+}
+
+.proof-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.ingest-table {
+  display: grid;
+  gap: 8px;
+}
+
+.ingest-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  font-size: 0.85rem;
+}
+
+.ingest-row.is-failed {
+  background: #ffe0dc;
+}
+
+.ingest-row.is-skipped {
+  opacity: 0.65;
+}
+
+.ingest-row p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.ingest-row small {
+  color: var(--muted);
+}
+
+/* 코스 동선 지도 + 타임라인 썸네일 */
+.course-map-card .route-map {
+  min-height: 300px;
+}
+
+.timeline-body {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.timeline-thumb {
+  width: 74px;
+  height: 74px;
+  border-radius: 14px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.timeline-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 레이아웃 교정 — 신규 컴포넌트의 그리드 자리 지정 + leaflet 명시 높이 */
+.route-map.leaflet-host {
+  height: 360px;
+}
+
+.course-map-card .route-map {
+  height: 320px;
+  min-height: 320px;
+}
+
+@media (min-width: 720px) {
+  /* 상세: 캘린더는 전체 폭으로 — 2컬럼 흐름에서 어긋나지 않게 */
+  .detail-screen .calendar-card {
+    grid-column: 1 / -1;
+  }
+
+  .detail-screen .suggestion-row {
+    grid-column: 2;
+  }
+
+  /* 일정: 동선 지도는 타임라인 아래(왼쪽 컬럼) 고정 */
+  .course-screen .course-map-card {
+    grid-column: 1;
+  }
+}
+
+/* 글씨 배치 다듬기 — 타임라인 도착·체류 라벨이 좁은 폭에서 겹치지 않게 */
+.timeline-top {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.timeline-top span {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.timeline-top h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

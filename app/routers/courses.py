@@ -27,7 +27,8 @@ def create_course(body: schemas.CourseCreateRequest, db: Session = Depends(get_d
     if body.date:
         validate_visit_date(body.date)
     course = course_service.create_course(
-        db, body.origin_spot_id, body.spot_ids, body.date, body.time_slot, body.title
+        db, body.origin_spot_id, body.spot_ids, body.date, body.time_slot, body.title,
+        companion=body.companion,
     )
     return course_service.course_detail(db, course)
 
@@ -45,7 +46,8 @@ def recommend_course(body: schemas.CourseRecommendRequest, db: Session = Depends
         validate_visit_date(body.date)
     try:
         course = course_service.recommend_course(
-            db, origin, body.theme_sequence, body.date, body.time_slot, body.title
+            db, origin, body.theme_sequence, body.date, body.time_slot, body.title,
+            companion=body.companion,
         )
     except course_service.NoSlotCandidateError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

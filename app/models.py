@@ -87,6 +87,7 @@ class Course(Base):
     region: Mapped[str] = mapped_column(String(50), default="서울")
     base_spot_id: Mapped[int | None] = mapped_column(ForeignKey("tourist_spot.spot_id"))
     date: Mapped[date | None] = mapped_column(Date)
+    time_slot: Mapped[str] = mapped_column(String(10), default="afternoon")   # 생성 기준 시간대
     level: Mapped[int] = mapped_column(Integer, default=2)                    # 널널도 1~5
     relief_pct: Mapped[float] = mapped_column(Float, default=0.0)             # 예상 혼잡 감소율(%)
     theme_keep_pct: Mapped[float] = mapped_column(Float, default=0.0)         # 테마 유지율(%)
@@ -94,6 +95,7 @@ class Course(Base):
     total_distance_km: Mapped[float] = mapped_column(Float, default=0.0)
     mode: Mapped[str] = mapped_column(String(10), default="theme")             # theme|free(자유여행)
     slot_themes: Mapped[list | None] = mapped_column(JSON, default=None)       # 자유여행 슬롯 카테고리 순서
+    companion: Mapped[str | None] = mapped_column(String(10))                  # solo|couple|family(F1)
     is_seed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 

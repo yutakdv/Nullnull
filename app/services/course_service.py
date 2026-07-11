@@ -23,18 +23,21 @@ from app.scoring.alternative import (
 from app.scoring.congestion import LEVEL_LABELS, label_of, level_of
 from app.scoring.course import course_score
 from app.scoring.weights import load_weights
-from app.services.congestion_service import compute_risk, default_visit_date
+from app.services.congestion_service import bulk_risks, compute_risk, default_visit_date
 from app.services.recommend_service import (
     FREE_TRAVEL_DEFAULT_SEQUENCE,
     build_reason,
     content_richness,
     load_map,
+    seeded_jitter,
     slot_theme_fit,
     spot_categories,
     spot_theme_tags,
     spots_with_congestion_data,
     visitor_low_percentile,
 )
+
+MAX_LEG_KM = 8.0   # 코스 구간 거리 상한 — 이내 후보를 우선해 동선을 컴팩트하게 유지
 
 STAY_MIN_BY_CATEGORY = {
     "궁궐": 70, "박물관": 80, "근대가옥": 45, "궁집": 50, "향교·서원": 40,
@@ -54,6 +57,9 @@ TITLE_BY_THEME = {
     "미식": "골목 미식 느린 산책",
     "포토스팟": "한적한 포토 스팟 반나절",
 }
+# F1 동행 유형(라이트) — 체류시간 배율 + 코스 설명 문구에 반영
+COMPANION_STAY_FACTOR = {"solo": 0.85, "couple": 1.0, "family": 1.25}
+COMPANION_LABELS = {"solo": "혼자", "couple": "둘이서", "family": "가족과"}
 
 
 def _related_sim(db: Session, a_id: int, b_id: int) -> float | None:
@@ -95,6 +101,7 @@ def create_course(
     d: date | None,
     time_slot: str = "afternoon",
     title: str | None = None,
+    companion: str | None = None,
 ) -> models.Course:
     """테마 유지형 코스(F5) — 대안지들을 동선 그리디로 정렬해 저장."""
     origin = db.get(models.TouristSpot, origin_spot_id)
@@ -114,6 +121,7 @@ def create_course(
     return _build_course(
         db, origin, ordered, visit_date, time_slot,
         title=title or default_title, description=description,
+        companion=companion,
     )
 
 
@@ -128,13 +136,21 @@ def _build_course(
     description: str | None,
     mode: str = "theme",
     slot_themes: list[str] | None = None,
+    selected_spot_ids: set[int] | None = None,
+    companion: str | None = None,
 ) -> models.Course:
     """정렬이 끝난 장소 목록으로 코스·근거·선택 로그를 저장 — 생성/자유여행/교체 공용 경로.
 
     테마 항: 테마 유지형은 원 관광지와의 유사도, 자유여행형은 슬롯 카테고리 적합도
     (theme_keep_pct도 같은 의미로 저장된다).
+    선택 로그(F8): 기본은 전 장소 기록(신규 코스 생성), swap처럼 일부만 새로 선택된
+    경로는 selected_spot_ids로 그 장소만 기록해 추천 부하가 부풀지 않게 한다.
+    동행 유형(F1 라이트): 체류시간 배율과 설명 문구에만 반영(점수 산식 불변).
     """
     weights = load_weights()
+    stay_factor = COMPANION_STAY_FACTOR.get(companion, 1.0)
+    if companion and description:
+        description += f" {COMPANION_LABELS[companion]} 여행 기준으로 체류 시간을 맞췄어요."
 
     origin_risk = compute_risk(db, origin, visit_date, time_slot)["risk"]
     richness = content_richness(db)
@@ -175,9 +191,11 @@ def _build_course(
     course = models.Course(
         title=title, description=description,
         region=origin.region, base_spot_id=origin.spot_id, date=visit_date,
+        time_slot=time_slot,
         level=level_of(avg_alt_risk), relief_pct=relief_pct,
         theme_keep_pct=theme_keep_pct, total_move_min=total_move_min,
         total_distance_km=total_distance_km, mode=mode, slot_themes=slot_themes,
+        companion=companion,
         is_seed=False,
     )
     db.add(course)
@@ -187,7 +205,8 @@ def _build_course(
         is_last = order_no == len(ordered)
         db.add(models.CourseItem(
             course_id=course.course_id, spot_id=spot.spot_id, order_no=order_no,
-            stay_min=STAY_MIN_BY_CATEGORY.get(spot.category_name, 55),
+            stay_min=round(STAY_MIN_BY_CATEGORY.get(spot.category_name, 55)
+                           * stay_factor / 5) * 5,
             move_min=0 if is_last else moves[order_no][0] if order_no < len(moves) else 0,
             move_mode="마무리" if is_last else moves[order_no][1],
             reason_text=spot.highlight,
@@ -198,10 +217,11 @@ def _build_course(
             theme_sim=round(sim, 3), relief_effect=round(relief_effect, 1),
             travel_time=move_min, hidden_score=hidden,
         ))
-        db.add(models.RecommendationLog(
-            spot_id=spot.spot_id, origin_spot_id=origin.spot_id,
-            selected=True, is_seed=False,
-        ))
+        if selected_spot_ids is None or spot.spot_id in selected_spot_ids:
+            db.add(models.RecommendationLog(
+                spot_id=spot.spot_id, origin_spot_id=origin.spot_id,
+                selected=True, is_seed=False,
+            ))
     db.commit()
     db.refresh(course)
     return course
@@ -218,15 +238,25 @@ def recommend_course(
     d: date | None,
     time_slot: str = "afternoon",
     title: str | None = None,
+    mode: str = "free",
+    companion: str | None = None,
+    exclude_spot_ids: set[int] | None = None,
+    variation_seed: str | None = None,
 ) -> models.Course:
     """자유여행 코스(카테고리 시퀀스) — 슬롯마다 해당 카테고리의 최적 장소를 고른다.
 
     슬롯 점수 = AlternativeScore(9-2) 변형: 테마 항을 '슬롯 카테고리 적합도'로 대체하고,
     이동 항은 직전 슬롯 위치 기준으로 계산해 시퀀스 순서(여행지→미식→…)를 보존한다.
+    구간 거리 MAX_LEG_KM 이내 후보를 우선해 동선이 널뛰지 않게 한다.
+    mode="theme"이면(테마 코스 reroll 경로) 시퀀스는 후보 선정에만 쓰고,
+    저장은 테마 유지형(slot_themes 없음, 테마 항=원 관광지 유사도)으로 한다.
+    exclude_spot_ids·variation_seed는 reroll용 — 직전 조합을 빼고, 시드가 바뀔
+    때마다 근소차 후보가 교대해 누를 때마다 실제로 다른 조합이 나온다.
     """
     sequence = list(theme_sequence or FREE_TRAVEL_DEFAULT_SEQUENCE)
     visit_date = d or default_visit_date()
     weights = load_weights()["alternative_score"]
+    excluded = exclude_spot_ids or set()
 
     origin_risk = compute_risk(db, origin, visit_date, time_slot)["risk"]
     eligible = spots_with_congestion_data(db)
@@ -234,24 +264,21 @@ def recommend_course(
         spot for spot in db.scalars(
             select(models.TouristSpot).where(models.TouristSpot.spot_id != origin.spot_id)
         ).all()
-        if spot.spot_id in eligible
+        if spot.spot_id in eligible and spot.spot_id not in excluded
     ]
     richness = content_richness(db)
     low_pctl = visitor_low_percentile(db)
     loads = load_map(db, [spot.spot_id for spot in pool])
     precip = kma_api.get_precip_prob(origin.lat, origin.lng, visit_date, time_slot)
-    # 후보 위험도는 배치 캐시 기준으로 한 번만 산출(F4와 동일한 응답 지연 방지 원칙)
-    pool_risks = {
-        spot.spot_id: compute_risk(db, spot, visit_date, time_slot,
-                                   use_realtime=False)["risk"]
-        for spot in pool
-    }
+    # 후보 위험도는 벌크 쿼리 1회로 산출(수천 후보 대응, F4와 동일 원칙)
+    pool_risks = bulk_risks(db, pool, visit_date, time_slot)
 
     picked: list[models.TouristSpot] = []
     used = {origin.spot_id}
     cur_lat, cur_lng = origin.lat, origin.lng
     for theme in sequence:
-        best, best_score = None, None
+        best, best_score = None, None            # 구간 상한(MAX_LEG_KM) 이내 최고점
+        far_best, far_score = None, None         # 상한 밖 폴백(가까운 후보가 없을 때)
         for spot in pool:
             if spot.spot_id in used:
                 continue
@@ -263,7 +290,8 @@ def recommend_course(
                 max(min((origin_risk - risk) / origin_risk, 1.0), -1.0)
                 if origin_risk > 0 else 0.0
             )
-            move_min, _ = estimate_move(haversine_km(cur_lat, cur_lng, spot.lat, spot.lng))
+            dist_km = haversine_km(cur_lat, cur_lng, spot.lat, spot.lng)
+            move_min, _ = estimate_move(dist_km)
             score = alternative_score(
                 fit, relief_norm, mobility_score(move_min),
                 hidden_gem_score(low_pctl.get(spot.spot_id, 0.5),
@@ -271,8 +299,14 @@ def recommend_course(
                 weather_fit(spot.is_indoor, precip),
                 loads.get(spot.spot_id, 0.0), weights,
             )
-            if best_score is None or score > best_score:
-                best, best_score = spot, score
+            if variation_seed:
+                score += seeded_jitter(spot.spot_id, variation_seed, scale=0.05)
+            if dist_km <= MAX_LEG_KM:
+                if best_score is None or score > best_score:
+                    best, best_score = spot, score
+            elif far_score is None or score > far_score:
+                far_best, far_score = spot, score
+        best = best or far_best
         if best is None:
             raise NoSlotCandidateError(
                 f"'{theme}' 카테고리에서 추천할 만한 장소를 찾지 못했어요."
@@ -281,15 +315,24 @@ def recommend_course(
         used.add(best.spot_id)
         cur_lat, cur_lng = best.lat, best.lng
 
-    default_title = f"{'·'.join(sequence)} 자유여행 코스"
-    description = (
-        f"{origin.name}에서 시작해 {' → '.join(sequence)} 순서로 "
-        f"카테고리를 넘나들며 붐빔을 피하는 자유여행 코스예요."
-    )
+    if mode == "free":
+        default_title = f"{'·'.join(sequence)} 자유여행 코스"
+        description = (
+            f"{origin.name}에서 시작해 {' → '.join(sequence)} 순서로 "
+            f"카테고리를 넘나들며 붐빔을 피하는 자유여행 코스예요."
+        )
+    else:
+        theme_name = sequence[0]
+        default_title = TITLE_BY_THEME.get(theme_name, f"{theme_name} 테마 널널 코스")
+        description = (
+            f"{origin.name}의 매력은 그대로 두고, 같은 {theme_name} 테마의 "
+            f"한적한 장소들로 혼잡만 덜어낸 코스예요."
+        )
     return _build_course(
         db, origin, picked, visit_date, time_slot,
         title=title or default_title, description=description,
-        mode="free", slot_themes=sequence,
+        mode=mode, slot_themes=sequence if mode == "free" else None,
+        companion=companion,
     )
 
 
@@ -301,14 +344,16 @@ def _course_visit_date(course: models.Course) -> date:
 
 
 def course_alternatives(
-    db: Session, course: models.Course, time_slot: str = "afternoon",
+    db: Session, course: models.Course, time_slot: str | None = None,
     limit: int = 2, log_exposure: bool = True,
 ) -> dict:
     """코스 슬롯별 교체 후보(F4 응용) — 코스 구성 장소·기준 장소는 제외.
 
     이동 항은 코스 내 직전 지점 기준이라 동선을 해치지 않는 대안이 우선된다.
     자유여행 코스는 슬롯 카테고리 적합도를, 테마 코스는 현 슬롯 장소와의 유사도를 쓴다.
+    시간대는 기본적으로 코스 생성 시 기준(time_slot)을 따른다.
     """
+    time_slot = time_slot or course.time_slot or "afternoon"
     items = db.scalars(
         select(models.CourseItem).where(models.CourseItem.course_id == course.course_id)
         .order_by(models.CourseItem.order_no)
@@ -333,11 +378,7 @@ def course_alternatives(
     loads = load_map(db, [spot.spot_id for spot in pool])
     anchor = base or spots[0]
     precip = kma_api.get_precip_prob(anchor.lat, anchor.lng, visit_date, time_slot)
-    pool_risks = {
-        spot.spot_id: compute_risk(db, spot, visit_date, time_slot,
-                                   use_realtime=False)["risk"]
-        for spot in pool
-    }
+    pool_risks = bulk_risks(db, pool, visit_date, time_slot)
 
     slot_themes = course.slot_themes or [None] * len(items)
     result_items = []
@@ -445,9 +486,11 @@ def swap_course_item(
               if course.base_spot_id else ordered[0])
 
     return _build_course(
-        db, origin, ordered, _course_visit_date(course), "afternoon",
+        db, origin, ordered, _course_visit_date(course),
+        course.time_slot or "afternoon",
         title=course.title, description=course.description,
         mode=course.mode or "theme", slot_themes=course.slot_themes,
+        selected_spot_ids={new_spot_id}, companion=course.companion,
     )
 
 
@@ -477,9 +520,20 @@ def reroll_course(db: Session, course: models.Course) -> models.Course:
         )
         sequence = [theme] * len(items)
 
+    # 직전 조합은 후보에서 제외하고, 코스 ID를 변주 시드로 써서 누를 때마다
+    # 실제로 다른 조합이 나온다. 제목은 원제 유지(접미사 누적 방지 — 과거
+    # ' 다른 조합' 접미사가 붙은 코스도 원제로 되돌린다).
+    base_title = course.title
+    while base_title.endswith(" 다른 조합"):
+        base_title = base_title[: -len(" 다른 조합")]
+
     return recommend_course(
-        db, origin, sequence, _course_visit_date(course), "afternoon",
-        title=f"{course.title} 다른 조합",
+        db, origin, sequence, _course_visit_date(course),
+        course.time_slot or "afternoon",
+        title=base_title, mode=course.mode or "theme",
+        companion=course.companion,
+        exclude_spot_ids={item.spot_id for item in items},
+        variation_seed=str(course.course_id),
     )
 
 
@@ -605,11 +659,18 @@ def course_detail(db: Session, course: models.Course) -> dict:
     ).all()
 
     slot_themes = course.slot_themes or []
-    timeline = []
+    course_slot = course.time_slot or "afternoon"
+    base_spot = (db.get(models.TouristSpot, course.base_spot_id)
+                 if course.base_spot_id else None)
+    timeline, map_points = [], []
+    if base_spot:
+        map_points.append({"order_no": 0, "name": base_spot.name,
+                           "lat": base_spot.lat, "lng": base_spot.lng})
     for item in items:
         spot = db.get(models.TouristSpot, item.spot_id)
         verb = META_VERB_BY_CATEGORY.get(spot.category_name, "관람")
-        risk = compute_risk(db, spot, course.date or date.today())["risk"] if course.date else 30.0
+        risk = (compute_risk(db, spot, course.date, course_slot)["risk"]
+                if course.date else 30.0)
         timeline.append({
             "order_no": item.order_no, "spot_id": spot.spot_id, "place": spot.name,
             "meta": f"{verb} {item.stay_min}분",
@@ -619,6 +680,8 @@ def course_detail(db: Session, course: models.Course) -> dict:
             "slot_theme": (slot_themes[item.order_no - 1]
                            if item.order_no <= len(slot_themes) else None),
         })
+        map_points.append({"order_no": item.order_no, "name": spot.name,
+                           "lat": spot.lat, "lng": spot.lng})
 
     # 코스 점수(9-3): 근거 수치로 대안 점수를 재구성해 산출
     weights = load_weights()
@@ -639,15 +702,19 @@ def course_detail(db: Session, course: models.Course) -> dict:
     return {
         "course_id": course.course_id, "title": course.title,
         "description": course.description, "region": course.region,
-        "date": course.date, "level": course.level,
+        "date": course.date, "time_slot": course_slot, "level": course.level,
         "label": LEVEL_LABELS[course.level - 1],
         "mode": course.mode or "theme", "slot_themes": course.slot_themes,
+        "companion": course.companion,
+        "companion_label": COMPANION_LABELS.get(course.companion),
         "course_score": score,
         "timeline": timeline,
+        "map_points": map_points,
         "summary": {
             "relief_pct": round(course.relief_pct),
             "theme_keep_pct": round(course.theme_keep_pct),
             "total_move_min": course.total_move_min,
+            "total_distance_km": round(course.total_distance_km or 0, 1),
         },
         "impact_text": f"이 선택으로 예상 혼잡 {round(course.relief_pct)}%를 회피했어요",
         "evidence": [

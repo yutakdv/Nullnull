@@ -21,13 +21,24 @@ from app.seed_data import SLOT_FACTOR, TIME_SLOTS
 from app.services.congestion_service import compute_raw_risk, feedback_bias
 
 WINDOW_DAYS = 30
-TOURAPI_CONTENT_TYPES = (12, 14, 39)  # 관광지, 문화시설, 음식점
+# 관광지, 문화시설, 행사·축제, 레포츠, 쇼핑, 음식점 — 자유여행 슬롯(여행지/미식/포토스팟)
+# 전 카테고리를 커버하도록 확대. 페이지네이션 수집으로 타입당 최대 4천 건.
+TOURAPI_CONTENT_TYPES = (12, 14, 15, 28, 38, 39)
 TOURAPI_CATEGORY_META = {
     "A01": ("자연", ["자연", "포토스팟"], False),
     "A02": ("역사·문화", ["역사", "포토스팟"], False),
-    "A03": ("레저", ["자연", "포토스팟"], False),
+    "A03": ("레포츠", ["자연", "포토스팟"], False),
     "A04": ("시장·골목", ["미식", "포토스팟"], True),
     "A05": ("미식", ["미식"], True),
+}
+# cat1이 비어 있을 때 콘텐츠 타입으로 보정하는 폴백 메타
+CONTENT_TYPE_META = {
+    12: ("관광지", ["자연"], False),
+    14: ("문화시설", ["역사"], True),
+    15: ("행사·축제", ["포토스팟"], False),
+    28: ("레포츠", ["자연"], False),
+    38: ("쇼핑", ["미식"], True),
+    39: ("미식", ["미식"], True),
 }
 
 
@@ -102,8 +113,9 @@ def sync_spots(db: Session) -> int | None:
             spot.cat1, spot.cat2, spot.cat3 = it.get("cat1"), it.get("cat2"), it.get("cat3")
             spot.area_code = int(it.get("areacode", 1) or 1)
             spot.sigungu_code = int(it["sigungucode"]) if it.get("sigungucode") else None
-            category_name, default_tags, is_indoor = TOURAPI_CATEGORY_META.get(
-                spot.cat1, ("관광지", [], False)
+            category_name, default_tags, is_indoor = (
+                TOURAPI_CATEGORY_META.get(spot.cat1)
+                or CONTENT_TYPE_META.get(content_type_id, ("관광지", [], False))
             )
             if spot.category_name == "관광지":
                 spot.category_name = category_name
@@ -311,41 +323,51 @@ def sync_demand(db: Session) -> int | None:
     return count
 
 
-ENRICH_BUDGET = 60   # detailCommon2 일일 호출 예산(전체 쿼터 1000/일 보호)
+ENRICH_BUDGET = 150   # 일일 보강 스팟 수(detailCommon2+detailImage2 = 스팟당 2콜, 쿼터 1000/일 보호)
 
 
 def enrich_spot_content(db: Session) -> int | None:
-    """혼잡 데이터 보유 스팟의 개요(overview)를 detailCommon2로 보강.
+    """스팟 콘텐츠 보강 — detailCommon2(개요) + detailImage2(실측 이미지 수).
 
-    개요 길이는 콘텐츠 풍부도(숨은 명소성 9-2)의 실데이터 항이 된다.
-    하루 ENRICH_BUDGET건씩 순차 보강 — 며칠이면 추천 후보 전체가 채워진다.
+    개요 길이·이미지 수는 콘텐츠 풍부도(숨은 명소성 9-2)의 실데이터 항이다.
+    미보강 스팟이 사실상 풍부도 0으로 깔려 추천 폭이 좁아지는 것을 막기 위해
+    ① KT 혼잡 실측 보유 스팟 → ② 이미지 보유 스팟 순으로 매일 ENRICH_BUDGET건씩 채운다.
     """
     client = tour_api.get_client()
     if not client.enabled:
         return None
-    eligible = select(models.CongestionSnapshot.spot_id).distinct()
+    has_snapshot = models.TouristSpot.spot_id.in_(
+        select(models.CongestionSnapshot.spot_id).distinct()
+    )
     targets = db.scalars(
         select(models.TouristSpot)
         .where(
-            models.TouristSpot.spot_id.in_(eligible),
             models.TouristSpot.overview.is_(None),
             ~models.TouristSpot.content_id.like("seed-%"),
         )
+        .order_by(has_snapshot.desc(),
+                  models.TouristSpot.image_url.is_not(None).desc(),
+                  models.TouristSpot.spot_id.asc())
         .limit(ENRICH_BUDGET)
     ).all()
     count = 0
     for spot in targets:
         rows = client.detail_common(spot.content_id) or []
-        if not rows:
-            continue
-        it = rows[0]
-        overview = (it.get("overview") or "").strip()
-        if overview:
-            spot.overview = overview
-            spot.overview_len = len(overview)
-        if it.get("firstimage") and not spot.image_url:
-            spot.image_url = it["firstimage"]
-            spot.image_count = max(spot.image_count or 0, 1)
+        if rows:
+            it = rows[0]
+            overview = (it.get("overview") or "").strip()
+            if overview:
+                spot.overview = overview
+                spot.overview_len = len(overview)
+            if it.get("firstimage") and not spot.image_url:
+                spot.image_url = it["firstimage"]
+        images = client.detail_images(spot.content_id) or []
+        spot.image_count = max(spot.image_count or 0, len(images),
+                               1 if spot.image_url else 0)
+        if spot.overview is None:
+            # 개요가 없는 스팟도 재조회 대상에서 빠지도록 빈 문자열로 마킹
+            spot.overview = ""
+            spot.overview_len = 0
         count += 1
     db.commit()
     return count

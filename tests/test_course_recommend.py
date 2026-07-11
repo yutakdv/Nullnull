@@ -142,6 +142,65 @@ def test_reroll_creates_new_course_from_same_conditions(client, gyeongbok_id, vi
     assert len(rerolled["timeline"]) == len(course["timeline"])
     assert rerolled["mode"] == "free"
 
+    # '다른 코스 추천'은 이름 그대로 다른 조합이어야 한다 — 직전 구성 장소 전부 제외
+    before_ids = {t["spot_id"] for t in course["timeline"]}
+    after_ids = {t["spot_id"] for t in rerolled["timeline"]}
+    assert before_ids.isdisjoint(after_ids)
+
+    # 한 번 더 눌러도 또 달라진다(변주 시드 = 직전 코스 ID)
+    again = client.post(f"/api/courses/{rerolled['course_id']}/reroll").json()
+    assert {t["spot_id"] for t in again["timeline"]} != after_ids
+
+
+def test_reroll_theme_course_keeps_theme_mode(client, gyeongbok_id, visit_date):
+    """테마 유지형 코스의 reroll은 자유여행으로 바뀌지 않아야 한다(회귀)."""
+    alts = client.get(
+        f"/api/spots/{gyeongbok_id}/alternatives", params={"date": visit_date}
+    ).json()
+    spot_ids = [a["spot_id"] for a in alts["alternatives"]][:3]
+    course = client.post("/api/courses", json={
+        "origin_spot_id": gyeongbok_id, "spot_ids": spot_ids, "date": visit_date,
+    }).json()
+    assert course["mode"] == "theme"
+
+    resp = client.post(f"/api/courses/{course['course_id']}/reroll")
+    assert resp.status_code == 201
+    rerolled = resp.json()
+    assert rerolled["mode"] == "theme"
+    assert rerolled["slot_themes"] is None
+    assert len(rerolled["timeline"]) == len(course["timeline"])
+    assert rerolled["title"] == course["title"]   # 제목 유지('다른 조합' 접미사 누적 방지)
+
+
+def _selection_counts(client) -> dict[int, int]:
+    body = client.get(
+        "/api/admin/ingest-log", headers={"X-Admin-Token": "test-admin"}
+    ).json()
+    return {row["spot_id"]: row["selections"] for row in body["load_distribution"]}
+
+
+def test_swap_logs_only_swapped_spot_selected(client, gyeongbok_id, visit_date):
+    """swap은 교체된 장소 1곳만 선택 로그를 남긴다 — 전 슬롯 중복 기록 방지(회귀, F8)."""
+    course = client.post("/api/courses/recommend", json={
+        "origin_spot_id": gyeongbok_id, "date": visit_date,
+    }).json()
+    alts = client.get(f"/api/courses/{course['course_id']}/alternatives").json()
+    target = next(slot for slot in alts["items"] if slot["alternatives"])
+    new_spot_id = target["alternatives"][0]["spot_id"]
+    kept_spot_ids = [
+        t["spot_id"] for t in course["timeline"] if t["order_no"] != target["order_no"]
+    ]
+
+    before = _selection_counts(client)
+    assert client.post(f"/api/courses/{course['course_id']}/swap", json={
+        "order_no": target["order_no"], "new_spot_id": new_spot_id,
+    }).status_code == 201
+    after = _selection_counts(client)
+
+    assert after.get(new_spot_id, 0) == before.get(new_spot_id, 0) + 1
+    for spot_id in kept_spot_ids:
+        assert after.get(spot_id, 0) == before.get(spot_id, 0)
+
 
 def test_swap_validation(client, gyeongbok_id, visit_date):
     course = client.post("/api/courses/recommend", json={

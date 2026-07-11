@@ -12,12 +12,18 @@ class TourApiClient(DataGoKrClient):
         super().__init__("B551011/KorService2", key)
 
     def area_based_list(self, area_code: int = 1, content_type_id: int = 12,
-                        sigungu_code: int | None = None) -> list[dict] | None:
+                        sigungu_code: int | None = None,
+                        max_pages: int = 4) -> list[dict] | None:
+        """지역 기반 목록 — 페이지네이션 수집(타입당 최대 max_pages×1000건).
+
+        단일 페이지(500건)로 수집하면 음식점 등 대형 타입이 잘려 후보 폭이 좁아진다.
+        """
         params = {"areaCode": area_code, "contentTypeId": content_type_id,
                   "arrange": "Q"}
         if sigungu_code:
             params["sigunguCode"] = sigungu_code
-        return self.get("areaBasedList2", **params)
+        return self.get_paged("areaBasedList2", page_size=1000,
+                              max_pages=max_pages, **params)
 
     def search_keyword(self, keyword: str, area_code: int = 1) -> list[dict] | None:
         return self.get("searchKeyword2", keyword=keyword, areaCode=area_code)

@@ -1,0 +1,12 @@
+# 비밀값 — 절대 커밋 금지(.env.example만 커밋)
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 로컬 DB(기동 시 시드로 재생성, 실데이터는 일배치로 수집)
+nullnull.db
+tests/test_nullnull.db

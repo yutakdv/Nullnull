@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 # 자유여행 슬롯 카테고리 — '여행지'는 일반 관광 명소(요청의 '여행장소')
 SlotTheme = Literal["여행지", "자연", "역사", "미식", "포토스팟"]
+# F1 동행 유형(라이트) — 체류시간·문구에 반영
+Companion = Literal["solo", "couple", "family"]
 
 # ── 공통/스팟 ────────────────────────────────────────────────
 
@@ -110,6 +112,19 @@ class TimeSlotRisk(BaseModel):
     note: str
 
 
+class TimeShiftSuggestion(BaseModel):
+    """행동형 시간 이동 제안 — 탭하면 해당 날짜·시간대로 전환(시간 분산 UX 1순위)."""
+    kind: str                     # slot(같은 날 다른 시간대) | date(다른 요일)
+    date: date_type
+    time_slot: str
+    slot_label: str
+    risk: float
+    level: int
+    label: str
+    decrease_pct: int
+    text: str                     # 예: "같은 날 오전엔 '보통'"
+
+
 class CongestionResponse(BaseModel):
     spot_id: int
     name: str
@@ -128,6 +143,26 @@ class CongestionResponse(BaseModel):
     tip: str
     weekday_comparison: list[WeekdayRisk]
     time_slots: list[TimeSlotRisk]
+    time_shift_suggestions: list[TimeShiftSuggestion] = []
+
+
+class CalendarDay(BaseModel):
+    date: date_type
+    day: str                      # 월~일
+    risk: float
+    level: int
+    label: str
+    is_holiday: bool
+
+
+class SpotCalendarResponse(BaseModel):
+    """30일 널널 캘린더 히트맵(F3) — 예측 창 전체."""
+    spot_id: int
+    name: str
+    time_slot: str
+    window_from: date_type
+    window_to: date_type
+    days: list[CalendarDay]
 
 
 # ── 대안지 추천(F4·F6·F8) ────────────────────────────────────
@@ -146,6 +181,8 @@ class AlternativeItem(BaseModel):
     spot_id: int
     name: str
     image_url: str | None
+    lat: float                    # 지도 마커·경로용 좌표
+    lng: float
     risk: float
     level: int
     label: str
@@ -164,6 +201,8 @@ class OriginSpot(BaseModel):
     spot_id: int
     name: str
     image_url: str | None
+    lat: float
+    lng: float
     date: date_type
     time_slot: str
     risk: float
@@ -192,6 +231,7 @@ class CourseCreateRequest(BaseModel):
     date: date_type | None = None
     time_slot: str = "afternoon"
     title: str | None = None
+    companion: Companion | None = None
 
 
 class CourseRecommendRequest(BaseModel):
@@ -204,6 +244,7 @@ class CourseRecommendRequest(BaseModel):
         description="슬롯 카테고리 순서(예: 여행지→미식→포토스팟). 생략 시 자유여행 기본값",
     )
     title: str | None = None
+    companion: Companion | None = None
 
 
 class CourseSwapRequest(BaseModel):
@@ -228,6 +269,15 @@ class CourseSummaryMetrics(BaseModel):
     relief_pct: int               # 예상 혼잡 감소
     theme_keep_pct: int           # 테마 유지율
     total_move_min: int           # 총 이동시간
+    total_distance_km: float = 0  # 총 이동거리
+
+
+class CourseMapPoint(BaseModel):
+    """코스 경로 지도 마커 — order_no 0은 출발지(원 관광지)."""
+    order_no: int
+    name: str
+    lat: float
+    lng: float
 
 
 class EvidenceItem(BaseModel):
@@ -259,12 +309,16 @@ class CourseDetail(BaseModel):
     description: str | None
     region: str
     date: date_type | None
+    time_slot: str = "afternoon"  # 코스 생성 기준 시간대(대안·교체 재계산에도 사용)
     level: int
     label: str
     mode: str                     # theme(테마 유지) | free(자유여행)
     slot_themes: list[str] | None
+    companion: str | None = None            # F1 동행 유형
+    companion_label: str | None = None      # 혼자|둘이서|가족과
     course_score: float
     timeline: list[TimelineItem]
+    map_points: list[CourseMapPoint] = []
     summary: CourseSummaryMetrics
     impact_text: str              # "이 선택으로 예상 혼잡 42%를 회피했어요"
     evidence: list[EvidenceItem]

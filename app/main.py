@@ -20,6 +20,8 @@ _COLUMN_MIGRATIONS = {
     "course": {
         "mode": "VARCHAR(10) DEFAULT 'theme'",
         "slot_themes": "JSON",
+        "time_slot": "VARCHAR(10) DEFAULT 'afternoon'",
+        "companion": "VARCHAR(10)",
     },
 }
 

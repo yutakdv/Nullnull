@@ -4,6 +4,8 @@
 AlternativeScore(9-2)로 정렬하고, 노출된 대안은 recommendation_log에 기록해
 다음 추천의 부하 페널티(F8 로테이션)에 반영한다.
 """
+import hashlib
+import time
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import String, case, cast, func, or_, select
@@ -16,16 +18,53 @@ from app.scoring.alternative import (
     alternative_score,
     hidden_gem_score,
     mobility_score,
-    recommendation_load,
     theme_similarity,
     weather_fit,
 )
 from app.scoring.congestion import label_of, level_of
 from app.scoring.weights import load_weights
-from app.services.congestion_service import compute_risk
+from app.services.congestion_service import bulk_risks, compute_risk
 
 HIDDEN_GEM_THRESHOLD = 0.35
 DYNAMIC_CANDIDATE_RADIUS_KM = 20.0
+CATEGORY_CAP_IN_TOP = 2      # 대안 상위 목록에서 같은 카테고리 최대 노출 수(다양성)
+
+
+def seeded_jitter(spot_id: int, seed: str, scale: float = 0.02) -> float:
+    """결정적 지터(±scale/2) — 같은 시드에선 재현되고, 시드가 바뀌면 근소차
+    후보들이 교대한다. 일자 로테이션·reroll 변주가 공유하는 유틸."""
+    digest = hashlib.md5(f"{spot_id}:{seed}".encode()).digest()
+    return (digest[0] / 255 - 0.5) * scale
+
+
+def daily_rotation_jitter(spot_id: int, d: date, scale: float = 0.02) -> float:
+    """근소차 후보의 일자별 로테이션용 결정적 지터.
+
+    같은 날에는 항상 같은 결과(시연 안정), 날이 바뀌면 비슷한 점수대의
+    후보가 서로 교대한다 — 추천 분산(F8) 정체성의 정렬 단계 버전.
+    """
+    return seeded_jitter(spot_id, d.isoformat(), scale)
+
+
+def diversify_top(scored: list[dict], limit: int,
+                  category_of, pool_size: int = 12) -> list[dict]:
+    """정렬된 후보에서 같은 카테고리가 상위를 독점하지 않게 상한을 두고 뽑는다."""
+    pool = scored[:max(pool_size, limit)]
+    top, counts = [], {}
+    for item in pool:
+        cat = category_of(item)
+        if counts.get(cat, 0) >= CATEGORY_CAP_IN_TOP:
+            continue
+        top.append(item)
+        counts[cat] = counts.get(cat, 0) + 1
+        if len(top) == limit:
+            return top
+    for item in pool:              # 상한 탓에 모자라면 점수순으로 채움
+        if item not in top:
+            top.append(item)
+            if len(top) == limit:
+                break
+    return top
 
 # 홈 테마 필터·자유여행 슬롯이 함께 쓰는 TourAPI cat1 매핑
 THEME_CAT1_CODES = {
@@ -122,8 +161,37 @@ def candidate_map(db: Session, origin: models.TouristSpot) -> dict[int, float | 
     return {sid: sim for sid, sim in candidates.items() if sid in eligible}
 
 
+# 전 스팟 스캔 통계(풍부도·분위)는 요청마다 다시 계산하지 않는다 — TourAPI 실동기화로
+# 스팟이 수천 곳이 되어도 응답 시간이 유지되도록 프로세스 내 TTL 캐시.
+# 키(스팟·연관 카운트)가 바뀌면 즉시, 값만 바뀌는 경우(일배치 refresh_popularity)는
+# TTL 이내 최대 10분 지연으로 반영된다(랭킹 정밀도에 무해한 수준).
+_STATS_TTL_SEC = 600.0
+_stats_cache: dict[str, tuple[float, tuple[int, int], dict[int, float]]] = {}
+
+
+def _spot_table_key(db: Session) -> tuple[int, int]:
+    return (
+        db.scalar(select(func.count()).select_from(models.TouristSpot)) or 0,
+        db.scalar(select(func.count()).select_from(models.RelatedSpot)) or 0,
+    )
+
+
+def _cached_spot_stats(db: Session, name: str, builder) -> dict[int, float]:
+    key = _spot_table_key(db)
+    hit = _stats_cache.get(name)
+    if hit and hit[1] == key and time.monotonic() - hit[0] < _STATS_TTL_SEC:
+        return hit[2]
+    value = builder(db)
+    _stats_cache[name] = (time.monotonic(), key, value)
+    return value
+
+
 def content_richness(db: Session) -> dict[int, float]:
     """콘텐츠 풍부도(0~1): 이미지 수 + overview 길이 + 연관 목록 등장 횟수의 정규화 합(9-2)."""
+    return _cached_spot_stats(db, "richness", _content_richness)
+
+
+def _content_richness(db: Session) -> dict[int, float]:
     spots = db.scalars(select(models.TouristSpot)).all()
     appearances = dict(
         db.execute(
@@ -141,6 +209,10 @@ def content_richness(db: Session) -> dict[int, float]:
 
 def visitor_low_percentile(db: Session) -> dict[int, float]:
     """방문자수 하위 분위(0~1) — 방문 규모가 작을수록 1에 가깝다."""
+    return _cached_spot_stats(db, "low_percentile", _visitor_low_percentile)
+
+
+def _visitor_low_percentile(db: Session) -> dict[int, float]:
     rows = db.execute(
         select(models.TouristSpot.spot_id, models.TouristSpot.base_popularity)
     ).all()
@@ -152,30 +224,40 @@ def visitor_low_percentile(db: Session) -> dict[int, float]:
 
 
 def load_map(db: Session, candidate_ids: list[int]) -> dict[int, float]:
-    """추천 부하(F8): 최근 7일 노출+선택×2 → 후보군 내 최대값으로 0~1 정규화."""
+    """추천 부하(F8): 최근 7일 노출+선택×2 → 후보군 내 최대값으로 0~1 정규화.
+
+    합성 시드 로그는 seed_weight(기본 0.5)로 감액 집계한다 — 시드가 정규화 분모를
+    지배해 실사용 노출의 로테이션 효과가 묻히는 것을 방지(콜드스타트 시연은 유지).
+    """
     lw = load_weights()["recommendation_load"]
+    seed_w = lw.get("seed_weight", 0.5)
     since = datetime.now() - timedelta(days=lw["window_days"])
-    rows = db.execute(
-        select(
-            models.RecommendationLog.spot_id,
-            func.count(),
-            func.sum(case((models.RecommendationLog.selected.is_(True), 1), else_=0)),
-        )
-        .where(
-            models.RecommendationLog.spot_id.in_(candidate_ids),
-            models.RecommendationLog.exposed_at >= since,
-        )
-        .group_by(models.RecommendationLog.spot_id)
-    ).all()
-    counts = {sid: (int(total), int(sel or 0)) for sid, total, sel in rows}
-    raws = {
-        sid: exposures + lw["select_weight"] * selections
-        for sid, (exposures, selections) in counts.items()
-    }
-    max_raw = max(raws.values()) if raws else 0
+    L = models.RecommendationLog
+    raws: dict[int, float] = {}
+    for chunk in range(0, len(candidate_ids), 900):
+        rows = db.execute(
+            select(
+                L.spot_id,
+                func.sum(case((L.is_seed.is_(False), 1.0), else_=seed_w)),
+                func.sum(case(
+                    ((L.selected.is_(True)) & (L.is_seed.is_(False)), 1.0),
+                    ((L.selected.is_(True)) & (L.is_seed.is_(True)), seed_w),
+                    else_=0.0,
+                )),
+            )
+            .where(
+                L.spot_id.in_(candidate_ids[chunk:chunk + 900]),
+                L.exposed_at >= since,
+            )
+            .group_by(L.spot_id)
+        ).all()
+        for sid, exposures, selections in rows:
+            raws[sid] = float(exposures or 0) + lw["select_weight"] * float(selections or 0)
+    max_raw = max(raws.values()) if raws else 0.0
+    if max_raw <= 0:
+        return {sid: 0.0 for sid in candidate_ids}
     return {
-        sid: recommendation_load(*counts.get(sid, (0, 0)), max_raw=max_raw,
-                                 select_weight=lw["select_weight"])
+        sid: round(min(raws.get(sid, 0.0) / max_raw, 1.0), 4)
         for sid in candidate_ids
     }
 
@@ -221,25 +303,26 @@ def get_alternatives(
     loads = load_map(db, list(candidates))
     precip = kma_api.get_precip_prob(origin.lat, origin.lng, d, time_slot)
 
+    # 후보 수천 곳 대응: 위험도는 벌크 쿼리 1회로 산출(N+1 제거),
+    # 서울 실시간 HTTP는 원 관광지에서만 쓰고 후보는 배치 캐시 기준으로 비교한다
+    candidate_spots = [db.get(models.TouristSpot, sid) for sid in candidates]
+    pool_risks = bulk_risks(db, candidate_spots, d, time_slot)
+
     scored = []
     for spot_id, related_sim in candidates.items():
         spot = db.get(models.TouristSpot, spot_id)
-        # 후보 수백 곳을 도는 루프 — 서울 실시간 HTTP는 원 관광지에서만 쓰고
-        # 후보는 배치 캐시(예측 기준)로 일관되게 비교한다(응답 지연 방지)
-        alt_risk = compute_risk(db, spot, d, time_slot, use_realtime=False)["risk"]
+        alt_risk = pool_risks[spot_id]
         # 혼잡 완화 효과: 원 관광지 대비 감소 비율(0~1) — 표시되는 감소율과 동일 기준
         relief_norm = (
             max(min((origin_risk["risk"] - alt_risk) / origin_risk["risk"], 1.0), -1.0)
             if origin_risk["risk"] > 0 else 0.0
         )
 
-        kakao = kakao_api.directions(origin.lng, origin.lat, spot.lng, spot.lat)
-        if kakao:
-            dist_km, move_min = kakao
-            mode = "차량" if dist_km > 1.2 else "도보"
-        else:
-            dist_km = haversine_km(origin.lat, origin.lng, spot.lat, spot.lng)
-            move_min, mode = estimate_move(dist_km)
+        # 후보 전수(실데이터 기준 수백 곳)는 하버사인 추정으로 랭킹한다 — 후보마다
+        # 카카오 길찾기 HTTP를 부르면 응답이 수십 초로 늘고 무료 쿼터가 소진된다.
+        # 실측 이동시간은 아래에서 선정된 top에만 반영.
+        dist_km = haversine_km(origin.lat, origin.lng, spot.lat, spot.lng)
+        move_min, mode = estimate_move(dist_km)
 
         theme = theme_similarity(
             spot_categories(origin), spot_categories(spot), related_sim,
@@ -259,6 +342,7 @@ def get_alternatives(
         similarity_pct = round(theme * 100)
         scored.append({
             "spot": spot, "risk": alt_risk, "score": score,
+            "sort_score": score + daily_rotation_jitter(spot_id, d),
             "decrease_pct": max(decrease_pct, 0),
             "travel_time_min": move_min, "travel_mode": mode, "distance_km": dist_km,
             "similarity_pct": similarity_pct,
@@ -270,13 +354,25 @@ def get_alternatives(
             },
         })
 
-    scored.sort(key=lambda x: x["score"], reverse=True)
+    # 일자 지터를 더한 정렬 — 근소차 후보가 날마다 교대(노출 다양성),
+    # 같은 날에는 결정적(시연 안정). 표시 점수는 지터 없는 원 점수.
+    scored.sort(key=lambda x: x["sort_score"], reverse=True)
     # "더 한적한 곳" 원칙(F4): 원 관광지보다 낮고 '보통' 이하인 후보를 우선하고,
     # 부족할 때만 점수순으로 채운다(대안이 또 다른 과밀지가 되지 않도록)
     primary = [s for s in scored
                if s["risk"] < origin_risk["risk"] and level_of(s["risk"]) <= 3]
     rest = [s for s in scored if s not in primary]
-    top = (primary + rest)[:limit]
+    # 같은 카테고리가 상위를 독점하지 않게 다양성 상한을 두고 선정
+    top = diversify_top(primary + rest, limit,
+                        category_of=lambda s: s["spot"].category_name)
+
+    # 선정된 top에만 카카오 길찾기로 이동시간·거리를 실측치로 교체(카드 근거 정확도)
+    for it in top:
+        kakao = kakao_api.directions(origin.lng, origin.lat,
+                                     it["spot"].lng, it["spot"].lat)
+        if kakao:
+            it["distance_km"], it["travel_time_min"] = kakao
+            it["travel_mode"] = "차량" if it["distance_km"] > 1.2 else "도보"
 
     if log_exposure:
         for item in top:
@@ -290,6 +386,7 @@ def get_alternatives(
         {
             "spot_id": it["spot"].spot_id, "name": it["spot"].name,
             "image_url": it["spot"].image_url,
+            "lat": it["spot"].lat, "lng": it["spot"].lng,
             "risk": it["risk"], "level": level_of(it["risk"]), "label": label_of(it["risk"]),
             "decrease_pct": it["decrease_pct"],
             "travel_time_min": it["travel_time_min"], "travel_mode": it["travel_mode"],
@@ -323,6 +420,7 @@ def get_alternatives(
     return {
         "origin": {
             "spot_id": origin.spot_id, "name": origin.name, "image_url": origin.image_url,
+            "lat": origin.lat, "lng": origin.lng,
             "date": d, "time_slot": time_slot,
             "risk": origin_risk["risk"], "level": level_of(origin_risk["risk"]),
             "label": label_of(origin_risk["risk"]),

@@ -1,0 +1,38 @@
+# 통합 일배치(기획서 10-1) — ① 공사 OpenAPI 수집 ② 피드백 보정 ③ 점수 캐시 재계산
+#
+# 사용 조건: 저장소 Secrets에 운영 DB(DATABASE_URL, PostgreSQL 권장)와 API 키를 등록해야
+# 실제로 수집된다. Secrets가 없으면 이 워크플로는 안내만 남기고 종료한다(로컬/서버 크론으로
+# `python -m app.batch.daily`를 돌리는 구성도 동일하게 유효).
+name: Daily Batch
+
+on:
+  schedule:
+    - cron: "0 20 * * *"   # 매일 05:00 KST (UTC 20:00)
+  workflow_dispatch:        # 수동 실행(시연 전 데이터 갱신)
+
+jobs:
+  batch:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      KTO_API_KEY: ${{ secrets.KTO_API_KEY }}
+      KMA_API_KEY: ${{ secrets.KMA_API_KEY }}
+      SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Secrets 확인
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::DATABASE_URL secret이 없어 배치를 건너뜁니다. 운영 DB(PostgreSQL) 연결 정보를 등록하세요."
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+      - if: env.skip != 'true'
+        run: pip install -r requirements.txt psycopg2-binary
+      - if: env.skip != 'true'
+        run: python -m app.batch.daily

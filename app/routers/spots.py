@@ -11,14 +11,16 @@ from app.database import get_db
 from app.services import course_service
 from app.services.congestion_service import (
     SLOT_LABELS,
-    compute_risk,
+    bulk_risks,
     default_visit_date,
+    get_calendar_view,
     get_congestion_view,
     source_notice,
     validate_visit_date,
 )
 from app.services.impact_service import HIDDEN_POPULARITY_MAX
 from app.services.recommend_service import (
+    daily_rotation_jitter,
     get_alternatives,
     spot_theme_tags,
     theme_filter,
@@ -114,56 +116,62 @@ def home_spots(
 
     query = select(models.TouristSpot).where(*active_filters)
 
+    # KT 혼잡 실측(스냅샷) 보유 스팟을 우선한다 — 근거 있는 추천이 먼저,
+    # 그다음 이미지·개요 등 콘텐츠 품질 순(가나다순 잡동사니 상위 노출 방지)
+    snap_ids = set(db.scalars(select(models.CongestionSnapshot.spot_id).distinct()).all())
+    has_snapshot = models.TouristSpot.spot_id.in_(
+        select(models.CongestionSnapshot.spot_id).distinct())
     has_image = models.TouristSpot.image_url.is_not(None)
-    has_overview = models.TouristSpot.overview.is_not(None)
+    has_overview = models.TouristSpot.overview_len > 0
     candidates = db.scalars(
         query.order_by(
+            has_snapshot.desc(),
             has_image.desc(),
             has_overview.desc(),
             models.TouristSpot.base_popularity.desc(),
             models.TouristSpot.name.asc(),
-        ).limit(limit * 5)
+        ).limit(limit * 8)
     ).all()
     candidates = [spot for spot in candidates if not is_past_event_listing(spot)]
 
+    # 홈 카드 위험도는 배치 캐시 벌크 조회로 즉시 응답(실시간은 상세 화면에서)
+    risk_by_slot = {
+        slot: bulk_risks(db, candidates, visit_date, slot)
+        for slot in ("morning", "afternoon", "evening")
+    }
     scored = []
     for spot in candidates:
-        # 홈 카드 여러 장을 그릴 때 서울시 API를 연속 호출하지 않는다.
-        # 실시간 조회는 선택한 장소의 상세 화면에서 수행하고, 홈은 배치 캐시로 즉시 응답한다.
-        slot_risks = {
-            slot: compute_risk(db, spot, visit_date, slot, use_realtime=False)
-            for slot in ("morning", "afternoon", "evening")
-        }
-        current = slot_risks[time_slot]
-        best_slot = min(slot_risks, key=lambda slot: slot_risks[slot]["risk"])
+        current = risk_by_slot[time_slot][spot.spot_id]
+        best_slot = min(risk_by_slot, key=lambda slot: risk_by_slot[slot][spot.spot_id])
         tags = spot_theme_tags(spot)
         content_quality = sum((
+            spot.spot_id in snap_ids,          # 혼잡 실측 근거 보유
             bool(spot.tags),
             bool(spot.overview_len),
             spot.category_name != "관광지",
         ))
         scored.append((spot, current, best_slot, content_quality, tags))
 
-    # TourAPI 세부 정보가 있는 장소를 먼저 보여주고, 그 안에서 널널한 순으로 정리한다.
+    # 품질 우선 → 널널한 순. 근소차에는 일자 지터를 더해 노출을 로테이션한다
+    # (같은 날은 결정적, 날이 바뀌면 비슷한 스팟끼리 교대 — 추천 분산 원칙의 홈 버전)
     scored.sort(
         key=lambda item: (
             -item[3],
-            item[1]["risk"],
-            -(item[0].overview_len or 0),
-            -item[0].base_popularity,
+            item[1] + daily_rotation_jitter(item[0].spot_id, visit_date, scale=8.0),
             item[0].name,
         )
     )
     items = []
     for spot, current, best_slot, _, tags in scored[:limit]:
+        source = "snapshot" if spot.spot_id in snap_ids else "heuristic"
         items.append({
             **schemas.SpotSummary.model_validate(spot).model_dump(),
             "tags": tags,
-            "risk": current["risk"],
-            "level": level_of(current["risk"]),
-            "label": label_of(current["risk"]),
-            "source": current["source"],
-            "based_on": source_notice(current["source"]),
+            "risk": current,
+            "level": level_of(current),
+            "label": label_of(current),
+            "source": source,
+            "based_on": source_notice(source),
             "best_time_slot": best_slot,
             "best_time_slot_label": SLOT_LABELS[best_slot],
         })
@@ -223,6 +231,17 @@ def spot_congestion(
     return get_congestion_view(db, spot, visit_date, time_slot)
 
 
+@router.get("/{spot_id}/calendar", response_model=schemas.SpotCalendarResponse)
+def spot_calendar(
+    spot_id: int,
+    time_slot: str = Query("afternoon", pattern=TIME_SLOT_PATTERN),
+    db: Session = Depends(get_db),
+):
+    """30일 널널 캘린더(F3 시간 분산 히트맵) — 예측 창 전체의 일별 널널도."""
+    spot = get_spot_or_404(db, spot_id)
+    return get_calendar_view(db, spot, time_slot)
+
+
 @router.get("/{spot_id}/alternatives", response_model=schemas.AlternativesResponse)
 def spot_alternatives(
     spot_id: int,
@@ -230,11 +249,15 @@ def spot_alternatives(
     time_slot: str = Query("afternoon", pattern=TIME_SLOT_PATTERN),
     themes: str | None = Query(None, description="테마 필터(쉼표 구분: 역사,자연,미식,포토스팟)"),
     limit: int = Query(3, ge=1, le=5),
+    log_exposure: bool = Query(
+        True, description="노출 로그 기록 여부 — FE 프리페치는 false로 호출(F8 부하 왜곡 방지)"
+    ),
     db: Session = Depends(get_db),
 ):
-    """대안지 추천(F4). 노출 로그를 기록해 추천 부하(F8)에 반영한다."""
+    """대안지 추천(F4). 사용자에게 실제 노출될 때 로그를 기록해 추천 부하(F8)에 반영한다."""
     spot = get_spot_or_404(db, spot_id)
     visit_date = date or default_visit_date()
     validate_visit_date(visit_date)
     theme_list = [t.strip() for t in themes.split(",") if t.strip()] if themes else None
-    return get_alternatives(db, spot, visit_date, time_slot, theme_list, limit)
+    return get_alternatives(db, spot, visit_date, time_slot, theme_list, limit,
+                            log_exposure=log_exposure)

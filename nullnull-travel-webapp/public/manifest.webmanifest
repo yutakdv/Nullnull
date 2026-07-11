@@ -1,0 +1,18 @@
+{
+  "name": "널널 Nullnull — 널널한 여행 추천",
+  "short_name": "널널",
+  "description": "붐비는 곳 말고, 널널한 여행 — 오버투어리즘 분산 코스 추천",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8faf8",
+  "theme_color": "#6faf8f",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

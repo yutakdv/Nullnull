@@ -183,6 +183,76 @@ def compute_risk(
     return {"risk": final, "raw_risk": raw, "adjusted": applied, "source": source}
 
 
+def _chunked(items: list, size: int = 900):
+    """SQLite IN 절 변수 한도(999) 보호용 청크."""
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
+def bulk_risks(
+    db: Session,
+    spots: list[models.TouristSpot],
+    d: date,
+    time_slot: str = "afternoon",
+) -> dict[int, float]:
+    """후보 풀 전체의 널널도를 벌크 쿼리로 산출 — 요청 경로의 N+1 제거.
+
+    우선순위는 compute_risk와 동일: 배치 캐시(보정 포함) → 스냅샷 → 휴리스틱.
+    (캐시 미보유 스팟의 피드백 보정은 생략 — 보정 대상 스팟은 일배치가 캐시를
+    채우므로 실서비스 경로에서는 차이가 없다.)
+    """
+    ids = [s.spot_id for s in spots]
+    out: dict[int, float] = {}
+    for chunk in _chunked(ids):
+        rows = db.execute(
+            select(models.SpotScoreDaily.spot_id,
+                   models.SpotScoreDaily.congestion_risk,
+                   models.SpotScoreDaily.adjusted_risk)
+            .where(models.SpotScoreDaily.spot_id.in_(chunk),
+                   models.SpotScoreDaily.date == d,
+                   models.SpotScoreDaily.time_slot == time_slot)
+        ).all()
+        for sid, raw, adjusted in rows:
+            out[sid] = adjusted if adjusted is not None else raw
+
+    remaining = [s for s in spots if s.spot_id not in out]
+    if not remaining:
+        return out
+
+    snap_map: dict[int, float] = {}
+    for chunk in _chunked([s.spot_id for s in remaining]):
+        rows = db.execute(
+            select(models.CongestionSnapshot.spot_id,
+                   models.CongestionSnapshot.congestion_score)
+            .where(models.CongestionSnapshot.spot_id.in_(chunk),
+                   models.CongestionSnapshot.date == d,
+                   models.CongestionSnapshot.time_slot == time_slot)
+        ).all()
+        snap_map.update(dict(rows))
+
+    region_map = {
+        r.area_code: r
+        for r in db.scalars(
+            select(models.RegionStatDaily).where(
+                models.RegionStatDaily.area_code.in_(
+                    {s.area_code for s in remaining}),
+                models.RegionStatDaily.date == d,
+            )
+        )
+    }
+    weights = load_weights()["congestion_risk"]
+    calendar = calendar_weather_component(d, KR_HOLIDAYS)   # 날씨 항은 배치 캐시 전용
+    for s in remaining:
+        region = region_map.get(s.area_code)
+        out[s.spot_id] = congestion_risk(
+            snap_map.get(s.spot_id, s.base_popularity),
+            region.visitor_index if region else None,
+            region.demand_intensity if region else None,
+            calendar, weights,
+        )
+    return out
+
+
 SLOT_NOTE_BY_RANK = ["가장 널널한 시간대", "무난한 시간대", "가장 붐비는 시간대"]
 
 
@@ -230,11 +300,31 @@ def get_congestion_view(
     best_slot = min(TIME_SLOTS, key=lambda s: slot_risks[s])
     tip = f"{SLOT_LABELS[best_slot]} 방문 시 체류 밀도가 가장 낮아요."
     others = [w for w in weekday_comparison if not w["is_selected"]]
-    if others:
-        best_day = min(others, key=lambda w: w["risk"])
-        if best_day["risk"] < main["risk"] - 5:
-            tip += (f" {best_day['date'].month}월 {best_day['date'].day}일"
-                    f"({best_day['day']})엔 '{best_day['label']}' 수준이에요.")
+    best_day = min(others, key=lambda w: w["risk"]) if others else None
+    if best_day and best_day["risk"] < main["risk"] - 5:
+        tip += (f" {best_day['date'].month}월 {best_day['date'].day}일"
+                f"({best_day['day']})엔 '{best_day['label']}' 수준이에요.")
+
+    # 행동형 시간 이동 제안(기획서 UX 원칙: 대안 제시 전에 시간 분산부터) —
+    # FE가 칩으로 렌더링하고, 탭하면 해당 날짜·시간대로 전환 재조회한다.
+    def _suggestion(kind: str, dt: date, slot: str, risk: float) -> dict:
+        decrease = round((main["risk"] - risk) / main["risk"] * 100) if main["risk"] else 0
+        when = (f"같은 날 {SLOT_LABELS[slot]}" if kind == "slot"
+                else f"{dt.month}월 {dt.day}일({DAY_LABELS[dt.weekday()]}) {SLOT_LABELS[slot]}")
+        return {
+            "kind": kind, "date": dt, "time_slot": slot,
+            "slot_label": SLOT_LABELS[slot],
+            "risk": risk, "level": level_of(risk), "label": label_of(risk),
+            "decrease_pct": max(decrease, 0),
+            "text": f"{when}엔 '{label_of(risk)}'",
+        }
+
+    suggestions = []
+    if best_slot != time_slot and slot_risks[best_slot] < main["risk"] - 5:
+        suggestions.append(_suggestion("slot", d, best_slot, slot_risks[best_slot]))
+    if best_day and best_day["risk"] < main["risk"] - 5:
+        suggestions.append(
+            _suggestion("date", best_day["date"], time_slot, best_day["risk"]))
 
     return {
         "spot_id": spot.spot_id, "name": spot.name, "date": d, "time_slot": time_slot,
@@ -244,4 +334,30 @@ def get_congestion_view(
         "source": main["source"], "based_on": source_notice(main["source"]),
         "window_from": today, "window_to": window_to,
         "tip": tip, "weekday_comparison": weekday_comparison, "time_slots": time_slots,
+        "time_shift_suggestions": suggestions,
+    }
+
+
+def get_calendar_view(db: Session, spot: models.TouristSpot,
+                      time_slot: str = "afternoon") -> dict:
+    """30일 널널 캘린더(시간 분산 히트맵) — 예측 창 전체의 일별 널널도.
+
+    spot_score_daily 배치 캐시를 읽으므로 31회 조회여도 저비용이다.
+    """
+    settings = get_settings()
+    today = date.today()
+    days = []
+    for offset in range(settings.forecast_window_days + 1):
+        dt = today + timedelta(days=offset)
+        risk = compute_risk(db, spot, dt, time_slot, use_realtime=False)["risk"]
+        days.append({
+            "date": dt, "day": DAY_LABELS[dt.weekday()],
+            "risk": risk, "level": level_of(risk), "label": label_of(risk),
+            "is_holiday": dt in KR_HOLIDAYS,
+        })
+    return {
+        "spot_id": spot.spot_id, "name": spot.name, "time_slot": time_slot,
+        "window_from": today,
+        "window_to": today + timedelta(days=settings.forecast_window_days),
+        "days": days,
     }

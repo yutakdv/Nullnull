@@ -34,3 +34,4 @@ feedback:                   # 9-4 피드백 보정
 recommendation_load:        # 9-2 추천 부하(F8)
   window_days: 7            # 최근 7일
   select_weight: 2          # 노출 1점 + 선택 2점
+  seed_weight: 0.5          # 합성 시드 로그 감액 계수(실사용 로테이션이 묻히지 않게)
