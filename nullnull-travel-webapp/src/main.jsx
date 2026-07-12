@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -44,6 +44,8 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
+// three.js는 무거우므로 지연 로드 — 로드 전까지는 HeroScene을 폴백으로 보여준다
+const SeoulMap3D = lazy(() => import('./SeoulMap3D.jsx'));
 import './styles.css';
 
 // 기본은 same-origin(/api/...) 호출:
@@ -1317,7 +1319,9 @@ function HomeScreen({
   return (
     <section className="screen home-screen">
       <div className="hero-panel" style={{ '--hero-collapse': `${heroCollapse}px` }}>
-        <HeroScene />
+        <Suspense fallback={<HeroScene />}>
+          <SeoulMap3D spots={homeSpots} fallback={<HeroScene />} />
+        </Suspense>
         <div className="hero-overlay" />
         <div className="hero-content">
           <Tag icon={Sparkles}>

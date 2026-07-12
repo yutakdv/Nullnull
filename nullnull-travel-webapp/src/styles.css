@@ -3753,6 +3753,20 @@ body {
   background: linear-gradient(180deg, #a8cdb9 0%, #6ba286 42%, #35604c 78%, #22453a 100%);
 }
 
+/* 3D 프리미엄 히어로 — HeroScene와 동일한 브랜드 그라데이션 위에 three.js 서울을 얹는다 */
+.seoul-map-3d {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #a8cdb9 0%, #6ba286 42%, #35604c 78%, #22453a 100%);
+}
+
+.seoul-map-3d canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .scene-sky {
   position: absolute;
   inset: 0;
