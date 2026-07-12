@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.external import kakao_api, kma_api, openai_api
-from app.geo import estimate_move, haversine_km
+from app.geo import estimate_move, haversine_km, walk_minutes
 from app.scoring.alternative import (
     alternative_score,
     companion_fit,
@@ -85,13 +85,19 @@ def _greedy_order(origin: models.TouristSpot,
     return ordered
 
 
-def _move_between(a_lat: float, a_lng: float, s: models.TouristSpot) -> tuple[int, str, float]:
+def _move_between(
+    a_lat: float, a_lng: float, s: models.TouristSpot, transport: str | None = None,
+) -> tuple[int, str, float]:
     kakao = kakao_api.directions(a_lng, a_lat, s.lng, s.lat)
     if kakao:
-        dist_km, move_min = kakao
+        dist_km, move_min = kakao          # 카카오 dist_km는 이미 도로 거리
+        if transport == "walk":
+            return walk_minutes(dist_km), "도보", dist_km
+        if transport == "car":
+            return move_min, "차량", dist_km
         return move_min, ("차량" if dist_km > 1.2 else "도보"), dist_km
     dist_km = haversine_km(a_lat, a_lng, s.lat, s.lng)
-    move_min, mode = estimate_move(dist_km)
+    move_min, mode = estimate_move(dist_km, transport)
     return move_min, mode, dist_km
 
 
@@ -139,6 +145,7 @@ def _build_course(
     slot_themes: list[str] | None = None,
     selected_spot_ids: set[int] | None = None,
     companion: str | None = None,
+    transport: str | None = None,
 ) -> models.Course:
     """정렬이 끝난 장소 목록으로 코스·근거·선택 로그를 저장 — 생성/자유여행/교체 공용 경로.
 
@@ -161,7 +168,7 @@ def _build_course(
     moves: list[tuple[int, str, float]] = []
     cur_lat, cur_lng = origin.lat, origin.lng
     for spot in ordered:
-        moves.append(_move_between(cur_lat, cur_lng, spot))
+        moves.append(_move_between(cur_lat, cur_lng, spot, transport))
         cur_lat, cur_lng = spot.lat, spot.lng
 
     theme_sims, risks, evidences = [], [], []
@@ -411,17 +418,18 @@ def _course_title_desc(llm_course, district, index):
 
 
 def _materialize_course(db, *, reference, ordered, visit_date, time_slot, companion,
-                        llm_course, district, index):
+                        llm_course, district, index, transport=None):
     title, desc = _course_title_desc(llm_course, district, index)
     return _build_course(
         db, reference, ordered, visit_date, time_slot,
         title=title, description=desc, mode="free",
         slot_themes=[_dominant_theme(s) for s in ordered], companion=companion,
+        transport=transport,
     )
 
 
 def _build_llm_payload(pool, risks, reference, *, district, stops, companion,
-                       visit_date, themes, pace, indoor_pref, count):
+                       visit_date, themes, pace, indoor_pref, count, transport=None):
     def brief(s):
         return {"spot_id": s.spot_id, "name": s.name, "category": s.category_name,
                 "lat": round(s.lat, 5), "lng": round(s.lng, 5),
@@ -434,6 +442,7 @@ def _build_llm_payload(pool, risks, reference, *, district, stops, companion,
             "companion": companion, "interests": themes, "pace": pace,
             "indoor_preference": indoor_pref, "stops_per_course": stops,
             "course_count": count,
+            "transport": {"walk": "도보", "car": "차량"}.get(transport),
         },
         "avoid_reference": {"spot_id": reference.spot_id, "name": reference.name,
                             "risk": round(risks.get(reference.spot_id, 0.0), 1)},
@@ -442,7 +451,7 @@ def _build_llm_payload(pool, risks, reference, *, district, stops, companion,
 
 
 def _materialize_llm_courses(db, raw, pool, reference, *, visit_date, time_slot,
-                             companion, stops, district):
+                             companion, stops, district, transport=None):
     """LLM 응답의 spot_id를 후보 풀로 검증(환각 제거)·중복 제거·부족분 보충 후 실체화."""
     by_id = {s.spot_id: s for s in pool if s.spot_id != reference.spot_id}
     supplement = [s for s in pool if s.spot_id != reference.spot_id]
@@ -466,12 +475,12 @@ def _materialize_llm_courses(db, raw, pool, reference, *, visit_date, time_slot,
         courses.append(_materialize_course(
             db, reference=reference, ordered=ordered, visit_date=visit_date,
             time_slot=time_slot, companion=companion, llm_course=lc,
-            district=district, index=i))
+            district=district, index=i, transport=transport))
     return courses
 
 
 def _algorithmic_multi_courses(db, pool, reference, *, stops, companion,
-                               visit_date, time_slot, district, count):
+                               visit_date, time_slot, district, count, transport=None):
     """폴백 — 후보 풀에서 시작점을 회전시켜 서로 다른 널널 코스 count개를 만든다."""
     picks = [s for s in pool if s.spot_id != reference.spot_id]
     courses = []
@@ -485,19 +494,29 @@ def _algorithmic_multi_courses(db, pool, reference, *, stops, companion,
         courses.append(_materialize_course(
             db, reference=reference, ordered=ordered, visit_date=visit_date,
             time_slot=time_slot, companion=companion, llm_course=None,
-            district=district, index=i))
+            district=district, index=i, transport=transport))
     return courses
 
 
 def ai_recommend_courses(db, *, district, stops, companion, visit_date, time_slot,
-                         themes, pace, indoor_pref, count=3):
+                         themes, pace, indoor_pref, transport=None, count=3):
     """AI 코스 추천 — 후보 큐레이션 → LLM 구성(가능 시) → 검증/실체화, 실패 시 알고리즘 폴백.
 
+    transport='walk'면 가장 널널한 후보를 중심으로 도보권(반경 2~5km) 후보만 남겨
+    모든 구간이 걸어서 이어지게 하고, 이동 시간도 도보 기준으로 계산한다.
     반환: (코스 리스트, source) — source ∈ {"llm", "algorithm"}.
     """
     pool, risks = _curate_candidates(
         db, district=district, themes=themes, visit_date=visit_date,
         time_slot=time_slot, stops=stops)
+    if transport == "walk" and len(pool) > stops:
+        anchor = pool[0]                       # 가장 널널한 후보를 도보권의 중심으로
+        for radius_km in (2.0, 3.5, 5.0):
+            compact = [s for s in pool
+                       if haversine_km(anchor.lat, anchor.lng, s.lat, s.lng) <= radius_km]
+            if len(compact) >= stops + 1:
+                pool = compact
+                break
     if len(pool) < 2:
         raise NoSlotCandidateError("이 조건에서 추천할 장소를 찾지 못했어요.")
     reference = _crowd_reference(
@@ -514,16 +533,18 @@ def ai_recommend_courses(db, *, district, stops, companion, visit_date, time_slo
             reference = pool[-1]                     # 폴백: 풀에서 가장 붐비는 곳
     payload = _build_llm_payload(
         pool, risks, reference, district=district, stops=stops, companion=companion,
-        visit_date=visit_date, themes=themes, pace=pace, indoor_pref=indoor_pref, count=count)
+        visit_date=visit_date, themes=themes, pace=pace, indoor_pref=indoor_pref,
+        count=count, transport=transport)
     raw = openai_api.complete_courses(payload)
     courses = _materialize_llm_courses(
         db, raw, pool, reference, visit_date=visit_date, time_slot=time_slot,
-        companion=companion, stops=stops, district=district) if raw else []
+        companion=companion, stops=stops, district=district,
+        transport=transport) if raw else []
     if courses:
         return courses, "llm"
     fallback = _algorithmic_multi_courses(
         db, pool, reference, stops=stops, companion=companion, visit_date=visit_date,
-        time_slot=time_slot, district=district, count=count)
+        time_slot=time_slot, district=district, count=count, transport=transport)
     return fallback, "algorithm"
 
 

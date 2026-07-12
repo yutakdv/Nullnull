@@ -67,7 +67,8 @@ def ai_recommend(body: schemas.AiCourseRequest, db: Session = Depends(get_db)):
         courses, source = course_service.ai_recommend_courses(
             db, district=body.district, stops=body.stops, companion=body.companion,
             visit_date=visit_date, time_slot=body.time_slot, themes=body.themes,
-            pace=body.pace, indoor_pref=body.indoor_pref, count=3)
+            pace=body.pace, indoor_pref=body.indoor_pref, transport=body.transport,
+            count=3)
     except course_service.NoSlotCandidateError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return {"source": source,

@@ -341,6 +341,9 @@ class AiCourseRequest(BaseModel):
     themes: list[str] = Field(default_factory=list, description="관심 테마(다중)")
     pace: Literal["여유", "보통"] = "여유"
     indoor_pref: Literal["상관없음", "실내", "실외"] = "상관없음"
+    transport: Literal["walk", "car"] | None = Field(
+        None, description="이동 방식 — walk면 도보권 후보로 좁히고 도보 시간, car면 차량 기준",
+    )
 
 
 class AiCourseResponse(BaseModel):

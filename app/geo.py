@@ -15,9 +15,25 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return round(2 * r * math.asin(math.sqrt(a)), 3)
 
 
-def estimate_move(dist_km: float) -> tuple[int, str]:
-    """(이동시간 분, 이동수단) — 직선거리에 도로 우회계수 1.35 반영."""
+def walk_minutes(road_km: float) -> int:
+    return max(int(road_km / WALK_KMH * 60), 3)
+
+
+def drive_minutes(road_km: float) -> int:
+    return max(int(road_km / CITY_DRIVE_KMH * 60) + 4, 8)
+
+
+def estimate_move(dist_km: float, transport: str | None = None) -> tuple[int, str]:
+    """(이동시간 분, 이동수단) — 직선거리에 도로 우회계수 1.35 반영.
+
+    transport('walk'|'car')가 주어지면 거리 임계값과 무관하게 그 수단 기준으로
+    계산한다(AI 코스의 이동 방식 필터).
+    """
     road_km = dist_km * 1.35
+    if transport == "walk":
+        return walk_minutes(road_km), "도보"
+    if transport == "car":
+        return drive_minutes(road_km), "차량"
     if dist_km <= WALK_THRESHOLD_KM:
-        return max(int(road_km / WALK_KMH * 60), 3), "도보"
-    return max(int(road_km / CITY_DRIVE_KMH * 60) + 4, 8), "차량"
+        return walk_minutes(road_km), "도보"
+    return drive_minutes(road_km), "차량"

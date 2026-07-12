@@ -109,3 +109,28 @@ def test_ai_recommend_endpoint_returns_multiple_courses(client):
     assert 1 <= len(data["courses"]) <= 3
     assert data["courses"][0]["course_id"]
     assert data["courses"][0]["timeline"]
+
+
+def test_ai_recommend_walk_transport_makes_walkable_courses(client):
+    """이동 방식 '도보' — 모든 구간이 도보로 계산되고 도보권 후보로 좁혀진다."""
+    body = {"district": "종로구", "stops": 3, "date": _saturday().isoformat(),
+            "time_slot": "afternoon", "themes": [], "pace": "여유",
+            "indoor_pref": "상관없음", "transport": "walk"}
+    resp = client.post("/api/courses/ai-recommend", json=body)
+    assert resp.status_code == 201
+    for course in resp.json()["courses"]:
+        moves = [item["move"] for item in course["timeline"]]
+        assert moves[-1] == "마무리"
+        assert all(move.startswith("도보") for move in moves[:-1])
+
+
+def test_ai_recommend_car_transport_uses_drive_moves(client):
+    """이동 방식 '차량' — 짧은 구간도 차량 기준으로 계산된다."""
+    body = {"district": "종로구", "stops": 2, "date": _saturday().isoformat(),
+            "time_slot": "afternoon", "themes": [], "pace": "여유",
+            "indoor_pref": "상관없음", "transport": "car"}
+    resp = client.post("/api/courses/ai-recommend", json=body)
+    assert resp.status_code == 201
+    for course in resp.json()["courses"]:
+        moves = [item["move"] for item in course["timeline"]]
+        assert all(move.startswith("차량") for move in moves[:-1])
