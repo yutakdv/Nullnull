@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -44,9 +44,11 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-// three.js는 무거우므로 지연 로드 — 로드 전까지는 HeroScene을 폴백으로 보여준다
-const SeoulMap3D = lazy(() => import('./SeoulMap3D.jsx'));
 import './styles.css';
+
+// 홈 히어로 배경 — 광화문·경복궁 타임랩스 GIF(Mixkit 무료 라이선스, 출처표기 불요).
+// 로드 전/실패 시에는 HeroScene(CSS 숲 풍경)이 뒤에서 배경을 채운다.
+const HERO_GIF = '/assets/hero-gyeongbokgung.gif';
 
 // 기본은 same-origin(/api/...) 호출:
 //  - 로컬 dev: vite.config.js proxy → 127.0.0.1:8000
@@ -264,7 +266,7 @@ function loadSavedCourses() {
 // ── 위치 기반 근처 관광지(MVP 목업) ───────────────────────────────
 // 실제 GPS 대신 '경복궁 근처(종로)'를 가상 현재 위치로 두고, spot_id 기반
 // 결정적 거리로 정렬해 위치 기반 추천처럼 보여준다.
-const MOCK_LOCATION_LABEL = '서울 종로구 인근 (예시 위치)';
+const MOCK_LOCATION_LABEL = '서울 종로구 인근 (예시 위치)';   // 괄호 안은 줄바꿈 없이 한 덩어리로
 
 function mockDistanceKm(spotId) {
   return Math.round(((spotId * 137) % 47) + 3) / 10;   // 0.3 ~ 5.0km 결정적 분포
@@ -361,6 +363,31 @@ function courseMemo(course) {
   };
 }
 
+// 코스 상세(CourseDetail)든 홈 인기 코스 카드든 '저장한 코스' 항목 형태로 정규화
+function savableCourse(course) {
+  const stops = course.timeline?.length ?? 0;
+  return {
+    course_id: course.course_id,
+    title: course.title,
+    image_url: course.image_url ?? course.timeline?.[0]?.image_url ?? null,
+    location: course.location ?? course.region ?? '서울',
+    duration_text: course.duration_text
+      ?? (course.summary ? `${stops}곳 · 이동 ${course.summary.total_move_min}분` : ''),
+    saved_at: new Date().toISOString(),
+  };
+}
+
+// ── 여행 중인 코스(여행하기 버튼) — 익명 MVP localStorage ─────────
+const ACTIVE_COURSE_KEY = 'nullnull.active-course';
+
+function loadActiveCourse() {
+  try {
+    return JSON.parse(localStorage.getItem(ACTIVE_COURSE_KEY));
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const [screen, setScreen] = useState('home');
   const [selectedTheme, setSelectedTheme] = useState('전체');
@@ -400,6 +427,7 @@ function App() {
   const [courseAlternatives, setCourseAlternatives] = useState(null);
   const [myCourses, setMyCourses] = useState(loadMyCourses);
   const [savedCourses, setSavedCourses] = useState(loadSavedCourses);  // 북마크한 공유 코스
+  const [activeCourse, setActiveCourse] = useState(loadActiveCourse);  // 여행하기로 선택한 코스
   const [courseSharing, setCourseSharing] = useState(false);          // 코스 공개 진행 표시
   const [adminMode, setAdminMode] = useState(window.location.hash === '#admin');
   const [booted, setBooted] = useState(false);      // 첫 로드 시도 완료 여부
@@ -439,25 +467,40 @@ function App() {
 
   const isCourseSaved = (id) => savedCourses.some((c) => c.course_id === id);
 
-  // 공유 코스 북마크/해제 — 마이페이지 '저장한 코스'에 반영(localStorage 유지)
+  // 코스 북마크/해제 — 마이페이지 '저장한 코스'에 반영(localStorage 유지)
+  // 홈 인기 코스 카드·AI 추천 결과(CourseDetail) 모두 savableCourse로 정규화해 담는다.
   const toggleSaveCourse = (target) => {
     if (!target?.course_id) return;
     setSavedCourses((current) => {
       const exists = current.some((c) => c.course_id === target.course_id);
       const next = exists
         ? current.filter((c) => c.course_id !== target.course_id)
-        : [{
-            course_id: target.course_id,
-            title: target.title,
-            image_url: target.image_url ?? null,
-            location: target.location ?? '서울',
-            duration_text: target.duration_text ?? '',
-            saved_at: new Date().toISOString(),
-          }, ...current];
+        : [savableCourse(target), ...current];
       localStorage.setItem(SAVED_COURSES_KEY, JSON.stringify(next));
       return next;
     });
     showToast(isCourseSaved(target.course_id) ? '저장한 코스에서 뺐어요' : '저장한 코스에 담았어요');
+  };
+
+  // 여행하기(코스 사용) — 여행 중인 코스로 지정하고 저장한 코스에도 담는다
+  const startTravel = (course) => {
+    if (!course?.course_id) return;
+    const memo = savableCourse(course);
+    setActiveCourse(memo);
+    localStorage.setItem(ACTIVE_COURSE_KEY, JSON.stringify(memo));
+    setSavedCourses((current) => {
+      if (current.some((c) => c.course_id === course.course_id)) return current;
+      const next = [memo, ...current];
+      localStorage.setItem(SAVED_COURSES_KEY, JSON.stringify(next));
+      return next;
+    });
+    showToast('여행을 시작했어요 — 마이페이지에서 이 코스를 볼 수 있어요');
+  };
+
+  const endTravel = () => {
+    setActiveCourse(null);
+    localStorage.removeItem(ACTIVE_COURSE_KEY);
+    showToast('여행을 마쳤어요 — 코스는 저장한 코스에 남아 있어요');
   };
 
   // 코스 공개(F9) — 홈 '인기 널널 코스'에 노출시키고 목록을 갱신한다
@@ -688,6 +731,11 @@ function App() {
 
       const courseHash = window.location.hash.match(/^#course\/(\d+)$/);
       if (courseHash) openCourse(Number(courseHash[1]));
+      // 관광지 상세·특정 탭 딥링크(공유/시연용): #spot/123, #tab/course-ai
+      const spotHash = window.location.hash.match(/^#spot\/(\d+)$/);
+      if (spotHash) openSpot(Number(spotHash[1]));
+      const tabHash = window.location.hash.match(/^#tab\/([a-z-]+)$/);
+      if (tabHash) setScreen(tabHash[1]);
     } catch (error) {
       console.warn('Nullnull API 연결에 실패했습니다.', error);
       setApiReady(false);
@@ -834,6 +882,7 @@ function App() {
           themes: cond.themes,
           pace: cond.pace,
           indoor_pref: cond.indoor,
+          transport: cond.transport || null,
         }),
       });
       setAiResults(res);                         // { source, courses: [CourseDetail] }
@@ -1018,6 +1067,8 @@ function App() {
             results={aiResults}
             myCourses={myCourses}
             onOpenCourse={openCourse}
+            savedCourseIds={savedCourses.map((c) => c.course_id)}
+            onToggleSaveCourse={toggleSaveCourse}
           />
         )}
         {screen === 'detail' && (
@@ -1038,6 +1089,8 @@ function App() {
             savedSpots={savedSpots}
             savedCourses={savedCourses}
             myCourses={myCourses}
+            activeCourse={activeCourse}
+            onEndTravel={endTravel}
             onOpenSpot={openSpot}
             onOpenCourse={openCourse}
             onRemoveSaved={toggleSaveSpot}
@@ -1083,6 +1136,8 @@ function App() {
             onSubmitReview={submitReview}
             onShareCourse={shareCourse}
             sharing={courseSharing}
+            onStartTravel={startTravel}
+            activeCourseId={activeCourse?.course_id ?? null}
           />
         )}
 
@@ -1319,16 +1374,15 @@ function HomeScreen({
   return (
     <section className="screen home-screen">
       <div className="hero-panel" style={{ '--hero-collapse': `${heroCollapse}px` }}>
-        <Suspense fallback={<HeroScene />}>
-          <SeoulMap3D spots={homeSpots} fallback={<HeroScene />} />
-        </Suspense>
+        <HeroScene />
+        <img className="hero-media" src={HERO_GIF} alt="" aria-hidden="true" />
         <div className="hero-overlay" />
         <div className="hero-content">
           <Tag icon={Sparkles}>
             {apiReady ? '실측 혼잡 데이터 기반 추천' : '데이터를 불러오는 중'}
           </Tag>
           <p className="hero-tagline">붐비는 곳 말고, 널널한 여행 — Null crowd, Full trip.</p>
-          <h1>오늘은 한적한 숲길처럼, 널널하게.</h1>
+          <h1>오늘은 어디로 떠나볼까요?</h1>
           <div className="hero-pillars">
             <span><Clock3 size={14} />시간 분산</span>
             <span><Compass size={14} />공간 분산</span>
@@ -1625,27 +1679,65 @@ function PopularCourseCard({ course, saved = false, onToggleSave, onClick }) {
   );
 }
 
+// 최근 방문한 장소 — 관광지/코스 블럭(discovery-card)과 동일한 구조·이미지 비율
 function VisitedSpotCard({ spot, onClick }) {
   const note = spot.last_rating
     ? `★ ${spot.last_rating}.0 후기 남김`
     : spot.last_perceived_label ?? '피드백 남김';
 
   return (
-    <button className="course-card visited-card" onClick={onClick}>
-      <img src={imageUrl(spot.image_url, spot.name)} alt={spot.name} />
+    <button className="course-card discovery-card visited-card" onClick={onClick}>
+      <span className="card-media">
+        <SmartImage src={spot.image_url} name={spot.name} alt={spot.name} />
+        <span className="card-distance">
+          <History size={12} />
+          {spot.visited_text}
+        </span>
+      </span>
       <div className="course-card-body">
-        <div className="course-card-top">
-          <Tag icon={History}>{spot.visited_text}</Tag>
-          <CrowdBadge level={spot.level} />
-        </div>
         <h3>{spot.name}</h3>
-        <p>{note}</p>
+        <div className="card-location">
+          <span>{spot.addr ?? spot.region ?? '서울'}</span>
+          <small>방문 {spot.visit_count}회</small>
+        </div>
+        <p className="card-tags">{note}</p>
         <div className="mini-metrics">
-          <span>지금 {spot.label} {Math.round(spot.risk)}%</span>
-          <span>방문 {spot.visit_count}회</span>
+          <span>지금 혼잡도</span>
+          <span>{spot.label} {Math.round(spot.risk)}%</span>
         </div>
       </div>
     </button>
+  );
+}
+
+// 관광지 소개 — 이미지 바로 아래, TourAPI overview(관광지별 상이)를 보여준다.
+// overview가 없는 장소는 카테고리·주소로 만든 기본 소개 문장으로 대신한다.
+function SpotIntro({ spot }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!spot?.name) return null;
+  const fallback = `${spot.name}은(는) ${spot.addr ?? spot.region ?? '서울'}에 있는 `
+    + `${spot.category_name ?? '관광'} 명소예요. `
+    + (spot.tags?.length ? `#${spot.tags.slice(0, 3).join(' #')} 테마로 둘러보기 좋아요.` : '');
+  const text = spot.overview?.trim() || fallback;
+  const long = text.length > 150;
+
+  return (
+    <Card className="spot-intro-card">
+      <SectionHeader title="관광지 소개" compact />
+      <p className={`spot-intro-text ${long && !expanded ? 'is-clamped' : ''}`}>{text}</p>
+      {long && (
+        <button className="spot-intro-more" onClick={() => setExpanded((v) => !v)}>
+          {expanded ? '접기' : '더 보기'}
+          <ChevronRight size={15} className={expanded ? 'is-open' : ''} />
+        </button>
+      )}
+      {spot.highlight && (
+        <p className="spot-intro-highlight">
+          <Sparkles size={14} />
+          {spot.highlight}
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -1653,11 +1745,14 @@ function DetailScreen({
   isSaved, onToggleSave, onFindAlternatives, spot,
   congestionView, congestionChart, calendar, activeSlot, onTimeShift,
 }) {
+  // 요일별(이번 주) 히트맵과 한 달 캘린더는 같은 정보의 기간 차이라 탭으로 합쳤다
+  const [heatRange, setHeatRange] = useState('week');
   const chartData = congestionChart ?? [];
   const timeCards = mapTimeSlotCards(congestionView);
   const proof = spot?.proof ?? {};
   const reviewStats = spot?.review_stats ?? {};
   const suggestions = congestionView?.time_shift_suggestions ?? [];
+  const hasCalendar = (calendar?.days?.length ?? 0) > 0;
 
   return (
     <section className="screen detail-screen">
@@ -1680,6 +1775,8 @@ function DetailScreen({
           <h2>{spot?.name ?? '관광지 정보를 불러오는 중'}</h2>
         </div>
       </div>
+
+      <SpotIntro spot={spot} />
 
       <Card className="null-score-card">
         <div>
@@ -1717,41 +1814,61 @@ function DetailScreen({
 
       <ReviewProofCard proof={proof} reviewStats={reviewStats} />
 
-      <Card>
+      {/* 요일별 혼잡도 — 제목 아래 오전/오후/저녁 현재 혼잡도, 그 아래 요일 히트맵.
+          한 달 캘린더는 같은 정보의 기간 확장이라 별도 카드 대신 탭으로 통합했다. */}
+      <Card className="congestion-card">
         <SectionHeader title="요일별 혼잡도" compact />
-        {chartData.length ? (
-          <WeekdayHeat data={chartData} />
-        ) : <EmptyState />}
+        <div className="compare-grid">
+          {timeCards.map((item) => (
+            <TimeCard
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              note={item.note}
+              active={item.slot === activeSlot}
+              onClick={() => onTimeShift({ kind: 'slot', time_slot: item.slot })}
+            />
+          ))}
+        </div>
+
+        {hasCalendar && (
+          <div className="heat-range-tabs" role="tablist" aria-label="혼잡도 기간">
+            <button
+              role="tab"
+              aria-selected={heatRange === 'week'}
+              className={heatRange === 'week' ? 'is-active' : ''}
+              onClick={() => setHeatRange('week')}
+            >
+              이번 주
+            </button>
+            <button
+              role="tab"
+              aria-selected={heatRange === 'month'}
+              className={heatRange === 'month' ? 'is-active' : ''}
+              onClick={() => setHeatRange('month')}
+            >
+              한 달
+            </button>
+          </div>
+        )}
+
+        {heatRange === 'week' || !hasCalendar ? (
+          chartData.length ? <WeekdayHeat data={chartData} /> : <EmptyState />
+        ) : (
+          <>
+            <p className="calendar-note">
+              향후 30일 예측 기준 · 날짜를 탭하면 그 날로 이동해요
+            </p>
+            <CalendarHeat
+              days={calendar.days}
+              selectedDate={congestionView?.date}
+              onPick={(day) => onTimeShift({
+                kind: 'date', date: day.date, time_slot: activeSlot,
+              })}
+            />
+          </>
+        )}
       </Card>
-
-      <div className="compare-grid">
-        {timeCards.map((item) => (
-          <TimeCard
-            key={item.label}
-            label={item.label}
-            value={item.value}
-            note={item.note}
-            active={item.slot === activeSlot}
-            onClick={() => onTimeShift({ kind: 'slot', time_slot: item.slot })}
-          />
-        ))}
-      </div>
-
-      {calendar?.days?.length > 0 && (
-        <Card className="calendar-card">
-          <SectionHeader title="한 달 널널 캘린더" compact />
-          <p className="calendar-note">
-            향후 30일 예측 기준 · 날짜를 탭하면 그 날로 이동해요
-          </p>
-          <CalendarHeat
-            days={calendar.days}
-            selectedDate={congestionView?.date}
-            onPick={(day) => onTimeShift({
-              kind: 'date', date: day.date, time_slot: activeSlot,
-            })}
-          />
-        </Card>
-      )}
 
       <Button full onClick={onFindAlternatives}>
         더 널널한 코스 보기
@@ -1850,10 +1967,16 @@ const AI_INDOOR = [
   { key: '실내', label: '실내 위주' },
   { key: '실외', label: '실외 위주' },
 ];
+// 이동 방식 — 도보면 도보권 후보로 좁혀 걷기 좋은 동선, 차량이면 넓은 반경 허용
+const AI_TRANSPORT = [
+  { key: 'walk', label: '도보', desc: '걸어서 이어지는 동선' },
+  { key: 'car', label: '차량', desc: '차로 넓게 둘러보기' },
+];
 
 function AiCourseScreen({
   visitDate, maxVisitDate, companion, onCompanionChange,
   creating, apiReady, onCreate, results, myCourses, onOpenCourse,
+  savedCourseIds = [], onToggleSaveCourse,
 }) {
   const [district, setDistrict] = useState('종로구');
   const [duration, setDuration] = useState('half');
@@ -1862,6 +1985,7 @@ function AiCourseScreen({
   const [themes, setThemes] = useState([]);          // 관심 테마(다중, 빈 배열=전체)
   const [pace, setPace] = useState('여유');
   const [indoor, setIndoor] = useState('상관없음');
+  const [transport, setTransport] = useState('walk'); // 이동 방식(도보|차량)
   const selected = AI_DURATIONS.find((d) => d.key === duration);
 
   const toggleTheme = (t) =>
@@ -1869,7 +1993,7 @@ function AiCourseScreen({
 
   const submit = () => onCreate({
     district, stops: selected?.stops ?? 3, companion, date,
-    timeSlot, themes, pace, indoor,
+    timeSlot, themes, pace, indoor, transport,
   });
 
   return (
@@ -1891,6 +2015,23 @@ function AiCourseScreen({
                 key={option.key}
                 className={`ai-duration ${duration === option.key ? 'is-active' : ''}`}
                 onClick={() => setDuration(option.key)}
+                disabled={creating}
+              >
+                <strong>{option.label}</strong>
+                <small>{option.desc}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="ai-field">
+          <span className="ai-field-label"><Navigation size={16} />이동 방식</span>
+          <div className="ai-duration-row two">
+            {AI_TRANSPORT.map((option) => (
+              <button
+                key={option.key}
+                className={`ai-duration ${transport === option.key ? 'is-active' : ''}`}
+                onClick={() => setTransport(option.key)}
                 disabled={creating}
               >
                 <strong>{option.label}</strong>
@@ -2036,9 +2177,19 @@ function AiCourseScreen({
               {results.source === 'llm' ? <><Sparkles size={13} />AI 추천</> : <><ShieldCheck size={13} />널널 알고리즘</>}
             </span>
           </div>
+          <p className="ai-results-hint">
+            <Bookmark size={14} />
+            마음에 드는 코스는 북마크로 마이페이지 &lsquo;저장한 코스&rsquo;에 담을 수 있어요.
+          </p>
           <div className="ai-results">
             {results.courses.map((course) => (
-              <AiCourseCard key={course.course_id} course={course} onClick={() => onOpenCourse(course.course_id)} />
+              <AiCourseCard
+                key={course.course_id}
+                course={course}
+                saved={savedCourseIds.includes(course.course_id)}
+                onToggleSave={() => onToggleSaveCourse?.(course)}
+                onClick={() => onOpenCourse(course.course_id)}
+              />
             ))}
           </div>
         </>
@@ -2069,14 +2220,36 @@ function AiCourseScreen({
   );
 }
 
-// AI 추천 결과 카드 — 제목·컨셉·혼잡회피·동선 미리보기
-function AiCourseCard({ course, onClick }) {
+// AI 추천 결과 카드 — 제목·컨셉·혼잡회피·동선 미리보기 + 마이페이지 저장 북마크
+function AiCourseCard({ course, saved = false, onToggleSave, onClick }) {
   const stops = (course.timeline ?? []).map((t) => t.place);
+  const handleBookmark = (event) => {
+    event.stopPropagation();      // 카드 열기와 분리 — 북마크만 토글
+    onToggleSave?.();
+  };
   return (
     <button className="ai-course-card" onClick={onClick}>
       <div className="ai-course-top">
         <strong>{course.title}</strong>
-        <ChevronRight size={20} />
+        <span className="ai-course-actions">
+          <span
+            className={`ai-course-bookmark ${saved ? 'is-saved' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-label={saved ? '저장한 코스에서 빼기' : '저장한 코스에 담기'}
+            aria-pressed={saved}
+            onClick={handleBookmark}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleBookmark(event);
+              }
+            }}
+          >
+            <Bookmark size={18} fill={saved ? 'currentColor' : 'none'} />
+          </span>
+          <ChevronRight size={20} />
+        </span>
       </div>
       {course.description && <p className="ai-course-desc">{course.description}</p>}
       <div className="ai-course-route">
@@ -2126,8 +2299,8 @@ function RegionSpotCard({ spot, onClick, onRemove }) {
 
 // 마이페이지 — 일반적인 디지털 서비스의 프로필/메뉴 + 저장한 관광지·코스
 function MyPageScreen({
-  savedSpots, savedCourses, myCourses, onOpenSpot, onOpenCourse,
-  onRemoveSaved, onRemoveSavedCourse, onNotice,
+  savedSpots, savedCourses, myCourses, activeCourse, onEndTravel,
+  onOpenSpot, onOpenCourse, onRemoveSaved, onRemoveSavedCourse, onNotice,
 }) {
   const menuItems = [
     { key: 'courses', icon: Compass, label: '내 코스', desc: `${myCourses.length}개 보관 중` },
@@ -2154,6 +2327,30 @@ function MyPageScreen({
         <div><strong>{savedCourses.length}</strong><span>저장한 코스</span></div>
         <div><strong>{myCourses.length}</strong><span>내 코스</span></div>
       </div>
+
+      {/* 여행하기로 선택한 코스 — 지금 사용 중인 코스를 맨 위에서 바로 연다 */}
+      {activeCourse && (
+        <>
+          <div className="section-header compact">
+            <h2>여행 중인 코스</h2>
+            <button onClick={onEndTravel}>여행 마치기</button>
+          </div>
+          <div className="region-spot-card active-course-card">
+            <button className="region-spot-main" onClick={() => onOpenCourse(activeCourse.course_id)}>
+              <SmartImage src={activeCourse.image_url} name={activeCourse.title} alt={activeCourse.title} />
+              <span className="region-spot-body">
+                <span className="region-spot-top"><strong>{activeCourse.title}</strong></span>
+                <span className="region-spot-addr">{activeCourse.location}</span>
+                <span className="region-spot-meta">
+                  <em><Navigation size={13} />여행 중</em>
+                  {activeCourse.duration_text && <em><Clock3 size={13} />{activeCourse.duration_text}</em>}
+                </span>
+              </span>
+              <ChevronRight size={20} className="region-spot-arrow" />
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="section-header compact">
         <h2>저장한 관광지</h2>
@@ -2406,6 +2603,8 @@ function CourseScreen({
   onSubmitReview,
   onShareCourse,
   sharing = false,
+  onStartTravel,
+  activeCourseId = null,
 }) {
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState(4);
@@ -2503,8 +2702,23 @@ function CourseScreen({
         />
       </Card>
 
+      {/* 여행하기 — 이 코스를 사용하겠다는 선택. 여행 중인 코스로 지정 + 마이페이지 저장 */}
       {courseView?.course_id && (
-        <Button full onClick={onReroll} disabled={rerolling}>
+        courseView.course_id === activeCourseId ? (
+          <div className="share-done travel-active">
+            <Navigation size={17} />
+            지금 이 코스로 여행 중이에요 — 마이페이지에서 확인할 수 있어요
+          </div>
+        ) : (
+          <Button full onClick={() => onStartTravel?.(courseView)}>
+            <Navigation size={18} />
+            이 코스로 여행하기
+          </Button>
+        )
+      )}
+
+      {courseView?.course_id && (
+        <button className="button button-full share-course-button" onClick={onReroll} disabled={rerolling}>
           {rerolling ? <>
             <Loader2 size={18} className="spin" />
             다른 조합을 찾는 중
@@ -2512,7 +2726,7 @@ function CourseScreen({
             <Shuffle size={18} />
             다른 코스 추천
           </>}
-        </Button>
+        </button>
       )}
 
       {/* F9 코스 공유 — 공개하면 홈 '인기 널널 코스'에 노출된다 */}

@@ -2504,6 +2504,7 @@ body {
   line-height: 1.07;
   font-weight: 600;
   letter-spacing: 0;
+  word-break: keep-all;   /* 한글 단어 중간에서 잘리지 않게 어절 단위로만 줄바꿈 */
   text-wrap: balance;   /* '…요.' 홀로 줄바꿈되는 어색함 방지(데스크톱) */
 }
 
@@ -2515,6 +2516,7 @@ body {
   line-height: 1.22;
   font-weight: 400;
   letter-spacing: 0;
+  word-break: keep-all;
 }
 
 .hero-pillars {
@@ -2697,17 +2699,27 @@ body {
   letter-spacing: 0;
 }
 
+.section-header h2 {
+  word-break: keep-all;   /* '내 주변 널널 관광지'가 단어 중간에서 잘리지 않게 */
+}
+
 .section-header button {
   color: var(--primary-deep);
   font-weight: 400;
+  flex: 0 1 auto;
+  text-align: right;
+  word-break: keep-all;   /* '서울 종로구 인근 (예시 위치)'도 어절 단위로만 줄바꿈 */
 }
 
 .home-screen > .section-header,
 .home-screen > .course-carousel {
   width: 100%;
-  padding-left: max(20px, calc((100vw - 1180px) / 2));
-  padding-right: max(20px, calc((100vw - 1180px) / 2));
-  scroll-padding-inline-start: max(20px, calc((100vw - 1180px) / 2));
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 20px;
+  padding-right: 20px;
+  scroll-padding-inline-start: 20px;
   background: #f5f8f6;
 }
 
@@ -2716,7 +2728,7 @@ body {
 }
 
 .home-screen > .course-carousel {
-  grid-auto-columns: minmax(280px, 360px);
+  grid-auto-columns: 320px;       /* 모든 블럭 폭 고정 — 카드·여백 간격 통일 */
   gap: 24px;
   padding-top: 24px;
   padding-bottom: 80px;
@@ -2887,6 +2899,7 @@ body {
 /* 추천 관광지, 인기 코스, 내 코스를 같은 사진 중심 카드 언어로 맞춘다. */
 .home-screen .discovery-card {
   overflow: visible;
+  grid-template-columns: minmax(0, 1fr);   /* 이미지 원본 크기가 트랙을 밀어내지 않게 고정 */
   color: var(--ink);
   background: transparent;
 }
@@ -2894,13 +2907,19 @@ body {
 .home-screen .discovery-card .card-media {
   position: relative;
   display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;            /* 이미지 공간 고정 — 어떤 사진이 와도 같은 크기 */
+  border-radius: 14px;
+  overflow: hidden;
 }
 
 .home-screen .discovery-card img {
+  position: absolute;             /* 레이아웃에서 분리 — 원본 크기가 카드 폭에 영향 못 주게 */
+  inset: 0;
   width: 100%;
-  aspect-ratio: 1.08;
+  height: 100%;
   border-radius: 14px;
-  object-fit: cover;
+  object-fit: cover;              /* 고정된 공간에 맞춰 잘라 채운다 */
   box-shadow: none;
 }
 
@@ -3324,7 +3343,7 @@ body {
   }
 
   .home-screen > .course-carousel {
-    grid-auto-columns: minmax(260px, 82%);
+    grid-auto-columns: min(300px, 82vw);   /* 모바일도 카드 폭 고정 */
     padding-left: 16px;
     padding-right: 16px;
     padding-bottom: 56px;
@@ -4311,4 +4330,233 @@ body {
   .ai-duration-row { gap: 8px; }
 
   .region-hero { padding-top: 18px; }
+}
+
+/* ═══════════ 홈 히어로 GIF 배경(광화문·경복궁 타임랩스) ═══════════ */
+/* HeroScene(CSS 숲 풍경)이 뒤에 깔리고, GIF가 로드되면 그 위를 덮는다. */
+.hero-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.96) contrast(1.02);
+}
+
+/* ═══════════ 홈 카드 블럭 통일 — 제목·주소·태그·추천시간 줄 고정 ═══════════ */
+.home-screen .discovery-card .mini-metrics {
+  height: 1.2em;                  /* 추천 시간/혼잡도 줄 높이 고정 */
+  box-sizing: content-box;
+}
+
+.home-screen .discovery-card .mini-metrics span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ═══════════ AI 코스 탭 — 이동 방식·저장 북마크·모바일 ═══════════ */
+.ai-duration-row.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-chip-row {
+  flex-wrap: wrap;                /* 좁은 화면에서 칩이 넘치지 않고 줄바꿈 */
+}
+
+.ai-course-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.ai-course-bookmark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #61786d;
+  background: #f2f7f4;
+  border: 1px solid #e4eee8;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.ai-course-bookmark:hover { transform: scale(1.06); }
+.ai-course-bookmark:active { transform: scale(0.94); }
+
+.ai-course-bookmark.is-saved {
+  color: #ffffff;
+  background: var(--primary-deep);
+  border-color: var(--primary-deep);
+}
+
+.ai-results-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ═══════════ 코스 화면 — 여행하기 상태 ═══════════ */
+.share-done.travel-active {
+  color: #ffffff;
+  background: var(--primary-deep);
+}
+
+/* ═══════════ 마이페이지 — 여행 중인 코스 ═══════════ */
+.active-course-card {
+  border: 1.5px solid var(--primary-deep);
+  box-shadow: 0 10px 26px rgba(61, 133, 103, 0.14);
+}
+
+/* ═══════════ 관광지 상세 — 소개 카드 ═══════════ */
+.spot-intro-card {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+}
+
+.spot-intro-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.spot-intro-text.is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.spot-intro-more {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  color: var(--primary-deep);
+  background: transparent;
+  border: 0;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.spot-intro-more svg {
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+
+.spot-intro-more svg.is-open {
+  transform: rotate(-90deg);
+}
+
+.spot-intro-highlight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  color: #2e6b52;
+  background: #e9f7ef;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.spot-intro-highlight svg { flex: 0 0 auto; }
+
+/* ═══════════ 관광지 상세 — 요일별 혼잡도 카드(시간대 + 주간/월간) ═══════════ */
+.congestion-card {
+  display: grid;
+  gap: 16px;
+}
+
+.congestion-card .compare-grid {
+  gap: 8px;
+}
+
+/* 카드 안 시간대 카드가 카드-안-카드로 떠 보이지 않게 面을 낮춘다 */
+.congestion-card .time-card {
+  border: 1px solid rgba(29, 43, 37, 0.08);
+  border-radius: 14px;
+  box-shadow: none;
+  background: #f8fbf9;
+}
+
+.congestion-card .time-card.is-active {
+  border-color: var(--primary-deep);
+  background: #eef7f2;
+}
+
+.heat-range-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #eef2f0;
+}
+
+.heat-range-tabs button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  color: #61786d;
+  background: transparent;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.heat-range-tabs button.is-active {
+  color: var(--primary-deep);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(29, 43, 37, 0.1);
+}
+
+/* 요일 히트맵 — 셀·글자가 좁은 폭에서도 깨지지 않게 고정 최소폭 + 가로 스크롤 */
+.weekday-heat-wrap {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.weekday-heat {
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.weekday-heat-row {
+  grid-template-columns: 34px repeat(7, minmax(34px, 1fr));
+  min-width: 310px;               /* 이하로 줄어들면 셀 대신 스크롤이 생긴다 */
+}
+
+.wh-cell {
+  height: 38px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wh-slot,
+.wh-day {
+  white-space: nowrap;
+}
+
+@media (max-width: 719px) {
+  .ai-field-grid.two {
+    grid-template-columns: 1fr;   /* 페이스·실내외가 겹치며 화면을 밀던 문제 수정 */
+  }
+
+  .spot-intro-card {
+    padding: 18px 16px;
+  }
 }
