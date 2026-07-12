@@ -394,6 +394,7 @@ function App() {
   const [congestionChart, setCongestionChart] = useState(null);
   const [alternativeView, setAlternativeView] = useState(null);
   const [courseView, setCourseView] = useState(null);
+  const [aiResults, setAiResults] = useState(null);   // AI 코스 추천 결과 {source, courses}
   const [courseAlternatives, setCourseAlternatives] = useState(null);
   const [myCourses, setMyCourses] = useState(loadMyCourses);
   const [savedCourses, setSavedCourses] = useState(loadSavedCourses);  // 북마크한 공유 코스
@@ -814,38 +815,27 @@ function App() {
     }
   };
 
-  // AI 코스 추천(코스 탭) — 지역·길이·동행·날짜만 받아 널널한 일정을 만든다
-  const createAiCourse = async ({ district, duration, companion: comp, date }) => {
+  // AI 코스 추천(코스 탭) — 조건을 넘기면 알고리즘이 후보를 추리고 LLM(가능 시)이
+  // 혼잡·날씨·동선을 고려해 여러 코스를 구성한다. 키 없으면 알고리즘 다중 코스 폴백.
+  const createAiCourse = async (cond) => {
     setCourseCreating(true);
+    setAiResults(null);
     try {
-      // 1) 선택 지역에서 가장 널널한 장소를 출발점으로 고른다
-      const params = new URLSearchParams({ region: '서울', date, limit: '12' });
-      if (district) params.set('district', district);
-      const { items } = await apiFetch(`/api/spots/home?${params}`);
-      if (!items.length) {
-        showToast('이 지역에서 추천할 장소를 찾지 못했어요 — 다른 지역을 골라보세요');
-        return;
-      }
-      // 2) 코스 길이에 맞는 슬롯 구성으로 AI 추천 요청
-      const sequenceByDuration = {
-        '3h': ['여행지', '미식'],
-        half: ['여행지', '미식', '포토스팟'],
-        day: ['여행지', '자연', '미식', '포토스팟'],
-      };
-      const durationLabel = { '3h': '3시간', half: '반나절', day: '하루' }[duration];
-      const course = await apiFetch('/api/courses/recommend', {
+      const res = await apiFetch('/api/courses/ai-recommend', {
         method: 'POST',
         body: JSON.stringify({
-          origin_spot_id: items[0].spot_id,
-          date,
-          theme_sequence: sequenceByDuration[duration] ?? sequenceByDuration.half,
-          companion: comp || null,
-          title: `${district || '서울'} 널널 ${durationLabel} 코스`,
+          district: cond.district || null,
+          stops: cond.stops,
+          companion: cond.companion || null,
+          date: cond.date,
+          time_slot: cond.timeSlot,
+          themes: cond.themes,
+          pace: cond.pace,
+          indoor_pref: cond.indoor,
         }),
       });
-      setCourseView(course);
-      setScreen('course');
-      rememberCourse(course);
+      setAiResults(res);                         // { source, courses: [CourseDetail] }
+      res.courses.forEach(rememberCourse);
       refreshImpact();
     } catch (error) {
       console.warn(error);
@@ -1023,6 +1013,7 @@ function App() {
             creating={courseCreating}
             apiReady={apiReady}
             onCreate={createAiCourse}
+            results={aiResults}
             myCourses={myCourses}
             onOpenCourse={openCourse}
           />
@@ -1843,15 +1834,39 @@ const AI_DURATIONS = [
   { key: 'half', label: '반나절', desc: '여유롭게 세 곳', stops: 3 },
   { key: 'day', label: '하루', desc: '느긋하게 네 곳', stops: 4 },
 ];
+const AI_TIMESLOTS = [
+  { key: 'morning', label: '오전' },
+  { key: 'afternoon', label: '오후' },
+  { key: 'evening', label: '저녁' },
+];
+const AI_THEMES = ['역사', '자연', '미식', '포토스팟', '쇼핑', '힐링'];
+const AI_PACE = ['여유', '보통'];
+const AI_INDOOR = [
+  { key: '상관없음', label: '상관없음' },
+  { key: '실내', label: '실내 위주' },
+  { key: '실외', label: '실외 위주' },
+];
 
 function AiCourseScreen({
   visitDate, maxVisitDate, companion, onCompanionChange,
-  creating, apiReady, onCreate, myCourses, onOpenCourse,
+  creating, apiReady, onCreate, results, myCourses, onOpenCourse,
 }) {
   const [district, setDistrict] = useState('종로구');
   const [duration, setDuration] = useState('half');
   const [date, setDate] = useState(visitDate);
+  const [timeSlot, setTimeSlot] = useState('afternoon');
+  const [themes, setThemes] = useState([]);          // 관심 테마(다중, 빈 배열=전체)
+  const [pace, setPace] = useState('여유');
+  const [indoor, setIndoor] = useState('상관없음');
   const selected = AI_DURATIONS.find((d) => d.key === duration);
+
+  const toggleTheme = (t) =>
+    setThemes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+
+  const submit = () => onCreate({
+    district, stops: selected?.stops ?? 3, companion, date,
+    timeSlot, themes, pace, indoor,
+  });
 
   return (
     <section className="screen ai-course-screen">
@@ -1859,7 +1874,7 @@ function AiCourseScreen({
         <span className="eyebrow"><Sparkles size={14} /> AI 코스 추천</span>
         <h1>조건만 고르면, 코스는 AI가.</h1>
         <p className="region-note">
-          혼잡 예측 데이터로 붐비지 않는 동선을 골라 {selected?.stops ?? 3}곳을 이어드려요.
+          혼잡·날씨 데이터로 후보를 추리고, AI가 동선까지 고려해 여러 코스를 제안해요.
         </p>
       </div>
 
@@ -1929,7 +1944,72 @@ function AiCourseScreen({
           </div>
         </div>
 
-        <Button full disabled={creating || !apiReady} onClick={() => onCreate({ district, duration, companion, date })}>
+        <div className="ai-field">
+          <span className="ai-field-label"><Clock3 size={16} />시작 시간대</span>
+          <div className="ai-chip-row">
+            {AI_TIMESLOTS.map((slot) => (
+              <button
+                key={slot.key}
+                className={`ai-chip ${timeSlot === slot.key ? 'is-active' : ''}`}
+                onClick={() => setTimeSlot(slot.key)}
+                disabled={creating}
+              >
+                {slot.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="ai-field">
+          <span className="ai-field-label"><Heart size={16} />관심 테마 <small>(여러 개 선택 가능)</small></span>
+          <div className="ai-chip-row wrap">
+            {AI_THEMES.map((t) => (
+              <button
+                key={t}
+                className={`ai-chip ${themes.includes(t) ? 'is-active' : ''}`}
+                onClick={() => toggleTheme(t)}
+                disabled={creating}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="ai-field-grid two">
+          <div className="ai-field">
+            <span className="ai-field-label"><Leaf size={16} />여행 페이스</span>
+            <div className="ai-chip-row">
+              {AI_PACE.map((p) => (
+                <button
+                  key={p}
+                  className={`ai-chip ${pace === p ? 'is-active' : ''}`}
+                  onClick={() => setPace(p)}
+                  disabled={creating}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="ai-field">
+            <span className="ai-field-label"><Home size={16} />실내외</span>
+            <div className="ai-chip-row">
+              {AI_INDOOR.map((o) => (
+                <button
+                  key={o.key}
+                  className={`ai-chip ${indoor === o.key ? 'is-active' : ''}`}
+                  onClick={() => setIndoor(o.key)}
+                  disabled={creating}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <Button full disabled={creating || !apiReady} onClick={submit}>
           {creating ? <>
             <Loader2 size={19} className="spin" />
             AI가 널널한 동선을 계산하는 중
@@ -1940,9 +2020,25 @@ function AiCourseScreen({
         </Button>
         <p className="ai-hint">
           <ShieldCheck size={14} />
-          혼잡 실측·예측 데이터 기반 — 마음에 안 들면 결과 화면에서 바로 다른 조합을 받을 수 있어요.
+          혼잡 실측·예측 데이터 기반 — 조건을 바꿔 다시 추천받을 수 있어요.
         </p>
       </Card>
+
+      {results?.courses?.length > 0 && (
+        <>
+          <div className="section-header">
+            <h2>AI가 제안한 코스</h2>
+            <span className={`ai-source-badge ${results.source}`}>
+              {results.source === 'llm' ? <><Sparkles size={13} />AI 추천</> : <><ShieldCheck size={13} />널널 알고리즘</>}
+            </span>
+          </div>
+          <div className="ai-results">
+            {results.courses.map((course) => (
+              <AiCourseCard key={course.course_id} course={course} onClick={() => onOpenCourse(course.course_id)} />
+            ))}
+          </div>
+        </>
+      )}
 
       {myCourses.length > 0 && (
         <>
@@ -1966,6 +2062,29 @@ function AiCourseScreen({
         </>
       )}
     </section>
+  );
+}
+
+// AI 추천 결과 카드 — 제목·컨셉·혼잡회피·동선 미리보기
+function AiCourseCard({ course, onClick }) {
+  const stops = (course.timeline ?? []).map((t) => t.place);
+  return (
+    <button className="ai-course-card" onClick={onClick}>
+      <div className="ai-course-top">
+        <strong>{course.title}</strong>
+        <ChevronRight size={20} />
+      </div>
+      {course.description && <p className="ai-course-desc">{course.description}</p>}
+      <div className="ai-course-route">
+        <Route size={15} />
+        <span>{stops.join(' → ')}</span>
+      </div>
+      <div className="ai-course-meta">
+        <em className="relief"><ShieldCheck size={13} />혼잡 회피 {Math.round(course.summary?.relief_pct ?? 0)}%</em>
+        <em><Clock3 size={13} />이동 {course.summary?.total_move_min ?? 0}분</em>
+        <em><MapPin size={13} />{stops.length}곳</em>
+      </div>
+    </button>
   );
 }
 
