@@ -4,7 +4,7 @@
 → congestion_snapshot(예측/시드) → base_popularity 휴리스틱.
 피드백 보정(9-4)은 창(30건) 채운 장소에만 적용한다.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -26,6 +26,29 @@ SLOT_LABELS = {"morning": "오전", "afternoon": "오후", "evening": "저녁"}
 DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"]
 TIME_SLOTS = ["morning", "afternoon", "evening"]
 REALTIME_SLOT_HOUR = {"morning": 10, "afternoon": 14, "evening": 19}
+# 시간대 경계(대표시각 10·14·19의 중간값 기준): [0,12) 오전 / [12,17) 오후 / [17,24) 저녁
+SLOT_BOUNDARIES = ((12, "morning"), (17, "afternoon"))
+KST = timezone(timedelta(hours=9))
+
+
+def now_kst() -> datetime:
+    return datetime.now(KST)
+
+
+def current_time_slot(now: datetime | None = None) -> str:
+    """현재(KST) 시각이 속한 시간대 — '실시간 시간 기준' 널널도의 기준 슬롯."""
+    hour = (now or now_kst()).hour
+    for boundary, slot in SLOT_BOUNDARIES:
+        if hour < boundary:
+            return slot
+    return "evening"
+
+
+def resolve_time_slot(d: date, time_slot: str | None) -> str:
+    """미지정 시 기본 시간대 — 당일이면 현재 시각 기준(실시간), 그 외 날짜는 '오후'."""
+    if time_slot:
+        return time_slot
+    return current_time_slot() if d == date.today() else "afternoon"
 SOURCE_NOTICES = {
     "realtime": "서울 실시간 도시데이터 기반(5분 단위)",
     "prediction": "한국관광공사 집중률 예측 기반(향후 30일)",
@@ -39,8 +62,14 @@ def source_notice(source: str) -> str:
     return SOURCE_NOTICES.get(source, "관광 데이터 기반 추정")
 
 
-def _realtime_slot_score(realtime: dict, time_slot: str) -> float:
-    """당일 시간대 분산(9-1): 서울 12시간 예측에서 해당 시간대 값을 집중률 자리에 대입."""
+def _realtime_slot_score(realtime: dict, time_slot: str,
+                         now: datetime | None = None) -> float:
+    """당일 시간대 분산(9-1). 실시간 시간 기준:
+    지금 이 순간이 속한 시간대는 5분 단위 실측(live)값을, 나머지 오늘의 시간대는
+    서울 12시간 예측에서 그 시간대 대표시각 값을 집중률 자리에 대입한다.
+    """
+    if time_slot == current_time_slot(now):
+        return realtime["score"]        # 현재 시각의 실시간 혼잡도(예측보다 정확)
     target = REALTIME_SLOT_HOUR.get(time_slot, 14)
     for fcst in realtime.get("forecast", []):
         try:

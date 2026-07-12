@@ -15,6 +15,7 @@ from app.services.congestion_service import (
     default_visit_date,
     get_calendar_view,
     get_congestion_view,
+    resolve_time_slot,
     source_notice,
     validate_visit_date,
 )
@@ -261,14 +262,17 @@ def spot_detail(spot_id: int, db: Session = Depends(get_db)):
 def spot_congestion(
     spot_id: int,
     date: date_type | None = Query(None, description="방문 예정일(기본: 다가오는 토요일)"),
-    time_slot: str = Query("afternoon", pattern=TIME_SLOT_PATTERN),
+    time_slot: str | None = Query(
+        None, pattern=TIME_SLOT_PATTERN,
+        description="미지정 시 당일이면 현재 시각 기준(실시간), 그 외 날짜는 오후",
+    ),
     db: Session = Depends(get_db),
 ):
     """널널도 조회(F3). date가 오늘~+30일 밖이면 400 (기획서 8-1·12장)."""
     spot = get_spot_or_404(db, spot_id)
     visit_date = date or default_visit_date()
     validate_visit_date(visit_date)
-    return get_congestion_view(db, spot, visit_date, time_slot)
+    return get_congestion_view(db, spot, visit_date, resolve_time_slot(visit_date, time_slot))
 
 
 @router.get("/{spot_id}/calendar", response_model=schemas.SpotCalendarResponse)
