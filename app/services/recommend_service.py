@@ -16,6 +16,7 @@ from app.external import kakao_api, kma_api
 from app.geo import estimate_move, haversine_km
 from app.scoring.alternative import (
     alternative_score,
+    companion_fit,
     hidden_gem_score,
     mobility_score,
     theme_similarity,
@@ -286,6 +287,7 @@ def get_alternatives(
     themes: list[str] | None = None,
     limit: int = 3,
     log_exposure: bool = True,
+    companion: str | None = None,
 ) -> dict:
     weights = load_weights()["alternative_score"]
     combine = load_weights()["theme_similarity"]
@@ -332,8 +334,12 @@ def get_alternatives(
         weather = weather_fit(spot.is_indoor, precip)
         load = loads.get(spot_id, 0.0)
         mobility = mobility_score(move_min)
+        comp = companion_fit(
+            companion, low_percentile=low_pctl.get(spot_id, 0.5),
+            tags=spot_theme_tags(spot), is_indoor=spot.is_indoor,
+        )
         score = alternative_score(theme, relief_norm, mobility, hidden, weather,
-                                  load, weights)
+                                  load, weights, companion=comp)
 
         decrease_pct = (
             round((origin_risk["risk"] - alt_risk) / origin_risk["risk"] * 100)

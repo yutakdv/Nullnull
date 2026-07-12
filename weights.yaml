@@ -14,6 +14,7 @@ alternative_score:          # 9-2 대안지 추천 점수
   mobility: 0.15            # 이동 편의성
   hidden: 0.10              # 숨은 명소성
   weather: 0.10             # 날씨/운영 적합성(예보 범위 밖이면 제외 후 재정규화)
+  companion: 0.12           # 동행 적합도(F1) — 동행 지정 시에만 더해지는 소프트 우선정렬 항
   load_penalty: 0.10        # 추천 부하(F8) — 감산 항
 
 theme_similarity:           # 9-2 테마 유사도 결합비

@@ -22,6 +22,26 @@ IMAGES = {
     "cafe": "/assets/cafe-alley.png",
 }
 
+# 시드 대표 명소는 generic placeholder 대신 실제 한국관광공사(tong) 사진을 쓴다.
+# 확실히 맞는 사진이 있는 곳만 매핑하고, 없는 곳은 None → FE 브랜드 플레이스홀더로 처리.
+_TONG = "http://tong.visitkorea.or.kr/cms/resource"
+SEED_IMAGES = {
+    "경복궁": f"{_TONG}/24/3349624_image2_1.png",
+    "명동거리": f"{_TONG}/96/3548996_image2_1.jpg",
+    "N서울타워": f"{_TONG}/50/3590450_image2_1.jpg",
+    "북촌한옥마을": f"{_TONG}/04/3304404_image2_1.jpg",
+    "홍대거리": f"{_TONG}/17/3526617_image2_1.jpg",
+    "창덕궁": f"{_TONG}/78/3384878_image2_1.JPG",
+    "덕수궁": f"{_TONG}/91/3384991_image2_1.JPG",
+    "백인제가옥": f"{_TONG}/92/3096392_image2_1.jpg",
+    "운현궁": f"{_TONG}/06/3577706_image2_1.jpg",
+    "경희궁": f"{_TONG}/98/3531398_image2_1.jpg",
+    "길상사": f"{_TONG}/72/3376572_image2_1.jpg",
+    "문래창작촌": f"{_TONG}/16/3466116_image2_1.jpg",
+    "익선동 골목": f"{_TONG}/22/2947522_image2_1.jpg",
+    "서울숲": f"{_TONG}/17/3442117_image2_1.JPG",
+}
+
 # (name, sigungu, cat1, cat2, cat3, category_name, tags, addr, lat, lng, image,
 #  image_count, is_indoor, base_popularity, overview, highlight)
 SPOTS = [
@@ -161,12 +181,12 @@ def snapshot_score(base: float, d: date, slot: str, name: str) -> float:
 def seed_spots(db: Session) -> dict[str, models.TouristSpot]:
     spots: dict[str, models.TouristSpot] = {}
     for i, (name, sigungu, cat1, cat2, cat3, cat_name, tags, addr, lat, lng,
-            image, image_count, is_indoor, base_pop, overview, highlight) in enumerate(SPOTS):
+            _image, image_count, is_indoor, base_pop, overview, highlight) in enumerate(SPOTS):
         spot = models.TouristSpot(
             content_id=f"seed-{i + 1:04d}",
             name=name, region="서울", area_code=1, sigungu_code=sigungu,
             cat1=cat1, cat2=cat2, cat3=cat3, category_name=cat_name, tags=tags,
-            addr=addr, lat=lat, lng=lng, image_url=IMAGES[image],
+            addr=addr, lat=lat, lng=lng, image_url=SEED_IMAGES.get(name),
             image_count=image_count, overview=overview, overview_len=len(overview),
             highlight=highlight, is_indoor=is_indoor, base_popularity=base_pop,
         )

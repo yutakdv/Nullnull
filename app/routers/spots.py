@@ -3,7 +3,7 @@ from datetime import date as date_type
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -65,9 +65,18 @@ def list_spots(
             models.TouristSpot.cat3 == category,
         ))
     if keyword:
+        # 유사 장소도 걸리도록 이름뿐 아니라 카테고리·주소·테마 태그·개요까지 매칭하고,
+        # 띄어쓰기 차이(예: "서울 숲" ↔ "서울숲")도 이름 기준으로 흡수한다.
+        kw = keyword.strip()
+        compact = kw.replace(" ", "")
+        name_compact = func.replace(models.TouristSpot.name, " ", "")
         query = query.where(or_(
-            models.TouristSpot.name.contains(keyword),
-            models.TouristSpot.overview.contains(keyword),
+            models.TouristSpot.name.contains(kw),
+            name_compact.like(f"%{compact}%"),
+            models.TouristSpot.category_name.contains(kw),
+            models.TouristSpot.addr.contains(kw),
+            cast(models.TouristSpot.tags, String).contains(kw),
+            models.TouristSpot.overview.contains(kw),
         ))
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     is_seed = models.TouristSpot.content_id.like("seed-%")
@@ -252,6 +261,10 @@ def spot_alternatives(
     log_exposure: bool = Query(
         True, description="노출 로그 기록 여부 — FE 프리페치는 false로 호출(F8 부하 왜곡 방지)"
     ),
+    companion: str | None = Query(
+        None, pattern="^(solo|couple|family)$",
+        description="동행 유형(F1) — 지정 시 추천 순서를 그 동행에 맞게 소프트 우선정렬",
+    ),
     db: Session = Depends(get_db),
 ):
     """대안지 추천(F4). 사용자에게 실제 노출될 때 로그를 기록해 추천 부하(F8)에 반영한다."""
@@ -260,4 +273,4 @@ def spot_alternatives(
     validate_visit_date(visit_date)
     theme_list = [t.strip() for t in themes.split(",") if t.strip()] if themes else None
     return get_alternatives(db, spot, visit_date, time_slot, theme_list, limit,
-                            log_exposure=log_exposure)
+                            log_exposure=log_exposure, companion=companion)

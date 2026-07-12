@@ -62,6 +62,27 @@ def test_recommendation_load_penalty_active(client, db, gyeongbok_id, visit_date
     assert any(p > 0 for p in penalties)
 
 
+def test_companion_param_is_wired(client, gyeongbok_id, visit_date):
+    """동행(F1) 지정 시 대안 API가 정상 동작하고, 잘못된 값은 거부한다.
+
+    (동행 적합도가 점수를 소프트하게 재정렬한다는 산식 효과는 test_scoring에서 검증)
+    """
+    base = client.get(f"/api/spots/{gyeongbok_id}/alternatives",
+                      params={"date": visit_date, "limit": 5, "log_exposure": False}).json()
+    family = client.get(f"/api/spots/{gyeongbok_id}/alternatives",
+                        params={"date": visit_date, "limit": 5, "log_exposure": False,
+                                "companion": "family"}).json()
+    assert len(family["alternatives"]) == len(base["alternatives"]) >= 1
+    # 소프트 우선정렬이므로 후보는 여전히 원 관광지보다 널널해야 한다(가치 유지)
+    for alt in family["alternatives"]:
+        assert alt["level"] <= family["origin"]["level"]
+        assert alt["decrease_pct"] >= 0
+    # 정의되지 않은 동행 값은 422
+    bad = client.get(f"/api/spots/{gyeongbok_id}/alternatives",
+                     params={"date": visit_date, "companion": "friends"})
+    assert bad.status_code == 422
+
+
 def test_window_guard_on_alternatives(client, gyeongbok_id):
     from datetime import date, timedelta
     too_far = (date.today() + timedelta(days=40)).isoformat()

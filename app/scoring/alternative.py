@@ -67,6 +67,42 @@ def weather_fit(is_indoor: bool, precip_prob: float | None) -> float | None:
     return round(max(1.0 - precip_prob / 100, 0.0), 4)
 
 
+COMPANION_KINDS = ("solo", "couple", "family")
+
+
+def companion_fit(
+    companion: str | None,
+    *,
+    low_percentile: float,
+    tags: Iterable[str] = (),
+    is_indoor: bool = False,
+) -> float | None:
+    """동행 유형별 '우선 추천' 소프트 신호(0~1). 지정 안 하면 None → 재정규화 대상.
+
+    하드 필터가 아니라 작은 가중치의 우선순위 nudge다. 사용자가 고른 테마/카테고리는
+    그대로 존중하고(예: 혼자여도 '미식' 슬롯이면 맛집이 후보), 그 안에서 동행에 맞는
+    곳을 살짝 위로 올릴 뿐이다.
+    - 혼자: 한적하고 덜 알려진 곳 선호(방문 규모 하위 분위가 높을수록 가점)
+    - 둘이서: 포토스팟·자연·뷰 선호
+    - 가족: 실내·편의 선호(짧은 이동은 mobility 항이 이미 반영)
+    """
+    if companion not in COMPANION_KINDS:
+        return None
+    tagset = set(tags or ())
+    if companion == "solo":
+        return round(0.4 + 0.6 * low_percentile, 4)
+    if companion == "couple":
+        if {"포토스팟", "자연"} & tagset:
+            return 1.0
+        if "미식" in tagset:
+            return 0.7
+        return 0.5
+    base = 0.5 + 0.5 * (1.0 if is_indoor else 0.0)   # family
+    if "자연" in tagset:                              # 공원·산책 등 가족 나들이 적합
+        base = min(base + 0.2, 1.0)
+    return round(base, 4)
+
+
 def alternative_score(
     theme: float,
     relief: float,
@@ -75,8 +111,13 @@ def alternative_score(
     weather: float | None,
     load: float,
     weights: dict[str, float],
+    companion: float | None = None,
 ) -> float:
-    """가중 합산(0~1 스케일). weather=None이면 해당 항 제외 후 양(+)의 항만 재정규화."""
+    """가중 합산. weather/companion=None이면 해당 항 제외 후 남은 항만 재정규화.
+
+    companion(동행 적합도)은 지정 시에만 작은 가중치 항으로 더해지는 소프트 nudge다.
+    companion=None이면 항 자체가 빠져 기존 산식과 완전히 동일(회귀 없음)하다.
+    """
     positive = {
         "theme": weights["theme"], "relief": weights["relief"],
         "mobility": weights["mobility"], "hidden": weights["hidden"],
@@ -84,6 +125,9 @@ def alternative_score(
     }
     parts = {"theme": theme, "relief": relief, "mobility": mobility,
              "hidden": hidden, "weather": weather}
+    if companion is not None:
+        positive["companion"] = weights.get("companion", 0.12)
+        parts["companion"] = companion
     available = {k for k, v in parts.items() if v is not None}
     normalized = renormalize(positive, available)
     score = sum(normalized[k] * parts[k] for k in available)

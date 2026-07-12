@@ -15,6 +15,7 @@ from app.external import kakao_api, kma_api
 from app.geo import estimate_move, haversine_km
 from app.scoring.alternative import (
     alternative_score,
+    companion_fit,
     hidden_gem_score,
     mobility_score,
     theme_similarity,
@@ -298,6 +299,10 @@ def recommend_course(
                                  richness.get(spot.spot_id, 0.0)),
                 weather_fit(spot.is_indoor, precip),
                 loads.get(spot.spot_id, 0.0), weights,
+                companion=companion_fit(
+                    companion, low_percentile=low_pctl.get(spot.spot_id, 0.5),
+                    tags=spot_theme_tags(spot), is_indoor=spot.is_indoor,
+                ),
             )
             if variation_seed:
                 score += seeded_jitter(spot.spot_id, variation_seed, scale=0.05)
@@ -412,6 +417,10 @@ def course_alternatives(
                 theme_comp, relief_norm, mobility_score(move_min), hidden,
                 weather_fit(cand.is_indoor, precip),
                 loads.get(cand.spot_id, 0.0), weights["alternative_score"],
+                companion=companion_fit(
+                    course.companion, low_percentile=low_pctl.get(cand.spot_id, 0.5),
+                    tags=spot_theme_tags(cand), is_indoor=cand.is_indoor,
+                ),
             )
             decrease_pct = (
                 round((item_risk - risk) / item_risk * 100) if item_risk > 0 else 0

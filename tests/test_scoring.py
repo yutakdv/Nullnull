@@ -5,6 +5,7 @@ import pytest
 
 from app.scoring.alternative import (
     alternative_score,
+    companion_fit,
     hidden_gem_score,
     jaccard,
     mobility_score,
@@ -172,3 +173,42 @@ class TestCourseScore:
 
     def test_empty_course(self):
         assert course_score([], 0, 0, 1, COURSE_WEIGHTS) == 0.0
+
+
+class TestCompanionFit:
+    def test_none_when_unset(self):
+        assert companion_fit(None, low_percentile=0.5) is None
+        assert companion_fit("", low_percentile=0.5) is None
+
+    def test_solo_prefers_quiet(self):
+        quiet = companion_fit("solo", low_percentile=0.9, tags=[])
+        busy = companion_fit("solo", low_percentile=0.1, tags=[])
+        assert quiet > busy
+
+    def test_couple_prefers_photo_and_nature(self):
+        assert companion_fit("couple", low_percentile=0.5, tags=["포토스팟"]) == 1.0
+        assert companion_fit("couple", low_percentile=0.5, tags=["자연"]) == 1.0
+        assert companion_fit("couple", low_percentile=0.5, tags=["미식"]) == 0.7
+        assert companion_fit("couple", low_percentile=0.5, tags=["역사"]) == 0.5
+
+    def test_family_prefers_indoor(self):
+        indoor = companion_fit("family", low_percentile=0.5, tags=[], is_indoor=True)
+        outdoor = companion_fit("family", low_percentile=0.5, tags=[], is_indoor=False)
+        assert indoor > outdoor
+
+
+class TestAlternativeScoreCompanion:
+    def test_none_matches_baseline(self):
+        # companion=None이면 항 자체가 빠져 기존 산식과 완전히 동일해야 한다(회귀 없음)
+        base = alternative_score(0.8, 0.5, 0.7, 0.3, 0.6, 0.1, ALT_WEIGHTS)
+        explicit = alternative_score(0.8, 0.5, 0.7, 0.3, 0.6, 0.1, ALT_WEIGHTS,
+                                     companion=None)
+        assert base == explicit
+
+    def test_companion_shifts_ranking(self):
+        # 동일 후보라도 companion 적합도가 높으면 점수가 오른다(소프트 우선정렬)
+        low = alternative_score(0.8, 0.5, 0.7, 0.3, 0.6, 0.1, ALT_WEIGHTS,
+                                companion=0.0)
+        high = alternative_score(0.8, 0.5, 0.7, 0.3, 0.6, 0.1, ALT_WEIGHTS,
+                                 companion=1.0)
+        assert high > low

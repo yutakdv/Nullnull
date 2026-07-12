@@ -39,13 +39,6 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
-const assets = {
-  hero: '/assets/hero-coastal-path.png',
-  forest: '/assets/forest-temple.png',
-  lake: '/assets/lakeside-village.png',
-  cafe: '/assets/cafe-alley.png',
-};
-
 // 기본은 same-origin(/api/...) 호출:
 //  - 로컬 dev: vite.config.js proxy → 127.0.0.1:8000
 //  - docker-compose: nginx → backend:8000
@@ -65,8 +58,37 @@ async function apiFetch(path, options) {
   return response.json();
 }
 
-function imageUrl(path, fallback = assets.hero) {
-  if (!path) return fallback;
+const PLACEHOLDER_GRADIENTS = [
+  ['#cfe9dd', '#a9d8ec'],
+  ['#d8ecd2', '#bfe0d3'],
+  ['#dfe7d2', '#cbe6dd'],
+  ['#d1e3ef', '#c8e7db'],
+];
+
+function hashSeed(seed = '') {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return hash;
+}
+
+// 사진이 없는 장소를 위한 브랜드 그라디언트 자리표시(외부 요청 없는 data-URI SVG).
+// generic 사진을 잘못 붙이는 대신 '사진 준비 중'으로 읽히는 핀 모티브 타일을 만든다.
+function placeholderImage(seed = '') {
+  const [from, to] = PLACEHOLDER_GRADIENTS[hashSeed(seed) % PLACEHOLDER_GRADIENTS.length];
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'>`
+    + `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>`
+    + `<stop offset='0' stop-color='${from}'/><stop offset='1' stop-color='${to}'/>`
+    + `</linearGradient></defs>`
+    + `<rect width='400' height='300' fill='url(#g)'/>`
+    + `<path d='M200 98c-23 0-42 19-42 42 0 30 42 68 42 68s42-38 42-68c0-23-19-42-42-42z'`
+    + ` fill='rgba(255,255,255,0.68)'/>`
+    + `<circle cx='200' cy='140' r='15' fill='rgba(61,133,103,0.5)'/>`
+    + `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function imageUrl(path, seed = '') {
+  if (!path) return placeholderImage(seed);
   if (path.startsWith('http') || path.startsWith('/')) return path;
   return `/${path}`;
 }
@@ -75,7 +97,7 @@ function mapAlternative(item) {
   return {
     spotId: item.spot_id,
     title: item.name,
-    image: imageUrl(item.image_url),
+    image: imageUrl(item.image_url, item.name),
     decrease: `${item.decrease_pct}%`,
     move: `${item.travel_time_min}분`,
     similarity: `${item.similarity_pct}%`,
@@ -152,11 +174,12 @@ function homeSpotsPath({ date, theme }) {
 
 // logExposure: 대안 화면에 실제 진입할 때만 true — 상세 프리페치가 F8 노출 부하를
 // 부풀리지 않게 한다
-async function fetchSpotContext(spotId, date, theme, logExposure = false) {
+async function fetchSpotContext(spotId, date, theme, companion = '', logExposure = false) {
   const alternativeParams = new URLSearchParams({
     date, limit: '3', log_exposure: String(logExposure),
   });
   if (theme !== '전체') alternativeParams.set('themes', theme);
+  if (companion) alternativeParams.set('companion', companion);
   const [detail, morningView, afternoonView, eveningView, alternativesData, calendarData] =
     await Promise.all([
       apiFetch(`/api/spots/${spotId}`),
@@ -229,6 +252,8 @@ function App() {
   const [courseAlternatives, setCourseAlternatives] = useState(null);
   const [myCourses, setMyCourses] = useState(loadMyCourses);
   const [adminMode, setAdminMode] = useState(window.location.hash === '#admin');
+  const [booted, setBooted] = useState(false);      // 첫 로드 시도 완료 여부
+  const [navLoading, setNavLoading] = useState(false);  // 화면 전환/조회 진행 표시
 
   const congestionView = slotViews?.[activeSlot] ?? null;
 
@@ -313,7 +338,7 @@ function App() {
     setVisitDate(suggestion.date);
     setActiveSlot(suggestion.time_slot ?? activeSlot);
     try {
-      applySpotContext(await fetchSpotContext(targetId, suggestion.date, selectedTheme));
+      applySpotContext(await fetchSpotContext(targetId, suggestion.date, selectedTheme, companion));
       refreshHomeSpots(suggestion.date, selectedTheme);
       showToast('널널한 시간으로 옮겨서 다시 조회했어요');
     } catch (error) {
@@ -359,6 +384,7 @@ function App() {
   };
 
   const openCourse = async (courseId) => {
+    setNavLoading(true);
     try {
       setCourseView(await apiFetch(`/api/courses/${courseId}`));
       setScreen('course');
@@ -366,61 +392,62 @@ function App() {
     } catch (error) {
       console.warn(error);
       showToast('코스를 불러오지 못했어요');
+    } finally {
+      setNavLoading(false);
     }
   };
 
   const openSpot = async (spotId) => {
+    setNavLoading(true);
     try {
       setSelectedSpotId(spotId);
-      applySpotContext(await fetchSpotContext(spotId, visitDate, selectedTheme));
+      applySpotContext(await fetchSpotContext(spotId, visitDate, selectedTheme, companion));
       setScreen('detail');
     } catch (error) {
       console.warn(error);
       showToast('관광지 정보를 불러오지 못했어요');
+    } finally {
+      setNavLoading(false);
+    }
+  };
+
+  // 초기 데이터 로드 — 연결 실패 시 배너의 '다시 시도'가 재호출한다
+  const bootstrap = async () => {
+    setNavLoading(true);
+    try {
+      await apiFetch('/api/health');
+      const [popularList, homeSpotResponse, visitedResponse, impactResponse] = await Promise.all([
+        apiFetch('/api/courses/popular?limit=3'),
+        apiFetch(homeSpotsPath({ date: visitDate, theme: selectedTheme })),
+        apiFetch('/api/spots/visited?limit=6').catch(() => ({ items: [] })),
+        apiFetch('/api/impact/summary').catch(() => null),
+      ]);
+
+      const firstSpot = homeSpotResponse.items[0] ?? null;
+      setApiReady(true);
+      applyHomeResponse(homeSpotResponse);
+      setHomeCourses(popularList);
+      setVisitedSpots(visitedResponse.items);
+      setImpact(impactResponse);
+      setSpot(firstSpot);
+
+      if (firstSpot) {
+        applySpotContext(await fetchSpotContext(firstSpot.spot_id, visitDate, selectedTheme, companion));
+      }
+
+      const courseHash = window.location.hash.match(/^#course\/(\d+)$/);
+      if (courseHash) openCourse(Number(courseHash[1]));
+    } catch (error) {
+      console.warn('Nullnull API 연결에 실패했습니다.', error);
+      setApiReady(false);
+    } finally {
+      setBooted(true);
+      setNavLoading(false);
     }
   };
 
   useEffect(() => {
-    let ignore = false;
-
-    async function loadInitialData() {
-      try {
-        await apiFetch('/api/health');
-        const [popularList, homeSpotResponse, visitedResponse, impactResponse] = await Promise.all([
-          apiFetch('/api/courses/popular?limit=3'),
-          apiFetch(homeSpotsPath({ date: visitDate, theme: selectedTheme })),
-          apiFetch('/api/spots/visited?limit=6').catch(() => ({ items: [] })),
-          apiFetch('/api/impact/summary').catch(() => null),
-        ]);
-        if (ignore) return;
-
-        const firstSpot = homeSpotResponse.items[0] ?? null;
-        setApiReady(true);
-        applyHomeResponse(homeSpotResponse);
-        setHomeCourses(popularList);
-        setVisitedSpots(visitedResponse.items);
-        setImpact(impactResponse);
-        setSpot(firstSpot);
-
-        if (firstSpot) {
-          const context = await fetchSpotContext(firstSpot.spot_id, visitDate, selectedTheme);
-          if (ignore) return;
-          applySpotContext(context);
-        }
-
-        // 공유 링크(#course/id)로 진입한 경우 해당 코스를 바로 연다
-        const courseHash = window.location.hash.match(/^#course\/(\d+)$/);
-        if (courseHash && !ignore) openCourse(Number(courseHash[1]));
-      } catch (error) {
-        console.warn('Nullnull API 연결에 실패했습니다.', error);
-        if (!ignore) setApiReady(false);
-      }
-    }
-
-    loadInitialData();
-    return () => {
-      ignore = true;
-    };
+    bootstrap();
   }, []);
 
   // '일정' 탭 직접 진입 시 인기 코스 1위의 상세를 불러온다(빈 화면 방지)
@@ -468,12 +495,15 @@ function App() {
       showToast('먼저 방문할 장소를 선택해주세요');
       return;
     }
+    setNavLoading(true);
     try {
-      applySpotContext(await fetchSpotContext(originSpotId, visitDate, selectedTheme, true));
+      applySpotContext(await fetchSpotContext(originSpotId, visitDate, selectedTheme, companion, true));
       setScreen('alternatives');
     } catch (error) {
       console.warn(error);
       showToast('대안 코스를 불러오지 못했어요');
+    } finally {
+      setNavLoading(false);
     }
   };
 
@@ -638,8 +668,13 @@ function App() {
 
   return (
     <main className="app-shell">
+      {navLoading && <div className="top-progress" aria-hidden="true" />}
       <div className="app-frame">
         <Header title={screenTitle} screen={screen} setScreen={changeScreen} onShare={handleShare} />
+
+        {booted && !apiReady && (
+          <ConnectionBanner onRetry={bootstrap} loading={navLoading} />
+        )}
 
         {screen === 'home' && (
           <HomeScreen
@@ -690,6 +725,7 @@ function App() {
             setModal={setModal}
             onCreateCourse={createCourseFromAlternatives}
             alternativeView={alternativeView}
+            companion={companion}
           />
         )}
         {screen === 'course' && (
@@ -801,6 +837,13 @@ const companionOptions = [
   { value: 'family', label: '가족과' },
 ];
 
+// 동행을 고르면 추천을 '거르는' 게 아니라 그 동행에 맞는 곳을 먼저 보여주는 우선정렬 안내
+const companionHints = {
+  solo: '혼자 여행에 맞춰 한적하고 덜 알려진 곳을 먼저 보여드려요',
+  couple: '둘이서 여행에 맞춰 포토스팟·자연·뷰가 좋은 곳을 먼저 보여드려요',
+  family: '가족 여행에 맞춰 실내·이동이 편한 곳을 먼저 보여드려요',
+};
+
 function HomeScreen({
   selectedTheme,
   visitDate,
@@ -846,7 +889,7 @@ function HomeScreen({
   return (
     <section className="screen home-screen">
       <div className="hero-panel">
-        <img src={imageUrl(featuredSpot?.image_url)} alt={featuredSpot?.name ?? '서울 관광지'} />
+        <img src={imageUrl(featuredSpot?.image_url, featuredSpot?.name)} alt={featuredSpot?.name ?? '서울 관광지'} />
         <div className="hero-overlay" />
         <div className="hero-content">
           <Tag icon={Sparkles}>
@@ -878,7 +921,7 @@ function HomeScreen({
               disabled={homeLoading}
             />
           </FilterControl>
-          <FilterControl icon={UsersRound} label="방문 장소">
+          <FilterControl icon={Navigation} label="기준 장소 (어디부터 시작할까요?)">
             <select
               value={selectedSpotId ?? ''}
               onChange={(event) => onSpotChange(Number(event.target.value))}
@@ -993,25 +1036,25 @@ function HomeScreen({
 
       <div className="stats-grid">
         <StatCard
-          label={`이번 주 평균 혼잡 회피율${impact?.includes_seed ? ' · 시드 포함' : ''}`}
+          label={`이번 주 덜 붐비게 다녀온 비율${impact?.includes_seed ? ' · 예시 포함' : ''}`}
           value={impact ? `${impact.avoid_rate_avg_pct}%` : '-'}
           icon={Leaf}
           tone="green"
         />
         <StatCard
-          label={`이번 주 숨은 명소 선택${impact?.includes_seed ? ' · 시드 포함' : ''}`}
-          value={impact ? `${impact.hidden_pick_count.toLocaleString()}회` : '-'}
+          label={`이번 주 새로 발견한 덜 알려진 곳${impact?.includes_seed ? ' · 예시 포함' : ''}`}
+          value={impact ? `${impact.hidden_pick_count.toLocaleString()}곳` : '-'}
           icon={Sparkles}
           tone="blue"
         />
         <StatCard
-          label="TourAPI 서울 관광지"
+          label="골라 담을 수 있는 서울 관광지"
           value={homeSpotTotal ? homeSpotTotal.toLocaleString() : '-'}
           icon={Compass}
           tone="green"
         />
         <StatCard
-          label={featuredSpot ? `${featuredSpot.name} 현재 혼잡도` : '현재 혼잡도'}
+          label={featuredSpot ? `${featuredSpot.name} 지금 얼마나 붐벼요` : '지금 얼마나 붐벼요'}
           value={featuredSpot ? `${Math.round(featuredSpot.risk)}%` : '-'}
           icon={Map}
           tone="blue"
@@ -1060,7 +1103,7 @@ function HomeScreen({
                 key={course.course_id}
                 onClick={() => onOpenCourse(course.course_id)}
               >
-                <img src={imageUrl(course.image_url)} alt={course.title} />
+                <img src={imageUrl(course.image_url, course.title)} alt={course.title} />
                 <div className="course-card-body">
                   <div className="course-card-top">
                     <Tag icon={Bookmark}>저장한 코스</Tag>
@@ -1122,7 +1165,7 @@ function VisitedSpotCard({ spot, onClick }) {
 
   return (
     <button className="course-card visited-card" onClick={onClick}>
-      <img src={imageUrl(spot.image_url)} alt={spot.name} />
+      <img src={imageUrl(spot.image_url, spot.name)} alt={spot.name} />
       <div className="course-card-body">
         <div className="course-card-top">
           <Tag icon={History}>{spot.visited_text}</Tag>
@@ -1152,7 +1195,7 @@ function DetailScreen({
   return (
     <section className="screen detail-screen">
       <div className="detail-hero">
-        <img src={imageUrl(spot?.image_url)} alt={spot?.name ?? '추천 관광지'} />
+        <img src={imageUrl(spot?.image_url, spot?.name)} alt={spot?.name ?? '추천 관광지'} />
         <div className="detail-actions">
           <IconButton label="지도 열기" className="glass">
             <Map size={19} />
@@ -1193,14 +1236,16 @@ function DetailScreen({
           {suggestions.map((item) => (
             <button
               key={`${item.kind}-${item.date}-${item.time_slot}`}
-              className={`suggestion-chip level-${item.level}`}
+              className="suggestion-chip"
               onClick={() => onTimeShift(item)}
             >
-              <Clock3 size={15} />
-              <span>
+              <span className="suggestion-icon"><Clock3 size={17} /></span>
+              <span className="suggestion-text">
                 {item.text}
-                <small>혼잡 {item.decrease_pct}% ↓ · 탭해서 이 시간으로 보기</small>
+                <small>탭하면 이 시간으로 바꿔서 봐요</small>
               </span>
+              <span className="suggestion-drop">붐빔 {item.decrease_pct}%↓</span>
+              <ChevronRight size={18} className="suggestion-arrow" />
             </button>
           ))}
         </div>
@@ -1257,7 +1302,7 @@ function DetailScreen({
   );
 }
 
-function AlternativesScreen({ setModal, onCreateCourse, alternativeView }) {
+function AlternativesScreen({ setModal, onCreateCourse, alternativeView, companion }) {
   const origin = alternativeView?.origin;
   const recommendationList = alternativeView?.alternatives?.map(mapAlternative) ?? [];
   const routeSummary = alternativeView?.route_summary;
@@ -1268,7 +1313,7 @@ function AlternativesScreen({ setModal, onCreateCourse, alternativeView }) {
         <div className="recommendation-column">
           <Card className="original-card">
             <div className="mini-photo">
-              <img src={imageUrl(origin?.image_url)} alt={origin?.name ?? '원래 관광지'} />
+              <img src={imageUrl(origin?.image_url, origin?.name)} alt={origin?.name ?? '원래 관광지'} />
             </div>
             <div>
               <span className="eyebrow">원래 가려던 곳</span>
@@ -1277,6 +1322,15 @@ function AlternativesScreen({ setModal, onCreateCourse, alternativeView }) {
             </div>
             <ArrowDown className="down-arrow" size={20} />
           </Card>
+
+          {companion && companionHints[companion] && (
+            <div className="companion-hint">
+              <UsersRound size={16} />
+              {companionHints[companion]}
+            </div>
+          )}
+
+          <CrowdLegend />
 
           <div className="recommendation-list">
             {recommendationList.length ? recommendationList.map((item) => (
@@ -1288,6 +1342,16 @@ function AlternativesScreen({ setModal, onCreateCourse, alternativeView }) {
               />
             )) : <EmptyState />}
           </div>
+
+          {recommendationList.length > 0 && (
+            <div className="alt-cta">
+              <p>위 {recommendationList.length}곳을 이동 동선에 맞춰 하나의 코스로 묶어드려요.</p>
+              <Button full onClick={onCreateCourse}>
+                이 대안들로 코스 만들기
+                <ArrowRight size={19} />
+              </Button>
+            </div>
+          )}
         </div>
 
         <Card className="map-card">
@@ -1418,7 +1482,7 @@ function CourseScreen({
       <Card className="summary-card">
         <SummaryMetric label="예상 혼잡 감소" value={summary ? `${summary.relief_pct}%` : '-'} />
         <SummaryMetric
-          label={isFree ? '카테고리 일치율' : '테마 유지율'}
+          label={isFree ? '카테고리 일치 정도' : '테마 유지 정도'}
           value={summary ? `${summary.theme_keep_pct}%` : '-'}
         />
         <SummaryMetric label="총 이동시간" value={summary ? `${summary.total_move_min}분` : '-'} />
@@ -1462,7 +1526,7 @@ function CourseScreen({
                     onClick={() => onSwap(slot.order_no, alt.spot_id)}
                     title={alt.reason}
                   >
-                    <img src={imageUrl(alt.image_url)} alt={alt.name} />
+                    <img src={imageUrl(alt.image_url, alt.name)} alt={alt.name} />
                     <span className="swap-body">
                       <span className="swap-name">
                         {alt.name}
@@ -1700,6 +1764,20 @@ function CrowdBadge({ level, size = 'normal' }) {
   );
 }
 
+function CrowdLegend() {
+  // 널널도 5단계 색 범례 — 초록(널널)에서 빨강(붐빔)까지 뜻을 한눈에
+  return (
+    <div className="crowd-legend" aria-label="널널도 5단계 안내">
+      {crowdLevels.map((lv) => (
+        <span key={lv.value} className={`legend-item ${lv.className}`}>
+          <i />
+          {lv.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function StatCard({ label, value, icon: Icon, tone }) {
   return (
     <Card className={`stat-card ${tone}`}>
@@ -1728,7 +1806,7 @@ function SpotCard({ spot, selected = false, onClick }) {
 
   return (
     <button className={`course-card ${selected ? 'is-selected' : ''}`} onClick={onClick}>
-      <img src={imageUrl(spot.image_url)} alt={spot.name} />
+      <img src={imageUrl(spot.image_url, spot.name)} alt={spot.name} />
       <div className="course-card-body">
         <div className="course-card-top">
           <Tag>{tag}</Tag>
@@ -1822,8 +1900,8 @@ function AlternativeCard({ item, onReason, onSelect }) {
             <div className="alt-chips">
               {item.hiddenGem && <span className="chip chip-gem">숨은 명소</span>}
               {item.loadPenalty > 0 && (
-                <span className="chip chip-rotation" title="최근 추천이 몰려 점수를 낮춘 상태예요(F8)">
-                  로테이션 반영
+                <span className="chip chip-rotation" title="한 곳에 추천이 몰리지 않게 여러 장소를 번갈아 보여드려요">
+                  번갈아 추천
                 </span>
               )}
             </div>
@@ -1848,21 +1926,30 @@ function Metric({ label, value }) {
 }
 
 function LeafletPointsMap({ points }) {
-  // OSM 타일은 키·도메인 등록이 필요 없다. 카카오맵 키 등록 후 이 컴포넌트만 교체하면 된다.
+  // CARTO Voyager 타일 — 무료·키/도메인 등록 불필요이고 앱 파스텔 톤과 어울린다.
+  // 카카오맵 키(도메인 등록) 확정 후 이 컴포넌트만 교체하면 된다.
   // points: [{ lat, lng, pin, className, tooltip }] — 대안 경로·코스 동선이 공유한다.
   const hostRef = useRef(null);
   const pointsKey = points.map((p) => `${p.lat},${p.lng}`).join('|');
 
   useEffect(() => {
     if (!hostRef.current || !points.length) return undefined;
+    // 드래그·줌 버튼·더블클릭 확대는 켜고, 휠 줌만 꺼 페이지 스크롤과 충돌을 막는다
+    // (정적 이미지가 아니라 실제로 조작되는 지도로 보이게).
     const map = L.map(hostRef.current, {
       scrollWheelZoom: false,
+      zoomControl: true,
       attributionControl: true,
     });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap',
-    }).addTo(map);
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      {
+        maxZoom: 20,
+        subdomains: 'abcd',
+        detectRetina: true,
+        attribution: '© OpenStreetMap · © CARTO',
+      },
+    ).addTo(map);
 
     const pin = (label, className) => L.divIcon({
       className: '',
@@ -1897,7 +1984,13 @@ function LeafletPointsMap({ points }) {
   if (!points.length) {
     return <div className="route-map"><Skeleton /></div>;
   }
-  return <div className="route-map leaflet-host" ref={hostRef} aria-label="경로 지도" />;
+  // 둥근 클립은 바깥 래퍼(.route-map)가 맡고, Leaflet 루트(.leaflet-host)는 사각형 자식으로 둔다.
+  // 라운드+overflow가 걸린 요소가 Leaflet 컨테이너를 겸하면 타일 합성 레이어가 단색 블록으로 깨진다.
+  return (
+    <div className="route-map map-clip">
+      <div className="leaflet-host" ref={hostRef} aria-label="경로 지도" />
+    </div>
+  );
 }
 
 function TimelineItem({ item, index, isLast }) {
@@ -1907,7 +2000,7 @@ function TimelineItem({ item, index, isLast }) {
       <Card>
         <div className="timeline-body">
           {item.image_url && (
-            <img className="timeline-thumb" src={imageUrl(item.image_url)} alt={item.place} />
+            <img className="timeline-thumb" src={imageUrl(item.image_url, item.place)} alt={item.place} />
           )}
           <div className="timeline-main">
             <div className="timeline-top">
@@ -1956,7 +2049,7 @@ const BREAKDOWN_ROWS = [
   { key: 'theme_similarity', label: '테마 유사도' },
   { key: 'relief', label: '혼잡 완화 효과' },
   { key: 'mobility', label: '이동 편의성' },
-  { key: 'hidden', label: '숨은 명소성' },
+  { key: 'hidden', label: '덜 알려진 곳' },
   { key: 'weather', label: '날씨 적합성' },
 ];
 
@@ -1975,7 +2068,7 @@ function ReasonModal({ item, onClose }) {
 
         {item.breakdown && (
           <div className="breakdown">
-            <span className="eyebrow">점수 구성 (AlternativeScore {item.score?.toFixed(2)})</span>
+            <span className="eyebrow">추천 점수 구성 (종합 {item.score?.toFixed(2)})</span>
             {BREAKDOWN_ROWS.map(({ key, label }) => {
               const value = breakdown[key];
               if (value === null || value === undefined) {
@@ -1999,7 +2092,7 @@ function ReasonModal({ item, onClose }) {
             })}
             <div className={`proof-bar ${loadPenalty > 0 ? 'is-negative' : 'is-muted'}`}>
               <div>
-                <span>추천 로테이션 페널티(F8)</span>
+                <span>추천 쏠림 조정</span>
                 <strong>{loadPenalty > 0 ? `−${Math.round(loadPenalty * 100)}%` : '없음'}</strong>
               </div>
               <i><b style={{ width: `${Math.min(loadPenalty * 1000, 100)}%` }} /></i>
@@ -2104,6 +2197,21 @@ function AdminScreen({ onExit }) {
         </>
       )}
     </section>
+  );
+}
+
+function ConnectionBanner({ onRetry, loading }) {
+  return (
+    <div className="connection-banner" role="alert">
+      <div>
+        <strong>백엔드에 연결하지 못했어요</strong>
+        <p>서버가 켜져 있는지 확인 후 다시 시도해주세요. (심사장 오프라인 시 데모 모드로 기동)</p>
+      </div>
+      <button onClick={onRetry} disabled={loading}>
+        {loading ? <Loader2 size={16} className="spin" /> : <RefreshCcw size={16} />}
+        다시 시도
+      </button>
+    </div>
   );
 }
 
