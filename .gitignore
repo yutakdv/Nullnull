@@ -1,6 +1,8 @@
 # 비밀값 — 절대 커밋 금지(.env.example만 커밋)
 .env
 
+**/.DS_Store
+
 # Python
 .venv/
 __pycache__/
