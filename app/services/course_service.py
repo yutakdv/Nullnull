@@ -11,7 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app import models
-from app.external import kakao_api, kma_api
+from app.external import kakao_api, kma_api, openai_api
 from app.geo import estimate_move, haversine_km
 from app.scoring.alternative import (
     alternative_score,
@@ -339,6 +339,158 @@ def recommend_course(
         mode=mode, slot_themes=sequence if mode == "free" else None,
         companion=companion,
     )
+
+
+# ── AI 코스(LLM) — 알고리즘 후보 큐레이션 → OpenAI 코스 구성 → 검증 → 실체화 ──
+# 기준점(origin)은 후보 중 가장 붐비는 대표 명소로 두어, 널널한 타임라인과의
+# 대비로 '혼잡 회피 %'가 양수로 산출되게 한다(서비스 컨셉: 붐빔 대신 널널 코스).
+SLOT_THEME_OPTIONS = ("여행지", "자연", "역사", "미식", "포토스팟")
+
+
+def _dominant_theme(spot: models.TouristSpot) -> str:
+    best, best_fit = "여행지", 0.0
+    for theme in SLOT_THEME_OPTIONS:
+        fit = slot_theme_fit(spot, theme)
+        if fit > best_fit:
+            best, best_fit = theme, fit
+    return best
+
+
+def _curate_candidates(db, *, district, themes, visit_date, time_slot, limit=20):
+    """구·테마·혼잡 실측 기준으로 후보 풀을 추린다 → (pool[가장 널널한 순], risks)."""
+    q = select(models.TouristSpot).where(models.TouristSpot.region.contains("서울"))
+    if district:
+        q = q.where(models.TouristSpot.addr.contains(district))
+    eligible = spots_with_congestion_data(db)
+    pool = [s for s in db.scalars(q).all() if s.spot_id in eligible]
+    slot_themes = [t for t in (themes or []) if t in SLOT_THEME_OPTIONS]
+    if slot_themes:
+        themed = [s for s in pool if any(slot_theme_fit(s, t) > 0 for t in slot_themes)]
+        pool = themed or pool                          # 테마 후보 없으면 완화
+    risks = bulk_risks(db, pool, visit_date, time_slot)
+    pool.sort(key=lambda s: risks.get(s.spot_id, 1.0))
+    return pool[:limit], risks
+
+
+def _pick_reference(pool, risks):
+    """혼잡 회피 기준점 — 후보 중 가장 붐비는(위험 높은) 대표 명소."""
+    return max(pool, key=lambda s: (risks.get(s.spot_id, 0.0), s.base_popularity))
+
+
+def _course_title_desc(llm_course, district, index):
+    if llm_course:
+        title = (llm_course.get("title") or "").strip() or f"{district or '서울'} 널널 코스"
+        concept = (llm_course.get("concept") or "").strip()
+        reason = (llm_course.get("reason") or "").strip()
+        desc = " ".join(p for p in (concept, reason) if p) or None
+        return title, desc
+    return (f"{district or '서울'} 널널 코스 {index + 1}",
+            "붐빔을 피해 여유롭게 이어지는 동선이에요.")
+
+
+def _materialize_course(db, *, reference, ordered, visit_date, time_slot, companion,
+                        llm_course, district, index):
+    title, desc = _course_title_desc(llm_course, district, index)
+    return _build_course(
+        db, reference, ordered, visit_date, time_slot,
+        title=title, description=desc, mode="free",
+        slot_themes=[_dominant_theme(s) for s in ordered], companion=companion,
+    )
+
+
+def _build_llm_payload(pool, risks, reference, *, district, stops, companion,
+                       visit_date, themes, pace, indoor_pref, count):
+    def brief(s):
+        return {"spot_id": s.spot_id, "name": s.name, "category": s.category_name,
+                "lat": round(s.lat, 5), "lng": round(s.lng, 5),
+                "risk": round(risks.get(s.spot_id, 0.0), 1),
+                "is_indoor": bool(s.is_indoor), "tags": spot_theme_tags(s)}
+    candidates = [brief(s) for s in pool if s.spot_id != reference.spot_id]
+    return {
+        "conditions": {
+            "district": district or "서울 전체", "date": visit_date.isoformat(),
+            "companion": companion, "interests": themes, "pace": pace,
+            "indoor_preference": indoor_pref, "stops_per_course": stops,
+            "course_count": count,
+        },
+        "avoid_reference": {"spot_id": reference.spot_id, "name": reference.name,
+                            "risk": round(risks.get(reference.spot_id, 0.0), 1)},
+        "candidates": candidates,
+    }
+
+
+def _materialize_llm_courses(db, raw, pool, reference, *, visit_date, time_slot,
+                             companion, stops, district):
+    """LLM 응답의 spot_id를 후보 풀로 검증(환각 제거)·중복 제거·부족분 보충 후 실체화."""
+    by_id = {s.spot_id: s for s in pool if s.spot_id != reference.spot_id}
+    supplement = [s for s in pool if s.spot_id != reference.spot_id]
+    courses = []
+    for i, lc in enumerate((raw or {}).get("courses", [])):
+        seen, ordered = set(), []
+        for st in lc.get("stops", []):
+            sid = st.get("spot_id") if isinstance(st, dict) else st
+            if sid in by_id and sid not in seen:
+                ordered.append(by_id[sid])
+                seen.add(sid)
+        for s in supplement:                            # stops 부족분은 널널 상위로 보충
+            if len(ordered) >= stops:
+                break
+            if s.spot_id not in seen:
+                ordered.append(s)
+                seen.add(s.spot_id)
+        ordered = _greedy_order(reference, ordered[:stops])
+        if len(ordered) < 2:
+            continue
+        courses.append(_materialize_course(
+            db, reference=reference, ordered=ordered, visit_date=visit_date,
+            time_slot=time_slot, companion=companion, llm_course=lc,
+            district=district, index=i))
+    return courses
+
+
+def _algorithmic_multi_courses(db, pool, reference, *, stops, companion,
+                               visit_date, time_slot, district, count):
+    """폴백 — 후보 풀에서 시작점을 회전시켜 서로 다른 널널 코스 count개를 만든다."""
+    picks = [s for s in pool if s.spot_id != reference.spot_id]
+    courses = []
+    for i in range(count):
+        if len(picks) < 2:
+            break
+        rotated = picks[i % len(picks):] + picks[:i % len(picks)]
+        ordered = _greedy_order(reference, rotated[:stops])
+        if len(ordered) < 2:
+            break
+        courses.append(_materialize_course(
+            db, reference=reference, ordered=ordered, visit_date=visit_date,
+            time_slot=time_slot, companion=companion, llm_course=None,
+            district=district, index=i))
+    return courses
+
+
+def ai_recommend_courses(db, *, district, stops, companion, visit_date, time_slot,
+                         themes, pace, indoor_pref, count=3):
+    """AI 코스 추천 — 후보 큐레이션 → LLM 구성(가능 시) → 검증/실체화, 실패 시 알고리즘 폴백.
+
+    반환: (코스 리스트, source) — source ∈ {"llm", "algorithm"}.
+    """
+    pool, risks = _curate_candidates(
+        db, district=district, themes=themes, visit_date=visit_date, time_slot=time_slot)
+    if len(pool) < 2:
+        raise NoSlotCandidateError("이 조건에서 추천할 장소를 찾지 못했어요.")
+    reference = _pick_reference(pool, risks)
+    payload = _build_llm_payload(
+        pool, risks, reference, district=district, stops=stops, companion=companion,
+        visit_date=visit_date, themes=themes, pace=pace, indoor_pref=indoor_pref, count=count)
+    raw = openai_api.complete_courses(payload)
+    courses = _materialize_llm_courses(
+        db, raw, pool, reference, visit_date=visit_date, time_slot=time_slot,
+        companion=companion, stops=stops, district=district) if raw else []
+    if courses:
+        return courses, "llm"
+    fallback = _algorithmic_multi_courses(
+        db, pool, reference, stops=stops, companion=companion, visit_date=visit_date,
+        time_slot=time_slot, district=district, count=count)
+    return fallback, "algorithm"
 
 
 def _course_visit_date(course: models.Course) -> date:
