@@ -331,6 +331,23 @@ class CourseDetail(BaseModel):
     reviews: CourseReviews
 
 
+class AiCourseRequest(BaseModel):
+    """AI 코스 추천 조건 — 알고리즘이 후보를 추리고 LLM(가능 시)이 코스를 구성한다."""
+    district: str | None = None
+    stops: int = Field(3, ge=2, le=5, description="코스당 방문 장소 수")
+    companion: Companion | None = None
+    date: date_type | None = None
+    time_slot: str = Field("afternoon", pattern="^(morning|afternoon|evening)$")
+    themes: list[str] = Field(default_factory=list, description="관심 테마(다중)")
+    pace: Literal["여유", "보통"] = "여유"
+    indoor_pref: Literal["상관없음", "실내", "실외"] = "상관없음"
+
+
+class AiCourseResponse(BaseModel):
+    source: Literal["llm", "algorithm"]     # 코스 생성 출처(폴백 투명 고지)
+    courses: list[CourseDetail]
+
+
 class CourseSlotAlternative(BaseModel):
     """코스 슬롯 교체 후보 — F4 대안 카드의 경량판."""
     spot_id: int

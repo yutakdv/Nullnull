@@ -94,3 +94,16 @@ def test_ai_validates_and_uses_llm_spot_ids(client, db, monkeypatch):
     ).all()
     assert 999999 not in item_ids
     assert all(sid in candidate_ids for sid in item_ids)
+
+
+def test_ai_recommend_endpoint_returns_multiple_courses(client):
+    body = {"district": "종로구", "stops": 3, "date": _saturday().isoformat(),
+            "time_slot": "afternoon", "themes": ["역사"], "pace": "여유",
+            "indoor_pref": "상관없음"}
+    resp = client.post("/api/courses/ai-recommend", json=body)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["source"] in ("llm", "algorithm")
+    assert 1 <= len(data["courses"]) <= 3
+    assert data["courses"][0]["course_id"]
+    assert data["courses"][0]["timeline"]

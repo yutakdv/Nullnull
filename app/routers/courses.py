@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
 from app.services import course_service
-from app.services.congestion_service import validate_visit_date
+from app.services.congestion_service import default_visit_date, validate_visit_date
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 
@@ -52,6 +52,26 @@ def recommend_course(body: schemas.CourseRecommendRequest, db: Session = Depends
     except course_service.NoSlotCandidateError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return course_service.course_detail(db, course)
+
+
+@router.post("/ai-recommend", response_model=schemas.AiCourseResponse, status_code=201)
+def ai_recommend(body: schemas.AiCourseRequest, db: Session = Depends(get_db)):
+    """AI 코스 추천 — 조건에 맞는 후보를 추려 여러 코스를 만든다.
+
+    OpenAI 키가 있으면 LLM이 동선을 구성하고, 없거나 실패하면 알고리즘 다중 코스로
+    폴백한다(오프라인 심사 대비). 응답 source로 출처를 투명 고지한다.
+    """
+    visit_date = body.date or default_visit_date()
+    validate_visit_date(visit_date)
+    try:
+        courses, source = course_service.ai_recommend_courses(
+            db, district=body.district, stops=body.stops, companion=body.companion,
+            visit_date=visit_date, time_slot=body.time_slot, themes=body.themes,
+            pace=body.pace, indoor_pref=body.indoor_pref, count=3)
+    except course_service.NoSlotCandidateError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"source": source,
+            "courses": [course_service.course_detail(db, c) for c in courses]}
 
 
 def _get_course_or_404(db: Session, course_id: int) -> models.Course:
