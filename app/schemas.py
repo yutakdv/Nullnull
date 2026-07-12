@@ -51,8 +51,13 @@ class SpotDetail(SpotSummary):
     proof: ProofBars
 
 
+class SpotListItem(SpotSummary):
+    """검색 카탈로그 카드 — 스냅샷 보유 스팟만 혼잡 level이 채워진다."""
+    level: int | None = None
+
+
 class SpotListResponse(BaseModel):
-    items: list[SpotSummary]
+    items: list[SpotListItem]
     total: int
     page: int
     size: int

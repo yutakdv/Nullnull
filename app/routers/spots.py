@@ -32,6 +32,15 @@ router = APIRouter(prefix="/api/spots", tags=["spots"])
 TIME_SLOT_PATTERN = "^(morning|afternoon|evening)$"
 PAST_YEAR_PATTERN = re.compile(r"(?<!\d)(20\d{2})(?!\d)")
 
+# 검색 카탈로그 카테고리 → TourAPI 대분류(cat1) 그룹. '볼거리'가 검색 탭 기본군.
+CATEGORY_CAT1_GROUPS: dict[str, tuple[str, ...]] = {
+    "볼거리": ("A01", "A02", "A03"),
+    "자연·공원": ("A01",),
+    "문화·역사": ("A02",),
+    "쇼핑": ("A04",),
+    "미식": ("A05",),
+}
+
 
 def get_spot_or_404(db: Session, spot_id: int) -> models.TouristSpot:
     spot = db.get(models.TouristSpot, spot_id)
@@ -48,7 +57,8 @@ def is_past_event_listing(spot: models.TouristSpot) -> bool:
 @router.get("", response_model=schemas.SpotListResponse)
 def list_spots(
     region: str | None = Query(None, description="지역명(예: 서울)"),
-    category: str | None = Query(None, description="카테고리명 또는 코드(cat1~3)"),
+    district: str | None = Query(None, description="세부 지역(구) 필터 — 주소 기준(예: 종로구)"),
+    category: str | None = Query(None, description="카테고리 그룹(볼거리/문화·역사/자연·공원/미식/쇼핑) 또는 코드"),
     keyword: str | None = Query(None, description="이름/개요 키워드"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
@@ -57,13 +67,19 @@ def list_spots(
     query = select(models.TouristSpot)
     if region:
         query = query.where(models.TouristSpot.region.contains(region))
+    if district:
+        query = query.where(models.TouristSpot.addr.contains(district))
     if category:
-        query = query.where(or_(
-            models.TouristSpot.category_name.contains(category),
-            models.TouristSpot.cat1 == category,
-            models.TouristSpot.cat2 == category,
-            models.TouristSpot.cat3 == category,
-        ))
+        group = CATEGORY_CAT1_GROUPS.get(category)
+        if group:
+            query = query.where(models.TouristSpot.cat1.in_(group))
+        else:
+            query = query.where(or_(
+                models.TouristSpot.category_name.contains(category),
+                models.TouristSpot.cat1 == category,
+                models.TouristSpot.cat2 == category,
+                models.TouristSpot.cat3 == category,
+            ))
     if keyword:
         # 유사 장소도 걸리도록 이름뿐 아니라 카테고리·주소·테마 태그·개요까지 매칭하고,
         # 띄어쓰기 차이(예: "서울 숲" ↔ "서울숲")도 이름 기준으로 흡수한다.
@@ -88,7 +104,18 @@ def list_spots(
         )
         .offset((page - 1) * size).limit(size)
     ).all()
-    return {"items": items, "total": total, "page": page, "size": size}
+
+    # 반환 페이지(size≤100)에 한해 스냅샷 보유 스팟의 혼잡 level만 덧붙인다
+    # (2,000행 전수 혼잡 계산을 피하고, 근거 있는 곳만 배지 표기).
+    snap_ids = set(db.scalars(select(models.CongestionSnapshot.spot_id).distinct()).all())
+    page_snap = [s for s in items if s.spot_id in snap_ids]
+    risks = bulk_risks(db, page_snap, default_visit_date(), "afternoon") if page_snap else {}
+    payload = []
+    for spot in items:
+        row = schemas.SpotSummary.model_validate(spot).model_dump()
+        row["level"] = level_of(risks[spot.spot_id]) if spot.spot_id in risks else None
+        payload.append(row)
+    return {"items": payload, "total": total, "page": page, "size": size}
 
 
 @router.get("/home", response_model=schemas.HomeSpotsResponse)
