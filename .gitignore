@@ -8,8 +8,7 @@ __pycache__/
 .pytest_cache/
 
 # 로컬 DB(기동 시 시드로 재생성, 실데이터는 일배치로 수집)
-# 팀원 DB 동기화를 위해 일시적으로 커밋 허용 — 동기화 끝나면 주석 복구할 것
-# nullnull.db
-# tests/test_nullnull.db
+nullnull.db
+tests/test_nullnull.db
 
 .claude/
