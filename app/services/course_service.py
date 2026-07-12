@@ -7,7 +7,7 @@
 """
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app import models
@@ -716,6 +716,7 @@ def course_detail(db: Session, course: models.Course) -> dict:
         "mode": course.mode or "theme", "slot_themes": course.slot_themes,
         "companion": course.companion,
         "companion_label": COMPANION_LABELS.get(course.companion),
+        "is_shared": bool(course.is_shared),
         "course_score": score,
         "timeline": timeline,
         "map_points": map_points,
@@ -743,9 +744,13 @@ def course_detail(db: Session, course: models.Course) -> dict:
 
 
 def popular_courses(db: Session, limit: int = 3) -> list[dict]:
-    """홈 캐러셀 — 실사용 코스 우선, 부족하면 시드 코스로 채운다(콜드스타트 안전)."""
+    """홈 캐러셀 — 사용자가 공유한 코스 우선, 부족하면 시드 코스로 채운다(콜드스타트 안전).
+
+    공유(is_shared)하지 않은 개인 코스는 노출하지 않는다 — 공유 버튼이 게시 행위다.
+    """
     courses = db.scalars(
         select(models.Course)
+        .where(or_(models.Course.is_shared.is_(True), models.Course.is_seed.is_(True)))
         .order_by(models.Course.is_seed.asc(), models.Course.relief_pct.desc(),
                   models.Course.created_at.desc())
         .limit(limit)

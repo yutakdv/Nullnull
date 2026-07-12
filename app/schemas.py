@@ -316,6 +316,7 @@ class CourseDetail(BaseModel):
     slot_themes: list[str] | None
     companion: str | None = None            # F1 동행 유형
     companion_label: str | None = None      # 혼자|둘이서|가족과
+    is_shared: bool = False                 # 공개(홈 인기 노출) 여부
     course_score: float
     timeline: list[TimelineItem]
     map_points: list[CourseMapPoint] = []

@@ -102,6 +102,15 @@ def reroll_course(course_id: int, db: Session = Depends(get_db)):
     return course_service.course_detail(db, new_course)
 
 
+@router.post("/{course_id}/share", response_model=schemas.CourseDetail)
+def share_course(course_id: int, db: Session = Depends(get_db)):
+    """코스 공개 — 홈 '인기 널널 코스'에 노출된다(F9 코스 공유)."""
+    course = _get_course_or_404(db, course_id)
+    course.is_shared = True
+    db.commit()
+    return course_service.course_detail(db, course)
+
+
 @router.get("/{course_id}", response_model=schemas.CourseDetail)
 def get_course(course_id: int, db: Session = Depends(get_db)):
     """코스 상세 + 추천 근거 + 개인 임팩트 카드."""

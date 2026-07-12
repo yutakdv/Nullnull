@@ -22,6 +22,7 @@ _COLUMN_MIGRATIONS = {
         "slot_themes": "JSON",
         "time_slot": "VARCHAR(10) DEFAULT 'afternoon'",
         "companion": "VARCHAR(10)",
+        "is_shared": "BOOLEAN DEFAULT 0",
     },
 }
 
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
     apply_column_migrations()
     with SessionLocal() as db:
         seed_data.run(db)   # 멱등 — 데이터가 있으면 건너뜀
+        seed_data.sync_seed_images(db)
     yield
 
 

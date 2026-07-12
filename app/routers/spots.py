@@ -94,18 +94,22 @@ def list_spots(
 @router.get("/home", response_model=schemas.HomeSpotsResponse)
 def home_spots(
     region: str = Query("서울", description="홈에 노출할 지역명"),
+    district: str | None = Query(None, description="세부 지역(구) 필터(예: 종로구) — 주소 기준"),
     date: date_type | None = Query(None, description="방문 예정일(기본: 오늘)"),
     time_slot: str = Query("afternoon", pattern=TIME_SLOT_PATTERN),
     themes: str | None = Query(None, description="테마 필터(쉼표 구분: 자연,역사,미식,포토스팟)"),
-    limit: int = Query(6, ge=1, le=12),
+    limit: int = Query(6, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
-    """홈 화면용 TourAPI 관광지와 선택한 날짜·테마의 널널도를 한 번에 제공한다."""
+    """홈·지역 화면용 TourAPI 관광지와 선택한 날짜·테마의 널널도를 한 번에 제공한다."""
     visit_date = date or date_type.today()
     validate_visit_date(visit_date)
     theme_list = [theme.strip() for theme in themes.split(",") if theme.strip()] if themes else []
     selected_theme_filter = theme_filter(theme_list)
     base_filter = models.TouristSpot.region.contains(region)
+    if district:
+        # 지역 탭의 '구' 선택 — region은 '서울'로 고정이라 주소(addr) 기준으로 좁힌다
+        base_filter = and_(base_filter, models.TouristSpot.addr.contains(district))
     tourapi_filter = and_(
         models.TouristSpot.content_id.is_not(None),
         ~models.TouristSpot.content_id.like("seed-%"),

@@ -24,7 +24,7 @@ IMAGES = {
 
 # 시드 대표 명소는 generic placeholder 대신 실제 한국관광공사(tong) 사진을 쓴다.
 # 확실히 맞는 사진이 있는 곳만 매핑하고, 없는 곳은 None → FE 브랜드 플레이스홀더로 처리.
-_TONG = "http://tong.visitkorea.or.kr/cms/resource"
+_TONG = "https://tong.visitkorea.or.kr/cms/resource"
 SEED_IMAGES = {
     "경복궁": f"{_TONG}/24/3349624_image2_1.png",
     "명동거리": f"{_TONG}/96/3548996_image2_1.jpg",
@@ -40,6 +40,12 @@ SEED_IMAGES = {
     "문래창작촌": f"{_TONG}/16/3466116_image2_1.jpg",
     "익선동 골목": f"{_TONG}/22/2947522_image2_1.jpg",
     "서울숲": f"{_TONG}/17/3442117_image2_1.JPG",
+    # 관광공사 대표 이미지가 비어 있는 시드 장소는 프로젝트에 포함한 장소별 대표 이미지.
+    "서울한양도성 낙산구간": "/assets/naksan-fortress-path.jpg",
+    "성균관 명륜당": "/assets/sungkyunkwan-myeongryundang.jpg",
+    "국립민속박물관": "/assets/national-folk-museum.jpg",
+    "낙산공원": "/assets/naksan-park.jpg",
+    "서촌 통인시장": "/assets/tongin-market.jpg",
 }
 
 # (name, sigungu, cat1, cat2, cat3, category_name, tags, addr, lat, lng, image,
@@ -194,6 +200,17 @@ def seed_spots(db: Session) -> dict[str, models.TouristSpot]:
         spots[name] = spot
     db.flush()
     return spots
+
+
+def sync_seed_images(db: Session) -> None:
+    """기존 데모 DB도 최신 장소별 대표 이미지 맵으로 가볍게 갱신한다."""
+    seed_spots = db.scalars(
+        select(models.TouristSpot).where(models.TouristSpot.content_id.like("seed-%")),
+    ).all()
+    for spot in seed_spots:
+        if spot.name in SEED_IMAGES:
+            spot.image_url = SEED_IMAGES[spot.name]
+    db.commit()
 
 
 def seed_related(db: Session, spots: dict[str, models.TouristSpot]) -> None:

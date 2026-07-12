@@ -97,6 +97,7 @@ class Course(Base):
     slot_themes: Mapped[list | None] = mapped_column(JSON, default=None)       # 자유여행 슬롯 카테고리 순서
     companion: Mapped[str | None] = mapped_column(String(10))                  # solo|couple|family(F1)
     is_seed: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_shared: Mapped[bool] = mapped_column(Boolean, default=False)            # 사용자가 공개한 코스(홈 인기 노출)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     items: Mapped[list["CourseItem"]] = relationship(
