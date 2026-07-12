@@ -2014,6 +2014,8 @@ button.time-card {
   /* 컨테이너 자체는 사각형 — 둥근 모서리는 부모 래퍼가 클립한다.
      (컨테이너에 직접 radius를 주면 WebKit/Blink에서 타일이 단색 블록으로 깨짐) */
   border-radius: 0;
+  /* 벡터 베이스맵의 서울 밖 여백 배경(물색 톤) */
+  background: #f2f6f4;
 }
 
 .map-pin {

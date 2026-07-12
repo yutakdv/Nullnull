@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import seoulDistricts from './assets/seoul-districts.geo.json';
 import {
   ArrowDown,
   ArrowRight,
@@ -174,6 +175,27 @@ const SLOT_START_HOUR = { morning: 10, afternoon: 14, evening: 19 };
 
 function todayInSeoul() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+}
+
+// 현재 서울 시각(0~23) — 실시간 시간 기준 시간대 판정용(BE current_time_slot과 동일 경계)
+function seoulHour() {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
+  return hour === 24 ? 0 : hour;   // 자정을 '24'로 주는 환경 방어
+}
+
+function currentSlotInSeoul() {
+  const hour = seoulHour();
+  if (hour < 12) return 'morning';
+  if (hour < 17) return 'afternoon';
+  return 'evening';
+}
+
+// 널널도 헤드라인 기본 시간대 — 당일이면 '지금'(실시간), 그 외 날짜는 '오후'
+function defaultSlotFor(date) {
+  return date === todayInSeoul() ? currentSlotInSeoul() : 'afternoon';
 }
 
 function dateAfter(date, days) {
@@ -418,7 +440,7 @@ function App() {
   const [spot, setSpot] = useState(null);
   const [spotDetail, setSpotDetail] = useState(null);
   const [slotViews, setSlotViews] = useState(null);             // {morning, afternoon, evening}
-  const [activeSlot, setActiveSlot] = useState('afternoon');
+  const [activeSlot, setActiveSlot] = useState(() => defaultSlotFor(todayInSeoul()));
   const [calendar, setCalendar] = useState(null);               // 30일 널널 캘린더
   const [congestionChart, setCongestionChart] = useState(null);
   const [alternativeView, setAlternativeView] = useState(null);
@@ -695,6 +717,8 @@ function App() {
     setNavLoading(true);
     try {
       setSelectedSpotId(spotId);
+      // 상세 진입 시 헤드라인 시간대를 '지금'(당일) 기준으로 맞춘다 — 실시간 시간 기준
+      setActiveSlot(defaultSlotFor(visitDate));
       applySpotContext(await fetchSpotContext(spotId, visitDate, selectedTheme, companion));
       setScreen('detail');
     } catch (error) {
@@ -3221,9 +3245,18 @@ function Metric({ label, value }) {
   );
 }
 
+// 로컬 GeoJSON 벡터 베이스맵 — 외부 래스터 타일(CARTO/OSM) 의존 제거.
+// 래스터 타일은 둥근 클립·GPU 합성과 얽혀 단색 블록으로 깨지는 문제가 있었는데(스크린샷),
+// 벡터(SVG) 렌더는 그 합성 파이프라인을 타지 않아 오프라인·CSP에서도 안정적으로 표시된다.
+function addSeoulVectorBase(map) {
+  return L.geoJSON(seoulDistricts, {
+    style: { color: '#cdd9cf', weight: 1, fillColor: '#eef4ef', fillOpacity: 1 },
+    interactive: false,
+  }).addTo(map);
+}
+
 function LeafletPointsMap({ points }) {
-  // CARTO Voyager 타일 — 무료·키/도메인 등록 불필요이고 앱 파스텔 톤과 어울린다.
-  // 카카오맵 키(도메인 등록) 확정 후 이 컴포넌트만 교체하면 된다.
+  // 서울 자치구 GeoJSON 벡터 베이스맵 위에 마커·경로를 얹는다(키/도메인/네트워크 불필요).
   // points: [{ lat, lng, pin, className, tooltip }] — 대안 경로·코스 동선이 공유한다.
   const hostRef = useRef(null);
   const pointsKey = points.map((p) => `${p.lat},${p.lng}`).join('|');
@@ -3237,15 +3270,7 @@ function LeafletPointsMap({ points }) {
       zoomControl: true,
       attributionControl: true,
     });
-    L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      {
-        maxZoom: 20,
-        subdomains: 'abcd',
-        detectRetina: true,
-        attribution: '© OpenStreetMap · © CARTO',
-      },
-    ).addTo(map);
+    addSeoulVectorBase(map);
 
     const pin = (label, className) => L.divIcon({
       className: '',
