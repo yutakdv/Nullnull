@@ -68,8 +68,10 @@ def test_ai_validates_and_uses_llm_spot_ids(client, db, monkeypatch):
     d = _saturday()
     pool, risks = course_service._curate_candidates(
         db, district="종로구", themes=["역사"], visit_date=d, time_slot="afternoon")
-    reference = course_service._pick_reference(pool, risks)
-    candidate_ids = [s.spot_id for s in pool if s.spot_id != reference.spot_id]
+    reference = course_service._crowd_reference(
+        db, district="종로구", visit_date=d, time_slot="afternoon")
+    ref_id = reference.spot_id if reference else None
+    candidate_ids = [s.spot_id for s in pool if s.spot_id != ref_id]
     assert len(candidate_ids) >= 2
 
     def fake(_payload):

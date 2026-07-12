@@ -356,25 +356,47 @@ def _dominant_theme(spot: models.TouristSpot) -> str:
     return best
 
 
-def _curate_candidates(db, *, district, themes, visit_date, time_slot, limit=20):
-    """구·테마·혼잡 실측 기준으로 후보 풀을 추린다 → (pool[가장 널널한 순], risks)."""
+def _district_spots(db, district):
     q = select(models.TouristSpot).where(models.TouristSpot.region.contains("서울"))
     if district:
         q = q.where(models.TouristSpot.addr.contains(district))
-    eligible = spots_with_congestion_data(db)
-    pool = [s for s in db.scalars(q).all() if s.spot_id in eligible]
+    return list(db.scalars(q).all())
+
+
+def _apply_theme_filter(spots, themes):
     slot_themes = [t for t in (themes or []) if t in SLOT_THEME_OPTIONS]
-    if slot_themes:
-        themed = [s for s in pool if any(slot_theme_fit(s, t) > 0 for t in slot_themes)]
-        pool = themed or pool                          # 테마 후보 없으면 완화
+    if not slot_themes:
+        return spots
+    themed = [s for s in spots if any(slot_theme_fit(s, t) > 0 for t in slot_themes)]
+    return themed or spots                              # 테마 후보 없으면 완화
+
+
+def _curate_candidates(db, *, district, themes, visit_date, time_slot, stops=3, limit=20):
+    """구·테마 기준 후보 풀 → (pool[가장 널널한 순], risks).
+
+    혼잡 실측(스냅샷) 보유 스팟을 우선하되, 실측 후보가 얇으면 볼거리로 넓혀
+    휴리스틱 혼잡도로 보완한다(bulk_risks의 캐시→스냅샷→휴리스틱 폴백).
+    """
+    all_spots = _district_spots(db, district)
+    eligible = spots_with_congestion_data(db)
+    snap_pool = _apply_theme_filter([s for s in all_spots if s.spot_id in eligible], themes)
+    pool = snap_pool if len(snap_pool) >= stops + 3 else _apply_theme_filter(all_spots, themes)
     risks = bulk_risks(db, pool, visit_date, time_slot)
     pool.sort(key=lambda s: risks.get(s.spot_id, 1.0))
     return pool[:limit], risks
 
 
-def _pick_reference(pool, risks):
-    """혼잡 회피 기준점 — 후보 중 가장 붐비는(위험 높은) 대표 명소."""
-    return max(pool, key=lambda s: (risks.get(s.spot_id, 0.0), s.base_popularity))
+def _crowd_reference(db, *, district, visit_date, time_slot):
+    """혼잡 회피 기준점 — 구 전체에서 가장 붐비는(위험 높은) 대표 명소.
+
+    후보 풀(널널한 곳) 밖에서 뽑아, 널널 타임라인과의 대비로 '혼잡 회피 %'가
+    의미 있게(양수로) 산출되게 한다.
+    """
+    spots = _district_spots(db, district)
+    if not spots:
+        return None
+    risks = bulk_risks(db, spots, visit_date, time_slot)
+    return max(spots, key=lambda s: (risks.get(s.spot_id, 0.0), s.base_popularity))
 
 
 def _course_title_desc(llm_course, district, index):
@@ -474,10 +496,22 @@ def ai_recommend_courses(db, *, district, stops, companion, visit_date, time_slo
     반환: (코스 리스트, source) — source ∈ {"llm", "algorithm"}.
     """
     pool, risks = _curate_candidates(
-        db, district=district, themes=themes, visit_date=visit_date, time_slot=time_slot)
+        db, district=district, themes=themes, visit_date=visit_date,
+        time_slot=time_slot, stops=stops)
     if len(pool) < 2:
         raise NoSlotCandidateError("이 조건에서 추천할 장소를 찾지 못했어요.")
-    reference = _pick_reference(pool, risks)
+    reference = _crowd_reference(
+        db, district=district, visit_date=visit_date, time_slot=time_slot)
+    # 기준점이 후보 풀 안(널널한 곳)이면 타임라인이 비지 않도록 다음으로 붐비는 곳으로
+    if reference is None or reference.spot_id in {s.spot_id for s in pool}:
+        outside = [s for s in _district_spots(db, district)
+                   if s.spot_id not in {p.spot_id for p in pool}]
+        if outside:
+            outside_risk = bulk_risks(db, outside, visit_date, time_slot)
+            reference = max(outside, key=lambda s: (outside_risk.get(s.spot_id, 0.0),
+                                                    s.base_popularity))
+        else:
+            reference = pool[-1]                     # 폴백: 풀에서 가장 붐비는 곳
     payload = _build_llm_payload(
         pool, risks, reference, district=district, stops=stops, companion=companion,
         visit_date=visit_date, themes=themes, pace=pace, indoor_pref=indoor_pref, count=count)
