@@ -3447,6 +3447,57 @@ body {
   gap: 10px;
 }
 
+/* 검색 탭 카테고리 칩 — 기존 pill 토큰 재사용, 가로 스크롤 */
+.category-chips {
+  display: flex;
+  gap: 8px;
+  width: min(100%, 640px);
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.category-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.category-chip {
+  flex: 0 0 auto;
+  padding: 9px 16px;
+  color: #43584e;
+  background: #f2f7f4;
+  border: 1px solid #e4eee8;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.category-chip.is-active {
+  color: #ffffff;
+  background: var(--primary-deep);
+  border-color: var(--primary-deep);
+}
+
+.region-more {
+  width: min(100%, 640px);
+  margin: 14px auto 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--primary-deep);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.region-more:disabled {
+  opacity: 0.6;
+}
+
 .region-loading {
   display: flex;
   align-items: center;

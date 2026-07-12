@@ -245,6 +245,9 @@ const SEOUL_DISTRICTS = [
   '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구', '종로구', '중구', '중랑구',
 ];
 
+// 검색 탭 카테고리 칩 — '볼거리' 기본, 백엔드 cat1 그룹과 1:1
+const SEARCH_CATEGORIES = ['볼거리', '문화·역사', '자연·공원', '미식', '쇼핑'];
+
 // ── 저장한 코스(마이페이지) — 익명 MVP localStorage ───────────────
 const SAVED_COURSES_KEY = 'nullnull.saved-courses';
 
@@ -366,7 +369,11 @@ function App() {
   const [toast, setToast] = useState('');
   const [savedSpots, setSavedSpots] = useState(loadSavedSpots);   // 마이페이지 저장한 관광지
   const [selectedDistrict, setSelectedDistrict] = useState('');   // 검색 탭 구 선택('' = 전체)
+  const [selectedCategory, setSelectedCategory] = useState('볼거리'); // 검색 탭 카테고리
   const [regionSpots, setRegionSpots] = useState([]);             // 지역 탭 널널 추천 목록
+  const [regionPage, setRegionPage] = useState(1);
+  const [regionTotal, setRegionTotal] = useState(0);
+  const [regionHasMore, setRegionHasMore] = useState(false);
   const [regionLoading, setRegionLoading] = useState(false);
   const [apiReady, setApiReady] = useState(false);
   const [homeSpots, setHomeSpots] = useState([]);
@@ -467,14 +474,20 @@ function App() {
     }
   };
 
-  // 지역 탭 — 선택한 구의 널널한(혼잡도 낮은) 관광지를 불러온다
-  const loadRegionSpots = async (district) => {
+  // 검색 탭 — tourAPI 관광지 카탈로그를 구·카테고리로 페이지 단위 조회(무한스크롤)
+  const loadRegionSpots = async (district, category, page = 1) => {
     setRegionLoading(true);
     try {
-      const params = new URLSearchParams({ region: '서울', date: visitDate, limit: '50' });
+      const params = new URLSearchParams({
+        region: '서울', page: String(page), size: '24',
+        category: category || '볼거리',
+      });
       if (district) params.set('district', district);
-      const response = await apiFetch(`/api/spots/home?${params}`);
-      setRegionSpots(response.items);
+      const res = await apiFetch(`/api/spots?${params}`);
+      setRegionSpots((prev) => (page === 1 ? res.items : [...prev, ...res.items]));
+      setRegionTotal(res.total);
+      setRegionPage(page);
+      setRegionHasMore(page * res.size < res.total);
     } catch (error) {
       console.warn(error);
       showToast('지역 관광지를 불러오지 못했어요');
@@ -483,11 +496,11 @@ function App() {
     }
   };
 
-  // 검색 탭 진입/구 변경/기준일 변경 시 널널 추천 목록 갱신
+  // 검색 탭 진입/구·카테고리 변경 시 첫 페이지부터 다시 로드
   useEffect(() => {
-    if (screen === 'region') loadRegionSpots(selectedDistrict);
+    if (screen === 'region') loadRegionSpots(selectedDistrict, selectedCategory, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, selectedDistrict, visitDate]);
+  }, [screen, selectedDistrict, selectedCategory]);
 
   const screenTitle = useMemo(
     () => ({
@@ -989,9 +1002,14 @@ function App() {
         {screen === 'region' && (
           <RegionScreen
             selectedDistrict={selectedDistrict}
+            selectedCategory={selectedCategory}
             spots={regionSpots}
+            total={regionTotal}
+            hasMore={regionHasMore}
             loading={regionLoading}
             onSelectDistrict={setSelectedDistrict}
+            onSelectCategory={setSelectedCategory}
+            onLoadMore={() => loadRegionSpots(selectedDistrict, selectedCategory, regionPage + 1)}
             onOpenSpot={openSpot}
             apiReady={apiReady}
           />
@@ -1748,14 +1766,18 @@ function DetailScreen({
   );
 }
 
-// 검색 탭 — 키워드 검색 + 서울 25개 자치구 드롭다운으로 널널한 관광지를 찾는다
-function RegionScreen({ selectedDistrict, spots, loading, onSelectDistrict, onOpenSpot, apiReady }) {
+// 검색 탭 — 키워드 검색 + 서울 25개 자치구 + 카테고리 필터로 tourAPI 관광지 카탈로그 탐색
+function RegionScreen({
+  selectedDistrict, selectedCategory, spots, total, hasMore, loading,
+  onSelectDistrict, onSelectCategory, onLoadMore, onOpenSpot, apiReady,
+}) {
+  const firstLoad = loading && spots.length === 0;
   return (
     <section className="screen region-screen">
       <div className="region-hero">
         <span className="eyebrow">서울 관광지 검색</span>
         <h1>어디로 떠나볼까요?</h1>
-        <p className="region-note">이름으로 찾거나, 지역을 골라 혼잡도 낮은 순으로 둘러보세요.</p>
+        <p className="region-note">이름으로 찾거나, 지역·카테고리를 골라 둘러보세요.</p>
         <SpotSearch onPick={onOpenSpot} disabled={!apiReady} />
         <label className="district-select">
           <MapPin size={17} />
@@ -1771,24 +1793,43 @@ function RegionScreen({ selectedDistrict, spots, loading, onSelectDistrict, onOp
           </select>
           <ChevronRight size={16} className="district-caret" />
         </label>
+        <div className="category-chips">
+          {SEARCH_CATEGORIES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`category-chip ${selectedCategory === c ? 'is-active' : ''}`}
+              onClick={() => onSelectCategory(c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="section-header">
-        <h2>{selectedDistrict || '서울'} 널널 관광지</h2>
-        {!loading && spots.length > 0 && <button type="button">{spots.length}곳</button>}
+        <h2>{selectedDistrict || '서울'} · {selectedCategory}</h2>
+        {!firstLoad && total > 0 && <button type="button">{total.toLocaleString()}곳</button>}
       </div>
 
-      {loading ? (
+      {firstLoad ? (
         <div className="region-loading">
           <Loader2 size={22} className="spin" />
-          널널한 관광지를 찾는 중
+          관광지를 불러오는 중
         </div>
       ) : spots.length ? (
-        <div className="region-results">
-          {spots.map((spot) => (
-            <RegionSpotCard key={spot.spot_id} spot={spot} onClick={() => onOpenSpot(spot.spot_id)} />
-          ))}
-        </div>
+        <>
+          <div className="region-results">
+            {spots.map((spot) => (
+              <RegionSpotCard key={spot.spot_id} spot={spot} onClick={() => onOpenSpot(spot.spot_id)} />
+            ))}
+          </div>
+          {hasMore && (
+            <button className="region-more" onClick={onLoadMore} disabled={loading}>
+              {loading ? <><Loader2 size={17} className="spin" />불러오는 중</> : '더 보기'}
+            </button>
+          )}
+        </>
       ) : (
         <EmptyState />
       )}
