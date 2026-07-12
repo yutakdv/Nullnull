@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     seoul_api_key: str = ""
     kakao_rest_api_key: str = ""
 
+    # OpenAI — AI 코스 추천. 키가 없으면 알고리즘 다중 코스로 폴백(오프라인 심사 대비)
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+
     admin_token: str = "nullnull-admin"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
