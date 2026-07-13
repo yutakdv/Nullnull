@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import seoulDistricts from './assets/seoul-districts.geo.json';
+import PointsMap from './PointsMap';
 import {
   ArrowDown,
   ArrowRight,
@@ -2592,7 +2590,7 @@ function AlternativesScreen({
             </div>
             <Navigation size={21} />
           </div>
-          <LeafletPointsMap
+          <PointsMap
             points={origin?.lat ? [
               {
                 lat: origin.lat, lng: origin.lng,
@@ -2702,7 +2700,7 @@ function CourseScreen({
       {(courseView?.map_points?.length ?? 0) > 1 && (
         <Card className="course-map-card">
           <SectionHeader title="코스 동선" compact />
-          <LeafletPointsMap
+          <PointsMap
             points={courseView.map_points.map((p) => ({
               lat: p.lat, lng: p.lng,
               pin: p.order_no === 0 ? '출발' : String(p.order_no),
@@ -3242,75 +3240,6 @@ function Metric({ label, value }) {
       <small>{label}</small>
       <strong>{value}</strong>
     </span>
-  );
-}
-
-// 로컬 GeoJSON 벡터 베이스맵 — 외부 래스터 타일(CARTO/OSM) 의존 제거.
-// 래스터 타일은 둥근 클립·GPU 합성과 얽혀 단색 블록으로 깨지는 문제가 있었는데(스크린샷),
-// 벡터(SVG) 렌더는 그 합성 파이프라인을 타지 않아 오프라인·CSP에서도 안정적으로 표시된다.
-function addSeoulVectorBase(map) {
-  return L.geoJSON(seoulDistricts, {
-    style: { color: '#cdd9cf', weight: 1, fillColor: '#eef4ef', fillOpacity: 1 },
-    interactive: false,
-  }).addTo(map);
-}
-
-function LeafletPointsMap({ points }) {
-  // 서울 자치구 GeoJSON 벡터 베이스맵 위에 마커·경로를 얹는다(키/도메인/네트워크 불필요).
-  // points: [{ lat, lng, pin, className, tooltip }] — 대안 경로·코스 동선이 공유한다.
-  const hostRef = useRef(null);
-  const pointsKey = points.map((p) => `${p.lat},${p.lng}`).join('|');
-
-  useEffect(() => {
-    if (!hostRef.current || !points.length) return undefined;
-    // 드래그·줌 버튼·더블클릭 확대는 켜고, 휠 줌만 꺼 페이지 스크롤과 충돌을 막는다
-    // (정적 이미지가 아니라 실제로 조작되는 지도로 보이게).
-    const map = L.map(hostRef.current, {
-      scrollWheelZoom: false,
-      zoomControl: true,
-      attributionControl: true,
-    });
-    addSeoulVectorBase(map);
-
-    const pin = (label, className) => L.divIcon({
-      className: '',
-      html: `<span class="map-pin ${className ?? ''}">${label}</span>`,
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-    });
-    points.forEach((p) => {
-      const marker = L.marker([p.lat, p.lng], { icon: pin(p.pin, p.className) }).addTo(map);
-      if (p.tooltip) marker.bindTooltip(p.tooltip, { direction: 'top' });
-    });
-
-    const coords = points.map((p) => [p.lat, p.lng]);
-    if (coords.length > 1) {
-      L.polyline(coords, {
-        color: '#3d8567', weight: 4, opacity: 0.85, dashArray: '9 11',
-      }).addTo(map);
-    }
-    map.fitBounds(L.latLngBounds(coords).pad(0.3));
-    // 그리드 레이아웃 안에서 마운트 직후 컨테이너 크기가 0으로 잡히면 지도가
-    // 회색으로 비어 보인다 — 레이아웃 확정 후 크기를 재계산한다.
-    const resizeTimer = window.setTimeout(() => {
-      map.invalidateSize();
-      map.fitBounds(L.latLngBounds(coords).pad(0.3));
-    }, 150);
-    return () => {
-      window.clearTimeout(resizeTimer);
-      map.remove();
-    };
-  }, [pointsKey]);
-
-  if (!points.length) {
-    return <div className="route-map"><Skeleton /></div>;
-  }
-  // 둥근 클립은 바깥 래퍼(.route-map)가 맡고, Leaflet 루트(.leaflet-host)는 사각형 자식으로 둔다.
-  // 라운드+overflow가 걸린 요소가 Leaflet 컨테이너를 겸하면 타일 합성 레이어가 단색 블록으로 깨진다.
-  return (
-    <div className="route-map map-clip">
-      <div className="leaflet-host" ref={hostRef} aria-label="경로 지도" />
-    </div>
   );
 }
 
