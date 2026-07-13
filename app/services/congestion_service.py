@@ -99,6 +99,16 @@ def default_visit_date() -> date:
     return today + timedelta(days=(5 - today.weekday()) % 7)
 
 
+def seoul_area_key(db: Session, spot: models.TouristSpot) -> str | None:
+    """스팟의 서울 실시간 area 키(SpotExternalRef source='seoul', 정규화 키)."""
+    return db.scalar(
+        select(models.SpotExternalRef.ext_key).where(
+            models.SpotExternalRef.source == "seoul",
+            models.SpotExternalRef.spot_id == spot.spot_id,
+        )
+    )
+
+
 def feedback_bias(db: Session, spot_id: int) -> tuple[float, bool]:
     """(bias, 적용 여부). 창 내 피드백이 min_count 미만이면 미적용(콜드스타트 방지)."""
     fw = load_weights()["feedback"]
@@ -127,7 +137,8 @@ def compute_raw_risk(
     # 집중률 예측값 자리: 실시간(당일·서울) → 스냅샷 → 휴리스틱
     concentration, source = None, "prediction"
     if use_realtime and d == date.today():
-        realtime = seoul_api.get_realtime_congestion(spot.name)
+        area_key = seoul_area_key(db, spot)
+        realtime = seoul_api.get_realtime_by_area(area_key) if area_key else None
         if realtime:
             concentration = _realtime_slot_score(realtime, time_slot)
             source = "realtime"

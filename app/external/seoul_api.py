@@ -8,6 +8,7 @@ import time
 import httpx
 
 from app.config import get_settings
+from app.matching import normalize_name
 
 CONGEST_LEVEL_SCORE = {"여유": 20.0, "보통": 45.0, "약간 붐빔": 70.0, "붐빔": 90.0}
 
@@ -16,6 +17,7 @@ _CACHE_TTL_SEC = 60
 _cache: dict[str, tuple[float, dict | None]] = {}
 
 # 관광특구·고궁 등 서울시 정의 핫스팟 장소명(citydata 지원 지역)과 시드 스팟 매핑
+# (조회 경로는 A3부터 SpotExternalRef 기반 area_key — 이 맵은 하위호환 래퍼용)
 SPOT_TO_AREA = {
     "경복궁": "경복궁", "창덕궁": "창덕궁·종묘", "덕수궁": "덕수궁길·정동길",
     "북촌한옥마을": "북촌한옥마을", "명동거리": "명동 관광특구",
@@ -88,10 +90,14 @@ def _parse_ppltn_row(row: dict) -> dict:
     return result
 
 
-def get_realtime_congestion(spot_name: str) -> dict | None:
-    """{'score': 0~100, 'forecast': [{'hour': 'HH', 'score': ...}]} 또는 None."""
+# 정규화 area 키(SpotExternalRef.ext_key) → 서울 API 원문 area명
+AREA_KEYS = {normalize_name(a): a for a in SPOT_TO_AREA.values()}
+
+
+def get_realtime_by_area(area_key: str) -> dict | None:
+    """정규화 area 키로 실시간 조회 — {'score': 0~100, 'forecast': [...]} 또는 None."""
     settings = get_settings()
-    area = SPOT_TO_AREA.get(spot_name)
+    area = AREA_KEYS.get(area_key)
     if settings.is_demo or not settings.seoul_api_key or not area:
         return None
 
@@ -116,3 +122,11 @@ def get_realtime_congestion(spot_name: str) -> dict | None:
     result = _parse_ppltn_row(row)
     _cache[area] = (time.monotonic(), result)
     return result
+
+
+def get_realtime_congestion(spot_name: str) -> dict | None:
+    """스팟명 래퍼(하위호환) — SPOT_TO_AREA 매핑 후 area_key 조회로 위임."""
+    area = SPOT_TO_AREA.get(spot_name)
+    if not area:
+        return None
+    return get_realtime_by_area(normalize_name(area))

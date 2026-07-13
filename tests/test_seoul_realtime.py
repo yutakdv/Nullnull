@@ -37,3 +37,10 @@ def test_parse_row_scores_are_refined():
     out = seoul_api._parse_ppltn_row(SAMPLE_ROW)
     # 현재('붐빔', mid=43000)가 당일 범위 상단이므로 밴드 중앙 90 이상
     assert out["score"] >= 90.0
+
+
+def test_seoul_area_key_resolves_from_ref(db, gyeongbok_id):
+    from app.services import congestion_service as cs
+    from app import models
+    spot = db.get(models.TouristSpot, gyeongbok_id)
+    assert cs.seoul_area_key(db, spot)  # 시드 ref로 area명 반환
