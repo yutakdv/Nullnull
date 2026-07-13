@@ -21,3 +21,19 @@ def test_parse_ppltn_row_extracts_all_fields():
     assert out["congest_msg"].startswith("사람이 많아")
     assert out["forecast"][0]["hour"] == "16"
     assert out["forecast"][0]["ppltn_max"] == 32000
+
+
+def test_refined_score_monotonic_and_clamped():
+    s = seoul_api.refined_score
+    center = 90.0  # '붐빔'
+    lo, hi = 30000, 44000
+    assert s("붐빔", 30000, lo, hi) < s("붐빔", 44000, lo, hi)     # 단조
+    assert 0.0 <= s("붐빔", 44000, lo, hi) <= 100.0                # 클램프
+    assert s("붐빔", None, lo, hi) == center                       # 인원 결측 → 라벨(회귀 0)
+    assert s("붐빔", 40000, 40000, 40000) == center                # 범위 0 → 라벨
+
+
+def test_parse_row_scores_are_refined():
+    out = seoul_api._parse_ppltn_row(SAMPLE_ROW)
+    # 현재('붐빔', mid=43000)가 당일 범위 상단이므로 밴드 중앙 90 이상
+    assert out["score"] >= 90.0

@@ -37,6 +37,20 @@ def _num(v, cast):
         return None
 
 
+# 라벨 밴드 중앙값(기존 CONGEST_LEVEL_SCORE와 동일) ± 반폭 안에서 실인원 위치로 보간
+BAND_CENTER = {"여유": 20.0, "보통": 45.0, "약간 붐빔": 70.0, "붐빔": 90.0}
+BAND_HALFWIDTH = 12.5
+
+
+def refined_score(level_label, ppltn_mid, area_lo, area_hi) -> float:
+    """라벨 밴드 내 실인원 보간. 인원 결측·범위 0이면 라벨 점수 그대로(회귀 0)."""
+    center = BAND_CENTER.get(level_label, 45.0)
+    if ppltn_mid is None or area_hi <= area_lo:
+        return center
+    pos = (ppltn_mid - area_lo) / (area_hi - area_lo)
+    return round(min(max(center + (pos - 0.5) * 2 * BAND_HALFWIDTH, 0.0), 100.0), 1)
+
+
 def _parse_ppltn_row(row: dict) -> dict:
     """citydata_ppltn 한 행 → 라벨 score + 실인원·비상주율·메시지·12시간 예측."""
     label = row.get("AREA_CONGEST_LVL")
@@ -49,16 +63,29 @@ def _parse_ppltn_row(row: dict) -> dict:
             "ppltn_min": _num(f.get("FCST_PPLTN_MIN"), int),
             "ppltn_max": _num(f.get("FCST_PPLTN_MAX"), int),
         })
-    return {
+    row_min = _num(row.get("AREA_PPLTN_MIN"), int)
+    row_max = _num(row.get("AREA_PPLTN_MAX"), int)
+    result = {
         "score": CONGEST_LEVEL_SCORE.get(label, 45.0),
         "level_label": label,
-        "ppltn_min": _num(row.get("AREA_PPLTN_MIN"), int),
-        "ppltn_max": _num(row.get("AREA_PPLTN_MAX"), int),
+        "ppltn_min": row_min,
+        "ppltn_max": row_max,
         "non_resident_rate": _num(row.get("NON_RESNT_PPLTN_RATE"), float),
         "congest_msg": row.get("AREA_CONGEST_MSG"),
         "ppltn_time": row.get("PPLTN_TIME"),
         "forecast": forecast,
     }
+    # 당일 관측·예측 인원 범위 안에서 현재/예측 스코어를 밴드 내 보간으로 정밀화
+    mids = [(e["ppltn_min"] + e["ppltn_max"]) / 2
+            for e in forecast if e["ppltn_min"] and e["ppltn_max"]]
+    cur_mid = ((row_min + row_max) / 2) if (row_min and row_max) else None
+    all_mids = [m for m in ([cur_mid] + mids) if m is not None]
+    lo, hi = (min(all_mids), max(all_mids)) if all_mids else (0, 0)
+    result["score"] = refined_score(label, cur_mid, lo, hi)
+    for e in forecast:
+        e_mid = (e["ppltn_min"] + e["ppltn_max"]) / 2 if (e["ppltn_min"] and e["ppltn_max"]) else None
+        e["score"] = refined_score(e["level_label"], e_mid, lo, hi)
+    return result
 
 
 def get_realtime_congestion(spot_name: str) -> dict | None:
