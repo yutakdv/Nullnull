@@ -213,6 +213,34 @@ def sync_seed_images(db: Session) -> None:
     db.commit()
 
 
+# 서울 실시간도시데이터 지원 area명 ↔ 시드 스팟명(공식 목록 확보 시 확장, §11)
+SEOUL_AREA_SEED = {
+    "경복궁": "경복궁", "창덕궁·종묘": "창덕궁", "덕수궁길·정동길": "덕수궁",
+    "북촌한옥마을": "북촌한옥마을", "명동 관광특구": "명동거리", "남산공원": "N서울타워",
+    "홍대 관광특구": "홍대거리", "익선동": "익선동 골목", "혜화역": "낙산공원",
+    "서울숲공원": "서울숲",
+}
+
+
+def seed_external_refs(db: Session, spots: dict[str, models.TouristSpot]) -> int:
+    from app.matching import normalize_name
+    count = 0
+    for area_name, spot_name in SEOUL_AREA_SEED.items():
+        spot = spots.get(spot_name)
+        if not spot:
+            continue
+        key = normalize_name(area_name)
+        if db.scalar(select(models.SpotExternalRef).where(
+                models.SpotExternalRef.source == "seoul",
+                models.SpotExternalRef.ext_key == key)):
+            continue
+        db.add(models.SpotExternalRef(source="seoul", ext_key=key,
+                                      spot_id=spot.spot_id, method="seed"))
+        count += 1
+    db.commit()
+    return count
+
+
 def seed_related(db: Session, spots: dict[str, models.TouristSpot]) -> None:
     for a, b, sim in RELATED_EDGES:
         db.add(models.RelatedSpot(
@@ -371,12 +399,14 @@ def run(db: Session, force: bool = False) -> dict[str, int]:
             models.VisitReview, models.VisitFeedback, models.RecommendationLog,
             models.RecommendationEvidence, models.CourseItem, models.Course,
             models.SpotScoreDaily, models.CongestionSnapshot, models.RelatedSpot,
-            models.RegionStatDaily, models.ApiIngestLog, models.TouristSpot,
+            models.SpotExternalRef, models.RegionStatDaily, models.ApiIngestLog,
+            models.TouristSpot,
         ]:
             db.query(table).delete()
         db.flush()
 
     spots = seed_spots(db)
+    seed_external_refs(db, spots)
     seed_related(db, spots)
     snapshot_count = seed_snapshots(db, spots)
     seed_region_stats(db)

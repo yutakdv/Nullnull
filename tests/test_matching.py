@@ -11,10 +11,11 @@ def test_normalize_name_strips_parens_space_punct():
 
 
 def test_spot_external_ref_roundtrip(db, gyeongbok_id):
+    # source="seoul"은 B4 시드가 같은 키를 넣어 UNIQUE 충돌 → 별도 source로 왕복 검증
     from app import models
-    db.add(models.SpotExternalRef(source="seoul", ext_key="경복궁", spot_id=gyeongbok_id))
+    db.add(models.SpotExternalRef(source="test", ext_key="경복궁", spot_id=gyeongbok_id))
     db.commit()
-    row = db.query(models.SpotExternalRef).filter_by(source="seoul", ext_key="경복궁").one()
+    row = db.query(models.SpotExternalRef).filter_by(source="test", ext_key="경복궁").one()
     assert row.spot_id == gyeongbok_id
     assert row.method == "seed"
 
@@ -29,6 +30,17 @@ def test_resolve_spot_by_ref_then_name(db, gyeongbok_id):
     assert matching.resolve_spot(db, "related", "경복궁 ") == gyeongbok_id
     saved = db.query(models.SpotExternalRef).filter_by(source="related").one()
     assert saved.spot_id == gyeongbok_id and saved.method == "name"
+
+
+def test_seed_external_refs_maps_seoul_areas(client, db):
+    from app import models
+    # 시드가 서울 area 매핑을 최소 10개 이상 넣는다(정규화 키로 저장)
+    from app.matching import normalize_name
+    count = db.query(models.SpotExternalRef).filter_by(source="seoul").count()
+    assert count >= 10
+    gy = db.query(models.SpotExternalRef).filter_by(
+        source="seoul", ext_key=normalize_name("경복궁")).one()
+    assert gy.spot_id
 
 
 def test_resolve_spot_coord_fallback_and_miss(db, gyeongbok_id):
