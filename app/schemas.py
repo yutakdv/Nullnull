@@ -427,6 +427,15 @@ class OkResponse(BaseModel):
 # ── 임팩트(분산 지표)·관리자 ─────────────────────────────────
 
 
+class DispersionLift(BaseModel):
+    """대안 노출 → 선택 전환과 실현(예상) 혼잡 감소율 — 분산이 실제로 일어나는지."""
+
+    exposed: int
+    selected: int
+    conversion_pct: int
+    avg_realized_decrease_pct: int
+
+
 class ImpactSummary(BaseModel):
     week_start: date_type
     week_end: date_type
@@ -434,6 +443,7 @@ class ImpactSummary(BaseModel):
     hidden_pick_count: int        # 숨은 명소 선택 수
     courses_created: int
     includes_seed: bool           # 합성 시드 포함 여부 고지(데이터 정직성 원칙)
+    dispersion_lift: DispersionLift
 
 
 class AdminSeedRequest(BaseModel):

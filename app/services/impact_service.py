@@ -34,10 +34,29 @@ def _aggregate(db: Session, since: datetime, include_seed: bool) -> dict:
         .where(*log_filter,
                models.TouristSpot.base_popularity <= HIDDEN_POPULARITY_MAX)
     )
+
+    # 분산 리프트 — 노출 대비 선택 전환율 + 선택된 대안의 예상 혼잡 감소율(실현치) 평균
+    exposure_filter = [models.RecommendationLog.exposed_at >= since]
+    if not include_seed:
+        exposure_filter.append(models.RecommendationLog.is_seed.is_(False))
+    exposed = db.scalar(
+        select(func.count()).select_from(models.RecommendationLog)
+        .where(*exposure_filter)
+    )
+    selected_count, avg_decrease = db.execute(
+        select(func.count(), func.avg(models.RecommendationLog.decrease_pct))
+        .where(*exposure_filter, models.RecommendationLog.selected.is_(True))
+    ).one()
     return {
         "courses_created": int(courses_created or 0),
         "avoid_rate_avg_pct": round(avg_relief or 0),
         "hidden_pick_count": int(hidden_picks or 0),
+        "dispersion_lift": {
+            "exposed": int(exposed or 0),
+            "selected": int(selected_count or 0),
+            "conversion_pct": round(selected_count / exposed * 100) if exposed else 0,
+            "avg_realized_decrease_pct": round(avg_decrease or 0),
+        },
     }
 
 

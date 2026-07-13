@@ -3372,6 +3372,7 @@ function AdminScreen({ onExit }) {
   // F8 로테이션·수집 상태 시연 화면(데모 시나리오 ⑦) — #admin 해시 + 토큰으로 진입
   const [token, setToken] = useState(() => sessionStorage.getItem('nullnull.admin-token') ?? '');
   const [data, setData] = useState(null);
+  const [impactData, setImpactData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -3384,6 +3385,7 @@ function AdminScreen({ onExit }) {
       });
       sessionStorage.setItem('nullnull.admin-token', token);
       setData(response);
+      setImpactData(await apiFetch('/api/impact/summary').catch(() => null));
     } catch (err) {
       setData(null);
       setError(err.message ?? '불러오지 못했어요');
@@ -3422,6 +3424,20 @@ function AdminScreen({ onExit }) {
 
       {data && (
         <>
+          {impactData?.dispersion_lift && (
+            <Card>
+              <SectionHeader title="분산 리프트(최근 7일)" compact />
+              <p className="calendar-note">
+                대안 노출 {impactData.dispersion_lift.exposed.toLocaleString()}건 중{' '}
+                {impactData.dispersion_lift.selected.toLocaleString()}건 선택 — 전환율{' '}
+                <strong>{impactData.dispersion_lift.conversion_pct}%</strong>, 선택된 대안의
+                예상 혼잡 감소율 평균{' '}
+                <strong>{impactData.dispersion_lift.avg_realized_decrease_pct}%</strong>
+                {impactData.includes_seed ? ' · 예시 데이터 포함' : ''}
+              </p>
+            </Card>
+          )}
+
           <Card>
             <SectionHeader title="대안지 추천 부하(최근 7일)" compact />
             <p className="calendar-note">
