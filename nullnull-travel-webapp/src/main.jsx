@@ -1807,9 +1807,23 @@ function DetailScreen({
             {congestionView?.adjusted && (
               <em className="adjusted-chip">방문자 피드백 반영</em>
             )}
+            {congestionView?.tourist_pressure && (
+              <em className="adjusted-chip">
+                {congestionView.tourist_pressure}
+                {congestionView.tourist_share_pct != null
+                  && ` · 관광객 ${congestionView.tourist_share_pct}%`}
+              </em>
+            )}
           </span>
           <strong>{congestionView?.label ?? '정보 준비 중'}</strong>
-          <p>{congestionView?.tip ?? '혼잡도 정보를 불러오고 있어요.'}</p>
+          {/* 서울시 실시간 혼잡 메시지가 있으면 tip 대신 표시(실측 문구 우선) */}
+          <p>{congestionView?.congest_msg ?? congestionView?.tip ?? '혼잡도 정보를 불러오고 있어요.'}</p>
+          {congestionView?.live_ppltn_min != null && congestionView?.live_ppltn_max != null && (
+            <p>
+              실시간 체류 인원 약 {congestionView.live_ppltn_min.toLocaleString()}~
+              {congestionView.live_ppltn_max.toLocaleString()}명
+            </p>
+          )}
         </div>
         <CrowdBadge level={congestionView?.level ?? 1} size="large" />
       </Card>
