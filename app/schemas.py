@@ -149,6 +149,12 @@ class CongestionResponse(BaseModel):
     weekday_comparison: list[WeekdayRisk]
     time_slots: list[TimeSlotRisk]
     time_shift_suggestions: list[TimeShiftSuggestion] = []
+    # 오버투어리즘 지수 — 서울 실시간(source=realtime)일 때만 채움(비실시간 None)
+    tourist_share_pct: int | None = None       # 비상주(관광객) 비율 %
+    tourist_pressure: str | None = None        # 관광객 쏠림|관광·현지 혼재|현지 생활
+    live_ppltn_min: int | None = None          # 실시간 체류 인원 하한
+    live_ppltn_max: int | None = None          # 실시간 체류 인원 상한
+    congest_msg: str | None = None             # 서울시 혼잡 안내 문구
 
 
 class CalendarDay(BaseModel):

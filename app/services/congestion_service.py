@@ -99,6 +99,25 @@ def default_visit_date() -> date:
     return today + timedelta(days=(5 - today.weekday()) % 7)
 
 
+def overtourism_fields(realtime: dict | None) -> dict:
+    """관광객 쏠림 지수 — 실시간 비상주율 기반. 비실시간이면 전부 None(정직성)."""
+    if not realtime:
+        return {"tourist_share_pct": None, "tourist_pressure": None,
+                "live_ppltn_min": None, "live_ppltn_max": None, "congest_msg": None}
+    rate = realtime.get("non_resident_rate")
+    pressure = None
+    if rate is not None:
+        pressure = ("관광객 쏠림" if rate >= 60 else
+                    "관광·현지 혼재" if rate >= 40 else "현지 생활")
+    return {
+        "tourist_share_pct": round(rate) if rate is not None else None,
+        "tourist_pressure": pressure,
+        "live_ppltn_min": realtime.get("ppltn_min"),
+        "live_ppltn_max": realtime.get("ppltn_max"),
+        "congest_msg": realtime.get("congest_msg"),
+    }
+
+
 def seoul_area_key(db: Session, spot: models.TouristSpot) -> str | None:
     """스팟의 서울 실시간 area 키(SpotExternalRef source='seoul', 정규화 키)."""
     return db.scalar(
@@ -197,7 +216,11 @@ def compute_risk(
         if source == "realtime":
             bias, applied = feedback_bias(db, spot.spot_id)
             final = adjusted_risk(raw, bias, fw["alpha"]) if applied else raw
-            return {"risk": final, "raw_risk": raw, "adjusted": applied, "source": source}
+            # 오버투어리즘 필드용 실시간 원본 — 60초 캐시라 추가 HTTP 없음
+            area_key = seoul_area_key(db, spot)
+            realtime = seoul_api.get_realtime_by_area(area_key) if area_key else None
+            return {"risk": final, "raw_risk": raw, "adjusted": applied,
+                    "source": source, "realtime": realtime}
 
     # 2) 배치가 채워 둔 캐시(조회 시 추가 연산 없음, 9-4)
     cached = db.scalar(
@@ -375,6 +398,7 @@ def get_congestion_view(
         "window_from": today, "window_to": window_to,
         "tip": tip, "weekday_comparison": weekday_comparison, "time_slots": time_slots,
         "time_shift_suggestions": suggestions,
+        **overtourism_fields(main.get("realtime")),
     }
 
 
