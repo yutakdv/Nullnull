@@ -99,6 +99,20 @@ def default_visit_date() -> date:
     return today + timedelta(days=(5 - today.weekday()) % 7)
 
 
+_DAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def is_closed_on(rest_date: str | None, d: date) -> bool:
+    """휴무일 원문(detailIntro2)에서 요일 키워드 매칭 — 모호하면 False(보수적)."""
+    if not rest_date:
+        return False
+    text = rest_date.strip()
+    if not text or "연중무휴" in text or "없음" in text:
+        return False
+    day = _DAY_KO[d.weekday()]
+    return f"{day}요일" in text or f"매주 {day}" in text
+
+
 def region_for(db: Session, area_code: int, sigungu_code: int | None,
                d: date) -> models.RegionStatDaily | None:
     """지역통계 조회 — (area, sigungu, date) 우선, 없으면 (area, NULL, date) 폴백."""
@@ -417,6 +431,7 @@ def get_congestion_view(
         "window_from": today, "window_to": window_to,
         "tip": tip, "weekday_comparison": weekday_comparison, "time_slots": time_slots,
         "time_shift_suggestions": suggestions,
+        "is_closed": is_closed_on(spot.rest_date, d),   # 산식 미개입 — 표시용 플래그
         **overtourism_fields(main.get("realtime")),
     }
 

@@ -149,6 +149,7 @@ class CongestionResponse(BaseModel):
     weekday_comparison: list[WeekdayRisk]
     time_slots: list[TimeSlotRisk]
     time_shift_suggestions: list[TimeShiftSuggestion] = []
+    is_closed: bool = False                    # rest_date 요일 매칭 휴무 플래그(표시용)
     # 오버투어리즘 지수 — 서울 실시간(source=realtime)일 때만 채움(비실시간 None)
     tourist_share_pct: int | None = None       # 비상주(관광객) 비율 %
     tourist_pressure: str | None = None        # 관광객 쏠림|관광·현지 혼재|현지 생활

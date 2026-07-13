@@ -19,7 +19,11 @@ from app.matching import resolve_spot
 from app.scoring.feedback_adjust import adjusted_risk
 from app.scoring.weights import load_weights
 from app.seed_data import SLOT_FACTOR, TIME_SLOTS
-from app.services.congestion_service import compute_raw_risk, feedback_bias
+from app.services.congestion_service import (   # noqa: F401 — is_closed_on은 배치 계약 재노출
+    compute_raw_risk,
+    feedback_bias,
+    is_closed_on,
+)
 
 WINDOW_DAYS = 30
 # 관광지, 문화시설, 행사·축제, 레포츠, 쇼핑, 음식점 — 자유여행 슬롯(여행지/미식/포토스팟)
@@ -442,6 +446,7 @@ def enrich_spot_content(db: Session) -> int | None:
         .limit(ENRICH_BUDGET)
     ).all()
     count = 0
+    ctype_map: dict[int, int] = {}   # detailCommon2가 알려준 contenttypeid 재사용
     for spot in targets:
         rows = client.detail_common(spot.content_id) or []
         if rows:
@@ -452,6 +457,10 @@ def enrich_spot_content(db: Session) -> int | None:
                 spot.overview_len = len(overview)
             if it.get("firstimage") and not spot.image_url:
                 spot.image_url = it["firstimage"]
+            try:
+                ctype_map[spot.spot_id] = int(it.get("contenttypeid") or 0)
+            except (TypeError, ValueError):
+                pass
         images = client.detail_images(spot.content_id) or []
         spot.image_count = max(spot.image_count or 0, len(images),
                                1 if spot.image_url else 0)
@@ -459,6 +468,35 @@ def enrich_spot_content(db: Session) -> int | None:
             # 개요가 없는 스팟도 재조회 대상에서 빠지도록 빈 문자열로 마킹
             spot.overview = ""
             spot.overview_len = 0
+        count += 1
+
+    # detailIntro2(운영시간·휴무·주차) — intro_synced=False 우선 순회로 분리 처리(§7.1 예산)
+    intro_targets = db.scalars(
+        select(models.TouristSpot)
+        .where(
+            models.TouristSpot.intro_synced.is_(False),
+            ~models.TouristSpot.content_id.like("seed-%"),
+        )
+        .order_by(has_snapshot.desc(), models.TouristSpot.spot_id.asc())
+        .limit(ENRICH_BUDGET)
+    ).all()
+    for spot in intro_targets:
+        ctype = ctype_map.get(spot.spot_id)
+        if ctype is None:
+            rows = client.detail_common(spot.content_id) or []
+            try:
+                ctype = int(rows[0].get("contenttypeid") or 0) if rows else 0
+            except (TypeError, ValueError):
+                ctype = 0
+        if ctype:
+            intro_rows = client.detail_intro(spot.content_id, ctype) or []
+            if intro_rows:
+                use_time, rest_date, parking = intro_fields(intro_rows[0], ctype)
+                spot.use_time = use_time or spot.use_time
+                spot.rest_date = rest_date or spot.rest_date
+                spot.parking = parking or spot.parking
+        # 응답이 비어도 매일 같은 스팟을 재시도하지 않도록 처리 완료로 마킹
+        spot.intro_synced = True
         count += 1
     db.commit()
     return count
