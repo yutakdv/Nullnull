@@ -896,69 +896,119 @@ def test_dispersion_lift_conversion_and_decrease(db, gyeongbok_id):
 
 ---
 
-## Phase F — 지도 GeoJSON 벡터 베이스맵 (WS-F, FE 단독·언제든 병렬)
+## Phase F — 지도: Leaflet → 정적 SVG 지도 (WS-F, FE 단독·언제든 병렬)
 
-> 스펙 §13. 목표: `LeafletPointsMap`의 외부 CARTO/OSM 래스터 타일 의존을 로컬 `seoul-districts.geo.json` 벡터 베이스맵으로 대체 → 오프라인·CSP·타일 깨짐 표시 문제 해소. 마커/경로 인터페이스 불변. **지도 렌더는 유닛테스트가 비실용적이라 검증은 빌드 + 오프라인 수동 확인.**
+> 스펙 §13. 목표: **Safari에서 Leaflet 지도가 단색 블록으로 깨지는 합성 버그(2026-07-13 실측 확인)**를, Leaflet 제거 + GeoJSON 인라인 SVG 렌더로 원천 해결. props(`points`) 불변, 정적 지도(팬/줌 없음). **지도 렌더는 유닛테스트 비실용 → 검증은 빌드 + Safari(localhost:3000) 육안.**
+>
+> **선행 맥락**: 이미 커밋된 Leaflet 벡터 베이스(`addSeoulVectorBase`+`import L`/`leaflet.css`/`seoulDistricts`)는 이 Phase가 대체·제거한다.
 
-### Task F1: 벡터 베이스맵으로 base layer 교체
+### Task F1: 정적 SVG 지도 컴포넌트 `PointsMap` 신규
 
 **Files:**
-- Modify: `nullnull-travel-webapp/src/main.jsx` (`LeafletPointsMap`, GeoJSON import)
-- Modify: `nullnull-travel-webapp/src/styles.css` (`.leaflet-container` 배경 톤)
+- Create: `nullnull-travel-webapp/src/PointsMap.jsx`
 
 **Interfaces:**
-- Consumes: `./assets/seoul-districts.geo.json`(기존 번들), `L.geoJSON`
-- Produces: `addSeoulVectorBase(map) -> L.GeoJSON` (main.jsx 내부 헬퍼)
+- Consumes: `./assets/seoul-districts.geo.json`
+- Produces: `export default PointsMap({ points }) -> JSX` (props는 기존 `LeafletPointsMap`과 동일: `points: [{lat,lng,pin,className,tooltip}]`)
 
-- [ ] **Step 1: GeoJSON import 추가** — `main.jsx` 상단 import 구역(기존 `import 'leaflet/dist/leaflet.css';` 부근)에:
+- [ ] **Step 1: 컴포넌트 작성** — `src/PointsMap.jsx` (전체):
 
-```javascript
+```jsx
 import seoulDistricts from './assets/seoul-districts.geo.json';
-```
 
-- [ ] **Step 2: 벡터 베이스 헬퍼 추가** — `LeafletPointsMap` 정의 바로 위에:
+const VIEW_W = 1000, VIEW_H = 640, PAD = 0.18;
 
-```javascript
-// 로컬 GeoJSON 벡터 베이스맵 — 외부 래스터 타일 의존 제거(오프라인·CSP·타일 깨짐 해소).
-function addSeoulVectorBase(map) {
-  return L.geoJSON(seoulDistricts, {
-    style: { color: '#cdd9cf', weight: 1, fillColor: '#eef4ef', fillOpacity: 1 },
-    interactive: false,
-  }).addTo(map);
+function makeProjection(points) {
+  const lats = points.map(p => p.lat), lngs = points.map(p => p.lng);
+  const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+  const spanLat = Math.max(Math.max(...lats) - Math.min(...lats), 0.02) * (1 + PAD * 2);
+  const spanLng = Math.max(Math.max(...lngs) - Math.min(...lngs), 0.02) * (1 + PAD * 2);
+  const minLat = cLat - spanLat / 2, maxLat = cLat + spanLat / 2;
+  const minLng = cLng - spanLng / 2, maxLng = cLng + spanLng / 2;
+  return (lng, lat) => [
+    ((lng - minLng) / (maxLng - minLng)) * VIEW_W,
+    ((maxLat - lat) / (maxLat - minLat)) * VIEW_H,   // y 뒤집기(위도↑=위쪽)
+  ];
+}
+
+function districtPath(feature, project) {
+  return (feature.geometry.coordinates || []).map(ring => {
+    const pts = ring.map(([lng, lat]) => project(lng, lat));
+    if (pts.every(([x, y]) => x < 0 || x > VIEW_W || y < 0 || y > VIEW_H)) return '';  // viewBox 밖 스킵
+    return 'M' + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L') + 'Z';
+  }).join(' ');
+}
+
+export default function PointsMap({ points }) {
+  if (!points?.length) return <div className="route-map"><div className="svg-map-skeleton" /></div>;
+  const project = makeProjection(points);
+  const projected = points.map(p => { const [x, y] = project(p.lng, p.lat); return { ...p, x, y }; });
+  const districts = seoulDistricts.features
+    .map(f => ({ name: f.properties?.name, d: districtPath(f, project) }))
+    .filter(d => d.d);
+  const routePts = projected.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  return (
+    <div className="route-map">
+      <svg className="svg-map" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="xMidYMid slice">
+        {districts.map(d => <path key={d.name} d={d.d} className="svg-district" />)}
+        {projected.length > 1 && <polyline points={routePts} className="svg-route" />}
+        {projected.map((p, i) => (
+          <g key={i} transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`}
+             className={`svg-pin ${p.className || ''}`}>
+            {p.tooltip && <title>{p.tooltip}</title>}
+            <circle r="16" />
+            <text className="svg-pin-label" dy="5" textAnchor="middle">{p.pin}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
 }
 ```
 
-- [ ] **Step 3: base layer 교체** — `LeafletPointsMap`의 `L.tileLayer('https://{s}.basemaps.cartocdn.com/...', {...}).addTo(map);` 블록 전체를 아래로 교체:
+- [ ] **Step 2: 빌드 확인** — `cd nullnull-travel-webapp && npx vite build` → 성공.
 
-```javascript
-    addSeoulVectorBase(map);
-```
-마커/divIcon/폴리라인/`fitBounds`/`invalidateSize`·resize 타이머는 **그대로 둔다**.
-
-- [ ] **Step 4: 배경 톤** — `styles.css`의 `.leaflet-host .leaflet-container` 규칙에 지도 밖 배경색 추가:
-
-```css
-.leaflet-host .leaflet-container { background: #f2f6f4; }
-```
-
-- [ ] **Step 5: 빌드 확인** — `cd nullnull-travel-webapp && npx vite build` → 성공(GeoJSON import 번들 포함).
-
-- [ ] **Step 6: 오프라인 표시 확인** — dev 서버 실행 후 네트워크 차단(브라우저 devtools Offline)에서 코스/대안 지도가 자치구 벡터 + 마커 + 경로로 정상 표시되는지 확인(회색 타일 없음).
-
-- [ ] **Step 7: 커밋** — `git add nullnull-travel-webapp/src/main.jsx nullnull-travel-webapp/src/styles.css && git commit -m "feat(map): 외부 타일 대신 로컬 GeoJSON 벡터 베이스맵으로 교체"`
+- [ ] **Step 3: 커밋** — `git add nullnull-travel-webapp/src/PointsMap.jsx && git commit -m "feat(map): GeoJSON 인라인 SVG 지도 컴포넌트 PointsMap 추가"`
 
 ---
 
-### Task F2 (선택): 방문 자치구 하이라이트
+### Task F2: main.jsx에서 Leaflet 제거·PointsMap 연결
 
 **Files:**
-- Modify: `nullnull-travel-webapp/src/main.jsx` (`addSeoulVectorBase`)
+- Modify: `nullnull-travel-webapp/src/main.jsx`
 
-- [ ] **Step 1:** `addSeoulVectorBase(map, points)`로 확장 — `points`의 좌표가 포함된 자치구 feature를 옅게 강조(fill `#dcece1`). point-in-polygon 판정은 Leaflet 레이어의 `getBounds().contains()` 근사 또는 각 자치구 폴리곤 `contains`로. 라벨은 과밀 방지 위해 생략.
-- [ ] **Step 2:** `npx vite build` 성공 확인.
-- [ ] **Step 3: 커밋** — `git add nullnull-travel-webapp/src/main.jsx && git commit -m "feat(map): 방문 자치구 하이라이트"`
+- [ ] **Step 1: import 정리** — `import L from 'leaflet';`, `import 'leaflet/dist/leaflet.css';`, `import seoulDistricts ...`(있으면) 제거, `import PointsMap from './PointsMap';` 추가.
+- [ ] **Step 2: 정의 삭제** — `LeafletPointsMap` 함수 + `addSeoulVectorBase` 헬퍼 제거.
+- [ ] **Step 3: 호출부 교체** — 대안 화면(`map-card`)·코스 화면(`course-map-card`)의 `<LeafletPointsMap points={...} />` 2곳을 `<PointsMap points={...} />`로(props 동일).
+- [ ] **Step 4: 빌드** — `npx vite build` 성공.
+- [ ] **Step 5: 커밋** — `git add nullnull-travel-webapp/src/main.jsx && git commit -m "refactor(map): Leaflet 제거하고 PointsMap(SVG)으로 교체"`
 
-> **비고**: 도로/지명 디테일이 꼭 필요해지면, 온라인일 때만 얇은 래스터 오버레이를 opt-in으로 얹는다(기본은 벡터-only, 오프라인 안전). 현 범위에선 YAGNI로 제외.
+---
+
+### Task F3: SVG 지도 스타일 + 검증
+
+**Files:**
+- Modify: `nullnull-travel-webapp/src/styles.css`
+- Modify: `nullnull-travel-webapp/package.json` (선택)
+
+- [ ] **Step 1: 스타일 추가** — `styles.css`:
+
+```css
+.svg-map { width: 100%; height: 100%; min-height: 360px; display: block; background: #eaf4f1; }
+.svg-district { fill: #e4efe7; stroke: #cdd9cf; stroke-width: 1; }
+.svg-route { fill: none; stroke: #3d8567; stroke-width: 5; stroke-dasharray: 9 11; stroke-linecap: round; }
+.svg-pin circle { fill: #3d8567; stroke: #fff; stroke-width: 2; }
+.svg-pin.is-origin circle { fill: #12352a; }
+.svg-pin.is-level-4 circle { fill: #e8892b; }
+.svg-pin.is-level-5 circle { fill: #d0402e; }
+.svg-pin-label { fill: #fff; font-size: 15px; font-weight: 800; }
+```
+(`.route-map`의 border-radius+overflow는 SVG엔 무해하므로 유지.)
+
+- [ ] **Step 2: (선택) 정리** — 잔여 `.leaflet-*` 규칙·`package.json`의 `leaflet` 의존성 제거(다른 사용처 없을 때).
+- [ ] **Step 3: 빌드 + 육안 검증** — `npx vite build` 성공 후 **Safari(localhost:3000)에서 코스/대안 지도가 자치구+마커+경로로 정상 표시**(단색 블록 없음) 확인.
+- [ ] **Step 4: 커밋** — `git add nullnull-travel-webapp/src/styles.css nullnull-travel-webapp/package.json && git commit -m "style(map): SVG 지도 스타일 + leaflet 잔여 정리"`
 
 ---
 
@@ -967,7 +1017,7 @@ function addSeoulVectorBase(map) {
 - [ ] `cd nullnull-travel-webapp && npx vite build` — 성공.
 - [ ] demo 모드 스모크: `/api/spots/{id}/congestion?date=today` — 오버투어리즘 필드 None·기존 응답 유지.
 - [ ] (키 보유 환경) 배치 1회 실행 → `api_ingest_log` 매칭율·`RegionStatDaily` 시군구 행·서울 실시간 커버리지 확인.
-- [ ] WS-F: 오프라인(네트워크 차단) 상태에서 지도·마커·경로 정상 표시(회색 타일 없음).
+- [ ] WS-F: Safari(localhost:3000)에서 코스/대안 지도가 자치구+마커+경로 SVG로 정상 표시(단색 블록 없음).
 
 ## Self-Review 결과
 - **스펙 커버리지**: §4→PhaseB, §5→PhaseA, §6→PhaseC, §7→PhaseD, §8→PhaseE, §13→PhaseF, §9 마이그레이션→C1/D1/E1 + main. 전 항목 태스크 매핑됨.

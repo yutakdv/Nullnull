@@ -39,7 +39,7 @@
 | 2 | 비상주율(관광객 쏠림)을 어디에? | **B** 별도 '관광객 쏠림 지수' | `congestion_risk` 불변. "이 붐빔의 X%가 외지 관광객" 배지로 오버투어리즘 서사 강화. 회귀 위험 0. |
 | 3 | 스팟↔외부식별자 매칭 방식? | **B** 신규 `SpotExternalRef` 매핑 테이블 | 소스 3종+(서울 area / 집중률 tAtsNm / 연관 이름)을 확장형 테이블로. 마스터 스키마 오염 없음. |
 | 4 | `RegionStatDaily` 시군구 확장? | **A** 기존 키에 sigungu_code 추가 | 서울전체(sigungu=NULL) 행은 폴백 유지. 조회는 sigungu→폴백. 최소 변경. |
-| 5 | 지도 표시 문제 해법? | **벡터 베이스맵** 로컬 GeoJSON | 외부 래스터 타일 의존 제거 → 오프라인·CSP·타일 깨짐 해소. 이미 번들된 `seoul-districts.geo.json` 재활용, 마커/경로 인터페이스 불변. (§13 WS-F) |
+| 5 | 지도 표시 문제 해법? | **정적 SVG 지도** (Leaflet 제거) | Safari가 Leaflet 합성 레이어를 단색 블록으로 깨뜨리는 버그 실측 확인 → Leaflet 걷어내고 `seoul-districts.geo.json`을 인라인 SVG로 직접 렌더. 전 브라우저 안정, 트레이드오프는 팬/줌 없는 정적 지도. (§13 WS-F) |
 
 ---
 
@@ -399,37 +399,58 @@ def apply_index_migrations() -> None:
 
 ---
 
-## 13. WS-F — 지도 GeoJSON 벡터 베이스맵 (FE 단독, 독립)
+## 13. WS-F — 지도: Leaflet → 정적 SVG 지도 (FE 단독, 독립)
 
-### 13.1 문제 진단
-- 현재 `LeafletPointsMap`([main.jsx:3247](../../../nullnull-travel-webapp/src/main.jsx))의 base layer가 **외부 CARTO/OSM 래스터 타일**(`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/...`). 네트워크·CSP·레이트리밋·**오프라인 심사**에서 타일이 회색/깨진 블록으로 표시됨. 코드에도 타일 합성 아티팩트 패치 흔적(둥근 클립 분리 3306–3307, 0크기 컨테이너 `invalidateSize` 3291–3296)이 남아 있어 표시 신뢰성이 근본 약점.
-- **가정한 증상**: "지도 표시 문제 = 타일 로드 실패/깨짐/오프라인 회색 지도". 만약 실제 증상이 **마커 위치 오류**라면 이는 좌표(lat/lng) 데이터 문제로 GeoJSON 베이스맵과 별개다(§13.6 참고).
+### 13.1 문제 진단 (실측 확인 2026-07-13)
+- 증상: 코스 동선·대안 화면 지도가 **파랑/노랑/골드 단색 블록**으로 표시(정상 지도 안 뜸).
+- 추적 경과:
+  1. 외부 CARTO/OSM 래스터 타일 문제로 보고 **로컬 GeoJSON 벡터 베이스맵**(`L.geoJSON`)으로 교체 → 단색 블록 그대로.
+  2. 벡터 레이어를 뷰 설정 전 투영해 `TypeError undefined 'i.min'` throw → React 19 전체 언마운트(화면 blank). `L.map` 초기 `center/zoom` 지정으로 진입은 정상화.
+  3. 그래도 블록 지속. DOM에 `leaflet-safari` 클래스 → **Safari**. 즉 타일/데이터 문제가 아니라 **Safari가 Leaflet 지도 컨테이너(둥근 클립 `.route-map`의 `border-radius+overflow` 안 transform 레이어)를 잘못 합성해 GPU 버퍼 찌꺼기 색으로 칠하는 렌더링 버그**. 래스터→벡터 교체로 안 고쳐지는 게 당연(합성 문제).
+- **결론**: 이 환경(Safari + 둥근 클립)에서 Leaflet이 반복 실패. CSS 미봉책 대신 **Leaflet을 걷어내고 GeoJSON을 인라인 SVG로 직접 렌더**해 합성 버그 클래스를 원천 제거한다(사용자 결정 2026-07-13). 이미 커밋된 Leaflet 벡터 베이스는 이 교체가 대체한다.
 
-### 13.2 해법 개요
-- 외부 래스터 타일 base layer를 **로컬 GeoJSON 벡터 베이스맵**으로 대체.
-- 재활용 에셋: `nullnull-travel-webapp/src/assets/seoul-districts.geo.json`(서울 25개 자치구 폴리곤, 28KB) — 이미 번들되어 `SeoulMap3D`가 사용 중. **추가 의존성·에셋 0**.
-- Leaflet이 GeoJSON(WGS84)을 Web Mercator로 자동 투영 → 기존 마커 `[lat, lng]`·polyline·`fitBounds` 로직 **그대로 유지**. base layer만 교체.
-- 결과: 외부 요청 없이 항상 렌더 → 오프라인·CSP·타일 깨짐 전부 해소, 앱 파스텔 톤과 일관.
+### 13.2 해법 개요 — 정적 SVG 지도
+- `LeafletPointsMap`(+`addSeoulVectorBase`)을 신규 **`PointsMap`(순수 SVG)**로 교체. Leaflet·leaflet.css 의존 제거.
+- 재활용 에셋: `src/assets/seoul-districts.geo.json`(서울 25개 자치구, 이미 번들). 추가 의존성 0.
+- SVG는 단일 요소라 Leaflet의 다중 pane/transform 합성 파이프라인이 없음 → **Safari 합성 버그·오프라인·CSP·타일 깨짐 전부 소멸**, 전 브라우저·심사 PC에서 결정적 렌더.
+- 트레이드오프: 팬/줌·드래그 없는 **정적 지도**(현재도 wheel-zoom 꺼져 있고 경로/코스 표시가 목적이라 무방).
 
-### 13.3 설계
-- 신규 헬퍼 `addSeoulVectorBase(map)`:
+### 13.3 설계 — `src/PointsMap.jsx` (신규)
+- Props 동일: `points: [{ lat, lng, pin, className, tooltip }]` (양 호출부 무변경).
+- 투영(등거리원통, 도시 규모라 왜곡 미미). 표시 대상 = points 바운딩박스+패딩, 경도는 위도 코사인 보정으로 종횡비 유지:
   ```javascript
-  import districts from './assets/seoul-districts.geo.json';
-
-  function addSeoulVectorBase(map) {
-    return L.geoJSON(districts, {
-      style: {
-        color: '#cdd9cf', weight: 1,           // 자치구 경계(얇게)
-        fillColor: '#eef4ef', fillOpacity: 1,  // 파스텔 면
-      },
-      interactive: false,                       // 배경이라 클릭 비활성
-    }).addTo(map);
+  const VIEW_W = 1000, VIEW_H = 640, PAD = 0.18;
+  function makeProjection(points) {
+    const lats = points.map(p => p.lat), lngs = points.map(p => p.lng);
+    let minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    let minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const spanLat = Math.max(maxLat - minLat, 0.02);   // 단일/근접 점 방어
+    const spanLng = Math.max(maxLng - minLng, 0.02);
+    const cLat = (minLat+maxLat)/2, cLng = (minLng+maxLng)/2;
+    minLat = cLat - spanLat/2*(1+PAD*2); maxLat = cLat + spanLat/2*(1+PAD*2);
+    minLng = cLng - spanLng/2*(1+PAD*2); maxLng = cLng + spanLng/2*(1+PAD*2);
+    return (lng, lat) => [
+      ((lng - minLng) / (maxLng - minLng)) * VIEW_W,
+      ((maxLat - lat) / (maxLat - minLat)) * VIEW_H,   // y 뒤집기(위도↑=위쪽)
+    ];
   }
   ```
-- `LeafletPointsMap`의 `L.tileLayer(...).addTo(map)` 블록을 `addSeoulVectorBase(map)`로 교체. 마커/divIcon/폴리라인/`fitBounds`/`invalidateSize`·resize 타이머는 불변.
-- 지도 배경이 흰 여백이 되지 않도록 `.leaflet-container` 배경색을 물색 톤(#f2f6f4)으로(styles.css). 서울 밖 영역은 은은한 단색.
-- **선택(YAGNI 기본 제외)**: 온라인일 때만 래스터 타일을 얇은 오버레이로 얹는 opt-in 토글. 기본 구현은 벡터-only(오프라인 안전). 도로/지명 디테일이 꼭 필요해지면 그때 추가.
-- **선택**: 스팟이 속한 자치구를 옅게 하이라이트(방문 지역 강조). 자치구 라벨은 과밀 방지 위해 기본 생략.
+  (`preserveAspectRatio="xMidYMid slice"`로 종횡비 유지; cosLat 보정이 더 필요하면 x 스케일에 곱한다.)
+- 렌더 구조:
+  ```jsx
+  <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="svg-map" preserveAspectRatio="xMidYMid slice">
+    {districtPaths.map(d => <path key={d.name} d={d.d} className="svg-district" />)}
+    {points.length > 1 && <polyline points={routePts} className="svg-route" />}
+    {projected.map((p, i) => (
+      <g key={i} transform={`translate(${p.x} ${p.y})`} className={`svg-pin ${p.className||''}`}>
+        <title>{p.tooltip}</title>
+        <circle r="15" /><text className="svg-pin-label">{p.pin}</text>
+      </g>
+    ))}
+  </svg>
+  ```
+- 자치구 path: 각 `feature.geometry.coordinates`(Polygon 링, `[lng,lat]`)를 project로 매핑해 `M..L..Z` 문자열. viewBox 밖 폴리곤은 스킵(성능).
+- 툴팁: SVG `<title>`(네이티브 호버). Leaflet tooltip 불필요.
 
 ### 13.4 백엔드 영향
 - 없음. 순수 FE.
@@ -437,10 +458,11 @@ def apply_index_migrations() -> None:
 ### 13.5 파일별 변경
 | 파일 | 변경 |
 |------|------|
-| `nullnull-travel-webapp/src/main.jsx` | `LeafletPointsMap` base layer를 `addSeoulVectorBase`로 교체, GeoJSON import |
-| `nullnull-travel-webapp/src/styles.css` | `.leaflet-container`/`.leaflet-host` 배경 톤, (선택) 하이라이트 스타일 |
+| `src/PointsMap.jsx` | 신규: GeoJSON→SVG 투영·렌더 컴포넌트 |
+| `src/main.jsx` | `LeafletPointsMap`·`addSeoulVectorBase` 제거, 두 호출부(대안·코스)를 `PointsMap`으로. 다른 사용처 없으면 `import L`/`leaflet.css`/`seoulDistricts` 제거 |
+| `src/styles.css` | `.svg-map`·`.svg-district`·`.svg-route`·`.svg-pin`·`.svg-pin-label` 추가(기존 `.map-pin` 색 계열 재사용). `.leaflet-*` 규칙은 잔존 무해하나 정리 가능 |
+| `package.json` | `leaflet` 의존성 제거(선택, 다른 사용처 없을 때) |
 
 ### 13.6 검증·리스크
-- 검증: Leaflet DOM 렌더는 유닛테스트가 비실용적 → `npx vite build` 성공 + **네트워크 차단 상태에서 지도·마커·경로 표시 확인**(스크린샷). 마커 좌표·polyline·`fitBounds` 회귀 없음.
-- 리스크: 벡터 베이스는 도로/상호 디테일이 없어 정보량↓ → 스팟 마커·경로 중심 지도엔 무방(필요 시 §13.3 래스터 오버레이 옵션).
-- **증상 불일치 시**: 실제 문제가 마커 위치 오류였다면 별도 데이터 수정 필요 — TourAPI는 `mapx=경도/mapy=위도`이고 DB는 `lat=mapy, lng=mapx`로 저장(현행 정상). 스팟 좌표가 0/누락이면 그 스팟만 마커 제외 처리 권장. 이 항목은 WS-F 범위 밖.
+- 검증: `npx vite build` 성공 + **Safari(localhost:3000)에서 코스/대안 지도가 자치구+마커+경로로 정상 표시**(단색 블록 없음). 마커 좌표·경로 회귀 없음.
+- 리스크: (1) 종횡비 — `preserveAspectRatio`/cosLat 보정으로 관리. (2) 단일 점(대안 없음) — 최소 스팬 폴백. (3) 라벨 겹침 — 마커 ≤6이라 실무상 무해, 필요 시 오프셋. (4) 도로/지명 디테일 없음 — 경로 표시 목적엔 무방.
