@@ -19,7 +19,16 @@ function makeProjection(points) {
 function districtPath(feature, project) {
   return (feature.geometry.coordinates || []).map(ring => {
     const pts = ring.map(([lng, lat]) => project(lng, lat));
-    if (pts.every(([x, y]) => x < 0 || x > VIEW_W || y < 0 || y > VIEW_H)) return '';  // viewBox 밖 스킵
+    const bbox = pts.reduce(
+      (b, [x, y]) => ({
+        minX: Math.min(b.minX, x),
+        maxX: Math.max(b.maxX, x),
+        minY: Math.min(b.minY, y),
+        maxY: Math.max(b.maxY, y)
+      }),
+      { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+    );
+    if (bbox.maxX < 0 || bbox.minX > VIEW_W || bbox.maxY < 0 || bbox.minY > VIEW_H) return '';  // viewBox 밖(교차 없음) 스킵
     return 'M' + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L') + 'Z';
   }).join(' ');
 }
