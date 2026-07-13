@@ -269,6 +269,13 @@ def seed_snapshots(db: Session, spots: dict[str, models.TouristSpot], days: int 
 
 def seed_region_stats(db: Session, days: int = 31) -> None:
     today = date.today()
+    # 시드 스팟이 실제로 갖는 시군구 코드별 행 — 시연에서 구별 변별력이 보이게.
+    # (배치의 법정동 SEOUL_SIGNGU_CODES와 코드 체계가 달라 스팟 값 기준으로 시드한다)
+    sigungu_codes = sorted({
+        code for (code,) in db.execute(
+            select(models.TouristSpot.sigungu_code).distinct())
+        if code is not None
+    })
     for offset in range(days):
         d = today + timedelta(days=offset)
         factor = WEEKDAY_FACTOR[d.weekday()] * (1.25 if d in KR_HOLIDAYS else 1.0)
@@ -280,6 +287,15 @@ def seed_region_stats(db: Session, days: int = 31) -> None:
             demand_intensity=round(min(52.0 * factor, 100.0), 1),
             source="seed",
         ))
+        for code in sigungu_codes:
+            # 서울 전체 지수에 구별 결정적 오프셋(±6)을 더해 살짝 다른 값
+            offset_jitter = deterministic_jitter(f"sigungu:{code}:{d}", spread=13)
+            db.add(models.RegionStatDaily(
+                area_code=1, sigungu_code=code, date=d,
+                visitor_index=round(min(max(visitor_index + offset_jitter, 5.0), 100.0), 1),
+                demand_intensity=round(min(max(52.0 * factor + offset_jitter, 5.0), 100.0), 1),
+                source="seed",
+            ))
 
 
 # (title, description, base_spot, [(spot, stay_min, move_min, move_mode)],
