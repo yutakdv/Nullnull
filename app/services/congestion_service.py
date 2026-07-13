@@ -99,6 +99,28 @@ def default_visit_date() -> date:
     return today + timedelta(days=(5 - today.weekday()) % 7)
 
 
+def region_for(db: Session, area_code: int, sigungu_code: int | None,
+               d: date) -> models.RegionStatDaily | None:
+    """지역통계 조회 — (area, sigungu, date) 우선, 없으면 (area, NULL, date) 폴백."""
+    if sigungu_code is not None:
+        row = db.scalar(
+            select(models.RegionStatDaily).where(
+                models.RegionStatDaily.area_code == area_code,
+                models.RegionStatDaily.sigungu_code == sigungu_code,
+                models.RegionStatDaily.date == d,
+            )
+        )
+        if row:
+            return row
+    return db.scalar(
+        select(models.RegionStatDaily).where(
+            models.RegionStatDaily.area_code == area_code,
+            models.RegionStatDaily.sigungu_code.is_(None),
+            models.RegionStatDaily.date == d,
+        )
+    )
+
+
 def overtourism_fields(realtime: dict | None) -> dict:
     """관광객 쏠림 지수 — 실시간 비상주율 기반. 비실시간이면 전부 None(정직성)."""
     if not realtime:
@@ -175,13 +197,8 @@ def compute_raw_risk(
     if concentration is None:
         concentration, source = spot.base_popularity, "heuristic"
 
-    # 3) 지역 방문자수 상대지수·수요 강도(없으면 재정규화로 흡수)
-    region = db.scalar(
-        select(models.RegionStatDaily).where(
-            models.RegionStatDaily.area_code == spot.area_code,
-            models.RegionStatDaily.date == d,
-        )
-    )
+    # 3) 지역 방문자수 상대지수·수요 강도(없으면 재정규화로 흡수) — 시군구 우선
+    region = region_for(db, spot.area_code, spot.sigungu_code, d)
 
     # 4) 요일/공휴일/날씨 보정 — 날씨는 단기예보 범위 내에서만(조건부 적용)
     precip = kma_api.get_precip_prob(spot.lat, spot.lng, d, time_slot) if use_weather else None
@@ -293,20 +310,22 @@ def bulk_risks(
         ).all()
         snap_map.update(dict(rows))
 
-    region_map = {
-        r.area_code: r
-        for r in db.scalars(
-            select(models.RegionStatDaily).where(
-                models.RegionStatDaily.area_code.in_(
-                    {s.area_code for s in remaining}),
-                models.RegionStatDaily.date == d,
-            )
+    # 시군구 우선 + area 폴백(sigungu NULL 행) — region_for와 동일 우선순위를 맵으로
+    region_rows = db.scalars(
+        select(models.RegionStatDaily).where(
+            models.RegionStatDaily.area_code.in_(
+                {s.area_code for s in remaining}),
+            models.RegionStatDaily.date == d,
         )
-    }
+    ).all()
+    sigungu_map = {(r.area_code, r.sigungu_code): r
+                   for r in region_rows if r.sigungu_code is not None}
+    fallback_map = {r.area_code: r for r in region_rows if r.sigungu_code is None}
     weights = load_weights()["congestion_risk"]
     calendar = calendar_weather_component(d, KR_HOLIDAYS)   # 날씨 항은 배치 캐시 전용
     for s in remaining:
-        region = region_map.get(s.area_code)
+        region = (sigungu_map.get((s.area_code, s.sigungu_code))
+                  or fallback_map.get(s.area_code))
         out[s.spot_id] = congestion_risk(
             snap_map.get(s.spot_id, s.base_popularity),
             region.visitor_index if region else None,
