@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import PointsMap from './PointsMap';
 import {
@@ -3288,10 +3288,6 @@ function EmptyState() {
       <p>조건에 맞는 코스를 준비하고 있어요.</p>
     </div>
   );
-}
-
-function Skeleton() {
-  return <span className="skeleton-line" aria-hidden="true" />;
 }
 
 // AlternativeScore(9-2) 항목별 표시 정의 — "추천 근거 수치화"를 그대로 보여준다

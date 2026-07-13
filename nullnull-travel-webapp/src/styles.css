@@ -884,16 +884,20 @@ button {
   fill: #3d8567;
 }
 
-.skeleton-line {
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 18px;
-  height: 12px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.4));
-  background-size: 180% 100%;
-  animation: shimmer 1.7s linear infinite;
+.svg-map { width: 100%; height: 100%; min-height: 360px; display: block; background: #eaf4f1; }
+.svg-district { fill: #e4efe7; stroke: #cdd9cf; stroke-width: 1; }
+.svg-route { fill: none; stroke: #3d8567; stroke-width: 5; stroke-dasharray: 9 11; stroke-linecap: round; }
+.svg-pin circle { fill: #3d8567; stroke: #fff; stroke-width: 2; }
+.svg-pin.is-origin circle { fill: #12352a; }
+.svg-pin.is-level-4 circle { fill: #e8892b; }
+.svg-pin.is-level-5 circle { fill: #d0402e; }
+.svg-pin-label { fill: #fff; font-size: 15px; font-weight: 800; }
+
+.svg-map-skeleton {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  background: #eaf4f1;
 }
 
 .map-summary {
@@ -2004,20 +2008,6 @@ button.time-card {
   opacity: 0.55;
 }
 
-/* Leaflet 지도 — .leaflet-host는 래퍼(.route-map.map-clip)를 꽉 채우는 사각형 자식 */
-.leaflet-host {
-  height: 100%;
-  z-index: 0;
-}
-
-.leaflet-host .leaflet-container {
-  /* 컨테이너 자체는 사각형 — 둥근 모서리는 부모 래퍼가 클립한다.
-     (컨테이너에 직접 radius를 주면 WebKit/Blink에서 타일이 단색 블록으로 깨짐) */
-  border-radius: 0;
-  /* 벡터 베이스맵의 서울 밖 여백 배경(물색 톤) */
-  background: #f2f6f4;
-}
-
 .map-pin {
   display: grid;
   place-items: center;
@@ -2181,7 +2171,7 @@ button.time-card {
   min-width: 0;
 }
 
-/* 레이아웃 교정 — 신규 컴포넌트의 그리드 자리 지정 + leaflet 명시 높이 */
+/* 레이아웃 교정 — 신규 컴포넌트의 그리드 자리 지정 */
 .route-map.map-clip {
   height: 360px;
 }
@@ -2828,8 +2818,7 @@ body {
 }
 
 .route-map,
-.map-clip,
-.leaflet-host .leaflet-container {
+.map-clip {
   border-radius: 18px;
 }
 
