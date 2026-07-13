@@ -12,7 +12,7 @@ from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from app import models
-from app.external import kakao_api, kma_api
+from app.external import kakao_api, kma_api, seoul_api
 from app.geo import estimate_move, haversine_km
 from app.scoring.alternative import (
     alternative_score,
@@ -24,7 +24,12 @@ from app.scoring.alternative import (
 )
 from app.scoring.congestion import label_of, level_of
 from app.scoring.weights import load_weights
-from app.services.congestion_service import bulk_risks, compute_risk
+from app.services.congestion_service import (
+    _realtime_slot_score,
+    bulk_risks,
+    compute_risk,
+    seoul_area_key,
+)
 
 HIDDEN_GEM_THRESHOLD = 0.35
 DYNAMIC_CANDIDATE_RADIUS_KM = 20.0
@@ -371,6 +376,25 @@ def get_alternatives(
     # 같은 카테고리가 상위를 독점하지 않게 다양성 상한을 두고 선정
     top = diversify_top(primary + rest, limit,
                         category_of=lambda s: s["spot"].category_name)
+
+    # 당일이면 선정된 top(≤5)에만 서울 실시간을 반영해 원지와 같은 기준으로 비교
+    # (쿼터 1000/일 보호 — 후보 전수 아님. 60초 캐시가 중복 조회 흡수, 실패 시 캐시 값 유지)
+    if d == date.today():
+        for it in top:
+            area_key = seoul_area_key(db, it["spot"])
+            rt = seoul_api.get_realtime_by_area(area_key) if area_key else None
+            if rt:
+                it["risk"] = _realtime_slot_score(rt, time_slot)
+                # 카드 표시 정합: 갱신된 risk로 감소율·relief 재계산(origin_risk 기준)
+                if origin_risk["risk"] > 0:
+                    relief_norm = max(min(
+                        (origin_risk["risk"] - it["risk"]) / origin_risk["risk"], 1.0), -1.0)
+                    it["decrease_pct"] = max(round(
+                        (origin_risk["risk"] - it["risk"]) / origin_risk["risk"] * 100), 0)
+                else:
+                    relief_norm = 0.0
+                    it["decrease_pct"] = 0
+                it["breakdown"]["relief"] = round(relief_norm, 4)
 
     # 선정된 top에만 카카오 길찾기로 이동시간·거리를 실측치로 교체(카드 근거 정확도)
     for it in top:
