@@ -30,6 +30,37 @@ def _fcst_hour(raw: str) -> str:
     return tail.split(":")[0].zfill(2) if ":" in tail else ""
 
 
+def _num(v, cast):
+    try:
+        return cast(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_ppltn_row(row: dict) -> dict:
+    """citydata_ppltn 한 행 → 라벨 score + 실인원·비상주율·메시지·12시간 예측."""
+    label = row.get("AREA_CONGEST_LVL")
+    forecast = []
+    for f in row.get("FCST_PPLTN", []) or []:
+        forecast.append({
+            "hour": _fcst_hour(str(f.get("FCST_TIME", ""))),
+            "level_label": f.get("FCST_CONGEST_LVL"),
+            "score": CONGEST_LEVEL_SCORE.get(f.get("FCST_CONGEST_LVL"), 45.0),
+            "ppltn_min": _num(f.get("FCST_PPLTN_MIN"), int),
+            "ppltn_max": _num(f.get("FCST_PPLTN_MAX"), int),
+        })
+    return {
+        "score": CONGEST_LEVEL_SCORE.get(label, 45.0),
+        "level_label": label,
+        "ppltn_min": _num(row.get("AREA_PPLTN_MIN"), int),
+        "ppltn_max": _num(row.get("AREA_PPLTN_MAX"), int),
+        "non_resident_rate": _num(row.get("NON_RESNT_PPLTN_RATE"), float),
+        "congest_msg": row.get("AREA_CONGEST_MSG"),
+        "ppltn_time": row.get("PPLTN_TIME"),
+        "forecast": forecast,
+    }
+
+
 def get_realtime_congestion(spot_name: str) -> dict | None:
     """{'score': 0~100, 'forecast': [{'hour': 'HH', 'score': ...}]} 또는 None."""
     settings = get_settings()
@@ -55,12 +86,6 @@ def get_realtime_congestion(spot_name: str) -> dict | None:
     except Exception:
         return None
 
-    result = {"score": CONGEST_LEVEL_SCORE.get(row.get("AREA_CONGEST_LVL"), 45.0),
-              "forecast": []}
-    for fcst in row.get("FCST_PPLTN", []) or []:
-        result["forecast"].append({
-            "hour": _fcst_hour(str(fcst.get("FCST_TIME", ""))),
-            "score": CONGEST_LEVEL_SCORE.get(fcst.get("FCST_CONGEST_LVL"), 45.0),
-        })
+    result = _parse_ppltn_row(row)
     _cache[area] = (time.monotonic(), result)
     return result
