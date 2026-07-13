@@ -15,6 +15,7 @@ from app import models
 from app.database import Base, SessionLocal, engine
 from app.external import datalab_api, demand_api, related_api, tats_api, tour_api
 from app.external.base import ExternalApiError
+from app.matching import resolve_spot
 from app.scoring.feedback_adjust import adjusted_risk
 from app.scoring.weights import load_weights
 from app.seed_data import SLOT_FACTOR, TIME_SLOTS
@@ -47,10 +48,6 @@ def log_ingest(db: Session, api_name: str, status: str,
     db.add(models.ApiIngestLog(api_name=api_name, status=status,
                                records=records, error_message=error))
     db.commit()
-
-
-def _spot_by_name(db: Session, name: str) -> models.TouristSpot | None:
-    return db.scalar(select(models.TouristSpot).where(models.TouristSpot.name == name))
 
 
 def _first_value(item: dict, *candidates: str) -> str | None:
@@ -140,12 +137,12 @@ def sync_concentration(db: Session) -> int | None:
     if not client.enabled:
         return None
 
-    spots_by_name = {s.name: s for s in db.scalars(select(models.TouristSpot)).all()}
     existing = {
         (s.spot_id, s.date, s.time_slot): s
         for s in db.scalars(select(models.CongestionSnapshot)).all()
     }
     count, sample = 0, []
+    received, matched = 0, 0
     for signgu in SEOUL_SIGNGU_CODES:
         items = client.concentration_forecast("11", signgu) or []
         sample = sample or items
@@ -155,25 +152,32 @@ def sync_concentration(db: Session) -> int | None:
             rate = _first_value(it, "cnctrRate", "cnctrRt")
             if rate is None:
                 rate = _first_numeric(it)
-            spot = spots_by_name.get(name or "")
-            if not spot or len(raw_date) != 8 or rate is None:
+            if not name or len(raw_date) != 8 or rate is None:
                 continue
+            received += 1
+            sid = resolve_spot(db, "tats", name)   # 이름 변형 흡수(ref→정규화 일치)
+            if not sid:
+                continue
+            matched += 1
             d = date(int(raw_date[:4]), int(raw_date[4:6]), int(raw_date[6:]))
             for slot in TIME_SLOTS:
                 score = round(min(float(rate) * SLOT_FACTOR[slot], 100.0), 1)
-                snap = existing.get((spot.spot_id, d, slot))
+                snap = existing.get((sid, d, slot))
                 if snap:
                     snap.congestion_score, snap.source = score, "tats"
                 else:
                     snap = models.CongestionSnapshot(
-                        spot_id=spot.spot_id, date=d, time_slot=slot,
+                        spot_id=sid, date=d, time_slot=slot,
                         congestion_score=score, source="tats")
                     db.add(snap)
-                    existing[(spot.spot_id, d, slot)] = snap
+                    existing[(sid, d, slot)] = snap
                 count += 1
     if sample and count == 0:
         raise _mapping_failure("집중률 예측(스팟명 매칭 0건)", sample)
     db.commit()
+    # 매칭율 관측 — 수집 실패가 아니라 성공 로그의 메모로 남긴다
+    log_ingest(db, "집중률 예측(매칭율)", "success", records=matched,
+               error=f"matched {matched}/{received}")
     return count
 
 
@@ -237,6 +241,7 @@ def sync_related(db: Session) -> int | None:
     today = date.today()
     prev_month = (today.replace(day=1) - timedelta(days=1)).strftime("%Y%m")
     count, sample_items = 0, []
+    received, matched = 0, 0
     # 당월 집계가 아직 없을 수 있어 당월 → 전월 순으로 시도
     for base_ym in (today.strftime("%Y%m"), prev_month):
         for signgu in SEOUL_SIGNGU_CODES:
@@ -249,18 +254,27 @@ def sync_related(db: Session) -> int | None:
                 rank = _first_value(it, "rlteRank", "rank")
                 if not base_name or not rel_name:
                     continue
-                base, rel = _spot_by_name(db, base_name), _spot_by_name(db, rel_name)
-                if not base or not rel:
+                received += 1
+                # 응답이 좌표를 주면 폴백에 활용(현재 스펙상 없을 수 있음 → 이름만)
+                try:
+                    b_lat = float(_first_value(it, "mapY", "latitude") or "")
+                    b_lng = float(_first_value(it, "mapX", "longitude") or "")
+                except ValueError:
+                    b_lat = b_lng = None
+                base_id = resolve_spot(db, "related", base_name, lat=b_lat, lng=b_lng)
+                rel_id = resolve_spot(db, "related", rel_name)
+                if not base_id or not rel_id:
                     continue
+                matched += 1
                 sim = round(max(1.0 - (int(float(rank or 10)) - 1) * 0.08, 0.2), 2)
                 edge = db.scalar(select(models.RelatedSpot).where(
-                    models.RelatedSpot.spot_id == base.spot_id,
-                    models.RelatedSpot.related_spot_id == rel.spot_id))
+                    models.RelatedSpot.spot_id == base_id,
+                    models.RelatedSpot.related_spot_id == rel_id))
                 if edge:
                     edge.similarity_score = sim
                 else:
-                    db.add(models.RelatedSpot(spot_id=base.spot_id,
-                                              related_spot_id=rel.spot_id,
+                    db.add(models.RelatedSpot(spot_id=base_id,
+                                              related_spot_id=rel_id,
                                               similarity_score=sim))
                 count += 1
         if count:
@@ -269,6 +283,9 @@ def sync_related(db: Session) -> int | None:
         # 스팟명 불일치는 정상일 수 있어 실패 대신 0건 성공 처리하되 키를 로그에 남긴다
         raise _mapping_failure("연관 관광지(스팟명 매칭 0건 — DB 스팟명과 대조 필요)", sample_items)
     db.commit()
+    # 매칭율 관측 — 수집 실패가 아니라 성공 로그의 메모로 남긴다
+    log_ingest(db, "연관 관광지(매칭율)", "success", records=matched,
+               error=f"matched {matched}/{received}")
     return count
 
 
