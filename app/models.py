@@ -185,6 +185,9 @@ class RecommendationLog(Base):
     exposed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
     is_seed: Mapped[bool] = mapped_column(Boolean, default=False)
+    origin_risk: Mapped[float | None] = mapped_column(Float)     # 노출 시 원 관광지 risk
+    alt_risk: Mapped[float | None] = mapped_column(Float)        # 노출된 대안 risk
+    decrease_pct: Mapped[int | None] = mapped_column(Integer)    # 예상 혼잡 감소율(표시값)
 
 
 class VisitFeedback(Base):

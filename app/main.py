@@ -29,6 +29,9 @@ _COLUMN_MIGRATIONS = {
         "use_time": "VARCHAR(200)", "rest_date": "VARCHAR(120)",
         "parking": "VARCHAR(120)", "intro_synced": "BOOLEAN DEFAULT 0",
     },
+    "recommendation_log": {
+        "origin_risk": "FLOAT", "alt_risk": "FLOAT", "decrease_pct": "INTEGER",
+    },
 }
 
 

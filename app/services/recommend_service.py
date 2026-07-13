@@ -411,6 +411,8 @@ def get_alternatives(
             db.add(models.RecommendationLog(
                 spot_id=item["spot"].spot_id, origin_spot_id=origin.spot_id,
                 selected=False, is_seed=False,
+                origin_risk=origin_risk["risk"], alt_risk=item["risk"],
+                decrease_pct=item["decrease_pct"],
             ))
         db.commit()
 
