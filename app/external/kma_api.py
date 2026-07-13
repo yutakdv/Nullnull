@@ -87,26 +87,52 @@ def _forecast_items(nx: int, ny: int) -> tuple | None:
     return None
 
 
-def get_precip_prob(lat: float, lng: float, d: date,
-                    time_slot: str = "afternoon") -> float | None:
-    """방문일·시간대의 강수확률(POP %). 예보 범위 밖/키 없음/오류 → None."""
+_EMPTY_WEATHER = {"pop": None, "sky": None, "tmp": None}
+
+
+def get_weather(lat: float, lng: float, d: date,
+                time_slot: str = "afternoon") -> dict:
+    """방문일·시간대의 {'pop': 강수확률%, 'sky': 하늘상태(1맑음~4흐림), 'tmp': 기온℃}.
+
+    예보 범위 밖/키 없음/오류면 각 값 None(호출 1회는 그대로 — 같은 응답에서 3카테고리 파싱).
+    """
     settings = get_settings()
     if not settings.kma_api_key:
-        return None
+        return dict(_EMPTY_WEATHER)
     today = date.today()
     if not (today <= d <= today + timedelta(days=settings.weather_forecast_days)):
-        return None
+        return dict(_EMPTY_WEATHER)
 
     nx, ny = latlng_to_grid(lat, lng)
     items = _forecast_items(nx, ny)
     if not items:
-        return None
+        return dict(_EMPTY_WEATHER)
 
     target_date = d.strftime("%Y%m%d")
     target_time = SLOT_HOURS.get(time_slot, "1400")
-    pops = [
-        float(value) for category, fcst_date, fcst_time, value in items
-        if category == "POP" and fcst_date == target_date
-        and (fcst_time or "") >= target_time
-    ]
-    return max(pops[:3]) if pops else None
+
+    def _values(cat: str) -> list[float]:
+        out = []
+        for category, fcst_date, fcst_time, value in items:
+            if category != cat or fcst_date != target_date:
+                continue
+            if (fcst_time or "") < target_time:
+                continue
+            try:
+                out.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    pops, skys, tmps = _values("POP"), _values("SKY"), _values("TMP")
+    return {
+        "pop": max(pops[:3]) if pops else None,
+        "sky": int(skys[0]) if skys else None,     # 대표시각(첫 예보) 하늘상태
+        "tmp": tmps[0] if tmps else None,          # 대표시각 기온
+    }
+
+
+def get_precip_prob(lat: float, lng: float, d: date,
+                    time_slot: str = "afternoon") -> float | None:
+    """방문일·시간대의 강수확률(POP %) — get_weather 위임(하위호환)."""
+    return get_weather(lat, lng, d, time_slot)["pop"]

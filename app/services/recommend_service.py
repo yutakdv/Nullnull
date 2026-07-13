@@ -308,7 +308,9 @@ def get_alternatives(
     richness = content_richness(db)
     low_pctl = visitor_low_percentile(db)
     loads = load_map(db, list(candidates))
-    precip = kma_api.get_precip_prob(origin.lat, origin.lng, d, time_slot)
+    # 기상 다변수(POP·SKY·TMP) — 호출은 기존과 동일하게 1회, 같은 응답에서 파싱
+    wx = kma_api.get_weather(origin.lat, origin.lng, d, time_slot)
+    precip = wx["pop"]
 
     # 후보 수천 곳 대응: 위험도는 벌크 쿼리 1회로 산출(N+1 제거),
     # 서울 실시간 HTTP는 원 관광지에서만 쓰고 후보는 배치 캐시 기준으로 비교한다
@@ -336,7 +338,7 @@ def get_alternatives(
             spot_theme_tags(origin), spot_theme_tags(spot), combine,
         )
         hidden = hidden_gem_score(low_pctl.get(spot_id, 0.5), richness.get(spot_id, 0.0))
-        weather = weather_fit(spot.is_indoor, precip)
+        weather = weather_fit(spot.is_indoor, precip, sky=wx["sky"], tmp=wx["tmp"])
         load = loads.get(spot_id, 0.0)
         mobility = mobility_score(move_min)
         comp = companion_fit(

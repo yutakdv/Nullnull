@@ -58,13 +58,23 @@ def recommendation_load(
     return round(min(raw / max_raw, 1.0), 4)
 
 
-def weather_fit(is_indoor: bool, precip_prob: float | None) -> float | None:
-    """날씨/운영 적합성(0~1). 예보가 없으면 None → 가중치 재정규화 대상."""
+def weather_fit(is_indoor: bool, precip_prob: float | None,
+                sky: int | None = None, tmp: float | None = None) -> float | None:
+    """날씨/운영 적합성(0~1). 예보가 없으면 None → 가중치 재정규화 대상.
+
+    sky/tmp가 주어지면 야외에 한해 맑음(sky=1) 가점, 폭염(≥33℃)·한파(≤-9℃) 감점.
+    둘 다 None이면 기존 POP 단독 동작 그대로(회귀 0).
+    """
     if precip_prob is None:
         return None
     if is_indoor:
         return round(0.6 + precip_prob / 250, 4)      # 비 올수록 실내 가점
-    return round(max(1.0 - precip_prob / 100, 0.0), 4)
+    fit = max(1.0 - precip_prob / 100, 0.0)
+    if sky == 1:
+        fit += 0.05
+    if tmp is not None and (tmp >= 33 or tmp <= -9):
+        fit -= 0.15
+    return round(min(max(fit, 0.0), 1.0), 4)
 
 
 COMPANION_KINDS = ("solo", "couple", "family")
