@@ -78,6 +78,20 @@ class RelatedSpot(Base):
     similarity_score: Mapped[float] = mapped_column(Float, default=0.5)       # 0~1 정규화
 
 
+class SpotExternalRef(Base):
+    """외부 API 식별자 ↔ 스팟 매핑(집중률 tAtsNm / 서울 area명 / 연관 이름)."""
+
+    __tablename__ = "spot_external_ref"
+    __table_args__ = (UniqueConstraint("source", "ext_key", name="uq_ext_ref"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(20), index=True)     # seoul|tats|related
+    ext_key: Mapped[str] = mapped_column(String(120), index=True)   # 정규화 키
+    spot_id: Mapped[int] = mapped_column(ForeignKey("tourist_spot.spot_id"), index=True)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    method: Mapped[str] = mapped_column(String(10), default="seed")  # seed|name|coord
+
+
 class Course(Base):
     __tablename__ = "course"
 
