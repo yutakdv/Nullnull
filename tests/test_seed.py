@@ -14,7 +14,11 @@ def test_seed_counts(db):
     related = db.scalar(select(func.count()).select_from(models.RelatedSpot))
     assert related >= 40                    # 양방향 엣지
 
-    region_days = db.scalar(select(func.count()).select_from(models.RegionStatDaily))
+    # 서울 전체 폴백 행(sigungu NULL) 기준 — 시군구 행(C 워크스트림)과 분리해 센다
+    region_days = db.scalar(
+        select(func.count()).select_from(models.RegionStatDaily)
+        .where(models.RegionStatDaily.sigungu_code.is_(None))
+    )
     assert region_days == 31
 
     seed_courses = db.scalar(

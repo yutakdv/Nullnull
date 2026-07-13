@@ -229,10 +229,12 @@ class RegionStatDaily(Base):
     """빅데이터 지역별 방문자수·지역별 관광 수요 강도 — 널널도 산식 20%·15% 항."""
 
     __tablename__ = "region_stat_daily"
-    __table_args__ = (UniqueConstraint("area_code", "date", name="uq_region_stat"),)
+    __table_args__ = (UniqueConstraint("area_code", "sigungu_code", "date",
+                                       name="uq_region_stat"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     area_code: Mapped[int] = mapped_column(Integer, index=True)
+    sigungu_code: Mapped[int | None] = mapped_column(Integer, index=True)  # NULL=서울전체 폴백
     date: Mapped[date] = mapped_column(Date, index=True)
     visitor_count: Mapped[int | None] = mapped_column(Integer)
     visitor_index: Mapped[float | None] = mapped_column(Float)                # 상대지수 0~100
