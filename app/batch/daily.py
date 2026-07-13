@@ -181,19 +181,10 @@ def sync_concentration(db: Session) -> int | None:
     return count
 
 
-def sync_visitors(db: Session) -> int | None:
-    """빅데이터 방문자수(최근 실적) → 요일 패턴으로 향후 30일 상대지수 투영."""
-    client = datalab_api.get_client()
-    if not client.enabled:
-        return None
-    today = date.today()
-    # 집계가 약 한 달 지연되므로 과거 구간(42~7일 전)으로 요일 패턴을 학습한다
-    items = client.metro_visitors(today - timedelta(days=42), today - timedelta(days=7)) or []
-    # 전 시도가 반환되므로 서울(11)만 필터, 방문자 구분(현지인/외지인)별 행은 일자 합산
+def _weekday_visitor_index(items: list[dict]) -> dict[int, float]:
+    """방문자 행들 → 요일별 평균 → peak=100 상대지수(방문자 구분별 행은 일자 합산)."""
     per_date: dict[date, float] = {}
     for it in items:
-        if str(it.get("areaCode", "")) != "11":
-            continue
         raw_date = _first_value(it, "baseYmd", "statsYmd") or ""
         cnt = _first_value(it, "touNum", "visitrNum", "touristNum")
         if cnt is None:
@@ -202,29 +193,78 @@ def sync_visitors(db: Session) -> int | None:
             continue
         d = date(int(raw_date[:4]), int(raw_date[4:6]), int(raw_date[6:]))
         per_date[d] = per_date.get(d, 0.0) + float(cnt)
-    if items and not per_date:
-        raise _mapping_failure("지역별 방문자수", items)
     if not per_date:
-        return 0
+        return {}
     by_weekday: dict[int, list[float]] = {}
     for d, total in per_date.items():
         by_weekday.setdefault(d.weekday(), []).append(total)
     avg = {wd: sum(v) / len(v) for wd, v in by_weekday.items()}
-    peak = max(avg.values())
+    peak = max(avg.values()) or 1.0
+    return {wd: round(v / peak * 100, 1) for wd, v in avg.items()}
+
+
+def _upsert_region_stat(db: Session, d: date, sigungu_code: int | None,
+                        visitor_index: float | None = None,
+                        demand_intensity: float | None = None,
+                        source: str = "datalab") -> None:
+    """(area=1, sigungu, date) 행 upsert — sigungu NULL은 서울 전체 폴백 행."""
+    sigungu_cond = (models.RegionStatDaily.sigungu_code == sigungu_code
+                    if sigungu_code is not None
+                    else models.RegionStatDaily.sigungu_code.is_(None))
+    row = db.scalar(select(models.RegionStatDaily).where(
+        models.RegionStatDaily.area_code == 1, sigungu_cond,
+        models.RegionStatDaily.date == d))
+    if row:
+        if visitor_index is not None:
+            row.visitor_index = visitor_index
+        if demand_intensity is not None:
+            row.demand_intensity = demand_intensity
+        row.source = source
+    else:
+        db.add(models.RegionStatDaily(
+            area_code=1, sigungu_code=sigungu_code, date=d,
+            visitor_index=visitor_index, demand_intensity=demand_intensity,
+            source=source))
+
+
+def sync_visitors(db: Session) -> int | None:
+    """빅데이터 방문자수(최근 실적) → 요일 패턴으로 향후 30일 상대지수 투영.
+
+    ① 광역(서울 전체) → sigungu NULL 폴백 행  ② 기초지자체 → 시군구별 행(변별력).
+    """
+    client = datalab_api.get_client()
+    if not client.enabled:
+        return None
+    today = date.today()
+    # 집계가 약 한 달 지연되므로 과거 구간(42~7일 전)으로 요일 패턴을 학습한다
+    start, end = today - timedelta(days=42), today - timedelta(days=7)
+    items = client.metro_visitors(start, end) or []
+    # 전 시도가 반환되므로 서울(11)만 필터
+    metro_idx = _weekday_visitor_index(
+        [it for it in items if str(it.get("areaCode", "")) == "11"])
+    if items and not metro_idx:
+        raise _mapping_failure("지역별 방문자수", items)
+
+    # 시군구별 요일 패턴 — 시군구 자체 peak 기준 상대지수(구별 변별력)
+    sigungu_idx: dict[int, dict[int, float]] = {}
+    for signgu in SEOUL_SIGNGU_CODES:
+        s_items = client.local_visitors(start, end, signgu) or []
+        s_idx = _weekday_visitor_index(s_items)
+        if s_idx:
+            sigungu_idx[int(signgu)] = s_idx
+
+    if not metro_idx and not sigungu_idx:
+        return 0
     count = 0
     for offset in range(WINDOW_DAYS + 1):
         d = today + timedelta(days=offset)
-        if d.weekday() not in avg:
-            continue
-        index = round(avg[d.weekday()] / peak * 100, 1)
-        row = db.scalar(select(models.RegionStatDaily).where(
-            models.RegionStatDaily.area_code == 1, models.RegionStatDaily.date == d))
-        if row:
-            row.visitor_index, row.source = index, "datalab"
-        else:
-            db.add(models.RegionStatDaily(area_code=1, date=d,
-                                          visitor_index=index, source="datalab"))
-        count += 1
+        if d.weekday() in metro_idx:
+            _upsert_region_stat(db, d, None, visitor_index=metro_idx[d.weekday()])
+            count += 1
+        for code, idx in sigungu_idx.items():
+            if d.weekday() in idx:
+                _upsert_region_stat(db, d, code, visitor_index=idx[d.weekday()])
+                count += 1
     db.commit()
     return count
 
@@ -319,23 +359,35 @@ def sync_demand(db: Session) -> int | None:
     if not items:
         return 0    # 서비스 정상 응답·데이터 미적재 — 산식은 재정규화로 흡수
 
-    values = [v for v in (_first_numeric(it) for it in items) if v is not None]
+    # 시군구 필드가 있으면 시군구별 분해, 없으면 서울 전체 폴백(현행) — 스펙 §6.3
+    by_sigungu: dict[int | None, list[float]] = {}
+    for it in items:
+        v = _first_numeric(it)
+        if v is None:
+            continue
+        raw_sg = _first_value(it, "signguCd", "sigunguCd")
+        try:
+            sg = int(raw_sg) if raw_sg else None
+        except ValueError:
+            sg = None
+        by_sigungu.setdefault(sg, []).append(v)
+    values = [v for vs in by_sigungu.values() for v in vs]
     if not values:
         raise _mapping_failure("관광 수요 강도(체류/소비)", items)
     peak = max(values) or 1.0
-    intensity = round(sum(values) / len(values) / peak * 100, 1)
+    intensity_by_sg = {
+        sg: round(sum(vs) / len(vs) / peak * 100, 1) for sg, vs in by_sigungu.items()
+    }
+    # 시군구 행만 있으면 전체 평균을 폴백 행으로도 유지(조회 폴백 경로 보장)
+    if None not in intensity_by_sg:
+        intensity_by_sg[None] = round(sum(values) / len(values) / peak * 100, 1)
 
     count = 0
     for offset in range(WINDOW_DAYS + 1):
         d = today + timedelta(days=offset)
-        row = db.scalar(select(models.RegionStatDaily).where(
-            models.RegionStatDaily.area_code == 1, models.RegionStatDaily.date == d))
-        if row:
-            row.demand_intensity = intensity
-        else:
-            db.add(models.RegionStatDaily(area_code=1, date=d,
-                                          demand_intensity=intensity, source="demand"))
-        count += 1
+        for sg, intensity in intensity_by_sg.items():
+            _upsert_region_stat(db, d, sg, demand_intensity=intensity, source="demand")
+            count += 1
     db.commit()
     return count
 
