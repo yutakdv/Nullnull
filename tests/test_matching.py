@@ -43,6 +43,16 @@ def test_seed_external_refs_maps_seoul_areas(client, db):
     assert gy.spot_id
 
 
+def test_seed_run_backfills_external_refs_on_existing_db(db, client):
+    """이미 시드된 DB(조기 반환 경로)에서도 run()이 area 매핑을 backfill한다."""
+    from app import models, seed_data
+    db.query(models.SpotExternalRef).filter_by(source="seoul").delete()
+    db.commit()
+    seed_data.run(db)   # 데이터가 있어 스팟 시드는 건너뛰지만 refs는 채워야 함
+    count = db.query(models.SpotExternalRef).filter_by(source="seoul").count()
+    assert count >= 10
+
+
 def test_resolve_spot_coord_fallback_and_miss(db, gyeongbok_id):
     from app import matching, models
     spot = db.get(models.TouristSpot, gyeongbok_id)

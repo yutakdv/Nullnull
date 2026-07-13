@@ -409,6 +409,11 @@ def run(db: Session, force: bool = False) -> dict[str, int]:
     """시드 적재(멱등). force=True면 전체 재적재."""
     existing = db.scalar(select(func.count()).select_from(models.TouristSpot))
     if existing and not force:
+        # 이미 시드된 DB에도 서울 area 매핑은 backfill(멱등) — 없으면 실시간 경로 전체가 비활성
+        ref_spots = {s.name: s for s in db.scalars(
+            select(models.TouristSpot).where(
+                models.TouristSpot.name.in_(list(SEOUL_AREA_SEED.values()))))}
+        seed_external_refs(db, ref_spots)
         return {"spots": existing, "skipped": 1}
     if existing and force:
         for table in [
