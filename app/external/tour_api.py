@@ -34,6 +34,11 @@ class TourApiClient(DataGoKrClient):
     def detail_images(self, content_id: str) -> list[dict] | None:
         return self.get("detailImage2", contentId=content_id, imageYN="Y")
 
+    def detail_intro(self, content_id: str, content_type_id: int) -> list[dict] | None:
+        """운영시간·휴무·주차 — 필드명이 콘텐츠 타입별로 달라 호출부에서 해석한다."""
+        return self.get("detailIntro2", contentId=content_id,
+                        contentTypeId=content_type_id)
+
     def classification_codes(self, code: str | None = None) -> list[dict] | None:
         """분류체계 코드 조회 — categoryCode2는 포털에서 '삭제예정(미사용)'이라
         대체 오퍼레이션인 lclsSystmCode2를 사용한다(활용신청 상세기능 #15)."""

@@ -392,6 +392,28 @@ def sync_demand(db: Session) -> int | None:
     return count
 
 
+# detailIntro2 필드명은 콘텐츠 타입별로 다르다(스펙 §7.1) — (usetime, restdate, parking) 후보
+INTRO_FIELD_MAP = {
+    12: (("usetime",), ("restdate",), ("parking",)),
+    14: (("usetimeculture",), ("restdateculture",), ("parkingculture",)),
+    15: (("playtime",), (), ("parkingplace",)),
+    28: (("usetimeleports",), ("restdateleports",), ("parkingleports",)),
+    38: (("opentime",), ("restdateshopping",), ("parkingshopping",)),
+    39: (("opentimefood",), ("restdatefood",), ("parkingfood",)),
+}
+
+
+def intro_fields(item: dict, content_type_id: int) -> tuple[str | None, str | None, str | None]:
+    """detailIntro2 한 행 → (use_time, rest_date, parking). 미지 타입은 관광지(12) 기준."""
+    use_keys, rest_keys, park_keys = INTRO_FIELD_MAP.get(
+        content_type_id, INTRO_FIELD_MAP[12])
+    return (
+        _first_value(item, *use_keys) if use_keys else None,
+        _first_value(item, *rest_keys) if rest_keys else None,
+        _first_value(item, *park_keys) if park_keys else None,
+    )
+
+
 ENRICH_BUDGET = 150   # 일일 보강 스팟 수(detailCommon2+detailImage2 = 스팟당 2콜, 쿼터 1000/일 보호)
 
 

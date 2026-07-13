@@ -25,6 +25,10 @@ _COLUMN_MIGRATIONS = {
         "is_shared": "BOOLEAN DEFAULT 0",
     },
     "region_stat_daily": {"sigungu_code": "INTEGER"},
+    "tourist_spot": {
+        "use_time": "VARCHAR(200)", "rest_date": "VARCHAR(120)",
+        "parking": "VARCHAR(120)", "intro_synced": "BOOLEAN DEFAULT 0",
+    },
 }
 
 

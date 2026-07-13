@@ -44,6 +44,10 @@ class TouristSpot(Base):
     highlight: Mapped[str | None] = mapped_column(String(200))                # 추천 이유 카피 재료
     is_indoor: Mapped[bool] = mapped_column(Boolean, default=False)           # 날씨/운영 적합성 항
     base_popularity: Mapped[float] = mapped_column(Float, default=50.0)       # 방문자 규모 프록시(0~100)
+    use_time: Mapped[str | None] = mapped_column(String(200))                 # detailIntro2 운영시간
+    rest_date: Mapped[str | None] = mapped_column(String(120))                # 휴무일 원문
+    parking: Mapped[str | None] = mapped_column(String(120))                  # 주차 안내
+    intro_synced: Mapped[bool] = mapped_column(Boolean, default=False)        # detailIntro2 수집 여부
 
     snapshots: Mapped[list["CongestionSnapshot"]] = relationship(back_populates="spot")
 
