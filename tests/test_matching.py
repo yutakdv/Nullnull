@@ -17,3 +17,28 @@ def test_spot_external_ref_roundtrip(db, gyeongbok_id):
     row = db.query(models.SpotExternalRef).filter_by(source="seoul", ext_key="경복궁").one()
     assert row.spot_id == gyeongbok_id
     assert row.method == "seed"
+
+
+def test_resolve_spot_by_ref_then_name(db, gyeongbok_id):
+    from app import matching, models
+    # ref 히트
+    db.add(models.SpotExternalRef(source="tats", ext_key="경복궁", spot_id=gyeongbok_id))
+    db.commit()
+    assert matching.resolve_spot(db, "tats", "경복궁(사적)") == gyeongbok_id
+    # ref 미존재 → 이름 정규화 완전일치로 해결되고 ref가 upsert된다
+    assert matching.resolve_spot(db, "related", "경복궁 ") == gyeongbok_id
+    saved = db.query(models.SpotExternalRef).filter_by(source="related").one()
+    assert saved.spot_id == gyeongbok_id and saved.method == "name"
+
+
+def test_resolve_spot_coord_fallback_and_miss(db, gyeongbok_id):
+    from app import matching, models
+    spot = db.get(models.TouristSpot, gyeongbok_id)
+    # 이름·좌표 모두 실패 → None (coord 폴백이 ref를 upsert하므로 miss를 먼저 확인)
+    assert matching.resolve_spot(db, "tats", "없는이름xyz") is None
+    # 이름은 안 맞지만 좌표가 스팟 근처 → 좌표 폴백 + ref upsert
+    assert matching.resolve_spot(db, "tats", "없는이름xyz",
+                                 lat=spot.lat, lng=spot.lng) == gyeongbok_id
+    saved = db.query(models.SpotExternalRef).filter_by(
+        source="tats", ext_key="없는이름xyz").one()
+    assert saved.method == "coord" and saved.spot_id == gyeongbok_id
