@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import districts from './assets/seoul-districts.geo.json';
+import districts from '../assets/seoul-districts.geo.json';
 
 // 혼잡 level(1~5)별 핀 색 — 널널(그린) → 붐빔(레드)
 const LEVEL_COLOR = {
-  1: 0x6fd08c, 2: 0x9fd07a, 3: 0xe0c65a, 4: 0xe0954c, 5: 0xdf5c5c,
+  1: 0x6fd08c,
+  2: 0x9fd07a,
+  3: 0xe0c65a,
+  4: 0xe0954c,
+  5: 0xdf5c5c,
 };
 const BRAND = 0x3d8567;
 const BRAND_SOFT = 0x6faf8f;
@@ -13,8 +17,10 @@ const BRAND_SOFT = 0x6faf8f;
 function webglSupported() {
   try {
     const canvas = document.createElement('canvas');
-    return !!(window.WebGLRenderingContext &&
-      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+    );
   } catch {
     return false;
   }
@@ -22,7 +28,10 @@ function webglSupported() {
 
 // 모든 폴리곤 경위도의 바운딩 박스 → [-span/2, span/2] 평면 좌표 투영기를 만든다
 function makeProjector() {
-  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  let minLon = Infinity,
+    maxLon = -Infinity,
+    minLat = Infinity,
+    maxLat = -Infinity;
   for (const f of districts.features) {
     for (const ring of f.geometry.coordinates) {
       for (const [lon, lat] of ring) {
@@ -61,7 +70,7 @@ export default function SeoulMap3D({ spots = [], fallback = null }) {
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
     renderer.setSize(width, height);
-    renderer.setClearColor(0x000000, 0);           // 투명 — 기존 히어로 그라데이션 위에 얹힘
+    renderer.setClearColor(0x000000, 0); // 투명 — 기존 히어로 그라데이션 위에 얹힘
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     mount.appendChild(renderer.domElement);
@@ -71,7 +80,7 @@ export default function SeoulMap3D({ spots = [], fallback = null }) {
     camera.position.set(0, 9.5, 11);
     camera.lookAt(0, 0, 0);
 
-    const group = new THREE.Group();          // 지도 평면(xz)으로 눕히고 y를 위로
+    const group = new THREE.Group(); // 지도 평면(xz)으로 눕히고 y를 위로
     group.rotation.x = -Math.PI / 2;
     scene.add(group);
 
@@ -88,8 +97,11 @@ export default function SeoulMap3D({ spots = [], fallback = null }) {
       });
       const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
       const mat = new THREE.MeshStandardMaterial({
-        color: BRAND, emissive: 0x0f3325, emissiveIntensity: 0.55,
-        metalness: 0.25, roughness: 0.42,
+        color: BRAND,
+        emissive: 0x0f3325,
+        emissiveIntensity: 0.55,
+        metalness: 0.25,
+        roughness: 0.42,
       });
       materials.push(mat);
       group.add(new THREE.Mesh(geo, mat));
@@ -97,7 +109,9 @@ export default function SeoulMap3D({ spots = [], fallback = null }) {
       // 상단 경계선 — 자치구 구분을 위한 은은한 윤곽
       const edges = new THREE.EdgesGeometry(geo, 25);
       const line = new THREE.LineSegments(
-        edges, new THREE.LineBasicMaterial({ color: BRAND_SOFT, transparent: true, opacity: 0.35 }));
+        edges,
+        new THREE.LineBasicMaterial({ color: BRAND_SOFT, transparent: true, opacity: 0.35 }),
+      );
       group.add(line);
     }
 
@@ -112,14 +126,16 @@ export default function SeoulMap3D({ spots = [], fallback = null }) {
       const color = LEVEL_COLOR[spot.level] ?? BRAND_SOFT;
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(0.11, 16, 16),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9 }));
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9 }),
+      );
       sphere.position.set(x, y, depth + 0.42);
       pinGroup.add(sphere);
       const stick = new THREE.Mesh(
         new THREE.CylinderGeometry(0.015, 0.015, 0.42, 8),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55 }));
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55 }),
+      );
       stick.position.set(x, y, depth + 0.21);
-      stick.rotation.x = Math.PI / 2;         // 기둥을 압출 방향(z)으로 세운다
+      stick.rotation.x = Math.PI / 2; // 기둥을 압출 방향(z)으로 세운다
       pinGroup.add(stick);
     }
 
@@ -139,7 +155,7 @@ export default function SeoulMap3D({ spots = [], fallback = null }) {
     controls.target.set(0, 0, 0);
     controls.enableZoom = false;
     controls.enablePan = false;
-    controls.enableRotate = false;      // 사용자 조작 없이 감상용(히어로 배경)
+    controls.enableRotate = false; // 사용자 조작 없이 감상용(히어로 배경)
     controls.autoRotate = !reduceMotion;
     controls.autoRotateSpeed = 0.55;
     controls.enableDamping = true;
@@ -147,7 +163,11 @@ export default function SeoulMap3D({ spots = [], fallback = null }) {
 
     let raf = 0;
     const renderOnce = () => renderer.render(scene, camera);
-    const loop = () => { controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
+    const loop = () => {
+      controls.update();
+      renderer.render(scene, camera);
+      raf = requestAnimationFrame(loop);
+    };
     if (reduceMotion) renderOnce();
     else loop();
 
