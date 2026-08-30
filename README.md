@@ -25,36 +25,43 @@ Nullnull은 **방한 외국인 자유여행객의 특정 관광지 집중과 오
 
 비슷한 SNS 콘텐츠가 여행자를 같은 장소와 날짜로 이끄는 문제에 주목했습니다. Nullnull은 여행지를 발견하는 피드, 이미 만들어 둔 일정, 실시간·예측 혼잡 정보를 연결해 사용자가 직접 더 여유로운 시간과 장소를 선택하게 합니다.
 
+일정이 없어도 일반 여행 Feed를 먼저 둘러볼 수 있습니다. 기존 일정이 있다면 텍스트를 붙여 넣거나 `.txt`·`.csv`·`.xlsx` 파일로 가져오고, 일정이 없다면 지역·날짜·관심사만 입력해 맞춤 Feed를 시작합니다. 공모전 P0는 여러 날의 전체 코스를 대신 만들지 않습니다.
+
+현재 화면 틀과 핵심 사용자 흐름은 [`피그마 디자인 틀 수정 확정사항`](./docs/design/피그마_디자인_틀_수정.md)을 기준으로 맞춥니다.
+
 > ### 가고 싶은 곳은 그대로, 붐비는 순간만 비껴가세요.
 
 ## From discovery to action
 
 ```mermaid
 flowchart LR
-    A[여행 게시글 발견] --> B[일정 입력]
-    B --> C[여행 신호 추출]
-    C --> D[Social For You]
-    D --> E[+Trip]
-    E --> F[혼잡 확인]
-    F --> G[One Small Change]
-    G --> H[사용자 승인]
+    A[여행 게시글 발견] --> B[일정 있음/없음 선택]
+    B --> C[일정 가져오기 또는 최소 입력]
+    C --> D[여행 신호 확인]
+    D --> E[Social For You]
+    E --> F[+Trip]
+    F --> G[혼잡 확인]
+    G --> H[One Small Change]
+    H --> I[사용자 승인]
 ```
 
 | Experience | What it does |
 |---|---|
 | **Social For You** | 일정에서 확인한 관심사·방문 예정지·빈 시간을 바탕으로 여행 Feed를 개인화합니다. |
-| **Trip Signal Extraction** | 붙여 넣은 일정에서 장소·날짜·시간·Must Visit·변경 가능한 구간을 추출합니다. |
+| **Trip Signal Extraction** | 텍스트·TXT·CSV·XLSX·직접 입력에서 장소·날짜·시간·Must Visit·변경 가능한 구간을 정리하고 사용자가 확정합니다. |
 | **+Trip** | Feed에서 발견한 관광지를 별도 검색 없이 기존 일정에 연결합니다. |
 | **Live & Forecast** | 혼잡·날씨·거리·다음 일정까지 남은 시간과 데이터 상태를 함께 보여줍니다. |
-| **One Small Change** | 여행 전체를 다시 짜지 않고, 사용자가 승인할 수 있는 최소 변경안을 제안합니다. |
+| **One Small Change** | 여행 전체를 다시 짜지 않고, 같은 목적지의 더 여유로운 날짜처럼 사용자가 승인할 수 있는 최소 변경안을 제안합니다. |
 
 ## Time × Space distribution
 
 | 시간 분산 | 공간 분산 |
 |---|---|
 | 동일 관광지의 날짜별 상대 혼잡을 비교합니다. | 같은 비교 범위에서 검수된 더 여유로운 관광지를 탐색합니다. |
-| Must Visit을 유지한 최소 날짜 변경을 제안합니다. | Feed 또는 Live에서 사용자가 직접 후보를 선택합니다. |
+| Must Visit을 유지한 최소 날짜 변경을 제안합니다. | 사용자가 Feed의 장소를 고르거나 My Trip에서 `바꾸기`를 시작한 뒤 후보를 선택합니다. |
 | 전후 Crowd Level을 비교하고 승인 후에만 반영합니다. | `+Trip` 또는 명시적 교체로 최종 결정권을 보존합니다. |
+
+메인 Home Feed 전체를 대체 관광지만 보이도록 필터링하지 않습니다. 장소 교체 후보 목록은 사용자가 `바꾸기`를 시작한 경우에만 집중해서 보여줍니다.
 
 ## Planned architecture
 
@@ -101,7 +108,7 @@ flowchart LR
 
 | Algorithm | How it works |
 |---|---|
-| **Itinerary Understanding** | 한국어 날짜·시간·장소 표현을 정규화하고 일정 항목, 관심사, Must Visit, 예약 잠금과 빈 시간을 추출합니다. P0는 외부 LLM 없이 결정적 규칙과 장소 사전을 사용하며 결과는 사용자가 확정합니다. |
+| **Itinerary Understanding** | 한국어 텍스트·TXT와 CSV·XLSX 표 데이터를 공통 일정 형식으로 정규화하고 일정 항목, 관심사, Must Visit, 예약 잠금과 빈 시간을 정리합니다. P0는 외부 LLM 없이 결정적 규칙·장소 사전·열 매핑을 사용하며 결과는 사용자가 확정합니다. |
 | **Canonical POI Resolver** | 공식 ID·좌표·정규화 명칭·주소를 이용해 관광공사 POI와 서울 Live 권역을 내부 UUID에 연결하고 매핑 신뢰도를 저장합니다. |
 | **Feed Ranking** | 후보를 수집한 뒤 중복·닫힘·숨김·범위 밖 항목을 제거하고 `Interest + TripFit + DateFit + DiscoveryBonus + DistributionBonus - CrowdPenalty - RepetitionPenalty`로 점수화합니다. |
 | **Diversity Reranker** | 상위 점수만 나열하지 않고 MMR 또는 권역·카테고리 슬롯 믹싱으로 같은 장소와 지역의 연속 노출을 줄입니다. |
@@ -141,7 +148,7 @@ Candidate Sources → Eligibility Filter → Rule-based Scoring
 | Phase | Focus |
 |---|---|
 | **Competition P0** | 한국어 핵심 흐름, Social For You, `+Trip`, 서울 Live, 혼잡 예보, One Small Change |
-| **Next** | 영어 UI, 영문 관광정보 검수, UGC 경험 공유, 지원 지역·데이터 확대 |
+| **Next** | 선택적 전체 일정 생성, 영어 UI, 영문 관광정보 검수, UGC 경험 공유, 지원 지역·데이터 확대 |
 
 > [!IMPORTANT]
 > 이 저장소는 **공모전 본선 제출 버전을 위한 재구축 단계**입니다. 첫 실행 버전과 함께 설치, 환경 변수, API 설정, 테스트 및 배포 방법을 업데이트합니다.
