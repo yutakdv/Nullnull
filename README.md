@@ -10,8 +10,8 @@
 
 <p align="center">
   <strong>내 일정을 읽고, 취향으로 이어지는 여행 SNS.</strong><br>
-  여행 피드에서 발견한 장소를 일정과 연결하고,<br>
-  실시간·예측 혼잡 데이터로 더 여유로운 선택을 돕습니다.
+  발견한 장소는 가볍게 담아두고,<br>
+  직접 편집하거나 검증된 AI 최적화안을 승인해 더 여유로운 여행을 만듭니다.
 </p>
 
 ---
@@ -21,142 +21,147 @@
 > [!NOTE]
 > 한국관광공사 관광콘텐츠랩을 통해 출품하는 **2026 관광데이터 활용 공모전 ②-2 웹·앱 구현 부문 본선 작품**입니다.
 
-Nullnull은 **방한 외국인 자유여행객의 특정 관광지 집중과 오버투어리즘 완화**를 주제로 하는 일정 연동형 Social Travel Platform입니다.
+Nullnull은 방한 외국인 자유여행객의 특정 관광지 집중과 오버투어리즘 완화를 주제로 하는 **일정 연동형 Social Travel Platform**입니다.
 
-비슷한 SNS 콘텐츠가 여행자를 같은 장소와 날짜로 이끄는 문제에 주목했습니다. Nullnull은 여행지를 발견하는 피드, 이미 만들어 둔 일정, 실시간·예측 혼잡 정보를 연결해 사용자가 직접 더 여유로운 시간과 장소를 선택하게 합니다.
+여행 Feed에서 발견한 장소, 이미 만들어 둔 일정, 실시간·예측 혼잡 정보와 이동 조건을 하나의 흐름으로 연결합니다. Feed의 `+`는 일정을 즉시 바꾸지 않고 선택한 여행의 `담아둔 장소`에 후보를 저장합니다. 사용자는 My Trip에서 직접 편집하거나, AI가 제시한 변경 전·후 지도·타임라인·지표를 확인하고 승인합니다.
 
-일정이 없어도 일반 여행 Feed를 먼저 둘러볼 수 있습니다. 기존 일정이 있다면 텍스트를 붙여 넣거나 `.txt`·`.csv`·`.xlsx` 파일로 가져오고, 일정이 없다면 지역·날짜·관심사만 입력해 맞춤 Feed를 시작합니다. 공모전 P0는 여러 날의 전체 코스를 대신 만들지 않습니다.
+> ### 가고 싶은 곳은 지키고, 날짜·시간·동선은 더 여유롭게.
 
-현재 화면 틀과 핵심 사용자 흐름은 [`피그마 디자인 틀 수정 확정사항`](./docs/design/피그마_디자인_틀_수정.md)을 기준으로 맞춥니다.
-
-> ### 가고 싶은 곳은 그대로, 붐비는 순간만 비껴가세요.
-
-## From discovery to action
+## Core flow
 
 ```mermaid
 flowchart LR
-    A[여행 게시글 발견] --> B[일정 있음/없음 선택]
-    B --> C[일정 가져오기 또는 최소 입력]
-    C --> D[여행 신호 확인]
-    D --> E[Social For You]
-    E --> F[+Trip]
-    F --> G[혼잡 확인]
-    G --> H[One Small Change]
-    H --> I[사용자 승인]
+    A[Feed·검색·Live에서 장소 발견] --> B[여행별 담아둔 장소]
+    B --> C{My Trip에서 선택}
+    C -->|일정 편집| D[직접 추가·교체·잠금 수정]
+    C -->|AI로 일정 최적화| E[ITEM·DAY·TRIP 계산]
+    E --> F[지도·타임라인·지표 Preview]
+    F --> G{사용자 결정}
+    G -->|적용| H[확정 일정 원자적 반영]
+    G -->|유지| I[현재 일정 유지]
+    H --> J[되돌리기]
 ```
+
+일정이 없어도 일반 여행 Feed를 먼저 둘러볼 수 있습니다. 기존 일정은 텍스트 붙여넣기, `.txt`·`.csv`·`.xlsx` 파일 또는 직접 입력으로 가져옵니다. 일정이 없다면 지역·날짜·관심사·선택적 Must Visit만 입력해 Feed를 시작하고, P1에서 전체 일정 생성으로 이어집니다.
+
+## Product states
+
+| State | Meaning |
+|---|---|
+| **Saved Post** | 여행과 무관한 게시글 북마크입니다. |
+| **Trip Candidate · 담아둔 장소** | 특정 여행에 담았지만 날짜·시간이 정해지지 않은 후보입니다. 저장만으로 일정은 바뀌지 않습니다. |
+| **Trip Item · 내 일정** | 날짜·시간·순서가 확정된 일정 항목입니다. 수동 저장 또는 최적화 승인으로만 변경됩니다. |
+
+## Main experiences
 
 | Experience | What it does |
 |---|---|
-| **Social For You** | 일정에서 확인한 관심사·방문 예정지·빈 시간을 바탕으로 여행 Feed를 개인화합니다. |
-| **Trip Signal Extraction** | 텍스트·TXT·CSV·XLSX·직접 입력에서 장소·날짜·시간·Must Visit·변경 가능한 구간을 정리하고 사용자가 확정합니다. |
-| **+Trip** | Feed에서 발견한 관광지를 별도 검색 없이 기존 일정에 연결합니다. |
-| **Live & Forecast** | 혼잡·날씨·거리·다음 일정까지 남은 시간과 데이터 상태를 함께 보여줍니다. |
-| **One Small Change** | 여행 전체를 다시 짜지 않고, 같은 목적지의 더 여유로운 날짜처럼 사용자가 승인할 수 있는 최소 변경안을 제안합니다. |
+| **Social For You** | 사용자가 확인한 관심사·방문 예정지·빈 시간을 바탕으로 여행 Feed를 개인화합니다. |
+| **Trip Signal Extraction** | 텍스트·TXT·CSV·XLSX·직접 입력에서 장소·날짜·시간·Must Visit·잠금·빈 시간을 정리하고 사용자가 확정합니다. |
+| **Trip Candidate** | Feed·검색·Live의 장소를 여행별 후보 보관함에 저장합니다. 북마크와 확정 일정은 별도 상태입니다. |
+| **Manual Trip Edit** | 후보 추가·유사 장소 교체·순서·날짜·시간과 Must Visit·날짜 고정·시간 고정을 직접 수정합니다. |
+| **AI Itinerary Optimization** | 현재 ITEM·DAY·TRIP 범위를 계산하고 변경 전·후 지도·타임라인·거리·시간·혼잡 지표를 보여준 뒤 승인을 받습니다. |
+| **Live & Forecast** | 혼잡·날씨·거리·다음 일정까지 남은 시간과 데이터 상태를 분리해 보여주고 DAY Preview로 연결합니다. |
 
-## Time × Space distribution
+## Editing and optimization rules
 
-| 시간 분산 | 공간 분산 |
+- `♥ Must Visit`, `날짜 고정`, `시간 고정`, `예약 고정`은 서로 독립된 제약입니다.
+- 담아둔 장소는 현재 일정과 `EXACT / SIMILAR / NONE`으로 비교됩니다.
+- SIMILAR 후보는 자동 교체하지 않고 `교체 / 둘 다 유지`를 묻습니다.
+- AI 최적화는 현재 보이는 일정 범위를 기본 입력으로 사용합니다.
+- `담아둔 대안도 포함`은 기본 OFF이며, 사용자가 켠 경우에만 목적지 교체를 탐색합니다.
+- 승인 전에는 확정 일정이 바뀌지 않습니다.
+- 적용은 change set 전체가 검증됐을 때만 원자적으로 처리되며 되돌릴 수 있습니다.
+- LLM은 선호 해석과 근거 설명을 돕고, POI·영업·혼잡·경로·도착 가능성은 서버 규칙과 출처가 있는 데이터가 검증합니다.
+
+## Time × space distribution
+
+| 시간 분산 | 공간·동선 분산 |
 |---|---|
-| 동일 관광지의 날짜별 상대 혼잡을 비교합니다. | 같은 비교 범위에서 검수된 더 여유로운 관광지를 탐색합니다. |
-| Must Visit을 유지한 최소 날짜 변경을 제안합니다. | 사용자가 Feed의 장소를 고르거나 My Trip에서 `바꾸기`를 시작한 뒤 후보를 선택합니다. |
-| 전후 Crowd Level을 비교하고 승인 후에만 반영합니다. | `+Trip` 또는 명시적 교체로 최종 결정권을 보존합니다. |
+| 동일 관광지의 같은 예측 발행 회차에서 날짜별 상대 혼잡을 비교합니다. | 같은 비교그룹·관측 배치에서 검수된 더 여유로운 관광지를 탐색합니다. |
+| P0 ITEM은 Must Visit을 유지한 날짜 변경을 완결합니다. | Live 후보는 먼저 여행에 담고 사용자가 편집·최적화에서 반영 여부를 결정합니다. |
+| P1은 시간창과 순서를 실제 경로 정보로 검증합니다. | P1 DAY/TRIP은 이동시간·거리·혼잡을 함께 최적화하고 지도에서 전후를 비교합니다. |
 
-메인 Home Feed 전체를 대체 관광지만 보이도록 필터링하지 않습니다. 장소 교체 후보 목록은 사용자가 `바꾸기`를 시작한 경우에만 집중해서 보여줍니다.
+## Delivery scope
+
+P0와 P1은 공모전 포함 여부가 아니라 구현 순서입니다. **공모전 최종 범위는 P0+P1**이며 P0 회귀 Gate를 먼저 닫은 뒤 P1을 Feature Flag 뒤에서 이어서 구현합니다.
+
+| Phase | Focus |
+|---|---|
+| **P0 MVP** | 한국어 핵심 흐름, 일정 입력·확인, Social For You, TripCandidate, My Trip 수동 편집, 독립 잠금, ITEM Preview·승인·되돌리기, 서울 Live·REPLAY |
+| **P1 Competition Extension** | 실제 route matrix 기반 DAY/TRIP 지도·타임라인 최적화, opt-in 후보 교체, 전체 일정 생성, Live Re-plan, 검색·알림·UGC·영어 중 E2E 통과 기능 |
+| **P2** | 전국·일본어·중국어, 학습형 랭킹, RTO·DMO 연계와 동의 기반 현장 효과 검증 |
 
 ## Planned architecture
 
-<p>
-  <img src="https://img.shields.io/badge/React-61DAFB?style=flat-square&amp;logo=react&amp;logoColor=111827" alt="React">
-  <img src="https://img.shields.io/badge/Spring_Boot_4-6DB33F?style=flat-square&amp;logo=springboot&amp;logoColor=white" alt="Spring Boot 4">
-  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&amp;logo=fastapi&amp;logoColor=white" alt="FastAPI">
-  <img src="https://img.shields.io/badge/AWS-232F3E?style=flat-square&amp;logo=amazonwebservices&amp;logoColor=white" alt="AWS">
-</p>
-
 ```mermaid
 flowchart LR
-    USER[Traveler] --> WEB[React]
-    WEB --> CORE[Spring Boot 4]
-    CORE <--> INTEL[FastAPI]
-    CORE --> CLOUD[(AWS)]
-    INTEL --> KTO[한국관광공사 OpenAPI]
-    INTEL --> SEOUL[서울 실시간 도시데이터]
+    USER[Traveler] --> WEB[React PWA]
+    WEB --> CORE[Spring Boot API]
+    CORE --> DB[(PostgreSQL)]
+    CORE --> CACHE[(Cache / Redis optional)]
+    CORE --> KTO[한국관광공사 OpenAPI]
+    CORE --> SEOUL[서울 실시간 도시데이터]
+    CORE --> ROUTE[Selected map and route provider · P1]
+    CORE -. P2 only .-> ML[Optional ML service]
 ```
 
-| Layer | Technology | Responsibility |
-|---|---|---|
-| **Frontend** | React | 소셜 Feed, 일정 편집, 혼잡 Context와 반응형 사용자 경험 |
-| **Core Backend** | Spring Boot 4 | 사용자·여행·콘텐츠 도메인, 인증, 핵심 API와 비즈니스 규칙 |
-| **Intelligence API** | FastAPI | 일정 파싱, 추천 근거 생성, 혼잡 비교와 제안 로직 |
-| **Cloud** | AWS | 애플리케이션 배포, 데이터·파일 저장, 캐시, 모니터링과 확장 |
+| Layer | Responsibility |
+|---|---|
+| **React PWA** | Social Feed, 일정 보기·편집, 후보 Drawer, Optimization Preview, 반응형·접근성 UI |
+| **Spring Boot API** | 인증, TripCandidate·TripItem, 잠금·version, 외부 API orchestration, 결정적 제약·경로 최적화, 원자적 Decision |
+| **PostgreSQL** | 여행·후보·확정 일정, 매핑, 최적화 실행·결정·되돌리기 이력 |
+| **Scheduler / Worker** | 혼잡·예측 후보은행, REPLAY readiness, 캐시·쿼터·Source Registry 갱신 |
+| **Optional ML service** | 충분한 데이터와 검증 Gate를 통과한 P2 학습 랭킹만 담당 |
 
-> 기술 구성과 AWS 세부 서비스는 첫 실행 버전의 요구사항과 트래픽 검증 후 확정합니다.
-
-## External APIs
+## External data
 
 | Phase | API | Use |
 |---|---|---|
-| **P0** | 한국관광공사 **KorService2** | 관광지 검색·상세·이미지, 위치기반 후보와 공식 관광정보 Feed |
-| **P0** | **관광지 집중률 방문자 추이 예측 정보** | 동일 관광지의 날짜별 상대 혼잡과 변경 전후 Crowd Level 비교 |
-| **P0** | **TarRlteTarService1** 연관 관광지 정보 | 사전 검수된 주변·연관 관광지 후보 생성 |
-| **P0** | **서울 실시간 도시데이터** | 지원 권역의 관측 혼잡·날씨 Context와 더 여유로운 동일 그룹 후보 탐색 |
-| **P1** | 한국관광공사 **EngService2** | 영문 관광정보와 한영 Canonical POI 연결 |
-| **P1** | 기상청 단기·중기예보 | 유효 예보 구간의 시간 변경과 실내·야외 제안 |
+| **P0** | 한국관광공사 **KorService2** | 관광지 상세·이미지·검색·공식 관광정보 Feed와 검수 후보 |
+| **P0** | **관광지 집중률 방문자 추이 예측 정보** | 동일 POI의 날짜별 상대 혼잡과 ITEM Preview |
+| **P0** | **TarRlteTarService1** | 사전 검수된 주변·연관 관광지 후보 |
+| **P0** | **서울 실시간 도시데이터** | 지원 권역의 현재 관측·REPLAY와 같은 비교그룹의 공간 후보 |
+| **P1** | 확정할 **지도·경로 API 1종** | 보행·대중교통 route matrix, 거리·ETA, DAY/TRIP 지도 Preview |
+| **P1** | 한국관광공사 **EngService2** | 검수된 영문 관광정보와 한영 Canonical POI |
+| **P1** | 기상청 단기·중기예보 | 유효 구간의 시간·실내외 변경 보조 근거 |
 
-> 실제 Endpoint·쿼터·응답 필드는 최신 공식 명세와 계약 테스트로 확정하며, 저장소에는 인증키를 커밋하지 않습니다.
+실제 Endpoint·쿼터·응답 필드는 최신 공식 명세와 계약 테스트로 확정합니다. 배포 버전에서 실제 호출한 API만 제출물에 기재하며 인증키는 저장소에 커밋하지 않습니다.
 
 ## Core algorithms
 
 | Algorithm | How it works |
 |---|---|
-| **Itinerary Understanding** | 한국어 텍스트·TXT와 CSV·XLSX 표 데이터를 공통 일정 형식으로 정규화하고 일정 항목, 관심사, Must Visit, 예약 잠금과 빈 시간을 정리합니다. P0는 외부 LLM 없이 결정적 규칙·장소 사전·열 매핑을 사용하며 결과는 사용자가 확정합니다. |
-| **Canonical POI Resolver** | 공식 ID·좌표·정규화 명칭·주소를 이용해 관광공사 POI와 서울 Live 권역을 내부 UUID에 연결하고 매핑 신뢰도를 저장합니다. |
-| **Feed Ranking** | 후보를 수집한 뒤 중복·닫힘·숨김·범위 밖 항목을 제거하고 `Interest + TripFit + DateFit + DiscoveryBonus + DistributionBonus - CrowdPenalty - RepetitionPenalty`로 점수화합니다. |
-| **Diversity Reranker** | 상위 점수만 나열하지 않고 MMR 또는 권역·카테고리 슬롯 믹싱으로 같은 장소와 지역의 연속 노출을 줄입니다. |
-| **Crowd Normalizer** | 각 출처의 값을 Crowd Level 1–5와 신뢰도로 정규화합니다. 비교는 동일 POI 또는 동일 source·scope·normalization group 안에서만 허용합니다. |
-| **Live Detour Selector** | 같은 비교그룹·관측시각 안에서 더 낮은 Crowd Level 후보만 hard filter로 선별하며, 유효 후보가 없으면 추천을 만들지 않습니다. |
-| **One Small Change** | 여행 기간·잠금·운영·이동 제약을 통과하면서 Crowd Level이 개선되는 동일 POI 날짜 변경을 탐색합니다. 사용자가 승인한 경우에만 원자적으로 반영합니다. |
-
-```text
-Candidate Sources → Eligibility Filter → Rule-based Scoring
-                  → Diversity Reranking → Explainable Reasons
-```
-
-> [!NOTE]
-> **Recommendation design reference**  
-> Nullnull의 추천 파이프라인은 Twitter가 2023년 공개한 [`twitter/the-algorithm`](https://github.com/twitter/the-algorithm)의 **후보 생성 → 필터링 → 점수화 → 재정렬** 구조를 설계 기반으로 활용합니다. 다만 소셜 그래프와 트윗을 전제로 한 원본 구현을 그대로 이식하지 않고, 관광 POI·여행 일정·혼잡 분산에 필요한 신호와 규칙으로 독립 구현합니다. X의 사용자 데이터, 학습 모델, 가중치 및 소스 코드는 사용하지 않습니다.
-
-| Original concept | Nullnull implementation |
-|---|---|
-| Candidate Sources | 관광정보·일정·관심사·위치·연관 POI로 후보를 구성합니다. |
-| Eligibility Filters | 운영 여부·거리·일정 제약·숨김·중복·데이터 신뢰도를 검사합니다. |
-| Ranking | 취향 적합도·일정 적합도·혼잡도·발견성과 분산 효과를 함께 점수화합니다. |
-| Reranking | MMR과 카테고리·권역 믹싱으로 반복 노출을 줄이고 선택지를 다양화합니다. |
-| Feedback Signals | 클릭·저장·`+Trip`·사용자 승인 신호를 이후 추천 개선에 반영합니다. |
-
-> 원본 저장소의 코드를 직접 도입하는 경우에는 해당 저장소의 **AGPL-3.0 라이선스**와 고지 의무를 별도로 검토합니다.
+| **Itinerary Understanding** | 한국어 텍스트·TXT·CSV·XLSX를 공통 일정 형식으로 정규화하고 항목·관심사·Must Visit·예약 잠금·빈 시간을 사용자가 확인하게 합니다. P0는 외부 LLM 없이 결정적 규칙을 사용합니다. |
+| **Canonical POI Resolver** | 공식 ID·좌표·명칭·주소로 관광공사 POI와 서울 Live 권역을 내부 UUID에 연결하고 매핑 신뢰도를 보존합니다. |
+| **Feed Ranking & Diversity** | 자격 필터 후 관심사·일정 적합·발견성·분산 가치를 점수화하고 동일 POI·권역의 반복 노출을 제한합니다. |
+| **Candidate Match Engine** | 담아둔 장소와 현재 일정을 Canonical ID와 검수된 관계로 `EXACT / SIMILAR / NONE` 판정하고 이유를 제공합니다. |
+| **Live Detour Selector** | 같은 source·scope·comparison group·snapshot 안에서 더 낮은 원천 서수와 CandidateRelation Gate를 통과한 후보만 제공합니다. |
+| **Optimization Engine** | P0 ITEM 날짜 변경에서 시작해 P1 DAY/TRIP의 시간·순서·경로·opt-in 후보 교체를 탐색합니다. 잠금과 운영·접근성·혼잡·route matrix를 hard constraint로 검증합니다. |
+| **Decision & Rollback** | 최신 Trip version과 데이터를 재검증한 뒤 change set 전체를 한 트랜잭션으로 적용하거나 전혀 적용하지 않고, append-only 이력으로 되돌립니다. |
 
 ## Data principles
 
-- 추천에는 **근거·출처·기준시각·데이터 범위**를 함께 표시합니다.
-- `실시간 관측`, `과거 관측 재생`, `공식 예측`, `장기 참고`를 구분합니다.
-- 서로 다른 데이터를 하나의 관측 혼잡값처럼 합치지 않습니다.
-- 사용자가 승인하기 전에는 일정을 자동으로 변경하지 않습니다.
+- 추천과 변경안에는 **근거·출처·기준시각·데이터 범위**를 함께 표시합니다.
+- `실시간 관측`, `과거 관측 재생`, `공식 예측`, `범위 밖 정성 Context`를 구분합니다.
+- 서로 다른 제공처·범위의 값을 하나의 절대 혼잡 순위로 섞지 않습니다.
+- Feed의 후보 저장과 확정 일정 변경을 분리합니다.
+- 사용자가 승인하기 전에는 AI가 일정을 자동으로 변경하지 않습니다.
 - 검증 없이 실제 관광객 분산 성과를 주장하지 않습니다.
 
-## Scope
+## Documentation
 
-| Phase | Focus |
-|---|---|
-| **Competition P0** | 한국어 핵심 흐름, Social For You, `+Trip`, 서울 Live, 혼잡 예보, One Small Change |
-| **Next** | 선택적 전체 일정 생성, 영어 UI, 영문 관광정보 검수, UGC 경험 공유, 지원 지역·데이터 확대 |
+- [통합 개발기획안 v6.0](./관광객_분산형_SNS_여행플래너_통합_개발기획안_v6_0.md)
+- [Figma 화면 수정 명세 v6.0](./docs/design/피그마_디자인_틀_수정.md)
+- [Nullnull — Wireframes](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-%E2%80%94-Wireframes?node-id=72-243&p=f)
 
 > [!IMPORTANT]
-> 이 저장소는 **공모전 본선 제출 버전을 위한 재구축 단계**입니다. 첫 실행 버전과 함께 설치, 환경 변수, API 설정, 테스트 및 배포 방법을 업데이트합니다.
+> 이 저장소는 공모전 본선 제출 버전을 위한 재구축 단계입니다. 화면이 확정되면 최종 Figma와 기획안을 다시 대조하고, 실제 구현 범위에 맞춰 설치·환경 변수·테스트·배포 방법을 추가합니다.
 
 ---
 
 <p align="center">
   <strong>Nullnull</strong><br>
-  Discover → Connect → Understand → Act<br><br>
+  Discover → Save → Edit or Optimize → Review → Approve<br><br>
   Maintained by <a href="https://github.com/yutakdv">@yutakdv</a>
 </p>
