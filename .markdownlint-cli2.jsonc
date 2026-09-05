@@ -1,0 +1,28 @@
+{
+  "config": {
+    "MD013": false
+  },
+  "globs": [
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "과제2_널널_웹앱구현_기획서_Final.md",
+    ".claude/**/*.md",
+    ".github/**/*.md",
+    "docs/README.md",
+    "docs/api/**/*.md",
+    "docs/architecture/**/*.md",
+    "docs/contest/**/*.md",
+    "docs/data/**/*.md",
+    "docs/decisions/**/*.md",
+    "docs/design/**/*.md",
+    "docs/engineering/**/*.md",
+    "docs/operations/**/*.md",
+    "docs/product/**/*.md",
+    "docs/project/**/*.md",
+    "docs/roles/**/*.md",
+    "docs/security/**/*.md"
+  ]
+}

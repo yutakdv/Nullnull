@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullnull.example/schemas/events.schema.json",
+  "title": "Nullnull client analytics event batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "events"],
+  "properties": {
+    "schemaVersion": { "const": "1.1.0" },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/event" }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "nullableUuid": {
+      "anyOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "type": "null" }
+      ]
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locale", "timezone", "route"],
+      "properties": {
+        "locale": { "type": "string", "maxLength": 35 },
+        "timezone": { "type": "string", "maxLength": 100 },
+        "route": {
+          "type": "string",
+          "maxLength": 200,
+          "enum": [
+            "/",
+            "/language",
+            "/intro",
+            "/start",
+            "/feed",
+            "/posts/:postId",
+            "/trip/:tripId",
+            "/trip/:tripId/optimizations/:runId",
+            "/live",
+            "/profile",
+            "/about-data",
+            "/search",
+            "/notifications",
+            "/nearby/:poiId",
+            "/posts/new"
+          ],
+          "description": "Route template required; query strings, fragments, raw IDs, and search input are forbidden. Owner/session are bound server-side from the authenticated cookie."
+        },
+        "appVersion": { "type": ["string", "null"], "maxLength": 100 }
+      }
+    },
+    "baseEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventId", "name", "occurredAt", "context", "properties"],
+      "properties": {
+        "eventId": { "$ref": "#/$defs/uuid" },
+        "name": {
+          "enum": [
+            "onboarding_completed",
+            "trip_created",
+            "candidate_save_started",
+            "candidate_saved",
+            "candidate_duplicate",
+            "candidate_save_failed",
+            "candidate_scheduled",
+            "trip_item_edited",
+            "optimization_requested",
+            "optimization_previewed",
+            "optimization_applied",
+            "optimization_kept",
+            "optimization_reverted",
+            "optimization_failed",
+            "live_place_opened",
+            "related_place_opened",
+            "data_guide_opened"
+          ]
+        },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "context": { "$ref": "#/$defs/context" },
+        "properties": { "type": "object" }
+      }
+    },
+    "candidateBaseProperties": {
+      "type": "object",
+      "required": ["tripId", "placeId", "sourceType"],
+      "properties": {
+        "tripId": { "$ref": "#/$defs/uuid" },
+        "placeId": { "$ref": "#/$defs/uuid" },
+        "sourceType": { "enum": ["POST", "SEARCH", "LIVE", "IMPORT"] },
+        "postId": { "$ref": "#/$defs/nullableUuid" }
+      }
+    },
+    "optimizationBaseProperties": {
+      "type": "object",
+      "required": ["tripId", "runId", "scope"],
+      "properties": {
+        "tripId": { "$ref": "#/$defs/uuid" },
+        "runId": { "$ref": "#/$defs/uuid" },
+        "scope": { "enum": ["ITEM", "DAY", "TRIP"] }
+      }
+    },
+    "event": {
+      "allOf": [
+        { "$ref": "#/$defs/baseEvent" },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "onboarding_completed" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["language", "skippedIntro"],
+                "properties": {
+                  "language": { "type": "string", "maxLength": 35 },
+                  "skippedIntro": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "trip_created" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tripId", "method", "planningLevel", "dayCount", "itemCount"],
+                "properties": {
+                  "tripId": { "$ref": "#/$defs/uuid" },
+                  "method": { "enum": ["MANUAL", "PASTE", "RECOMMENDED_DRAFT"] },
+                  "planningLevel": { "enum": ["NOTHING", "MUST_VISIT_ONLY", "MOSTLY_PLANNED"] },
+                  "dayCount": { "type": "integer", "minimum": 1, "maximum": 90 },
+                  "itemCount": { "type": "integer", "minimum": 0, "maximum": 1000 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "enum": ["candidate_save_started", "candidate_saved", "candidate_duplicate"]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "allOf": [{ "$ref": "#/$defs/candidateBaseProperties" }],
+                "unevaluatedProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "candidate_save_failed" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "allOf": [
+                  { "$ref": "#/$defs/candidateBaseProperties" },
+                  {
+                    "type": "object",
+                    "required": ["errorCode", "retryable"],
+                    "properties": {
+                      "errorCode": { "type": "string", "maxLength": 100 },
+                      "retryable": { "type": "boolean" }
+                    }
+                  }
+                ],
+                "unevaluatedProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "candidate_scheduled" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tripId", "candidateId", "placeId", "itemId", "date"],
+                "properties": {
+                  "tripId": { "$ref": "#/$defs/uuid" },
+                  "candidateId": { "$ref": "#/$defs/uuid" },
+                  "placeId": { "$ref": "#/$defs/uuid" },
+                  "itemId": { "$ref": "#/$defs/uuid" },
+                  "date": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "trip_item_edited" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tripId", "itemId", "operation", "constraintTypes"],
+                "properties": {
+                  "tripId": { "$ref": "#/$defs/uuid" },
+                  "itemId": { "$ref": "#/$defs/uuid" },
+                  "operation": { "enum": ["ADD", "MOVE", "REORDER", "EDIT_TIME", "REPLACE", "REMOVE", "LOCK", "UNLOCK"] },
+                  "constraintTypes": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "enum": ["MUST_VISIT", "DATE", "TIME", "RESERVATION"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "optimization_requested" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "allOf": [
+                  { "$ref": "#/$defs/optimizationBaseProperties" },
+                  {
+                    "type": "object",
+                    "required": ["includeCandidates"],
+                    "properties": { "includeCandidates": { "type": "boolean" } }
+                  }
+                ],
+                "unevaluatedProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "optimization_previewed" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "allOf": [
+                  { "$ref": "#/$defs/optimizationBaseProperties" },
+                  {
+                    "type": "object",
+                    "required": ["proposalCount", "comparisonEligible", "dataStates"],
+                    "properties": {
+                      "proposalCount": { "type": "integer", "minimum": 0, "maximum": 20 },
+                      "comparisonEligible": { "type": "boolean" },
+                      "dataStates": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": { "enum": ["LIVE", "FORECAST", "REPLAY", "QUALITATIVE", "STALE", "UNAVAILABLE"] }
+                      }
+                    }
+                  }
+                ],
+                "unevaluatedProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "name": { "enum": ["optimization_applied", "optimization_kept", "optimization_reverted"] }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "allOf": [
+                  { "$ref": "#/$defs/optimizationBaseProperties" },
+                  {
+                    "type": "object",
+                    "required": ["proposalId"],
+                    "properties": {
+                      "proposalId": { "$ref": "#/$defs/uuid" },
+                      "resultingTripVersion": { "type": ["integer", "null"], "minimum": 1 }
+                    }
+                  }
+                ],
+                "unevaluatedProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "optimization_failed" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "allOf": [
+                  { "$ref": "#/$defs/optimizationBaseProperties" },
+                  {
+                    "type": "object",
+                    "required": ["errorCode", "retryable"],
+                    "properties": {
+                      "errorCode": {
+                        "enum": ["TRIP_CHANGED", "DATA_CHANGED", "LOCK_CONFLICT", "ROUTE_UNAVAILABLE", "NO_IMPROVEMENT", "APPLY_FAILED", "OPTIMIZATION_FAILED"]
+                      },
+                      "retryable": { "type": "boolean" }
+                    }
+                  }
+                ],
+                "unevaluatedProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "live_place_opened" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["placeId", "dataState", "mappingType", "fallbackUsed"],
+                "properties": {
+                  "placeId": { "$ref": "#/$defs/uuid" },
+                  "dataState": { "enum": ["LIVE", "FORECAST", "REPLAY", "QUALITATIVE", "STALE", "UNAVAILABLE"] },
+                  "mappingType": { "type": ["string", "null"], "maxLength": 100 },
+                  "fallbackUsed": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "related_place_opened" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["sourcePlaceId", "targetPlaceId", "relation", "dataState", "comparisonEligible"],
+                "properties": {
+                  "sourcePlaceId": { "$ref": "#/$defs/uuid" },
+                  "targetPlaceId": { "$ref": "#/$defs/uuid" },
+                  "relation": { "enum": ["EXACT", "SIMILAR"] },
+                  "dataState": { "enum": ["LIVE", "FORECAST", "REPLAY", "QUALITATIVE", "STALE", "UNAVAILABLE"] },
+                  "comparisonEligible": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "name": { "const": "data_guide_opened" } } },
+          "then": {
+            "type": "object",
+            "properties": {
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["entryRoute"],
+                "properties": {
+                  "entryRoute": { "type": "string", "maxLength": 200 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

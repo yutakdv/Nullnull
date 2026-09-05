@@ -1,0 +1,64 @@
+name: Docker integration
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-integration:
+    name: docker-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PR_HEAD_REF: ${{ github.head_ref }}
+      EVENT_NAME: ${{ github.event_name }}
+      HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+      BASE_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Initialize integration evidence
+        shell: bash
+        run: |
+          mkdir -p .artifacts/integration
+          echo "not-started" > .artifacts/integration/mode.txt
+          echo "policy-check" > .artifacts/integration/status.txt
+      - name: Enforce role branch on pull requests
+        shell: bash
+        run: |
+          if [[ "${EVENT_NAME}" != "pull_request" ]]; then
+            exit 0
+          fi
+          if [[ "${HEAD_REPOSITORY}" != "${BASE_REPOSITORY}" ]]; then
+            echo "failed" > .artifacts/integration/status.txt
+            echo "Role-branch PRs must originate in this repository, not a fork." >&2
+            exit 1
+          fi
+          case "${PR_HEAD_REF}" in
+            frontend|backend|dependabot/*) ;;
+            *)
+              echo "failed" > .artifacts/integration/status.txt
+              echo "PRs into main must come from frontend or backend (Dependabot is separately allowed)." >&2
+              exit 1
+              ;;
+          esac
+      - name: Run baseline or full Docker gate
+        shell: bash
+        run: bash scripts/integration-test.sh
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: docker-integration-${{ github.run_id }}
+          path: .artifacts/integration/
+          if-no-files-found: error
+          retention-days: 30
