@@ -1,0 +1,3903 @@
+openapi: 3.1.0
+info:
+  title: Nullnull Public Web API
+  version: 0.1.0
+  summary: Contract-first API for the Nullnull mobile travel planner
+  description: |
+    P0 implementation contract. Saved posts, trip candidates, and scheduled trip
+    items are distinct resources. Optimization never mutates a trip before an
+    explicit APPLY decision. All crowd and alternative-place data carries
+    provenance and comparison eligibility.
+  contact:
+    name: Nullnull team
+  license:
+    name: Repository license not yet selected
+    identifier: LicenseRef-TBD
+servers:
+  - url: /api/v1
+    description: Same-origin API path for local, staging, and production
+x-nullnull-common-contract:
+  requestId: Every response, including errors and 204 responses, carries X-Request-ID.
+  protectedErrors: Every session-protected operation may return 401 UNAUTHORIZED.
+  rateLimitErrors: Every operation may return 429 RATE_LIMITED with Retry-After.
+  cache: Owner-scoped, search, import, deletion, and optimization responses are never CDN cached.
+  bounds: Unknown object fields are rejected and application limits are revalidated server-side.
+x-nullnull-competition-contract:
+  status: target-for-2026-submission
+  submissionDeadline: "2026-09-21T16:00:00+09:00"
+  accessMode: LOGIN_NOT_REQUIRED
+  ktoOpenApi:
+    requiredInDeployedService: true
+    browserDirectCall: forbidden
+    fileOrReplayOnly: forbidden
+    callAuditWithoutSecret: required
+    defaultAttributionText: "출처: ⓒ한국관광공사"
+  locationCapability: disabled
+  governingDocs:
+    - ../contest/2026-관광데이터-활용-공모전-공지-심사기준.md
+    - ../contest/COMPETITION_COMPLIANCE_MATRIX.md
+tags:
+  - name: System
+    description: Health and operational readiness endpoints.
+  - name: Session
+    description: Anonymous session bootstrap, preferences, and deletion.
+  - name: Feed
+    description: Curated posts, feed state, and saved posts.
+  - name: Places
+    description: Canonical places, search, crowd forecasts, and relations.
+  - name: Trips
+    description: Owned trips and trip-level metadata.
+  - name: Imports
+    description: Ephemeral itinerary parsing and confirmation.
+  - name: Candidates
+    description: Trip-scoped unscheduled place candidates.
+  - name: Trip items
+    description: Scheduled places, ordering, replacement, and constraints.
+  - name: Optimizations
+    description: Preview-first optimization runs, decisions, and revert.
+  - name: Live
+    description: Live, forecast, replay, stale, and unavailable area data.
+  - name: Notifications
+    description: P1 notification list and read state.
+  - name: Analytics
+    description: Allowlisted, privacy-minimized client events.
+
+paths:
+  /health/live:
+    get:
+      tags: [System]
+      operationId: getLiveness
+      security: []
+      summary: Process liveness probe
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /health/ready:
+    get:
+      tags: [System]
+      operationId: getReadiness
+      security: []
+      summary: Application readiness probe
+      responses:
+        "200":
+          description: Required dependencies are ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /demo/sessions:
+    post:
+      tags: [Session]
+      operationId: createDemoSession
+      security: []
+      summary: Create the first anonymous demo session
+      description: |
+        Creates an Owner and HttpOnly session cookie only when no valid session exists.
+        This bootstrap operation is intentionally outside owner-scoped idempotency: a retry
+        carrying a cookie returns 200 and the existing owner; a transport failure before any
+        cookie is stored may leave an ownerless bootstrap record that is purged after 15 minutes.
+        A valid cookie is never replaced merely because this endpoint is retried. Use
+        POST /session/csrf to obtain an additional tab-local CSRF token.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDemoSessionRequest"
+      responses:
+        "200":
+          description: Existing valid anonymous session resumed
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionBootstrap"
+        "201":
+          description: Anonymous session created
+          headers:
+            Set-Cookie:
+              description: Secure HttpOnly session cookie
+              schema:
+                type: string
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionBootstrap"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+  /session/csrf:
+    post:
+      tags: [Session]
+      operationId: issueCsrfToken
+      summary: Issue a tab-local CSRF token for an existing session
+      description: |
+        Safe bootstrap endpoint for refresh and new tabs. It requires a valid session cookie
+        and a same-origin Origin or Referer, but no existing CSRF token. Issuing a token does
+        not invalidate tokens held by other tabs; each token expires independently and at most
+        five unexpired token hashes are retained per session.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: A new independently valid CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CsrfTokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        default:
+          $ref: "#/components/responses/Problem"
+  /demo/readiness:
+    get:
+      tags: [System]
+      operationId: getDemoReadiness
+      security:
+        - sessionCookie: []
+      summary: Check whether P0 demo datasets and sources are usable
+      responses:
+        "200":
+          description: Per-capability readiness
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoReadiness"
+        default:
+          $ref: "#/components/responses/Problem"
+  /session:
+    delete:
+      tags: [Session]
+      operationId: deleteCurrentSession
+      summary: Revoke the current session and request owned-data deletion
+      description: |
+        Atomically records the idempotent receipt, revokes the session and CSRF tokens, and
+        queues deletion. For 24 hours only this route may resolve the revoked cookie plus the
+        same Idempotency-Key to replay the same receipt; all other use of that cookie is 401.
+        The status token is deterministically signed for the receipt and never stored plaintext.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Session revoked and deletion job accepted
+          headers:
+            Location:
+              description: Deletion status resource URL.
+              schema:
+                type: string
+                format: uri-reference
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionReceipt"
+        default:
+          $ref: "#/components/responses/Problem"
+  /deletion-requests/{deletionRequestId}:
+    parameters:
+      - $ref: "#/components/parameters/DeletionRequestId"
+    get:
+      tags: [Session]
+      operationId: getDeletionRequest
+      summary: Get an owned-data deletion job status after session revocation
+      description: |
+        Uses the one-time status token returned in DeletionReceipt because the original session
+        is already revoked. The raw token is held in memory only, sent in a header, stored only
+        as a hash, expires after seven days, and cannot read any deleted domain data.
+      security:
+        - deletionStatusToken: []
+      responses:
+        "200":
+          description: Current deletion status
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionRequestStatus"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          description: Status token or receipt expired
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        default:
+          $ref: "#/components/responses/Problem"
+  /me:
+    get:
+      tags: [Session]
+      operationId: getCurrentOwner
+      summary: Get the current owner and preferences
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Current anonymous or account owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      tags: [Session]
+      operationId: updatePreferences
+      summary: Update locale, timezone, onboarding, or active trip
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/UpdatePreferencesRequest"
+      responses:
+        "200":
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerProfile"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /feed:
+    get:
+      tags: [Feed]
+      operationId: listFeed
+      summary: List personalized feed cards
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: tripId
+          in: query
+          description: Adds candidate state for the selected trip without changing ranking semantics.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Cursor page of feed cards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedPage"
+        default:
+          $ref: "#/components/responses/Problem"
+  /feed/feedback:
+    post:
+      tags: [Feed]
+      operationId: recordFeedFeedback
+      summary: Record an allowlisted feed interaction
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedFeedbackRequest"
+      responses:
+        "204":
+          description: Feedback accepted
+        default:
+          $ref: "#/components/responses/Problem"
+  /posts/{postId}:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    get:
+      tags: [Feed]
+      operationId: getPost
+      summary: Get a post and its linked places
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Post details and linked places
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /posts/{postId}/saved:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    put:
+      tags: [Feed]
+      operationId: savePost
+      summary: Save a post independently of any trip
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        "200":
+          description: Existing saved-post state returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedPostState"
+        "201":
+          description: Post saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedPostState"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      tags: [Feed]
+      operationId: unsavePost
+      summary: Remove a saved-post relation
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        "204":
+          description: Saved-post relation removed or already absent
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /places/search:
+    post:
+      tags: [Places]
+      operationId: searchPlaces
+      summary: Search canonical places
+      description: |
+        Read-only POST so free-form search text does not enter CDN, ALB, proxy, or browser URL
+        logs. The body is excluded from application/APM logging and responses use no-store.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceSearchRequest"
+      responses:
+        "200":
+          description: Canonical place search results
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaceSearchPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        default:
+          $ref: "#/components/responses/Problem"
+  /places/{placeId}:
+    parameters:
+      - $ref: "#/components/parameters/PlaceId"
+    get:
+      tags: [Places]
+      operationId: getPlace
+      summary: Get canonical place details
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Canonical place detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaceDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /places/{placeId}/crowd-forecast:
+    parameters:
+      - $ref: "#/components/parameters/PlaceId"
+    get:
+      tags: [Places]
+      operationId: getPlaceCrowdForecast
+      summary: Get a place crowd forecast series
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Forecast series; may explicitly be unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrowdSeries"
+        default:
+          $ref: "#/components/responses/Problem"
+  /places/{placeId}/related:
+    parameters:
+      - $ref: "#/components/parameters/PlaceId"
+    get:
+      tags: [Places]
+      operationId: listRelatedPlaces
+      summary: List evidence-backed related places
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: at
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: source
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Verified, similar, pending, unknown, or no candidate result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelatedPlaceResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips:
+    get:
+      tags: [Trips]
+      operationId: listTrips
+      summary: List trips owned by the current owner
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TripStatus"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Trips owned by the current owner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripPage"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Trips]
+      operationId: createTrip
+      summary: Create a trip from structured input
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripRequest"
+      responses:
+        "201":
+          description: Trip created
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+    get:
+      tags: [Trips]
+      operationId: getTrip
+      summary: Get a trip with days, items, constraints, and candidates
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Complete trip view
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Trips]
+      operationId: updateTrip
+      summary: Update trip metadata using optimistic concurrency
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/UpdateTripRequest"
+      responses:
+        "200":
+          description: Trip metadata/date range updated
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      tags: [Trips]
+      operationId: deleteTrip
+      summary: Delete a trip and its owned data
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: Trip deleted
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}/interests:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+    put:
+      tags: [Trips]
+      operationId: replaceTripInterests
+      summary: Replace the trip interest set
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceInterestsRequest"
+      responses:
+        "200":
+          description: Interests replaced and trip version incremented
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trip-imports/parse:
+    post:
+      tags: [Imports]
+      operationId: parseTripImport
+      summary: Parse itinerary text without retaining or logging the raw text
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseImportRequest"
+      responses:
+        "200":
+          description: Structured draft; response must not echo rawText
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            ETag:
+              description: Quoted import draft version.
+              schema:
+                type: string
+                pattern: '^"[1-9][0-9]*"$'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportDraft"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trip-imports/{draftId}:
+    parameters:
+      - $ref: "#/components/parameters/DraftId"
+    patch:
+      tags: [Imports]
+      operationId: remapTripImport
+      summary: Correct mappings in a structured import draft
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemapImportRequest"
+      responses:
+        "200":
+          description: Updated structured draft
+          headers:
+            ETag:
+              description: Quoted updated import draft version.
+              schema:
+                type: string
+                pattern: '^"[1-9][0-9]*"$'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportDraft"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          description: Import draft expired
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trip-imports/{draftId}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/DraftId"
+    post:
+      tags: [Imports]
+      operationId: confirmTripImport
+      summary: Confirm an import draft and create a trip atomically
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmImportRequest"
+      responses:
+        "201":
+          description: Trip and mapped items created atomically
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/candidates:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+    get:
+      tags: [Candidates]
+      operationId: listTripCandidates
+      summary: List candidates for a trip
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/CandidateStatus"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Candidate page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidatePage"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Candidates]
+      operationId: addTripCandidate
+      summary: Add an unscheduled place candidate to a trip
+      description: Does not create a TripItem or increment the trip schedule version.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCandidateRequest"
+      responses:
+        "200":
+          description: Same active candidate already existed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateSaveResult"
+        "201":
+          description: Candidate created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateSaveResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}/candidates/{candidateId}:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+      - $ref: "#/components/parameters/CandidateId"
+    delete:
+      tags: [Candidates]
+      operationId: removeTripCandidate
+      summary: Dismiss an active trip candidate
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        "204":
+          description: Active candidate dismissed
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}/candidates/{candidateId}/matches:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+      - $ref: "#/components/parameters/CandidateId"
+    get:
+      tags: [Candidates]
+      operationId: getCandidateTripMatches
+      summary: Get eligible scheduling slots for a candidate
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Valid dates/slots and constraints for scheduling this candidate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateMatchResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/items:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+    post:
+      tags: [Trip items]
+      operationId: addTripItem
+      summary: Add a scheduled item to a trip
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTripItemRequest"
+      responses:
+        "201":
+          description: Item added and candidate marked scheduled when supplied
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripMutationResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}/items/reorder:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+    post:
+      tags: [Trip items]
+      operationId: reorderTripItems
+      summary: Reorder or move trip items atomically
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderTripItemsRequest"
+      responses:
+        "200":
+          description: Items reordered atomically
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripMutationResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}/items/{itemId}:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+      - $ref: "#/components/parameters/ItemId"
+    patch:
+      tags: [Trip items]
+      operationId: updateTripItem
+      summary: Update one scheduled trip item
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/UpdateTripItemRequest"
+      responses:
+        "200":
+          description: Item changed
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripMutationResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      tags: [Trip items]
+      operationId: removeTripItem
+      summary: Remove an item and optionally restore its candidate
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - name: disposition
+          in: query
+          required: true
+          description: Restore as a candidate by default in the UI, or remove completely.
+          schema:
+            type: string
+            enum: [RESTORE_CANDIDATE, REMOVE]
+      responses:
+        "200":
+          description: Item removed and trip version incremented
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripMutationResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}/items/{itemId}/replace:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+      - $ref: "#/components/parameters/ItemId"
+    post:
+      tags: [Trip items]
+      operationId: replaceTripItem
+      summary: Replace an item's place after server validation
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceTripItemRequest"
+      responses:
+        "200":
+          description: Place replaced while preserving validated schedule fields
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripMutationResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+  /trips/{tripId}/items/{itemId}/constraints/{constraintType}:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+      - $ref: "#/components/parameters/ItemId"
+      - $ref: "#/components/parameters/ConstraintType"
+    put:
+      tags: [Trip items]
+      operationId: setTripItemConstraint
+      summary: Set one independent item constraint
+      description: |
+        Body is a tagged union. Body type must equal constraintType in the path. DATE carries
+        date; TIME carries startTime/toleranceMinutes; RESERVATION carries date/startTime and
+        optional endTime; MUST_VISIT carries no value. This endpoint always records source USER.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetConstraintRequest"
+      responses:
+        "200":
+          description: Constraint set and trip version incremented
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripMutationResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      tags: [Trip items]
+      operationId: removeTripItemConstraint
+      summary: Remove one independent item constraint
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: Constraint removed and trip version incremented
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripMutationResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/optimizations:
+    parameters:
+      - $ref: "#/components/parameters/TripId"
+    post:
+      tags: [Optimizations]
+      operationId: createOptimization
+      summary: Queue a preview-only optimization run
+      description: |
+        Synchronous preflight checks ownership, target/scope shape, input trip version, and
+        current locks, then freezes the input revision. External data and route checks execute
+        asynchronously; failure is reported on the run and never mutates the trip.
+      x-error-codes:
+        "409": [TRIP_CHANGED]
+        "422": [LOCK_CONFLICT]
+        "429": [RATE_LIMITED]
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOptimizationRequest"
+      responses:
+        "202":
+          description: Optimization queued
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptimizationRun"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+  /optimizations:
+    get:
+      tags: [Optimizations]
+      operationId: listOptimizationHistory
+      summary: List the current owner's optimization history
+      description: |
+        P0 profile history. Results are newest-first and contain status, timestamps, target trip,
+        and run link only. This view never returns or causes a duplicate itinerary snapshot.
+      x-release: P0
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: tripId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor page of terminal and active optimization runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptimizationHistoryPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        default:
+          $ref: "#/components/responses/Problem"
+  /optimizations/{runId}:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [Optimizations]
+      operationId: getOptimization
+      summary: Get optimization state and immutable proposals
+      x-error-codes:
+        asynchronous: [TRIP_CHANGED, DATA_CHANGED, LOCK_CONFLICT, ROUTE_UNAVAILABLE, NO_IMPROVEMENT]
+        "410": [PREVIEW_EXPIRED]
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Run state and immutable proposals when ready
+          headers:
+            Retry-After:
+              description: Present for QUEUED/RUNNING responses
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptimizationRun"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          description: Preview expired
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /optimizations/{runId}/decisions:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    post:
+      tags: [Optimizations]
+      operationId: decideOptimization
+      summary: Apply or keep an optimization proposal
+      description: |
+        Exactly one initial APPLY or KEEP decision is allowed per run. APPLY revalidates the
+        frozen trip revision, all constraints, snapshot fingerprint, and preview expiry in one
+        transaction. KEEP records intent but does not increment trip version. A failed APPLY
+        records no decision and changes no trip row, so the same idempotency key can replay it.
+      x-error-codes:
+        "409": [TRIP_CHANGED, DATA_CHANGED]
+        "422": [LOCK_CONFLICT, NO_IMPROVEMENT]
+        "503": [ROUTE_UNAVAILABLE, APPLY_FAILED]
+        "429": [RATE_LIMITED]
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OptimizationDecisionRequest"
+      responses:
+        "200":
+          description: Decision recorded; APPLY includes the new trip version
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptimizationDecision"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        default:
+          $ref: "#/components/responses/Problem"
+  /optimization-decisions/{decisionId}/revert:
+    parameters:
+      - $ref: "#/components/parameters/DecisionId"
+    post:
+      tags: [Optimizations]
+      operationId: revertOptimizationDecision
+      summary: Restore the state before an applied proposal
+      description: |
+        Allowed once, only for an APPLY decision, for 24 hours after decidedAt. The immutable
+        before revision is restored as a new revision; history is never overwritten. Revert is
+        rejected if the current trip version differs from the applied revision.
+      x-error-codes:
+        "409": [TRIP_CHANGED]
+        "410": [PREVIEW_EXPIRED]
+        "503": [APPLY_FAILED]
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: A new trip revision restores the pre-apply state
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptimizationDecision"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "410":
+          description: Revert window expired
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /live/areas:
+    post:
+      tags: [Live]
+      operationId: queryLiveAreas
+      summary: Query live or replay crowd areas
+      description: |
+        Read-only POST keeps an optional coarse viewport out of access URLs. Coordinates must
+        be rounded to at most three decimals and cover at least 0.01 degrees on each axis;
+        exact device coordinates are forbidden and the body is not logged or persisted.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LiveAreaQuery"
+      responses:
+        "200":
+          description: Live area map/list payload
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveAreaResult"
+        default:
+          $ref: "#/components/responses/Problem"
+  /live/areas/{areaId}/places:
+    parameters:
+      - $ref: "#/components/parameters/AreaId"
+    get:
+      tags: [Live]
+      operationId: listLiveAreaPlaces
+      summary: List places mapped to a live area
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Places mapped to the selected live area
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LivePlace"
+        default:
+          $ref: "#/components/responses/Problem"
+  /live/places/{placeId}:
+    parameters:
+      - $ref: "#/components/parameters/PlaceId"
+    get:
+      tags: [Live]
+      operationId: getLivePlace
+      summary: Get a live place and related alternatives
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Place details with current, forecast, replay, or unavailable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivePlaceDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: List notifications for the current owner
+      x-release: P1
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Notification page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+        default:
+          $ref: "#/components/responses/Problem"
+  /notifications/read-all:
+    put:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      summary: Mark all notifications visible at request time as read
+      description: Newer notifications committed after the request cutoff remain unread.
+      x-release: P1
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Count and server cutoff applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarkAllNotificationsReadResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        default:
+          $ref: "#/components/responses/Problem"
+  /notifications/{notificationId}/read:
+    parameters:
+      - $ref: "#/components/parameters/NotificationId"
+    put:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Mark a notification as read
+      x-release: P1
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        "204":
+          description: Notification marked read
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /events/batch:
+    post:
+      tags: [Analytics]
+      operationId: ingestEventBatch
+      summary: Ingest a privacy-minimized analytics event batch
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventBatch"
+      responses:
+        "202":
+          description: Valid events accepted; duplicate eventIds ignored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventBatchReceipt"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        default:
+          $ref: "#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-nullnull_session
+      description: Opaque, Secure, HttpOnly session cookie.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Token issued by session bootstrap and held in memory only.
+    deletionStatusToken:
+      type: apiKey
+      in: header
+      name: X-Deletion-Status-Token
+      description: One-purpose deletion receipt token; store in memory only and never log it.
+
+  headers:
+    RequestId:
+      description: Correlation identifier safe to show in support UI.
+      schema:
+        type: string
+        maxLength: 100
+    ETag:
+      description: Quoted trip version, for example `"7"`.
+      schema:
+        type: string
+        pattern: '^"[1-9][0-9]*"$'
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID recommended. Reuse only for an exact retry of the same request.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 100
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag from the latest mutable trip or import-draft representation.
+      schema:
+        type: string
+        pattern: '^"[1-9][0-9]*"$'
+    Cursor:
+      name: cursor
+      in: query
+      description: Signed opaque cursor bound to owner, endpoint, filter hash, sort, and schema version; expires after 15 minutes.
+      schema:
+        type: string
+        minLength: 20
+        maxLength: 500
+        pattern: '^[A-Za-z0-9_-]+$'
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PlaceId:
+      name: placeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PostId:
+      name: postId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DraftId:
+      name: draftId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CandidateId:
+      name: candidateId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DecisionId:
+      name: decisionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AreaId:
+      name: areaId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DeletionRequestId:
+      name: deletionRequestId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ConstraintType:
+      name: constraintType
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ConstraintType"
+
+  responses:
+    Problem:
+      description: Error response
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    BadRequest:
+      description: Malformed input
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Session is absent, expired, or revoked
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource is absent or not owned by this session
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: Version, idempotency, or current-state conflict
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unprocessable:
+      description: Syntactically valid request violates a domain constraint
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ServiceUnavailable:
+      description: A required capability is temporarily unavailable
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    RateLimited:
+      description: Owner, IP, or provider-safe rate limit exceeded
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          description: Whole seconds until the client may retry.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status, time]
+      properties:
+        status:
+          type: string
+          const: UP
+        time:
+          type: string
+          format: date-time
+    ReadinessStatus:
+      type: object
+      additionalProperties: false
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [READY, DEGRADED, NOT_READY]
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapabilityStatus"
+    CapabilityStatus:
+      type: object
+      additionalProperties: false
+      required: [name, status]
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [READY, DEGRADED, UNAVAILABLE]
+        checkedAt:
+          type: string
+          format: date-time
+        detail:
+          type: [string, "null"]
+    CreateDemoSessionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        locale:
+          type: string
+          default: ko-KR
+        timezone:
+          type: string
+          default: Asia/Seoul
+    SessionBootstrap:
+      type: object
+      additionalProperties: false
+      required: [owner, csrfToken, expiresAt]
+      properties:
+        owner:
+          $ref: "#/components/schemas/OwnerProfile"
+        csrfToken:
+          type: string
+          minLength: 32
+          maxLength: 512
+        expiresAt:
+          type: string
+          format: date-time
+    CsrfTokenResponse:
+      type: object
+      additionalProperties: false
+      required: [csrfToken, expiresAt]
+      properties:
+        csrfToken:
+          type: string
+          minLength: 32
+          maxLength: 512
+        expiresAt:
+          type: string
+          format: date-time
+    OwnerProfile:
+      type: object
+      additionalProperties: false
+      required: [id, kind, locale, timezone, onboardingCompleted]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [ANONYMOUS, ACCOUNT]
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 35
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+        onboardingCompleted:
+          type: boolean
+        activeTripId:
+          type: [string, "null"]
+          format: uuid
+    UpdatePreferencesRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 35
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+        onboardingCompleted:
+          type: boolean
+        activeTripId:
+          type: [string, "null"]
+          format: uuid
+      minProperties: 1
+    DeletionReceipt:
+      type: object
+      additionalProperties: false
+      required: [requestId, status, statusToken, statusTokenExpiresAt, requestedAt, statusUrl]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: ACCEPTED
+        statusToken:
+          type: string
+          minLength: 32
+          maxLength: 512
+          description: One-purpose bearer token; FE keeps it in memory only.
+        statusTokenExpiresAt:
+          type: string
+          format: date-time
+        requestedAt:
+          type: string
+          format: date-time
+        statusUrl:
+          type: string
+          format: uri-reference
+    DeletionRequestStatus:
+      type: object
+      additionalProperties: false
+      required: [requestId, status, requestedAt, updatedAt]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [ACCEPTED, RUNNING, COMPLETED, PARTIAL_FAILED, FAILED]
+        requestedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: [string, "null"]
+          format: date-time
+        retryable:
+          type: boolean
+          default: false
+        failureCode:
+          type: [string, "null"]
+          maxLength: 100
+    DemoReadiness:
+      type: object
+      additionalProperties: false
+      required: [overall, capabilities, checkedAt]
+      properties:
+        overall:
+          type: string
+          enum: [READY, DEGRADED, NOT_READY]
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapabilityStatus"
+        checkedAt:
+          type: string
+          format: date-time
+
+    CursorPage:
+      type: object
+      additionalProperties: false
+      required: [hasMore]
+      properties:
+        nextCursor:
+          type: [string, "null"]
+        hasMore:
+          type: boolean
+    FeedPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedCard"
+        page:
+          $ref: "#/components/schemas/CursorPage"
+    FeedCard:
+      type: object
+      additionalProperties: false
+      required: [post, primaryPlace, savedPost, candidateState]
+      properties:
+        post:
+          $ref: "#/components/schemas/PostSummary"
+        primaryPlace:
+          $ref: "#/components/schemas/PlaceSummary"
+        crowd:
+          oneOf:
+            - $ref: "#/components/schemas/CrowdMetric"
+            - type: "null"
+        savedPost:
+          type: boolean
+        candidateState:
+          type: string
+          enum: [NOT_SAVED, SAVED_TO_SELECTED_TRIP, SCHEDULED_IN_SELECTED_TRIP, NO_TRIP_SELECTED]
+    PostSummary:
+      type: object
+      additionalProperties: false
+      required: [id, title, coverUrl, publishedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        excerpt:
+          type: [string, "null"]
+        coverUrl:
+          type: string
+          format: uri
+        publishedAt:
+          type: string
+          format: date-time
+    PostDetail:
+      type: object
+      additionalProperties: false
+      required: [id, title, coverUrl, publishedAt, body, places, saved]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        excerpt:
+          type: [string, "null"]
+          maxLength: 500
+        coverUrl:
+          type: string
+          format: uri
+        coverAsset:
+          oneOf:
+            - $ref: "#/components/schemas/MediaAsset"
+            - type: "null"
+        publishedAt:
+          type: string
+          format: date-time
+        body:
+          type: string
+          maxLength: 20000
+        places:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/PlaceSummary"
+        saved:
+          type: boolean
+    SavedPostState:
+      type: object
+      additionalProperties: false
+      required: [postId, saved, duplicate, savedAt]
+      properties:
+        postId:
+          type: string
+          format: uuid
+        saved:
+          type: boolean
+        duplicate:
+          type: boolean
+        savedAt:
+          type: string
+          format: date-time
+    FeedFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [postId, action, occurredAt]
+      properties:
+        postId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [IMPRESSION, OPEN, HIDE, LIKE, DISLIKE]
+        occurredAt:
+          type: string
+          format: date-time
+
+    PlaceSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, categoryCode, regionCode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        categoryCode:
+          type: string
+        regionCode:
+          type: string
+        thumbnailUrl:
+          type: [string, "null"]
+          format: uri
+        address:
+          type: [string, "null"]
+    PlaceDetail:
+      type: object
+      additionalProperties: false
+      required: [id, name, categoryCode, regionCode, description, location, externalRefs]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        categoryCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+        regionCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+        thumbnailUrl:
+          type: [string, "null"]
+          format: uri
+        thumbnailAsset:
+          oneOf:
+            - $ref: "#/components/schemas/MediaAsset"
+            - type: "null"
+        address:
+          type: [string, "null"]
+          maxLength: 500
+        description:
+          type: [string, "null"]
+          maxLength: 10000
+        location:
+          $ref: "#/components/schemas/GeoPoint"
+        externalRefs:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ExternalReference"
+    GeoPoint:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+    ExternalReference:
+      type: object
+      additionalProperties: false
+      required: [source, externalId, verifiedAt]
+      properties:
+        source:
+          type: string
+        externalId:
+          type: string
+        verifiedAt:
+          type: string
+          format: date-time
+    MediaAsset:
+      type: object
+      additionalProperties: false
+      required: [id, url, mediaType, license, attributionRequired, redistributionAllowed]
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        mediaType:
+          type: string
+          enum: [IMAGE]
+        alt:
+          type: [string, "null"]
+          maxLength: 500
+        license:
+          $ref: "#/components/schemas/AssetLicense"
+        attributionRequired:
+          type: boolean
+        attributionText:
+          type: [string, "null"]
+          maxLength: 500
+        redistributionAllowed:
+          type: boolean
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+    AssetLicense:
+      type: object
+      additionalProperties: false
+      required: [source, name, reviewedAt]
+      properties:
+        source:
+          type: string
+          minLength: 1
+          maxLength: 100
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        url:
+          type: [string, "null"]
+          format: uri
+        reviewedAt:
+          type: string
+          format: date-time
+    PlaceSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 100
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 35
+          default: ko-KR
+        regionCode:
+          type: [string, "null"]
+          maxLength: 100
+        cursor:
+          type: [string, "null"]
+          maxLength: 500
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+    PlaceSearchPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaceSummary"
+        page:
+          $ref: "#/components/schemas/CursorPage"
+
+    SourceState:
+      type: string
+      enum: [LIVE, FORECAST, REPLAY, QUALITATIVE, STALE, UNAVAILABLE]
+    Freshness:
+      type: string
+      enum: [FRESH, AGING, STALE, UNKNOWN]
+    DataProvenance:
+      type: object
+      additionalProperties: false
+      required:
+        - source
+        - sourceDisplayName
+        - sourceRegistryVersion
+        - sourceState
+        - observedAt
+        - targetAt
+        - freshness
+        - fetchedAt
+        - staleAt
+        - confidence
+        - license
+        - attribution
+        - metricDefinition
+        - normalizationVersion
+        - qualityFlags
+        - forecastIssueId
+        - comparisonAxis
+        - comparisonEligible
+        - comparisonReasonCode
+        - comparisonGroupId
+        - collectorRunId
+        - snapshotSetId
+        - observedAtSkewSeconds
+        - scope
+        - scopeLabel
+        - mappingType
+        - fallbackUsed
+        - provenanceId
+      properties:
+        source:
+          type: string
+        sourceDisplayName:
+          type: string
+        sourceRegistryVersion:
+          type: integer
+          minimum: 1
+        sourceState:
+          $ref: "#/components/schemas/SourceState"
+        observedAt:
+          type: [string, "null"]
+          format: date-time
+        targetAt:
+          type: [string, "null"]
+          format: date-time
+        fetchedAt:
+          type: string
+          format: date-time
+        staleAt:
+          type: [string, "null"]
+          format: date-time
+        freshness:
+          $ref: "#/components/schemas/Freshness"
+        confidence:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        license:
+          type: [string, "null"]
+        attribution:
+          type: [string, "null"]
+        metricDefinition:
+          type: [string, "null"]
+        normalizationVersion:
+          type: string
+        qualityFlags:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - PROVIDER_INCIDENT
+              - SCHEMA_DRIFT
+              - MAPPING_UNCERTAIN
+              - OBSERVED_AT_SKEW
+              - PARTIAL_PAYLOAD
+        forecastIssueId:
+          type: [string, "null"]
+        comparisonAxis:
+          type: [string, "null"]
+          enum: [TEMPORAL, SPATIAL, null]
+        comparisonEligible:
+          type: boolean
+        comparisonReasonCode:
+          type: [string, "null"]
+        comparisonGroupId:
+          type: [string, "null"]
+        collectorRunId:
+          type: [string, "null"]
+          format: uuid
+        snapshotSetId:
+          type: [string, "null"]
+          format: uuid
+        observedAtSkewSeconds:
+          type: [integer, "null"]
+          minimum: 0
+        scope:
+          type: [string, "null"]
+        scopeLabel:
+          type: [string, "null"]
+        mappingType:
+          type: [string, "null"]
+        fallbackUsed:
+          type: boolean
+          default: false
+        provenanceId:
+          type: [string, "null"]
+          format: uuid
+          description: Stable normalized snapshot identifier; null only for UNAVAILABLE.
+    CrowdMetric:
+      type: object
+      additionalProperties: false
+      required: [state, label, provenance]
+      properties:
+        state:
+          $ref: "#/components/schemas/SourceState"
+        value:
+          type: [number, "null"]
+        unit:
+          type: [string, "null"]
+        ordinalLevel:
+          type: [string, "null"]
+        label:
+          type: string
+        provenance:
+          $ref: "#/components/schemas/DataProvenance"
+    CrowdSeries:
+      type: object
+      additionalProperties: false
+      required: [placeId, state, points]
+      properties:
+        placeId:
+          type: string
+          format: uuid
+        state:
+          $ref: "#/components/schemas/SourceState"
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/CrowdMetric"
+        unavailableReason:
+          type: [string, "null"]
+    RelationState:
+      type: string
+      enum: [EXACT, SIMILAR, NONE, CHECKING, UNKNOWN]
+    RelatedPlaceResult:
+      type: object
+      additionalProperties: false
+      required: [sourcePlaceId, state, items]
+      properties:
+        sourcePlaceId:
+          type: string
+          format: uuid
+        state:
+          $ref: "#/components/schemas/RelationState"
+        reason:
+          type: [string, "null"]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelatedPlace"
+    RelatedPlace:
+      type: object
+      additionalProperties: false
+      required: [place, relation, relationReason, provenance]
+      properties:
+        place:
+          $ref: "#/components/schemas/PlaceSummary"
+        relation:
+          type: string
+          enum: [EXACT, SIMILAR]
+        relationReason:
+          type: string
+        crowd:
+          oneOf:
+            - $ref: "#/components/schemas/CrowdMetric"
+            - type: "null"
+        provenance:
+          $ref: "#/components/schemas/DataProvenance"
+
+    TripStatus:
+      type: string
+      enum: [DRAFT, ACTIVE, ARCHIVED]
+    PlanningLevel:
+      type: string
+      enum: [NOTHING, MUST_VISIT_ONLY, MOSTLY_PLANNED]
+    TripSummary:
+      type: object
+      additionalProperties: false
+      required: [id, title, startDate, endDate, timezone, status, version, candidateCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        timezone:
+          type: string
+        status:
+          $ref: "#/components/schemas/TripStatus"
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        candidateCount:
+          type: integer
+          minimum: 0
+    TripPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripSummary"
+        page:
+          $ref: "#/components/schemas/CursorPage"
+    TripDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - startDate
+        - endDate
+        - timezone
+        - status
+        - version
+        - candidateCount
+        - planningLevel
+        - interests
+        - days
+        - candidates
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+        status:
+          $ref: "#/components/schemas/TripStatus"
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        candidateCount:
+          type: integer
+          minimum: 0
+          maximum: 500
+        planningLevel:
+          $ref: "#/components/schemas/PlanningLevel"
+        interests:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/TripInterest"
+        days:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/TripDay"
+        candidates:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/TripCandidate"
+    TripInterest:
+      type: object
+      additionalProperties: false
+      required: [code, weight]
+      properties:
+        code:
+          type: string
+        weight:
+          type: integer
+          minimum: 1
+          maximum: 5
+    TripDay:
+      type: object
+      additionalProperties: false
+      required: [date, items]
+      properties:
+        date:
+          type: string
+          format: date
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/TripItem"
+    TripItem:
+      type: object
+      additionalProperties: false
+      required: [id, place, date, position, constraints]
+      properties:
+        id:
+          type: string
+          format: uuid
+        place:
+          $ref: "#/components/schemas/PlaceSummary"
+        date:
+          type: string
+          format: date
+        position:
+          type: integer
+          minimum: 0
+        startTime:
+          type: [string, "null"]
+          format: time
+        durationMinutes:
+          type: [integer, "null"]
+          minimum: 1
+        note:
+          type: [string, "null"]
+          maxLength: 500
+        constraints:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripConstraint"
+        crowd:
+          oneOf:
+            - $ref: "#/components/schemas/CrowdMetric"
+            - type: "null"
+    ConstraintType:
+      type: string
+      enum: [MUST_VISIT, DATE, TIME, RESERVATION]
+    TripConstraint:
+      oneOf:
+        - $ref: "#/components/schemas/MustVisitConstraint"
+        - $ref: "#/components/schemas/DateConstraint"
+        - $ref: "#/components/schemas/TimeConstraint"
+        - $ref: "#/components/schemas/ReservationConstraint"
+      discriminator:
+        propertyName: type
+        mapping:
+          MUST_VISIT: "#/components/schemas/MustVisitConstraint"
+          DATE: "#/components/schemas/DateConstraint"
+          TIME: "#/components/schemas/TimeConstraint"
+          RESERVATION: "#/components/schemas/ReservationConstraint"
+    MustVisitConstraint:
+      type: object
+      additionalProperties: false
+      required: [type, locked, source]
+      properties:
+        type:
+          type: string
+          const: MUST_VISIT
+        locked:
+          type: boolean
+          const: true
+        source:
+          type: string
+          enum: [USER, IMPORT]
+    DateConstraint:
+      type: object
+      additionalProperties: false
+      required: [type, locked, source, date]
+      properties:
+        type:
+          type: string
+          const: DATE
+        locked:
+          type: boolean
+          const: true
+        source:
+          type: string
+          enum: [USER, IMPORT]
+        date:
+          type: string
+          format: date
+    TimeConstraint:
+      type: object
+      additionalProperties: false
+      required: [type, locked, source, startTime, toleranceMinutes]
+      properties:
+        type:
+          type: string
+          const: TIME
+        locked:
+          type: boolean
+          const: true
+        source:
+          type: string
+          enum: [USER, IMPORT]
+        startTime:
+          type: string
+          format: time
+        toleranceMinutes:
+          type: integer
+          minimum: 0
+          maximum: 180
+    ReservationConstraint:
+      type: object
+      additionalProperties: false
+      required: [type, locked, source, date, startTime]
+      properties:
+        type:
+          type: string
+          const: RESERVATION
+        locked:
+          type: boolean
+          const: true
+        source:
+          type: string
+          enum: [USER, IMPORT]
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: [string, "null"]
+          format: time
+    CreateTripRequest:
+      type: object
+      additionalProperties: false
+      required: [startDate, endDate, timezone, planningLevel, interests]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Optional user title. When omitted, the server creates a deterministic locale-aware default (새 여행/New trip); it never asks an LLM to invent one.
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          description: Inclusive; server rejects ranges longer than 30 calendar days.
+        timezone:
+          type: string
+          default: Asia/Seoul
+        planningLevel:
+          $ref: "#/components/schemas/PlanningLevel"
+        interests:
+          type: array
+          minItems: 0
+          maxItems: 20
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/TripInterest"
+        seedItems:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/SeedTripItem"
+    SeedTripItem:
+      type: object
+      additionalProperties: false
+      required: [placeId, date, position]
+      properties:
+        placeId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        position:
+          type: integer
+          minimum: 0
+        startTime:
+          type: [string, "null"]
+          format: time
+        constraints:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SetConstraintInput"
+    UpdateTripRequest:
+      type: object
+      additionalProperties: false
+      description: Date-range shrink is rejected with VALIDATION_FAILED while any item or DATE/RESERVATION lock lies outside the new range.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: IANA timezone. Existing local dates and wall-clock times are preserved; the server revalidates derived instants and rejects conflicts instead of silently moving items.
+        planningLevel:
+          $ref: "#/components/schemas/PlanningLevel"
+        status:
+          $ref: "#/components/schemas/TripStatus"
+      minProperties: 1
+    ReplaceInterestsRequest:
+      type: object
+      additionalProperties: false
+      required: [interests]
+      properties:
+        interests:
+          type: array
+          minItems: 0
+          maxItems: 20
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/TripInterest"
+
+    ParseImportRequest:
+      type: object
+      additionalProperties: false
+      required: [rawText, locale, timezone]
+      properties:
+        rawText:
+          type: string
+          minLength: 1
+          maxLength: 20000
+          description: Ephemeral input; never persisted, logged, or echoed.
+        locale:
+          type: string
+          default: ko-KR
+        timezone:
+          type: string
+          default: Asia/Seoul
+    ImportDraft:
+      type: object
+      additionalProperties: false
+      required: [id, version, status, title, dates, items, unresolved, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum: [NEEDS_REVIEW, READY, CONFIRMED, EXPIRED]
+        title:
+          type: [string, "null"]
+        dates:
+          $ref: "#/components/schemas/DateRange"
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ImportDraftItem"
+        unresolved:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/UnresolvedImportToken"
+        expiresAt:
+          type: string
+          format: date-time
+    DateRange:
+      type: object
+      additionalProperties: false
+      properties:
+        startDate:
+          type: [string, "null"]
+          format: date
+        endDate:
+          type: [string, "null"]
+          format: date
+    ImportDraftItem:
+      type: object
+      additionalProperties: false
+      required: [clientKey, date, position, confidence]
+      properties:
+        clientKey:
+          type: string
+        place:
+          oneOf:
+            - $ref: "#/components/schemas/PlaceSummary"
+            - type: "null"
+        originalLabel:
+          type: string
+          description: Short parsed token only, not the surrounding raw itinerary.
+        date:
+          type: [string, "null"]
+          format: date
+        startTime:
+          type: [string, "null"]
+          format: time
+        position:
+          type: integer
+          minimum: 0
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        constraints:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          description: Independently parsed locks; source becomes IMPORT on confirmation.
+          items:
+            $ref: "#/components/schemas/SetConstraintInput"
+    UnresolvedImportToken:
+      type: object
+      additionalProperties: false
+      required: [clientKey, kind, label, suggestions]
+      properties:
+        clientKey:
+          type: string
+        kind:
+          type: string
+          enum: [PLACE, DATE, TIME]
+        label:
+          type: string
+        suggestions:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/PlaceSummary"
+    RemapImportRequest:
+      type: object
+      additionalProperties: false
+      required: [updates]
+      properties:
+        updates:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [clientKey]
+            properties:
+              clientKey:
+                type: string
+              placeId:
+                type: [string, "null"]
+                format: uuid
+              date:
+                type: [string, "null"]
+                format: date
+              startTime:
+                type: [string, "null"]
+                format: time
+              position:
+                type: [integer, "null"]
+                minimum: 0
+              constraints:
+                type: [array, "null"]
+                maxItems: 4
+                items:
+                  $ref: "#/components/schemas/SetConstraintInput"
+    ConfirmImportRequest:
+      type: object
+      additionalProperties: false
+      required: [title, planningLevel, interests]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        planningLevel:
+          $ref: "#/components/schemas/PlanningLevel"
+        interests:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/TripInterest"
+
+    CandidateStatus:
+      type: string
+      enum: [ACTIVE, SCHEDULED, DISMISSED]
+    TripCandidate:
+      type: object
+      additionalProperties: false
+      required: [id, tripId, place, status, sources, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tripId:
+          type: string
+          format: uuid
+        place:
+          $ref: "#/components/schemas/PlaceSummary"
+        status:
+          $ref: "#/components/schemas/CandidateStatus"
+        scheduledTripItemId:
+          type: [string, "null"]
+          format: uuid
+        note:
+          type: [string, "null"]
+          maxLength: 500
+        sources:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/CandidateSource"
+        createdAt:
+          type: string
+          format: date-time
+    CandidateSource:
+      type: object
+      additionalProperties: false
+      required: [type, createdAt]
+      properties:
+        type:
+          type: string
+          enum: [POST, SEARCH, LIVE, IMPORT]
+        postId:
+          type: [string, "null"]
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    AddCandidateRequest:
+      type: object
+      additionalProperties: false
+      required: [placeId, source]
+      properties:
+        placeId:
+          type: string
+          format: uuid
+        source:
+          $ref: "#/components/schemas/AddCandidateSource"
+        note:
+          type: [string, "null"]
+          maxLength: 500
+    AddCandidateSource:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [POST, SEARCH, LIVE, IMPORT]
+        postId:
+          type: [string, "null"]
+          format: uuid
+    CandidateSaveResult:
+      type: object
+      additionalProperties: false
+      required: [candidate, duplicate, tripScheduleChanged]
+      properties:
+        candidate:
+          $ref: "#/components/schemas/TripCandidate"
+        duplicate:
+          type: boolean
+        tripScheduleChanged:
+          type: boolean
+          const: false
+    CandidatePage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripCandidate"
+        page:
+          $ref: "#/components/schemas/CursorPage"
+    CandidateMatchResult:
+      type: object
+      additionalProperties: false
+      required: [candidateId, state, slots]
+      properties:
+        candidateId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [EXACT, SIMILAR, NONE, CHECKING, UNKNOWN]
+        slots:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [date, eligible]
+            properties:
+              date:
+                type: string
+                format: date
+              suggestedTime:
+                type: [string, "null"]
+                format: time
+              eligible:
+                type: boolean
+              reasonCode:
+                type: [string, "null"]
+
+    AddTripItemRequest:
+      type: object
+      additionalProperties: false
+      required: [placeId, date, position]
+      properties:
+        placeId:
+          type: string
+          format: uuid
+        candidateId:
+          type: [string, "null"]
+          format: uuid
+        date:
+          type: string
+          format: date
+        position:
+          type: integer
+          minimum: 0
+        startTime:
+          type: [string, "null"]
+          format: time
+        durationMinutes:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 1440
+        note:
+          type: [string, "null"]
+          maxLength: 500
+        constraints:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SetConstraintInput"
+    UpdateTripItemRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+        position:
+          type: integer
+          minimum: 0
+        startTime:
+          type: [string, "null"]
+          format: time
+        durationMinutes:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 1440
+        note:
+          type: [string, "null"]
+          maxLength: 500
+      minProperties: 1
+    ReorderTripItemsRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [itemId, date, position]
+            properties:
+              itemId:
+                type: string
+                format: uuid
+              date:
+                type: string
+                format: date
+              position:
+                type: integer
+                minimum: 0
+    ReplaceTripItemRequest:
+      type: object
+      additionalProperties: false
+      required: [replacementPlaceId]
+      properties:
+        replacementPlaceId:
+          type: string
+          format: uuid
+        relationId:
+          type: [string, "null"]
+          format: uuid
+        preserveDateTime:
+          type: boolean
+          default: true
+    SetConstraintInput:
+      oneOf:
+        - $ref: "#/components/schemas/SetMustVisitConstraintInput"
+        - $ref: "#/components/schemas/SetDateConstraintInput"
+        - $ref: "#/components/schemas/SetTimeConstraintInput"
+        - $ref: "#/components/schemas/SetReservationConstraintInput"
+      discriminator:
+        propertyName: type
+    SetMustVisitConstraintInput:
+      type: object
+      additionalProperties: false
+      required: [type, locked]
+      properties:
+        type:
+          type: string
+          const: MUST_VISIT
+        locked:
+          type: boolean
+          const: true
+    SetDateConstraintInput:
+      type: object
+      additionalProperties: false
+      required: [type, locked, date]
+      properties:
+        type:
+          type: string
+          const: DATE
+        locked:
+          type: boolean
+          const: true
+        date:
+          type: string
+          format: date
+    SetTimeConstraintInput:
+      type: object
+      additionalProperties: false
+      required: [type, locked, startTime, toleranceMinutes]
+      properties:
+        type:
+          type: string
+          const: TIME
+        locked:
+          type: boolean
+          const: true
+        startTime:
+          type: string
+          format: time
+        toleranceMinutes:
+          type: integer
+          minimum: 0
+          maximum: 180
+    SetReservationConstraintInput:
+      type: object
+      additionalProperties: false
+      required: [type, locked, date, startTime]
+      properties:
+        type:
+          type: string
+          const: RESERVATION
+        locked:
+          type: boolean
+          const: true
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: [string, "null"]
+          format: time
+    SetConstraintRequest:
+      $ref: "#/components/schemas/SetConstraintInput"
+    TripMutationResult:
+      type: object
+      additionalProperties: false
+      required: [trip, changedItemIds]
+      properties:
+        trip:
+          $ref: "#/components/schemas/TripDetail"
+        changedItemIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    OptimizationScope:
+      type: string
+      enum: [ITEM, DAY, TRIP]
+    OptimizationStatus:
+      type: string
+      enum: [QUEUED, RUNNING, READY, APPLIED, KEPT, REVERTED, FAILED, EXPIRED]
+    CreateOptimizationRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, inputTripVersion, includeCandidates]
+      properties:
+        scope:
+          $ref: "#/components/schemas/OptimizationScope"
+        inputTripVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        targetItemId:
+          type: [string, "null"]
+          format: uuid
+        targetDate:
+          type: [string, "null"]
+          format: date
+        includeCandidates:
+          type: boolean
+          default: false
+        objective:
+          type: string
+          enum: [REDUCE_CROWD]
+          default: REDUCE_CROWD
+    OptimizationRun:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - tripId
+        - scope
+        - status
+        - inputTripVersion
+        - includeCandidates
+        - queuedAt
+        - proposals
+        - snapshotSetIds
+        - decisions
+      properties:
+        id:
+          type: string
+          format: uuid
+        tripId:
+          type: string
+          format: uuid
+        scope:
+          $ref: "#/components/schemas/OptimizationScope"
+        status:
+          $ref: "#/components/schemas/OptimizationStatus"
+        inputTripVersion:
+          type: integer
+          format: int64
+        inputRevisionId:
+          type: [string, "null"]
+          format: uuid
+        includeCandidates:
+          type: boolean
+        dataFingerprint:
+          type: [string, "null"]
+        algorithmVersion:
+          type: [string, "null"]
+        queuedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: [string, "null"]
+          format: date-time
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+        proposals:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/OptimizationProposal"
+        snapshotSetIds:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+        decisions:
+          type: array
+          maxItems: 2
+          description: Empty, one initial APPLY/KEEP, then optional one REVERT of APPLY.
+          items:
+            $ref: "#/components/schemas/OptimizationDecision"
+        failure:
+          oneOf:
+            - $ref: "#/components/schemas/OptimizationFailure"
+            - type: "null"
+    OptimizationProposal:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - rank
+        - summary
+        - changes
+        - metrics
+        - validation
+        - dataProvenance
+      properties:
+        id:
+          type: string
+          format: uuid
+        rank:
+          type: integer
+          minimum: 1
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 500
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/OptimizationChange"
+        metrics:
+          $ref: "#/components/schemas/OptimizationMetrics"
+        validation:
+          $ref: "#/components/schemas/ValidationSummary"
+        dataProvenance:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/DataProvenance"
+    OptimizationChange:
+      oneOf:
+        - $ref: "#/components/schemas/OptimizationExistingItemChange"
+        - $ref: "#/components/schemas/OptimizationAddChange"
+        - $ref: "#/components/schemas/OptimizationRemoveChange"
+      discriminator:
+        propertyName: operation
+    OptimizationExistingItemChange:
+      type: object
+      additionalProperties: false
+      required: [operation, itemId, before, after]
+      properties:
+        operation:
+          type: string
+          enum: [MOVE, REORDER, REPLACE]
+        itemId:
+          type: string
+          format: uuid
+        before:
+          $ref: "#/components/schemas/TripItemState"
+        after:
+          $ref: "#/components/schemas/TripItemState"
+    OptimizationAddChange:
+      type: object
+      additionalProperties: false
+      required: [operation, itemId, before, after]
+      properties:
+        operation:
+          type: string
+          const: ADD
+        itemId:
+          type: string
+          format: uuid
+          description: Stable prospective item ID reserved by the preview.
+        before:
+          type: "null"
+        after:
+          $ref: "#/components/schemas/TripItemState"
+    OptimizationRemoveChange:
+      type: object
+      additionalProperties: false
+      required: [operation, itemId, before, after]
+      properties:
+        operation:
+          type: string
+          const: REMOVE
+        itemId:
+          type: string
+          format: uuid
+        before:
+          $ref: "#/components/schemas/TripItemState"
+        after:
+          type: "null"
+    TripItemState:
+      type: object
+      additionalProperties: false
+      required: [placeId, date, position]
+      properties:
+        placeId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        position:
+          type: integer
+        startTime:
+          type: [string, "null"]
+          format: time
+        crowd:
+          oneOf:
+            - $ref: "#/components/schemas/CrowdMetric"
+            - type: "null"
+    OptimizationMetrics:
+      type: object
+      additionalProperties: false
+      required: [comparisonEligible, crowdComparison]
+      properties:
+        comparisonEligible:
+          type: boolean
+        comparisonReasonCode:
+          type: [string, "null"]
+        crowdBefore:
+          type: [number, "null"]
+        crowdAfter:
+          type: [number, "null"]
+        crowdDelta:
+          type: [number, "null"]
+        travelMinutesDelta:
+          type: [integer, "null"]
+        crowdComparison:
+          oneOf:
+            - $ref: "#/components/schemas/CrowdComparison"
+            - type: "null"
+    CrowdComparison:
+      type: object
+      additionalProperties: false
+      required:
+        - comparisonId
+        - axis
+        - eligible
+        - reasonCode
+        - beforeSnapshotId
+        - afterSnapshotId
+        - beforeValue
+        - afterValue
+        - delta
+      properties:
+        comparisonId:
+          type: string
+          format: uuid
+        axis:
+          type: string
+          enum: [TEMPORAL, SPATIAL]
+        eligible:
+          type: boolean
+        reasonCode:
+          type: string
+          maxLength: 100
+        beforeSnapshotId:
+          type: [string, "null"]
+          format: uuid
+        afterSnapshotId:
+          type: [string, "null"]
+          format: uuid
+        beforeValue:
+          type: [number, "null"]
+        afterValue:
+          type: [number, "null"]
+        delta:
+          type: [number, "null"]
+          description: Must be null whenever eligible is false.
+    ValidationSummary:
+      type: object
+      additionalProperties: false
+      required: [allConstraintsPreserved, checks]
+      properties:
+        allConstraintsPreserved:
+          type: boolean
+        checks:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [constraintType, passed]
+            properties:
+              constraintType:
+                $ref: "#/components/schemas/ConstraintType"
+              itemId:
+                type: [string, "null"]
+                format: uuid
+              passed:
+                type: boolean
+              detail:
+                type: [string, "null"]
+    OptimizationFailure:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          enum: [TRIP_CHANGED, DATA_CHANGED, LOCK_CONFLICT, ROUTE_UNAVAILABLE, NO_IMPROVEMENT, APPLY_FAILED]
+        message:
+          type: string
+        retryable:
+          type: boolean
+    OptimizationDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [proposalId, decision]
+      properties:
+        proposalId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum: [APPLY, KEEP]
+    OptimizationDecision:
+      type: object
+      additionalProperties: false
+      required: [id, runId, proposalId, decision, decidedAt, beforeRevisionId, resultingTripVersion]
+      properties:
+        id:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+        proposalId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum: [APPLY, KEEP, REVERT]
+        resultingTripVersion:
+          type: [integer, "null"]
+          format: int64
+        beforeRevisionId:
+          type: [string, "null"]
+          format: uuid
+        afterRevisionId:
+          type: [string, "null"]
+          format: uuid
+        revertedDecisionId:
+          type: [string, "null"]
+          format: uuid
+        revertUntil:
+          type: [string, "null"]
+          format: date-time
+        decidedAt:
+          type: string
+          format: date-time
+    OptimizationHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/OptimizationHistoryItem"
+        page:
+          $ref: "#/components/schemas/CursorPage"
+    OptimizationHistoryItem:
+      type: object
+      additionalProperties: false
+      required: [runId, tripId, tripTitle, scope, status, runLink, queuedAt]
+      properties:
+        runId:
+          type: string
+          format: uuid
+        tripId:
+          type: string
+          format: uuid
+        tripTitle:
+          type: string
+          maxLength: 100
+        scope:
+          $ref: "#/components/schemas/OptimizationScope"
+        status:
+          $ref: "#/components/schemas/OptimizationStatus"
+        decision:
+          type: [string, "null"]
+          enum: [APPLY, KEEP, REVERT, null]
+        runLink:
+          type: string
+          format: uri-reference
+          pattern: '^/trips/[0-9a-fA-F-]{36}/optimizations/[0-9a-fA-F-]{36}$'
+        queuedAt:
+          type: string
+          format: date-time
+        decidedAt:
+          type: [string, "null"]
+          format: date-time
+
+    LiveAreaQuery:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [AUTO, LIVE_ONLY, REPLAY_ALLOWED]
+          default: AUTO
+        regionCode:
+          type: [string, "null"]
+          maxLength: 100
+        viewport:
+          oneOf:
+            - $ref: "#/components/schemas/CoarseViewport"
+            - type: "null"
+    CoarseViewport:
+      type: object
+      additionalProperties: false
+      required: [west, south, east, north]
+      properties:
+        west:
+          type: number
+          minimum: -180
+          maximum: 180
+          multipleOf: 0.001
+        south:
+          type: number
+          minimum: -90
+          maximum: 90
+          multipleOf: 0.001
+        east:
+          type: number
+          minimum: -180
+          maximum: 180
+          multipleOf: 0.001
+        north:
+          type: number
+          minimum: -90
+          maximum: 90
+          multipleOf: 0.001
+      description: east > west and north > south with each span at least 0.01 degrees.
+    LiveAreaResult:
+      type: object
+      additionalProperties: false
+      required: [mode, areas, generatedAt]
+      properties:
+        mode:
+          $ref: "#/components/schemas/SourceState"
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/LiveArea"
+        generatedAt:
+          type: string
+          format: date-time
+    LiveArea:
+      type: object
+      additionalProperties: false
+      required: [id, name, centroid, crowd]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        centroid:
+          $ref: "#/components/schemas/GeoPoint"
+        boundaryGeoJson:
+          type: [object, "null"]
+          additionalProperties: true
+        crowd:
+          $ref: "#/components/schemas/CrowdMetric"
+    LivePlace:
+      type: object
+      additionalProperties: false
+      required: [place, mappingType, fallbackUsed]
+      properties:
+        place:
+          $ref: "#/components/schemas/PlaceSummary"
+        mappingType:
+          type: string
+        fallbackUsed:
+          type: boolean
+        crowd:
+          oneOf:
+            - $ref: "#/components/schemas/CrowdMetric"
+            - type: "null"
+    LivePlaceDetail:
+      type: object
+      additionalProperties: false
+      required: [place, dataState, related]
+      properties:
+        place:
+          $ref: "#/components/schemas/PlaceDetail"
+        dataState:
+          $ref: "#/components/schemas/SourceState"
+        crowd:
+          oneOf:
+            - $ref: "#/components/schemas/CrowdMetric"
+            - type: "null"
+        related:
+          $ref: "#/components/schemas/RelatedPlaceResult"
+
+    NotificationPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, unreadCount]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        page:
+          $ref: "#/components/schemas/CursorPage"
+        unreadCount:
+          type: integer
+          minimum: 0
+    Notification:
+      type: object
+      additionalProperties: false
+      required: [id, type, title, body, deepLink, createdAt, read]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - OPTIMIZATION_READY
+            - OPTIMIZATION_FAILED
+            - CROWD_ALERT
+            - TRIP_REMINDER
+            - TRIP_CONFLICT
+            - SOURCE_DEGRADED
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        body:
+          type: string
+          minLength: 1
+          maxLength: 500
+        deepLink:
+          type: string
+          maxLength: 300
+          pattern: '^/(trips/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?|live/(areas|places)/[0-9a-fA-F-]{36}|notifications|profile)$'
+          description: Relative internal route from the fixed allowlist; schemes, hosts, query, and fragments are forbidden.
+        createdAt:
+          type: string
+          format: date-time
+        read:
+          type: boolean
+        readAt:
+          type: [string, "null"]
+          format: date-time
+    MarkAllNotificationsReadResult:
+      type: object
+      additionalProperties: false
+      required: [updatedCount, cutoffAt, unreadCount]
+      properties:
+        updatedCount:
+          type: integer
+          minimum: 0
+        cutoffAt:
+          type: string
+          format: date-time
+        unreadCount:
+          type: integer
+          minimum: 0
+
+    EventBatch:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, events]
+      properties:
+        schemaVersion:
+          type: string
+          const: "1.1.0"
+        events:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/ClientEvent"
+    ClientEvent:
+      type: object
+      additionalProperties: false
+      required: [eventId, name, occurredAt, context, properties]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          enum:
+            - onboarding_completed
+            - trip_created
+            - candidate_save_started
+            - candidate_saved
+            - candidate_duplicate
+            - candidate_save_failed
+            - candidate_scheduled
+            - trip_item_edited
+            - optimization_requested
+            - optimization_previewed
+            - optimization_applied
+            - optimization_kept
+            - optimization_reverted
+            - optimization_failed
+            - live_place_opened
+            - related_place_opened
+            - data_guide_opened
+        occurredAt:
+          type: string
+          format: date-time
+        context:
+          type: object
+          additionalProperties: false
+          required: [locale, timezone, route]
+          description: Owner and demo session identifiers are bound server-side from the authenticated cookie.
+          properties:
+            locale:
+              type: string
+              minLength: 2
+              maxLength: 35
+            timezone:
+              type: string
+              minLength: 1
+              maxLength: 100
+            route:
+              type: string
+              maxLength: 200
+              enum:
+                - /
+                - /language
+                - /intro
+                - /start
+                - /feed
+                - /posts/:postId
+                - /trip/:tripId
+                - /trip/:tripId/optimizations/:runId
+                - /live
+                - /profile
+                - /about-data
+                - /search
+                - /notifications
+                - /nearby/:poiId
+                - /posts/new
+              description: Route template only; no query string, fragment, search text, or identifier values.
+            appVersion:
+              type: [string, "null"]
+        properties:
+          type: object
+          additionalProperties: true
+          description: Validated again with docs/contracts/events.schema.json; no free text or location.
+    EventBatchReceipt:
+      type: object
+      additionalProperties: false
+      required: [accepted, duplicates, rejected]
+      properties:
+        accepted:
+          type: integer
+          minimum: 0
+        duplicates:
+          type: integer
+          minimum: 0
+        rejected:
+          type: integer
+          minimum: 0
+
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, detail, instance, requestId, retryable]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - VALIDATION_FAILED
+            - CSRF_INVALID
+            - CURSOR_INVALID
+            - CURSOR_EXPIRED
+            - TRIP_CHANGED
+            - DATA_CHANGED
+            - LOCK_CONFLICT
+            - ROUTE_UNAVAILABLE
+            - NO_IMPROVEMENT
+            - APPLY_FAILED
+            - IDEMPOTENCY_KEY_REUSED
+            - IMPORT_DRAFT_EXPIRED
+            - IMPORT_DRAFT_CHANGED
+            - PREVIEW_EXPIRED
+            - DELETION_STATUS_EXPIRED
+            - SOURCE_UNAVAILABLE
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        requestId:
+          type: string
+        retryable:
+          type: boolean
+        fieldErrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+        currentTripVersion:
+          type: [integer, "null"]
+          format: int64
+        recomputeUrl:
+          type: [string, "null"]
+          format: uri-reference
+    FieldError:
+      type: object
+      additionalProperties: false
+      required: [field, code, message]
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string

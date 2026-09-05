@@ -1,0 +1,151 @@
+name: nullnull-integration
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: nullnull_integration
+      POSTGRES_USER: nullnull
+      POSTGRES_PASSWORD: integration-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nullnull -d nullnull_integration"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - integration-internal
+
+  api-quality:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: test
+    environment: &api-environment
+      SPRING_PROFILES_ACTIVE: integration
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nullnull_integration
+      SPRING_DATASOURCE_USERNAME: nullnull
+      SPRING_DATASOURCE_PASSWORD: integration-only
+      NULLNULL_EXTERNAL_NETWORK: disabled
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["./gradlew", "test", "integrationTest", "openapiContractTest", "--no-daemon"]
+    networks:
+      - integration-internal
+
+  web-quality:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: test
+    command: ["npm", "run", "verify:ci"]
+    networks:
+      - integration-internal
+
+  api-client-diff:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: tooling
+    working_dir: /workspace
+    command: ["npm", "run", "api:check"]
+    networks:
+      - integration-internal
+
+  security-scan:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: tooling
+    working_dir: /workspace
+    command: ["npm", "run", "security:scan"]
+    networks:
+      - integration-internal
+
+  infra-plan:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: tooling
+    working_dir: /workspace
+    command: ["npm", "run", "infra:check"]
+    networks:
+      - integration-internal
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18080:8080"
+    networks:
+      - integration-internal
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runtime
+    environment:
+      API_INTERNAL_BASE_URL: http://api:8080
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:14173:4173"
+    networks:
+      - integration-internal
+
+  e2e:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: e2e
+    environment:
+      PLAYWRIGHT_BASE_URL: http://web:4173
+      CI: "true"
+    depends_on:
+      - api
+      - web
+    volumes:
+      - ./.artifacts/integration/playwright:/workspace/apps/web/playwright-report
+      - ./.artifacts/integration/test-results:/workspace/apps/web/test-results
+    command: ["npm", "run", "test:e2e:integration"]
+    networks:
+      - integration-internal
+
+  egress-denied:
+    profiles: [quality]
+    image: curlimages/curl:8.16.0
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if curl --fail --silent --show-error --connect-timeout 3 \
+          --max-time 5 https://example.com/ >/dev/null; then
+          echo "External network unexpectedly reachable from integration network." >&2
+          exit 1
+        fi
+        echo "outbound_network=denied"
+    networks:
+      - integration-internal
+
+networks:
+  integration-internal:
+    internal: true
+
+# M0 must replace both image tags with tested immutable digests and provide the
+# Docker stages and root quality scripts checked by verify_target_stack.py.
+# Until the M0 marker exists, scripts/integration-test.sh intentionally does not
+# parse this future target-stack compose file.

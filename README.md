@@ -1,167 +1,152 @@
-<p align="center">
-  <img src="./docs/assets/nullnull-readme-hero.png" width="100%" alt="Nullnull — Social discovery, itinerary intelligence, and crowd-aware travel choices">
-</p>
+# 널널 Nullnull
 
-<p align="center">
-  <img src="https://img.shields.io/badge/2026_Tourism_Data_Contest-FINALIST-4f91fa?style=flat-square" alt="2026 Tourism Data Contest finalist">
-  <img src="https://img.shields.io/badge/Track-Web_%26_App-111827?style=flat-square" alt="Web and app implementation track">
-  <img src="https://img.shields.io/badge/Status-Rebuilding-7c8799?style=flat-square" alt="Project status: rebuilding">
-</p>
+> 혼잡한 명소를 그대로 따라가는 대신, 발견한 장소를 여행별 후보로 모으고 검증된 혼잡·경로 근거로 더 나은 일정을 선택하는 모바일 여행 플래너
 
-<p align="center">
-  <strong>내 일정을 읽고, 취향으로 이어지는 여행 SNS.</strong><br>
-  발견한 장소는 가볍게 담아두고,<br>
-  직접 편집하거나 검증된 AI 최적화안을 승인해 더 여유로운 여행을 만듭니다.
-</p>
+[Figma UI](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=386-257&p=f&t=S1EgamFkCak0FCZy-0) · [GitHub](https://github.com/yutakdv/Nullnull) · [통합 기획안](과제2_널널_웹앱구현_기획서_Final.md)
 
----
+![Nullnull 서비스 대표 이미지](docs/assets/nullnull-readme-hero.png)
 
-## Nullnull
+## 현재 단계
 
-> [!NOTE]
-> 한국관광공사 관광콘텐츠랩을 통해 출품하는 **2026 관광데이터 활용 공모전 ②-2 웹·앱 구현 부문 본선 작품**입니다.
+지금은 **기능 코드 착수 전 제품·계약·운영 기준을 동결하는 단계**다. Figma의 3개
+페이지, `02 UI Design`의 현재 구현 화면 52개, `01 Components`의 최상위 컴포넌트
+49개를 개발 문서에 연결했다. 다만 2026-09-05 PM 감사에서 P0 디자인 불일치 9건이
+확인되어 [Figma 수정 요청](docs/design/FIGMA_CHANGE_REQUESTS.md)이 닫히기 전 전체
+디자인을 구현 승인 상태로 보지 않는다. 화면 수치는 Figma, 동작과 데이터 의미는
+OpenAPI·이벤트 스키마·제품 문서를 기준으로 구현한다.
 
-Nullnull은 방한 외국인 자유여행객의 특정 관광지 집중과 오버투어리즘 완화를 주제로 하는 **일정 연동형 Social Travel Platform**입니다.
+현재 저장소는 과거 prototype을 제외한 **목표 서비스의 문서·계약 기준선**이다. 운영 구현은 `apps/web`, `apps/api`, `packages/api-client`, `infra` 구조를 M0 scaffold PR에서 만들고, 계약이 확정된 vertical slice부터 구현한다. `.nullnull-target-stack`이 추가되기 전 통합 검사는 문서 기준선만 검증하며, 그 뒤에는 Docker 통합 검사를 생략할 수 없다.
 
-여행 Feed에서 발견한 장소, 이미 만들어 둔 일정, 실시간·예측 혼잡 정보와 이동 조건을 하나의 흐름으로 연결합니다. Feed의 `+`는 일정을 즉시 바꾸지 않고 선택한 여행의 `담아둔 장소`에 후보를 저장합니다. 사용자는 My Trip에서 직접 편집하거나, AI가 제시한 변경 전·후 지도·타임라인·지표를 확인하고 승인합니다.
+## 2026 관광데이터 활용 공모전 ②-2 웹·앱 구현 부문 릴리스
 
-> ### 가고 싶은 곳은 지키고, 날짜·시간·동선은 더 여유롭게.
+- 공식 1차 자료 제출 마감은 **2026-09-21 16:00(KST)**이다. 팀 내부 제출 목표는 2026-09-20 16:00, code freeze는 2026-09-19이다.
+- 웹 URL은 외부망·익명창에서 열려야 하며 제출 선택은 `로그인 불필요`다. P0 핵심 흐름은 별도 계정 없이 완결한다.
+- 한국관광공사 OpenAPI를 최종 서비스에서 실제로 호출한다. 파일 데이터나 전체 로컬 복제만으로 필수 활용을 대체하지 않는다.
+- 브라우저에 서비스 키를 노출하지 않고 Backend gateway가 호출한다. 비밀값 없는 call-audit와 화면의 `출처: ⓒ한국관광공사` 문구를 제출 증거로 남긴다.
+- 공식 기능설명서 양식을 바꾸지 않고, 배포 URL에서 실제 동작하는 기능과 실제 호출 API만 PDF에 기재한다.
+- 공모전 profile에서는 위치 capability를 OFF로 두며 browser geolocation을 요청하거나 개인 위치를 서버로 전송하지 않는다.
 
-## Core flow
+공식 사실과 팀 내부 결정은 [공지·심사 기준](docs/contest/2026-관광데이터-활용-공모전-공지-심사기준.md), 요구사항별 구현·증거는 [준수 매트릭스](docs/contest/COMPETITION_COMPLIANCE_MATRIX.md), 상태 기록 형식은 [evidence ledger template](docs/contest/EVIDENCE_LEDGER_TEMPLATE.md), 제출 당일 절차는 [제출 runbook](docs/contest/SUBMISSION_RUNBOOK.md)이 정본이다.
 
-```mermaid
-flowchart LR
-    A[Feed·검색·Live에서 장소 발견] --> B[여행별 담아둔 장소]
-    B --> C{My Trip에서 선택}
-    C -->|일정 편집| D[직접 추가·교체·잠금 수정]
-    C -->|AI로 일정 최적화| E[ITEM·DAY·TRIP 계산]
-    E --> F[지도·타임라인·지표 Preview]
-    F --> G{사용자 결정}
-    G -->|적용| H[확정 일정 원자적 반영]
-    G -->|유지| I[현재 일정 유지]
-    H --> J[되돌리기]
-```
-
-일정이 없어도 일반 여행 Feed를 먼저 둘러볼 수 있습니다. 기존 일정은 텍스트 붙여넣기, `.txt`·`.csv`·`.xlsx` 파일 또는 직접 입력으로 가져옵니다. 일정이 없다면 지역·날짜·관심사·선택적 Must Visit만 입력해 Feed를 시작하고, P1에서 전체 일정 생성으로 이어집니다.
-
-## Product states
-
-| State | Meaning |
-|---|---|
-| **Saved Post** | 여행과 무관한 게시글 북마크입니다. |
-| **Trip Candidate · 담아둔 장소** | 특정 여행에 담았지만 날짜·시간이 정해지지 않은 후보입니다. 저장만으로 일정은 바뀌지 않습니다. |
-| **Trip Item · 내 일정** | 날짜·시간·순서가 확정된 일정 항목입니다. 수동 저장 또는 최적화 승인으로만 변경됩니다. |
-
-## Main experiences
-
-| Experience | What it does |
-|---|---|
-| **Social For You** | 사용자가 확인한 관심사·방문 예정지·빈 시간을 바탕으로 여행 Feed를 개인화합니다. |
-| **Trip Signal Extraction** | 텍스트·TXT·CSV·XLSX·직접 입력에서 장소·날짜·시간·Must Visit·잠금·빈 시간을 정리하고 사용자가 확정합니다. |
-| **Trip Candidate** | Feed·검색·Live의 장소를 여행별 후보 보관함에 저장합니다. 북마크와 확정 일정은 별도 상태입니다. |
-| **Manual Trip Edit** | 후보 추가·유사 장소 교체·순서·날짜·시간과 Must Visit·날짜 고정·시간 고정을 직접 수정합니다. |
-| **AI Itinerary Optimization** | 현재 ITEM·DAY·TRIP 범위를 계산하고 변경 전·후 지도·타임라인·거리·시간·혼잡 지표를 보여준 뒤 승인을 받습니다. |
-| **Live & Forecast** | 혼잡·날씨·거리·다음 일정까지 남은 시간과 데이터 상태를 분리해 보여주고 DAY Preview로 연결합니다. |
-
-## Editing and optimization rules
-
-- `♥ Must Visit`, `날짜 고정`, `시간 고정`, `예약 고정`은 서로 독립된 제약입니다.
-- 담아둔 장소는 현재 일정과 `EXACT / SIMILAR / NONE`으로 비교됩니다.
-- SIMILAR 후보는 자동 교체하지 않고 `교체 / 둘 다 유지`를 묻습니다.
-- AI 최적화는 현재 보이는 일정 범위를 기본 입력으로 사용합니다.
-- `담아둔 대안도 포함`은 기본 OFF이며, 사용자가 켠 경우에만 목적지 교체를 탐색합니다.
-- 승인 전에는 확정 일정이 바뀌지 않습니다.
-- 적용은 change set 전체가 검증됐을 때만 원자적으로 처리되며 되돌릴 수 있습니다.
-- LLM은 선호 해석과 근거 설명을 돕고, POI·영업·혼잡·경로·도착 가능성은 서버 규칙과 출처가 있는 데이터가 검증합니다.
-
-## Time × space distribution
-
-| 시간 분산 | 공간·동선 분산 |
-|---|---|
-| 동일 관광지의 같은 예측 발행 회차에서 날짜별 상대 혼잡을 비교합니다. | 같은 비교그룹·관측 배치에서 검수된 더 여유로운 관광지를 탐색합니다. |
-| P0 ITEM은 Must Visit을 유지한 날짜 변경을 완결합니다. | Live 후보는 먼저 여행에 담고 사용자가 편집·최적화에서 반영 여부를 결정합니다. |
-| P1은 시간창과 순서를 실제 경로 정보로 검증합니다. | P1 DAY/TRIP은 이동시간·거리·혼잡을 함께 최적화하고 지도에서 전후를 비교합니다. |
-
-## Delivery scope
-
-P0와 P1은 공모전 포함 여부가 아니라 구현 순서입니다. **공모전 최종 범위는 P0+P1**이며 P0 회귀 Gate를 먼저 닫은 뒤 P1을 Feature Flag 뒤에서 이어서 구현합니다.
-
-| Phase | Focus |
-|---|---|
-| **P0 MVP** | 한국어 핵심 흐름, 일정 입력·확인, Social For You, TripCandidate, My Trip 수동 편집, 독립 잠금, ITEM Preview·승인·되돌리기, 서울 Live·REPLAY |
-| **P1 Competition Extension** | 실제 route matrix 기반 DAY/TRIP 지도·타임라인 최적화, opt-in 후보 교체, 전체 일정 생성, Live Re-plan, 검색·알림·UGC·영어 중 E2E 통과 기능 |
-| **P2** | 전국·일본어·중국어, 학습형 랭킹, RTO·DMO 연계와 동의 기반 현장 효과 검증 |
-
-## Planned architecture
+## 사용자가 경험하는 핵심 흐름
 
 ```mermaid
 flowchart LR
-    USER[Traveler] --> WEB[React PWA]
-    WEB --> CORE[Spring Boot API]
-    CORE --> DB[(PostgreSQL)]
-    CORE --> CACHE[(Cache / Redis optional)]
-    CORE --> KTO[한국관광공사 OpenAPI]
-    CORE --> SEOUL[서울 실시간 도시데이터]
-    CORE --> ROUTE[Selected map and route provider · P1]
-    CORE -. P2 only .-> ML[Optional ML service]
+    A[피드·검색·Live 탐색] --> B[특정 여행의 후보로 저장]
+    B --> C[내 여행에서 날짜·시간 확정]
+    C --> D[AI 최적화 제안 요청]
+    D --> E[변경 전·후와 근거 비교]
+    E -->|적용| F[원자적으로 일정 반영]
+    E -->|유지| C
 ```
 
-| Layer | Responsibility |
-|---|---|
-| **React PWA** | Social Feed, 일정 보기·편집, 후보 Drawer, Optimization Preview, 반응형·접근성 UI |
-| **Spring Boot API** | 인증, TripCandidate·TripItem, 잠금·version, 외부 API orchestration, 결정적 제약·경로 최적화, 원자적 Decision |
-| **PostgreSQL** | 여행·후보·확정 일정, 매핑, 최적화 실행·결정·되돌리기 이력 |
-| **Scheduler / Worker** | 혼잡·예측 후보은행, REPLAY readiness, 캐시·쿼터·Source Registry 갱신 |
-| **Optional ML service** | 충분한 데이터와 검증 Gate를 통과한 P2 학습 랭킹만 담당 |
+- 게시물 저장(`SavedPost`), 여행 후보(`TripCandidate`), 확정 일정(`TripItem`)은 서로 다른 상태다.
+- `+`는 후보만 저장하며 날짜·시간이 있는 일정으로 즉시 바꾸지 않는다.
+- AI/optimizer는 변경안을 먼저 보여 주고 사용자의 `APPLY` 전에는 일정을 수정하지 않는다.
+- 관광지 사실, 영업 여부, 혼잡도, 경로 가능성은 서버가 출처와 기준 시각을 포함해 검증한다.
+- 실시간·예보·재현·정성·지연·데이터 없음 상태를 API와 화면에서 숨기지 않는다.
+- P0은 정밀 위치와 붙여넣은 원문 일정을 서버에 보관하지 않는다.
 
-## External data
+## 출시 범위
 
-| Phase | API | Use |
-|---|---|---|
-| **P0** | 한국관광공사 **KorService2** | 관광지 상세·이미지·검색·공식 관광정보 Feed와 검수 후보 |
-| **P0** | **관광지 집중률 방문자 추이 예측 정보** | 동일 POI의 날짜별 상대 혼잡과 ITEM Preview |
-| **P0** | **TarRlteTarService1** | 사전 검수된 주변·연관 관광지 후보 |
-| **P0** | **서울 실시간 도시데이터** | 지원 권역의 현재 관측·REPLAY와 같은 비교그룹의 공간 후보 |
-| **P1** | 확정할 **지도·경로 API 1종** | 보행·대중교통 route matrix, 거리·ETA, DAY/TRIP 지도 Preview |
-| **P1** | 한국관광공사 **EngService2** | 검수된 영문 관광정보와 한영 Canonical POI |
-| **P1** | 기상청 단기·중기예보 | 유효 구간의 시간·실내외 변경 보조 근거 |
+| 범위 | 포함 |
+| --- | --- |
+| P0 | 익명 세션, 한국어·영어 선택, 온보딩, 여행 생성/가져오기, 피드·게시물, 여행 후보, 일정 편집과 독립 잠금, 승인형 항목 최적화, Live·대안, 프로필·데이터 안내, 삭제 추적 |
+| P1 | 계정 로그인, 독립 검색 탭, 알림과 모두 읽음, 주변 추천, 게시물 작성, DAY/TRIP 최적화, 지도·경로 고도화 |
+| 비활성 예정 UI | P0 프로필의 로그인 CTA는 `준비 중` 상태로 제공한다. 일본어·중국어도 선택 불가 `준비 중`으로 표시한다. |
 
-실제 Endpoint·쿼터·응답 필드는 최신 공식 명세와 계약 테스트로 확정합니다. 배포 버전에서 실제 호출한 API만 제출물에 기재하며 인증키는 저장소에 커밋하지 않습니다.
+세부 범위와 모든 화면 상태는 [제품 요구사항](docs/product/PRODUCT_SPEC.md), [기능 인벤토리](docs/product/FUNCTIONAL_INVENTORY.md), [Figma 핸드오프](docs/design/FIGMA_HANDOFF.md)가 정본이다.
 
-## Core algorithms
+## 목표 기술 구성
 
-| Algorithm | How it works |
-|---|---|
-| **Itinerary Understanding** | 한국어 텍스트·TXT·CSV·XLSX를 공통 일정 형식으로 정규화하고 항목·관심사·Must Visit·예약 잠금·빈 시간을 사용자가 확인하게 합니다. P0는 외부 LLM 없이 결정적 규칙을 사용합니다. |
-| **Canonical POI Resolver** | 공식 ID·좌표·명칭·주소로 관광공사 POI와 서울 Live 권역을 내부 UUID에 연결하고 매핑 신뢰도를 보존합니다. |
-| **Feed Ranking & Diversity** | 자격 필터 후 관심사·일정 적합·발견성·분산 가치를 점수화하고 동일 POI·권역의 반복 노출을 제한합니다. |
-| **Candidate Match Engine** | 담아둔 장소와 현재 일정을 Canonical ID와 검수된 관계로 `EXACT / SIMILAR / NONE` 판정하고 이유를 제공합니다. |
-| **Live Detour Selector** | 같은 source·scope·comparison group·snapshot 안에서 더 낮은 원천 서수와 CandidateRelation Gate를 통과한 후보만 제공합니다. |
-| **Optimization Engine** | P0 ITEM 날짜 변경에서 시작해 P1 DAY/TRIP의 시간·순서·경로·opt-in 후보 교체를 탐색합니다. 잠금과 운영·접근성·혼잡·route matrix를 hard constraint로 검증합니다. |
-| **Decision & Rollback** | 최신 Trip version과 데이터를 재검증한 뒤 change set 전체를 한 트랜잭션으로 적용하거나 전혀 적용하지 않고, append-only 이력으로 되돌립니다. |
+| 영역 | 선택 | 운영 원칙 |
+| --- | --- | --- |
+| Frontend | React + TypeScript + Vite PWA | 모바일 360px 우선, 접근성, OpenAPI 생성 client |
+| Backend/AI | Java 21 + Spring Boot 모듈형 모놀리스 | 결정적 검증, PostgreSQL transaction, 비동기 persistent job |
+| Contract | OpenAPI 3.1 + JSON Schema | 구현보다 계약을 먼저 변경 |
+| Database | PostgreSQL + Flyway | 낙관적 잠금, 감사 이력, 삭제 tombstone |
+| Cache/Job | DB 우선, 필요 시 Redis 도입 | 측정 전 인프라 복잡도 추가 금지 |
+| AWS | CloudFront/S3 + ECS Fargate/ALB + RDS | CDK, OIDC 배포, dev/staging/prod 분리 |
 
-## Data principles
+선정 근거는 [ADR-0001](docs/decisions/ADR-0001-target-stack.md)에 있다. 정확한 patch version은 첫 scaffold PR의 lockfile과 도구 버전 catalog에서 고정한다.
 
-- 추천과 변경안에는 **근거·출처·기준시각·데이터 범위**를 함께 표시합니다.
-- `실시간 관측`, `과거 관측 재생`, `공식 예측`, `범위 밖 정성 Context`를 구분합니다.
-- 서로 다른 제공처·범위의 값을 하나의 절대 혼잡 순위로 섞지 않습니다.
-- Feed의 후보 저장과 확정 일정 변경을 분리합니다.
-- 사용자가 승인하기 전에는 AI가 일정을 자동으로 변경하지 않습니다.
-- 검증 없이 실제 관광객 분산 성과를 주장하지 않습니다.
+## 2인 팀 역할
 
-## Documentation
+| 담당 | 단독 책임 | 공동 handshake |
+| --- | --- | --- |
+| Frontend | route/screen, 디자인 시스템, 접근성, 클라이언트 상태, 생성 API client 소비, Playwright | Figma 상태를 기능 ID와 operationId에 연결하고 mock/실서버 contract를 확인 |
+| Backend/AI | OpenAPI 제안, 도메인/DB, 세션·권한, 외부 데이터, 최적화·AI 경계, AWS/관측 | FE가 필요한 응답·오류·capability를 example로 제공하고 staging 흐름을 함께 승인 |
 
-- [통합 개발기획안 v6.0](./관광객_분산형_SNS_여행플래너_통합_개발기획안_v6_0.md)
-- [Figma 화면 수정 명세 v6.0](./docs/design/피그마_디자인_틀_수정.md)
-- [Nullnull — Wireframes](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-%E2%80%94-Wireframes?node-id=72-243&p=f)
+한 사람이 자기 영역을 구현하고 다른 한 사람이 **계약·보안·사용자 동작을 검토**한다. 계약 변경은 BE/AI가 일방적으로 확정하지 않으며 FE 확인 뒤 병합한다. 전체 RACI, 병렬 작업 규칙과 인수인계 형식은 [역할 매트릭스](docs/engineering/OWNERSHIP_MATRIX.md)와 [협업 방식](docs/engineering/WORKFLOW.md)를 따른다.
 
-> [!IMPORTANT]
-> 이 저장소는 공모전 본선 제출 버전을 위한 재구축 단계입니다. 화면이 확정되면 최종 Figma와 기획안을 다시 대조하고, 실제 구현 범위에 맞춰 설치·환경 변수·테스트·배포 방법을 추가합니다.
+총괄 PM은 두 개발 담당자와 별도의 구현 seat가 아니라 governance 역할이다. 범위,
+우선순위, 사용자 문구, 공모전 claim과 최종 go/no-go를 승인하되 FE의 접근성·시각 품질
+review나 BE/AI의 보안·데이터 무결성 review를 대신하지 않는다.
 
----
+Frontend 담당은 장기 `frontend`, Backend/AI 담당은 장기 `backend` 브랜치에서 작업하고 각각 `main`에 PR을 만든다. 상대 담당자 1명의 승인과 `docs-contract`·`docker-integration` 통과 뒤 merge commit하며, 병합 후 두 역할 브랜치를 최신 `main`으로 동기화한다. 구체 절차는 [브랜치·Docker 통합 계약](docs/engineering/BRANCH_AND_INTEGRATION.md)을 따른다.
 
-<p align="center">
-  <strong>Nullnull</strong><br>
-  Discover → Save → Edit or Optimize → Review → Approve<br><br>
-  Maintained by <a href="https://github.com/yutakdv">@yutakdv</a>
-</p>
+## 문서 시작점
+
+- [전체 문서 지도와 정본 우선순위](docs/README.md)
+- [통합 기획안](과제2_널널_웹앱구현_기획서_Final.md)
+- [저장소 현재 상태와 안전한 이관](docs/project/REPOSITORY_BASELINE.md)
+- [PM 정합성·완성도 감사](docs/project/PM_CONSISTENCY_AUDIT.md)
+- [제품 요구사항](docs/product/PRODUCT_SPEC.md) · [기능 추적성](docs/product/FUNCTIONAL_INVENTORY.md)
+- [Figma 화면 핸드오프](docs/design/FIGMA_HANDOFF.md) · [Figma 수정 요청](docs/design/FIGMA_CHANGE_REQUESTS.md) · [컴포넌트 카탈로그](docs/design/COMPONENT_CATALOG.md)
+- [시스템 아키텍처](docs/architecture/SYSTEM_ARCHITECTURE.md) · [ERD](docs/architecture/ERD.md)
+- [OpenAPI](docs/api/openapi.yaml) · [API 규칙](docs/api/README.md) · [이벤트 계약](docs/contracts/events.schema.json)
+- [구현 계획](docs/engineering/IMPLEMENTATION_PLAN.md) · [로컬 개발](docs/engineering/LOCAL_DEVELOPMENT.md) · [테스트 전략](docs/engineering/TEST_STRATEGY.md)
+- [Frontend 실행서](docs/roles/FRONTEND_PLAYBOOK.md) · [Backend/AI 실행서](docs/roles/BACKEND_AI_PLAYBOOK.md) · [브랜치·Docker 통합](docs/engineering/BRANCH_AND_INTEGRATION.md)
+- [공모전 준수 매트릭스](docs/contest/COMPETITION_COMPLIANCE_MATRIX.md) · [증거 원장 template](docs/contest/EVIDENCE_LEDGER_TEMPLATE.md) · [제출 runbook](docs/contest/SUBMISSION_RUNBOOK.md)
+- [외부 데이터 카탈로그](docs/data/SOURCE_CATALOG.md) · [개인정보](docs/security/PRIVACY_REQUIREMENTS.md) · [위협 모델](docs/security/THREAT_MODEL.md)
+- [AWS 배포](docs/operations/AWS_DEPLOYMENT.md) · [릴리스 운영](docs/operations/GITHUB_RELEASE_OPERATIONS.md) · [사고 대응](docs/operations/INCIDENT_RESPONSE.md)
+- [Claude Code 지침](CLAUDE.md) · [기여 안내](CONTRIBUTING.md)
+
+Claude Code에서는 저장소 루트에서 시작한 뒤 한 기능을 다음처럼 전달할 수 있다.
+
+```text
+/nullnull-slice FR-CAN-02
+```
+
+이 project skill은 기능 ID에서 Figma, 계약, 구현, 검증과 상대 담당자 handoff까지 같은 흐름으로 확인한다. 공식 FAQ상 AI 코딩 도구 사용은 허용되지만 평가는 완제품의 안정성이 핵심이므로, Claude Code 결과도 사람의 상대 검토와 실제 test를 통과해야 한다. 배포·commit·push 권한은 자동으로 넓히지 않는다.
+
+## 착수 게이트
+
+문서 기준선은 작성됐지만, 아래 두 종류를 구분한다.
+
+### 기능 개발을 시작할 수 있는 기준선
+
+- [x] Figma P0/P1 화면·상태·컴포넌트 추적성
+- [x] 도메인 불변식, API, 이벤트, ERD 기준선
+- [x] FE와 BE/AI의 책임·handoff·review 규칙
+- [x] 테스트, 개인정보, 보안, AWS/릴리스 runbook
+- [x] Claude Code와 PR/issue 작업 규칙
+- [ ] `FCR-001~007` P0 디자인 blocker 수정과 node/screenshot 증거
+- [ ] `apps/web`, `apps/api` M0 scaffold와 full Docker hello gate
+
+### staging/production 전에 닫아야 하는 외부 결정
+
+- [ ] 실제 팀원 GitHub handle로 CODEOWNERS와 `frontend`/`backend`/`main` ruleset 적용
+- [ ] AWS 계정·도메인·예산·OIDC role 확정
+- [ ] 지도·경로 및 관광 데이터 provider의 키·쿼터·약관·출처 문구 승인
+- [ ] 이미지/콘텐츠 asset ledger와 라이선스 검토
+- [ ] 저장소/서비스 라이선스 확정 후 `LICENSE` 추가
+
+열린 항목 때문에 mock 기반 M0/M1 구현을 막지는 않되, 관련 capability는 승인 전 기본 OFF다. 담당자·마감 조건은 [결정·위험 대장](docs/project/DECISIONS_AND_RISKS.md)에서 관리한다.
+
+## 문서와 통합 검증
+
+```bash
+# 문서·OpenAPI·이벤트 계약
+python3 scripts/validate_docs.py
+npx --yes markdownlint-cli2@0.23.2
+npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
+npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1 \
+  ajv validate --spec=draft2020 -c ajv-formats \
+  -s docs/contracts/events.schema.json -d docs/contracts/events.example.json
+
+# main PR 공통 gate
+bash scripts/integration-test.sh
+```
+
+M0 전 wrapper는 `integration_mode=baseline-only`를 출력하며 full Docker 통과를 뜻하지 않는다. M0가 `.nullnull-target-stack`과 앱 Dockerfile을 함께 추가한 뒤에는 `scripts/verify_target_stack.py`가 image digest·stage·task·internal network 계약을 먼저 검사하고 PostgreSQL·API·web·Playwright를 실제 container로 검증한다. 새 앱의 정확한 명령은 [로컬 개발 문서](docs/engineering/LOCAL_DEVELOPMENT.md), app README와 CI에 동시에 고정한다. 실제 API 키·토큰·사용자 데이터는 저장소, fixture, 이슈, 프롬프트에 넣지 않는다.

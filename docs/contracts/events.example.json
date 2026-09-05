@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.1.0",
+  "events": [
+    {
+      "eventId": "018f3f8e-9b67-7a21-8d31-31d315b938f1",
+      "name": "trip_created",
+      "occurredAt": "2026-09-04T09:00:00+09:00",
+      "context": {
+        "locale": "ko-KR",
+        "timezone": "Asia/Seoul",
+        "route": "/start",
+        "appVersion": "3546086"
+      },
+      "properties": {
+        "tripId": "018f3f8e-9b67-7a21-8d31-31d315b938f3",
+        "method": "MANUAL",
+        "planningLevel": "MUST_VISIT_ONLY",
+        "dayCount": 3,
+        "itemCount": 2
+      }
+    },
+    {
+      "eventId": "018f3f8e-9b67-7a21-8d31-31d315b938f4",
+      "name": "candidate_save_failed",
+      "occurredAt": "2026-09-04T09:05:00+09:00",
+      "context": {
+        "locale": "ko-KR",
+        "timezone": "Asia/Seoul",
+        "route": "/posts/:postId",
+        "appVersion": "3546086"
+      },
+      "properties": {
+        "tripId": "018f3f8e-9b67-7a21-8d31-31d315b938f3",
+        "placeId": "018f3f8e-9b67-7a21-8d31-31d315b938f5",
+        "sourceType": "POST",
+        "postId": "018f3f8e-9b67-7a21-8d31-31d315b938f6",
+        "errorCode": "SOURCE_UNAVAILABLE",
+        "retryable": true
+      }
+    },
+    {
+      "eventId": "018f3f8e-9b67-7a21-8d31-31d315b938f7",
+      "name": "optimization_previewed",
+      "occurredAt": "2026-09-04T09:10:00+09:00",
+      "context": {
+        "locale": "ko-KR",
+        "timezone": "Asia/Seoul",
+        "route": "/trip/:tripId/optimizations/:runId",
+        "appVersion": "3546086"
+      },
+      "properties": {
+        "tripId": "018f3f8e-9b67-7a21-8d31-31d315b938f3",
+        "runId": "018f3f8e-9b67-7a21-8d31-31d315b938f8",
+        "scope": "ITEM",
+        "proposalCount": 1,
+        "comparisonEligible": true,
+        "dataStates": ["FORECAST"]
+      }
+    }
+  ]
+}

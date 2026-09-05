@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 보안 취약점 비공개 제보
+    url: https://github.com/yutakdv/Nullnull/security/advisories/new
+    about: 민감한 취약점은 public issue에 공개하지 마세요.
