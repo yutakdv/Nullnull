@@ -17,6 +17,11 @@ preview는 수정 후 inventory에 추가한다. 시각·문구·상태는
 추가 적용한다. 충돌을 발견하면 화면에서 임시로 추론하지 않고 같은 기능 ID의 contract
 issue를 먼저 연다.
 
+처음 합류하거나 Claude Code를 시작할 때는 먼저
+[Frontend 담당자 · Claude Code 시작 안내서](./FRONTEND_CLAUDE_CODE_START.md)를 읽는다.
+현재 branch/PR 상태, 필독 순서, M0의 최소 범위와 Claude Code에 전달할 prompt를 한 곳에
+정리했다.
+
 새 구현의 정본 경로는 `apps/web/`이다. 과거 frontend prototype은 목표 저장소에 포함하지 않으며 M0 scaffold 전 문서·mock 기준선을 제품 구현 완료로 간주하지 않는다.
 
 ## 1. 역할 경계
