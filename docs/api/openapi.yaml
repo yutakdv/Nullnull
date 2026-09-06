@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nullnull Public Web API
-  version: 0.1.0
+  version: 0.2.0
   summary: Contract-first API for the Nullnull mobile travel planner
   description: |
     P0 implementation contract. Saved posts, trip candidates, and scheduled trip
@@ -1117,7 +1117,8 @@ paths:
       description: |
         Synchronous preflight checks ownership, target/scope shape, input trip version, and
         current locks, then freezes the input revision. External data and route checks execute
-        asynchronously; failure is reported on the run and never mutates the trip.
+        asynchronously; failure is reported on the run and never mutates the trip. ITEM requires
+        exactly targetItemId, DAY requires exactly targetDate, and TRIP accepts neither target.
       x-error-codes:
         "409": [TRIP_CHANGED]
         "422": [LOCK_CONFLICT]
@@ -1229,6 +1230,8 @@ paths:
         frozen trip revision, all constraints, snapshot fingerprint, and preview expiry in one
         transaction. KEEP records intent but does not increment trip version. A failed APPLY
         records no decision and changes no trip row, so the same idempotency key can replay it.
+        APPLY always returns non-null beforeRevisionId, afterRevisionId, resultingTripVersion,
+        and revertUntil; revertUntil is exactly 24 hours after the server's decidedAt.
       x-error-codes:
         "409": [TRIP_CHANGED, DATA_CHANGED]
         "422": [LOCK_CONFLICT, NO_IMPROVEMENT]
@@ -1277,7 +1280,7 @@ paths:
         rejected if the current trip version differs from the applied revision.
       x-error-codes:
         "409": [TRIP_CHANGED]
-        "410": [PREVIEW_EXPIRED]
+        "410": [REVERT_WINDOW_EXPIRED]
         "503": [APPLY_FAILED]
       security:
         - sessionCookie: []
@@ -1294,11 +1297,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OptimizationDecision"
+                $ref: "#/components/schemas/RevertOptimizationDecision"
         "409":
           $ref: "#/components/responses/Conflict"
         "410":
-          description: Revert window expired
+          description: The applied decision's 24-hour revert window expired
           content:
             application/problem+json:
               schema:
@@ -2192,6 +2195,8 @@ components:
         - staleAt
         - confidence
         - license
+        - officialUrl
+        - licenseUrl
         - attribution
         - metricDefinition
         - normalizationVersion
@@ -2239,6 +2244,12 @@ components:
           maximum: 1
         license:
           type: [string, "null"]
+        officialUrl:
+          type: [string, "null"]
+          format: uri
+        licenseUrl:
+          type: [string, "null"]
+          format: uri
         attribution:
           type: [string, "null"]
         metricDefinition:
@@ -2289,6 +2300,37 @@ components:
           type: [string, "null"]
           format: uuid
           description: Stable normalized snapshot identifier; null only for UNAVAILABLE.
+      examples:
+        - source: SEOUL_CITYDATA
+          sourceDisplayName: 서울시 실시간 도시데이터
+          sourceRegistryVersion: 1
+          sourceState: LIVE
+          observedAt: "2026-09-06T05:00:00Z"
+          targetAt: null
+          fetchedAt: "2026-09-06T05:00:05Z"
+          staleAt: "2026-09-06T05:10:00Z"
+          freshness: FRESH
+          confidence: 0.98
+          license: 공공누리 제1유형
+          officialUrl: https://data.seoul.go.kr/dataList/OA-21285/F/1/datasetView.do
+          licenseUrl: https://www.kogl.or.kr/info/licenseType1.do
+          attribution: "출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)"
+          metricDefinition: 서울 주요 장소의 실시간 인구 혼잡도 수준
+          normalizationVersion: seoul-citydata-v1
+          qualityFlags: []
+          forecastIssueId: null
+          comparisonAxis: SPATIAL
+          comparisonEligible: true
+          comparisonReasonCode: SAME_SOURCE_SCOPE_SET
+          comparisonGroupId: seoul-live-20260906T0500Z
+          collectorRunId: 018f3f8e-9b67-7a21-8d31-31d315b93901
+          snapshotSetId: 018f3f8e-9b67-7a21-8d31-31d315b93902
+          observedAtSkewSeconds: 5
+          scope: LIVE_AREA
+          scopeLabel: 광화문·덕수궁
+          mappingType: DIRECT
+          fallbackUsed: false
+          provenanceId: 018f3f8e-9b67-7a21-8d31-31d315b93903
     CrowdMetric:
       type: object
       additionalProperties: false
@@ -3176,22 +3218,31 @@ components:
       type: string
       enum: [QUEUED, RUNNING, READY, APPLIED, KEPT, REVERTED, FAILED, EXPIRED]
     CreateOptimizationRequest:
+      oneOf:
+        - $ref: "#/components/schemas/CreateItemOptimizationRequest"
+        - $ref: "#/components/schemas/CreateDayOptimizationRequest"
+        - $ref: "#/components/schemas/CreateTripOptimizationRequest"
+      discriminator:
+        propertyName: scope
+        mapping:
+          ITEM: "#/components/schemas/CreateItemOptimizationRequest"
+          DAY: "#/components/schemas/CreateDayOptimizationRequest"
+          TRIP: "#/components/schemas/CreateTripOptimizationRequest"
+    CreateItemOptimizationRequest:
       type: object
       additionalProperties: false
-      required: [scope, inputTripVersion, includeCandidates]
+      required: [scope, targetItemId, inputTripVersion, includeCandidates]
       properties:
         scope:
-          $ref: "#/components/schemas/OptimizationScope"
+          type: string
+          const: ITEM
+        targetItemId:
+          type: string
+          format: uuid
         inputTripVersion:
           type: integer
           format: int64
           minimum: 1
-        targetItemId:
-          type: [string, "null"]
-          format: uuid
-        targetDate:
-          type: [string, "null"]
-          format: date
         includeCandidates:
           type: boolean
           default: false
@@ -3199,6 +3250,64 @@ components:
           type: string
           enum: [REDUCE_CROWD]
           default: REDUCE_CROWD
+      examples:
+        - scope: ITEM
+          targetItemId: 018f3f8e-9b67-7a21-8d31-31d315b93911
+          inputTripVersion: 7
+          includeCandidates: false
+          objective: REDUCE_CROWD
+    CreateDayOptimizationRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, targetDate, inputTripVersion, includeCandidates]
+      properties:
+        scope:
+          type: string
+          const: DAY
+        targetDate:
+          type: string
+          format: date
+        inputTripVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        includeCandidates:
+          type: boolean
+          default: false
+        objective:
+          type: string
+          enum: [REDUCE_CROWD]
+          default: REDUCE_CROWD
+      examples:
+        - scope: DAY
+          targetDate: "2026-09-12"
+          inputTripVersion: 7
+          includeCandidates: false
+          objective: REDUCE_CROWD
+    CreateTripOptimizationRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, inputTripVersion, includeCandidates]
+      properties:
+        scope:
+          type: string
+          const: TRIP
+        inputTripVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        includeCandidates:
+          type: boolean
+          default: false
+        objective:
+          type: string
+          enum: [REDUCE_CROWD]
+          default: REDUCE_CROWD
+      examples:
+        - scope: TRIP
+          inputTripVersion: 7
+          includeCandidates: false
+          objective: REDUCE_CROWD
     OptimizationRun:
       type: object
       additionalProperties: false
@@ -3483,9 +3592,29 @@ components:
           type: string
           enum: [APPLY, KEEP]
     OptimizationDecision:
+      oneOf:
+        - $ref: "#/components/schemas/ApplyOptimizationDecision"
+        - $ref: "#/components/schemas/KeepOptimizationDecision"
+        - $ref: "#/components/schemas/RevertOptimizationDecision"
+      discriminator:
+        propertyName: decision
+        mapping:
+          APPLY: "#/components/schemas/ApplyOptimizationDecision"
+          KEEP: "#/components/schemas/KeepOptimizationDecision"
+          REVERT: "#/components/schemas/RevertOptimizationDecision"
+    ApplyOptimizationDecision:
       type: object
       additionalProperties: false
-      required: [id, runId, proposalId, decision, decidedAt, beforeRevisionId, resultingTripVersion]
+      required:
+        - id
+        - runId
+        - proposalId
+        - decision
+        - resultingTripVersion
+        - beforeRevisionId
+        - afterRevisionId
+        - revertUntil
+        - decidedAt
       properties:
         id:
           type: string
@@ -3498,25 +3627,112 @@ components:
           format: uuid
         decision:
           type: string
-          enum: [APPLY, KEEP, REVERT]
+          const: APPLY
         resultingTripVersion:
-          type: [integer, "null"]
+          type: integer
           format: int64
         beforeRevisionId:
-          type: [string, "null"]
+          type: string
           format: uuid
         afterRevisionId:
-          type: [string, "null"]
-          format: uuid
-        revertedDecisionId:
-          type: [string, "null"]
+          type: string
           format: uuid
         revertUntil:
-          type: [string, "null"]
+          type: string
           format: date-time
+          description: Exactly 24 hours after decidedAt; the server clock is authoritative.
         decidedAt:
           type: string
           format: date-time
+      examples:
+        - id: 018f3f8e-9b67-7a21-8d31-31d315b93921
+          runId: 018f3f8e-9b67-7a21-8d31-31d315b93922
+          proposalId: 018f3f8e-9b67-7a21-8d31-31d315b93923
+          decision: APPLY
+          resultingTripVersion: 8
+          beforeRevisionId: 018f3f8e-9b67-7a21-8d31-31d315b93924
+          afterRevisionId: 018f3f8e-9b67-7a21-8d31-31d315b93925
+          revertUntil: "2026-09-07T06:00:00Z"
+          decidedAt: "2026-09-06T06:00:00Z"
+    KeepOptimizationDecision:
+      type: object
+      additionalProperties: false
+      required: [id, runId, proposalId, decision, decidedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+        proposalId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          const: KEEP
+        decidedAt:
+          type: string
+          format: date-time
+      examples:
+        - id: 018f3f8e-9b67-7a21-8d31-31d315b93931
+          runId: 018f3f8e-9b67-7a21-8d31-31d315b93922
+          proposalId: 018f3f8e-9b67-7a21-8d31-31d315b93923
+          decision: KEEP
+          decidedAt: "2026-09-06T06:00:00Z"
+    RevertOptimizationDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - runId
+        - proposalId
+        - decision
+        - resultingTripVersion
+        - beforeRevisionId
+        - afterRevisionId
+        - revertedDecisionId
+        - decidedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+        proposalId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          const: REVERT
+        resultingTripVersion:
+          type: integer
+          format: int64
+        beforeRevisionId:
+          type: string
+          format: uuid
+          description: Revision active immediately before the revert transaction.
+        afterRevisionId:
+          type: string
+          format: uuid
+          description: New revision created by restoring the applied decision's before snapshot.
+        revertedDecisionId:
+          type: string
+          format: uuid
+        decidedAt:
+          type: string
+          format: date-time
+      examples:
+        - id: 018f3f8e-9b67-7a21-8d31-31d315b93941
+          runId: 018f3f8e-9b67-7a21-8d31-31d315b93922
+          proposalId: 018f3f8e-9b67-7a21-8d31-31d315b93923
+          decision: REVERT
+          resultingTripVersion: 9
+          beforeRevisionId: 018f3f8e-9b67-7a21-8d31-31d315b93925
+          afterRevisionId: 018f3f8e-9b67-7a21-8d31-31d315b93926
+          revertedDecisionId: 018f3f8e-9b67-7a21-8d31-31d315b93921
+          decidedAt: "2026-09-06T07:00:00Z"
     OptimizationHistoryPage:
       type: object
       additionalProperties: false
@@ -3867,6 +4083,7 @@ components:
             - IMPORT_DRAFT_EXPIRED
             - IMPORT_DRAFT_CHANGED
             - PREVIEW_EXPIRED
+            - REVERT_WINDOW_EXPIRED
             - DELETION_STATUS_EXPIRED
             - SOURCE_UNAVAILABLE
             - RATE_LIMITED

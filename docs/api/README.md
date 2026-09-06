@@ -84,6 +84,20 @@ Trip 확정 상태를 바꾸는 응답은 `ETag: "7"`처럼 version을 준다. F
 
 Import draft도 ETag/If-Match를 사용한다. stale remap/confirm은 409 `IMPORT_DRAFT_CHANGED`, 만료는 410 `IMPORT_DRAFT_EXPIRED`이며 stale confirm은 trip을 만들지 않는다. 여행 기간 축소로 item/DATE/RESERVATION lock이 범위 밖이 되면 자동 삭제·이동 없이 422로 거부한다.
 
+### FCR-010/015 최적화 판별 union
+
+- `CreateOptimizationRequest`는 `scope`로 판별한다. `ITEM`은 `targetItemId`, `DAY`는
+  `targetDate`만 필수이며 `TRIP`에는 target field가 없다. P0 Frontend는 ITEM request만
+  생성한다.
+- `OptimizationDecision`은 `decision`으로 판별한다. APPLY는
+  `beforeRevisionId`, `afterRevisionId`, `resultingTripVersion`, `revertUntil`이 모두
+  필수이며 `revertUntil`은 server `decidedAt`의 정확히 24시간 뒤다.
+- KEEP은 revision/revert field를 반환하지 않는다. REVERT는 `revertedDecisionId`와
+  transaction 전후 revision을 반환한다. Frontend는 optional field 조합을 추론하지 않고
+  생성된 union을 exhaustive하게 처리한다.
+- `revertUntil`이 지났거나 server가 410 `REVERT_WINDOW_EXPIRED`를 반환하면 persistent
+  applied 화면을 만료 상태로 바꾸고 되돌리기 요청을 다시 보내지 않는다.
+
 ## 5. 멱등성
 
 OpenAPI에서 `Idempotency-Key`가 required인 요청은 다음 규칙을 따른다.
@@ -178,6 +192,7 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 | `IMPORT_DRAFT_EXPIRED` | 410 | 다시 붙여넣기 | 금지 |
 | `IMPORT_DRAFT_CHANGED` | 409 | 최신 draft 표시·사용자 수정 보존 | 금지 |
 | `PREVIEW_EXPIRED` | 410 | 새 최적화 실행 | 금지 |
+| `REVERT_WINDOW_EXPIRED` | 410 | 적용 결과 유지·되돌리기 만료 표시 | 금지 |
 | `DELETION_STATUS_EXPIRED` | 410 | 완료 여부 지원 안내 | 금지 |
 | `SOURCE_UNAVAILABLE` | 503 | stale/replay/empty fallback | endpoint별 |
 | `RATE_LIMITED` | 429 | Retry-After 표시/대기 | header 이후 |
@@ -194,7 +209,7 @@ Backend는 stack trace, SQL, 외부 API body, secret을 detail에 넣지 않는�
 | create preflight | `TRIP_CHANGED`, `LOCK_CONFLICT`, `RATE_LIMITED` | 없음 | 최신 trip/잠금 표시 |
 | async run | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `ROUTE_UNAVAILABLE`, `NO_IMPROVEMENT` | 없음 | run failure 화면과 허용 CTA |
 | APPLY | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `NO_IMPROVEMENT`, `ROUTE_UNAVAILABLE`, `APPLY_FAILED` | 실패 시 없음 | 동일 action 결과 조회 후 재시도/재계산 |
-| REVERT | `TRIP_CHANGED`, `PREVIEW_EXPIRED`, `APPLY_FAILED` | 실패 시 없음 | 현재 trip 유지 |
+| REVERT | `TRIP_CHANGED`, `REVERT_WINDOW_EXPIRED`, `APPLY_FAILED` | 실패 시 없음 | 현재 trip 유지·만료 상태 고정 |
 
 HTTP와 run failure가 같은 code 의미를 사용한다. exception 종류나 provider message를 새 code처럼 노출하지 않는다.
 
@@ -207,12 +222,20 @@ HTTP와 run failure가 같은 code 의미를 사용한다. exception 종류나 p
 - `targetAt`: 예보가 가리키는 시각
 - `fetchedAt`, `staleAt`, `freshness`
 - `provenanceId`, `sourceRegistryVersion`
-- `confidence`, `normalizationVersion`, `license`, `attribution`, `metricDefinition`
+- `confidence`, `normalizationVersion`, `license`, `officialUrl`, `licenseUrl`,
+  `attribution`, `metricDefinition`
 - `comparisonEligible`, `comparisonReasonCode`
 - `comparisonGroupId`, `collectorRunId`, `snapshotSetId`
 - `scope`, `mappingType`, `fallbackUsed`
 
 수치 delta는 `comparisonEligible=true`인 경우에만 표시한다. false이면 `comparisonReasonCode`에 대응하는 설명을 표시하며 null 값을 0으로 바꾸지 않는다.
+
+`SEOUL_CITYDATA`는 `sourceDisplayName=서울시 실시간 도시데이터`,
+`license=공공누리 제1유형`,
+`attribution=출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)`을
+사용한다. Frontend는 `attribution`을 그대로 표시하고 `officialUrl`을 출처 링크,
+`licenseUrl`을 이용조건 링크로 사용한다. KTO attribution과 합치거나 provider별 문구를
+client에서 다시 만들지 않는다.
 
 ### 공모전 KTO API 계약
 

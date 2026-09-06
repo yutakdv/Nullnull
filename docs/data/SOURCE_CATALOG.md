@@ -97,9 +97,31 @@ comparisonAxis = TEMPORAL
 
 ## 5. 서울 실시간 도시데이터
 
-공식 [서울시 실시간 도시데이터 상세](https://data.seoul.go.kr/dataList/OA-21285/A/1/datasetView.do)는 인구, 교통, 날씨/환경, 문화행사 등을 결합한 area 단위 데이터다. 2026-09-03 갱신 화면 기준 주요 121장소를 안내하며 한 번에 한 장소만 호출할 수 있고 sample key는 제한된 장소만 조회할 수 있다고 명시한다. 이용허락은 공공누리 1유형(출처표시)으로 안내된다.
+공식 [서울시 실시간 도시데이터 상세](https://data.seoul.go.kr/dataList/OA-21285/F/1/datasetView.do)는 인구, 교통, 날씨/환경, 문화행사 등을 결합한 area 단위 데이터다. 2026-09-03 갱신 화면 기준 주요 121장소를 안내하며 한 번에 한 장소만 호출할 수 있고 sample key는 제한된 장소만 조회할 수 있다고 명시한다. 이용허락은 공공누리 1유형(출처표시)으로 안내된다.
 
 매뉴얼은 데이터별 주기가 다르지만 최소 약 5분 단위 갱신을 설명한다. [서울 실시간 도시데이터 매뉴얼](https://data.seoul.go.kr/SeoulRtd/downloads/%EC%8B%A4%EC%8B%9C%EA%B0%84_%EB%8F%84%EC%8B%9C%EB%8D%B0%EC%9D%B4%ED%84%B0_%EB%A7%A4%EB%89%B4%EC%96%BC.pdf)
+
+### FCR-011 출처 계약
+
+2026-09-06 확인 기준으로 제공기관·저작권자는 서울특별시, 공개일은 2022-08-31,
+이용허락은 공공누리 제1유형이다. 공공누리 제1유형은 기관·저작물·출처를 표시하고,
+온라인에서 가능하면 원 출처 링크를 제공하도록 요구한다. source registry revision 1의
+Frontend-facing 값은 다음으로 고정한다.
+
+```yaml
+code: SEOUL_CITYDATA
+displayName: 서울시 실시간 도시데이터
+officialUrl: https://data.seoul.go.kr/dataList/OA-21285/F/1/datasetView.do
+licenseName: 공공누리 제1유형
+licenseUrl: https://www.kogl.or.kr/info/licenseType1.do
+attributionTemplate: "출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)"
+```
+
+API는 위 문구와 URL을 `DataProvenance`에 넣는다. Frontend는 `source`로 제공자 문구를
+다시 만들지 않고 `attribution`을 그대로 표시하며, 온라인 화면에서는
+`officialUrl`에 연결한다. `licenseUrl`은 데이터 안내나 출처 상세에서 함께 제공한다.
+KTO 관광정보·집중률 예측과 서울 실시간 관측이 한 카드에 있으면 provenance primitive를
+각각 렌더링하고 하나의 `ⓒ한국관광공사` 문구로 합치지 않는다.
 
 ### Scope 경계
 
@@ -186,7 +208,8 @@ Provider response
 ```text
 provenanceId, sourceCode, sourceDisplayName, sourceRegistryVersion,
 sourceState, observedAt|null, targetAt|null, fetchedAt, staleAt|null,
-freshness, confidence|null, license, attribution, metricDefinition,
+freshness, confidence|null, license, officialUrl|null, licenseUrl|null,
+attribution, metricDefinition,
 normalizationVersion, qualityFlags, forecastIssueId|null,
 collectorRunId, snapshotSetId, scope, mappingType, fallbackUsed
 ```
