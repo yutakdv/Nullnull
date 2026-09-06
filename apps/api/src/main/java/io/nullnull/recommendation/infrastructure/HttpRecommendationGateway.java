@@ -13,10 +13,10 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 /**
  * Internal contract v1 over HTTP. Called outside any DB transaction. Response identifiers are
@@ -33,12 +33,8 @@ public class HttpRecommendationGateway implements RecommendationGateway {
     private final RestClient client;
     private final Supplier<String> requestId;
 
-    /**
-     * The base URL and the connect/read timeouts of {@code properties} are already applied to
-     * {@code client} by {@link RecommendationClientConfiguration}, which is the only place allowed to
-     * build that client; the properties are passed here so both come from the same validated source.
-     */
-    public HttpRecommendationGateway(RestClient client, RecommendationClientProperties properties, Supplier<String> requestId) {
+    /** {@code client} already carries the base URL and the connect/read timeouts applied by {@link RecommendationClientConfiguration}. */
+    public HttpRecommendationGateway(RestClient client, Supplier<String> requestId) {
         this.client = client;
         this.requestId = requestId;
     }
@@ -54,11 +50,12 @@ public class HttpRecommendationGateway implements RecommendationGateway {
                     throw new RecommendationUnavailableException("empty policy response", true, null);
                 }
                 return descriptor;
-            } catch (HttpServerErrorException | ResourceAccessException exception) {
-                log.warn("recommendation call failed operation=policy attempt={} of {}", attempt, POLICY_ATTEMPTS);
-                lastFailure = exception;
             } catch (HttpClientErrorException exception) {
                 throw rejected("policy", exception);
+            } catch (RestClientException | HttpMessageConversionException exception) {
+                // 5xx, unknown status, transport failure and an unreadable body all end in the fallback.
+                log.warn("recommendation call failed operation=policy attempt={} of {}", attempt, POLICY_ATTEMPTS);
+                lastFailure = exception;
             }
         }
         throw new RecommendationUnavailableException("recommendation service unavailable", true, lastFailure);
@@ -74,10 +71,10 @@ public class HttpRecommendationGateway implements RecommendationGateway {
                     .body(request)
                     .retrieve()
                     .body(FeedRankResponse.class);
-        } catch (HttpServerErrorException | ResourceAccessException exception) {
-            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
         } catch (HttpClientErrorException exception) {
             throw rejected("feedRank", exception);
+        } catch (RestClientException | HttpMessageConversionException exception) {
+            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
         }
         if (response == null) {
             throw new RecommendationUnavailableException("empty feed rank response", true, null);

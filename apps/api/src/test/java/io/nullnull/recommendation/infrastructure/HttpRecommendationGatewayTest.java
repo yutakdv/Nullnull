@@ -14,7 +14,6 @@ import io.nullnull.recommendation.application.RecommendationUnavailableException
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +33,13 @@ class HttpRecommendationGatewayTest {
              "stageCounts":[{"stage":"source:request","inputCount":0,"outputCount":2}]}
             """.formatted("a".repeat(64));
 
+    /** A response the record cannot instantiate: orderedPostIds is required by the contract. */
+    static final String BODY_WITHOUT_ORDER = """
+            {"policyVersion":"policy-v1","policyHash":"%s","pipelineVersion":"nullnull-ai-pipeline-v1","sortVersion":1,
+             "evaluated":2,"rejectedByReason":{"NOT_PUBLISHED":1},
+             "stageCounts":[{"stage":"source:request","inputCount":0,"outputCount":2}]}
+            """.formatted("a".repeat(64));
+
     MockRestServiceServer server;
     HttpRecommendationGateway gateway;
 
@@ -41,9 +47,7 @@ class HttpRecommendationGatewayTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://ai.test:8090");
         server = MockRestServiceServer.bindTo(builder).build();
-        gateway = new HttpRecommendationGateway(builder.build(),
-                new RecommendationClientProperties("http://ai.test:8090", Duration.ofSeconds(1), Duration.ofSeconds(2)),
-                () -> "req_test-0001");
+        gateway = new HttpRecommendationGateway(builder.build(), () -> "req_test-0001");
     }
 
     @Test
@@ -87,6 +91,17 @@ class HttpRecommendationGatewayTest {
                 .andRespond(withBadRequest());
         assertThatThrownBy(gateway::policy).isInstanceOf(RecommendationUnavailableException.class)
                 .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+        server.verify();
+    }
+
+    @Test
+    void unreadableResponseIsRetryableUnavailable() {
+        // A body the contract records reject must reach the documented fallback, not escape as a Spring exception.
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/feed/rank"))
+                .andRespond(withSuccess(BODY_WITHOUT_ORDER, MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> gateway.rankFeed(requestFor("00000000-0000-0000-0000-000000000001")))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isTrue());
         server.verify();
     }
 

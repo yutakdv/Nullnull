@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
@@ -19,6 +20,9 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
+// The recommendation service is deliberately out of reach here, so the optional probe is asserted on
+// its own behaviour instead of on whether a developer happens to run apps/ai on the usual port.
+@TestPropertySource(properties = "nullnull.ai.base-url=http://127.0.0.1:1")
 @DisplayName("BA-003 system endpoints")
 class SystemEndpointsIT {
 
@@ -36,8 +40,8 @@ class SystemEndpointsIT {
 
     @Test
     void readinessIsDegradedWhileOnlyTheOptionalRecommendationProbeFails() {
-        // This suite runs the database from Testcontainers and no apps/ai service, so the optional
-        // recommendation probe is UNAVAILABLE: the API degrades and stays 200, it is not NOT_READY.
+        // The database comes from Testcontainers and the recommendation probe cannot connect, so the
+        // API degrades and stays 200: an optional capability never makes it NOT_READY.
         MvcTestResult result = mvc.get().uri("/api/v1/health/ready").exchange();
         assertThat(result).hasStatus(HttpStatus.OK);
         assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("DEGRADED");

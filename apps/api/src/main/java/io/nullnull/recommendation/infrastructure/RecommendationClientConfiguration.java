@@ -25,7 +25,7 @@ public class RecommendationClientConfiguration {
     @Bean
     RecommendationGateway recommendationGateway(RestClient.Builder builder, RecommendationClientProperties properties) {
         RestClient client = client(builder, properties.baseUrl(), properties.connectTimeout(), properties.readTimeout());
-        return new HttpRecommendationGateway(client, properties, RecommendationClientConfiguration::currentRequestId);
+        return new HttpRecommendationGateway(client, RecommendationClientConfiguration::currentRequestId);
     }
 
     @Bean
