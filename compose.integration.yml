@@ -30,6 +30,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: integration-only
       NULLNULL_EXTERNAL_NETWORK: disabled
       NULLNULL_TEST_DATABASE: external
+      NULLNULL_AI_BASE_URL: http://ai:8090
     depends_on:
       postgres:
         condition: service_healthy

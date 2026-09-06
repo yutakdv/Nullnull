@@ -10,6 +10,7 @@ RUN ./gradlew --no-daemon --version
 COPY apps/api/src ./src
 COPY docs/api/openapi.yaml /workspace/docs/api/openapi.yaml
 COPY apps/ai/contracts /workspace/apps/ai/contracts
+COPY apps/ai/tests/recommendation/fixtures /workspace/apps/ai/tests/recommendation/fixtures
 RUN ./gradlew --no-daemon bootJar -x test resolveTestClasspaths
 
 FROM build AS test

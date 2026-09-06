@@ -46,3 +46,8 @@ nullnull:
   env: ${NULLNULL_ENV:local}
   readiness:
     database-timeout-seconds: 2
+  # Recommendation service (apps/ai). No default host: a missing base URL fails startup.
+  ai:
+    base-url: ${NULLNULL_AI_BASE_URL}
+    connect-timeout: ${NULLNULL_AI_CONNECT_TIMEOUT:PT2S}
+    read-timeout: ${NULLNULL_AI_READ_TIMEOUT:PT5S}

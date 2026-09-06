@@ -35,12 +35,16 @@ class SystemEndpointsIT {
     }
 
     @Test
-    void readinessReportsDatabaseReady() {
+    void readinessIsDegradedWhileOnlyTheOptionalRecommendationProbeFails() {
+        // This suite runs the database from Testcontainers and no apps/ai service, so the optional
+        // recommendation probe is UNAVAILABLE: the API degrades and stays 200, it is not NOT_READY.
         MvcTestResult result = mvc.get().uri("/api/v1/health/ready").exchange();
         assertThat(result).hasStatus(HttpStatus.OK);
-        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("READY");
-        assertThat(result).bodyJson().extractingPath("$.checks[0].name").isEqualTo("database");
-        assertThat(result).bodyJson().extractingPath("$.checks[0].status").isEqualTo("READY");
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo("DEGRADED");
+        assertThat(result).bodyJson().extractingPath("$.checks[?(@.name=='database')].status")
+                .asArray().containsExactly("READY");
+        assertThat(result).bodyJson().extractingPath("$.checks[?(@.name=='recommendation')].status")
+                .asArray().containsExactly("UNAVAILABLE");
     }
 
     @Test

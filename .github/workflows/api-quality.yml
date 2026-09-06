@@ -8,6 +8,7 @@ on:
     paths:
       - "apps/api/**"
       - "apps/ai/contracts/**"
+      - "apps/ai/tests/recommendation/fixtures/**"
       - "docs/api/openapi.yaml"
       - ".github/workflows/api-quality.yml"
   push:
@@ -15,6 +16,7 @@ on:
     paths:
       - "apps/api/**"
       - "apps/ai/contracts/**"
+      - "apps/ai/tests/recommendation/fixtures/**"
       - "docs/api/openapi.yaml"
       - ".github/workflows/api-quality.yml"
   workflow_dispatch:
