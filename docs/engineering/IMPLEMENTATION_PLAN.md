@@ -31,7 +31,7 @@ FE와 BE/AI는 각 milestone 안에서 mock/contract로 병렬 작업하되, 다
 - 기존 milestone 추정 합계는 FE 43 ideal days, BE/AI 52 ideal days,
   공동·운영 16 ideal days다. 마감까지 16 calendar days인 조건과 맞지 않으므로 전체 P0를
   같은 품질로 완성한다는 약속으로 사용하지 않는다.
-- [Figma 수정 요청](../design/FIGMA_CHANGE_REQUESTS.md)의 FCR-001~007이 닫히기 전
+- [Figma 수정 요청](../design/FIGMA_CHANGE_REQUESTS.md)의 FCR-001~015가 닫히기 전
   관련 화면 slice를 구현하지 않는다. M0 scaffold와 provider 계정 확인은 병렬로 진행할
   수 있다.
 - M0 실제 velocity를 확인한 뒤 09-07에 다시 추정한다. 범위가 넘치면 자동 gate를
@@ -61,13 +61,16 @@ variant, replay 시각 polish는 이 흐름과 안전 gate가 통과한 뒤만 �
 | 09/20 16:00 | 외부망·익명창 UI 확인 | KTO operation/readiness 확인 | **내부 제출 목표**, 접수·checksum 보관 |
 | 09/21 16:00 | 긴급 안정화만 | 긴급 안정화만 | **공식 마감**, 15:00 이후 변경 금지 |
 
+09/05 행의 FCR-001~009는 당시 초안 범위다. 09/06 PR #6 검토에서 FCR-010~015를
+추가했으며 이후 착수·종료 gate는 FCR-001~015 전체를 기준으로 한다.
+
 범위 축소 순서는 `P1 전부 OFF → 지도 대신 동등한 목록 → replay 보조 → 고급 최적화 설명/시각 polish`다. 익명 핵심 journey, 실제 KTO 호출·출처, 일정 무결성, 데이터 상태 표시, 보안·접근성 기본 gate는 축소하지 않는다. 09/16 종료 시 INT-01~04가 통과하지 않으면 새 기능 추가를 중단하고 배포된 완결 흐름만 남긴다.
 
 Hard checkpoint:
 
 | 시점 | 반드시 보일 증거 | 실패 시 즉시 조치 |
 | --- | --- | --- |
-| 09/06 종료 | FCR-001~007 수정 node, lint 통과 contract, 확정된 M0 scope | 영향 UI 착수 중지, PM/두 DRI 범위 재결정 |
+| 09/06 종료 | FCR-001~015 수정 node, lint 통과 contract, 확정된 M0 scope | 영향 UI 착수 중지, PM/두 DRI 범위 재결정 |
 | 09/07 종료 | full Docker web→API→PostgreSQL hello | AWS polish 중지, M0만 복구 |
 | 09/10 종료 | 익명 session→trip→실제 KTO 검색/상세→candidate와 출처/call-audit | 제출 NO-GO, 다른 기능 추가 중지 |
 | 09/13 종료 | candidate 일정화·ETag·lock·rollback E2E | 편집 variant/import 비노출 |
@@ -150,6 +153,8 @@ FE는 다음 milestone 화면 primitive를 준비할 수 있지만 아직 합의
   (0.5d)
 - `GOV-001` 실제 GitHub handle 기반 CODEOWNERS와 path review test (0.5d)
 - `GOV-002` branch ruleset, required checks, merge queue/concurrency, GitHub environments checklist 검증 (0.5d)
+- `GOV-003` Frontend Claude Code 시작 안내, FCR 착수 기준과 Ticket/Work ID 인계 규칙
+  (0.5d)
 - `REL-001` version/tag/artifact retention과 release/rollback 기록 형식 확정 (0.5d)
 
 ### Infra

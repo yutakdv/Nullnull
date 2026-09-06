@@ -145,7 +145,7 @@ node → route/overlay → feature ID → operationId → fixture IDs
 - mutation 화면마다 성공 뒤 domain 변화와 실패 뒤 **미변경** 상태를 함께 검증한다.
 - P1 frame은 capability OFF 상태가 잘못된 dead-end가 아닌지 먼저 검증하며, 활성화 PR에서 full journey를 추가한다.
 - Figma node가 교체되면 screen-manifest와 visual snapshot을 같은 PR에서 변경한다.
-- `FCR-001~009`는 수정 node, before/after screenshot, 기능 ID, operationId와 test ID가
+- `FCR-001~015`는 수정 node, before/after screenshot, 기능 ID, operationId와 test ID가
   모두 연결될 때만 닫는다.
 - `COMPONENT_CATALOG.md`의 최상위 component 49종도 component-manifest에 1:1 연결하고 필수 variant·interaction·접근성 story 누락을 CI에서 검출한다.
 

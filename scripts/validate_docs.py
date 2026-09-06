@@ -302,7 +302,7 @@ def validate_figma_inventory(problems: list[str]) -> None:
 
     require_fragments(
         FIGMA_CHANGE_PATH,
-        tuple(f"FCR-{index:03d}" for index in range(1, 10))
+        tuple(f"FCR-{index:03d}" for index in range(1, 16))
         + ("상태: Open", "P0 ITEM 전용 READY"),
         problems,
     )

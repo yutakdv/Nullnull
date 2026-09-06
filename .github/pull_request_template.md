@@ -5,6 +5,7 @@
 <!-- 사용자가 얻게 되는 결과를 2~3문장으로 작성 -->
 
 - Ticket:
+- Work ID:
 - Figma node/링크:
 - OpenAPI operationId/schema:
 - Head → base: `frontend|backend` → `main`
@@ -22,6 +23,7 @@
 
 ## 역할 브랜치 gate
 
+- [ ] Ticket·Work ID가 연결됐고 적용 없는 Figma/API 항목에는 이유를 적었다.
 - [ ] PR head는 작업자 역할의 `frontend` 또는 `backend`, base는 `main`이다.
 - [ ] PR head는 외부 fork가 아니라 이 repository의 역할 브랜치다.
 - [ ] 최신 `main`을 동기화했고 force push/rebase로 상대 이력을 바꾸지 않았다.

@@ -183,11 +183,11 @@ Wizard 규칙:
 
 | Figma node | 화면 | 상태 | 동작 | API |
 | --- | --- | --- | --- | --- |
-| `415:2268` | S09-0 항목 설정 | setup | item/scope, 잠금, 후보 포함 OFF | `POST /trips/:id/optimizations` |
-| `415:2413` | S09-1 계산 중 | loading | polling, cancel/back, timeout | `GET /optimizations/:runId` |
+| `415:2268` | S09-0 항목 설정 | setup | ITEM target 선택, 잠금, 후보 포함 OFF(`FCR-010`) | `POST /trips/:id/optimizations` |
+| `415:2413` | S09-1 계산 중 | loading | polling, back, timeout(`FCR-014`) | `GET /optimizations/:runId` |
 | `TBD` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
 | `439:3104` | S09-D1 하루 preview | preview P1 | day scope before/after | same |
-| `417:2412` | S09-3 적용 완료 | applied | revision, undo CTA | decision/revert |
+| `417:2412` | S09-3 적용 완료 | applied | revision, persistent undo/expiry(`FCR-015`) | decision/revert |
 | `417:2567` | REF S09 오류 | error reference | code별 문구/CTA | Problem Details |
 | `485:3517` | REF stale | stale | `TRIP_CHANGED` 재계산 | recompute |
 
@@ -221,12 +221,19 @@ Figma 오류 계약:
 - 사용자의 모든 constraint가 보존됐는지 서버가 validation summary로 응답한다.
 - preview의 `inputTripVersion`, `dataFingerprint`, `expiresAt`을 apply 시 검증한다.
 - apply는 한 DB transaction이며 실패 응답은 “일정 미변경”을 보장한다.
+- setup은 사용자가 선택한 `targetItemId`를 보여 주고 P0에서 ITEM만 활성화한다.
+- loading 화면을 떠나거나 client timeout이 발생해도 server run 취소로 표현하지 않는다.
+  P0에는 cancel operation이 없고 같은 run URL을 다시 조회한다.
+- 적용 완료 화면은 toast와 별개로 `beforeRevisionId`, `afterRevisionId`,
+  `revertUntil`에 대응하는 대상 일정과 남은 되돌리기 상태를 지속적으로 보여 준다.
+- 여행 보기의 `더 여유로운 날짜가 있어요`는 `getPlaceCrowdForecast`와 비교 적격성
+  규칙을 연결하기 전에는 노출하지 않는다(`FCR-013`).
 
 ### G. Live
 
 | Figma node | 화면 | Pri/state | 동작 | API |
 | --- | --- | --- | --- | --- |
-| `418:2523` | S11-1 Live | P0 | 목록 필수, map capability, 영역 선택 | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `418:2523` | S11-1 Live | P0 | map OFF 목록 필수, map capability, 영역 선택(`FCR-012`) | `queryLiveAreas`, `listLiveAreaPlaces` |
 | `419:2617` | S11-2 장소 상세 | P0 | crowd, freshness, itinerary action | `GET /live/places/:poiId` |
 | `420:2821` | S11-3 대안 | P0 | relation + comparable metrics | `GET /places/:poiId/related` |
 | `420:2950` | S11-N 후보 없음 | P0 empty | 비교 불가 이유/다른 필터 CTA | related result `NONE` |
@@ -238,6 +245,8 @@ Figma 오류 계약:
   다음 행동을 보여 주며 loading/empty/error state를 포함한다(`FCR-008`).
 - 거리값은 trip anchor나 사용자가 선택한 기준 장소, 산식/source와 함께 표시한다.
   기준점이 없으면 값을 숨기고 unavailable reason을 제공한다(`FCR-009`).
+- 실시간 관측은 `SEOUL_CITYDATA` provenance와 검토된 attribution을 표시하고 KTO
+  장소 정보·예측 출처와 결합하지 않는다(`FCR-011`).
 
 Data state label:
 
@@ -368,7 +377,12 @@ Figma `01 Components`의 최상위 node 49개는 [Component Catalog](./COMPONENT
 | `Action/Bottom CTA` | safe-area inset, loading/disabled | keyboard에 가려짐 |
 | `Nav/TabBar` | active, badge, safe-area | overlay 뒤 focus 가능 |
 
-KTO 데이터가 보이는 Feed card·게시물/장소 상세·후보/비교·Live·데이터 안내에는 동일한 attribution primitive를 사용한다. 기본 문구는 `출처: ⓒ한국관광공사`이며, `TourAPI`만 단독 표기하거나 허가받지 않은 CI·BI 로고를 넣지 않는다. 카드가 좁아도 상세로만 숨기지 말고 카드 또는 바로 인접한 공개 영역에서 출처를 확인할 수 있어야 한다.
+모든 데이터 화면은 같은 attribution primitive를 사용하되 provider별 문구를 섞지
+않는다. KTO 데이터의 기본 문구는 `출처: ⓒ한국관광공사`이며, `TourAPI`만 단독
+표기하거나 허가받지 않은 CI·BI 로고를 넣지 않는다. 서울 실시간 관측은 BE/AI가
+Source Catalog와 example에 확정한 `SEOUL_CITYDATA` attribution을 사용한다. 카드가
+좁아도 상세로만 숨기지 말고 카드 또는 바로 인접한 공개 영역에서 출처를 확인할 수
+있어야 한다.
 
 Icon을 포함한 49개 node는 단일 registry/barrel export로 관리하고 Figma 이름과 코드 매핑을 catalog에 유지한다. 접근 가능한 이름은 icon 자체가 아니라 button에 제공하고 장식용 SVG는 `aria-hidden=true`로 둔다.
 

@@ -1,0 +1,63 @@
+name: 문서 / 계약 / 개발 기반
+description: 사용자 기능과 직접 연결되지 않는 문서·계약·개발환경·거버넌스 작업
+title: "[기반] "
+labels: []
+body:
+  - type: input
+    id: work_id
+    attributes:
+      label: Work ID
+      description: docs/engineering/IMPLEMENTATION_PLAN.md의 실행 ID 또는 새로 제안할 ID
+      placeholder: GOV-003
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 팀이 얻게 되는 결과
+      description: 이 작업 뒤 담당자가 무엇을 더 안전하고 명확하게 할 수 있는지 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 변경 범위와 명시적 비범위
+      description: 수정할 정본과 이번 Ticket에서 실제로 구현하지 않을 항목을 구분합니다.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: 기능·Figma·API 연결
+      description: 적용 가능한 ID/node/operationId를 적고, 적용하지 않으면 그 이유를 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: Given / When / Then 또는 검증 가능한 목록
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 검증 계획
+      description: 실행할 명령, 사람이 확인할 증거와 실패 시 조치를 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: 호환성·개인정보·운영 위험
+  - type: checkboxes
+    id: ready
+    attributes:
+      label: Definition of Ready
+      options:
+        - label: Ticket, Work ID와 변경 정본이 연결됐다.
+          required: true
+        - label: 적용하지 않는 기능/Figma/API 항목에 이유가 있다.
+          required: true
+        - label: 완료를 판정할 검증과 검토자가 정해졌다.
+          required: true

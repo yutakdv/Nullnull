@@ -20,11 +20,12 @@ Figma는 **무엇을 보여 주는지**, OpenAPI/이벤트/ERD는 **어떤 상�
 
 ### Frontend 담당
 
-1. [Frontend 실행서](roles/FRONTEND_PLAYBOOK.md)
-2. [제품 요구사항](product/PRODUCT_SPEC.md)과 [기능 인벤토리](product/FUNCTIONAL_INVENTORY.md)
-3. [Figma 핸드오프](design/FIGMA_HANDOFF.md)와 [컴포넌트 카탈로그](design/COMPONENT_CATALOG.md)
-4. [API 규칙](api/README.md)과 [OpenAPI](api/openapi.yaml)
-5. [브랜치·Docker 통합](engineering/BRANCH_AND_INTEGRATION.md), [테스트 전략](engineering/TEST_STRATEGY.md), 공모전 준수 문서
+1. [Frontend Claude Code 시작 안내서](roles/FRONTEND_CLAUDE_CODE_START.md)
+2. [Frontend 실행서](roles/FRONTEND_PLAYBOOK.md)
+3. [제품 요구사항](product/PRODUCT_SPEC.md)과 [기능 인벤토리](product/FUNCTIONAL_INVENTORY.md)
+4. [Figma 핸드오프](design/FIGMA_HANDOFF.md)와 [컴포넌트 카탈로그](design/COMPONENT_CATALOG.md)
+5. [API 규칙](api/README.md)과 [OpenAPI](api/openapi.yaml)
+6. [브랜치·Docker 통합](engineering/BRANCH_AND_INTEGRATION.md), [테스트 전략](engineering/TEST_STRATEGY.md), 공모전 준수 문서
 
 ### Backend/AI 담당
 
@@ -50,7 +51,7 @@ Figma는 **무엇을 보여 주는지**, OpenAPI/이벤트/ERD는 **어떤 상�
 | 데이터 | [ERD](architecture/ERD.md), [Source catalog](data/SOURCE_CATALOG.md) | 무엇을 어떤 무결성·출처·보존 규칙으로 저장하는가? | BE/AI |
 | API | [API 규칙](api/README.md), [OpenAPI](api/openapi.yaml) | 두 담당자가 공유하는 요청·응답·오류 계약은 무엇인가? | BE/AI, FE 승인 |
 | 이벤트 | [JSON Schema](contracts/events.schema.json), [예시](contracts/events.example.json) | 분석 이벤트 allowlist와 개인정보 경계는 무엇인가? | BE/AI, FE producer |
-| 역할 | [Frontend 실행서](roles/FRONTEND_PLAYBOOK.md), [Backend/AI 실행서](roles/BACKEND_AI_PLAYBOOK.md), [Ownership matrix](engineering/OWNERSHIP_MATRIX.md) | 각 담당자가 무엇을 어떤 순서와 완료 증거로 맡는가? | 공동 |
+| 역할 | [Frontend Claude Code 시작 안내서](roles/FRONTEND_CLAUDE_CODE_START.md), [Frontend 실행서](roles/FRONTEND_PLAYBOOK.md), [Backend/AI 실행서](roles/BACKEND_AI_PLAYBOOK.md), [Ownership matrix](engineering/OWNERSHIP_MATRIX.md) | 담당자가 무엇을 어떤 순서와 완료 증거로 맡으며 Claude Code에 무엇을 전달하는가? | 공동 |
 | 브랜치 | [브랜치·Docker 통합](engineering/BRANCH_AND_INTEGRATION.md), [Workflow](engineering/WORKFLOW.md) | 역할 브랜치 PR을 어떻게 main에서 검증·병합하는가? | 공동 |
 | 실행 | [구현 계획](engineering/IMPLEMENTATION_PLAN.md), [로컬 개발](engineering/LOCAL_DEVELOPMENT.md) | 어떤 순서와 명령으로 개발하는가? | 공동 |
 | 품질 | [테스트 전략](engineering/TEST_STRATEGY.md) | 기능·계약·DB·접근성을 어디서 검증하는가? | 공동 |
