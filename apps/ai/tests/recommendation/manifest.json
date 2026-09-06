@@ -54,7 +54,13 @@
     "REC-LLM-01",
     "REC-ARCH-01"
   ],
-  "implementedTestIds": [],
+  "implementedTestIds": [
+    {
+      "id": "REC-OPT-02",
+      "suite": "pytest",
+      "path": "tests/item/test_score.py"
+    }
+  ],
   "fixtures": [],
   "service": "apps/ai"
 }
