@@ -82,7 +82,8 @@ fi
 
 docker compose version
 
-compose=(docker compose --project-name nullnull-pr --file "${compose_file}")
+# --profile quality makes the quality-only services visible to `config`, so the compose contract check sees them.
+compose=(docker compose --project-name nullnull-pr --profile quality --file "${compose_file}")
 compose_available=true
 
 "${compose[@]}" config --format json >"${artifact_dir}/compose-config.json"
@@ -90,21 +91,24 @@ python3 "${target_stack_verifier}" \
   --compose-config "${artifact_dir}/compose-config.json"
 "${compose[@]}" build --pull \
   api-quality \
+  ai-quality \
   web-quality \
   api-client-diff \
   security-scan \
   infra-plan \
+  ai \
   api \
   web \
   e2e
 "${compose[@]}" up --detach postgres
 "${compose[@]}" run --rm api-quality
+"${compose[@]}" run --rm ai-quality
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff
 "${compose[@]}" run --rm security-scan
 "${compose[@]}" run --rm infra-plan
 "${compose[@]}" run --rm egress-denied
-"${compose[@]}" up --detach api web
+"${compose[@]}" up --detach ai api web
 
 api_ready=false
 web_ready=false

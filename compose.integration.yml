@@ -2,7 +2,7 @@ name: nullnull-integration
 
 services:
   postgres:
-    image: postgres:17.6-alpine
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
     environment:
       POSTGRES_DB: nullnull_integration
       POSTGRES_USER: nullnull
@@ -29,10 +29,14 @@ services:
       SPRING_DATASOURCE_USERNAME: nullnull
       SPRING_DATASOURCE_PASSWORD: integration-only
       NULLNULL_EXTERNAL_NETWORK: disabled
+      NULLNULL_TEST_DATABASE: external
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["./gradlew", "test", "integrationTest", "openapiContractTest", "--no-daemon"]
+    command: ["./gradlew", "--no-daemon", "--offline", "test", "integrationTest", "openapiContractTest", "recommendationTest"]
+    volumes:
+      - ./.artifacts/integration/recommendation:/workspace/apps/api/build/reports/recommendation
+      - ./.artifacts/integration/api-test-results:/workspace/apps/api/build/test-results
     networks:
       - integration-internal
 
@@ -76,6 +80,35 @@ services:
       target: tooling
     working_dir: /workspace
     command: ["npm", "run", "infra:check"]
+    networks:
+      - integration-internal
+
+  ai-quality:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/ai/Dockerfile
+      target: test
+    environment:
+      NULLNULL_ENV: test
+      NULLNULL_AI_REPORT_DIR: /workspace/apps/ai/build/reports/recommendation
+    command: ["uv", "run", "--frozen", "--offline", "pytest"]
+    volumes:
+      - ./.artifacts/integration/recommendation-ai:/workspace/apps/ai/build/reports/recommendation
+    networks:
+      - integration-internal
+
+  ai:
+    build:
+      context: .
+      dockerfile: apps/ai/Dockerfile
+      target: runtime
+    environment:
+      NULLNULL_ENV: staging
+      NULLNULL_AI_BIND_HOST: 0.0.0.0
+      NULLNULL_AI_PORT: "8090"
+      NULLNULL_CATALOG_VERSION: catalog-integration-fixture
+      AI_PROVIDER: NONE
     networks:
       - integration-internal
 
@@ -128,7 +161,7 @@ services:
 
   egress-denied:
     profiles: [quality]
-    image: curlimages/curl:8.16.0
+    image: curlimages/curl:8.16.0@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
@@ -145,7 +178,7 @@ networks:
   integration-internal:
     internal: true
 
-# M0 must replace both image tags with tested immutable digests and provide the
-# Docker stages and root quality scripts checked by verify_target_stack.py.
-# Until the M0 marker exists, scripts/integration-test.sh intentionally does not
-# parse this future target-stack compose file.
+# Image digests are pinned (verify_target_stack.py rejects tags). The api side of the
+# B01 contract is in place; apps/web stages, root quality scripts and the
+# .nullnull-target-stack marker still land with the web scaffold, and until then
+# scripts/integration-test.sh intentionally does not parse this compose file.
