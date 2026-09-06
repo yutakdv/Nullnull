@@ -1,3 +1,14 @@
+---
+aliases:
+  - "API 사용 규칙"
+doc_type: map
+status: active
+area: api
+tags:
+  - nullnull/map
+  - nullnull/api
+---
+
 # API 사용 규칙
 
 - 정본: [`openapi.yaml`](openapi.yaml)
@@ -14,7 +25,7 @@
 4. BE interface/controller contract test를 작성한다.
 5. 양쪽 구현 후 통합 E2E를 추가한다.
 
-생성 client는 `packages/api-client/`에 두며 수동 수정하지 않는다. CI는 spec hash와 생성 결과가 일치하는지 확인한다. 구체 generator와 명령은 첫 scaffold PR에서 lockfile과 함께 확정한다.
+생성 client는 `packages/api-client/`에 두며 수동 수정하지 않는다. CI는 spec hash와 생성 결과가 일치하는지 확인한다. generator/runtime exact 제안과 첫 scaffold의 반영 위치는 [#10 기반 결정안](../engineering/FOUNDATION_DECISIONS.md#d2--type-생성과-http-runtime-분리)을 따른다. Frontend 검토 후 root lockfile과 함께 확정한다.
 
 ### 2인 역할 경계
 
@@ -95,8 +106,10 @@ Import draft도 ETag/If-Match를 사용한다. stale remap/confirm은 409 `IMPOR
 - KEEP은 revision/revert field를 반환하지 않는다. REVERT는 `revertedDecisionId`와
   transaction 전후 revision을 반환한다. Frontend는 optional field 조합을 추론하지 않고
   생성된 union을 exhaustive하게 처리한다.
-- `revertUntil`이 지났거나 server가 410 `REVERT_WINDOW_EXPIRED`를 반환하면 persistent
-  applied 화면을 만료 상태로 바꾸고 되돌리기 요청을 다시 보내지 않는다.
+- `getOptimization.revertAvailability`가 AVAILABLE일 때만 undo를 활성화한다. EXPIRED/REVERTED/NOT_APPLICABLE이면 사유에 맞는 상태를 표시한다. 선택 필드가 없는 응답은 지원 미확인이므로 기기 시계만으로 활성화하지 않는다. 서버의 410 `REVERT_WINDOW_EXPIRED`는 만료 표시로 처리하고 현재 run을 재조회한다.
+- `decideOptimization` 200은 `InitialOptimizationDecision`(APPLY/KEEP)만 반환한다. run/history의 `OptimizationDecision`은 REVERT를 포함하며 revert endpoint는 `RevertOptimizationDecision`만 반환한다.
+- APPLIED/REVERTED run의 읽기는 미결정 preview TTL로 차단하지 않는다. 기존 owner/보존 정책 안에서 decision 상태를 읽으며 snapshot 보존을 늘리지 않는다.
+- [#11 계약 제안/예시](../contracts/review-2026-09-06/README.md)는 0.2.1-rc.1이며 FE 검토 전이다. 상태 계산 우선순위·동시성·구버전 복구를 함께 확인한다.
 
 ## 5. 멱등성
 
@@ -106,7 +119,7 @@ OpenAPI에서 `Idempotency-Key`가 required인 요청은 다음 규칙을 따른
 - network retry는 같은 key와 byte-equivalent semantic body를 사용한다.
 - 새로운 사용자 action은 새 key를 사용한다.
 - 같은 key/같은 body는 원래 status/body를 반환한다.
-- 같은 key/다른 body는 409 `IDEMPOTENCY_KEY_REUSED`다.
+- 같은 key/다른 body 또는 다른 path 자원은 409 `IDEMPOTENCY_KEY_REUSED`다. canonical request hash는 operation·실제 path parameter·semantic body·명령 precondition을 포함한다.
 - server 보존은 기본 24시간이다.
 - scope는 Owner 생성 뒤 `(ownerId, routeTemplate, key)`다. 최초 `/demo/sessions`는 owner-scoped idempotency 대상이 아니며 valid cookie retry로 수렴한다.
 

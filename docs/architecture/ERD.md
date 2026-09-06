@@ -1,3 +1,14 @@
+---
+aliases:
+  - "ERD와 데이터 사전"
+doc_type: reference
+status: baseline
+area: architecture
+tags:
+  - nullnull/reference
+  - nullnull/architecture
+---
+
 # ERD와 데이터 사전
 
 - 상태: Accepted for P0 implementation
@@ -825,3 +836,7 @@ CREATE INDEX ON deletion_requests (status, requested_at) WHERE status IN ('ACCEP
 ```
 
 index는 추측으로 계속 추가하지 않는다. staging query plan과 slow query 지표를 근거로 유지·제거한다.
+
+## #11 조회 projection 제안
+
+[계약 packet](../contracts/review-2026-09-06/README.md)의 OptimizationRun.revertAvailability는 기존 run/decision과 현재 trip version, 서버 시계에서 계산한다. 새 저장 column/table이나 이력 snapshot 복제를 추가하지 않는다. 적용 전/후·만료·REVERT·이후 사용자 편집을 구분하고 APPLY/REVERT transaction은 조회 결과와 무관하게 기존 원자 검증을 수행한다. Frontend 검토 전 계약 제안이며 migration 완료를 뜻하지 않는다.

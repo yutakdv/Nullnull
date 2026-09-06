@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Claude Code — Nullnull project context"
+doc_type: reference
+status: baseline
+area: workspace
+tags:
+  - nullnull/reference
+  - nullnull/workspace
+---
+
 # Claude Code — Nullnull project context
 
 @AGENTS.md
@@ -12,7 +23,8 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 - 동작 정본: `docs/api/openapi.yaml`, `docs/contracts/`, `docs/architecture/ERD.md`.
 - 화면-node-state 연결: `docs/design/FIGMA_HANDOFF.md`, `COMPONENT_CATALOG.md`.
 - 기능 추적: `docs/product/FUNCTIONAL_INVENTORY.md`의 기능 ID.
-- 목표 구조 `apps/web`, `apps/api`, `packages/api-client`, `infra`는 M0 scaffold PR에서 생성한다.
+- 현재 존재: `apps/api`(Spring Boot 4.1.1, Java 21), `apps/ai`(Python 3.13 추천 서비스), `compose.yml`. 아직 없음: `apps/web`, `packages/api-client`, `infra`, `.nullnull-target-stack`(FE scaffold와 같은 PR).
+- 추천 계산은 `apps/ai`, hydration·재검증·저장은 `apps/api`다(ADR-0006, `docs/decisions/ARCHITECTURE_DECISIONS.md`). 실행 계획: `docs/superpowers/plans/2026-09-07-recommendation-python-service.md`.
 - 현재 저장소에는 목표 서비스 정본만 둔다. 과거 prototype/문서는 Git 이력 또는 별도 작업공간에서만 참고한다.
 - 기존/untracked 파일을 사용자 작업으로 간주한다. 임의 삭제·이동·reset/clean을 하지 않는다.
 
@@ -80,6 +92,8 @@ Frontend 상세 규칙은 `.claude/rules/frontend.md`, Backend/AI 상세 규칙�
 - 외부 호출을 DB transaction 안에서 수행하지 않는다.
 - 비동기 optimizer/deletion/collector는 lease·attempt·retry·dead-letter가 있는 persistent job이다.
 - controller는 JPA entity/provider DTO를 반환하지 않는다.
+- `apps/ai`는 DB·외부 API·clock·난수 없이 Spring이 보낸 immutable 입력만 계산한다. Spring `recommendation` package는 gateway port·DTO·`ProposalRevalidator`·fallback만 가지며 계산을 중복하지 않는다. 요청에 owner/session ID·원문·좌표를 넣지 않는다.
+- `apps/ai` endpoint/schema를 바꾸면 `uv run python -m nullnull_ai.contracts export`로 `apps/ai/contracts/recommendation-internal-v1.json`을 갱신하고 Spring DTO를 맞춘다(`recommendationTest`가 parity를 검사).
 
 ## Contract and data rules
 
@@ -99,25 +113,38 @@ Frontend 상세 규칙은 `.claude/rules/frontend.md`, Backend/AI 상세 규칙�
 ```bash
 # docs and contracts
 python3 scripts/validate_docs.py
+python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 npx --yes markdownlint-cli2@0.23.2
 npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
 npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1 \
   ajv validate --spec=draft2020 -c ajv-formats \
   -s docs/contracts/events.schema.json -d docs/contracts/events.example.json
 
-# target frontend, after M0
+# target frontend, after B01
 (cd apps/web && npm run lint && npm run format:check && npm run typecheck)
 (cd apps/web && npm run test && npm run build && npm run test:e2e)
 
-# target backend, after M0
-(cd apps/api && ./gradlew test integrationTest openapiContractTest)
+# backend (apps/api): unit · Testcontainers PostgreSQL · OpenAPI contract · apps/ai contract parity
+(cd apps/api && ./gradlew test integrationTest openapiContractTest recommendationTest)
 
-# after the M0 marker, and every main pull request through the wrapper
+# recommendation service (apps/ai)
+(cd apps/ai && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest)
+
+# after the B01 marker, and every main pull request through the wrapper
 python3 scripts/verify_target_stack.py
 bash scripts/integration-test.sh
 ```
 
-Route/search/sheet/dialog/trip mutation/optimization 변경은 Playwright와 keyboard/focus 검사를 포함한다. migration은 empty DB, previous→latest, rollback-compatible app과 실제 PostgreSQL에서 검증한다.
+CI 등록 규칙(required 두 개, `api-quality`·`ai-quality` workflow, test ID 등록)은 `AGENTS.md#ci-검사-등록`을 따른다. Route/search/sheet/dialog/trip mutation/optimization 변경은 Playwright와 keyboard/focus 검사를 포함한다. migration은 empty DB, previous→latest, rollback-compatible app과 실제 PostgreSQL에서 검증한다.
+
+## Gotchas
+
+- Gradle은 Temurin 21로만 실행한다: `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home ./gradlew --no-daemon …` (기기 기본 `java`는 26). 설치형 Gradle 금지, wrapper만.
+- `apps/ai`는 uv 0.12.10 고정. 로컬 bootstrap은 `apps/ai/README.md`(`.uv-bootstrap` venv) 또는 `docker build -f apps/ai/Dockerfile --target test`.
+- `docs/**/*.md`는 Obsidian frontmatter(`aliases`, `doc_type`, `status`, `area`, `tags`)가 필수다. `scripts/validate_docs.py`가 링크·heading anchor·frontmatter를 검사한다.
+- `docs/roles/BACKEND_AI_PLAYBOOK.md` 카드와 `docs/engineering/backend-plan.json`은 validator가 동기화를 검사한다. title/ID/기능/API/선행/test ID/`데이터·정책`은 둘 다 고친다.
+- compose `api-quality`는 `NULLNULL_TEST_DATABASE=external`로 Testcontainers 대신 compose PostgreSQL을 쓰고 `--offline`으로 실행된다. 새 test dependency는 `resolveTestClasspaths`가 해석하는 configuration에 있어야 한다.
+- `docs/contracts/review-2026-09-06/`는 FE 계약 검토 재현 자료다(`node_modules`는 gitignore). 삭제·정리하지 않는다.
 
 ## Security and privacy
 

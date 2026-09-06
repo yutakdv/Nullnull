@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Pull request"
+doc_type: reference
+status: baseline
+area: workspace
+tags:
+  - nullnull/reference
+  - nullnull/workspace
+---
+
 # Pull request
 
 ## 목적
@@ -67,8 +78,8 @@
 - [ ] Security/secret/PII scan
 - [ ] Staging smoke/readiness
 - [ ] `docs-contract`
-- [ ] `docker-integration` (`baseline-only`면 M0 전임을 명시)
-- [ ] M0 뒤 client diff, web/API quality, security, infra, egress-denied와 mobile E2E가 `docker-integration` 내부에서 모두 실행됐다.
+- [ ] `docker-integration` (`baseline-only`면 B01 전임을 명시)
+- [ ] B01 뒤 client diff, web/API quality, security, infra, egress-denied와 mobile E2E가 `docker-integration` 내부에서 모두 실행됐다.
 
 ```text
 검증 결과:

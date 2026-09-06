@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Nullnull 기여 안내"
+doc_type: reference
+status: baseline
+area: workspace
+tags:
+  - nullnull/reference
+  - nullnull/workspace
+---
+
 # Nullnull 기여 안내
 
 ## 시작 전
@@ -5,11 +16,11 @@
 1. [README](README.md)와 [문서 지도](docs/README.md)를 읽는다.
 2. 작업할 Figma node, ticket, OpenAPI operationId를 연결한다.
 3. `git status`로 기존 작업을 확인하고 unrelated change를 건드리지 않는다.
-4. [Definition of Ready](docs/engineering/WORKFLOW.md)를 만족하는지 확인한다.
+4. [Definition of Ready](docs/engineering/BRANCH_AND_INTEGRATION.md)를 만족하는지 확인한다.
 5. [역할 매트릭스](docs/engineering/OWNERSHIP_MATRIX.md)에서 작성자와 필수 검토자를 확인한다.
 6. 공모전 배포에 포함되면 [준수 매트릭스](docs/contest/COMPETITION_COMPLIANCE_MATRIX.md)의 증거 항목을 작업 범위에 넣는다.
 
-이 저장소는 최신 목표 서비스의 문서와 이후 생성할 `apps/web`, `apps/api`만 유지한다. 과거 프로토타입은 Git 이력 또는 별도 작업공간의 참고 자료이며 새 기능을 그 구조에 추가하지 않는다.
+이 저장소는 최신 목표 서비스의 문서와 `apps/web`, `apps/api`, `apps/ai`만 유지한다. 과거 프로토타입은 Git 이력 또는 별도 작업공간의 참고 자료이며 새 기능을 그 구조에 추가하지 않는다.
 
 ## Branch와 commit
 
@@ -67,6 +78,7 @@ Generated client와 migration checksum을 직접 고치지 않는다. breaking c
 
 ```bash
 python3 scripts/validate_docs.py
+python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 npx --yes markdownlint-cli2@0.23.2
 npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
 npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1 \
@@ -85,13 +97,20 @@ npm run test
 npm run build
 npm run test:e2e
 
-# backend
+# backend (apps/api)
 ./gradlew test
 ./gradlew integrationTest
 ./gradlew openapiContractTest
+./gradlew recommendationTest
+
+# recommendation service (apps/ai)
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run pytest
 ```
 
-모든 `main` PR은 루트에서 `bash scripts/integration-test.sh`도 실행한다. M0 전에는 문서 기준선만 검사하고 `integration_mode=baseline-only`를 명시한다. M0가 `.nullnull-target-stack`을 추가한 뒤에는 PostgreSQL·API·web·E2E가 포함된 Docker 통합 검사를 생략할 수 없다.
+모든 `main` PR은 루트에서 `bash scripts/integration-test.sh`도 실행한다. B01 전에는 문서 기준선만 검사하고 `integration_mode=baseline-only`를 명시한다. B01이 `.nullnull-target-stack`을 추가한 뒤에는 PostgreSQL·API·web·E2E가 포함된 Docker 통합 검사를 생략할 수 없다.
 
 DB migration 변경은 PostgreSQL에서 previous→latest upgrade와 app rollback compatibility를 검증한다. route, search, sheet/dialog, 일정 생성/교체/최적화 변경은 Playwright와 keyboard 접근성 test를 포함한다.
 

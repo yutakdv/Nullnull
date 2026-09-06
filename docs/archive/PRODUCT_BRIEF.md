@@ -1,4 +1,17 @@
-# 널널(Nullnull) 모바일 웹앱 통합 기획안
+---
+aliases:
+  - "보관 기획안 — 널널 모바일 웹앱"
+doc_type: archive
+status: archived
+area: archive
+tags:
+  - nullnull/archive
+  - nullnull/archive
+---
+
+# 보관 기획안 — 널널 모바일 웹앱
+
+**보관 자료.** 현재 제품·계약 정본은 [제품 요구사항](../product/PRODUCT_SPEC.md)과 [문서 홈](../README.md)이다. 이 문서의 요약으로 현재 계약을 변경하거나 구현 완료를 판단하지 않는다.
 
 > 2026 관광데이터 활용 공모전 `②-2 웹·앱 구현 부문` — 내부 가정 `지정과제 2`, 오버투어리즘 완화를 위한 분산 여행 플래너. exact 부문·과제명은 제출 화면 대조 후 확정한다.
 
@@ -12,28 +25,27 @@
 | 개발 상태 | 기능 코드 미착수; 문서·계약 기준선 조건부 승인 |
 
 이 문서는 서비스 목적, 공모전 제안, 출시 범위와 개발 순서를 설명한다. 현재
-go/no-go와 발견된 gap은 [PM 정합성 감사](docs/project/PM_CONSISTENCY_AUDIT.md), 화면별
-acceptance와 수정 대상은 [Figma 개발 핸드오프](docs/design/FIGMA_HANDOFF.md)와
-[Figma 수정 요청](docs/design/FIGMA_CHANGE_REQUESTS.md), 기능과 API 추적성은
-[기능 인벤토리](docs/product/FUNCTIONAL_INVENTORY.md), 실제 request/response는
-[OpenAPI](docs/api/openapi.yaml)가 정본이다.
+go/no-go와 발견된 gap은 [PM 정합성 감사](../project/DECISIONS_AND_RISKS.md), 화면별
+acceptance와 수정 대상은 [Figma 개발 핸드오프](../design/FIGMA_HANDOFF.md)와
+[Figma 수정 요청](../design/FIGMA_CHANGE_REQUESTS.md), 기능과 API 추적성은
+[기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md), 실제 request/response는
+[OpenAPI](../api/openapi.yaml)가 정본이다.
 
 ## 공모전 제출 계약
 
-[2026 공식 공지 요약](docs/contest/2026-관광데이터-활용-공모전-공지-심사기준.md)에서 확인한 외부 요구와 팀 내부 운영 결정을 구분한다.
+[2026 공식 공지 요약](../contest/2026-관광데이터-활용-공모전-공지-심사기준.md)에서 확인한 외부 요구와 팀 내부 운영 결정을 구분한다.
 
 | 구분 | 확정 내용 |
 | --- | --- |
 | 공식 마감 | 2026-09-21 16:00(KST), 이후 수정 불가 |
-| 팀 내부 일정 | 09-18 기능/PDF 동결, 09-19 code freeze, 09-20 16:00 제출 목표, 09-21 15:00 변경 종료 |
-| 제출 식별값 | 예상 부문은 `②-2 웹·앱 구현 부문`; 서비스 개요·부문/유형·지정과제는 공식 제출 화면의 exact label을 09-18과 제출 직전에 대조해 확정 |
+| 제출 식별값 | 예상 부문은 `②-2 웹·앱 구현 부문`; 서비스 개요·부문/유형·지정과제는 공식 제출 화면의 exact label을 기능설명서 동결과 제출 직전에 대조해 확정 |
 | 제출 형태 | 외부 HTTPS 웹 URL, 핵심 기능 `로그인 불필요`, 공식 기능설명서 양식의 PDF |
 | 필수 데이터 | 최종 서비스가 한국관광공사 OpenAPI를 실제 호출·사용하고 제출 인증키의 호출 이력을 확인할 수 있어야 함 |
 | 제출 금지 표현 | file/replay/mock-only를 실제 OpenAPI 활용으로 소개, 미구현/P1 기능 기재, replay를 live로 표현 |
 | 출처 | KTO 화면에 `출처: ⓒ한국관광공사` 또는 승인된 동등 문구, `TourAPI` 단독·무허가 CI/BI logo 금지 |
 | 위치 | 제출 profile에서 위치 기능 OFF, geolocation prompt와 개인 위치 서버 전송 없음 |
 
-이 문서의 기능 문장은 구현 목표와 계약이며 현재 구현 완료를 뜻하지 않는다. 기능설명서에는 최종 배포 URL에서 실제 동작하는 기능과 실제 호출 API만 적는다. 요구사항별 담당·증거·차단 조건은 [공모전 준수 매트릭스](docs/contest/COMPETITION_COMPLIANCE_MATRIX.md), 제출 당일 절차는 [제출 runbook](docs/contest/SUBMISSION_RUNBOOK.md)을 따른다.
+이 문서의 기능 문장은 구현 목표와 계약이며 현재 구현 완료를 뜻하지 않는다. 기능설명서에는 최종 배포 URL에서 실제 동작하는 기능과 실제 호출 API만 적는다. 요구사항별 담당·증거·차단 조건은 [공모전 준수 매트릭스](../contest/COMPETITION_COMPLIANCE_MATRIX.md), 제출 당일 절차는 [제출 runbook](../contest/SUBMISSION_RUNBOOK.md)을 따른다.
 
 ## 1. 한 문장 제안
 
@@ -113,7 +125,7 @@ P0은 가입 없는 익명 세션으로 진입 장벽을 낮춘다. 계정 로�
 
 ## 6. Figma 기반 전체 기능 범위
 
-Figma는 `00 Wireframes`, `01 Components`, `02 UI Design`의 3개 페이지로 구성된다. 구현 기준은 `02 UI Design`이며 A–I 9개 그룹과 52개 구현 화면을 기능 ID로 추적한다. 시각 재사용 단위 49개는 [컴포넌트 카탈로그](docs/design/COMPONENT_CATALOG.md)에 props, 상태, 접근성, API 의존성과 함께 기록한다.
+Figma는 `00 Wireframes`, `01 Components`, `02 UI Design`의 3개 페이지로 구성된다. 구현 기준은 `02 UI Design`이며 A–I 9개 그룹과 52개 구현 화면을 기능 ID로 추적한다. 시각 재사용 단위 49개는 [컴포넌트 카탈로그](../design/COMPONENT_CATALOG.md)에 props, 상태, 접근성, API 의존성과 함께 기록한다.
 
 ### A. 시작·언어·소개
 
@@ -239,7 +251,7 @@ Figma의 error/replay/stale reference는 별도 사용자 route가 아니라 Sto
 - attribution 문구, 이미지 라이선스·만료
 - schema drift, timeout, 429, outage 시 degradation
 
-실제 provider와 현황은 [외부 데이터 Source Catalog](docs/data/SOURCE_CATALOG.md)가 정본이다. 승인이 끝나지 않은 source는 mock/replay만 사용하고 live capability는 기본 OFF다.
+실제 provider와 현황은 [외부 데이터 Source Catalog](../data/SOURCE_CATALOG.md)가 정본이다. 승인이 끝나지 않은 source는 mock/replay만 사용하고 live capability는 기본 OFF다.
 
 공모전 제출에는 KTO source가 예외 없이 실제로 연동돼야 한다. Backend gateway는 운영키를 runtime secret으로 사용하고 operation·시각·결과·release/provenance를 redacted call-audit로 남긴다. 전체 URL query, key, provider 원문 응답은 기록하지 않는다. read-through/TTL cache는 quota 보호에 사용할 수 있지만 file/전체 local mirror/replay만으로 필수 활용을 대신하지 않는다. 장기·전체 저장이 불가피하면 구현 전 공식 문의와 별도 승인 증거가 필요하다.
 
@@ -298,7 +310,7 @@ flowchart TB
 - product messaging: notification/read state와 허용된 deep link
 - analytics: 서버가 session에서 유도한 가명 식별자와 allowlisted event
 
-정확한 cardinality, 상태 전이와 보존은 [ERD](docs/architecture/ERD.md)를 따른다.
+정확한 cardinality, 상태 전이와 보존은 [ERD](../architecture/ERD.md)를 따른다.
 
 ### API 원칙
 
@@ -326,7 +338,7 @@ flowchart TB
 
 삭제는 접수 즉시 session을 철회하고 job status, retry/dead-letter, 삭제 manifest를 남긴다. backup을 복구하면 tombstone을 재적용해 삭제 데이터가 서비스에 되살아나지 않게 한다.
 
-주요 보안 gate는 owner authorization matrix, CSRF/CORS, rate limit, input bound, SSRF/URL allowlist, secret scan, 개인정보 denylist, dependency/image scan이다. 세부 위협과 대응은 [위협 모델](docs/security/THREAT_MODEL.md), [개인정보 요구사항](docs/security/PRIVACY_REQUIREMENTS.md), [SECURITY](SECURITY.md)를 따른다.
+주요 보안 gate는 owner authorization matrix, CSRF/CORS, rate limit, input bound, SSRF/URL allowlist, secret scan, 개인정보 denylist, dependency/image scan이다. 세부 위협과 대응은 [위협 모델](../security/THREAT_MODEL.md), [개인정보 요구사항](../security/PRIVACY_REQUIREMENTS.md), [SECURITY](../../SECURITY.md)를 따른다.
 
 ## 11. 접근성·모바일 품질
 
@@ -358,27 +370,10 @@ flowchart TB
 
 공식 FAQ에 따라 Claude Code 같은 AI 코딩 보조 도구는 제한·감점 없이 사용할 수 있다. 다만 도구 활용 자체는 가점이나 완성도 증거가 아니므로 기능 ID별 diff, 상대 담당자 검토, 계약·보안·통합 test 결과를 개발 증거로 남긴다. prompt와 transcript에는 secret·실제 사용자 입력·provider 원문을 넣지 않는다.
 
-## 13. 구현 로드맵
+## 13. 구현 순서의 정본
 
-공식 마감에서 역산한 일자별 담당은 [구현 계획](docs/engineering/IMPLEMENTATION_PLAN.md)이
-정본이다. 09/05 기준 기존 추정은 FE 43일, BE/AI 52일로 남은 16 calendar days에
-전체 P0를 담을 수 없다. 내부 순서는 `Figma P0 계약 종료 → M0 → 익명 여행 → KTO
-Feed/후보 → 일정 편집 → ITEM 최적화 → Live/데이터 안내 → hardening/AWS/PDF`다.
-09/16까지 핵심 INT-01~04가 통과하지 않으면 새 기능을 중단하고 P1·지도·import·고급
-variant를 먼저 축소하되 실제 KTO 활용과 안전 불변식은 축소하지 않는다. 아래
-milestone은 의존 순서와 exit gate다.
-
-| 단계 | 사용자 결과 | Frontend | Backend/AI | Exit gate |
-| --- | --- | --- | --- | --- |
-| M0 기반 | 동일한 mock/API 계약으로 앱이 뜸 | `apps/web`, token, router, MSW, generated client | `apps/api`, DB/Flyway, session skeleton, OpenAPI test | local one-command, docs CI, staging hello |
-| M1 시작 | 언어·소개 후 안전하게 진입 | splash/language/intro/profile shell | bootstrap/owner/preference/CSRF | ko/en 복구, session security test |
-| M2 발견·생성 | 여행 생성 후 장소를 후보로 저장 | wizard, feed, post, save sheet | trip/import/feed/candidate domain/API | 중복·retry·원문 비저장 E2E |
-| M3 일정 | 후보를 일정화하고 직접 편집 | trip view/edit, locks, compare | item/constraint/revision transaction | ETag·keyboard·rollback test |
-| M4 데이터 | Live와 대안을 진실한 상태로 확인 | list-first/detail/guide, 승인 시 map | source registry, collector, snapshot, relation | provenance 100%, drift/degrade test |
-| M5 최적화 | preview를 비교·적용·되돌림 | setup/loading/preview/error/history | persistent run, validator, decision/revert | lock/property/atomicity E2E |
-| M6 출시 | staging에서 관측·복구 가능한 서비스 | PWA/performance/a11y hardening | CDK, RDS restore, alarms, deletion job | go/no-go, rollback/incident rehearsal |
-
-P1 계정, 검색 탭, 알림, 주변, 게시물 작성, DAY/TRIP 최적화는 P0 safety gate와 provider 승인 후 별도 vertical slice로 연다.
+실행 순서는 [구현 계획](../engineering/IMPLEMENTATION_PLAN.md)으로 통합했다.
+날짜별 개발 일정과 이전 단계별 작업표는 대체됐다. Live 탭은 마지막 기능 단계다.
 
 ## 14. 개발·테스트·검토 방식
 
@@ -452,24 +447,24 @@ CloudWatch에는 owner/session 원문 없이 requestId 기반 구조화 로그, 
 | 비용 초과 | dev/staging sizing, budget alarm, production go/no-go |
 | 이미지·콘텐츠 권리 불명 | 미노출 또는 승인 자산 대체, asset ledger |
 | 계정/다국어 범위 과대 | 로그인·ja·zh disabled `준비 중`, ko/en만 P0 |
-| 공식 마감·양식 누락 | 09-20 내부 제출, 공식 PDF 양식 보존, 2인 checklist·접수 증거 |
-| KTO 호출 이력 부족 | 09-10 조기 실제 연동, call-audit와 provider 이력 대조, 없으면 제출 go 금지 |
+| 공식 마감·양식 누락 | 검수·동결 후 제출, 공식 PDF 양식 보존, 2인 checklist·접수 증거 |
+| KTO 호출 이력 부족 | B03 실제 연동, call-audit와 provider 이력 대조, 없으면 제출 go 금지 |
 | 출처/CI·BI 위반 | 중앙 텍스트 attribution, DOM·asset audit, 승인 없는 logo 금지 |
 | 위치정보 신고 위험 | 공모전 profile 위치 OFF, permission/network test, 향후 별도 사전 검토 |
 
-실제 외부 선택이 필요한 domain, provider, 약관, AWS 비용, GitHub handle, 보존 정책, 라이선스는 [결정·위험 대장](docs/project/DECISIONS_AND_RISKS.md)에 DRI·필요 시점·완료 증거와 함께 관리한다.
+실제 외부 선택이 필요한 domain, provider, 약관, AWS 비용, GitHub handle, 보존 정책, 라이선스는 [결정·위험 대장](../project/DECISIONS_AND_RISKS.md)에 DRI·필요 시점·완료 증거와 함께 관리한다.
 
 ## 18. 코드 착수 전 완료물
 
-- 감사: [PM 정합성 감사](docs/project/PM_CONSISTENCY_AUDIT.md), [Figma 수정 요청](docs/design/FIGMA_CHANGE_REQUESTS.md). 수정 요청은 아직 Open이며 완료물 목록은 존재 여부를 뜻하지 승인 완료를 뜻하지 않는다.
-- 제품: [PRODUCT_SPEC](docs/product/PRODUCT_SPEC.md), [FUNCTIONAL_INVENTORY](docs/product/FUNCTIONAL_INVENTORY.md)
-- 디자인: [FIGMA_HANDOFF](docs/design/FIGMA_HANDOFF.md), [COMPONENT_CATALOG](docs/design/COMPONENT_CATALOG.md)
-- 계약: [OpenAPI](docs/api/openapi.yaml), [API 규칙](docs/api/README.md), [이벤트 Schema](docs/contracts/events.schema.json)
-- 시스템·데이터: [SYSTEM_ARCHITECTURE](docs/architecture/SYSTEM_ARCHITECTURE.md), [ERD](docs/architecture/ERD.md), [SOURCE_CATALOG](docs/data/SOURCE_CATALOG.md)
-- 실행: [IMPLEMENTATION_PLAN](docs/engineering/IMPLEMENTATION_PLAN.md), [OWNERSHIP_MATRIX](docs/engineering/OWNERSHIP_MATRIX.md), [WORKFLOW](docs/engineering/WORKFLOW.md), [LOCAL_DEVELOPMENT](docs/engineering/LOCAL_DEVELOPMENT.md), [TEST_STRATEGY](docs/engineering/TEST_STRATEGY.md)
-- 역할/브랜치: [FRONTEND_PLAYBOOK](docs/roles/FRONTEND_PLAYBOOK.md), [BACKEND_AI_PLAYBOOK](docs/roles/BACKEND_AI_PLAYBOOK.md), [BRANCH_AND_INTEGRATION](docs/engineering/BRANCH_AND_INTEGRATION.md)
-- 공모전: [공식 공지 요약](docs/contest/2026-관광데이터-활용-공모전-공지-심사기준.md), [준수 매트릭스](docs/contest/COMPETITION_COMPLIANCE_MATRIX.md), [증거 원장 template](docs/contest/EVIDENCE_LEDGER_TEMPLATE.md), [제출 runbook](docs/contest/SUBMISSION_RUNBOOK.md)
-- 보안·운영: [PRIVACY_REQUIREMENTS](docs/security/PRIVACY_REQUIREMENTS.md), [THREAT_MODEL](docs/security/THREAT_MODEL.md), [AWS_DEPLOYMENT](docs/operations/AWS_DEPLOYMENT.md), [GITHUB_RELEASE_OPERATIONS](docs/operations/GITHUB_RELEASE_OPERATIONS.md), [INCIDENT_RESPONSE](docs/operations/INCIDENT_RESPONSE.md)
-- 저장소 협업: [README](README.md), [CLAUDE](CLAUDE.md), [AGENTS](AGENTS.md), [CONTRIBUTING](CONTRIBUTING.md), GitHub issue/PR template와 문서 계약 CI
+- 감사: [PM 정합성 감사](../project/DECISIONS_AND_RISKS.md), [Figma 수정 요청](../design/FIGMA_CHANGE_REQUESTS.md). 수정 요청은 아직 Open이며 완료물 목록은 존재 여부를 뜻하지 승인 완료를 뜻하지 않는다.
+- 제품: [PRODUCT_SPEC](../product/PRODUCT_SPEC.md), [FUNCTIONAL_INVENTORY](../product/FUNCTIONAL_INVENTORY.md)
+- 디자인: [FIGMA_HANDOFF](../design/FIGMA_HANDOFF.md), [COMPONENT_CATALOG](../design/COMPONENT_CATALOG.md)
+- 계약: [OpenAPI](../api/openapi.yaml), [API 규칙](../api/README.md), [이벤트 Schema](../contracts/events.schema.json)
+- 시스템·데이터: [SYSTEM_ARCHITECTURE](../architecture/SYSTEM_ARCHITECTURE.md), [ERD](../architecture/ERD.md), [SOURCE_CATALOG](../data/SOURCE_CATALOG.md)
+- 실행: [IMPLEMENTATION_PLAN](../engineering/IMPLEMENTATION_PLAN.md), [OWNERSHIP_MATRIX](../engineering/OWNERSHIP_MATRIX.md), [WORKFLOW](../engineering/BRANCH_AND_INTEGRATION.md), [LOCAL_DEVELOPMENT](../engineering/LOCAL_DEVELOPMENT.md), [TEST_STRATEGY](../engineering/TEST_STRATEGY.md)
+- 역할/브랜치: [FRONTEND_PLAYBOOK](../roles/FRONTEND_PLAYBOOK.md), [BACKEND_AI_PLAYBOOK](../roles/BACKEND_AI_PLAYBOOK.md), [BRANCH_AND_INTEGRATION](../engineering/BRANCH_AND_INTEGRATION.md)
+- 공모전: [공식 공지 요약](../contest/2026-관광데이터-활용-공모전-공지-심사기준.md), [준수 매트릭스](../contest/COMPETITION_COMPLIANCE_MATRIX.md), [증거 원장 template](../contest/EVIDENCE_LEDGER_TEMPLATE.md), [제출 runbook](../contest/SUBMISSION_RUNBOOK.md)
+- 보안·운영: [PRIVACY_REQUIREMENTS](../security/PRIVACY_REQUIREMENTS.md), [THREAT_MODEL](../security/THREAT_MODEL.md), [AWS_DEPLOYMENT](../operations/AWS_DEPLOYMENT.md), [GITHUB_RELEASE_OPERATIONS](../operations/GITHUB_RELEASE_OPERATIONS.md), [INCIDENT_RESPONSE](../operations/INCIDENT_RESPONSE.md)
+- 저장소 협업: [README](../../README.md), [CLAUDE](../../CLAUDE.md), [AGENTS](../../AGENTS.md), [CONTRIBUTING](../../CONTRIBUTING.md), GitHub issue/PR template와 문서 계약 CI
 
 이 기준선 이후에는 새 기능을 문서 밖에서 추가하지 않는다. 변경은 기능 ID와 정본 계약을 먼저 갱신하고, 두 담당자의 handshake와 자동 검증을 거쳐 vertical slice로 전달한다.

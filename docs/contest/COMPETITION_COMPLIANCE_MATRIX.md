@@ -1,3 +1,14 @@
+---
+aliases:
+  - "2026 공모전 준수 매트릭스"
+doc_type: reference
+status: baseline
+area: contest
+tags:
+  - nullnull/reference
+  - nullnull/contest
+---
+
 # 2026 공모전 준수 매트릭스
 
 - 상태: Accepted submission gate
@@ -24,8 +35,8 @@
 
 | ID | 성격/수준 | 요구사항 | Nullnull 구현 결정 | 완료 증거 | DRI / 검토 |
 | --- | --- | --- | --- | --- | --- |
-| CMP-SUB-001 | 공식/EXCLUSION | 1차 자료 제출은 2026-09-21 16:00 정각까지이며 이후 수정 불가 | 09-20 16:00 내부 제출, 09-21 15:00 변경 종료 | 접수 완료 화면·시각, 제출 PDF checksum | 공동 / 공동 |
-| CMP-SUB-002 | 공식/EXCLUSION | 참가 신청 계정, 이메일 인증, 팀/서비스 선택으로 제출 | 대표 계정과 팀원 계정을 09-18 전에 확인 | 콘텐츠랩 팀원 화면·인증 상태의 비공개 확인 기록 | 공동 / 공동 |
+| CMP-SUB-001 | 공식/EXCLUSION | 1차 자료 제출은 2026-09-21 16:00 정각까지이며 이후 수정 불가 | 공식 마감 전 검수·동결·접수 증거 확보 | 접수 완료 화면·시각, 제출 PDF checksum | 공동 / 공동 |
+| CMP-SUB-002 | 공식/EXCLUSION | 참가 신청 계정, 이메일 인증, 팀/서비스 선택으로 제출 | 제출 입력 전에 대표 계정과 팀원 계정을 확인 | 콘텐츠랩 팀원 화면·인증 상태의 비공개 확인 기록 | 공동 / 공동 |
 | CMP-SUB-003 | 공식/EXCLUSION | 최종 팀원, 팀명·서비스명·개요·부문/유형·지정과제 1개를 정확히 입력 | 부문을 포함한 exact label과 값을 서비스/PDF/제출처의 한 표에서 대조 | 3개 위치의 값과 2인 확인 시각 | 공동 / 공동 |
 | CMP-SUB-004 | 공식/REQUIRED | 외부에서 접속 가능한 웹 URL 또는 승인된 앱스토어 링크 | 웹 URL만 제출하고 PWA를 앱스토어 앱으로 주장하지 않음 | 외부망·새 browser profile HTTPS smoke | FE / BE·AI |
 | CMP-SUB-005 | 공식/REQUIRED | 로그인 방식은 로그인 불필요/SNS/테스트 계정 중 선택 | `로그인 불필요`; anonymous session에서 저장 포함 핵심 흐름 완결 | 신규 session E2E, 제출 화면 선택값 | FE / BE·AI |
@@ -119,16 +130,16 @@ containsSensitiveData, retentionUntil, notes
 
 | Evidence ID | 내용 | 공개 가능 | 완료 시점 |
 | --- | --- | --- | --- |
-| EV-ELG-01 | 중복 출품·수상·지원사업 수혜 여부 확인 | 아니오 | 09-18 |
+| EV-ELG-01 | 중복 출품·수상·지원사업 수혜 여부 확인 | 아니오 | 기능설명서 동결 |
 | EV-AI-01 | Claude Code 사용 범위·기능 ID·사람 검토·실행 test 기록 | secret 없는 PR 기록만 | 각 개발 PR |
-| EV-URL-01 | 외부망·익명창 360px judge flow | URL/민감정보 제거본만 | 09-19, 09-20 |
+| EV-URL-01 | 외부망·익명창 360px judge flow | URL/민감정보 제거본만 | 코드 동결·제출 직전 |
 | EV-KTO-01 | 활용 신청 API·신청자·운영계정 상태·승인/quota; 키는 입력 확인 boolean만 | 아니오 | KTO slice 전/제출 직전 |
 | EV-KTO-02 | provider 호출 이력과 redacted call-audit | redacted 집계만 | 매 staging release |
-| EV-ATT-01 | 화면 출처·기준시각·state DOM/screenshot | 예, key/request ID 제거 | UI slice/09-19 |
+| EV-ATT-01 | 화면 출처·기준시각·state DOM/screenshot | 예, key/request ID 제거 | UI slice·최종 회귀 |
 | EV-TEST-01 | docs/Docker/staging test run | 예 | 모든 main PR/release |
-| EV-PDF-01 | 공식 양식 원본·최종 PDF checksum/field diff | 최종 제출 정책에 따름 | 09-18/09-20 |
-| EV-SUB-01 | 제출 입력값·접수 완료 화면·시각 | 아니오 | 09-20/09-21 |
-| EV-PRV-01 | secret/location/raw text canary 결과 | 집계만 | 09-19 |
+| EV-PDF-01 | 공식 양식 원본·최종 PDF checksum/field diff | 최종 제출 정책에 따름 | 기능설명서 동결·제출 대조 |
+| EV-SUB-01 | 제출 입력값·접수 완료 화면·시각 | 아니오 | 접수 완료·공식 마감 전 |
+| EV-PRV-01 | secret/location/raw text canary 결과 | 집계만 | 코드 동결 |
 
 ## 9. Go/no-go
 
@@ -155,3 +166,7 @@ containsSensitiveData, retentionUntil, notes
 - [공식 기능설명서 양식](https://drive.google.com/file/d/10fxZ7pK_l1n3TMkWnYQQss8jkM85-hJV/view?usp=drive_link)
 - [자료 제출 절차 매뉴얼](https://drive.google.com/file/d/1MUSw3W27-VTI8HHg55urVR38j4fi8TVm/view?usp=drive_link)
 - [인증키·운영계정 안내](https://drive.google.com/file/d/1iAy4zLbWT4gWbc7PkW2mujdQBFD-2-BC/view?usp=sharing)
+
+## 2026-09-06 공식·내부 기준 구분
+
+참가자 공지의 제출 항목은 대표 API 운영계정 신청을 선택으로 표시한다. 같은 FAQ의 신청정보 요청이라는 일반 표현을 이유로 운영계정 승인을 공식 참가 자격으로 확대하지 않는다. CMP-KTO-001의 운영키 사용과 staging 운영 quota 확보는 팀 운영 기준이다. 실제 OpenAPI 활용·호출 이력은 필수이며 개발/운영계정의 실제 상태를 제출 화면에 정확하게 입력한다. 최신 양식·계정·접수 화면은 최종 동결 시 재확인한다.

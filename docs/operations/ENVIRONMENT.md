@@ -1,7 +1,20 @@
+---
+aliases:
+  - "환경변수·비밀·Feature flag"
+doc_type: reference
+status: baseline
+area: operations
+tags:
+  - nullnull/reference
+  - nullnull/operations
+---
+
 # 환경변수·비밀·Feature flag
 
 - 상태: Accepted naming contract
 - 원칙: 설정은 환경별, secret은 runtime 주입, 공개값과 비밀값을 이름부터 분리
+
+> 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. 환경
 
@@ -48,19 +61,23 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_ENV` | 아니오 | `local` | local/staging/production |
 | `SERVER_PORT` | 아니오 | `8080` | container port |
 | `APP_PUBLIC_ORIGIN` | 아니오 | `http://localhost:5173` | CORS/Origin 검증 |
-| `APP_COOKIE_DOMAIN` | 아니오 | 비움(local) | production domain |
+| `APP_COOKIE_DOMAIN` | 아니오 | 모든 환경에서 비움 | `__Host-` cookie에 Domain attribute 금지 |
 | `APP_COOKIE_SECURE` | 아니오 | `false` local, `true` cloud | prod false 금지 |
 | `APP_SESSION_TTL` | 아니오 | `P30D` | session expiry |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record |
-| `APP_REVERT_WINDOW` | 아니오 | `PT15M` | optimization undo |
+| `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
 | `APP_DELETION_RECEIPT_TTL` | 아니오 | 정책 승인값 | 완료/실패 receipt 보존 |
-| `APP_DELETION_RETRY_LIMIT` | 아니오 | M0/M1 측정 후 고정 | 삭제 job 무한 재시도 방지 |
+| `APP_DELETION_RETRY_LIMIT` | 아니오 | B01/BA-005와 B02/BA-012 검증 후 고정 | 삭제 job 무한 재시도 방지 |
 | `APP_NOTIFICATION_RETENTION` | 아니오 | P1 정책 승인값 | 알림 보존/cleanup |
 | `APP_SEARCH_MAX_QUERY_LENGTH` | 아니오 | OpenAPI constraint와 동일 | abuse/log 노출 최소화 |
 | `APP_ACCESS_LOG_INCLUDE_QUERY` | 아니오 | `false` | 검색어/identifier query logging 차단 |
 | `APP_LOG_RETENTION_DAYS` | 아니오 | `30` IaC input | CloudWatch policy |
 | `APP_CROWD_DEFAULT_STALE_AFTER` | 아니오 | source override 필요 | fallback only |
+| `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
+| `NULLNULL_AI_CONNECT_TIMEOUT` | 아니오 | `PT2S` | gateway connect timeout |
+| `NULLNULL_AI_READ_TIMEOUT` | 아니오 | `PT5S` | gateway read timeout; readiness probe는 별도 1초 |
+| `NULLNULL_CURSOR_SECRET` | 예 | runtime | feed/history opaque cursor 서명 key |
 | `SPRING_PROFILES_ACTIVE` | 아니오 | `local` | profile |
 | `SPRING_DATASOURCE_URL` | 아니오/민감 | JDBC URL | host는 내부 정보로 log redaction |
 | `SPRING_DATASOURCE_USERNAME` | 예 | runtime | DB app role |
@@ -68,6 +85,20 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | 아니오 | `health,prometheus` 내부만 | public actuator 제한 |
 
 duration은 ISO-8601 형식을 사용한다. production은 필수값 누락/안전하지 않은 cookie/CORS 설정이면 fail fast한다.
+
+### 추천 서비스 `apps/ai` 설정
+
+[ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)의 Python 서비스는 DB·외부 API 설정을 갖지 않는다.
+
+| 변수 | Secret | 기본/예 | 설명 |
+| --- | --- | --- | --- |
+| `NULLNULL_ENV` | 아니오 | `local` | local/test/staging/production |
+| `NULLNULL_AI_BIND_HOST` | 아니오 | `127.0.0.1` local, `0.0.0.0` container | bind address |
+| `NULLNULL_AI_PORT` | 아니오 | `8090` | 1024..65535 |
+| `NULLNULL_CATALOG_VERSION` | 아니오 | staging/production 필수, 없으면 startup 실패 | 응답 `catalogVersion`; local/test는 `catalog-unversioned-<env>` placeholder |
+| `AI_PROVIDER` | 아니오 | `NONE` | P0 허용값은 `NONE`뿐; `OPENAI`는 BA-084 adapter 전까지 startup 실패 |
+| `AI_API_KEY`, `AI_MODEL_ID`, `AI_TIMEOUT` | 4절과 동일 | BA-084 | provider `OPENAI` 승인 뒤 이 서비스에서만 읽는다 |
+| `NULLNULL_AI_REPORT_DIR` | 아니오 | test stage만 | `evaluation.json` 출력 위치 |
 
 보존 기간은 이 문서의 임의 default가 개인정보 정책보다 우선하지 않는다. OpenAPI/ERD/cleanup job/IaC 값이 다르면 startup 또는 contract test가 실패해야 한다.
 
@@ -85,7 +116,7 @@ duration은 ISO-8601 형식을 사용한다. production은 필수값 누락/안�
 | `MAP_PROVIDER` | 아니오 | `NONE` P0, provider 결정 후 enum |
 | `MAP_API_KEY` | 예 | backend route/geocode key |
 | `MAP_BASE_URL` | 아니오 | provider endpoint |
-| `AI_PROVIDER` | 아니오 | `NONE` P0 기본; 허용 provider enum |
+| `AI_PROVIDER` | 아니오 | `NONE` P0 기본; `OPENAI`는 P1 BA-084에서 추가하는 enum, 읽는 곳은 `apps/ai` |
 | `AI_API_KEY` | 예 | P1 AI 설명/보조 기능 승인 뒤 |
 | `AI_MODEL_ID` | 아니오 | 평가로 승인한 exact model identifier |
 | `AI_TIMEOUT` | 아니오 | request/job timeout |
@@ -125,15 +156,15 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
 | `FEATURE_LIVE_DATA` | OFF local, readiness 기반 cloud | source 불가 시 replay/empty |
 | `FEATURE_REPLAY_MODE` | ON staging | production 강제 replay는 banner 필요 |
-| `FEATURE_OPTIMIZATION_ITEM` | OFF → rollout | M5 safety gate 후 ON |
+| `FEATURE_OPTIMIZATION_ITEM` | OFF → rollout | B06 safety gate 후 ON |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
 | `FEATURE_OPTIMIZATION_TRIP` | OFF | P1 |
 | `FEATURE_NOTIFICATIONS` | OFF | P1 |
 | `FEATURE_NEARBY_LOCATION` | OFF | P1 + privacy review |
 | `FEATURE_POST_CREATION` | OFF | P1 + moderation/media |
-| `FEATURE_PROFILE_HISTORY` | OFF local 초기 → M5 ON | P0 이력 계약·cursor/보존 test 통과 후 |
+| `FEATURE_PROFILE_HISTORY` | OFF local 초기 → B06 ON | P0 이력 계약·cursor/보존 test 통과 후 |
 | `FEATURE_ACCOUNT_LOGIN` | OFF | account merge/recovery/security 정책 후 |
-| `FEATURE_TRIP_INTERESTS_PROFILE` | OFF local 초기 → M1 ON | P0 여행별 관심사 ETag 계약 후 |
+| `FEATURE_TRIP_INTERESTS_PROFILE` | OFF local 초기 → B04/BA-031 검수 후 ON | P0 여행별 관심사 ETag 계약 후 |
 | `FEATURE_AI_DRAFT` | OFF | 평가/근거/비용/privacy gate 후 |
 
 flag는 backend capability response가 정본이다. frontend build flag만으로 권한/안전 기능을 제어하지 않는다.
@@ -153,7 +184,7 @@ flag는 backend capability response가 정본이다. frontend build flag만으�
 - shell history에 secret을 직접 입력하지 않는다.
 - test는 fake key와 network stub을 사용한다.
 - debug log level에서도 configuration value를 전체 출력하지 않는다.
-- M0 scaffold는 `apps/api/.env.example`, `apps/web/.env.example`를 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다.
+- B01 scaffold는 `apps/api/.env.example`, `apps/web/.env.example`를 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다.
 
 exact tool version, port, seed와 guarded reset은 [LOCAL_DEVELOPMENT.md](../engineering/LOCAL_DEVELOPMENT.md)를 따른다. example 파일은 매 CI에서 실제 configuration binding과 비교해 누락/폐기 변수를 검출한다.
 
@@ -193,6 +224,7 @@ startup에서 다음을 검증하고 production은 오류 시 시작하지 않�
 - deletion/notification/event retention이 정책과 DB cleanup schedule에 일치
 - release version/git SHA/contract SHA가 비어 있지 않고 artifact manifest와 일치
 - AI provider가 ON이면 approved model/evaluation/key/timeout/kill switch가 존재
+- `apps/ai`는 staging/production에서 `NULLNULL_CATALOG_VERSION`이 없거나 `AI_PROVIDER`가 허용 enum 밖이면 시작하지 않음; Spring은 `NULLNULL_AI_BASE_URL`이 없으면 시작하지 않음
 - production AWS account/stack prefix가 staging 값과 다름
 - contest profile이면 위치/계정/P1 flag OFF, KTO 운영 secret·공식 host·call-audit·익명 session 준비 완료
 
@@ -209,3 +241,7 @@ secret이 log, commit, artifact에 노출됐다고 의심되면 삭제만 하지
 5. 원인과 scanner/gate 보강을 기록.
 
 security/privacy incident의 severity, acknowledgment와 통지 판단 시간은 [INCIDENT_RESPONSE.md](./INCIDENT_RESPONSE.md)를 따른다. secret이 노출된 commit을 단순 revert하는 것은 rotation을 대체하지 않는다.
+
+## 계약 상수 검증
+
+APP_REVERT_WINDOW=PT24H는 API 0.2.0의 decidedAt+24시간 계약이다. 다른 값으로 시작하려면 먼저 계약 변경 검토가 필요하며 현재 profile에서는 startup validation으로 거부한다. preview TTL·cursor15분·orphan bootstrap15분과 혼동하지 않는다. CI는 설정값, APPLY 응답 시각 계산, 만료 경계의 REVERT_WINDOW_EXPIRED를 함께 검증한다.

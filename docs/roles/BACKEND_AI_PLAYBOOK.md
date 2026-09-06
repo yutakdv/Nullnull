@@ -1,300 +1,1414 @@
-# Backend/AI 실행 플레이북
+---
+aliases:
+  - "Backend/AI 상세 개발 계획"
+doc_type: plan
+status: draft
+area: roles
+tags:
+  - nullnull/plan
+  - nullnull/roles
+---
 
-- 상태: `backend` 역할 브랜치 실행 계약
-- 담당: Backend/AI 1명(`BE_AI_DRI`)
-- 상대 담당: Frontend 1명(`FE_DRI`)
-- 기준일: 2026-09-05
-- 대상: Spring API, PostgreSQL, 관광 데이터, optimizer/AI, AWS
+# Backend/AI 상세 개발 계획
 
-이 문서는 Backend/AI 담당자가 Figma의 현재 52개 frame에 필요한 server truth를
-빠짐없이 제공하기 위한 작업 순서다. [Figma 수정 요청](../design/FIGMA_CHANGE_REQUESTS.md)의
-P0 불일치는 화면 구현 전에 계약 의미를 함께 검토하고, 빠진 ITEM READY preview에
-`OptimizationChange`·provenance·validation·APPLY/KEEP example을 제공한다. 기능 의미는
-[제품 요구사항](../product/PRODUCT_SPEC.md), 공개 계약은 [OpenAPI](../api/openapi.yaml)와
-[이벤트 스키마](../contracts/events.schema.json), 저장 규칙은 [ERD](../architecture/ERD.md),
-화면 상태는 [Figma 핸드오프](../design/FIGMA_HANDOFF.md)를 따른다. 공모전 release는
-[준수 매트릭스](../contest/COMPETITION_COMPLIANCE_MATRIX.md)를 추가 적용한다.
+이 문서는 Backend와 AI를 함께 구현할 `backend` 브랜치의 작업 초안이다. 작업 대상은 `~/Desktop/Nullnull`이다. 추천 계산은 `apps/ai`, hydration·재검증·저장은 `apps/api`가 맡는다([ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)). 날짜·소요일 추정 없이 우선순위와 선행 조건으로 진행한다. **현재 앱 구현은 시작 전**이며 아래 `planned`는 테스트 통과/구현 완료를 뜻하지 않는다.
 
-새 구현의 정본 경로는 `apps/api/`이다. 과거 Backend prototype은 목표 저장소에 포함하지 않으며 M0 scaffold 전 문서·contract 기준선을 새 API 통합 완료로 간주하지 않는다.
+[문서 홈](../README.md) · [우선순위와 실행 순서](../engineering/IMPLEMENTATION_PLAN.md) · [추천 알고리즘](../architecture/RECOMMENDATION_ALGORITHM.md) · [전체 테스트 기준](../engineering/TEST_STRATEGY.md)
 
-## 1. 역할 경계
+## 읽는 방법과 공통 완료 조건
 
-### Backend/AI가 끝까지 소유하는 것
+1. 실행 계획에서 현재 B단계를 고른 뒤 아래 BA 작업 카드를 읽는다. B번호는 개발 단계이고 Figma의 S번호와 다르다.
+2. 선행 BA 작업의 계약·구현·검증이 끝난 작업부터 진행한다. 선행 계약이 바뀌면 의존 작업을 재검토한다.
+3. 각 카드의 기능 ID에서 [기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md) → [Figma](../design/FIGMA_HANDOFF.md)/[소유권](../engineering/OWNERSHIP_MATRIX.md) → [OpenAPI](../api/openapi.yaml) → [ERD](../architecture/ERD.md)를 따른다. Figma는 새로 승인된 상태가 아니며 열린 FCR을 유지한다.
+4. 각 기능의 contract example→domain/DB→adapter/API→FE 생성 client→E2E를 같은 계약 SHA로 묶는다. 화면만의 분기·뒤로가기·접근성 기능은 BE가 인계 fixture와 API 미호출 조건을 제공하고 FE가 구현한다.
+5. 모든 카드의 완료는 코드·migration·example·tests·관측·fallback·문서와 FE 인계 검수까지 포함한다. 공통 HTTP/owner/CSRF/한도/멱등성/ETag/TTL 규칙은 [API 규칙](../api/README.md)과 [시스템 설계](../architecture/SYSTEM_ARCHITECTURE.md)를 상속한다.
 
-- `apps/api/**`: Spring module, HTTP adapter, domain policy, transaction, async job과 admin-free operations.
-- `docs/api/**`, `docs/contracts/**`: OpenAPI/event schema, canonical examples, error·pagination·idempotency 계약.
-- PostgreSQL schema, Flyway, index, owner authorization, ETag/version, deletion/tombstone와 retention.
-- 관광지·혼잡 source registry, KTO/서울 adapter, provenance, freshness, license, quota와 drift quarantine.
-- deterministic candidate generation/scoring, constraint/route/data validator, proposal/apply/revert 감사 기록.
-- LLM의 bounded preference parsing/explanation, prompt/output validation, kill switch와 비용/품질 계측.
-- API/unit/integration/contract/property/load/security test, structured log·metric·alarm.
-- Docker integration의 API/DB/source fixture와 AWS CDK/OIDC/ECS/RDS/rollback 운영.
-- 한국관광공사 OpenAPI 실제 호출과 심사 제출용 비밀 없는 데이터 활용 증거.
+### 상태 기록
 
-### Backend/AI가 소유하지 않는 것
+`planned → contract-ready → in-progress → integration-ready → verified` 순서로 기록한다. 외부 결정을 기다리면 `blocked`와 원인·안전한 기본값을, 이번 출시에서 제외하면 `deferred`와 기능 OFF 조건을 적는다. `verified`에는 실제 test report·commit/contract SHA·staging evidence가 필요하다. 이 문서 작성은 어떤 기능도 `verified`로 바꾸지 않는다.
 
-- Figma visual token, route layout, React state, focus/keyboard 구현과 최종 사용자 copy.
-- generated client 내부 직접 수정, MSW만을 위한 production response field.
-- 대표 화면·반응형·screen reader 품질의 최종 판정.
+작업 목록의 기계 판독 정본은 [backend-plan.json](../engineering/backend-plan.json)이다. 카드 제목/ID/기능/API/선행 조건/test ID와 JSON은 함께 수정하며 CI가 빠짐·중복·순서·링크를 검사한다. JSON에 구현 상태를 갱신할 때 카드에도 실제 증거를 남긴다. 세부 prose는 아래 카드가 정본이다.
 
-공개 response/error/data state는 FE가 실제 화면을 구현할 수 있어야 완료된다. Backend/AI가 계약 작성자라는 이유로 혼자 승인하지 않는다.
+### 항상 적용할 CI 계약
 
-## 2. Figma 52개 frame 제공표
+B01 이후 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest`(Gradle)와 `apps/ai` `pytest`(REC corpus)를 실제 Gradle/uv/Docker task로 등록한다. 각 카드의 T번호는 **구현할 acceptance test ID**이며 현재 test 파일이 존재한다는 뜻이 아니다. 테스트 이름/실행 경로/report를 구현 PR에서 연결한다. 필수 suite는 매 main PR에서 실행하며 skip·0건·report 누락·timeout은 실패다. P1/P2 구현 전에는 OFF 계약만 검증하고, 활성 범위로 선정되면 ON 기능 검증도 필수가 된다. [추천 CI 상세](../engineering/TEST_STRATEGY.md#12-추천-핵심-ci-상세)를 따른다.
 
-| 그룹 | Figma frame·화면 | Pri / ticket | Backend/AI 산출물 | operationId·server 경계 |
-| --- | --- | --- | --- | --- |
-| A | `388:257` A-1 splash | P0 / `BE-101` | owner/session/cookie/CSRF/readiness, 만료·재발급 | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner`, `getDemoReadiness` |
-| A | `388:277` A-2 언어 | P0 / `BE-105` | KO/EN validation·저장, JA/ZH 거부 | `updatePreferences` |
-| A | `388:321` A-3 소개 | P0 / `BE-105` | onboarding 상태 멱등 저장 | `updatePreferences` |
-| B | `391:310` S03-F0 여행 없음 feed | P0 / `BE-202` | empty trip과 feed를 분리한 cursor read | `listFeed`, `listTrips` |
-| B | `396:2926` S03-F1 활성 여행 feed | P0 / `BE-202` | active trip 후보/일정 projection | `listFeed`, `recordFeedFeedback` |
-| B | `398:611` S03-D 게시물 상세 | P0 / `BE-201`, `BE-204` | post/place/provenance, SavedPost 독립성 | `getPost`, `getPlace`, `savePost`, `unsavePost` |
-| B | `399:658` S03-C1 여행 선택 | P0 / `BE-203` | owner-scoped trips와 active trip | `listTrips` |
-| B | `399:843` S03-C2 저장 완료 | P0 / `BE-203` | candidate 201, unique key, 일정 무변경 | `addTripCandidate` |
-| B | `399:1011` S03-C3 중복 | P0 / `BE-203` | existing candidate 200, `duplicate=true` | `addTripCandidate` |
-| B | `399:1179` S03-C4 저장 오류 | P0 / `BE-203` | idempotent replay, Problem, 부분 row 0 | `addTripCandidate` |
-| B | `409:1595` S06 공통 저장 sheet | P0 / `BE-203` | feed/post/Live 동일 candidate 계약 | `listTrips`, `addTripCandidate` |
-| C | `438:3012` S02-1 날짜 | P0 / `BE-102` | range/timezone/최대 길이 server validation | `createTrip`, `updateTrip` |
-| C | `438:3108` S02-2 관심사 | P0 / `BE-102`, `BE-106` | canonical set, 중복·미지원 거부 | `createTrip`, `replaceTripInterests` |
-| C | `438:3134` S02-3 계획 수준 | P0 / `BE-102` | enum validation | `createTrip` |
-| C | `438:3158` S02-4B 필수 장소 | P0 / `BE-103` | bounded search, canonical POI, seed MUST_VISIT | `searchPlaces`, `getPlace` |
-| C | `400:1201` S02-4C 입력 방식 | P0 / `BE-104` consult | server 호출 없는 client 분기 명시 | capability only |
-| C | `401:1221` S02-4C-A 붙여넣기 | P0 / `BE-104` | no-store/no-log parser, versioned draft/remap | `parseTripImport`, `remapTripImport` |
-| C | `438:3199` S02-4C-C 직접 입력 | P0 / `BE-102`, `BE-103` | POI/date/order 재검증 | `searchPlaces`, `createTrip` |
-| C | `438:3259` S02-5C 확인 | P0 / `BE-102`, `BE-104` | idempotent create/confirm, 한 transaction | `createTrip`, `confirmTripImport` |
-| C | `384:5673` Final S02-5 결정적 draft | P0 / `BE-102` | 검증된 deterministic seed 일정 | `getTrip` |
-| C | `440:3244` S02-6 AI draft | P1 / `BE-P1-105` | bounded model, validator, evidence, kill switch | P1 계약/capability 후에만 |
-| D/E | `410:1738` S07-1 여행 보기 | P0 / `BE-301` | complete aggregate, ETag, candidate count | `getTrip`, `listTripCandidates` |
-| D/E | `411:1837` S07-2 편집 | P0 / `BE-302`, `BE-306` | atomic commands, version conflict, 범위 축소 충돌 | `updateTrip`, item mutations |
-| D/E | `527:4085` S07-2 시간 편집 | P0 / `BE-302`, `BE-304` | local time/duration validation, typed TIME lock | `updateTripItem`, constraint operations |
-| D/E | `412:1912` S07-8 후보 panel | P0 / `BE-301`, `BE-303` | ACTIVE/SCHEDULED, match, candidate→item transaction | `listTripCandidates`, `getCandidateTripMatches`, `addTripItem` |
-| D/E | `413:2020` S07-9 폐기 dialog | P0 / consult | UI-only draft가 server에 반영되지 않음을 보장 | API 호출 없음 |
-| D/E | `413:2081` S07-7 필수 lock 해제 | P0 / `BE-304` | MUST_VISIT만 제거, version + audit | `removeTripItemConstraint` |
-| D/E | `414:2347` S07-6 교체 비교 | P0 / `BE-305` | verified relation/provenance와 atomic replace | `listRelatedPlaces`, `replaceTripItem` |
-| D/E | `527:4537` S07-6 교체 비교 variant | P0 / `BE-305` | 같은 계약·긴 provenance | 위와 동일 |
-| D/E | `476:3409` S07-3 장소 검색 | P0 / `BE-103` | query bound, stable cursor, log redaction | `searchPlaces` |
-| D/E | `479:3497` S07-5 교체 대상 | P0 / `BE-305` | item owner/version/replace eligibility | `getTrip`, `listRelatedPlaces` |
-| D/E | `479:3816` S07-4 추가 완료 | P0 / `BE-302` | add transaction, unique position, version +1 | `addTripItem` |
-| D/E | `527:4380` S07-4 추가 완료 variant | P0 / `BE-301` | write 뒤 동일 read projection | `getTrip` |
-| D/E | `521:3976` S07-10 날짜 이동 | P0 / `BE-302` | range/position/lock 검증 | `updateTripItem`, `reorderTripItems` |
-| D/E | `527:4695` S07-10 날짜 이동 variant | P0 / `BE-302` | 같은 atomic command | 위와 동일 |
-| D/E | `527:3876` S07-10b 날짜 lock 확인 | P0 / `BE-304` | typed conflict와 명시적 해제 | constraint operations |
-| F | `415:2268` S09-0 최적화 설정 | P0 / `BE-501`~`BE-504` | ITEM run, input snapshot/fingerprint, lock validation | `createOptimization` |
-| F | `415:2413` S09-1 계산 중 | P0 / `BE-501` | persistent job lease/state, retry hint | `getOptimization` |
-| F | `439:3104` S09-D1 DAY preview | P1 / `BE-P1-105` | route matrix gate 전 capability OFF | P1 capability 후에만 |
-| F | `417:2412` S09-3 적용 완료 | P0 / `BE-505`, `BE-506` | version/fingerprint 재검증, apply/revert revision | `decideOptimization`, `revertOptimizationDecision` |
-| F/I | `417:2567` S09 오류 reference | P0 ref / `BE-503`, `BE-505` | 6 code와 정확한 sync/async 상태 | optimization operations/Problem |
-| F/I | `485:3517` stale reference | P0 ref / `BE-505` | `TRIP_CHANGED`/`DATA_CHANGED`, old preview 적용 차단 | `createOptimization`, `decideOptimization` |
-| G | `418:2523` S11-1 Live | P0 / `BE-401`~`BE-405` | area/places, 거친 viewport, source state | `queryLiveAreas`, `listLiveAreaPlaces` |
-| G | `419:2617` S11-2 장소 상세 | P0 / `BE-405` | full provenance/freshness/fallback | `getLivePlace`, `getPlaceCrowdForecast` |
-| G | `420:2821` S11-3 대안 | P0 / `BE-405` | relation reason와 pair comparison eligibility | `listRelatedPlaces` |
-| G | `420:2950` S11-N 대안 없음 | P0 / `BE-405` | relation `NONE`, 정직한 reason | `listRelatedPlaces` |
-| G | `421:2850` S11-R replay | P0 / `BE-401`, `BE-407` | immutable replay manifest/snapshot time | Live operations with `REPLAY` |
-| G | `501:3750` S11-4 재계획 진입 | P1 / `BE-P1-102` | DPIA/동의/TTL 전 capability OFF | P1 계약 전 위치 수신 금지 |
-| H | `422:2925` S14 프로필 | P0 / `BE-105`, `BE-106`, `BE-507` | owner/trip/history projection, interest ETag, deletion lifecycle | profile/trip/history/deletion operations |
-| H | `423:2967` S15 데이터 안내 | P0 / `BE-407` | source registry/capability의 public projection | `getDemoReadiness` 및 provenance-bearing reads |
-| H | `442:3344` S12 알림 | P1 / `BE-P1-101` | storage/retention/read-all/deep-link allowlist | notification operations |
-| H | `442:3370` S10 주변 | P1 / `BE-P1-102` | 최소화 위치, consent audit/TTL | P1 계약/capability 후에만 |
+### Migration과 운영 산출물
 
-## 3. operationId 제공 목록
+각 카드의 entity는 대상 테이블/정책 경계다. 실제 migration에는 owner FK, unique/check, query index, backfill/구버전 호환, TTL/삭제, restore tombstone 재적용을 적는다. field의 정확한 타입·nullable은 ERD/OpenAPI를 참조한다. 표에 없는 새 테이블을 추가하면 ERD부터 제안한다. 각 외부 adapter와 worker에는 지연·결과 개수·안전한 실패 code·재시도/쿼터·runbook 링크를 붙인다. 민감 body를 observability로 대신 저장하지 않는다.
 
-Backend/AI는 아래 50개 operationId의 request/response/error example, authorization, bounds, observability와 contract test를 제공한다.
+## B00 · 추천·계약 설계
 
-| Module | Backend/AI가 구현·보증할 operationId |
+첫 설계. 기능/API/ERD/FCR과 safety fixture를 확정한다.
+
+### BA-000
+
+**추천 설계와 전체 계약 기준선 확정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: 없음
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: API 0.2.1-rc.1 제안 · 이벤트 · 기능 ID · ERD · FCR · 추천 policy 초안
+
+구현 순서:
+
+1. X 공개 commit의 pipeline/filter/scorer 구조를 추천 문서에 고정하고 자체 여행 목적함수와 분리한다
+2. REC-CON-01~08, FCR-004/010/011/015와 기능별 request·error·example을 대조한다
+3. draft preview 계약 공백과 영업·route 증거 부족을 독립 결정으로 남기고 영향 기능의 FE 검토 순서를 정한다
+4. 09-06 PM 검토 PM-004, PM-006, PM-007, PM-008, PM-014, PM-021, PM-024의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #11 schema/example/InitialOptimizationDecision 제안과 #10 교차 결정의 FE 승인 상태를 기록한다
+
+실패·안전 경계: 새 public endpoint·reason field·학습 이벤트를 구현 속에 숨겨 추가하지 않는다. 내부 설계와 Accepted 계약을 구분한다.
+
+필수 검증:
+
+- `BA-000-T1`: OpenAPI operation 전체와 기능 ID 전체에 담당 task가 존재한다
+- `BA-000-T2`: 순서 DAG에 cycle이 없고 P0 Live 작업이 마지막 기능 단계다
+- `BA-000-T3`: scope별 target 및 decision별 revision union의 잘못된 example을 거부한다
+
+FE 인계·완료 증거: 검토할 schema diff·canonical examples·FCR evidence 요청·기능별 완료 조건. 디자인 파일을 실제 확인하기 전 FCR을 Closed로 바꾸지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-004, PM-006, PM-007, PM-008, PM-014, PM-021, PM-024.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+## B01 · 실행 기반·DB·상시 CI
+
+실제 scaffold와 full Docker gate를 함께 만든다.
+
+### BA-001
+
+**Spring 모듈 구조와 실행 도구 고정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-000](#ba-000)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: apps/api · apps/ai · Java 21 · Python 3.13/uv · Gradle wrapper · module interfaces · 내부 계약 v1
+
+구현 순서:
+
+1. 지원되는 Spring/Java/Gradle 조합을 확인해 정확한 버전·wrapper checksum·image digest를 고정한다
+2. 기능 package와 api/application/domain/infrastructure 의존 방향을 enforcement test로 제한한다
+3. API·web·client·lock·Docker stage와 version=1 marker를 같은 scaffold slice로 맞춘다
+4. 09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #10 D1~D4의 host·toolchain·image 제안을 FE와 합의한 뒤 실제 lock/stage에 반영한다
+
+실패·안전 경계: 빈 app 또는 성공만 반환하는 task로 full Docker 모드를 열지 않는다. recommendation domain(apps/ai의 domain·pipeline, Spring의 recommendation.domain)은 DB·HTTP·LLM을 호출하지 않는다. 추천 계산을 Spring에 중복 구현하지 않는다(ADR-0006).
+
+필수 검증:
+
+- `BA-001-T1`: 새 clone에서 고정 도구로 build하고 checksum 불일치는 실패한다
+- `BA-001-T2`: 다른 모듈 repository 직접 참조가 architecture test에서 실패한다
+- `BA-001-T3`: marker 뒤 필수 stage·task·digest 누락은 hard fail한다
+
+FE 인계·완료 증거: API 실행/health 주소, 버전 manifest, FE scaffold와 필요한 generation command. 실제 FE scaffold는 FE 인계물이다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-022.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+### BA-002
+
+**PostgreSQL·Flyway·트랜잭션 기반** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-001](#ba-001)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: baseline migration · idempotency_records · revision schema version
+
+구현 순서:
+
+1. 운영과 같은 PostgreSQL major의 Testcontainers와 Flyway migration 계정을 준비한다
+2. owner와 aggregate 중심 FK·unique·check·index를 각 기능 slice에서 추가하는 규칙을 만든다
+3. 공통 lock 순서와 version 증가 책임 하나를 정하고 빈 DB 및 이전 schema upgrade fixture를 만든다
+
+실패·안전 경계: 이미 적용된 Flyway 파일의 checksum을 수정하지 않는다. production data를 fixture로 사용하지 않는다.
+
+필수 검증:
+
+- `BA-002-T1`: 빈 DB와 직전 배포 schema에서 migration이 성공한다
+- `BA-002-T2`: check·unique·FK를 직접 SQL로 위반하면 거부된다
+- `BA-002-T3`: transaction 중간 장애는 전체 rollback하며 구버전 app 호환성이 유지된다
+
+FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범위, local seed/reset 명령. 숫자 migration version은 실제 구현 때 충돌 없이 부여한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-003
+
+**HTTP 공통 정책·readiness·capability** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-001](#ba-001), [BA-002](#ba-002)
+- 기능 ID: `FR-OPS-01`, `FR-OPS-02`, `FR-OPS-05`, `FR-OPS-10`
+- API: `getLiveness`, `getReadiness`, `getDemoReadiness` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: Problem Details · requestId · capability projection · health query
+
+구현 순서:
+
+1. body/enum/unknown field와 pagination 상한을 계약에서 검증하고 안전한 Problem mapper를 만든다
+2. liveness·DB readiness·선택 source readiness를 분리하며 server capability를 FE에 제공한다
+3. route template 기반 로그와 cookie·query·원문 redaction을 filter부터 적용한다
+4. 09-06 PM 검토 PM-019의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 선택 provider 장애로 liveness를 실패시키지 않는다. readiness가 없는 기능은 준비 완료로 광고하지 않는다. 안전 불변식 OFF flag는 금지한다.
+
+필수 검증:
+
+- `BA-003-T1`: DB/source 각각의 장애가 올바른 health 범위에만 영향을 준다
+- `BA-003-T2`: unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다
+- `BA-003-T3`: 모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다
+
+FE 인계·완료 증거: bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-019.
+
+### BA-004
+
+**계약 생성·중요 기능 상시 CI 구성** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: docs-contract · docker-integration/api-quality/ai-quality · api-quality/ai-quality GitHub workflow · test reports
+
+구현 순서:
+
+1. OpenAPI breaking diff·TS client 재생성·event AJV·문서 연결 검사를 고정한다
+2. API 단위·DB·contract·추천 safety(apps/ai pytest, ai-quality)·privacy suite를 docker-integration 안에 묶고, 경로 filter workflow api-quality/ai-quality는 조기 피드백으로만 둔다
+3. 필수 test ID report·실행 개수·skip·timeout·artifact 누락을 실패로 집계하는 runner를 실제 test와 함께 만든다
+4. 09-06 PM 검토 PM-008, PM-016, PM-018, PM-019, PM-021, PM-024의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #10 D2/D3 generator·schema·scan·infra gate 및 #11 타입/fixture 검증을 실제 tooling stage로 이전한다
+
+실패·안전 경계: 중요 기능 suite는 경로 필터와 관계없이 모든 main PR에서 실행한다. 구현 전 missing suite를 green placeholder로 대체하지 않는다.
+
+필수 검증:
+
+- `BA-004-T1`: 실패 test를 의도적으로 넣은 PR에서 두 required gate 중 해당 gate가 빨갛다
+- `BA-004-T2`: 0건 실행·skip·리포트 삭제·하위 command 실패 은폐를 거부한다
+- `BA-004-T3`: 외부 egress가 차단된 실제 Compose에서 fixture만으로 재현한다
+
+FE 인계·완료 증거: 생성 client 경로와 contract SHA, MSW 예시, API/FE report 연결 규칙. required check 이름은 정확히 두 개로 유지한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-008, PM-016, PM-018, PM-019, PM-021, PM-024.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+### BA-005
+
+**영속 job과 수집·추천·삭제 실행 격리** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: background_jobs · lease_until · locked_by · attempt · deduplication key
+
+구현 순서:
+
+1. 원자 claim·heartbeat·lease 만료 재인수·bounded retry·dead-letter를 구현한다
+2. collector·optimization·deletion executor와 동시 실행 budget을 분리한다
+3. 완료 쓰기에 현재 lease token/attempt 조건을 넣어 이전 worker의 늦은 결과를 차단한다
+
+실패·안전 경계: job payload는 domain ID만 저장한다. 외부 호출은 긴 DB lock 밖에서 한다. worker 재시작이 새 일정 mutation을 만들지 않는다.
+
+필수 검증:
+
+- `BA-005-T1`: 두 worker가 같은 job을 동시에 commit하지 못한다
+- `BA-005-T2`: lease 만료 후 이전 worker의 commit을 거부한다
+- `BA-005-T3`: poison job 재시도 상한과 삭제 우선 처리 중 API 지연 격리를 검증한다
+
+FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, polling·timeout은 취소가 아니라는 인계 설명. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-006
+
+**로컬 Docker와 최소 staging 기반** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
+- 기능 ID: `NFR-OPS-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: compose.integration.yml · ai service · infra/CDK · OIDC · immutable images
+
+구현 순서:
+
+1. 로컬 web→API→apps/ai→PostgreSQL hello와 seed를 단일 wrapper에 연결한다
+2. 승인된 계정·비용·domain이 준비되면 CDK network/data/API/web edge의 최소 staging을 만든다
+3. OIDC exact subject와 runtime secret 주입을 검증하고 deployment 역할과 관찰 역할을 나눈다
+4. 09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다
+
+실패·안전 경계: 계정·비용·secret 미확정은 외부 배포 blocker이며 로컬 구현까지 막지 않는다. 실제 설정·배포 완료를 문서만으로 표시하지 않는다.
+
+필수 검증:
+
+- `BA-006-T1`: 정규화 Compose의 internal network와 outbound-deny probe가 통과한다
+- `BA-006-T2`: frontend bundle·image layer·log에 secret이 없다
+- `BA-006-T3`: OIDC의 잘못된 repo/environment subject가 거부된다
+
+FE 인계·완료 증거: 로컬 URL·seed·staging environment 준비 상태와 안전한 public config 목록. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-022.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+## B02 · 익명 세션·프로필·삭제
+
+사용자 데이터가 생기기 전에 owner와 cleanup 경계를 닫는다.
+
+### BA-010
+
+**익명 owner·session·CSRF 복구** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
+- 기능 ID: `FR-ONB-01`, `FR-SES-01`, `FR-SES-02`, `FR-SES-03`, `NFR-SEC-01`
+- API: `createDemoSession`, `issueCsrfToken` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `388:257`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: owners · demo_sessions · demo_session_csrf_tokens
+
+구현 순서:
+
+1. __Host cookie·hash-only token·idle/absolute expiry·revocation으로 owner를 확정한다
+2. same-origin CSRF bootstrap와 tab별 독립 token 최대 5개를 구현한다
+3. valid cookie 재시도 수렴과 cookie 이전 orphan bootstrap 15분 cleanup을 구현한다
+4. 09-06 PM 검토 PM-017의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #10 D5의 최소 bootstrap을 B01에 인계하되 전체 세션 안전 경계 완료는 B02에서 검증한다
+
+실패·안전 경계: ownerId를 client가 정하지 않는다. 최초 bootstrap에 nullable-owner idempotency 예외를 만들지 않는다. 일반 mutation은 401 뒤 자동 재실행하지 않는다.
+
+필수 검증:
+
+- `BA-010-T1`: owner A/B/C 교차 조회·변경과 CSRF/Origin 위조를 거부한다
+- `BA-010-T2`: 새 tab token 발급이 기존 tab을 깨뜨리지 않고 최대 개수를 넘으면 계약 오류다
+- `BA-010-T3`: expiry·rotation·response loss 이후 안전한 bootstrap으로 복구한다
+
+FE 인계·완료 증거: 쿠키/헤더 examples, 최초/refresh/만료/두 tab E2E fixture와 401 복구 순서. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-017.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+### BA-011
+
+**프로필·locale·onboarding·active trip** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-010](#ba-010)
+- 기능 ID: `FR-ONB-02`, `FR-ONB-03`, `FR-PRO-01`, `FR-PRO-02`
+- API: `getCurrentOwner`, `updatePreferences` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `388:277`, `388:321`, `422:2925`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: owners.locale/timezone/onboarding_completed/active_trip_id
+
+구현 순서:
+
+1. KO/EN 선택·저장·재조회와 지원하지 않는 locale validation을 구현한다
+2. onboarding 완료와 active trip은 owner 범위로 갱신한다
+3. guest/login 준비 중·데이터 안내에 필요한 projection을 제공한다
+4. 09-06 PM 검토 PM-001, PM-002, PM-006, PM-017의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #10 D5의 getCurrentOwner 최소 읽기를 B01에 인계하고 locale/profile 전체 완료는 B02에서 검증한다
+
+실패·안전 경계: JA/ZH·정식 계정 로그인은 P0 요청을 보내지 않는 비활성 상태다. 다른 owner 또는 삭제된 trip을 active로 설정하지 못한다.
+
+필수 검증:
+
+- `BA-011-T1`: KO/EN 재조회·format fixture와 unsupported locale 거부를 검증한다
+- `BA-011-T2`: active trip owner 위조와 삭제된 trip 참조를 거부한다
+- `BA-011-T3`: onboarding 반복 완료가 중복 domain 효과를 만들지 않는다
+
+FE 인계·완료 증거: A-2/S14 정상·empty·disabled·refresh states; UI-only intro skip/route 복구는 FE 담당. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-001, PM-002, PM-006, PM-017.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+### BA-012
+
+**세션 삭제 receipt·TTL·복원 후 재삭제** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-005](#ba-005), [BA-010](#ba-010), [BA-011](#ba-011)
+- 기능 ID: `FR-OPS-09`, `FR-SES-04`
+- API: `deleteCurrentSession`, `getDeletionRequest` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: deletion_requests · deletion_tombstones · background_jobs · revoked session receipt
+
+구현 순서:
+
+1. 한 transaction으로 session/CSRF revoke·receipt·tombstone·job을 생성한다
+2. revoked cookie와 같은 key에 한해 24시간 동일 receipt를 재생하고 상태 header token은 7일만 허용한다
+3. owner별 삭제 대상 registry를 만들고 새 테이블·cache·학습 export 추가 때 cleanup을 함께 등록한다
+4. 09-06 PM 검토 PM-002, PM-017, PM-018의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 202는 접수이고 완료가 아니다. status token은 domain 읽기 권한이 없다. 삭제 중 새 데이터 생성과 worker 완료 쓰기를 차단한다.
+
+필수 검증:
+
+- `BA-012-T1`: 응답 유실 뒤 같은 receipt만 재생하고 revoked cookie의 다른 API는 401이다
+- `BA-012-T2`: 재시도·partial failure·owner 삭제 경합에서 데이터가 부활하지 않는다
+- `BA-012-T3`: backup 복원 뒤 tombstone 재적용 전 public traffic이 열리지 않는다
+
+FE 인계·완료 증거: S14 삭제 확인·상태 polling·receipt 분실/만료·부분 실패 예시. 보존 기간 안내는 privacy 문서와 동일하게 전달한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-017, PM-018.
+
+## B03 · 공통 데이터·KTO·장소·비교
+
+추천에 필요한 source·relation을 Live 탭과 분리한다.
+
+### BA-020
+
+**공통 source registry·adapter·쿼터·drift** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-005](#ba-005), [BA-010](#ba-010)
+- 기능 ID: `FR-DAT-04`, `FR-OPS-03`, `FR-OPS-04`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: source_registry revisions · collector_runs · api_ingest_logs · quality incidents
+
+구현 순서:
+
+1. 공식 source/operation·승인·license·schema·TTL·quota를 versioned registry에 기록한다
+2. HTTP timeout·bounded retry/jitter·429·circuit·request coalescing·hostname allowlist를 공통화한다
+3. schema/type/range/time drift와 공식 incident window를 검증해 quarantine한다
+
+실패·안전 경계: 외부 원문 body/URL/키를 log에 남기지 않는다. 미승인 source는 비활성이고 stale threshold가 미정이면 신선한 값으로 판정하지 않는다.
+
+필수 검증:
+
+- `BA-020-T1`: 429·timeout·malformed·추가 enum·incident window를 합성 provider로 검증한다
+- `BA-020-T2`: collector 중복 호출과 쿼터 초과를 차단하고 60/80/90% 경보를 낸다
+- `BA-020-T3`: provider 장애가 trip CRUD executor를 고갈시키지 않는다
+
+FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 대장. 서울 전용 adapter는 이 단계에서 구현하지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-021
+
+**KTO 실제 gateway와 provenance 증거** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-020](#ba-020)
+- 기능 ID: `FR-OPS-11`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: KTO 관광·집중률·연관 provider adapter · normalized cache · call-audit
+
+구현 순서:
+
+1. 승인된 KTO operation을 server-side로 호출해 transport/schema/semantic validation을 통과시킨다
+2. 필요한 POI·여행 범위만 read-through 또는 refresh하고 동일 series를 immutable set으로 묶는다
+3. release→provider operation→collector→provenanceId→화면 사용을 비밀 없는 audit로 연결한다
+4. 09-06 PM 검토 PM-010, PM-014, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #11 attributionShort·full credit·공식/이용조건 URL projection과 exact host 검토를 반영한다
+
+실패·안전 경계: 전체/장기 mirror는 별도 승인 전 하지 않는다. PR synthetic 성공은 실제 KTO 활용 증거가 아니다. 이미지 사용 권한은 텍스트 데이터 승인과 별도다.
+
+필수 검증:
+
+- `BA-021-T1`: 외부 key가 브라우저·log·artifact에 노출되지 않는다
+- `BA-021-T2`: 동일 요청 coalescing과 cache expiry 때 실제 refresh 경로를 fixture로 확인한다
+- `BA-021-T3`: staging 실제 KTO 성공 이력과 공개 응답 provenance가 연결되며 mock-only 증거는 release에서 실패한다
+
+FE 인계·완료 증거: 승인된 출처 텍스트·공식 URL·license URL·null 시각·provider별 field 설명, 실제 호출 증거 위치. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-014, PM-023.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+### BA-022
+
+**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-021](#ba-021)
+- 기능 ID: `FR-PLC-01`, `FR-TRC-04`
+- API: `searchPlaces`, `getPlace` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `438:3158`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: places · place_localizations · place_external_refs · asset_licenses
+
+구현 순서:
+
+1. 외부 ID의 canonical mapping·중복 병합·폐기된 POI 처리와 locale fallback을 구현한다
+2. 100자 bounded POST 검색·50개 page·signed owner/filter cursor와 N+1 없는 상세를 제공한다
+3. 출처·권리·영업 확인 근거를 보존하고 불명확 media는 placeholder로 축소한다
+4. 09-06 PM 검토 PM-010의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 검색어를 URL/log에 넣지 않는다. 관측하지 않은 영업시간·주소·이동 정보를 LLM으로 보충하지 않는다.
+
+필수 검증:
+
+- `BA-022-T1`: 동일 외부 ID 중복과 잘못된 canonical 참조를 차단한다
+- `BA-022-T2`: cursor 변조·다른 owner/filter·15분 만료를 거부한다
+- `BA-022-T3`: 검색 canary 비로그와 미승인 media 비노출을 검증한다
+
+FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
+
+### BA-023
+
+**혼잡 예보·시각·비교 적격성·데이터 안내** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-020](#ba-020), [BA-021](#ba-021), [BA-022](#ba-022)
+- 기능 ID: `FR-DAT-01`, `FR-DAT-02`, `FR-DAT-03`, `FR-DAT-04`, `FR-DAT-05`, `NFR-DATA-01`
+- API: `getPlaceCrowdForecast` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `423:2967`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: crowd_snapshots · snapshot_sets · crowd_comparisons · source registry
+
+구현 순서:
+
+1. LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE와 freshness를 서로 다른 타입으로 매핑한다
+2. temporal은 같은 POI/issue/metric, spatial은 같은 source/scope/group/set인 pair만 비교한다
+3. readiness와 데이터 안내에 source·license·officialUrl·licenseUrl·시각/null·reason을 투영한다
+4. 09-06 PM 검토 PM-010, PM-013, PM-014의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: provider 발표 시각이 없으면 observedAt=null이고 fetchedAt과 구분한다. 서로 다른 POI의 상대 집중률·AREA와 PLACE·ordinal 단계를 공통 숫자로 환산하지 않는다.
+
+필수 검증:
+
+- `BA-023-T1`: 6-state와 null provenance matrix 전체를 contract/property로 검증한다
+- `BA-023-T2`: mixed source/scope/issue/set·stale·replay·incident pair의 delta가 null이다
+- `BA-023-T3`: 최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다
+
+FE 인계·완료 증거: S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-013, PM-014.
+
+### BA-024
+
+**검증된 관련 장소와 추천 후보 검색** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-022](#ba-022), [BA-023](#ba-023)
+- 기능 ID: 해당 없음
+- API: `listRelatedPlaces` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: catalog.place_relations · relation evidence · RelatedPlaceRanker(apps/ai related/rank)
+
+구현 순서:
+
+1. 공식 direct relation과 canonical mapping을 검증하고 category 기반 약한 관계는 SIMILAR로 분리한다
+2. EXACT/SIMILAR/NONE/CHECKING/UNKNOWN 이유·유효기간·근거를 응답 계약에 매핑한다
+3. 후보 수집→보강→hard filter→결정적 정렬을 apps/ai의 순수 ranker에 gateway로 연결하고 Spring은 hydration·fallback(UNKNOWN)만 담당한다
+4. 09-06 PM 검토 PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 관계가 있다는 이유로 더 한산하거나 경로 가능하다고 말하지 않는다. 이 API에 없는 tripId/숨은 active trip을 ranking 입력으로 쓰지 않는다.
+
+필수 검증:
+
+- `BA-024-T1`: 중복 canonical 후보·만료 evidence·불확실 mapping을 구분한다
+- `BA-024-T2`: 입력 순서와 source 응답 순서가 바뀌어도 같은 결과다
+- `BA-024-T3`: CHECKING은 실제 처리 상태에만 사용하고 가짜 대안을 채우지 않는다
+
+FE 인계·완료 증거: 일정 교체와 나중 Live가 재사용할 공통 relation 예시. Live tab 모듈에 이 공통 테이블을 묶지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-020.
+
+## B04 · 여행·피드·피드백·후보
+
+발견→저장을 일정 변경 없이 완결한다.
+
+### BA-030
+
+**여행 생성·목록·결정적 초기 일정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-010](#ba-010), [BA-011](#ba-011), [BA-022](#ba-022)
+- 기능 ID: `FR-PRO-03`, `FR-TRC-01`, `FR-TRC-02`, `FR-TRC-03`, `FR-TRC-05`, `FR-TRC-08`, `FR-TRC-09`, `FR-TRC-10`, `FR-TRC-12`, `FR-TRP-01`
+- API: `listTrips`, `createTrip`, `getTrip` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `384:5673`, `400:1201`, `410:1738`, `422:2925`, `438:3012`, `438:3108`, `438:3134`, `438:3199`, `438:3259`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: trips · trip_interests · trip_items · initial revision · create idempotency
+
+구현 순서:
+
+1. 필수 start/end/timezone/planningLevel/interests와 optional title의 locale 기반 기본값을 구현한다
+2. 사용자가 확인한 canonical seed·날짜·순서·constraint를 한 transaction으로 생성한다
+3. owner 목록과 complete trip aggregate/ETag를 batch read로 제공한다
+4. 09-06 PM 검토 PM-004, PM-005, PM-006, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 빈 관심사 허용·30일/총100개/하루20개 상한을 지킨다. FR-TRC-10 추천 draft preview/read 공백은 REC-CON-04에서 계약 해결 후 제공하고 묵시적 일정을 생성하지 않는다.
+
+필수 검증:
+
+- `BA-030-T1`: 날짜 역전·초과·timezone/DST 경계와 기본 title/빈 관심사를 검증한다
+- `BA-030-T2`: 중복 create가 한 trip만 만들고 실패 시 부분 item/revision이 없다
+- `BA-030-T3`: owner 목록·complete view·wizard client-only 복구가 같은 계약을 따른다
+
+FE 인계·완료 증거: 수동 wizard·최종 확인·empty trip·generated draft 구분 예시. 새 draft API 필요 시 BA-000 계약 검토를 선행한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-004, PM-005, PM-006, PM-008.
+
+### BA-031
+
+**여행 metadata·관심사·삭제** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-030](#ba-030), [BA-012](#ba-012)
+- 기능 ID: `FR-PRO-05`, `FR-TRP-04`, `FR-TRP-05`
+- API: `updateTrip`, `deleteTrip`, `replaceTripInterests` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `411:1837`, `422:2925`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: Trip aggregate · interests · revisions · active_trip_id · deletion cascade
+
+구현 순서:
+
+1. 제목/기간/timezone/관심사 전체 교체마다 If-Match와 단일 version 증가를 적용한다
+2. 날짜 축소가 item/DATE/RESERVATION을 범위 밖으로 만들면 422로 전체 거절한다
+3. 삭제는 owner 재확인 후 하위 run/candidate/item을 지우고 active trip을 정리한다
+4. 09-06 PM 검토 PM-002, PM-006의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: timezone 변경 시 local wall-clock 보존 규칙을 지킨다. 후보 저장과 달리 관심사·metadata 변경은 기존 preview를 stale로 만든다.
+
+필수 검증:
+
+- `BA-031-T1`: 두 tab 갱신 경쟁에서 하나만 성공하고 최신 편집이 남는다
+- `BA-031-T2`: 기간 축소 실패가 item 이동·삭제·version 변경을 만들지 않는다
+- `BA-031-T3`: trip 삭제와 run 생성 경합 및 active trip 정리를 검증한다
+
+FE 인계·완료 증거: profile 관심사·기간 충돌·삭제/404·ETag 갱신 예시와 최신 상태 재조회 CTA. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-006.
+
+### BA-032
+
+**고정 feed·게시물·SavedPost** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-022](#ba-022), [BA-030](#ba-030)
+- 기능 ID: `FR-FED-01`, `FR-FED-02`, `FR-FED-03`, `FR-PST-01`, `FR-PST-02`
+- API: `listFeed`, `getPost`, `savePost`, `unsavePost` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `391:310`, `396:2926`, `398:611`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: posts · post_places · saved_posts · fixed feed cursor/read projection
+
+구현 순서:
+
+1. 게시 가능한 curated post와 canonical places를 조회하고 publishedAt/postId 고정 순서를 제공한다
+2. opaque cursor의 paging 일관성 정책을 정하고 page 내 owner 저장·selected-trip 상태를 batch hydrate한다
+3. SavedPost 저장/해제를 owner/post unique로 수렴시킨다
+4. 09-06 PM 검토 PM-001, PM-010, PM-011의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: P0 tripId는 candidate/scheduled 표시만 바꾸며 순위를 바꾸지 않는다. snapshot table이 필요하면 REC-CON-01/07 ERD·TTL·삭제 검토를 선행한다.
+
+필수 검증:
+
+- `BA-032-T1`: 페이지 사이 새 글·삭제·숨김·같은 정렬 시각에서 중복/누락 정책을 검증한다
+- `BA-032-T2`: 다른 owner의 저장 상태가 shared cache로 새지 않는다
+- `BA-032-T3`: save/unsave가 후보·item·trip version에 영향을 주지 않는다
+
+FE 인계·완료 증거: 여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-001, PM-010, PM-011.
+
+### BA-033
+
+**피드백·분석 이벤트 무결성** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-010](#ba-010), [BA-032](#ba-032)
+- 기능 ID: `FR-FED-04`, `FR-OPS-06`
+- API: `recordFeedFeedback`, `ingestEventBatch` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: feed_feedback · analytics_events · idempotency · server-bound owner/session
+
+구현 순서:
+
+1. IMPRESSION/OPEN/HIDE/LIKE/DISLIKE와 JSON Schema event allowlist를 각각 검증한다
+2. feedback minute dedup·receivedAt 기반 유효 상태와 HIDE 보존 의미를 계약 example으로 확정한다
+3. eventId dedup·batch50·90일 TTL·owner 삭제·품질 계측을 구현한다
+4. 09-06 PM 검토 PM-011, PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: client event는 실제 일정 변경·노출 인증·방문 증명이 아니다. impression lineage가 없는 P0 데이터로 개인화 모델을 학습시키지 않는다.
+
+필수 검증:
+
+- `BA-033-T1`: unknown property·위조 owner/session·좌표·원문 canary를 거부한다
+- `BA-033-T2`: 재전송·동시 LIKE/DISLIKE/HIDE가 정해진 상태로 수렴한다
+- `BA-033-T3`: analytics 장애가 제품 command를 실패시키지 않고 owner 삭제/TTL이 반영된다
+
+FE 인계·완료 증거: event emission 순간과 server transaction 진실의 차이, HIDE 갱신·금지 필드·오류 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-011, PM-016.
+
+### BA-034
+
+**여행 후보 저장·중복·dismiss** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-030](#ba-030), [BA-032](#ba-032)
+- 기능 ID: `FR-CAN-01`, `FR-CAN-02`, `FR-CAN-03`, `FR-CAN-04`, `FR-CAN-05`, `FR-CAN-06`
+- API: `listTripCandidates`, `addTripCandidate`, `removeTripCandidate` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `399:1011`, `399:1179`, `399:658`, `399:843`, `409:1595`, `412:1912`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: trip_candidates · candidate_sources · partial unique active trip/place
+
+구현 순서:
+
+1. 저장 출처별 post/place/trip owner·참조를 검증하고 ACTIVE candidate만 만든다
+2. partial unique와 idempotency로 201 생성/200 duplicate 응답을 분리한다
+3. ACTIVE→DISMISSED와 새 row 재저장, SCHEDULED 직접 삭제 거부를 구현한다
+4. 09-06 PM 검토 PM-009의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 후보는 날짜/시간 없이 저장하고 item 생성·trip version 증가가 없다. 다른 게시물의 같은 POI도 활성 후보 한 개로 수렴한다.
+
+필수 검증:
+
+- `BA-034-T1`: 두 tap·서로 다른 key 동시 요청·다른 post 같은 POI가 한 row로 수렴한다
+- `BA-034-T2`: 후보 저장 실패와 재시도에서 일정 미변경을 확인한다
+- `BA-034-T3`: DISMISSED 재저장·SCHEDULED 삭제 거부·owner 분리를 검증한다
+
+FE 인계·완료 증거: picker/201/duplicate/error/candidate count·status fixtures와 같은 key exact retry 방법. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-009.
+
+## B05 · 일정 편집·독립 잠금
+
+원자 command와 version 충돌을 먼저 검증한다.
+
+### BA-040
+
+**일정 item 추가·이동·수정·삭제·순서** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-031](#ba-031), [BA-034](#ba-034)
+- 기능 ID: `FR-ITM-01`, `FR-ITM-02`, `FR-ITM-03`, `FR-ITM-04`, `FR-ITM-05`, `FR-ITM-06`, `FR-TRP-02`, `FR-TRP-03`
+- API: `addTripItem`, `updateTripItem`, `removeTripItem`, `reorderTripItems` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `411:1837`, `412:1912`, `413:2020`, `476:3409`, `479:3816`, `521:3976`, `527:4085`, `527:4695`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: trip_items · trip_candidates linkage · trip_revisions · ordered positions
+
+구현 순서:
+
+1. 각 command에 owner·If-Match·기간·duration·상한·고정 조건을 검증한다
+2. candidate 일정화는 SCHEDULED linkage와 item/revision을 원자 반영한다
+3. reorder의 전체 대상·중복·날짜별 position을 검증하고 삭제 disposition별 후보 복원을 명시한다
+4. 09-06 PM 검토 PM-002, PM-003, PM-007, PM-008, PM-009의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 사용자 edit buffer는 서버 상태가 아니다. 실패·취소·dirty-exit가 domain mutation을 만들지 않는다. lock 관련 기능은 BA-041 통합 전 활성화하지 않는다.
+
+필수 검증:
+
+- `BA-040-T1`: cross-day reorder·position unique 경쟁·부분 실패에서 원자성이 유지된다
+- `BA-040-T2`: candidate schedule/RESTORE_CANDIDATE 전이가 item과 동시에 반영된다
+- `BA-040-T3`: 날짜·시간·duration·item 상한 경계와 keyboard E2E를 통과한다
+
+FE 인계·완료 증거: 편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-003, PM-007, PM-008, PM-009.
+
+### BA-041
+
+**네 종류 독립 잠금과 동시 편집 충돌** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-040](#ba-040)
+- 기능 ID: `FR-CON-01`, `FR-CON-02`, `FR-CON-03`, `FR-CON-04`, `FR-CON-05`, `FR-CON-06`, `NFR-DATA-02`
+- API: `setTripItemConstraint`, `removeTripItemConstraint` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `413:2081`, `527:3876`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: trip_constraints tagged types · TripCommand validation · revision
+
+구현 순서:
+
+1. MUST_VISIT/DATE/TIME/RESERVATION의 type별 필수/null/tolerance를 DB와 domain에 고정한다
+2. path type=body type과 source USER/IMPORT를 검증하고 잠금 해제는 해당 row 삭제로 표현한다
+3. 수동 edit·교체·optimizer가 같은 constraint validator를 재사용한다
+4. 09-06 PM 검토 PM-002, PM-003, PM-005, PM-007, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다.
+
+필수 검증:
+
+- `BA-041-T1`: 네 타입 조합 property test에서 독립 잠금이 보존된다
+- `BA-041-T2`: date/time/예약 위반 command와 stale If-Match를 거부한다
+- `BA-041-T3`: unlock 동시성·transaction rollback에서 다른 lock row/version이 보존된다
+
+FE 인계·완료 증거: 잠금 영향·해제 확인·LOCK_CONFLICT examples와 Figma state 연결. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-003, PM-005, PM-007, PM-008.
+
+### BA-042
+
+**후보 slot 판정·비교 후 장소 교체** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-024](#ba-024), [BA-040](#ba-040), [BA-041](#ba-041)
+- 기능 ID: `FR-CAN-07`, `FR-ITM-07`, `FR-ITM-08`
+- API: `getCandidateTripMatches`, `replaceTripItem` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `412:1912`, `414:2347`, `479:3497`, `527:4537`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: SlotEvaluator(apps/ai slots/evaluate) · CandidateMatchResult · atomic replacement · relation evidence
+
+구현 순서:
+
+1. 날짜별 canonical POI/영업/체류/이웃 이동/잠금을 검사해 eligible slot 또는 사유를 만든다
+2. 근거가 없으면 UNKNOWN, 실제 계산 중이면 CHECKING, 전부 불가면 NONE을 반환한다
+3. replacement는 최신 owner/version/관계/constraints를 다시 검증하고 item·candidate linkage·revision을 함께 변경한다
+4. 09-06 PM 검토 PM-007, PM-009, PM-014, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: query는 일정을 바꾸지 않는다. 관계 추천과 일정 실행 가능성은 별도이며 suggestedTime을 추정 사실로 만들어 넣지 않는다.
+
+필수 검증:
+
+- `BA-042-T1`: 날짜만 있는 slot/null time·DST·영업/route 결측을 구분한다
+- `BA-042-T2`: replace 중간 실패와 stale relation/version은 일정 미변경이다
+- `BA-042-T3`: MUST_VISIT/예약 잠금과 기존 candidate linkage가 일관되게 보존된다
+
+FE 인계·완료 증거: comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-007, PM-009, PM-014, PM-020.
+
+## B06 · 승인형 추천·최적화
+
+ITEM preview→APPLY/KEEP→24시간 REVERT를 구현한다.
+
+### BA-050
+
+**최적화 run·snapshot·polling** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-005](#ba-005), [BA-023](#ba-023), [BA-041](#ba-041)
+- 기능 ID: `FR-OPT-01`, `FR-OPT-03`, `FR-OPT-16`
+- API: `createOptimization`, `getOptimization` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `415:2268`, `415:2413`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: optimization_runs · background_jobs · run_snapshot_sets · route junctions
+
+구현 순서:
+
+1. ITEM target/inputTripVersion/includeCandidates=false를 검증하고 run+job을 원자 생성한다
+2. worker는 일관된 trip snapshot과 모든 근거 snapshot/policy hash를 고정하고 apps/ai items/propose를 DB transaction 밖에서 호출한다
+3. QUEUED→RUNNING→READY 또는 FAILED/EXPIRED와 Retry-After를 제공한다
+4. 09-06 PM 검토 PM-013, PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: DAY/TRIP union은 schema에 있어도 P0 capability OFF다. READY 저장 전에 owner/run lease/trip version을 재검증하고 TripItem 쓰기는 하지 않는다.
+
+필수 검증:
+
+- `BA-050-T1`: 잘못된 scope target 조합과 P1 capability 요청을 거부한다
+- `BA-050-T2`: job 유실·중복 worker·trip 삭제/편집 경합을 재현한다
+- `BA-050-T3`: refresh/polling 복구·만료·timeout에서 run 상태가 역행하지 않는다
+
+FE 인계·완료 증거: run URL·Retry-After·각 상태·expiry fixtures; client timeout이 cancellation이 아니라는 설명. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-013, PM-015.
+
+### BA-051
+
+**ITEM 후보 생성·검증·점수·설명** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-024](#ba-024), [BA-042](#ba-042), [BA-050](#ba-050)
+- 기능 ID: `FR-OPT-04`, `FR-OPT-05`, `FR-OPT-06`, `FR-OPT-12`, `FR-OPT-13`, `FR-OPT-14`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `417:2567`; FCR: `FCR-004`. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: recommendation policy-v1(apps/ai) · ProposalRevalidator · immutable proposals/changes/comparisons · validation summary
+
+구현 순서:
+
+1. X 단계 분리 원칙으로 같은 POI의 지원되는 날짜/시각 후보만 생성한다
+2. hard constraints와 comparison을 먼저 통과시킨 뒤 relief/changeCost 점수와 고정 tie-break로 최대3개를 선택한다
+3. 전체 resulting trip을 재검증하고 KO/EN 근거 template와 before/after를 저장한다
+4. 09-06 PM 검토 PM-013, PM-014, PM-015, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #11 최초 결정 APPLY/KEEP 응답과 서버 revertAvailability 계산·조회/변경 경합을 검증한다
+
+실패·안전 경계: 영업/이동 증거가 필요한데 없으면 ROUTE_UNAVAILABLE 또는 계약상 데이터 실패이며 NO_IMPROVEMENT로 숨기지 않는다. apps/ai 응답은 Spring ProposalRevalidator를 통과한 뒤에만 저장하고 위반은 run FAILED와 alert다. 점수와 후보 개수/예산은 초안이고 성능 주장이 아니다.
+
+필수 검증:
+
+- `BA-051-T1`: REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다
+- `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다
+- `BA-051-T3`: 수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다
+
+FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-013, PM-014, PM-015, PM-020.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+### BA-052
+
+**APPLY·KEEP의 멱등 원자 결정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-050](#ba-050), [BA-051](#ba-051)
+- 기능 ID: `FR-OPT-07`, `FR-OPT-08`, `FR-OPT-10`, `FR-OPT-11`, `FR-OPT-15`
+- API: `decideOptimization` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `417:2567`, `485:3517`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: optimization_decisions · TripCommand · revisions · idempotency response
+
+구현 순서:
+
+1. 완료 idempotency replay를 먼저 분기하고 새 결정은 trip/run/정책 generation을 정해진 순서로 잠근다
+2. version·fingerprint·freshness·incident·expiry·lock·proposal 소속을 다시 검증한다
+3. APPLY는 item/revision/decision/response를 한 transaction에, KEEP은 decision만 기록한다
+4. 09-06 PM 검토 PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 한 run 최초 결정은 최대 하나다. owner 삭제·source incident 갱신과 경쟁을 DB에서 순서화한다. 이후 편집 후 같은 key replay는 원래 응답을 반환하고 다시 적용하지 않는다.
+
+필수 검증:
+
+- `BA-052-T1`: 동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다
+- `BA-052-T2`: 각 쓰기 지점 fault injection으로 부분 적용0을 확인한다
+- `BA-052-T3`: TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다
+
+FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-015.
+
+### BA-053
+
+**24시간 REVERT·최적화 이력** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-052](#ba-052)
+- 기능 ID: `FR-OPT-09`, `FR-PRO-04`
+- API: `revertOptimizationDecision`, `listOptimizationHistory` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `417:2412`, `422:2925`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: immutable trip revision · reverted_decision_id unique · history cursor
+
+구현 순서:
+
+1. APPLY의 decidedAt+24h를 revertUntil로 고정하고 현재 trip version이 APPLY 결과와 같은지 확인한다
+2. 한 번만 이전 snapshot을 새 revision으로 복원하고 REVERT decision을 기록한다
+3. profile history는 status/scope/time/decision/run 링크만 owner-scoped cursor로 제공한다
+4. 09-06 PM 검토 PM-002, PM-009, PM-015, PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. #11 APPLIED refresh·preview TTL 분리·24시간 undo 만료와 metadata 보존을 검증한다
+
+실패·안전 경계: KEEP/REVERT를 다시 되돌리지 않는다. 24시간 만료는 410 REVERT_WINDOW_EXPIRED다. 이력 때문에 일정·proposal 본문을 복제하거나 보존을 늘리지 않는다.
+
+필수 검증:
+
+- `BA-053-T1`: 24시간 직전/정각/이후·두 요청 경쟁·같은 key replay를 검증한다
+- `BA-053-T2`: 후속 metadata/관심사/item 편집이 있으면 revert를 거부한다
+- `BA-053-T3`: history owner/filter/expiry cursor와 trip 삭제 cascade를 검증한다
+
+FE 인계·완료 증거: undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-009, PM-015, PM-016.
+
+이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+## B07 · 붙여넣기 import
+
+핵심 일정 도메인을 재사용해 P0 import를 완결한다.
+
+### BA-060
+
+**붙여넣기 parse·remap·confirm** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-012](#ba-012), [BA-022](#ba-022), [BA-030](#ba-030), [BA-040](#ba-040), [BA-041](#ba-041)
+- 기능 ID: `FR-TRC-06`, `FR-TRC-07`, `NFR-PRV-01`
+- API: `parseTripImport`, `remapTripImport`, `confirmTripImport` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `401:1221`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: itinerary_import_drafts structured only · version · import constraints
+
+구현 순서:
+
+1. 브라우저 parser 보조를 위해 20000자 bounded 원문을 요청 메모리에서만 처리한다
+2. canonical suggestions와 짧게 제한한 unresolved token을 구조화하고 NEEDS_REVIEW↔READY·ETag remap을 제공한다
+3. confirm은 READY·TTL·If-Match·owner·POI/날짜/lock을 재검증해 trip과 items를 한 transaction으로 만든다
+4. 09-06 PM 검토 PM-005, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 원문·자유 메모·연락처가 unresolved token/exception/job/response에 그대로 남지 않게 allowlist 추출한다. 외부 LLM에 원문을 보내지 않고 24시간 draft TTL을 둔다.
+
+필수 검증:
+
+- `BA-060-T1`: 고유 원문 canary가 DB/cache/log/trace/event/response에 없다
+- `BA-060-T2`: stale remap/confirm·만료·미해결 매핑·중복 confirm은 부분 trip을 만들지 않는다
+- `BA-060-T3`: parser 날짜·한영 장소·모호한 시간·100item/10suggestion 경계를 검증한다
+
+FE 인계·완료 증거: parse warning/review/remap/confirm·만료 fixtures와 원문 제외 refresh 복구. 수동 입력 fallback은 계속 유지한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-005, PM-008.
+
+## B08 · 보안·성능·AWS·핵심 검수
+
+운영을 검증하고 Live 이전 중간 gate를 닫는다.
+
+### BA-070
+
+**전체 권한·privacy·부하·접근성 통합** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-006](#ba-006), [BA-012](#ba-012), [BA-033](#ba-033), [BA-034](#ba-034), [BA-042](#ba-042), [BA-053](#ba-053), [BA-060](#ba-060)
+- 기능 ID: `NFR-A11Y-01`, `NFR-A11Y-02`, `NFR-AVL-01`, `NFR-PERF-01`, `NFR-PERF-02`, `NFR-RESP-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: authorization matrix · query plans · load fixtures · component/E2E report
+
+구현 순서:
+
+1. 모든 owner resource·CSRF·CORS·body/rate·SSRF·safe error matrix를 실제 PostgreSQL/API로 수행한다
+2. 고정 규모와 concurrency·cache 조건에서 p95/queue/SLO를 측정하고 N+1·lock wait·pool을 조정한다
+3. FE와 KO/EN·360/768/1280·200%zoom·keyboard·offline 핵심 흐름을 통합한다
+4. 09-06 PM 검토 PM-024의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다.
+
+필수 검증:
+
+- `BA-070-T1`: 다른 owner/expired session/source 장애 조합의 핵심 CRUD가 안전하다
+- `BA-070-T2`: redaction canary와 API 응답 PII·secret denylist가 0이다
+- `BA-070-T3`: 고정 부하 budget·핵심 keyboard/a11y E2E·P1 OFF variants를 통과한다
+
+FE 인계·완료 증거: 오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-024.
+
+### BA-071
+
+**AWS 배포·불변 artifact·롤백** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-006](#ba-006), [BA-070](#ba-070)
+- 기능 ID: `FR-OPS-08`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: CDK stacks · release manifest(api/ai image digest) · ECS api/ai services · S3 artifacts · single migration task
+
+구현 순서:
+
+1. private RDS/ECS·CloudFront/OAC·origin bypass 차단·최소 IAM/WAF를 검증한다
+2. 동일 image(api, ai)/client/contract/DB/CDK digest를 staging→production에 승격하고 migration 동시성1/DB lock을 적용한다
+3. 이전 호환 API image와 web artifact 복구를 실제 staging에서 연습한다
+4. 09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: production 비용·계정·domain·상대 승인이 없는 실제 배포는 금지한다. destructive DB down migration을 자동 rollback으로 실행하지 않는다.
+
+필수 검증:
+
+- `BA-071-T1`: 직접 ALB/S3/RDS 접근과 잘못된 OIDC subject가 거부된다
+- `BA-071-T2`: 동시에 두 deploy/migration이 실행되지 않는다
+- `BA-071-T3`: 같은 manifest artifact만 승격되고 rollback 뒤 핵심 smoke가 통과한다
+
+FE 인계·완료 증거: 공개 config·release/contract SHA·이전 rollback target과 staging acceptance URL. UI artifact 확인은 FE 담당. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-022.
+
+### BA-072
+
+**복원·삭제 재적용·alarm·사고 대응** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-012](#ba-012), [BA-020](#ba-020), [BA-071](#ba-071)
+- 기능 ID: `FR-OPS-07`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: RDS PITR · backup retention · tombstone replay · CloudWatch alarm/contact
+
+구현 순서:
+
+1. backup14일 기준과 RPO/RTO 목표를 실제 restore로 측정한다
+2. public traffic 전에 tombstone 재적용·삭제 검증을 수행하고 실패 시 닫힌 상태를 유지한다
+3. source/quota/queue/security/budget alarm의 실제 primary/secondary 수신과 tabletop을 검증한다
+
+실패·안전 경계: 연락망·restore·alarm 수신 증거가 없는 상태를 운영 준비 완료로 표시하지 않는다. tombstone은 backup 최대 보존보다7일 이상 길게 보존한다.
+
+필수 검증:
+
+- `BA-072-T1`: 삭제 이전 backup 복원 후 해당 owner가 재노출되지 않는다
+- `BA-072-T2`: 부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다
+- `BA-072-T3`: 수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 재현한다
+
+FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-073
+
+**핵심 흐름 검수와 제출 증거 기반** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-021](#ba-021), [BA-053](#ba-053), [BA-060](#ba-060), [BA-070](#ba-070), [BA-071](#ba-071), [BA-072](#ba-072)
+- 기능 ID: `FR-OPS-12`, `NFR-CMP-01`, `NFR-CMP-02`, `NFR-CMP-03`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: contest evidence ledger · release manifest · actual KTO operation set
+
+구현 순서:
+
+1. 익명 외부 HTTPS에서 생성→KTO탐색→후보→일정화→preview→APPLY/KEEP/REVERT를 검수한다
+2. 실제 KTO call과 화면 attribution·source state·PDF 기능 목록을 같은 release에 연결한다
+3. Live 이전에는 핵심 흐름 준비만 판정하고 전체 P0·최종 제출 검수는 BA-092 뒤 다시 수행한다
+4. 09-06 PM 검토 PM-001, PM-014, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 공모전 profile geolocation은 OFF다. 아직 꺼진 Live·P1·모델을 구현/분산효과 성과로 제출하지 않는다. 공식 일정은 최신 공지 재확인 대상이다.
+
+필수 검증:
+
+- `BA-073-T1`: 외부망 익명창에서 로그인 없이 핵심 흐름이 완결된다
+- `BA-073-T2`: mock-only KTO audit·출처 누락·위치 요청이 release gate에서 실패한다
+- `BA-073-T3`: PDF actual feature/API 목록과 runtime capability가 일치한다
+
+FE 인계·완료 증거: 검증된 화면·호출 operation·evidence ID·미완성 기능 목록. 최종 제출 go/no-go는 Live 이후 공동 확인한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-001, PM-014, PM-023.
+
+## B09 · 선택 확장 검토
+
+P1/P2 중 이번 범위에 명시적으로 선정한 작업만 실행한다. 미선정은 deferred.
+
+### BA-080
+
+**독립 검색·feed filter와 정렬 확장** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-032](#ba-032), [BA-033](#ba-033), [BA-073](#ba-073)
+- 기능 ID: `FR-FED-05`, `FR-SRC-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: proposed search/filter/sort contract · index · cursor policy version
+
+구현 순서:
+
+1. 검색 지표와 사용자 요구로 필요한 filter만 선택해 OpenAPI/Figma를 제안한다
+2. 새 filter/sort를 cursor·owner·query hash에 결합하고 index/실행 계획을 검증한다
+3. 필터별 empty/unknown/비교 불가와 flag OFF를 정의한다
+
+실패·안전 경계: KTO 다른 POI 상대 집중률·서울 ordinal 혼잡을 공통 낮은 순으로 정렬하지 않는다. 검색 기록 영속은 privacy 승인 전 추가하지 않는다.
+
+필수 검증:
+
+- `BA-080-T1`: filter 전환 시 이전 cursor가 무효화된다
+- `BA-080-T2`: source 혼합 순위와 민감 query logging을 거부한다
+- `BA-080-T3`: OFF state에서는 새 UI/API 호출이 없다
+
+FE 인계·완료 증거: 새 계약 승인 후 생성 client·필터 examples·성능 보고서. 기본 P0 feed 순서는 그대로 버전 관리한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-081
+
+**계정 인증·익명 승계·follow graph** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-010](#ba-010), [BA-012](#ba-012), [BA-031](#ba-031), [BA-033](#ba-033), [BA-073](#ba-073)
+- 기능 ID: `FR-AUT-01`, `FR-FOL-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `422:2925`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: proposed accounts/identities/follows · merge journal · recovery policy
+
+구현 순서:
+
+1. provider·계정 복구·인증/승계 API와 개인정보 정책을 먼저 결정한다
+2. 양 owner 소유권을 재검증해 중복 SavedPost/candidate/trip·active trip·삭제 상태를 원자적으로 승계한다
+3. privilege 전환 session rotation 후 follow/unfollow와 feed 계약을 별도 검증한다
+
+실패·안전 경계: 기존 익명 데이터를 로그인만으로 타 계정에 붙이지 않는다. 삭제 진행 owner 병합 금지·재시도/충돌 정책을 정의하고 P0 login은 계속 OFF다.
+
+필수 검증:
+
+- `BA-081-T1`: 계정 탈취·fixation·승계 replay/중간 장애·동시 로그인에서 소유권이 보존된다
+- `BA-081-T2`: 동일 POI 후보·follow 중복/blocked target을 계약대로 처리한다
+- `BA-081-T3`: 계정 삭제가 분석·추천 export와 follow graph까지 적용된다
+
+FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 following feed empty/disabled fixtures. 새로운 endpoint는 모두 proposed다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-082
+
+**게시물·미디어 업로드·moderation** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-081](#ba-081), [BA-022](#ba-022), [BA-071](#ba-071)
+- 기능 ID: `FR-PUB-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: proposed upload intents/assets/post states · moderation/audit · S3 quarantine
+
+구현 순서:
+
+1. 작성 권한·업로드 presign 범위·크기/형식/TTL·license attest 계약을 만든다
+2. 격리 업로드→검증/검토→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
+3. MIME/magic bytes·악성 파일·EXIF·권리·신고/삭제 전파를 검증한다
+
+실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다.
+
+필수 검증:
+
+- `BA-082-T1`: 타 owner presign 재사용·경로 조작·크기 초과·format spoof를 거부한다
+- `BA-082-T2`: moderation 전 공개0과 실패 cleanup을 검증한다
+- `BA-082-T3`: 삭제/권리 철회가 기존 cursor·cache에서도 반영된다
+
+FE 인계·완료 증거: upload 진행/취소/만료·검토/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-083
+
+**경로 provider·DAY/TRIP 최적화** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-051](#ba-051), [BA-052](#ba-052), [BA-073](#ba-073)
+- 기능 ID: `FR-OPT-02`, `FR-RTE-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `439:3104`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: route_matrix_snapshots · time windows · scope-specific optimizer policy
+
+구현 순서:
+
+1. provider/약관/쿼터/이동수단·오차/TTL·데이터 전송 범위를 먼저 확정한다
+2. directed matrix의 누락/비대칭·영업 예외·예약 time window를 검증한다
+3. bounded search로 DAY/TRIP 후보와 route evidence를 만들고 기존 preview/decision engine으로 적용한다
+
+실패·안전 경계: 거리/속도로 임의 travel time을 성공 경로로 간주하지 않는다. 계산 budget 초과는 검증된 부분 해 또는 명확한 실패이며 잠금 완화는 없다.
+
+필수 검증:
+
+- `BA-083-T1`: 불가능한 구간·비대칭·time window·모든 잠금 조합을 검증한다
+- `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
+- `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
+
+FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union examples와 provider attribution. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-084
+
+**선호 해석·AI draft 보조·근거 설명** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-051](#ba-051), [BA-060](#ba-060), [BA-073](#ba-073)
+- 기능 ID: `FR-TRC-11`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `440:3244`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: proposed bounded preference schema · AI_PROVIDER=OPENAI adapter(apps/ai) · model/prompt version · evidence templates
+
+구현 순서:
+
+1. 모델 목적·입출력 allowlist·비용/token/timeout·외부 전송 정책을 정한다
+2. LLM은 선호 해석과 검증된 evidence 문장만 만들고 canonical 조회·영업·route·잠금은 서버가 판정한다
+3. hallucination/prompt injection corpus·KO/EN 검증·template fallback·kill switch를 구현한다
+
+실패·안전 경계: 원문 일정/정밀 위치/secret·DB mutation/APPLY tool을 모델에 주지 않는다. structured ID·수치·사실 검증 실패는 template fallback이며 조용한 자동 일정 변경은0이다.
+
+필수 검증:
+
+- `BA-084-T1`: 유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다
+- `BA-084-T2`: timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다
+- `BA-084-T3`: user approval 전 trip mutation0과 model OFF 핵심 흐름을 검증한다
+
+FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-085
+
+**알림 목록·읽음·대상 유효성** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-053](#ba-053), [BA-073](#ba-073)
+- 기능 ID: `FR-NOT-01`, `FR-NOT-02`
+- API: `listNotifications`, `markNotificationRead`, `markAllNotificationsRead` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `442:3344`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: notifications · allowlisted deep_link · read_at · event delivery dedup
+
+구현 순서:
+
+1. 알림 type·생성 trigger·중복 key·보존 정책을 정한다
+2. 목록/unread count·개별 읽음·모두 읽음을 owner 단위 원자 처리한다
+3. 내부 상대경로만 허용하고 삭제된 trip/run의 알림은 안전하게 축소한다
+4. 09-06 PM 검토 PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: REPLAY로 지금 혼잡 alert를 보내지 않는다. 외부 push/email 채널은 별도 계약이며 목록 구현만으로 발송 기능을 켜지 않는다.
+
+필수 검증:
+
+- `BA-085-T1`: 모두 읽음 반복/동시 새 알림의 기준 시점을 검증한다
+- `BA-085-T2`: scheme/host/query/fragment·타 owner deep link를 거부한다
+- `BA-085-T3`: OFF·삭제된 target·90일/read30일 TTL을 검증한다
+
+FE 인계·완료 증거: S12 unread/empty/read-all·삭제 대상 fallback fixtures, client N개 mutation 대신 단일 operation. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-016.
+
+### BA-086
+
+**영문 POI coverage·번역 품질** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-022](#ba-022), [BA-073](#ba-073)
+- 기능 ID: `FR-LOC-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: place_localizations · source locale provenance · translation revision
+
+구현 순서:
+
+1. EngService 등 승인된 영문 source와 canonical ID 연결 품질을 확인한다
+2. 누락 시 원문 fallback과 번역 출처를 명시한다
+3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
+
+실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
+
+필수 검증:
+
+- `BA-086-T1`: 동일 POI 언어별 ID/날짜/수치 parity를 검증한다
+- `BA-086-T2`: 누락 번역 fallback·출처·권리 표기가 유지된다
+- `BA-086-T3`: source 변경/삭제 때 오래된 번역 노출을 차단한다
+
+FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-087
+
+**개인화 계측·학습·평가·실험** — P2 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-033](#ba-033), [BA-051](#ba-051), [BA-073](#ba-073)
+- 기능 ID: `FR-ML-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: proposed impression lineage · feature/label dataset · model registry · experiment assignment
+
+구현 순서:
+
+1. served와 viewed·action을 owner/snapshot/policy에 연결할 계약·보존·삭제 lineage부터 만든다
+2. 규칙→검증 집계→선형/트리 baseline을 시간 분리·point-in-time feature join으로 비교한다
+3. 충분한 표본과 품질 기준 후 shadow→소규모 실험→확대하며 정책 rollback을 고정한다
+
+실패·안전 경계: 데이터가 적으면 P0로 유지한다. 미노출을 negative로 쓰거나 CTR만으로 overtourism 개선을 주장하지 않는다. 노출 확률이 없으면 IPS 인과 개선 주장을 하지 않는다.
+
+필수 검증:
+
+- `BA-087-T1`: 위조 노출·미성숙 label·미래 feature/동일 owner 누수를 차단한다
+- `BA-087-T2`: 삭제 owner가 export·feature·모델 lineage에 추적되고 제거된다
+- `BA-087-T3`: 고정 holdout 품질·calibration·segment·지연·safety 기준과 실험 중단 조건을 검증한다
+
+FE 인계·완료 증거: 계측 schema·attribution window·동의 정책·평가표. P2 model이 없어도 Live P0로 진행 가능하다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-088
+
+모델 분리는 BA-087의 데이터·평가 결과를 추가로 확인한다. worker 분리는 모델 학습 완료를 선행 조건으로 요구하지 않는다. 추천 계산 서비스 분리는 [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)으로 P0에 선행 결정됐으므로 이 카드는 worker 분리와 학습 모델 service만 다룬다.
+
+**worker·추천/예측 service 분리** — P2 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-005](#ba-005), [BA-070](#ba-070)
+- 기능 ID: `FR-ML-02`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: proposed SQS/worker or model service · versioned inference protocol · delivery/outbox
+
+구현 순서:
+
+1. queue p95>30초 지속·lease DB부하10%·독립 scaling 요구 등 측정 trigger를 확인한다
+2. 분리 대상만 protocol/version·auth·timeout·dedup·outbox·rollback을 설계한다
+3. shadow parity·부하·장애 격리를 검증한 후 점진 전환한다
+
+실패·안전 경계: 측정 근거 없이 Redis/Kafka/대규모 transformer를 필수로 만들지 않는다. 분산 이벤트가 APPLY의 단일 DB 원자성을 대신하지 않는다.
+
+필수 검증:
+
+- `BA-088-T1`: 중복/역순 delivery·network partition·old/new model version 호환을 검증한다
+- `BA-088-T2`: service 장애 시 기존 결정적 경로로 fallback한다
+- `BA-088-T3`: owner 삭제·snapshot lineage·trace redaction이 경계를 넘어 유지된다
+
+FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 examples·비용·운영 분리 ADR. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+## B10 · Live 최종 기능 단계
+
+서울 adapter→Live API/탭→replay→전체 P0 gate. 위치 확장은 별도 선택이다.
+
+### BA-090
+
+**마지막 단계: 서울 Live adapter·area 매핑** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-020](#ba-020), [BA-023](#ba-023), [BA-024](#ba-024), [BA-073](#ba-073)
+- 기능 ID: `FR-LIV-08`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: Seoul adapter · live_areas · mapping policy · quality incident registry
+
+구현 순서:
+
+1. 서울 전용 operation·공공누리 제1유형·공식 URL/attribution·품질 공지를 재확인한다
+2. 승인된 area만 bounded 수집하고 observation/issue/freshness를 보존한다
+3. AREA→PLACE mapping 확실성·coverage·fallback을 표현하고 미지원 POI는 UNAVAILABLE로 반환한다
+4. 09-06 PM 검토 PM-012, PM-013의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: AREA 관측을 POI 실측으로 바꾸지 않는다. map provider 결정은 목록형 Live의 선행 조건이 아니다. 공통 source 인프라는 B03을 재사용한다.
+
+필수 검증:
+
+- `BA-090-T1`: Seoul XML/JSON fixture의 drift·429·incident·stale을 검증한다
+- `BA-090-T2`: coverage 없는 POI를0 또는 임의 AREA 값으로 채우지 않는다
+- `BA-090-T3`: source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다
+
+FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-012, PM-013.
+
+### BA-091
+
+**Live 탭 API·장소 검색·대안·후보 저장** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-090](#ba-090), [BA-034](#ba-034), [BA-042](#ba-042)
+- 기능 ID: `FR-LIV-01`, `FR-LIV-02`, `FR-LIV-03`, `FR-LIV-04`, `FR-LIV-05`, `FR-LIV-06`, `FR-LIV-09`, `FR-LIV-11`
+- API: `queryLiveAreas`, `listLiveAreaPlaces`, `getLivePlace` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `418:2523`, `419:2617`, `420:2821`, `420:2950`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: LiveQuery · coarse viewport · catalog relation reuse · candidate source LIVE
+
+구현 순서:
+
+1. 목록 우선 area query와 선택 유지·area별 place·Live detail projection을 만든다
+2. searchPlaces→canonical 선택→getLivePlace coverage 흐름을 연결한다
+3. relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다
+4. 09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.
+
+필수 검증:
+
+- `BA-091-T1`: viewport exact/oversized/invalid·owner cursor·검색 coverage를 검증한다
+- `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
+- `BA-091-T3`: Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다
+
+FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-012, PM-013, PM-020.
+
+### BA-092
+
+**Live replay·장애 fallback·전체 P0 최종 gate** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-091](#ba-091)
+- 기능 ID: `FR-LIV-07`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `421:2850`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: replay_manifests · replay_manifest_entries · checksums · final evidence ledger
+
+구현 순서:
+
+1. 승인 출처·scrub·capture window·checksum·entry order가 고정된 replay manifest를 검증한다
+2. LIVE/REPLAY/STALE/UNAVAILABLE 전환과 persistent badge를 FE에 연결한다
+3. BA-073 핵심 검수를 Live 포함 전체 P0로 재실행하고 같은 release의 PDF/API/실제 KTO 증거를 갱신한다
+4. 09-06 PM 검토 PM-013, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: replay는 실제 현재값/분산 성과/실제 KTO 호출 증거가 아니다. 이 단계 이후는 출시 검증·회귀 수정이며 새 비Live 기능은 다음 범위로 별도 선정한다.
+
+필수 검증:
+
+- `BA-092-T1`: checksum/manifest 누락·capture window 밖·scrub 실패 replay를 거부한다
+- `BA-092-T2`: live↔replay 전환에서 데이터 namespace·label·comparison이 섞이지 않는다
+- `BA-092-T3`: 전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다
+
+FE 인계·완료 증거: 최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-013, PM-023.
+
+### BA-093
+
+**Live 이후 위치 동의·주변·재계획 확장** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-091](#ba-091), [BA-092](#ba-092)
+- 기능 ID: `FR-LIV-10`, `FR-NBY-01`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `442:3370`, `501:3750`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: proposed consent/minimized location request · nearby query · preview-only replan
+
+구현 순서:
+
+1. 위치 목적·정밀도·일회성/철회·TTL·외부 전송·법무 검토를 먼저 닫는다
+2. 가능한 area/grid 수준으로 축소하고 거부/미지원은 목록·수동 검색으로 복구한다
+3. 재계획은 검증된 proposal만 만들고 동일 APPLY 승인 경계를 유지한다
+4. 09-06 PM 검토 PM-012의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+
+실패·안전 경계: 공모전 profile에는 활성화하지 않는다. background 위치 수집이나 서버 영구 위치 저장을 기본으로 넣지 않는다. 이 기능은 Live 그룹의 선택 확장이다.
+
+필수 검증:
+
+- `BA-093-T1`: 동의 전/철회/거절/공모전 환경에서 위치 요청과 전송이0이다
+- `BA-093-T2`: 요청 종료 후 위치/log/cache/provider 전송 최소화를 검증한다
+- `BA-093-T3`: 재계획 실패·source stale·lock conflict가 일정을 바꾸지 않는다
+
+FE 인계·완료 증거: 위치 permission·denied·철회·privacy 안내·preview fixtures와 새 계약 검토. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+## 이전 초안 ticket을 찾는 방법
+
+기존 ticket은 이관 참조이며 진행 순서로 사용하지 않는다. 미완료 issue를 가져올 때 새 BA ID와 원래 기능 ID를 함께 적는다. FE ticket의 기존 ID는 화면 카탈로그에서 계속 찾을 수 있다.
+
+| 이전 묶음 | 현재 작업 |
 | --- | --- |
-| Platform | `getLiveness`, `getReadiness`, `getDemoReadiness` |
-| Session/profile | `createDemoSession`, `issueCsrfToken`, `deleteCurrentSession`, `getDeletionRequest`, `getCurrentOwner`, `updatePreferences` |
-| Feed/post | `listFeed`, `recordFeedFeedback`, `getPost`, `savePost`, `unsavePost` |
-| Place/data | `searchPlaces`, `getPlace`, `getPlaceCrowdForecast`, `listRelatedPlaces` |
-| Trip | `listTrips`, `createTrip`, `getTrip`, `updateTrip`, `deleteTrip`, `replaceTripInterests` |
-| Import | `parseTripImport`, `remapTripImport`, `confirmTripImport` |
-| Candidate | `listTripCandidates`, `addTripCandidate`, `removeTripCandidate`, `getCandidateTripMatches` |
-| Item/constraint | `addTripItem`, `reorderTripItems`, `updateTripItem`, `removeTripItem`, `replaceTripItem`, `setTripItemConstraint`, `removeTripItemConstraint` |
-| Optimization | `createOptimization`, `listOptimizationHistory`, `getOptimization`, `decideOptimization`, `revertOptimizationDecision` |
-| Live | `queryLiveAreas`, `listLiveAreaPlaces`, `getLivePlace` |
-| Notification(P1) | `listNotifications`, `markAllNotificationsRead`, `markNotificationRead` |
-| Analytics | `ingestEventBatch` |
+| CON/ARC/GOV/DX, BE-001~004, INF-001~003 | BA-000~006 |
+| BE-101, BE-105, SEC-101 | BA-010~012, BA-060 |
+| BE-102/103/104/106 | BA-022/030/031/060 |
+| BE-201/202/203/204, AN-201 | BA-022/032/033/034 |
+| BE-301~306, QA-301~303 | BA-031/040/041/042 |
+| BE-401/402/403/406/407, OPS-401 | BA-020~024 공통 데이터, BA-092 replay |
+| BE-404/405 | BA-090/091 Live 전용; relation은 BA-024로 선행 |
+| BE-501~507, QA-501/502 | BA-050~053 |
+| BE-601/602, OPS/REL/SEC/CMP-60x | BA-070~073, Live 후 BA-092에서 최종 재검증 |
+| BE-P1-101~106 및 Search/Worker/English/ML backlog | BA-080~088, BA-093 |
 
-각 mutation은 owner/CSRF/Origin 검증, request bound, idempotency 또는 `If-Match`, transaction 범위, 성공/오류 request ID를 명시한다. collection cursor는 서명·filter binding·stable tie-breaker·만료를 보장한다. P1 route가 schema에 있어도 server capability가 꺼져 있으면 mutation을 수행하지 않는다.
+## 작업 기록 템플릿
 
-## 4. Milestone·ticket 순서
-
-| Milestone | Backend/AI 소유 ticket | 닫히는 server truth |
-| --- | --- | --- |
-| M0 | `BE-001`~`BE-004`, `DX-002`, `INF-001`~`INF-003` | Spring/DB/Flyway/Problem/contract test, Docker seed, staging/OIDC 뼈대 |
-| M1 | `BE-101`~`BE-106`, `SEC-101` | owner/session/CSRF, trip/import/create, profile/preferences/interests, 삭제 job |
-| M2 | `BE-201`~`BE-204`, `AN-201` validation | place/post/feed/SavedPost/candidate와 event allowlist |
-| M3 | `BE-301`~`BE-306` | trip read/ETag, item transaction, candidate 일정화, constraints, replace/date range |
-| M4 | `BE-401`~`BE-407`, `OPS-401` | source registry/collector/KTO/서울/Live/replay/comparison/공개 데이터 안내 |
-| M5 | `BE-501`~`BE-507` | persistent run, deterministic optimizer, validator, apply/keep/revert/history |
-| M6 | `BE-601`, `BE-602`, `OPS-601`~`OPS-605`, `REL-601`, `REL-602`, `SEC-601` | auth/load/security, backup/rollback/WAF/license/AWS/release/incident |
-| P1 | `BE-P1-101`~`BE-P1-106` | 알림·위치·검색·media·AI/DAY·정식 계정 계약과 gate |
-
-`QA-*`, `CON-*`, `GOV-*`, `DX-*`는 공동 gate다. Backend/AI가 fixture/provider 쪽을 제공하고 FE가 실제 client/화면에서 재현해야 닫는다.
-
-## 5. `backend` 브랜치와 일일 작업
-
-`backend`는 Backend/AI 전용 장기 역할 브랜치이며 `main`에 직접 push하지 않는다. 재사용 가능한 이력을 위해 PR merge는 **merge commit**으로 고정하고 squash/rebase merge와 force push를 금지한다. 모든 PR에는 상대 담당자 1인 승인, 최신 `main`, `docs-contract`, `docker-integration`이 필요하다.
-
-### 매일 시작
-
-1. `main`의 마지막 green SHA와 `frontend → main` UI acceptance 변경을 확인한다.
-2. 열려 있는 BE PR이 없으면 `backend`를 `origin/main`으로 fast-forward한다.
-3. 열려 있는 BE PR이 있으면 `origin/main`을 일반 merge로 받아 contract·migration·Docker gate를 다시 실행한다.
-4. issue에 기능 ID, Figma node, operationId/schema, entity/transition, migration, test와 오늘 닫을 acceptance를 적는다.
-5. 공개 shape 변경은 OpenAPI/example/failing contract test부터 commit한다.
-
-### 구현과 종료
-
-1. domain invariant → persistence → adapter → HTTP 순서로 구현하고 transaction 경계를 test한다.
-2. contract-only additive PR을 먼저 `backend → main`으로 합치면 FE가 기다리지 않고 generated client로 병렬 작업할 수 있다.
-3. API/DB/source/optimizer gate와 affected Docker journey를 실행한다.
-4. `backend → main` PR 하나만 열고 FE 담당자를 reviewer로 지정한다.
-5. PR merge ref의 `docker-integration`에서 main web과 candidate API/DB를 함께 검증한다.
-6. merge 후 `backend`를 `main`으로 fast-forward하고 branch를 삭제하지 않는다.
-
-두 역할 브랜치 사이의 PR/cherry-pick, FE가 소비하기 전의 breaking contract, 다른 역할 branch에만 존재하는 migration 의존은 금지한다. 교차 기능은 contract-only PR → `main` merge → 두 역할 branch의 `main` 동기화 → backward-compatible Backend PR → Frontend PR 순서로 합친다. capability가 양쪽에서 준비되기 전에는 켜지 않아 반쪽 구현을 노출하지 않는다. Frontend merge 뒤 server-owned capability는 별도 `backend → main` flag/config PR, FE 승인, 두 required status와 staging acceptance로만 ON한다.
-
-## 6. Definition of Ready
-
-- 기능 ID, Figma node/state, P0/P1와 사용자 action 전후가 정의됐다.
-- operationId/schema, owner/auth, CSRF, ETag/idempotency, cursor, bounds가 정해졌다.
-- entity, state transition, unique/check/FK, transaction과 migration 전략이 있다.
-- success/empty/conflict/rate-limit/failure canonical example과 FE error CTA가 합의됐다.
-- provenance, source license/attribution, freshness/comparison, retention/privacy 영향이 있다.
-- async 작업이면 lease/attempt/dead-letter/retry/terminal 상태가 있다.
-- external source·AI가 꺼지거나 실패했을 때 capability/fallback과 핵심 CRUD 격리가 있다.
-- FE가 contract example으로 화면을 구현할 수 있다고 승인했다.
-
-## 7. Definition of Done
-
-- OpenAPI/event/ERD/migration/구현이 같은 state와 cardinality를 표현한다.
-- 모든 public operation에 canonical example, Problem code, auth/rate/request ID behavior가 있다.
-- owner isolation, CSRF/Origin, idempotency/ETag, rollback, deletion/retention test가 통과한다.
-- PostgreSQL Testcontainers에 Flyway를 처음부터 적용하고 downgrade/expand-contract 위험을 검토했다.
-- 외부 source 실패·drift·quota·stale이 격리되고 provenance 완전성 100%를 검증했다.
-- optimizer는 승인 전 변경 0, lock 보존, deterministic tie-break, atomic apply/revert를 검증했다.
-- LLM 없이도 사실 검증과 안전한 핵심 흐름이 동작하며 LLM output은 schema/allowlist를 통과한다.
-- API/unit/integration/contract/property/security와 `docker-integration`이 통과했다.
-- FE 담당자가 generated client로 default/failure/degraded acceptance를 재현하고 승인했다.
-- 공모전 제출에 필요한 실제 KTO 호출·출처·release 증거가 secret 없이 연결됐다.
-- 실행하지 못한 검증은 `not run`과 이유·후속 owner를 기록했다.
-
-## 8. 검증 명령과 Docker 통합 기대값
-
-M0 이후 Backend/AI 변경의 로컬 gate는 다음이다.
-
-```bash
-cd apps/api
-./gradlew test
-./gradlew integrationTest
-./gradlew openapiContractTest
+```text
+taskId: BA-...
+status: in-progress
+scope: 이번에 구현할 command/상태
+contract: operationId, schema revision, generated client SHA
+migration: 파일, upgrade/rollback 호환 범위
+implementation: 실제 code path
+verification: test ID → 실행 명령 → report → 결과(not run 포함)
+handoff: FE reviewer, fixture, Figma node/state, E2E evidence
+openDecision: 결정 ID, 안전한 기본값, 필요한 선행 조건
+next: 다음 acceptance 또는 의존 작업
 ```
 
-문서·계약 변경에는 root에서 다음을 추가한다.
+날짜별 개발 계획 대신 이 상태와 다음 acceptance를 갱신한다. 실제 관측/실험/배포·제출 증거의 시각은 데이터 진실성을 위해 기록한다.
 
-```bash
-python3 scripts/validate_docs.py
-npx --yes markdownlint-cli2@0.23.2
-npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
-npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1 \
-  ajv validate --spec=draft2020 -c ajv-formats \
-  -s docs/contracts/events.schema.json -d docs/contracts/events.example.json
-```
-
-`backend → main` PR의 required `docker-integration`은 최소 다음을 보장한다.
-
-- `verify_target_stack.py`가 marker, lock/wrapper, task/stage와 image digest를
-  검사하고 정규화 Compose의 필수 service/internal network를 확인한다.
-- PR merge ref API image와 현재 main-compatible web image를 함께 build한다.
-- fresh PostgreSQL에 전체 Flyway를 적용하고 production DB와 같은 major에서 제약·query를 검증한다.
-- deterministic `base`, `trip-edit`, `optimization`, `live`, `edge` 중 영향 seed를 넣는다.
-- KTO/서울은 실제 secret 없는 synthetic contract fixture/replay를 사용하고 outbound network를 차단한다.
-- liveness/readiness, owner/session/CSRF, client generation diff, 영향 Playwright journey를 검증한다.
-- transaction fault, retry/idempotency, source unavailable이 일정 CRUD를 오염시키지 않는지 확인한다.
-- client diff, offline security/infra component gate와 실제 outbound-deny probe를
-  실행한다.
-- log/artifact에서 cookie, CSRF, API key, raw itinerary, 좌표를 scan한다.
-
-모든 main PR의 단일 entrypoint는 저장소 root에서 다음과 같다.
-
-```bash
-bash scripts/integration-test.sh
-```
-
-현재 `compose.integration.yml`과 wrapper는 존재하지만 target `apps/web`, `apps/api`가 없으므로 `baseline-only`다. 이를 새 stack 통합 통과로 표시하지 않는다.
-
-M0 marker인 repository root의 `.nullnull-target-stack`이 생기기 전 CI는 문서-only baseline validation을 수행하고 `docker-integration`을 명시적인 `baseline-only` 결과로만 끝낼 수 있다. 이는 required status 이름을 고정하기 위한 상태이지 제품 통합 통과가 아니다. marker 없이 `apps/web` 또는 `apps/api`가 먼저 생기면 불완전한 전환이므로 hard fail한다. 내용이 `version=1`인 marker가 생성된 뒤에는 앱, task/stage, lock/wrapper, immutable digest, component service 또는 internal network 중 하나라도 없으면 `baseline-only`로 우회하지 않고 hard fail한다. ruleset required status는 정확히 `docs-contract`, `docker-integration` 두 개이며 component gate는 후자 내부에서 모두 실행한다.
-
-## 9. Frontend에 전달할 contract packet
-
-| 항목 | Backend/AI가 제공할 내용 |
-| --- | --- |
-| Identity | 기능 ID, Figma node, operationId/schema, milestone/ticket, contract SHA |
-| Canonical examples | success/empty/cursor/duplicate/validation/401/409/422/429/503와 example ID |
-| Mutation rules | domain 전후, 무변경 보장, transaction, ETag/idempotency key/expiry |
-| State machine | 허용 transition, terminal/illegal 상태, async retry/`Retry-After` |
-| Data semantics | source/state/timestamps/freshness/confidence/license/attribution/comparison reason |
-| Capability | enabled/disabled/degraded 조건과 안전한 사용자 대체 행동 |
-| Persistence | entity/constraint/migration/retention/deletion 영향; 민감 body 미저장 |
-| Fixture | schema-valid JSON, synthetic 여부, replay clock, provider capture/license 정보 |
-| Operations | request/trace/error code, metric/alarm, rate/quota, rollback/kill switch |
-| Evidence | contract/integration/property test report, image/schema digest, known limitation |
-
-FE가 필요한 state와 문구를 승인하고 generated client clean regeneration을 확인하기 전에는 공개 계약을 `frozen`으로 표시하지 않는다.
-
-## 10. 금지하는 가정
-
-- Figma가 보여 주지 않는 오류를 UI가 알아서 처리할 것이라고 가정하지 않는다.
-- candidate 저장에서 TripItem을 만들거나 trip version을 올리지 않는다.
-- optimizer/LLM이 사용자 승인 없이 일정을 쓰거나 lock을 자동 해제하지 않는다.
-- LLM을 관광지 존재, 영업시간, 좌표, 경로, 혼잡, 비교 가능성의 사실 source로 쓰지 않는다.
-- `fetchedAt`을 `observedAt`으로 대신하거나 서로 다른 source/scope/set 값을 한 점수로 합치지 않는다.
-- provenance·license·attribution·replay 표지를 누락한 숫자를 product API에 내보내지 않는다.
-- raw 붙여넣기 원문, 정밀 위치, query, cookie/token, provider key를 DB/log/event/error에 남기지 않는다.
-- last-write-wins, 부분 apply, 예측 없는 cascade delete, 202를 완료로 간주하는 구현을 하지 않는다.
-- 일정 before/after 본문을 프로필 최적화 이력만을 위해 복제·장기 보존하지 않는다.
-- mock/replay 값을 LIVE로, source 장애를 0이나 정상으로 표현하지 않는다.
-- provider key를 Frontend env, bundle, GitHub PR workflow나 artifact에 주입하지 않는다.
-- KTO 파일 dump만으로 필수 OpenAPI 활용을 충족했다고 주장하지 않는다.
-- contract test를 맞추기 위해 FE 전용 임시 field나 비정형 `Map<String,Object>`를 추가하지 않는다.
-
-## 11. AI·추천 안전 계약
-
-- P0 일정 생성은 검증된 POI와 규칙 기반 deterministic seed가 기본이다.
-- P0 최적화 scope는 `ITEM`; DAY/TRIP은 route matrix·평가·capability gate 후 P1이다.
-- candidate generation, 날짜/시간/route 가능성, constraint와 comparison 적격성은 결정적 코드가 판정한다.
-- score input, tie-break, source snapshot set, trip version, data fingerprint와 validation 결과를 감사 가능하게 남긴다.
-- LLM은 자연어 선호 구조화 또는 이미 검증된 evidence의 설명만 맡는다. output은 schema validation, 근거 ID allowlist, timeout, budget와 kill switch를 통과한다.
-- model/vendor/version/prompt hash는 운영 metadata로 기록하되 raw 사용자 입력과 secret은 기록하지 않는다.
-- offline fixture와 golden/property test에서 LLM이 꺼져도 안전한 대체 설명과 핵심 CRUD가 동작해야 한다.
-
-## 12. 공모전 심사 증거 책임
-
-Backend/AI는 한국관광공사 OpenAPI가 최종 서비스에서 **실제로 호출되고 기능에 쓰였다는 증거**와 안정성 증거를 담당한다.
-
-- 최종 지정과제 exact label 1개, 실제 KTO OpenAPI 목록, 인증키 신청자·운영계정 상태와 제출 화면 credential 입력 확인 여부를 제출 대장과 release manifest에 연결한다. 키 원문은 대장에 넣지 않는다.
-- API별 호출 성공/실패·시각·release SHA·화면 기능 ID를 비식별 집계로 남긴다. 키·원문 request·개인 위치는 증거에 포함하지 않는다.
-- 파일 데이터만 사용하거나 로컬 전체 dump만 서비스하면서 필수 OpenAPI 호출이라고 주장하지 않는다.
-- 영속 저장이 필요하면 제공기관 허용/별도 신청 근거, 보존·갱신 정책, source schema version을 기록한다.
-- 서비스 응답에 실제 source, 관측/발표·대상 시각, freshness, state, confidence, license/attribution을 완전하게 제공한다.
-- `출처: ⓒ한국관광공사` 등 승인된 텍스트를 FE가 표시할 수 있게 하고 CI/BI logo asset을 무단 제공하지 않는다.
-- 외부망 production URL의 health/readiness, 실제 KTO call, replay 명시, quota와 장애 복구 evidence를 같은 release SHA로 보존한다. fallback은 서비스 가용성 증거일 뿐 KTO 필수 활용을 대체하지 않는다.
-- 심사용 핵심 흐름은 운영자 사전 조작이나 사전 데이터 주입 없이 새 anonymous session owner를 자동 발급해 동작하게 한다. deterministic seed/fixture는 비운영 테스트에서만 사용하고 provider 장애가 여행 CRUD를 막지 않게 한다.
-- OpenAPI key가 Git, frontend bundle, CI log, screenshot, PDF, Docker layer에 없는지 제출 전 scan한다.
-- 기능설명서에는 production에서 실제 사용한 API만 기재하고, 미구현 AI·DAY/TRIP·위치 기능을 완료로 주장하지 않는다.
-- 제출 profile은 위치 capability를 startup에서 강제로 OFF로 검증하고 위치 endpoint·좌표 field·browser geolocation 의존이 핵심 flow에 없게 한다.
-
-## 13. 공동 handshake
-
-| Gate | FE_DRI 책임 | BE_AI_DRI 책임 | 둘이 남길 증거 | 통과 조건 |
-| --- | --- | --- | --- | --- |
-| `ticket-ready` | Figma state·접근성·사용자 transition | domain invariant·데이터/보안 영향 | 기능 ID가 있는 issue | 모호한 CTA/state/owner 없음 |
-| `contract-ready` | 필요한 field/state/error와 UI acceptance 승인 | OpenAPI/event/example/state transition 작성 | contract SHA, schema-valid fixture | 생성 client와 provider test가 같은 example 사용 |
-| `implementation-ready` | MSW·failing component/E2E test | DB/domain·failing contract/integration test | 양쪽 test ID | 상대 구현을 기다리지 않고 병렬 착수 가능 |
-| `integration-ready` | generated client·UI 전체 상태 | 실제 API·seed·readiness·migration | handoff packet, image digest | mock 전용 field 0, contract SHA 일치 |
-| `PR-ready` | server response의 사용자 표현 review | `backend → main` PR와 API evidence | PR checklist | 상대 승인, unresolved conversation 0 |
-| `merge-ready` | candidate merge ref 사용자 journey | Docker/API/DB/source fixture 검증 | `docker-integration` report | 모든 required check green |
-| `release-ready` | production web artifact·외부망 UX | API/data/AWS readiness·rollback | immutable release manifest | 둘 다 go, 실제 공모전 데이터 증거 확보 |
-
-상세 구조는 [System Architecture](../architecture/SYSTEM_ARCHITECTURE.md), 개발 방식은 [Workflow](../engineering/WORKFLOW.md), 테스트 범위는 [Test Strategy](../engineering/TEST_STRATEGY.md), 배포는 [AWS Deployment](../operations/AWS_DEPLOYMENT.md)를 따른다.
+PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-012.

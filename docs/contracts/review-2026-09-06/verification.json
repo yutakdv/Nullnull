@@ -1,0 +1,476 @@
+{
+  "apiVersion": "0.2.1-rc.1",
+  "synthetic": true,
+  "contractChecks": {
+    "total": 46,
+    "passed": 46,
+    "checks": [
+      {
+        "id": "DataProvenance-example-0",
+        "schema": "DataProvenance",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "DataProvenance-example-1",
+        "schema": "DataProvenance",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "DataProvenance-example-2",
+        "schema": "DataProvenance",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "CreateItemOptimizationRequest-example-0",
+        "schema": "CreateItemOptimizationRequest",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "CreateDayOptimizationRequest-example-0",
+        "schema": "CreateDayOptimizationRequest",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "CreateTripOptimizationRequest-example-0",
+        "schema": "CreateTripOptimizationRequest",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "ApplyOptimizationDecision-example-0",
+        "schema": "ApplyOptimizationDecision",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "KeepOptimizationDecision-example-0",
+        "schema": "KeepOptimizationDecision",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "RevertOptimizationDecision-example-0",
+        "schema": "RevertOptimizationDecision",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "I11-run-available",
+        "schema": "OptimizationRun",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "I11-run-expired",
+        "schema": "OptimizationRun",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "I11-run-reverted",
+        "schema": "OptimizationRun",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "I11-run-not_applicable",
+        "schema": "OptimizationRun",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "initial-apply",
+        "schema": "InitialOptimizationDecision",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "initial-keep",
+        "schema": "InitialOptimizationDecision",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "initial-rejects-revert",
+        "schema": "InitialOptimizationDecision",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "history-retains-revert",
+        "schema": "OptimizationDecision",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "apply-requires-window",
+        "schema": "InitialOptimizationDecision",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "keep-has-no-window",
+        "schema": "InitialOptimizationDecision",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "item-requires-target",
+        "schema": "CreateOptimizationRequest",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "item-rejects-day-target",
+        "schema": "CreateOptimizationRequest",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "optional-objective",
+        "schema": "CreateOptimizationRequest",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "provenance-backward-compatible",
+        "schema": "DataProvenance",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "short-null-fallback",
+        "schema": "DataProvenance",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "short-over-limit",
+        "schema": "DataProvenance",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "short-empty-rejected",
+        "schema": "DataProvenance",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "run-backward-compatible",
+        "schema": "OptimizationRun",
+        "expected": true,
+        "actual": true,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "run-unknown-revert-state",
+        "schema": "OptimizationRun",
+        "expected": false,
+        "actual": false,
+        "passed": true,
+        "errors": null
+      },
+      {
+        "id": "operation-uses-initial-union",
+        "passed": true
+      },
+      {
+        "id": "revert-operation-stays-specific",
+        "passed": true
+      },
+      {
+        "id": "SEOUL_CITYDATA-approved-comparison-reason",
+        "passed": true
+      },
+      {
+        "id": "SEOUL_CITYDATA-officialUrl",
+        "passed": true
+      },
+      {
+        "id": "SEOUL_CITYDATA-licenseUrl",
+        "passed": true
+      },
+      {
+        "id": "KTO_KOR_SERVICE_2-approved-comparison-reason",
+        "passed": true
+      },
+      {
+        "id": "KTO_KOR_SERVICE_2-officialUrl",
+        "passed": true
+      },
+      {
+        "id": "KTO_KOR_SERVICE_2-licenseUrl",
+        "passed": true
+      },
+      {
+        "id": "KTO_CONCENTRATION_FORECAST-approved-comparison-reason",
+        "passed": true
+      },
+      {
+        "id": "KTO_CONCENTRATION_FORECAST-officialUrl",
+        "passed": true
+      },
+      {
+        "id": "KTO_CONCENTRATION_FORECAST-licenseUrl",
+        "passed": true
+      },
+      {
+        "id": "unsafe-link-javascript:alert(1)",
+        "passed": true
+      },
+      {
+        "id": "unsafe-link-http://data.go.kr/",
+        "passed": true
+      },
+      {
+        "id": "unsafe-link-https://data.go.kr.evil.example/",
+        "passed": true
+      },
+      {
+        "id": "unsafe-link-https://evil.data.go.kr/",
+        "passed": true
+      },
+      {
+        "id": "unsafe-link-https://user:password@data.go.kr/",
+        "passed": true
+      },
+      {
+        "id": "unsafe-link-https://data.go.kr:8443/",
+        "passed": true
+      },
+      {
+        "id": "unsafe-link-/relative",
+        "passed": true
+      }
+    ]
+  },
+  "openProductProbes": [
+    {
+      "id": "PM08-hhmm",
+      "pmId": "PM-008",
+      "schema": "AddTripItemRequest",
+      "expectedProductAcceptance": true,
+      "actualContractAcceptance": false,
+      "mismatch": true,
+      "enforcementLayer": "schema",
+      "errors": [
+        {
+          "instancePath": "/startTime",
+          "schemaPath": "#/properties/startTime/format",
+          "keyword": "format",
+          "params": {
+            "format": "time"
+          },
+          "message": "must match format \"time\""
+        }
+      ]
+    },
+    {
+      "id": "PM08-hhmmss",
+      "pmId": "PM-008",
+      "schema": "AddTripItemRequest",
+      "expectedProductAcceptance": true,
+      "actualContractAcceptance": false,
+      "mismatch": true,
+      "enforcementLayer": "schema",
+      "errors": [
+        {
+          "instancePath": "/startTime",
+          "schemaPath": "#/properties/startTime/format",
+          "keyword": "format",
+          "params": {
+            "format": "time"
+          },
+          "message": "must match format \"time\""
+        }
+      ]
+    },
+    {
+      "id": "PM08-offset",
+      "pmId": "PM-008",
+      "schema": "AddTripItemRequest",
+      "expectedProductAcceptance": false,
+      "actualContractAcceptance": true,
+      "mismatch": true,
+      "enforcementLayer": "schema",
+      "errors": null
+    },
+    {
+      "id": "PM05-no-title",
+      "pmId": "PM-005",
+      "schema": "ConfirmImportRequest",
+      "expectedProductAcceptance": true,
+      "actualContractAcceptance": false,
+      "mismatch": true,
+      "enforcementLayer": "schema",
+      "errors": [
+        {
+          "instancePath": "",
+          "schemaPath": "#/required",
+          "keyword": "required",
+          "params": {
+            "missingProperty": "title"
+          },
+          "message": "must have required property 'title'"
+        }
+      ]
+    },
+    {
+      "id": "PM06-duplicate-code",
+      "pmId": "PM-006",
+      "schema": "ReplaceInterestsRequest",
+      "expectedProductAcceptance": false,
+      "actualContractAcceptance": true,
+      "mismatch": true,
+      "enforcementLayer": "domain rule; a schema pass alone does not prove a server bug",
+      "errors": null
+    },
+    {
+      "id": "PM16-days",
+      "pmId": "PM-016",
+      "schema": "events",
+      "expectedProductAcceptance": false,
+      "actualContractAcceptance": true,
+      "mismatch": true,
+      "enforcementLayer": "schema",
+      "errors": null
+    },
+    {
+      "id": "PM16-items",
+      "pmId": "PM-016",
+      "schema": "events",
+      "expectedProductAcceptance": false,
+      "actualContractAcceptance": true,
+      "mismatch": true,
+      "enforcementLayer": "schema",
+      "errors": null
+    },
+    {
+      "id": "PM16-entry-query",
+      "pmId": "PM-016",
+      "schema": "events",
+      "expectedProductAcceptance": false,
+      "actualContractAcceptance": true,
+      "mismatch": true,
+      "enforcementLayer": "schema",
+      "errors": null
+    }
+  ],
+  "limitation": "Schema, type and fixture checks do not execute server state transitions or prove provider usage.",
+  "environment": {
+    "node": "24.20.0",
+    "npm": "11.19.0",
+    "openapiTypescript": "7.13.0",
+    "openapiFetch": "0.17.0",
+    "typescript": "5.9.3",
+    "ajv": "8.20.0",
+    "ajvFormats": "3.0.1",
+    "jsYaml": "4.3.1",
+    "platform": "darwin-arm64",
+    "cleanInstall": "npm ci --ignore-scripts --offline with Node 24.20.0/npm 11.19.0 passed"
+  },
+  "openapiSha256": "9a19208ab80db16260e7b2211c1fd02bad2af6bb4aad75ef0dc45cb75d66414c",
+  "typecheck": {
+    "result": "passed",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": false,
+    "negativeAssertions": 6,
+    "generatedOutputCommitted": false,
+    "regenerationCheck": "passed"
+  },
+  "cdkCompatibility": {
+    "result": "passed",
+    "cli": "2.1140.0",
+    "library": "2.268.0",
+    "constructs": "10.8.1",
+    "scope": "isolated no-lookup Stack synth and local-template diff only; no cloud API or deploy",
+    "templateSha256": "a9f42de98628c80b90c8516da39ca0f9cfa8b1b44e1378e5a42cf9126e09d570"
+  },
+  "checkedOn": "2026-09-07",
+  "repositoryChecks": {
+    "documentation": "passed",
+    "pythonUnitTests": 33,
+    "markdownFiles": 44,
+    "markdownErrors": 0,
+    "redocly": "2.51.1 passed",
+    "eventExample": "AJV CLI 5.0.0 / formats 3.0.1 passed",
+    "integrationMode": "baseline-only in the initial isolated snapshot",
+    "integrationResult": "passed for initial snapshot only",
+    "fullDocker": "not completed",
+    "providerCalls": "not run",
+    "frontendReview": "pending"
+  },
+  "auditStartedOn": "2026-09-06",
+  "finalVerifiedAtUtc": "2026-09-06T18:21:58Z",
+  "targetRecheck": {
+    "dateKst": "2026-09-07",
+    "appsApi": "present, concurrent partial scaffold",
+    "appsWeb": "absent",
+    "marker": "absent",
+    "command": "bash scripts/integration-test.sh",
+    "exitCode": 1,
+    "reason": "Target app directory exists but .nullnull-target-stack is missing.",
+    "compose": "concurrent digest/recommendationTest changes preserved",
+    "applicationTests": "not run by this PM audit"
+  }
+}

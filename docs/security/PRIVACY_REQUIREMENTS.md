@@ -1,3 +1,14 @@
+---
+aliases:
+  - "개인정보·데이터 최소화 요구사항"
+doc_type: reference
+status: baseline
+area: security
+tags:
+  - nullnull/reference
+  - nullnull/security
+---
+
 # 개인정보·데이터 최소화 요구사항
 
 - 상태: Technical baseline; 공개 개인정보처리방침은 법률/운영 검토 필요
@@ -50,6 +61,7 @@ flowchart LR
 | request/trace ID | 장애 대응 | log | 필수 | 30일 기본 | 운영 도구 |
 | IP/User-Agent | security/edge 운영 | edge/access log 최소화 | 자동 발생 | 가장 짧은 운영 기간 | AWS processor |
 | 외부 source snapshot | 추천 근거 | DB | 기능에 필요 | source 약관/TTL | 사용자 data 아님 |
+| 추천 서비스 `apps/ai` 요청 | 계산 입력 | 전송만, 저장 없음 | 기능에 필요 | 요청 종료 즉시 폐기 | 내부 network만; 장소/게시물 ID·시각·잠금·비교 verdict만, owner/session/원문/좌표 없음 |
 
 보존 값은 기술 상한 초안이다. 최종 공개 정책이 더 짧으면 공개 정책을 따른다.
 
@@ -105,7 +117,7 @@ flowchart LR
 - `FEATURE_NEARBY_LOCATION=OFF`를 environment와 readiness에서 확인한다.
 - browser geolocation API를 호출하거나 permission prompt를 띄우지 않는다.
 - 사용자는 지역·장소를 직접 선택하고 Live는 area/list 탐색으로 제공한다.
-- API, edge log, analytics, error monitoring에 좌표 field가 0건이어야 한다.
+- API, edge log, analytics, error monitoring에 개인의 정밀 위치 field가 0건이어야 한다. 사용자가 직접 탐색한 coarse viewport는 Live read-only POST 계약의 최소화 규칙을 따르며 저장·로그하지 않는다.
 - 향후 위치 기능은 공모전 배포와 분리하고 아래 P1 gate 및 위치정보지원센터 사전 검토를 거친다.
 
 ### P0
