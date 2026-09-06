@@ -149,7 +149,7 @@ sequenceDiagram
     participant C as Crowd/Route
     participant D as PostgreSQL
 
-    W->>O: POST optimization(inputTripVersion, scope)
+    W->>O: POST optimization(inputTripVersion, scope, target)
     O->>D: trip snapshot + constraints
     O->>C: 비교 가능한 snapshot 요청
     C-->>O: values + provenance + fingerprint
@@ -169,7 +169,11 @@ sequenceDiagram
 
 `KEEP`는 decision만 기록하고 여행을 변경하지 않는다. `REVERT`는 과거 row를 덮어쓰지 않고 이전 snapshot을 근거로 새 trip revision을 만든다.
 
-한 run은 최초 APPLY/KEEP decision을 최대 하나만 갖는다. APPLY만 24시간 내 한 번 revert할 수 있다. run이 사용한 모든 crowd/route snapshot은 junction row로 고정하며, before/after 수치 비교는 두 snapshot ID를 가진 comparison row가 `eligible=true`일 때만 표시한다. ADD의 before와 REMOVE의 after는 명시적 null이고 나머지 operation은 양쪽 상태가 필수다.
+optimization 생성 요청은 `scope` 판별 union이다. `ITEM`은 `targetItemId`, `DAY`는
+`targetDate`만 요구하며 `TRIP`은 target field를 받지 않는다. P0 client는 `ITEM` variant만
+생성하고 DAY/TRIP은 capability OFF다.
+
+한 run은 최초 APPLY/KEEP decision을 최대 하나만 갖는다. APPLY만 24시간 내 한 번 revert할 수 있다. APPLY 응답은 `beforeRevisionId`, `afterRevisionId`, `resultingTripVersion`, `revertUntil`을 모두 제공하며 `revertUntil`은 server `decidedAt`의 정확히 24시간 뒤다. KEEP 응답에는 revision/revert field가 없고, REVERT는 참조한 APPLY decision과 transaction 전후 revision을 제공한다. run이 사용한 모든 crowd/route snapshot은 junction row로 고정하며, before/after 수치 비교는 두 snapshot ID를 가진 comparison row가 `eligible=true`일 때만 표시한다. ADD의 before와 REMOVE의 after는 명시적 null이고 나머지 operation은 양쪽 상태가 필수다.
 
 S14의 P0 최적화 이력은 기존 run의 상태·시각·대상 여행·실행 링크만 반환한다. 이력을 위해 여행 내용이나 proposal snapshot을 복제하지 않으며 원 trip 삭제/보존 정책을 우회하지 않는다.
 
@@ -213,7 +217,7 @@ flowchart LR
 ```text
 provenance_id, source, source_registry_version, source_state,
 observed_at, target_at, fetched_at, freshness, confidence,
-license, attribution, metric_definition, normalization_version,
+license, official_url, license_url, attribution, metric_definition, normalization_version,
 comparison_group_id, collector_run_id, snapshot_set_id
 ```
 
