@@ -63,6 +63,11 @@ Figma state → OpenAPI/event diff → DB/domain → API → generated client
 
 ### Ticket Definition of Ready
 
+모든 Ticket은 제목과 본문에 같은 Work ID를 가진다. 제품 기능은 `FR-*`, Figma 수정은
+`FCR-*`, 독립 문서·계약·개발환경·거버넌스 작업은 구현 계획의 실행 ID를 사용한다.
+제품 기능이 아닌 작업은 아래 Figma/API/domain 항목에 적용 없음의 이유와 대신 검증할
+대상을 적는다.
+
 - 연결된 Figma node와 P0/P1이 있다.
 - 사용자 action 전/후 domain state가 적혀 있다.
 - API request/response/error 초안이 있다.

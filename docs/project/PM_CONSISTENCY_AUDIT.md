@@ -23,7 +23,7 @@ Figma에는 계약과 충돌하는 P0 문구·활성 control이 있고, 가장 �
 | --- | --- | --- | --- |
 | 문제·가치·P0/P1 경계 | Green | 오버투어리즘 완화와 후보→일정→preview→승인 흐름이 명확함 | 제출 PDF에는 실제 배포 기능만 기재 |
 | 도메인·API·이벤트·ERD | Green after fixes | 핵심 불변식과 50개 operation이 연결됨; title/빈 관심사/timezone 불일치는 이번 감사에서 수정 | Redocly, 생성 client diff, BE contract test |
-| Figma 구조·컴포넌트 | Amber | 현재 52개 frame·49개 component를 확인했으나 FCR-001~009가 Open | P0 blocker FCR 종료·node 증거 |
+| Figma 구조·컴포넌트 | Amber | 현재 52개 frame·49개 component를 확인했으나 FCR-001~015가 Open | P0 blocker/major FCR 종료·node 증거 |
 | 데이터·추천·AI 경계 | Green | 사실 검증은 결정적 server logic, LLM은 선호 해석·설명으로 제한 | 실제 provider fixture/property test |
 | 개인정보·보안·운영 | Amber | 원문·정밀 위치 비수집, CSRF/owner/삭제/배포 규칙은 강함; 실제 계정·alarm·restore 증거는 없음 | staging security/restore/tabletop |
 | 역할·협업 | Amber | FE와 BE/AI 책임·handoff가 상세함; 실제 이름/handle·ruleset은 TBD | 두 담당자 지정과 review 동작 증거 |
@@ -68,7 +68,7 @@ mock/replay를 실제 KTO 호출로 주장하지 않는다.
 
 | Gate | 기한 목표 | Go 증거 | 미통과 조치 |
 | --- | --- | --- | --- |
-| G0 계약·Figma | 09-06 | FCR-001~007 종료, M0 scope 확정, lint 통과 | 영향 slice 착수 중지 |
+| G0 계약·Figma | 09-06 | FCR-001~015 종료, M0 scope 확정, lint 통과 | 영향 slice 착수 중지 |
 | G1 실행 뼈대 | 09-07 | web→API→PostgreSQL Docker hello, 외부 preview URL | 인프라 장식 중지, scaffold 우선 |
 | G2 핵심 탐색 | 09-10 | 익명 session→여행→실제 KTO 검색/상세→후보 저장, 출처·call-audit | 제출 NO-GO 유지, provider 해결 |
 | G3 일정 무결성 | 09-13 | 후보 일정화·ETag·독립 lock·실패 rollback E2E | 편집 variant 축소 |

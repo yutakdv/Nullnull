@@ -18,8 +18,18 @@
 - `main` direct push, force push, branch deletion과 self-approval을 금지한다.
 - 두 역할 브랜치는 재사용하는 장기 브랜치다. 별도 기능 브랜치를 기본 흐름으로 만들지 않는다.
 - 사람별 WIP는 역할 브랜치의 미병합 vertical slice 1개다.
-- 모든 commit은 기능 ID를 포함한 Conventional Commit을 사용한다.
-- PR 제목은 `feat(frontend): FR-...` 또는 `feat(backend): FR-...`처럼 역할과 기능을 드러낸다.
+- 모든 commit은 추적 가능한 Work ID를 포함한 Conventional Commit을 사용한다.
+  제품 기능은 `FR-*`, Figma 수정은 `FCR-*`, 독립 문서·계약·개발환경·거버넌스
+  작업은 `IMPLEMENTATION_PLAN.md`의 `FE-*`/`BE-*`/`CON-*`/`DX-*`/`GOV-*`
+  등 해당 실행 ID를 쓴다.
+- PR 제목은 `feat(frontend): FR-...`, `fix(frontend): FCR-...`,
+  `docs(frontend): GOV-...`처럼 역할과 Work ID를 드러낸다.
+- Ticket은 같은 Work ID를 제목과 본문에 가진 GitHub issue다. 제품 기능이 아닌 작업은
+  기능 ID나 Figma/API 연결을 억지로 만들지 않고 적용 없음의 이유와 검증 대상을 적는다.
+- 이미 remote 역할 branch에 공개된 commit의 Work ID 누락을 뒤늦게 발견했으면
+  amend/force push로 이력을 바꾸지 않는다. Ticket과 PR 제목·본문을 먼저 연결하고,
+  같은 Work ID를 포함한 후속 수정 commit에 누락 사유를 기록해 상대 검토자의 승인을
+  받는다. 이 예외는 새 commit의 ID 생략을 허용하지 않는다.
 
 ## 2. 한 slice의 merge 순서
 
@@ -91,7 +101,9 @@ git push origin frontend  # backend 담당은 backend
 - M0 뒤 web/API quality, client diff, mobile E2E, security, infra와 outbound-deny는
   `docker-integration` 내부 필수 component gate다. 하나라도 누락·skip·실패하면
   aggregator가 실패하며 별도 ruleset required 이름으로 분산하지 않는다.
-- PR 본문에 기능 ID, Figma node/state, operationId/schema, migration, screenshot, contest evidence, rollout/rollback과 실행한 test를 적는다.
+- PR 본문에 Ticket, Work ID, 적용 가능한 기능 ID·Figma node/state·operationId/schema,
+  migration, screenshot, contest evidence, rollout/rollback과 실행한 test를 적는다.
+  적용하지 않는 항목은 공란 대신 이유를 적는다.
 - incomplete P1 화면은 capability OFF/`준비 중`이며 기능설명서에 구현 완료로 기재하지 않는다.
 
 Dependabot PR은 head 예외지만 두 팀원의 일반 역할 브랜치를 대신하지 않는다. dependency PR도 상대 승인과 전체 통합 gate를 통과한다.

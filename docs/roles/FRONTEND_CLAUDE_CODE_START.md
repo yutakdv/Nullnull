@@ -10,11 +10,11 @@
 새 Claude Code 세션의 repository root에서 다음 문장을 그대로 전달한다.
 
 ```text
-Read CLAUDE.md and docs/roles/FRONTEND_CLAUDE_CODE_START.md first.
-Act as the Nullnull Frontend DRI. Inspect git status and the active branch,
-then report the current readiness, open Figma blockers, and the smallest
-safe next Frontend action. Do not create a manual API type/client, expose a
-P1 capability, or modify unrelated files.
+`CLAUDE.md`와 `docs/roles/FRONTEND_CLAUDE_CODE_START.md`를 먼저 읽어줘.
+Nullnull Frontend 담당자로서 현재 Git 상태와 활성 branch를 확인하고,
+현재 준비도, 열린 Figma 차단 항목, 지금 안전하게 할 수 있는 가장 작은 다음
+Frontend 작업을 보고해줘. 수동 API type/client를 만들거나 P1 capability를
+활성화하거나 관계없는 파일을 수정하지 마.
 ```
 
 특정 기능을 착수할 때는 기준선이 main에 병합되고 `frontend` branch가 준비된 뒤 다음처럼
@@ -38,16 +38,16 @@ P1 capability, or modify unrelated files.
 | 항목 | 현재 사실 | Frontend 행동 |
 | --- | --- | --- |
 | 기준선 | 문서·계약 기준선과 그 뒤의 병합된 dependency update가 `main`에 있음 | FE 담당자는 최신 `main`의 화면/API 적합성을 먼저 review한다 |
-| 역할 branch | `frontend`는 최신 `main`으로부터 생성하는 장기 역할 branch | `backend`에서 UI를 구현하지 않는다. `frontend`가 없으면 아래 절차로 한 번만 만든다 |
+| 역할 branch | `frontend`는 이미 생성된 장기 역할 branch | 작업 전 최신 `main`과 동기화한다. `backend`에서 UI를 구현하거나 역할 branch를 다시 만들지 않는다 |
 | 앱 코드 | `apps/web/`, `apps/api/`, generated client, DB migration이 아직 없음 | 구현 완료처럼 행동하지 않는다. 첫 개발은 M0 `FE-001` scaffold다 |
-| Figma | 현재 52개 구현 frame, component 49개를 확인했지만 P0 mismatch가 남음 | FCR-001~007 영향 화면은 Figma 수정·검토 전 UI를 확정하지 않는다 |
+| Figma | 현재 52개 구현 frame, component 49개를 확인했지만 P0 mismatch가 남음 | FCR-001~015 영향 화면은 Figma 수정·검토 전 UI를 확정하지 않는다 |
 | P0 언어 | 한국어·English 실제 지원, 日本語·中文만 disabled `준비 중` | English를 준비 중으로 표시하거나 API 호출을 막으면 안 된다 |
 | 로그인·위치 | P0은 익명 session, login/위치는 OFF | 로그인 CTA·P1 feature·geolocation request를 활성화하지 않는다 |
 
 M0의 web toolchain, router, i18n shell, generated client 연결 준비처럼 Figma visual
 결정을 고정하지 않는 작업은 FCR 종료와 병렬로 할 수 있다. 반면 언어 선택, feed header,
-profile, data guide, ITEM optimizer preview 같은 영향 UI를 “임시”로 구현해 합치는 것은
-금지한다.
+trip의 거리·비교 주장, Live source/list, profile, data guide, ITEM optimizer의
+setup/preview/applied 같은 영향 UI를 “임시”로 구현해 합치는 것은 금지한다.
 
 ## 2. 읽는 순서
 
@@ -115,26 +115,23 @@ M0 후 Frontend의 소유 경로는 `apps/web/**`이며, generated TypeScript AP
 3. M0 scaffold의 구체 라이브러리·생성기 설정을 Backend/AI 담당자와 contract packet으로
    확정한다. 이때 UI visual implementation은 시작하지 않는다.
 
-### `frontend` 역할 branch 만들기
+### 기존 `frontend` 역할 branch 동기화
 
-`frontend`가 아직 remote에 없을 때만 저장소 관리자가 최신 `main`에서 한 번 만든다.
-
-```bash
-git fetch origin
-git switch main
-git pull --ff-only origin main
-git switch -c frontend
-git push -u origin frontend
-```
-
-그 뒤 Frontend 담당자의 매일 시작 명령은 다음이다.
+`frontend`는 이미 origin에 존재하는 장기 역할 branch다. 새로 만들거나 삭제하지 않고,
+Frontend 담당자는 작업 트리가 깨끗한지 확인한 뒤 매일 다음 순서로 시작한다.
 
 ```bash
 git status --short
 git fetch origin
-git log -1 --oneline origin/main
 git switch frontend
+git log -1 --oneline origin/main
+git merge --ff-only origin/main
+git push origin frontend
 ```
+
+열린 Frontend PR 작업으로 `frontend`와 `origin/main`이 갈라져 fast-forward할 수
+없으면 rebase나 force push를 하지 않는다. `git merge origin/main`으로 병합하고 충돌을
+해결한 뒤 전체 gate를 다시 실행한 다음 `frontend`를 push한다.
 
 - 작업 PR은 항상 `frontend → main`이다. `main` direct push, force push, self-approval,
   `backend ↔ frontend` PR/cherry-pick은 금지한다.
@@ -147,14 +144,15 @@ git switch frontend
 `FE-001`을 M0 첫 slice로 쪼갠다. Backend/AI의 corresponding M0 contract와 합의한 뒤
 아래까지로 제한한다.
 
-1. `apps/web/`에 React + TypeScript + Vite PWA scaffold를 만든다.
-2. router, query client, KO/EN i18n shell, error boundary, basic mobile layout를 준비한다.
+1. `apps/web/`에 React + TypeScript + Vite scaffold를 만든다.
+2. router, query client, KO/EN i18n shell, basic mobile layout를 준비한다.
 3. OpenAPI generator와 `packages/api-client/` 소비 경로를 연결한다. response type이나
    fetch wrapper를 수동으로 복제하지 않는다.
 4. `VITE_*` 공개 config만 허용하고 secret을 browser bundle에 넣지 않는다.
-5. Storybook/MSW와 component manifest의 빈 뼈대는 추가할 수 있으나, FCR이 열린 화면을
-   시각적으로 완료 처리하지 않는다.
-6. PWA offline shell은 사용자의 server data를 offline truth처럼 보이지 않게 한다.
+
+Figma token·Storybook·component manifest는 `FE-002`, error boundary·Problem
+mapper·MSW fixture는 `FE-003`, PWA manifest·service worker·offline shell은
+`FE-004`의 별도 slice로 진행한다. `FE-001`에 이 범위를 섞지 않는다.
 
 첫 화면 구현은 FCR-001이 닫힌 뒤 `FR-ONB-02` 언어 선택으로 시작한다. 예상 흐름은
 `createDemoSession → issueCsrfToken → getCurrentOwner → updatePreferences`이며,
@@ -230,21 +228,21 @@ route, search, sheet/dialog, trip mutation, optimizer를 바꾸면 영향 Playwr
 journey와 keyboard/focus test를 함께 추가한다. target-stack marker가 생긴 뒤에는
 repository root에서 `bash scripts/integration-test.sh`가 full Docker gate를 실행한다.
 
-## 9. Claude Code handoff 응답 형식
+## 9. Claude Code 인계 응답 형식
 
 Claude Code가 작업을 마치면 다음 형식으로 보고하게 한다.
 
 ```text
-Feature: FR-...
+기능: FR-...
 Figma: node/state ...
-Contract: operationId/schema/example ...
-User result: ...
-Files changed: ...
-Validation: command → result
-Not run: command → reason
-Compatibility/privacy: ...
-Blocker/next owner: ...
+계약: operationId/schema/example ...
+사용자 결과: ...
+변경 파일: ...
+실행한 검증: 명령 → 결과
+미실행 검증: 명령 → 이유
+호환성·개인정보: ...
+차단 항목·다음 담당: ...
 ```
 
 이 형식은 FE가 구현을 끝냈다는 선언이 아니라, Backend/AI 담당자가 같은 contract와
-사용자 결과를 review할 수 있는 handoff packet이다.
+사용자 결과를 검토할 수 있는 인계 묶음이다.

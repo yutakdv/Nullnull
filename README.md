@@ -121,7 +121,7 @@ Claude Code에서는 저장소 루트에서 시작한 뒤 한 기능을 다음�
 - [x] FE와 BE/AI의 책임·handoff·review 규칙
 - [x] 테스트, 개인정보, 보안, AWS/릴리스 runbook
 - [x] Claude Code와 PR/issue 작업 규칙
-- [ ] `FCR-001~007` P0 디자인 blocker 수정과 node/screenshot 증거
+- [ ] `FCR-001~015` P0 디자인 gap 수정과 node/screenshot 증거
 - [ ] `apps/web`, `apps/api` M0 scaffold와 full Docker hello gate
 
 ### staging/production 전에 닫아야 하는 외부 결정

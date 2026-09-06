@@ -3,7 +3,8 @@
 ## 시작 전
 
 1. [README](README.md)와 [문서 지도](docs/README.md)를 읽는다.
-2. 작업할 Figma node, ticket, OpenAPI operationId를 연결한다.
+2. Ticket과 Work ID를 먼저 연결하고, 적용 가능한 Figma node와 OpenAPI operationId를
+   함께 적는다.
 3. `git status`로 기존 작업을 확인하고 unrelated change를 건드리지 않는다.
 4. [Definition of Ready](docs/engineering/WORKFLOW.md)를 만족하는지 확인한다.
 5. [역할 매트릭스](docs/engineering/OWNERSHIP_MATRIX.md)에서 작성자와 필수 검토자를 확인한다.
@@ -27,7 +28,12 @@ Commit은 Conventional Commits를 사용한다.
 feat(trip): FR-CAN-02 schedule a candidate with optimistic versioning
 fix(live): FR-LIV-02 mark expired Seoul snapshots as stale
 docs(api): FR-CAN-02 add candidate duplicate response
+docs(frontend): GOV-003 add the Frontend Claude Code start guide
 ```
+
+제품 기능은 `FR-*`, Figma 수정은 `FCR-*`, 독립 문서·계약·개발환경·거버넌스
+작업은 [구현 계획](docs/engineering/IMPLEMENTATION_PLAN.md)의 실행 ID를 Work ID로 쓴다.
+Ticket issue의 제목과 본문, commit, PR 제목·본문에 같은 Work ID를 유지한다.
 
 ## Contract-first
 

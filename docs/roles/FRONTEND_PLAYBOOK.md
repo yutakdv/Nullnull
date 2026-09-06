@@ -8,7 +8,7 @@
 
 이 문서는 Frontend 담당자가 Figma의 현재 52개 구현 frame을 누락 없이 제품 기능으로
 옮기기 위한 작업 순서다. 단, [Figma 수정 요청](../design/FIGMA_CHANGE_REQUESTS.md)의
-FCR-001~007이 닫히기 전 영향 화면을 구현 승인 상태로 보지 않으며, 빠진 P0 ITEM
+FCR-001~015가 닫히기 전 영향 화면을 구현 승인 상태로 보지 않으며, 빠진 P0 ITEM
 preview는 수정 후 inventory에 추가한다. 시각·문구·상태는
 [Figma 핸드오프](../design/FIGMA_HANDOFF.md), component는
 [Component Catalog](../design/COMPONENT_CATALOG.md), 기능 의미는
