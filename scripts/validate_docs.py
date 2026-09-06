@@ -19,6 +19,7 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 OPENAPI_PATH = ROOT / "docs/api/openapi.yaml"
+SOURCE_CATALOG_PATH = ROOT / "docs/data/SOURCE_CATALOG.md"
 INVENTORY_PATH = ROOT / "docs/product/FUNCTIONAL_INVENTORY.md"
 FIGMA_PATH = ROOT / "docs/design/FIGMA_HANDOFF.md"
 COMPONENT_PATH = ROOT / "docs/design/COMPONENT_CATALOG.md"
@@ -326,9 +327,56 @@ def validate_product_contract_alignment(problems: list[str]) -> None:
     """Protect audited Figma/product/OpenAPI alignments from regressing."""
 
     openapi_text = OPENAPI_PATH.read_text(encoding="utf-8")
+    source_catalog_text = SOURCE_CATALOG_PATH.read_text(encoding="utf-8")
     create_trip = extract_schema_block(openapi_text, "CreateTripRequest")
     update_trip = extract_schema_block(openapi_text, "UpdateTripRequest")
     replace_interests = extract_schema_block(openapi_text, "ReplaceInterestsRequest")
+    contract_fragments = {
+        "CreateOptimizationRequest": (
+            "CreateItemOptimizationRequest",
+            "CreateDayOptimizationRequest",
+            "CreateTripOptimizationRequest",
+            "propertyName: scope",
+        ),
+        "CreateItemOptimizationRequest": (
+            "required: [scope, targetItemId, inputTripVersion, includeCandidates]",
+            "const: ITEM",
+        ),
+        "CreateDayOptimizationRequest": (
+            "required: [scope, targetDate, inputTripVersion, includeCandidates]",
+            "const: DAY",
+        ),
+        "CreateTripOptimizationRequest": (
+            "required: [scope, inputTripVersion, includeCandidates]",
+            "const: TRIP",
+        ),
+        "OptimizationDecision": (
+            "ApplyOptimizationDecision",
+            "KeepOptimizationDecision",
+            "RevertOptimizationDecision",
+            "propertyName: decision",
+        ),
+        "ApplyOptimizationDecision": (
+            "const: APPLY",
+            "- beforeRevisionId",
+            "- afterRevisionId",
+            "- revertUntil",
+            "Exactly 24 hours after decidedAt",
+        ),
+        "KeepOptimizationDecision": ("const: KEEP",),
+        "RevertOptimizationDecision": (
+            "const: REVERT",
+            "- revertedDecisionId",
+            "- beforeRevisionId",
+            "- afterRevisionId",
+        ),
+        "DataProvenance": (
+            "officialUrl",
+            "licenseUrl",
+            "SEOUL_CITYDATA",
+            "서울특별시 「서울시 실시간 도시데이터」",
+        ),
+    }
 
     if create_trip is None:
         problems.append("OpenAPI is missing CreateTripRequest")
@@ -352,6 +400,36 @@ def validate_product_contract_alignment(problems: list[str]) -> None:
         problems.append("UpdateTripRequest must expose the timezone promised by PRODUCT_SPEC")
     if replace_interests is None or "minItems: 0" not in replace_interests:
         problems.append("ReplaceInterestsRequest.interests must allow an explicit empty array")
+
+    for schema_name, fragments in contract_fragments.items():
+        schema = extract_schema_block(openapi_text, schema_name)
+        if schema is None:
+            problems.append(f"OpenAPI is missing {schema_name}")
+            continue
+        for fragment in fragments:
+            if fragment not in schema:
+                problems.append(
+                    f"{schema_name} is missing the reviewed Frontend contract: {fragment}"
+                )
+
+    keep_decision = extract_schema_block(openapi_text, "KeepOptimizationDecision")
+    if keep_decision and any(
+        field in keep_decision
+        for field in ("beforeRevisionId", "afterRevisionId", "revertUntil")
+    ):
+        problems.append("KEEP must not expose revision or revert fields")
+
+    if "REVERT_WINDOW_EXPIRED" not in openapi_text:
+        problems.append("FCR-015 requires a distinct REVERT_WINDOW_EXPIRED Problem code")
+
+    for fragment in (
+        "code: SEOUL_CITYDATA",
+        "displayName: 서울시 실시간 도시데이터",
+        "licenseName: 공공누리 제1유형",
+        "출처: 서울특별시 「서울시 실시간 도시데이터」",
+    ):
+        if fragment not in source_catalog_text:
+            problems.append(f"SOURCE_CATALOG is missing the FCR-011 contract: {fragment}")
 
 
 def validate_json_files(problems: list[str]) -> None:

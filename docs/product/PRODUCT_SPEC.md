@@ -174,17 +174,23 @@ Nullnull은 발견한 장소를 **특정 여행의 후보**로 축적하고, 일
 ### 최적화
 
 - P0 기본 scope는 `ITEM`이며 한 장소를 더 한산한 날짜/시간으로 이동하는 제안이다.
+- `ITEM` 요청은 선택한 `targetItemId`가 필수이며 DAY/TRIP target field를 함께 보내지 않는다.
 - P1에서 `DAY`, `TRIP` scope를 연다.
 - 후보 포함 옵션은 기본 OFF다.
 - preview에는 before/after, 개선 지표, 검증 가능한 경우에만 이동/경로 영향, 제약 영향, 데이터 출처·신선도를 표시한다. P0에 route provider가 없으면 지도 대신 동등한 목록/timeline을 제공하고 이동 수치를 추정하지 않는다.
 - apply/keep가 분명한 decision bar를 제공한다.
-- apply 후 되돌리기 가능 기간과 대상 revision을 알려 준다.
+- apply 후 응답의 `beforeRevisionId`, `afterRevisionId`, `revertUntil`로 대상 revision과
+  server `decidedAt` 기준 24시간의 되돌리기 가능 기간을 알려 준다.
+- 되돌리기 기간이 끝나면 `REVERT_WINDOW_EXPIRED`를 적용 결과의 persistent 만료 상태로
+  표시하고 현재 일정을 바꾸거나 자동 재시도하지 않는다.
 - 오류 코드는 Figma 핸드오프와 OpenAPI 공통 오류 모델을 따른다.
 
 ### Live
 
 - 목록은 항상 제공한다. 승인된 지도 provider·license·attribution이 준비된 환경에서만
   지도 capability를 열고 목록과 동일한 필터/선택 상태를 유지한다.
+- 서울 실시간 값은 API가 제공한 서울특별시 attribution과 공식 source/license URL을
+  표시하며 KTO attribution과 합치지 않는다.
 - 장소명 검색을 노출하면 `searchPlaces`의 canonical 결과를 선택한 뒤 `getLivePlace`로 조회한다. Live coverage가 없는 장소는 값을 합성하지 않고 `UNAVAILABLE`과 다음 행동을 보여 준다.
 - 실시간이 아니면 `REPLAY`, `FORECAST`, `QUALITATIVE`, `STALE`, `UNAVAILABLE`을 숨기지 않는다.
 - 대체 장소는 `EXACT`, `SIMILAR`, `NONE`, `CHECKING`, `UNKNOWN` 관계를 구분한다.

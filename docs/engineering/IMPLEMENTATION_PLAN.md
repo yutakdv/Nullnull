@@ -122,6 +122,8 @@ FE는 다음 milestone 화면 primitive를 준비할 수 있지만 아직 합의
 
 - `CON-001` OpenAPI lint, breaking diff, TypeScript client generation 확정 (1d)
 - `CON-002` event JSON Schema validator와 sample fixture (0.5d)
+- `CON-003` FCR-010/011/015의 scope별 최적화 요청, decision revision,
+  서울 실시간 attribution 계약 확정 (0.5d)
 - `ARC-001` monorepo directory와 dependency update 정책 확정 (0.5d)
 - `QA-001` CI matrix, PR required checks, coverage report (1d)
 
