@@ -58,6 +58,16 @@ def test_boundary_minimum_improvement_exactly_five_is_admitted() -> None:
     assert isinstance(policy.evaluate(METRIC, OK, shift(80, 75, 0)), Admitted)
 
 
+@pytest.mark.parametrize(
+    ("seconds", "minutes"),
+    [(-150, 2), (-90, 1), (-30, 0), (0, 0), (30, 0), (90, 1), (150, 2)],
+)
+def test_shift_minutes_truncates_toward_zero_symmetrically(seconds: int, minutes: int) -> None:
+    """Backward and forward moves of the same size cost the same, matching Duration.toMinutes()."""
+    moved = TemporalShift(Decimal(80), Decimal(60), BEFORE, BEFORE + timedelta(seconds=seconds))
+    assert moved.shift_minutes() == minutes
+
+
 def test_unknown_metric_is_rejected() -> None:
     admission = policy.evaluate("SEOUL_LIVE_LEVEL", OK, shift(80, 60, 60))
     assert isinstance(admission, Rejected) and admission.reason.code == "METRIC_POLICY_MISSING"

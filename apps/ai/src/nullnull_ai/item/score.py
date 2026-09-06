@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from nullnull_ai.domain.policy import RecommendationPolicy
@@ -24,7 +24,8 @@ class TemporalShift:
     after_instant: datetime
 
     def shift_minutes(self) -> int:
-        return abs(int((self.after_instant - self.before_instant).total_seconds()) // 60)
+        """|Delta| in whole minutes, truncated toward zero like Spring's Duration.toMinutes()."""
+        return abs(self.after_instant - self.before_instant) // timedelta(minutes=1)
 
 
 @dataclass(frozen=True, slots=True)
