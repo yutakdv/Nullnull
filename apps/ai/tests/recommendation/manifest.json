@@ -59,6 +59,11 @@
       "id": "REC-OPT-02",
       "suite": "pytest",
       "path": "tests/item/test_score.py"
+    },
+    {
+      "id": "REC-DATA-02",
+      "suite": "gradle:test",
+      "path": "apps/api/src/test/java/io/nullnull/crowd/domain/TemporalComparisonPolicyTest.java"
     }
   ],
   "fixtures": [],
