@@ -21,7 +21,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | ID | Pri | 현재 Figma 증거 | 목표 상태 | 소유/검토 | 상태 |
 | --- | --- | --- | --- | --- | --- |
 | FCR-001 | P0 blocker | A-2 `388:277`의 English가 `영어 · 준비 중`으로 표시됨 | `한국어`와 `English`는 선택 가능, `日本語`·`中文`만 disabled `준비 중`; KO/EN 전환·복구 variant 추가 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-001-증거)) |
-| FCR-002 | P0 blocker | feed `391:310`, `396:2926`과 post `398:611`에 `팔로잉`·`최신`, 검색, unread bell, 활성 `팔로우`가 보임 | P0에서는 제거가 기본. 꼭 남기면 disabled `준비 중`과 이유를 표시하고 route/API 호출 0건 | FE / PM | Open |
+| FCR-002 | P0 blocker | feed `391:310`, `396:2926`과 post `398:611`에 `팔로잉`·`최신`, 검색, unread bell, 활성 `팔로우`가 보임 | P0에서는 제거가 기본. 꼭 남기면 disabled `준비 중`과 이유를 표시하고 route/API 호출 0건 | FE / PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-002-증거)) |
 | FCR-003 | P0 blocker | feed에 `혼잡도 낮은 순`, `지금 가기 좋아요`, `서울` chip이 활성 control처럼 보임 | `listFeed`에 filter 계약이 생기기 전 숨김. P1에서도 source·시점 비교 적격성 없는 혼합 순위 금지 | FE / BE·AI | Open |
 | FCR-004 | P0 blocker | F 흐름에 setup `415:2268`, loading `415:2413`, P1 DAY preview `439:3104`, applied `417:2412`만 있고 P0 ITEM READY preview가 없음 | P0 ITEM 전용 READY frame/variant 추가: before/after, provenance, lock validation, eligible metric, `적용`/`현재 일정 유지` | FE / BE·AI·PM | Open |
 | FCR-005 | P0 blocker | loading/preview에 `경로 계산`, `지도 provider 미정`; 여행 보기 `410:1738`에 `↓ 1.2km · 도보 15분`; Live `418:2523`에 `돌아가도 15분/30분`, `+8분/+5분`이 있으나 P0 route provider는 미결정 | ITEM copy를 혼잡·고정 조건 확인으로 변경. provider가 없으면 목록/timeline을 동등하게 제공하고 route 기반 시간·우회 수치·placeholder를 제거. 직선거리는 FCR-009 기준을 충족할 때만 표시 | FE / BE·AI | Open |
@@ -106,3 +106,27 @@ inventory를 같은 change set에서 갱신한다.
 5. 구현 acceptance: KO/EN은 `updatePreferences(locale)`로 저장 후 새로고침 복구, JA/ZH row는 focus 가능하지만 `aria-disabled`이며 선택·저장·API 호출 0건. 360px에서 helper 2줄 wrap을 확인했다.
 
 top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 53개다. [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 53으로 갱신했다.
+
+## FCR-002 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. P0 기본값대로 P1 control을 **제거**했으며 disabled `준비 중`으로 남기지 않았다. 종료 조건 4(PM 범위 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 항목 | 값 |
+| --- | --- |
+| feed 여행 없음 | [`391:310`](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=391-310) — [변경 전](./evidence/fcr-002/before-391-310.jpg) · [변경 후](./evidence/fcr-002/after-391-310.jpg) |
+| feed 활성 여행 | [`396:2926`](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=396-2926) — [변경 전](./evidence/fcr-002/before-396-2926.jpg) · [변경 후](./evidence/fcr-002/after-396-2926.jpg) |
+| 게시물 상세 | [`398:611`](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=398-611) — [변경 전](./evidence/fcr-002/before-398-611.jpg) · [변경 후](./evidence/fcr-002/after-398-611.jpg) |
+| 후보 저장 - 여행 선택 | [`399:658` S03-C1 / choose-trip · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=399-658) — 변경 전 스크린샷 없음(구조는 S03-F1과 동일) · [변경 후](./evidence/fcr-002/after-399-658.jpg) |
+| 후보 저장 - 저장 완료 | [`399:843` S03-C2 / saved · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=399-843) — 변경 전 스크린샷 없음 · [변경 후](./evidence/fcr-002/after-399-843.jpg) |
+| 후보 저장 - 중복 | [`399:1011` S03-C3 / duplicate · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=399-1011) — 변경 전 스크린샷 없음 · [변경 후](./evidence/fcr-002/after-399-1011.jpg) |
+| 후보 저장 - 오류 | [`399:1179` S03-C4 / error · P0 ERROR](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=399-1179) — 변경 전 스크린샷 없음 · [변경 후](./evidence/fcr-002/after-399-1179.jpg) |
+
+변경 내용:
+
+1. feed 두 frame의 NavBar에서 `btn/search`(`391:314`, `396:2930`)와 unread badge가 있는 `btn/bell`(`391:317`, `396:2932`)을 제거했다. 남은 `btn/filter`는 `FCR-003` 범위이며 그때 함께 판단한다. `nav-actions`(`391:313`, `396:2929`)는 원래 오른쪽 끝(x+w=385)에 맞춰 재배치했다.
+2. `추천`·`팔로잉`·`최신` `Top tabs` row(`391:325`, `396:2938`, 40px)를 통째로 제거했다. P0 feed는 단일 목록이므로 `추천` 단독 tab도 두지 않았다. 아래 요소(Filter chips, Empty banner/Trip context, FeedPost card 4장)를 40px 위로 올렸고 TabBar·StatusBar는 그대로다.
+3. 게시물 상세 author row(`399:631`)의 활성 `팔로우` button(`432:2990`)을 제거했다. row는 auto-layout이라 좋아요 count가 오른쪽 끝을 유지한다.
+4. 구현 acceptance: `/feed`와 `/posts/:postId`는 검색·알림·팔로우·정렬 tab 관련 route와 API 호출이 0건이다. 카드의 `+`, 게시물 저장(`savePost`), 좋아요 등 P0 action은 유지된다.
+5. 후보 저장 흐름의 배경 frame 4개(`S03-C1 / choose-trip · P0` `399:658`, `S03-C2 / saved · P0` `399:843`, `S03-C3 / duplicate · P0` `399:1011`, `S03-C4 / error · P0 ERROR` `399:1179`)는 모두 `S03-F1` feed를 복제한 배경 위에 sheet/toast를 얹은 구조라 1·2와 같은 검색·알림·tab줄 문제를 그대로 갖고 있었다. 네 화면 모두 동일하게 `btn/search`·`btn/bell`·`Top tabs` row를 제거하고 하위 콘텐츠를 40px 올렸으며 `nav-actions`를 오른쪽 끝으로 재정렬했다. `Sheet / TripPicker`, `Feedback / Toast`, `dim` 오버레이는 이동하지 않았다(원래도 배경과 독립된 절대 좌표).
+   - 이 4개는 변경 전 스크린샷을 별도로 찍지 않고 바로 수정했다. 변경 전 구조는 `S03-F0`/`S03-F1`(위 1·2 before 스크린샷)과 완전히 동일한 NavBar/tab 레이아웃이었음을 `get_metadata` 원본 덤프로 확인했으며, after 스크린샷만 증거로 남긴다.
