@@ -256,7 +256,11 @@ Figma 오류 계약:
   feed 카드와 게시물 상세의 거리 표시를 제거했다(2026-09-07). 되살리려면 기준점·산식·
   provenance를 포함한 additive 계약이 먼저 필요하다.
 - 실시간 관측은 `SEOUL_CITYDATA` provenance와 검토된 attribution을 표시하고 KTO
-  장소 정보·예측 출처와 결합하지 않는다(`FCR-011`).
+  장소 정보·예측 출처와 결합하지 않는다(`FCR-011`, 2026-09-07 수정). 카드에서
+  **상태는 `Data / StateLabel`, 출처는 `source` 텍스트**로 분리하며 하나의 배지가
+  둘을 겸하지 않는다. `Card / FeedPost`의 `공식 관광정보 기반` 배지는 제거했다.
+  `SEOUL_CITYDATA` attribution 전문(43자)이 좁은 카드에 들어가지 않는 문제는
+  `attributionShort` 계약 결정 전까지 열려 있다.
 
 Data state label:
 
