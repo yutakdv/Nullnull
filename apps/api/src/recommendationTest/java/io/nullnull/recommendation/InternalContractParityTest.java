@@ -143,15 +143,21 @@ class InternalContractParityTest {
     }
 
     /**
-     * {@code locale} is a Literal on the service side and a String here, so the enum check in
-     * {@link #assertParity} cannot see it: P0 ships Korean and English and nothing else (§P0).
+     * {@code locale} and {@code source} are Literals on the service side and Strings here, so the enum
+     * check in {@link #assertParity} cannot see them: P0 ships Korean and English and nothing else, and
+     * an explanation has exactly two writers. {@code source} is a String so that an unknown writer is
+     * rejected by the gateway as a contract break instead of failing enum deserialization as an outage.
      */
     @Test
-    void explanationLocalesAreTheTwoShippedLanguages() {
-        Set<String> declared = new TreeSet<>();
+    void explanationLocalesAndWritersAreTheTwoPublishedValuesEach() {
+        Set<String> locales = new TreeSet<>();
         schemas.get("ExplanationRenderRequest").get("properties").get("locale").get("enum")
-                .forEach(node -> declared.add(node.asString()));
-        assertThat(declared).isEqualTo(new TreeSet<>(Set.of("ko", "en")));
+                .forEach(node -> locales.add(node.asString()));
+        assertThat(locales).isEqualTo(new TreeSet<>(Set.of("ko", "en")));
+        Set<String> sources = new TreeSet<>();
+        schemas.get("ExplanationRenderResponse").get("properties").get("source").get("enum")
+                .forEach(node -> sources.add(node.asString()));
+        assertThat(sources).isEqualTo(new TreeSet<>(ExplanationRenderResponse.SOURCES));
     }
 
     /**

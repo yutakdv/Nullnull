@@ -199,7 +199,6 @@ public class HttpRecommendationGateway implements RecommendationGateway {
         } catch (HttpClientErrorException exception) {
             throw rejected("explanationRender", exception);
         } catch (RestClientException | HttpMessageConversionException exception) {
-            // A `source` outside the two published writers cannot be read into the record and ends here.
             throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
         }
         if (response == null) {
@@ -210,13 +209,17 @@ public class HttpRecommendationGateway implements RecommendationGateway {
     }
 
     /**
-     * An explanation is one line of text, within the length the FE renders, and it still carries the
-     * attribution this API sent: a sentence that dropped its source, grew a second line or came back
-     * empty is not displayable. A violation is a contract break, not an outage: retrying cannot fix it.
+     * An explanation is one line of text, within the length the FE renders, written by one of the two
+     * published writers, and it still carries the attribution this API sent: a sentence that dropped
+     * its source, grew a second line, came back empty or names an unknown writer is not displayable.
+     * A violation is a contract break, not an outage: retrying cannot fix it.
      */
     private static void verifyExplanation(ExplanationRenderRequest request, ExplanationRenderResponse response) {
         if (response.policyHash().isBlank()) {
             throw unusable("explanation response carries no policy hash");
+        }
+        if (!ExplanationRenderResponse.SOURCES.contains(response.source())) {
+            throw unusable("service named a writer outside the two published values");
         }
         String summary = response.summary();
         if (summary.isBlank()) {

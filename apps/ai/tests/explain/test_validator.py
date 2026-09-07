@@ -2,9 +2,10 @@
 
 Every number in the sentence must already be in the facts, no identifier or link may appear, and the
 claims the facts cannot support - visitor counts, current quietness, savings, opening hours, routes
-and distances - are refused outright. The three approved fact strings (place name, metric label,
-attribution) are masked out before those checks: a place really called "63빌딩" or "청계천 물길 거리"
-must not make every rewrite unacceptable.
+and distances - are refused outright. The three approved fact strings (place name, metric
+label, attribution) are located as spans and exempted where they sit: a place really called "63빌딩"
+or "청계천 물길 거리" must not make every rewrite unacceptable, while a claim or a number that only
+touches such a span - "광화문" + "열어요", or "11" next to a place called "1" - is still judged.
 """
 
 from __future__ import annotations
@@ -18,6 +19,9 @@ import pytest
 from nullnull_ai.explain.facts import ExplanationFacts
 from nullnull_ai.explain.templates import MAX_LENGTH
 from nullnull_ai.explain.validator import accepts
+
+SEOUL_ATTRIBUTION = "출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)"
+"""The real source registry line of SOURCE_CATALOG.md §FCR-011: approved text that carries digits."""
 
 FACTS = ExplanationFacts(
     locale="ko",
@@ -87,10 +91,32 @@ def test_digits_and_claim_words_inside_an_approved_place_name_are_not_new_facts(
 
 
 def test_the_same_words_outside_the_place_name_are_still_refused() -> None:
-    """The mask covers the approved strings only; the model may not smuggle a claim next to them."""
+    """The exemption covers the approved strings only; a claim may not be smuggled next to them."""
     facts = replace(FACTS, place_name="청계천 물길 거리")
     assert not accepts(facts, "청계천 물길 거리는 지하철역과 거리가 가까워요. 80에서 60으로")
     assert not accepts(replace(FACTS, place_name="63빌딩"), "63빌딩은 63층이고 방문자가 적어요. 80에서 60으로")
+
+
+def test_a_claim_that_straddles_the_end_of_an_approved_name_is_still_refused() -> None:
+    """The name is located, not deleted: `광화문` + `열어요` still reads as an opening-hours claim."""
+    facts = replace(FACTS, place_name="광화문")
+    assert not accepts(facts, "광화문 열어요. 80에서 60으로")
+    assert accepts(facts, "광화문 방문을 12:00로 옮기면 80에서 60으로 20포인트 낮아져요"), "the name alone is fine"
+
+
+def test_a_number_that_only_touches_an_approved_name_is_not_a_known_number() -> None:
+    """A one-character name may not turn every number that starts with it into a fact."""
+    facts = replace(FACTS, place_name="1")
+    assert not accepts(facts, "1 방문을 옮기면 대기 11분")
+    assert not accepts(facts, "1 방문을 옮기면 80에서 60으로 20포인트, 대기 15분")
+    assert accepts(facts, "1 방문을 12:00로 옮기면 80에서 60으로 20포인트 낮아져요"), "the name itself is fine"
+
+
+def test_a_digit_from_the_source_line_may_not_be_reused_outside_it() -> None:
+    """The Seoul attribution names 2022; that does not make 2022 a number the sentence may claim."""
+    facts = replace(FACTS, attribution=SEOUL_ATTRIBUTION)
+    assert accepts(facts, f"상대 집중률가 80에서 60로 20포인트 낮아져요. {SEOUL_ATTRIBUTION}")
+    assert not accepts(facts, f"2022년부터 80에서 60으로 20포인트 낮아요. {SEOUL_ATTRIBUTION}")
 
 
 def test_an_injection_sentence_that_breaks_no_rule_is_still_only_text() -> None:

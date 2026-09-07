@@ -11,6 +11,7 @@ claims an improvement of zero.
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 from datetime import date as date_
 from datetime import time as time_
@@ -62,7 +63,14 @@ class ExplanationFacts:
 
 
 def _bounded(name: str, value: str, limit: int) -> None:
+    """An approved string is one printable line: a control character would break the sentence in two.
+
+    A newline in a place name would produce a two-line summary that the output validator refuses and
+    the FE cannot render in one card, so it is refused here rather than shipped as a 200.
+    """
     if not value.strip():
         raise ValueError(f"{name} must not be blank")
     if len(value) > limit:
         raise ValueError(f"{name} must be at most {limit} characters")
+    if any(unicodedata.category(character) == "Cc" for character in value):
+        raise ValueError(f"{name} must not contain a control character")

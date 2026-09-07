@@ -44,6 +44,23 @@ class ExplanationRenderRequestTest {
     }
 
     @Test
+    void anApprovedStringThatWouldBreakTheSentenceInTwoIsRefused() {
+        assertThatThrownBy(() -> new ExplanationRenderRequest("ko", "\uacbd\ubcf5\n\uad81", D12, null, D12, null,
+                new BigDecimal("80"), new BigDecimal("60"), "index", "Source", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("placeName must not contain a control");
+        assertThatThrownBy(() -> new ExplanationRenderRequest("en", "Gyeongbokgung", D12, null, D12, null,
+                new BigDecimal("80"), new BigDecimal("60"), "index\tv2", "Source", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("metricLabel must not contain a control");
+        assertThatThrownBy(() -> new ExplanationRenderRequest("en", "Gyeongbokgung", D12, null, D12, null,
+                new BigDecimal("80"), new BigDecimal("60"), "index", "Source\r", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("attribution must not contain a control");
+        assertThatThrownBy(() -> new ExplanationRenderRequest("en", "Gyeongbokgung", D12, null, D12, null,
+                new BigDecimal("80"), new BigDecimal("60"), "index", "Source", "issue\n1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("forecastIssueId must not contain a control");
+    }
+
+    @Test
     void theApprovedStringsStayInsideTheirBounds() {
         assertThatThrownBy(() -> new ExplanationRenderRequest("en", " ", D12, null, D12, null, new BigDecimal("80"),
                 new BigDecimal("60"), "index", "Source", null))

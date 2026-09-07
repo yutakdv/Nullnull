@@ -37,9 +37,8 @@ public record ExplanationRenderRequest(String locale, String placeName, LocalDat
         requireBounded(placeName, MAX_PLACE_NAME, "placeName");
         requireBounded(metricLabel, MAX_METRIC_LABEL, "metricLabel");
         requireBounded(attribution, MAX_ATTRIBUTION, "attribution");
-        if (forecastIssueId != null && forecastIssueId.length() > MAX_FORECAST_ISSUE_ID) {
-            throw new IllegalArgumentException("forecastIssueId must be at most " + MAX_FORECAST_ISSUE_ID
-                    + " characters");
+        if (forecastIssueId != null) {
+            requireBounded(forecastIssueId, MAX_FORECAST_ISSUE_ID, "forecastIssueId");
         }
         if (beforeValue.compareTo(afterValue) <= 0) {
             throw new IllegalArgumentException("an explanation states a verified improvement: the metric must be lower after");
@@ -51,6 +50,7 @@ public record ExplanationRenderRequest(String locale, String placeName, LocalDat
         return beforeValue.subtract(afterValue);
     }
 
+    /** An approved string is one printable line: a control character would break the sentence in two. */
     private static void requireBounded(String value, int limit, String name) {
         Objects.requireNonNull(value, name);
         if (value.isBlank()) {
@@ -58,6 +58,11 @@ public record ExplanationRenderRequest(String locale, String placeName, LocalDat
         }
         if (value.length() > limit) {
             throw new IllegalArgumentException(name + " must be at most " + limit + " characters");
+        }
+        for (int index = 0; index < value.length(); index++) {
+            if (Character.getType(value.charAt(index)) == Character.CONTROL) {
+                throw new IllegalArgumentException(name + " must not contain a control character");
+            }
         }
     }
 }

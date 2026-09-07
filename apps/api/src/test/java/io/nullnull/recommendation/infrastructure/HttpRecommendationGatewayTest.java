@@ -612,7 +612,7 @@ class HttpRecommendationGatewayTest {
                 .andRespond(withSuccess(explanationBody(SENTENCE, "TEMPLATE"), MediaType.APPLICATION_JSON));
         ExplanationRenderResponse response = gateway.renderExplanation(explanationRequest());
         assertThat(response.summary()).isEqualTo(SENTENCE);
-        assertThat(response.source()).isEqualTo(ExplanationRenderResponse.Source.TEMPLATE);
+        assertThat(response.source()).isEqualTo("TEMPLATE");
         assertThat(response.policyHash()).hasSize(64);
         server.verify();
     }
@@ -622,7 +622,7 @@ class HttpRecommendationGatewayTest {
         expectExplanation(server, explanationBody(SENTENCE, "LLM"));
         assertThat(gateway.renderExplanation(explanationRequest()).source())
                 .as("a model outage is visible as TEMPLATE, never as a missing explanation")
-                .isEqualTo(ExplanationRenderResponse.Source.LLM);
+                .isEqualTo("LLM");
         server.verify();
     }
 
@@ -672,10 +672,13 @@ class HttpRecommendationGatewayTest {
     }
 
     @Test
-    void aWriterOutsideTheTwoPublishedValuesIsNeverReadAsAnExplanation() {
+    void aWriterOutsideTheTwoPublishedValuesIsAContractBreakAndNotAnOutage() {
         expectExplanation(server, explanationBody(SENTENCE, "ORACLE"));
         assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
-                .isInstanceOf(RecommendationUnavailableException.class);
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("writer outside the two published values")
+                .as("retrying cannot turn an unknown writer into a known one")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
         server.verify();
     }
 

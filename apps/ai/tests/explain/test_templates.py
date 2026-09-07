@@ -18,6 +18,9 @@ from nullnull_ai.explain.facts import ExplanationFacts
 from nullnull_ai.explain.templates import MAX_LENGTH, display_name, render
 from nullnull_ai.explain.validator import accepts
 
+SEOUL_ATTRIBUTION = "출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)"
+"""The real source registry line of SOURCE_CATALOG.md §FCR-011: approved text that carries digits."""
+
 KO = ExplanationFacts(
     locale="ko",
     place_name="경복궁",
@@ -113,9 +116,29 @@ def test_a_sentence_that_cannot_keep_the_attribution_fails_loudly() -> None:
         replace(AT_BOUNDS, locale="en", place_name="J" * 200),
         replace(KO, before_value=Decimal("80.500"), after_value=Decimal("60.00")),
         replace(KO, before_date=date(2026, 9, 5), before_time=time(9, 5)),
+        replace(KO, attribution=SEOUL_ATTRIBUTION),
+        replace(KO, metric_label="혼잡 지수 v2"),
+        replace(EN, metric_label="concentration index v2", attribution=SEOUL_ATTRIBUTION),
     ],
     ids=lambda f: f"{f.locale}-{f.place_name[:12]}",
 )
 def test_every_rendered_sentence_passes_the_output_validator(facts: ExplanationFacts) -> None:
     """The validator judges model text, so the service's own sentence must always satisfy it."""
     assert accepts(facts, render(facts))
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"place_name": "경복\n궁"},
+        {"metric_label": "상대\t집중률"},
+        {"attribution": "출처:\r ⓒ한국관광공사"},
+        {"forecast_issue_id": "issue\n1"},
+    ],
+    ids=lambda changes: next(iter(changes)),
+)
+def test_an_approved_string_that_would_break_the_sentence_in_two_is_refused(changes: dict[str, str]) -> None:
+    """A control character in approved text renders a summary no card can hold and the validator
+    refuses; it is a hydration bug, so it fails here rather than travelling as a 200."""
+    with pytest.raises(ValueError, match="control character"):
+        replace(KO, **changes)
