@@ -1,0 +1,13 @@
+/* Figma `Data / Must Visit`: pill, 12px pin + 11px Medium label. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-protect-subtle);
+  color: var(--color-protect-default);
+  font-size: var(--font-caption);
+  font-weight: 500;
+  line-height: 1.3;
+}
