@@ -47,6 +47,36 @@ Figma의 local variable과 style이 토큰 정본이다. 코드는 이를 추출
 의도적으로 남겼다. 정리는 `FCR-001~015` 승인 뒤 스크린샷 갱신과 함께 한다. 따라서
 CI의 토큰 검사는 생성물 드리프트만 강제하고 Figma 전체 커버리지를 강제하지 않는다.
 
+## 0.1 구현 현황 (2026-09-08)
+
+`apps/web/src/shared/ui`에 구현한 것과 남은 것이다. 화면은 이 public API를 통해서만
+component를 쓴다.
+
+| 구분 | 대상 | 상태 |
+| --- | --- | --- |
+| icon | `C13`~`C31`, `C36` 계열 20개 | 구현. Figma vector를 24×24 viewBox로 변환, `currentColor` |
+| primitive | `C04` `C08` `C11` `C40` `C44` `C47` `C48` | 구현 |
+| 나머지 | `C01`~`C03`, `C05`~`C07`, `C09`, `C10`, `C12`, `C32`~`C35`, `C37`~`C39`, `C41`~`C43`, `C45`, `C46` | 대기 |
+
+대기 사유는 두 가지다. `Card / FeedPost`, `Card / TripItem`, `Data / StateLabel`,
+`Data / Badge`, `Data / MetricDelta`, `Data / Distance`, `Action / DecisionBar`,
+`Form / OptimizationScope`, `Nav / Segment`, `Sheet / TripPicker`,
+`Feedback / Toast`, `Map / Base`, `Map / Marker`, `Map / Optimization` 14개는
+`FCR-001~015`가 구조·문구를 바꿨고 아직 검토 대기(PR #14)다. 승인 전에 구현하면
+재작업이 된다. 나머지는 표시할 server 계약(`listFeed`, `getTrip` 등) 연결이 필요해
+해당 `FE-*` slice에서 만든다.
+
+구현한 component가 지키는 것:
+
+- 44×44px 최소 target. Figma가 35px·36px로 그린 chip과 button도 hit area는 44px다.
+- 색만으로 상태를 전달하지 않는다. 선택은 `aria-pressed`, 진행은 `aria-busy`,
+  비활성은 사유 text를 함께 둔다.
+- `Form / LockControl`은 잠금 4종이 독립임을 코드로 강제한다. 하나를 눌러도 다른
+  잠금 상태를 바꾸지 않고, `reservation-locked`는 toggle로 제공하지 않는다.
+- `Action / TripAddButton`의 accessible name은 `담기`이며 `일정`을 쓰지 않는다.
+  후보 저장이 `TripItem`을 만들지 않기 때문이다. `loading`만 입력을 막고
+  `error`·`duplicate`는 계속 조작할 수 있다.
+
 ## 1. 구현 규칙
 
 - Catalog ID는 문서 추적 용도다. React export는 영문 PascalCase를 쓰고 Figma 원본 이름을 component JSDoc/Storybook tag에 남긴다.

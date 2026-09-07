@@ -1,0 +1,36 @@
+/* Figma `Form / LockControl`: pill, 12px/3px padding, 5px gap,
+   12px glyph + 11px Medium label. Locked and unlocked differ by fill and by
+   the label text, never by colour alone. */
+.lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: var(--border-thin) solid var(--color-border-default);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.lock[data-state='user-locked'] {
+  background: var(--color-action-subtle);
+  border-color: var(--color-action-primary);
+  color: var(--color-action-strong);
+}
+
+.lock[data-state='reservation-locked'] {
+  background: var(--color-protect-subtle);
+  border-color: var(--color-protect-default);
+  color: var(--color-protect-default);
+  cursor: default;
+}
+
+.lock[data-state='disabled'] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
