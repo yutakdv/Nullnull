@@ -26,7 +26,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-004 | P0 blocker | F 흐름에 setup `415:2268`, loading `415:2413`, P1 DAY preview `439:3104`, applied `417:2412`만 있고 P0 ITEM READY preview가 없음 | P0 ITEM 전용 READY frame/variant 추가: before/after, provenance, lock validation, eligible metric, `적용`/`현재 일정 유지` | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-004-증거)) |
 | FCR-005 | P0 blocker | loading/preview에 `경로 계산`, `지도 provider 미정`; 여행 보기 `410:1738`에 `↓ 1.2km · 도보 15분`; Live `418:2523`에 `돌아가도 15분/30분`, `+8분/+5분`이 있으나 P0 route provider는 미결정 | ITEM copy를 혼잡·고정 조건 확인으로 변경. provider가 없으면 목록/timeline을 동등하게 제공하고 route 기반 시간·우회 수치·placeholder를 제거. 직선거리는 FCR-009 기준을 충족할 때만 표시 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-005-증거)) |
 | FCR-006 | P0 blocker | S14 `422:2925`가 `로그인하면 일정을 저장할 수 있어요`와 활성 login affordance를 노출 | `이 기기의 익명 세션에 저장돼요`처럼 실제 보존 방식을 설명하고 login은 disabled `준비 중`; 요청 0건 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-006-증거)) |
-| FCR-007 | P0 blocker | S15 `423:2967`가 데이터 상태를 5개로 설명하고 `REPLAY`를 누락. `Data / StateLabel` component에는 이미 6개 variant가 있음 | component를 다시 만들지 않고 S15 설명을 `LIVE`, `FORECAST`, `REPLAY`, `QUALITATIVE`, `STALE`, `UNAVAILABLE` 6개와 관측/대상 시각 차이로 수정 | FE / BE·AI | Open |
+| FCR-007 | P0 blocker | S15 `423:2967`가 데이터 상태를 5개로 설명하고 `REPLAY`를 누락. `Data / StateLabel` component에는 이미 6개 variant가 있음 | component를 다시 만들지 않고 S15 설명을 `LIVE`, `FORECAST`, `REPLAY`, `QUALITATIVE`, `STALE`, `UNAVAILABLE` 6개와 관측/대상 시각 차이로 수정 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-007-증거)) |
 | FCR-008 | P0 major | S11 `418:2523`에 장소명 검색이 있으나 화면-API 연결이 명시되지 않음 | `searchPlaces` → canonical 선택 → `getLivePlace`; coverage가 없으면 `UNAVAILABLE`, loading/empty/error variant 제공 | FE / BE·AI | Open |
 | FCR-009 | P0 major | post/detail 거리값은 기준점·산식이 불명확해 보일 수 있음 | trip anchor/선택 장소 등 거리 기준과 source를 함께 표시. 기준이 없으면 거리값을 숨기고 unavailable reason 제공 | FE / BE·AI | Open |
 | FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Open |
@@ -210,3 +210,23 @@ top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 54개다(FCR-001 �
 1. guest 카드 부제 `로그인하면 일정을 저장할 수 있어요`(brand blue, 활성 링크처럼 보임) → `로그인 없이 시작했어요 · 여행은 이 기기의 익명 세션에 저장돼요`(`color/text/secondary`, 중립 톤). 실제로 이미 저장되고 있는 사실을 설명하며 로그인을 저장의 전제 조건처럼 보이게 하지 않는다.
 2. 같은 카드 안에 `로그인` 라벨과 `Data / Badge`(`tone=외곽선`) `준비 중`을 새 row로 추가했다. row 전체를 `opacity 0.55`로 흐리게 표시해 비활성 상태를 시각적으로도 전달한다. 새 컴포넌트를 만들지 않고 기존 `Data / Badge`를 재사용했다.
 3. 구현 acceptance: 이 row는 keyboard focus를 받을 수 있지만 클릭·Enter로도 route 이동이나 API 호출을 만들지 않는다(`FR-PRO-02`, `client capability accountAuth=false`). `getCurrentOwner` 응답에 로그인 상태 필드가 없어도 이 화면은 항상 guest로 렌더링된다.
+
+## FCR-007 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. `423:2967`을 `FR-DAT-01`이 이미 요구하던 6개 상태와 일치시켰다(기능 인벤토리는 처음부터 6개였고 Figma만 5개로 뒤처져 있었다). 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 항목 | 값 |
+| --- | --- |
+| 화면 | [`423:2967` S15 / data-guide · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=423-2967) |
+| 변경 전 상단 | [스크린샷](./evidence/fcr-007/before-423-2967-top.jpg) |
+| 변경 전 하단(4·5번째 상태 부근) | [스크린샷](./evidence/fcr-007/before-423-2967-bottom.jpg) |
+| 변경 후 상단 | [스크린샷](./evidence/fcr-007/after-423-2967-top.jpg) |
+| 변경 후 하단(추가된 REPLAY row 포함) | [스크린샷](./evidence/fcr-007/after-423-2967-bottom.jpg) |
+
+변경 내용:
+
+1. 섹션 제목 `혼잡도 데이터 상태 5가지` → `혼잡도 데이터 상태 6가지`.
+2. 기존 `unavailable` row(`423:2991`)를 복제해 6번째 `state-row`를 만들고, `Data / StateLabel` instance를 새 컴포넌트를 만들지 않고 기존 `state=replay` variant(라벨 `과거 관측 재생 · 실시간 아님`)로 교체했다. 설명 문구는 `과거 관측을 다시 보여드리는 데모예요. 지금 실시간이 아니에요.`로 작성했다 — `FR-LIV-07`의 "REPLAY를 현재 실시간처럼 표현 금지" 규칙을 그대로 반영한다.
+3. 나머지 5개 row(`live`/`forecast`/`qualitative`/`stale`/`unavailable`)는 이미 정확했으므로 그대로 뒀다. 아래 `일정과 AI는 이렇게 동작해요` 가이드 섹션은 auto-layout으로 자동으로 밀렸다.
+4. 구현 acceptance: `getDemoReadiness` 응답의 6개 state 값과 이 화면의 6개 row가 1:1로 대응한다. `data_guide_opened` 이벤트는 상태 개수와 무관하게 화면 진입 시 1회 기록한다.
