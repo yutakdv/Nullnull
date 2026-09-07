@@ -1,6 +1,8 @@
 package io.nullnull.recommendation.application;
 
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
@@ -40,4 +42,12 @@ public interface RecommendationGateway {
      * as CHECKING or UNKNOWN rather than as an empty list.
      */
     RelatedRankResponse rankRelated(RelatedRankRequest request);
+
+    /**
+     * The KO/EN sentence for one verified improvement. The answer states the point difference and
+     * keeps the source attribution; it is text the FE renders, never a command, and it is never the
+     * reason a trip changes. The caller is told whether the template or an accepted model rewrite
+     * wrote it, so a model outage is visible instead of silent.
+     */
+    ExplanationRenderResponse renderExplanation(ExplanationRenderRequest request);
 }

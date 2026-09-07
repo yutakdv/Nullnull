@@ -311,6 +311,41 @@ class RelatedRankResponse(ContractModel):
     reasons: list[str]
 
 
+ExplanationSourceName = Literal["TEMPLATE", "LLM"]
+"""Which writer produced the sentence: the deterministic template or an accepted model rewrite."""
+
+
+class ExplanationRenderRequest(ContractModel):
+    """The verified facts one explanation may mention (§9.1 allowlist).
+
+    `placeName`, `metricLabel` and `attribution` are approved catalog and source registry text, and
+    the two values are a pair Spring already judged comparable. A time is null when the slot carries
+    none; nothing here is an owner, a session, a coordinate or a line of the user's own itinerary.
+    """
+
+    locale: Literal["ko", "en"]
+    place_name: str = Field(min_length=1, max_length=200)
+    before_date: date_
+    before_time: time_ | None
+    after_date: date_
+    after_time: time_ | None
+    before_value: Decimal
+    after_value: Decimal
+    metric_label: str = Field(min_length=1, max_length=64)
+    attribution: str = Field(min_length=1, max_length=200)
+    forecast_issue_id: str | None = Field(max_length=64)
+
+
+class ExplanationRenderResponse(ContractModel):
+    """One sentence and its writer. `summary` is text: no caller may turn it into a command (§9.1)."""
+
+    policy_version: str
+    policy_hash: str
+    pipeline_version: str
+    summary: str = Field(min_length=1, max_length=500)
+    source: ExplanationSourceName
+
+
 class Problem(ContractModel):
     """Minimal RFC 9457 problem for the internal API; codes are stable and never carry inputs."""
 

@@ -14,6 +14,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.recommendation.application.RecommendationUnavailableException;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
@@ -567,6 +569,127 @@ class HttpRecommendationGatewayTest {
                 .andRespond(withBadRequest());
         RelatedRankRequest request = relatedRequest();
         assertThatThrownBy(() -> gateway.rankRelated(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+        server.verify();
+    }
+
+    /** One explanation: the sentence, and which writer produced it. */
+    static final String EXPLANATION_BODY = """
+            {"policyVersion":"policy-v1","policyHash":"%s","pipelineVersion":"nullnull-ai-pipeline-v1",
+             "summary":"%s","source":"%s"}
+            """;
+
+    static final String ATTRIBUTION = "Source: Korea Tourism Organization";
+    static final String SENTENCE = "Moving Gyeongbokgung from Sep 12 10:00 to Sep 12 12:00 lowers relative "
+            + "concentration index from 80 to 60 (20 points). " + ATTRIBUTION;
+
+    static String explanationBody(String summary, String source) {
+        return EXPLANATION_BODY.formatted("a".repeat(64), summary, source);
+    }
+
+    private static ExplanationRenderRequest explanationRequest() {
+        return new ExplanationRenderRequest("en", "Gyeongbokgung", D12, LocalTime.of(10, 0), D12, LocalTime.of(12, 0),
+                new BigDecimal("80"), new BigDecimal("60"), "relative concentration index", ATTRIBUTION, "issue-1");
+    }
+
+    private static void expectExplanation(MockRestServiceServer server, String body) {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/explanations/render"))
+                .andExpect(method(HttpMethod.POST)).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    void renderExplanationPostsOnlyAllowedFactsAndReadsTheSentenceAndItsWriter() {
+        server.expect(requestTo("http://ai.test:8090/internal/v1/explanations/render")).andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Request-ID", "req_test-0001"))
+                .andExpect(jsonPath("$.locale").value("en"))
+                .andExpect(jsonPath("$.placeName").value("Gyeongbokgung"))
+                .andExpect(jsonPath("$.beforeTime").value("10:00:00"))
+                .andExpect(jsonPath("$.afterDate").value("2026-09-12"))
+                .andExpect(jsonPath("$.attribution").value(ATTRIBUTION))
+                .andExpect(jsonPath("$.forecastIssueId").value("issue-1"))
+                // No owner, session, coordinate or itinerary text belongs in an explanation (§9.1).
+                .andExpect(jsonPath("$.ownerId").doesNotExist())
+                .andRespond(withSuccess(explanationBody(SENTENCE, "TEMPLATE"), MediaType.APPLICATION_JSON));
+        ExplanationRenderResponse response = gateway.renderExplanation(explanationRequest());
+        assertThat(response.summary()).isEqualTo(SENTENCE);
+        assertThat(response.source()).isEqualTo(ExplanationRenderResponse.Source.TEMPLATE);
+        assertThat(response.policyHash()).hasSize(64);
+        server.verify();
+    }
+
+    @Test
+    void anAcceptedModelRewriteIsReportedAsSuch() {
+        expectExplanation(server, explanationBody(SENTENCE, "LLM"));
+        assertThat(gateway.renderExplanation(explanationRequest()).source())
+                .as("a model outage is visible as TEMPLATE, never as a missing explanation")
+                .isEqualTo(ExplanationRenderResponse.Source.LLM);
+        server.verify();
+    }
+
+    @Test
+    void aDateOnlySlotSendsExplicitNullsRatherThanOmittingTheKeys() {
+        server.expect(requestTo("http://ai.test:8090/internal/v1/explanations/render"))
+                .andExpect(content().string(containsString("\"beforeTime\":null")))
+                .andExpect(content().string(containsString("\"afterTime\":null")))
+                .andRespond(withSuccess(explanationBody(SENTENCE, "TEMPLATE"), MediaType.APPLICATION_JSON));
+        ExplanationRenderRequest request = new ExplanationRenderRequest("en", "Gyeongbokgung", D12, null, D13, null,
+                new BigDecimal("80"), new BigDecimal("60"), "relative concentration index", ATTRIBUTION, null);
+        assertThat(gateway.renderExplanation(request).summary()).isEqualTo(SENTENCE);
+        server.verify();
+    }
+
+    @Test
+    void anExplanationThatDroppedItsAttributionIsRejected() {
+        expectExplanation(server, explanationBody("The index falls from 80 to 60 (20 points).", "LLM"));
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("source attribution")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+        server.verify();
+    }
+
+    @Test
+    void anEmptyLongOrMultiLineExplanationIsRejected() {
+        // All three expectations are registered before the first call: the mock server is ordered.
+        expectExplanation(server, explanationBody("   ", "TEMPLATE"));
+        expectExplanation(server, explanationBody("a".repeat(501), "TEMPLATE"));
+        expectExplanation(server, explanationBody(SENTENCE.replace("lowers", "\\nlowers"), "TEMPLATE"));
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("empty sentence");
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("longer than the contract");
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("single line");
+        server.verify();
+    }
+
+    @Test
+    void anExplanationWithoutAPolicyHashIsRejected() {
+        expectExplanation(server, EXPLANATION_BODY.formatted("", SENTENCE, "TEMPLATE"));
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("no policy hash");
+        server.verify();
+    }
+
+    @Test
+    void aWriterOutsideTheTwoPublishedValuesIsNeverReadAsAnExplanation() {
+        expectExplanation(server, explanationBody(SENTENCE, "ORACLE"));
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class);
+        server.verify();
+    }
+
+    @Test
+    void renderExplanationIsNeverRetriedAndARejectedRequestIsNotRetryable() {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/explanations/render"))
+                .andRespond(withServerError());
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/explanations/render"))
+                .andRespond(withBadRequest());
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isTrue());
+        assertThatThrownBy(() -> gateway.renderExplanation(explanationRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
                 .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
         server.verify();
     }

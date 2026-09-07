@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
@@ -121,6 +123,35 @@ class InternalContractParityTest {
         // A category match is 1, 0.5, 0 or null; it travels as a string so it arrives as an exact BigDecimal.
         assertThat(schemas.get("RelatedItemOut").get("properties").get("categoryMatch").get("anyOf").get(0).get("type")
                 .asString()).isEqualTo("string");
+    }
+
+    @Test
+    void explanationRenderContractMatches() {
+        assertParity(ExplanationRenderRequest.class, "ExplanationRenderRequest");
+        assertParity(ExplanationRenderResponse.class, "ExplanationRenderResponse");
+        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("placeName").get("maxLength").asInt())
+                .isEqualTo(ExplanationRenderRequest.MAX_PLACE_NAME);
+        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("metricLabel").get("maxLength")
+                .asInt()).isEqualTo(ExplanationRenderRequest.MAX_METRIC_LABEL);
+        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("attribution").get("maxLength")
+                .asInt()).isEqualTo(ExplanationRenderRequest.MAX_ATTRIBUTION);
+        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("forecastIssueId").get("anyOf").get(0)
+                .get("maxLength").asInt()).isEqualTo(ExplanationRenderRequest.MAX_FORECAST_ISSUE_ID);
+        // The sentence the FE renders is capped on both sides; the gateway rejects anything longer.
+        assertThat(schemas.get("ExplanationRenderResponse").get("properties").get("summary").get("maxLength").asInt())
+                .isEqualTo(500);
+    }
+
+    /**
+     * {@code locale} is a Literal on the service side and a String here, so the enum check in
+     * {@link #assertParity} cannot see it: P0 ships Korean and English and nothing else (§P0).
+     */
+    @Test
+    void explanationLocalesAreTheTwoShippedLanguages() {
+        Set<String> declared = new TreeSet<>();
+        schemas.get("ExplanationRenderRequest").get("properties").get("locale").get("enum")
+                .forEach(node -> declared.add(node.asString()));
+        assertThat(declared).isEqualTo(new TreeSet<>(Set.of("ko", "en")));
     }
 
     /**

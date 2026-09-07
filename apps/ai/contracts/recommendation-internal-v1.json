@@ -42,6 +42,164 @@
         "title": "CapabilityStatus",
         "type": "object"
       },
+      "ExplanationRenderRequest": {
+        "additionalProperties": false,
+        "description": "The verified facts one explanation may mention (§9.1 allowlist).\n\n`placeName`, `metricLabel` and `attribution` are approved catalog and source registry text, and\nthe two values are a pair Spring already judged comparable. A time is null when the slot carries\nnone; nothing here is an owner, a session, a coordinate or a line of the user's own itinerary.",
+        "properties": {
+          "afterDate": {
+            "format": "date",
+            "title": "Afterdate",
+            "type": "string"
+          },
+          "afterTime": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aftertime"
+          },
+          "afterValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Aftervalue"
+          },
+          "attribution": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Attribution",
+            "type": "string"
+          },
+          "beforeDate": {
+            "format": "date",
+            "title": "Beforedate",
+            "type": "string"
+          },
+          "beforeTime": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beforetime"
+          },
+          "beforeValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Beforevalue"
+          },
+          "forecastIssueId": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecastissueid"
+          },
+          "locale": {
+            "enum": [
+              "ko",
+              "en"
+            ],
+            "title": "Locale",
+            "type": "string"
+          },
+          "metricLabel": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Metriclabel",
+            "type": "string"
+          },
+          "placeName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Placename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "placeName",
+          "beforeDate",
+          "beforeTime",
+          "afterDate",
+          "afterTime",
+          "beforeValue",
+          "afterValue",
+          "metricLabel",
+          "attribution",
+          "forecastIssueId"
+        ],
+        "title": "ExplanationRenderRequest",
+        "type": "object"
+      },
+      "ExplanationRenderResponse": {
+        "additionalProperties": false,
+        "description": "One sentence and its writer. `summary` is text: no caller may turn it into a command (§9.1).",
+        "properties": {
+          "pipelineVersion": {
+            "title": "Pipelineversion",
+            "type": "string"
+          },
+          "policyHash": {
+            "title": "Policyhash",
+            "type": "string"
+          },
+          "policyVersion": {
+            "title": "Policyversion",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "TEMPLATE",
+              "LLM"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policyVersion",
+          "policyHash",
+          "pipelineVersion",
+          "summary",
+          "source"
+        ],
+        "title": "ExplanationRenderResponse",
+        "type": "object"
+      },
       "FeedCandidateIn": {
         "additionalProperties": false,
         "description": "One curated post as Spring sees it. Owner-specific state (hidden, saved) never reaches this service.",
@@ -1443,6 +1601,47 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/internal/v1/explanations/render": {
+      "post": {
+        "operationId": "render_explanation_internal_v1_explanations_render_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplanationRenderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplanationRenderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Render Explanation",
+        "tags": [
+          "Explanation"
+        ]
+      }
+    },
     "/internal/v1/feed/rank": {
       "post": {
         "operationId": "rank_feed_internal_v1_feed_rank_post",

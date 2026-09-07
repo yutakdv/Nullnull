@@ -3,6 +3,8 @@ package io.nullnull.recommendation.infrastructure;
 import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
+import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
@@ -35,8 +37,8 @@ import org.springframework.web.client.RestClientException;
 /**
  * Internal contract v1 over HTTP. Called outside any DB transaction. Response identifiers are
  * checked against the request so the service can never introduce an id Spring did not hydrate.
- * Only the idempotent GET is retried; {@code rankFeed}, {@code proposeItem}, {@code evaluateSlots} and
- * {@code rankRelated} are POSTs and are attempted once.
+ * Only the idempotent GET is retried; {@code rankFeed}, {@code proposeItem}, {@code evaluateSlots},
+ * {@code rankRelated} and {@code renderExplanation} are POSTs and are attempted once.
  */
 public class HttpRecommendationGateway implements RecommendationGateway {
 
@@ -53,6 +55,9 @@ public class HttpRecommendationGateway implements RecommendationGateway {
 
     /** policy-v1 candidateCaps.relatedMerged: the service merges to at most 300 canonical places. */
     private static final int MAX_RELATED_ITEMS = 300;
+
+    /** The service's own explanation cap (§9.1 template MAX_LENGTH); the FE renders one line of it. */
+    private static final int MAX_EXPLANATION_LENGTH = 500;
 
     private final RestClient client;
     private final Supplier<String> requestId;
@@ -179,6 +184,53 @@ public class HttpRecommendationGateway implements RecommendationGateway {
         }
         verifyRelated(request, response);
         return response;
+    }
+
+    @Override
+    public ExplanationRenderResponse renderExplanation(ExplanationRenderRequest request) {
+        ExplanationRenderResponse response;
+        try {
+            response = client.post().uri("/internal/v1/explanations/render")
+                    .header("X-Request-ID", requestId.get())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(ExplanationRenderResponse.class);
+        } catch (HttpClientErrorException exception) {
+            throw rejected("explanationRender", exception);
+        } catch (RestClientException | HttpMessageConversionException exception) {
+            // A `source` outside the two published writers cannot be read into the record and ends here.
+            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
+        }
+        if (response == null) {
+            throw new RecommendationUnavailableException("empty explanation render response", true, null);
+        }
+        verifyExplanation(request, response);
+        return response;
+    }
+
+    /**
+     * An explanation is one line of text, within the length the FE renders, and it still carries the
+     * attribution this API sent: a sentence that dropped its source, grew a second line or came back
+     * empty is not displayable. A violation is a contract break, not an outage: retrying cannot fix it.
+     */
+    private static void verifyExplanation(ExplanationRenderRequest request, ExplanationRenderResponse response) {
+        if (response.policyHash().isBlank()) {
+            throw unusable("explanation response carries no policy hash");
+        }
+        String summary = response.summary();
+        if (summary.isBlank()) {
+            throw unusable("an explanation is never an empty sentence");
+        }
+        if (summary.length() > MAX_EXPLANATION_LENGTH) {
+            throw unusable("service returned an explanation longer than the contract allows");
+        }
+        if (summary.indexOf('\n') >= 0) {
+            throw unusable("an explanation is a single line of text");
+        }
+        if (!summary.contains(request.attribution())) {
+            throw unusable("an explanation always carries the source attribution it was given");
+        }
     }
 
     /**
