@@ -1,16 +1,18 @@
-import type { RouteObject } from 'react-router';
-import { AppLayout } from './AppLayout.js';
+import { Outlet, type RouteObject } from 'react-router';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
 
-// Route table from docs/design/FIGMA_HANDOFF.md §2. Every P0 route exists so
-// deep links and redirects can be exercised from FE-001 onward; the screens
-// themselves arrive with their own slices, so each one renders an explicit
-// "not built yet" placeholder instead of a blank page.
+// P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
+// their own slices; until then each route renders a labelled placeholder and
+// an unknown path renders an explicit not-found screen. Nothing paints blank.
 export const routes: RouteObject[] = [
   {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <main id="main">
+        <Outlet />
+      </main>
+    ),
     children: [
       { index: true, element: <PlaceholderScreen routeId="splash" /> },
       { path: 'language', element: <PlaceholderScreen routeId="language" /> },
@@ -26,9 +28,6 @@ export const routes: RouteObject[] = [
       { path: 'live', element: <PlaceholderScreen routeId="live" /> },
       { path: 'profile', element: <PlaceholderScreen routeId="profile" /> },
       { path: 'about-data', element: <PlaceholderScreen routeId="about-data" /> },
-      // An unknown path renders an explicit not-found screen with a way back,
-      // rather than redirecting. A silent redirect hides typos and breaks the
-      // back button; a blank shell would violate the "no empty screen" rule.
       { path: '*', element: <NotFoundScreen /> },
     ],
   },
