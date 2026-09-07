@@ -235,6 +235,82 @@ class SlotEvaluateResponse(ContractModel):
     reasons: list[str]
 
 
+RelationTierName = Literal["EXACT", "SIMILAR"]
+"""How the catalog mapping policy classified one relation. Never synthesized from a confidence value."""
+
+RelationMatchState = Literal["EXACT", "SIMILAR", "NONE", "CHECKING", "UNKNOWN"]
+"""State of one place's related list. CHECKING and UNKNOWN describe the lookup, not the places found."""
+
+
+class PlaceCategoryIn(ContractModel):
+    """Canonical category of one place at a fixed taxonomy version; `categoryCode` may be missing."""
+
+    place_id: UUID
+    category_code: str | None = Field(max_length=64)
+    parent_category_code: str | None = Field(max_length=64)
+    taxonomy_version: str = Field(min_length=1, max_length=64)
+
+
+class RelationCandidateIn(ContractModel):
+    """One relation evidence row after canonical mapping, with the window it is valid in.
+
+    `mapping` is the canonical-mapping certainty of the row itself: an UNCERTAIN row is quarantined and
+    never ranked, because a wrong canonical target would attach evidence to the wrong place.
+    """
+
+    source_place_id: UUID
+    target_place_id: UUID
+    tier: RelationTierName
+    source_code: str = Field(min_length=1, max_length=64)
+    channel: str = Field(min_length=1, max_length=64)
+    confidence: Decimal | None
+    effective_at: AwareDatetime
+    expires_at: AwareDatetime | None
+    mapping: Literal["CERTAIN", "UNCERTAIN"]
+
+
+class RelatedRankRequest(ContractModel):
+    """Every relation row Spring found for one source place, plus the categories to compare against.
+
+    `lookupOutcome` is how that lookup ended: a failed source or a running verification job is answered
+    as UNKNOWN/CHECKING rather than as "no related places". The body carries no owner or session id.
+    """
+
+    evaluated_at: AwareDatetime
+    source_place_id: UUID
+    source_category: PlaceCategoryIn
+    candidates: list[RelationCandidateIn] = Field(max_length=2000)
+    categories: list[PlaceCategoryIn] = Field(max_length=2000)
+    lookup_outcome: Literal["COMPLETE", "SOURCE_FAILED", "JOB_RUNNING"]
+
+
+class RelatedItemOut(ContractModel):
+    """One canonical place with the evidence rows that survived.
+
+    `categoryMatch` is null when it is unknown, never 0: "no comparable category" and "a different
+    category" are different answers.
+    """
+
+    place_id: UUID
+    tier: RelationTierName
+    category_match: Decimal | None
+    evidence_count: int = Field(ge=1)
+    channels: list[str]
+
+    @field_serializer("category_match", when_used="always")
+    def _decimal_as_string(self, value: Decimal | None) -> str | None:
+        return None if value is None else str(value)
+
+
+class RelatedRankResponse(ContractModel):
+    policy_version: str
+    policy_hash: str
+    pipeline_version: str
+    state: RelationMatchState
+    items: list[RelatedItemOut]
+    reasons: list[str]
+
+
 class Problem(ContractModel):
     """Minimal RFC 9457 problem for the internal API; codes are stable and never carry inputs."""
 

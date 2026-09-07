@@ -15,6 +15,11 @@ import io.nullnull.recommendation.domain.item.NeighbourItemIn;
 import io.nullnull.recommendation.domain.item.OpeningWindowIn;
 import io.nullnull.recommendation.domain.item.TargetItemIn;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.recommendation.domain.related.PlaceCategoryIn;
+import io.nullnull.recommendation.domain.related.RelatedItemOut;
+import io.nullnull.recommendation.domain.related.RelatedRankRequest;
+import io.nullnull.recommendation.domain.related.RelatedRankResponse;
+import io.nullnull.recommendation.domain.related.RelationCandidateIn;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 import io.nullnull.recommendation.domain.slot.SlotOut;
@@ -100,6 +105,22 @@ class InternalContractParityTest {
         // P0 answers a date and never a time: the service declares the field as null-typed, not as a time.
         assertThat(schemas.get("SlotOut").get("properties").get("suggestedTime").get("type").asString())
                 .isEqualTo("null");
+    }
+
+    @Test
+    void relatedRankContractMatches() {
+        assertParity(RelatedRankRequest.class, "RelatedRankRequest");
+        assertParity(PlaceCategoryIn.class, "PlaceCategoryIn");
+        assertParity(RelationCandidateIn.class, "RelationCandidateIn");
+        assertParity(RelatedRankResponse.class, "RelatedRankResponse");
+        assertParity(RelatedItemOut.class, "RelatedItemOut");
+        assertThat(schemas.get("RelatedRankRequest").get("properties").get("candidates").get("maxItems").asInt())
+                .isEqualTo(RelatedRankRequest.MAX_CANDIDATES);
+        assertThat(schemas.get("RelatedRankRequest").get("properties").get("categories").get("maxItems").asInt())
+                .isEqualTo(RelatedRankRequest.MAX_CATEGORIES);
+        // A category match is 1, 0.5, 0 or null; it travels as a string so it arrives as an exact BigDecimal.
+        assertThat(schemas.get("RelatedItemOut").get("properties").get("categoryMatch").get("anyOf").get(0).get("type")
+                .asString()).isEqualTo("string");
     }
 
     /**

@@ -22,6 +22,14 @@ import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.OpeningWindowIn;
 import io.nullnull.recommendation.domain.item.TargetItemIn;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.recommendation.domain.related.PlaceCategoryIn;
+import io.nullnull.recommendation.domain.related.RelatedItemOut;
+import io.nullnull.recommendation.domain.related.RelatedRankRequest;
+import io.nullnull.recommendation.domain.related.RelatedRankRequest.LookupOutcome;
+import io.nullnull.recommendation.domain.related.RelatedRankResponse;
+import io.nullnull.recommendation.domain.related.RelationCandidateIn;
+import io.nullnull.recommendation.domain.related.RelationCandidateIn.MappingCertainty;
+import io.nullnull.recommendation.domain.related.RelationCandidateIn.RelationTier;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 import io.nullnull.recommendation.domain.slot.SlotOut;
@@ -29,9 +37,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -61,6 +71,9 @@ class HttpRecommendationGatewayTest {
     static final UUID CANDIDATE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93e01");
     static final UUID BEFORE_SNAPSHOT = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93d01");
     static final UUID AFTER_SNAPSHOT = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93d02");
+    static final UUID RELATED_ONE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93a11");
+    static final UUID RELATED_TWO = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93a12");
+    static final String TAXONOMY = "taxonomy-test-1";
     static final LocalDate D12 = LocalDate.of(2026, 9, 12);
     static final LocalDate D13 = LocalDate.of(2026, 9, 13);
     static final LocalDate D14 = LocalDate.of(2026, 9, 14);
@@ -389,6 +402,171 @@ class HttpRecommendationGatewayTest {
                 .andRespond(withBadRequest());
         SlotEvaluateRequest request = slotRequest();
         assertThatThrownBy(() -> gateway.evaluateSlots(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+        server.verify();
+    }
+
+    /** One source place's verified relations. `categoryMatch` travels as a string, null when unknown. */
+    static final String RELATED_BODY = """
+            {"policyVersion":"policy-v1","policyHash":"%s","pipelineVersion":"nullnull-ai-pipeline-v1",
+             "state":"%s","reasons":[],"items":[%s]}
+            """;
+
+    static String relatedItem(UUID placeId, String tier, String categoryMatch, int evidenceCount, String... channels) {
+        return """
+                {"placeId":"%s","tier":"%s","categoryMatch":%s,"evidenceCount":%d,"channels":[%s]}""".formatted(placeId,
+                tier, categoryMatch == null ? "null" : "\"" + categoryMatch + "\"", evidenceCount,
+                Arrays.stream(channels).map(channel -> "\"" + channel + "\"").collect(Collectors.joining(",")));
+    }
+
+    static String relatedBody(String state, String... items) {
+        return RELATED_BODY.formatted("a".repeat(64), state, String.join(",", items));
+    }
+
+    private static RelationCandidateIn relation(UUID target, RelationTier tier, String channel) {
+        return new RelationCandidateIn(PLACE, target, tier, "KTO_RELATED_PLACES", channel, new BigDecimal("0.7"),
+                Instant.parse("2026-09-05T00:00:00Z"), null, MappingCertainty.CERTAIN);
+    }
+
+    private static RelatedRankRequest relatedRequest(RelationCandidateIn... candidates) {
+        return new RelatedRankRequest(Instant.parse("2026-09-06T00:00:00Z"), PLACE,
+                new PlaceCategoryIn(PLACE, "PALACE", "HERITAGE", TAXONOMY), List.of(candidates),
+                List.of(new PlaceCategoryIn(RELATED_ONE, "PALACE", "HERITAGE", TAXONOMY)), LookupOutcome.COMPLETE);
+    }
+
+    private static RelatedRankRequest relatedRequest() {
+        return relatedRequest(relation(RELATED_ONE, RelationTier.EXACT, "kto-direct"),
+                relation(RELATED_TWO, RelationTier.SIMILAR, "category"));
+    }
+
+    private static void expectRelated(MockRestServiceServer server, String body) {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/related/rank"))
+                .andExpect(method(HttpMethod.POST)).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    void rankRelatedPostsHydratedRelationsAndReadsCategoryMatchExactly() {
+        server.expect(requestTo("http://ai.test:8090/internal/v1/related/rank")).andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Request-ID", "req_test-0001"))
+                .andExpect(jsonPath("$.sourcePlaceId").value(PLACE.toString()))
+                .andExpect(jsonPath("$.sourceCategory.categoryCode").value("PALACE"))
+                .andExpect(jsonPath("$.lookupOutcome").value("COMPLETE"))
+                .andExpect(jsonPath("$.candidates[0].tier").value("EXACT"))
+                .andExpect(jsonPath("$.candidates[0].mapping").value("CERTAIN"))
+                .andExpect(jsonPath("$.candidates[0].channel").value("kto-direct"))
+                // expiresAt is required-nullable in the contract, so an omitted key would be a 422 at runtime.
+                .andExpect(content().string(containsString("\"expiresAt\":null")))
+                .andRespond(withSuccess(relatedBody("EXACT",
+                        relatedItem(RELATED_ONE, "EXACT", "1", 2, "category", "kto-direct"),
+                        relatedItem(RELATED_TWO, "SIMILAR", null, 1, "category")), MediaType.APPLICATION_JSON));
+        RelatedRankResponse response = gateway.rankRelated(relatedRequest());
+        assertThat(response.state()).isEqualTo(RelatedRankResponse.State.EXACT);
+        assertThat(response.items()).extracting(RelatedItemOut::placeId).containsExactly(RELATED_ONE, RELATED_TWO);
+        assertThat(response.items().get(0).categoryMatch()).isEqualByComparingTo("1");
+        assertThat(response.items().get(0).channels()).containsExactly("category", "kto-direct");
+        assertThat(response.items().get(1).categoryMatch()).as("a missing category is unknown, not 0").isNull();
+        server.verify();
+    }
+
+    @Test
+    void anUnsettledLookupMayStillCarryWhatIsAlreadyVerified() {
+        expectRelated(server, relatedBody("CHECKING", relatedItem(RELATED_TWO, "SIMILAR", "0", 1, "category")));
+        assertThat(gateway.rankRelated(relatedRequest()).state()).isEqualTo(RelatedRankResponse.State.CHECKING);
+        server.verify();
+    }
+
+    @Test
+    void aRelatedPlaceOutsideTheRequestIsRejected() {
+        expectRelated(server, relatedBody("EXACT", relatedItem(ITEM, "EXACT", "1", 1, "kto-direct")));
+        assertThatThrownBy(() -> gateway.rankRelated(relatedRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("related place that was not in the request")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+    }
+
+    @Test
+    void aRelatedPlaceThatIsTheSourceIsRejected() {
+        // The request does carry a self-referencing row, so the target check alone would let it through.
+        expectRelated(server, relatedBody("EXACT", relatedItem(PLACE, "EXACT", "1", 1, "kto-direct")));
+        RelatedRankRequest request = relatedRequest(relation(PLACE, RelationTier.EXACT, "kto-direct"));
+        assertThatThrownBy(() -> gateway.rankRelated(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("never related to itself");
+    }
+
+    @Test
+    void aRepeatedRelatedPlaceIsRejected() {
+        expectRelated(server, relatedBody("EXACT", relatedItem(RELATED_ONE, "EXACT", "1", 1, "kto-direct"),
+                relatedItem(RELATED_ONE, "EXACT", "1", 1, "kto-direct")));
+        assertThatThrownBy(() -> gateway.rankRelated(relatedRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("merged, not repeated");
+    }
+
+    @Test
+    void aRelatedPlaceWithoutEvidenceIsRejected() {
+        expectRelated(server, relatedBody("EXACT", relatedItem(RELATED_ONE, "EXACT", "1", 0, "kto-direct")));
+        assertThatThrownBy(() -> gateway.rankRelated(relatedRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("at least one evidence row");
+    }
+
+    @Test
+    void aChannelOutsideTheRequestIsRejected() {
+        expectRelated(server, relatedBody("EXACT", relatedItem(RELATED_ONE, "EXACT", "1", 1, "popularity")));
+        assertThatThrownBy(() -> gateway.rankRelated(relatedRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("channel that was not in the request");
+    }
+
+    @Test
+    void aStateThatDisagreesWithTheFirstRelatedPlaceIsRejected() {
+        // All three expectations are registered before the first call: the mock server is ordered.
+        expectRelated(server, relatedBody("EXACT", relatedItem(RELATED_TWO, "SIMILAR", "0", 1, "category")));
+        expectRelated(server, relatedBody("SIMILAR", relatedItem(RELATED_ONE, "EXACT", "1", 1, "kto-direct")));
+        expectRelated(server, relatedBody("NONE", relatedItem(RELATED_ONE, "EXACT", "1", 1, "kto-direct")));
+        assertThatThrownBy(() -> gateway.rankRelated(relatedRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("EXACT needs an EXACT");
+        assertThatThrownBy(() -> gateway.rankRelated(relatedRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("SIMILAR needs a SIMILAR");
+        assertThatThrownBy(() -> gateway.rankRelated(relatedRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("NONE carries no related place");
+        server.verify();
+    }
+
+    @Test
+    void moreRelatedPlacesThanThePolicyCapAreRejected() {
+        // policy-v1 candidateCaps.relatedMerged = 300: the service truncates and reports MERGED_CAP_EXCEEDED.
+        String[] items = new String[301];
+        RelationCandidateIn[] candidates = new RelationCandidateIn[301];
+        for (int index = 0; index < items.length; index++) {
+            UUID target = new UUID(1L, index);
+            items[index] = relatedItem(target, "SIMILAR", null, 1, "category");
+            candidates[index] = relation(target, RelationTier.SIMILAR, "category");
+        }
+        expectRelated(server, relatedBody("SIMILAR", items));
+        RelatedRankRequest request = relatedRequest(candidates);
+        assertThatThrownBy(() -> gateway.rankRelated(request))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("more related places than the policy");
+    }
+
+    @Test
+    void rankRelatedIsNeverRetried() {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/related/rank"))
+                .andRespond(withServerError());
+        RelatedRankRequest request = relatedRequest();
+        assertThatThrownBy(() -> gateway.rankRelated(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isTrue());
+        server.verify();
+    }
+
+    @Test
+    void aRejectedRelatedRequestIsNotRetryable() {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/related/rank"))
+                .andRespond(withBadRequest());
+        RelatedRankRequest request = relatedRequest();
+        assertThatThrownBy(() -> gateway.rankRelated(request)).isInstanceOf(RecommendationUnavailableException.class)
                 .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
         server.verify();
     }

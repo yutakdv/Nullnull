@@ -5,6 +5,8 @@ import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
+import io.nullnull.recommendation.domain.related.RelatedRankRequest;
+import io.nullnull.recommendation.domain.related.RelatedRankResponse;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 
@@ -31,4 +33,11 @@ public interface RecommendationGateway {
      * a time, and scheduling still goes through the trip's own validation and the user's approval.
      */
     SlotEvaluateResponse evaluateSlots(SlotEvaluateRequest request);
+
+    /**
+     * Which verified places relate to one source place. Only relations this API hydrated take part, and
+     * the answer never claims a comparison the evidence does not support: an unsettled lookup comes back
+     * as CHECKING or UNKNOWN rather than as an empty list.
+     */
+    RelatedRankResponse rankRelated(RelatedRankRequest request);
 }

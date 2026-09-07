@@ -642,6 +642,55 @@
         "title": "OpeningWindowIn",
         "type": "object"
       },
+      "PlaceCategoryIn": {
+        "additionalProperties": false,
+        "description": "Canonical category of one place at a fixed taxonomy version; `categoryCode` may be missing.",
+        "properties": {
+          "categoryCode": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categorycode"
+          },
+          "parentCategoryCode": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parentcategorycode"
+          },
+          "placeId": {
+            "format": "uuid",
+            "title": "Placeid",
+            "type": "string"
+          },
+          "taxonomyVersion": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Taxonomyversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeId",
+          "categoryCode",
+          "parentCategoryCode",
+          "taxonomyVersion"
+        ],
+        "title": "PlaceCategoryIn",
+        "type": "object"
+      },
       "PolicyDescriptor": {
         "additionalProperties": false,
         "properties": {
@@ -697,6 +746,252 @@
           "checks"
         ],
         "title": "ReadinessStatus",
+        "type": "object"
+      },
+      "RelatedItemOut": {
+        "additionalProperties": false,
+        "description": "One canonical place with the evidence rows that survived.\n\n`categoryMatch` is null when it is unknown, never 0: \"no comparable category\" and \"a different\ncategory\" are different answers.",
+        "properties": {
+          "categoryMatch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categorymatch"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "evidenceCount": {
+            "minimum": 1.0,
+            "title": "Evidencecount",
+            "type": "integer"
+          },
+          "placeId": {
+            "format": "uuid",
+            "title": "Placeid",
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "EXACT",
+              "SIMILAR"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeId",
+          "tier",
+          "categoryMatch",
+          "evidenceCount",
+          "channels"
+        ],
+        "title": "RelatedItemOut",
+        "type": "object"
+      },
+      "RelatedRankRequest": {
+        "additionalProperties": false,
+        "description": "Every relation row Spring found for one source place, plus the categories to compare against.\n\n`lookupOutcome` is how that lookup ended: a failed source or a running verification job is answered\nas UNKNOWN/CHECKING rather than as \"no related places\". The body carries no owner or session id.",
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/RelationCandidateIn"
+            },
+            "maxItems": 2000,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceCategoryIn"
+            },
+            "maxItems": 2000,
+            "title": "Categories",
+            "type": "array"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "title": "Evaluatedat",
+            "type": "string"
+          },
+          "lookupOutcome": {
+            "enum": [
+              "COMPLETE",
+              "SOURCE_FAILED",
+              "JOB_RUNNING"
+            ],
+            "title": "Lookupoutcome",
+            "type": "string"
+          },
+          "sourceCategory": {
+            "$ref": "#/components/schemas/PlaceCategoryIn"
+          },
+          "sourcePlaceId": {
+            "format": "uuid",
+            "title": "Sourceplaceid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evaluatedAt",
+          "sourcePlaceId",
+          "sourceCategory",
+          "candidates",
+          "categories",
+          "lookupOutcome"
+        ],
+        "title": "RelatedRankRequest",
+        "type": "object"
+      },
+      "RelatedRankResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pipelineVersion": {
+            "title": "Pipelineversion",
+            "type": "string"
+          },
+          "policyHash": {
+            "title": "Policyhash",
+            "type": "string"
+          },
+          "policyVersion": {
+            "title": "Policyversion",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "EXACT",
+              "SIMILAR",
+              "NONE",
+              "CHECKING",
+              "UNKNOWN"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policyVersion",
+          "policyHash",
+          "pipelineVersion",
+          "state",
+          "items",
+          "reasons"
+        ],
+        "title": "RelatedRankResponse",
+        "type": "object"
+      },
+      "RelationCandidateIn": {
+        "additionalProperties": false,
+        "description": "One relation evidence row after canonical mapping, with the window it is valid in.\n\n`mapping` is the canonical-mapping certainty of the row itself: an UNCERTAIN row is quarantined and\nnever ranked, because a wrong canonical target would attach evidence to the wrong place.",
+        "properties": {
+          "channel": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Channel",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "effectiveAt": {
+            "format": "date-time",
+            "title": "Effectiveat",
+            "type": "string"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "mapping": {
+            "enum": [
+              "CERTAIN",
+              "UNCERTAIN"
+            ],
+            "title": "Mapping",
+            "type": "string"
+          },
+          "sourceCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Sourcecode",
+            "type": "string"
+          },
+          "sourcePlaceId": {
+            "format": "uuid",
+            "title": "Sourceplaceid",
+            "type": "string"
+          },
+          "targetPlaceId": {
+            "format": "uuid",
+            "title": "Targetplaceid",
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "EXACT",
+              "SIMILAR"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourcePlaceId",
+          "targetPlaceId",
+          "tier",
+          "sourceCode",
+          "channel",
+          "confidence",
+          "effectiveAt",
+          "expiresAt",
+          "mapping"
+        ],
+        "title": "RelationCandidateIn",
         "type": "object"
       },
       "SlotEvaluateRequest": {
@@ -1290,6 +1585,47 @@
         "summary": "Policy",
         "tags": [
           "System"
+        ]
+      }
+    },
+    "/internal/v1/related/rank": {
+      "post": {
+        "operationId": "rank_related_internal_v1_related_rank_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelatedRankRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelatedRankResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rank Related",
+        "tags": [
+          "Related"
         ]
       }
     },

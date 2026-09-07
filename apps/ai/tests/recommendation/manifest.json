@@ -89,6 +89,16 @@
       "path": "tests/test_time.py"
     },
     {
+      "id": "REC-REL-01",
+      "suite": "pytest",
+      "path": "tests/related/test_ranker.py"
+    },
+    {
+      "id": "REC-REL-02",
+      "suite": "pytest",
+      "path": "tests/related/test_ranker.py"
+    },
+    {
       "id": "REC-ARCH-01",
       "suite": "pytest",
       "path": "tests/test_purity.py"
