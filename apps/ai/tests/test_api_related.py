@@ -95,6 +95,19 @@ def test_a_shared_parent_category_scores_half(client: TestClient) -> None:
     ]
 
 
+def test_a_higher_category_match_is_ranked_first_inside_one_tier(client: TestClient) -> None:
+    """T1 sorts before T2 by placeId, so only `categoryMatch DESC` can put the closer place first."""
+    payload = client.post(
+        PATH,
+        json=body(
+            candidates=[candidate(T1), candidate(T2)],
+            categories=[category(T1, "MUSEUM"), category(T2, "PALACE")],
+        ),
+    ).json()
+    assert [item["placeId"] for item in payload["items"]] == [T2, T1]
+    assert [item["categoryMatch"] for item in payload["items"]] == ["1", "0.5"]
+
+
 def test_expired_evidence_is_dropped_and_an_uncertain_mapping_answers_unknown(client: TestClient) -> None:
     payload = client.post(
         PATH,

@@ -124,6 +124,29 @@ def test_parent_category_scores_half() -> None:
     assert result.items[0].category_match == Decimal("0.5")
 
 
+def test_a_higher_category_match_outranks_a_lower_one_inside_one_tier() -> None:
+    """The three rows share a tier, so only `categoryMatch DESC, missing last` can order them.
+
+    `placeId ASC` would answer T1, T2, T3: the expected order is the opposite for the two known
+    matches, so an ordering that compared the wrong way round (or ignored the match) fails here.
+    """
+    candidates = [
+        rel(T1, RelationTier.SIMILAR, "category"),
+        rel(T2, RelationTier.SIMILAR, "category"),
+        rel(T3, RelationTier.SIMILAR, "category"),
+    ]
+    result = RANKER.rank(
+        CONTEXT,
+        SRC,
+        SRC_CATEGORY,
+        candidates,
+        {T1: PlaceCategory(T1, "MUSEUM", "HERITAGE", TAXONOMY), T2: PlaceCategory(T2, "PALACE", "HERITAGE", TAXONOMY)},
+        LookupOutcome.COMPLETE,
+    )
+    assert [item.place_id for item in result.items] == [T2, T1, T3]
+    assert [item.category_match for item in result.items] == [Decimal(1), Decimal("0.5"), None]
+
+
 def test_a_category_from_another_taxonomy_version_is_not_compared() -> None:
     result = RANKER.rank(
         CONTEXT,
@@ -160,6 +183,29 @@ def test_evidence_that_is_not_effective_yet_is_dropped_too() -> None:
     result = RANKER.rank(CONTEXT, SRC, SRC_CATEGORY, [future], {}, LookupOutcome.COMPLETE)
     assert result.items == () and result.state is RelationState.NONE
     assert codes(result.reasons) == {"EVIDENCE_EXPIRED"}
+
+
+def test_the_evidence_window_is_half_open_at_the_evaluated_instant() -> None:
+    """`[effective_at, expires_at)`: a row that starts exactly now counts, one that ends now does not."""
+    expiring = RANKER.rank(
+        CONTEXT,
+        SRC,
+        SRC_CATEGORY,
+        [rel(T1, RelationTier.EXACT, "kto-direct", expires_at=NOW)],
+        {},
+        LookupOutcome.COMPLETE,
+    )
+    assert expiring.items == () and codes(expiring.reasons) == {"EVIDENCE_EXPIRED"}
+
+    starting = RANKER.rank(
+        CONTEXT,
+        SRC,
+        SRC_CATEGORY,
+        [rel(T1, RelationTier.EXACT, "kto-direct", effective_at=NOW)],
+        {},
+        LookupOutcome.COMPLETE,
+    )
+    assert [item.place_id for item in starting.items] == [T1] and starting.reasons == ()
 
 
 def test_lookup_outcome_drives_checking_unknown_and_none() -> None:
