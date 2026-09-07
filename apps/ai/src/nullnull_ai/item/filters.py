@@ -45,6 +45,7 @@ TIME_LOCKED = "TIME_LOCKED"
 RESERVATION_LOCKED = "RESERVATION_LOCKED"
 
 _EPOCH = date(2000, 1, 1)
+_DAY_END = datetime.combine(_EPOCH, time.min) + timedelta(days=1)
 _LOCK_REASON_CODES = {
     LockType.DATE: DATE_LOCKED,
     LockType.TIME: TIME_LOCKED,
@@ -61,6 +62,16 @@ def _add(start: time, minutes: int) -> tuple[time, bool]:
     """Returns (end, wrapped_past_midnight)."""
     end = datetime.combine(_EPOCH, start) + timedelta(minutes=minutes)
     return end.time(), end.date() != _EPOCH
+
+
+def _stay(start: time, minutes: int) -> tuple[datetime, datetime]:
+    """The stay as a half-open interval on its own date.
+
+    Comparing datetimes instead of times keeps a stay that runs past midnight from folding back into
+    the morning; for overlap purposes such a stay occupies [start, 24:00) of the date it starts on.
+    """
+    begins_at = datetime.combine(_EPOCH, start)
+    return begins_at, min(begins_at + timedelta(minutes=minutes), _DAY_END)
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,20 +159,21 @@ def neighbour_overlap(
     """Overlap needs both intervals fully known.
 
     An unknown duration on either side is UNKNOWN, never treated as zero minutes. Neighbours without
-    a start time impose no interval; the target itself is skipped.
+    a start time impose no interval; the target itself is skipped. A stay that runs past midnight
+    occupies the rest of its own date, so a wrapped end is never mistaken for an early finish.
     """
     if start is None:
         return Eligibility.eligible()
     if duration_minutes is None:
         return Eligibility.unknown(Reason(DURATION_UNKNOWN, "stay length unverified"))
-    end, _ = _add(start, duration_minutes)
+    begins_at, ends_at = _stay(start, duration_minutes)
     for neighbour in neighbours:
         if neighbour.item_id == target_item_id or neighbour.date != day or neighbour.start_time is None:
             continue
         if neighbour.duration_minutes is None:
             return Eligibility.unknown(Reason(NEIGHBOUR_DURATION_UNKNOWN, "a neighbouring stay has no verified length"))
-        n_end, _ = _add(neighbour.start_time, neighbour.duration_minutes)
-        if (start < n_end and neighbour.start_time < end) or start == neighbour.start_time:
+        n_begins_at, n_ends_at = _stay(neighbour.start_time, neighbour.duration_minutes)
+        if (begins_at < n_ends_at and n_begins_at < ends_at) or start == neighbour.start_time:
             return Eligibility.ineligible(Reason(OVERLAPS_NEIGHBOUR, "overlaps another item on that date"))
     return Eligibility.eligible()
 

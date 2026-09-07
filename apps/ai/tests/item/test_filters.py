@@ -52,6 +52,24 @@ def test_neighbour_overlap_uses_known_intervals_only() -> None:
     assert neighbour_overlap(neighbours, ITEM, D13, None, 60).is_eligible
 
 
+def test_a_stay_that_wraps_past_midnight_occupies_the_rest_of_its_date() -> None:
+    # Both facts are known, so a wrapped end must not be folded back into the morning.
+    wrapping_neighbour = (NeighbourItem(NEIGHBOUR, D13, 1, time(23, 0), 120),)
+    blocked = neighbour_overlap(wrapping_neighbour, ITEM, D13, time(23, 30), 15)
+    assert blocked.state is EligibilityState.INELIGIBLE
+    assert blocked.reasons[0].code == "OVERLAPS_NEIGHBOUR"
+    late_neighbour = (NeighbourItem(NEIGHBOUR, D13, 1, time(23, 45), 10),)
+    assert neighbour_overlap(late_neighbour, ITEM, D13, time(23, 30), 60).reasons[0].code == "OVERLAPS_NEIGHBOUR"
+    # A wrapped stay claims only the rest of its own date, so an earlier free slot stays eligible.
+    assert neighbour_overlap(wrapping_neighbour, ITEM, D13, time(21, 0), 60).is_eligible
+
+
+def test_stay_running_past_midnight_leaves_the_opening_window() -> None:
+    assert opening_hours(OpenWindow(time(9, 0), time(23, 59)), time(23, 0), 120).reasons[0].code == (
+        "OUTSIDE_OPENING_HOURS"
+    )
+
+
 def test_route_evidence_is_required_when_either_day_has_neighbours() -> None:
     neighbours = (NeighbourItem(NEIGHBOUR, D13, 1, None, None),)
     assert route_evidence(neighbours, ITEM, D12, D13, RouteEvidence.NONE).state is EligibilityState.UNKNOWN

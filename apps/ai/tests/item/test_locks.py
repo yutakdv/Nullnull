@@ -54,6 +54,13 @@ def test_reservation_pins_date_and_start_time_and_the_stay_must_fit_the_window()
     assert lock_checks(locks, D13, time(18, 0), 30).eligibility.reasons[0].code == "RESERVATION_LOCKED"
 
 
+def test_reservation_rejects_a_stay_that_runs_past_midnight() -> None:
+    # 23:00 + 120 min ends at 01:00 the next day; a wrapped end must never look like an early finish.
+    locks: tuple[ItemLock, ...] = (ReservationLock(D12, time(23, 0), time(23, 30)),)
+    assert lock_checks(locks, D12, time(23, 0), 120).eligibility.reasons[0].code == "RESERVATION_LOCKED"
+    assert lock_checks(locks, D12, time(23, 0), 30).eligibility.is_eligible
+
+
 def test_locks_are_independent_for_random_combinations() -> None:
     # REC-SLOT-01 property: every lock's verdict depends only on its own rule; removing another
     # lock never changes it.
