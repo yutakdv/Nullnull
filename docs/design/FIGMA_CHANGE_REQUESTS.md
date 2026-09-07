@@ -28,7 +28,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-006 | P0 blocker | S14 `422:2925`가 `로그인하면 일정을 저장할 수 있어요`와 활성 login affordance를 노출 | `이 기기의 익명 세션에 저장돼요`처럼 실제 보존 방식을 설명하고 login은 disabled `준비 중`; 요청 0건 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-006-증거)) |
 | FCR-007 | P0 blocker | S15 `423:2967`가 데이터 상태를 5개로 설명하고 `REPLAY`를 누락. `Data / StateLabel` component에는 이미 6개 variant가 있음 | component를 다시 만들지 않고 S15 설명을 `LIVE`, `FORECAST`, `REPLAY`, `QUALITATIVE`, `STALE`, `UNAVAILABLE` 6개와 관측/대상 시각 차이로 수정 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-007-증거)) |
 | FCR-008 | P0 major | S11 `418:2523`에 장소명 검색이 있으나 화면-API 연결이 명시되지 않음 | `searchPlaces` → canonical 선택 → `getLivePlace`; coverage가 없으면 `UNAVAILABLE`, loading/empty/error variant 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-008-증거)) |
-| FCR-009 | P0 major | post/detail 거리값은 기준점·산식이 불명확해 보일 수 있음 | trip anchor/선택 장소 등 거리 기준과 source를 함께 표시. 기준이 없으면 거리값을 숨기고 unavailable reason 제공 | FE / BE·AI | Open |
+| FCR-009 | P0 major | post/detail 거리값은 기준점·산식이 불명확해 보일 수 있음 | trip anchor/선택 장소 등 거리 기준과 source를 함께 표시. 기준이 없으면 거리값을 숨기고 unavailable reason 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-009-증거)) |
 | FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Open |
 | FCR-011 | P0 blocker | feed `392:368`, post 장소 카드 `399:613`, Live `418:5199`의 `실시간 관측`에 `ⓒ한국관광공사`가 결합돼 서울 실시간 원천과 KTO 예측/관광정보가 뒤섞임 | `SEOUL_CITYDATA`는 API의 서울특별시 attribution·`officialUrl`·`licenseUrl`을 그대로 표시하고 KTO 장소 정보·예측 attribution과 시각적으로 분리 | FE / BE·AI·PM | Open |
 | FCR-012 | P0 blocker | Live `418:2523`은 `Map / Base`와 marker가 보이는 화면만 있고 map capability OFF의 목록-only variant가 없음 | map OFF를 P0 기본으로 하는 목록-only default/loading/empty/error/unavailable variant를 추가. map ON은 provider·license·attribution 승인 뒤에만 열고 동일 filter/selection을 유지 | FE / BE·AI | Open |
@@ -255,3 +255,34 @@ top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 54개다(FCR-001 �
 6. 구현 acceptance: 검색창 focus → `searchPlaces`(debounce) → 목록에서 canonical 선택 → `getLivePlace`로 이동한다. `PlaceSearchRequest.query`는 최대 100자이고 원문을 로그·analytics에 남기지 않는다(no-store, APM 로깅 제외).
 
 top-level frame이 4개 늘어 `02 UI Design` 구현 frame은 58개다(FCR-007까지 54 → 58). [Figma 핸드오프](./FIGMA_HANDOFF.md), [기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md)의 `FR-LIV-11` Figma column과 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.
+
+## FCR-009 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. OpenAPI 계약을 확인한 결과 거리를 표시할 근거가 없어 목표의 두 갈래 중 **숨김**을 택했다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+### 계약 확인 결과
+
+`docs/api/openapi.yaml`을 확인한 결과 피드·게시물 경로에는 거리 필드가 **존재하지 않는다**.
+
+| 스키마 | 거리 필드 | 좌표 |
+| --- | --- | --- |
+| `FeedCard` | 없음 | 없음 |
+| `PostSummary` | 없음 | 없음 |
+| `PostDetail` | 없음 | 없음 |
+| `PlaceSummary` | 없음 | 없음 (`PlaceDetail`에만 `location` 존재) |
+
+즉 feed 카드와 게시물 상세는 거리를 계산할 좌표조차 받지 않는다. 기준점(trip anchor·사용자 선택 장소)도 계약에 없다. 따라서 화면의 `2.1km`·`4.8km` 같은 값은 근거 없는 표시이므로 제거했다. 표시하려면 먼저 BE/AI가 기준점·산식·provenance를 포함한 additive 계약을 제안해야 한다.
+
+| 항목 | 값 |
+| --- | --- |
+| feed 여행 없음 | `391:310` — [변경 전](./evidence/fcr-009/before-391-310-feed.jpg) · [변경 후](./evidence/fcr-009/after-391-310-feed.jpg) |
+| feed 활성 여행 | `396:2926` — [변경 후](./evidence/fcr-009/after-396-2926-feed.jpg) |
+| 게시물 상세 | `398:611` — [변경 전](./evidence/fcr-009/before-398-611-post.jpg) · [변경 후](./evidence/fcr-009/after-398-611-post.jpg) |
+
+변경 내용:
+
+1. `Card / FeedPost` **컴포넌트 정의**(`01 Components`)의 두 variant(`lines=1` `390:406`, `lines=2` `396:496`)에서 `Data / Distance` instance를 `visible=false`로 숨겼다. 컴포넌트 레벨 수정이라 `02 UI Design`의 **28개 인스턴스**(feed 2개 + sheet 배경 4개 + 저장 sheet 1개 화면에 걸친 카드들)가 한 번에 반영됐다. 화면별로 28번 수정하지 않았다.
+2. 게시물 상세 `398:611`의 장소 카드 `place-name`(`431:2990`)에 인라인으로 박혀 있던 거리를 제거했다: `경복궁 · 관광지 · 종로구 · 2.1km` → `경복궁 · 관광지 · 종로구`.
+3. `Data / Distance` 컴포넌트 자체는 **삭제하지 않고 숨기기만** 했다. `COMPONENT_CATALOG.md`의 C43 계약(value, unit, mode, confidence, unavailable reason / route·haversine provenance)은 이미 올바르므로 그대로 두었고, 최상위 component 49개 수도 유지된다. 계약이 생기면 `visible=true`로 되살려 기준점·source와 함께 표시한다.
+4. 구현 acceptance: 거리 필드가 없는 현재 계약에서 FE는 거리 UI를 렌더링하지 않는다. 좌표를 client에서 임의로 계산해 표시하지 않는다(P0은 정밀 위치를 다루지 않는다). 향후 계약이 추가되면 기준점 라벨과 산식(직선/route), source를 값과 함께 표시하고, 기준점이 없으면 unavailable reason을 제공한다.
