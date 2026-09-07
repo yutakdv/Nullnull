@@ -259,8 +259,10 @@ Figma 오류 계약:
   장소 정보·예측 출처와 결합하지 않는다(`FCR-011`, 2026-09-07 수정). 카드에서
   **상태는 `Data / StateLabel`, 출처는 `source` 텍스트**로 분리하며 하나의 배지가
   둘을 겸하지 않는다. `Card / FeedPost`의 `공식 관광정보 기반` 배지는 제거했다.
-  `SEOUL_CITYDATA` attribution 전문(43자)이 좁은 카드에 들어가지 않는 문제는
-  `attributionShort` 계약 결정 전까지 열려 있다.
+  `SEOUL_CITYDATA` attribution 전문(46자)이 feed 카드·post 장소 카드·Live 후보
+  행 어디에도 들어가지 않아 세 곳 모두 현재 축약 표기이며 계약 위반 상태다.
+  `CON-004`의 `attributionShort`가 `main`에 병합되어 실제 값을 확인한 뒤 다시
+  맞춘다(issue #11).
 
 Data state label:
 
