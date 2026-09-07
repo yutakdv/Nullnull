@@ -11,6 +11,10 @@ COPY apps/api/src ./src
 COPY docs/api/openapi.yaml /workspace/docs/api/openapi.yaml
 COPY apps/ai/contracts /workspace/apps/ai/contracts
 COPY apps/ai/tests/recommendation/fixtures /workspace/apps/ai/tests/recommendation/fixtures
+# The ITEM fixture corpus is read through its manifest (checksums, kinds), and PolicyPinsParityTest
+# hashes the policy file itself; both suites fail closed without these, so they are part of the image.
+COPY apps/ai/tests/recommendation/manifest.json /workspace/apps/ai/tests/recommendation/manifest.json
+COPY apps/ai/src/nullnull_ai/policy/policy-v1.yaml /workspace/apps/ai/src/nullnull_ai/policy/policy-v1.yaml
 RUN ./gradlew --no-daemon bootJar -x test resolveTestClasspaths
 
 FROM build AS test

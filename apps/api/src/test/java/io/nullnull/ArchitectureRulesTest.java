@@ -75,6 +75,17 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void tripDomainNeverDependsOnRecommendation() {
+        // The lock validator is trip-owned and shared with manual edits, replacements and APPLY;
+        // recommendation depends on it, never the other way round (Ruling 4, invariant 7).
+        noClasses().that().resideInAPackage("io.nullnull.trip.domain..")
+                .should().dependOnClassesThat().resideInAPackage("io.nullnull.recommendation..")
+                .because("trip locks are not a recommendation concept")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
     void domainLayerDependsOnNothingAbove() {
         noClasses().that().resideInAPackage("io.nullnull..domain..")
                 .should().dependOnClassesThat().resideInAnyPackage(

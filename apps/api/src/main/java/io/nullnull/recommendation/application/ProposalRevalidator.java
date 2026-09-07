@@ -48,6 +48,7 @@ public final class ProposalRevalidator {
 
     public static final String POLICY_VERSION_MISMATCH = "POLICY_VERSION_MISMATCH";
     public static final String POLICY_HASH_MISMATCH = "POLICY_HASH_MISMATCH";
+    public static final String PIPELINE_VERSION_MISMATCH = "PIPELINE_VERSION_MISMATCH";
     public static final String OUTCOME_MISMATCH = "OUTCOME_MISMATCH";
     public static final String TOO_MANY_PROPOSALS = "TOO_MANY_PROPOSALS";
     public static final String RANK_NOT_CONTIGUOUS = "RANK_NOT_CONTIGUOUS";
@@ -79,14 +80,27 @@ public final class ProposalRevalidator {
         this.cachedPolicy = Objects.requireNonNull(cachedPolicy, "cachedPolicy");
     }
 
-    /** Every violation, in a deterministic order. An empty list means the answer may be persisted. */
+    /**
+     * Every violation, in a deterministic order. An empty list means the answer may be persisted.
+     *
+     * @throws IllegalArgumentException when the hydrated lock set itself is malformed (two locks of one
+     *     type, or a lock carrying a field of another type). That is a bug in this API, not an answer
+     *     the service got wrong, so it is raised rather than reported; the worker (BA-051) catches it,
+     *     records the run as {@code FAILED(DATA_CHANGED, retryable=false)} and alerts, exactly as it
+     *     does for a returned reason.
+     */
     public List<Reason> check(ItemProposeRequest request, ItemProposeResponse response) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(response, "response");
         List<Reason> reasons = new ArrayList<>();
         checkResponse(response, reasons);
+        // The lock set belongs to the trip, not to a proposal: convert it once, and fail here if it is malformed.
+        List<ItemLock> locks = new ArrayList<>();
+        for (LockIn lock : request.locks()) {
+            locks.add(lock.toItemLock());
+        }
         for (int index = 0; index < response.proposals().size(); index++) {
-            checkProposal(request, response.proposals().get(index), index, reasons);
+            checkProposal(request, response.proposals().get(index), index, locks, reasons);
         }
         return List.copyOf(reasons);
     }
@@ -100,6 +114,9 @@ public final class ProposalRevalidator {
         if (!response.policyHash().equals(cachedPolicy.policyHash())
                 || !cachedPolicy.policyHash().equals(PolicyPins.V1.policyHash())) {
             reasons.add(Reason.of(POLICY_HASH_MISMATCH, "answer was computed with another policy revision"));
+        }
+        if (!response.pipelineVersion().equals(cachedPolicy.pipelineVersion())) {
+            reasons.add(Reason.of(PIPELINE_VERSION_MISMATCH, "answer was computed by another pipeline"));
         }
         boolean proposed = !response.proposals().isEmpty();
         if ((response.outcome() == ItemProposeResponse.Outcome.PROPOSALS) != proposed) {
@@ -124,7 +141,8 @@ public final class ProposalRevalidator {
         }
     }
 
-    private void checkProposal(ItemProposeRequest request, ItemProposalOut proposal, int index, List<Reason> reasons) {
+    private void checkProposal(ItemProposeRequest request, ItemProposalOut proposal, int index,
+            List<ItemLock> locks, List<Reason> reasons) {
         String where = "preview " + (index + 1) + ": ";
         TargetItemIn target = request.target();
         List<TemporalCandidateIn> matches = request.candidates().stream()
@@ -132,13 +150,50 @@ public final class ProposalRevalidator {
                         && candidate.date().equals(proposal.date())
                         && Objects.equals(candidate.effectiveStartTime(target.startTime()), proposal.startTime()))
                 .toList();
-        if (matches.size() != 1) {
+        if (matches.isEmpty()) {
             reasons.add(Reason.of(PROPOSAL_NOT_IN_REQUEST, where + "slot was not among the hydrated candidates"));
             return;
         }
-        TemporalCandidateIn candidate = matches.get(0);
+        // Several candidates may share one slot - a DAY candidate keeps the item's current time, so it can
+        // land on the same (date, start time) as an HOUR candidate, and the service merges them into one
+        // preview. The snapshot pair says which one it kept; without a match the answer cites evidence this
+        // API never hydrated, so only the slot itself can still be judged.
+        TemporalCandidateIn candidate = matches.size() == 1 ? matches.get(0) : matches.stream()
+                .filter(match -> match.beforeSnapshotId().equals(proposal.beforeSnapshotId())
+                        && match.afterSnapshotId().equals(proposal.afterSnapshotId()))
+                .findFirst().orElse(null);
         // One code per proposal: a missing stay length blocks the opening and the overlap check alike.
         Set<String> codes = new LinkedHashSet<>();
+        if (candidate == null) {
+            codes.add(SNAPSHOT_MISMATCH);
+        } else {
+            checkCandidateValues(candidate, proposal, codes);
+        }
+        if (proposal.date().equals(target.date()) && Objects.equals(proposal.startTime(), target.startTime())) {
+            codes.add(NO_CHANGE);
+        }
+        if (proposal.date().isBefore(request.tripStart()) || proposal.date().isAfter(request.tripEnd())) {
+            codes.add(OUTSIDE_TRIP_RANGE);
+        }
+        codes.addAll(LockChecks.evaluate(locks, proposal.date(), proposal.startTime(), target.durationMinutes())
+                .reasonCodes());
+        addIfPresent(codes, openingHours(request.openingHours().get(proposal.date()), proposal.startTime(),
+                target.durationMinutes()));
+        addIfPresent(codes, neighbourOverlap(request.neighbours(), target.itemId(), proposal.date(),
+                proposal.startTime(), target.durationMinutes()));
+        addIfPresent(codes, routeEvidence(request, proposal.date()));
+        for (String code : codes) {
+            reasons.add(Reason.of(code, where + "re-validation failed"));
+        }
+    }
+
+    /**
+     * The facts that belong to the matched candidate. Verdict, snapshots, metric and the before/after
+     * values are read from the request; only {@code score} is the service's own number, and it is only
+     * checked for a sign, never recomputed.
+     */
+    private static void checkCandidateValues(TemporalCandidateIn candidate, ItemProposalOut proposal,
+            Set<String> codes) {
         if (!candidate.verdictEligible()) {
             codes.add(VERDICT_INELIGIBLE);
         }
@@ -159,26 +214,6 @@ public final class ProposalRevalidator {
         }
         if (proposal.score().signum() <= 0) {
             codes.add(SCORE_NOT_POSITIVE);
-        }
-        if (proposal.date().equals(target.date()) && Objects.equals(proposal.startTime(), target.startTime())) {
-            codes.add(NO_CHANGE);
-        }
-        if (proposal.date().isBefore(request.tripStart()) || proposal.date().isAfter(request.tripEnd())) {
-            codes.add(OUTSIDE_TRIP_RANGE);
-        }
-        List<ItemLock> locks = new ArrayList<>();
-        for (LockIn lock : request.locks()) {
-            locks.add(lock.toItemLock());
-        }
-        codes.addAll(LockChecks.evaluate(locks, proposal.date(), proposal.startTime(), target.durationMinutes())
-                .reasonCodes());
-        addIfPresent(codes, openingHours(request.openingHours().get(proposal.date()), proposal.startTime(),
-                target.durationMinutes()));
-        addIfPresent(codes, neighbourOverlap(request.neighbours(), target.itemId(), proposal.date(),
-                proposal.startTime(), target.durationMinutes()));
-        addIfPresent(codes, routeEvidence(request, proposal.date()));
-        for (String code : codes) {
-            reasons.add(Reason.of(code, where + "re-validation failed"));
         }
     }
 

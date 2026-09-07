@@ -9,6 +9,8 @@ on:
       - "apps/api/**"
       - "apps/ai/contracts/**"
       - "apps/ai/tests/recommendation/fixtures/**"
+      - "apps/ai/tests/recommendation/manifest.json"
+      - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
       - ".github/workflows/api-quality.yml"
   push:
@@ -17,6 +19,8 @@ on:
       - "apps/api/**"
       - "apps/ai/contracts/**"
       - "apps/ai/tests/recommendation/fixtures/**"
+      - "apps/ai/tests/recommendation/manifest.json"
+      - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
       - ".github/workflows/api-quality.yml"
   workflow_dispatch:

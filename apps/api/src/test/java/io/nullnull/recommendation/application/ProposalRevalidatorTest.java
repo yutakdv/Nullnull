@@ -157,7 +157,56 @@ class ProposalRevalidatorTest {
                         LockChecks.RESERVATION_LOCKED);
     }
 
+    @Test
+    void anAnswerFromAPipelineTheWorkerDidNotCacheIsRejected() {
+        ItemFixture fixture = fixture("temporal-same-issue");
+        ItemProposeResponse golden = goldenResponse(fixture);
+        ItemProposeResponse otherPipeline = new ItemProposeResponse(golden.policyVersion(), golden.policyHash(),
+                "nullnull-ai-pipeline-v2", golden.outcome(), golden.proposals(), golden.reasons(),
+                golden.evaluated(), golden.rejectedByReason());
+        assertThat(codes(REVALIDATOR.check(fixture.request(), otherPipeline)))
+                .contains(ProposalRevalidator.PIPELINE_VERSION_MISMATCH);
+    }
+
     // ---------------------------------------------------------------- proposal level
+
+    @Test
+    void aDayAndAnHourCandidateMayShareOneSlotAndTheSnapshotPairSaysWhichWasKept() {
+        // apps/ai merges candidates onto one (date, start time) and proposes the best; a DAY candidate
+        // keeps the item's current time, so it can land on the same slot as an HOUR candidate.
+        ItemProposeRequest request = syntheticRequest(LocalTime.of(10, 0), 90,
+                List.of(dayCandidate(D13, "80", "40", SNAP_A, SNAP_B),
+                        hourCandidate(D13, LocalTime.of(10, 0), "80", "60", SNAP_C, SNAP_D)));
+        ItemProposalOut kept = synthesizedProposal(request, D13, LocalTime.of(10, 0), "20", "0.110000",
+                "0.250000", SNAP_C, SNAP_D);
+        assertThat(codes(REVALIDATOR.check(request, syntheticResponse(request, List.of(kept)))))
+                .as("the HOUR candidate's own snapshot pair is the evidence for the preview").isEmpty();
+    }
+
+    @Test
+    void aSnapshotPairBelongingToNeitherMergedCandidateIsASnapshotMismatchAndNotAMissingSlot() {
+        ItemProposeRequest request = syntheticRequest(LocalTime.of(10, 0), 90,
+                List.of(dayCandidate(D13, "80", "40", SNAP_A, SNAP_B),
+                        hourCandidate(D13, LocalTime.of(10, 0), "80", "60", SNAP_C, SNAP_D)));
+        ItemProposalOut invented = synthesizedProposal(request, D13, LocalTime.of(10, 0), "20", "0.110000",
+                "0.250000", SNAP_E, SNAP_F);
+        List<String> reasons = codes(REVALIDATOR.check(request, syntheticResponse(request, List.of(invented))));
+        assertThat(reasons).containsExactly(ProposalRevalidator.SNAPSHOT_MISMATCH);
+        assertThat(reasons).doesNotContain(ProposalRevalidator.PROPOSAL_NOT_IN_REQUEST);
+    }
+
+    @Test
+    void anUntimedItemMovedToAnotherDateKeepsItsMissingStartTime() {
+        // effectiveStartTime(null) on a DAY candidate: the slot has no time, so the opening window only
+        // has to be an open day and no neighbour interval exists to overlap (§5.3, filters.py).
+        ItemProposeRequest request = syntheticRequest(null, 90,
+                List.of(dayCandidate(D13, "80", "60", SNAP_A, SNAP_B)));
+        ItemProposalOut untimed = synthesizedProposal(request, D13, null, "20", "0.160000", "0.000000",
+                SNAP_A, SNAP_B);
+        assertThat(codes(REVALIDATOR.check(request, syntheticResponse(request, List.of(untimed)))))
+                .as("a date-only move of an untimed item is verifiable").isEmpty();
+    }
+
 
     @Test
     void aSlotThatWasNeverOfferedIsRejected() {
@@ -321,6 +370,63 @@ class ProposalRevalidatorTest {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    static final LocalDate D13 = LocalDate.of(2026, 9, 13);
+    static final UUID SNAP_A = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9da01");
+    static final UUID SNAP_B = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9da02");
+    static final UUID SNAP_C = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9da03");
+    static final UUID SNAP_D = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9da04");
+    static final UUID SNAP_E = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9da05");
+    static final UUID SNAP_F = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9da06");
+    static final UUID SYNTHETIC_ITEM = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9db01");
+    static final UUID SYNTHETIC_PLACE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b9db02");
+
+    /** A hand-built request that does not depend on any fixture: three open days, no locks, no neighbours. */
+    private static ItemProposeRequest syntheticRequest(LocalTime targetStart, Integer durationMinutes,
+            List<TemporalCandidateIn> candidates) {
+        OpeningWindowIn open = OpeningWindowIn.open(LocalTime.of(9, 0), LocalTime.of(18, 0));
+        Map<LocalDate, OpeningWindowIn> hours = new LinkedHashMap<>();
+        hours.put(D12, open);
+        hours.put(D13, open);
+        hours.put(D12.plusDays(2), open);
+        return new ItemProposeRequest(Instant.parse("2026-09-06T00:00:00Z"),
+                UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93c01"), 7, D12, D12.plusDays(2), "Asia/Seoul",
+                new io.nullnull.recommendation.domain.item.TargetItemIn(SYNTHETIC_ITEM, SYNTHETIC_PLACE, D12,
+                        targetStart, durationMinutes, 1),
+                List.of(), List.of(), hours, ItemProposeRequest.RouteEvidence.NONE, candidates);
+    }
+
+    private static TemporalCandidateIn dayCandidate(LocalDate date, String before, String after, UUID beforeSnapshot,
+            UUID afterSnapshot) {
+        return new TemporalCandidateIn(SYNTHETIC_PLACE, date, null, TemporalCandidateIn.ForecastResolution.DAY,
+                new BigDecimal(before), new BigDecimal(after), PolicyPins.KTO_RELATIVE_CONCENTRATION_INDEX, true,
+                "SAME_METRIC_AND_ISSUE", beforeSnapshot, afterSnapshot);
+    }
+
+    private static TemporalCandidateIn hourCandidate(LocalDate date, LocalTime at, String before, String after,
+            UUID beforeSnapshot, UUID afterSnapshot) {
+        return new TemporalCandidateIn(SYNTHETIC_PLACE, date, at, TemporalCandidateIn.ForecastResolution.HOUR,
+                new BigDecimal(before), new BigDecimal(after), PolicyPins.KTO_RELATIVE_CONCENTRATION_INDEX, true,
+                "SAME_METRIC_AND_ISSUE", beforeSnapshot, afterSnapshot);
+    }
+
+    private static ItemProposalOut synthesizedProposal(ItemProposeRequest request, LocalDate date, LocalTime at,
+            String improvement, String score, String changeCost, UUID beforeSnapshot, UUID afterSnapshot) {
+        BigDecimal improvementValue = new BigDecimal(improvement);
+        BigDecimal relief = improvementValue.divide(
+                BigDecimal.valueOf(PolicyPins.V1.metric(PolicyPins.KTO_RELATIVE_CONCENTRATION_INDEX).metricScale()),
+                PolicyPins.V1.numericScale(), PolicyPins.V1.roundingMode());
+        return new ItemProposalOut(1, date, at, instant(request, request.target().date(),
+                request.target().startTime()), instant(request, date, at), new BigDecimal(score), improvementValue,
+                relief, new BigDecimal(changeCost), beforeSnapshot, afterSnapshot, Map.of());
+    }
+
+    private static ItemProposeResponse syntheticResponse(ItemProposeRequest request,
+            List<ItemProposalOut> proposals) {
+        return new ItemProposeResponse(PolicyPins.V1.policyVersion(), PolicyPins.V1.policyHash(), PIPELINE,
+                ItemProposeResponse.Outcome.PROPOSALS, proposals, List.of(), request.candidates().size(), Map.of());
+    }
+
 
     private static List<String> codes(List<Reason> reasons) {
         return reasons.stream().map(Reason::code).toList();

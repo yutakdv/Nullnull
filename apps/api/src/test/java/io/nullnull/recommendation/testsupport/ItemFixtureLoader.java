@@ -1,5 +1,6 @@
 package io.nullnull.recommendation.testsupport;
 
+import io.nullnull.recommendation.domain.PolicyPins;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.LockIn;
@@ -81,6 +82,12 @@ public final class ItemFixtureLoader {
             JsonNode document = read(file);
             if (!entry.get("id").asString().equals(document.get("id").asString())) {
                 throw new IllegalStateException(path + " declares another id than the manifest");
+            }
+            // The expected values were derived from one policy; replaying them against another is meaningless.
+            String policyVersion = document.get("policyVersion").asString();
+            if (!PolicyPins.V1.policyVersion().equals(policyVersion)) {
+                throw new IllegalStateException(path + " was derived from " + policyVersion + " but Spring pins "
+                        + PolicyPins.V1.policyVersion());
             }
             fixtures.add(new ItemFixture(entry.get("id").asString(), path,
                     requestOf(document), expectedOf(document.get("expected"))));

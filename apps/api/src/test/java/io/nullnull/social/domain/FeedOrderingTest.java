@@ -51,18 +51,39 @@ class FeedOrderingTest {
     }
 
     @Test
-    void everyEntryAppearsExactlyOnceWhenPagedByAnyLimit() {
-        List<FeedOrdering.FeedEntry> all = new ArrayList<>();
+    void keysetPagingVisitsEveryEntryExactlyOnceInOrder() {
+        // Pages are taken the way the endpoint takes them: from the unordered source, keeping only the
+        // entries strictly after the last one served. Ties on publishedAt are what makes this non-trivial.
+        List<FeedOrdering.FeedEntry> source = new ArrayList<>();
         for (int i = 0; i < 300; i++) {
-            all.add(new FeedOrdering.FeedEntry(new UUID(0, i), T.plusSeconds(i / 7)));
+            // Mix ids whose most significant long is negative, so a signed comparison would page wrongly.
+            long high = i % 3 == 0 ? 0x8000000000000000L | i : i;
+            source.add(new FeedOrdering.FeedEntry(new UUID(high, i), T.plusSeconds(i / 7)));
         }
-        all.sort(FeedOrdering.comparator());
+        Collections.shuffle(source, new java.util.Random(20260906));
+        List<FeedOrdering.FeedEntry> expected = new ArrayList<>(source);
+        expected.sort(FeedOrdering.comparator());
+
+        Comparator<FeedOrdering.FeedEntry> order = FeedOrdering.comparator();
         for (int limit : List.of(1, 20, 50)) {
             List<FeedOrdering.FeedEntry> seen = new ArrayList<>();
-            for (int ordinal = 0; ordinal < all.size(); ordinal += limit) {
-                seen.addAll(all.subList(ordinal, Math.min(all.size(), ordinal + limit)));
+            FeedOrdering.FeedEntry last = null;
+            while (true) {
+                final FeedOrdering.FeedEntry after = last;
+                List<FeedOrdering.FeedEntry> page = source.stream()
+                        .filter(entry -> after == null || order.compare(entry, after) > 0)
+                        .sorted(order)
+                        .limit(limit)
+                        .toList();
+                if (page.isEmpty()) {
+                    break;
+                }
+                seen.addAll(page);
+                last = page.get(page.size() - 1);
             }
-            assertThat(seen).as("limit %d", limit).containsExactlyElementsOf(all);
+            assertThat(seen).as("limit %d", limit).containsExactlyElementsOf(expected);
+            assertThat(new java.util.HashSet<>(seen)).as("limit %d: no entry served twice", limit)
+                    .hasSize(expected.size());
         }
     }
 
