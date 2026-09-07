@@ -1,5 +1,6 @@
 package io.nullnull.recommendation.domain.item;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.crowd.domain.ComparisonReasonCode;
@@ -61,6 +62,30 @@ class ItemProposeRequestTest {
         assertThatThrownBy(() -> OpeningWindowIn.open(LocalTime.of(9, 0), LocalTime.of(9, 0)))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("closesAt");
         OpeningWindowIn.open(LocalTime.of(9, 0), LocalTime.of(18, 0));
+    }
+
+    @Test
+    void theCanonicalConstructorRefusesAnUnusableOpenWindowToo() {
+        // The factory is not the only door: a record built directly must keep the same invariant, or a
+        // hydrator that bypasses open() could ship a window no filter can evaluate.
+        assertThatThrownBy(() -> new OpeningWindowIn(OpeningWindowIn.OpeningState.OPEN, LocalTime.of(22, 0),
+                LocalTime.of(2, 0))).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("closesAt");
+        assertThatThrownBy(() -> new OpeningWindowIn(OpeningWindowIn.OpeningState.OPEN, LocalTime.of(9, 0),
+                LocalTime.of(9, 0))).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("closesAt");
+        assertThatThrownBy(() -> new OpeningWindowIn(OpeningWindowIn.OpeningState.OPEN, null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("opensAt");
+    }
+
+    @Test
+    void aValidOpenWindowPassesThroughTheCanonicalConstructor() {
+        OpeningWindowIn window = new OpeningWindowIn(OpeningWindowIn.OpeningState.OPEN, LocalTime.of(9, 0),
+                LocalTime.of(18, 0));
+        assertThat(window.state()).isEqualTo(OpeningWindowIn.OpeningState.OPEN);
+        assertThat(window.opensAt()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(window.closesAt()).isEqualTo(LocalTime.of(18, 0));
+        // A verified closure and an explicit unknown keep carrying no times.
+        assertThat(OpeningWindowIn.closed().opensAt()).isNull();
+        assertThat(OpeningWindowIn.unknown().closesAt()).isNull();
     }
 
     @Test
