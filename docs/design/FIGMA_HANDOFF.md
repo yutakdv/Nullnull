@@ -273,7 +273,7 @@ Candidate relation:
 
 | Figma node | 화면 | Priority | 구현 메모 |
 | --- | --- | --- | --- |
-| `422:2925` | S14 프로필 | P0 | guest 표시, login CTA, 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
+| `422:2925` | S14 프로필 | P0 | guest 표시(익명 세션 저장 설명), disabled `로그인 · 준비 중`(`FCR-006` 2026-09-07), 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
 | `423:2967` | S15 데이터 안내 | P0 | 출처/상태/신뢰도/재현 의미 |
 | `442:3344` | S12 알림 | P1 | item deep link, 개별 읽음, `모두 읽음`, unread count |
 | `442:3370` | S10 주변 | P1 | 위치 동의·로컬 거리 계산 우선 |
