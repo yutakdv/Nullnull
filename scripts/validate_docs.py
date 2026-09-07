@@ -275,10 +275,11 @@ def validate_figma_inventory(problems: list[str]) -> None:
         problems.append("Figma handoff is missing audited group nodes: " + ", ".join(missing_groups))
     screen_ids = node_ids - FIGMA_GROUP_IDS
     # 2026-09-05 audit: 52 implementation frames; FCR-001 (2026-09-07) added the
-    # A-2 EN-selected variant frame 643:4088 as a top-level frame.
-    if len(screen_ids) != 53:
+    # A-2 EN-selected variant frame 643:4088; FCR-004 (2026-09-07) added the
+    # S09-2 ITEM READY preview frame 655:4067.
+    if len(screen_ids) != 54:
         problems.append(
-            f"Figma handoff screen inventory differs from current audit: expected 53 unique nodes, found {len(screen_ids)}"
+            f"Figma handoff screen inventory differs from current audit: expected 54 unique nodes, found {len(screen_ids)}"
         )
     if not COMPONENT_PATH.exists():
         return
