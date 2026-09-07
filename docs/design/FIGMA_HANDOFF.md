@@ -156,7 +156,7 @@ Wizard 규칙:
 
 | Figma node | 화면 | UI state | 동작/API |
 | --- | --- | --- | --- |
-| `410:1738` | S07-1 보기 | view | trip, day, items, candidate count 조회; route 기반 거리·시간 텍스트 없음 (`FCR-005`) |
+| `410:1738` | S07-1 보기 | view | trip, day, items, candidate count 조회; route 기반 거리·시간 텍스트 없음 (`FCR-005`); `더 여유로운 날짜` 배너 제거 (`FCR-013` 2026-09-08) |
 | `411:1837` | S07-2 편집 | edit | local edit buffer, save/cancel |
 | `527:4085` | S07-2 시간 편집 | edit-time | item time/time lock 변경 |
 | `412:1912` | S07-8 후보 panel | overlay | 후보 목록, 날짜 선택 후 일정화 |
@@ -184,10 +184,13 @@ Wizard 규칙:
 | Figma node | 화면 | 상태 | 동작 | API |
 | --- | --- | --- | --- | --- |
 | `415:2268` | S09-0 항목 설정 | setup | ITEM target 선택, 잠금, 후보 포함 OFF(`FCR-010`) | `POST /trips/:id/optimizations` |
-| `415:2413` | S09-1 계산 중 | loading | polling, back, timeout(`FCR-014`); route-free copy (`FCR-005` 2026-09-07) | `GET /optimizations/:runId` |
+| `415:2413` | S09-1 계산 중 | loading | polling; `내 여행으로 돌아가기`는 navigation만, run은 계속되고 URL로 재조회 (`FCR-014` 2026-09-08); route-free copy (`FCR-005`) | `GET /optimizations/:runId` |
 | `655:4067` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
 | `439:3104` | S09-D1 하루 preview | preview P1 | day scope before/after | same |
-| `417:2412` | S09-3 적용 완료 | applied | revision, persistent undo/expiry(`FCR-015`) | decision/revert |
+| `417:2412` | S09-3 적용 완료 | applied `AVAILABLE` | persistent 패널: 결과·v7→v8·`revertUntil`·되돌리기 버튼, toast는 보조 (`FCR-015` 2026-09-08) | decision/revert |
+| `724:4602` | S09-3 되돌리는 중 | applied submitting | 버튼 disabled, 중복 실행 차단 | `revertOptimizationDecision` pending |
+| `724:4730` | S09-3 되돌림 | applied `REVERTED` | v8→v9, 카드가 v7 위치로 복귀, 버튼 없음 | `revertOptimizationDecision` 200 |
+| `724:4858` | S09-3 기한 지남 | applied `EXPIRED` | `REVERT_WINDOW_EXPIRED`, 일정 편집으로 안내 | `revertAvailability=EXPIRED` |
 | `417:2567` | REF S09 오류 | error reference | code별 문구/CTA | Problem Details |
 | `485:3517` | REF stale | stale | `TRIP_CHANGED` 재계산 | recompute |
 
@@ -226,8 +229,8 @@ Figma 오류 계약:
   P0에는 cancel operation이 없고 같은 run URL을 다시 조회한다.
 - 적용 완료 화면은 toast와 별개로 `beforeRevisionId`, `afterRevisionId`,
   `revertUntil`에 대응하는 대상 일정과 남은 되돌리기 상태를 지속적으로 보여 준다.
-- 여행 보기의 `더 여유로운 날짜가 있어요`는 `getPlaceCrowdForecast`와 비교 적격성
-  규칙을 연결하기 전에는 노출하지 않는다(`FCR-013`).
+- 여행 보기의 `더 여유로운 날짜가 있어요` 배너는 `FCR-013`으로 제거했다. 표시
+  threshold가 `FR-DAT-02`/`FR-DAT-05`에 정의되기 전에는 다시 넣지 않는다.
 
 ### G. Live
 
