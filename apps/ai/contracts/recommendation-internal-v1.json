@@ -227,6 +227,420 @@
         "title": "HealthStatus",
         "type": "object"
       },
+      "ItemProposalOut": {
+        "additionalProperties": false,
+        "description": "One ranked preview. Decimals are serialized as strings so Spring reads them as BigDecimal.",
+        "properties": {
+          "afterInstant": {
+            "format": "date-time",
+            "title": "Afterinstant",
+            "type": "string"
+          },
+          "afterSnapshotId": {
+            "format": "uuid",
+            "title": "Aftersnapshotid",
+            "type": "string"
+          },
+          "beforeInstant": {
+            "format": "date-time",
+            "title": "Beforeinstant",
+            "type": "string"
+          },
+          "beforeSnapshotId": {
+            "format": "uuid",
+            "title": "Beforesnapshotid",
+            "type": "string"
+          },
+          "changeCost": {
+            "title": "Changecost",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "improvement": {
+            "title": "Improvement",
+            "type": "string"
+          },
+          "lockChecks": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Lockchecks",
+            "type": "object"
+          },
+          "rank": {
+            "minimum": 1.0,
+            "title": "Rank",
+            "type": "integer"
+          },
+          "relief": {
+            "title": "Relief",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "string"
+          },
+          "startTime": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starttime"
+          }
+        },
+        "required": [
+          "rank",
+          "date",
+          "startTime",
+          "beforeInstant",
+          "afterInstant",
+          "score",
+          "improvement",
+          "relief",
+          "changeCost",
+          "beforeSnapshotId",
+          "afterSnapshotId",
+          "lockChecks"
+        ],
+        "title": "ItemProposalOut",
+        "type": "object"
+      },
+      "ItemProposeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/TemporalCandidateIn"
+            },
+            "maxItems": 2000,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "title": "Evaluatedat",
+            "type": "string"
+          },
+          "locks": {
+            "items": {
+              "$ref": "#/components/schemas/LockIn"
+            },
+            "maxItems": 4,
+            "title": "Locks",
+            "type": "array"
+          },
+          "neighbours": {
+            "items": {
+              "$ref": "#/components/schemas/NeighbourItemIn"
+            },
+            "maxItems": 100,
+            "title": "Neighbours",
+            "type": "array"
+          },
+          "openingHours": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OpeningWindowIn"
+            },
+            "propertyNames": {
+              "format": "date"
+            },
+            "title": "Openinghours",
+            "type": "object"
+          },
+          "routeEvidence": {
+            "enum": [
+              "NONE",
+              "VERIFIED"
+            ],
+            "title": "Routeevidence",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/TargetItemIn"
+          },
+          "tripEnd": {
+            "format": "date",
+            "title": "Tripend",
+            "type": "string"
+          },
+          "tripId": {
+            "format": "uuid",
+            "title": "Tripid",
+            "type": "string"
+          },
+          "tripStart": {
+            "format": "date",
+            "title": "Tripstart",
+            "type": "string"
+          },
+          "tripVersion": {
+            "minimum": 1.0,
+            "title": "Tripversion",
+            "type": "integer"
+          },
+          "tripZone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Tripzone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evaluatedAt",
+          "tripId",
+          "tripVersion",
+          "tripStart",
+          "tripEnd",
+          "tripZone",
+          "target",
+          "locks",
+          "neighbours",
+          "openingHours",
+          "routeEvidence",
+          "candidates"
+        ],
+        "title": "ItemProposeRequest",
+        "type": "object"
+      },
+      "ItemProposeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluated": {
+            "title": "Evaluated",
+            "type": "integer"
+          },
+          "outcome": {
+            "enum": [
+              "PROPOSALS",
+              "LOCK_CONFLICT",
+              "ROUTE_UNAVAILABLE",
+              "DATA_INSUFFICIENT",
+              "NO_IMPROVEMENT"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "pipelineVersion": {
+            "title": "Pipelineversion",
+            "type": "string"
+          },
+          "policyHash": {
+            "title": "Policyhash",
+            "type": "string"
+          },
+          "policyVersion": {
+            "title": "Policyversion",
+            "type": "string"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ItemProposalOut"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "rejectedByReason": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Rejectedbyreason",
+            "type": "object"
+          }
+        },
+        "required": [
+          "policyVersion",
+          "policyHash",
+          "pipelineVersion",
+          "outcome",
+          "proposals",
+          "reasons",
+          "evaluated",
+          "rejectedByReason"
+        ],
+        "title": "ItemProposeResponse",
+        "type": "object"
+      },
+      "LockIn": {
+        "additionalProperties": false,
+        "description": "One itinerary lock. The four types are independent and are never auto-released (§5.4).",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "endTime": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endtime"
+          },
+          "startTime": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starttime"
+          },
+          "toleranceMinutes": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toleranceminutes"
+          },
+          "type": {
+            "enum": [
+              "MUST_VISIT",
+              "DATE",
+              "TIME",
+              "RESERVATION"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "LockIn",
+        "type": "object"
+      },
+      "NeighbourItemIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "durationMinutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationminutes"
+          },
+          "itemId": {
+            "format": "uuid",
+            "title": "Itemid",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "startTime": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starttime"
+          }
+        },
+        "required": [
+          "itemId",
+          "date",
+          "position",
+          "startTime",
+          "durationMinutes"
+        ],
+        "title": "NeighbourItemIn",
+        "type": "object"
+      },
+      "OpeningWindowIn": {
+        "additionalProperties": false,
+        "description": "A verified window, a verified closure, or an explicit unknown - never an assumed default.",
+        "properties": {
+          "closesAt": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closesat"
+          },
+          "opensAt": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opensat"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "CLOSED",
+              "UNKNOWN"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "OpeningWindowIn",
+        "type": "object"
+      },
       "PolicyDescriptor": {
         "additionalProperties": false,
         "properties": {
@@ -306,6 +720,176 @@
           "outputCount"
         ],
         "title": "StageCountOut",
+        "type": "object"
+      },
+      "TargetItemIn": {
+        "additionalProperties": false,
+        "description": "The item being moved. `startTime`/`durationMinutes` may be unknown; they are never guessed.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "durationMinutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationminutes"
+          },
+          "itemId": {
+            "format": "uuid",
+            "title": "Itemid",
+            "type": "string"
+          },
+          "placeId": {
+            "format": "uuid",
+            "title": "Placeid",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "startTime": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starttime"
+          }
+        },
+        "required": [
+          "itemId",
+          "placeId",
+          "date",
+          "startTime",
+          "position"
+        ],
+        "title": "TargetItemIn",
+        "type": "object"
+      },
+      "TemporalCandidateIn": {
+        "additionalProperties": false,
+        "description": "A before/after snapshot pair for the same place, already judged comparable by Spring.",
+        "properties": {
+          "afterSnapshotId": {
+            "format": "uuid",
+            "title": "Aftersnapshotid",
+            "type": "string"
+          },
+          "afterValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Aftervalue"
+          },
+          "beforeSnapshotId": {
+            "format": "uuid",
+            "title": "Beforesnapshotid",
+            "type": "string"
+          },
+          "beforeValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Beforevalue"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "metricCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Metriccode",
+            "type": "string"
+          },
+          "placeId": {
+            "format": "uuid",
+            "title": "Placeid",
+            "type": "string"
+          },
+          "resolution": {
+            "enum": [
+              "DAY",
+              "HOUR"
+            ],
+            "title": "Resolution",
+            "type": "string"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "verdictEligible": {
+            "title": "Verdicteligible",
+            "type": "boolean"
+          },
+          "verdictReasonCode": {
+            "enum": [
+              "SAME_METRIC_AND_ISSUE",
+              "SAME_SOURCE_SCOPE_SET",
+              "DIFFERENT_SOURCE",
+              "DIFFERENT_SCOPE",
+              "DIFFERENT_FORECAST_ISSUE",
+              "STALE_INPUT",
+              "REPLAY_INPUT",
+              "QUALITATIVE_ONLY",
+              "MAPPING_UNCERTAIN",
+              "PROVIDER_INCIDENT",
+              "MISSING_PROVENANCE"
+            ],
+            "title": "Verdictreasoncode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeId",
+          "date",
+          "time",
+          "resolution",
+          "beforeValue",
+          "afterValue",
+          "metricCode",
+          "verdictEligible",
+          "verdictReasonCode",
+          "beforeSnapshotId",
+          "afterSnapshotId"
+        ],
+        "title": "TemporalCandidateIn",
         "type": "object"
       },
       "ValidationError": {
@@ -437,6 +1021,47 @@
         "summary": "Readiness",
         "tags": [
           "System"
+        ]
+      }
+    },
+    "/internal/v1/items/propose": {
+      "post": {
+        "operationId": "propose_item_internal_v1_items_propose_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemProposeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemProposeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Propose Item",
+        "tags": [
+          "Item"
         ]
       }
     },

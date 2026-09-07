@@ -15,6 +15,7 @@ def test_contract_exposes_the_v1_operations_only() -> None:
         "/internal/v1/health/ready",
         "/internal/v1/policy",
         "/internal/v1/feed/rank",
+        "/internal/v1/items/propose",
     }
     framework_schemas = {"HTTPValidationError", "ValidationError"}
     for name, schema in document["components"]["schemas"].items():

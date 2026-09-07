@@ -56,6 +56,21 @@
   ],
   "implementedTestIds": [
     {
+      "id": "REC-OPT-01",
+      "suite": "pytest",
+      "path": "tests/item/test_evaluator.py"
+    },
+    {
+      "id": "REC-OPT-04",
+      "suite": "pytest",
+      "path": "tests/item/test_evaluator.py"
+    },
+    {
+      "id": "REC-SLOT-02",
+      "suite": "pytest",
+      "path": "tests/item/test_evaluator.py"
+    },
+    {
       "id": "REC-OPT-02",
       "suite": "pytest",
       "path": "tests/item/test_score.py"

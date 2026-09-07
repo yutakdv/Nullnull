@@ -2,10 +2,19 @@ package io.nullnull.recommendation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
+import io.nullnull.recommendation.domain.item.ItemProposalOut;
+import io.nullnull.recommendation.domain.item.ItemProposeRequest;
+import io.nullnull.recommendation.domain.item.ItemProposeResponse;
+import io.nullnull.recommendation.domain.item.LockIn;
+import io.nullnull.recommendation.domain.item.NeighbourItemIn;
+import io.nullnull.recommendation.domain.item.OpeningWindowIn;
+import io.nullnull.recommendation.domain.item.TargetItemIn;
+import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
 import java.nio.file.Files;
@@ -48,6 +57,46 @@ class InternalContractParityTest {
         assertParity(FeedRankResponse.class, "FeedRankResponse");
         assertParity(FeedRankResponse.StageCount.class, "StageCountOut");
         assertParity(PolicyDescriptor.class, "PolicyDescriptor");
+    }
+
+    @Test
+    void itemProposeRequestMatches() {
+        assertParity(ItemProposeRequest.class, "ItemProposeRequest");
+        assertParity(TargetItemIn.class, "TargetItemIn");
+        assertParity(LockIn.class, "LockIn");
+        assertParity(NeighbourItemIn.class, "NeighbourItemIn");
+        assertParity(OpeningWindowIn.class, "OpeningWindowIn");
+        assertParity(TemporalCandidateIn.class, "TemporalCandidateIn");
+        assertThat(schemas.get("ItemProposeRequest").get("properties").get("candidates").get("maxItems").asInt())
+                .isEqualTo(ItemProposeRequest.MAX_CANDIDATES);
+        assertThat(schemas.get("ItemProposeRequest").get("properties").get("locks").get("maxItems").asInt())
+                .isEqualTo(ItemProposeRequest.MAX_LOCKS);
+        assertThat(schemas.get("ItemProposeRequest").get("properties").get("neighbours").get("maxItems").asInt())
+                .isEqualTo(ItemProposeRequest.MAX_NEIGHBOURS);
+    }
+
+    @Test
+    void itemProposeResponseMatches() {
+        assertParity(ItemProposeResponse.class, "ItemProposeResponse");
+        assertParity(ItemProposalOut.class, "ItemProposalOut");
+    }
+
+    /**
+     * The eleven comparison reason codes are a Literal on the service side and a String here, so the
+     * enum check above cannot see them: pin the set explicitly against {@link ComparisonReasonCode}.
+     */
+    @Test
+    void temporalCandidateReasonCodesAreTheElevenPublishedCodes() {
+        Set<String> declared = new TreeSet<>();
+        schemas.get("TemporalCandidateIn").get("properties").get("verdictReasonCode").get("enum")
+                .forEach(node -> declared.add(node.asString()));
+        assertThat(declared).isEqualTo(new TreeSet<>(Set.of(
+                ComparisonReasonCode.SAME_METRIC_AND_ISSUE, ComparisonReasonCode.SAME_SOURCE_SCOPE_SET,
+                ComparisonReasonCode.DIFFERENT_SOURCE, ComparisonReasonCode.DIFFERENT_SCOPE,
+                ComparisonReasonCode.DIFFERENT_FORECAST_ISSUE, ComparisonReasonCode.STALE_INPUT,
+                ComparisonReasonCode.REPLAY_INPUT, ComparisonReasonCode.QUALITATIVE_ONLY,
+                ComparisonReasonCode.MAPPING_UNCERTAIN, ComparisonReasonCode.PROVIDER_INCIDENT,
+                ComparisonReasonCode.MISSING_PROVENANCE)));
     }
 
     /**

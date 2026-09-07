@@ -10,12 +10,22 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
+import io.nullnull.recommendation.domain.item.ItemProposeRequest;
+import io.nullnull.recommendation.domain.item.ItemProposeResponse;
+import io.nullnull.recommendation.domain.item.OpeningWindowIn;
+import io.nullnull.recommendation.domain.item.TargetItemIn;
+import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +49,29 @@ class HttpRecommendationGatewayTest {
              "evaluated":2,"rejectedByReason":{"NOT_PUBLISHED":1},
              "stageCounts":[{"stage":"source:request","inputCount":0,"outputCount":2}]}
             """.formatted("a".repeat(64));
+
+    static final UUID TRIP = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93c01");
+    static final UUID PLACE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93a01");
+    static final UUID ITEM = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93b01");
+    static final UUID BEFORE_SNAPSHOT = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93d01");
+    static final UUID AFTER_SNAPSHOT = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93d02");
+    static final LocalDate D12 = LocalDate.of(2026, 9, 12);
+    static final LocalDate D13 = LocalDate.of(2026, 9, 13);
+    static final LocalDate D14 = LocalDate.of(2026, 9, 14);
+
+    /** The service answers with string decimals; Spring must read them as exact BigDecimal values. */
+    static final String PROPOSAL_BODY = """
+            {"policyVersion":"policy-v1","policyHash":"%s","pipelineVersion":"nullnull-ai-pipeline-v1",
+             "outcome":"PROPOSALS","reasons":[],"evaluated":1,"rejectedByReason":{},
+             "proposals":[{"rank":%d,"date":"2026-09-13","startTime":"%s",
+              "beforeInstant":"2026-09-12T01:00:00Z","afterInstant":"2026-09-13T01:00:00Z",
+              "score":"0.120000","improvement":"40","relief":"0.400000","changeCost":"1.000000",
+              "beforeSnapshotId":"%s","afterSnapshotId":"%s","lockChecks":{"DATE":true}}]}
+            """;
+
+    static String proposalBody(int rank, String startTime, UUID beforeSnapshot, UUID afterSnapshot) {
+        return PROPOSAL_BODY.formatted("a".repeat(64), rank, startTime, beforeSnapshot, afterSnapshot);
+    }
 
     MockRestServiceServer server;
     HttpRecommendationGateway gateway;
@@ -111,6 +144,103 @@ class HttpRecommendationGatewayTest {
         FeedRankRequest request = requestFor("00000000-0000-0000-0000-000000000009");
         assertThatThrownBy(() -> gateway.rankFeed(request)).isInstanceOf(RecommendationUnavailableException.class)
                 .hasMessageContaining("not in the request");
+    }
+
+    /** One HOUR candidate at 10:00 on D13, or a DAY candidate that keeps the item's own 10:00. */
+    private static ItemProposeRequest proposeRequest(LocalTime candidateTime) {
+        TemporalCandidateIn candidate = new TemporalCandidateIn(PLACE, D13, candidateTime,
+                candidateTime == null ? TemporalCandidateIn.ForecastResolution.DAY
+                        : TemporalCandidateIn.ForecastResolution.HOUR,
+                new BigDecimal("80"), new BigDecimal("40"), "KTO_RELATIVE_CONCENTRATION_INDEX", true,
+                ComparisonReasonCode.SAME_METRIC_AND_ISSUE, BEFORE_SNAPSHOT, AFTER_SNAPSHOT);
+        return new ItemProposeRequest(Instant.parse("2026-09-06T00:00:00Z"), TRIP, 7, D12, D14, "Asia/Seoul",
+                new TargetItemIn(ITEM, PLACE, D12, LocalTime.of(10, 0), 90, 1), List.of(), List.of(),
+                Map.of(D12, OpeningWindowIn.open(LocalTime.of(9, 0), LocalTime.of(18, 0))),
+                ItemProposeRequest.RouteEvidence.NONE, List.of(candidate));
+    }
+
+    private static void expectPropose(MockRestServiceServer server, String body) {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/items/propose"))
+                .andExpect(method(HttpMethod.POST)).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    void proposeItemPostsHydratedFactsAndReadsDecimalsExactly() {
+        server.expect(requestTo("http://ai.test:8090/internal/v1/items/propose")).andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Request-ID", "req_test-0001"))
+                .andExpect(jsonPath("$.tripZone").value("Asia/Seoul"))
+                .andExpect(jsonPath("$.target.startTime").value("10:00:00"))
+                .andExpect(jsonPath("$.routeEvidence").value("NONE"))
+                .andExpect(jsonPath("$.openingHours['2026-09-12'].state").value("OPEN"))
+                .andExpect(jsonPath("$.candidates[0].resolution").value("HOUR"))
+                .andExpect(jsonPath("$.candidates[0].verdictReasonCode").value("SAME_METRIC_AND_ISSUE"))
+                .andExpect(jsonPath("$.candidates[0].beforeSnapshotId").value(BEFORE_SNAPSHOT.toString()))
+                .andRespond(withSuccess(proposalBody(1, "10:00:00", BEFORE_SNAPSHOT, AFTER_SNAPSHOT),
+                        MediaType.APPLICATION_JSON));
+        ItemProposeResponse response = gateway.proposeItem(proposeRequest(LocalTime.of(10, 0)));
+        assertThat(response.outcome()).isEqualTo(ItemProposeResponse.Outcome.PROPOSALS);
+        assertThat(response.proposals()).singleElement().satisfies(proposal -> {
+            assertThat(proposal.score()).isEqualByComparingTo("0.120000");
+            assertThat(proposal.changeCost()).isEqualByComparingTo("1.000000");
+            assertThat(proposal.startTime()).isEqualTo(LocalTime.of(10, 0));
+            assertThat(proposal.lockChecks()).containsEntry("DATE", true);
+        });
+        server.verify();
+    }
+
+    @Test
+    void aDayResolutionCandidateKeepsTheItemsOwnStartTime() {
+        // The candidate carries no time, so 10:00 is the item's current start time, not an invented slot.
+        expectPropose(server, proposalBody(1, "10:00:00", BEFORE_SNAPSHOT, AFTER_SNAPSHOT));
+        assertThat(gateway.proposeItem(proposeRequest(null)).proposals()).hasSize(1);
+        server.verify();
+    }
+
+    @Test
+    void aProposedSlotOutsideTheRequestIsRejected() {
+        expectPropose(server, proposalBody(1, "11:00:00", BEFORE_SNAPSHOT, AFTER_SNAPSHOT));
+        ItemProposeRequest request = proposeRequest(LocalTime.of(10, 0));
+        assertThatThrownBy(() -> gateway.proposeItem(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("slot that was not in the request")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+    }
+
+    @Test
+    void aSnapshotPairOutsideTheRequestIsRejected() {
+        expectPropose(server, proposalBody(1, "10:00:00", AFTER_SNAPSHOT, BEFORE_SNAPSHOT));
+        ItemProposeRequest request = proposeRequest(LocalTime.of(10, 0));
+        assertThatThrownBy(() -> gateway.proposeItem(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("snapshot pair that was not in the request")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+    }
+
+    @Test
+    void ranksThatDoNotStartAtOneAreRejected() {
+        expectPropose(server, proposalBody(2, "10:00:00", BEFORE_SNAPSHOT, AFTER_SNAPSHOT));
+        ItemProposeRequest request = proposeRequest(LocalTime.of(10, 0));
+        assertThatThrownBy(() -> gateway.proposeItem(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("ranks must run 1..n")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+    }
+
+    @Test
+    void proposeItemIsNeverRetried() {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/items/propose"))
+                .andRespond(withServerError());
+        ItemProposeRequest request = proposeRequest(LocalTime.of(10, 0));
+        assertThatThrownBy(() -> gateway.proposeItem(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isTrue());
+        server.verify();
+    }
+
+    @Test
+    void aRejectedProposeRequestIsNotRetryable() {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/items/propose"))
+                .andRespond(withBadRequest());
+        ItemProposeRequest request = proposeRequest(LocalTime.of(10, 0));
+        assertThatThrownBy(() -> gateway.proposeItem(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+        server.verify();
     }
 
     private static FeedRankRequest requestFor(String postId) {

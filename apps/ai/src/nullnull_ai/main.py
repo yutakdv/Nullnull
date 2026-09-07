@@ -11,6 +11,7 @@ from fastapi import FastAPI
 
 from nullnull_ai import __version__
 from nullnull_ai.api.feed import router as feed_router
+from nullnull_ai.api.items import router as items_router
 from nullnull_ai.api.problems import install_handlers
 from nullnull_ai.api.request_id import RequestIdMiddleware
 from nullnull_ai.api.system import router as system_router
@@ -39,6 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestIdMiddleware)
     app.include_router(system_router, prefix="/internal/v1")
     app.include_router(feed_router, prefix="/internal/v1")
+    app.include_router(items_router, prefix="/internal/v1")
     return app
 
 
