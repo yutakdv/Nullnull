@@ -233,7 +233,12 @@ Figma 오류 계약:
 
 | Figma node | 화면 | Pri/state | 동작 | API |
 | --- | --- | --- | --- | --- |
-| `418:2523` | S11-1 Live | P0 | map OFF 목록 필수, map capability, 영역 선택(`FCR-012`); route 기반 우회 시간·경로 문구 없음 (`FCR-005`) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `716:4377` | S11-1L Live 목록 (P0 기본) | P0 | map OFF 기본, `LiveArea[]` 목록 → 권역 선택 → sheet 장소 목록 (`FCR-012` 2026-09-08 추가) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `718:4521` | S11-1L 목록 loading | P0 loading | 권역 조회 진행 중 | `queryLiveAreas` pending |
+| `718:4584` | S11-1L 목록 empty | P0 empty | `areas=[]`, 검색 유도 | `queryLiveAreas` |
+| `718:4647` | S11-1L 목록 error | P0 error | 요청 실패, 재시도 | `queryLiveAreas` Problem |
+| `718:4710` | S11-1L 목록 unavailable | P0 unavailable | `mode=UNAVAILABLE`, 값 합성 금지 | `queryLiveAreas` |
+| `418:2523` | S11-1 Live map ON | P0 capability | map capability·provider·attribution 승인 뒤에만; 목록과 같은 filter/selection 공유; route 기반 우회 시간·경로 문구 없음 (`FCR-005`) | `queryLiveAreas`, `listLiveAreaPlaces` |
 | `684:4156` | S11-1B 검색 결과 | P0 | 검색창 진입, canonical `PlaceSummary` 목록에서 선택(`FCR-008`) | `searchPlaces` |
 | `684:4330` | S11-1B 검색 중 | P0 loading | 요청 진행 중 표시 | `searchPlaces` pending |
 | `684:4366` | S11-1B 결과 없음 | P0 empty | 0건, 다른 검색어 유도 | `searchPlaces` `items=[]` |
