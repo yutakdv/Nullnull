@@ -68,7 +68,10 @@
     {
       "id": "REC-SLOT-02",
       "suite": "pytest",
-      "path": "tests/item/test_evaluator.py"
+      "path": [
+        "tests/item/test_evaluator.py",
+        "tests/slot/test_evaluator.py"
+      ]
     },
     {
       "id": "REC-OPT-02",

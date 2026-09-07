@@ -2,6 +2,8 @@ package io.nullnull.recommendation.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -20,6 +22,9 @@ import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.OpeningWindowIn;
 import io.nullnull.recommendation.domain.item.TargetItemIn;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
+import io.nullnull.recommendation.domain.slot.SlotOut;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -53,6 +58,7 @@ class HttpRecommendationGatewayTest {
     static final UUID TRIP = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93c01");
     static final UUID PLACE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93a01");
     static final UUID ITEM = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93b01");
+    static final UUID CANDIDATE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93e01");
     static final UUID BEFORE_SNAPSHOT = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93d01");
     static final UUID AFTER_SNAPSHOT = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93d02");
     static final LocalDate D12 = LocalDate.of(2026, 9, 12);
@@ -239,6 +245,150 @@ class HttpRecommendationGatewayTest {
                 .andRespond(withBadRequest());
         ItemProposeRequest request = proposeRequest(LocalTime.of(10, 0));
         assertThatThrownBy(() -> gateway.proposeItem(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+        server.verify();
+    }
+
+    /** One candidate's date slots. The service always answers a date and never a time (P0, §5.3). */
+    static final String SLOT_BODY = """
+            {"policyVersion":"policy-v1","policyHash":"%s","pipelineVersion":"nullnull-ai-pipeline-v1",
+             "state":"%s","reasons":[],"slots":[%s]}
+            """;
+
+    static String slot(String date, String suggestedTime, boolean eligible, String reasonCode) {
+        return """
+                {"date":"%s","suggestedTime":%s,"eligible":%s,"reasonCode":%s}""".formatted(date,
+                suggestedTime == null ? "null" : "\"" + suggestedTime + "\"", eligible,
+                reasonCode == null ? "null" : "\"" + reasonCode + "\"");
+    }
+
+    static String slotBody(String state, String... slots) {
+        return SLOT_BODY.formatted("a".repeat(64), state, String.join(",", slots));
+    }
+
+    private static SlotEvaluateRequest slotRequest() {
+        return slotRequest(D14, 60);
+    }
+
+    private static SlotEvaluateRequest slotRequest(LocalDate tripEnd, Integer durationMinutes) {
+        return new SlotEvaluateRequest(Instant.parse("2026-09-06T00:00:00Z"), TRIP, CANDIDATE, PLACE, D12, tripEnd,
+                "Asia/Seoul", durationMinutes, List.of(),
+                Map.of(D12, OpeningWindowIn.open(LocalTime.of(9, 0), LocalTime.of(18, 0))), List.of(),
+                ItemProposeRequest.RouteEvidence.NONE, 20, false);
+    }
+
+    private static void expectSlots(MockRestServiceServer server, String body) {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/slots/evaluate"))
+                .andExpect(method(HttpMethod.POST)).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    void evaluateSlotsPostsHydratedFactsAndReadsDateOnlySlots() {
+        server.expect(requestTo("http://ai.test:8090/internal/v1/slots/evaluate")).andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Request-ID", "req_test-0001"))
+                .andExpect(jsonPath("$.candidateId").value(CANDIDATE.toString()))
+                .andExpect(jsonPath("$.tripZone").value("Asia/Seoul"))
+                .andExpect(jsonPath("$.maxItemsPerDay").value(20))
+                .andExpect(jsonPath("$.checking").value(false))
+                .andExpect(jsonPath("$.datesWithSamePlace").isEmpty())
+                .andExpect(jsonPath("$.openingHours['2026-09-12'].state").value("OPEN"))
+                .andRespond(withSuccess(slotBody("EXACT", slot("2026-09-12", null, true, null),
+                        slot("2026-09-13", null, false, "CLOSED")), MediaType.APPLICATION_JSON));
+        SlotEvaluateResponse response = gateway.evaluateSlots(slotRequest());
+        assertThat(response.state()).isEqualTo(SlotEvaluateResponse.State.EXACT);
+        assertThat(response.slots()).extracting(SlotOut::date).containsExactly(D12, D13);
+        assertThat(response.slots()).allSatisfy(slot -> assertThat(slot.suggestedTime()).isNull());
+        assertThat(response.slots().get(1).reasonCode()).isEqualTo("CLOSED");
+        server.verify();
+    }
+
+    @Test
+    void aSlotOutsideTheTripRangeIsRejected() {
+        expectSlots(server, slotBody("EXACT", slot("2026-09-15", null, true, null)));
+        assertThatThrownBy(() -> gateway.evaluateSlots(slotRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("outside the trip range")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+    }
+
+    @Test
+    void slotDatesMustAscendWithoutARepeat() {
+        expectSlots(server, slotBody("EXACT", slot("2026-09-13", null, true, null),
+                slot("2026-09-13", null, false, "CLOSED")));
+        assertThatThrownBy(() -> gateway.evaluateSlots(slotRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("ascend without a repeat");
+    }
+
+    @Test
+    void aSuggestedTimeIsRejectedBecauseP0NeverInventsOne() {
+        expectSlots(server, slotBody("EXACT", slot("2026-09-12", "10:00:00", true, null)));
+        assertThatThrownBy(() -> gateway.evaluateSlots(slotRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("suggested time")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+    }
+
+    @Test
+    void aSlotWithoutAReasonForItsRefusalIsRejected() {
+        expectSlots(server, slotBody("NONE", slot("2026-09-12", null, false, null)));
+        assertThatThrownBy(() -> gateway.evaluateSlots(slotRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("reason code exactly when");
+    }
+
+    @Test
+    void anExactStateWithoutAnEligibleSlotIsRejected() {
+        expectSlots(server, slotBody("EXACT", slot("2026-09-12", null, false, "CLOSED")));
+        assertThatThrownBy(() -> gateway.evaluateSlots(slotRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("EXACT needs at least one eligible slot");
+    }
+
+    @Test
+    void anUnsettledStateThatStillOffersASlotIsRejected() {
+        expectSlots(server, slotBody("UNKNOWN", slot("2026-09-12", null, true, null)));
+        assertThatThrownBy(() -> gateway.evaluateSlots(slotRequest()))
+                .isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("only EXACT or CHECKING");
+    }
+
+    @Test
+    void moreSlotsThanThePolicyCapAreRejected() {
+        // The service truncates a long trip at candidateCaps.slotDates (30) and reports DATE_CAP_EXCEEDED.
+        String[] slots = new String[31];
+        for (int offset = 0; offset < slots.length; offset++) {
+            slots[offset] = slot(D12.plusDays(offset).toString(), null, true, null);
+        }
+        expectSlots(server, slotBody("EXACT", slots));
+        SlotEvaluateRequest request = slotRequest(D12.plusDays(40), 60);
+        assertThatThrownBy(() -> gateway.evaluateSlots(request))
+                .isInstanceOf(RecommendationUnavailableException.class).hasMessageContaining("more slots than the policy");
+    }
+
+    @Test
+    void anUnverifiedStayLengthIsSentAsAnExplicitNull() {
+        // durationMinutes is required-nullable in the contract, so an omitted key would be a 422 at runtime.
+        server.expect(requestTo("http://ai.test:8090/internal/v1/slots/evaluate"))
+                .andExpect(content().string(containsString("\"durationMinutes\":null")))
+                .andRespond(withSuccess(slotBody("EXACT", slot("2026-09-12", null, true, null)),
+                        MediaType.APPLICATION_JSON));
+        assertThat(gateway.evaluateSlots(slotRequest(D14, null)).slots()).hasSize(1);
+        server.verify();
+    }
+
+    @Test
+    void evaluateSlotsIsNeverRetried() {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/slots/evaluate"))
+                .andRespond(withServerError());
+        SlotEvaluateRequest request = slotRequest();
+        assertThatThrownBy(() -> gateway.evaluateSlots(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isTrue());
+        server.verify();
+    }
+
+    @Test
+    void aRejectedSlotRequestIsNotRetryable() {
+        server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/slots/evaluate"))
+                .andRespond(withBadRequest());
+        SlotEvaluateRequest request = slotRequest();
+        assertThatThrownBy(() -> gateway.evaluateSlots(request)).isInstanceOf(RecommendationUnavailableException.class)
                 .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
         server.verify();
     }

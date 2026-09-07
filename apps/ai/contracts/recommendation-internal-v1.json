@@ -699,6 +699,212 @@
         "title": "ReadinessStatus",
         "type": "object"
       },
+      "SlotEvaluateRequest": {
+        "additionalProperties": false,
+        "description": "Facts for one ACTIVE candidate: the trip dates, what already sits on them, and this place's duplicates.\n\nA trip spans at most 30 dates (§4.1), so `openingHours` and `datesWithSamePlace` are bounded by\nthe same number; a longer trip is answered for its first `candidateCaps.slotDates` dates.",
+        "properties": {
+          "candidateId": {
+            "format": "uuid",
+            "title": "Candidateid",
+            "type": "string"
+          },
+          "checking": {
+            "title": "Checking",
+            "type": "boolean"
+          },
+          "datesWithSamePlace": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "maxItems": 30,
+            "title": "Dateswithsameplace",
+            "type": "array"
+          },
+          "durationMinutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationminutes"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "title": "Evaluatedat",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NeighbourItemIn"
+            },
+            "maxItems": 100,
+            "title": "Items",
+            "type": "array"
+          },
+          "maxItemsPerDay": {
+            "minimum": 1.0,
+            "title": "Maxitemsperday",
+            "type": "integer"
+          },
+          "openingHours": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OpeningWindowIn"
+            },
+            "maxProperties": 30,
+            "propertyNames": {
+              "format": "date"
+            },
+            "title": "Openinghours",
+            "type": "object"
+          },
+          "placeId": {
+            "format": "uuid",
+            "title": "Placeid",
+            "type": "string"
+          },
+          "routeEvidence": {
+            "enum": [
+              "NONE",
+              "VERIFIED"
+            ],
+            "title": "Routeevidence",
+            "type": "string"
+          },
+          "tripEnd": {
+            "format": "date",
+            "title": "Tripend",
+            "type": "string"
+          },
+          "tripId": {
+            "format": "uuid",
+            "title": "Tripid",
+            "type": "string"
+          },
+          "tripStart": {
+            "format": "date",
+            "title": "Tripstart",
+            "type": "string"
+          },
+          "tripZone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Tripzone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evaluatedAt",
+          "tripId",
+          "candidateId",
+          "placeId",
+          "tripStart",
+          "tripEnd",
+          "tripZone",
+          "durationMinutes",
+          "items",
+          "openingHours",
+          "datesWithSamePlace",
+          "routeEvidence",
+          "maxItemsPerDay",
+          "checking"
+        ],
+        "title": "SlotEvaluateRequest",
+        "type": "object"
+      },
+      "SlotEvaluateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "pipelineVersion": {
+            "title": "Pipelineversion",
+            "type": "string"
+          },
+          "policyHash": {
+            "title": "Policyhash",
+            "type": "string"
+          },
+          "policyVersion": {
+            "title": "Policyversion",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotOut"
+            },
+            "title": "Slots",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "EXACT",
+              "CHECKING",
+              "UNKNOWN",
+              "NONE"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policyVersion",
+          "policyHash",
+          "pipelineVersion",
+          "state",
+          "slots",
+          "reasons"
+        ],
+        "title": "SlotEvaluateResponse",
+        "type": "object"
+      },
+      "SlotOut": {
+        "additionalProperties": false,
+        "description": "One trip date. `suggestedTime` is always null: P0 offers a date and never invents a time.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "eligible": {
+            "title": "Eligible",
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoncode"
+          },
+          "suggestedTime": {
+            "title": "Suggestedtime",
+            "type": "null"
+          }
+        },
+        "required": [
+          "date",
+          "suggestedTime",
+          "eligible",
+          "reasonCode"
+        ],
+        "title": "SlotOut",
+        "type": "object"
+      },
       "StageCountOut": {
         "additionalProperties": false,
         "properties": {
@@ -1084,6 +1290,47 @@
         "summary": "Policy",
         "tags": [
           "System"
+        ]
+      }
+    },
+    "/internal/v1/slots/evaluate": {
+      "post": {
+        "operationId": "evaluate_slots_internal_v1_slots_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotEvaluateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotEvaluateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Slots",
+        "tags": [
+          "Slot"
         ]
       }
     }

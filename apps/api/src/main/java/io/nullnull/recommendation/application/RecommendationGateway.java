@@ -5,6 +5,8 @@ import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankResponse;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 
 /**
  * Port to the recommendation service ({@code apps/ai}, internal contract v1,
@@ -23,4 +25,10 @@ public interface RecommendationGateway {
      * trip's locks, range and version, and the user approves the change.
      */
     ItemProposeResponse proposeItem(ItemProposeRequest request);
+
+    /**
+     * Which trip dates could hold one candidate. The answer proposes dates only: a slot never carries
+     * a time, and scheduling still goes through the trip's own validation and the user's approval.
+     */
+    SlotEvaluateResponse evaluateSlots(SlotEvaluateRequest request);
 }

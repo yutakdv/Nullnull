@@ -15,6 +15,9 @@ import io.nullnull.recommendation.domain.item.NeighbourItemIn;
 import io.nullnull.recommendation.domain.item.OpeningWindowIn;
 import io.nullnull.recommendation.domain.item.TargetItemIn;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
+import io.nullnull.recommendation.domain.slot.SlotOut;
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
 import java.nio.file.Files;
@@ -81,6 +84,22 @@ class InternalContractParityTest {
     void itemProposeResponseMatches() {
         assertParity(ItemProposeResponse.class, "ItemProposeResponse");
         assertParity(ItemProposalOut.class, "ItemProposalOut");
+    }
+
+    @Test
+    void slotEvaluateContractMatches() {
+        assertParity(SlotEvaluateRequest.class, "SlotEvaluateRequest");
+        assertParity(SlotEvaluateResponse.class, "SlotEvaluateResponse");
+        assertParity(SlotOut.class, "SlotOut");
+        assertThat(schemas.get("SlotEvaluateRequest").get("properties").get("items").get("maxItems").asInt())
+                .isEqualTo(SlotEvaluateRequest.MAX_ITEMS);
+        assertThat(schemas.get("SlotEvaluateRequest").get("properties").get("openingHours").get("maxProperties")
+                .asInt()).isEqualTo(SlotEvaluateRequest.MAX_OPENING_HOURS);
+        assertThat(schemas.get("SlotEvaluateRequest").get("properties").get("datesWithSamePlace").get("maxItems")
+                .asInt()).isEqualTo(SlotEvaluateRequest.MAX_DATES_WITH_SAME_PLACE);
+        // P0 answers a date and never a time: the service declares the field as null-typed, not as a time.
+        assertThat(schemas.get("SlotOut").get("properties").get("suggestedTime").get("type").asString())
+                .isEqualTo("null");
     }
 
     /**

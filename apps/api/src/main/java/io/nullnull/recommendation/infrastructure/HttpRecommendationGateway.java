@@ -10,6 +10,9 @@ import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
+import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
+import io.nullnull.recommendation.domain.slot.SlotOut;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.HashSet;
@@ -27,8 +30,8 @@ import org.springframework.web.client.RestClientException;
 /**
  * Internal contract v1 over HTTP. Called outside any DB transaction. Response identifiers are
  * checked against the request so the service can never introduce an id Spring did not hydrate.
- * Only the idempotent GET is retried; {@code rankFeed} and {@code proposeItem} are POSTs and are
- * attempted once.
+ * Only the idempotent GET is retried; {@code rankFeed}, {@code proposeItem} and {@code evaluateSlots}
+ * are POSTs and are attempted once.
  */
 public class HttpRecommendationGateway implements RecommendationGateway {
 
@@ -39,6 +42,9 @@ public class HttpRecommendationGateway implements RecommendationGateway {
 
     /** policy-v1 candidateCaps.itemProposals: the service may never rank more than three previews. */
     private static final int MAX_PROPOSALS = 3;
+
+    /** policy-v1 candidateCaps.slotDates: one answer per trip date, and a trip spans at most 30 (§4.1). */
+    private static final int MAX_SLOT_DATES = 30;
 
     private final RestClient client;
     private final Supplier<String> requestId;
@@ -121,6 +127,68 @@ public class HttpRecommendationGateway implements RecommendationGateway {
         }
         verifyResponse(request, response);
         return response;
+    }
+
+    @Override
+    public SlotEvaluateResponse evaluateSlots(SlotEvaluateRequest request) {
+        SlotEvaluateResponse response;
+        try {
+            response = client.post().uri("/internal/v1/slots/evaluate")
+                    .header("X-Request-ID", requestId.get())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(SlotEvaluateResponse.class);
+        } catch (HttpClientErrorException exception) {
+            throw rejected("slotEvaluate", exception);
+        } catch (RestClientException | HttpMessageConversionException exception) {
+            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
+        }
+        if (response == null) {
+            throw new RecommendationUnavailableException("empty slot evaluation response", true, null);
+        }
+        verifySlots(request, response);
+        return response;
+    }
+
+    /**
+     * A slot may only name a trip date, once, in order, and P0 never carries a suggested time. The state
+     * has to agree with the slots it summarises, otherwise the candidate would render as bookable while
+     * every date was refused. A violation is a contract break, not an outage: retrying cannot fix it.
+     */
+    private static void verifySlots(SlotEvaluateRequest request, SlotEvaluateResponse response) {
+        if (response.policyHash().isBlank()) {
+            throw unusable("slot evaluation response carries no policy hash");
+        }
+        if (response.slots().size() > MAX_SLOT_DATES) {
+            throw unusable("service returned more slots than the policy allows");
+        }
+        LocalDate previous = null;
+        boolean anyEligible = false;
+        for (SlotOut slot : response.slots()) {
+            if (slot.date().isBefore(request.tripStart()) || slot.date().isAfter(request.tripEnd())) {
+                throw unusable("service returned a slot outside the trip range");
+            }
+            if (previous != null && !slot.date().isAfter(previous)) {
+                throw unusable("slot dates must ascend without a repeat");
+            }
+            previous = slot.date();
+            if (slot.suggestedTime() != null) {
+                throw unusable("a P0 slot never carries a suggested time");
+            }
+            if (slot.eligible() == (slot.reasonCode() != null)) {
+                throw unusable("a slot carries a reason code exactly when it is not eligible");
+            }
+            anyEligible = anyEligible || slot.eligible();
+        }
+        if (response.state() == SlotEvaluateResponse.State.EXACT && !anyEligible) {
+            throw unusable("EXACT needs at least one eligible slot");
+        }
+        boolean settledWithoutSlot = response.state() == SlotEvaluateResponse.State.NONE
+                || response.state() == SlotEvaluateResponse.State.UNKNOWN;
+        if (settledWithoutSlot && anyEligible) {
+            throw unusable("only EXACT or CHECKING may carry an eligible slot");
+        }
     }
 
     /** One (date, startTime) slot; a DAY-resolution candidate keeps the start time the item already has. */

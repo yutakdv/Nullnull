@@ -29,6 +29,9 @@ ComparisonReasonCode = Literal[
 ItemOutcome = Literal["PROPOSALS", "LOCK_CONFLICT", "ROUTE_UNAVAILABLE", "DATA_INSUFFICIENT", "NO_IMPROVEMENT"]
 """Terminal outcome of one ITEM optimization; each value maps to one async failure plane."""
 
+SlotMatchState = Literal["EXACT", "CHECKING", "UNKNOWN", "NONE"]
+"""State of one candidate's date slots. P0 never answers SIMILAR, the fifth value of the public enum."""
+
 
 class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid", alias_generator=to_camel, populate_by_name=True, frozen=True)
@@ -189,6 +192,47 @@ class ItemProposeResponse(ContractModel):
     reasons: list[str]
     evaluated: int
     rejected_by_reason: dict[str, int]
+
+
+class SlotEvaluateRequest(ContractModel):
+    """Facts for one ACTIVE candidate: the trip dates, what already sits on them, and this place's duplicates.
+
+    A trip spans at most 30 dates (§4.1), so `openingHours` and `datesWithSamePlace` are bounded by
+    the same number; a longer trip is answered for its first `candidateCaps.slotDates` dates.
+    """
+
+    evaluated_at: AwareDatetime
+    trip_id: UUID
+    candidate_id: UUID
+    place_id: UUID
+    trip_start: date_
+    trip_end: date_
+    trip_zone: str = Field(min_length=1, max_length=64)
+    duration_minutes: int | None = Field(gt=0)
+    items: list[NeighbourItemIn] = Field(max_length=100)
+    opening_hours: dict[date_, OpeningWindowIn] = Field(max_length=30)
+    dates_with_same_place: list[date_] = Field(max_length=30)
+    route_evidence: Literal["NONE", "VERIFIED"]
+    max_items_per_day: int = Field(ge=1)
+    checking: bool
+
+
+class SlotOut(ContractModel):
+    """One trip date. `suggestedTime` is always null: P0 offers a date and never invents a time."""
+
+    date: date_
+    suggested_time: None
+    eligible: bool
+    reason_code: str | None
+
+
+class SlotEvaluateResponse(ContractModel):
+    policy_version: str
+    policy_hash: str
+    pipeline_version: str
+    state: SlotMatchState
+    slots: list[SlotOut]
+    reasons: list[str]
 
 
 class Problem(ContractModel):
