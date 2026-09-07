@@ -1,0 +1,90 @@
+{
+  "id": "temporal-same-issue",
+  "kind": "ITEM",
+  "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1",
+  "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z",
+  "timezone": "Asia/Seoul",
+  "note": "RECOMMENDATION_ALGORITHM.md 5.5 examples A, B and C on one open day: hourly forecast, same metric and forecast issue, no locks and no neighbours.",
+  "derivation": "policy-v1: relief = (before - after) / 100, changeCost = min(1, |shift| minutes / 240), score = 0.80*relief - 0.20*changeCost at scale 6 HALF_EVEN. Current slot 2026-09-12 10:00 KST. 12:00 (80->50): shift 120 min, relief 0.300000, changeCost 0.500000, 0.240000 - 0.100000 = 0.140000. 11:00 (80->60): shift 60 min, relief 0.200000, changeCost 0.250000, 0.160000 - 0.050000 = 0.110000. 10:15 (80->77): improvement 3 < minimumImprovement 5, so IMPROVEMENT_BELOW_MINIMUM before any score is computed. Order is score DESC, so 12:00 outranks 11:00.",
+  "input": {
+    "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93c01",
+    "tripVersion": 7,
+    "tripStart": "2026-09-12",
+    "tripEnd": "2026-09-14",
+    "tripZone": "Asia/Seoul",
+    "target": {
+      "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b01",
+      "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93a01",
+      "date": "2026-09-12",
+      "startTime": "10:00",
+      "durationMinutes": 90,
+      "position": 1
+    },
+    "locks": [],
+    "neighbours": [],
+    "openingHours": {
+      "2026-09-12": { "open": "09:00", "close": "18:00" },
+      "2026-09-13": "CLOSED",
+      "2026-09-14": "UNKNOWN"
+    },
+    "routeEvidence": "NONE",
+    "candidates": [
+      {
+        "date": "2026-09-12",
+        "time": "11:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "60",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d101",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d102"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "12:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "50",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d103",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d104"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "10:15",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "77",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d105",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d106"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "PROPOSALS",
+    "expectProposals": true,
+    "proposals": [
+      {
+        "date": "2026-09-12",
+        "startTime": "12:00",
+        "score": "0.140000",
+        "improvement": "30",
+        "changeCost": "0.500000"
+      },
+      {
+        "date": "2026-09-12",
+        "startTime": "11:00",
+        "score": "0.110000",
+        "improvement": "20",
+        "changeCost": "0.250000"
+      }
+    ],
+    "rejectedByReason": { "IMPROVEMENT_BELOW_MINIMUM": 1 }
+  }
+}

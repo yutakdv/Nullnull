@@ -58,7 +58,10 @@
     {
       "id": "REC-OPT-01",
       "suite": "pytest",
-      "path": "tests/item/test_evaluator.py"
+      "path": [
+        "tests/item/test_evaluator.py",
+        "tests/recommendation/test_item_fixtures.py"
+      ]
     },
     {
       "id": "REC-OPT-04",
@@ -114,6 +117,56 @@
       "path": "apps/api/src/test/java/io/nullnull/crowd/domain/TemporalComparisonPolicyTest.java"
     }
   ],
-  "fixtures": [],
+  "fixtures": [
+    {
+      "id": "temporal-same-issue",
+      "path": "tests/recommendation/fixtures/temporal-same-issue.json",
+      "sha256": "809f979de37a55318f769da8ecd44c26240f1888278579ebfd96f74bad47e0af",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "temporal-mixed-issue",
+      "path": "tests/recommendation/fixtures/temporal-mixed-issue.json",
+      "sha256": "1ab43212a9732b620bdabcef42020663ec097315e677b5a9c679bdd967cc4413",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "locked-reservation-and-time",
+      "path": "tests/recommendation/fixtures/locked-reservation-and-time.json",
+      "sha256": "0b970a19df1188b09b5b29bb90ccb8133f5615cd4a8224ddfcd0ac5a51aa9574",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "unknown-hours-and-route",
+      "path": "tests/recommendation/fixtures/unknown-hours-and-route.json",
+      "sha256": "374d3e97a81fd22c5d0ae4377d66809bac4f177b73993f8d96226204628c1dfd",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "deterministic-score-boundaries",
+      "path": "tests/recommendation/fixtures/deterministic-score-boundaries.json",
+      "sha256": "95724368df6d3d2a63320b7c2ad856d01b47a824d44d117792cb8678ba25e5e8",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "stale-incident-missing",
+      "path": "tests/recommendation/fixtures/stale-incident-missing.json",
+      "sha256": "9fa7af0a23e0652d01f34d400188208a682bce8c9d131c55594642ab01a372b9",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "feed-order-cases",
+      "path": "tests/recommendation/fixtures/feed-order-cases.json",
+      "sha256": "0f7e5687ed43866b77a1f908628385ec892473bd23e6b86a49ef0e50c1bda76c",
+      "kind": "FEED",
+      "dataOrigin": "SYNTHETIC"
+    }
+  ],
   "service": "apps/ai"
 }

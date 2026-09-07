@@ -103,6 +103,15 @@ python3 "${target_stack_verifier}" \
 "${compose[@]}" up --detach postgres
 "${compose[@]}" run --rm api-quality
 "${compose[@]}" run --rm ai-quality
+
+# REC-CI-6: the recommendation evaluation report is merge evidence, so a missing artifact fails here
+# even when the suite itself was green.
+readonly recommendation_report="${artifact_dir}/recommendation-ai/evaluation.json"
+if [[ ! -f "${recommendation_report}" ]]; then
+  echo "Recommendation evaluation report is missing: ${recommendation_report}" >&2
+  exit 1
+fi
+
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff
 "${compose[@]}" run --rm security-scan

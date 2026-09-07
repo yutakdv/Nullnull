@@ -1,0 +1,133 @@
+{
+  "id": "deterministic-score-boundaries",
+  "kind": "ITEM",
+  "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1",
+  "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z",
+  "timezone": "Asia/Seoul",
+  "note": "Six candidates sitting exactly on the policy boundaries: improvement 4/5/6, a 240 and a 241 minute move, and a 24 hour move. A zero minute move is not included because it is the current slot and is rejected as NO_CHANGE first.",
+  "derivation": "score = 0.80*relief - 0.20*changeCost with relief = improvement/100, changeCost = min(1, minutes/240), every step quantized to scale 6 HALF_EVEN. Current slot 2026-09-12 10:00 KST, stay 60 minutes, open 08:00-23:00. (1) 10:04 improvement 4 < minimumImprovement 5 -> IMPROVEMENT_BELOW_MINIMUM. (2) 10:05 improvement 5, 5 minutes: relief 0.050000, changeCost 5/240 = 0.020833, 0.040000 - 0.004167 = 0.035833 -> admitted. (3) 11:00 improvement 6, 60 minutes: 0.048000 - 0.050000 = -0.002000 -> SCORE_NOT_POSITIVE. (4) 14:00 improvement 20, 240 minutes: changeCost saturates at 1.000000, 0.160000 - 0.200000 = -0.040000 -> SCORE_NOT_POSITIVE. (5) 14:01 improvement 30, 241 minutes: changeCost is still 1.000000 because of the min, 0.240000 - 0.200000 = 0.040000 -> admitted. (6) 2026-09-13 10:00 improvement 35, 1440 minutes: 0.280000 - 0.200000 = 0.080000 -> admitted. Ordering is score DESC, so 0.080000, 0.040000, 0.035833, and all three fit under candidateCaps.itemProposals = 3.",
+  "input": {
+    "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93c01",
+    "tripVersion": 7,
+    "tripStart": "2026-09-12",
+    "tripEnd": "2026-09-14",
+    "tripZone": "Asia/Seoul",
+    "target": {
+      "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b01",
+      "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93a01",
+      "date": "2026-09-12",
+      "startTime": "10:00",
+      "durationMinutes": 60,
+      "position": 1
+    },
+    "locks": [],
+    "neighbours": [],
+    "openingHours": {
+      "2026-09-12": { "open": "08:00", "close": "23:00" },
+      "2026-09-13": { "open": "08:00", "close": "23:00" },
+      "2026-09-14": "CLOSED"
+    },
+    "routeEvidence": "NONE",
+    "candidates": [
+      {
+        "date": "2026-09-12",
+        "time": "10:04",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "76",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d501",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d502"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "10:05",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "75",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d503",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d504"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "11:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "74",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d505",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d506"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "14:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "60",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d507",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d508"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "14:01",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "50",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d509",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d50a"
+      },
+      {
+        "date": "2026-09-13",
+        "time": "10:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "45",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d50b",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d50c"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "PROPOSALS",
+    "expectProposals": true,
+    "proposals": [
+      {
+        "date": "2026-09-13",
+        "startTime": "10:00",
+        "score": "0.080000",
+        "improvement": "35",
+        "changeCost": "1.000000"
+      },
+      {
+        "date": "2026-09-12",
+        "startTime": "14:01",
+        "score": "0.040000",
+        "improvement": "30",
+        "changeCost": "1.000000"
+      },
+      {
+        "date": "2026-09-12",
+        "startTime": "10:05",
+        "score": "0.035833",
+        "improvement": "5",
+        "changeCost": "0.020833"
+      }
+    ],
+    "rejectedByReason": {
+      "IMPROVEMENT_BELOW_MINIMUM": 1,
+      "SCORE_NOT_POSITIVE": 2
+    }
+  }
+}
