@@ -32,9 +32,9 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-010-증거)) |
 | FCR-011 | P0 blocker | feed `392:368`, post 장소 카드 `399:613`, Live `418:5199`의 `실시간 관측`에 `ⓒ한국관광공사`가 결합돼 서울 실시간 원천과 KTO 예측/관광정보가 뒤섞임 | `SEOUL_CITYDATA`는 API의 서울특별시 attribution·`officialUrl`·`licenseUrl`을 그대로 표시하고 KTO 장소 정보·예측 attribution과 시각적으로 분리 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-011-증거)) · **폭 blocker 1건** |
 | FCR-012 | P0 blocker | Live `418:2523`은 `Map / Base`와 marker가 보이는 화면만 있고 map capability OFF의 목록-only variant가 없음 | map OFF를 P0 기본으로 하는 목록-only default/loading/empty/error/unavailable variant를 추가. map ON은 provider·license·attribution 승인 뒤에만 열고 동일 filter/selection을 유지 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-012-증거)) |
-| FCR-013 | P0 blocker | 여행 보기 `410:1738`에 계약 연결 없이 `더 여유로운 날짜가 있어요 · 비교하기`가 노출됨 | P0에서 제거하거나 `getPlaceCrowdForecast`와 temporal comparison eligibility, 표시 threshold, unavailable 상태를 기능 ID에 연결. 단순 예보 비교와 적용 가능한 최적화 제안을 구분 | FE / BE·AI·PM | Open |
-| FCR-014 | P0 major | 계산 중 `415:2413`의 `취소하고 My Trip으로`가 한국어 tab 명칭과 다르고, client 이탈/timeout이 server run 취소를 뜻하는 것처럼 보임 | 취소 operation이 없는 P0에서는 `내 여행으로 돌아가기`처럼 navigation만 표현하고 run은 URL로 다시 조회할 수 있음을 안내. 실제 취소는 별도 계약·상태 전이 뒤에만 노출 | FE / BE·AI | Open |
-| FCR-015 | P0 blocker | 적용 완료 `417:2412`의 되돌리기가 toast action뿐이고 적용 대상 revision·24시간 `revertUntil`·만료 상태를 지속적으로 확인할 수 없음 | `ApplyOptimizationDecision`의 전후 revision·`revertUntil`을 persistent UI로 표시하고 가능/진행/완료/`REVERT_WINDOW_EXPIRED` 상태를 제공. toast는 보조 피드백으로만 사용 | FE / BE·AI | Open |
+| FCR-013 | P0 blocker | 여행 보기 `410:1738`에 계약 연결 없이 `더 여유로운 날짜가 있어요 · 비교하기`가 노출됨 | P0에서 제거하거나 `getPlaceCrowdForecast`와 temporal comparison eligibility, 표시 threshold, unavailable 상태를 기능 ID에 연결. 단순 예보 비교와 적용 가능한 최적화 제안을 구분 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-013-증거)) |
+| FCR-014 | P0 major | 계산 중 `415:2413`의 `취소하고 My Trip으로`가 한국어 tab 명칭과 다르고, client 이탈/timeout이 server run 취소를 뜻하는 것처럼 보임 | 취소 operation이 없는 P0에서는 `내 여행으로 돌아가기`처럼 navigation만 표현하고 run은 URL로 다시 조회할 수 있음을 안내. 실제 취소는 별도 계약·상태 전이 뒤에만 노출 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-014-증거)) |
+| FCR-015 | P0 blocker | 적용 완료 `417:2412`의 되돌리기가 toast action뿐이고 적용 대상 revision·24시간 `revertUntil`·만료 상태를 지속적으로 확인할 수 없음 | `ApplyOptimizationDecision`의 전후 revision·`revertUntil`을 persistent UI로 표시하고 가능/진행/완료/`REVERT_WINDOW_EXPIRED` 상태를 제공. toast는 보조 피드백으로만 사용 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-015-증거)) |
 
 `CON-003` 계약은 PR #9의 merge commit `1b3931c`로 `main`에 반영됐다. 따라서
 FCR-010/011/015의 Backend/AI 계약 선행조건은 충족됐다. 세 FCR의 `Open` 상태는
@@ -397,3 +397,63 @@ route provider가 정해지기 전까지 이 값들을 다시 넣지 않는다.
 6. 새 컴포넌트를 만들지 않았다. `CrowdState / Live`가 `01 Components`가 아니라 `00 Wireframes`에 있는 점은 `COMPONENT_CATALOG` 검토 시 BE/AI·PM이 확인할 항목이다.
 
 top-level frame이 5개 늘어 `02 UI Design` 구현 frame은 63개다(FCR-008까지 58 → 63). [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.
+
+## FCR-013 증거
+
+- 수정일: 2026-09-08, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. 목표의 첫 선택지인 **P0 제거**를 택했다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 항목 | 값 |
+| --- | --- |
+| 화면 | [`410:1738` S07-1 / view · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=410-1738) |
+| 변경 전 | [스크린샷](./evidence/fcr-013/before-410-1738.jpg) |
+| 변경 후 | [스크린샷](./evidence/fcr-013/after-410-1738.jpg) |
+
+변경 내용:
+
+1. `Body` 안의 `suggest` 프레임(`410:4431`, `더 여유로운 날짜가 있어요` + `비교하기 →`)을 제거했다. `Body`가 auto-layout이라 인사동 카드가 위로 붙었다. 이 배너는 `410:1738` 한 곳에만 있었다.
+2. 제거 근거: 배너가 성립하려면 `getTrip`과 별개로 `getPlaceCrowdForecast`를 호출하고, `comparisonAxis=TEMPORAL` 적격성(`FR-DAT-02`)을 통과하며, "더 여유롭다"를 판정할 **표시 threshold**가 있어야 한다. 세 번째가 어느 문서에도 정의돼 있지 않고, 착수 조건이 "계약 연결·비교 규칙이 없으면 banner를 구현하지 않음"이다.
+3. 단순 예보 비교와 적용 가능한 최적화 제안의 구분은 이미 `FCR-004`/`FCR-010`이 담당한다. 여행 보기에서 최적화로 가는 진입은 `AI로 일정 최적화` 버튼 하나로 충분하며 계약 없는 배너로 유도하지 않는다.
+4. threshold 규칙이 `FR-DAT-02`/`FR-DAT-05`에 추가되면 그때 별도 FCR로 배너를 다시 설계한다.
+
+## FCR-014 증거
+
+- 수정일: 2026-09-08, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. [권장 문구](#권장-문구와-시각-규칙)의 `내 여행으로 돌아가기`를 그대로 적용했다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 항목 | 값 |
+| --- | --- |
+| 화면 | [`415:2413` S09-1 / loading · P0 LOADING](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=415-2413) |
+| 변경 전 | [스크린샷](./evidence/fcr-014/before-415-2413.jpg) |
+| 변경 후 | [스크린샷](./evidence/fcr-014/after-415-2413.jpg) |
+
+변경 내용:
+
+1. `btn/cancel`(`415:2430`) → `btn/back-to-trip`, 라벨 `취소하고 My Trip으로` → `내 여행으로 돌아가기`. 탭 명칭(`내 여행`)과 일치하고 "취소"라는 단어를 쓰지 않는다.
+2. 버튼 아래 안내(`415:2432`)를 `아직 일정은 그대로예요` 한 줄에서 3줄로 늘렸다: `아직 일정은 그대로예요 / 계산은 계속돼요 / 내 여행에서 다시 열 수 있어요`. 이 화면을 떠나도 server run이 취소되지 않고 `getOptimization`으로 같은 run URL을 다시 열 수 있음을 사용자에게 알린다. `Body` 열(200px)에 맞춰 12px 3줄로 배치했다.
+3. P0에는 cancel operation이 없으므로 취소 버튼을 만들지 않았다. 실제 취소 UI는 계약과 상태 전이가 추가된 뒤 별도 FCR로 다룬다.
+4. 구현 acceptance(`FR-OPT-03`): 뒤로가기·탭 이동·client timeout 어느 것도 run 상태를 바꾸지 않는다. `/trip/:tripId/optimizations/:runId`는 refresh·재진입 시 `getOptimization`으로 현재 상태를 복원한다.
+
+## FCR-015 증거
+
+- 수정일: 2026-09-08, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: `417:2412`의 되돌리기를 persistent 패널로 바꾸고 `revertAvailability` 상태별 frame 3개를 추가했다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 상태 | Figma node | 참고 |
+| --- | --- | --- |
+| 변경 전 (toast만) | `417:2412` | [스크린샷](./evidence/fcr-015/before-417-2412.jpg) |
+| `AVAILABLE` (기본, 수정) | `417:2412` S09-3 / applied · P0 | [스크린샷](./evidence/fcr-015/after-417-2412-available.jpg) |
+| 되돌리는 중 | `724:4602` S09-3 / applied-reverting · P0 SUBMITTING | [스크린샷](./evidence/fcr-015/after-724-4602-reverting.jpg) |
+| `REVERTED` | `724:4730` S09-3 / applied-reverted · P0 | [스크린샷](./evidence/fcr-015/after-724-4730-reverted.jpg) |
+| `EXPIRED` | `724:4858` S09-3 / applied-expired · P0 REVERT_WINDOW_EXPIRED | [스크린샷](./evidence/fcr-015/after-724-4858-expired.jpg) |
+
+구성 내용:
+
+1. **persistent 패널** — `moved-note`(`484:3516`, 한 줄 텍스트)를 `applied-panel`(`724:4594`)로 교체했다. 결과 문구 + `revert-state` 배지, `revision-line`(`일정 v7 → v8 · 10/7 14:35 적용 · 10/8 14:35까지 되돌릴 수 있어요`), `btn/revert`(`이전 일정(v7)으로 되돌리기`)로 구성된다. `ApplyOptimizationDecision`의 `beforeRevisionId`/`afterRevisionId`는 사용자에게 version 번호로, `revertUntil`은 기한 시각으로 보여준다.
+2. **toast는 보조** — `Feedback / Toast`(`일정을 업데이트했어요 · 되돌리기`)는 `417:2412`에 그대로 두되, 사라져도 패널이 남아 되돌리기 진입점이 유지된다. 상태 variant 3개에서는 toast를 제거했다(진입 직후에만 뜨는 요소).
+3. **상태 4종** — 배지·revision 줄·버튼이 `revertAvailability`에 따라 바뀐다. `AVAILABLE`: `되돌리기 가능` + 활성 버튼. 되돌리는 중: `되돌리는 중` + 버튼 disabled(`opacity 0.5`, 중복 실행 차단). `REVERTED`: `되돌림` + 버튼 없음 + `일정 v8 → v9 · v7과 같은 일정이에요`, 경복궁 카드가 day 1로 복귀하고 `최적화 반영` 배지가 사라지며 day 3 header가 없어진다. `EXPIRED`: `기한 지남` + disabled 버튼에 `되돌릴 수 없어요 · 일정 편집에서 직접 바꿔요`로 대안 동선을 안내한다.
+4. `NOT_APPLICABLE`(다른 곳에서 일정이 또 바뀐 경우)은 별도 frame을 만들지 않았다. `485:3517` stale reference의 `TRIP_CHANGED` 처리와 같은 화면이며, 패널 배지만 `기한 지남` 대신 `일정이 바뀌어 되돌릴 수 없어요`로 바꾼다.
+5. 구현 acceptance(`FR-OPT-09`): 되돌리기 활성 여부는 server의 `revertAvailability`만 따르고 기기 시계로 계산하지 않는다(필드 부재 시 비활성). `revertOptimizationDecision`은 `Idempotency-Key`로 중복 실행을 막고 성공 시 새 revision(`v9`)을 만들며 decision log는 보존한다. 버튼·배지는 keyboard focus와 accessible name(`이전 일정 v7으로 되돌리기, 10/8 14:35까지`)을 갖는다.
+6. 새 컴포넌트를 만들지 않았다. 배지·버튼은 이 화면 전용 auto-layout이며, 반복 사용이 확인되면 `COMPONENT_CATALOG` 검토 시 `Data / Badge` variant로 승격할지 결정한다.
+
+top-level frame이 3개 늘어 `02 UI Design` 구현 frame은 66개다(FCR-012까지 63 → 66). [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.
