@@ -114,7 +114,7 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 
 - 실행할 검사 **목록**의 정본은 `AGENTS.md#필수-검증`이다(문서·계약, `apps/web`, `apps/api`, `apps/ai`, 모든 main PR). 여기에 복제하지 않는다.
 - 이 기기에서 실제로 도는 **실행 형태**는 `apps/api/CLAUDE.md`·`apps/ai/CLAUDE.md`에 있다. Gradle은 Temurin 21 `JAVA_HOME`, `apps/ai`는 `.uv-bootstrap/bin/uv`가 필요하다.
-- B01 marker 이후에는 wrapper로 `python3 scripts/verify_target_stack.py`와 `bash scripts/integration-test.sh`를 함께 실행한다.
+- `bash scripts/integration-test.sh`는 `.nullnull-target-stack` marker(FE scaffold와 같은 PR)가 없는 지금 `apps/api`가 이미 있어 exit 1로 실패한다. 이는 정상 게이트 동작이며 통과로도 버그로도 쓰지 않는다. marker가 추가된 뒤에는 `python3 scripts/verify_target_stack.py`와 함께 실행한다.
 
 CI 등록 규칙(required 두 개, `api-quality`·`ai-quality` workflow, test ID 등록)은 `AGENTS.md#ci-검사-등록`을 따른다. Route/search/sheet/dialog/trip mutation/optimization 변경은 Playwright와 keyboard/focus 검사를 포함한다. migration은 empty DB, previous→latest, rollback-compatible app과 실제 PostgreSQL에서 검증한다.
 
