@@ -5,13 +5,23 @@ import java.util.Objects;
 /**
  * TEMPORAL axis rule (docs/data/SOURCE_CATALOG.md §10): same canonical place, source, metric
  * definition and forecast issue; only the target differs. Evaluation order is fixed so the same
- * pair always yields the same reason code.
+ * pair always yields the same reason code: MISSING_PROVENANCE, PROVIDER_INCIDENT, REPLAY_INPUT,
+ * STALE_INPUT, QUALITATIVE_ONLY, DIFFERENT_SCOPE, DIFFERENT_SOURCE, MAPPING_UNCERTAIN,
+ * DIFFERENT_FORECAST_ISSUE, then SAME_METRIC_AND_ISSUE.
  */
 public final class TemporalComparisonPolicy {
 
+    /**
+     * Precondition: the two points must describe different targets. Two equal non-null targetAt values are
+     * a caller/hydration bug with one shape, so they throw before any eligibility check runs; a null
+     * targetAt is missing metadata and is answered with MISSING_PROVENANCE like any other absent field.
+     */
     public ComparisonVerdict evaluate(CrowdPoint before, CrowdPoint after) {
         Objects.requireNonNull(before, "before");
         Objects.requireNonNull(after, "after");
+        if (before.targetAt() != null && before.targetAt().equals(after.targetAt())) {
+            throw new IllegalArgumentException("temporal pair must compare two different targetAt values");
+        }
         if (missingProvenance(before) || missingProvenance(after)) {
             return ComparisonVerdict.ineligible(ComparisonReasonCode.MISSING_PROVENANCE);
         }
@@ -46,19 +56,16 @@ public final class TemporalComparisonPolicy {
                 || before.forecastIssueId() == null || !before.forecastIssueId().equals(after.forecastIssueId())) {
             return ComparisonVerdict.ineligible(ComparisonReasonCode.DIFFERENT_FORECAST_ISSUE);
         }
-        if (before.targetAt() == null || after.targetAt() == null || before.targetAt().equals(after.targetAt())) {
-            throw new IllegalArgumentException("temporal pair must have two different targets");
-        }
         return ComparisonVerdict.eligible(ComparisonReasonCode.SAME_METRIC_AND_ISSUE);
     }
 
     /**
-     * Incomplete provenance, no snapshot id, UNAVAILABLE, or any drift/skew/partial flag: the value is
-     * quarantined (§5.6 "schema drift → 차단", REC-DATA-04). §9 has no dedicated code for these flags, so
-     * they map to MISSING_PROVENANCE (D-REC-1).
+     * Incomplete provenance, no snapshot id, no target, UNAVAILABLE, or any drift/skew/partial flag: the
+     * value is quarantined (§5.6 "schema drift → 차단", REC-DATA-04). §9 has no dedicated code for these
+     * flags, so they map to MISSING_PROVENANCE (D-REC-1).
      */
     private static boolean missingProvenance(CrowdPoint point) {
-        return !point.provenanceComplete() || point.snapshotId() == null
+        return !point.provenanceComplete() || point.snapshotId() == null || point.targetAt() == null
                 || point.sourceState() == SourceState.UNAVAILABLE
                 || has(point, QualityFlag.SCHEMA_DRIFT) || has(point, QualityFlag.OBSERVED_AT_SKEW)
                 || has(point, QualityFlag.PARTIAL_PAYLOAD);
