@@ -61,6 +61,21 @@
       "path": "tests/item/test_score.py"
     },
     {
+      "id": "REC-SLOT-01",
+      "suite": "pytest",
+      "path": "tests/item/test_locks.py"
+    },
+    {
+      "id": "REC-SLOT-03",
+      "suite": "pytest",
+      "path": "tests/test_time.py"
+    },
+    {
+      "id": "REC-ARCH-01",
+      "suite": "pytest",
+      "path": "tests/test_purity.py"
+    },
+    {
       "id": "REC-DATA-02",
       "suite": "gradle:test",
       "path": "apps/api/src/test/java/io/nullnull/crowd/domain/TemporalComparisonPolicyTest.java"
