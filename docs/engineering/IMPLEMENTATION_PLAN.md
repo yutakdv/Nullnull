@@ -84,6 +84,23 @@ P0 기본 실행 경로는 `B00 → B01 → B02 → B03 → B04 → B05 → B06 
 
 완료 증거: 실제 web→API→PostgreSQL·client 생성·full Docker.
 
+### 공동 실행 ID
+
+BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·릴리스 작업이다.
+[브랜치·계약 인계](BRANCH_AND_INTEGRATION.md)의 Work ID 규칙이 이 목록을 참조한다.
+
+| ID | 작업 | 담당 |
+| --- | --- | --- |
+| `DX-001` | Node/npm/Java/Gradle wrapper/Docker의 exact version lock과 검증 script | 공동 |
+| `DX-002` | local compose, deterministic seed, local-only reset guard, generated client 명령 | 공동 |
+| `DX-003` | `docs-contract` CI와 `docker-integration` baseline/full 전환, `verify_target_stack.py`의 marker/task/stage/digest/internal-network fail-closed gate | BE/AI |
+| `GOV-001` | 실제 GitHub handle 기반 CODEOWNERS와 path review test | 공동 |
+| `GOV-002` | branch ruleset, required checks, merge queue/concurrency, GitHub environments checklist 검증 | 공동 |
+| `GOV-003` | Frontend Claude Code 시작 안내, FCR 착수 기준과 Ticket/Work ID 인계 규칙 | FE |
+| `REL-001` | version/tag/artifact retention과 release/rollback 기록 형식 확정 | BE/AI |
+
+`FE-*`/`BE-*`는 각 역할 브랜치의 문서·계약 작업에, `CON-*`는 계약 검토에 사용한다.
+
 ## B02
 
 **익명 세션·프로필·삭제**. 사용자 데이터가 생기기 전에 owner와 cleanup 경계를 닫는다.

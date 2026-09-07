@@ -48,7 +48,7 @@ tags:
 | 시스템 | [아키텍처·Backend 내부 설계](architecture/SYSTEM_ARCHITECTURE.md), [ERD](architecture/ERD.md), [추천](architecture/RECOMMENDATION_ALGORITHM.md), [apps/ai 경계 ADR-0006](decisions/ARCHITECTURE_DECISIONS.md#adr-0006) | 경계·데이터·알고리즘; BE/AI |
 | 데이터 | [Source catalog](data/SOURCE_CATALOG.md) | 출처·license·시각·비교 적격성 |
 | API·이벤트 | [API 규칙](api/README.md), [OpenAPI 0.2.1-rc.1 제안](api/openapi.yaml), [event schema](contracts/events.schema.json), [example](contracts/events.example.json) | FE·BE 공유 계약 |
-| 실행 | [실행 순서](engineering/IMPLEMENTATION_PLAN.md), [BE/AI 작업](roles/BACKEND_AI_PLAYBOOK.md), [FE 실행서](roles/FRONTEND_PLAYBOOK.md) | 중복 없는 작업 계획 |
+| 실행 | [실행 순서](engineering/IMPLEMENTATION_PLAN.md), [BE/AI 작업](roles/BACKEND_AI_PLAYBOOK.md), [FE 실행서](roles/FRONTEND_PLAYBOOK.md), [FE Claude Code 시작 안내](roles/FRONTEND_CLAUDE_CODE_START.md) | 중복 없는 작업 계획 |
 | 개발·검토 | [브랜치·계약 인계](engineering/BRANCH_AND_INTEGRATION.md), [소유권](engineering/OWNERSHIP_MATRIX.md), [로컬 개발](engineering/LOCAL_DEVELOPMENT.md), [테스트](engineering/TEST_STRATEGY.md) | 두 역할 브랜치·CI·DoR/DoD |
 | 보안 | [Privacy](security/PRIVACY_REQUIREMENTS.md), [위협 모델](security/THREAT_MODEL.md), [신고 정책](../SECURITY.md) | 수집 최소화·권한·삭제 |
 | 배포·운영 | [AWS](operations/AWS_DEPLOYMENT.md), [환경](operations/ENVIRONMENT.md), [GitHub/릴리스](operations/GITHUB_RELEASE_OPERATIONS.md), [사고 대응](operations/INCIDENT_RESPONSE.md) | 비용·배포·restore·alarm |

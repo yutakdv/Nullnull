@@ -74,7 +74,7 @@ tags:
 | D-027 | 최종 지정과제·팀명·서비스명이 제출처와 일치하는가? | 공동 | 기능설명서 동결 전 | 제출 금지 | 콘텐츠랩 화면·PDF·서비스 대조 |
 | D-028 | KTO 데이터를 장기/전체 로컬 저장할 필요가 있는가? | BE/AI | persistence 구현 전 | 최소 TTL/read-through만, 전체 mirror 금지 | 공식 문의 답변·별도 신청 승인 |
 | D-029 | 공식 기능설명서 최신 양식/필수 field가 그대로 유지됐는가? | 공동 | 기능설명서 동결·제출 직전 | 양식 변경·제출 금지 | 원본 checksum·PDF render·2인 대조 |
-| D-030 | Figma `FCR-001~009 및 FCR-010/011/015`가 실제 디자인 파일에 반영됐는가? | FE, PM 승인 | 영향 slice 착수 전 | 기존 충돌 화면 구현 금지 | 수정 node URL·전후 screenshot·계약 검토 |
+| D-030 | Figma `FCR-001~015`가 실제 디자인 파일에 반영됐는가? | FE, PM 승인 | 영향 slice 착수 전 | 기존 충돌 화면 구현 금지 | 수정 node URL·전후 screenshot·계약 검토 |
 | D-031 | `apps/ai` ECS 배포 경로(ECR·service·내부 DNS·SG·`NULLNULL_AI_BASE_URL`)를 제출 빌드 전에 만들 것인가? | BE/AI | B08/제출 빌드 전 | 미배포 시 feed는 Spring 고정 순서, related/slot은 `UNKNOWN`, ITEM run은 `FAILED`(fallback-only); ITEM 최적화 제출 제외는 별도 범위 결정 | staging `getReadiness`의 recommendation `READY`, release manifest `aiImageDigest` |
 | D-032 | Spring→`apps/ai` 내부 호출 인증(token/mTLS)이 필요한가? | BE/AI | staging 배포 전 | internal network·security group 격리만, 공개 노출 금지 | SG/compose `internal: true` 검증과 인증 ADR 또는 예외 기록 |
 
