@@ -94,7 +94,7 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 | --- | --- | --- | --- | --- |
 | `docs-contract` | 모든 main PR/push | `validate_docs.py`, plan/Canvas 검증, markdownlint, Redocly, AJV | BA-000-T1~T3 | 실행 중 |
 | `docker-integration` | 모든 main PR/push | `integration-test.sh`: verifier→`api-quality`·`ai-quality`·web·client diff·scan·egress-denied·E2E | 아래 suite 전체 | `apps/web`+marker 전까지 hard fail |
-| `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `docs/api/openapi.yaml` push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` | REC-ARCH-01, BA-001-T2, 계약 parity | 실행 중 |
+| `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `docs/api/openapi.yaml` push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` | REC-ARCH-01, REC-DATA-02, BA-001-T2, 내부 계약 parity(5 operation), gateway post-condition | 실행 중 |
 | `ai-quality` (workflow) | `apps/ai/**` push/PR | ruff, mypy strict, pytest(REC corpus, `evaluation.json`), 계약 JSON sync | `tests/recommendation/manifest.json`의 `implementedTestIds` | 실행 중 |
 
 등록 규칙:

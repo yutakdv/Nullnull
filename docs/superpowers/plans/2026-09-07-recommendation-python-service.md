@@ -23,6 +23,8 @@ tags:
 
 **착수 전 상태(2026-09-07):** `apps/ai` scaffold(파이프라인 프레임워크, 정책 로더·`policy-v1.yaml`·policyHash, feed 고정 순서 pipeline, `/internal/v1/{health,policy,feed/rank}`, 내부 계약 v1 JSON, pytest 29건·ruff·mypy strict 통과, Docker test/runtime stage)와 `apps/api`의 `RecommendationGateway` port·DTO·계약 parity 테스트가 있다. compose에 `ai`·`ai-quality` 서비스와 wrapper 단계가 추가됐다.
 
+**진행 상태(2026-09-07):** Task 1~9 완료(commit `0c2bfe4..067e95a`, 각 task는 spec+quality 검토와 수정 1라운드를 거쳤다). Task 10~11은 사용자 지시로 일시 중지, Task 12는 `infra/` 미존재·AWS 결정(D-001/D-017/D-031) 대기로 보류. 실행 ledger·검토 결과·지연된 Minor 목록은 `.superpowers/sdd/2026-09-07-recommendation-python-service/progress.md`(gitignore)에 있다.
+
 ## 결정 기록 D-REC-6 (ADR-0001 재검토, 2026-09-07)
 
 - **결정**: 추천 계산 전체를 `apps/ai`(Python)에서 구현한다. 사용자가 2026-09-07 "추천 전체를 Python 서비스로"를 선택했다. Backend/AI 담당의 제안(P0 Java 유지, Python은 P2 trigger 후)과 우려(제출 2026-09-21까지 P0 핵심 흐름 미구현, 서비스 추가에 따른 gate·운영 비용, ADR-0001 위배)는 두 차례 전달했고 사용자가 재확인했다.
@@ -1896,6 +1898,7 @@ DB·HTTP가 필요한 REC-FEED-01~04, REC-REL-03, REC-FBK-01~04, REC-INT-01~06, 
 | D-REC-12 | 내부 protocol 인증: P0는 internal network만(compose `internal: true`, ECS security group) | 네트워크 격리; token/mTLS는 staging 전 결정 |
 | D-REC-13 | Spring 재검증 실패(서비스가 잠금 위반 proposal 반환) 처리 | run `FAILED(DATA_CHANGED, retryable=false)` + SEV0급 alert(승인 없는 변경 위험 신호) |
 | D-REC-14 | `NULLNULL_CATALOG_VERSION`의 출처 | P0는 배포 시 env(release manifest)로 주입; catalog snapshot version이 DB에 생기면 요청 필드로 이동 |
+| D-REC-16 | 시작 시각이 없는 target item의 ITEM 비용 규약: 현재는 자정 기준으로 shift를 재므로 같은 날 시각을 부여하는 제안도 changeCost가 포화(1.0)된다 | 보수적 규약 유지(구현·테스트로 고정, `item/evaluator.py` docstring). 대안은 날짜 단위 비용. 제품 결정 전까지 시각 미정 item에는 개선폭이 큰 제안만 나온다 |
 
 ## Self-review
 
