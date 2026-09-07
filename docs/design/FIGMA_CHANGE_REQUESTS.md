@@ -30,7 +30,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-008 | P0 major | S11 `418:2523`에 장소명 검색이 있으나 화면-API 연결이 명시되지 않음 | `searchPlaces` → canonical 선택 → `getLivePlace`; coverage가 없으면 `UNAVAILABLE`, loading/empty/error variant 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-008-증거)) |
 | FCR-009 | P0 major | post/detail 거리값은 기준점·산식이 불명확해 보일 수 있음 | trip anchor/선택 장소 등 거리 기준과 source를 함께 표시. 기준이 없으면 거리값을 숨기고 unavailable reason 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-009-증거)) |
 | FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Open |
-| FCR-011 | P0 blocker | feed `392:368`, post 장소 카드 `399:613`, Live `418:5199`의 `실시간 관측`에 `ⓒ한국관광공사`가 결합돼 서울 실시간 원천과 KTO 예측/관광정보가 뒤섞임 | `SEOUL_CITYDATA`는 API의 서울특별시 attribution·`officialUrl`·`licenseUrl`을 그대로 표시하고 KTO 장소 정보·예측 attribution과 시각적으로 분리 | FE / BE·AI·PM | Open |
+| FCR-011 | P0 blocker | feed `392:368`, post 장소 카드 `399:613`, Live `418:5199`의 `실시간 관측`에 `ⓒ한국관광공사`가 결합돼 서울 실시간 원천과 KTO 예측/관광정보가 뒤섞임 | `SEOUL_CITYDATA`는 API의 서울특별시 attribution·`officialUrl`·`licenseUrl`을 그대로 표시하고 KTO 장소 정보·예측 attribution과 시각적으로 분리 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-011-증거)) · **폭 blocker 1건** |
 | FCR-012 | P0 blocker | Live `418:2523`은 `Map / Base`와 marker가 보이는 화면만 있고 map capability OFF의 목록-only variant가 없음 | map OFF를 P0 기본으로 하는 목록-only default/loading/empty/error/unavailable variant를 추가. map ON은 provider·license·attribution 승인 뒤에만 열고 동일 filter/selection을 유지 | FE / BE·AI | Open |
 | FCR-013 | P0 blocker | 여행 보기 `410:1738`에 계약 연결 없이 `더 여유로운 날짜가 있어요 · 비교하기`가 노출됨 | P0에서 제거하거나 `getPlaceCrowdForecast`와 temporal comparison eligibility, 표시 threshold, unavailable 상태를 기능 ID에 연결. 단순 예보 비교와 적용 가능한 최적화 제안을 구분 | FE / BE·AI·PM | Open |
 | FCR-014 | P0 major | 계산 중 `415:2413`의 `취소하고 My Trip으로`가 한국어 tab 명칭과 다르고, client 이탈/timeout이 server run 취소를 뜻하는 것처럼 보임 | 취소 operation이 없는 P0에서는 `내 여행으로 돌아가기`처럼 navigation만 표현하고 run은 URL로 다시 조회할 수 있음을 안내. 실제 취소는 별도 계약·상태 전이 뒤에만 노출 | FE / BE·AI | Open |
@@ -286,3 +286,50 @@ top-level frame이 4개 늘어 `02 UI Design` 구현 frame은 58개다(FCR-007�
 2. 게시물 상세 `398:611`의 장소 카드 `place-name`(`431:2990`)에 인라인으로 박혀 있던 거리를 제거했다: `경복궁 · 관광지 · 종로구 · 2.1km` → `경복궁 · 관광지 · 종로구`.
 3. `Data / Distance` 컴포넌트 자체는 **삭제하지 않고 숨기기만** 했다. `COMPONENT_CATALOG.md`의 C43 계약(value, unit, mode, confidence, unavailable reason / route·haversine provenance)은 이미 올바르므로 그대로 두었고, 최상위 component 49개 수도 유지된다. 계약이 생기면 `visible=true`로 되살려 기준점·source와 함께 표시한다.
 4. 구현 acceptance: 거리 필드가 없는 현재 계약에서 FE는 거리 UI를 렌더링하지 않는다. 좌표를 client에서 임의로 계산해 표시하지 않는다(P0은 정밀 위치를 다루지 않는다). 향후 계약이 추가되면 기준점 라벨과 산식(직선/route), source를 값과 함께 표시하고, 기준점이 없으면 unavailable reason을 제공한다.
+
+## FCR-011 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. 다만 아래 **미해결 blocker**가 있어 BE/AI 결정이 필요하다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+- 계기: FCR-009 작업 중 사용자가 `Card / FeedPost`의 `공식 관광정보 기반` 배지와 `실시간 관측 · ⓒ한국관광공사` 문구가 중복돼 보인다고 지적했고, 확인 결과 FCR-011이 지목한 `392:368`과 동일한 노드였다.
+
+### 계약 근거
+
+| 문서 | 규칙 |
+| --- | --- |
+| `SOURCE_CATALOG.md` | "KTO 관광정보·집중률 예측과 서울 실시간 관측이 한 카드에 있으면 provenance primitive를 각각 렌더링하고 하나의 `ⓒ한국관광공사` 문구로 합치지 않는다" |
+| `api/README.md` | `SEOUL_CITYDATA`의 `attribution`을 그대로 표시하고 "KTO attribution과 합치거나 provider별 문구를 client에서 다시 만들지 않는다" |
+| `DataProvenance` example | `SEOUL_CITYDATA.attribution` = `출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)` |
+
+| 노드 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| feed 카드 `392:368` | [전](./evidence/fcr-011/before-392-368-feedcard.jpg) | [후](./evidence/fcr-011/after-392-368-feedcard.jpg) |
+| post 장소 카드 `399:613` | [전](./evidence/fcr-011/before-399-613-postcard.jpg) | [후](./evidence/fcr-011/after-399-613-postcard.jpg) |
+| Live 후보 행 `418:5199` | [전](./evidence/fcr-011/before-418-5199-liverow.jpg) | [후](./evidence/fcr-011/after-418-5199-liverow.jpg) |
+| feed 전체 `391:310` | — | [후](./evidence/fcr-011/after-391-310-feed.jpg) |
+| post 전체 `398:611` | — | [후](./evidence/fcr-011/after-398-611-post.jpg) |
+| Live 전체 `418:2523` | — | [후](./evidence/fcr-011/after-418-2523-live.jpg) |
+
+변경 내용:
+
+1. **중복 제거** — `Card / FeedPost` 컴포넌트의 `Data / Badge`(`tone=공식Seed`, 문구 `공식 관광정보 기반`)를 제거하고 `Data / StateLabel`로 교체했다. 배지가 출처를, `source` 텍스트가 상태와 출처를 동시에 말하던 중복이 사라지고 **상태는 StateLabel, 출처는 source 텍스트**로 역할이 분리됐다. 새 컴포넌트를 만들지 않았다.
+2. **출처 정정** — 28개 feed 카드 인스턴스를 데이터 종류별로 나눠 처리했다. `수문장 교대의식` 카드 7개는 `SEOUL_CITYDATA` 실시간 관측이므로 `StateLabel=live` + `출처: 서울특별시 「서울시 실시간 도시데이터」`, 나머지 21개는 KTO 예측이므로 `StateLabel=forecast` + `출처: ⓒ한국관광공사`로 설정했다.
+3. **레이아웃 재배치** — 긴 서울시 attribution이 제목과 겹쳐서 카드 내부 순서를 `StateLabel → title → region → source`로 바꾸고 `source`를 고정폭 wrap(156px)으로 전환했다.
+4. `399:613` post 장소 카드와 `418:5199`/`418:5219` Live 후보 행의 `ⓒ한국관광공사`도 서울시 출처로 정정했다. post 카드는 폭 329px wrap으로 전문이 들어간다.
+
+### 미해결 blocker — attribution 길이 vs 카드 폭
+
+`SEOUL_CITYDATA`의 attribution 전문은 43자다. 계약은 이를 **그대로** 표시하라고 요구하지만 실제 화면 폭이 부족하다.
+
+| 위치 | 가용 폭 | 현재 처리 | 계약 준수 |
+| --- | --- | --- | --- |
+| post 장소 카드 | 329px | 2줄 wrap, 전문 표시 | 준수 |
+| feed 카드 | 156px | 2~3줄 wrap, 전문 표시하나 카드가 매우 빽빽함 | 준수하나 가독성 나쁨 |
+| Live 후보 행 | 190px | **`출처: 서울특별시`로 축약** | **위반** |
+
+Live 후보 행은 축약 없이는 레이아웃이 불가능해 임시로 줄였다. 이는 `CON-004` A2에서 논의된 `attributionShort` 필드가 필요한 실제 사례다. BE/AI가 다음 중 하나를 결정해야 한다.
+
+- `DataProvenance`에 `attributionShort`(예: `출처: 서울특별시`)를 additive로 추가하고 좁은 카드에서 사용하되 전문은 상세·데이터 안내에서 제공
+- 또는 좁은 카드에서 출처를 아이콘·링크로 접고 tap 시 전문을 노출하는 UI 규칙을 `api/README.md`에 명시
+
+결정 전까지 Live 후보 행의 축약 표기는 잠정이며 제출 profile 검증 대상이다.
