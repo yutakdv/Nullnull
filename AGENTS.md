@@ -59,17 +59,17 @@ npm run test
 npm run build
 ```
 
-Backend(`apps/api`):
+Backend(`apps/api`). Gradle은 wrapper만 쓰고 **Temurin 21**로 실행한다. 기기 기본 JDK가 21이 아니면
+`JAVA_HOME`을 Temurin 21로 지정해야 하며, 지정하지 않으면 toolchain 해석에서 실패한다. 이 저장소에서
+실제로 실행되는 형태는 `apps/api/CLAUDE.md`에 있다.
 
 ```bash
 cd apps/api
-./gradlew test
-./gradlew integrationTest
-./gradlew openapiContractTest
-./gradlew recommendationTest
+./gradlew test integrationTest openapiContractTest recommendationTest
 ```
 
-추천 서비스(`apps/ai`):
+추천 서비스(`apps/ai`). **uv 0.12.10**으로만 실행한다. CI와 Docker에서는 `uv`가 PATH에 있고, 로컬에
+없으면 `apps/ai/README.md`의 `.uv-bootstrap` venv를 쓴다(실제 실행 형태는 `apps/ai/CLAUDE.md`).
 
 ```bash
 cd apps/ai
@@ -92,7 +92,7 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
 | 검사 | 트리거 | 실행 내용 | 커버하는 ID | 상태 |
 | --- | --- | --- | --- | --- |
-| `docs-contract` | 모든 main PR/push | `validate_docs.py`, plan/Canvas 검증, markdownlint, Redocly, AJV | BA-000-T1~T3 | 실행 중 |
+| `docs-contract` | 모든 main PR/push | `validate_docs.py`, `python3 -m unittest discover -s scripts/tests`, plan/Canvas 검증, markdownlint, Redocly, AJV | BA-000-T1~T3 | 실행 중 |
 | `docker-integration` | 모든 main PR/push | `integration-test.sh`: verifier→`api-quality`·`ai-quality`·web·client diff·scan·egress-denied·E2E | 아래 suite 전체 | `apps/web`+marker 전까지 hard fail |
 | `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `apps/ai/tests/recommendation/manifest.json`, `apps/ai/src/nullnull_ai/policy/**`, `docs/api/openapi.yaml` push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` | REC-ARCH-01, REC-DATA-02, BA-001-T2, 내부 계약 parity(5 operation), gateway post-condition, ITEM fixture parity(LockChecks·ProposalRevalidator), policy pin parity | 실행 중 |
 | `ai-quality` (workflow) | `apps/ai/**` push/PR | ruff, mypy strict, pytest(REC corpus, `evaluation.json`), 계약 JSON sync | `tests/recommendation/manifest.json`의 `implementedTestIds` | 실행 중 |

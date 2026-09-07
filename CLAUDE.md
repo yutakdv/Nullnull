@@ -25,6 +25,7 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 - 기능 추적: `docs/product/FUNCTIONAL_INVENTORY.md`의 기능 ID.
 - 현재 존재: `apps/api`(Spring Boot 4.1.1, Java 21), `apps/ai`(Python 3.13 추천 서비스), `compose.yml`. 아직 없음: `apps/web`, `packages/api-client`, `infra`, `.nullnull-target-stack`(FE scaffold와 같은 PR).
 - 추천 계산은 `apps/ai`, hydration·재검증·저장은 `apps/api`다(ADR-0006, `docs/decisions/ARCHITECTURE_DECISIONS.md`). 실행 계획: `docs/superpowers/plans/2026-09-07-recommendation-python-service.md`.
+- 앱별 module 지도·검증 명령·함정은 `apps/api/CLAUDE.md`, `apps/ai/CLAUDE.md`에 있다(해당 경로 작업 시 함께 적용).
 - 현재 저장소에는 목표 서비스 정본만 둔다. 과거 prototype/문서는 Git 이력 또는 별도 작업공간에서만 참고한다.
 - 기존/untracked 파일을 사용자 작업으로 간주한다. 임의 삭제·이동·reset/clean을 하지 않는다.
 
@@ -65,6 +66,8 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 - FE는 승인 example mock, BE/AI는 같은 example contract test로 병렬 진행한다.
 - UI-only도 BE/AI가 data/auth/analytics 경계를, backend-only도 FE가 public contract/error를 검토한다.
 - handoff에는 기능 ID, Figma node/state, operationId/schema, 성공·실패 상태, 미결정, 실행한 검증을 남긴다.
+- 모든 commit은 Work ID를 포함한다(`FR-*`, `FCR-*`, 또는 `IMPLEMENTATION_PLAN.md`에 정의된 `FE-*`/`BE-*`/`CON-*`/`DX-*`/`GOV-*`/`REL-*`). 문서를 개편할 때 상대 역할의 실행 ID 정의를 지우면 규칙이 깨지므로 개편 전후로 ID 집합을 diff한다.
+- `FIGMA_CHANGE_REQUESTS.md`·`FIGMA_HANDOFF.md`는 두 역할이 동시에 고치는 파일이다. 병합 순서를 판단할 때는 격리 worktree에서 실제로 merge한 뒤 validator를 돌려 확인한다.
 - Frontend는 `frontend`, Backend/AI는 `backend`에서 작업하고 상대 승인과 두 required check 뒤 `main`에 merge commit한다.
 
 구체 기능은 `/nullnull-slice <기능 ID 또는 설명>` project skill을 사용한다.
@@ -83,7 +86,7 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 
 ## Target boundaries
 
-Frontend 상세 규칙은 `.claude/rules/frontend.md`, Backend/AI 상세 규칙은 `.claude/rules/backend-ai.md`가 해당 경로에서 자동 적용된다.
+`.claude/rules/frontend.md`는 `apps/web`·`packages/api-client`·`docs/design`에, `.claude/rules/backend-ai.md`는 `apps/api`·`infra`·계약/데이터 문서에 자동 적용된다. **`apps/ai`(Python)에는 rule이 걸려 있지 않으므로 `apps/ai/CLAUDE.md`가 그 경로의 정본이다.**
 
 - FE는 feature-oriented module, semantic HTML, generated type/client를 사용한다.
 - server state는 query cache, form/edit buffer는 feature-local, 공유 navigation은 URL에 둔다.
@@ -92,8 +95,7 @@ Frontend 상세 규칙은 `.claude/rules/frontend.md`, Backend/AI 상세 규칙�
 - 외부 호출을 DB transaction 안에서 수행하지 않는다.
 - 비동기 optimizer/deletion/collector는 lease·attempt·retry·dead-letter가 있는 persistent job이다.
 - controller는 JPA entity/provider DTO를 반환하지 않는다.
-- `apps/ai`는 DB·외부 API·clock·난수 없이 Spring이 보낸 immutable 입력만 계산한다. Spring `recommendation` package는 gateway port·DTO·`ProposalRevalidator`·fallback만 가지며 계산을 중복하지 않는다. 요청에 owner/session ID·원문·좌표를 넣지 않는다.
-- `apps/ai` endpoint/schema를 바꾸면 `uv run python -m nullnull_ai.contracts export`로 `apps/ai/contracts/recommendation-internal-v1.json`을 갱신하고 Spring DTO를 맞춘다(`recommendationTest`가 parity를 검사).
+- `apps/ai`는 DB·외부 API·clock·난수 없이 immutable 입력만 계산하고, Spring `recommendation` package는 gateway·재검증·저장만 한다(ADR-0006). 요청에 owner/session ID·원문·좌표를 넣지 않는다. 순수성 규칙과 계약 export 절차는 `apps/ai/CLAUDE.md`가 정본이다.
 
 ## Contract and data rules
 
@@ -110,40 +112,20 @@ Frontend 상세 규칙은 `.claude/rules/frontend.md`, Backend/AI 상세 규칙�
 
 변경 범위에 해당하는 가장 좁은 검사부터 모두 실행한다. 실행하지 못한 검사는 통과로 쓰지 않는다.
 
-```bash
-# docs and contracts
-python3 scripts/validate_docs.py
-python3 -m unittest discover -s scripts/tests -p 'test_*.py'
-npx --yes markdownlint-cli2@0.23.2
-npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
-npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1 \
-  ajv validate --spec=draft2020 -c ajv-formats \
-  -s docs/contracts/events.schema.json -d docs/contracts/events.example.json
-
-# target frontend, after B01
-(cd apps/web && npm run lint && npm run format:check && npm run typecheck)
-(cd apps/web && npm run test && npm run build && npm run test:e2e)
-
-# backend (apps/api): unit · Testcontainers PostgreSQL · OpenAPI contract · apps/ai contract parity
-(cd apps/api && ./gradlew test integrationTest openapiContractTest recommendationTest)
-
-# recommendation service (apps/ai)
-(cd apps/ai && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest)
-
-# after the B01 marker, and every main pull request through the wrapper
-python3 scripts/verify_target_stack.py
-bash scripts/integration-test.sh
-```
+- 실행할 검사 **목록**의 정본은 `AGENTS.md#필수-검증`이다(문서·계약, `apps/web`, `apps/api`, `apps/ai`, 모든 main PR). 여기에 복제하지 않는다.
+- 이 기기에서 실제로 도는 **실행 형태**는 `apps/api/CLAUDE.md`·`apps/ai/CLAUDE.md`에 있다. Gradle은 Temurin 21 `JAVA_HOME`, `apps/ai`는 `.uv-bootstrap/bin/uv`가 필요하다.
+- B01 marker 이후에는 wrapper로 `python3 scripts/verify_target_stack.py`와 `bash scripts/integration-test.sh`를 함께 실행한다.
 
 CI 등록 규칙(required 두 개, `api-quality`·`ai-quality` workflow, test ID 등록)은 `AGENTS.md#ci-검사-등록`을 따른다. Route/search/sheet/dialog/trip mutation/optimization 변경은 Playwright와 keyboard/focus 검사를 포함한다. migration은 empty DB, previous→latest, rollback-compatible app과 실제 PostgreSQL에서 검증한다.
 
 ## Gotchas
 
-- Gradle은 Temurin 21로만 실행한다: `JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home ./gradlew --no-daemon …` (기기 기본 `java`는 26). 설치형 Gradle 금지, wrapper만.
-- `apps/ai`는 uv 0.12.10 고정. 로컬 bootstrap은 `apps/ai/README.md`(`.uv-bootstrap` venv) 또는 `docker build -f apps/ai/Dockerfile --target test`.
+- 실행 toolchain은 앱별로 고정돼 있다. Gradle은 Temurin 21 `JAVA_HOME`으로만(설치형 금지, wrapper만), `apps/ai`는 uv 0.12.10 `.uv-bootstrap/bin/uv`로만 실행된다. compose `api-quality`의 external DB·offline 조건을 포함한 상세는 `apps/api/CLAUDE.md`·`apps/ai/CLAUDE.md`에 있다.
 - `docs/**/*.md`는 Obsidian frontmatter(`aliases`, `doc_type`, `status`, `area`, `tags`)가 필수다. `scripts/validate_docs.py`가 링크·heading anchor·frontmatter를 검사한다.
 - `docs/roles/BACKEND_AI_PLAYBOOK.md` 카드와 `docs/engineering/backend-plan.json`은 validator가 동기화를 검사한다. title/ID/기능/API/선행/test ID/`데이터·정책`은 둘 다 고친다.
-- compose `api-quality`는 `NULLNULL_TEST_DATABASE=external`로 Testcontainers 대신 compose PostgreSQL을 쓰고 `--offline`으로 실행된다. 새 test dependency는 `resolveTestClasspaths`가 해석하는 configuration에 있어야 한다.
+- `IMPLEMENTATION_PLAN.md`와 `BACKEND_AI_PLAYBOOK.md`에는 날짜·소요일을 쓸 수 없다. `validate_backend_plan.has_calendar_estimate`가 `2026-09-08`·`09/08`·`(1d)`를 거부한다(링크 URL은 제외되지만 링크 텍스트는 검사 대상).
+- 문서 본문에 `FCR-0XX`를 쓰면 `docs/design/FIGMA_CHANGE_REQUESTS.md` 표에 먼저 등록해야 한다. 미등록이면 `unregistered design request`로 실패한다(fenced code block은 예외).
+- Figma 구현 frame을 추가·삭제하면 `FIGMA_HANDOFF.md`의 node 목록과 `validate_docs.py`의 하드코딩된 frame 수 상수를 같은 PR에서 고친다.
 - `docs/contracts/review-2026-09-06/`는 FE 계약 검토 재현 자료다(`node_modules`는 gitignore). 삭제·정리하지 않는다.
 
 ## Security and privacy
