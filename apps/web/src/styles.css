@@ -1,4 +1,4 @@
-/* Shell-level reset only. Design tokens arrive with FE-002. */
+/* Shell reset only. Design tokens arrive with FE-002. */
 :root {
   color-scheme: light;
   font-family:
@@ -18,14 +18,11 @@ body {
   min-width: 360px;
 }
 
-.app-shell {
+main {
   min-height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
-}
-
-.app-main {
   padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 
 @media (prefers-reduced-motion: reduce) {
