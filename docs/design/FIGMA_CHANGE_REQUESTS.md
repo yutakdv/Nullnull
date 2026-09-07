@@ -93,9 +93,9 @@ inventory를 같은 change set에서 갱신한다.
 | --- | --- |
 | KO 선택 frame | [`388:277` A-2 / language · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=388-277) |
 | EN 선택 variant frame | [`643:4088` A-2 / language · P0 · EN selected](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=643-4088) (A-3 오른쪽, x=1359) |
-| 변경 전 | ![FCR-001 변경 전 388:277](./evidence/fcr-001/before-388-277.png) |
-| 변경 후 KO | ![FCR-001 변경 후 KO 388:277](./evidence/fcr-001/after-388-277-ko.png) |
-| 변경 후 EN | ![FCR-001 변경 후 EN 643:4088](./evidence/fcr-001/after-643-4088-en.png) |
+| 변경 전 | ![FCR-001 변경 전 388:277](./evidence/fcr-001/before-388-277.jpg) |
+| 변경 후 KO | ![FCR-001 변경 후 KO 388:277](./evidence/fcr-001/after-388-277-ko.jpg) |
+| 변경 후 EN | ![FCR-001 변경 후 EN 643:4088](./evidence/fcr-001/after-643-4088-en.jpg) |
 
 변경 내용:
 
