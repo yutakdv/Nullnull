@@ -360,8 +360,8 @@ status가 아니다. 등록 규칙은 [AGENTS.md의 CI 검사 등록](../../AGEN
 | --- | --- | --- |
 | Markdown/link/OpenAPI/event 예시 | 실행 가능한 기존 검사 | 새 설계 문서도 기존 검사 범위에 포함 |
 | Docker wrapper의 B01 전 모드 | `baseline-only` | 앱·추천 통합 성공이 아님 |
-| `apps/api`의 Gradle suite | scaffold와 앱 미존재 | 아래 테스트를 구현 PR에서 작성 |
-| `recommendationTest` | 아직 없는 task | `api-quality` 호출·보고서 검증까지 함께 추가 |
+| `apps/api`의 Gradle suite | `test`·`integrationTest`·`openapiContractTest`·`recommendationTest` 네 개가 존재하며 `api-quality`에서 실행된다 | 남은 slice의 테스트를 같은 suite에 추가 |
+| `recommendationTest` | 존재하는 task, `api-quality`가 호출한다 | 내부 계약 parity·policy pin parity를 여기서 유지 |
 | GitHub ruleset 실제 활성화 | 이 작업에서 변경하지 않음 | 관리자 설정 상태와 workflow 존재를 구분 |
 
 문서 작성만으로 추천 CI가 활성화됐다고 표시하지 않는다. B01 이전 baseline은 표시된 상태로만 성공할 수 있고, 추천 slice 구현 후 필수 suite가 없는 상태는 merge할 수 없어야 한다.

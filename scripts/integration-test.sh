@@ -138,7 +138,7 @@ import sys
 import urllib.request
 
 try:
-    with urllib.request.urlopen(sys.argv[1], timeout=5) as response:
+    with urllib.request.urlopen(sys.argv[1], timeout=2) as response:
         if response.status != 200:
             sys.exit(1)
         sys.stdout.write(response.read().decode("utf-8", "replace"))

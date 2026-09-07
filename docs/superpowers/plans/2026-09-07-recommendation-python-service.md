@@ -23,7 +23,7 @@ tags:
 
 **착수 전 상태(2026-09-07):** `apps/ai` scaffold(파이프라인 프레임워크, 정책 로더·`policy-v1.yaml`·policyHash, feed 고정 순서 pipeline, `/internal/v1/{health,policy,feed/rank}`, 내부 계약 v1 JSON, pytest 29건·ruff·mypy strict 통과, Docker test/runtime stage)와 `apps/api`의 `RecommendationGateway` port·DTO·계약 parity 테스트가 있다. compose에 `ai`·`ai-quality` 서비스와 wrapper 단계가 추가됐다.
 
-**진행 상태(2026-09-07):** Task 1~9 완료(commit `0c2bfe4..067e95a`, 각 task는 spec+quality 검토와 수정 1라운드를 거쳤다). Task 10~11은 사용자 지시로 일시 중지, Task 12는 `infra/` 미존재·AWS 결정(D-001/D-017/D-031) 대기로 보류. 실행 ledger·검토 결과·지연된 Minor 목록은 `.superpowers/sdd/2026-09-07-recommendation-python-service/progress.md`(gitignore)에 있다.
+**진행 상태(2026-09-07):** Task 1~11 완료(Task 1~9 commit `0c2bfe4..067e95a`, Task 10~11 commit `067e95a..85ad007`, 각 task는 spec+quality 검토와 수정 1라운드를 거쳤다). 전체 브랜치 검토 뒤 최종 수정 wave를 적용했다(이웃 겹침 순서 독립성, 구조적 거절 분류 D-REC-17, 중복 후보 tie-break, pipelineVersion pin, feed 응답 사후조건, duration/영업창 경계 D-REC-18, corpus fixture 2개). Task 12는 `infra/` 미존재·AWS 결정(D-001/D-017/D-031) 대기로 보류. 실행 ledger·검토 결과·지연된 Minor 목록은 `.superpowers/sdd/2026-09-07-recommendation-python-service/progress.md`(gitignore)에 있다.
 
 ## 결정 기록 D-REC-6 (ADR-0001 재검토, 2026-09-07)
 
@@ -89,8 +89,8 @@ tags:
 - [x] `apps/api` Dockerfile offline test stage·compose `api-quality`(`--offline`, `NULLNULL_TEST_DATABASE=external`)·image digest pin (2026-09-06)
 - [x] `apps/ai` Dockerfile(test/runtime), compose `ai-quality`·`ai`, wrapper `--profile quality`·ai 단계 (2026-09-07)
 - [ ] `apps/web` scaffold + root `package.json` 스크립트 + `.nullnull-target-stack` — Frontend 인계물
-- [ ] `scripts/verify_target_stack.py`에 `apps/ai/Dockerfile` stage 검사 추가 (Task 11)
-- [ ] `integration-test.sh` readiness 루프에 `ai` 준비 확인 추가 (Task 11)
+- [x] `scripts/verify_target_stack.py`에 `apps/ai/Dockerfile` stage 검사 추가 (Task 11, 2026-09-07)
+- [x] `integration-test.sh` readiness 루프에 `ai` 준비 확인 추가 (Task 11, 2026-09-07 — 내부망에서 `api /health/ready`의 `recommendation` probe로 확인)
 - [ ] `apps/ai` 배포 경로(ECR repo, ECS service `ai`, security group api→ai:8090, 내부 DNS, `NULLNULL_AI_BASE_URL`·`NULLNULL_CATALOG_VERSION` 주입, 비용) — Task 12. 제출 전에 없으면 제출 빌드는 fallback-only(related/slot UNKNOWN, ITEM run FAILED)이며 D-REC-15로 사용자 결정이다.
 
 ## 실행 명령
@@ -1899,6 +1899,8 @@ DB·HTTP가 필요한 REC-FEED-01~04, REC-REL-03, REC-FBK-01~04, REC-INT-01~06, 
 | D-REC-13 | Spring 재검증 실패(서비스가 잠금 위반 proposal 반환) 처리 | run `FAILED(DATA_CHANGED, retryable=false)` + SEV0급 alert(승인 없는 변경 위험 신호) |
 | D-REC-14 | `NULLNULL_CATALOG_VERSION`의 출처 | P0는 배포 시 env(release manifest)로 주입; catalog snapshot version이 DB에 생기면 요청 필드로 이동 |
 | D-REC-16 | 시작 시각이 없는 target item의 ITEM 비용 규약: 현재는 자정 기준으로 shift를 재므로 같은 날 시각을 부여하는 제안도 changeCost가 포화(1.0)된다 | 보수적 규약 유지(구현·테스트로 고정, `item/evaluator.py` docstring). 대안은 날짜 단위 비용. 제품 결정 전까지 시각 미정 item에는 개선폭이 큰 제안만 나온다 |
+| D-REC-17 | 구조적 입력 거절(`NO_CHANGE`, `OUTSIDE_TRIP_RANGE`, `PLACE_MISMATCH`)이 종결 plane을 정하는 데 참여하면 순수한 잠금 충돌이 `NO_IMPROVEMENT`로 보고된다 | 세 코드는 `rejected_by_reason`·reasons에는 남기고 plane 분류에서는 제외한다(구현·테스트로 고정). 모든 후보가 구조적으로 거절되면 `DATA_INSUFFICIENT`이며 `NO_IMPROVEMENT`·`LOCK_CONFLICT`가 아니다 |
+| D-REC-18 | 자정을 넘는 영업창(`closesAt <= opensAt`)을 P0가 표현하지 못한다 | 양쪽에서 거절한다(Python 422, Java `IllegalArgumentException`). 야간 영업 장소를 다루려면 계약 결정이 먼저 필요하다(영업창을 날짜 경계로 분할할지, 종료 시각에 다음 날 표시를 붙일지) |
 
 ## Self-review
 
