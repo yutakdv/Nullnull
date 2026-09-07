@@ -21,8 +21,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * REC-ARCH-01 and BA-001-T2: module and layer boundaries from
- * docs/architecture/SYSTEM_ARCHITECTURE.md §4, §15, §16. The recommendation package and
- * crowd.domain are pure: no Spring, JPA, servlet, JDBC, HTTP client, clock or randomness.
+ * docs/architecture/SYSTEM_ARCHITECTURE.md §4, §15, §16. The recommendation package, crowd.domain and
+ * trip.domain (the lock validator every trip mutation shares) are pure: no Spring, JPA, servlet, JDBC,
+ * HTTP client, clock or randomness.
  */
 @DisplayName("REC-ARCH-01 architecture rules")
 class ArchitectureRulesTest {
@@ -43,7 +44,7 @@ class ArchitectureRulesTest {
     void recommendationPackageHasNoFrameworkOrIoDependencies() {
         // The HTTP adapter to apps/ai belongs to recommendation.infrastructure; domain/application stay pure.
         noClasses().that().resideInAnyPackage("io.nullnull.recommendation.domain..", "io.nullnull.recommendation.application..",
-                        "io.nullnull.crowd.domain..")
+                        "io.nullnull.crowd.domain..", "io.nullnull.trip.domain..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "org.springframework..", "jakarta.persistence..", "jakarta.servlet..",
                         "java.sql..", "javax.sql..", "java.net.http..", "org.hibernate..",
@@ -56,7 +57,7 @@ class ArchitectureRulesTest {
     @Test
     void recommendationPackageNeverReadsTheClockOrRandomness() {
         noClasses().that().resideInAnyPackage("io.nullnull.recommendation.domain..", "io.nullnull.recommendation.application..",
-                        "io.nullnull.crowd.domain..")
+                        "io.nullnull.crowd.domain..", "io.nullnull.trip.domain..")
                 .should().callMethod(Instant.class, "now")
                 .orShould().callMethod(Clock.class, "systemUTC")
                 .orShould().callMethod(Clock.class, "systemDefaultZone")

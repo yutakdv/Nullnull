@@ -117,6 +117,7 @@ testing {
                 implementation(project())
                 implementation("org.springframework.boot:spring-boot-starter-test")
                 implementation("tools.jackson.core:jackson-databind")
+                implementation("org.yaml:snakeyaml")
             }
             targets.all {
                 testTask.configure {
@@ -126,6 +127,13 @@ testing {
                         "nullnull.ai.contract.path",
                         providers.gradleProperty("nullnull.ai.contract.path")
                             .orElse(layout.projectDirectory.file("../ai/contracts/recommendation-internal-v1.json").asFile.absolutePath)
+                            .get()
+                    )
+                    // The policy numbers Spring pins are read back from the file apps/ai hashes.
+                    systemProperty(
+                        "nullnull.ai.policy.path",
+                        providers.gradleProperty("nullnull.ai.policy.path")
+                            .orElse(layout.projectDirectory.file("../ai/src/nullnull_ai/policy/policy-v1.yaml").asFile.absolutePath)
                             .get()
                     )
                 }

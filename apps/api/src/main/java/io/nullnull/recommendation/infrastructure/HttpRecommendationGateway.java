@@ -3,6 +3,7 @@ package io.nullnull.recommendation.infrastructure;
 import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.recommendation.domain.PolicyPins;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
@@ -48,13 +49,13 @@ public class HttpRecommendationGateway implements RecommendationGateway {
     private static final int POLICY_ATTEMPTS = 2;
 
     /** policy-v1 candidateCaps.itemProposals: the service may never rank more than three previews. */
-    private static final int MAX_PROPOSALS = 3;
+    private static final int MAX_PROPOSALS = PolicyPins.V1.caps().itemProposals();
 
     /** policy-v1 candidateCaps.slotDates: one answer per trip date, and a trip spans at most 30 (§4.1). */
-    private static final int MAX_SLOT_DATES = 30;
+    private static final int MAX_SLOT_DATES = PolicyPins.V1.caps().slotDates();
 
     /** policy-v1 candidateCaps.relatedMerged: the service merges to at most 300 canonical places. */
-    private static final int MAX_RELATED_ITEMS = 300;
+    private static final int MAX_RELATED_ITEMS = PolicyPins.V1.caps().relatedMerged();
 
     /** The service's own explanation cap (§9.1 template MAX_LENGTH); the FE renders one line of it. */
     private static final int MAX_EXPLANATION_LENGTH = 500;
