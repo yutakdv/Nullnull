@@ -42,6 +42,28 @@ class ItemProposeRequestTest {
     }
 
     @Test
+    void aNeighbouringStayIsUnknownOrPositive() {
+        // Zero or a negative length would shrink a neighbouring interval to nothing and let an
+        // overlapping preview through; the service refuses the same values with a 422.
+        assertThatThrownBy(() -> new NeighbourItemIn(ID, D12, 2, LocalTime.of(10, 0), 0))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("durationMinutes");
+        assertThatThrownBy(() -> new NeighbourItemIn(ID, D12, 2, LocalTime.of(10, 0), -30))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("durationMinutes");
+        new NeighbourItemIn(ID, D12, 2, LocalTime.of(10, 0), null);
+    }
+
+    @Test
+    void anOvernightOpeningWindowIsRefused() {
+        // D-REC-18: P0 has no representation for a window that crosses midnight, and both languages
+        // refuse it rather than silently treating 22:00-02:00 as an empty or inverted day.
+        assertThatThrownBy(() -> OpeningWindowIn.open(LocalTime.of(22, 0), LocalTime.of(2, 0)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("closesAt");
+        assertThatThrownBy(() -> OpeningWindowIn.open(LocalTime.of(9, 0), LocalTime.of(9, 0)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("closesAt");
+        OpeningWindowIn.open(LocalTime.of(9, 0), LocalTime.of(18, 0));
+    }
+
+    @Test
     void theLargestAllowedRequestIsAccepted() {
         request(locks(ItemProposeRequest.MAX_LOCKS), neighbours(ItemProposeRequest.MAX_NEIGHBOURS),
                 openingHours(ItemProposeRequest.MAX_OPENING_HOURS), candidates(ItemProposeRequest.MAX_CANDIDATES));

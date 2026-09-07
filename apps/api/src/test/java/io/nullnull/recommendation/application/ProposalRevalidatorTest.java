@@ -168,6 +168,20 @@ class ProposalRevalidatorTest {
                 .contains(ProposalRevalidator.PIPELINE_VERSION_MISMATCH);
     }
 
+    @Test
+    void aCachedPipelineThatIsNotThePinnedPipelineFailsClosed() {
+        ItemFixture fixture = fixture("temporal-same-issue");
+        PolicyDescriptor stale = new PolicyDescriptor(PolicyPins.V1.policyVersion(), PolicyPins.V1.policyHash(),
+                "nullnull-ai-pipeline-v2", "nullnull-ai-0.1.0");
+        ItemProposeResponse golden = goldenResponse(fixture);
+        ItemProposeResponse matchingTheStaleCache = new ItemProposeResponse(golden.policyVersion(),
+                golden.policyHash(), "nullnull-ai-pipeline-v2", golden.outcome(), golden.proposals(),
+                golden.reasons(), golden.evaluated(), golden.rejectedByReason());
+        assertThat(codes(new ProposalRevalidator(stale).check(fixture.request(), matchingTheStaleCache)))
+                .as("a cached pipeline the API does not pin is never trusted")
+                .contains(ProposalRevalidator.PIPELINE_VERSION_MISMATCH);
+    }
+
     // ---------------------------------------------------------------- proposal level
 
     @Test
@@ -360,6 +374,30 @@ class ProposalRevalidatorTest {
     }
 
     @Test
+    void aConfirmedOverlapOutranksAnUnmeasuredNeighbourWhicheverIsStoredFirst() {
+        // §6 / filters.py: scanning every neighbour of the date first makes the known fact win, so the
+        // reported code cannot flip with the order the trip happened to keep its items in.
+        ItemFixture fixture = fixture("temporal-same-issue");
+        NeighbourItemIn unmeasured = new NeighbourItemIn(UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93b0a"),
+                D12, 2, LocalTime.of(9, 30), null);
+        NeighbourItemIn overlapping = new NeighbourItemIn(UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93b0b"),
+                D12, 3, LocalTime.of(12, 0), 60);
+        for (List<NeighbourItemIn> stored : List.of(List.of(unmeasured, overlapping),
+                List.of(overlapping, unmeasured))) {
+            assertThat(codes(REVALIDATOR.check(withNeighbours(fixture.request(), stored,
+                    ItemProposeRequest.RouteEvidence.VERIFIED), goldenResponse(fixture))))
+                    .as("stored order %s", stored)
+                    .contains(ProposalRevalidator.OVERLAPS_NEIGHBOUR)
+                    .doesNotContain(ProposalRevalidator.NEIGHBOUR_DURATION_UNKNOWN);
+        }
+        assertThat(codes(REVALIDATOR.check(withNeighbours(fixture.request(), List.of(unmeasured),
+                ItemProposeRequest.RouteEvidence.VERIFIED), goldenResponse(fixture))))
+                .as("nothing overlaps, so the missing length is what blocks the preview")
+                .contains(ProposalRevalidator.NEIGHBOUR_DURATION_UNKNOWN)
+                .doesNotContain(ProposalRevalidator.OVERLAPS_NEIGHBOUR);
+    }
+
+    @Test
     void changedTravelLegsWithoutRouteEvidenceAreRejected() {
         ItemFixture fixture = fixture("temporal-same-issue");
         NeighbourItemIn sameDay = new NeighbourItemIn(UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93b09"),
@@ -454,14 +492,22 @@ class ProposalRevalidatorTest {
                 proposals, List.of(), fixture.request().candidates().size(), fixture.expected().rejectedByReason());
     }
 
-    /** One proposal exactly as the service would serialize it for the candidate at that slot. */
+    /**
+     * One proposal exactly as the service would serialize it for the candidate at that slot. Several
+     * candidates may share a slot (a DAY candidate keeps the item's current time), so the expected
+     * improvement — the difference of the pair the service kept — says which one won it.
+     */
     private static ItemProposalOut proposalFor(ItemProposeRequest request, int rank, LocalDate date,
             LocalTime startTime, String improvement, String score, String changeCost) {
-        TemporalCandidateIn candidate = request.candidates().stream()
+        BigDecimal improvementValue = new BigDecimal(improvement);
+        List<TemporalCandidateIn> atSlot = request.candidates().stream()
                 .filter(c -> c.date().equals(date)
                         && java.util.Objects.equals(c.effectiveStartTime(request.target().startTime()), startTime))
-                .findFirst().orElseThrow(() -> new IllegalStateException("no candidate at " + date + " " + startTime));
-        BigDecimal improvementValue = new BigDecimal(improvement);
+                .toList();
+        TemporalCandidateIn candidate = (atSlot.size() == 1 ? atSlot : atSlot.stream()
+                .filter(c -> c.beforeValue().subtract(c.afterValue()).compareTo(improvementValue) == 0).toList())
+                .stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("no candidate at " + date + " " + startTime));
         int metricScale = PolicyPins.V1.metric(candidate.metricCode()).metricScale();
         BigDecimal relief = improvementValue.divide(BigDecimal.valueOf(metricScale), PolicyPins.V1.numericScale(),
                 PolicyPins.V1.roundingMode());

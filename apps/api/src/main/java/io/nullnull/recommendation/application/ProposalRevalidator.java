@@ -33,7 +33,11 @@ import java.util.Set;
  *
  * <p>Every violation is returned, not just the first, so an operator sees the whole disagreement. The
  * order is deterministic: response-level checks first, then each proposal in list order with its
- * checks in a fixed order. Verdicts, snapshot ids and metric values are read from the <em>request</em>
+ * checks in a fixed order. The response-level checks are the three policy identities pinned in
+ * {@link PolicyPins} — {@code policyVersion}, {@code policyHash} and {@code pipelineVersion}, each
+ * failing closed against the pin and not only against the worker's cached descriptor — the agreement
+ * between the outcome and the proposal list, the proposal cap, rank contiguity and duplicate slots.
+ * Verdicts, snapshot ids and metric values are read from the <em>request</em>
  * candidate; the response's own copies are only compared against it. Score, relief and change cost
  * arithmetic is not recomputed — the service is the scorer and its fixture corpus proves the numbers;
  * this class re-checks the eligibility facts that decide whether a proposal may exist at all.
@@ -115,7 +119,10 @@ public final class ProposalRevalidator {
                 || !cachedPolicy.policyHash().equals(PolicyPins.V1.policyHash())) {
             reasons.add(Reason.of(POLICY_HASH_MISMATCH, "answer was computed with another policy revision"));
         }
-        if (!response.pipelineVersion().equals(cachedPolicy.pipelineVersion())) {
+        // Fail closed, like the hash check: a cached descriptor naming a pipeline this API does not pin
+        // is not evidence either, so a renamed pipeline cannot be accepted by caching its new name.
+        if (!response.pipelineVersion().equals(cachedPolicy.pipelineVersion())
+                || !cachedPolicy.pipelineVersion().equals(PolicyPins.V1.pipelineVersion())) {
             reasons.add(Reason.of(PIPELINE_VERSION_MISMATCH, "answer was computed by another pipeline"));
         }
         boolean proposed = !response.proposals().isEmpty();
@@ -243,6 +250,11 @@ public final class ProposalRevalidator {
     /**
      * Mirrors {@code filters.neighbour_overlap}: both intervals must be fully known, the item is not a
      * neighbour of itself, and a stay running past midnight occupies the rest of its own date.
+     *
+     * <p>Every neighbour of that date is scanned before answering and a fact outranks a missing one: a
+     * confirmed overlap is reported even when another neighbour has no verified length, and only when
+     * nothing overlaps does an unmeasured neighbour make the check UNKNOWN. Returning the first verdict
+     * seen would make the answer depend on the order this API hydrated the items in (§6).
      */
     private static String neighbourOverlap(List<NeighbourItemIn> neighbours, java.util.UUID targetItemId,
             LocalDate day, LocalTime start, Integer durationMinutes) {
@@ -254,13 +266,15 @@ public final class ProposalRevalidator {
         }
         LocalDateTime begins = LocalDateTime.of(EPOCH, start);
         LocalDateTime ends = endOfStay(start, durationMinutes);
+        boolean unmeasured = false;
         for (NeighbourItemIn neighbour : neighbours) {
             if (neighbour.itemId().equals(targetItemId) || !neighbour.date().equals(day)
                     || neighbour.startTime() == null) {
                 continue;
             }
             if (neighbour.durationMinutes() == null) {
-                return NEIGHBOUR_DURATION_UNKNOWN;
+                unmeasured = true;
+                continue;
             }
             LocalDateTime neighbourBegins = LocalDateTime.of(EPOCH, neighbour.startTime());
             LocalDateTime neighbourEnds = endOfStay(neighbour.startTime(), neighbour.durationMinutes());
@@ -269,7 +283,7 @@ public final class ProposalRevalidator {
                 return OVERLAPS_NEIGHBOUR;
             }
         }
-        return null;
+        return unmeasured ? NEIGHBOUR_DURATION_UNKNOWN : null;
     }
 
     /** Mirrors {@code filters.route_evidence}: legs change when either day holds another item. */

@@ -67,6 +67,21 @@ class HttpRecommendationGatewayTest {
              "stageCounts":[{"stage":"source:request","inputCount":0,"outputCount":2}]}
             """.formatted("a".repeat(64));
 
+    /** A well-formed record whose order repeats one post: the same card would render twice. */
+    static final String BODY_WITH_A_REPEATED_POST = """
+            {"policyVersion":"policy-v1","policyHash":"%s","pipelineVersion":"nullnull-ai-pipeline-v1","sortVersion":1,
+             "evaluated":2,"orderedPostIds":["00000000-0000-0000-0000-000000000001",
+              "00000000-0000-0000-0000-000000000001"],"rejectedByReason":{},
+             "stageCounts":[{"stage":"source:request","inputCount":0,"outputCount":2}]}
+            """.formatted("a".repeat(64));
+
+    /** A record the contract accepts but that names no policy: the run could not be fingerprinted. */
+    static final String BODY_WITHOUT_POLICY_HASH = """
+            {"policyVersion":"policy-v1","policyHash":"","pipelineVersion":"nullnull-ai-pipeline-v1","sortVersion":1,
+             "evaluated":2,"orderedPostIds":["00000000-0000-0000-0000-000000000001"],"rejectedByReason":{},
+             "stageCounts":[{"stage":"source:request","inputCount":0,"outputCount":2}]}
+            """;
+
     static final UUID TRIP = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93c01");
     static final UUID PLACE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93a01");
     static final UUID ITEM = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93b01");
@@ -165,6 +180,26 @@ class HttpRecommendationGatewayTest {
         FeedRankRequest request = requestFor("00000000-0000-0000-0000-000000000009");
         assertThatThrownBy(() -> gateway.rankFeed(request)).isInstanceOf(RecommendationUnavailableException.class)
                 .hasMessageContaining("not in the request");
+    }
+
+    @Test
+    void aFeedOrderThatRepeatsAPostIsRejectedAsUnusable() {
+        server.expect(requestTo("http://ai.test:8090/internal/v1/feed/rank"))
+                .andRespond(withSuccess(BODY_WITH_A_REPEATED_POST, MediaType.APPLICATION_JSON));
+        FeedRankRequest request = requestFor("00000000-0000-0000-0000-000000000001");
+        assertThatThrownBy(() -> gateway.rankFeed(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("repeated")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
+    }
+
+    @Test
+    void aFeedOrderWithoutAPolicyHashIsRejectedAsUnusable() {
+        server.expect(requestTo("http://ai.test:8090/internal/v1/feed/rank"))
+                .andRespond(withSuccess(BODY_WITHOUT_POLICY_HASH, MediaType.APPLICATION_JSON));
+        FeedRankRequest request = requestFor("00000000-0000-0000-0000-000000000001");
+        assertThatThrownBy(() -> gateway.rankFeed(request)).isInstanceOf(RecommendationUnavailableException.class)
+                .hasMessageContaining("policy hash")
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
     }
 
     /** One HOUR candidate at 10:00 on D13, or a DAY candidate that keeps the item's own 10:00. */

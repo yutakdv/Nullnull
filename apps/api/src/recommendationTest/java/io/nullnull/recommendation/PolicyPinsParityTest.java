@@ -46,6 +46,13 @@ class PolicyPinsParityTest {
     }
 
     @Test
+    void thePipelineVersionMatchesTheFile() {
+        // The pin is what ProposalRevalidator fails closed against, so a renamed pipeline must not be
+        // accepted just because the worker happened to cache the new name.
+        assertThat(PolicyPins.V1.pipelineVersion()).isEqualTo(policy.get("pipelineVersion"));
+    }
+
+    @Test
     void numericAndCapsMatchTheFile() {
         Map<?, ?> numeric = (Map<?, ?>) policy.get("numeric");
         assertThat(PolicyPins.V1.numericScale()).isEqualTo(numeric.get("scale"));

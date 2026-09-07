@@ -9,17 +9,17 @@ import java.util.Objects;
  * The policy values Spring enforces on its own, pinned from
  * {@code apps/ai/src/nullnull_ai/policy/policy-v1.yaml}. The recommendation service owns the policy
  * and computes with it; Spring only needs the caps it re-checks, the metric minimums it re-validates
- * a returned proposal against, and the identity ({@code policyVersion}, {@code policyHash}) it
- * records with every run. {@code policyHash} is the SHA-256 of that YAML file's bytes, the same value
- * {@code apps/ai/tests/recommendation/manifest.json} records; {@code PolicyPinsParityTest} fails the
- * build if either side drifts.
+ * a returned proposal against, and the identity ({@code policyVersion}, {@code policyHash},
+ * {@code pipelineVersion}) it records with every run. {@code policyHash} is the SHA-256 of that YAML
+ * file's bytes, the same value {@code apps/ai/tests/recommendation/manifest.json} records;
+ * {@code PolicyPinsParityTest} fails the build if either side drifts.
  *
  * <p>Nothing here is computed: an unpinned metric is refused, never scored with another metric's scale
  * (§5.5).
  */
-public record PolicyPins(String policyVersion, String policyHash, int numericScale, RoundingMode roundingMode,
-        Caps caps, BigDecimal reliefWeight, BigDecimal changeCostWeight, int changeCostSaturationMinutes,
-        Map<String, MetricPin> metrics, int feedCursorTtlMinutes) {
+public record PolicyPins(String policyVersion, String policyHash, String pipelineVersion, int numericScale,
+        RoundingMode roundingMode, Caps caps, BigDecimal reliefWeight, BigDecimal changeCostWeight,
+        int changeCostSaturationMinutes, Map<String, MetricPin> metrics, int feedCursorTtlMinutes) {
 
     /** §4.1 caps Spring re-checks on a service answer. */
     public record Caps(int feedSnapshot, int relatedMerged, int slotDates, int itemProposals) {
@@ -35,6 +35,7 @@ public record PolicyPins(String policyVersion, String policyHash, int numericSca
     public static final PolicyPins V1 = new PolicyPins(
             "policy-v1",
             "fb3ac4babfe068886d9afcecb2cae3a430a04c6d06c8cca7a724f9dc584933db",
+            "nullnull-ai-pipeline-v1",
             6,
             RoundingMode.HALF_EVEN,
             new Caps(300, 300, 30, 3),
@@ -47,6 +48,7 @@ public record PolicyPins(String policyVersion, String policyHash, int numericSca
     public PolicyPins {
         Objects.requireNonNull(policyVersion, "policyVersion");
         Objects.requireNonNull(policyHash, "policyHash");
+        Objects.requireNonNull(pipelineVersion, "pipelineVersion");
         Objects.requireNonNull(roundingMode, "roundingMode");
         Objects.requireNonNull(caps, "caps");
         Objects.requireNonNull(reliefWeight, "reliefWeight");

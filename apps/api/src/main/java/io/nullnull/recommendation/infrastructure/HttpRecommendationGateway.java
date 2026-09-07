@@ -109,16 +109,32 @@ public class HttpRecommendationGateway implements RecommendationGateway {
         if (response == null) {
             throw new RecommendationUnavailableException("empty feed rank response", true, null);
         }
+        verifyFeedOrder(request, response);
+        return response;
+    }
+
+    /**
+     * The order may only name posts this API hydrated, may name each of them once, and carries the
+     * policy the run is fingerprinted with. A repeated id would render the same card twice and shift
+     * every cursor after it. A violation is a contract break, not an outage: retrying cannot fix it.
+     */
+    private static void verifyFeedOrder(FeedRankRequest request, FeedRankResponse response) {
+        if (response.policyHash().isBlank()) {
+            throw unusable("feed rank response carries no policy hash");
+        }
         Set<UUID> requested = new HashSet<>();
         for (FeedCandidateIn candidate : request.candidates()) {
             requested.add(candidate.postId());
         }
+        Set<UUID> seen = new HashSet<>();
         for (UUID postId : response.orderedPostIds()) {
             if (!requested.contains(postId)) {
-                throw new RecommendationUnavailableException("service returned a post id not in the request", false, null);
+                throw unusable("service returned a post id not in the request");
+            }
+            if (!seen.add(postId)) {
+                throw unusable("a post is ordered once, never repeated");
             }
         }
-        return response;
     }
 
     @Override
