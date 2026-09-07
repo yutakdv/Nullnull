@@ -91,13 +91,13 @@ Acceptance:
 
 | Figma node | 화면 | Route/overlay | 상태/동작 | 데이터/API |
 | --- | --- | --- | --- | --- |
-| `391:310` | S03-F0 여행 없음 feed | `/feed` | empty trip CTA, 게시물 탐색; 검색·bell·`팔로잉/최신` tab 없음 (`FCR-002` 2026-09-07 제거) | `GET /feed`, `GET /trips` |
-| `396:2926` | S03-F1 활성 여행 feed | `/feed` | active trip context, `+` 저장; 검색·bell·`팔로잉/최신` tab 없음 (`FCR-002`) | `GET /feed?tripId=` |
+| `391:310` | S03-F0 여행 없음 feed | `/feed` | empty trip CTA, 게시물 탐색; 검색·bell·`팔로잉/최신` tab·filter chip 없음 (`FCR-002`, `FCR-003` 2026-09-07 제거) | `GET /feed`, `GET /trips` |
+| `396:2926` | S03-F1 활성 여행 feed | `/feed` | active trip context, `+` 저장; 검색·bell·`팔로잉/최신` tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `GET /feed?tripId=` |
 | `398:611` | S03-D 게시물 상세 | `/posts/:postId` | 장소/근거/저장 action; `팔로우` 없음 (`FCR-002`) | `GET /posts/:postId` |
-| `399:658` | S03-C1 여행 선택 | sheet | 대상 여행 선택, 새 여행 만들기; 배경 검색·bell·tab 없음 (`FCR-002`) | `GET /trips` |
-| `399:843` | S03-C2 저장 완료 | sheet/result | 후보 생성, 일정은 미변경; 배경 검색·bell·tab 없음 (`FCR-002`) | `POST /trips/:id/candidates` |
-| `399:1011` | S03-C3 중복 | sheet/result | 기존 후보로 이동, row 추가 안 함; 배경 검색·bell·tab 없음 (`FCR-002`) | API `duplicate=true` 또는 200 existing |
-| `399:1179` | S03-C4 저장 오류 | sheet/error | “일정은 바뀌지 않음”, 재시도; 배경 검색·bell·tab 없음 (`FCR-002`) | Problem Details |
+| `399:658` | S03-C1 여행 선택 | sheet | 대상 여행 선택, 새 여행 만들기; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `GET /trips` |
+| `399:843` | S03-C2 저장 완료 | sheet/result | 후보 생성, 일정은 미변경; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `POST /trips/:id/candidates` |
+| `399:1011` | S03-C3 중복 | sheet/result | 기존 후보로 이동, row 추가 안 함; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | API `duplicate=true` 또는 200 existing |
+| `399:1179` | S03-C4 저장 오류 | sheet/error | “일정은 바뀌지 않음”, 재시도; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | Problem Details |
 | `409:1595` | S06-1 저장 sheet | reusable sheet | 피드/상세 공통 | 위와 동일 |
 
 상태 전이:
