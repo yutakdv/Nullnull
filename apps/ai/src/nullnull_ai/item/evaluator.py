@@ -4,6 +4,13 @@ Pure: the caller supplies every fact. Filters run in a fixed order and stop at t
 result; that first reason decides the candidate's rejection class and, when nothing is admitted, the
 terminal outcome. The detailed cap is applied on a fixed key so the source's arrival order can never
 change which candidates are evaluated.
+
+An item without a start time resolves to local midnight on both sides of the shift (`domain.time`
+treats a missing time as the start of the day, D-REC-4). Assigning a time to such an item therefore
+costs a move of several hours and saturates `changeCost` at 1, so only a large relief can carry it.
+That is the conservative reading - the alternative, charging a date-level cost when the target has no
+time, would claim that giving an untimed item a time is a small change, which no product decision
+supports yet. Open as **D-REC-16**; `tests/item/test_evaluator.py` pins the current behaviour.
 """
 
 from __future__ import annotations
@@ -137,6 +144,7 @@ class ItemProposalEvaluator:
         considered = ordered[:cap]
         if len(ordered) > cap:
             rejected[CANDIDATE_CAP_EXCEEDED] = len(ordered) - cap
+        # An untimed target resolves to local midnight, so any timed proposal pays a full move (D-REC-16).
         before = trip_time.resolve(inp.target.date, inp.target.start_time, inp.trip_zone)
         if not isinstance(before, trip_time.Exact):
             return ItemProposalResult(

@@ -73,6 +73,8 @@ class InternalContractParityTest {
                 .isEqualTo(ItemProposeRequest.MAX_LOCKS);
         assertThat(schemas.get("ItemProposeRequest").get("properties").get("neighbours").get("maxItems").asInt())
                 .isEqualTo(ItemProposeRequest.MAX_NEIGHBOURS);
+        assertThat(schemas.get("ItemProposeRequest").get("properties").get("openingHours").get("maxProperties")
+                .asInt()).isEqualTo(ItemProposeRequest.MAX_OPENING_HOURS);
     }
 
     @Test

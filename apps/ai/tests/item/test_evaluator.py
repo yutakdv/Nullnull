@@ -92,6 +92,7 @@ def evaluate(
     neighbours: tuple[NeighbourItem, ...] = (),
     hours: dict[date, OpeningWindow] | None = None,
     route: RouteEvidence = RouteEvidence.NONE,
+    target_start: time | None = time(10, 0),
 ) -> ItemProposalResult:
     """The target is always the same item: D12 10:00, 90 minutes, in a D12-D14 Seoul trip."""
     optimization_input = ItemOptimizationInput(
@@ -100,7 +101,7 @@ def evaluate(
         trip_start=D12,
         trip_end=D14,
         trip_zone=SEOUL,
-        target=TargetItem(ITEM, PLACE, D12, time(10, 0), 90, 1),
+        target=TargetItem(ITEM, PLACE, D12, target_start, 90, 1),
         locks=locks,
         neighbours=neighbours,
         opening_hours=open_all_days() if hours is None else hours,
@@ -256,6 +257,35 @@ def test_day_resolution_keeps_the_existing_start_time() -> None:
     assert proposal.candidate.key.time is None
     assert proposal.proposed_start_time == time(10, 0)
     assert proposal.after_instant == datetime(2026, 9, 13, 1, 0, tzinfo=UTC)
+    assert proposal.admission.score.score == Decimal("0.120000")
+
+
+@pytest.mark.parametrize(("after", "score"), [(50, "0.040000"), (40, "0.120000")])
+def test_an_untimed_target_pays_a_full_change_cost_for_any_time(after: int, score: str) -> None:
+    """D-REC-16: an item with no start time sits at local midnight, so giving it a time is a full move.
+
+    The convention is deliberately conservative - a cheaper date-level cost would assert that
+    assigning a time is a small change, and no product decision says that yet.
+    """
+    result = evaluate([candidate(D12, time(11, 0), 80, after)], target_start=None)
+    assert result.outcome is Outcome.PROPOSALS
+    proposal = result.proposals[0]
+    assert proposal.proposed_start_time == time(11, 0)
+    assert proposal.before_instant == datetime(2026, 9, 11, 15, 0, tzinfo=UTC)  # D12 00:00 Seoul
+    assert proposal.after_instant == datetime(2026, 9, 12, 2, 0, tzinfo=UTC)
+    # 11 h apart, far past the 240 minute saturation, so the cost term is the full 0.20.
+    assert proposal.admission.change_cost == Decimal("1.000000")
+    assert proposal.admission.score.score == Decimal(score)
+
+
+def test_an_untimed_target_with_a_day_candidate_also_pays_the_full_cost() -> None:
+    result = evaluate([candidate(D13, None, 80, 40)], target_start=None)
+    assert result.outcome is Outcome.PROPOSALS
+    proposal = result.proposals[0]
+    assert proposal.proposed_start_time is None
+    assert proposal.before_instant == datetime(2026, 9, 11, 15, 0, tzinfo=UTC)
+    assert proposal.after_instant == datetime(2026, 9, 12, 15, 0, tzinfo=UTC)
+    assert proposal.admission.change_cost == Decimal("1.000000")
     assert proposal.admission.score.score == Decimal("0.120000")
 
 

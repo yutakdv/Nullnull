@@ -19,6 +19,8 @@ public record ItemProposeRequest(Instant evaluatedAt, UUID tripId, int tripVersi
 
     public static final int MAX_LOCKS = 4;
     public static final int MAX_NEIGHBOURS = 100;
+    /** One opening window per trip date; a trip spans at most 30 dates (§4.1). */
+    public static final int MAX_OPENING_HOURS = 30;
     public static final int MAX_CANDIDATES = 2000;
 
     public ItemProposeRequest {
@@ -41,6 +43,7 @@ public record ItemProposeRequest(Instant evaluatedAt, UUID tripId, int tripVersi
         candidates = List.copyOf(Objects.requireNonNull(candidates, "candidates"));
         requireAtMost(locks.size(), MAX_LOCKS, "locks");
         requireAtMost(neighbours.size(), MAX_NEIGHBOURS, "neighbours");
+        requireAtMost(openingHours.size(), MAX_OPENING_HOURS, "openingHours");
         requireAtMost(candidates.size(), MAX_CANDIDATES, "candidates");
     }
 

@@ -6,6 +6,7 @@ Spring hydrates every fact, so a body that breaks a domain rule is a caller bug 
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
@@ -144,6 +145,17 @@ def test_no_candidates_is_data_insufficient_not_an_error(client: TestClient) -> 
     result = client.post(PATH, json=body(candidates=[])).json()
     assert result["outcome"] == "DATA_INSUFFICIENT"
     assert result["reasons"] == ["NO_CANDIDATES"] and result["evaluated"] == 0
+
+
+def test_opening_hours_are_bounded_to_the_longest_trip(client: TestClient) -> None:
+    """A trip spans at most 30 dates, so a 31st opening window is a caller bug, not a bigger trip."""
+    windows = {(date(2026, 9, 1) + timedelta(days=offset)).isoformat(): OPEN for offset in range(31)}
+    assert len(windows) == 31
+    rejected = client.post(PATH, json=body(openingHours=windows))
+    assert rejected.status_code == 422 and rejected.json()["code"] == "VALIDATION_FAILED"
+    windows.popitem()
+    accepted = client.post(PATH, json=body(openingHours=windows))
+    assert accepted.status_code == 200, accepted.text
 
 
 @pytest.mark.parametrize(

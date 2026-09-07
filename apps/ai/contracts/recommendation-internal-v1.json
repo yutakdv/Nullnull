@@ -350,6 +350,7 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/OpeningWindowIn"
             },
+            "maxProperties": 30,
             "propertyNames": {
               "format": "date"
             },

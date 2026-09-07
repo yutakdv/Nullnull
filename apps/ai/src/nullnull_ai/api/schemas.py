@@ -154,7 +154,7 @@ class ItemProposeRequest(ContractModel):
     target: TargetItemIn
     locks: list[LockIn] = Field(max_length=4)
     neighbours: list[NeighbourItemIn] = Field(max_length=100)
-    opening_hours: dict[date_, OpeningWindowIn]
+    opening_hours: dict[date_, OpeningWindowIn] = Field(max_length=30)  # one entry per trip date (max 30)
     route_evidence: Literal["NONE", "VERIFIED"]
     candidates: list[TemporalCandidateIn] = Field(max_length=2000)
 
