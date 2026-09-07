@@ -185,7 +185,7 @@ Wizard 규칙:
 | --- | --- | --- | --- | --- |
 | `415:2268` | S09-0 항목 설정 | setup | ITEM target 선택, 잠금, 후보 포함 OFF(`FCR-010`) | `POST /trips/:id/optimizations` |
 | `415:2413` | S09-1 계산 중 | loading | polling, back, timeout(`FCR-014`) | `GET /optimizations/:runId` |
-| `TBD` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
+| `655:4067` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
 | `439:3104` | S09-D1 하루 preview | preview P1 | day scope before/after | same |
 | `417:2412` | S09-3 적용 완료 | applied | revision, persistent undo/expiry(`FCR-015`) | decision/revert |
 | `417:2567` | REF S09 오류 | error reference | code별 문구/CTA | Problem Details |
@@ -195,11 +195,11 @@ P0 run state:
 
 `QUEUED → RUNNING → READY → APPLIED | KEPT | EXPIRED`, 실패 시 `FAILED`. `APPLIED` 뒤 되돌리면 decision log는 보존하고 새 trip revision을 만든다.
 
-현재 Figma에는 `READY`의 P0 ITEM 화면이 없다. `439:3104`는 P1 DAY 범위이므로 이를
-P0 증거로 대신할 수 없다. `FCR-004` node/variant가 추가되고 아래 preview 계약과
-decision bar가 시각적으로 검증될 때까지 최적화 UI slice는 착수하지 않는다. P0에
+`READY`의 P0 ITEM 화면은 `S09-2 / preview-item · P0`(`655:4067`, 2026-09-07
+`FCR-004`로 추가)이다. `439:3104`는 P1 DAY 범위이므로 별도로 유지한다. P0에
 route provider가 없는 동안 loading copy의 `경로 계산`과 `지도 provider 미정`을 제거하고
-목록/timeline fallback을 기본으로 한다(`FCR-005`).
+목록/timeline fallback을 기본으로 한다(`FCR-005`, 아직 미착수 — `655:4067`의
+이동시간·이동거리 metric은 `확인 불가`로 표시했다).
 
 Figma 오류 계약:
 

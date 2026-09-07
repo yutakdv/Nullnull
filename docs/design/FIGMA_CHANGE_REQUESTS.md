@@ -23,7 +23,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-001 | P0 blocker | A-2 `388:277`의 English가 `영어 · 준비 중`으로 표시됨 | `한국어`와 `English`는 선택 가능, `日本語`·`中文`만 disabled `준비 중`; KO/EN 전환·복구 variant 추가 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-001-증거)) |
 | FCR-002 | P0 blocker | feed `391:310`, `396:2926`과 post `398:611`에 `팔로잉`·`최신`, 검색, unread bell, 활성 `팔로우`가 보임 | P0에서는 제거가 기본. 꼭 남기면 disabled `준비 중`과 이유를 표시하고 route/API 호출 0건 | FE / PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-002-증거)) |
 | FCR-003 | P0 blocker | feed에 `혼잡도 낮은 순`, `지금 가기 좋아요`, `서울` chip이 활성 control처럼 보임 | `listFeed`에 filter 계약이 생기기 전 숨김. P1에서도 source·시점 비교 적격성 없는 혼합 순위 금지 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-003-증거)) |
-| FCR-004 | P0 blocker | F 흐름에 setup `415:2268`, loading `415:2413`, P1 DAY preview `439:3104`, applied `417:2412`만 있고 P0 ITEM READY preview가 없음 | P0 ITEM 전용 READY frame/variant 추가: before/after, provenance, lock validation, eligible metric, `적용`/`현재 일정 유지` | FE / BE·AI·PM | Open |
+| FCR-004 | P0 blocker | F 흐름에 setup `415:2268`, loading `415:2413`, P1 DAY preview `439:3104`, applied `417:2412`만 있고 P0 ITEM READY preview가 없음 | P0 ITEM 전용 READY frame/variant 추가: before/after, provenance, lock validation, eligible metric, `적용`/`현재 일정 유지` | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-004-증거)) |
 | FCR-005 | P0 blocker | loading/preview에 `경로 계산`, `지도 provider 미정`; 여행 보기 `410:1738`에 `↓ 1.2km · 도보 15분`; Live `418:2523`에 `돌아가도 15분/30분`, `+8분/+5분`이 있으나 P0 route provider는 미결정 | ITEM copy를 혼잡·고정 조건 확인으로 변경. provider가 없으면 목록/timeline을 동등하게 제공하고 route 기반 시간·우회 수치·placeholder를 제거. 직선거리는 FCR-009 기준을 충족할 때만 표시 | FE / BE·AI | Open |
 | FCR-006 | P0 blocker | S14 `422:2925`가 `로그인하면 일정을 저장할 수 있어요`와 활성 login affordance를 노출 | `이 기기의 익명 세션에 저장돼요`처럼 실제 보존 방식을 설명하고 login은 disabled `준비 중`; 요청 0건 | FE / BE·AI·PM | Open |
 | FCR-007 | P0 blocker | S15 `423:2967`가 데이터 상태를 5개로 설명하고 `REPLAY`를 누락. `Data / StateLabel` component에는 이미 6개 variant가 있음 | component를 다시 만들지 않고 S15 설명을 `LIVE`, `FORECAST`, `REPLAY`, `QUALITATIVE`, `STALE`, `UNAVAILABLE` 6개와 관측/대상 시각 차이로 수정 | FE / BE·AI | Open |
@@ -151,3 +151,26 @@ top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 53개다. [Figma �
 2. `전체`·`혼잡도 낮은 순`·`지금 가기 좋아요`·`서울` 4개 chip이 있는 `Filter chips` row(51px) 전체를 제거했다. 계약이 생기기 전에는 활성 control처럼 보이는 어떤 chip도 남기지 않는다.
 3. 아래 콘텐츠(Empty banner 또는 Trip context, FeedPost 카드 4장, sheet/toast가 없는 배경 요소)를 51px 위로 당겼다. `Sheet / TripPicker`, `Feedback / Toast`, `dim` 오버레이는 그대로 두었다.
 4. 구현 acceptance: `/feed`와 관련 sheet route는 `listFeed` filter 파라미터 호출이 0건이다. filter 계약(`FR-FED-05`, P1)이 생기면 이 chip row를 다시 추가하고 `comparisonEligible`·source 혼합 순위 금지 규칙을 함께 검증한다.
+
+## FCR-004 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma에 새 top-level frame `S09-2 / preview-item · P0`(`655:4067`)을 추가했다. 종료 조건 4(BE/AI 계약 검토·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 항목 | 값 |
+| --- | --- |
+| 새 화면 | [`655:4067` S09-2 / preview-item · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=655-4067) — 신규 frame이라 변경 전 화면 없음 |
+| 뼈대로 삼은 화면 | `439:3104` S09-D1 / preview-day · P1 (DAY scope) |
+| 화면 상단 | [스크린샷](./evidence/fcr-004/after-655-4067-top.jpg) — 제목, `아직 일정에 반영되지 않았어요` 상태 배지, 요약, no-map-item 안내, 변경 전/후 `Card / TripItem` |
+| 화면 하단 | [스크린샷](./evidence/fcr-004/after-655-4067-bottom.jpg) — 바뀌는 것, MetricDelta 4개, provenance, `Action / DecisionBar` (852px 뷰포트라 스크롤해야 보이는 영역을 별도로 캡처) |
+
+구성 내용:
+
+1. `S09-D1`을 복제해 뼈대(제목·상태 배지·요약·`change-list`·`Data / MetricDelta` 4개·`Action / DecisionBar`)를 재사용했다. DAY scope 전용인 `Map / Optimization`(before/after 2장)과 `timeline` row는 제거했다.
+2. 지도 자리에는 이미 컴포넌트에 정의돼 있던 `Map / Optimization` `view=no-map-item` variant를 넣었다("이 항목은 날짜·시간 비교로 확인해요 · 단일 장소 변경에는 지도를 만들지 않아요"). 새 컴포넌트를 만들지 않았다.
+3. before(`Card / TripItem` `state=view`)·after(`state=optimized`) 카드 2장을 세로로 배치했다. 시나리오는 "경복궁을 혼잡한 day 1(4·혼잡)에서 여유로운 day 3(1·매우 여유)로 이동"이다. 날짜가 이동 대상이라 `날짜 고정` lock chip은 숨겼고(instance 자식은 삭제 불가해 `visible=false`), `시간 고정`만 남겨 잠금이 이동 후에도 보존됨을 보여준다.
+4. `change-list`, MetricDelta 4개, provenance 문구를 ITEM 시나리오로 교체했다. `혼잡 단계`·`피크 시간대 겹침` 2개는 개선 값을 채웠고, `이동시간 변화`·`이동거리 변화` 2개는 `경로 provider 미정 · 확인 불가`로 남겨 `FCR-005`(route provider 미정) 규칙과 OpenAPI `comparisonEligible=false`/unavailable reason 계약을 그대로 반영했다. 숫자를 만들어내지 않았다.
+5. `Action / DecisionBar`(`state=preview`)의 `primaryLabel`을 "이 변경 적용"으로, 보조 버튼은 원래 있던 "현재 일정 유지"를 그대로 썼다.
+6. 구현 acceptance: `OptimizationRun.status=READY`일 때 `proposals[0]`의 `changes[]`(before/after `TripItemState`), `metrics`(`comparisonEligible`/`crowdComparison`), `validation`(`allConstraintsPreserved`/`checks[]`), `dataProvenance[]`를 이 frame의 각 영역에 매핑한다. `적용`은 `OptimizationDecisionRequest{decision: APPLY}`, `현재 일정 유지`는 `KEEP`을 호출하며 승인 전에는 trip을 변경하지 않는다.
+
+top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 54개다(FCR-001 이후 53 → 54). [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.
