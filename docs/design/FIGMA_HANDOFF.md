@@ -7,7 +7,7 @@
 
 이 문서는 화면을 그대로 나열하는 대신 개발에 필요한 route, 상태, 도메인 변화, API
 의존성과 2인의 책임을 연결한다. 2026-09-05 공개 Figma를 직접 대조한 결과 현재 구현
-frame 52개와 최상위 component 49개는 확인했지만, 언어·feed·ITEM preview·guest·data
+frame 52개와 최상위 component 49개는 확인했지만(2026-09-07 `FCR-001` EN 선택 variant `643:4088` 추가로 53개), 언어·feed·ITEM preview·guest·data
 guide 등에 P0 불일치가 남아 있다. 영향 화면은
 [Figma 정합성 수정 요청](./FIGMA_CHANGE_REQUESTS.md)이 닫히기 전 구현 승인 상태가
 아니다. Figma의 시각적 수치와 component variant가 이 문서와 다르면 Figma를 확인하되,
@@ -77,7 +77,7 @@ Figma page의 용도:
 | Figma node | 화면 | Route | 상태/동작 | 데이터/API |
 | --- | --- | --- | --- | --- |
 | `388:257` | A-1 splash | `/` | logo, bootstrap; 장기 loading이면 retry | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner`, readiness |
-| `388:277` | A-2 language | `/language` | 목표: 한국어·English 선택/확정, 日本語·中文 disabled `준비 중`; 현재 English 오표기는 `FCR-001` | `updatePreferences(locale)`; bootstrap 전에는 local draft |
+| `388:277`, `643:4088` | A-2 language | `/language` | 한국어·English 선택/확정, 日本語·中文 disabled `준비 중`(`color/text/disabled` + label); `388:277`은 KO 선택, `643:4088`은 EN 선택·영문 copy variant (`FCR-001` 2026-09-07 수정, 검토 대기) | `updatePreferences(locale)`; bootstrap 전에는 local draft |
 | `388:321` | A-3 intro | `/intro` | “한국인이 진짜 가는 곳”, 계속/건너뛰기 | local onboarding state |
 
 Acceptance:
