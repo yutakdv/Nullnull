@@ -29,7 +29,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-007 | P0 blocker | S15 `423:2967`가 데이터 상태를 5개로 설명하고 `REPLAY`를 누락. `Data / StateLabel` component에는 이미 6개 variant가 있음 | component를 다시 만들지 않고 S15 설명을 `LIVE`, `FORECAST`, `REPLAY`, `QUALITATIVE`, `STALE`, `UNAVAILABLE` 6개와 관측/대상 시각 차이로 수정 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-007-증거)) |
 | FCR-008 | P0 major | S11 `418:2523`에 장소명 검색이 있으나 화면-API 연결이 명시되지 않음 | `searchPlaces` → canonical 선택 → `getLivePlace`; coverage가 없으면 `UNAVAILABLE`, loading/empty/error variant 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-008-증거)) |
 | FCR-009 | P0 major | post/detail 거리값은 기준점·산식이 불명확해 보일 수 있음 | trip anchor/선택 장소 등 거리 기준과 source를 함께 표시. 기준이 없으면 거리값을 숨기고 unavailable reason 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-009-증거)) |
-| FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Open |
+| FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-010-증거)) |
 | FCR-011 | P0 blocker | feed `392:368`, post 장소 카드 `399:613`, Live `418:5199`의 `실시간 관측`에 `ⓒ한국관광공사`가 결합돼 서울 실시간 원천과 KTO 예측/관광정보가 뒤섞임 | `SEOUL_CITYDATA`는 API의 서울특별시 attribution·`officialUrl`·`licenseUrl`을 그대로 표시하고 KTO 장소 정보·예측 attribution과 시각적으로 분리 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-011-증거)) · **폭 blocker 1건** |
 | FCR-012 | P0 blocker | Live `418:2523`은 `Map / Base`와 marker가 보이는 화면만 있고 map capability OFF의 목록-only variant가 없음 | map OFF를 P0 기본으로 하는 목록-only default/loading/empty/error/unavailable variant를 추가. map ON은 provider·license·attribution 승인 뒤에만 열고 동일 filter/selection을 유지 | FE / BE·AI | Open |
 | FCR-013 | P0 blocker | 여행 보기 `410:1738`에 계약 연결 없이 `더 여유로운 날짜가 있어요 · 비교하기`가 노출됨 | P0에서 제거하거나 `getPlaceCrowdForecast`와 temporal comparison eligibility, 표시 threshold, unavailable 상태를 기능 ID에 연결. 단순 예보 비교와 적용 가능한 최적화 제안을 구분 | FE / BE·AI·PM | Open |
@@ -336,3 +336,39 @@ top-level frame이 4개 늘어 `02 UI Design` 구현 frame은 58개다(FCR-007�
 3. 좁은 카드에서 전문을 접고 tap으로 펼치는 UI가 필요한지 `api/README.md`에 규칙 확정
 
 이 항목이 닫히기 전에는 제출 profile의 출처 표시를 승인된 것으로 보지 않는다. 진행 상황은 issue #11(`CON-004`)에서 추적한다.
+
+## FCR-010 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 항목 | 값 |
+| --- | --- |
+| 화면 | [`415:2268` S09-0 / setup-item · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=415-2268) |
+| 변경 전 | [스크린샷](./evidence/fcr-010/before-415-2268.jpg) |
+| 변경 후 | [스크린샷](./evidence/fcr-010/after-415-2268.jpg) |
+
+변경 내용:
+
+1. **scope segment 복원** — `Form / OptimizationScope` 인스턴스가 `scope=item` variant인데도 정작 `seg/item`(`이 장소`)이 삭제돼 있고 남은 두 세그먼트가 `전체`/`Day1`로 override돼 있었다. 인스턴스를 새로 만들어 컴포넌트 정의대로 `이 장소`·`이 날짜`·`전체 여행` 3개를 복원하고, P0에서 쓰지 않는 `이 날짜`·`전체 여행`은 `opacity 0.4`로 비활성 표시했다. 컴포넌트 자체는 수정하지 않았다.
+2. **준비 중 명시** — 세그먼트 아래에 `이 날짜 · 전체 여행은 준비 중이에요` 안내를 추가했다. DAY/TRIP은 선택할 수 없으므로 `createOptimization` 요청이 발생하지 않는다.
+3. **`targetItemId` 선택 control 추가** — 고정 문구 `경복궁 하나만 · 같은 장소를 더 여유로운 날짜로 옮겨요`를 `어떤 장소를 옮길까요?` 질문과 실제 선택 목록으로 교체했다. 각 row는 radio + 장소명 + `day/시간 · 혼잡도` 메타로 구성되며, 사용자가 고른 row가 `CreateItemOptimizationRequest.targetItemId`가 된다.
+4. **잠금 규칙 일관성** — 배경 일정의 `경복궁`은 `날짜 고정`(user-locked) 상태라 날짜 이동 대상이 될 수 없다. 따라서 경복궁 row를 `opacity 0.55` 비활성으로 두고 `날짜 고정이라 옮길 수 없어요`를 표시했으며, 잠금이 없는 `인사동`을 선택 상태로 바꿨다. 하단 문구도 `장소는 그대로예요 · 날짜만 옮겨요`, `고정 조건 · 날짜 고정된 장소는 대상에서 빠져요`로 정정해 잠금과 대상 선택이 서로 모순되지 않게 했다.
+5. 구현 acceptance: scope는 P0에서 `ITEM` 고정이며 `targetItemId`는 사용자가 명시적으로 선택한 item id다. `MUST_VISIT`·`DATE`·`TIME`·`RESERVATION` 잠금은 독립적이며 자동 해제하지 않으므로, 날짜 고정 item은 목록에서 비활성으로 노출하되 숨기지 않는다.
+
+### FCR-005 누락분 정정
+
+FCR-010 작업 중 배경 일정에 `↓ 1.2km · 도보 15분`이 남아 있는 것을 발견했다. FCR-005에서 `410:1738` 한 곳만 제거했으나 실제로는 같은 route 기반 텍스트가 11곳에 더 있었다. 이번 change set에서 전부 제거했다.
+
+| Figma frame | node |
+| --- | --- |
+| `S07-2 / edit · P0` | `411:1868` |
+| `S07-2 / move-date · P0` | `527:4107` |
+| `S07-9 / discard-dialog · P0` | `413:2045` |
+| `S07-6 / replace-compare · P0` | `414:2372`, `527:4559` |
+| `S09-0 / setup-item · P0` | `415:2299` |
+| `S07-4 / added · P0` | `479:3838`, `527:4402` |
+| `S07-10 / move-date · P0` | `521:3998`, `527:4717` |
+| `S07-10b / date-lock-confirm · P0` | `527:3898` |
+
+route provider가 정해지기 전까지 이 값들을 다시 넣지 않는다.
