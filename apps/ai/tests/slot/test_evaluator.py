@@ -106,6 +106,17 @@ def test_unknown_hours_or_missing_route_evidence_is_unknown_not_eligible() -> No
     assert no_route.state is SlotState.EXACT
 
 
+def test_a_neighbour_with_the_nil_uuid_still_needs_route_evidence() -> None:
+    """No item id is a placeholder: an all-zero id must not excuse the day from the leg check."""
+    nil_item = NeighbourItem(UUID(int=0), D12, 1, time(10, 0), 60)
+    result = evaluate(items=(nil_item,), opening={D12: OPEN}, trip_end=D12)
+    assert [slot.reason_code for slot in result.slots] == ["ROUTE_EVIDENCE_MISSING"]
+    assert result.state is SlotState.UNKNOWN
+    assert evaluate(items=(nil_item,), opening={D12: OPEN}, trip_end=D12, route=RouteEvidence.VERIFIED).state is (
+        SlotState.EXACT
+    )
+
+
 def test_duplicate_place_day_limit_checking_and_none() -> None:
     duplicate = evaluate(duplicates={D12})
     assert duplicate.slots[0].reason_code == "DUPLICATE_PLACE"

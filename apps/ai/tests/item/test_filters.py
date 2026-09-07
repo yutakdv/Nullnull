@@ -78,6 +78,14 @@ def test_route_evidence_is_required_when_either_day_has_neighbours() -> None:
     assert route_evidence((), ITEM, D12, D13, RouteEvidence.NONE).is_eligible
 
 
+def test_without_a_target_item_every_neighbour_counts() -> None:
+    """A saved candidate is not on the itinerary, so no item may be excused from the leg check."""
+    for item_id in (NEIGHBOUR, UUID(int=0), ITEM):
+        neighbours = (NeighbourItem(item_id, D13, 1, None, None),)
+        assert route_evidence(neighbours, None, D13, D13, RouteEvidence.NONE).state is EligibilityState.UNKNOWN
+        assert route_evidence(neighbours, None, D13, D13, RouteEvidence.VERIFIED).is_eligible
+
+
 def test_same_place_range_and_unchanged_checks() -> None:
     assert same_place(TARGET, OTHER_PLACE).reasons[0].code == "PLACE_MISMATCH"
     assert same_place(TARGET, PLACE).is_eligible

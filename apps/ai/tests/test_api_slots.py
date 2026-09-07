@@ -76,6 +76,16 @@ def test_a_running_verification_job_answers_checking(client: TestClient) -> None
     assert [slot["eligible"] for slot in payload["slots"]] == [True, True, True]
 
 
+def test_an_item_with_the_nil_uuid_still_needs_route_evidence(client: TestClient) -> None:
+    """No item id is a placeholder: an all-zero id must not excuse the day from the leg check."""
+    nil_item = item("2026-09-12", 1, "00000000-0000-0000-0000-000000000000")
+    payload = client.post(
+        PATH, json=body(tripEnd="2026-09-12", items=[nil_item], openingHours={"2026-09-12": OPEN})
+    ).json()
+    assert payload["state"] == "UNKNOWN"
+    assert [slot["reasonCode"] for slot in payload["slots"]] == ["ROUTE_EVIDENCE_MISSING"]
+
+
 @pytest.mark.parametrize(
     ("overrides", "state", "codes"),
     [

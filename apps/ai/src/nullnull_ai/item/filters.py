@@ -180,13 +180,20 @@ def neighbour_overlap(
 
 def route_evidence(
     neighbours: Sequence[NeighbourItem],
-    target_item_id: UUID,
+    target_item_id: UUID | None,
     from_date: date,
     to_date: date,
     evidence: RouteEvidence,
 ) -> Eligibility:
-    """Travel legs change when either the source day or the destination day has other items."""
-    legs_affected = any(n.item_id != target_item_id and n.date in (from_date, to_date) for n in neighbours)
+    """Travel legs change when either the source day or the destination day has other items.
+
+    `target_item_id` is the item being moved, which is not a neighbour of itself. It is None when the
+    subject is not on the itinerary at all (a saved candidate): every item on those days is then a
+    neighbour. Never pass a placeholder id - one would silently excuse a real item from the check.
+    """
+    legs_affected = any(
+        (target_item_id is None or n.item_id != target_item_id) and n.date in (from_date, to_date) for n in neighbours
+    )
     if legs_affected and evidence is not RouteEvidence.VERIFIED:
         return Eligibility.unknown(Reason(ROUTE_EVIDENCE_MISSING, "travel legs change without route evidence"))
     return Eligibility.eligible()

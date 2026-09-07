@@ -25,9 +25,6 @@ DUPLICATE_PLACE = "DUPLICATE_PLACE"
 DAY_ITEM_LIMIT = "DAY_ITEM_LIMIT"
 DATE_CAP_EXCEEDED = "DATE_CAP_EXCEEDED"
 
-_NO_ITEM = UUID(int=0)
-"""A candidate is not on the itinerary yet, so no neighbouring item is ever the candidate itself."""
-
 
 class SlotState(Enum):
     EXACT = "EXACT"
@@ -137,4 +134,5 @@ class SlotEvaluator:
             return hours
         # An empty day gains no travel leg, so route evidence is not required for it (§5.4).
         evidence = RouteEvidence.VERIFIED if not same_day else inp.route_evidence
-        return filters.route_evidence(inp.items, _NO_ITEM, day, day, evidence)
+        # The candidate is not on the itinerary yet, so every item of that day is a neighbour.
+        return filters.route_evidence(inp.items, None, day, day, evidence)
