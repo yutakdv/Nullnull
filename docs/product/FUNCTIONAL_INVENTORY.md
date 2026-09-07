@@ -114,7 +114,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 
 | ID | Pri | 요구사항 | Figma | API/event | 핵심 acceptance |
 | --- | --- | --- | --- | --- | --- |
-| FR-LIV-01 | P0 | area 목록과 capability-gated 지도 선택 유지 | `418:2523` | `queryLiveAreas` | 목록 필수; 지도는 provider 승인 때만, 거친 viewport만 사용 |
+| FR-LIV-01 | P0 | area 목록과 capability-gated 지도 선택 유지 | `716:4377` (목록), `418:2523` (map ON) | `queryLiveAreas` | 목록 필수; 지도는 provider 승인 때만, 거친 viewport만 사용 |
 | FR-LIV-02 | P0 | area별 장소 조회 | S11-1 | `listLiveAreaPlaces` | mapping/fallback 표시 가능 |
 | FR-LIV-03 | P0 | Live 장소 상세 | `419:2617` | `getLivePlace` | state/source/시각 표시 |
 | FR-LIV-04 | P0 | 대체 장소 목록 | `420:2821` | `listRelatedPlaces` | EXACT/SIMILAR 이유 |

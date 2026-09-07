@@ -31,7 +31,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-009 | P0 major | post/detail 거리값은 기준점·산식이 불명확해 보일 수 있음 | trip anchor/선택 장소 등 거리 기준과 source를 함께 표시. 기준이 없으면 거리값을 숨기고 unavailable reason 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-009-증거)) |
 | FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-010-증거)) |
 | FCR-011 | P0 blocker | feed `392:368`, post 장소 카드 `399:613`, Live `418:5199`의 `실시간 관측`에 `ⓒ한국관광공사`가 결합돼 서울 실시간 원천과 KTO 예측/관광정보가 뒤섞임 | `SEOUL_CITYDATA`는 API의 서울특별시 attribution·`officialUrl`·`licenseUrl`을 그대로 표시하고 KTO 장소 정보·예측 attribution과 시각적으로 분리 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-011-증거)) · **폭 blocker 1건** |
-| FCR-012 | P0 blocker | Live `418:2523`은 `Map / Base`와 marker가 보이는 화면만 있고 map capability OFF의 목록-only variant가 없음 | map OFF를 P0 기본으로 하는 목록-only default/loading/empty/error/unavailable variant를 추가. map ON은 provider·license·attribution 승인 뒤에만 열고 동일 filter/selection을 유지 | FE / BE·AI | Open |
+| FCR-012 | P0 blocker | Live `418:2523`은 `Map / Base`와 marker가 보이는 화면만 있고 map capability OFF의 목록-only variant가 없음 | map OFF를 P0 기본으로 하는 목록-only default/loading/empty/error/unavailable variant를 추가. map ON은 provider·license·attribution 승인 뒤에만 열고 동일 filter/selection을 유지 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-012-증거)) |
 | FCR-013 | P0 blocker | 여행 보기 `410:1738`에 계약 연결 없이 `더 여유로운 날짜가 있어요 · 비교하기`가 노출됨 | P0에서 제거하거나 `getPlaceCrowdForecast`와 temporal comparison eligibility, 표시 threshold, unavailable 상태를 기능 ID에 연결. 단순 예보 비교와 적용 가능한 최적화 제안을 구분 | FE / BE·AI·PM | Open |
 | FCR-014 | P0 major | 계산 중 `415:2413`의 `취소하고 My Trip으로`가 한국어 tab 명칭과 다르고, client 이탈/timeout이 server run 취소를 뜻하는 것처럼 보임 | 취소 operation이 없는 P0에서는 `내 여행으로 돌아가기`처럼 navigation만 표현하고 run은 URL로 다시 조회할 수 있음을 안내. 실제 취소는 별도 계약·상태 전이 뒤에만 노출 | FE / BE·AI | Open |
 | FCR-015 | P0 blocker | 적용 완료 `417:2412`의 되돌리기가 toast action뿐이고 적용 대상 revision·24시간 `revertUntil`·만료 상태를 지속적으로 확인할 수 없음 | `ApplyOptimizationDecision`의 전후 revision·`revertUntil`을 persistent UI로 표시하고 가능/진행/완료/`REVERT_WINDOW_EXPIRED` 상태를 제공. toast는 보조 피드백으로만 사용 | FE / BE·AI | Open |
@@ -372,3 +372,28 @@ FCR-010 작업 중 배경 일정에 `↓ 1.2km · 도보 15분`이 남아 있는
 | `S07-10b / date-lock-confirm · P0` | `527:3898` |
 
 route provider가 정해지기 전까지 이 값들을 다시 넣지 않는다.
+
+## FCR-012 증거
+
+- 수정일: 2026-09-08, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: map OFF를 P0 기본으로 하는 목록 전용 frame 5개를 추가했다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 화면 | Figma node | 참고 |
+| --- | --- | --- |
+| map ON (capability, 기존) | `418:2523` → 이름을 `S11-1 / live · P0 · map ON (capability)`로 변경 | [스크린샷](./evidence/fcr-012/before-418-2523-mapon.jpg) |
+| 목록 default | `716:4377` S11-1L / live-list · P0 | [스크린샷](./evidence/fcr-012/after-716-4377-default.jpg) |
+| 목록 loading | `718:4521` S11-1L / live-list-loading · P0 LOADING | [스크린샷](./evidence/fcr-012/after-718-4521-loading.jpg) |
+| 목록 empty | `718:4584` S11-1L / live-list-empty · P0 EMPTY | [스크린샷](./evidence/fcr-012/after-718-4584-empty.jpg) |
+| 목록 error | `718:4647` S11-1L / live-list-error · P0 ERROR | [스크린샷](./evidence/fcr-012/after-718-4647-error.jpg) |
+| 목록 unavailable | `718:4710` S11-1L / live-list-unavailable · P0 UNAVAILABLE | [스크린샷](./evidence/fcr-012/after-718-4710-unavailable.jpg) |
+
+구성 내용:
+
+1. **P0 기본은 목록** — `418:2523`을 복제해 `Map / Base`와 `Map / Marker` 4개를 제거하고, 그 자리에 `queryLiveAreas` 응답의 `LiveArea[]`를 그대로 보여주는 `area-list`를 넣었다. 헤더는 `지금 권역 혼잡` + `Data / StateLabel`(`state=live`)이고, 부제에 기준시각·출처·조작 안내를 둔다. 각 row는 `LiveArea.name` + `CrowdState / Live`(`00 Wireframes` 페이지의 기존 컴포넌트 `167:958`, `ordinal` variant) + 혼잡 label + chevron이다. 선택된 권역(경복궁)은 `color/action/subtle` 배경과 `color/action/primary` 테두리로 표시한다.
+2. **권역 → 장소 흐름은 sheet가 그대로 이어받는다** — `Sheet`(segment, context, 정렬 chip, `candidate-row`)는 기존 `418:2523`의 것을 그대로 유지했다. 지도 없이도 권역 선택 → 장소 목록 → 상세 진입이 완결된다(`Live P0: map 없이도 검색·목록·선택·상세 진입이 완결` 규칙). 목록이 4 row라 `Sheet`를 y=368로 내리고 높이를 484로 맞춰 겹침을 없앴다.
+3. **상태 4종** — loading은 스피너 + `권역 혼잡을 불러오고 있어요`, empty는 `StateLabel=unavailable` + `표시할 권역이 없어요`와 검색 유도, error는 `권역 혼잡을 확인하지 못했어요` + `다시 시도`, unavailable은 `StateLabel=unavailable` + `지금은 실시간 관측을 쓸 수 없어요 · 출처: 서울특별시 · 데이터 제공이 중단됐어요 · 값을 대신 만들지 않아요`. 네 화면 모두 sheet에는 권역 미선택 안내만 남기고 장소 목록을 비웠다.
+4. **map ON은 capability variant로 격하** — 기존 `418:2523`은 삭제하지 않고 이름만 `map ON (capability)`로 바꿔 provider·license·attribution 승인 뒤에만 열리는 화면임을 표시했다. node id는 그대로라 기존 문서 링크가 깨지지 않는다.
+5. 구현 acceptance: `/live` 기본 route는 `map` capability가 OFF일 때 `716:4377`을 렌더링하고 `queryLiveAreas`만 호출한다. `LiveAreaResult.mode`가 `UNAVAILABLE`이면 `718:4710`, `areas=[]`이면 `718:4584`, Problem이면 `718:4647`이다. map ON일 때도 같은 filter/selection state를 공유하며 목록 view가 항상 함께 존재한다(`map에는 같은 정보·필터의 list view가 있어야 한다`).
+6. 새 컴포넌트를 만들지 않았다. `CrowdState / Live`가 `01 Components`가 아니라 `00 Wireframes`에 있는 점은 `COMPONENT_CATALOG` 검토 시 BE/AI·PM이 확인할 항목이다.
+
+top-level frame이 5개 늘어 `02 UI Design` 구현 frame은 63개다(FCR-008까지 58 → 63). [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.

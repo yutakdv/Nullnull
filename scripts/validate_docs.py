@@ -277,10 +277,11 @@ def validate_figma_inventory(problems: list[str]) -> None:
     # 2026-09-05 audit: 52 implementation frames; FCR-001 (2026-09-07) added the
     # A-2 EN-selected variant frame 643:4088; FCR-004 (2026-09-07) added the
     # S09-2 ITEM READY preview frame 655:4067; FCR-008 (2026-09-07) added the
-    # S11-1B search-results/loading/empty/error frames (4).
-    if len(screen_ids) != 58:
+    # S11-1B search-results/loading/empty/error frames (4); FCR-012 (2026-09-08)
+    # added the S11-1L live-list default/loading/empty/error/unavailable frames (5).
+    if len(screen_ids) != 63:
         problems.append(
-            f"Figma handoff screen inventory differs from current audit: expected 58 unique nodes, found {len(screen_ids)}"
+            f"Figma handoff screen inventory differs from current audit: expected 63 unique nodes, found {len(screen_ids)}"
         )
     if not COMPONENT_PATH.exists():
         return
