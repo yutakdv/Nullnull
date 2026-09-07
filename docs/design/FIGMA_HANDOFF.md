@@ -156,7 +156,7 @@ Wizard 규칙:
 
 | Figma node | 화면 | UI state | 동작/API |
 | --- | --- | --- | --- |
-| `410:1738` | S07-1 보기 | view | trip, day, items, candidate count 조회 |
+| `410:1738` | S07-1 보기 | view | trip, day, items, candidate count 조회; route 기반 거리·시간 텍스트 없음 (`FCR-005`) |
 | `411:1837` | S07-2 편집 | edit | local edit buffer, save/cancel |
 | `527:4085` | S07-2 시간 편집 | edit-time | item time/time lock 변경 |
 | `412:1912` | S07-8 후보 panel | overlay | 후보 목록, 날짜 선택 후 일정화 |
@@ -184,7 +184,7 @@ Wizard 규칙:
 | Figma node | 화면 | 상태 | 동작 | API |
 | --- | --- | --- | --- | --- |
 | `415:2268` | S09-0 항목 설정 | setup | ITEM target 선택, 잠금, 후보 포함 OFF(`FCR-010`) | `POST /trips/:id/optimizations` |
-| `415:2413` | S09-1 계산 중 | loading | polling, back, timeout(`FCR-014`) | `GET /optimizations/:runId` |
+| `415:2413` | S09-1 계산 중 | loading | polling, back, timeout(`FCR-014`); route-free copy (`FCR-005` 2026-09-07) | `GET /optimizations/:runId` |
 | `655:4067` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
 | `439:3104` | S09-D1 하루 preview | preview P1 | day scope before/after | same |
 | `417:2412` | S09-3 적용 완료 | applied | revision, persistent undo/expiry(`FCR-015`) | decision/revert |
@@ -233,7 +233,7 @@ Figma 오류 계약:
 
 | Figma node | 화면 | Pri/state | 동작 | API |
 | --- | --- | --- | --- | --- |
-| `418:2523` | S11-1 Live | P0 | map OFF 목록 필수, map capability, 영역 선택(`FCR-012`) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `418:2523` | S11-1 Live | P0 | map OFF 목록 필수, map capability, 영역 선택(`FCR-012`); route 기반 우회 시간·경로 문구 없음 (`FCR-005`) | `queryLiveAreas`, `listLiveAreaPlaces` |
 | `419:2617` | S11-2 장소 상세 | P0 | crowd, freshness, itinerary action | `GET /live/places/:poiId` |
 | `420:2821` | S11-3 대안 | P0 | relation + comparable metrics | `GET /places/:poiId/related` |
 | `420:2950` | S11-N 후보 없음 | P0 empty | 비교 불가 이유/다른 필터 CTA | related result `NONE` |
