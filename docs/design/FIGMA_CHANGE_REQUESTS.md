@@ -20,7 +20,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 
 | ID | Pri | 현재 Figma 증거 | 목표 상태 | 소유/검토 | 상태 |
 | --- | --- | --- | --- | --- | --- |
-| FCR-001 | P0 blocker | A-2 `388:277`의 English가 `영어 · 준비 중`으로 표시됨 | `한국어`와 `English`는 선택 가능, `日本語`·`中文`만 disabled `준비 중`; KO/EN 전환·복구 variant 추가 | FE / BE·AI·PM | Open |
+| FCR-001 | P0 blocker | A-2 `388:277`의 English가 `영어 · 준비 중`으로 표시됨 | `한국어`와 `English`는 선택 가능, `日本語`·`中文`만 disabled `준비 중`; KO/EN 전환·복구 variant 추가 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-001-증거)) |
 | FCR-002 | P0 blocker | feed `391:310`, `396:2926`과 post `398:611`에 `팔로잉`·`최신`, 검색, unread bell, 활성 `팔로우`가 보임 | P0에서는 제거가 기본. 꼭 남기면 disabled `준비 중`과 이유를 표시하고 route/API 호출 0건 | FE / PM | Open |
 | FCR-003 | P0 blocker | feed에 `혼잡도 낮은 순`, `지금 가기 좋아요`, `서울` chip이 활성 control처럼 보임 | `listFeed`에 filter 계약이 생기기 전 숨김. P1에서도 source·시점 비교 적격성 없는 혼합 순위 금지 | FE / BE·AI | Open |
 | FCR-004 | P0 blocker | F 흐름에 setup `415:2268`, loading `415:2413`, P1 DAY preview `439:3104`, applied `417:2412`만 있고 P0 ITEM READY preview가 없음 | P0 ITEM 전용 READY frame/variant 추가: before/after, provenance, lock validation, eligible metric, `적용`/`현재 일정 유지` | FE / BE·AI·PM | Open |
@@ -83,3 +83,26 @@ FCR-004 등 새 상태를 top-level frame으로 만들면 현재 52개 수가 �
 component variant로 만들면 52개를 유지할 수 있다. 어느 방식을 택하든 숫자를 맞추기
 위해 상태를 숨기지 말고 [Figma 핸드오프](./FIGMA_HANDOFF.md)와 검증 스크립트의
 inventory를 같은 change set에서 갱신한다.
+
+## FCR-001 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: Figma 수정 완료. 종료 조건 1~3은 아래 증거로 충족했고, 4(Backend/AI 계약 검토·PM 문구 승인)와 5(구현 후 Storybook/Playwright test ID)는 대기 중이다.
+
+| 항목 | 값 |
+| --- | --- |
+| KO 선택 frame | [`388:277` A-2 / language · P0](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=388-277) |
+| EN 선택 variant frame | [`643:4088` A-2 / language · P0 · EN selected](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=643-4088) (A-3 오른쪽, x=1359) |
+| 변경 전 | ![FCR-001 변경 전 388:277](./evidence/fcr-001/before-388-277.png) |
+| 변경 후 KO | ![FCR-001 변경 후 KO 388:277](./evidence/fcr-001/after-388-277-ko.png) |
+| 변경 후 EN | ![FCR-001 변경 후 EN 643:4088](./evidence/fcr-001/after-643-4088-en.png) |
+
+변경 내용:
+
+1. `388:290` English 부제 `영어 · 준비 중` → `영어`. English row는 한국어 row와 같은 선택 가능 스타일이다.
+2. `388:294` 日本語, `388:299` 中文의 lang-main fill을 semantic variable `color/text/disabled`(→ `wf/gray-300`)에 바인딩했다. 부제의 `준비 중` label은 유지해 색만으로 상태를 전달하지 않는다.
+3. title 아래 `643:4040` helper text 추가: `한국어와 English를 지원해요. 日本語와 中文은 준비 중이에요.` (`color/text/secondary`, 13px). title과 helper는 `643:4041` `head` auto-layout(gap 8)으로 묶었다.
+4. `643:4088` EN selected variant: English row가 `brand/blue-soft` 배경·`brand/blue` 텍스트·check, 한국어 row는 기본 스타일. UI copy는 English(`Korean`, `English`, `Japanese · Coming soon`, `Chinese · Coming soon`, helper 영문, CTA `Next`). title은 원본과 같은 이중 언어 그대로다.
+5. 구현 acceptance: KO/EN은 `updatePreferences(locale)`로 저장 후 새로고침 복구, JA/ZH row는 focus 가능하지만 `aria-disabled`이며 선택·저장·API 호출 0건. 360px에서 helper 2줄 wrap을 확인했다.
+
+top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 53개다. [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 53으로 갱신했다.
