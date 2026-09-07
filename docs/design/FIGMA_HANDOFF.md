@@ -251,7 +251,10 @@ Figma 오류 계약:
   `getLivePlace` 응답의 `dataState=UNAVAILABLE`로 값을 합성하지 않고 다음 행동을
   보여 준다(`FCR-008`, 2026-09-07 신규 frame 4개 추가).
 - 거리값은 trip anchor나 사용자가 선택한 기준 장소, 산식/source와 함께 표시한다.
-  기준점이 없으면 값을 숨기고 unavailable reason을 제공한다(`FCR-009`).
+  기준점이 없으면 값을 숨기고 unavailable reason을 제공한다(`FCR-009`). 현재
+  `FeedCard`·`PostSummary`·`PostDetail`·`PlaceSummary`에는 거리 필드도 좌표도 없어
+  feed 카드와 게시물 상세의 거리 표시를 제거했다(2026-09-07). 되살리려면 기준점·산식·
+  provenance를 포함한 additive 계약이 먼저 필요하다.
 - 실시간 관측은 `SEOUL_CITYDATA` provenance와 검토된 attribution을 표시하고 KTO
   장소 정보·예측 출처와 결합하지 않는다(`FCR-011`).
 
