@@ -33,6 +33,7 @@ jobs:
     env:
       NULLNULL_ENV: test
       NULLNULL_AI_REPORT_DIR: /home/runner/work/_ai-reports/recommendation
+      APP_GIT_SHA: ${{ github.sha }}
       UV_PYTHON_DOWNLOADS: never
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

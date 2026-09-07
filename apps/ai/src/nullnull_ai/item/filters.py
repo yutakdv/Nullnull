@@ -1,9 +1,13 @@
 """§5.4 hard checks. Each returns ELIGIBLE, INELIGIBLE (fact known, violated) or UNKNOWN (fact missing).
 
 Locks are evaluated one by one and every verdict is reported, so a validation summary can list all
-constraint checks. MUST_VISIT always passes here because a temporal move keeps the place (the place
-itself is checked by `same_place`). RESERVATION pins date and start time (conservative reading of
-"예약 날짜·시간 범위 유지", D-REC-8); a known stay must also end inside the reservation window.
+constraint checks. They are evaluated in the fixed order MUST_VISIT -> DATE -> TIME -> RESERVATION
+regardless of the order the caller supplied, because the caller reads `reasons[0]` as *the* reason a
+candidate was rejected: with input order, one candidate breaking two locks would report a different
+code depending on how the trip happened to store them. MUST_VISIT always passes here because a
+temporal move keeps the place (the place itself is checked by `same_place`). RESERVATION pins date
+and start time (conservative reading of "예약 날짜·시간 범위 유지", D-REC-8); a known stay must also
+end inside the reservation window.
 """
 
 from __future__ import annotations
@@ -51,6 +55,8 @@ _LOCK_REASON_CODES = {
     LockType.TIME: TIME_LOCKED,
     LockType.RESERVATION: RESERVATION_LOCKED,
 }
+# Evaluation order of the four locks; never the caller's order (see the module docstring).
+_LOCK_ORDER = (LockType.MUST_VISIT, LockType.DATE, LockType.TIME, LockType.RESERVATION)
 
 
 def _minutes_between(a: time, b: time) -> int:
@@ -88,7 +94,7 @@ def lock_checks(
 ) -> LockResult:
     passed: dict[LockType, bool] = {}
     reasons: list[Reason] = []
-    for lock in locks:
+    for lock in sorted(locks, key=lambda lock: _LOCK_ORDER.index(lock.type)):
         match lock:
             case MustVisitLock():
                 ok = True

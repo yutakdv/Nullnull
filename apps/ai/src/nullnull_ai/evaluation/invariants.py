@@ -1,14 +1,20 @@
 """REC-CI-4 hard-rule checker, re-derived from the raw input.
 
-This module deliberately does NOT import `nullnull_ai.item.filters` or `nullnull_ai.item.evaluator`.
-A bug shared by the evaluator and its own filters would otherwise agree with itself and pass; here
-the rules are written a second time, from the input alone, so such a bug still surfaces as a hard
-violation. Every constant below (`MINIMUM_IMPROVEMENT`) is an independent restatement of policy-v1:
-when the policy changes, this constant and the fixture expectations change together, which is what
-stops a regression from being hidden by relaxing a threshold.
+This module deliberately does NOT import `nullnull_ai.item.filters` or `nullnull_ai.item.evaluator`,
+and the proposals arrive through a structural view rather than the evaluator's own class. How much
+independence that buys differs per rule, so be precise about it:
 
-The proposals are accepted through a structural view, not the evaluator's own class, so the checker
-stays usable against any producer of the same shape.
+- Independent re-statements, written from the rule text rather than from the filter code: the four
+  locks, the trip range, the opening window (including the stay length and the past-midnight wrap),
+  `verdict.eligible`, the minimum improvement, `score > 0`, same place, rank contiguity and
+  duplicate slots. A bug that the evaluator and `filters.py` share still surfaces here as a hard
+  violation. `MINIMUM_IMPROVEMENT` is likewise policy-v1 restated by hand, so relaxing the policy
+  cannot silently re-baseline the corpus - the constant and the fixtures must change together.
+- Re-statements of the *same algorithm* as `filters.py`: neighbour overlap, route evidence and the
+  `_stay`/`_minutes` helpers. They exist so the counters cover the whole REC-CI-4 section 4.2
+  definition of a hard violation ("권한·잠금·영업·route"), but their logic mirrors the filters closely
+  enough that a bug shared with them would NOT be detected here. Treat those three as coverage, not
+  as an independent check.
 """
 
 from __future__ import annotations

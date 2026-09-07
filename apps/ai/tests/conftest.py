@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
@@ -8,7 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nullnull_ai.domain.policy import load_default
-from nullnull_ai.evaluation.report import REPORT, report_directory
+from nullnull_ai.evaluation.fixtures import of_kind, read_entries
+from nullnull_ai.evaluation.report import REPORT, partial_run, report_directory
 from nullnull_ai.main import create_app
 from nullnull_ai.settings import Settings
 
@@ -35,13 +37,17 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     """REC-CI-6 fail-closed gate.
 
     `evaluation.json` is written even when the run is already red - a missing report is itself a
-    merge blocker in `scripts/integration-test.sh`. A non-zero safety counter, or a positive-fixture
-    or provenance coverage below 100% with a non-zero denominator, fails the session on its own even
-    if every assertion happened to pass.
+    merge blocker in `scripts/integration-test.sh`. A non-zero safety counter, a coverage below 100%
+    with a non-zero denominator, a failed or skipped test, or a declared ITEM fixture that never ran
+    fails the session on its own even if every assertion that did run happened to pass. Selecting a
+    subset locally is only allowed with `NULLNULL_AI_PARTIAL_RUN=1`, which marks the artifact.
     """
     del exitstatus
     outcomes = Counter(_RESULTS.values())
     REPORT.record_session(executed=len(_RESULTS), failed=outcomes["failed"], skipped=outcomes["skipped"])
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    declared = of_kind(read_entries(manifest), "ITEM")
+    REPORT.record_expected_fixtures((entry.id for entry in declared), partial=partial_run())
     path = REPORT.write(report_directory(), MANIFEST, load_default())
     failures = REPORT.failures()
     if failures:

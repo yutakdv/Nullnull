@@ -5,10 +5,16 @@ The report is the merge evidence, so it is written even when the suite is red - 
 `NOT_EVALUATED` until a judged corpus exists; an empty result set can pass the safety counters, so
 `positiveFixtureCoverage` is reported next to them and a zero denominator is never 100%.
 
+A green artifact must also mean the corpus actually ran: the ids the manifest declares are compared
+with the ids that were recorded, and any test that failed or was skipped is a failure reason too, so
+a partial or skipped run cannot look like a passing one. `NULLNULL_AI_PARTIAL_RUN=1` waives only the
+completeness check, for local runs that deliberately select a subset, and stamps `corpus.partial`
+in the artifact; the safety counters keep gating.
+
 This is the only module in the package allowed to read the clock or the environment: the start and
-end timestamps and `NULLNULL_GIT_SHA` are report metadata, never inputs to a decision. The code SHA
-is read from the environment and never from a `git` subprocess, so the report cannot silently
-describe a different tree than the one CI built.
+end timestamps and `APP_GIT_SHA` are report metadata, never inputs to a decision. The code SHA is
+read from the environment (`docs/operations/ENVIRONMENT.md`) and never from a `git` subprocess, so
+the report cannot silently describe a different tree than the one CI built.
 """
 
 from __future__ import annotations
@@ -17,7 +23,7 @@ import json
 import os
 import platform
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,8 +33,9 @@ from nullnull_ai.domain.policy import RecommendationPolicy, sha256_hex
 
 REPORT_DIRECTORY_ENV = "NULLNULL_AI_REPORT_DIR"
 DEFAULT_REPORT_DIRECTORY = "build/reports/recommendation"
-CODE_SHA_ENV = "NULLNULL_GIT_SHA"
+CODE_SHA_ENV = "APP_GIT_SHA"
 UNKNOWN_CODE_SHA = "unknown"
+PARTIAL_RUN_ENV = "NULLNULL_AI_PARTIAL_RUN"
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +99,8 @@ class EvaluationReport:
     provenance_satisfied: int = 0
     session: SessionCounts = field(default_factory=SessionCounts)
     fixtures: list[FixtureResult] = field(default_factory=list)
+    expected_fixture_ids: tuple[str, ...] = ()
+    partial: bool = False
 
     def record_fixture(
         self,
@@ -131,6 +140,15 @@ class EvaluationReport:
     def record_session(self, *, executed: int, failed: int, skipped: int) -> None:
         self.session = SessionCounts(executed, failed, skipped)
 
+    def record_expected_fixtures(self, ids: Iterable[str], *, partial: bool = False) -> None:
+        """The corpus the manifest requires this run to cover; `partial` waives only that check."""
+        self.expected_fixture_ids = tuple(sorted(set(ids)))
+        self.partial = partial
+
+    def missing_fixture_ids(self) -> tuple[str, ...]:
+        recorded = {result.fixture_id for result in self.fixtures}
+        return tuple(id_ for id_ in self.expected_fixture_ids if id_ not in recorded)
+
     def positive_fixture_coverage(self) -> Coverage:
         return Coverage(self.positive_satisfied, self.positive_expected)
 
@@ -154,6 +172,16 @@ class EvaluationReport:
         ):
             if coverage.denominator > 0 and not coverage.satisfied():
                 reasons.append(f"{name}={coverage.numerator}/{coverage.denominator} (gate is 100%)")
+        if self.session.failed != 0:
+            reasons.append(f"tests.failed={self.session.failed} (gate is 0)")
+        if self.session.skipped != 0:
+            reasons.append(f"tests.skipped={self.session.skipped} (gate is 0; REC-CI-6 merge condition 3)")
+        missing = self.missing_fixture_ids()
+        if missing and not self.partial:
+            reasons.append(
+                f"corpus incomplete: {len(missing)} of {len(self.expected_fixture_ids)} declared ITEM fixtures "
+                f"did not run {list(missing)} (set NULLNULL_AI_PARTIAL_RUN=1 for a deliberate local subset)"
+            )
         return tuple(reasons)
 
     def write(self, directory: Path, manifest_path: Path, policy: RecommendationPolicy) -> Path:
@@ -182,6 +210,12 @@ class EvaluationReport:
             "finishedAt": datetime.now(UTC).isoformat(),
             "tests": asdict(self.session),
             "fixtureCount": len(manifest["fixtures"]),
+            "corpus": {
+                "expected": len(self.expected_fixture_ids),
+                "executed": len(self.fixtures),
+                "missing": list(self.missing_fixture_ids()),
+                "partial": self.partial,
+            },
             "fixtureResults": [result.to_json() for result in self.fixtures],
             "requiredTestIds": required,
             "implementedTestIds": implemented,
@@ -211,6 +245,11 @@ class EvaluationReport:
 
 def report_directory() -> Path:
     return Path(os.environ.get(REPORT_DIRECTORY_ENV) or DEFAULT_REPORT_DIRECTORY)
+
+
+def partial_run() -> bool:
+    """True only for `NULLNULL_AI_PARTIAL_RUN=1`; any other value keeps the completeness gate on."""
+    return os.environ.get(PARTIAL_RUN_ENV) == "1"
 
 
 REPORT = EvaluationReport()

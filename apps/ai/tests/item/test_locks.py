@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import random
 from datetime import date, time
 
@@ -93,3 +94,38 @@ def test_locks_are_independent_and_all_reported() -> None:
     assert result.passed == {LockType.MUST_VISIT: True, LockType.DATE: True, LockType.TIME: True}
     moved = lock_checks(locks, D13, time(10, 0), 60)
     assert moved.passed == {LockType.MUST_VISIT: True, LockType.DATE: False, LockType.TIME: True}
+
+
+def test_the_first_reason_follows_the_fixed_lock_order_not_the_input_order() -> None:
+    """A candidate breaking two locks must always name the same reason (REC-SLOT-01 determinism)."""
+    date_lock = DateLock(D12)
+    reservation = ReservationLock(D12, time(10, 0), time(11, 30))
+    for locks in ((date_lock, reservation), (reservation, date_lock)):
+        result = lock_checks(locks, D13, time(12, 0), 60)
+        assert result.passed == {LockType.DATE: False, LockType.RESERVATION: False}
+        assert result.eligibility.reasons[0].code == "DATE_LOCKED"
+        assert [reason.code for reason in result.eligibility.reasons] == ["DATE_LOCKED", "RESERVATION_LOCKED"]
+
+
+def test_time_precedes_reservation_whichever_way_the_locks_arrive() -> None:
+    time_lock = TimeLock(time(10, 0), 30)
+    reservation = ReservationLock(D12, time(10, 0), time(11, 30))
+    for locks in ((time_lock, reservation), (reservation, time_lock)):
+        result = lock_checks(locks, D12, time(14, 0), 60)
+        assert [reason.code for reason in result.eligibility.reasons] == ["TIME_LOCKED", "RESERVATION_LOCKED"]
+
+
+def test_every_permutation_of_the_four_locks_reports_the_same_reasons() -> None:
+    locks: tuple[ItemLock, ...] = (
+        MustVisitLock(),
+        DateLock(D12),
+        TimeLock(time(10, 0), 30),
+        ReservationLock(D12, time(10, 0), time(11, 30)),
+    )
+    expected = lock_checks(locks, D13, time(14, 0), 60)
+    for permutation in itertools.permutations(locks):
+        result = lock_checks(permutation, D13, time(14, 0), 60)
+        assert [reason.code for reason in result.eligibility.reasons] == [
+            reason.code for reason in expected.eligibility.reasons
+        ]
+        assert result.passed == expected.passed

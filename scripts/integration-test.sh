@@ -82,6 +82,10 @@ fi
 
 docker compose version
 
+# REC-CI-6: evaluation.json records the commit it describes; compose passes this to ai-quality.
+APP_GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+export APP_GIT_SHA
+
 # --profile quality makes the quality-only services visible to `config`, so the compose contract check sees them.
 compose=(docker compose --project-name nullnull-pr --profile quality --file "${compose_file}")
 compose_available=true

@@ -40,6 +40,7 @@ REQUIRED_ITEM_FIXTURES = frozenset(
         "temporal-same-issue",
         "temporal-mixed-issue",
         "locked-reservation-and-time",
+        "locked-date-and-reservation",
         "unknown-hours-and-route",
         "deterministic-score-boundaries",
         "stale-incident-missing",

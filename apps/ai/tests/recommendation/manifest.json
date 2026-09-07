@@ -140,6 +140,13 @@
       "dataOrigin": "SYNTHETIC"
     },
     {
+      "id": "locked-date-and-reservation",
+      "path": "tests/recommendation/fixtures/locked-date-and-reservation.json",
+      "sha256": "8e6b2dc3bc69c342ed7fd2c0e8f377d5ff4489991714ea193c735a5bc1fea810",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
       "id": "unknown-hours-and-route",
       "path": "tests/recommendation/fixtures/unknown-hours-and-route.json",
       "sha256": "374d3e97a81fd22c5d0ae4377d66809bac4f177b73993f8d96226204628c1dfd",
