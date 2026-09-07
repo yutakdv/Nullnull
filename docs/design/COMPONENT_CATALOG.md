@@ -11,6 +11,42 @@ API 흐름은 [Figma 개발 핸드오프](./FIGMA_HANDOFF.md), 도메인 의미�
 [제품 요구사항](../product/PRODUCT_SPEC.md), response shape은
 [OpenAPI](../api/openapi.yaml)를 따른다.
 
+## 0. 디자인 토큰 파이프라인
+
+Figma의 local variable과 style이 토큰 정본이다. 코드는 이를 추출해 쓰고 값을 직접
+적지 않는다.
+
+| 항목 | 위치 |
+| --- | --- |
+| 추출 원본 | Figma `Nullnull UI Design` local variables + text/effect styles |
+| 저장소 사본 | `apps/web/src/design/tokens.json` (수기 편집 금지) |
+| 생성물 | `apps/web/src/design/tokens.css` (수기 편집 금지) |
+| 생성 명령 | `npm run tokens:build` |
+| 드리프트 검사 | `npm run tokens:check` — `verify:ci`에 포함 |
+
+2026-09-08 기준 Figma 정비 결과다.
+
+| 컬렉션·스타일 | 개수 | 비고 |
+| --- | --- | --- |
+| `01 Color (Wireframe)` | 12 | primitive 색 |
+| `05 Color (Semantic)` | 23 | primitive를 참조하는 별칭 |
+| `02 Spacing` | 9 | |
+| `03 Typography` | 11 | `font/caption-sm`(10) `font/body-base`(14) `font/icon`(16) 추가, `font/caption`을 12→11px로 변경 |
+| `04 Border` | 1 | |
+| `06 Radius` | 5 | 신규 컬렉션 |
+| text style | 12 | 신규. 1213곳 적용 |
+| effect style | 4 | 신규. 101곳 적용 |
+
+`font/label`(12px)과 `font/caption`(11px)은 값이 겹치지 않으며 용도가 다르다. 12px는
+라벨·네비게이션, 11px는 메타데이터다. 15px는 굵기로 위계를 나눈다. Bold는 제목
+(`Title/sm`), Medium은 본문(`Body/lg`)이다. 10px(`Caption/sm`)은 출처 표기 전용이며
+접근성 관점의 11px 상향은 별도 티켓으로 다룬다.
+
+`02 UI Design`의 text style 적용률은 48.6%다. 나머지는 스타일을 적용하면 높이가
+변하는 조합(17px Semi Bold의 iOS chrome, 14px Bold, `AUTO`/`100%` 줄간격 잔여)이라
+의도적으로 남겼다. 정리는 `FCR-001~015` 승인 뒤 스크린샷 갱신과 함께 한다. 따라서
+CI의 토큰 검사는 생성물 드리프트만 강제하고 Figma 전체 커버리지를 강제하지 않는다.
+
 ## 1. 구현 규칙
 
 - Catalog ID는 문서 추적 용도다. React export는 영문 PascalCase를 쓰고 Figma 원본 이름을 component JSDoc/Storybook tag에 남긴다.
