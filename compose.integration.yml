@@ -121,6 +121,8 @@ services:
     networks:
       - integration-internal
 
+  # integration-internal is internal: true, so published ports are unreachable from the host;
+  # scripts/integration-test.sh probes api and web readiness from inside the network instead.
   api:
     build:
       context: .
@@ -130,8 +132,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:18080:8080"
     networks:
       - integration-internal
 
@@ -144,8 +144,6 @@ services:
       API_INTERNAL_BASE_URL: http://api:8080
     depends_on:
       - api
-    ports:
-      - "127.0.0.1:14173:4173"
     networks:
       - integration-internal
 

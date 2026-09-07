@@ -123,11 +123,33 @@ fi
 "${compose[@]}" run --rm egress-denied
 "${compose[@]}" up --detach ai api web
 
+# integration-internal is internal: true, so a published port never reaches the host. Both
+# readiness probes therefore run inside the network from the ai container, whose runtime image
+# ships the Python standard library (no curl, no jq).
+readonly readiness_body="${artifact_dir}/api-readiness.json"
+readonly api_readiness_url="http://api:8080/api/v1/health/ready"
+readonly web_root_url="http://web:4173/"
+
+# Prints the response body when the URL answers HTTP 200; any other status, HTTP error,
+# connection failure or timeout exits non-zero without aborting the caller.
+fetch_http_ok() {
+  "${compose[@]}" exec -T ai python3 -c '
+import sys
+import urllib.request
+
+try:
+    with urllib.request.urlopen(sys.argv[1], timeout=5) as response:
+        if response.status != 200:
+            sys.exit(1)
+        sys.stdout.write(response.read().decode("utf-8", "replace"))
+except (OSError, ValueError):
+    sys.exit(1)
+' "$1"
+}
+
 # BA-003: /health/ready answers 200 while an optional probe is DEGRADED, so the HTTP status
 # alone would hide an unreachable recommendation service. ReadinessQuery reports READY only
 # when every probe, including the optional "recommendation" one, is READY.
-readonly readiness_body="${artifact_dir}/api-readiness.json"
-
 api_readiness_is_ready() {
   python3 -c '
 import json
@@ -165,13 +187,12 @@ for check in checks if isinstance(checks, list) else []:
 api_ready=false
 web_ready=false
 for _ in $(seq 1 60); do
-  if curl --fail --silent --show-error \
-    http://127.0.0.1:18080/api/v1/health/ready >"${readiness_body}"; then
+  if fetch_http_ok "${api_readiness_url}" >"${readiness_body}"; then
     if api_readiness_is_ready; then
       api_ready=true
     fi
   fi
-  if curl --fail --silent --show-error http://127.0.0.1:14173/ >/dev/null; then
+  if fetch_http_ok "${web_root_url}" >/dev/null; then
     web_ready=true
   fi
   if [[ "${api_ready}" == true && "${web_ready}" == true ]]; then
@@ -181,7 +202,7 @@ for _ in $(seq 1 60); do
 done
 
 if [[ "${api_ready}" != true || "${web_ready}" != true ]]; then
-  echo "Integrated web/API readiness did not complete within 120 seconds." >&2
+  echo "Integrated web/API readiness did not complete within 60 attempts." >&2
   if [[ -s "${readiness_body}" ]]; then
     echo "Last API readiness report:" >&2
     print_api_readiness_checks >&2
