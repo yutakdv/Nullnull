@@ -17,6 +17,7 @@ Python 3.13 · uv 0.12.10 고정. Spring(`apps/api`)이 보낸 immutable 입력�
 | `explain` | 근거 설명 template |
 | `evaluation` | corpus·invariant·fixture와 `evaluation.json` gate |
 | `contracts.py` | 계약 JSON export 진입점 |
+| `main.py` · `settings.py` | 서비스 진입점과 환경 설정 |
 
 ## 순수성 규칙 (깨면 안 됨)
 
@@ -51,6 +52,6 @@ $B run ruff check . && $B run ruff format --check . && $B run mypy && $B run pyt
   ```
 
 - 새 REC test ID는 `tests/recommendation/manifest.json`의 `implementedTestIds`와 fixture sha256에 함께 등록한다.
-  등록하지 않은 ID는 CI가 실행한 것으로 보지 않는다(`AGENTS.md#ci-검사-등록`).
+  등록하지 않은 ID는 CI가 실행한 것으로 보지 않는다([AGENTS.md의 CI 검사 등록](../../AGENTS.md#ci-검사-등록)).
 - skip·0건 실행·report 누락으로 gate를 통과시키지 않는다. 결측값을 0/보통으로 채우지 않는다.
 - mypy는 strict다. ruff format 결과는 `--check`로 검증되므로 포맷 후 커밋한다.
