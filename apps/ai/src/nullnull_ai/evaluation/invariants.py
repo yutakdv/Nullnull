@@ -162,21 +162,28 @@ def _opening_violations(window: OpeningWindow, at: time | None, duration: int | 
 
 
 def _neighbour_violations(inp: ItemOptimizationInput, day: date, at: time | None, duration: int | None) -> list[str]:
-    """A returned stay never overlaps another item of that date, and never guesses a missing length."""
+    """A returned stay never overlaps another item of that date, and never guesses a missing length.
+
+    Every neighbour of the date is scanned before answering and a confirmed overlap outranks an
+    unmeasured neighbour, so the reported violation does not depend on the stored order (§6).
+    """
     if at is None:
         return []
     if duration is None:
         return ["a timed proposal without a verified stay length"]
     begins, ends = _stay(at, duration)
+    unmeasured: list[time] = []
     for neighbour in inp.neighbours:
         if neighbour.item_id == inp.target.item_id or neighbour.date != day or neighbour.start_time is None:
             continue
         if neighbour.duration_minutes is None:
-            return [f"a neighbouring stay at {neighbour.start_time} has no verified length"]
+            unmeasured.append(neighbour.start_time)
+            continue
         other_begins, other_ends = _stay(neighbour.start_time, neighbour.duration_minutes)
         if (begins < other_ends and other_begins < ends) or at == neighbour.start_time:
             return [f"the stay overlaps the item at {neighbour.start_time} on {day}"]
-    return []
+    # The earliest unmeasured neighbour, so the message itself is independent of the stored order.
+    return [f"a neighbouring stay at {min(unmeasured)} has no verified length"] if unmeasured else []
 
 
 def _route_violations(inp: ItemOptimizationInput, day: date) -> list[str]:

@@ -214,6 +214,16 @@ def test_a_neighbour_without_a_verified_length_is_reported() -> None:
     assert any("has no verified length" in violation for violation in report.violations)
 
 
+def test_a_confirmed_overlap_is_reported_whichever_neighbour_comes_first() -> None:
+    """Mirrors `filters.neighbour_overlap`: a known overlap outranks an unmeasured neighbour (§6)."""
+    unmeasured = NeighbourItem(UUID("018f3f8e-9b67-7a21-8d31-31d315b93b03"), D12, 3, time(9, 30), None)
+    for neighbours in ((unmeasured, NEIGHBOUR), (NEIGHBOUR, unmeasured)):
+        report = invariants.check(
+            optimization_input(neighbours=neighbours, evidence=RouteEvidence.VERIFIED), [proposal()]
+        )
+        assert any("overlaps the item at 12:30:00" in violation for violation in report.violations), report.violations
+
+
 def test_changed_travel_legs_without_route_evidence_are_reported() -> None:
     inp = optimization_input(neighbours=(replace(NEIGHBOUR, start_time=time(16)),))
     report = invariants.check(inp, [proposal()])

@@ -116,11 +116,17 @@ class TargetItemIn(ContractModel):
 
 
 class NeighbourItemIn(ContractModel):
+    """Another item on a day the move touches.
+
+    A stay is either unknown or a positive number of minutes: zero or a negative length would shrink a
+    neighbouring interval to nothing and let an overlapping proposal through (§5.4).
+    """
+
     item_id: UUID
     date: date_
     position: int
     start_time: time_ | None
-    duration_minutes: int | None
+    duration_minutes: int | None = Field(gt=0)
 
 
 class OpeningWindowIn(ContractModel):

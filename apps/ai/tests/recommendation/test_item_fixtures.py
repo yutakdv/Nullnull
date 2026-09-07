@@ -44,6 +44,8 @@ REQUIRED_ITEM_FIXTURES = frozenset(
         "unknown-hours-and-route",
         "deterministic-score-boundaries",
         "stale-incident-missing",
+        "neighbour-overlap-and-unknown",
+        "merged-slot-day-and-hour",
     }
 )
 

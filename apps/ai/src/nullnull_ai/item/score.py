@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 from nullnull_ai.domain.policy import RecommendationPolicy
 from nullnull_ai.domain.types import CandidateKey, Reason, ScoreBreakdown
@@ -85,10 +86,17 @@ class ScoredCandidate:
     key: CandidateKey
     proposed_start_time: time | None
     admission: Admitted
+    before_snapshot_id: UUID
+    after_snapshot_id: UUID
 
 
-def proposal_sort_key(scored: ScoredCandidate) -> tuple[Decimal, Decimal, object, int, object, str]:
-    """score DESC → changeCost ASC → date ASC → time ASC (date-only first) → placeId ASC (§5.5)."""
+def proposal_sort_key(scored: ScoredCandidate) -> tuple[Decimal, Decimal, object, int, object, str, str, str]:
+    """score DESC → changeCost ASC → date ASC → time ASC (date-only first) → placeId ASC (§5.5).
+
+    The snapshot pair is appended last and is not part of the spec order: it only separates two
+    candidates that are identical in every key above, which a stable sort would otherwise leave in
+    the caller's arrival order (§6).
+    """
     time_value = scored.proposed_start_time
     return (
         -scored.admission.score.score,
@@ -97,4 +105,6 @@ def proposal_sort_key(scored: ScoredCandidate) -> tuple[Decimal, Decimal, object
         0 if time_value is None else 1,
         time_value if time_value is not None else 0,
         str(scored.key.place_id),
+        str(scored.before_snapshot_id),
+        str(scored.after_snapshot_id),
     )

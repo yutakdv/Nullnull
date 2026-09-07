@@ -2,8 +2,10 @@
 
 Pure: the caller supplies every fact. Filters run in a fixed order and stop at the first non-eligible
 result; that first reason decides the candidate's rejection class and, when nothing is admitted, the
-terminal outcome. The detailed cap is applied on a fixed key so the source's arrival order can never
-change which candidates are evaluated.
+terminal outcome - except for the structural rejections `NO_CHANGE`, `OUTSIDE_TRIP_RANGE` and
+`PLACE_MISMATCH`, which say only that the caller offered something that was never a move of this item
+and are therefore left out of that vote (D-REC-17). The detailed cap is applied on a fixed key so the
+source's arrival order can never change which candidates are evaluated.
 
 An item without a start time resolves to local midnight on both sides of the shift (`domain.time`
 treats a missing time as the start of the day, D-REC-4). Assigning a time to such an item therefore
@@ -43,6 +45,10 @@ NO_CANDIDATES = "NO_CANDIDATES"
 
 _LOCK = {filters.DATE_LOCKED, filters.TIME_LOCKED, filters.RESERVATION_LOCKED}
 _ROUTE = {filters.ROUTE_EVIDENCE_MISSING}
+# Structural input rejections (D-REC-17): the caller offered something that was never a move of this
+# item, so they say nothing about the itinerary and never decide the terminal plane. They still count
+# in `rejected_by_reason` and are still reported as reasons.
+_STRUCTURAL = {filters.NO_CHANGE, filters.OUTSIDE_TRIP_RANGE, filters.PLACE_MISMATCH}
 _DATA = {
     filters.OPENING_HOURS_UNKNOWN,
     filters.DURATION_UNKNOWN,
@@ -107,7 +113,10 @@ class _Scored:
     lock_checks: Mapping[LockType, bool]
 
 
-def _classify(code: str) -> str:
+def _classify(code: str) -> str | None:
+    """The terminal class this rejection argues for, or None when it is a structural input rejection."""
+    if code in _STRUCTURAL:
+        return None
     if code in _LOCK:
         return "LOCK"
     if code in _ROUTE:
@@ -117,10 +126,21 @@ def _classify(code: str) -> str:
     return "NO_IMPROVEMENT"
 
 
-def _cap_key(candidate: TemporalCandidate) -> tuple[object, int, object, str]:
-    """date ASC, time ASC (date-only first), placeId ASC - never the source's arrival order."""
+def _cap_key(candidate: TemporalCandidate) -> tuple[object, int, object, str, str, str]:
+    """date ASC, time ASC (date-only first), placeId ASC - never the source's arrival order.
+
+    The snapshot pair is appended last so that two candidates identical in every key above are still
+    cut in a fixed order at the detailed cap, instead of in the order the caller sent them (§6).
+    """
     at = candidate.key.time
-    return (candidate.key.date, 0 if at is None else 1, at if at is not None else 0, str(candidate.key.place_id))
+    return (
+        candidate.key.date,
+        0 if at is None else 1,
+        at if at is not None else 0,
+        str(candidate.key.place_id),
+        str(candidate.before_snapshot_id),
+        str(candidate.after_snapshot_id),
+    )
 
 
 class ItemProposalEvaluator:
@@ -162,12 +182,17 @@ class ItemProposalEvaluator:
             else:
                 assert reason is not None
                 rejected[reason.code] += 1
-                classes.add(_classify(reason.code))
+                terminal_class = _classify(reason.code)
+                if terminal_class is not None:
+                    classes.add(terminal_class)
         summary = RejectionSummary(len(considered), dict(sorted(rejected.items())))
         if admitted:
             return ItemProposalResult(Outcome.PROPOSALS, self._select(admitted), (), summary)
         reasons = tuple(Reason(code, "all candidates rejected") for code in sorted(rejected))
-        if classes and classes <= {"LOCK"}:
+        if not classes:
+            # Every candidate was a structural rejection: nothing was ever evaluated as a move (D-REC-17).
+            return ItemProposalResult(Outcome.DATA_INSUFFICIENT, (), reasons, summary)
+        if classes <= {"LOCK"}:
             return ItemProposalResult(Outcome.LOCK_CONFLICT, (), reasons, summary)
         if "ROUTE" in classes:
             return ItemProposalResult(Outcome.ROUTE_UNAVAILABLE, (), reasons, summary)
@@ -207,7 +232,9 @@ class ItemProposalEvaluator:
         admission = self._score.evaluate(candidate.metric_code, candidate.verdict, shift)
         if isinstance(admission, Rejected):
             return None, admission.reason
-        scored = ScoredCandidate(candidate.key, at, admission)
+        scored = ScoredCandidate(
+            candidate.key, at, admission, candidate.before_snapshot_id, candidate.after_snapshot_id
+        )
         return _Scored(scored, candidate, before_instant, after.instant, locks.passed), None
 
     def _select(self, admitted: list[_Scored]) -> tuple[ItemProposal, ...]:

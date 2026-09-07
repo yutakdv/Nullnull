@@ -250,6 +250,35 @@ def test_the_terminal_plane_follows_the_rejection_classes_not_the_first_candidat
     assert routed.summary.rejected_by_reason == {"IMPROVEMENT_BELOW_MINIMUM": 1, "ROUTE_EVIDENCE_MISSING": 1}
 
 
+def test_a_structural_rejection_never_decides_the_terminal_plane() -> None:
+    """D-REC-17: NO_CHANGE, OUTSIDE_TRIP_RANGE and PLACE_MISMATCH say nothing about the itinerary.
+
+    They mean the caller offered something that was never a move of this item, so they are counted
+    in the summary but must not turn a pure lock conflict into `NO_IMPROVEMENT`.
+    """
+    locked = evaluate(
+        [candidate(D13, time(10, 0), 80, 40), candidate(D12, time(10, 0), 80, 40)],
+        locks=(DateLock(D12),),
+    )
+    assert locked.outcome is Outcome.LOCK_CONFLICT
+    assert locked.summary.rejected_by_reason == {"DATE_LOCKED": 1, "NO_CHANGE": 1}
+    assert [reason.code for reason in locked.reasons] == ["DATE_LOCKED", "NO_CHANGE"]
+
+
+def test_only_structurally_rejected_candidates_are_a_data_gap_not_a_missing_improvement() -> None:
+    result = evaluate(
+        [
+            candidate(D12, time(10, 0), 80, 40),  # the current slot
+            candidate(D15, time(11, 0), 80, 40),  # outside the trip
+            candidate(D12, time(11, 0), 80, 40, place=OTHER_PLACE),  # another place
+        ]
+    )
+    assert result.outcome is Outcome.DATA_INSUFFICIENT
+    assert result.summary.rejected_by_reason == {"NO_CHANGE": 1, "OUTSIDE_TRIP_RANGE": 1, "PLACE_MISMATCH": 1}
+    assert [reason.code for reason in result.reasons] == ["NO_CHANGE", "OUTSIDE_TRIP_RANGE", "PLACE_MISMATCH"]
+    assert result.proposals == ()
+
+
 def test_day_resolution_keeps_the_existing_start_time() -> None:
     result = evaluate([candidate(D13, None, 80, 40)])
     assert result.outcome is Outcome.PROPOSALS
@@ -322,6 +351,28 @@ def test_detailed_candidate_cap_uses_a_fixed_key_not_arrival_order() -> None:
         assert actual.outcome is Outcome.PROPOSALS, iteration
         assert [proposal.candidate.key for proposal in actual.proposals] == keys, iteration
         assert actual.summary.rejected_by_reason["CANDIDATE_CAP_EXCEEDED"] == 5, iteration
+
+
+def test_exact_duplicates_are_cut_at_the_detailed_cap_in_a_fixed_order() -> None:
+    """Two candidates identical in every spec key are still separated by their snapshot pair (§6).
+
+    The D13 block fills the cap minus one and D14 sorts after every D13 slot, so the cut falls
+    exactly between the twins: a merely stable sort would keep whichever one arrived first.
+    """
+    cap = POLICY.candidate_caps.item_detailed
+    start = datetime.combine(D13, time(9, 0))
+    filler = [candidate(D13, (start + timedelta(minutes=5 * i)).time(), 80, 77) for i in range(cap - 1)]
+    twins = [candidate(D14, time(10, 0), 80, 40), candidate(D14, time(10, 0), 80, 40)]
+    kept = min(twins, key=lambda twin: (str(twin.before_snapshot_id), str(twin.after_snapshot_id)))
+
+    rng = random.Random(SEED)
+    for iteration in range(200):
+        shuffled = filler + twins
+        rng.shuffle(shuffled)
+        result = evaluate(shuffled)
+        assert result.summary.evaluated == cap, iteration
+        assert result.summary.rejected_by_reason["CANDIDATE_CAP_EXCEEDED"] == 1, iteration
+        assert [p.candidate.before_snapshot_id for p in result.proposals] == [kept.before_snapshot_id], iteration
 
 
 def test_a_full_day_move_that_only_clears_the_minimum_is_not_an_improvement() -> None:

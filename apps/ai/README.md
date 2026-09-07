@@ -31,9 +31,24 @@ python3.13 -m venv .uv-bootstrap && .uv-bootstrap/bin/pip install uv==0.12.10   
 .uv-bootstrap/bin/uv run python -m nullnull_ai.contracts export   # after changing any endpoint/schema
 ```
 
+A single file or `-k` selection needs `NULLNULL_AI_PARTIAL_RUN=1`: the session hook in `tests/conftest.py` fails a run that did not execute every ITEM fixture the manifest declares (exit 1), and the flag waives only that completeness check while stamping `corpus.partial: true` in `evaluation.json`. The full run and CI must never set it — a `partial: true` artifact is not merge evidence.
+
 ## Internal contract v1
 
-`contracts/recommendation-internal-v1.json` is the frozen OpenAPI document served at `/internal/openapi.json`. A test fails when the running app and the file differ. Operations: `GET /internal/v1/health/live`, `GET /internal/v1/health/ready`, `GET /internal/v1/policy`, `POST /internal/v1/feed/rank`. Requests carry only place/post identifiers, publish state and instants; owner ids, session tokens, hidden/saved state, raw itinerary text and coordinates never reach this service.
+`contracts/recommendation-internal-v1.json` is the frozen OpenAPI document served at `/internal/openapi.json`. A test fails when the running app and the file differ. Operations:
+
+| Operation | Purpose |
+| --- | --- |
+| `GET /internal/v1/health/live` | liveness |
+| `GET /internal/v1/health/ready` | readiness with per-capability status |
+| `GET /internal/v1/policy` | policy version, policy hash, pipeline version, service version |
+| `POST /internal/v1/feed/rank` | feed order for one snapshot of curated posts |
+| `POST /internal/v1/items/propose` | ITEM temporal previews for one trip item |
+| `POST /internal/v1/slots/evaluate` | per-date slots for one ACTIVE candidate |
+| `POST /internal/v1/related/rank` | related places for one source place |
+| `POST /internal/v1/explanations/render` | one explanation sentence from verified facts |
+
+Requests carry only place/post identifiers, publish state and instants; owner ids, session tokens, hidden/saved state, raw itinerary text and coordinates never reach this service.
 
 ## Layout
 

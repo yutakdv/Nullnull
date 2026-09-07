@@ -195,6 +195,34 @@ def test_opening_hours_are_bounded_to_the_longest_trip(client: TestClient) -> No
             "reason code outside SOURCE_CATALOG.md §9",
         ),
         ({"target": {**body()["target"], "durationMinutes": 0}}, "a duration of zero minutes"),
+        (
+            {
+                "neighbours": [
+                    {
+                        "itemId": NEIGHBOUR,
+                        "date": "2026-09-13",
+                        "position": 2,
+                        "startTime": "10:00:00",
+                        "durationMinutes": 0,
+                    }
+                ]
+            },
+            "a neighbouring stay of zero minutes",
+        ),
+        (
+            {
+                "neighbours": [
+                    {
+                        "itemId": NEIGHBOUR,
+                        "date": "2026-09-13",
+                        "position": 2,
+                        "startTime": "10:00:00",
+                        "durationMinutes": -30,
+                    }
+                ]
+            },
+            "a neighbouring stay of negative length",
+        ),
         ({"evaluatedAt": "2026-09-06T00:00:00"}, "a naive instant"),
         ({"ownerId": "someone"}, "owner identifiers never reach this service"),
         ({"routeEvidence": "MAYBE"}, "route evidence is NONE or VERIFIED"),

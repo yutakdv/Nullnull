@@ -167,20 +167,30 @@ def neighbour_overlap(
     An unknown duration on either side is UNKNOWN, never treated as zero minutes. Neighbours without
     a start time impose no interval; the target itself is skipped. A stay that runs past midnight
     occupies the rest of its own date, so a wrapped end is never mistaken for an early finish.
+
+    Every neighbour of that date is scanned before answering, and a fact outranks a missing one: a
+    confirmed overlap is INELIGIBLE even when another neighbour has no verified length, and only
+    when nothing overlaps does an unmeasured neighbour make the whole check UNKNOWN. Returning the
+    first verdict seen would make the answer - and with it the terminal outcome - depend on the
+    order the trip happened to store its items in (§6).
     """
     if start is None:
         return Eligibility.eligible()
     if duration_minutes is None:
         return Eligibility.unknown(Reason(DURATION_UNKNOWN, "stay length unverified"))
     begins_at, ends_at = _stay(start, duration_minutes)
+    unmeasured = False
     for neighbour in neighbours:
         if neighbour.item_id == target_item_id or neighbour.date != day or neighbour.start_time is None:
             continue
         if neighbour.duration_minutes is None:
-            return Eligibility.unknown(Reason(NEIGHBOUR_DURATION_UNKNOWN, "a neighbouring stay has no verified length"))
+            unmeasured = True
+            continue
         n_begins_at, n_ends_at = _stay(neighbour.start_time, neighbour.duration_minutes)
         if (begins_at < n_ends_at and n_begins_at < ends_at) or start == neighbour.start_time:
             return Eligibility.ineligible(Reason(OVERLAPS_NEIGHBOUR, "overlaps another item on that date"))
+    if unmeasured:
+        return Eligibility.unknown(Reason(NEIGHBOUR_DURATION_UNKNOWN, "a neighbouring stay has no verified length"))
     return Eligibility.eligible()
 
 

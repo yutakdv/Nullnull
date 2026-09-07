@@ -20,6 +20,7 @@ PLACE = UUID("018f3f8e-9b67-7a21-8d31-31d315b93a01")
 OTHER_PLACE = UUID("018f3f8e-9b67-7a21-8d31-31d315b93a02")
 ITEM = UUID("018f3f8e-9b67-7a21-8d31-31d315b93b01")
 NEIGHBOUR = UUID("018f3f8e-9b67-7a21-8d31-31d315b93b02")
+OTHER_NEIGHBOUR = UUID("018f3f8e-9b67-7a21-8d31-31d315b93b03")
 D12 = date(2026, 9, 12)
 D13 = date(2026, 9, 13)
 TARGET = TargetItem(ITEM, PLACE, D12, time(10, 0), 90, 1)
@@ -50,6 +51,23 @@ def test_neighbour_overlap_uses_known_intervals_only() -> None:
     assert neighbour_overlap(neighbours, ITEM, D13, time(11, 0), 60).is_eligible
     # No proposed time means no overlap claim.
     assert neighbour_overlap(neighbours, ITEM, D13, None, 60).is_eligible
+
+
+def test_a_confirmed_overlap_outranks_an_unknown_neighbour_length_in_either_order() -> None:
+    """§6: the verdict may not depend on the order the trip happened to store its items in.
+
+    A known overlap is a fact; an unmeasured neighbour is only a missing one, so the fact decides
+    whichever neighbour is seen first.
+    """
+    unmeasured = NeighbourItem(NEIGHBOUR, D13, 1, time(9, 30), None)
+    overlapping = NeighbourItem(OTHER_NEIGHBOUR, D13, 2, time(10, 0), 60)
+    for neighbours in ((unmeasured, overlapping), (overlapping, unmeasured)):
+        verdict = neighbour_overlap(neighbours, ITEM, D13, time(10, 0), 60)
+        assert verdict.state is EligibilityState.INELIGIBLE
+        assert verdict.reasons[0].code == "OVERLAPS_NEIGHBOUR"
+    # A neighbour of another date never contributes its missing length either.
+    other_day = (NeighbourItem(NEIGHBOUR, D12, 1, time(9, 30), None), overlapping)
+    assert neighbour_overlap(other_day, ITEM, D13, time(12, 0), 60).is_eligible
 
 
 def test_a_stay_that_wraps_past_midnight_occupies_the_rest_of_its_date() -> None:

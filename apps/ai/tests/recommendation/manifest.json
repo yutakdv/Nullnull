@@ -168,6 +168,20 @@
       "dataOrigin": "SYNTHETIC"
     },
     {
+      "id": "neighbour-overlap-and-unknown",
+      "path": "tests/recommendation/fixtures/neighbour-overlap-and-unknown.json",
+      "sha256": "74da75636a7293b167049787070d5a06c1f5468365b0dcab15e68a1935cf39f0",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "merged-slot-day-and-hour",
+      "path": "tests/recommendation/fixtures/merged-slot-day-and-hour.json",
+      "sha256": "8b2605457600f089a707f5277e5b4c92390bc7460f73085174824898d47f94b0",
+      "kind": "ITEM",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
       "id": "feed-order-cases",
       "path": "tests/recommendation/fixtures/feed-order-cases.json",
       "sha256": "0f7e5687ed43866b77a1f908628385ec892473bd23e6b86a49ef0e50c1bda76c",

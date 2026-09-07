@@ -707,6 +707,7 @@
       },
       "NeighbourItemIn": {
         "additionalProperties": false,
+        "description": "Another item on a day the move touches.\n\nA stay is either unknown or a positive number of minutes: zero or a negative length would shrink a\nneighbouring interval to nothing and let an overlapping proposal through (§5.4).",
         "properties": {
           "date": {
             "format": "date",
@@ -716,6 +717,7 @@
           "durationMinutes": {
             "anyOf": [
               {
+                "exclusiveMinimum": 0.0,
                 "type": "integer"
               },
               {
