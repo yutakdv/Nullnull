@@ -111,6 +111,13 @@ services:
       NULLNULL_AI_PORT: "8090"
       NULLNULL_CATALOG_VERSION: catalog-integration-fixture
       AI_PROVIDER: NONE
+    healthcheck:
+      # The runtime image has no curl; the pinned python:3.13-slim standard library is enough.
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8090/internal/v1/health/ready', timeout=2).status == 200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     networks:
       - integration-internal
 

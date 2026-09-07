@@ -123,11 +123,53 @@ fi
 "${compose[@]}" run --rm egress-denied
 "${compose[@]}" up --detach ai api web
 
+# BA-003: /health/ready answers 200 while an optional probe is DEGRADED, so the HTTP status
+# alone would hide an unreachable recommendation service. ReadinessQuery reports READY only
+# when every probe, including the optional "recommendation" one, is READY.
+readonly readiness_body="${artifact_dir}/api-readiness.json"
+
+api_readiness_is_ready() {
+  python3 -c '
+import json
+import sys
+
+try:
+    document = json.load(sys.stdin)
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if isinstance(document, dict) and document.get("status") == "READY" else 1)
+' <"${readiness_body}"
+}
+
+print_api_readiness_checks() {
+  python3 -c '
+import json
+import sys
+
+try:
+    document = json.load(sys.stdin)
+except ValueError:
+    print("readiness body is not JSON")
+    raise SystemExit(0)
+if not isinstance(document, dict):
+    print("readiness body is not an object")
+    raise SystemExit(0)
+print("status={}".format(document.get("status")))
+checks = document.get("checks")
+for check in checks if isinstance(checks, list) else []:
+    if isinstance(check, dict):
+        print("{}={}".format(check.get("name"), check.get("status")))
+' <"${readiness_body}"
+}
+
 api_ready=false
 web_ready=false
 for _ in $(seq 1 60); do
-  if curl --fail --silent --show-error http://127.0.0.1:18080/api/v1/health/ready >/dev/null; then
-    api_ready=true
+  if curl --fail --silent --show-error \
+    http://127.0.0.1:18080/api/v1/health/ready >"${readiness_body}"; then
+    if api_readiness_is_ready; then
+      api_ready=true
+    fi
   fi
   if curl --fail --silent --show-error http://127.0.0.1:14173/ >/dev/null; then
     web_ready=true
@@ -140,6 +182,10 @@ done
 
 if [[ "${api_ready}" != true || "${web_ready}" != true ]]; then
   echo "Integrated web/API readiness did not complete within 120 seconds." >&2
+  if [[ -s "${readiness_body}" ]]; then
+    echo "Last API readiness report:" >&2
+    print_api_readiness_checks >&2
+  fi
   exit 1
 fi
 
