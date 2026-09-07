@@ -13,9 +13,9 @@ import io.nullnull.recommendation.domain.item.TargetItemIn;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
 import io.nullnull.trip.domain.ItemLock;
 import io.nullnull.trip.domain.LockChecks;
+import io.nullnull.trip.domain.StayInterval;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -73,9 +73,6 @@ public final class ProposalRevalidator {
     public static final String NEIGHBOUR_DURATION_UNKNOWN = "NEIGHBOUR_DURATION_UNKNOWN";
     public static final String OVERLAPS_NEIGHBOUR = "OVERLAPS_NEIGHBOUR";
     public static final String ROUTE_EVIDENCE_MISSING = "ROUTE_EVIDENCE_MISSING";
-
-    /** Any fixed date: a stay is compared inside one calendar day, never across one. */
-    private static final LocalDate EPOCH = LocalDate.of(2000, 1, 1);
 
     private final PolicyDescriptor cachedPolicy;
 
@@ -241,9 +238,9 @@ public final class ProposalRevalidator {
         if (durationMinutes == null) {
             return DURATION_UNKNOWN;
         }
-        LocalDateTime end = LocalDateTime.of(EPOCH, start).plusMinutes(durationMinutes);
-        boolean wrapped = !end.toLocalDate().equals(EPOCH);
-        boolean inside = !wrapped && !start.isBefore(window.opensAt()) && !end.toLocalTime().isAfter(window.closesAt());
+        StayInterval.End end = StayInterval.endOf(start, durationMinutes);
+        boolean inside = !end.wrappedPastMidnight() && !start.isBefore(window.opensAt())
+                && !end.time().isAfter(window.closesAt());
         return inside ? null : OUTSIDE_OPENING_HOURS;
     }
 
@@ -264,8 +261,7 @@ public final class ProposalRevalidator {
         if (durationMinutes == null) {
             return DURATION_UNKNOWN;
         }
-        LocalDateTime begins = LocalDateTime.of(EPOCH, start);
-        LocalDateTime ends = endOfStay(start, durationMinutes);
+        StayInterval.Stay stay = StayInterval.of(start, durationMinutes);
         boolean unmeasured = false;
         for (NeighbourItemIn neighbour : neighbours) {
             if (neighbour.itemId().equals(targetItemId) || !neighbour.date().equals(day)
@@ -276,9 +272,8 @@ public final class ProposalRevalidator {
                 unmeasured = true;
                 continue;
             }
-            LocalDateTime neighbourBegins = LocalDateTime.of(EPOCH, neighbour.startTime());
-            LocalDateTime neighbourEnds = endOfStay(neighbour.startTime(), neighbour.durationMinutes());
-            if ((begins.isBefore(neighbourEnds) && neighbourBegins.isBefore(ends))
+            StayInterval.Stay neighbourStay = StayInterval.of(neighbour.startTime(), neighbour.durationMinutes());
+            if ((stay.beginsAt().isBefore(neighbourStay.endsAt()) && neighbourStay.beginsAt().isBefore(stay.endsAt()))
                     || start.equals(neighbour.startTime())) {
                 return OVERLAPS_NEIGHBOUR;
             }
@@ -294,13 +289,6 @@ public final class ProposalRevalidator {
                         && (neighbour.date().equals(from) || neighbour.date().equals(day)));
         return legsAffected && request.routeEvidence() != ItemProposeRequest.RouteEvidence.VERIFIED
                 ? ROUTE_EVIDENCE_MISSING : null;
-    }
-
-    /** The stay as a half-open interval that never folds back into the morning of its own date. */
-    private static LocalDateTime endOfStay(LocalTime start, int durationMinutes) {
-        LocalDateTime dayEnd = LocalDateTime.of(EPOCH.plusDays(1), LocalTime.MIDNIGHT);
-        LocalDateTime end = LocalDateTime.of(EPOCH, start).plusMinutes(durationMinutes);
-        return end.isAfter(dayEnd) ? dayEnd : end;
     }
 
     private static void addIfPresent(Set<String> codes, String code) {

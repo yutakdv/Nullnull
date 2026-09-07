@@ -17,6 +17,9 @@ public record TemporalCandidateIn(UUID placeId, LocalDate date, LocalTime time, 
 
     public enum ForecastResolution { DAY, HOUR }
 
+    /** The published code of the compared metric; the service refuses a longer one with a 422. */
+    public static final int MAX_METRIC_CODE = 64;
+
     public TemporalCandidateIn {
         Objects.requireNonNull(placeId, "placeId");
         Objects.requireNonNull(date, "date");
@@ -27,6 +30,12 @@ public record TemporalCandidateIn(UUID placeId, LocalDate date, LocalTime time, 
         Objects.requireNonNull(verdictReasonCode, "verdictReasonCode");
         Objects.requireNonNull(beforeSnapshotId, "beforeSnapshotId");
         Objects.requireNonNull(afterSnapshotId, "afterSnapshotId");
+        if (metricCode.isBlank()) {
+            throw new IllegalArgumentException("metricCode must not be blank");
+        }
+        if (metricCode.length() > MAX_METRIC_CODE) {
+            throw new IllegalArgumentException("metricCode must be at most " + MAX_METRIC_CODE + " characters");
+        }
         if (resolution == ForecastResolution.DAY && time != null) {
             throw new IllegalArgumentException("a DAY resolution candidate carries no time");
         }

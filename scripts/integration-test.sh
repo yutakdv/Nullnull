@@ -7,6 +7,7 @@ readonly marker_path="${project_root}/.nullnull-target-stack"
 readonly artifact_dir="${project_root}/.artifacts/integration"
 readonly compose_file="${project_root}/compose.integration.yml"
 readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
+readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
 
 compose_available=false
 compose=()
@@ -109,12 +110,14 @@ python3 "${target_stack_verifier}" \
 "${compose[@]}" run --rm ai-quality
 
 # REC-CI-6: the recommendation evaluation report is merge evidence, so a missing artifact fails here
-# even when the suite itself was green.
+# even when the suite itself was green. A report that records a partial corpus or a non-empty
+# safety.failures is not evidence either, so its content is re-checked outside the container.
 readonly recommendation_report="${artifact_dir}/recommendation-ai/evaluation.json"
 if [[ ! -f "${recommendation_report}" ]]; then
   echo "Recommendation evaluation report is missing: ${recommendation_report}" >&2
   exit 1
 fi
+python3 "${evaluation_report_checker}" "${recommendation_report}"
 
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff

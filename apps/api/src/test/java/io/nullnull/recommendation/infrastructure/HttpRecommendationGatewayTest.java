@@ -684,6 +684,16 @@ class HttpRecommendationGatewayTest {
     }
 
     @Test
+    void anExplanationOfExactlyTheContractLengthIsAccepted() {
+        String atTheLimit = "a".repeat(ExplanationRenderResponse.MAX_SUMMARY_LENGTH - ATTRIBUTION.length())
+                + ATTRIBUTION;
+        expectExplanation(server, explanationBody(atTheLimit, "TEMPLATE"));
+        assertThat(gateway.renderExplanation(explanationRequest()).summary())
+                .hasSize(ExplanationRenderResponse.MAX_SUMMARY_LENGTH);
+        server.verify();
+    }
+
+    @Test
     void anEmptyLongOrMultiLineExplanationIsRejected() {
         // All three expectations are registered before the first call: the mock server is ordered.
         expectExplanation(server, explanationBody("   ", "TEMPLATE"));

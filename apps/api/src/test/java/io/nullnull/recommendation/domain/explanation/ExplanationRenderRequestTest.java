@@ -18,6 +18,12 @@ class ExplanationRenderRequestTest {
 
     static final LocalDate D12 = LocalDate.of(2026, 9, 12);
 
+    static ExplanationRenderRequest strings(String placeName, String metricLabel, String attribution,
+            String forecastIssueId) {
+        return new ExplanationRenderRequest("en", placeName, D12, null, D12, null, new BigDecimal("80"),
+                new BigDecimal("60"), metricLabel, attribution, forecastIssueId);
+    }
+
     static ExplanationRenderRequest request(String locale, BigDecimal before, BigDecimal after) {
         return new ExplanationRenderRequest(locale, "Gyeongbokgung", D12, LocalTime.of(10, 0), D12, LocalTime.of(12, 0),
                 before, after, "relative concentration index", "Source: Korea Tourism Organization", "issue-1");
@@ -58,6 +64,41 @@ class ExplanationRenderRequestTest {
                 new BigDecimal("80"), new BigDecimal("60"), "index", "Source", "issue\n1"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("forecastIssueId must not contain a control");
+    }
+
+    @Test
+    void everyApprovedStringOfExactlyTheContractLengthIsAccepted() {
+        // maxLength 200/64/200/64 on the service side. The limit itself is a legal value, so refusing
+        // only limit+1 would still pass if a bound were quietly tightened by one character.
+        ExplanationRenderRequest request = strings("P".repeat(ExplanationRenderRequest.MAX_PLACE_NAME),
+                "m".repeat(ExplanationRenderRequest.MAX_METRIC_LABEL),
+                "a".repeat(ExplanationRenderRequest.MAX_ATTRIBUTION),
+                "i".repeat(ExplanationRenderRequest.MAX_FORECAST_ISSUE_ID));
+
+        assertThat(request.placeName()).hasSize(ExplanationRenderRequest.MAX_PLACE_NAME);
+        assertThat(request.metricLabel()).hasSize(ExplanationRenderRequest.MAX_METRIC_LABEL);
+        assertThat(request.attribution()).hasSize(ExplanationRenderRequest.MAX_ATTRIBUTION);
+        assertThat(request.forecastIssueId()).hasSize(ExplanationRenderRequest.MAX_FORECAST_ISSUE_ID);
+    }
+
+    @Test
+    void aPlaceNameOneCharacterOverTheContractLengthIsRefused() {
+        assertThatThrownBy(() -> strings("P".repeat(ExplanationRenderRequest.MAX_PLACE_NAME + 1), "index", "Source",
+                null)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("placeName must be at most");
+    }
+
+    @Test
+    void anApprovedStringThatNamesNothingIsRefused() {
+        // minLength 1 on the service side for all three required strings: a metric nobody can name and
+        // a sentence with no attribution are exactly the claims §9.1 forbids an explanation from making.
+        assertThatThrownBy(() -> strings("Gyeongbokgung", "", "Source", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("metricLabel must not be blank");
+        assertThatThrownBy(() -> strings("Gyeongbokgung", "   ", "Source", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("metricLabel must not be blank");
+        assertThatThrownBy(() -> strings("Gyeongbokgung", "index", "", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("attribution must not be blank");
+        assertThatThrownBy(() -> strings("Gyeongbokgung", "index", "   ", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("attribution must not be blank");
     }
 
     @Test

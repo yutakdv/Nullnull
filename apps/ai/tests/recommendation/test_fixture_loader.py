@@ -20,12 +20,15 @@ from nullnull_ai.evaluation.fixtures import (
     load_item_fixture,
     of_kind,
     read_entries,
+    read_verified,
 )
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path(__file__).with_name("manifest.json")
 manifest: dict[str, Any] = json.loads(MANIFEST.read_text(encoding="utf-8"))
-ITEM_ENTRIES = of_kind(read_entries(manifest), "ITEM")
+ENTRIES = read_entries(manifest)
+ITEM_ENTRIES = of_kind(ENTRIES, "ITEM")
+FEED_ENTRIES = of_kind(ENTRIES, "FEED")
 
 
 def _entry(path: Path, *, id_: str = "temporal-same-issue") -> FixtureEntry:
@@ -35,6 +38,7 @@ def _entry(path: Path, *, id_: str = "temporal-same-issue") -> FixtureEntry:
         sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
         kind="ITEM",
         data_origin="SYNTHETIC",
+        fixture_version=manifest["fixtureVersion"],
     )
 
 
@@ -49,8 +53,11 @@ def _mutated(tmp_path: Path, change: Callable[[dict[str, Any]], None]) -> Path:
 @pytest.mark.parametrize("entry", ITEM_ENTRIES, ids=lambda entry: entry.id)
 def test_every_declared_item_fixture_parses_and_agrees_with_the_manifest(entry: FixtureEntry) -> None:
     fixture = load_item_fixture(APP_ROOT, entry)
+    # Read from disk rather than from `fixture.fixture_version`: the loader copies that value out of the
+    # verified manifest entry, so comparing it to the manifest would only restate the loader.
+    declared_version = json.loads((APP_ROOT / entry.path).read_text(encoding="utf-8"))["fixtureVersion"]
     assert fixture.id == entry.id
-    assert fixture.fixture_version == manifest["fixtureVersion"]
+    assert declared_version == manifest["fixtureVersion"], f"{entry.path} declares fixtureVersion {declared_version}"
     assert fixture.policy_version == manifest["policyVersion"]
     assert fixture.timezone == manifest["timezone"]
     assert fixture.fixed_clock.isoformat() == manifest["fixedClock"].replace("Z", "+00:00")
@@ -60,7 +67,7 @@ def test_every_declared_item_fixture_parses_and_agrees_with_the_manifest(entry: 
 def test_a_checksum_mismatch_fails_instead_of_evaluating_edited_bytes(tmp_path: Path) -> None:
     path = _mutated(tmp_path, lambda document: document.__setitem__("note", "edited"))
     entry = _entry(path)
-    tampered = FixtureEntry(entry.id, entry.path, "0" * 64, entry.kind, entry.data_origin)
+    tampered = FixtureEntry(entry.id, entry.path, "0" * 64, entry.kind, entry.data_origin, entry.fixture_version)
     with pytest.raises(FixtureError, match="does not match manifest"):
         load_item_fixture(tmp_path, tampered)
 
@@ -122,6 +129,31 @@ def test_a_fixture_id_that_disagrees_with_the_manifest_is_rejected(tmp_path: Pat
     path = _mutated(tmp_path, lambda d: None)
     with pytest.raises(FixtureError, match="declares id"):
         load_item_fixture(tmp_path, _entry(path, id_="other"))
+
+
+def test_a_fixture_version_that_disagrees_with_the_manifest_is_rejected(tmp_path: Path) -> None:
+    path = _mutated(tmp_path, lambda d: d.__setitem__("fixtureVersion", "0.0.2"))
+    with pytest.raises(FixtureError, match=f"must declare fixtureVersion={manifest['fixtureVersion']}"):
+        load_item_fixture(tmp_path, _entry(path))
+
+
+def test_a_feed_fixture_version_that_disagrees_with_the_manifest_is_rejected(tmp_path: Path) -> None:
+    """The drift check sits in `read_verified`, so the FEED corpus inherits it as the ITEM loader does."""
+    entry = FEED_ENTRIES[0]
+    document = json.loads((APP_ROOT / entry.path).read_text(encoding="utf-8"))
+    document["fixtureVersion"] = "0.0.2"
+    path = tmp_path / "mutated-feed.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    drifted = FixtureEntry(
+        id=entry.id,
+        path=path.name,
+        sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        kind="FEED",
+        data_origin="SYNTHETIC",
+        fixture_version=entry.fixture_version,
+    )
+    with pytest.raises(FixtureError, match=f"must declare fixtureVersion={manifest['fixtureVersion']}"):
+        read_verified(tmp_path, drifted)
 
 
 def test_manifest_entries_reject_a_duplicate_id() -> None:

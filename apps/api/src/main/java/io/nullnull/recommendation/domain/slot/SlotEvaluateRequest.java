@@ -25,6 +25,8 @@ public record SlotEvaluateRequest(Instant evaluatedAt, UUID tripId, UUID candida
     /** One opening window per trip date, and at most one duplicate per trip date; a trip spans at most 30 (§4.1). */
     public static final int MAX_OPENING_HOURS = 30;
     public static final int MAX_DATES_WITH_SAME_PLACE = 30;
+    /** An IANA zone id; the service refuses a longer one with a 422. */
+    public static final int MAX_TRIP_ZONE = 64;
 
     public SlotEvaluateRequest {
         Objects.requireNonNull(evaluatedAt, "evaluatedAt");
@@ -37,6 +39,12 @@ public record SlotEvaluateRequest(Instant evaluatedAt, UUID tripId, UUID candida
         Objects.requireNonNull(routeEvidence, "routeEvidence");
         if (tripEnd.isBefore(tripStart)) {
             throw new IllegalArgumentException("tripEnd must not precede tripStart");
+        }
+        if (tripZone.isBlank()) {
+            throw new IllegalArgumentException("tripZone must not be blank");
+        }
+        if (tripZone.length() > MAX_TRIP_ZONE) {
+            throw new IllegalArgumentException("tripZone must be at most " + MAX_TRIP_ZONE + " characters");
         }
         if (maxItemsPerDay < 1) {
             throw new IllegalArgumentException("maxItemsPerDay must be >= 1");
