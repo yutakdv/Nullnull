@@ -27,7 +27,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-005 | P0 blocker | loading/preview에 `경로 계산`, `지도 provider 미정`; 여행 보기 `410:1738`에 `↓ 1.2km · 도보 15분`; Live `418:2523`에 `돌아가도 15분/30분`, `+8분/+5분`이 있으나 P0 route provider는 미결정 | ITEM copy를 혼잡·고정 조건 확인으로 변경. provider가 없으면 목록/timeline을 동등하게 제공하고 route 기반 시간·우회 수치·placeholder를 제거. 직선거리는 FCR-009 기준을 충족할 때만 표시 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-005-증거)) |
 | FCR-006 | P0 blocker | S14 `422:2925`가 `로그인하면 일정을 저장할 수 있어요`와 활성 login affordance를 노출 | `이 기기의 익명 세션에 저장돼요`처럼 실제 보존 방식을 설명하고 login은 disabled `준비 중`; 요청 0건 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-006-증거)) |
 | FCR-007 | P0 blocker | S15 `423:2967`가 데이터 상태를 5개로 설명하고 `REPLAY`를 누락. `Data / StateLabel` component에는 이미 6개 variant가 있음 | component를 다시 만들지 않고 S15 설명을 `LIVE`, `FORECAST`, `REPLAY`, `QUALITATIVE`, `STALE`, `UNAVAILABLE` 6개와 관측/대상 시각 차이로 수정 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-007-증거)) |
-| FCR-008 | P0 major | S11 `418:2523`에 장소명 검색이 있으나 화면-API 연결이 명시되지 않음 | `searchPlaces` → canonical 선택 → `getLivePlace`; coverage가 없으면 `UNAVAILABLE`, loading/empty/error variant 제공 | FE / BE·AI | Open |
+| FCR-008 | P0 major | S11 `418:2523`에 장소명 검색이 있으나 화면-API 연결이 명시되지 않음 | `searchPlaces` → canonical 선택 → `getLivePlace`; coverage가 없으면 `UNAVAILABLE`, loading/empty/error variant 제공 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-07, [증거](#fcr-008-증거)) |
 | FCR-009 | P0 major | post/detail 거리값은 기준점·산식이 불명확해 보일 수 있음 | trip anchor/선택 장소 등 거리 기준과 source를 함께 표시. 기준이 없으면 거리값을 숨기고 unavailable reason 제공 | FE / BE·AI | Open |
 | FCR-010 | P0 blocker | 최적화 setup `415:2268`에 `전체 / Day1` scope chip이 노출되고 `경복궁 하나만`이라는 고정 설명만 있으며 `targetItemId`를 고르는 control이 없음 | P0에서는 ITEM만 활성화하고 대상 TripItem을 명시적으로 선택·확인해 `CreateItemOptimizationRequest.targetItemId`로 전송. DAY/TRIP은 숨기거나 disabled `준비 중`이며 요청 0건 | FE / BE·AI | Open |
 | FCR-011 | P0 blocker | feed `392:368`, post 장소 카드 `399:613`, Live `418:5199`의 `실시간 관측`에 `ⓒ한국관광공사`가 결합돼 서울 실시간 원천과 KTO 예측/관광정보가 뒤섞임 | `SEOUL_CITYDATA`는 API의 서울특별시 attribution·`officialUrl`·`licenseUrl`을 그대로 표시하고 KTO 장소 정보·예측 attribution과 시각적으로 분리 | FE / BE·AI·PM | Open |
@@ -230,3 +230,28 @@ top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 54개다(FCR-001 �
 2. 기존 `unavailable` row(`423:2991`)를 복제해 6번째 `state-row`를 만들고, `Data / StateLabel` instance를 새 컴포넌트를 만들지 않고 기존 `state=replay` variant(라벨 `과거 관측 재생 · 실시간 아님`)로 교체했다. 설명 문구는 `과거 관측을 다시 보여드리는 데모예요. 지금 실시간이 아니에요.`로 작성했다 — `FR-LIV-07`의 "REPLAY를 현재 실시간처럼 표현 금지" 규칙을 그대로 반영한다.
 3. 나머지 5개 row(`live`/`forecast`/`qualitative`/`stale`/`unavailable`)는 이미 정확했으므로 그대로 뒀다. 아래 `일정과 AI는 이렇게 동작해요` 가이드 섹션은 auto-layout으로 자동으로 밀렸다.
 4. 구현 acceptance: `getDemoReadiness` 응답의 6개 state 값과 이 화면의 6개 row가 1:1로 대응한다. `data_guide_opened` 이벤트는 상태 개수와 무관하게 화면 진입 시 1회 기록한다.
+
+## FCR-008 증거
+
+- 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
+- 상태: `418:2523`(Live) 검색창 진입 뒤 흐름을 담을 새 top-level frame 4개 `S11-1B / search-*`를 추가했다. `FR-LIV-11`은 이미 `searchPlaces`/`getLivePlace` 계약을 갖고 있었으므로 계약을 새로 만들지 않고 화면만 연결했다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.
+
+| 화면 | Figma node | 참고 |
+| --- | --- | --- |
+| Live 현재 상태(수정 없음, 대조용) | `418:2523` | [스크린샷](./evidence/fcr-008/before-418-2523.jpg) |
+| empty 관례 참고(수정 없음, 대조용) | `420:2950` | [스크린샷](./evidence/fcr-008/before-420-2950.jpg) |
+| 검색 결과 | `684:4156` S11-1B / search-results · P0 | [스크린샷](./evidence/fcr-008/after-684-4156-results.jpg) |
+| 검색 중 | `684:4330` S11-1B / search-results-loading · P0 LOADING | [스크린샷](./evidence/fcr-008/after-684-4330-loading.jpg) |
+| 결과 없음 | `684:4366` S11-1B / search-results-empty · P0 EMPTY | [스크린샷](./evidence/fcr-008/after-684-4366-empty.jpg) |
+| 요청 실패 | `684:4402` S11-1B / search-results-error · P0 ERROR | [스크린샷](./evidence/fcr-008/after-684-4402-error.jpg) |
+
+구성 내용:
+
+1. `418:2523`을 복제해 뼈대(검색창, 지도 marker, `Sheet`)를 재사용하고 `Nav / Segment`(현재 여행지/다른 관광지), `time-filter`, `group-label`처럼 검색 모드와 무관한 요소를 제거했다.
+2. 검색 결과 목록은 기존 `candidate-row`(`Sheet / TripPicker`가 아니라 Live 화면 고유 컴포넌트)를 재사용하되, crowd/freshness/source 영역을 숨겼다. 검색 결과 단계는 `PlaceSummary`만 있고 아직 `getLivePlace`를 호출하기 전이라 live 데이터가 없어야 정확하다. `+ 담기` 대신 `선택`으로 CTA를 바꿔 이 화면이 후보 저장이 아니라 canonical 장소 확정 단계임을 표시했다.
+3. loading은 스피너와 `"⟨검색어⟩" 검색 중이에요`, empty는 검색어·결과 0건 안내와 다른 검색어 유도 문구, error는 `검색을 확인하지 못했어요`와 `다시 시도` 버튼으로 만들었다. 세 상태 모두 새 컴포넌트를 만들지 않고 텍스트·아이콘만 추가했다.
+4. 작업 중 컬러 이모지(🔍)에 semantic color 변수를 강제 바인딩하면 렌더링이 깨지는 문제가 있어 원래 기본 색으로 되돌렸다.
+5. `getLivePlace` 응답의 `dataState=UNAVAILABLE`(coverage 없음)은 검색 결과 화면이 아니라 canonical 선택 뒤 진입하는 `419:2617` 장소 상세에서 처리한다 — 검색 자체는 항상 `PlaceSummary` 목록만 반환하므로 이 4개 frame에는 UNAVAILABLE variant를 별도로 만들지 않았다.
+6. 구현 acceptance: 검색창 focus → `searchPlaces`(debounce) → 목록에서 canonical 선택 → `getLivePlace`로 이동한다. `PlaceSearchRequest.query`는 최대 100자이고 원문을 로그·analytics에 남기지 않는다(no-store, APM 로깅 제외).
+
+top-level frame이 4개 늘어 `02 UI Design` 구현 frame은 58개다(FCR-007까지 54 → 58). [Figma 핸드오프](./FIGMA_HANDOFF.md), [기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md)의 `FR-LIV-11` Figma column과 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.

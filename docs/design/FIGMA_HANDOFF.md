@@ -234,15 +234,22 @@ Figma 오류 계약:
 | Figma node | 화면 | Pri/state | 동작 | API |
 | --- | --- | --- | --- | --- |
 | `418:2523` | S11-1 Live | P0 | map OFF 목록 필수, map capability, 영역 선택(`FCR-012`); route 기반 우회 시간·경로 문구 없음 (`FCR-005`) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `684:4156` | S11-1B 검색 결과 | P0 | 검색창 진입, canonical `PlaceSummary` 목록에서 선택(`FCR-008`) | `searchPlaces` |
+| `684:4330` | S11-1B 검색 중 | P0 loading | 요청 진행 중 표시 | `searchPlaces` pending |
+| `684:4366` | S11-1B 결과 없음 | P0 empty | 0건, 다른 검색어 유도 | `searchPlaces` `items=[]` |
+| `684:4402` | S11-1B 검색 오류 | P0 error | 요청 실패, 재시도 | `searchPlaces` Problem |
 | `419:2617` | S11-2 장소 상세 | P0 | crowd, freshness, itinerary action | `GET /live/places/:poiId` |
 | `420:2821` | S11-3 대안 | P0 | relation + comparable metrics | `GET /places/:poiId/related` |
 | `420:2950` | S11-N 후보 없음 | P0 empty | 비교 불가 이유/다른 필터 CTA | related result `NONE` |
 | `421:2850` | S11-R replay | P0 demo | replay badge, snapshot timestamp | live APIs with `REPLAY` |
 | `501:3750` | S11-4 재계획 진입 | P1 | current trip + explicit location consent | future live replan |
 
-- S11-1의 장소 검색은 `searchPlaces`에서 canonical place를 고른 뒤 `getLivePlace`로
-  coverage를 확인한다. 지원하지 않는 장소는 값을 합성하지 않고 `UNAVAILABLE`과
-  다음 행동을 보여 주며 loading/empty/error state를 포함한다(`FCR-008`).
+- S11-1의 장소 검색은 검색창 진입 시 `S11-1B`(`684:4156` 결과, `684:4330` loading,
+  `684:4366` empty, `684:4402` error)로 이동해 `searchPlaces`에서 canonical place를
+  고른 뒤 `getLivePlace`로 coverage를 확인한다. `PlaceSummary`만 있는 검색 결과
+  단계에는 아직 없는 crowd/freshness 값을 표시하지 않는다. 지원하지 않는 장소는
+  `getLivePlace` 응답의 `dataState=UNAVAILABLE`로 값을 합성하지 않고 다음 행동을
+  보여 준다(`FCR-008`, 2026-09-07 신규 frame 4개 추가).
 - 거리값은 trip anchor나 사용자가 선택한 기준 장소, 산식/source와 함께 표시한다.
   기준점이 없으면 값을 숨기고 unavailable reason을 제공한다(`FCR-009`).
 - 실시간 관측은 `SEOUL_CITYDATA` provenance와 검토된 attribution을 표시하고 KTO

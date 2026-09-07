@@ -124,7 +124,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | FR-LIV-08 | P0 | stale/unavailable degradation | 공통 | provenance state | trip/manual 기능은 유지 |
 | FR-LIV-09 | P0 | Live 장소를 후보로 저장 | S11 detail | `addTripCandidate` source LIVE | 일정 즉시 변경 없음 |
 | FR-LIV-10 | P1 | 위치 동의 기반 재계획 진입 | `501:3750` | future live replan | 목적/정밀도/보존 동의 선행 |
-| FR-LIV-11 | P0 | 장소명 검색 후 Live coverage 조회 | `418:2523` | `searchPlaces`, `getLivePlace` | canonical 선택, 미지원 장소는 UNAVAILABLE이고 값 합성 금지 |
+| FR-LIV-11 | P0 | 장소명 검색 후 Live coverage 조회 | `684:4156` | `searchPlaces`, `getLivePlace` | canonical 선택, 미지원 장소는 UNAVAILABLE이고 값 합성 금지 |
 | FR-DAT-02 | P0 | temporal 비교 적격성 | 공통 | `comparisonAxis=TEMPORAL` | 같은 POI/forecast issue |
 | FR-DAT-03 | P0 | spatial 비교 적격성 | 공통 | `comparisonAxis=SPATIAL` | 같은 source/scope/group/set |
 | FR-DAT-04 | P0 | source schema drift 격리 | 개발/운영 | readiness/source health | 추측값 대신 degraded |
