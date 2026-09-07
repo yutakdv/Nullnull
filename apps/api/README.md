@@ -6,7 +6,7 @@ Java 21 + Spring Boot modular monolith for the Nullnull public web API. Contract
 
 | Tool | Value | Where it is pinned |
 | --- | --- | --- |
-| Java | Temurin 21.0.11+10 | `.tool-versions`, Gradle toolchain (`languageVersion = 21`) |
+| Java | Temurin 21.0.11 (local build `+10`) | `.tool-versions`, Gradle toolchain (`languageVersion = 21`). `setup-java`가 Adoptium 목록과 매칭하도록 build 접미사는 pin하지 않는다 |
 | Gradle | 9.7.1 wrapper + sha256 | `gradle/wrapper/gradle-wrapper.properties` |
 | Spring Boot | 4.1.1 | `gradle/libs.versions.toml` |
 | PostgreSQL | 17.6 (digest-pinned) | `compose.yml`, `Dockerfile`, Testcontainers fixture |
