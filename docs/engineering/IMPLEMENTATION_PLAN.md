@@ -82,6 +82,8 @@ P0 기본 실행 경로는 `B00 → B01 → B02 → B03 → B04 → B05 → B06 
 - [BA-005 · 영속 job과 수집·추천·삭제 실행 격리](../roles/BACKEND_AI_PLAYBOOK.md#ba-005) — P0
 - [BA-006 · 로컬 Docker와 최소 staging 기반](../roles/BACKEND_AI_PLAYBOOK.md#ba-006) — P0
 
+Frontend 실행 ID: `FE-001`, `FE-002`, `FE-003`, `FE-004`
+
 완료 증거: 실제 web→API→PostgreSQL·client 생성·full Docker.
 
 ### 공동 실행 ID
@@ -97,9 +99,10 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 | `GOV-001` | 실제 GitHub handle 기반 CODEOWNERS와 path review test | 공동 |
 | `GOV-002` | branch ruleset, required checks, merge queue/concurrency, GitHub environments checklist 검증 | 공동 |
 | `GOV-003` | Frontend Claude Code 시작 안내, FCR 착수 기준과 Ticket/Work ID 인계 규칙 | FE |
+| `GOV-004` | 역할별 실행 ID 정의와 Work ID 참조 무결성 유지(문서 개편으로 ID 정의가 사라지지 않게 검토) | 공동 |
 | `REL-001` | version/tag/artifact retention과 release/rollback 기록 형식 확정 | BE/AI |
 
-`FE-*`/`BE-*`는 각 역할 브랜치의 문서·계약 작업에, `CON-*`는 계약 검토에 사용한다.
+`BE-*`는 backend 브랜치의 문서·계약 작업에, `CON-*`는 계약 검토에 사용한다. `FE-*` 실행 ID는 아래 [Frontend 인계 순서](#frontend-인계-순서)의 매핑 표에 정의한다.
 
 ## B02
 
@@ -108,6 +111,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-010 · 익명 owner·session·CSRF 복구](../roles/BACKEND_AI_PLAYBOOK.md#ba-010) — P0
 - [BA-011 · 프로필·locale·onboarding·active trip](../roles/BACKEND_AI_PLAYBOOK.md#ba-011) — P0
 - [BA-012 · 세션 삭제 receipt·TTL·복원 후 재삭제](../roles/BACKEND_AI_PLAYBOOK.md#ba-012) — P0
+
+Frontend 실행 ID: `FE-101`, `FE-105`
 
 완료 증거: owner/CSRF/다중 tab·삭제 receipt/TTL.
 
@@ -121,6 +126,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-023 · 혼잡 예보·시각·비교 적격성·데이터 안내](../roles/BACKEND_AI_PLAYBOOK.md#ba-023) — P0
 - [BA-024 · 검증된 관련 장소와 추천 후보 검색](../roles/BACKEND_AI_PLAYBOOK.md#ba-024) — P0
 
+Frontend 실행 ID: `FE-103`, `FE-404`
+
 완료 증거: 실제 KTO 연결 증거·provenance·mixed-source 차단.
 
 ## B04
@@ -133,6 +140,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-033 · 피드백·분석 이벤트 무결성](../roles/BACKEND_AI_PLAYBOOK.md#ba-033) — P0
 - [BA-034 · 여행 후보 저장·중복·dismiss](../roles/BACKEND_AI_PLAYBOOK.md#ba-034) — P0
 
+Frontend 실행 ID: `FE-102`, `FE-106`, `FE-201`, `FE-202`, `FE-203`
+
 완료 증거: 후보201/duplicate·SavedPost 독립·이벤트 allowlist.
 
 ## B05
@@ -142,6 +151,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-040 · 일정 item 추가·이동·수정·삭제·순서](../roles/BACKEND_AI_PLAYBOOK.md#ba-040) — P0
 - [BA-041 · 네 종류 독립 잠금과 동시 편집 충돌](../roles/BACKEND_AI_PLAYBOOK.md#ba-041) — P0
 - [BA-042 · 후보 slot 판정·비교 후 장소 교체](../roles/BACKEND_AI_PLAYBOOK.md#ba-042) — P0
+
+Frontend 실행 ID: `FE-301`, `FE-302`, `FE-303`, `FE-304`, `FE-305`, `FE-306`
 
 완료 증거: ETag 경쟁·독립 lock·일정화/reorder/replace 원자성.
 
@@ -154,6 +165,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-052 · APPLY·KEEP의 멱등 원자 결정](../roles/BACKEND_AI_PLAYBOOK.md#ba-052) — P0
 - [BA-053 · 24시간 REVERT·최적화 이력](../roles/BACKEND_AI_PLAYBOOK.md#ba-053) — P0
 
+Frontend 실행 ID: `FE-501`, `FE-502`, `FE-503`, `FE-504`, `FE-505`, `FE-506`
+
 완료 증거: preview 무변경·결정성·APPLY/KEEP·24시간 REVERT.
 
 ## B07
@@ -161,6 +174,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 **붙여넣기 import**. 핵심 일정 도메인을 재사용해 P0 import를 완결한다.
 
 - [BA-060 · 붙여넣기 parse·remap·confirm](../roles/BACKEND_AI_PLAYBOOK.md#ba-060) — P0
+
+Frontend 실행 ID: `FE-104`
 
 완료 증거: 원문 비영속·remap stale·confirm 멱등 생성.
 
@@ -172,6 +187,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-071 · AWS 배포·불변 artifact·롤백](../roles/BACKEND_AI_PLAYBOOK.md#ba-071) — P0
 - [BA-072 · 복원·삭제 재적용·alarm·사고 대응](../roles/BACKEND_AI_PLAYBOOK.md#ba-072) — P0
 - [BA-073 · 핵심 흐름 검수와 제출 증거 기반](../roles/BACKEND_AI_PLAYBOOK.md#ba-073) — P0
+
+Frontend 실행 ID: `FE-601`, `FE-602`
 
 완료 증거: 권한/성능·restore/rollback·외부망 핵심 journey.
 
@@ -189,6 +206,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-087 · 개인화 계측·학습·평가·실험](../roles/BACKEND_AI_PLAYBOOK.md#ba-087) — P2
 - [BA-088 · worker·추천/예측 service 분리](../roles/BACKEND_AI_PLAYBOOK.md#ba-088) — P2
 
+Frontend 실행 ID: `FE-P1-101`, `FE-P1-103`, `FE-P1-104`, `FE-P1-105`, `FE-P1-106`
+
 완료 증거: 선정 기능의 계약/ON·OFF CI·privacy·rollback.
 
 ## B10
@@ -199,6 +218,8 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-091 · Live 탭 API·장소 검색·대안·후보 저장](../roles/BACKEND_AI_PLAYBOOK.md#ba-091) — P0
 - [BA-092 · Live replay·장애 fallback·전체 P0 최종 gate](../roles/BACKEND_AI_PLAYBOOK.md#ba-092) — P0
 - [BA-093 · Live 이후 위치 동의·주변·재계획 확장](../roles/BACKEND_AI_PLAYBOOK.md#ba-093) — P1
+
+Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 
 완료 증거: 서울/Live/list·대안·replay·전체 P0 검수.
 
@@ -214,6 +235,50 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 | S15 데이터 안내 | B03부터, B10에 서울 추가 | 6개 state·출처·시각/null·비교 불가 |
 | 선택 P1 화면 | B09, 위치는 B10 | 승인된 계약의 ON/OFF·privacy |
 | S11 Live | B10 마지막 | 목록·coverage·대안·replay·출처·후보 저장 |
+
+### Frontend 실행 ID와 화면 매핑
+
+`FE-*`는 Frontend 역할 브랜치의 실행 ID다. [브랜치·계약 인계](BRANCH_AND_INTEGRATION.md)의 Work ID 규칙이 이 표를 참조하며, 각 ID는 위 B단계의 `Frontend 실행 ID` 줄과 같다. B번호가 순서이고 P1 ID는 B09/B10에서 선정한 경우에만 실행한다. Figma node는 [핸드오프](../design/FIGMA_HANDOFF.md)의 frame이며 화면별 UI/server 책임은 [소유권 매트릭스](OWNERSHIP_MATRIX.md)가 정본이므로 여기에 복제하지 않는다.
+
+| ID | 단계 | 작업 | Figma node |
+| --- | --- | --- | --- |
+| `FE-001` | B01 | React/TypeScript/Vite scaffold, router, query client, i18n | 기반 · 화면 없음 |
+| `FE-002` | B01 | Figma token pipeline, Component Catalog 49종과 Storybook variant | 기반 · 화면 없음 |
+| `FE-003` | B01 | error boundary, API Problem mapper, MSW fixture | 기반 · 화면 없음 |
+| `FE-004` | B01 | PWA manifest/service-worker offline shell 최소 구성 | 기반 · 화면 없음 |
+| `FE-101` | B02 | A-1/A-2/A-3 route와 redirect state | `388:257`, `388:277`, `388:321` |
+| `FE-105` | B02 | S14 프로필 shell: guest, disabled login `준비 중`, KO/EN, trips, 데이터 안내, 삭제 receipt/status | `422:2925` |
+| `FE-103` | B03 | S02-4B/C 수동 입력과 장소 검색 integration | `438:3158`, `400:1201`, `438:3199` |
+| `FE-404` | B03 | S15 데이터 안내의 source/state/freshness/confidence 설명 (서울 source는 B10에 추가) | `423:2967` |
+| `FE-102` | B04 | S02-1/2/3 wizard, resume, validation, 확인·결정적 draft | `438:3012`, `438:3108`, `438:3134`, `438:3259`, `384:5673` |
+| `FE-106` | B04 | 여행 선택과 여행별 관심사 전체 교체 UI/ETag conflict | `422:2925` |
+| `FE-201` | B04 | S03-F0/F1 feed card states와 pagination | `391:310`, `396:2926` |
+| `FE-202` | B04 | S03-D 게시물 상세/SavedPost | `398:611` |
+| `FE-203` | B04 | S03-C1~C4, S06 sheet, saved/duplicate/error variant | `399:658`, `399:843`, `399:1011`, `399:1179`, `409:1595` |
+| `FE-301` | B05 | S07-1 day/item/candidate 수와 empty state | `410:1738` |
+| `FE-302` | B05 | S07-2 edit buffer, dirty-exit, save/conflict recovery | `411:1837`, `413:2020` |
+| `FE-303` | B05 | S07-8 후보 panel과 일정화 flow | `412:1912` |
+| `FE-304` | B05 | lock control, unlock/date-lock confirm | `413:2081`, `527:3876` |
+| `FE-305` | B05 | 검색/추가/교체/날짜·시간 이동 variant | `527:4085`, `414:2347`, `527:4537`, `476:3409`, `479:3497`, `479:3816`, `527:4380`, `521:3976`, `527:4695` |
+| `FE-306` | B05 | 날짜 범위 변경 시 영향 preview/cancel/명시 처리 | 미지정 · S07 편집 흐름 |
+| `FE-501` | B06 | S09-0 scope/item setup, 미지원 P1 state | `415:2268` |
+| `FE-502` | B06 | S09-1 loading/polling/background resume | `415:2413` |
+| `FE-503` | B06 | before/after MetricDelta, 근거, decision bar | FCR-004 READY preview frame (병합 후 확정) |
+| `FE-504` | B06 | 오류 6종·stale·no improvement 상태 | `417:2567`, `485:3517` |
+| `FE-505` | B06 | applied/undo/recompute flow | `417:2412` |
+| `FE-506` | B06 | S14 최적화 이력 상태/scope/시각/decision과 상세 진입 | `422:2925` |
+| `FE-104` | B07 | browser-first 한국어 parser와 correction UI | `401:1221` |
+| `FE-601` | B08 | 전체 P0 responsive/긴 텍스트/200% zoom pass | 전 P0 화면 |
+| `FE-602` | B08 | Lighthouse/performance budget와 bundle 분석 | 전 P0 화면 |
+| `FE-P1-101` | B09 | S12 알림 목록/empty/unread/read-all/allowlisted deep link | `442:3344` |
+| `FE-P1-103` | B09 | 독립 검색 route/filter/recent-search privacy | 미지정 · P1 seed |
+| `FE-P1-104` | B09 | 게시물 작성/media/moderation 상태 | 미지정 · P1 seed |
+| `FE-P1-105` | B09 | S02-6 AI draft와 S09-D1 DAY preview capability | `440:3244`, `439:3104` |
+| `FE-P1-106` | B09 | 프로필 정식 로그인/익명 데이터 승계·복구 UI | `422:2925` |
+| `FE-401` | B10 | S11-1 list-first와 DataStateLabel, 승인 시 map capability | `418:2523` |
+| `FE-402` | B10 | S11-2 상세/S11-3 대안/S11-N 없음 | `419:2617`, `420:2821`, `420:2950` |
+| `FE-403` | B10 | S11-R replay mode와 degraded UI | `421:2850` |
+| `FE-P1-102` | B10 | S10 주변과 S11-4 재계획 동의/거부/철회 | `442:3370`, `501:3750` |
 
 시각 노드가 없는 backend/운영 작업은 기능 ID/NFR·API/schema·test로 추적하고 가짜 Figma node를 만들지 않는다. FE는 `frontend`에서 생성 client와 canonical fixture를 소비한다. 상대 검토와 통합 규칙은 [브랜치 운영](BRANCH_AND_INTEGRATION.md)을 따른다.
 

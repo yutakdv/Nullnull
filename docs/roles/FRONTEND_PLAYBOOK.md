@@ -59,7 +59,7 @@ issue를 먼저 연다.
 
 ## 2. 화면과 API 인계의 정본
 
-52개 frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_MATRIX.md), 전체 operation은 [OpenAPI](../api/openapi.yaml), 상태별 동작은 [Figma 핸드오프](../design/FIGMA_HANDOFF.md)에 모았다. 이 문서에 같은 표를 복제하지 않는다.
+frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_MATRIX.md), 전체 operation은 [OpenAPI](../api/openapi.yaml), 상태별 동작은 [Figma 핸드오프](../design/FIGMA_HANDOFF.md), frame과 `FE-*` 실행 ID의 매핑은 [공통 실행 순서](../engineering/IMPLEMENTATION_PLAN.md)에 모았다. 이 문서에 같은 표를 복제하지 않는다.
 
 ## 3. Client 공통 책임
 
@@ -67,7 +67,7 @@ issue를 먼저 연다.
 
 ## 4. 개발 순서
 
-[공통 실행 순서](../engineering/IMPLEMENTATION_PLAN.md)의 B00~B10을 따른다. 세션→공통 장소/데이터→여행/feed/후보→편집→최적화→import→검수→선정 확장→Live 순서다. Live 화면·서울 연동은 마지막이며 데이터 안내·검색·relation fixture는 먼저 제공받는다. 기존 FE ticket 번호는 기능 인벤토리/Figma 그룹을 찾는 참조이지 순서가 아니다.
+[공통 실행 순서](../engineering/IMPLEMENTATION_PLAN.md)의 B00~B10을 따른다. 세션→공통 장소/데이터→여행/feed/후보→편집→최적화→import→검수→선정 확장→Live 순서다. Live 화면·서울 연동은 마지막이며 데이터 안내·검색·relation fixture는 먼저 제공받는다. `FE-*` 실행 ID와 담당 frame은 [공통 실행 순서](../engineering/IMPLEMENTATION_PLAN.md)의 Frontend 실행 ID 표에 정의돼 있다. ID 번호는 화면을 찾는 참조이고 실행 순서는 B번호가 정한다.
 
 ## 5. `frontend` 브랜치와 작업 절차
 
