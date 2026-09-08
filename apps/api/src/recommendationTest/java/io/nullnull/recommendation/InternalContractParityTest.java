@@ -27,9 +27,12 @@ import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 import io.nullnull.recommendation.domain.slot.SlotOut;
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +46,76 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @DisplayName("apps/ai internal contract v1 parity")
 class InternalContractParityTest {
+
+    /** The JSON Schema keywords that constrain a value's size or magnitude; the whole set, so a lower bound counts. */
+    private static final Set<String> BOUND_KEYWORDS = Set.of("minimum", "maximum", "exclusiveMinimum",
+            "exclusiveMaximum", "minLength", "maxLength", "minItems", "maxItems", "minProperties", "maxProperties");
+
+    /**
+     * Every bound the service declares, and the Java value that enforces the same limit. A bound the
+     * service declares without an entry here fails {@link #everyDeclaredBoundHasAJavaCounterpart()}: an
+     * unenforced bound is a request this API would send and the service would refuse with a 422, or a
+     * response value the service never promised and this API would still persist.
+     *
+     * <p>Most entries are the record's own public constant. The literals are the bounds a canonical
+     * constructor or the gateway checks inline, and each names where: {@code toleranceMinutes} in
+     * {@code io.nullnull.trip.domain.ItemLock.Time}, {@code evidenceCount} and {@code summary} in
+     * {@code HttpRecommendationGateway}, and the remaining {@code minimum}/{@code exclusiveMinimum}
+     * values in the canonical constructor of the record that carries the field.
+     *
+     * <p>A {@code minLength: 1} on a required string is enforced as non-blank: every one of them is a
+     * code, a zone id or a rendered sentence, so a whitespace-only value is the same hydration bug as
+     * an empty one and is refused here rather than sent for the service to answer with a 422.
+     */
+    private static final Map<String, Integer> BOUNDS = Map.ofEntries(
+            Map.entry("ExplanationRenderRequest.placeName.maxLength", ExplanationRenderRequest.MAX_PLACE_NAME),
+            // ExplanationRenderRequest.requireBounded: an approved string is never blank.
+            Map.entry("ExplanationRenderRequest.placeName.minLength", 1),
+            Map.entry("ExplanationRenderRequest.metricLabel.minLength", 1),
+            Map.entry("ExplanationRenderRequest.attribution.minLength", 1),
+            Map.entry("ExplanationRenderRequest.metricLabel.maxLength", ExplanationRenderRequest.MAX_METRIC_LABEL),
+            Map.entry("ExplanationRenderRequest.attribution.maxLength", ExplanationRenderRequest.MAX_ATTRIBUTION),
+            Map.entry("ExplanationRenderRequest.forecastIssueId.maxLength",
+                    ExplanationRenderRequest.MAX_FORECAST_ISSUE_ID),
+            // Enforced by HttpRecommendationGateway on the one line the FE renders.
+            Map.entry("ExplanationRenderResponse.summary.maxLength", ExplanationRenderResponse.MAX_SUMMARY_LENGTH),
+            // HttpRecommendationGateway: an explanation is never an empty sentence.
+            Map.entry("ExplanationRenderResponse.summary.minLength", 1),
+            Map.entry("FeedRankRequest.candidates.maxItems", FeedRankRequest.MAX_CANDIDATES),
+            Map.entry("FeedRankRequest.sortVersion.minimum", 1),
+            Map.entry("ItemProposalOut.rank.minimum", 1),
+            Map.entry("ItemProposeRequest.candidates.maxItems", ItemProposeRequest.MAX_CANDIDATES),
+            Map.entry("ItemProposeRequest.locks.maxItems", ItemProposeRequest.MAX_LOCKS),
+            Map.entry("ItemProposeRequest.neighbours.maxItems", ItemProposeRequest.MAX_NEIGHBOURS),
+            Map.entry("ItemProposeRequest.openingHours.maxProperties", ItemProposeRequest.MAX_OPENING_HOURS),
+            Map.entry("ItemProposeRequest.tripVersion.minimum", 1),
+            Map.entry("ItemProposeRequest.tripZone.maxLength", ItemProposeRequest.MAX_TRIP_ZONE),
+            Map.entry("ItemProposeRequest.tripZone.minLength", 1),
+            Map.entry("LockIn.toleranceMinutes.minimum", 0),
+            Map.entry("LockIn.toleranceMinutes.maximum", 180),
+            Map.entry("NeighbourItemIn.durationMinutes.exclusiveMinimum", 0),
+            Map.entry("PlaceCategoryIn.categoryCode.maxLength", PlaceCategoryIn.MAX_CODE),
+            Map.entry("PlaceCategoryIn.parentCategoryCode.maxLength", PlaceCategoryIn.MAX_CODE),
+            Map.entry("PlaceCategoryIn.taxonomyVersion.maxLength", PlaceCategoryIn.MAX_TAXONOMY_VERSION),
+            Map.entry("PlaceCategoryIn.taxonomyVersion.minLength", 1),
+            Map.entry("RelatedItemOut.evidenceCount.minimum", 1),
+            Map.entry("RelatedRankRequest.candidates.maxItems", RelatedRankRequest.MAX_CANDIDATES),
+            Map.entry("RelatedRankRequest.categories.maxItems", RelatedRankRequest.MAX_CATEGORIES),
+            Map.entry("RelationCandidateIn.sourceCode.maxLength", RelationCandidateIn.MAX_SOURCE_CODE),
+            Map.entry("RelationCandidateIn.channel.maxLength", RelationCandidateIn.MAX_CHANNEL),
+            Map.entry("RelationCandidateIn.sourceCode.minLength", 1),
+            Map.entry("RelationCandidateIn.channel.minLength", 1),
+            Map.entry("SlotEvaluateRequest.items.maxItems", SlotEvaluateRequest.MAX_ITEMS),
+            Map.entry("SlotEvaluateRequest.openingHours.maxProperties", SlotEvaluateRequest.MAX_OPENING_HOURS),
+            Map.entry("SlotEvaluateRequest.datesWithSamePlace.maxItems",
+                    SlotEvaluateRequest.MAX_DATES_WITH_SAME_PLACE),
+            Map.entry("SlotEvaluateRequest.durationMinutes.exclusiveMinimum", 0),
+            Map.entry("SlotEvaluateRequest.maxItemsPerDay.minimum", 1),
+            Map.entry("SlotEvaluateRequest.tripZone.maxLength", SlotEvaluateRequest.MAX_TRIP_ZONE),
+            Map.entry("SlotEvaluateRequest.tripZone.minLength", 1),
+            Map.entry("TargetItemIn.durationMinutes.exclusiveMinimum", 0),
+            Map.entry("TemporalCandidateIn.metricCode.maxLength", TemporalCandidateIn.MAX_METRIC_CODE),
+            Map.entry("TemporalCandidateIn.metricCode.minLength", 1));
 
     static JsonNode schemas;
 
@@ -58,8 +131,6 @@ class InternalContractParityTest {
     void feedRankRequestMatches() {
         assertParity(FeedRankRequest.class, "FeedRankRequest");
         assertParity(FeedCandidateIn.class, "FeedCandidateIn");
-        assertThat(schemas.get("FeedRankRequest").get("properties").get("candidates").get("maxItems").asInt())
-                .isEqualTo(FeedRankRequest.MAX_CANDIDATES);
     }
 
     @Test
@@ -77,14 +148,6 @@ class InternalContractParityTest {
         assertParity(NeighbourItemIn.class, "NeighbourItemIn");
         assertParity(OpeningWindowIn.class, "OpeningWindowIn");
         assertParity(TemporalCandidateIn.class, "TemporalCandidateIn");
-        assertThat(schemas.get("ItemProposeRequest").get("properties").get("candidates").get("maxItems").asInt())
-                .isEqualTo(ItemProposeRequest.MAX_CANDIDATES);
-        assertThat(schemas.get("ItemProposeRequest").get("properties").get("locks").get("maxItems").asInt())
-                .isEqualTo(ItemProposeRequest.MAX_LOCKS);
-        assertThat(schemas.get("ItemProposeRequest").get("properties").get("neighbours").get("maxItems").asInt())
-                .isEqualTo(ItemProposeRequest.MAX_NEIGHBOURS);
-        assertThat(schemas.get("ItemProposeRequest").get("properties").get("openingHours").get("maxProperties")
-                .asInt()).isEqualTo(ItemProposeRequest.MAX_OPENING_HOURS);
     }
 
     @Test
@@ -98,12 +161,6 @@ class InternalContractParityTest {
         assertParity(SlotEvaluateRequest.class, "SlotEvaluateRequest");
         assertParity(SlotEvaluateResponse.class, "SlotEvaluateResponse");
         assertParity(SlotOut.class, "SlotOut");
-        assertThat(schemas.get("SlotEvaluateRequest").get("properties").get("items").get("maxItems").asInt())
-                .isEqualTo(SlotEvaluateRequest.MAX_ITEMS);
-        assertThat(schemas.get("SlotEvaluateRequest").get("properties").get("openingHours").get("maxProperties")
-                .asInt()).isEqualTo(SlotEvaluateRequest.MAX_OPENING_HOURS);
-        assertThat(schemas.get("SlotEvaluateRequest").get("properties").get("datesWithSamePlace").get("maxItems")
-                .asInt()).isEqualTo(SlotEvaluateRequest.MAX_DATES_WITH_SAME_PLACE);
         // P0 answers a date and never a time: the service declares the field as null-typed, not as a time.
         assertThat(schemas.get("SlotOut").get("properties").get("suggestedTime").get("type").asString())
                 .isEqualTo("null");
@@ -116,10 +173,6 @@ class InternalContractParityTest {
         assertParity(RelationCandidateIn.class, "RelationCandidateIn");
         assertParity(RelatedRankResponse.class, "RelatedRankResponse");
         assertParity(RelatedItemOut.class, "RelatedItemOut");
-        assertThat(schemas.get("RelatedRankRequest").get("properties").get("candidates").get("maxItems").asInt())
-                .isEqualTo(RelatedRankRequest.MAX_CANDIDATES);
-        assertThat(schemas.get("RelatedRankRequest").get("properties").get("categories").get("maxItems").asInt())
-                .isEqualTo(RelatedRankRequest.MAX_CATEGORIES);
         // A category match is 1, 0.5, 0 or null; it travels as a string so it arrives as an exact BigDecimal.
         assertThat(schemas.get("RelatedItemOut").get("properties").get("categoryMatch").get("anyOf").get(0).get("type")
                 .asString()).isEqualTo("string");
@@ -129,17 +182,6 @@ class InternalContractParityTest {
     void explanationRenderContractMatches() {
         assertParity(ExplanationRenderRequest.class, "ExplanationRenderRequest");
         assertParity(ExplanationRenderResponse.class, "ExplanationRenderResponse");
-        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("placeName").get("maxLength").asInt())
-                .isEqualTo(ExplanationRenderRequest.MAX_PLACE_NAME);
-        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("metricLabel").get("maxLength")
-                .asInt()).isEqualTo(ExplanationRenderRequest.MAX_METRIC_LABEL);
-        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("attribution").get("maxLength")
-                .asInt()).isEqualTo(ExplanationRenderRequest.MAX_ATTRIBUTION);
-        assertThat(schemas.get("ExplanationRenderRequest").get("properties").get("forecastIssueId").get("anyOf").get(0)
-                .get("maxLength").asInt()).isEqualTo(ExplanationRenderRequest.MAX_FORECAST_ISSUE_ID);
-        // The sentence the FE renders is capped on both sides; the gateway rejects anything longer.
-        assertThat(schemas.get("ExplanationRenderResponse").get("properties").get("summary").get("maxLength").asInt())
-                .isEqualTo(500);
     }
 
     /**
@@ -176,6 +218,53 @@ class InternalContractParityTest {
                 ComparisonReasonCode.REPLAY_INPUT, ComparisonReasonCode.QUALITATIVE_ONLY,
                 ComparisonReasonCode.MAPPING_UNCERTAIN, ComparisonReasonCode.PROVIDER_INCIDENT,
                 ComparisonReasonCode.MISSING_PROVENANCE)));
+    }
+
+    /**
+     * Every bound in the contract, compared as a set: a bound the service added is a bound this API
+     * does not enforce yet, and an entry that no longer matches a declaration is a stale exception.
+     * Neither is skipped or warned about, because a bound only this side believes in is exactly how a
+     * request that the service answers with a 422 gets built.
+     */
+    @Test
+    void everyDeclaredBoundHasAJavaCounterpart() {
+        Map<String, BigDecimal> declared = new TreeMap<>();
+        schemas.properties().forEach(entry -> collectBounds(entry.getValue(), entry.getKey(), declared));
+        Map<String, BigDecimal> enforced = new TreeMap<>();
+        BOUNDS.forEach((key, value) -> enforced.put(key, BigDecimal.valueOf(value)));
+
+        assertThat(declared.keySet()).as("contract bounds without a Java counterpart, and stale table entries")
+                .containsExactlyInAnyOrderElementsOf(enforced.keySet());
+        declared.forEach((key, value) -> assertThat(value).as(key).isEqualByComparingTo(enforced.get(key)));
+    }
+
+    /**
+     * Collects every bound in a schema subtree, keyed {@code Schema.property.keyword}. The walk enters
+     * {@code anyOf} branches, so an optional field that carries its bound in one branch is seen too.
+     */
+    private static void collectBounds(JsonNode node, String path, Map<String, BigDecimal> into) {
+        if (node.isArray()) {
+            node.forEach(child -> collectBounds(child, path, into));
+            return;
+        }
+        if (!node.isObject()) {
+            return;
+        }
+        node.properties().forEach(entry -> {
+            String keyword = entry.getKey();
+            if (BOUND_KEYWORDS.contains(keyword)) {
+                BigDecimal value = entry.getValue().decimalValue();
+                BigDecimal previous = into.putIfAbsent(path + "." + keyword, value);
+                if (previous != null) {
+                    assertThat(previous).as("%s.%s is declared twice", path, keyword).isEqualByComparingTo(value);
+                }
+            } else if (keyword.equals("properties")) {
+                entry.getValue().properties()
+                        .forEach(property -> collectBounds(property.getValue(), path + "." + property.getKey(), into));
+            } else {
+                collectBounds(entry.getValue(), path, into);
+            }
+        });
     }
 
     /**

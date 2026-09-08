@@ -22,6 +22,8 @@ public record ItemProposeRequest(Instant evaluatedAt, UUID tripId, int tripVersi
     /** One opening window per trip date; a trip spans at most 30 dates (§4.1). */
     public static final int MAX_OPENING_HOURS = 30;
     public static final int MAX_CANDIDATES = 2000;
+    /** An IANA zone id; the service refuses a longer one with a 422. */
+    public static final int MAX_TRIP_ZONE = 64;
 
     public ItemProposeRequest {
         Objects.requireNonNull(evaluatedAt, "evaluatedAt");
@@ -36,6 +38,12 @@ public record ItemProposeRequest(Instant evaluatedAt, UUID tripId, int tripVersi
         }
         if (tripEnd.isBefore(tripStart)) {
             throw new IllegalArgumentException("tripEnd must not precede tripStart");
+        }
+        if (tripZone.isBlank()) {
+            throw new IllegalArgumentException("tripZone must not be blank");
+        }
+        if (tripZone.length() > MAX_TRIP_ZONE) {
+            throw new IllegalArgumentException("tripZone must be at most " + MAX_TRIP_ZONE + " characters");
         }
         locks = List.copyOf(Objects.requireNonNull(locks, "locks"));
         neighbours = List.copyOf(Objects.requireNonNull(neighbours, "neighbours"));

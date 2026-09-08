@@ -52,5 +52,6 @@ Module boundaries (`api → application → domain`, infrastructure private per 
 ## Not yet in place
 
 - `.nullnull-target-stack` marker and the full Docker gate need the `apps/web` scaffold in the same B01 slice.
-- `HttpRecommendationGateway` (RestClient to `apps/ai`), `FeedFallback` and the readiness probe land with plan Task 1; until then `RecommendationGateway` has no production implementation.
-- Sessions, trips, catalog, crowd, optimization and Live modules are planned (BA-010+), not present.
+- No persistence: no JPA entity, no repository, no `@Transactional`, and `V001__background_jobs.sql` is the only migration.
+- No session, authentication or CSRF handling. The only endpoints served are the anonymous `/health/live` and `/health/ready`.
+- `trip`, `crowd` and `social` carry pure domain rules only, with no controller, application service or storage. The catalog (place), identity, optimization, Live, importer and analytics modules do not exist.

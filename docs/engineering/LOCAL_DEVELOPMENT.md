@@ -73,7 +73,7 @@ B01에서 root script 또는 동등한 task runner로 다음 명령을 제공한
 
 `apps/web` 또는 `apps/api`가 생겼는데 `.nullnull-target-stack`이 없으면 wrapper는
 hard fail한다. marker가 생긴 뒤에는 API `test/runtime`, web
-`test/runtime/e2e/tooling`, Gradle wrapper checksum, web/root lockfile, 필요한
+`test/runtime/e2e/tooling`, Gradle wrapper checksum, root lockfile, 필요한
 Gradle/npm task, immutable external image digest 중 하나라도 빠지면 실패해야 한다.
 `scripts/verify_target_stack.py`는 정적 파일을 먼저 검사하고, wrapper는 정규화한
 Compose JSON을 다시 검사해 필수 service와 internal network를 확인한다. 미래 앱이

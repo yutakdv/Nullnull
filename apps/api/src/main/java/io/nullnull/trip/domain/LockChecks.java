@@ -2,7 +2,6 @@ package io.nullnull.trip.domain;
 
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,9 +26,6 @@ import java.util.Objects;
  * also end inside the reservation window without running past midnight.
  */
 public final class LockChecks {
-
-    /** Any fixed date works: the stay end is compared on a calendar day, never across one. */
-    private static final LocalDate EPOCH = LocalDate.of(2000, 1, 1);
 
     public static final String DATE_LOCKED = "DATE_LOCKED";
     public static final String TIME_LOCKED = "TIME_LOCKED";
@@ -116,15 +112,13 @@ public final class LockChecks {
 
     /**
      * A known stay must end inside the window; an unknown one is judged by the duration filter instead.
-     * The end is computed on a calendar day so a stay that runs past midnight is seen as wrapping
-     * rather than folding back into the morning.
+     * A stay that runs past midnight wraps out of the reservation's date and never fits.
      */
     private static boolean stayFits(ItemLock.Reservation reservation, LocalTime proposedTime, Integer durationMinutes) {
         if (reservation.endTime() == null || durationMinutes == null || proposedTime == null) {
             return true;
         }
-        LocalDateTime end = LocalDateTime.of(EPOCH, proposedTime).plusMinutes(durationMinutes);
-        boolean wrapped = !end.toLocalDate().equals(EPOCH);
-        return !wrapped && !end.toLocalTime().isAfter(reservation.endTime());
+        StayInterval.End end = StayInterval.endOf(proposedTime, durationMinutes);
+        return !end.wrappedPastMidnight() && !end.time().isAfter(reservation.endTime());
     }
 }

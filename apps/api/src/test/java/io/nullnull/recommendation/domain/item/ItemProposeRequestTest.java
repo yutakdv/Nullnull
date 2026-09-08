@@ -50,7 +50,33 @@ class ItemProposeRequestTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("durationMinutes");
         assertThatThrownBy(() -> new NeighbourItemIn(ID, D12, 2, LocalTime.of(10, 0), -30))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("durationMinutes");
+        assertThat(new NeighbourItemIn(ID, D12, 2, LocalTime.of(10, 0), 1).durationMinutes()).isEqualTo(1);
         new NeighbourItemIn(ID, D12, 2, LocalTime.of(10, 0), null);
+    }
+
+    @Test
+    void aTargetStayIsUnknownOrPositive() {
+        // exclusiveMinimum 0 on the service side, same as a neighbour: a zero or negative stay would
+        // give the moved item no interval at all and let an overlapping proposal read as free.
+        assertThat(new TargetItemIn(ID, ID, D12, LocalTime.of(10, 0), 1, 1).durationMinutes()).isEqualTo(1);
+        assertThat(new TargetItemIn(ID, ID, D12, LocalTime.of(10, 0), null, 1).durationMinutes()).isNull();
+        assertThatThrownBy(() -> new TargetItemIn(ID, ID, D12, LocalTime.of(10, 0), 0, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("durationMinutes must be positive when present");
+        assertThatThrownBy(() -> new TargetItemIn(ID, ID, D12, LocalTime.of(10, 0), -30, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("durationMinutes must be positive when present");
+    }
+
+    @Test
+    void theFirstTripVersionIsAcceptedAndAnythingBelowItIsRefused() {
+        // minimum 1 on the service side: a trip's schedule version starts at 1, and a preview built
+        // against version 0 would be revalidated against a version the trip never had.
+        assertThat(versioned(1).tripVersion()).isEqualTo(1);
+        assertThatThrownBy(() -> versioned(0)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tripVersion must be >= 1");
+        assertThatThrownBy(() -> versioned(-1)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tripVersion must be >= 1");
     }
 
     @Test
@@ -89,9 +115,34 @@ class ItemProposeRequestTest {
     }
 
     @Test
+    void aTripZoneIsANonBlankIdInsideTheContractLength() {
+        // maxLength 64 and minLength 1 on the service side: a zone the service would refuse with a 422
+        // must never leave this API, and a blank one is a hydration bug that would name no zone at all.
+        zoned("Z".repeat(ItemProposeRequest.MAX_TRIP_ZONE));
+        assertThatThrownBy(() -> zoned("Z".repeat(ItemProposeRequest.MAX_TRIP_ZONE + 1)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("tripZone must be at most");
+        assertThatThrownBy(() -> zoned("")).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tripZone must not be blank");
+        assertThatThrownBy(() -> zoned("   ")).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tripZone must not be blank");
+    }
+
+    @Test
     void theLargestAllowedRequestIsAccepted() {
         request(locks(ItemProposeRequest.MAX_LOCKS), neighbours(ItemProposeRequest.MAX_NEIGHBOURS),
                 openingHours(ItemProposeRequest.MAX_OPENING_HOURS), candidates(ItemProposeRequest.MAX_CANDIDATES));
+    }
+
+    private static ItemProposeRequest versioned(int tripVersion) {
+        return new ItemProposeRequest(Instant.parse("2026-09-06T00:00:00Z"), ID, tripVersion, D12, D14, "Asia/Seoul",
+                new TargetItemIn(ID, ID, D12, LocalTime.of(10, 0), 90, 1), List.of(), List.of(), openingHours(1),
+                ItemProposeRequest.RouteEvidence.NONE, List.of());
+    }
+
+    private static ItemProposeRequest zoned(String tripZone) {
+        return new ItemProposeRequest(Instant.parse("2026-09-06T00:00:00Z"), ID, 7, D12, D14, tripZone,
+                new TargetItemIn(ID, ID, D12, LocalTime.of(10, 0), 90, 1), List.of(), List.of(), openingHours(1),
+                ItemProposeRequest.RouteEvidence.NONE, List.of());
     }
 
     private static ItemProposeRequest request(List<LockIn> locks, List<NeighbourItemIn> neighbours,

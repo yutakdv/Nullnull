@@ -290,6 +290,8 @@ def validate(root: Path, problems: list[str]) -> None:
     paths = [p for p in (root/'docs').rglob('*.md') if not {'node_modules', '.venv'} & set(p.parts)]
     paths += list((root/'.claude').rglob('*.md'))
     paths += list(root.glob('*.md'))
+    # App guides are canon for their path; their links and anchors need the same gate.
+    paths += sorted(root.glob('apps/*/CLAUDE.md'))
     fcr_text = (root/'docs/design/FIGMA_CHANGE_REQUESTS.md').read_text()
     fcr_ids = set(re.findall(r'^\| (FCR-\d+) \|', fcr_text, re.M))
     for path in paths:
