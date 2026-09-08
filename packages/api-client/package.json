@@ -9,7 +9,7 @@
   },
   "scripts": {
     "generate": "openapi-typescript ../../docs/api/openapi.yaml -o src/generated/openapi.ts --default-non-nullable=false",
-    "check": "npm run generate && git diff --exit-code -- src/generated/openapi.ts",
+    "check": "node ../../scripts/check-generated.mjs src/generated/openapi.ts -- npm run generate",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

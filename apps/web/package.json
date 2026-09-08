@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "tokens:build": "node scripts/build-tokens.mjs",
-    "tokens:check": "node scripts/build-tokens.mjs && git diff --exit-code -- src/design/tokens.css",
+    "tokens:check": "node ../../scripts/check-generated.mjs src/design/tokens.css -- node scripts/build-tokens.mjs",
     "preview": "node serve.mjs",
     "lint": "eslint .",
     "format:check": "prettier --check .",
