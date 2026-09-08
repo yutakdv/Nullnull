@@ -78,8 +78,13 @@ class NpmAuditReportTests(unittest.TestCase):
         self.assertTrue(any('root must be an object' in e for e in errors), errors)
 
     def test_npm_error_payload_fails(self):
-        # npm writes an error object instead of a report when the audit endpoint refuses.
-        errors = self.check({'error': {'code': 'ENOTFOUND', 'summary': 'audit endpoint returned an error'}})
+        # Observed shape: pointing npm audit at a closed port writes this instead of a report,
+        # 186 bytes of valid JSON with no metadata. An existence check alone would pass it.
+        errors = self.check({
+            'message': 'request to http://127.0.0.1:9/-/npm/v1/security/advisories/bulk failed, '
+                       'reason: connect ECONNREFUSED 127.0.0.1:9',
+            'error': {'summary': '', 'detail': ''},
+        })
         self.assertTrue(any('no metadata object' in e for e in errors), errors)
 
     def test_metadata_without_vulnerabilities_fails(self):
