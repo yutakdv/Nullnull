@@ -16,6 +16,8 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import unquote
 
+from validate_backend_plan import validate as validate_backend_plan
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OPENAPI_PATH = ROOT / "docs/api/openapi.yaml"
@@ -24,7 +26,7 @@ INVENTORY_PATH = ROOT / "docs/product/FUNCTIONAL_INVENTORY.md"
 FIGMA_PATH = ROOT / "docs/design/FIGMA_HANDOFF.md"
 COMPONENT_PATH = ROOT / "docs/design/COMPONENT_CATALOG.md"
 FIGMA_CHANGE_PATH = ROOT / "docs/design/FIGMA_CHANGE_REQUESTS.md"
-PM_AUDIT_PATH = ROOT / "docs/project/PM_CONSISTENCY_AUDIT.md"
+PM_AUDIT_PATH = ROOT / "docs/project/DECISIONS_AND_RISKS.md"
 EVENT_SCHEMA_PATH = ROOT / "docs/contracts/events.schema.json"
 EVENT_EXAMPLE_PATH = ROOT / "docs/contracts/events.example.json"
 INTEGRATION_WORKFLOW_PATH = ROOT / ".github/workflows/integration.yml"
@@ -134,10 +136,11 @@ def canonical_markdown_files() -> list[Path]:
         ROOT / "CLAUDE.md",
         ROOT / "CONTRIBUTING.md",
         ROOT / "SECURITY.md",
-        ROOT / "과제2_널널_웹앱구현_기획서_Final.md",
+        ROOT / "docs/archive/PRODUCT_BRIEF.md",
         ROOT / ".github/pull_request_template.md",
     ]
     for directory in (
+        "docs/archive",
         "docs/api",
         "docs/architecture",
         "docs/contest",
@@ -557,6 +560,7 @@ def main() -> int:
     validate_product_contract_alignment(problems)
     validate_json_files(problems)
     validate_delivery_contract(problems)
+    validate_backend_plan(ROOT, problems)
 
     if problems:
         print("Documentation validation failed:", file=sys.stderr)
@@ -567,7 +571,7 @@ def main() -> int:
     print(
         "Documentation validation passed: "
         f"{len(operation_ids)} OpenAPI operations, local links, exact Figma/component inventory, "
-        "product-contract alignment, JSON syntax, delivery policy, and contest evidence contracts."
+        "product-contract alignment, JSON syntax, delivery policy, contest evidence, backend plan coverage/DAG and Obsidian links/Canvas."
     )
     return 0
 

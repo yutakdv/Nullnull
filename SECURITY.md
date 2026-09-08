@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Security policy"
+doc_type: reference
+status: baseline
+area: workspace
+tags:
+  - nullnull/reference
+  - nullnull/workspace
+---
+
 # Security policy
 
 ## Supported version

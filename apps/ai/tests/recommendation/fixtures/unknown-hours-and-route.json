@@ -1,0 +1,75 @@
+{
+  "id": "unknown-hours-and-route",
+  "kind": "ITEM",
+  "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1",
+  "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z",
+  "timezone": "Asia/Seoul",
+  "note": "Missing facts, not violated facts: one day has unverified opening hours and the other day already holds another item while no route evidence exists.",
+  "derivation": "2026-09-13 opening hours are UNKNOWN, and section 3.1 forbids promoting UNKNOWN to eligible, so that candidate stops at OPENING_HOURS_UNKNOWN before comparability or scoring. 2026-09-14 is open 09:00-18:00 and the 10:00 stay of 90 minutes ends at 11:30, so the window and the 14:00-15:00 neighbour both pass; the neighbour on that date means the travel legs change, and with routeEvidence NONE the candidate stops at ROUTE_EVIDENCE_MISSING. No candidate is admitted; the rejection classes are DATA and ROUTE, and ROUTE decides the outcome, so the caller learns route evidence is what is missing rather than seeing a silent empty result.",
+  "input": {
+    "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93c01",
+    "tripVersion": 7,
+    "tripStart": "2026-09-12",
+    "tripEnd": "2026-09-14",
+    "tripZone": "Asia/Seoul",
+    "target": {
+      "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b01",
+      "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93a01",
+      "date": "2026-09-12",
+      "startTime": "10:00",
+      "durationMinutes": 90,
+      "position": 1
+    },
+    "locks": [],
+    "neighbours": [
+      {
+        "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b02",
+        "date": "2026-09-14",
+        "position": 1,
+        "startTime": "14:00",
+        "durationMinutes": 60
+      }
+    ],
+    "openingHours": {
+      "2026-09-12": { "open": "09:00", "close": "18:00" },
+      "2026-09-13": "UNKNOWN",
+      "2026-09-14": { "open": "09:00", "close": "18:00" }
+    },
+    "routeEvidence": "NONE",
+    "candidates": [
+      {
+        "date": "2026-09-13",
+        "time": "10:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "40",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d401",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d402"
+      },
+      {
+        "date": "2026-09-14",
+        "time": "10:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "30",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d403",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d404"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "ROUTE_UNAVAILABLE",
+    "expectProposals": false,
+    "proposals": [],
+    "rejectedByReason": {
+      "OPENING_HOURS_UNKNOWN": 1,
+      "ROUTE_EVIDENCE_MISSING": 1
+    }
+  }
+}

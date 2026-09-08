@@ -1,3 +1,14 @@
+---
+aliases:
+  - "장애·보안 사고 대응"
+doc_type: reference
+status: baseline
+area: operations
+tags:
+  - nullnull/reference
+  - nullnull/operations
+---
+
 # 장애·보안 사고 대응
 
 - 상태: Production readiness baseline
@@ -135,9 +146,9 @@ secret 노출은 commit 삭제만으로 닫지 않고 revoke/rotate, 사용 log 
 
 ### 제출 직전 장애 운영
 
-- 2026-09-19 code freeze 이후에는 사용자 데이터 무결성·접속·실제 KTO 활용·출처·secret 문제만 긴급 변경 후보로 본다.
+- 기능 동결 이후에는 사용자 데이터 무결성·접속·실제 KTO 활용·출처·secret 문제만 긴급 변경 후보로 본다.
 - Frontend 장애는 FE가 `frontend`, Backend/KTO/AWS 장애는 BE/AI가 `backend`에서 최소 수정하고 상대가 재현한 뒤 `main`에 병합한다. required check를 생략하지 않는다.
-- 2026-09-20 16:00 내부 제출 뒤 기능 확장을 하지 않는다. rollback target, 제출 URL, PDF 기능 목록이 달라지면 모두 다시 대조한다.
+- 제출 후보 확인 뒤 기능 확장을 하지 않는다. rollback target, 제출 URL, PDF 기능 목록이 달라지면 모두 다시 대조한다.
 - 공식 마감 1시간 전인 2026-09-21 15:00부터는 현재 정상 release를 고정하고 접수 확인·증거 보존만 수행한다.
 
 ## 10. Incident record template

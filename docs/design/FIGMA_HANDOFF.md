@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Figma 개발 핸드오프"
+doc_type: reference
+status: conditional
+area: design
+tags:
+  - nullnull/reference
+  - nullnull/design
+---
+
 # Figma 개발 핸드오프
 
 - 상태: Conditional — 계약 기준선은 Accepted, Figma P0 수정 요청은 Open
@@ -9,8 +20,8 @@
 의존성과 2인의 책임을 연결한다. 2026-09-05 공개 Figma를 직접 대조한 결과 현재 구현
 frame 52개와 최상위 component 49개는 확인했지만(2026-09-07 `FCR-001` EN 선택 variant `643:4088` 추가로 53개), 언어·feed·ITEM preview·guest·data
 guide 등에 P0 불일치가 남아 있다. 영향 화면은
-[Figma 정합성 수정 요청](./FIGMA_CHANGE_REQUESTS.md)이 닫히기 전 구현 승인 상태가
-아니다. Figma의 시각적 수치와 component variant가 이 문서와 다르면 Figma를 확인하되,
+[Figma 정합성 수정 요청](./FIGMA_CHANGE_REQUESTS.md)의 Ready for implementation 검토 전에는
+해당 UI를 착수하지 않는다. Closed는 구현 회귀까지 끝난 상태다. Figma의 시각적 수치와 component variant가 이 문서와 다르면 Figma를 확인하되,
 도메인 의미와 API 동작은 OpenAPI/제품 요구사항을 따른다. 49개 component의 exact
 layer 이름과 상세 계약은 [Component Catalog](./COMPONENT_CATALOG.md)가 정본이다.
 
@@ -19,6 +30,8 @@ layer 이름과 상세 계약은 [Component Catalog](./COMPONENT_CATALOG.md)가 
 - **Frontend**: React/PWA 라우팅, 화면 상태, 폼 검증, 접근성, generated API client와 계측을 담당한다.
 - **Backend/AI**: Spring API, 도메인 규칙, DB transaction, 외부 데이터, optimizer/LLM 경계와 운영 계측을 담당한다.
 - 둘 다 OpenAPI 변경과 화면-API acceptance를 같이 review한다. 임의 JSON이나 임시 mock 구조를 병행 계약으로 만들지 않는다.
+
+> 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. Figma 구조
 
@@ -158,7 +171,7 @@ Wizard 규칙:
 | --- | --- | --- | --- |
 | `410:1738` | S07-1 보기 | view | trip, day, items, candidate count 조회; route 기반 거리·시간 텍스트 없음 (`FCR-005`); `더 여유로운 날짜` 배너 제거 (`FCR-013` 2026-09-08) |
 | `411:1837` | S07-2 편집 | edit | local edit buffer, save/cancel |
-| `527:4085` | S07-2 시간 편집 | edit-time | item time/time lock 변경 |
+| `527:4085` | S07-2 날짜 이동 후 편집 | move-date result | 이동 결과/선택 Day 일치; 시간 입력 node는 미확인(FCR-017) |
 | `412:1912` | S07-8 후보 panel | overlay | 후보 목록, 날짜 선택 후 일정화 |
 | `413:2020` | S07-9 폐기 dialog | dirty-exit | 변경 폐기/계속 편집 |
 | `413:2081` | S07-7 필수 방문 잠금 해제 | confirm | MUST_VISIT constraint 해제 |
@@ -166,7 +179,8 @@ Wizard 규칙:
 | `476:3409` | S07-3 장소 검색 | search | debounce, empty/error/loading |
 | `479:3497` | S07-5 교체 대상 | target-picker | 교체할 item 선택 |
 | `479:3816`, `527:4380` | S07-4 추가 완료 | result | 새 item 강조, version 갱신 |
-| `521:3976`, `527:4695` | S07-10 날짜 이동 | move-date | 유효 날짜 선택, 순서 결정 |
+| `521:3976` | S07-10 날짜 이동 | move-date | 기존 item의 유효 날짜/순서 선택 |
+| `527:4695` | 후보 일정화 날짜 선택 | schedule-date | 새 candidate를 addTripItem으로 일정화; 기존 item 이동과 구분 |
 | `527:3876` | S07-10b 날짜 잠금 확인 | conflict-confirm | date lock 해제 의사 확인 |
 
 편집 transaction:
@@ -199,9 +213,10 @@ P0 run state:
 `QUEUED → RUNNING → READY → APPLIED | KEPT | EXPIRED`, 실패 시 `FAILED`. `APPLIED` 뒤 되돌리면 decision log는 보존하고 새 trip revision을 만든다.
 
 `READY`의 P0 ITEM 화면은 `S09-2 / preview-item · P0`(`655:4067`, 2026-09-07
-`FCR-004`로 추가)이다. `439:3104`는 P1 DAY 범위이므로 별도로 유지한다. P0에
+`FCR-004`로 추가)이다. `439:3104`는 P1 DAY 범위이므로 P0 증거로 대신할 수 없고 별도로
+유지한다. Figma 수정과 계약 검토는 끝났으나 실제 구현 test 뒤에 `Closed`로 바꾼다. P0에
 route provider가 없는 동안 loading copy의 `경로 계산`과 `지도 provider 미정`을 제거하고
-목록/timeline fallback을 기본으로 한다(`FCR-005`, 아직 미착수 — `655:4067`의
+목록/timeline fallback을 기본으로 한다(`FCR-005`. `655:4067`의
 이동시간·이동거리 metric은 `확인 불가`로 표시했다).
 
 Figma 오류 계약:
@@ -212,7 +227,7 @@ Figma 오류 계약:
 | `DATA_CHANGED` | 최신 혼잡 정보에서 개선 방향이 달라졌어요. | 다시 계산 | 409 |
 | `LOCK_CONFLICT` | 고정한 일정과 충돌해 적용할 수 없어요. | 고정 조건 확인 | 422/409 |
 | `ROUTE_UNAVAILABLE` | 경로를 확인하지 못했어요. | 재시도 또는 현재 일정 유지 | 503 |
-| `NO_IMPROVEMENT` | 현재 일정이 조건 안에서 가장 적합해요. | 내 여행으로 돌아가기 | 422 |
+| `NO_IMPROVEMENT` | 확인한 후보에서는 더 나은 변경을 찾지 못했어요. | 내 여행으로 돌아가기 | 422 |
 | `APPLY_FAILED` | 일정은 바뀌지 않았어요. | 다시 시도 | 500/503 |
 
 최적화 preview 계약:
@@ -481,3 +496,5 @@ shared/          ui, api-generated, i18n, analytics, test fixtures
 - 공모전 profile에서 P1/위치/로그인 control의 disabled·OFF 상태
 
 시각값(color/type/spacing)은 Figma variable을 export한 token으로 구현하고, 이 문서에 수치를 복사해 이중 관리하지 않는다.
+
+09-06 추가 확인은 [화면별 검토](SCREEN_REVIEW_2026-09-06.md)와 [PM 검토](../project/PM_REVIEW_2026-09-06.md)를 따른다. Catalog의 필수 props/state는 목표 계약이며 현재 모든 내부 variant가 구현됐다는 뜻이 아니다.

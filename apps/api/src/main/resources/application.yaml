@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: nullnull-api
+  profiles:
+    default: local
+  mvc:
+    servlet:
+      path: /api/v1
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  datasource:
+    hikari:
+      maximum-pool-size: ${NULLNULL_DB_POOL_MAX:10}
+      connection-timeout: 5000
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+    whitelabel:
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN
+
+nullnull:
+  env: ${NULLNULL_ENV:local}
+  readiness:
+    database-timeout-seconds: 2
+  # Recommendation service (apps/ai). No default host: a missing base URL fails startup.
+  ai:
+    base-url: ${NULLNULL_AI_BASE_URL}
+    connect-timeout: ${NULLNULL_AI_CONNECT_TIMEOUT:PT2S}
+    read-timeout: ${NULLNULL_AI_READ_TIMEOUT:PT5S}

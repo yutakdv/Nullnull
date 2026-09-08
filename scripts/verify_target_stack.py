@@ -107,6 +107,9 @@ def check_static_contract(errors: list[str]) -> None:
         ROOT / "apps/api/Dockerfile", {"test", "runtime"}, errors
     )
     check_dockerfile(
+        ROOT / "apps/ai/Dockerfile", {"test", "runtime"}, errors
+    )
+    check_dockerfile(
         ROOT / "apps/web/Dockerfile",
         {"test", "runtime", "e2e", "tooling"},
         errors,
@@ -166,10 +169,12 @@ def check_compose_contract(path: Path, errors: list[str]) -> None:
     required_services = {
         "postgres",
         "api-quality",
+        "ai-quality",
         "web-quality",
         "api-client-diff",
         "security-scan",
         "infra-plan",
+        "ai",
         "api",
         "web",
         "e2e",

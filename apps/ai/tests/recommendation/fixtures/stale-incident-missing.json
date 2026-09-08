@@ -1,0 +1,75 @@
+{
+  "id": "stale-incident-missing",
+  "kind": "ITEM",
+  "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1",
+  "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z",
+  "timezone": "Asia/Seoul",
+  "note": "Every candidate passes the hard filters and is rejected only because its before/after pair is not comparable: stale input, a provider incident window and missing provenance.",
+  "derivation": "All three candidates are on open days inside the trip, carry no lock and no neighbour, so they reach the comparability gate. STALE_INPUT, PROVIDER_INCIDENT and MISSING_PROVENANCE are all eligible=false in SOURCE_CATALOG.md section 9, so requireComparisonEligible rejects each as COMPARISON_INELIGIBLE and their relief values (60, 30 and 40 points) are never used. Nothing is admitted and every rejection class is DATA, so the outcome is DATA_INSUFFICIENT rather than NO_IMPROVEMENT: the difference tells the caller that data, not the schedule, is what blocks the optimization. Removing the comparison-eligibility check turns this fixture red with three unsupported comparisons, which is the REC-CI-6 deliberate-fault probe.",
+  "input": {
+    "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93c01",
+    "tripVersion": 7,
+    "tripStart": "2026-09-12",
+    "tripEnd": "2026-09-14",
+    "tripZone": "Asia/Seoul",
+    "target": {
+      "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b01",
+      "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93a01",
+      "date": "2026-09-12",
+      "startTime": "10:00",
+      "durationMinutes": 90,
+      "position": 1
+    },
+    "locks": [],
+    "neighbours": [],
+    "openingHours": {
+      "2026-09-12": { "open": "09:00", "close": "18:00" },
+      "2026-09-13": { "open": "09:00", "close": "18:00" },
+      "2026-09-14": "CLOSED"
+    },
+    "routeEvidence": "NONE",
+    "candidates": [
+      {
+        "date": "2026-09-12",
+        "time": "11:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "20",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": false, "reasonCode": "STALE_INPUT" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d601",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d602"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "12:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "50",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": false, "reasonCode": "PROVIDER_INCIDENT" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d603",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d604"
+      },
+      {
+        "date": "2026-09-13",
+        "time": "10:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "40",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": false, "reasonCode": "MISSING_PROVENANCE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d605",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d606"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "DATA_INSUFFICIENT",
+    "expectProposals": false,
+    "proposals": [],
+    "rejectedByReason": { "COMPARISON_INELIGIBLE": 3 }
+  }
+}

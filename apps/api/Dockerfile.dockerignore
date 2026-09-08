@@ -1,0 +1,15 @@
+# Applies to builds of apps/api/Dockerfile (BuildKit reads <Dockerfile>.dockerignore). Paths are
+# relative to the repository root, which is the build context in compose.integration.yml.
+.git
+.artifacts
+.obsidian
+node_modules
+**/node_modules
+apps/web
+apps/api/build
+apps/api/.gradle
+apps/api/.env
+apps/api/.env.*
+!apps/api/.env.example
+docs/assets
+*.log

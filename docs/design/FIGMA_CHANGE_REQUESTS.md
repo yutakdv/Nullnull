@@ -1,8 +1,19 @@
+---
+aliases:
+  - "Figma 정합성 수정 요청"
+doc_type: reference
+status: conditional
+area: design
+tags:
+  - nullnull/reference
+  - nullnull/design
+---
+
 # Figma 정합성 수정 요청
 
-- 감사일: 2026-09-05
+- 최초 감사일: 2026-09-05; 후속 canvas 대조: 2026-09-06
 - 상태: Open — 아래 P0 blocker와 major가 닫히기 전 Figma 전체를 구현 승인 상태로 보지 않음
-- 대상: `02 UI Design`의 현재 구현 frame 52개와 `01 Components`의 최상위 component 49개
+- 대상: `02 UI Design`의 확인한 화면·참조 상태 frame 52개와 `01 Components`의 최상위 component 49개
 - 디자인 파일: [Nullnull UI Design](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=386-257&p=f)
 
 이 문서는 공개 Figma의 실제 화면·layer를 제품 요구사항, OpenAPI, 기능 인벤토리와
@@ -35,6 +46,21 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-013 | P0 blocker | 여행 보기 `410:1738`에 계약 연결 없이 `더 여유로운 날짜가 있어요 · 비교하기`가 노출됨 | P0에서 제거하거나 `getPlaceCrowdForecast`와 temporal comparison eligibility, 표시 threshold, unavailable 상태를 기능 ID에 연결. 단순 예보 비교와 적용 가능한 최적화 제안을 구분 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-013-증거)) |
 | FCR-014 | P0 major | 계산 중 `415:2413`의 `취소하고 My Trip으로`가 한국어 tab 명칭과 다르고, client 이탈/timeout이 server run 취소를 뜻하는 것처럼 보임 | 취소 operation이 없는 P0에서는 `내 여행으로 돌아가기`처럼 navigation만 표현하고 run은 URL로 다시 조회할 수 있음을 안내. 실제 취소는 별도 계약·상태 전이 뒤에만 노출 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-014-증거)) |
 | FCR-015 | P0 blocker | 적용 완료 `417:2412`의 되돌리기가 toast action뿐이고 적용 대상 revision·24시간 `revertUntil`·만료 상태를 지속적으로 확인할 수 없음 | `ApplyOptimizationDecision`의 전후 revision·`revertUntil`을 persistent UI로 표시하고 가능/진행/완료/`REVERT_WINDOW_EXPIRED` 상태를 제공. toast는 보조 피드백으로만 사용 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-015-증거)) |
+| FCR-016 | P0 blocker | S14 언어/여행 삭제/전체 데이터 삭제 보조 흐름과 시간/예약 입력 node 미확인 | 진입·확인·처리중·부분 실패·완료·복구 variant와 API 연결; PM-002 | FE / BE·AI·PM | Open |
+| FCR-017 | P0 blocker | 527:4085는 날짜 이동 결과, 527:4695는 후보 신규 일정화 날짜 선택 | node 의미 정정·별도 시간 편집·선택 Day 일치·삽입 위치 정책; PM-003/008 | FE / BE·AI·PM | Open |
+| FCR-018 | P0 blocker | 438:3158 untimed 필수 장소→384:5673 초안, 수동 시작/확인 단계 불일치 | 확인 전 초안 계약·세 분기·수정/만료·확정 경계; PM-004 | FE / BE·AI·PM | Open |
+| FCR-019 | P0 blocker | 401:1221 원문·438:3259 confirm에서 연도/제목/제거 수정 부족 | 날짜 기준·기본 제목·item 제거/remap·전송 안내·IMPORT 잠금; PM-005 | FE / BE·AI·PM | Open |
+| FCR-020 | P0 blocker | 438:3108 동행인/스타일 chip에 canonical code/weight 없음 | 지원 dictionary·선택 규칙·KOEN label·중복/빈 선택; PM-006 | FE / BE·AI·PM | Open |
+| FCR-021 | P0 blocker | 411:1837/413:2020 buffer 저장/취소, 해제하고 이동·교체 | 복합 commit 또는 승인된 저장 UX·원자 해제+변경·실패0변경; PM-007 | FE / BE·AI·PM | Open |
+| FCR-022 | P0 blocker | 412:1912 SCHEDULED 제거 action, 저장 결과는 toast 중심 | 후보 전이·교체 linkage·독립 후보 보존·지속 success/duplicate/error; PM-009 | FE / BE·AI·PM | Open |
+| FCR-023 | P0 blocker | 검색/feed/trip의 KTO 콘텐츠·이미지 출처 전달 공백 | list/detail content provenance·media license·권리 철회/placeholder; PM-010 | FE / BE·AI·PM | Open |
+| FCR-024 | P0 major | feed/post 작성자·하트 수·반응 상태와 read schema 불일치 | P0 field-by-field 범위·피드백 토글/재조회/숨김 복구; PM-011 | FE / BE·AI·PM | Open |
+| FCR-025 | P0 blocker | 418:2523 현재 여행지·우회 시간·정렬·날씨·map에 미지원 기능 | P0 제거 또는 입력/근거/provider 계약, map OFF 목록; PM-012 | FE / BE·AI·PM | Open |
+| FCR-026 | P0 blocker | Live/stale/replay 공통 단계·시간별 그래프, KTO는 상대 날짜 예측 | source별 단위/범례/시간 해상도·6-state·비교불가 표시; PM-013 | FE / BE·AI·PM | Open |
+| FCR-027 | P0 blocker | ITEM 대상 선택·취소 copy·refresh/만료/이력/undo 상태 불완전 | read 복구·back≠cancel·실패 복귀≠KEEP·서버 undo 가능성; PM-015 | FE / BE·AI·PM | Open |
+| FCR-028 | P0 major | 417:2567 NO_IMPROVEMENT가 전역 최적성을 주장 | 확인한 후보 범위 문구·UNKNOWN/CHECKING/NONE·유효 CTA; PM-020 | FE / BE·AI·PM | Open |
+
+FCR 번호는 기존 참조를 보존한다. FCR-010~015는 09-06 PR #6 계약 검토에서, FCR-016~028은 09-06 직접 canvas 대조와 API 검토에서 추가했다. 등록은 문서 기준선이며 디자인 수정 완료를 뜻하지 않는다.
 
 `CON-003` 계약은 PR #9의 merge commit `1b3931c`로 `main`에 반영됐다. 따라서
 FCR-010/011/015의 Backend/AI 계약 선행조건은 충족됐다. 세 FCR의 `Open` 상태는
@@ -71,7 +97,7 @@ Frontend가 실제 Figma node/variant와 before/after 증거를 아직 제출하
 
 ## 종료 조건
 
-각 FCR은 다음 증거가 모두 있을 때만 `Closed`로 바꾼다.
+상태는 `Open → Ready for implementation → Closed`다. 1~4의 디자인·계약 검토가 끝나면 영향 UI를 착수할 수 있다. 실제 구현 후 5까지 통과해야 Closed다. 구현 test가 있어야 구현을 시작할 수 있는 순환 조건을 만들지 않는다.
 
 1. 수정된 Figma node URL과 변경 전/후 screenshot
 2. [기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md)의 기능 ID·operationId 연결
@@ -457,3 +483,16 @@ top-level frame이 5개 늘어 `02 UI Design` 구현 frame은 63개다(FCR-008�
 6. 새 컴포넌트를 만들지 않았다. 배지·버튼은 이 화면 전용 auto-layout이며, 반복 사용이 확인되면 `COMPONENT_CATALOG` 검토 시 `Data / Badge` variant로 승격할지 결정한다.
 
 top-level frame이 3개 늘어 `02 UI Design` 구현 frame은 66개다(FCR-012까지 63 → 66). [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.
+
+## #11 계약 packet 검토 결과
+
+FCR-010/011/015의 [추가 계약 제안](../contracts/review-2026-09-06/README.md)은 KTO 출처 예시,
+카드용 짧은 credit(`attributionShort`), 서버 undo 가능 상태(`revertAvailability`), 외부 링크
+host, 최초 APPLY/KEEP 응답 union을 포함한다. Backend/AI가 OpenAPI 0.2.1-rc.1로 준비했고
+Frontend가 같은 commit에서 generated type을 확인해 PR #12에서 승인했다.
+
+`SEOUL_CITYDATA.attributionShort`는 `출처: 서울특별시`다. `FCR-011` 증거 절의 폭 blocker는
+이 값으로 세 화면(feed 카드 156px, post 장소 카드 329px, Live 후보 행 190px)의 출처 표기를
+정리하면 닫힌다. 0.2.1-rc.1이 `main`에 들어온 뒤 진행한다.
+
+예전 이슈의 node 번호는 [현재 화면 확인표](SCREEN_REVIEW_2026-09-06.md)로 다시 연결한다.

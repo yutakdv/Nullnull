@@ -1,0 +1,4 @@
+node_modules/
+schema.d.ts
+results.local.json
+cdk.out/

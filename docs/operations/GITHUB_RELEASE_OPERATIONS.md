@@ -1,14 +1,25 @@
+---
+aliases:
+  - "GitHub·릴리스 운영 계약"
+doc_type: reference
+status: baseline
+area: operations
+tags:
+  - nullnull/reference
+  - nullnull/operations
+---
+
 # GitHub·릴리스 운영 계약
 
-- 상태: M0 external settings/runbook baseline
+- 상태: B01 external settings/runbook baseline
 - 대상: 2인 팀, GitHub repository와 AWS staging/production
 - 전제: `~/Desktop/Nullnull`의 원격 `main` 이력을 유지하고 목표 서비스 파일만 반영한다.
 
-이 문서는 workflow 파일만으로 표현되지 않는 ruleset, environment approval, CODEOWNERS, OIDC와 release artifact 정책을 함께 정의한다. 실제 설정을 완료했다는 뜻이 아니며 M0에서 각 checklist에 설정 화면/export evidence를 연결한다.
+이 문서는 workflow 파일만으로 표현되지 않는 ruleset, environment approval, CODEOWNERS, OIDC와 release artifact 정책을 함께 정의한다. 실제 설정을 완료했다는 뜻이 아니며 B01에서 각 checklist에 설정 화면/export evidence를 연결한다.
 
 ## 1. 초기 이관 안전 규칙
 
-기준선 문서는 `origin/main` 이력을 유지하는 `~/Desktop/Nullnull`에 선별 반영한다. 작업공간 전체를 add하거나 unrelated history로 강제 merge하지 않는다. 상세 manifest는 [REPOSITORY_BASELINE.md](../project/REPOSITORY_BASELINE.md)를 따른다.
+기준선 문서는 `origin/main` 이력을 유지하는 `~/Desktop/Nullnull`에 선별 반영한다. 작업공간 전체를 add하거나 unrelated history로 강제 merge하지 않는다. 상세 manifest는 [저장소 보존 경계](../project/DECISIONS_AND_RISKS.md)를 따른다.
 
 - docs/policy allowlist에 명시된 파일만 복사한다.
 - 과거 prototype code·문서와 그 runtime을 가정하는 scheduled/deploy workflow는 목표 저장소에 포함하지 않는다.
@@ -31,20 +42,20 @@
 - 둘 중 한 명이 작성자이면 다른 한 명이 required reviewer다. 자기 승인 merge는 허용하지 않는다.
 - stale approval은 새 commit 또는 contract/generated diff 변경 시 dismiss한다.
 
-교차 slice의 additive contract → 호환 Backend → Frontend 순서, fast-forward/merge 동기화 방법과 M0 marker는 [브랜치·Docker 통합 계약](../engineering/BRANCH_AND_INTEGRATION.md)이 정본이다.
+교차 slice의 additive contract → 호환 Backend → Frontend 순서, fast-forward/merge 동기화 방법과 B01 marker는 [브랜치·Docker 통합 계약](../engineering/BRANCH_AND_INTEGRATION.md)이 정본이다.
 
 ## 3. Required check와 component gate 설계
 
-ruleset에 연결하는 stable required status는 M0 전후 정확히
+ruleset에 연결하는 stable required status는 B01 전후 정확히
 `docs-contract`, `docker-integration` 두 개다. 이름을 바꾸면 ruleset도 같은 변경
 창에서 갱신하고 잠시 gate가 비는 상태를 만들지 않는다.
 
 | Ruleset required status | 적용 경로 | 내용 |
 | --- | --- | --- |
 | `docs-contract` | 모든 PR(required) | Markdown/link/YAML/JSON, OpenAPI lint/ref, event/example validation |
-| `docker-integration` | 모든 PR(required) | M0 전 baseline-only, M0 후 PostgreSQL+API+web+mobile E2E 통합 aggregator |
+| `docker-integration` | 모든 PR(required) | B01 전 baseline-only, B01 후 PostgreSQL+API+web+mobile E2E 통합 aggregator |
 
-M0 뒤 `docker-integration` 내부에는 다음 component gate를 둔다. 이 이름들은
+B01 뒤 `docker-integration` 내부에는 다음 component gate를 둔다. 이 이름들은
 ruleset required status가 아니라 aggregator의 필수 service/task다.
 
 | Component gate | 내용 |
@@ -65,7 +76,7 @@ test와 API contract test를 모두 강제한다. required workflow가 skip이�
 
 ## 4. CODEOWNERS 목표
 
-실제 handle이 결정되기 전 placeholder CODEOWNERS를 merge하지 않는다. M0에서 `FE_DRI`, `BE_AI_DRI`를 실제 GitHub handle로 치환해 다음 의미를 구현한다.
+실제 handle이 결정되기 전 placeholder CODEOWNERS를 merge하지 않는다. B01에서 `FE_DRI`, `BE_AI_DRI`를 실제 GitHub handle로 치환해 다음 의미를 구현한다.
 
 | Path | Primary DRI | CODEOWNERS | 상대 review가 필수인 변경 |
 | --- | --- | --- | --- |
@@ -89,7 +100,7 @@ dismissal을 함께 켠다. Primary DRI는 단독 승인권이 아니라 구현 
 - [ ] 최소 승인 1명 + code owner review + stale approval dismiss
 - [ ] 모든 conversation resolved
 - [ ] 정확히 `docs-contract`, `docker-integration`만 stable required status로 연결됨
-- [ ] M0 뒤 모든 component gate가 `docker-integration` 내부에서 fail-closed로 집계됨
+- [ ] B01 뒤 모든 component gate가 `docker-integration` 내부에서 fail-closed로 집계됨
 - [ ] required check가 관리자/bypass actor에도 기본 적용됨
 - [ ] tag `v*` 생성/삭제 권한을 두 팀원/릴리스 workflow로 제한
 - [ ] GitHub Actions permission 기본 `read`, job별 최소 상승
@@ -151,6 +162,8 @@ tag는 source 식별자이고 실제 배포 identity는 immutable digest 집합�
   "releaseVersion": "v0.1.0",
   "gitSha": "full-sha",
   "apiImageDigest": "sha256:...",
+  "aiImageDigest": "sha256:...",
+  "aiCatalogVersion": "...",
   "webArtifactSha256": "...",
   "openApiSha256": "...",
   "eventSchemaSha256": "...",
@@ -165,14 +178,14 @@ manifest에는 secret/account credential를 넣지 않는다. staging에서 검�
 
 ## 9. Artifact retention 초기 정책
 
-M0에서 GitHub plan/AWS lifecycle과 비용을 확인해 자동화한다. 더 짧게 변경하려면 rollback/RCA 요구를 검토하고 결정 대장에 남긴다.
+B01에서 GitHub plan/AWS lifecycle과 비용을 확인해 자동화한다. 더 짧게 변경하려면 rollback/RCA 요구를 검토하고 결정 대장에 남긴다.
 
 | Artifact | 초기 보존 | 보호 규칙 |
 | --- | --- | --- |
 | PR test/coverage/Playwright report | 30일 | 열린 incident 연결 시 보존 연장 |
 | contract diff, SBOM, security/IaC report | 90일 | production release 연결분 1년 |
-| staging API image/web artifact | 30일 또는 최근 10개 중 더 긴 범위 | 현재 staging digest 삭제 금지 |
-| production API image/release manifest | 1년 + 최근 5개 production release | active/rollback/tagged digest 보호 |
+| staging API/ai image/web artifact | 30일 또는 최근 10개 중 더 긴 범위 | 현재 staging digest 삭제 금지 |
+| production API/ai image/release manifest | 1년 + 최근 5개 production release | active/rollback/tagged digest 보호 |
 | production web object versions | 90일 + 최근 5개 production release | 현재/직전 manifest 보호 |
 | migration checksum/배포 승인/rollback 기록 | 1년 | release manifest와 함께 보존 |
 | security/privacy incident evidence | incident 정책/법적 검토값 | 일반 artifact cleanup에서 제외 |
@@ -207,7 +220,7 @@ release artifact를 재생성해 과거 digest를 대체하지 않는다. retent
 
 ### 공모전 제출 추가 gate
 
-1. 2026-09-19 code freeze와 2026-09-20 16:00 내부 제출 목표를 지킨다.
+1. 전체 P0 검증 → 기능/PDF 동결 → 최종 제출 대조 순서를 지킨다.
 2. 외부망·익명창에서 HTTPS URL과 핵심 journey를 검증하고 `로그인 불필요`로 제출한다.
 3. 승인된 운영키로 실제 KTO call → call-audit → 공개 response → 화면 텍스트 출처를 한 release에서 확인한다.
 4. 기능설명서는 공식 양식을 변경하지 않고 PDF로 렌더링하며 실제 배포 기능/API만 적는다.

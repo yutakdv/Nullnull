@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Frontend Claude Code 시작 안내서"
+doc_type: playbook
+status: active
+area: frontend
+tags:
+  - nullnull/playbook
+  - nullnull/frontend
+---
+
 # Frontend 담당자 · Claude Code 시작 안내서
 
 - 대상: Nullnull Frontend 담당자(`FE_DRI`)와 해당 담당자의 Claude Code 세션
@@ -57,7 +68,7 @@ setup/preview/applied 같은 영향 UI를 “임시”로 구현해 합치는 �
 2. [README](../../README.md): 제품 범위와 두 역할의 merge 원칙
 3. [문서 지도](../README.md): 정본 우선순위와 담당별 진입점
 4. [Frontend 실행서](./FRONTEND_PLAYBOOK.md): 52개 frame, operationId, backlog, Done 기준
-5. [PM 정합성 감사](../project/PM_CONSISTENCY_AUDIT.md): 현재 NO-GO 이유, scope cut, hard gate
+5. [결정·위험·현재 상태](../project/DECISIONS_AND_RISKS.md): 현재 NO-GO 이유, 열린 결정, hard gate
 6. [Figma 수정 요청](../design/FIGMA_CHANGE_REQUESTS.md): 열려 있는 P0 blocker와 닫는 증거
 7. [브랜치·Docker 통합](../engineering/BRANCH_AND_INTEGRATION.md): `frontend → main` PR 규칙
 8. [로컬 개발](../engineering/LOCAL_DEVELOPMENT.md): M0 이후 실제 실행 순서와 환경 경계

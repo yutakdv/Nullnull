@@ -1,3 +1,14 @@
+---
+aliases:
+  - "화면·기능 소유권 매트릭스"
+doc_type: reference
+status: baseline
+area: engineering
+tags:
+  - nullnull/reference
+  - nullnull/engineering
+---
+
 # 화면·기능 소유권 매트릭스
 
 - 상태: Accepted execution contract
@@ -11,7 +22,7 @@
 보안·데이터·도메인 무결성 veto를 덮을 수 없으며, GitHub의 필수 상대 review를
 대신하지 않는다.
 
-실제 이름/GitHub handle은 M0에서 다음 표를 채운다.
+실제 이름/GitHub handle은 B01에서 다음 표를 채운다.
 
 | Role key | 실제 이름 | GitHub handle | 부재 시 release 역할 |
 | --- | --- | --- | --- |
@@ -19,6 +30,8 @@
 | `BE_AI_DRI` | `TBD` | `TBD` | API/data/infra rollback 판단 |
 
 임의 handle을 기입하지 않는다. production 전 `TBD`는 허용하지 않는다.
+
+> 구현 순서: [B00~B10 실행 계획](IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. 전체 Figma frame 책임
 
@@ -49,7 +62,7 @@
 | `440:3244` | S02-6 AI draft | P1 | capability/AI 표기 | bounded AI orchestration | OFF state·승인 경계 |
 | `410:1738` | S07-1 여행 보기 | P0 | day/item/candidate read | aggregate/ETag | complete view·empty day |
 | `411:1837` | S07-2 편집 | P0 | edit buffer/save/cancel | atomic commands/version | 실패 부분 반영 0 |
-| `527:4085` | S07-2 시간 편집 | P0 | time/duration/lock UI | time validation/constraint | timezone·독립 lock |
+| `527:4085` | S07-2 날짜 이동 후 편집 | P0 | 선택 Day/본문 Day 일치 | 날짜 이동 결과와 기존 시간 보존 | 시간 입력 화면 증거로 사용 금지(FCR-017) |
 | `412:1912` | S07-8 후보 panel | P0 | active/scheduled/date picker | candidate page/match/schedule | 일정화 원자 적용 |
 | `413:2020` | S07-9 폐기 dialog | P0 | dirty-exit/focus | 해당 없음 | 폐기·계속 편집 |
 | `413:2081` | S07-7 필수 lock 해제 | P0 | 결과 명시 confirm | typed constraint removal | 다른 lock 유지 |
@@ -60,7 +73,7 @@
 | `479:3816` | S07-4 추가 완료 | P0 | 새 item 강조/result | add item/version | position/version +1 |
 | `527:4380` | S07-4 추가 완료 variant | P0 | variant parity | 동일 계약 | 새로고침 일치 |
 | `521:3976` | S07-10 날짜 이동 | P0 | target date/order | move command | range/position 유효 |
-| `527:4695` | S07-10 날짜 이동 variant | P0 | date-lock 표현 | 동일 계약 | keyboard 동등 기능 |
+| `527:4695` | 후보 일정화 날짜 선택 | P0 | 신규 후보의 날짜 선택 | addTripItem/candidate linkage | 기존 item 이동과 분리·원자 일정화 |
 | `527:3876` | S07-10b 날짜 lock 확인 | P0 | 영향 confirm | typed date-lock conflict | 무단 unlock 없음 |
 | `415:2268` | S09-0 최적화 설정 | P0 | item/scope/lock/capability | create run/input snapshot | P0 ITEM만 활성 |
 | `415:2413` | S09-1 계산 중 | P0 | poll/back/resume/timeout | async state/Retry-After | refresh 복원 |
@@ -90,6 +103,7 @@ Storybook/fixture에서 제외하지 않는다. 다만 ITEM READY preview가 빠
 | --- | --- | --- | --- |
 | `apps/web/**` | FE | BE/AI: API/data 의미 변경 시 | web gate, screenshot, contract SHA |
 | `apps/api/**` | BE/AI | FE: public API/error 변경 시 | API/integration/contract gate |
+| `apps/ai/**` | BE/AI | FE informed(내부 계약, 공개 계약 아님); 설명/상태 문구 변경 시 FE 확인 | ruff/mypy/pytest, 내부 계약 sync, `recommendationTest` parity |
 | `packages/api-client/**` | 생성기 | FE+BE/AI | 직접 편집 금지, clean regeneration |
 | `packages/contracts/**` | BE/AI fixture, FE consumer | 상대 담당자 | schema-valid, no PII |
 | `docs/api/**`, `docs/contracts/**` | BE/AI | FE 필수 | lint/breaking diff/generated client |

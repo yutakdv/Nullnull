@@ -1,0 +1,14 @@
+{
+  "docs/decisions/ADR-0001-target-stack.md": "docs/decisions/ARCHITECTURE_DECISIONS.md#adr-0001",
+  "docs/decisions/ADR-0002-data-truth-and-ai.md": "docs/decisions/ARCHITECTURE_DECISIONS.md#adr-0002",
+  "docs/decisions/ADR-0003-session-consistency.md": "docs/decisions/ARCHITECTURE_DECISIONS.md#adr-0003",
+  "docs/decisions/ADR-0004-two-person-contract-delivery.md": "docs/decisions/ARCHITECTURE_DECISIONS.md#adr-0004",
+  "docs/decisions/ADR-0005-aws-release-boundaries.md": "docs/decisions/ARCHITECTURE_DECISIONS.md#adr-0005",
+  "docs/engineering/WORKFLOW.md": "docs/engineering/BRANCH_AND_INTEGRATION.md",
+  "과제2_널널_웹앱구현_기획서_Final.md": "docs/archive/PRODUCT_BRIEF.md",
+  "docs/project/REPOSITORY_BASELINE.md": "docs/project/DECISIONS_AND_RISKS.md",
+  "docs/project/PM_CONSISTENCY_AUDIT.md": "docs/project/DECISIONS_AND_RISKS.md",
+  "docs/architecture/BACKEND_DEVELOPMENT_DESIGN.md": "docs/architecture/SYSTEM_ARCHITECTURE.md",
+  "docs/architecture/X_ALGORITHM_REFERENCE.md": "docs/architecture/RECOMMENDATION_ALGORITHM.md#13-x-공개-코드와-참조-버전",
+  "docs/engineering/RECOMMENDATION_CI.md": "docs/engineering/TEST_STRATEGY.md#12-추천-핵심-ci-상세"
+}

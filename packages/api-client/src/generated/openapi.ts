@@ -656,7 +656,15 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Get optimization state and immutable proposals */
+        /**
+         * Get optimization state and immutable proposals
+         * @description Return server-computed revertAvailability when supported. Preview expiry prevents a
+         *     new APPLY/KEEP, but must not turn an already APPLIED or REVERTED run into PREVIEW_EXPIRED.
+         *     Existing run metadata and decisions remain readable under the owner retention policy;
+         *     do not extend or duplicate proposal/snapshot retention for this projection. An APPLIED
+         *     run remains APPLIED when its revert window expires. Revert still revalidates state
+         *     atomically; a preceding AVAILABLE read is not an authorization to skip those checks.
+         */
         get: operations["getOptimization"];
         put?: never;
         post?: never;
@@ -1090,6 +1098,7 @@ export interface components {
          *       "officialUrl": "https://data.seoul.go.kr/dataList/OA-21285/F/1/datasetView.do",
          *       "licenseUrl": "https://www.kogl.or.kr/info/licenseType1.do",
          *       "attribution": "출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)",
+         *       "attributionShort": "출처: 서울특별시",
          *       "metricDefinition": "서울 주요 장소의 실시간 인구 혼잡도 수준",
          *       "normalizationVersion": "seoul-citydata-v1",
          *       "qualityFlags": [],
@@ -1106,6 +1115,72 @@ export interface components {
          *       "mappingType": "DIRECT",
          *       "fallbackUsed": false,
          *       "provenanceId": "018f3f8e-9b67-7a21-8d31-31d315b93903"
+         *     }
+         * @example {
+         *       "source": "KTO_KOR_SERVICE_2",
+         *       "sourceDisplayName": "한국관광공사 국문 관광정보",
+         *       "sourceRegistryVersion": 1,
+         *       "sourceState": "QUALITATIVE",
+         *       "observedAt": null,
+         *       "targetAt": null,
+         *       "fetchedAt": "2026-09-06T05:00:00Z",
+         *       "staleAt": null,
+         *       "freshness": "UNKNOWN",
+         *       "confidence": null,
+         *       "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)",
+         *       "officialUrl": "https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15101578",
+         *       "licenseUrl": "https://data.go.kr/ugs/selectPortalPolicyView.do",
+         *       "attribution": "출처: ⓒ한국관광공사",
+         *       "attributionShort": "출처: ⓒ한국관광공사",
+         *       "metricDefinition": "관광지 기본 정보·소개 텍스트; 혼잡 수치 또는 영업 중 보증 아님",
+         *       "normalizationVersion": "kto-kor-service-2-v1",
+         *       "qualityFlags": [],
+         *       "forecastIssueId": null,
+         *       "comparisonAxis": null,
+         *       "comparisonEligible": false,
+         *       "comparisonReasonCode": "QUALITATIVE_ONLY",
+         *       "comparisonGroupId": null,
+         *       "collectorRunId": "018f3f8e-9b67-7a21-8d31-31d315b94001",
+         *       "snapshotSetId": "018f3f8e-9b67-7a21-8d31-31d315b94002",
+         *       "observedAtSkewSeconds": null,
+         *       "scope": "PLACE",
+         *       "scopeLabel": "관광지 기본 정보",
+         *       "mappingType": "DIRECT",
+         *       "fallbackUsed": false,
+         *       "provenanceId": "018f3f8e-9b67-7a21-8d31-31d315b94003"
+         *     }
+         * @example {
+         *       "source": "KTO_CONCENTRATION_FORECAST",
+         *       "sourceDisplayName": "한국관광공사 관광지 집중률 예측",
+         *       "sourceRegistryVersion": 1,
+         *       "sourceState": "FORECAST",
+         *       "observedAt": null,
+         *       "targetAt": "2026-09-07T00:00:00+09:00",
+         *       "fetchedAt": "2026-09-06T05:00:00Z",
+         *       "staleAt": null,
+         *       "freshness": "UNKNOWN",
+         *       "confidence": null,
+         *       "license": "이용허락범위 제한 없음",
+         *       "officialUrl": "https://www.data.go.kr/data/15128555/openapi.do",
+         *       "licenseUrl": "https://data.go.kr/ugs/selectPortalPolicyView.do",
+         *       "attribution": "출처: ⓒ한국관광공사",
+         *       "attributionShort": "출처: ⓒ한국관광공사",
+         *       "metricDefinition": "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님",
+         *       "normalizationVersion": "kto-concentration-forecast-v1",
+         *       "qualityFlags": [],
+         *       "forecastIssueId": "fixture-kto-20260906-01",
+         *       "comparisonAxis": "TEMPORAL",
+         *       "comparisonEligible": false,
+         *       "comparisonReasonCode": "MISSING_PROVENANCE",
+         *       "comparisonGroupId": null,
+         *       "collectorRunId": "018f3f8e-9b67-7a21-8d31-31d315b94101",
+         *       "snapshotSetId": "018f3f8e-9b67-7a21-8d31-31d315b94102",
+         *       "observedAtSkewSeconds": null,
+         *       "scope": "PLACE",
+         *       "scopeLabel": "같은 관광지의 2026-09-07 일별 예측",
+         *       "mappingType": "DIRECT",
+         *       "fallbackUsed": false,
+         *       "provenanceId": "018f3f8e-9b67-7a21-8d31-31d315b94103"
          *     }
          */
         DataProvenance: {
@@ -1129,6 +1204,12 @@ export interface components {
             /** Format: uri */
             licenseUrl: string | null;
             attribution: string | null;
+            /**
+             * @description Optional server-owned compact credit for narrow cards. Omitted/null falls back
+             *     to attribution. Never replaces full attribution in accessible source details,
+             *     and never combines distinct providers into one credit. Plain text only.
+             */
+            attributionShort?: string | null;
             metricDefinition: string | null;
             normalizationVersion: string;
             qualityFlags: ("PROVIDER_INCIDENT" | "SCHEMA_DRIFT" | "MAPPING_UNCERTAIN" | "OBSERVED_AT_SKEW" | "PARTIAL_PAYLOAD")[];
@@ -1658,6 +1739,16 @@ export interface components {
             tripId: string;
             scope: components["schemas"]["OptimizationScope"];
             status: components["schemas"]["OptimizationStatus"];
+            /**
+             * @description Optional server-computed read projection, evaluated at response time. Precedence:
+             *     no APPLY decision -> NOT_APPLICABLE; already reverted -> REVERTED;
+             *     server now >= APPLY.revertUntil -> EXPIRED; current trip version differs from
+             *     APPLY.resultingTripVersion -> NOT_APPLICABLE; otherwise -> AVAILABLE.
+             *     Absence means unknown support, never permission to enable undo using client time.
+             *     AVAILABLE is advisory: the mutation rechecks owner, version, window and decision.
+             * @enum {string}
+             */
+            revertAvailability?: "AVAILABLE" | "EXPIRED" | "REVERTED" | "NOT_APPLICABLE";
             /** Format: int64 */
             inputTripVersion: number;
             /** Format: uuid */
@@ -1781,6 +1872,8 @@ export interface components {
             /** @enum {string} */
             decision: "APPLY" | "KEEP";
         };
+        /** @description Response of decideOptimization; REVERT is returned only by the revert endpoint. */
+        InitialOptimizationDecision: components["schemas"]["ApplyOptimizationDecision"] | components["schemas"]["KeepOptimizationDecision"];
         OptimizationDecision: components["schemas"]["ApplyOptimizationDecision"] | components["schemas"]["KeepOptimizationDecision"] | components["schemas"]["RevertOptimizationDecision"];
         /**
          * @example {
@@ -3337,7 +3430,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            /** @description Preview expired */
+            /** @description Undecided preview expired; does not apply to an already recorded decision */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -3376,7 +3469,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OptimizationDecision"];
+                    "application/json": components["schemas"]["InitialOptimizationDecision"];
                 };
             };
             409: components["responses"]["Conflict"];

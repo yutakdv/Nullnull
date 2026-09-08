@@ -1,34 +1,47 @@
+---
+aliases:
+  - "로컬 개발 환경 계약"
+doc_type: reference
+status: baseline
+area: engineering
+tags:
+  - nullnull/reference
+  - nullnull/engineering
+---
+
 # 로컬 개발 환경 계약
 
-- 상태: M0에서 실행 파일과 exact version을 고정할 기준
+- 상태: B01에서 실행 파일과 exact version을 고정할 기준
 - 대상: Frontend 담당 1명, Backend/AI 담당 1명
 - 원칙: 새 clone에서 같은 명령·seed·생성물로 같은 화면과 API를 재현한다.
 
-현재 문서는 목표 stack의 실행 계약이다. `apps/web`, `apps/api`는 아직 없지만 root의 `scripts/integration-test.sh`는 존재한다. M0 전에는 문서 기준선만 검사하고, M0 scaffold PR은 내용이 정확히 `version=1`인 `.nullnull-target-stack`, 표의 lock 파일과 앱 명령/Docker stage를 실제로 만든 뒤 CI와 두 개발자 기기에서 검증해야 한다.
+현재 문서는 목표 stack의 실행 계약이다. 검토 중 `apps/api` scaffold, 추천 서비스 `apps/ai`([ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006))와 `compose.yml`이 추가됐다. `apps/web`과 marker가 없어 현재 `scripts/integration-test.sh`는 hard fail한다. 앱이 전혀 없는 초기 기준선에서만 baseline-only를 허용하며, B01 scaffold PR은 내용이 정확히 `version=1`인 `.nullnull-target-stack`, 표의 lock 파일과 앱 명령/Docker stage를 실제로 만든 뒤 CI와 두 개발자 기기에서 검증해야 한다.
 
-## 1. M0 toolchain 결정표
+## 1. B01 toolchain 결정표
 
-“최신”이나 floating tag를 문서·CI·container에 쓰지 않는다. 아래 선택 원칙으로 M0 당일 호환성을 검증하고 exact version을 한 PR에서 고정한다.
+“최신”이나 floating tag를 문서·CI·container에 쓰지 않는다. [#10 기반 결정안](FOUNDATION_DECISIONS.md)에 Node 24·generator/runtime·CDK·scan 도구와 Compose digest의 구체 제안 및 검증 범위를 기록했다. FE 교차 승인 후 아래 lock 위치에 반영하고 B01의 실제 호환성/실행 검증으로 확정한다.
 
-| 도구 | 승인된 선택 원칙 | Exact lock 위치 | M0 완료 증거 | DRI |
+| 도구 | 승인된 선택 원칙 | Exact lock 위치 | B01 완료 증거 | DRI |
 | --- | --- | --- | --- | --- |
 | Node.js | scaffold 시점의 지원되는 LTS, Vite/plugin/CI 호환 확인 | `.tool-versions` 또는 `.node-version`; `.nvmrc`도 같은 값 | `node --version`과 CI 값 일치 | FE |
 | npm | 선택한 Node와 검증된 npm, 다른 package manager 혼용 금지 | root `package.json#packageManager`에 `npm@x.y.z` | local/CI `npm --version`과 lockfile clean install | FE |
 | Java | Java 21 LTS, Temurin 계열로 local/CI/container 통일 | `.tool-versions`와 CI setup, container digest | `java -version` 공급자·patch 일치 | BE/AI |
 | Gradle | 설치형 Gradle 금지, wrapper만 사용 | `apps/api/gradle/wrapper/gradle-wrapper.properties` distribution URL+checksum | `./gradlew --version`, wrapper validation | BE/AI |
 | Spring Boot | Java 21/선택 Gradle과 호환되는 지원 release | version catalog/plugin lock/BOM | dependency report와 integration test | BE/AI |
+| Python / uv | `apps/ai` 전용 3.13, uv 0.12.10; 시스템 pip 설치 금지 | `apps/ai/.python-version`, `pyproject.toml`, `uv.lock`, Dockerfile digest | `uv sync --frozen` 뒤 pytest·ruff·mypy 통과, Docker test stage offline 통과 | BE/AI |
 | Docker | team 두 기기와 CI가 공통 지원하는 stable Engine/API | `docs`의 minimum과 CI runner, image digest | Compose health와 Testcontainers 통과 | 공동 |
 | PostgreSQL | production RDS가 제공하는 동일 major | Compose image digest, Testcontainers image | Flyway + query integration test | BE/AI |
 | OpenAPI generator | TypeScript client template과 runtime을 검증한 exact package | root devDependency/lockfile, generator config | 생성 후 working tree diff 0 | 공동 |
-| AWS CDK | CDK CLI/library major와 exact package 일치 | infra package manifest/lockfile | synth/diff artifact 생성 | BE/AI |
+| AWS CDK | 검증된 exact CLI/library 조합, minor 번호 일치 요구 아님 | infra package manifest/lockfile | synth/diff artifact 생성 | BE/AI |
 
-권장 기준은 Node LTS + npm, Java 21, Gradle wrapper, Docker Compose v2다. patch 값을 임의로 문서에 추측하지 않고 M0 PR의 자동 compatibility test가 통과한 값으로 채운다. version 변경은 dependency update PR로만 하고 FE/BE/AI test와 image 재현성을 함께 확인한다.
+권장 기준은 Node LTS + npm, Java 21, Gradle wrapper, Docker Compose v2다. patch 값을 임의로 문서에 추측하지 않고 B01 PR의 자동 compatibility test가 통과한 값으로 채운다. version 변경은 dependency update PR로만 하고 FE/BE/AI test와 image 재현성을 함께 확인한다.
 
 ## 2. 목표 directory와 명령 표면
 
 ```text
 apps/web/                 React + TypeScript + Vite PWA
 apps/api/                 Spring Boot + Flyway
+apps/ai/                  Python 3.13 + FastAPI 추천 계산 서비스, 내부 계약 v1
 packages/api-client/      OpenAPI 생성물, 직접 수정 금지
 packages/contracts/       schema-valid examples와 frontend fixtures
 infra/                    AWS CDK TypeScript
@@ -36,14 +49,16 @@ docs/api/openapi.yaml     HTTP 계약 정본
 docs/contracts/           event 계약 정본
 ```
 
-M0에서 root script 또는 동등한 task runner로 다음 명령을 제공한다.
+B01에서 root script 또는 동등한 task runner로 다음 명령을 제공한다.
 
 | 목적 | 목표 명령 | 보장 사항 |
 | --- | --- | --- |
 | 의존성 설치 | `npm ci` | root lockfile만 사용, postinstall에서 외부 secret 호출 금지 |
-| local dependency 시작 | `docker compose up -d postgres` | named volume, health check, host port 충돌 안내 |
+| local dependency 시작 | `docker compose up -d postgres` | 현재 compose.yml의 named volume, health check, 127.0.0.1:5433 구성 확인; 실제 기동 검증 필요 |
 | DB migration | `cd apps/api && ./gradlew flywayMigrate` | local profile만, production URL 거부 |
-| API 실행 | `cd apps/api && ./gradlew bootRun` | local config와 mock source 기본 |
+| API 실행 | `cd apps/api && ./gradlew bootRun` | local config와 mock source 기본; `nullnull.ai.base-url`은 `http://127.0.0.1:8090` |
+| 추천 서비스 실행 | `cd apps/ai && uv run python -m nullnull_ai.main` | `127.0.0.1:8090`, DB·외부 API 접근 없음 |
+| 추천 서비스 검증 | `cd apps/ai && uv run ruff check . && uv run mypy && uv run pytest` | `build/reports/recommendation/evaluation.json` 생성, 계약 JSON drift는 실패 |
 | Web 실행 | `cd apps/web && npm run dev` | 같은 origin proxy 또는 명시된 credential CORS |
 | client 생성 | `npm run api:generate` | OpenAPI에서만 생성 |
 | client 검증 | `npm run api:check` | 재생성 뒤 diff가 있으면 실패 |
@@ -51,8 +66,8 @@ M0에서 root script 또는 동등한 task runner로 다음 명령을 제공한�
 | edge seed | `npm run db:seed:edge` | empty/stale/conflict/lock/error용 fixture |
 | local reset | `npm run db:reset:local` | 아래 local-only guard를 모두 통과해야 실행 |
 | 전체 gate | `npm run verify` | docs/contract + web + API test를 조합 |
-| M0 정적 gate | `python3 scripts/verify_target_stack.py` | marker, lock/wrapper, task/stage, image digest 확인 |
-| PR 통합 gate | `bash scripts/integration-test.sh` | M0 전 baseline-only, M0 후 PostgreSQL/API/web/E2E Docker 통합 |
+| B01 정적 gate | `python3 scripts/verify_target_stack.py` | marker, lock/wrapper, task/stage, image digest 확인 |
+| PR 통합 gate | `bash scripts/integration-test.sh` | B01 전 baseline-only, B01 후 PostgreSQL/API/web/E2E Docker 통합 |
 
 실제 script 이름을 바꾸면 이 문서, README, CI를 같은 PR에서 바꾼다. 개인 alias나 IDE task만을 필수 실행 경로로 삼지 않는다.
 
@@ -73,6 +88,7 @@ Compose JSON을 다시 검사해 필수 service와 internal network를 확인한
 | API | `8080` | `8080` | `/api/v1` |
 | PostgreSQL | `5433` | `5432` | 기기 기본 PostgreSQL과 충돌 완화 |
 | API debug | `5005` | `5005` | opt-in, loopback only |
+| 추천 서비스 `apps/ai` | `8090` | `8090` | `/internal/v1`, loopback only; 공개 proxy 대상 아님 |
 
 Docker DB를 public interface에 노출하지 않고 `127.0.0.1`에 bind한다. port override가 필요하면 gitignored local override를 쓰며 공유 fixture나 cookie origin은 바꾸지 않는다.
 
@@ -82,11 +98,12 @@ Docker DB를 public interface에 노출하지 않고 `127.0.0.1`에 bind한다. 
 2. example 파일을 복사해 local 설정을 만든다. 실제 provider key 없이 mock/replay가 기본 동작해야 하며 키를 Git에 넣지 않는다.
 3. PostgreSQL을 시작하고 health를 확인한다.
 4. Flyway를 빈 DB에 적용하고 `base` seed를 넣는다.
-5. API를 시작해 liveness, readiness, demo capability를 확인한다.
-6. OpenAPI client를 생성하고 clean diff를 확인한다.
-7. Web을 시작해 A-1부터 P0 seed journey를 실행한다.
-8. 변경 전 `verify`, 변경 뒤 영향별 test와 `verify`를 실행한다.
-9. M0에서는 정적 verifier를 실행하고, 역할 브랜치에서
+5. 추천 서비스 `apps/ai`를 시작하고 `/internal/v1/health/ready`를 확인한다. 없으면 API readiness는 `DEGRADED`다.
+6. API를 시작해 liveness, readiness, demo capability를 확인한다.
+7. OpenAPI client를 생성하고 clean diff를 확인한다.
+8. Web을 시작해 A-1부터 P0 seed journey를 실행한다.
+9. 변경 전 `verify`, 변경 뒤 영향별 test와 `verify`를 실행한다.
+10. B01에서는 정적 verifier를 실행하고, 역할 브랜치에서
    `bash scripts/integration-test.sh`를 실행해 결과를 `main` PR에 남긴다.
 
 Frontend 담당은 MSW 모드와 실제 local API 모드를 모두 검증한다. Backend/AI 담당은 mock source와 opt-in sandbox source를 구분하고, sandbox key가 없어도 trip/feed/editor 개발이 가능하게 한다.

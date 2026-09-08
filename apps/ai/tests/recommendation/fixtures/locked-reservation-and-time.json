@@ -1,0 +1,76 @@
+{
+  "id": "locked-reservation-and-time",
+  "kind": "ITEM",
+  "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1",
+  "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z",
+  "timezone": "Asia/Seoul",
+  "note": "A RESERVATION lock and a TIME lock on the same item; both candidates are otherwise attractive and open, so only the locks can stop them.",
+  "derivation": "D-REC-8 reads a RESERVATION lock as pinning both the date and the start time, so the 2026-09-13 10:00 candidate fails on the date and the 2026-09-12 11:00 candidate fails on the start time; both are reported as RESERVATION_LOCKED. The TIME lock (10:00 plus or minus 180 minutes) passes for both candidates, which is why RESERVATION_LOCKED is the only reason code and the count is 2. Every rejection class is LOCK, so the outcome is LOCK_CONFLICT and nothing is proposed. Note: the Java-era reference table listed the same expectation; the reviewer amendment (LOCK_CONFLICT with RESERVATION_LOCKED: 2) is what this file pins.",
+  "input": {
+    "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93c01",
+    "tripVersion": 7,
+    "tripStart": "2026-09-12",
+    "tripEnd": "2026-09-14",
+    "tripZone": "Asia/Seoul",
+    "target": {
+      "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b01",
+      "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93a01",
+      "date": "2026-09-12",
+      "startTime": "10:00",
+      "durationMinutes": 90,
+      "position": 1
+    },
+    "locks": [
+      {
+        "type": "RESERVATION",
+        "date": "2026-09-12",
+        "startTime": "10:00",
+        "endTime": "11:30"
+      },
+      {
+        "type": "TIME",
+        "startTime": "10:00",
+        "toleranceMinutes": 180
+      }
+    ],
+    "neighbours": [],
+    "openingHours": {
+      "2026-09-12": { "open": "09:00", "close": "18:00" },
+      "2026-09-13": { "open": "09:00", "close": "18:00" },
+      "2026-09-14": { "open": "09:00", "close": "18:00" }
+    },
+    "routeEvidence": "NONE",
+    "candidates": [
+      {
+        "date": "2026-09-13",
+        "time": "10:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "10",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d301",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d302"
+      },
+      {
+        "date": "2026-09-12",
+        "time": "11:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "60",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d303",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9d304"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "LOCK_CONFLICT",
+    "expectProposals": false,
+    "proposals": [],
+    "rejectedByReason": { "RESERVATION_LOCKED": 2 }
+  }
+}

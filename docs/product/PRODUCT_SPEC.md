@@ -1,9 +1,22 @@
+---
+aliases:
+  - "Nullnull 제품 요구사항"
+doc_type: reference
+status: baseline
+area: product
+tags:
+  - nullnull/reference
+  - nullnull/product
+---
+
 # Nullnull 제품 요구사항
 
 - 상태: Accepted for P0 implementation
 - 기준일: 2026-09-05
 - 대상: 모바일 웹앱(PWA), P0 UI 한국어·English
 - 팀: Frontend 1명, Backend/AI 1명
+
+> 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. 문제와 목표
 
@@ -107,9 +120,9 @@ Nullnull은 발견한 장소를 **특정 여행의 후보**로 축적하고, 일
 | KTO 데이터 | Backend가 한국관광공사 OpenAPI를 실제 호출하고 비밀값 없는 call-audit 보존 | 파일/전체 mirror/replay만 사용하거나 호출 이력 없음 |
 | 출처 | KTO 데이터가 보이는 화면과 상세 안내에 `출처: ⓒ한국관광공사` 또는 승인된 동등 문구 | 출처 누락, `TourAPI`만 표기, 승인 없는 CI·BI 로고 |
 | 위치 | `FEATURE_NEARBY_LOCATION=OFF`, browser geolocation prompt 없음, 지역/장소 직접 선택 | 개인 위치의 서버 전송 또는 제출 직전 미검토 활성화 |
-| 데이터 상태 | LIVE/FORECAST/REPLAY/STALE/UNAVAILABLE과 기준시각을 그대로 표시 | replay·cache를 실시간으로 오인시키는 문구 |
+| 데이터 상태 | LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE과 기준시각을 그대로 표시 | replay·cache를 실시간으로 오인시키는 문구 |
 
-공식 마감은 2026-09-21 16:00(KST)이고 내부 제출 목표는 2026-09-20 16:00이다. 심사표의 구현성·기획력·데이터 활용·발전성은 새로운 기능 수가 아니라 위 핵심 흐름의 완결성과 검증 증거로 충족한다.
+공식 마감은 2026-09-21 16:00(KST)이다. 개발·제출 준비는 날짜별 계획 대신 구현 gate와 제출 절차 순서로 관리한다. 심사표의 구현성·기획력·데이터 활용·발전성은 새로운 기능 수가 아니라 위 핵심 흐름의 완결성과 검증 증거로 충족한다.
 
 ## 4. 도메인 용어와 불변식
 
@@ -286,4 +299,4 @@ LLM은 사용자의 자연어 선호를 구조화하거나, 서버가 검증한 
 - 외부망·익명창에서 핵심 심사 흐름이 동작하고 공모전 위치 flag가 OFF다.
 - 최종 배포본에서 실제 KTO OpenAPI 호출·call-audit·화면 출처를 검증했다.
 - 공식 기능설명서 양식을 유지하고 배포된 기능·API와 PDF의 목록이 일치한다.
-- `frontend`/`backend` PR의 `docs-contract`와 M0 상태에 맞는 `docker-integration`이 통과했다.
+- `frontend`/`backend` PR의 `docs-contract`와 B01 상태에 맞는 `docker-integration`이 통과했다.
