@@ -1,12 +1,23 @@
+---
+aliases:
+  - "공모전 제출 Runbook"
+doc_type: reference
+status: baseline
+area: contest
+tags:
+  - nullnull/reference
+  - nullnull/contest
+---
+
 # 공모전 제출 Runbook
 
 - 상태: Accepted operational checklist
 - 공식 마감: 2026-09-21 16:00(KST)
-- 내부 제출 목표: 2026-09-20 16:00(KST), 공식 마감 최소 24시간 전
-- code freeze: 2026-09-19
 - 제출 방식: 외부 HTTPS 웹 URL, `로그인 불필요`, 공식 기능설명서 PDF
 
 이 문서는 제출을 실제로 수행할 때 순서대로 체크하는 운영 절차다. 공식 제출 화면과 최신 매뉴얼이 바뀌면 공식 자료를 우선하고 [준수 매트릭스](./COMPETITION_COMPLIANCE_MATRIX.md)를 즉시 갱신한다. 체크하지 않은 항목을 완료로 간주하지 않는다.
+
+> 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. 역할
 
@@ -21,7 +32,7 @@
 
 ## 2. 제출 대상 값표
 
-09/18까지 아래 빈칸을 [evidence ledger template](./EVIDENCE_LEDGER_TEMPLATE.md)에서 만든 비공개 운영 기록에 확정한다. 이 저장소에는 secret·개인 연락처를 적지 않는다. 부문·유형·과제는 아래 주석의 가정을 그대로 제출하지 않고 공식 제출 화면의 exact label로 채운다.
+기능설명서 동결 전에 아래 빈칸을 [evidence ledger template](./EVIDENCE_LEDGER_TEMPLATE.md)에서 만든 비공개 운영 기록에 확정한다. 이 저장소에는 secret·개인 연락처를 적지 않는다. 부문·유형·과제는 아래 주석의 가정을 그대로 제출하지 않고 공식 제출 화면의 exact label로 채운다.
 
 ```text
 teamName:
@@ -49,9 +60,9 @@ independentChecker:
 
 주석은 제출 시스템에 복사하지 않는다. 팀명·지정과제 등 실제 등록값이 문서 가정과 다르면 제출처 값을 임의 변경하지 말고 기획안/기능설명서의 모든 위치를 함께 바로잡는다.
 
-## 3. D-7~D-4: 기능과 데이터 동결 준비
+## 3. 단계 1: 기능과 데이터 동결 준비
 
-### 09/14–09/16
+### 핵심 흐름 검수
 
 - [ ] `frontend`, `backend`가 최신 `main`을 포함한다.
 - [ ] INT-01 익명 session·여행 생성, INT-02 KTO Feed·후보, INT-03 일정화·편집, INT-04 preview·APPLY/KEEP가 staging에서 완결된다.
@@ -65,9 +76,9 @@ independentChecker:
 - [ ] 전체/장기 로컬 mirror가 없다. 불가피하면 공식 문의·별도 승인 증거가 있다.
 - [ ] Claude Code 사용 PR에는 기능 ID, 사람이 검토한 diff와 실제 test 결과만 남기고 secret·사용자 원문·provider payload를 prompt/transcript에 남기지 않는다. AI 도구 사용 자체를 가점이나 구현 완료로 설명하지 않는다.
 
-09/16 종료 시 INT-01~04 중 하나라도 실패하면 새 기능을 중단한다. P1, 지도 시각화, 부가 animation, 고급 설명을 먼저 줄이고 실제 KTO 활용·안전 불변식·외부 접속·출처는 줄이지 않는다.
+핵심 흐름 검수에서 INT-01~04 중 하나라도 실패하면 새 기능을 중단한다. P1, 지도 시각화, 부가 animation, 고급 설명을 먼저 줄이고 실제 KTO 활용·안전 불변식·외부 접속·출처는 줄이지 않는다.
 
-## 4. D-3: 09/18 기능설명서 동결
+## 4. 단계 2: 기능설명서 동결
 
 공식 양식의 표, section 순서, 필수 field를 임의로 지우거나 재구성하지 않는다. 저장소의 기획안은 작성 재료이지 공식 양식 자체를 대체하지 않는다.
 
@@ -117,14 +128,14 @@ independentChecker:
 - [ ] document metadata/숨은 comment/revision history에 secret·개인정보가 없다.
 - [ ] 최종 PDF checksum과 reviewer 2명의 확인 시각을 기록했다.
 
-## 5. D-2: 09/19 code freeze
+## 5. 단계 3: 코드 동결과 회귀 검증
 
 ### Git·CI
 
 - [ ] 모든 제출 변경은 `frontend → main` 또는 `backend → main` PR로 병합됐다.
 - [ ] 상대 담당자가 승인했고 unresolved conversation이 없다.
 - [ ] `docs-contract` 성공.
-- [ ] `docker-integration` full mode 성공. `baseline-only`이면 M0 미완료이므로 제출 NO-GO다.
+- [ ] `docker-integration` full mode 성공. `baseline-only`이면 B01 미완료이므로 제출 NO-GO다.
 - [ ] web/API quality, PostgreSQL migration, mobile Playwright, a11y, security/secret scan 성공.
 - [ ] `main`, `frontend`, `backend`의 예상 SHA와 contract SHA를 기록했다.
 
@@ -148,9 +159,9 @@ independentChecker:
 - [ ] console/network에 secret·stack trace·개인정보가 없다.
 - [ ] replay로 전환하면 지속 badge와 기준시각이 보인다.
 
-## 6. D-1: 09/20 내부 제출
+## 6. 단계 4: 제출 후보 대조와 접수
 
-### 12:00까지
+### 제출 입력 전
 
 - [ ] 공식 공지, 제출 매뉴얼, 기능설명서 양식 URL을 다시 확인한다.
 - [ ] 마감·필수 field·업로드 제한이 바뀌지 않았는지 재검증 기록을 남긴다.
@@ -172,7 +183,7 @@ independentChecker:
 8. 제출하고 완료 화면, 접수 번호/시각과 제출본 정보를 비공개로 보관한다.
 9. 다시 제출 상세에 들어가 값과 파일이 저장됐는지 확인한다.
 
-### 16:00 완료 조건
+### 접수 완료 조건
 
 - [ ] 제출 완료/접수 상태가 화면에 보인다.
 - [ ] submission lead와 independent checker가 완료 시각을 서명했다.
@@ -235,7 +246,7 @@ independentChecker:
 - 기능설명서의 API/기능이 최종 release와 다름
 - 출처 누락, 무허가 CI·BI, secret 노출 가능성
 - 위치 capability/geolocation/좌표 전송이 켜짐
-- `docker-integration`이 M0 이후 full mode로 통과하지 않음
+- `docker-integration`이 B01 이후 full mode로 통과하지 않음
 - rollback target 또는 상대 verifier가 없음
 - 접수 완료 상태를 확인하지 못함
 

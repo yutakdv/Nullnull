@@ -1,0 +1,113 @@
+"""REC-SLOT-02: an unverified fact stays UNKNOWN and is never promoted to ELIGIBLE."""
+
+from __future__ import annotations
+
+from datetime import date, time
+from uuid import UUID
+
+from nullnull_ai.domain.types import EligibilityState
+from nullnull_ai.item.filters import (
+    neighbour_overlap,
+    not_unchanged,
+    opening_hours,
+    route_evidence,
+    same_place,
+    within_trip_range,
+)
+from nullnull_ai.item.types import Closed, NeighbourItem, OpenWindow, RouteEvidence, TargetItem, UnknownHours
+
+PLACE = UUID("018f3f8e-9b67-7a21-8d31-31d315b93a01")
+OTHER_PLACE = UUID("018f3f8e-9b67-7a21-8d31-31d315b93a02")
+ITEM = UUID("018f3f8e-9b67-7a21-8d31-31d315b93b01")
+NEIGHBOUR = UUID("018f3f8e-9b67-7a21-8d31-31d315b93b02")
+OTHER_NEIGHBOUR = UUID("018f3f8e-9b67-7a21-8d31-31d315b93b03")
+D12 = date(2026, 9, 12)
+D13 = date(2026, 9, 13)
+TARGET = TargetItem(ITEM, PLACE, D12, time(10, 0), 90, 1)
+OPEN = OpenWindow(time(9, 0), time(18, 0))
+
+
+def test_unknown_opening_hours_or_duration_is_unknown_not_eligible() -> None:
+    assert opening_hours(UnknownHours(), time(10, 0), 90).state is EligibilityState.UNKNOWN
+    assert opening_hours(OPEN, time(17, 59), None).reasons[0].code == "DURATION_UNKNOWN"
+    unknown_neighbour = (NeighbourItem(NEIGHBOUR, D13, 1, time(9, 30), None),)
+    overlap = neighbour_overlap(unknown_neighbour, ITEM, D13, time(10, 0), 60)
+    assert overlap.reasons[0].code == "NEIGHBOUR_DURATION_UNKNOWN"
+    assert overlap.state is EligibilityState.UNKNOWN
+    assert neighbour_overlap((), ITEM, D13, time(10, 0), None).state is EligibilityState.UNKNOWN
+
+
+def test_closed_day_and_stay_outside_window_are_ineligible() -> None:
+    assert opening_hours(Closed(), None, None).reasons[0].code == "CLOSED"
+    assert opening_hours(OPEN, time(17, 0), 90).reasons[0].code == "OUTSIDE_OPENING_HOURS"
+    assert opening_hours(OPEN, time(16, 30), 90).is_eligible
+    # A date-only move on an open day needs no time check.
+    assert opening_hours(OPEN, None, None).is_eligible
+
+
+def test_neighbour_overlap_uses_known_intervals_only() -> None:
+    neighbours = (NeighbourItem(NEIGHBOUR, D13, 1, time(10, 0), 60),)
+    assert neighbour_overlap(neighbours, ITEM, D13, time(10, 30), 60).reasons[0].code == "OVERLAPS_NEIGHBOUR"
+    assert neighbour_overlap(neighbours, ITEM, D13, time(11, 0), 60).is_eligible
+    # No proposed time means no overlap claim.
+    assert neighbour_overlap(neighbours, ITEM, D13, None, 60).is_eligible
+
+
+def test_a_confirmed_overlap_outranks_an_unknown_neighbour_length_in_either_order() -> None:
+    """§6: the verdict may not depend on the order the trip happened to store its items in.
+
+    A known overlap is a fact; an unmeasured neighbour is only a missing one, so the fact decides
+    whichever neighbour is seen first.
+    """
+    unmeasured = NeighbourItem(NEIGHBOUR, D13, 1, time(9, 30), None)
+    overlapping = NeighbourItem(OTHER_NEIGHBOUR, D13, 2, time(10, 0), 60)
+    for neighbours in ((unmeasured, overlapping), (overlapping, unmeasured)):
+        verdict = neighbour_overlap(neighbours, ITEM, D13, time(10, 0), 60)
+        assert verdict.state is EligibilityState.INELIGIBLE
+        assert verdict.reasons[0].code == "OVERLAPS_NEIGHBOUR"
+    # A neighbour of another date never contributes its missing length either.
+    other_day = (NeighbourItem(NEIGHBOUR, D12, 1, time(9, 30), None), overlapping)
+    assert neighbour_overlap(other_day, ITEM, D13, time(12, 0), 60).is_eligible
+
+
+def test_a_stay_that_wraps_past_midnight_occupies_the_rest_of_its_date() -> None:
+    # Both facts are known, so a wrapped end must not be folded back into the morning.
+    wrapping_neighbour = (NeighbourItem(NEIGHBOUR, D13, 1, time(23, 0), 120),)
+    blocked = neighbour_overlap(wrapping_neighbour, ITEM, D13, time(23, 30), 15)
+    assert blocked.state is EligibilityState.INELIGIBLE
+    assert blocked.reasons[0].code == "OVERLAPS_NEIGHBOUR"
+    late_neighbour = (NeighbourItem(NEIGHBOUR, D13, 1, time(23, 45), 10),)
+    assert neighbour_overlap(late_neighbour, ITEM, D13, time(23, 30), 60).reasons[0].code == "OVERLAPS_NEIGHBOUR"
+    # A wrapped stay claims only the rest of its own date, so an earlier free slot stays eligible.
+    assert neighbour_overlap(wrapping_neighbour, ITEM, D13, time(21, 0), 60).is_eligible
+
+
+def test_stay_running_past_midnight_leaves_the_opening_window() -> None:
+    assert opening_hours(OpenWindow(time(9, 0), time(23, 59)), time(23, 0), 120).reasons[0].code == (
+        "OUTSIDE_OPENING_HOURS"
+    )
+
+
+def test_route_evidence_is_required_when_either_day_has_neighbours() -> None:
+    neighbours = (NeighbourItem(NEIGHBOUR, D13, 1, None, None),)
+    assert route_evidence(neighbours, ITEM, D12, D13, RouteEvidence.NONE).state is EligibilityState.UNKNOWN
+    assert route_evidence(neighbours, ITEM, D12, D13, RouteEvidence.VERIFIED).is_eligible
+    # No legs, no route constraint.
+    assert route_evidence((), ITEM, D12, D13, RouteEvidence.NONE).is_eligible
+
+
+def test_without_a_target_item_every_neighbour_counts() -> None:
+    """A saved candidate is not on the itinerary, so no item may be excused from the leg check."""
+    for item_id in (NEIGHBOUR, UUID(int=0), ITEM):
+        neighbours = (NeighbourItem(item_id, D13, 1, None, None),)
+        assert route_evidence(neighbours, None, D13, D13, RouteEvidence.NONE).state is EligibilityState.UNKNOWN
+        assert route_evidence(neighbours, None, D13, D13, RouteEvidence.VERIFIED).is_eligible
+
+
+def test_same_place_range_and_unchanged_checks() -> None:
+    assert same_place(TARGET, OTHER_PLACE).reasons[0].code == "PLACE_MISMATCH"
+    assert same_place(TARGET, PLACE).is_eligible
+    assert within_trip_range(D12, D13, date(2026, 9, 14)).reasons[0].code == "OUTSIDE_TRIP_RANGE"
+    assert within_trip_range(D12, D13, D13).is_eligible
+    assert not_unchanged(TARGET, D12, time(10, 0)).reasons[0].code == "NO_CHANGE"
+    assert not_unchanged(TARGET, D12, time(11, 0)).is_eligible

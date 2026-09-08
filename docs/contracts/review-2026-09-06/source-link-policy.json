@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "status": "proposed-pending-frontend-review",
+  "purpose": "Outbound browser links from DataProvenance officialUrl/licenseUrl only; not provider-fetch authorization",
+  "schemes": [
+    "https:"
+  ],
+  "exactHosts": [
+    "data.seoul.go.kr",
+    "www.kogl.or.kr",
+    "data.go.kr",
+    "www.data.go.kr",
+    "api.visitkorea.or.kr"
+  ],
+  "allowUserInfo": false,
+  "allowNonDefaultPort": false,
+  "allowRelativeUrl": false,
+  "allowHostWildcards": false
+}

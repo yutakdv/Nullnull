@@ -1,8 +1,21 @@
+---
+aliases:
+  - "외부 데이터 Source Catalog"
+doc_type: reference
+status: baseline
+area: data
+tags:
+  - nullnull/reference
+  - nullnull/data
+---
+
 # 외부 데이터 Source Catalog
 
 - 상태: 공모전 KTO 실제 활용 필수, source별 운영 승인·quota·field fixture는 연결 전 확인
 - 조사일: 2026-09-05
 - 원칙: provider의 현재 문서·약관·승인 상태를 배포 전에 다시 확인
+
+> 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. P0 source 요약
 
@@ -65,7 +78,7 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 
 ```text
 sourceState = FORECAST
-observedAt = provider 발표 시각 또는 수집 가능한 가장 가까운 기준 시각
+observedAt = provider가 제공한 발표 시각, 없으면 null
 targetAt = 예측 대상 날짜/시각
 value = 원본 상대 집중률
 unit = KTO_RELATIVE_CONCENTRATION_INDEX
@@ -93,7 +106,7 @@ comparisonAxis = TEMPORAL
 - category/거리/interest 후처리로 만든 후보는 `SIMILAR`이고 이유를 표시한다.
 - relation과 crowd comparison은 별도다. 관계가 있어도 같은 snapshot scope가 아니면 crowd delta를 계산하지 않는다.
 - 원본 집계 기간/effective period를 `effectiveAt/expiresAt/evidence`에 보존한다.
-- 실제 서비스 상세 페이지, operation, 이용 기간, 재배포 조건을 M4 전에 다시 확인한다. 확인 실패 시 `SIMILAR` 내부 규칙 또는 `NONE`으로 degrade한다.
+- 실제 서비스 상세 페이지, operation, 이용 기간, 재배포 조건을 해당 adapter 착수 전에 다시 확인한다. 확인 실패·근거 부족은 `UNKNOWN`으로 표시한다. 독립적으로 검증된 내부 규칙 후보만 `SIMILAR`로 제공하며, 필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때만 `NONE`이다.
 
 ## 5. 서울 실시간 도시데이터
 
@@ -253,7 +266,7 @@ Frontend 담당은 `eligible=false`에서 delta/ranking 문구를 숨기고 reas
 - license 불명/만료: placeholder로 degrade하며 다운로드·캐시하지 않는다.
 - provider record별 license가 다르면 source 기본값보다 record license가 우선한다.
 
-## 12. M4 착수 체크리스트
+## 12. 외부 데이터 착수 체크리스트
 
 - [ ] 각 API 개발/운영 활용신청과 실제 quota 캡처
 - [ ] 최신 공식 manual/schema/license 다운로드 또는 URL 기록
@@ -296,3 +309,19 @@ Frontend 담당은 `eligible=false`에서 delta/ranking 문구를 숨기고 reas
 - 공모전 code freeze 전: 최종 배포 URL의 실제 KTO operation·call-audit·화면 출처를 2인 교차 확인.
 - 분기: license/retention/attribution, unused source, API version review.
 - provider 공지 발생 즉시: affected field/area/window와 adapter/fixture/update plan 기록.
+
+## 15. #11 카드 출처와 외부 링크 제안 (2026-09-06)
+
+[계약 packet](../contracts/review-2026-09-06/README.md)에 KTO 관광정보 QUALITATIVE와 집중률 FORECAST 예시를 추가했다. 두 공식 상세의 이용허락범위는 공공데이터포털 정책 페이지에 연결됨을 09-06에 확인했다. 관광정보 텍스트의 안내와 이미지별 공공누리 1/3유형 심사를 분리한다.
+
+| Source | officialUrl | licenseUrl | 좁은 카드 문구 |
+| --- | --- | --- | --- |
+| KTO_KOR_SERVICE_2 | [공식 관광정보](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15101578) | [포털 정책](https://data.go.kr/ugs/selectPortalPolicyView.do) | 출처: ⓒ한국관광공사 |
+| KTO_CONCENTRATION_FORECAST | [공식 집중률 예측](https://www.data.go.kr/data/15128555/openapi.do) | [포털 정책](https://data.go.kr/ugs/selectPortalPolicyView.do) | 출처: ⓒ한국관광공사 |
+| SEOUL_CITYDATA | [공식 도시데이터](https://data.seoul.go.kr/dataList/OA-21285/F/1/datasetView.do) | [공공누리 1유형](https://www.kogl.or.kr/info/licenseType1.do) | 출처: 서울특별시 |
+
+DataProvenance.attributionShort는 선택 nullable, 유효한 문구는 1~160자다. 없거나 null이면 full attribution을 표시한다. 줄인 문구를 쓰더라도 같은 카드의 접근 가능한 출처 상세에 full attribution·officialUrl·licenseUrl을 제공한다. 긴 문구를 FE가 임의로 잘라 필수 credit을 없애지 않는다. 링크를 확인하지 못한 future source는 URL을 추측하지 않고 null·미확인 안내와 source 검토 항목을 남긴다.
+
+브라우저용 officialUrl/licenseUrl은 [source-link-policy.json](../contracts/review-2026-09-06/source-link-policy.json)의 exact host만 허용한다: `data.seoul.go.kr`, `www.kogl.or.kr`, `data.go.kr`, `www.data.go.kr`, `api.visitkorea.or.kr`. https만 허용하며 상대 URL, userinfo, 비기본 port, wildcard/subdomain 추정은 거부한다. 표에 있는 공개 query parameter는 유지한다. 외부 링크는 안전한 새 창 속성을 적용한다. source registry 등록/갱신 때 redirect chain과 최종 URL도 같은 host 정책으로 확인한다. 브라우저 anchor만으로 이후 모든 redirect를 통제할 수 있다고 가정하지 않는다. provider 서버 호출의 SSRF allowlist와는 별개의 표시 링크 정책이다.
+
+이 필드·host 정책은 #11의 FE 검토 대상이다. `freshness=UNKNOWN`인 합성 예시는 실제 호출이나 비교 적격 판정 증거가 아니며 KTO 예측을 인원·5단계·시간대 그래프로 변환하는 근거로 쓰지 않는다.

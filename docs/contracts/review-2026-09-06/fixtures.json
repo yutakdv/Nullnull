@@ -1,0 +1,145 @@
+{
+  "synthetic": true,
+  "purpose": "State/decision projection fixtures, not a READY proposal, provider call or runtime state-machine proof. NOT_APPLICABLE with APPLY represents a later trip edit. EXPIRED is evaluated after server revertUntil.",
+  "cases": [
+    {
+      "id": "I11-run-available",
+      "schema": "OptimizationRun",
+      "data": {
+        "id": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+        "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93903",
+        "scope": "ITEM",
+        "status": "APPLIED",
+        "inputTripVersion": 7,
+        "includeCandidates": false,
+        "queuedAt": "2026-09-06T05:59:00Z",
+        "completedAt": "2026-09-06T06:00:00Z",
+        "expiresAt": "2026-09-06T06:05:00Z",
+        "proposals": [],
+        "snapshotSetIds": [],
+        "decisions": [
+          {
+            "id": "018f3f8e-9b67-7a21-8d31-31d315b93921",
+            "runId": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+            "proposalId": "018f3f8e-9b67-7a21-8d31-31d315b93923",
+            "decision": "APPLY",
+            "resultingTripVersion": 8,
+            "beforeRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93924",
+            "afterRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93925",
+            "revertUntil": "2026-09-07T06:00:00Z",
+            "decidedAt": "2026-09-06T06:00:00Z"
+          }
+        ],
+        "revertAvailability": "AVAILABLE"
+      },
+      "expectedValid": true
+    },
+    {
+      "id": "I11-run-expired",
+      "schema": "OptimizationRun",
+      "data": {
+        "id": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+        "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93903",
+        "scope": "ITEM",
+        "status": "APPLIED",
+        "inputTripVersion": 7,
+        "includeCandidates": false,
+        "queuedAt": "2026-09-06T05:59:00Z",
+        "completedAt": "2026-09-06T06:00:00Z",
+        "expiresAt": "2026-09-06T06:05:00Z",
+        "proposals": [],
+        "snapshotSetIds": [],
+        "decisions": [
+          {
+            "id": "018f3f8e-9b67-7a21-8d31-31d315b93921",
+            "runId": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+            "proposalId": "018f3f8e-9b67-7a21-8d31-31d315b93923",
+            "decision": "APPLY",
+            "resultingTripVersion": 8,
+            "beforeRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93924",
+            "afterRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93925",
+            "revertUntil": "2026-09-07T06:00:00Z",
+            "decidedAt": "2026-09-06T06:00:00Z"
+          }
+        ],
+        "revertAvailability": "EXPIRED"
+      },
+      "expectedValid": true
+    },
+    {
+      "id": "I11-run-reverted",
+      "schema": "OptimizationRun",
+      "data": {
+        "id": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+        "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93903",
+        "scope": "ITEM",
+        "status": "REVERTED",
+        "inputTripVersion": 7,
+        "includeCandidates": false,
+        "queuedAt": "2026-09-06T05:59:00Z",
+        "completedAt": "2026-09-06T06:00:00Z",
+        "expiresAt": "2026-09-06T06:05:00Z",
+        "proposals": [],
+        "snapshotSetIds": [],
+        "decisions": [
+          {
+            "id": "018f3f8e-9b67-7a21-8d31-31d315b93921",
+            "runId": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+            "proposalId": "018f3f8e-9b67-7a21-8d31-31d315b93923",
+            "decision": "APPLY",
+            "resultingTripVersion": 8,
+            "beforeRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93924",
+            "afterRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93925",
+            "revertUntil": "2026-09-07T06:00:00Z",
+            "decidedAt": "2026-09-06T06:00:00Z"
+          },
+          {
+            "id": "018f3f8e-9b67-7a21-8d31-31d315b93941",
+            "runId": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+            "proposalId": "018f3f8e-9b67-7a21-8d31-31d315b93923",
+            "decision": "REVERT",
+            "resultingTripVersion": 9,
+            "beforeRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93925",
+            "afterRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93926",
+            "revertedDecisionId": "018f3f8e-9b67-7a21-8d31-31d315b93921",
+            "decidedAt": "2026-09-06T07:00:00Z"
+          }
+        ],
+        "revertAvailability": "REVERTED"
+      },
+      "expectedValid": true
+    },
+    {
+      "id": "I11-run-not_applicable",
+      "schema": "OptimizationRun",
+      "data": {
+        "id": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+        "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93903",
+        "scope": "ITEM",
+        "status": "APPLIED",
+        "inputTripVersion": 7,
+        "includeCandidates": false,
+        "queuedAt": "2026-09-06T05:59:00Z",
+        "completedAt": "2026-09-06T06:00:00Z",
+        "expiresAt": "2026-09-06T06:05:00Z",
+        "proposals": [],
+        "snapshotSetIds": [],
+        "decisions": [
+          {
+            "id": "018f3f8e-9b67-7a21-8d31-31d315b93921",
+            "runId": "018f3f8e-9b67-7a21-8d31-31d315b93922",
+            "proposalId": "018f3f8e-9b67-7a21-8d31-31d315b93923",
+            "decision": "APPLY",
+            "resultingTripVersion": 8,
+            "beforeRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93924",
+            "afterRevisionId": "018f3f8e-9b67-7a21-8d31-31d315b93925",
+            "revertUntil": "2026-09-07T06:00:00Z",
+            "decidedAt": "2026-09-06T06:00:00Z"
+          }
+        ],
+        "revertAvailability": "NOT_APPLICABLE"
+      },
+      "expectedValid": true
+    }
+  ]
+}

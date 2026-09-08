@@ -1,3 +1,14 @@
+---
+aliases:
+  - "AWS 배포 아키텍처와 런북"
+doc_type: reference
+status: baseline
+area: operations
+tags:
+  - nullnull/reference
+  - nullnull/operations
+---
+
 # AWS 배포 아키텍처와 런북
 
 - 상태: Accepted baseline; 실제 계정/도메인/예산 확정 전 값은 placeholder
@@ -6,6 +17,8 @@
 - 환경: local / staging / production
 
 실제 AWS account ID, domain, GitHub handle, alarm destination은 repository에 기록하지 않고 승인된 parameter store/GitHub environment 설정으로 주입한다. 단, 어떤 account/stack/role이 사용되는지는 release manifest에 비밀값 없이 식별 가능해야 한다.
+
+> 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. 목표 구조
 
@@ -17,6 +30,7 @@ flowchart TB
     S3[(Private S3 web origin + OAC)]
     ALB[Application Load Balancer origin]
     ECS[ECS Fargate Spring API]
+    AI[ECS Fargate 추천 서비스 apps/ai]
     RDS[(RDS PostgreSQL)]
     SM[Secrets Manager]
     CW[CloudWatch Logs/Metrics/Alarms]
@@ -28,9 +42,11 @@ flowchart TB
     CF -->|default/static| S3
     CF -->|/api/*| ALB --> ECS
     ECS --> RDS
+    ECS -->|internal DNS :8090| AI
     ECS --> SM
     ECS --> CW
     ECR --> ECS
+    ECR --> AI
     EB -->|collector task| ECS
     ECS -->|NAT egress| EXT
 ```
@@ -52,7 +68,7 @@ CDK stack은 blast radius와 배포 순서를 기준으로 나눈다.
 | `Foundation` | hosted zone reference, KMS, shared audit/OIDC | 없음 | production retain |
 | `Network` | VPC/subnet/SG/endpoint/NAT | Foundation | production retain |
 | `Data` | RDS/subnet group/secret | Network | snapshot+retain |
-| `Api` | ECR/ECS/ALB/scheduler/log/alarm | Network, Data | service destroy 가능, logs 정책 보존 |
+| `Api` | ECR(api, ai)/ECS service(api, ai)/ALB/Service Connect 내부 DNS/scheduler/log/alarm | Network, Data | service destroy 가능, logs 정책 보존 |
 | `WebEdge` | S3/CloudFront/WAF/ACM | Foundation, Api | bucket/version retain |
 | `Observability` | dashboard/SNS/budget/anomaly | 전 stack | audit retention 우선 |
 
@@ -132,6 +148,17 @@ Fallback은 internet-facing ALB inbound를 CloudFront managed prefix list로 제
 - rolling deploy 기본 `minimumHealthyPercent=100`, `maximumPercent=200`.
 - autoscaling: CPU/Memory + ALB request count를 staging load test 후 설정.
 - session은 DB-backed이므로 sticky session에 의존하지 않는다.
+
+### 추천 서비스 `ai`
+
+[ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)의 `apps/ai`는 같은 cluster의 별도 Fargate service다. 배포 경로 결정은 [D-031](../project/DECISIONS_AND_RISKS.md#2-열린-결정)이다.
+
+- ALB target이 아니다. Service Connect/Cloud Map 내부 DNS(예: `ai.nullnull.internal:8090`)로만 api service가 호출한다.
+- security group inbound 8090은 api service SG만 허용하고 외부 ingress·NAT egress가 필요 없다. DB subnet 접근 권한도 없다.
+- task 환경: `NULLNULL_ENV`, `NULLNULL_AI_BIND_HOST=0.0.0.0`, `NULLNULL_AI_PORT=8090`, `NULLNULL_CATALOG_VERSION`(release manifest 값), `AI_PROVIDER=NONE`. secret은 P1 `OPENAI` 승인 전까지 없다.
+- staging desired count 1, 시작 크기 0.25 vCPU/0.5GB(측정 후 조정). readiness는 `/internal/v1/health/ready`.
+- api task는 `NULLNULL_AI_BASE_URL`로 이 DNS를 받고, ai 장애 시 api readiness는 `DEGRADED`이며 ALB health check는 실패하지 않는다.
+- rollback: ai 이전 image digest로 되돌려도 내부 계약 v1이 유지돼야 한다(계약 변경은 api·ai 동시 승격).
 
 ### Collector/worker
 
@@ -227,7 +254,7 @@ GitHub environments:
 - workflow permission은 최소화하고 fork PR에는 secret/deploy 권한을 주지 않는다.
 - IaC diff를 PR artifact로 남기고 destructive change는 별도 승인한다.
 
-`frontend → main`, `backend → main` PR은 stable `docs-contract`와 `docker-integration`을 통과한다. M0 뒤 `docker-integration`은 PostgreSQL, API, web, mobile E2E를 같은 Compose network에서 실행하며 외부 source는 fixture로 차단한다. 실제 KTO 호출은 secret이 있는 staging/submission environment에서 별도 승인형 smoke로 검증한다.
+`frontend → main`, `backend → main` PR은 stable `docs-contract`와 `docker-integration`을 통과한다. B01 뒤 `docker-integration`은 PostgreSQL, API, web, mobile E2E를 같은 Compose network에서 실행하며 외부 source는 fixture로 차단한다. 실제 KTO 호출은 secret이 있는 staging/submission environment에서 별도 승인형 smoke로 검증한다.
 
 Deployment concurrency:
 
@@ -385,7 +412,7 @@ destroy/diff에 stateful replacement 또는 broad IAM change가 보이면 workfl
 
 ### Staging 비용 guardrail
 
-M0에서 월 staging 비용 상한과 예산 owner를 실제 금액으로 결정 대장에 기록한다. 값이 확정되기 전 staging을 무제한 상시 운영하지 않는다.
+B01에서 월 staging 비용 상한과 예산 owner를 실제 금액으로 결정 대장에 기록한다. 값이 확정되기 전 staging을 무제한 상시 운영하지 않는다.
 
 - Budget 50%: 추세 확인과 anomalous resource/tag 누락 점검.
 - Budget 80%: 신규 비용 resource 배포 중지, NAT/log/RDS/ECS 사용 검토.

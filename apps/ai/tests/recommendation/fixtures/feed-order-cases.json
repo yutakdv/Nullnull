@@ -1,0 +1,139 @@
+{
+  "fixtureVersion": "0.0.1",
+  "dataOrigin": "SYNTHETIC",
+  "sortVersion": 1,
+  "description": "Fixed feed order (§5.1) shared by apps/ai and the Spring FeedFallback. Instants carry at most microsecond precision so both languages compare identical values, and postId ties are broken on the canonical UUID string, not on signed 64-bit UUID order.",
+  "cases": [
+    {
+      "id": "FEED-ORDER-01",
+      "description": "Filters (non-PUBLISHED, future publishedAt, missing publishedAt, missing primaryPlaceId), publishedAt exactly at evaluatedAt is kept, and a microsecond tie is broken on the postId string.",
+      "evaluatedAt": "2026-09-06T00:00:00Z",
+      "cap": 10,
+      "candidates": [
+        {
+          "postId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+          "publishedAt": "2026-09-05T12:00:00.123456Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f3f8e-9b67-7a21-8d31-31d315b93a02",
+          "publishedAt": "2026-09-05T12:00:00.123456Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f3f8e-9b67-7a21-8d31-31d315b93a03",
+          "publishedAt": "2026-09-05T13:00:00.000000Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a0b"
+        },
+        {
+          "postId": "018f3f8e-9b67-7a21-8d31-31d315b93a04",
+          "publishedAt": "2026-09-05T14:00:00Z",
+          "status": "DRAFT",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f3f8e-9b67-7a21-8d31-31d315b93a05",
+          "publishedAt": "2026-09-06T00:00:00.000001Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f3f8e-9b67-7a21-8d31-31d315b93a06",
+          "publishedAt": "2026-09-05T15:00:00Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": null
+        },
+        {
+          "postId": "018f3f8e-9b67-7a21-8d31-31d315b93a07",
+          "publishedAt": null,
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f3f8e-9b67-7a21-8d31-31d315b93a08",
+          "publishedAt": "2026-09-06T00:00:00Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a0b"
+        }
+      ],
+      "expectedOrder": [
+        "018f3f8e-9b67-7a21-8d31-31d315b93a08",
+        "018f3f8e-9b67-7a21-8d31-31d315b93a03",
+        "018f3f8e-9b67-7a21-8d31-31d315b93a02",
+        "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+      ]
+    },
+    {
+      "id": "FEED-ORDER-02",
+      "description": "The cap truncates after the tie-break, so the dropped candidate is the one the postId string orders last.",
+      "evaluatedAt": "2026-09-06T00:00:00Z",
+      "cap": 2,
+      "candidates": [
+        {
+          "postId": "f0000000-0000-4000-8000-0000000b0003",
+          "publishedAt": "2026-09-05T09:00:00.500000Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f4a10-0000-7a21-8d31-31d315b9b001",
+          "publishedAt": "2026-09-05T09:00:00.500000Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f4a10-0000-7a21-8d31-31d315b9b002",
+          "publishedAt": "2026-09-05T09:00:00.500000Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a0b"
+        },
+        {
+          "postId": "018f4a10-0000-7a21-8d31-31d315b9b004",
+          "publishedAt": "2026-09-05T08:00:00Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        }
+      ],
+      "expectedOrder": [
+        "018f4a10-0000-7a21-8d31-31d315b9b001",
+        "018f4a10-0000-7a21-8d31-31d315b9b002"
+      ]
+    },
+    {
+      "id": "FEED-ORDER-03",
+      "description": "No candidate survives the filters, so the fallback returns an empty order instead of a partially filtered list.",
+      "evaluatedAt": "2026-09-06T00:00:00Z",
+      "cap": 10,
+      "candidates": [
+        {
+          "postId": "018f4a20-0000-7a21-8d31-31d315b9c001",
+          "publishedAt": "2026-09-05T10:00:00Z",
+          "status": "WITHDRAWN",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f4a20-0000-7a21-8d31-31d315b9c002",
+          "publishedAt": "2026-09-05T11:00:00Z",
+          "status": "DELETED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f4a20-0000-7a21-8d31-31d315b9c003",
+          "publishedAt": "2026-09-06T00:00:01Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": "018f3f8e-9b67-7a21-8d31-31d315b93a01"
+        },
+        {
+          "postId": "018f4a20-0000-7a21-8d31-31d315b9c004",
+          "publishedAt": "2026-09-05T12:00:00Z",
+          "status": "PUBLISHED",
+          "primaryPlaceId": null
+        }
+      ],
+      "expectedOrder": []
+    }
+  ]
+}

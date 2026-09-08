@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Nullnull 작업 지침"
+doc_type: reference
+status: baseline
+area: workspace
+tags:
+  - nullnull/reference
+  - nullnull/workspace
+---
+
 # Nullnull 작업 지침
 
 이 저장소는 오버투어리즘 완화를 위한 여행 플래너 **널널(Nullnull)**의 작업공간이다. Frontend 1명과 Backend/AI 1명이 계약을 공유한다. 최신 Figma와 `docs/`의 계약을 운영 목표의 기준으로 삼으며 현재 목표 서비스에 속하지 않는 과거 프로토타입은 저장소에 다시 섞지 않는다.
@@ -21,6 +32,7 @@
 13. P0의 로그인, 일본어·중국어 UI는 disabled `준비 중`이며 요청을 보내지 않는다. 한국어·영어는 실제 선택·복구를 지원한다.
 14. 공모전 제출본은 로그인 없이 핵심 흐름이 완결되고, 한국관광공사 OpenAPI를 실제 server-side 호출하며 승인된 텍스트 출처와 호출 증거를 남긴다.
 15. Frontend는 `frontend`, Backend/AI는 `backend`에서 작업하고 상대 승인 및 `docs-contract`·`docker-integration` 뒤 `main`에 merge commit한다.
+16. 추천 계산(feed 순서·관련 장소·slot·ITEM 개선·설명 template)은 Python 서비스 `apps/ai`가 담당하고, Spring `apps/api`는 hydration·gateway·응답 재검증·저장·APPLY를 담당한다(ADR-0006). 계산을 Spring에 중복 구현하지 않고, `apps/ai`에 owner/session ID·원문·좌표를 보내지 않는다.
 
 ## 필수 검증
 
@@ -28,6 +40,7 @@
 
 ```bash
 python3 scripts/validate_docs.py
+python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 npx --yes markdownlint-cli2@0.23.2
 npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
 npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1 \
@@ -46,13 +59,23 @@ npm run test
 npm run build
 ```
 
-새 목표 backend(`apps/api`)가 생성된 뒤:
+Backend(`apps/api`):
 
 ```bash
 cd apps/api
 ./gradlew test
 ./gradlew integrationTest
 ./gradlew openapiContractTest
+./gradlew recommendationTest
+```
+
+추천 서비스(`apps/ai`):
+
+```bash
+cd apps/ai
+uv run ruff check . && uv run ruff format --check . && uv run mypy
+uv run pytest
+uv run python -m nullnull_ai.contracts export   # endpoint/schema 변경 뒤, 계약 JSON 갱신
 ```
 
 모든 `main` PR:
@@ -62,6 +85,24 @@ bash scripts/integration-test.sh
 ```
 
 라우팅, 검색, sheet/dialog, 여행 생성, 후보 저장, 일정 교체, 최적화 흐름을 바꾸면 Playwright E2E와 키보드 접근성 검사를 함께 추가한다. 새 DB 마이그레이션은 Flyway와 실제 PostgreSQL(Testcontainers/CI)에서 검증한다. 실행하지 못한 검증은 통과로 쓰지 않는다.
+
+## CI 검사 등록
+
+required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 안에서 실제로 실행되는 suite와 경로별 조기 피드백 workflow를 아래 표에 등록한다. **기능 slice를 구현하면 같은 PR에서 이 표와 해당 manifest를 갱신한다.** 표에 없는 test ID는 CI가 실행한 것으로 보지 않는다.
+
+| 검사 | 트리거 | 실행 내용 | 커버하는 ID | 상태 |
+| --- | --- | --- | --- | --- |
+| `docs-contract` | 모든 main PR/push | `validate_docs.py`, plan/Canvas 검증, markdownlint, Redocly, AJV | BA-000-T1~T3 | 실행 중 |
+| `docker-integration` | 모든 main PR/push | `integration-test.sh`: verifier→`api-quality`·`ai-quality`·web·client diff·scan·egress-denied·E2E | 아래 suite 전체 | `apps/web`+marker 전까지 hard fail |
+| `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `apps/ai/tests/recommendation/manifest.json`, `apps/ai/src/nullnull_ai/policy/**`, `docs/api/openapi.yaml` push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` | REC-ARCH-01, REC-DATA-02, BA-001-T2, 내부 계약 parity(5 operation), gateway post-condition, ITEM fixture parity(LockChecks·ProposalRevalidator), policy pin parity | 실행 중 |
+| `ai-quality` (workflow) | `apps/ai/**` push/PR | ruff, mypy strict, pytest(REC corpus, `evaluation.json`), 계약 JSON sync | `tests/recommendation/manifest.json`의 `implementedTestIds` | 실행 중 |
+
+등록 규칙:
+
+1. 새 REC ID는 `apps/ai/tests/recommendation/manifest.json`의 `implementedTestIds`와 fixture sha256에 추가하고, Spring 쪽 검증(REC-INT/SEC/JOB/FEED-04)은 해당 Gradle suite 이름을 `docs/engineering/TEST_STRATEGY.md#12`에 연결한다.
+2. BA-xxx-Tn acceptance는 구현 PR에서 실제 test class/함수 이름과 report 경로를 카드에 적고 `backend-plan.json` status를 올린다. report 없는 `verified`는 validator가 거부한다.
+3. 새 app 디렉터리나 suite가 생기면 workflow path filter, `compose.integration.yml` service, `scripts/integration-test.sh` 실행 단계, 이 표를 같은 PR에서 바꾼다.
+4. skip·0건 실행·report 누락·`continue-on-error`·`ignoreFailures`는 금지다. path filter workflow는 조기 피드백일 뿐 required status로 승격하지 않는다.
 
 ## 문서 지도
 

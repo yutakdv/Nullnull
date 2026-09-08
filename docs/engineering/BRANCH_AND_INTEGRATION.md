@@ -1,3 +1,14 @@
+---
+aliases:
+  - "역할 브랜치와 Docker 통합 계약"
+doc_type: reference
+status: baseline
+area: engineering
+tags:
+  - nullnull/reference
+  - nullnull/engineering
+---
+
 # 역할 브랜치와 Docker 통합 계약
 
 - 상태: Accepted for two-person delivery
@@ -12,7 +23,7 @@
 | 브랜치 | 작성 책임 | 포함 범위 | 필수 검토자 |
 | --- | --- | --- | --- |
 | `frontend` | Frontend 담당 | `apps/web`, UI token/component, FE test/fixture, FE가 제안하는 contract 소비 변경 | Backend/AI 담당 |
-| `backend` | Backend/AI 담당 | `apps/api`, OpenAPI/event/ERD, source/optimizer, `infra`, 운영 변경 | Frontend 담당 |
+| `backend` | Backend/AI 담당 | `apps/api`, `apps/ai`, OpenAPI/event/ERD, source/optimizer, `infra`, 운영 변경 | Frontend 담당 |
 | `main` | 두 사람 공동 | 배포 가능한 통합 기준선만 유지 | 작성자가 아닌 상대 1명 |
 
 - `main` direct push, force push, branch deletion과 self-approval을 금지한다.
@@ -96,9 +107,9 @@ git push origin frontend  # backend 담당은 backend
 - 최신 `main`과 충돌이 없고 unresolved conversation이 없다.
 - 작성자가 아닌 팀원 1명이 승인한다. 새 commit 뒤 stale approval을 해제한다.
 - `docs-contract`와 `docker-integration`이 성공한다.
-- ruleset required status 이름은 M0 전후 정확히 `docs-contract`,
+- ruleset required status 이름은 B01 전후 정확히 `docs-contract`,
   `docker-integration` 두 개다.
-- M0 뒤 web/API quality, client diff, mobile E2E, security, infra와 outbound-deny는
+- B01 뒤 web/API quality, client diff, mobile E2E, security, infra와 outbound-deny는
   `docker-integration` 내부 필수 component gate다. 하나라도 누락·skip·실패하면
   aggregator가 실패하며 별도 ruleset required 이름으로 분산하지 않는다.
 - PR 본문에 Ticket, Work ID, 적용 가능한 기능 ID·Figma node/state·operationId/schema,
@@ -110,28 +121,29 @@ Dependabot PR은 head 예외지만 두 팀원의 일반 역할 브랜치를 대�
 
 ## 5. Docker gate의 두 모드
 
-### `baseline-only` — M0 이전
+### `baseline-only` — B01 이전
 
 현재 target app이 없을 때 `scripts/integration-test.sh`는 저장소 전용 문서·OpenAPI 추적성만 검증하고 출력과 `.artifacts/integration/mode.txt`에 `baseline-only`, `status.txt`에 결과를 남긴다. 이 상태를 full integration 통과로 소개하지 않는다.
 
 `apps/web` 또는 `apps/api`가 생겼는데 `.nullnull-target-stack`이 없으면 즉시 실패한다. 따라서 scaffold가 생긴 뒤 silent skip은 불가능하다.
 
-### `full-docker` — M0 이후
+### `full-docker` — B01 이후
 
-M0 PR은 내용이 정확히 `version=1`인 `.nullnull-target-stack`과 다음을 같은 commit에
+B01 PR은 내용이 정확히 `version=1`인 `.nullnull-target-stack`과 다음을 같은 commit에
 추가한다.
 
 - `apps/api/Dockerfile`: `test`, `runtime` stage와 digest-pinned external `FROM`
+- `apps/ai/Dockerfile`: `test`, `runtime` stage와 digest-pinned external `FROM`, `uv.lock` frozen
 - `apps/web/Dockerfile`: `test`, `runtime`, `e2e`, `tooling` stage와
   digest-pinned external `FROM`
 - web `verify:ci`, `test:e2e:integration` script
 - root `api:check`, `security:scan`, `infra:check` script와 lockfile
-- API `test`, `integrationTest`, `openapiContractTest` Gradle task
+- API `test`, `integrationTest`, `openapiContractTest`, `recommendationTest` Gradle task와 `apps/ai` `pytest`(compose `ai-quality`)
 - checksum이 있는 Gradle wrapper와 web/root npm lockfile
 - 검증한 PostgreSQL·egress probe·앱 base image의 immutable digest
 - `scripts/verify_target_stack.py`가 요구하는 service, stage, task와 내부 network
 
-M0 PR에서 marker를 추가하기 직전에는 verifier가 실패하는 것이 정상이다. marker와
+B01 PR에서 marker를 추가하기 직전에는 verifier가 실패하는 것이 정상이다. marker와
 artifact를 모두 추가한 뒤 아래 명령이 성공해야 한다.
 
 ```bash
@@ -195,3 +207,140 @@ sandbox/production-approved key로 실제 KTO 호출과 attribution/call-audit �
   막히지 않게 하고, Primary DRI는 소유권 표에서 별도로 유지한다.
 
 브랜치 생성·ruleset·push·PR은 로컬 문서 작성만으로 완료된 것이 아니다. 저장소 관리자가 실제 설정 후 checklist와 test PR로 검증한다.
+
+## 11. 작업 단위
+
+한 ticket은 가능한 한 다음을 함께 닫는다.
+
+```text
+Figma state → OpenAPI/event diff → DB/domain → API → generated client
+→ UI default/loading/empty/error → tests → observability → docs
+```
+
+예: “후보 저장” slice에는 button만이 아니라 여행 picker, 201/200 duplicate, failure retry, idempotency, candidate unique constraint, analytics, E2E가 포함된다.
+
+### Ticket Definition of Ready
+
+- 연결된 Figma node와 P0/P1이 있다.
+- 사용자 action 전/후 domain state가 적혀 있다.
+- API request/response/error 초안이 있다.
+- 개인정보·출처·접근성 영향이 검토됐다.
+- mock/fixture와 acceptance test 예시가 있다.
+- 미결정 외부 의존성이 있으면 feature flag/fallback이 정해졌다.
+
+### Ticket Definition of Done
+
+- OpenAPI/event/ERD가 구현과 일치한다.
+- FE와 BE/AI 각각 해당 test를 통과한다.
+- loading/empty/error/offline/stale 중 적용 가능한 상태가 구현됐다.
+- keyboard와 360px viewport 검증을 했다.
+- 로그/metric에 필요한 식별자와 실패 code가 있다.
+- 새 env/secret/migration/runbook 변경이 문서화됐다.
+- reviewer가 acceptance를 재현했다.
+
+### Contract packet과 상태 전이
+
+모든 slice는 issue 또는 PR에 다음 packet을 같은 revision으로 묶는다.
+
+| 항목 | 작성 DRI | 상대가 확인할 내용 | 저장 위치/증거 |
+| --- | --- | --- | --- |
+| Figma 범위 | FE | 누락된 server state/action 여부 | node URL, 화면·variant checklist |
+| 기능 ID·acceptance | 공동 | P0/P1, 정상·실패 후 domain state | 기능 인벤토리 ID와 Given/When/Then |
+| OpenAPI/Problem | BE/AI | 화면이 필요한 모든 field/error/retry 정보 | OpenAPI diff와 Redocly 결과 |
+| example/fixture | BE/AI | null/empty/stale/duplicate/conflict 표현 | schema-valid JSON example |
+| 생성 client/MSW | FE | spec 이외 hand-written type 없음 | generated diff와 MSW handler |
+| DB/불변식 | BE/AI | UI action의 실제 효과가 문구와 일치 | ERD/Flyway/transaction test |
+| event/관측 | FE emit, BE/AI validate | PII 없음, 실패 code와 requestId 연결 | event schema와 dashboard query |
+| acceptance evidence | 구현 DRI | 상대 담당자가 재현 가능 | test report, mobile screenshot/video |
+
+작업 상태는 `draft → contract-ready → parallel-build → integration-ready → staging-accepted → done`으로만 이동한다.
+
+- `contract-ready`: operationId, request/response, error, Figma state와 mock example이 review됐다.
+- `parallel-build`: FE는 generated type+MSW만, BE/AI는 같은 spec+fixture로 구현한다.
+- `integration-ready`: spec/generated client가 clean하고 provider contract test와 FE component test가 통과했다.
+- `staging-accepted`: 상대 담당자가 실제 API로 mobile journey와 실패 분기를 재현했다.
+- `done`: 문서·관측·rollback까지 닫혔다. merge만 된 상태는 done이 아니다.
+
+계약 변경이 생기면 BE/AI는 먼저 OpenAPI/example을 갱신하고 FE는 generated client와 mock을 같은 PR 또는 연결 PR에서 갱신한다. FE가 화면 구현 중 필요한 필드를 발견하면 임시 필드를 만들지 않고 contract issue를 연다. 병렬 branch 사이의 contract SHA가 다르면 통합하지 않는다.
+
+### Slice acceptance 작성 형식
+
+```text
+Given: session/data/trip version과 사용 중인 Figma variant
+When: 사용자의 한 가지 명시적 행동
+Then UI: 화면, focus, loading/empty/error, 재시도 결과
+Then domain: 생성/변경/미변경 row와 version
+Then contract: status, headers, operationId, Problem code
+Then evidence: FE test, BE/AI test, E2E ID, metric/log(redacted)
+```
+
+특히 후보 저장, 일정 편집, 최적화는 `변경되지 않아야 하는 것`을 Then에 반드시 쓴다.
+
+## 12. 계약 변경 프로토콜
+
+### Additive change
+
+1. optional response field 또는 새 endpoint를 spec에 추가한다.
+2. BE/AI가 구/신 client에 호환되게 배포한다.
+3. FE가 사용하기 시작한다.
+4. 관측 후 required 전환이 필요하면 별도 version/change로 진행한다.
+
+### Breaking change
+
+- 가능하면 새 field/endpoint로 expand-and-contract한다.
+- 제거 예정은 `deprecated: true`와 제거 milestone을 둔다.
+- FE production 사용이 0임을 확인한 뒤 제거한다.
+- 한 PR에서 backend와 frontend를 서로 깨뜨리는 순차 배포를 만들지 않는다.
+
+### Schema migration
+
+- app rollback이 가능한 기간 동안 구 column/read path를 유지한다.
+- migration과 app deploy 순서를 PR에 명시한다.
+- backup/restore 또는 downgrade가 실제로 가능한지 staging에서 검증한다.
+
+## 12. Feature flag
+
+외부 data나 P1 기능은 server-owned flag로 보호한다.
+
+- 기본값 OFF, environment별 명시.
+- 사용자 식별 정보를 flag key로 외부 SaaS에 보내지 않는다.
+- UI는 disabled capability를 숨기거나 명확한 대체 상태를 제공한다.
+- 만료일/제거 ticket 없는 영구 flag를 만들지 않는다.
+- 안전 불변식(승인 전 미변경, owner 격리)을 flag로 끌 수 없다.
+
+## 13. Claude Code 사용 방식
+
+- 공모전 공식 FAQ는 생성형 AI와 AI 코딩 보조 도구 사용을 허용하지만, 평가 핵심은 안정적으로 구동되는 완성 서비스다. 도구 사용을 test·human review·구현 완료의 대체 증거로 삼지 않는다.
+- repository root의 `CLAUDE.md`를 먼저 읽게 한다.
+- 한 prompt에는 ticket, Figma node, 허용 범위, acceptance, 실행할 검증을 포함한다.
+- 큰 작업은 먼저 읽기 전용 분석과 변경 계획을 받고, 승인된 범위만 구현한다.
+- 생성된 migration/OpenAPI/security 코드는 사람이 반드시 검토한다.
+- Claude가 바꾼 파일 목록과 실행한 test를 PR에 적는다.
+- secret, production data, 비식별되지 않은 사용자 입력을 prompt/context에 넣지 않는다.
+- 실패한 test를 삭제하거나 gate를 완화해 통과시키지 않는다.
+
+권장 ticket prompt 예시는 다음과 같다.
+
+```text
+CLAUDE.md와 docs/design/FIGMA_HANDOFF.md의 S03-C1~C4,
+docs/api/openapi.yaml의 addTripCandidate를 읽어라.
+후보 저장 vertical slice만 구현하라. TripItem을 만들거나 trip version을
+올리면 안 된다. 201/200 duplicate/오류 재시도, owner 격리, idempotency,
+keyboard sheet, component/API/E2E test를 포함하라. 먼저 변경 계획과
+계약 불일치를 보고하고, 승인 전에는 범위를 넓히지 마라.
+```
+
+## 13. Blocker 처리
+
+- 30분 이상 같은 문제에 머무르면 사실, 시도, 필요한 결정을 짧게 공유한다.
+- 외부 계정/쿼터/법무처럼 코드로 풀 수 없는 문제는 `DECISIONS_AND_RISKS.md`에 owner와 due condition을 적는다.
+- blocker가 있는 slice를 우회 구현해 숨기지 말고, mock/replay/feature flag로 명시적 degradation을 만든다.
+- WIP limit은 사람당 1개 main slice + 긴급 bug 1개다.
+
+## 작업 전환 시 확인
+
+작업 시작·계약 변경·인계·통합·출시 gate마다 contract SHA, 필요한 fixture, 열린 결정과 다음 acceptance를 확인한다. 개발 달력이나 정기 회의 시간을 이 문서에서 고정하지 않는다. 담당자별 WIP는 구현 slice 1개와 review 1개다. Backend와 AI는 모두 `backend` 역할 브랜치에서 개발한다.
+
+## #10 첫 scaffold의 교차 인계 제안
+
+[B01 기반 결정안](FOUNDATION_DECISIONS.md)의 D1~D5를 Frontend와 검토한다. backend가 최초 통합 PR을 host하고 FE 파일을 checksum/기준 SHA/작성자와 함께 인계받는 제한된 예외를 제안했다. 아직 상대 승인을 받지 않았으며 이후 일반 slice·두 required check·main merge commit 규칙은 동일하다. 최소 실제 session→CSRF→me 연결과 full Docker 검증 없이 B01을 완료 처리하지 않는다.

@@ -1,3 +1,14 @@
+---
+aliases:
+  - "Figma Component Catalog"
+doc_type: reference
+status: conditional
+area: design
+tags:
+  - nullnull/reference
+  - nullnull/design
+---
+
 # Figma Component Catalog
 
 - 상태: Accepted for P0 implementation
@@ -174,3 +185,5 @@ component를 쓴다.
 - Figma node가 추가·이름 변경되면 이 catalog의 ID를 유지하고 mapping만 갱신한다. 의미가 변하면 별도 마이그레이션 PR을 사용한다.
 - KTO fixture를 사용하는 card/detail/compare/map story는 `출처: ⓒ한국관광공사`를 DOM에 포함한다. `TourAPI` 단독 표기와 CI·BI image 사용은 snapshot/license 검사에서 실패시킨다.
 - 공모전 profile story는 로그인·JA/ZH·P1·위치 control이 disabled/OFF이고 geolocation 호출이 없음을 검증한다.
+
+09-06 추가 확인은 [화면별 검토](SCREEN_REVIEW_2026-09-06.md)와 [PM 검토](../project/PM_REVIEW_2026-09-06.md)를 따른다. Catalog의 필수 props/state는 목표 계약이며 현재 모든 내부 variant가 구현됐다는 뜻이 아니다.

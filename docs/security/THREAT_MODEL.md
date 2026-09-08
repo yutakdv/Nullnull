@@ -1,3 +1,14 @@
+---
+aliases:
+  - "위협 모델"
+doc_type: reference
+status: baseline
+area: security
+tags:
+  - nullnull/reference
+  - nullnull/security
+---
+
 # 위협 모델
 
 - 상태: P0 design review baseline
@@ -12,6 +23,7 @@
 | trip/candidate/item/constraint | 사용자 계획 손실, 잘못된 이동 |
 | optimization proposal/decision/revision | 승인 없는 변경, 감사/복구 실패 |
 | source snapshot/provenance | 허위 혼잡·대체 추천 |
+| Spring→`apps/ai` 내부 계약 응답 | 위조된 proposal이 재검증 없이 저장되면 승인 없는 일정 변경 |
 | deletion receipt/tombstone | 삭제 상태 탈취, backup 복원 후 data 부활 |
 | notification deep link/media license | phishing/open redirect, 무단 재배포 |
 | DB/external API/AWS secret | 대규모 접근·비용·서비스 중단 |
@@ -57,6 +69,7 @@ flowchart LR
 | T-08 | apply 일부만 반영 | DB, Tampering | 단일 transaction, fault injection | external side effect를 transaction 밖으로 제한 |
 | T-09 | lock 우회 proposal | Optimizer, Integrity | independent constraints, validation summary, property tests | algorithm bug; apply-time validation 반복 |
 | T-10 | provider data poisoning/drift | Provider, Tampering | schema+semantic validation, quarantine, quality incident override | 공식 source 자체 오류; stale/replay/none |
+| T-10a | 내부 추천 서비스 spoof·응답 변조·과도한 입력 전송 | Internal network, Tampering/Information disclosure | internal network·SG만 허용, 요청은 ID·시각·잠금·verdict만(owner/session/원문/좌표 금지), `ProposalRevalidator`가 잠금·범위·개선폭·ID 집합을 재검증, 4xx는 즉시 실패 | 인증(token/mTLS)은 D-032 열린 결정; parity·fixture drift test |
 | T-11 | mixed source 허위 비교 | App, Integrity | server comparison eligibility/reason | 새 metric마다 policy review |
 | T-12 | replay를 live로 표시 | App, Repudiation | SourceState type, persistent badge, contract test | copy regression; visual/E2E |
 | T-13 | external base URL SSRF | API config, Elevation | production hostname allowlist, no user URL | provider redirect 검증 필요 |
@@ -191,7 +204,7 @@ S0는 기능 flag/circuit/rollback으로 영향부터 멈춘 뒤 조사한다. �
 - post 작성/upload/moderation
 - LLM tool calling, web browsing, user-specific memory
 - third-party analytics/error monitoring
-- Redis/SQS/분리 worker/ML service
+- Redis/SQS/분리 worker/학습 모델 service(추천 계산 서비스 `apps/ai`는 ADR-0006 범위, 인증 추가 시 재검토)
 - public admin/CMS
 - 새 AWS account/region/network ingress
 
