@@ -8,6 +8,7 @@ readonly artifact_dir="${project_root}/.artifacts/integration"
 readonly compose_file="${project_root}/compose.integration.yml"
 readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
 readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
+readonly npm_audit_report_checker="${project_root}/scripts/check_npm_audit_report.py"
 
 compose_available=false
 compose=()
@@ -123,7 +124,22 @@ python3 "${evaluation_report_checker}" "${recommendation_report}"
 
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff
+# A report left behind by an earlier run would satisfy the presence check below even if this run
+# never produced one, so the previous artifact is dropped before the exporter runs.
+readonly npm_audit_report="${artifact_dir}/audit/npm-audit.json"
+rm -f "${npm_audit_report}"
 "${compose[@]}" run --rm security-scan
+
+# DX-003: the audit itself runs at image build time, where the registry is still reachable, and
+# security-scan only exports the report onto the artifact volume. The gate is judged here instead,
+# the same way the recommendation evaluation report is: a report that is absent, unreadable or
+# malformed fails, so a scan that never really ran cannot be mistaken for a clean one.
+if [[ ! -f "${npm_audit_report}" ]]; then
+  echo "npm audit report is missing: ${npm_audit_report}" >&2
+  exit 1
+fi
+python3 "${npm_audit_report_checker}" "${npm_audit_report}"
+
 "${compose[@]}" run --rm infra-plan
 "${compose[@]}" run --rm egress-denied
 "${compose[@]}" up --detach ai api web
