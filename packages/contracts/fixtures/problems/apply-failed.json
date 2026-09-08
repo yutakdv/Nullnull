@@ -1,0 +1,10 @@
+{
+  "type": "/problems/apply-failed",
+  "title": "Apply failed",
+  "status": 500,
+  "code": "APPLY_FAILED",
+  "detail": "The trip was not changed.",
+  "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
+  "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
+  "retryable": true
+}

@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "provisional": "FE-003, awaiting BE/AI review",
+  "source": "docs/api/openapi.yaml + docs/api/README.md UI mapping table",
+  "schemaVersion": "0.2.1-rc.1",
+  "capturedAt": "2026-09-08",
+  "note": "Problem and session schemas are additionalProperties:false, so this provenance lives beside the fixtures rather than inside them. TEST_STRATEGY.md:113 and OWNERSHIP_MATRIX.md:108 assign these to BE/AI; FE authored them to unblock FE-003 and every one is ajv-validated against the OpenAPI schema.",
+  "sets": {
+    "problems": {
+      "schema": "Problem",
+      "count": 23,
+      "basis": "Every code in the Problem.code enum, with the status from the docs/api/README.md UI mapping table."
+    },
+    "session": {
+      "schemas": ["SessionBootstrap", "CsrfTokenResponse", "OwnerProfile"],
+      "count": 3,
+      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies."
+    }
+  }
+}

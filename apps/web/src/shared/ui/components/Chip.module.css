@@ -1,0 +1,35 @@
+/* Figma `Form / Chip`: radius 999. md is 16px/11px padding at 13px text,
+   sm one step tighter. Figma paints 35px tall; min-height lifts the hit area
+   to the 44px minimum the catalog requires without redrawing the box. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  border: var(--border-thin) solid transparent;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.chip[data-selected] {
+  background: var(--color-action-primary);
+  color: var(--color-action-onPrimary);
+}
+
+.chip:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.md {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-body-sm);
+}
+
+.sm {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-caption);
+}

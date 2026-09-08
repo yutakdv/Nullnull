@@ -1,0 +1,18 @@
+{
+  "name": "nullnull",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.19.0",
+  "workspaces": [
+    "apps/web",
+    "packages/contracts",
+    "packages/api-client"
+  ],
+  "scripts": {
+    "api:generate": "npm run generate --workspace @nullnull/api-client",
+    "api:check": "npm run check --workspace @nullnull/api-client",
+    "security:scan": "npm audit --audit-level=high --omit=dev",
+    "infra:check": "node scripts/infra-check.mjs",
+    "verify": "npm run api:check && npm run verify:ci --workspace @nullnull/web"
+  }
+}

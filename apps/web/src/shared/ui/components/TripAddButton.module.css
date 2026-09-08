@@ -1,0 +1,34 @@
+/* Figma `Action / TripAddButton`: 36px circle. The painted size stays 36px
+   while the hit area reaches the 44px minimum. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-action-onPrimary);
+  cursor: pointer;
+  outline-offset: 4px;
+}
+
+.button[data-state='saved'],
+.button[data-state='duplicate'] {
+  background: var(--color-bg-surface);
+  color: var(--color-action-primary);
+  box-shadow: inset 0 0 0 var(--border-thin) var(--color-action-primary);
+}
+
+.button[data-state='error'] {
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  box-shadow: inset 0 0 0 var(--border-thin) var(--color-border-strong);
+}
+
+.button[data-state='loading'] {
+  background: var(--color-bg-track);
+  color: var(--color-text-secondary);
+  cursor: progress;
+}

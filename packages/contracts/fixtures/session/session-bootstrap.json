@@ -1,0 +1,12 @@
+{
+  "owner": {
+    "id": "018f3f8e-9b67-7a21-8d31-31d315b93911",
+    "kind": "ANONYMOUS",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "onboardingCompleted": false,
+    "activeTripId": null
+  },
+  "csrfToken": "cS8kZ2xhc3Nob3VzZS10b2tlbi1mb3ItdGVzdHMtb25seQ",
+  "expiresAt": "2026-09-08T12:00:00Z"
+}

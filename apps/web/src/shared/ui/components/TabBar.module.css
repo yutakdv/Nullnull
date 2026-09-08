@@ -1,0 +1,34 @@
+/* Figma `Nav / TabBar`: floating pill above the safe area, 4 equal tabs. */
+.bar {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-surface);
+  box-shadow: var(--elevation-raised);
+}
+
+.tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tab[data-active] {
+  color: var(--color-action-primary);
+}
+
+.label {
+  font-size: var(--font-label);
+  font-weight: 500;
+}

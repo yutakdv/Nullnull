@@ -1,0 +1,48 @@
+/* Recovery surface, not a toast. FIGMA_HANDOFF.md:441 — a toast alone must not
+   carry an important success or failure. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-title-md);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.body {
+  margin: 0;
+  font-size: var(--font-body-sm);
+  color: var(--color-text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.action {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: var(--border-thin) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-action-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.requestId {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--color-text-secondary);
+}

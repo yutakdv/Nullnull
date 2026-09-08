@@ -1,0 +1,19 @@
+/* Figma `Data / Tag`: radius 999, 8px/3px padding, 12px text. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-label);
+  line-height: 1.3;
+}
+
+.solid {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+
+.outline {
+  border: var(--border-thin) solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+}

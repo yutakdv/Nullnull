@@ -1,0 +1,13 @@
+/* Source credit. Wraps rather than truncating: the licence requires the
+   attribution to be readable, so a narrow card grows instead of cutting. */
+.attribution {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.attribution a {
+  color: inherit;
+}
