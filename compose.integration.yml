@@ -69,7 +69,19 @@ services:
       dockerfile: apps/web/Dockerfile
       target: tooling
     working_dir: /workspace
-    command: ["npm", "run", "security:scan"]
+    # DX-003: npm audit needs the registry and this service runs on integration-internal, so the
+    # report is produced at build time (apps/web/Dockerfile tooling stage) and this run only
+    # exports it. The blocking decision is made by scripts/check_npm_audit_report.py on the host,
+    # which keeps the gate independent of whether this image carries a Python interpreter.
+    # cp fails loudly when the bake did not happen, so a missing report can never read as a pass.
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        cp /workspace/.audit/npm-audit.json /workspace/.audit-export/npm-audit.json
+        echo "npm_audit_report=exported"
+    volumes:
+      - ./.artifacts/integration/audit:/workspace/.audit-export
     networks:
       - integration-internal
 
