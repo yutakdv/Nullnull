@@ -29,7 +29,14 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 
 ## 2. 현재 상태 (A4 Backend/AI CI 구현 후)
 
-**최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper를 실행해 검증해야 한다. A4 자체 커밋은 `552a539`다.
+**최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper `integration_mode=full-docker`, exit 0을 확인했다. A4 자체 커밋은 `552a539`, main 수신 merge commit은 `308ee35`다.
+
+### main 수신 후 검증 기준선
+
+- 실제 full Docker: Java `test 274 / integrationTest 101 / openapiContractTest 9 / recommendationTest 19`, 전부 0 fail/error/skip. main의 `ManifestTestPathParityTest` 2건이 추가돼 recommendationTest가 17→19다.
+- AI pytest 410, corpus 9/9·partial=false·safety.failures=[]; ruff/format/mypy 통과. web verify:ci 148건 및 build, Playwright 4건 통과. generated client diff·audit·egress-denied·readiness 통과.
+- root scripts 89건, 문서 검증 통과. 로그 `.artifacts/ba-004/full-integration-merged.log`, 실제 report `.artifacts/integration/`.
+- B1부터 marker 부재를 이유로 full gate를 생략할 수 없다. CON-006의 “FE PR #17 병합 후” 선행 조건도 이제 충족됐다.
 
 ### git
 
