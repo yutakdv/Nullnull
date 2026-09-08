@@ -1,13 +1,16 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import * as icons from '../icons.js';
+import * as glyphs from '../icons.js';
+import * as tabGlyphs from '../tab-icons.js';
 import { IconBack, IconHeartLikeFilled, IconSearch } from '../icons.js';
 
-const all = Object.entries(icons).filter(([n]) => n.startsWith('Icon'));
+const all = [...Object.entries(glyphs), ...Object.entries(tabGlyphs)].filter(([n]) =>
+  n.startsWith('Icon'),
+);
 
 describe('icon set', () => {
   it('exports one component per Figma icon component', () => {
-    expect(all).toHaveLength(20);
+    expect(all).toHaveLength(24);
   });
 
   it('renders every icon inside the shared 24x24 viewBox', () => {

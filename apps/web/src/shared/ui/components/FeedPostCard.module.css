@@ -1,0 +1,52 @@
+/* Figma `Card / FeedPost`: 172px column card, radius 12, cover image with a
+   scrim. Order follows FCR-011: state, then title, then region, then source. */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
+  box-shadow: var(--elevation-card);
+  overflow: hidden;
+}
+
+.cover {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.cover img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.region {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--color-text-secondary);
+}
+
+.action {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+}

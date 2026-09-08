@@ -1,0 +1,33 @@
+/* Figma `Form / Search`: pill field, 48px tall, leading glyph. */
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-surface);
+  box-shadow: var(--elevation-subtle);
+  color: var(--color-text-secondary);
+}
+
+.input {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-md);
+  outline: none;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

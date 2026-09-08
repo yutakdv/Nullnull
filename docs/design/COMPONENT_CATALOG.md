@@ -64,14 +64,20 @@ CI의 토큰 검사는 생성물 드리프트만 강제하고 Figma 전체 커�
 
 | 구분 | 대상 | 상태 |
 | --- | --- | --- |
-| icon | `C13`~`C31`, `C36` 계열 20개 | 구현. Figma vector를 24×24 viewBox로 변환, `currentColor` |
+| icon | `C13`~`C31`, `C36` 계열 24개 | 구현. Figma vector를 24×24 viewBox로 변환, `currentColor` |
 | 기본 | `C04` `C08` `C11` `C40` `C44` `C47` `C48` | 구현 |
 | 데이터 | `C03` `C06` `C07` `C09` `C35` `C37` | 구현. 계약 type을 직접 참조 |
-| 대기 | `C01` `C02` `C05` `C10` `C12` `C32`~`C34` `C38` `C39` `C41`~`C43` `C45` `C46` | 화면 slice에서 구현 |
+| 카드·입력 | `C01` `C10` `C12` `C34` `C38` | 구현. 응답 type을 props로 받음 |
+| 대기 | `C02` `C05` `C32` `C33` `C39` `C41`~`C43` `C45` `C46` | sheet·map·비교 UI, 해당 화면 slice에서 |
 
-대기 항목은 표시할 server 응답(`listFeed`, `getTrip`, `listTripCandidates` 등)에
-직접 묶여 있어 해당 `FE-*` slice에서 화면과 함께 만든다. `Card / FeedPost`처럼
-카드 전체를 미리 만들면 응답 shape을 추측하게 된다.
+실제 API는 현재 `/health/live`와 `/health/ready` 둘뿐이고 나머지 48개 operation은
+계약만 있다. 따라서 화면은 OpenAPI example 기반 mock으로 먼저 만들고 endpoint가
+열리는 대로 교체한다. 이를 위해 component는 스스로 fetch하지 않고 응답 type을 props로
+받는다. `FeedPostCard`가 `FeedCard`를, `TripItemCard`가 `TripItem`을 그대로 받는
+식이며, mock에서 실제 API로 바꿀 때 화면만 고치고 component는 건드리지 않는다.
+
+대기 항목은 sheet의 focus 관리나 map provider 승인처럼 화면 맥락이 있어야 정할 수
+있는 것들이다.
 
 `DataAttribution`은 `COMPONENT_CATALOG §1`이 요구하는 공용 provenance primitive다.
 Figma 최상위 node 수에 포함하지 않으며 출처 문구·link·source state를 한곳에서
@@ -96,6 +102,14 @@ Figma 최상위 node 수에 포함하지 않으며 출처 문구·link·source s
   적용 대신 재계산만 제안한다. 실패 문구는 일정 미변경을 명시한다.
 - route provider가 없으므로 `Map / Optimization` 계열은 경로·우회 시간·거리를
   그리지 않고 무엇으로 비교하는지 문장으로 대신한다.
+- `Card / FeedPost`는 `savedPost`(게시물 보관)와 `candidateState`(후보 저장)를 하나로
+  합치지 않는다. 어느 쪽도 `TripItem`을 만들지 않는다.
+- `Card / TripItem`은 응답에 있는 잠금만 각각 렌더링하고 하나의 조작이 다른 잠금을
+  건드리지 않는다. `RESERVATION`은 예약이 소유하므로 toggle로 제공하지 않는다.
+- `Card / Candidate`는 후보에 날짜·시간이 없음을 문구로 밝히고 일정화를 별도 행동으로
+  제공한다.
+- `Nav / TabBar`는 P0 tab 4개만 렌더링한다. P1 `검색` tab은 숨기는 대신 아예 만들지
+  않는다. 이동하지 않는 tab은 없는 것보다 나쁘다.
 
 ## 1. 구현 규칙
 
