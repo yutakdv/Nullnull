@@ -1,0 +1,32 @@
+/* Figma `Nav / Segment`: pill track with the active option filled. */
+.segment {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+}
+
+.option {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.option[data-selected] {
+  background: var(--color-bg-surface);
+  color: var(--color-action-primary);
+  box-shadow: var(--elevation-subtle);
+}
+
+.option:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}

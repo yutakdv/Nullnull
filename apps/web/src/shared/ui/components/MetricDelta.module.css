@@ -1,0 +1,24 @@
+/* Direction is carried by the arrow glyph and the value text, not by colour
+   alone, so the row stays readable in monochrome. */
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-body-sm);
+}
+
+.label {
+  color: var(--color-text-secondary);
+}
+
+.value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.unavailable {
+  color: var(--color-text-secondary);
+}

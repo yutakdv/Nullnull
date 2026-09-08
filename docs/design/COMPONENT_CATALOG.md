@@ -60,33 +60,42 @@ CI의 토큰 검사는 생성물 드리프트만 강제하고 Figma 전체 커�
 
 ## 0.1 구현 현황 (2026-09-08)
 
-`apps/web/src/shared/ui`에 구현한 것과 남은 것이다. 화면은 이 public API를 통해서만
-component를 쓴다.
+`apps/web/src/shared/ui`에 구현했다. 화면은 이 public API를 통해서만 component를 쓴다.
 
 | 구분 | 대상 | 상태 |
 | --- | --- | --- |
 | icon | `C13`~`C31`, `C36` 계열 20개 | 구현. Figma vector를 24×24 viewBox로 변환, `currentColor` |
-| primitive | `C04` `C08` `C11` `C40` `C44` `C47` `C48` | 구현 |
-| 나머지 | `C01`~`C03`, `C05`~`C07`, `C09`, `C10`, `C12`, `C32`~`C35`, `C37`~`C39`, `C41`~`C43`, `C45`, `C46` | 대기 |
+| 기본 | `C04` `C08` `C11` `C40` `C44` `C47` `C48` | 구현 |
+| 데이터 | `C03` `C06` `C07` `C09` `C35` `C37` | 구현. 계약 type을 직접 참조 |
+| 대기 | `C01` `C02` `C05` `C10` `C12` `C32`~`C34` `C38` `C39` `C41`~`C43` `C45` `C46` | 화면 slice에서 구현 |
 
-대기 사유는 두 가지다. `Card / FeedPost`, `Card / TripItem`, `Data / StateLabel`,
-`Data / Badge`, `Data / MetricDelta`, `Data / Distance`, `Action / DecisionBar`,
-`Form / OptimizationScope`, `Nav / Segment`, `Sheet / TripPicker`,
-`Feedback / Toast`, `Map / Base`, `Map / Marker`, `Map / Optimization` 14개는
-`FCR-001~015`가 구조·문구를 바꿨고 아직 검토 대기(PR #14)다. 승인 전에 구현하면
-재작업이 된다. 나머지는 표시할 server 계약(`listFeed`, `getTrip` 등) 연결이 필요해
-해당 `FE-*` slice에서 만든다.
+대기 항목은 표시할 server 응답(`listFeed`, `getTrip`, `listTripCandidates` 등)에
+직접 묶여 있어 해당 `FE-*` slice에서 화면과 함께 만든다. `Card / FeedPost`처럼
+카드 전체를 미리 만들면 응답 shape을 추측하게 된다.
 
-구현한 component가 지키는 것:
+`DataAttribution`은 `COMPONENT_CATALOG §1`이 요구하는 공용 provenance primitive다.
+Figma 최상위 node 수에 포함하지 않으며 출처 문구·link·source state를 한곳에서
+관리한다.
+
+구현한 component가 코드로 강제하는 규칙:
 
 - 44×44px 최소 target. Figma가 35px·36px로 그린 chip과 button도 hit area는 44px다.
 - 색만으로 상태를 전달하지 않는다. 선택은 `aria-pressed`, 진행은 `aria-busy`,
-  비활성은 사유 text를 함께 둔다.
-- `Form / LockControl`은 잠금 4종이 독립임을 코드로 강제한다. 하나를 눌러도 다른
-  잠금 상태를 바꾸지 않고, `reservation-locked`는 toggle로 제공하지 않는다.
+  혼잡도는 막대와 함께 `4 · 혼잡` 문구, 비활성은 사유 text를 둔다.
+- `Form / LockControl`은 잠금 4종이 독립임을 강제한다. 하나를 눌러도 다른 잠금
+  상태를 바꾸지 않고 `reservation-locked`는 toggle로 제공하지 않는다.
 - `Action / TripAddButton`의 accessible name은 `담기`이며 `일정`을 쓰지 않는다.
-  후보 저장이 `TripItem`을 만들지 않기 때문이다. `loading`만 입력을 막고
-  `error`·`duplicate`는 계속 조작할 수 있다.
+  후보 저장이 `TripItem`을 만들지 않기 때문이다.
+- `Data / MetricDelta`는 `comparisonEligible=false`면 수치를 렌더링하지 않고 사유를
+  표시한다. 결측을 0이나 `보통`으로 채우지 않는다.
+- `Data / StateLabel`은 6개 상태가 각각 다른 문구를 갖고 `REPLAY`는 `실시간 아님`을
+  항상 포함한다.
+- `DataAttribution`은 server의 `attribution`을 그대로 쓰고 `attributionShort`가
+  없으면 전문으로 되돌아간다. client가 임의로 자르지 않는다.
+- `Action / DecisionBar`는 preview에서 `현재 일정 유지`를 항상 제공하고, `stale`은
+  적용 대신 재계산만 제안한다. 실패 문구는 일정 미변경을 명시한다.
+- route provider가 없으므로 `Map / Optimization` 계열은 경로·우회 시간·거리를
+  그리지 않고 무엇으로 비교하는지 문장으로 대신한다.
 
 ## 1. 구현 규칙
 

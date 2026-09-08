@@ -1,0 +1,35 @@
+/* Figma `Data / StateLabel`: pill, 8px/2px padding, 11px label.
+   REPLAY and UNAVAILABLE are visually distinct so a demo recording is never
+   mistaken for a live reading, but the wording carries the meaning. */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.label[data-state='LIVE'] {
+  background: var(--color-action-subtle);
+  color: var(--color-action-strong);
+}
+
+.label[data-state='REPLAY'] {
+  background: var(--color-bg-inverse);
+  color: var(--color-text-onInverse);
+}
+
+.label[data-state='UNAVAILABLE'],
+.label[data-state='STALE'] {
+  border: var(--border-thin) dashed var(--color-border-strong);
+}
+
+.time {
+  color: inherit;
+  opacity: 0.8;
+}
