@@ -17,7 +17,11 @@ FROM source AS test
 WORKDIR /workspace/apps/web
 CMD ["npm", "run", "verify:ci"]
 
+# security-scan runs on an internal network but npm audit needs the registry,
+# so the report is baked here where the network still exists and
+# scripts/check_npm_audit_report.py judges it offline (DX-003).
 FROM source AS tooling
+RUN node scripts/bake_npm_audit.mjs
 CMD ["npm", "run", "api:check"]
 
 FROM source AS build
