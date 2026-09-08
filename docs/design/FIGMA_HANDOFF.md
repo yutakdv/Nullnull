@@ -18,7 +18,7 @@ tags:
 
 이 문서는 화면을 그대로 나열하는 대신 개발에 필요한 route, 상태, 도메인 변화, API
 의존성과 2인의 책임을 연결한다. 2026-09-05 공개 Figma를 직접 대조한 결과 현재 구현
-frame 52개와 최상위 component 49개는 확인했지만, 언어·feed·ITEM preview·guest·data
+frame 52개와 최상위 component 49개는 확인했지만(2026-09-07 `FCR-001` EN 선택 variant `643:4088` 추가로 53개), 언어·feed·ITEM preview·guest·data
 guide 등에 P0 불일치가 남아 있다. 영향 화면은
 [Figma 정합성 수정 요청](./FIGMA_CHANGE_REQUESTS.md)의 Ready for implementation 검토 전에는
 해당 UI를 착수하지 않는다. Closed는 구현 회귀까지 끝난 상태다. Figma의 시각적 수치와 component variant가 이 문서와 다르면 Figma를 확인하되,
@@ -90,7 +90,7 @@ Figma page의 용도:
 | Figma node | 화면 | Route | 상태/동작 | 데이터/API |
 | --- | --- | --- | --- | --- |
 | `388:257` | A-1 splash | `/` | logo, bootstrap; 장기 loading이면 retry | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner`, readiness |
-| `388:277` | A-2 language | `/language` | 목표: 한국어·English 선택/확정, 日本語·中文 disabled `준비 중`; 현재 English 오표기는 `FCR-001` | `updatePreferences(locale)`; bootstrap 전에는 local draft |
+| `388:277`, `643:4088` | A-2 language | `/language` | 한국어·English 선택/확정, 日本語·中文 disabled `준비 중`(`color/text/disabled` + label); `388:277`은 KO 선택, `643:4088`은 EN 선택·영문 copy variant (`FCR-001` 2026-09-07 수정, 검토 대기) | `updatePreferences(locale)`; bootstrap 전에는 local draft |
 | `388:321` | A-3 intro | `/intro` | “한국인이 진짜 가는 곳”, 계속/건너뛰기 | local onboarding state |
 
 Acceptance:
@@ -104,13 +104,13 @@ Acceptance:
 
 | Figma node | 화면 | Route/overlay | 상태/동작 | 데이터/API |
 | --- | --- | --- | --- | --- |
-| `391:310` | S03-F0 여행 없음 feed | `/feed` | empty trip CTA, 게시물 탐색 | `GET /feed`, `GET /trips` |
-| `396:2926` | S03-F1 활성 여행 feed | `/feed` | active trip context, `+` 저장 | `GET /feed?tripId=` |
-| `398:611` | S03-D 게시물 상세 | `/posts/:postId` | 장소/근거/저장 action | `GET /posts/:postId` |
-| `399:658` | S03-C1 여행 선택 | sheet | 대상 여행 선택, 새 여행 만들기 | `GET /trips` |
-| `399:843` | S03-C2 저장 완료 | sheet/result | 후보 생성, 일정은 미변경 | `POST /trips/:id/candidates` |
-| `399:1011` | S03-C3 중복 | sheet/result | 기존 후보로 이동, row 추가 안 함 | API `duplicate=true` 또는 200 existing |
-| `399:1179` | S03-C4 저장 오류 | sheet/error | “일정은 바뀌지 않음”, 재시도 | Problem Details |
+| `391:310` | S03-F0 여행 없음 feed | `/feed` | empty trip CTA, 게시물 탐색; 검색·bell·`팔로잉/최신` tab·filter chip 없음 (`FCR-002`, `FCR-003` 2026-09-07 제거) | `GET /feed`, `GET /trips` |
+| `396:2926` | S03-F1 활성 여행 feed | `/feed` | active trip context, `+` 저장; 검색·bell·`팔로잉/최신` tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `GET /feed?tripId=` |
+| `398:611` | S03-D 게시물 상세 | `/posts/:postId` | 장소/근거/저장 action; `팔로우` 없음 (`FCR-002`) | `GET /posts/:postId` |
+| `399:658` | S03-C1 여행 선택 | sheet | 대상 여행 선택, 새 여행 만들기; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `GET /trips` |
+| `399:843` | S03-C2 저장 완료 | sheet/result | 후보 생성, 일정은 미변경; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `POST /trips/:id/candidates` |
+| `399:1011` | S03-C3 중복 | sheet/result | 기존 후보로 이동, row 추가 안 함; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | API `duplicate=true` 또는 200 existing |
+| `399:1179` | S03-C4 저장 오류 | sheet/error | “일정은 바뀌지 않음”, 재시도; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | Problem Details |
 | `409:1595` | S06-1 저장 sheet | reusable sheet | 피드/상세 공통 | 위와 동일 |
 
 상태 전이:
@@ -169,7 +169,7 @@ Wizard 규칙:
 
 | Figma node | 화면 | UI state | 동작/API |
 | --- | --- | --- | --- |
-| `410:1738` | S07-1 보기 | view | trip, day, items, candidate count 조회 |
+| `410:1738` | S07-1 보기 | view | trip, day, items, candidate count 조회; route 기반 거리·시간 텍스트 없음 (`FCR-005`); `더 여유로운 날짜` 배너 제거 (`FCR-013` 2026-09-08) |
 | `411:1837` | S07-2 편집 | edit | local edit buffer, save/cancel |
 | `527:4085` | S07-2 날짜 이동 후 편집 | move-date result | 이동 결과/선택 Day 일치; 시간 입력 node는 미확인(FCR-017) |
 | `412:1912` | S07-8 후보 panel | overlay | 후보 목록, 날짜 선택 후 일정화 |
@@ -198,10 +198,13 @@ Wizard 규칙:
 | Figma node | 화면 | 상태 | 동작 | API |
 | --- | --- | --- | --- | --- |
 | `415:2268` | S09-0 항목 설정 | setup | ITEM target 선택, 잠금, 후보 포함 OFF(`FCR-010`) | `POST /trips/:id/optimizations` |
-| `415:2413` | S09-1 계산 중 | loading | polling, back, timeout(`FCR-014`) | `GET /optimizations/:runId` |
-| `TBD` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
+| `415:2413` | S09-1 계산 중 | loading | polling; `내 여행으로 돌아가기`는 navigation만, run은 계속되고 URL로 재조회 (`FCR-014` 2026-09-08); route-free copy (`FCR-005`) | `GET /optimizations/:runId` |
+| `655:4067` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
 | `439:3104` | S09-D1 하루 preview | preview P1 | day scope before/after | same |
-| `417:2412` | S09-3 적용 완료 | applied | revision, persistent undo/expiry(`FCR-015`) | decision/revert |
+| `417:2412` | S09-3 적용 완료 | applied `AVAILABLE` | persistent 패널: 결과·v7→v8·`revertUntil`·되돌리기 버튼, toast는 보조 (`FCR-015` 2026-09-08) | decision/revert |
+| `724:4602` | S09-3 되돌리는 중 | applied submitting | 버튼 disabled, 중복 실행 차단 | `revertOptimizationDecision` pending |
+| `724:4730` | S09-3 되돌림 | applied `REVERTED` | v8→v9, 카드가 v7 위치로 복귀, 버튼 없음 | `revertOptimizationDecision` 200 |
+| `724:4858` | S09-3 기한 지남 | applied `EXPIRED` | `REVERT_WINDOW_EXPIRED`, 일정 편집으로 안내 | `revertAvailability=EXPIRED` |
 | `417:2567` | REF S09 오류 | error reference | code별 문구/CTA | Problem Details |
 | `485:3517` | REF stale | stale | `TRIP_CHANGED` 재계산 | recompute |
 
@@ -209,11 +212,12 @@ P0 run state:
 
 `QUEUED → RUNNING → READY → APPLIED | KEPT | EXPIRED`, 실패 시 `FAILED`. `APPLIED` 뒤 되돌리면 decision log는 보존하고 새 trip revision을 만든다.
 
-현재 Figma에는 `READY`의 P0 ITEM 화면이 없다. `439:3104`는 P1 DAY 범위이므로 이를
-P0 증거로 대신할 수 없다. `FCR-004` node/variant가 추가되고 아래 preview 계약과
-decision bar의 디자인·계약 검토가 Ready for implementation에 도달할 때까지 최적화 UI slice는 착수하지 않는다. 실제 구현 테스트 뒤 Closed 처리한다. P0에
+`READY`의 P0 ITEM 화면은 `S09-2 / preview-item · P0`(`655:4067`, 2026-09-07
+`FCR-004`로 추가)이다. `439:3104`는 P1 DAY 범위이므로 P0 증거로 대신할 수 없고 별도로
+유지한다. Figma 수정과 계약 검토는 끝났으나 실제 구현 test 뒤에 `Closed`로 바꾼다. P0에
 route provider가 없는 동안 loading copy의 `경로 계산`과 `지도 provider 미정`을 제거하고
-목록/timeline fallback을 기본으로 한다(`FCR-005`).
+목록/timeline fallback을 기본으로 한다(`FCR-005`. `655:4067`의
+이동시간·이동거리 metric은 `확인 불가`로 표시했다).
 
 Figma 오류 계약:
 
@@ -240,27 +244,48 @@ Figma 오류 계약:
   P0에는 cancel operation이 없고 같은 run URL을 다시 조회한다.
 - 적용 완료 화면은 toast와 별개로 `beforeRevisionId`, `afterRevisionId`,
   `revertUntil`에 대응하는 대상 일정과 남은 되돌리기 상태를 지속적으로 보여 준다.
-- 여행 보기의 `더 여유로운 날짜가 있어요`는 `getPlaceCrowdForecast`와 비교 적격성
-  규칙을 연결하기 전에는 노출하지 않는다(`FCR-013`).
+- 여행 보기의 `더 여유로운 날짜가 있어요` 배너는 `FCR-013`으로 제거했다. 표시
+  threshold가 `FR-DAT-02`/`FR-DAT-05`에 정의되기 전에는 다시 넣지 않는다.
 
 ### G. Live
 
 | Figma node | 화면 | Pri/state | 동작 | API |
 | --- | --- | --- | --- | --- |
-| `418:2523` | S11-1 Live | P0 | map OFF 목록 필수, map capability, 영역 선택(`FCR-012`) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `716:4377` | S11-1L Live 목록 (P0 기본) | P0 | map OFF 기본, `LiveArea[]` 목록 → 권역 선택 → sheet 장소 목록 (`FCR-012` 2026-09-08 추가) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `718:4521` | S11-1L 목록 loading | P0 loading | 권역 조회 진행 중 | `queryLiveAreas` pending |
+| `718:4584` | S11-1L 목록 empty | P0 empty | `areas=[]`, 검색 유도 | `queryLiveAreas` |
+| `718:4647` | S11-1L 목록 error | P0 error | 요청 실패, 재시도 | `queryLiveAreas` Problem |
+| `718:4710` | S11-1L 목록 unavailable | P0 unavailable | `mode=UNAVAILABLE`, 값 합성 금지 | `queryLiveAreas` |
+| `418:2523` | S11-1 Live map ON | P0 capability | map capability·provider·attribution 승인 뒤에만; 목록과 같은 filter/selection 공유; route 기반 우회 시간·경로 문구 없음 (`FCR-005`) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `684:4156` | S11-1B 검색 결과 | P0 | 검색창 진입, canonical `PlaceSummary` 목록에서 선택(`FCR-008`) | `searchPlaces` |
+| `684:4330` | S11-1B 검색 중 | P0 loading | 요청 진행 중 표시 | `searchPlaces` pending |
+| `684:4366` | S11-1B 결과 없음 | P0 empty | 0건, 다른 검색어 유도 | `searchPlaces` `items=[]` |
+| `684:4402` | S11-1B 검색 오류 | P0 error | 요청 실패, 재시도 | `searchPlaces` Problem |
 | `419:2617` | S11-2 장소 상세 | P0 | crowd, freshness, itinerary action | `GET /live/places/:poiId` |
 | `420:2821` | S11-3 대안 | P0 | relation + comparable metrics | `GET /places/:poiId/related` |
 | `420:2950` | S11-N 후보 없음 | P0 empty | 비교 불가 이유/다른 필터 CTA | related result `NONE` |
 | `421:2850` | S11-R replay | P0 demo | replay badge, snapshot timestamp | live APIs with `REPLAY` |
 | `501:3750` | S11-4 재계획 진입 | P1 | current trip + explicit location consent | future live replan |
 
-- S11-1의 장소 검색은 `searchPlaces`에서 canonical place를 고른 뒤 `getLivePlace`로
-  coverage를 확인한다. 지원하지 않는 장소는 값을 합성하지 않고 `UNAVAILABLE`과
-  다음 행동을 보여 주며 loading/empty/error state를 포함한다(`FCR-008`).
+- S11-1의 장소 검색은 검색창 진입 시 `S11-1B`(`684:4156` 결과, `684:4330` loading,
+  `684:4366` empty, `684:4402` error)로 이동해 `searchPlaces`에서 canonical place를
+  고른 뒤 `getLivePlace`로 coverage를 확인한다. `PlaceSummary`만 있는 검색 결과
+  단계에는 아직 없는 crowd/freshness 값을 표시하지 않는다. 지원하지 않는 장소는
+  `getLivePlace` 응답의 `dataState=UNAVAILABLE`로 값을 합성하지 않고 다음 행동을
+  보여 준다(`FCR-008`, 2026-09-07 신규 frame 4개 추가).
 - 거리값은 trip anchor나 사용자가 선택한 기준 장소, 산식/source와 함께 표시한다.
-  기준점이 없으면 값을 숨기고 unavailable reason을 제공한다(`FCR-009`).
+  기준점이 없으면 값을 숨기고 unavailable reason을 제공한다(`FCR-009`). 현재
+  `FeedCard`·`PostSummary`·`PostDetail`·`PlaceSummary`에는 거리 필드도 좌표도 없어
+  feed 카드와 게시물 상세의 거리 표시를 제거했다(2026-09-07). 되살리려면 기준점·산식·
+  provenance를 포함한 additive 계약이 먼저 필요하다.
 - 실시간 관측은 `SEOUL_CITYDATA` provenance와 검토된 attribution을 표시하고 KTO
-  장소 정보·예측 출처와 결합하지 않는다(`FCR-011`).
+  장소 정보·예측 출처와 결합하지 않는다(`FCR-011`, 2026-09-07 수정). 카드에서
+  **상태는 `Data / StateLabel`, 출처는 `source` 텍스트**로 분리하며 하나의 배지가
+  둘을 겸하지 않는다. `Card / FeedPost`의 `공식 관광정보 기반` 배지는 제거했다.
+  `SEOUL_CITYDATA` attribution 전문(46자)이 feed 카드·post 장소 카드·Live 후보
+  행 어디에도 들어가지 않아 세 곳 모두 현재 축약 표기이며 계약 위반 상태다.
+  `CON-004`의 `attributionShort`가 `main`에 병합되어 실제 값을 확인한 뒤 다시
+  맞춘다(issue #11).
 
 Data state label:
 
@@ -287,7 +312,7 @@ Candidate relation:
 
 | Figma node | 화면 | Priority | 구현 메모 |
 | --- | --- | --- | --- |
-| `422:2925` | S14 프로필 | P0 | guest 표시, login CTA, 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
+| `422:2925` | S14 프로필 | P0 | guest 표시(익명 세션 저장 설명), disabled `로그인 · 준비 중`(`FCR-006` 2026-09-07), 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
 | `423:2967` | S15 데이터 안내 | P0 | 출처/상태/신뢰도/재현 의미 |
 | `442:3344` | S12 알림 | P1 | item deep link, 개별 읽음, `모두 읽음`, unread count |
 | `442:3370` | S10 주변 | P1 | 위치 동의·로컬 거리 계산 우선 |

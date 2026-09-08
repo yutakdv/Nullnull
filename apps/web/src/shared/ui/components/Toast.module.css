@@ -1,0 +1,23 @@
+/* Figma `Feedback / Toast`: dark pill floating above the tab bar. */
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-inverse);
+  color: var(--color-text-onInverse);
+  font-size: var(--font-body-sm);
+  box-shadow: var(--elevation-raised);
+}
+
+.action {
+  min-height: 44px;
+  border: none;
+  background: none;
+  color: var(--color-action-primary);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

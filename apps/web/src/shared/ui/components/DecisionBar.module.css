@@ -1,0 +1,47 @@
+/* Figma `Action / DecisionBar`: stacked full-width actions above the safe
+   area. Both choices are equally reachable; declining is not a small link. */
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  background: var(--color-bg-default);
+  box-shadow: var(--elevation-sheet);
+}
+
+.primary,
+.secondary {
+  min-height: 47px;
+  border-radius: var(--radius-card);
+  font-family: inherit;
+  font-size: var(--font-body-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary {
+  border: none;
+  background: var(--color-action-primary);
+  color: var(--color-action-onPrimary);
+}
+
+.secondary {
+  border: var(--border-thin) solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  background: var(--color-bg-track);
+  border-color: transparent;
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.message {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}

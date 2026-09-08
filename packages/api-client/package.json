@@ -1,0 +1,22 @@
+{
+  "name": "@nullnull/api-client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/generated/openapi.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../docs/api/openapi.yaml -o src/generated/openapi.ts --default-non-nullable=false",
+    "check": "node ../../scripts/check-generated.mjs src/generated/openapi.ts -- npm run generate",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

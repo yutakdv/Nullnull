@@ -29,6 +29,8 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 
 ## 2. 현재 상태 (A4 Backend/AI CI 구현 후)
 
+**최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper를 실행해 검증해야 한다. A4 자체 커밋은 `552a539`다.
+
 ### git
 
 - 이번 A4(BA-004) 커밋은 CI·보고서 검사·test context cache만 추가한다. 공개 API·migration 변경은 없다.
@@ -37,7 +39,7 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 - 로컬 `main` ref는 낡았다(`3546086`). 판단에 쓰기 전에 `git fetch` 후 `origin/main`을 봐라.
 - `backend`는 `origin/backend`로 push돼 있다. 담고 있는 것: `296b5af`(BA-005 job runtime), `4dea8cc`(origin/main 수신 merge), `a047ed8`(BA-003), 그리고 이 문서.
 - **BA-005와 BA-003은 아직 main에 없다.** main 병합은 사용자가 지시할 때만 한다.
-- 조회 시 열린 PR은 없다. 사용자 후속 지시로 승인 PR 병합 및 완료 이슈 갱신이 허용됐다. #17/#21은 이미 main에 있어 A4 커밋 뒤 backend로 수신한다. deploy는 여전히 비범위다.
+- 조회 시 열린 PR은 없다. 사용자 후속 지시로 승인 PR 병합 및 완료 이슈 갱신이 허용됐다. #17/#21은 이미 main에 있어 A4 커밋 뒤 backend로 수신했다. deploy는 여전히 비범위다.
 
 ### A3(BA-003) — 완료, `a047ed8`로 커밋됨
 

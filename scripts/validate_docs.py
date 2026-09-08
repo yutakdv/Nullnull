@@ -31,6 +31,9 @@ EVENT_SCHEMA_PATH = ROOT / "docs/contracts/events.schema.json"
 EVENT_EXAMPLE_PATH = ROOT / "docs/contracts/events.example.json"
 INTEGRATION_WORKFLOW_PATH = ROOT / ".github/workflows/integration.yml"
 INTEGRATION_SCRIPT_PATH = ROOT / "scripts/integration-test.sh"
+TARGET_STACK_MARKER_PATH = ROOT / ".nullnull-target-stack"
+PROBLEM_POLICY_PATH = ROOT / "apps/web/src/shared/api/problem-policy.ts"
+FE_MESSAGES_PATH = ROOT / "apps/web/src/i18n/messages.ts"
 TARGET_STACK_VERIFIER_PATH = ROOT / "scripts/verify_target_stack.py"
 COMPOSE_PATH = ROOT / "compose.integration.yml"
 CONTEST_MATRIX_PATH = ROOT / "docs/contest/COMPETITION_COMPLIANCE_MATRIX.md"
@@ -277,9 +280,15 @@ def validate_figma_inventory(problems: list[str]) -> None:
     if missing_groups:
         problems.append("Figma handoff is missing audited group nodes: " + ", ".join(missing_groups))
     screen_ids = node_ids - FIGMA_GROUP_IDS
-    if len(screen_ids) != 52:
+    # 2026-09-05 audit: 52 implementation frames; FCR-001 (2026-09-07) added the
+    # A-2 EN-selected variant frame 643:4088; FCR-004 (2026-09-07) added the
+    # S09-2 ITEM READY preview frame 655:4067; FCR-008 (2026-09-07) added the
+    # S11-1B search-results/loading/empty/error frames (4); FCR-012 (2026-09-08)
+    # added the S11-1L live-list default/loading/empty/error/unavailable frames (5);
+    # FCR-015 (2026-09-08) added the S09-3 applied reverting/reverted/expired frames (3).
+    if len(screen_ids) != 66:
         problems.append(
-            f"Figma handoff screen inventory differs from current audit: expected 52 unique nodes, found {len(screen_ids)}"
+            f"Figma handoff screen inventory differs from current audit: expected 66 unique nodes, found {len(screen_ids)}"
         )
     if not COMPONENT_PATH.exists():
         return
@@ -435,6 +444,83 @@ def validate_product_contract_alignment(problems: list[str]) -> None:
             problems.append(f"SOURCE_CATALOG is missing the FCR-011 contract: {fragment}")
 
 
+def validate_problem_code_mapping(problems: list[str]) -> bool:
+    """Every Problem code must have a FE policy and a CTA label in both locales.
+
+    docs/api/README.md lists this as a CI gate: "Problem code enum과 FE
+    translation mapping 일치".
+
+    Skipping is keyed to the target-stack marker, not to whether the files
+    happen to exist. "File missing" cannot tell a pre-M0 tree apart from a
+    rename, a move, or a deletion, so a path change would have retired the
+    gate silently while CI kept reporting success. The marker is the signal
+    verify_target_stack.py:87 and integration-test.sh:6 already use.
+
+    Returns True when the check actually ran, so the summary line can report
+    what was verified instead of naming a check that was skipped.
+    """
+    if not TARGET_STACK_MARKER_PATH.exists():
+        return False
+
+    missing = [
+        str(path.relative_to(ROOT))
+        for path in (PROBLEM_POLICY_PATH, FE_MESSAGES_PATH)
+        if not path.exists()
+    ]
+    if missing:
+        problems.append(
+            "Target stack marker is present but the FE Problem mapping sources are "
+            f"missing: {', '.join(missing)}"
+        )
+        return False
+
+    openapi_text = OPENAPI_PATH.read_text(encoding="utf-8")
+    # `^    Problem:` matches twice: components.responses.Problem and the
+    # schema. Anchor on `type: object`, which only the schema has, so a new
+    # schema between them cannot make this validate the wrong enum.
+    match = re.search(
+        r"^    Problem:\n      type: object\n(?:.*\n)*?        code:\n          type: string\n          enum:\n((?:            - [A-Z_]+\n)+)",
+        openapi_text,
+        re.MULTILINE,
+    )
+    if not match:
+        problems.append("Could not read the Problem.code enum from the OpenAPI document")
+        return False
+    contract_codes = set(re.findall(r"- ([A-Z_]+)", match.group(1)))
+
+    policy_text = PROBLEM_POLICY_PATH.read_text(encoding="utf-8")
+    table = re.search(
+        r"export const PROBLEM_POLICY: Record<ProblemCode, ProblemPolicy> = \{\n((?:.*\n)*?)^\};",
+        policy_text,
+        re.MULTILINE,
+    )
+    if not table:
+        problems.append("Could not read PROBLEM_POLICY from the frontend policy table")
+        return False
+    mapped_codes = set(re.findall(r"^  ([A-Z_]+): \{", table.group(1), re.MULTILINE))
+
+    for code in sorted(contract_codes - mapped_codes):
+        problems.append(f"Problem code {code} has no entry in PROBLEM_POLICY")
+    for code in sorted(mapped_codes - contract_codes):
+        problems.append(f"PROBLEM_POLICY maps {code}, which is not in the Problem.code enum")
+
+    messages_text = FE_MESSAGES_PATH.read_text(encoding="utf-8")
+    for locale in ("ko-KR", "en-US"):
+        block = re.search(
+            rf"'{locale}': \{{\n((?:.*\n)*?)^  \}},",
+            messages_text,
+            re.MULTILINE,
+        )
+        if not block:
+            problems.append(f"Could not read the {locale} message block")
+            continue
+        labelled = set(re.findall(r"'error\.([A-Z_]+)\.cta'", block.group(1)))
+        for code in sorted(contract_codes - labelled):
+            problems.append(f"Problem code {code} has no {locale} CTA label")
+
+    return True
+
+
 def validate_json_files(problems: list[str]) -> None:
     for path in (EVENT_SCHEMA_PATH, EVENT_EXAMPLE_PATH):
         try:
@@ -552,6 +638,7 @@ def main() -> int:
     validate_inventory(operation_ids, problems)
     validate_figma_inventory(problems)
     validate_product_contract_alignment(problems)
+    problem_mapping_ran = validate_problem_code_mapping(problems)
     validate_json_files(problems)
     validate_delivery_contract(problems)
     validate_backend_plan(ROOT, problems)
@@ -562,11 +649,25 @@ def main() -> int:
             print(f"- {problem}", file=sys.stderr)
         return 1
 
-    print(
-        "Documentation validation passed: "
-        f"{len(operation_ids)} OpenAPI operations, local links, exact Figma/component inventory, "
-        "product-contract alignment, JSON syntax, delivery policy, contest evidence, backend plan coverage/DAG and Obsidian links/Canvas."
-    )
+    # Name only what actually ran. A summary that lists a skipped check makes
+    # "passed" mean "was not run", which the repository rules forbid.
+    checks = [
+        f"{len(operation_ids)} OpenAPI operations",
+        "local links",
+        "exact Figma/component inventory",
+        "product-contract alignment",
+    ]
+    if problem_mapping_ran:
+        checks.append("Problem code mapping")
+    checks += [
+        "JSON syntax",
+        "delivery policy",
+        "contest evidence",
+        "backend plan coverage/DAG and Obsidian links/Canvas",
+    ]
+    print("Documentation validation passed: " + ", ".join(checks) + ".")
+    if not problem_mapping_ran:
+        print("Skipped: Problem code mapping (no .nullnull-target-stack marker).")
     return 0
 
 

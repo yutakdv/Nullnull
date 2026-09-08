@@ -22,6 +22,127 @@ API 흐름은 [Figma 개발 핸드오프](./FIGMA_HANDOFF.md), 도메인 의미�
 [제품 요구사항](../product/PRODUCT_SPEC.md), response shape은
 [OpenAPI](../api/openapi.yaml)를 따른다.
 
+## 0. 디자인 토큰 파이프라인
+
+Figma의 local variable과 style이 토큰 정본이다. 코드는 이를 추출해 쓰고 값을 직접
+적지 않는다.
+
+| 항목 | 위치 |
+| --- | --- |
+| 추출 원본 | Figma `Nullnull UI Design` local variables + text/effect styles |
+| 저장소 사본 | `apps/web/src/design/tokens.json` (수기 편집 금지) |
+| 생성물 | `apps/web/src/design/tokens.css` (수기 편집 금지) |
+| 생성 명령 | `npm run tokens:build` |
+| 드리프트 검사 | `npm run tokens:check` — `verify:ci`에 포함 |
+
+2026-09-08 기준 Figma 정비 결과다.
+
+| 컬렉션·스타일 | 개수 | 비고 |
+| --- | --- | --- |
+| `01 Color (Wireframe)` | 12 | primitive 색 |
+| `05 Color (Semantic)` | 23 | primitive를 참조하는 별칭 |
+| `02 Spacing` | 9 | |
+| `03 Typography` | 11 | `font/caption-sm`(10) `font/body-base`(14) `font/icon`(16) 추가, `font/caption`을 12→11px로 변경 |
+| `04 Border` | 1 | |
+| `06 Radius` | 5 | 신규 컬렉션 |
+| text style | 12 | 신규. 1213곳 적용 |
+| effect style | 4 | 신규. 101곳 적용 |
+
+`font/label`(12px)과 `font/caption`(11px)은 값이 겹치지 않으며 용도가 다르다. 12px는
+라벨·네비게이션, 11px는 메타데이터다. 15px는 굵기로 위계를 나눈다. Bold는 제목
+(`Title/sm`), Medium은 본문(`Body/lg`)이다. 10px(`Caption/sm`)은 출처 표기 전용이며
+접근성 관점의 11px 상향은 별도 티켓으로 다룬다.
+
+`02 UI Design`의 text style 적용률은 48.6%다. 나머지는 스타일을 적용하면 높이가
+변하는 조합(17px Semi Bold의 iOS chrome, 14px Bold, `AUTO`/`100%` 줄간격 잔여)이라
+의도적으로 남겼다. 정리는 `FCR-001~015` 승인 뒤 스크린샷 갱신과 함께 한다. 따라서
+CI의 토큰 검사는 생성물 드리프트만 강제하고 Figma 전체 커버리지를 강제하지 않는다.
+
+## 0.1 구현 현황 (2026-09-08)
+
+`apps/web/src/shared/ui`에 구현했다. 화면은 이 public API를 통해서만 component를 쓴다.
+
+| 구분 | 대상 | 상태 |
+| --- | --- | --- |
+| icon | `C13`~`C31`, `C36` 계열 24개 | 구현. Figma vector를 24×24 viewBox로 변환, `currentColor` |
+| 기본 | `C04` `C08` `C11` `C40` `C44` `C47` `C48` | 구현 |
+| 데이터 | `C03` `C06` `C07` `C09` `C35` `C37` | 구현. 계약 type을 직접 참조 |
+| 카드·입력 | `C01` `C10` `C12` `C34` `C38` | 구현. 응답 type을 props로 받음 |
+| 대기 | `C02` `C05` `C32` `C33` `C39` `C41`~`C43` `C45` `C46` | sheet·map·비교 UI, 해당 화면 slice에서 |
+
+실제 API는 현재 `/health/live`와 `/health/ready` 둘뿐이고 나머지 48개 operation은
+계약만 있다. 따라서 화면은 OpenAPI example 기반 mock으로 먼저 만들고 endpoint가
+열리는 대로 교체한다. 이를 위해 component는 스스로 fetch하지 않고 응답 type을 props로
+받는다. `FeedPostCard`가 `FeedCard`를, `TripItemCard`가 `TripItem`을 그대로 받는
+식이며, mock에서 실제 API로 바꿀 때 화면만 고치고 component는 건드리지 않는다.
+
+대기 항목은 sheet의 focus 관리나 map provider 승인처럼 화면 맥락이 있어야 정할 수
+있는 것들이다.
+
+`DataAttribution`은 `COMPONENT_CATALOG §1`이 요구하는 공용 provenance primitive다.
+Figma 최상위 node 수에 포함하지 않으며 출처 문구·link·source state를 한곳에서
+관리한다.
+
+구현한 component가 코드로 강제하는 규칙:
+
+- 44×44px 최소 target. Figma가 35px·36px로 그린 chip과 button도 hit area는 44px다.
+- 색만으로 상태를 전달하지 않는다. 선택은 `aria-pressed`, 진행은 `aria-busy`,
+  혼잡도는 막대와 함께 `4 · 혼잡` 문구, 비활성은 사유 text를 둔다.
+- `Form / LockControl`은 잠금 4종이 독립임을 강제한다. 하나를 눌러도 다른 잠금
+  상태를 바꾸지 않고 `reservation-locked`는 toggle로 제공하지 않는다.
+- `Action / TripAddButton`의 accessible name은 `담기`이며 `일정`을 쓰지 않는다.
+  후보 저장이 `TripItem`을 만들지 않기 때문이다.
+- `Data / MetricDelta`는 `comparisonEligible=false`면 수치를 렌더링하지 않고 사유를
+  표시한다. 결측을 0이나 `보통`으로 채우지 않는다.
+- `Data / StateLabel`은 6개 상태가 각각 다른 문구를 갖고 `REPLAY`는 `실시간 아님`을
+  항상 포함한다.
+- `DataAttribution`은 server의 `attribution`을 그대로 쓰고 `attributionShort`가
+  없으면 전문으로 되돌아간다. client가 임의로 자르지 않는다.
+- `Action / DecisionBar`는 preview에서 `현재 일정 유지`를 항상 제공하고, `stale`은
+  적용 대신 재계산만 제안한다. 실패 문구는 일정 미변경을 명시한다.
+- route provider가 없으므로 `Map / Optimization` 계열은 경로·우회 시간·거리를
+  그리지 않고 무엇으로 비교하는지 문장으로 대신한다.
+- `Card / FeedPost`는 `savedPost`(게시물 보관)와 `candidateState`(후보 저장)를 하나로
+  합치지 않는다. 어느 쪽도 `TripItem`을 만들지 않는다.
+- `Card / TripItem`은 응답에 있는 잠금만 각각 렌더링하고 하나의 조작이 다른 잠금을
+  건드리지 않는다. `RESERVATION`은 예약이 소유하므로 toggle로 제공하지 않는다.
+- `Card / Candidate`는 후보에 날짜·시간이 없음을 문구로 밝히고 일정화를 별도 행동으로
+  제공한다.
+- `Nav / TabBar`는 P0 tab 4개만 렌더링한다. P1 `검색` tab은 숨기는 대신 아예 만들지
+  않는다. 이동하지 않는 tab은 없는 것보다 나쁘다.
+
+## 0.2 Storybook
+
+`npm run storybook`으로 component를 화면 없이 상태별로 확인한다. 모든 story는 앱과
+같은 provider와 token 위에서 렌더링하므로 Storybook에서 본 것이 앱에서 나오는 것과
+같다.
+
+| 항목 | 값 |
+| --- | --- |
+| 실행 | `npm run storybook` (port 6006) |
+| 정적 build | `npm run build-storybook` → `storybook-static/`, git 제외 |
+| 기본 viewport | 360px. 768px으로 전환 가능 |
+| 접근성 | `@storybook/addon-a11y`가 위반을 표시한다 |
+
+기본 viewport를 360px로 둔 이유는 좁은 폭에서만 깨지는 layout이 story를 여는 즉시
+보이게 하기 위해서다.
+
+현재 story가 있는 component와 다루는 상태:
+
+| Component | story |
+| --- | --- |
+| `Data / StateLabel` | 6개 state 나열, REPLAY 단독, UNAVAILABLE |
+| `Data / MetricDelta` | 개선, 변화 없음, 비교 불가, 긴 사유 |
+| `CrowdLevel` | 1~4단계, 데이터 없음, 척도 밖 |
+| `Action / DecisionBar` | preview, applying, applied, stale, failed |
+| `Action / TripAddButton` | 6개 state 나열, loading, error |
+| `Form / LockControl` | 잠금 독립, 예약 잠금, disabled |
+| `Card / FeedPost` | 서울 실시간, KTO 예측, 혼잡 데이터 없음, 저장됨, 여행 미선택, 긴 한국어, 영문 |
+| `Card / TripItem` | 잠금 0~4개 조합, 최적화 반영, 시간 겹침, 시간 미정, 혼잡 없음, 긴 장소명 |
+
+story가 없는 component는 상태가 하나뿐이거나(`Sheet / Grab`, `Data / Tag`) 화면
+맥락이 있어야 의미가 있는 것들이다. 화면 slice에서 필요한 story를 함께 추가한다.
+
 ## 1. 구현 규칙
 
 - Catalog ID는 문서 추적 용도다. React export는 영문 PascalCase를 쓰고 Figma 원본 이름을 component JSDoc/Storybook tag에 남긴다.

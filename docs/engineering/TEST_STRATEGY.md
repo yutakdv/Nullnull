@@ -528,6 +528,8 @@ apps/ai/tests/recommendation/          # REC corpus (Python); apps/api/src/recom
 
 `manifest.json`은 존재하고 fixture 파일은 각 slice에서 추가한다. Java `LockChecksTest`·`ProposalRevalidatorTest`는 같은 fixture 파일을 읽어 이중 구현 drift를 막는다. 실제 사용자 일정·위치·쿠키·provider key·허가 없는 원본 payload를 넣지 않는다. sourceState와 별개로 fixture manifest에 `dataOrigin=SYNTHETIC`을 명시한다. 공개 API의 6개 SourceState에 SYNTHETIC enum을 새로 넣는 것은 아니다.
 
+manifest의 `implementedTestIds` 경로 실재 검증은 두 suite가 나눠 소유한다(DX-004). `suite: pytest` 행은 `apps/ai`의 `test_manifest.py`가 `apps/ai` 기준으로, `suite: gradle:*` 행은 `apps/api`의 `recommendationTest` `ManifestTestPathParityTest`가 저장소 루트 기준으로 검증한다. `apps/ai` 이미지에는 `apps/api`가 없으므로 그쪽에서 sibling app 경로를 해석하면 파일 존재와 무관하게 항상 실패한다. 양쪽 모두 대상 행이 0건이면 실패하도록 하한을 두어, 분담이 곧 skip이 되지 않게 한다.
+
 manifest 필수 정보는 fixtureVersion, SHA-256, policyVersion, fixedClock, timezone, randomSeeds, schema/normalization/taxonomyVersion, source registry version, required test IDs, evaluationMode다. expected 결과에는 선택·탈락 ID, 탈락 사유, 점수·contribution, null field, 예상 상태 전이를 적는다.
 
 golden은 단순 구현 복제가 되면 안 된다. independent hand calculation, 업무 불변식, 입력 변형 관계로 기대값을 정한다. fixture 변경과 threshold 완화로 회귀를 숨기지 않도록 이전 정책 결과도 같은 corpus에서 다시 계산한다.

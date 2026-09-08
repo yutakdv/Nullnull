@@ -140,6 +140,15 @@ testing {
                             .orElse(layout.projectDirectory.file("../ai/src/nullnull_ai/policy/policy-v1.yaml").asFile.absolutePath)
                             .get()
                     )
+                    // DX-004: the manifest's gradle:* rows name files under apps/api, which the apps/ai
+                    // container cannot see. This suite resolves that half; apps/api/Dockerfile copies
+                    // the manifest to the same place relative to apps/api that the checkout has.
+                    systemProperty(
+                        "nullnull.ai.manifest.path",
+                        providers.gradleProperty("nullnull.ai.manifest.path")
+                            .orElse(layout.projectDirectory.file("../ai/tests/recommendation/manifest.json").asFile.absolutePath)
+                            .get()
+                    )
                 }
             }
         }

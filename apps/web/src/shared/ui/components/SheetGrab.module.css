@@ -1,0 +1,9 @@
+/* Figma `Sheet / Grab`: 44x4 bar, radius 2, centred in a 22px strip. */
+.grab {
+  display: block;
+  width: 44px;
+  height: 4px;
+  margin: var(--space-2) auto;
+  border-radius: 2px;
+  background: var(--color-structure-grabber);
+}
