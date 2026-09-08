@@ -74,6 +74,13 @@ services:
     # exports it. The blocking decision is made by scripts/check_npm_audit_report.py on the host,
     # which keeps the gate independent of whether this image carries a Python interpreter.
     # cp fails loudly when the bake did not happen, so a missing report can never read as a pass.
+    #
+    # Freshness comes from the build, not from this run: `npm audit` is a point-in-time answer and
+    # the RUN that produced it is a cacheable layer. CI rebuilds on a runner with no layer cache, so
+    # the report a required check judges is always made in that run. A local wrapper run can reuse a
+    # cached layer and judge an older report while the lockfile is unchanged; `docker compose build
+    # --no-cache security-scan` is what refreshes it. The gate does not reject a report for its age
+    # (see IMPLEMENTATION_PLAN.md DX-003).
     command:
       - /bin/sh
       - -ec

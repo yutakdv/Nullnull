@@ -99,7 +99,7 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 | `CON-005` | FE mock 근거 제공 — `Problem` 등 response example과 contract fixture, 오류 계약 문구 정정 | BE/AI |
 | `DX-001` | Node/npm/Java/Gradle wrapper/Docker의 exact version lock과 검증 script | 공동 |
 | `DX-002` | local compose, deterministic seed, local-only reset guard, generated client 명령 | 공동 |
-| `DX-003` | `docs-contract` CI와 `docker-integration` baseline/full 전환, `verify_target_stack.py`의 marker/task/stage/digest/internal-network fail-closed gate, npm audit 보고서의 build-time 생성과 host offline 판정(`security-scan`은 내보내기만 한다) | BE/AI |
+| `DX-003` | `docs-contract` CI와 `docker-integration` baseline/full 전환, `verify_target_stack.py`의 marker/task/stage/digest/internal-network fail-closed gate, npm audit 보고서의 build-time 생성과 host offline 판정(`security-scan`은 내보내기만 한다). 보고서 신선도는 캐시 없는 CI 빌드가 보장하며 게이트는 보고서를 나이로 거부하지 않는다 — 로컬 실행은 캐시된 레이어의 보고서를 판정할 수 있다 | BE/AI |
 | `DX-004` | manifest `implementedTestIds` 경로 검증의 suite 분담 — `pytest` 행은 `ai-quality`, `gradle:*` 행은 `api-quality`(컨테이너에 없는 sibling app 경로를 해석하지 않는다) | BE/AI |
 | `GOV-001` | 실제 GitHub handle 기반 CODEOWNERS와 path review test | 공동 |
 | `GOV-002` | branch ruleset, required checks, merge queue/concurrency, GitHub environments checklist 검증 | 공동 |
