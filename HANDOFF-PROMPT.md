@@ -25,17 +25,19 @@ cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전�
 
 Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
 
-순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → **A4 BA-004(다음)** → B1 BA-010 → B2 BA-011 → B3 BA-012 → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → **B1 BA-010(다음)** → B2 BA-011 → B3 BA-012 → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
 
-## 2. 현재 상태 (2026-09-08 21:24 KST 기준)
+## 2. 현재 상태 (A4 Backend/AI CI 구현 후)
 
 ### git
 
-- `origin/main` = `103abed` (PR #19 병합됨). **BA-002(`11d6efc`)는 이미 main에 있다.**
+- 이번 A4(BA-004) 커밋은 CI·보고서 검사·test context cache만 추가한다. 공개 API·migration 변경은 없다.
+
+- `origin/main` = `26d5d90` (PR #17·#21까지 병합됨). **BA-002(`11d6efc`)는 이미 main에 있다.**
 - 로컬 `main` ref는 낡았다(`3546086`). 판단에 쓰기 전에 `git fetch` 후 `origin/main`을 봐라.
 - `backend`는 `origin/backend`로 push돼 있다. 담고 있는 것: `296b5af`(BA-005 job runtime), `4dea8cc`(origin/main 수신 merge), `a047ed8`(BA-003), 그리고 이 문서.
 - **BA-005와 BA-003은 아직 main에 없다.** main 병합은 사용자가 지시할 때만 한다.
-- 열린 PR: **#17 frontend**(FE 기반), **#21 backend-dx-004**(다른 브랜치). 둘 다 이 작업과 독립이고, `backend`를 head로 하는 열린 PR은 **없다** — 즉 `backend`에 push해도 어떤 PR도 생성·갱신되지 않는다.
+- 조회 시 열린 PR은 없다. 사용자 후속 지시로 승인 PR 병합 및 완료 이슈 갱신이 허용됐다. #17/#21은 이미 main에 있어 A4 커밋 뒤 backend로 수신한다. deploy는 여전히 비범위다.
 
 ### A3(BA-003) — 완료, `a047ed8`로 커밋됨
 
@@ -43,7 +45,16 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 
 **커밋 시점 검증 실측**: `test 274 / integrationTest 101 / openapiContractTest 9 / recommendationTest 17` (0 fail/error/skip), `validate_docs.py`·`scripts/tests` 70건·markdownlint 47파일·redocly 전부 통과. 이 숫자가 줄면 회귀다.
 
-**다음 작업은 A4(BA-004)다.** §5 표를 보고 `plan.md`의 `## Slice A4` 절을 따른다.
+### A4(BA-004) — Backend/AI CI 구현
+
+- PR 전용 `origin/main` OpenAPI breaking diff(oasdiff action v0.1.15 SHA pin), JUnit·ready-card ID·Gradle manifest·evaluation·freshness 집계와 native/Compose 연결을 구현했다.
+- `TemporalComparisonPolicyTest.randomPairsAreEligibleOnlyWhenAllFiveConditionsHold`에 `REC-DATA-02` testcase ID를 추가했다. 기존에는 class display name에만 있어 새 runner가 실제로 실패했다.
+- **A4 구현 완료와 BA-004 카드 전체 완료는 다르다.** 계획의 T3는 C1 stub으로 미뤄졌고 TS client/MSW는 FE 범위다. 카드를 `integration-ready`로 올리면 같은 계획이 요구한 “ready 카드의 모든 tests[].id” 검사와 모순된다. 예외 목록을 추가하지 않고 BA-004는 `in-progress`로 유지했다. C1에서 T3와 Python CI test ID report 연결까지 닫아야 한다.
+- 실제 Compose에서 기본 Spring context cache의 Hikari pool 누적으로 `SQLSTATE 53300`이 발생했다. Gradle test worker의 `spring.test.context.cache.maxSize=1`로 제한했다. app pool/worker budget은 그대로다.
+- 최종 실측(main 수신 전): local·offline Compose 각각 `274 / 101 / 9 / 17`, 0 fail/error/skip. Python unittest 89, docs·Markdownlint·Redocly·AJV 통과. 코드/설정 변이 25개 최종 RED+SHA 복원 일치, OpenAPI 경로 제거 변이 exit 1.
+- 변이/실행 근거: `.superpowers/sdd/2026-09-08-backend-a-to-d/progress.md`의 A4 절, `.artifacts/ba-004/`(로컬). 실행하지 않은 원격 PR gate를 로컬 재현과 혼동하지 않는다.
+
+**다음 작업은 B1(BA-010)이다.** `plan.md`의 `## Slice B1` 절, migration **V005**를 따른다.
 
 ## 3. A3에서 내린 판정 중 이후 slice가 알아야 할 것
 
@@ -85,8 +96,8 @@ git commit -m "feat(be): BA-0xx <한 줄 요약>"
 
 | Slice | 카드 | plan.md 절 | 비고 |
 | --- | --- | --- | --- |
-| A4 | BA-004 | `## Slice A4` | OpenAPI breaking diff(oasdiff), `scripts/check_test_reports.py`, BA-004-T1/T2 증거. TS client·MSW는 비범위 |
-| B1 | BA-010 | `## Slice B1` | 익명 owner·session·CSRF. `V004__demo_sessions.sql`. **A3의 `@NullnullOperation` 정책 표를 실제로 강제하는 slice** |
+| A4 | BA-004 | `## Slice A4` | Backend/AI CI 구현 완료. 카드 `in-progress`: T3(C1)·FE 범위 및 CI test ID report 연결 미완료 |
+| B1 | BA-010 | `## Slice B1` | 익명 owner·session·CSRF. `V005__demo_sessions.sql`. **A3의 `@NullnullOperation` 정책 표를 실제로 강제하는 slice** |
 | B2 | BA-011 | `## Slice B2` | 프로필·locale·onboarding. merge-patch의 null/absent 구분 |
 | B3 | BA-012 | `## Slice B3` | 세션 삭제 receipt·TTL·복원 후 재삭제(`TombstoneReapplier implements SmartLifecycle`) |
 | C1 | BA-020 | `## Slice C1` | source registry·adapter kit·쿼터·drift |
@@ -114,6 +125,7 @@ A2(BA-005)가 계획에 없던 `V004__background_jobs_outstanding_key.sql`을 �
 ## 6. 검증 — 이 기기에서 실제로 도는 형태
 
 ```bash
+# Codex 실행 환경에 DEBUG=release가 있으면 먼저 unset DEBUG (아래 §7).
 # Java (Temurin 21 필수. 기기 기본 java는 26이라 JAVA_HOME 없이는 실패한다. wrapper만, 설치형 Gradle 금지)
 cd /Users/yutak/Desktop/Nullnull/apps/api
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
@@ -148,6 +160,8 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 6. **공유 DB는 양방향 위험이다.** 앞 테스트의 잔여 행 때문에 실패할 수도, **우연히 통과할 수도** 있다. 컨테이너 게이트는 깨끗한 DB와 더러운 DB 양쪽에서 돌려 확인했다.
 7. **문서 함정**: `docs/**/*.md`는 Obsidian frontmatter 필수. `IMPLEMENTATION_PLAN.md`·`BACKEND_AI_PLAYBOOK.md`에는 날짜·소요일을 못 쓴다(`2026-09-08`·`09/08`·`(1d)`를 validator가 거부). 본문에 `FCR-0XX`를 쓰면 `FIGMA_CHANGE_REQUESTS.md` 표에 먼저 등록해야 한다.
 8. **API 이름을 기억으로 쓰지 마라.** `getAllValidationResults()`는 Spring 7.0.9에 없다(`getParameterValidationResults()`). `javap`로 실제 jar를 확인하거나 Context7을 써라.
+
+9. **Codex tool 환경의 `DEBUG=release`가 Spring Boot DEBUG 로깅을 켠다.** Boot 4.1.1 `LoggingApplicationListener.isSet`은 값이 null/`false`가 아니면 true다. A4 첫 전체 실행과 HttpPolicyIT 독립 실행에서 Spring의 `Resolved [RuntimeException: ...]` DEBUG 로그에 canary가 노출되어 기존 검사가 실패했다. `env -u DEBUG JAVA_HOME=... ./gradlew ...`로 해당 테스트 프로세스에서만 제거하니 통과했다. canary 단언·앱 logging 설정을 완화하지 않는다.
 
 ## 8. 이 프로젝트에서 반복해서 나온 결함 유형
 

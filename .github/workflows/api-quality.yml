@@ -12,6 +12,10 @@ on:
       - "apps/ai/tests/recommendation/manifest.json"
       - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
+      - "docs/engineering/backend-plan.json"
+      - "scripts/check_test_reports.py"
+      - "scripts/check_evaluation_report.py"
+      - "scripts/tests/test_check_test_reports.py"
       - ".github/workflows/api-quality.yml"
   push:
     branches: [main, backend]
@@ -22,6 +26,10 @@ on:
       - "apps/ai/tests/recommendation/manifest.json"
       - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
+      - "docs/engineering/backend-plan.json"
+      - "scripts/check_test_reports.py"
+      - "scripts/check_evaluation_report.py"
+      - "scripts/tests/test_check_test_reports.py"
       - ".github/workflows/api-quality.yml"
   workflow_dispatch:
 
@@ -53,7 +61,17 @@ jobs:
             apps/api/gradle/libs.versions.toml
             apps/api/build.gradle.kts
       - name: Unit, PostgreSQL (Testcontainers), OpenAPI contract, apps/ai contract parity
-        run: ./gradlew --no-daemon test integrationTest openapiContractTest recommendationTest
+        run: |
+          mkdir -p ../../.artifacts
+          touch ../../.artifacts/api-quality-start
+          ./gradlew --no-daemon test --rerun integrationTest --rerun openapiContractTest --rerun recommendationTest --rerun
+      - name: Validate executed JUnit evidence and ready-card IDs
+        if: always()
+        run: >-
+          python3 ../../scripts/check_test_reports.py
+          --junit-dir build/test-results
+          --backend-plan ../../docs/engineering/backend-plan.json
+          --run-start ../../.artifacts/api-quality-start
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

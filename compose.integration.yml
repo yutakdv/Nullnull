@@ -34,7 +34,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["./gradlew", "--no-daemon", "--offline", "test", "integrationTest", "openapiContractTest", "recommendationTest"]
+    command: ["./gradlew", "--no-daemon", "--offline", "test", "--rerun", "integrationTest", "--rerun", "openapiContractTest", "--rerun", "recommendationTest", "--rerun"]
     volumes:
       - ./.artifacts/integration/recommendation:/workspace/apps/api/build/reports/recommendation
       - ./.artifacts/integration/api-test-results:/workspace/apps/api/build/test-results

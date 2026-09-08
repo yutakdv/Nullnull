@@ -637,6 +637,17 @@ B01 scaffold에서는 실제 구현한 기반 suite와 모든 미지원 capabili
 
 외부망 실제 KTO·AWS restore·alarm 수신·수동 screen reader·공식 접수는 실행 환경/사람 증거가 필요한 release gate다. 합성 PR test와 실제 증거를 별도 결과로 남긴다. 운영 수집 주기·nightly 성능 평가는 운영 검증 주기이며 날짜별 개발 일정이 아니다.
 
+### BA-004 보고서 집계와 CI 실패 증명
+
+`check_test_reports.py`는 `--junit-dir`, `--evaluation`, `--backend-plan`, `--manifest`를 각각 선택 입력으로 받는다. 입력 없이 실행하면 실패한다. plan/manifest에서 요구하는 Gradle ID는 제공한 JUnit 없이는 충족되지 않는다.
+
+- JUnit root 아래 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest` 각각 XML과 실제 testcase가 필요하다. XML summary와 testcase의 failure/error/skipped를 모두 검사하고 실패 후 재시도 기록도 거부한다.
+- `integration-ready`/`verified` 카드의 모든 `tests[].id`가 testcase `name`의 완전한 ID 토큰으로 있어야 한다. suite 이름·stdout·주석·접두사가 같은 다른 ID는 증거가 아니다. manifest의 `gradle:<suite>` ID는 지정 suite에서만 인정한다. pytest coverage는 ai-quality/evaluation이 담당한다.
+- Gradle test worker의 Spring context cache는 1개로 제한한다. 기본 cache에 누적된 Hikari pool이 Compose의 단일 PostgreSQL 연결을 고갈시킨 실제 실패(SQLSTATE 53300)를 방지한다. app pool 크기와 worker budget은 바꾸지 않는다. cache eviction이 이전 context와 pool을 닫는다.
+- `--run-start` 파일을 producer 직전에 touch하고 JUnit/evaluation의 수정 시각과 비교한다. native API workflow는 실패 시에도 집계를 실행하며, Compose wrapper는 volume으로 전달된 API/AI report 뒤 집계한다. 네 Gradle task에는 각각 `--rerun`을 붙인다. 이 검사는 남아 있는 오래된 보고서를 거부하지만 testcase 단언의 정확성이나 모든 비테스트 command 오류를 증명하지는 않는다. 원래 command exit 전파도 유지한다.
+- `docs-contract`는 `test_check_test_reports.py`의 `ReportTests`, `WrapperExecutionTests`, `WorkflowWiringTests`를 실행한다. 실제 Bash wrapper에 실패/error/skip·suite report 누락·`|| true`와 stale report를 주입하는 검사는 BA-004-T1/T2의 로컬 재현이다. Docker test double의 성공을 실제 Compose 격리 증거(BA-004-T3)로 쓰지 않는다.
+- PR의 OpenAPI breaking diff는 `origin/main:docs/api/openapi.yaml`과 checkout된 계약을 비교한다. [oasdiff action](https://github.com/oasdiff/oasdiff-action/tree/9c0494cfee8b8fcc9fb383ed2d5d3fbdae169b93/breaking) v0.1.15 SHA와 WARN 실패 기준을 고정한다. spec upload와 PR comment는 끈다. push/workflow_dispatch에는 비교하지 않는다.
+
 ### 자원 간 멱등 key 재사용 검증
 
 동일 owner와 route template에서 같은 key/body를 서로 다른 trip/item/run ID에 보낸다. 두 번째 요청은 `IDEMPOTENCY_KEY_REUSED`이고 다른 자원의 기존 응답을 반환하거나 mutation을 수행하지 않아야 한다. 완료된 동일 request identity의 재시도만 원래 응답을 재생한다. BA-002/034/052의 DB acceptance에 포함한다.

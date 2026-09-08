@@ -213,7 +213,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-004
 
-**계약 생성·중요 기능 상시 CI 구성** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**계약 생성·중요 기능 상시 CI 구성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003)
 - 기능 ID: 해당 없음
@@ -242,6 +242,16 @@ FE 인계·완료 증거: 생성 client 경로와 contract SHA, MSW 예시, API/
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-008, PM-016, PM-018, PM-019, PM-021, PM-024.
 
 이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
+
+A4 Backend/AI 구현 증거:
+
+- OpenAPI 비교는 `docs-contract`의 PR event에서만 `origin/main`과 현재 계약을 비교한다. `oasdiff-action/breaking` release SHA를 고정하고 `fail-on: WARN`, `review: false`로 실행한다.
+- `scripts/check_test_reports.py`는 네 Gradle suite의 실제 testcase·summary count·실패/error/skip·필수 ID와 report freshness를 확인한다. ready 카드의 모든 acceptance ID를 검사하며 카드별 예외 목록은 없다.
+- `BA-004-T1` 로컬 재현: `scripts/tests/test_check_test_reports.py`의 `ReportTests.test_BA_004_T1_failure_error_skip_counts_and_children`, `WrapperExecutionTests.test_BA_004_T1_actual_wrapper_propagates_command_failure`. 실제 wrapper의 하위 command exit 42를 보존한다. PR 생성·원격 required gate 실행 증거는 아직 없다.
+- `BA-004-T2`: `ReportTests`, `WrapperExecutionTests.test_BA_004_T2_actual_wrapper_rejects_bad_evidence_and_suppression`, `WorkflowWiringTests.test_BA_004_T2_shipping_wrapper_does_not_suppress_quality_commands`. shell wrapper는 실제 실행하고 Docker/scaffold만 test double로 바꾼다. 실패·skip·suite XML 누락·오래된 보고서가 있는 `|| true` 변이를 거부한다. 모든 command 오류를 XML만으로 추론한다는 보장은 하지 않는다.
+- 실제 offline Compose에서 context cache에 누적된 Hikari pool로 SQLSTATE 53300을 재현했다. Gradle test worker의 cache를 1개로 제한해 네 suite를 실행하고, 이 제한 제거 변이도 실제 Compose에서 검사한다. 운영 pool 크기·worker budget은 그대로다.
+- 로컬 report: `.artifacts/ba-004/scripts-tests.log`, `.artifacts/ba-004/mutations.json`, `.artifacts/ba-004/oasdiff-breaking.log`. 네 Java suite는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}/TEST-*.xml`이다. CI 검사는 `docs-contract` unittest와 `api-quality`/통합 wrapper의 집계 runner로 등록했다.
+- A4는 Backend/AI 잔여 CI 범위다. `BA-004-T3`는 C1 source stub의 실제 offline Compose 실행까지 미완료이며 TS client·MSW·client diff는 Frontend 범위다. 따라서 **A4 구현 완료와 BA-004 카드 전체 완료를 구분**하고 카드는 `in-progress`로 유지한다. T3와 Python CI test ID의 report 연결을 완료하기 전에 `integration-ready`로 올리면 집계 runner가 누락 ID를 거부한다.
 
 ### BA-005
 

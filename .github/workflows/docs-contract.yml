@@ -21,6 +21,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch OpenAPI comparison base
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
+      - name: Reject breaking OpenAPI changes
+        if: github.event_name == 'pull_request'
+        uses: oasdiff/oasdiff-action/breaking@9c0494cfee8b8fcc9fb383ed2d5d3fbdae169b93 # v0.1.15
+        with:
+          base: origin/main:docs/api/openapi.yaml
+          revision: docs/api/openapi.yaml
+          fail-on: WARN
+          review: "false"
+          github-token: ""
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"

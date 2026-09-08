@@ -239,7 +239,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "계약 생성·중요 기능 상시 CI 구성",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-001",
         "BA-002",

@@ -94,9 +94,9 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
 | 검사 | 트리거 | 실행 내용 | 커버하는 ID | 상태 |
 | --- | --- | --- | --- | --- |
-| `docs-contract` | 모든 main PR/push | `validate_docs.py`, `python3 -m unittest discover -s scripts/tests`, plan/Canvas 검증, markdownlint, Redocly, AJV | BA-000-T1~T3 | 실행 중 |
-| `docker-integration` | 모든 main PR/push | `integration-test.sh`: verifier→`api-quality`·`ai-quality`·web·client diff·scan·egress-denied·E2E | 아래 suite 전체 | `apps/web`+marker 전까지 hard fail |
-| `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `apps/ai/tests/recommendation/fixtures/**`, `apps/ai/tests/recommendation/manifest.json`, `apps/ai/src/nullnull_ai/policy/**`, `docs/api/openapi.yaml` push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` | REC-ARCH-01, REC-DATA-02, REC-JOB-01, BA-001-T2, BA-003-T1~T3, BA-005-T1~T3, 내부 계약 parity(5 operation), gateway post-condition, ITEM fixture parity(LockChecks·ProposalRevalidator), policy pin parity | 실행 중 |
+| `docs-contract` | 모든 main PR/push | `validate_docs.py`, `python3 -m unittest discover -s scripts/tests`, plan/Canvas 검증, markdownlint, Redocly, AJV, PR 전용 OpenAPI breaking diff, report runner 부정·wrapper 실행 검사 | BA-000-T1~T3, BA-004-T1/T2 로컬 재현 검사 | 실행 중 |
+| `docker-integration` | 모든 main PR/push | `integration-test.sh`: verifier→`api-quality`·`ai-quality`·report 집계(실행 ID·freshness)·web·client diff·scan·egress-denied·E2E | 아래 suite 전체 | `apps/web`+marker 전까지 hard fail |
+| `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `apps/ai/tests/recommendation/fixtures/**`, `apps/ai/tests/recommendation/manifest.json`, `apps/ai/src/nullnull_ai/policy/**`, `docs/api/openapi.yaml`, `backend-plan.json`, report runner/검사 push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` + JUnit/ready-card ID 집계 | REC-ARCH-01, REC-DATA-02, REC-JOB-01, BA-001-T2, BA-003-T1~T3, BA-005-T1~T3, 내부 계약 parity(5 operation), gateway post-condition, ITEM fixture parity(LockChecks·ProposalRevalidator), policy pin parity | 실행 중 |
 | `ai-quality` (workflow) | `apps/ai/**` push/PR | ruff, mypy strict, pytest(REC corpus, `evaluation.json`), 계약 JSON sync | `tests/recommendation/manifest.json`의 `implementedTestIds` | 실행 중 |
 
 등록 규칙:

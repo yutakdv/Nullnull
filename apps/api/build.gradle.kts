@@ -164,6 +164,10 @@ tasks.register("resolveTestClasspaths") {
 }
 
 tasks.withType<Test>().configureEach {
+    // Compose shares one PostgreSQL across test contexts. Keeping every context's Hikari pool
+    // cached exhausted that server (SQLSTATE 53300). Retain only the current context; Spring
+    // closes the evicted context and its pool. This does not change the application's pool budget.
+    systemProperty("spring.test.context.cache.maxSize", "1")
     // The job worker is off in every suite by default: a running poll loop would race the test that
     // seeds a job and claim it before the assertion. The worker's own tests turn it back on with
     // @SpringBootTest(properties = "nullnull.jobs.enabled=true"), which outranks a system property.
