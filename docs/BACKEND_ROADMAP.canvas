@@ -1,0 +1,227 @@
+{
+  "nodes": [
+    {
+      "id": "intro",
+      "type": "text",
+      "x": 0,
+      "y": -220,
+      "width": 1580,
+      "height": 170,
+      "text": "# Nullnull Backend / AI\nB00부터 선행 조건 순서로 진행. B09는 선정된 P1/P2만 실행하고 미선정은 deferred. **B10 Live가 마지막 기능 단계**. 각 카드를 열면 실행 계획으로 이동.\n\n[문서 홈](docs/README.md) · [45개 상세 작업](docs/roles/BACKEND_AI_PLAYBOOK.md) · [추천 설계](docs/architecture/RECOMMENDATION_ALGORITHM.md)"
+    },
+    {
+      "id": "B00",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B00",
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B01",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B01",
+      "x": 420,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B02",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B02",
+      "x": 840,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B03",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B03",
+      "x": 1260,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B04",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B04",
+      "x": 1260,
+      "y": 280,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B05",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B05",
+      "x": 840,
+      "y": 280,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B06",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B06",
+      "x": 420,
+      "y": 280,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B07",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B07",
+      "x": 0,
+      "y": 280,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B08",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B08",
+      "x": 0,
+      "y": 560,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "B09",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B09",
+      "x": 420,
+      "y": 820,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "B10",
+      "type": "file",
+      "file": "docs/engineering/IMPLEMENTATION_PLAN.md",
+      "subpath": "#B10",
+      "x": 840,
+      "y": 560,
+      "width": 360,
+      "height": 210,
+      "color": "2"
+    }
+  ],
+  "edges": [
+    {
+      "id": "B00-B01",
+      "fromNode": "B00",
+      "fromSide": "right",
+      "toNode": "B01",
+      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "B01-B02",
+      "fromNode": "B01",
+      "fromSide": "right",
+      "toNode": "B02",
+      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "B02-B03",
+      "fromNode": "B02",
+      "fromSide": "right",
+      "toNode": "B03",
+      "toSide": "left",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "B03-B04",
+      "fromNode": "B03",
+      "fromSide": "bottom",
+      "toNode": "B04",
+      "toSide": "top",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "B04-B05",
+      "fromNode": "B04",
+      "fromSide": "left",
+      "toNode": "B05",
+      "toSide": "right",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "B05-B06",
+      "fromNode": "B05",
+      "fromSide": "left",
+      "toNode": "B06",
+      "toSide": "right",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "B06-B07",
+      "fromNode": "B06",
+      "fromSide": "left",
+      "toNode": "B07",
+      "toSide": "right",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "B07-B08",
+      "fromNode": "B07",
+      "fromSide": "bottom",
+      "toNode": "B08",
+      "toSide": "top",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "core-live",
+      "fromNode": "B08",
+      "fromSide": "right",
+      "toNode": "B10",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "P0 기본 경로"
+    },
+    {
+      "id": "select",
+      "fromNode": "B08",
+      "fromSide": "bottom",
+      "toNode": "B09",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "선정 확장만"
+    },
+    {
+      "id": "selected-live",
+      "fromNode": "B09",
+      "fromSide": "right",
+      "toNode": "B10",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "선정 작업 완료"
+    }
+  ]
+}

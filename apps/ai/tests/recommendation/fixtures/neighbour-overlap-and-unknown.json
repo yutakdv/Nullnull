@@ -1,0 +1,68 @@
+{
+  "id": "neighbour-overlap-and-unknown",
+  "kind": "ITEM",
+  "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1",
+  "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z",
+  "timezone": "Asia/Seoul",
+  "note": "The date the candidate moves to holds an unmeasured neighbour stored before an overlapping one, so the reported reason may not depend on the order the trip happened to keep them in.",
+  "derivation": "Every date is open 09:00-18:00 and the route evidence is VERIFIED, so the neighbour overlap is the only hard check that can fire. 2026-09-13 holds two neighbours in this stored order: 09:30 with no verified length, then 10:00 for 60 minutes. The candidate moves the 90 minute stay to 2026-09-13 10:00, which shares its start with the second neighbour, so the overlap is a known fact while the first neighbour is only a missing one. Every neighbour of the date is scanned before answering and the fact wins, so reasons[0] is OVERLAPS_NEIGHBOUR in both stored orders, the summary counts it once and the terminal plane is NO_IMPROVEMENT. Before the scan-all rule this fixture was red: the unshuffled run reported NEIGHBOUR_DURATION_UNKNOWN and DATA_INSUFFICIENT while the 25 seeded neighbour permutations flipped to OVERLAPS_NEIGHBOUR and NO_IMPROVEMENT, which the determinism check counts as a mismatch.",
+  "input": {
+    "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93c01",
+    "tripVersion": 7,
+    "tripStart": "2026-09-12",
+    "tripEnd": "2026-09-14",
+    "tripZone": "Asia/Seoul",
+    "target": {
+      "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b01",
+      "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93a01",
+      "date": "2026-09-12",
+      "startTime": "10:00",
+      "durationMinutes": 90,
+      "position": 1
+    },
+    "locks": [],
+    "neighbours": [
+      {
+        "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b02",
+        "date": "2026-09-13",
+        "position": 1,
+        "startTime": "09:30",
+        "durationMinutes": null
+      },
+      {
+        "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b03",
+        "date": "2026-09-13",
+        "position": 2,
+        "startTime": "10:00",
+        "durationMinutes": 60
+      }
+    ],
+    "openingHours": {
+      "2026-09-12": { "open": "09:00", "close": "18:00" },
+      "2026-09-13": { "open": "09:00", "close": "18:00" },
+      "2026-09-14": { "open": "09:00", "close": "18:00" }
+    },
+    "routeEvidence": "VERIFIED",
+    "candidates": [
+      {
+        "date": "2026-09-13",
+        "time": "10:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "20",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9e001",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9e002"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "NO_IMPROVEMENT",
+    "expectProposals": false,
+    "proposals": [],
+    "rejectedByReason": { "OVERLAPS_NEIGHBOUR": 1 }
+  }
+}

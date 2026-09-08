@@ -82,7 +82,12 @@ fi
 
 docker compose version
 
-compose=(docker compose --project-name nullnull-pr --file "${compose_file}")
+# REC-CI-6: evaluation.json records the commit it describes; compose passes this to ai-quality.
+APP_GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+export APP_GIT_SHA
+
+# --profile quality makes the quality-only services visible to `config`, so the compose contract check sees them.
+compose=(docker compose --project-name nullnull-pr --profile quality --file "${compose_file}")
 compose_available=true
 
 "${compose[@]}" config --format json >"${artifact_dir}/compose-config.json"
@@ -90,29 +95,104 @@ python3 "${target_stack_verifier}" \
   --compose-config "${artifact_dir}/compose-config.json"
 "${compose[@]}" build --pull \
   api-quality \
+  ai-quality \
   web-quality \
   api-client-diff \
   security-scan \
   infra-plan \
+  ai \
   api \
   web \
   e2e
 "${compose[@]}" up --detach postgres
 "${compose[@]}" run --rm api-quality
+"${compose[@]}" run --rm ai-quality
+
+# REC-CI-6: the recommendation evaluation report is merge evidence, so a missing artifact fails here
+# even when the suite itself was green.
+readonly recommendation_report="${artifact_dir}/recommendation-ai/evaluation.json"
+if [[ ! -f "${recommendation_report}" ]]; then
+  echo "Recommendation evaluation report is missing: ${recommendation_report}" >&2
+  exit 1
+fi
+
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff
 "${compose[@]}" run --rm security-scan
 "${compose[@]}" run --rm infra-plan
 "${compose[@]}" run --rm egress-denied
-"${compose[@]}" up --detach api web
+"${compose[@]}" up --detach ai api web
+
+# integration-internal is internal: true, so a published port never reaches the host. Both
+# readiness probes therefore run inside the network from the ai container, whose runtime image
+# ships the Python standard library (no curl, no jq).
+readonly readiness_body="${artifact_dir}/api-readiness.json"
+readonly api_readiness_url="http://api:8080/api/v1/health/ready"
+readonly web_root_url="http://web:4173/"
+
+# Prints the response body when the URL answers HTTP 200; any other status, HTTP error,
+# connection failure or timeout exits non-zero without aborting the caller.
+fetch_http_ok() {
+  "${compose[@]}" exec -T ai python3 -c '
+import sys
+import urllib.request
+
+try:
+    with urllib.request.urlopen(sys.argv[1], timeout=2) as response:
+        if response.status != 200:
+            sys.exit(1)
+        sys.stdout.write(response.read().decode("utf-8", "replace"))
+except (OSError, ValueError):
+    sys.exit(1)
+' "$1"
+}
+
+# BA-003: /health/ready answers 200 while an optional probe is DEGRADED, so the HTTP status
+# alone would hide an unreachable recommendation service. ReadinessQuery reports READY only
+# when every probe, including the optional "recommendation" one, is READY.
+api_readiness_is_ready() {
+  python3 -c '
+import json
+import sys
+
+try:
+    document = json.load(sys.stdin)
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if isinstance(document, dict) and document.get("status") == "READY" else 1)
+' <"${readiness_body}"
+}
+
+print_api_readiness_checks() {
+  python3 -c '
+import json
+import sys
+
+try:
+    document = json.load(sys.stdin)
+except ValueError:
+    print("readiness body is not JSON")
+    raise SystemExit(0)
+if not isinstance(document, dict):
+    print("readiness body is not an object")
+    raise SystemExit(0)
+print("status={}".format(document.get("status")))
+checks = document.get("checks")
+for check in checks if isinstance(checks, list) else []:
+    if isinstance(check, dict):
+        print("{}={}".format(check.get("name"), check.get("status")))
+' <"${readiness_body}"
+}
 
 api_ready=false
 web_ready=false
 for _ in $(seq 1 60); do
-  if curl --fail --silent --show-error http://127.0.0.1:18080/api/v1/health/ready >/dev/null; then
-    api_ready=true
+  if fetch_http_ok "${api_readiness_url}" >"${readiness_body}"; then
+    if api_readiness_is_ready; then
+      api_ready=true
+    fi
   fi
-  if curl --fail --silent --show-error http://127.0.0.1:14173/ >/dev/null; then
+  if fetch_http_ok "${web_root_url}" >/dev/null; then
     web_ready=true
   fi
   if [[ "${api_ready}" == true && "${web_ready}" == true ]]; then
@@ -122,7 +202,11 @@ for _ in $(seq 1 60); do
 done
 
 if [[ "${api_ready}" != true || "${web_ready}" != true ]]; then
-  echo "Integrated web/API readiness did not complete within 120 seconds." >&2
+  echo "Integrated web/API readiness did not complete within 60 attempts." >&2
+  if [[ -s "${readiness_body}" ]]; then
+    echo "Last API readiness report:" >&2
+    print_api_readiness_checks >&2
+  fi
   exit 1
 fi
 

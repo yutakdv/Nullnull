@@ -1,0 +1,161 @@
+{
+  "synthetic": true,
+  "purpose": "Known open product/contract mismatches; not expected to pass as product tests.",
+  "cases": [
+    {
+      "id": "PM08-hhmm",
+      "pmId": "PM-008",
+      "schema": "AddTripItemRequest",
+      "data": {
+        "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93903",
+        "date": "2026-10-04",
+        "position": 0,
+        "startTime": "09:30"
+      },
+      "expectedProductAcceptance": true,
+      "enforcementLayer": "schema"
+    },
+    {
+      "id": "PM08-hhmmss",
+      "pmId": "PM-008",
+      "schema": "AddTripItemRequest",
+      "data": {
+        "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93903",
+        "date": "2026-10-04",
+        "position": 0,
+        "startTime": "09:30:00"
+      },
+      "expectedProductAcceptance": true,
+      "enforcementLayer": "schema"
+    },
+    {
+      "id": "PM08-offset",
+      "pmId": "PM-008",
+      "schema": "AddTripItemRequest",
+      "data": {
+        "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93903",
+        "date": "2026-10-04",
+        "position": 0,
+        "startTime": "09:30:00+09:00"
+      },
+      "expectedProductAcceptance": false,
+      "enforcementLayer": "schema"
+    },
+    {
+      "id": "PM05-no-title",
+      "pmId": "PM-005",
+      "schema": "ConfirmImportRequest",
+      "data": {
+        "planningLevel": "MOSTLY_PLANNED",
+        "interests": []
+      },
+      "expectedProductAcceptance": true,
+      "enforcementLayer": "schema"
+    },
+    {
+      "id": "PM06-duplicate-code",
+      "pmId": "PM-006",
+      "schema": "ReplaceInterestsRequest",
+      "data": {
+        "interests": [
+          {
+            "code": "NATURE",
+            "weight": 1
+          },
+          {
+            "code": "NATURE",
+            "weight": 2
+          }
+        ]
+      },
+      "expectedProductAcceptance": false,
+      "enforcementLayer": "domain rule; a schema pass alone does not prove a server bug"
+    },
+    {
+      "id": "PM16-days",
+      "pmId": "PM-016",
+      "schema": "events",
+      "data": {
+        "schemaVersion": "1.1.0",
+        "events": [
+          {
+            "eventId": "018f3f8e-9b67-7a21-8d31-31d315b938f1",
+            "name": "trip_created",
+            "occurredAt": "2026-09-04T09:00:00+09:00",
+            "context": {
+              "locale": "ko-KR",
+              "timezone": "Asia/Seoul",
+              "route": "/start",
+              "appVersion": "3546086"
+            },
+            "properties": {
+              "tripId": "018f3f8e-9b67-7a21-8d31-31d315b938f3",
+              "method": "MANUAL",
+              "planningLevel": "MUST_VISIT_ONLY",
+              "dayCount": 31,
+              "itemCount": 2
+            }
+          }
+        ]
+      },
+      "expectedProductAcceptance": false,
+      "enforcementLayer": "schema"
+    },
+    {
+      "id": "PM16-items",
+      "pmId": "PM-016",
+      "schema": "events",
+      "data": {
+        "schemaVersion": "1.1.0",
+        "events": [
+          {
+            "eventId": "018f3f8e-9b67-7a21-8d31-31d315b938f1",
+            "name": "trip_created",
+            "occurredAt": "2026-09-04T09:00:00+09:00",
+            "context": {
+              "locale": "ko-KR",
+              "timezone": "Asia/Seoul",
+              "route": "/start",
+              "appVersion": "3546086"
+            },
+            "properties": {
+              "tripId": "018f3f8e-9b67-7a21-8d31-31d315b938f3",
+              "method": "MANUAL",
+              "planningLevel": "MUST_VISIT_ONLY",
+              "dayCount": 3,
+              "itemCount": 101
+            }
+          }
+        ]
+      },
+      "expectedProductAcceptance": false,
+      "enforcementLayer": "schema"
+    },
+    {
+      "id": "PM16-entry-query",
+      "pmId": "PM-016",
+      "schema": "events",
+      "data": {
+        "schemaVersion": "1.1.0",
+        "events": [
+          {
+            "eventId": "018f3f8e-9b67-7a21-8d31-31d315b938f1",
+            "name": "data_guide_opened",
+            "occurredAt": "2026-09-04T09:00:00+09:00",
+            "context": {
+              "locale": "ko-KR",
+              "timezone": "Asia/Seoul",
+              "route": "/about-data",
+              "appVersion": "3546086"
+            },
+            "properties": {
+              "entryRoute": "/search?q=synthetic-private-search"
+            }
+          }
+        ]
+      },
+      "expectedProductAcceptance": false,
+      "enforcementLayer": "schema"
+    }
+  ]
+}

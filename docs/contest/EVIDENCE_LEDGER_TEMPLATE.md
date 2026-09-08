@@ -1,3 +1,14 @@
+---
+aliases:
+  - "공모전 Evidence Ledger Template"
+doc_type: reference
+status: baseline
+area: contest
+tags:
+  - nullnull/reference
+  - nullnull/contest
+---
+
 # 공모전 Evidence Ledger Template
 
 - 상태: secret 없는 원장 스키마

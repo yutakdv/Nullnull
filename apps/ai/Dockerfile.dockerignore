@@ -1,0 +1,14 @@
+# Applies to builds of apps/ai/Dockerfile from the repository root (BuildKit reads <Dockerfile>.dockerignore).
+.git
+.artifacts
+.obsidian
+node_modules
+apps/web
+apps/api
+apps/ai/.venv
+apps/ai/build
+apps/ai/.env
+apps/ai/.env.*
+!apps/ai/.env.example
+docs/assets
+*.log

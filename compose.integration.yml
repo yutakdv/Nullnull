@@ -2,7 +2,7 @@ name: nullnull-integration
 
 services:
   postgres:
-    image: postgres:17.6-alpine
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
     environment:
       POSTGRES_DB: nullnull_integration
       POSTGRES_USER: nullnull
@@ -29,10 +29,15 @@ services:
       SPRING_DATASOURCE_USERNAME: nullnull
       SPRING_DATASOURCE_PASSWORD: integration-only
       NULLNULL_EXTERNAL_NETWORK: disabled
+      NULLNULL_TEST_DATABASE: external
+      NULLNULL_AI_BASE_URL: http://ai:8090
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["./gradlew", "test", "integrationTest", "openapiContractTest", "--no-daemon"]
+    command: ["./gradlew", "--no-daemon", "--offline", "test", "integrationTest", "openapiContractTest", "recommendationTest"]
+    volumes:
+      - ./.artifacts/integration/recommendation:/workspace/apps/api/build/reports/recommendation
+      - ./.artifacts/integration/api-test-results:/workspace/apps/api/build/test-results
     networks:
       - integration-internal
 
@@ -79,6 +84,45 @@ services:
     networks:
       - integration-internal
 
+  ai-quality:
+    profiles: [quality]
+    build:
+      context: .
+      dockerfile: apps/ai/Dockerfile
+      target: test
+    environment:
+      NULLNULL_ENV: test
+      NULLNULL_AI_REPORT_DIR: /workspace/apps/ai/build/reports/recommendation
+      APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
+    command: ["uv", "run", "--frozen", "--offline", "pytest"]
+    volumes:
+      - ./.artifacts/integration/recommendation-ai:/workspace/apps/ai/build/reports/recommendation
+    networks:
+      - integration-internal
+
+  ai:
+    build:
+      context: .
+      dockerfile: apps/ai/Dockerfile
+      target: runtime
+    environment:
+      NULLNULL_ENV: staging
+      NULLNULL_AI_BIND_HOST: 0.0.0.0
+      NULLNULL_AI_PORT: "8090"
+      NULLNULL_CATALOG_VERSION: catalog-integration-fixture
+      AI_PROVIDER: NONE
+    healthcheck:
+      # The runtime image has no curl; the pinned python:3.13-slim standard library is enough.
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8090/internal/v1/health/ready', timeout=2).status == 200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks:
+      - integration-internal
+
+  # integration-internal is internal: true, so published ports are unreachable from the host;
+  # scripts/integration-test.sh probes api and web readiness from inside the network instead.
   api:
     build:
       context: .
@@ -88,8 +132,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:18080:8080"
     networks:
       - integration-internal
 
@@ -102,8 +144,6 @@ services:
       API_INTERNAL_BASE_URL: http://api:8080
     depends_on:
       - api
-    ports:
-      - "127.0.0.1:14173:4173"
     networks:
       - integration-internal
 
@@ -128,7 +168,7 @@ services:
 
   egress-denied:
     profiles: [quality]
-    image: curlimages/curl:8.16.0
+    image: curlimages/curl:8.16.0@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
@@ -145,7 +185,7 @@ networks:
   integration-internal:
     internal: true
 
-# M0 must replace both image tags with tested immutable digests and provide the
-# Docker stages and root quality scripts checked by verify_target_stack.py.
-# Until the M0 marker exists, scripts/integration-test.sh intentionally does not
-# parse this future target-stack compose file.
+# Image digests are pinned (verify_target_stack.py rejects tags). The api side of the
+# B01 contract is in place; apps/web stages, root quality scripts and the
+# .nullnull-target-stack marker still land with the web scaffold, and until then
+# scripts/integration-test.sh intentionally does not parse this compose file.

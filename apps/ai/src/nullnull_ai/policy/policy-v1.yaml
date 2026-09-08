@@ -1,0 +1,59 @@
+# Recommendation policy v1 — the deterministic P0 policy proposed in
+# docs/architecture/RECOMMENDATION_ALGORITHM.md. Every number below is an
+# initial design value from that document, not a measured or tuned result.
+# The SHA-256 of this file's bytes is the policyHash recorded in every
+# RecommendationContext, optimization run fingerprint and evaluation report.
+policyVersion: policy-v1
+pipelineVersion: nullnull-ai-pipeline-v1
+status: draft
+source: docs/architecture/RECOMMENDATION_ALGORITHM.md
+
+numeric:
+  # Scores are fixed-point decimals; comparisons happen before display rounding.
+  scale: 6
+  roundingMode: HALF_EVEN
+
+candidateCaps:
+  feedSnapshot: 300
+  relatedPerChannel: 100
+  relatedMerged: 300
+  slotDates: 30
+  slotDetailed: 100
+  itemDetailed: 100
+  itemProposals: 3
+
+itemObjective:
+  # score = reliefWeight * relief - changeCostWeight * changeCost
+  # relief = (beforeValue - afterValue) / metricScale
+  # changeCost = min(1, |afterInstant - beforeInstant| in minutes / saturationMinutes)
+  reliefWeight: "0.80"
+  changeCostWeight: "0.20"
+  changeCostSaturationMinutes: 240
+  admit:
+    requireComparisonEligible: true
+    requireScorePositive: true
+  tieBreak:
+    - score DESC
+    - changeCost ASC
+    - date ASC
+    - time ASC
+    - placeId ASC
+
+# Per-metric comparability inputs. Reusing one metric's scale or minimum
+# improvement for another metric is forbidden (§5.5).
+metrics:
+  KTO_RELATIVE_CONCENTRATION_INDEX:
+    metricScale: 100
+    minimumImprovement: 5
+    note: "synthetic starting point; provider error/resolution unverified"
+
+relatedOrdering:
+  - relationTier   # EXACT before SIMILAR
+  - categoryMatch DESC   # 1 same canonical category, 0.5 reviewed parent, 0 different; missing after known
+  - placeId ASC
+
+feedOrdering:
+  - publishedAt DESC
+  - postId ASC
+feedCursorTtlMinutes: 15
+feedSnapshotMaxPerOwner: 5

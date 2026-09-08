@@ -1,3 +1,14 @@
+---
+aliases:
+  - "기능 인벤토리와 추적성"
+doc_type: reference
+status: baseline
+area: product
+tags:
+  - nullnull/reference
+  - nullnull/product
+---
+
 # 기능 인벤토리와 추적성
 
 - 상태: Accepted baseline
@@ -6,6 +17,8 @@
 - 역할: Frontend 1명, Backend/AI 1명; 화면별 상세는 [Figma 핸드오프](../design/FIGMA_HANDOFF.md)
 
 기능 ID는 issue/branch/PR/test 이름에 사용한다. UI frame이 없는 운영 기능도 제품 안정성에 필요하면 포함한다.
+
+> 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
 
 ## 1. 시작·세션·프로필
 
@@ -76,15 +89,15 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | FR-TRP-05 | P0 | 여행 이름·날짜 범위·timezone 수정 | `411:1837`, profile trip edit | `updateTrip` | If-Match; 범위 밖 item은 422 충돌으로 반환하고 묵시적 삭제 없음 |
 | FR-ITM-01 | P0 | 검색한 장소를 일정에 추가 | `476:3409`, `479:3816` | `addTripItem` | 날짜/position, version +1 |
 | FR-ITM-02 | P0 | 후보를 날짜 지정해 일정화 | `412:1912` | `addTripItem(candidateId)` | candidate SCHEDULED와 item 원자 적용 |
-| FR-ITM-03 | P0 | 날짜 이동 | `521:3976`, `527:4695` | `updateTripItem`/`reorderTripItems` | trip 범위/position 유효 |
-| FR-ITM-04 | P0 | 시간/duration 수정 | `527:4085` | `updateTripItem` | timezone/local time 일치 |
+| FR-ITM-03 | P0 | 날짜 이동 | `521:3976`, `527:4085` | `updateTripItem`/`reorderTripItems` | trip 범위/position 유효 |
+| FR-ITM-04 | P0 | 시간/duration 수정 | node 미확인, FCR-017 | `updateTripItem` | timezone/local time 일치 |
 | FR-ITM-05 | P0 | 같은/다른 날짜 순서 변경 | edit | `reorderTripItems` | 전체 order 원자 적용, keyboard 가능 |
 | FR-ITM-06 | P0 | 일정 item 삭제 | edit | `removeTripItem` | 후보 복원/완전 제거 선택 |
 | FR-ITM-07 | P0 | 교체 대상 선택 | `479:3497` | local selection | 잘못된 item 교체 방지 |
 | FR-ITM-08 | P0 | 기존/대안 장소 비교 후 교체 | `414:2347`, `527:4537` | `listRelatedPlaces`, `replaceTripItem` | relation/provenance 표시, 원자 적용 |
 | FR-CON-01 | P0 | 필수 방문 lock | S07 edit | `setTripItemConstraint` | 다른 lock과 독립 |
 | FR-CON-02 | P0 | 날짜 lock | `527:3876` | constraint set/remove | 해제 전 결과 확인 dialog |
-| FR-CON-03 | P0 | 시간 lock | `527:4085` | constraint set/remove | TIME만 변경 |
+| FR-CON-03 | P0 | 시간 lock | node 미확인, FCR-017 | constraint set/remove | TIME만 변경 |
 | FR-CON-04 | P0 | 예약 lock | edit | constraint set/remove | optimizer 자동 해제 금지 |
 | FR-CON-05 | P0 | 필수 방문 해제 확인 | `413:2081` | `removeTripItemConstraint` | 구체적 결과 설명 |
 | FR-CON-06 | P0 | stale trip 편집 충돌 복구 | 공통 | If-Match/`TRIP_CHANGED` | 최신 상태를 잃지 않음 |

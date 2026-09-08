@@ -1,0 +1,12 @@
+# Local developer profile. Pairs with the root compose.yml postgres service.
+# The password below is local-only and matches compose.yml; it is not a secret.
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5433/nullnull_local
+    username: nullnull
+    password: local-only
+
+# The locally started recommendation service (apps/ai), reachable on the loopback only.
+nullnull:
+  ai:
+    base-url: http://127.0.0.1:8090

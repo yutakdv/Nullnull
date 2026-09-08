@@ -1,0 +1,72 @@
+{
+  "id": "merged-slot-day-and-hour",
+  "kind": "ITEM",
+  "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1",
+  "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z",
+  "timezone": "Asia/Seoul",
+  "note": "A DAY candidate and an HOUR candidate land on the same slot because a DAY move keeps the item's current start time, so the slot yields exactly one preview and the better score decides which snapshot pair it cites.",
+  "derivation": "score = 0.80*relief - 0.20*changeCost with relief = improvement/100 and changeCost = min(1, |after - before| in minutes / 240), every step quantized to scale 6 HALF_EVEN. The item sits at 2026-09-12 10:00 KST for 90 minutes and both candidates move it to 2026-09-13; the DAY candidate carries no time, so it keeps 10:00 (D-REC-4) and both land on the slot 2026-09-13 10:00. The move is 1440 minutes, which saturates changeCost at 1.000000 for both. DAY 80 -> 40: relief 0.400000, 0.80*0.400000 = 0.320000, 0.20*1.000000 = 0.200000, score 0.120000. HOUR 80 -> 30: relief 0.500000, 0.400000 - 0.200000 = 0.200000. Both clear the minimum improvement of 5 and both scores are positive, so neither is rejected; section 5.6 keeps one preview per (date, start time) and score DESC awards the slot to the HOUR pair at 0.200000. The 09:00-18:00 window covers the 10:00-11:30 stay on every date and there are no locks and no neighbours, so no hard check fires.",
+  "input": {
+    "tripId": "018f3f8e-9b67-7a21-8d31-31d315b93c01",
+    "tripVersion": 7,
+    "tripStart": "2026-09-12",
+    "tripEnd": "2026-09-14",
+    "tripZone": "Asia/Seoul",
+    "target": {
+      "itemId": "018f3f8e-9b67-7a21-8d31-31d315b93b01",
+      "placeId": "018f3f8e-9b67-7a21-8d31-31d315b93a01",
+      "date": "2026-09-12",
+      "startTime": "10:00",
+      "durationMinutes": 90,
+      "position": 1
+    },
+    "locks": [],
+    "neighbours": [],
+    "openingHours": {
+      "2026-09-12": { "open": "09:00", "close": "18:00" },
+      "2026-09-13": { "open": "09:00", "close": "18:00" },
+      "2026-09-14": { "open": "09:00", "close": "18:00" }
+    },
+    "routeEvidence": "NONE",
+    "candidates": [
+      {
+        "date": "2026-09-13",
+        "time": null,
+        "resolution": "DAY",
+        "beforeValue": "80",
+        "afterValue": "40",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9e101",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9e102"
+      },
+      {
+        "date": "2026-09-13",
+        "time": "10:00",
+        "resolution": "HOUR",
+        "beforeValue": "80",
+        "afterValue": "30",
+        "metricCode": "KTO_RELATIVE_CONCENTRATION_INDEX",
+        "verdict": { "eligible": true, "reasonCode": "SAME_METRIC_AND_ISSUE" },
+        "beforeSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9e103",
+        "afterSnapshotId": "018f3f8e-9b67-7a21-8d31-31d315b9e104"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "PROPOSALS",
+    "expectProposals": true,
+    "proposals": [
+      {
+        "date": "2026-09-13",
+        "startTime": "10:00",
+        "score": "0.200000",
+        "improvement": "50",
+        "changeCost": "1.000000"
+      }
+    ],
+    "rejectedByReason": {}
+  }
+}

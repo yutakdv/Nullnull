@@ -81,3 +81,9 @@ tmp/
 __pycache__/
 
 # `.nullnull-target-stack` is intentionally committed by the M0 scaffold.
+
+# Obsidian personal view state; shared notes and canvas remain reviewable.
+.obsidian/workspace*.json
+.obsidian/cache/
+.obsidian/plugins/
+.trash/

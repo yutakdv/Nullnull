@@ -1,0 +1,94 @@
+package io.nullnull.social.domain;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/** REC-FEED-02 fixed feed order: publishedAt DESC, then postId ASC as its canonical string. */
+@DisplayName("REC-FEED-02 fixed feed order")
+class FeedOrderingTest {
+
+    static final Instant T = Instant.parse("2026-09-01T00:00:00Z");
+
+    @Test
+    void newestFirstThenPostIdForEqualPublishedAt() {
+        FeedOrdering.FeedEntry newer = new FeedOrdering.FeedEntry(new UUID(0, 9), T.plusSeconds(60));
+        FeedOrdering.FeedEntry a = new FeedOrdering.FeedEntry(new UUID(0, 1), T);
+        FeedOrdering.FeedEntry b = new FeedOrdering.FeedEntry(new UUID(0, 2), T);
+        List<FeedOrdering.FeedEntry> entries = new ArrayList<>(List.of(b, a, newer));
+        Collections.shuffle(entries, new java.util.Random(20260906));
+        entries.sort(FeedOrdering.comparator());
+        assertThat(entries).containsExactly(newer, a, b);
+    }
+
+    @Test
+    void postIdsAreComparedAsTheirCanonicalStringNotAsSignedUuids() {
+        // UUID.compareTo is signed, so it puts 8000.. and ffff.. before 0000..; the service compares
+        // the canonical text, and the feed order is a contract shared with it (FeedFallback).
+        UUID low = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID high = UUID.fromString("80000000-0000-0000-0000-000000000000");
+        UUID highest = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        List<FeedOrdering.FeedEntry> entries = new ArrayList<>(List.of(
+                new FeedOrdering.FeedEntry(highest, T),
+                new FeedOrdering.FeedEntry(low, T),
+                new FeedOrdering.FeedEntry(high, T)));
+        entries.sort(FeedOrdering.comparator());
+        assertThat(entries.stream().map(FeedOrdering.FeedEntry::postId))
+                .containsExactly(low, high, highest);
+
+        List<FeedOrdering.FeedEntry> signed = new ArrayList<>(entries);
+        signed.sort(Comparator.comparing(FeedOrdering.FeedEntry::publishedAt).reversed()
+                .thenComparing(FeedOrdering.FeedEntry::postId));
+        assertThat(signed).as("the two orders must actually differ, otherwise the check is vacuous")
+                .isNotEqualTo(entries);
+    }
+
+    @Test
+    void keysetPagingVisitsEveryEntryExactlyOnceInOrder() {
+        // Pages are taken the way the endpoint takes them: from the unordered source, keeping only the
+        // entries strictly after the last one served. Ties on publishedAt are what makes this non-trivial.
+        List<FeedOrdering.FeedEntry> source = new ArrayList<>();
+        for (int i = 0; i < 300; i++) {
+            // Mix ids whose most significant long is negative, so a signed comparison would page wrongly.
+            long high = i % 3 == 0 ? 0x8000000000000000L | i : i;
+            source.add(new FeedOrdering.FeedEntry(new UUID(high, i), T.plusSeconds(i / 7)));
+        }
+        Collections.shuffle(source, new java.util.Random(20260906));
+        List<FeedOrdering.FeedEntry> expected = new ArrayList<>(source);
+        expected.sort(FeedOrdering.comparator());
+
+        Comparator<FeedOrdering.FeedEntry> order = FeedOrdering.comparator();
+        for (int limit : List.of(1, 20, 50)) {
+            List<FeedOrdering.FeedEntry> seen = new ArrayList<>();
+            FeedOrdering.FeedEntry last = null;
+            while (true) {
+                final FeedOrdering.FeedEntry after = last;
+                List<FeedOrdering.FeedEntry> page = source.stream()
+                        .filter(entry -> after == null || order.compare(entry, after) > 0)
+                        .sorted(order)
+                        .limit(limit)
+                        .toList();
+                if (page.isEmpty()) {
+                    break;
+                }
+                seen.addAll(page);
+                last = page.get(page.size() - 1);
+            }
+            assertThat(seen).as("limit %d", limit).containsExactlyElementsOf(expected);
+            assertThat(new java.util.HashSet<>(seen)).as("limit %d: no entry served twice", limit)
+                    .hasSize(expected.size());
+        }
+    }
+
+    @Test
+    void theSortVersionIsPartOfTheCursorContract() {
+        assertThat(FeedOrdering.SORT_VERSION).isEqualTo(1);
+    }
+}

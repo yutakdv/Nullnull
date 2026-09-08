@@ -1,0 +1,170 @@
+{
+  "openapi-typescript": {
+    "version": "7.13.0",
+    "engines": null,
+    "peerDependencies": {
+      "typescript": "^5.x"
+    },
+    "integrity": "sha512-EFP392gcqXS7ntPvbhBzbF8TyBA+baIYEm791Hy5YkjDYKTnk/Tn5OQeKm5BIZvJihpp8Zzr4hzx0Irde1LNGQ=="
+  },
+  "typescript": {
+    "version": "5.9.3",
+    "engines": {
+      "node": ">=14.17"
+    },
+    "peerDependencies": null,
+    "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="
+  },
+  "openapi-fetch": {
+    "version": "0.17.0",
+    "engines": null,
+    "peerDependencies": null,
+    "integrity": "sha512-PsbZR1wAPcG91eEthKhN+Zn92FMHxv+/faECIwjXdxfTODGSGegYv0sc1Olz+HYPvKOuoXfp+0pA2XVt2cI0Ig=="
+  },
+  "aws-cdk": {
+    "version": "2.1140.0",
+    "engines": {
+      "node": ">= 18.0.0"
+    },
+    "peerDependencies": null,
+    "integrity": "sha512-myrqWFEby3w+athNRM5EcnKXpby8shR7WwhxtAE853qDPmCggvIZe0wwkUzyuWJdFVD3zP5rzRuATxnnapeXig=="
+  },
+  "aws-cdk-lib": {
+    "version": "2.268.0",
+    "engines": {
+      "node": ">= 20.0.0"
+    },
+    "peerDependencies": {
+      "constructs": "^10.5.0"
+    },
+    "integrity": "sha512-bm0mWG0xxIJtV0vhkmnFy6TFgwqBowvXeRKudhAsjM0TMOEcyFPBbwjUNlAA6S1+AjUwEt5yaMrT0A/P97lUqg=="
+  },
+  "constructs": {
+    "version": "10.8.1",
+    "engines": null,
+    "peerDependencies": null,
+    "integrity": "sha512-98yGXYyhePqPYh3cYu8nzBERmAhC0DONe3UD03okK0nehZ7hYP4wgZuf02a04+uOWxnTJ5Rpp5m0GRNpwyLGGA=="
+  },
+  "gitleaks": {
+    "version": "v8.30.1",
+    "url": "https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1"
+  },
+  "node24": {
+    "version": "v24.20.0",
+    "date": "2026-08-26",
+    "lts": "Krypton",
+    "npm": "11.19.0",
+    "archiveSha256": "40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8",
+    "testedPlatform": "darwin-arm64"
+  },
+  "library/postgres:17.6-alpine": {
+    "digest": "sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94",
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "platforms": [
+      {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "arm",
+        "os": "linux",
+        "variant": "v6"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "arm",
+        "os": "linux",
+        "variant": "v7"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "arm64",
+        "os": "linux",
+        "variant": "v8"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "386",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "ppc64le",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "riscv64",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "s390x",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      }
+    ]
+  },
+  "curlimages/curl:8.16.0": {
+    "digest": "sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6",
+    "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+    "platforms": [
+      {
+        "architecture": "386",
+        "os": "linux"
+      },
+      {
+        "architecture": "arm",
+        "os": "linux",
+        "variant": "v7"
+      },
+      {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      {
+        "architecture": "arm64",
+        "os": "linux",
+        "variant": "v8"
+      },
+      {
+        "architecture": "ppc64le",
+        "os": "linux"
+      }
+    ]
+  },
+  "trivy": {
+    "version": "v0.74.0",
+    "url": "https://github.com/aquasecurity/trivy/releases/tag/v0.74.0"
+  },
+  "status": "proposed; runtime scaffold and FE acceptance pending",
+  "verificationWindowKst": [
+    "2026-09-06",
+    "2026-09-07"
+  ]
+}
