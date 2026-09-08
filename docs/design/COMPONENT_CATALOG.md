@@ -111,6 +111,38 @@ Figma 최상위 node 수에 포함하지 않으며 출처 문구·link·source s
 - `Nav / TabBar`는 P0 tab 4개만 렌더링한다. P1 `검색` tab은 숨기는 대신 아예 만들지
   않는다. 이동하지 않는 tab은 없는 것보다 나쁘다.
 
+## 0.2 Storybook
+
+`npm run storybook`으로 component를 화면 없이 상태별로 확인한다. 모든 story는 앱과
+같은 provider와 token 위에서 렌더링하므로 Storybook에서 본 것이 앱에서 나오는 것과
+같다.
+
+| 항목 | 값 |
+| --- | --- |
+| 실행 | `npm run storybook` (port 6006) |
+| 정적 build | `npm run build-storybook` → `storybook-static/`, git 제외 |
+| 기본 viewport | 360px. 768px으로 전환 가능 |
+| 접근성 | `@storybook/addon-a11y`가 위반을 표시한다 |
+
+기본 viewport를 360px로 둔 이유는 좁은 폭에서만 깨지는 layout이 story를 여는 즉시
+보이게 하기 위해서다.
+
+현재 story가 있는 component와 다루는 상태:
+
+| Component | story |
+| --- | --- |
+| `Data / StateLabel` | 6개 state 나열, REPLAY 단독, UNAVAILABLE |
+| `Data / MetricDelta` | 개선, 변화 없음, 비교 불가, 긴 사유 |
+| `CrowdLevel` | 1~4단계, 데이터 없음, 척도 밖 |
+| `Action / DecisionBar` | preview, applying, applied, stale, failed |
+| `Action / TripAddButton` | 6개 state 나열, loading, error |
+| `Form / LockControl` | 잠금 독립, 예약 잠금, disabled |
+| `Card / FeedPost` | 서울 실시간, KTO 예측, 혼잡 데이터 없음, 저장됨, 여행 미선택, 긴 한국어, 영문 |
+| `Card / TripItem` | 잠금 0~4개 조합, 최적화 반영, 시간 겹침, 시간 미정, 혼잡 없음, 긴 장소명 |
+
+story가 없는 component는 상태가 하나뿐이거나(`Sheet / Grab`, `Data / Tag`) 화면
+맥락이 있어야 의미가 있는 것들이다. 화면 slice에서 필요한 story를 함께 추가한다.
+
 ## 1. 구현 규칙
 
 - Catalog ID는 문서 추적 용도다. React export는 영문 PascalCase를 쓰고 Figma 원본 이름을 component JSDoc/Storybook tag에 남긴다.
