@@ -1,0 +1,160 @@
+# HANDOFF — Backend/AI 독립 작업 A~D (BA-002 → BA-024)
+
+**작성 2026-09-08 · branch `backend` · 다음 담당자가 다른 도구(Codex 등)일 수 있음을 전제로 씀**
+
+이 문서는 "지금 멈춰도 다른 에이전트가 곧바로 이어받는다"를 목적으로 한다. 대화 맥락 없이 이 파일 + 아래 3개 정본만 읽고 재개할 수 있어야 한다. 어긋나면 이 문서가 아니라 정본을 믿는다.
+
+## 0. 30초 재개 절차
+
+```bash
+cd /Users/yutak/Desktop/Nullnull
+git status --short --untracked-files=all   # 깨끗해야 한다 (아래 §2)
+cat .superpowers/sdd/2026-09-08-backend-a-to-d/progress.md | tail -120   # 판정 이력
+cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전체 실행 계획
+```
+
+읽을 정본 3개:
+
+| 무엇 | 어디 | 성격 |
+| --- | --- | --- |
+| 실행 계획(A~D 13개 slice) | `.superpowers/sdd/2026-09-08-backend-a-to-d/plan.md` | gitignored 로컬 사본. 원본은 `~/.claude/plans/a-d-cryptic-planet.md` |
+| 판정·검증 이력 | `.superpowers/sdd/2026-09-08-backend-a-to-d/progress.md` | gitignored. slice별 지적/판정/변이 결과 |
+| 카드 정본 | `docs/roles/BACKEND_AI_PLAYBOOK.md` + `docs/engineering/backend-plan.json` | **tracked. validator가 둘의 동기화를 검사한다** |
+
+## 1. 이 작업이 무엇인가
+
+Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
+
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → **A4 BA-004(다음)** → B1 BA-010 → B2 BA-011 → B3 BA-012 → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
+
+## 2. 현재 상태 (2026-09-08 21:24 KST 기준)
+
+### git
+
+- `origin/main` = `103abed` (PR #19 병합됨). **BA-002(`11d6efc`)는 이미 main에 있다.**
+- 로컬 `main` ref는 낡았다(`3546086`). 판단에 쓰기 전에 `git fetch` 후 `origin/main`을 봐라.
+- `backend`는 `origin/backend`로 push돼 있다. 담고 있는 것: `296b5af`(BA-005 job runtime), `4dea8cc`(origin/main 수신 merge), `a047ed8`(BA-003), 그리고 이 문서.
+- **BA-005와 BA-003은 아직 main에 없다.** main 병합은 사용자가 지시할 때만 한다.
+- 열린 PR: **#17 frontend**(FE 기반), **#21 backend-dx-004**(다른 브랜치). 둘 다 이 작업과 독립이고, `backend`를 head로 하는 열린 PR은 **없다** — 즉 `backend`에 push해도 어떤 PR도 생성·갱신되지 않는다.
+
+### A3(BA-003) — 완료, `a047ed8`로 커밋됨
+
+구현(36파일) → 적대적 검토 3렌즈(17건 판정) → 수정 라운드 1 → 검증 3렌즈(8건) → 수정 라운드 2 → 검증 1렌즈(5건) → 직접 수정. 모든 가드는 결함을 되살렸을 때 실제로 red가 되는 것까지 확인했다.
+
+**커밋 시점 검증 실측**: `test 274 / integrationTest 101 / openapiContractTest 9 / recommendationTest 17` (0 fail/error/skip), `validate_docs.py`·`scripts/tests` 70건·markdownlint 47파일·redocly 전부 통과. 이 숫자가 줄면 회귀다.
+
+**다음 작업은 A4(BA-004)다.** §5 표를 보고 `plan.md`의 `## Slice A4` 절을 따른다.
+
+## 3. A3에서 내린 판정 중 이후 slice가 알아야 할 것
+
+구현은 끝났다. 아래는 **되돌리면 안 되는 결정**과 **이후 slice가 넘겨받는 부채**다.
+
+### 되돌리지 말 것
+
+- **catch-all은 throwable을 로그 인자로 넘기지 않는다.** `GlobalExceptionHandler.framesOf`가 class와 frame만 문자열로 만든다. frame(클래스·메서드·파일·줄)에는 호출자 입력이 원리적으로 못 들어가지만 message에는 들어간다 — `apps/api/src/main/java`의 `throw new` 145개 중 **60개**가 값을 보간한다(예: `UuidV7`의 `"not a UUIDv7: " + uuid`). 편의를 위해 `exception`을 인자로 되돌리면 canary 테스트가 즉시 red가 된다.
+- **`MissingPathVariableException`은 400으로 잡지 않는다.** Spring 자신이 500으로 분류하는 서버 결함(`@PathVariable` 이름이 URI template과 불일치)이라 catch-all의 500 + operator 로그로 가야 한다. `ServletRequestBindingException` 같은 상위 타입으로 매핑을 넓히면 이게 조용한 400이 된다.
+- **`DemoCapabilityQuery`는 ON 플래그에 startup을 실패시킨다.** source 없는 capability를 READY로 광고하지 않기 위한 것이고, ENVIRONMENT.md §6 표도 여기에 맞춰 OFF로 정정했다. staging을 띄우려고 완화하지 말고 source를 만드는 slice(B03 replay / B06 optimization / B10 live)가 켠다.
+- **`server.tomcat.max-swallow-size` 줄을 지워도 어떤 테스트도 못 잡는다.** 선택한 값이 Tomcat 기본값과 같기 때문이다. 이건 알려진 사실이고, 설정 파일에 줄이 있는지 검사하는 테스트는 동작이 아니라 파일을 검사하는 것이라 넣지 않기로 했다.
+
+### 이후 slice가 넘겨받는 부채
+
+- **CON-006**: operation별 `401`/`429`/`default`/**`413`** 선언을 `docs/api/openapi.yaml`에 추가한다. **FE PR #17이 main에 병합된 뒤의 PR에서** 한다. 완료 조건에 "생성 client를 재생성하지 않으면 `api-client-diff`의 `check-generated.mjs`가 실패한다"를 명시할 것. 현재 PM-019 실측: 50 operation 중 401 선언 4개·429 선언 4개, `default` 누락 6개, **403 선언 0개**, `Forbidden`/`Gone` reusable response 자체가 없음.
+- **`getDemoReadiness`의 `sessionCookie`가 미강제**다. `ImplementedOperationsRegistry.SECURITY_NOT_YET_ENFORCED`에 등록돼 있고 `SystemContractTest`가 그 집합을 순회하며 "계약이 scheme을 선언하는데 라우트는 인증 없이 200을 준다"를 단언한다. **B1(BA-010)이 session layer를 넣으면 이 테스트가 red가 된다** — 그때 집합에서 빼는 게 정상 절차다.
+- **`handleUnexpected`의 `bodyTooLarge` 분기를 삭제했다.** 오늘 이 shape를 만드는 코드가 없고(Jackson은 `HttpMessageNotReadableException`으로 감싼다) 도달시키려면 합성 route가 필요해서, 프로젝트의 "요청 범위를 넘는 방어 코드 금지" 규칙을 따랐다. 대가: **`RequestBodyTooLargeException`을 다른 타입으로 감싸는 converter가 생기면 초과 body가 413이 아니라 500이 된다.** 비-Jackson body converter(multipart, 커스텀)를 추가하는 첫 slice는 초과 body가 여전히 413인지 다시 확인해야 한다.
+- **미매핑 예외 2개**: `RecommendationUnavailableException`(BA-032/BA-051 소유), `JobEnqueueException`. 지금은 catch-all의 500이다.
+- **`MissingServletRequestPartException`은 이 계층에 없다**(`jakarta.servlet.ServletException`을 직접 상속). `@RequestPart`를 쓰는 첫 route가 따로 매핑해야 한다.
+- **BA-005가 남긴 제약**: `JobConnectionBudget`이 startup에서 pool 대비 worker 수요를 검사한다. **첫 실제 handler slice(BA-012/B03/B06)는 concurrency와 `NULLNULL_DB_POOL_MAX`를 함께 정해야 한다**(type 3개 × 기본 concurrency 2 → pool ≥ 18). 또한 handler를 추가하는 slice는 `V004` 마이그레이션 **뒤에** 와야 한다(구버전의 `ON CONFLICT (deduplication_key)`가 성립하지 않는다).
+- **`APP_IDEMPOTENCY_LOCK_TIMEOUT`은 제안값이다.** `IdempotencyGuard.execute`에 production 호출자가 아직 0개라 측정이 불가능하다. 첫 실제 command endpoint를 만드는 slice가 **suite에 남는 테스트로** 측정해 확정값으로 올린다.
+
+## 4. slice를 닫는 방법 (커밋 규약)
+
+```bash
+git add <명시 경로만>          # git add -A 금지. $HOME 자체가 git 저장소다
+git commit -m "feat(be): BA-0xx <한 줄 요약>"
+```
+
+- **Work ID(`BA-0xx`)를 반드시 포함**한다(프로젝트 규칙).
+- **attribution 문구를 넣지 않는다**(생성도구 언급 금지).
+- `.obsidian/graph.json`은 사용자 파일이다. **stage하지 않는다.**
+- `backend-plan.json` status를 `integration-ready`로 올리고, 카드에 실제 test class·report 경로를 적는다(`verified`는 staging 증거가 있어야 한다 — validator가 거부한다).
+- **push는 `origin/backend`까지만** 사용자가 승인했다. main 병합·PR 생성은 별도 지시가 필요하다.
+
+## 5. A3 이후 남은 slice
+
+`plan.md`의 해당 절을 그대로 따른다. 각 slice는 **구현 → 적대적 검토 → 판정 → 변이로 증명된 수정 → 네 suite + docs 게이트 → 커밋**이다.
+
+| Slice | 카드 | plan.md 절 | 비고 |
+| --- | --- | --- | --- |
+| A4 | BA-004 | `## Slice A4` | OpenAPI breaking diff(oasdiff), `scripts/check_test_reports.py`, BA-004-T1/T2 증거. TS client·MSW는 비범위 |
+| B1 | BA-010 | `## Slice B1` | 익명 owner·session·CSRF. `V004__demo_sessions.sql`. **A3의 `@NullnullOperation` 정책 표를 실제로 강제하는 slice** |
+| B2 | BA-011 | `## Slice B2` | 프로필·locale·onboarding. merge-patch의 null/absent 구분 |
+| B3 | BA-012 | `## Slice B3` | 세션 삭제 receipt·TTL·복원 후 재삭제(`TombstoneReapplier implements SmartLifecycle`) |
+| C1 | BA-020 | `## Slice C1` | source registry·adapter kit·쿼터·drift |
+| C2 | BA-021 | `## Slice C2` | KTO 실호출. **Step 0(provider spec 고정)을 코드보다 먼저** |
+| C3 | BA-022 | `## Slice C3` | canonical 장소·검색·상세·콘텐츠 권리 |
+| C4 | BA-023 | `## Slice C4` | 혼잡 예보·provenance·비교 적격성 |
+| C5 | BA-024 | `## Slice C5` | 검증된 관련 장소 |
+
+## 6. 검증 — 이 기기에서 실제로 도는 형태
+
+```bash
+# Java (Temurin 21 필수. 기기 기본 java는 26이라 JAVA_HOME 없이는 실패한다. wrapper만, 설치형 Gradle 금지)
+cd /Users/yutak/Desktop/Nullnull/apps/api
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
+./gradlew --no-daemon test --rerun integrationTest --rerun openapiContractTest --rerun recommendationTest --rerun
+
+# 문서·계약 (반드시 저장소 루트에서)
+cd /Users/yutak/Desktop/Nullnull
+python3 scripts/validate_docs.py
+python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+npx --yes markdownlint-cli2@0.23.2
+npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
+
+# apps/ai를 건드린 경우만 (uv 0.12.10)
+cd apps/ai && export PATH="$PWD/.uv-bootstrap/bin:$PATH"
+uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
+
+# phase 끝: 컨테이너 게이트 (offline·external DB)
+docker compose -f compose.integration.yml --profile quality run --rm api-quality
+```
+
+**A3 직전 기준선**: `test 274 / integrationTest 95 / openapiContractTest 9 / recommendationTest 17`, 전부 0 fail/error/skip. 이 숫자가 줄면 회귀다.
+
+`bash scripts/integration-test.sh` 전체는 `.nullnull-target-stack` marker(FE scaffold와 같은 PR)가 없는 지금 **exit 1이 정상**이다. 통과로도 버그로도 쓰지 않는다.
+
+## 7. 이 작업에서 실제로 당한 함정 (반복하지 말 것)
+
+1. **`--rerun`은 마지막 task에만 붙는다.** `./gradlew test integrationTest openapiContractTest recommendationTest --rerun`은 앞 세 개를 UP-TO-DATE로 넘긴다 → 낡은 XML을 읽고 "통과"라고 보고하게 된다. task 이름마다 반복하라.
+2. **exit 0은 실행의 증거가 아니다.** macOS에는 `timeout`이 없어서 그걸 쓴 컨테이너 실행이 아예 안 돌았는데 파이프 때문에 exit 0으로 보였고, 그때 읽은 숫자는 이전 실행의 잔여 artifact였다. 카운트는 반드시 `build/test-results/<suite>/*.xml`에서 읽어라.
+3. **`git checkout`/`restore`/`stash`/`reset`/`clean` 금지.** 슬라이스 전체가 미커밋이라 이 명령들이 곧 파괴다. 변이 검증 시 파일을 scratchpad에 `cp`해두고 `cp`로 복원한 뒤 `shasum -a 256`으로 대조하라. (실제로 이 실수로 편집분을 한 번 날렸다.)
+4. **루트 게이트를 `apps/api`나 `apps/ai` 안에서 돌리지 마라.** `unittest discover`와 `validate_docs.py`가 상대 경로로 깨진다.
+5. **여러 에이전트를 같은 작업 트리에서 병렬로 돌리지 마라.** 검증 3렌즈를 동시에 돌렸더니 서로의 probe 파일과 `build/test-results`를 덮어써 한 실행이 파괴됐다. 병렬이 필요하면 `rsync -a --exclude build`로 격리 복사본에서 돌려라.
+6. **공유 DB는 양방향 위험이다.** 앞 테스트의 잔여 행 때문에 실패할 수도, **우연히 통과할 수도** 있다. 컨테이너 게이트는 깨끗한 DB와 더러운 DB 양쪽에서 돌려 확인했다.
+7. **문서 함정**: `docs/**/*.md`는 Obsidian frontmatter 필수. `IMPLEMENTATION_PLAN.md`·`BACKEND_AI_PLAYBOOK.md`에는 날짜·소요일을 못 쓴다(`2026-09-08`·`09/08`·`(1d)`를 validator가 거부). 본문에 `FCR-0XX`를 쓰면 `FIGMA_CHANGE_REQUESTS.md` 표에 먼저 등록해야 한다.
+8. **API 이름을 기억으로 쓰지 마라.** `getAllValidationResults()`는 Spring 7.0.9에 없다(`getParameterValidationResults()`). `javap`로 실제 jar를 확인하거나 Context7을 써라.
+
+## 8. 이 프로젝트에서 반복해서 나온 결함 유형
+
+**"증거처럼 보이지만 아닌 것"** 이 압도적으로 많았다. 새 가드를 넣을 때마다 *결함을 되살렸을 때 실제로 빨개지는지* 확인하는 게 이 저장소의 합격선이다.
+
+실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
+
+## 9. 사용자 확정 결정 (재논의 불필요)
+
+- KTO 키 사용 가능 → 제출(production) 빌드에서 **`DEV_APPROVED` 개발 키(1,000/일) 실호출 허용**.
+- FE 미승인 계약(BA-011/022/023/024)은 OpenAPI 0.2.1-rc.1 example 기준으로 **controller까지 구현**하고 `openapiContractTest`로 고정한다.
+- CSRF token 5개 초과 → **`last_used_at` 기준 LRU 회수**.
+- D-015 stale threshold → **forecast `PT24H`, place detail `P7D`**.
+- `KTO_RELATED_PLACES` → **미신청이므로 `DISABLED`**. C5는 `NULLNULL_CATALOG_RULE` SIMILAR + `UNKNOWN(reason SOURCE_DISABLED)`만.
+
+나머지 미확정값은 `plan.md` §15 표를 따르되 **제안값**으로 표기하고 근거를 적는다. 숫자를 지어내지 않는다.
+
+## 10. 절대 규칙
+
+- slice 커밋과 `origin/backend` push는 승인된 범위다. **main 병합·PR 생성·deploy는 사용자가 지시할 때만 한다.**
+- `main`에서 직접 작업하지 않는다. Backend/AI는 `backend`.
+- `git add -A` 금지(특히 `$HOME`이 그 자체로 git 저장소다). 경로를 명시한다.
+- 커밋·PR에 **생성도구 attribution을 넣지 않는다**.
+- secret·cookie·token·계정 ID·원문 일정·실제 위치를 source/fixture/screenshot/prompt/log에 넣지 않는다.
+- 파괴적·유료 작업(rm -rf, reset --hard, DROP, AWS delete/deploy)은 세션에서 명시 확인을 받는다.
+- 실행하지 못한 검사를 통과로 쓰지 않는다. 불가능하면 `검증 생략: <이유>`를 명시한다.
