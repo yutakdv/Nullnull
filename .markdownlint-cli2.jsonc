@@ -9,6 +9,7 @@
     "README.md",
     "AGENTS.md",
     "CLAUDE.md",
+    "apps/*/CLAUDE.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
     "docs/archive/PRODUCT_BRIEF.md",

@@ -59,17 +59,17 @@ npm run test
 npm run build
 ```
 
-Backend(`apps/api`):
+Backend(`apps/api`). Gradle은 wrapper만 쓰고 **Temurin 21**로 실행한다. 기기 기본 JDK가 21이 아니면
+`JAVA_HOME`을 Temurin 21로 지정해야 하며, 지정하지 않으면 toolchain 해석에서 실패한다. 이 저장소에서
+실제로 실행되는 형태는 `apps/api/CLAUDE.md`에 있다.
 
 ```bash
 cd apps/api
-./gradlew test
-./gradlew integrationTest
-./gradlew openapiContractTest
-./gradlew recommendationTest
+./gradlew test integrationTest openapiContractTest recommendationTest
 ```
 
-추천 서비스(`apps/ai`):
+추천 서비스(`apps/ai`). **uv 0.12.10**으로만 실행한다. CI와 Docker에서는 `uv`가 PATH에 있고, 로컬에
+없으면 `apps/ai/README.md`의 `.uv-bootstrap` venv를 쓴다(실제 실행 형태는 `apps/ai/CLAUDE.md`).
 
 ```bash
 cd apps/ai
@@ -84,6 +84,8 @@ uv run python -m nullnull_ai.contracts export   # endpoint/schema 변경 뒤, �
 bash scripts/integration-test.sh
 ```
 
+`.nullnull-target-stack` marker가 추가되기 전까지 이 wrapper는 exit 1로 실패한다(설계된 게이트). 실패를 통과로 대체하지 말고 marker·`apps/web`을 같은 PR에서 완성한다.
+
 라우팅, 검색, sheet/dialog, 여행 생성, 후보 저장, 일정 교체, 최적화 흐름을 바꾸면 Playwright E2E와 키보드 접근성 검사를 함께 추가한다. 새 DB 마이그레이션은 Flyway와 실제 PostgreSQL(Testcontainers/CI)에서 검증한다. 실행하지 못한 검증은 통과로 쓰지 않는다.
 
 ## CI 검사 등록
@@ -92,11 +94,11 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
 | 검사 | 트리거 | 실행 내용 | 커버하는 ID | 상태 |
 | --- | --- | --- | --- | --- |
-| `docs-contract` | 모든 main PR/push | `validate_docs.py`(Problem code↔FE mapping 포함), plan/Canvas 검증, markdownlint, Redocly, AJV | BA-000-T1~T3, FE-003 code mapping | 실행 중 |
+| `docs-contract` | 모든 main PR/push | `validate_docs.py`(Problem code↔FE mapping 포함), `python3 -m unittest discover -s scripts/tests`, plan/Canvas 검증, markdownlint, Redocly, AJV | BA-000-T1~T3, FE-003 code mapping | 실행 중 |
 | `docker-integration` | 모든 main PR/push | `integration-test.sh`: verifier→`api-quality`·`ai-quality`·web·client diff·scan·egress-denied·E2E | 아래 suite 전체 | `apps/web`+marker 전까지 hard fail |
-| `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `apps/ai/tests/recommendation/manifest.json`, `apps/ai/src/nullnull_ai/policy/**`, `docs/api/openapi.yaml` push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` | REC-ARCH-01, REC-DATA-02, BA-001-T2, 내부 계약 parity(5 operation), gateway post-condition, ITEM fixture parity(LockChecks·ProposalRevalidator), policy pin parity | 실행 중 |
+| `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `apps/ai/tests/recommendation/fixtures/**`, `apps/ai/tests/recommendation/manifest.json`, `apps/ai/src/nullnull_ai/policy/**`, `docs/api/openapi.yaml` push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` | REC-ARCH-01, REC-DATA-02, BA-001-T2, 내부 계약 parity(5 operation), gateway post-condition, ITEM fixture parity(LockChecks·ProposalRevalidator), policy pin parity | 실행 중 |
 | `ai-quality` (workflow) | `apps/ai/**` push/PR | ruff, mypy strict, pytest(REC corpus, `evaluation.json`), 계약 JSON sync | `tests/recommendation/manifest.json`의 `implementedTestIds` | 실행 중 |
-| `apps/web` suite (`docker-integration` 내부) | 모든 main PR/push | `verify:ci`: tokens drift, eslint, prettier, tsc, vitest, build. fixture↔OpenAPI ajv 검증과 dist MSW 부재 단언 포함 | FE-001~003 | 실행 중 |
+| `apps/web` suite (`docker-integration` 내부) | 모든 main PR/push | `verify:ci`: tokens drift, eslint, prettier, tsc, vitest, build. fixture↔OpenAPI ajv 검증과 dist MSW 부재 단언 포함 | FE-001~003 | marker 병합 뒤 첫 실행 |
 
 등록 규칙:
 

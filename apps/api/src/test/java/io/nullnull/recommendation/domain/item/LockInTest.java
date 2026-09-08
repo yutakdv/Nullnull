@@ -30,6 +30,18 @@ class LockInTest {
     }
 
     @Test
+    void aTimeLockToleranceStaysInsideTheContractRange() {
+        // minimum 0 / maximum 180 on the service side, enforced by io.nullnull.trip.domain.ItemLock.Time:
+        // both ends are legal values, and a tolerance outside them would move an item the user pinned.
+        assertThat(LockIn.time(TEN, 0).toItemLock()).isEqualTo(new ItemLock.Time(TEN, 0));
+        assertThat(LockIn.time(TEN, 180).toItemLock()).isEqualTo(new ItemLock.Time(TEN, 180));
+        assertThatThrownBy(() -> LockIn.time(TEN, -1).toItemLock()).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("toleranceMinutes must be 0..180");
+        assertThatThrownBy(() -> LockIn.time(TEN, 181).toItemLock()).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("toleranceMinutes must be 0..180");
+    }
+
+    @Test
     void aLockCarryingAnotherTypesFieldIsRefused() {
         assertThatThrownBy(() -> new LockIn(LockType.MUST_VISIT, D12, null, null, null).toItemLock())
                 .isInstanceOf(IllegalArgumentException.class);

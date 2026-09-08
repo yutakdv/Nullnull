@@ -172,6 +172,7 @@ def _neighbour_violations(inp: ItemOptimizationInput, day: date, at: time | None
     if duration is None:
         return ["a timed proposal without a verified stay length"]
     begins, ends = _stay(at, duration)
+    overlapping: list[time] = []
     unmeasured: list[time] = []
     for neighbour in inp.neighbours:
         if neighbour.item_id == inp.target.item_id or neighbour.date != day or neighbour.start_time is None:
@@ -181,8 +182,10 @@ def _neighbour_violations(inp: ItemOptimizationInput, day: date, at: time | None
             continue
         other_begins, other_ends = _stay(neighbour.start_time, neighbour.duration_minutes)
         if (begins < other_ends and other_begins < ends) or at == neighbour.start_time:
-            return [f"the stay overlaps the item at {neighbour.start_time} on {day}"]
-    # The earliest unmeasured neighbour, so the message itself is independent of the stored order.
+            overlapping.append(neighbour.start_time)
+    # The earliest neighbour of each kind, so the message itself is independent of the stored order.
+    if overlapping:
+        return [f"the stay overlaps the item at {min(overlapping)} on {day}"]
     return [f"a neighbouring stay at {min(unmeasured)} has no verified length"] if unmeasured else []
 
 

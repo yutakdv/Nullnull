@@ -57,8 +57,6 @@ public class HttpRecommendationGateway implements RecommendationGateway {
     /** policy-v1 candidateCaps.relatedMerged: the service merges to at most 300 canonical places. */
     private static final int MAX_RELATED_ITEMS = PolicyPins.V1.caps().relatedMerged();
 
-    /** The service's own explanation cap (§9.1 template MAX_LENGTH); the FE renders one line of it. */
-    private static final int MAX_EXPLANATION_LENGTH = 500;
 
     private final RestClient client;
     private final Supplier<String> requestId;
@@ -242,7 +240,7 @@ public class HttpRecommendationGateway implements RecommendationGateway {
         if (summary.isBlank()) {
             throw unusable("an explanation is never an empty sentence");
         }
-        if (summary.length() > MAX_EXPLANATION_LENGTH) {
+        if (summary.length() > ExplanationRenderResponse.MAX_SUMMARY_LENGTH) {
             throw unusable("service returned an explanation longer than the contract allows");
         }
         if (summary.indexOf('\n') >= 0) {

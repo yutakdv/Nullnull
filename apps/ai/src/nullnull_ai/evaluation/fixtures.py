@@ -93,13 +93,17 @@ class FixtureError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class FixtureEntry:
-    """One `manifest.fixtures[]` row. `path` is relative to `apps/ai`."""
+    """One `manifest.fixtures[]` row. `path` is relative to `apps/ai`.
+
+    `fixture_version` is the manifest-wide value the fixture file itself has to repeat.
+    """
 
     id: str
     path: str
     sha256: str
     kind: str
     data_origin: str
+    fixture_version: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +141,9 @@ def read_entries(manifest: Mapping[str, Any]) -> tuple[FixtureEntry, ...]:
     rows = manifest.get("fixtures")
     if not isinstance(rows, list):
         raise FixtureError("manifest.fixtures must be a list")
+    fixture_version = manifest.get("fixtureVersion")
+    if not isinstance(fixture_version, str) or not fixture_version.strip():
+        raise FixtureError("manifest.fixtureVersion must be a non-blank string")
     entries: list[FixtureEntry] = []
     for index, row in enumerate(rows):
         node = _object(row, f"fixtures[{index}]", {"id", "path", "sha256", "kind", "dataOrigin"}, set())
@@ -153,6 +160,7 @@ def read_entries(manifest: Mapping[str, Any]) -> tuple[FixtureEntry, ...]:
                 sha256=_string(node, "sha256", f"fixtures[{index}]"),
                 kind=kind,
                 data_origin=origin,
+                fixture_version=fixture_version,
             )
         )
     ids = [entry.id for entry in entries]
@@ -162,7 +170,11 @@ def read_entries(manifest: Mapping[str, Any]) -> tuple[FixtureEntry, ...]:
 
 
 def read_verified(root: Path, entry: FixtureEntry) -> dict[str, Any]:
-    """Reads the fixture bytes and fails when they do not hash to the manifest checksum."""
+    """Reads the fixture bytes and fails when they do not hash to the manifest checksum.
+
+    The `fixtureVersion` drift check lives here rather than in a kind-specific loader, so the FEED
+    corpus cannot keep an older version through a corpus bump while its checksum still matches.
+    """
     path = root / entry.path
     if not path.is_file():
         raise FixtureError(f"fixture missing: {entry.path}")
@@ -173,6 +185,8 @@ def read_verified(root: Path, entry: FixtureEntry) -> dict[str, Any]:
     document = json.loads(raw.decode("utf-8"))
     if not isinstance(document, dict):
         raise FixtureError(f"{entry.path} must contain a JSON object")
+    if _string(document, "fixtureVersion", entry.path) != entry.fixture_version:
+        raise FixtureError(f"{entry.path} must declare fixtureVersion={entry.fixture_version}")
     return document
 
 
@@ -210,7 +224,7 @@ def load_item_fixture(root: Path, entry: FixtureEntry) -> ItemFixture:
         path=entry.path,
         note=_string(node, "note", entry.path),
         derivation=_string(node, "derivation", entry.path),
-        fixture_version=_string(node, "fixtureVersion", entry.path),
+        fixture_version=entry.fixture_version,
         policy_version=_string(node, "policyVersion", entry.path),
         fixed_clock=_instant(_string(node, "fixedClock", entry.path), f"{entry.path}.fixedClock"),
         timezone=_zone_name(_string(node, "timezone", entry.path), f"{entry.path}.timezone"),

@@ -690,8 +690,10 @@ erDiagram
 
 ### Identity
 
-- `owners.account_id`: null이 아닐 때 unique.
+- `owners.account_id`: null이 아닐 때 unique. `kind`가 `ANONYMOUS`이면 `account_id`는 null이어야 하며 account 연결이 곧 `kind`를 `ACCOUNT`로 바꾸는 단계다.
+- `owners.locale`/`owners.timezone` 길이는 OpenAPI `OwnerProfile`과 같은 2..35, 1..100을 DB check로 둔다. 하한은 빈 문자열도 거부한다.
 - `owners.onboarding_completed` 기본값은 false다. `active_trip_id`는 null이거나 같은 owner의 삭제되지 않은 trip이어야 하며 trip 삭제 시 null로 바꾼다.
+- `active_trip_id`의 foreign key와 위 same-owner·미삭제·trip 삭제 시 null 규칙은 trips table을 만드는 migration에서 함께 들어간다. 그 전까지 identity migration에는 FK가 없으므로 application service가 같은 규칙을 강제한다(현재 `V002__owners.sql` 주석과 같은 내용).
 - `demo_sessions.token_hash`: 원문 token 저장 금지, unique index.
 - session 조회 index: `(token_hash) WHERE revoked_at IS NULL`.
 - `demo_session_csrf_tokens`에는 token hash만 저장하고 token별 독립 만료를 둔다. session당 미만료 token은 최대 5개이며 새 tab 발급이 다른 tab token을 무효화하지 않는다.
@@ -753,6 +755,14 @@ erDiagram
 ### Idempotency/Analytics
 
 - `idempotency_records`: unique `(owner_id, route_key, idempotency_key)`; owner 생성 이후 mutation만 저장하고 24시간 TTL cleanup한다. bootstrap은 이 table의 nullable owner 예외를 만들지 않는다.
+- `idempotency_records.route_key`는 resolved path가 아니라 route template이며 실제 path parameter는 `request_hash`에 들어간다. `idempotency_key` 길이는 OpenAPI 헤더와 같은 16..100, `request_hash`는 canonical request identity의 SHA-256 소문자 hex 64자다.
+- `response_status`와 `response_body`는 예약(실행 중) 상태에서 둘 다 null이고 완료 시 함께 채워진다. 완료 여부는 `response_status IS NOT NULL`이며 `jsonb` 정규화 때문에 replay body는 최초 응답과 의미가 같고 replay 사이에서는 바이트가 같지만 최초 응답과 바이트가 같지는 않다.
+- owner FK에는 DB cascade action을 두지 않는다. owner 삭제는 상태를 추적하는 background job이 순서대로 지우며 조용한 cascade로 receipt를 없애지 않는다.
+- TTL sweep `DELETE ... WHERE expires_at <= now()`를 위해 `(expires_at)` index를 둔다. 모든 row가 만료되므로 partial index가 아니다.
+- 보존은 sweep job에만 의존하지 않는다. `expires_at`이 지난 row는 guard가 같은 transaction에서 삭제하고 다시 예약하므로, sweep 전에도 만료 key는 응답을 재생하지 않고 새 요청을 막지도 않는다.
+- `response_body`에는 byte 상한을 둔다. 계약 문서의 수치가 아니라 engineering 제안값이고, 근거는 문서화된 가장 큰 응답 형태가 [API README](../api/README.md) 14절의 item 100개 여행이라는 점이다. 첫 대형 APPLY 응답이 나오면 실제 크기로 다시 정한다. 사용자에게 약속하는 application 상한은 compact JSON text 65536 byte이고, 초과는 저장 전에 named error로 거부한다.
+- column check `octet_length(response_body::text) <= 131072`는 같은 byte를 재지 않는다. `response_body::text`는 PostgreSQL이 jsonb에서 다시 직렬화한 문자열이라 `:`과 `,` 뒤에 공백이 붙는다. 따라서 column 상한은 application 상한보다 느슨해야 하며, 그렇지 않으면 application이 통과시킨 값이 named error 대신 constraint 위반으로 터진다. 느슨한 정도는 추측이 아니라 유도한다. 삽입되는 공백은 모두 `:` 또는 `,` 뒤에 오고, jsonb는 member/element를 늘리지 않으며(중복 key는 제거만 한다), compact text에서 그 구분자는 각각 자기 자신과 바로 뒤 byte(key 따옴표 또는 값 시작이라 구분자가 아니다) 두 byte를 독점한다. 그래서 구조 팽창의 상한은 1.5배이고, 2배(131072)는 여기에 여유를 둔 값이다. 다만 이 유도는 구조에만 해당한다. jsonb는 숫자도 십진 표기로 다시 쓰므로 어떤 고정 배수도 성립하지 않는다. 예외적인 지수만의 문제가 아니라 평범한 finite double이면 충분하다(Jackson은 `1.0E18`을 6자로 쓰지만 PostgreSQL은 19자리로 돌려준다). 따라서 application 상한 안에 있는 응답도 column 상한을 넘을 수 있고, 이 경우 store가 해당 constraint 위반을 pre-check와 같은 named error로 번역해 호출자가 driver 오류를 만나지 않게 한다.
+- 구조가 아닌 부분은 덮이지 않는다. jsonb는 숫자를 평문 10진수로 다시 쓰므로 극단적인 지수는 어떤 고정 배수도 넘는다(pin된 image에서 측정: 8 byte `1E-16383` → 16385 byte). 문서화된 응답 형태에는 그런 값이 없다. 그러므로 column 상한은 여유를 둔 backstop이지 두 번째 계약 수치가 아니다.
 - `analytics_events.event_id`: client retry dedup key.
 - `analytics_events.owner_id/session_id`는 request body가 아니라 인증 cookie에서 server가 bind한다. session hard delete 시 `session_id ON DELETE SET NULL`; owner 삭제 job은 raw event도 삭제한다.
 - event name과 property는 JSON Schema allowlist를 통과한 것만 저장한다.
@@ -785,6 +795,7 @@ DB native enum 대신 check constraint 또는 lookup/value converter를 사용�
 | RelationType | `EXACT`, `SIMILAR` (없음/확인 중/불명은 API 상태) |
 | ImportStatus | `NEEDS_REVIEW`, `READY`, `CONFIRMED`, `EXPIRED` |
 | DeletionStatus | `ACCEPTED`, `RUNNING`, `COMPLETED`, `PARTIAL_FAILED`, `FAILED` |
+| BackgroundJobStatus | `READY`, `RETRY`, `RUNNING`, `COMPLETED`, `FAILED` |
 | NotificationType | `OPTIMIZATION_READY`, `OPTIMIZATION_FAILED`, `CROWD_ALERT`, `TRIP_REMINDER`, `TRIP_CONFLICT`, `SOURCE_DEGRADED` |
 
 ## 6. 삭제·보존·백업
@@ -832,6 +843,7 @@ CREATE INDEX ON crowd_snapshots (place_id, target_at DESC, source_code);
 CREATE INDEX ON crowd_snapshots (live_area_id, observed_at DESC, source_code);
 CREATE INDEX ON analytics_events (occurred_at);
 CREATE INDEX ON background_jobs (status, next_attempt_at) WHERE status IN ('READY', 'RETRY');
+CREATE INDEX ON idempotency_records (expires_at);
 CREATE INDEX ON deletion_requests (status, requested_at) WHERE status IN ('ACCEPTED', 'RUNNING', 'PARTIAL_FAILED');
 ```
 

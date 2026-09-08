@@ -224,6 +224,17 @@ def test_a_confirmed_overlap_is_reported_whichever_neighbour_comes_first() -> No
         assert any("overlaps the item at 12:30:00" in violation for violation in report.violations), report.violations
 
 
+def test_the_reported_overlap_names_the_earliest_neighbour_not_the_first_stored() -> None:
+    """Two measured neighbours overlap the 12:00-13:30 stay; the message must not depend on order (§6)."""
+    earlier = NeighbourItem(UUID("018f3f8e-9b67-7a21-8d31-31d315b93b04"), D12, 1, time(11), 90)
+    reports = [
+        invariants.check(optimization_input(neighbours=order, evidence=RouteEvidence.VERIFIED), [proposal()])
+        for order in ((NEIGHBOUR, earlier), (earlier, NEIGHBOUR))
+    ]
+    assert reports[0].violations == (f"proposal 1: the stay overlaps the item at {time(11)} on {D12}",)
+    assert reports[0].violations == reports[1].violations
+
+
 def test_changed_travel_legs_without_route_evidence_are_reported() -> None:
     inp = optimization_input(neighbours=(replace(NEIGHBOUR, start_time=time(16)),))
     report = invariants.check(inp, [proposal()])

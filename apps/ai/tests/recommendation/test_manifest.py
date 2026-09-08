@@ -64,6 +64,22 @@ def test_implemented_ids_are_a_subset_of_required_ids(manifest: dict) -> None:  
     assert implemented <= required
 
 
+def test_every_implemented_test_id_points_at_an_existing_file(manifest: dict) -> None:  # type: ignore[type-arg]
+    """A claimed ID is only evidence while the file it names is still there, under its own root."""
+    app_root = MANIFEST.parents[2]
+    repo_root = MANIFEST.parents[4]
+    # An empty registry would pass this loop vacuously while `missingTestIds` claimed the whole
+    # required set, so the floor is pinned the way `requiredTestIds` is pinned above.
+    assert len(manifest["implementedTestIds"]) >= 11, "the implemented ID registry must not shrink"
+    for entry in manifest["implementedTestIds"]:
+        declared = entry["path"]
+        paths = declared if isinstance(declared, list) else [declared]
+        assert paths, entry["id"]
+        root = app_root if entry["suite"] == "pytest" else repo_root
+        for relative in paths:
+            assert (root / relative).is_file(), f"{entry['id']} names a missing {relative}"
+
+
 def test_declared_fixtures_exist_with_matching_checksums(manifest: dict) -> None:  # type: ignore[type-arg]
     assert manifest["fixtures"], "the corpus must not be empty; a zero denominator is a configuration error"
     for fixture in manifest["fixtures"]:

@@ -14,6 +14,20 @@ import pytest
 SRC = Path(__file__).resolve().parents[1] / "src" / "nullnull_ai"
 PURE_PACKAGES = ("domain", "item", "slot", "related", "explain", "feed", "pipeline")
 
+# Deliberately a second literal, not `set(PURE_PACKAGES)`: the packages that decide a result may
+# never leave the scan, neither by being dropped from the tuple nor by being re-declared impure.
+DECISION_PACKAGES = frozenset({"domain", "item", "slot", "related", "explain", "feed", "pipeline"})
+
+# Package -> why the purity scan does not cover it. Every directory under `src/nullnull_ai` is
+# either scanned or listed here with its reason, so a new package cannot arrive unclassified.
+IMPURE_PACKAGES = {
+    "api": "the FastAPI transport boundary: request/response, app state, uuid4 request ids and "
+    "datetime.now in the health routes",
+    "evaluation": "reads fixture bytes from disk, reads the environment and stamps the wall clock into evaluation.json",
+    "policy": "resource-only package shipping policy-v1.yaml, loaded through importlib.resources "
+    "by nullnull_ai.domain.policy",
+}
+
 FORBIDDEN_MODULES = frozenset({"random", "requests", "httpx", "sqlalchemy"})
 FORBIDDEN_ATTRIBUTES = (
     ("time", "time"),
@@ -63,11 +77,35 @@ def _pure_modules() -> list[Path]:
     return sorted(path for package in PURE_PACKAGES for path in (SRC / package).rglob("*.py"))
 
 
+def _source_packages() -> set[str]:
+    """Every package directory that actually exists, independent of what this file declares.
+
+    Only build artefacts are skipped: an underscore-prefixed package is still a package, so it has to be
+    named in PURE_PACKAGES or IMPURE_PACKAGES instead of escaping the classification and the scan.
+    """
+    return {
+        path.name
+        for path in SRC.iterdir()
+        if path.is_dir() and path.name != "__pycache__" and not path.name.startswith(".")
+    }
+
+
+def test_every_package_under_src_is_classified_as_pure_or_exempt() -> None:
+    """The filesystem is the source of truth: an unlisted package fails instead of going unscanned."""
+    unclassified = _source_packages() - set(PURE_PACKAGES) - set(IMPURE_PACKAGES)
+    assert unclassified == set(), f"classify {sorted(unclassified)} in PURE_PACKAGES or IMPURE_PACKAGES"
+    assert not set(PURE_PACKAGES) & set(IMPURE_PACKAGES), "a package cannot be both scanned and exempt"
+    assert DECISION_PACKAGES <= set(PURE_PACKAGES), "a decision package may never be dropped from the scan"
+    assert all(reason.strip() for reason in IMPURE_PACKAGES.values()), "every exemption needs a written reason"
+
+
 def test_the_scan_actually_covers_the_decision_packages() -> None:
+    """A package that stops contributing modules would otherwise leave the scan silently narrower."""
     modules = _pure_modules()
     assert len(modules) >= 5, "no pure modules were scanned; check PURE_PACKAGES"
     packages = {path.relative_to(SRC).parts[0] for path in modules}
-    assert {"domain", "item"} <= packages
+    assert DECISION_PACKAGES <= packages, "every decision package must contribute a scanned module"
+    assert packages == set(PURE_PACKAGES), "every package in PURE_PACKAGES must contribute a scanned module"
 
 
 @pytest.mark.parametrize("module", _pure_modules(), ids=lambda path: str(path.relative_to(SRC)))
