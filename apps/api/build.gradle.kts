@@ -160,6 +160,10 @@ tasks.register("resolveTestClasspaths") {
 }
 
 tasks.withType<Test>().configureEach {
+    // The job worker is off in every suite by default: a running poll loop would race the test that
+    // seeds a job and claim it before the assertion. The worker's own tests turn it back on with
+    // @SpringBootTest(properties = "nullnull.jobs.enabled=true"), which outranks a system property.
+    systemProperty("nullnull.jobs.enabled", "false")
     // Failures are never ignored, and an empty suite is a configuration error, not a pass.
     ignoreFailures = false
     failOnNoDiscoveredTests = true

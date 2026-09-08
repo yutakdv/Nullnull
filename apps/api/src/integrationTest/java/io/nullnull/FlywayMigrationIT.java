@@ -77,7 +77,7 @@ class FlywayMigrationIT {
             // An empty schema upgrades even when a migration cannot: a NOT NULL column without a
             // default, or a unique index over existing duplicates, only fails on populated tables.
             UUID ownerId = UUID.randomUUID();
-            populateEveryTable(ownerId);
+            String outstandingKey = populateEveryTable(ownerId);
             List<String> columnsBefore = columnsInUpgradeSchema();
             long rowsBefore = totalRowsInUpgradeSchema();
             assertThat(rowsBefore).isEqualTo(tablesInUpgradeSchema().size());
@@ -93,8 +93,15 @@ class FlywayMigrationIT {
             // with the same type and nullability: this slice only adds tables.
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
-            // The new table accepts a row that references the owner created before the upgrade.
+            // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
+                    .doesNotThrowAnyException();
+            // V004 narrowed the deduplication key from "one row ever" to "one outstanding job". The
+            // READY row written before the upgrade still holds its key...
+            assertThatThrownBy(() -> insertJobInto(UPGRADE_SCHEMA + ".background_jobs", outstandingKey, "READY"))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+            // ...and a finished job of the same key, which the old constraint refused, is now allowed.
+            assertThatCode(() -> insertJobInto(UPGRADE_SCHEMA + ".background_jobs", outstandingKey, "COMPLETED"))
                     .doesNotThrowAnyException();
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + UPGRADE_SCHEMA + " CASCADE");
@@ -108,6 +115,22 @@ class FlywayMigrationIT {
         insertJob(key, "READY");
         assertThatThrownBy(() -> insertJob(key, "READY"))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("BA-005 a finished job does not hold its deduplication key")
+    void aFinishedJobDoesNotHoldItsDeduplicationKey() {
+        String key = "it-dedup-finished-" + UUID.randomUUID();
+        insertJob(key, "COMPLETED");
+
+        // The measured product failure: a collector with a natural key ran once and then silently
+        // never again, because its second enqueue collided with the COMPLETED row.
+        assertThatCode(() -> insertJob(key, "READY")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> insertJob(key, "RUNNING"))
+                .as("only one job may be outstanding for a key")
+                .isInstanceOf(DataIntegrityViolationException.class);
+        // History does not collide with history either: several finished runs share the same key.
+        assertThatCode(() -> insertJob(key, "FAILED")).doesNotThrowAnyException();
     }
 
     @Test
@@ -219,18 +242,22 @@ class FlywayMigrationIT {
         return configuration.load();
     }
 
-    /** One representative row in every table the previous schema has, so the upgrade runs on data. */
-    private void populateEveryTable(UUID ownerId) {
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".background_jobs"
-                        + " (id, type, deduplication_key, status, max_attempts, next_attempt_at, created_at)"
-                        + " VALUES (?, 'OPTIMIZATION', ?, 'READY', 3, ?, ?)",
-                UUID.randomUUID(), "upgrade-" + UUID.randomUUID(), OffsetDateTime.now(),
-                OffsetDateTime.now());
+    /**
+     * One representative row in every table the previous schema has, so the upgrade runs on data.
+     *
+     * @return the deduplication key of the outstanding job row, which the upgrade must keep exclusive
+     */
+    private String populateEveryTable(UUID ownerId) {
+        String key = "upgrade-" + UUID.randomUUID();
+        insertJobInto(UPGRADE_SCHEMA + ".background_jobs", key, "READY");
         jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".owners"
                         + " (id, kind, locale, timezone, created_at) VALUES (?, 'ANONYMOUS', ?, ?, ?)",
                 ownerId, "ko-KR", "Asia/Seoul", OffsetDateTime.now());
+        insertRecordInto(UPGRADE_SCHEMA, ownerId);
         // Every table the previous schema owns must be covered; a new one has to be added here too.
-        assertThat(tablesInUpgradeSchema()).containsExactlyInAnyOrder("background_jobs", "owners");
+        assertThat(tablesInUpgradeSchema())
+                .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records");
+        return key;
     }
 
     private void insertRecordInto(String schema, UUID ownerId) {
@@ -266,7 +293,12 @@ class FlywayMigrationIT {
     }
 
     private void insertJob(String key, String status) {
-        jdbc.update("INSERT INTO background_jobs (id, type, deduplication_key, status, max_attempts, next_attempt_at, created_at)"
+        insertJobInto("background_jobs", key, status);
+    }
+
+    private void insertJobInto(String table, String key, String status) {
+        jdbc.update("INSERT INTO " + table + " (id, type, deduplication_key, status,"
+                        + " max_attempts, next_attempt_at, created_at)"
                         + " VALUES (?, 'OPTIMIZATION', ?, ?, ?, ?, ?)",
                 UUID.randomUUID(), key, status, 3, OffsetDateTime.now(), OffsetDateTime.now());
     }

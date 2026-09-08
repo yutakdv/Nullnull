@@ -69,12 +69,24 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값, BA-003 검토 후 고정 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S` |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
 | `APP_DELETION_RECEIPT_TTL` | 아니오 | 정책 승인값 | 완료/실패 receipt 보존 |
-| `APP_DELETION_RETRY_LIMIT` | 아니오 | B01/BA-005와 B02/BA-012 검증 후 고정 | 삭제 job 무한 재시도 방지 |
+| `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`. 아직 어떤 코드도 읽지 않는 문서값이고, 삭제 job을 만드는 B02/BA-012가 이 변수를 읽어 enqueue하면서 고정한다 |
 | `APP_NOTIFICATION_RETENTION` | 아니오 | P1 정책 승인값 | 알림 보존/cleanup |
 | `APP_SEARCH_MAX_QUERY_LENGTH` | 아니오 | OpenAPI constraint와 동일 | abuse/log 노출 최소화 |
 | `APP_ACCESS_LOG_INCLUDE_QUERY` | 아니오 | `false` | 검색어/identifier query logging 차단 |
 | `APP_LOG_RETENTION_DAYS` | 아니오 | `30` IaC input | CloudWatch policy |
 | `APP_CROWD_DEFAULT_STALE_AFTER` | 아니오 | source override 필요 | fallback only |
+| `NULLNULL_JOBS_ENABLED` | 아니오 | `true` | job worker polling과 보존 sweep을 함께 켠다. `false`는 test/점검 전용이며 보존 sweep도 함께 멈춘다. 값이 없으면 startup에서 실패한다(primitive 기본값 `false`로 조용히 꺼지지 않게). 꺼져 있거나 아직 시작하지 않았으면 readiness `jobs`가 DEGRADED다 |
+| `NULLNULL_JOB_LEASE` | 아니오 | `PT60S` 제안값 | claim이 잡는 lease 길이, 최소 `PT1S`. heartbeat 주기는 lease/3으로 파생한다 |
+| `NULLNULL_JOB_POLL_INTERVAL` | 아니오 | `PT1S` 제안값 | type별 claim 주기, 최소 `PT0.01S` |
+| `NULLNULL_JOB_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | job 자신의 transaction에 거는 `lock_timeout`, 최소 `PT0.1S` |
+| `NULLNULL_JOB_MAX_ATTEMPTS` | 아니오 | `5` 제안값 | enqueue가 허용하는 `max_attempts` 상한(1..20). 각 job은 자기 값을 따로 정한다 |
+| `NULLNULL_JOB_RETRY_BACKOFF` | 아니오 | `PT10S` 제안값 | 첫 재시도 지연, 실패마다 2배, 최소 `PT1S` |
+| `NULLNULL_JOB_MAX_RETRY_BACKOFF` | 아니오 | `PT5M` 제안값 | 재시도 지연 상한, `NULLNULL_JOB_RETRY_BACKOFF` 이상 |
+| `NULLNULL_JOB_DEAD_LETTER_WINDOW` | 아니오 | `PT15M` 제안값 | 이 구간에 FAILED job이 있으면 readiness `jobs`가 DEGRADED, 최소 `PT1M` |
+| `NULLNULL_JOB_FINISHED_RETENTION` | 아니오 | `P7D` 제안값 | COMPLETED/FAILED job row 보존, 최소 `PT1H` |
+| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1H` 제안값 | TTL sweep 주기, 최소 `PT1M` |
+| `NULLNULL_JOB_DEFAULT_CONCURRENCY` | 아니오 | `2` 제안값 | type별 동시 실행 기본값(1..64). 아래 connection budget에 걸리면 startup에서 실패한다 |
+| `NULLNULL_DB_POOL_MAX` | 아니오 | `10` | `spring.datasource.hikari.maximum-pool-size`. HTTP thread와 job worker가 같이 쓰는 pool이다 |
 | `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
 | `NULLNULL_AI_CONNECT_TIMEOUT` | 아니오 | `PT2S` | gateway connect timeout |
 | `NULLNULL_AI_READ_TIMEOUT` | 아니오 | `PT5S` | gateway read timeout; readiness probe는 별도 1초 |
@@ -86,6 +98,25 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | 아니오 | `health,prometheus` 내부만 | public actuator 제한 |
 
 duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 밀리초로 읽으므로 `APP_IDEMPOTENCY_TTL=24`는 24시간이 아니라 `PT0.024S`다. 두 idempotency duration은 위 최소값 미만이면 property 이름과 받은 값을 적어 startup에서 실패한다. production은 필수값 누락/안전하지 않은 cookie/CORS 설정이면 fail fast한다.
+
+`NULLNULL_JOB_*` duration도 같은 규칙과 같은 startup 실패를 따른다. `NULLNULL_JOB_LEASE=60`은 1분이 아니라 60밀리초여서 어떤 handler도 lease 안에 끝내지 못하고 모든 job이 무한히 재인수되므로, 최소값 미만은 시작을 막는다.
+
+위 job 값은 계약 문서의 수치가 아니라 BA-005의 engineering 제안값이다. 근거는 다음과 같고 실제 부하 측정 뒤 다시 정한다.
+
+- lease `PT60S`와 heartbeat lease/3: heartbeat 한 번을 놓쳐도 lease가 남고, worker가 죽으면 1분 안에 다른 worker가 재인수한다.
+- 재시도 `PT10S`→2배→`PT5M`: 일시적 provider 오류는 초 단위에 풀리고, 상한은 poison job이 attempt 상한까지 도달하는 시간을 사람이 대응할 수 있는 범위로 묶는다. jitter는 넣지 않는다(worker 수가 적고 claim이 이미 직렬화한다).
+- attempt 상한 `5`: 위 backoff에서 시도 사이 대기는 10+20+40+80초 = 150초(2분 30초)이고 마지막 시도는 그 뒤에 실행된다. `NULLNULL_JOB_RETRY_BACKOFF`나 상한을 바꾸면 이 합도 함께 바뀐다. dead-letter alert가 사람에게 넘어가기 전 재시도로 풀릴 시간을 준다는 뜻이다.
+- dead-letter window `PT15M`: readiness scrape 간격보다 충분히 길어 한 번의 dead letter를 놓치지 않고, 반복되지 않으면 스스로 해제된다.
+- finished job 보존 `P7D`: 주말에 생긴 dead letter를 다음 근무일에 조사할 수 있고, table은 작게 유지된다.
+
+type별 동시 실행은 `nullnull.jobs.concurrency.<type>` property로 덮는다(예: `nullnull.jobs.concurrency.deletion=1`). map key라서 환경변수보다 설정 파일/실행 인자로 지정한다.
+
+동시 실행은 thread만이 아니라 **connection**을 쓴다. worker는 HTTP thread와 같은 Hikari pool을 쓰므로, worker가 pool을 다 가져가면 readiness의 database probe가 connection을 못 받아 503이 되고 task가 ALB에서 빠진다(측정: 한 type을 concurrency 10으로 두고 unit of work를 잡게 하니 `/health/ready`가 10.08초 뒤 503). 그래서 시작할 때 최악 수요를 계산해 넘으면 startup에서 실패한다.
+
+- 최악 수요 = `2 x slots + types + 1`. `slots`는 type별 concurrency의 합이다. in-flight job 하나가 unit of work로 connection 1개, 같은 job의 heartbeat가 다른 thread에서 1개를 더 쓰고, type마다 poll의 claim이 1개, 보존 sweep이 1개다.
+- 여유분은 2개다. readiness 응답 한 건이 한 번에 connection 1개를 쓰고(database probe → jobs probe 순차), ALB health check와 다른 호출이 겹칠 수 있어서다.
+- 조건: `2 x slots + types + 1 + 2 <= NULLNULL_DB_POOL_MAX`. 실패 message가 두 수와 대처(`NULLNULL_JOB_DEFAULT_CONCURRENCY`/`nullnull.jobs.concurrency.<type>` 낮추기 또는 `NULLNULL_DB_POOL_MAX` 올리기)를 함께 적는다.
+- 예: type 3개를 기본 concurrency 2로 돌리면 `2x6+3+1 = 16`, 여유분까지 18이므로 pool 10으로는 시작하지 않는다. handler가 붙는 slice(B02/B03/B06)는 이 값을 함께 정해야 한다.
 
 ### 추천 서비스 `apps/ai` 설정
 

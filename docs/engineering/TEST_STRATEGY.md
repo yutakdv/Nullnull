@@ -479,6 +479,13 @@ property test는 고정 seed 목록과 실패 시 재현 seed를 기록한다. �
 
 P0 LLM 기능이 OFF여도 결정적 template와 OFF 경로는 검증한다. 가짜 모델 adapter로 실패를 재현하며 PR에서 실제 모델 API를 호출하지 않는다.
 
+Spring 쪽에서 이미 구현한 REC ID와 실행 위치는 다음과 같다. 나머지 행은 해당 slice 구현 PR에서 같은 방식으로 채운다.
+
+| ID | 실행 suite | test |
+| --- | --- | --- |
+| REC-ARCH-01 | `apps/api` Gradle `test` | `io.nullnull.ArchitectureRulesTest` |
+| REC-JOB-01 | `apps/api` Gradle `integrationTest` | `io.nullnull.operations.JobLeaseIT.anExpiredLeaseCannotCommitAfterAnotherWorkerRetookTheJob`(= `BA-005-T2`), `JobQueueIT.aUnitOfWorkThatOutlivesItsLeaseRollsBackInsteadOfRunningTheJobTwice`(commit 직전 lease 재확인), `JobQueueIT.anAbandonedJobStopsAtTheCeilingAndBecomesADeadLetter`(재인수 상한), `JobAbandonedLeaseIT.anAbandonedJobReachesTheCeilingAndBecomesADeadLetter`(hang한 worker의 abandoned sweep과 dead letter), `JobCrashRetryIT.aCrashedAttemptIsRetakenAndOnlyTheCeilingEndsTheJob`(attempt가 남은 crash는 sweep이 아니라 재인수) |
+
 DB 테스트는 실제 PostgreSQL을 쓴다. 격리된 Gradle integrationTest는 Testcontainers로, Docker gate 내부는 기존 integration 계약의 PostgreSQL service로 같은 의미의 테스트를 실행할 수 있다. 어느 경로든 H2/SQLite로 대체하거나 DB 연결 실패 시 테스트를 skip하면 실패다. CI DB mode와 실제 PostgreSQL 버전을 report에 남긴다.
 
 #### 3.4 Frontend 연결

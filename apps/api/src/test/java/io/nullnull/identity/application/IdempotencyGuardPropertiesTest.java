@@ -7,6 +7,7 @@ import io.nullnull.identity.domain.IdempotencyRecord;
 import io.nullnull.identity.domain.Owner;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -118,6 +119,11 @@ class IdempotencyGuardPropertiesTest {
 
         @Override
         public void delete(UUID recordId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int deleteExpired(Instant now) {
             throw new UnsupportedOperationException();
         }
     }

@@ -211,7 +211,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-005
 
-**영속 job과 수집·추천·삭제 실행 격리** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**영속 job과 수집·추천·삭제 실행 격리** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: 해당 없음
@@ -229,9 +229,22 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-005-T1`: 두 worker가 같은 job을 동시에 commit하지 못한다
-- `BA-005-T2`: lease 만료 후 이전 worker의 commit을 거부한다
-- `BA-005-T3`: poison job 재시도 상한과 삭제 우선 처리 중 API 지연 격리를 검증한다
+- `BA-005-T1`: 두 worker가 같은 job을 동시에 commit하지 못한다 — `JobLeaseIT.twoWorkersRacingForOneJobProduceOneClaimAndOneCommit`. 첫 worker가 claim transaction을 연 채로 둘째가 claim하면 `FOR UPDATE SKIP LOCKED`가 즉시 빈 결과를 돌려준다(막히지 않는다). 이어서 자기가 소유자라고 믿는 둘째의 unit of work와 완료를 모두 거부하고 그 domain write는 rollback한다.
+- `BA-005-T2`: lease 만료 후 이전 worker의 commit을 거부한다 — `JobLeaseIT.anExpiredLeaseCannotCommitAfterAnotherWorkerRetookTheJob`. `REC-JOB-01`과 같은 test다. lease 만료 → 둘째 worker 재인수(attempt 2) → 첫 worker의 `JobContext.transactional` domain write·완료·heartbeat·retry가 모두 `StaleLeaseException`이고 owner row는 정확히 1개다.
+- `BA-005-T3`: poison job 재시도 상한과 삭제 우선 처리 중 API 지연 격리를 검증한다 — `JobWorkerIT.aPoisonJobStopsAtTheCeilingAndDegradesTheJobsCapability`(attempt 3에서 FAILED, `last_error_code`, dead-letter ERROR 한 줄에 key·payload 없음, readiness `jobs`만 DEGRADED, `/health/ready` 200), `JobIsolationIT.aSaturatedExecutorDoesNotDelayAnotherTypeOrTheApi`(포화된 executor가 handler를 잡고 있는 동안 다른 type의 job 완료 지연과 `/health/ready` 지연을 실제로 측정한다).
+- port·worker 그 밖의 검증: `JobQueueIT`(enqueue transaction 강제, deduplication 충돌, 다른 type의 key 점유 거부, handler 없는 type 거부, attempt 상한 거부, back-off 전 claim 없음, crash 후 lease 만료 재인수, stale lease의 모든 쓰기 거부, payload 왕복, TTL sweep 정확도, commit 직전 lease 재확인으로 중복 실행 차단, lease 만료 재인수의 attempt 상한과 `LEASE_EXPIRED` dead letter, 완료 job의 dedup key 해제, 비기본값 `nullnull.idempotency.lock-timeout`으로 측정한 TTL sweep의 fast fail 상한), `JobCrashRetryIT`(attempt가 남은 crash는 abandoned sweep이 아니라 `CLAIM_EXPIRED_LEASE`가 재인수하고, 상한에서야 handler 자신의 code로 dead letter가 된다), `JobWorkerIT`(정상 handler의 lease 검증 commit, unit of work 밖 쓰기 거부, unit of work 안 `REQUIRES_NEW` 거부, dead letter 없을 때 probe READY), `JobAbandonedLeaseIT`(hang한 worker의 job이 상한에서 dead letter가 되고 probe가 DEGRADED, row 경합은 attempt를 쓰지 않음), `JobConfigurationIT`(비기본값 `lock-timeout`이 claim·failAbandoned·assertLeaseHeld·heartbeat·complete·retry·deadLetter·deleteFinishedBefore 8개 statement 모두에 걸림, 막힌 쓰기의 fast fail, unit of work의 lease 상한), `FlywayMigrationIT`(완료 job은 dedup key를 잡지 않고, 채워진 previous schema가 V004로 올라간다), `SystemEndpointsIT`(worker가 꺼져 있으면 `jobs` DEGRADED)
+- 단위 검증: `JobPayloadTest`(원문·좌표·secret 거부), `JobRequestTest`, `JobPropertiesTest`(단위 없는 숫자 = 밀리초 함정, back-off 계단, `enabled` 누락 시 startup 실패), `JobHandlerRegistryTest`(type 중복·미등록), `JobConnectionBudgetTest`(worker 최악 connection 수요 공식과 거부 message), `JobWorkerStartupTest`(그 검사가 실제로 `start()`에 걸려 있다), `ArchitectureRulesTest.jobHandlersNeverTouchTheDatabaseDirectly`(handler가 JDBC·EntityManager를 직접 만지지 못한다) — 모두 `test` suite
+
+`BA-005`에서 실제로 검증한 것과 하지 않은 것:
+
+- 검증함: 결함을 되돌리면 test가 빨개진다. claim의 `FOR UPDATE SKIP LOCKED` 제거, 완료의 lease 조건 제거, `JobContext.transactional`의 lease 재확인 제거, attempt 상한 off-by-one, unit-of-work guard 무력화를 각각 넣어 해당 test가 실패하는 것을 확인하고 원본을 복원했다. 같은 방식으로 `FAIL_ABANDONED`의 `attempt_count >= max_attempts` 제거(`JobCrashRetryIT`가 attempt 1에서 dead letter를 잡아낸다), `ExpiredIdempotencyRecordEraser`의 주입 값 하드코딩(sweep이 3.04초를 기다려 주입한 1초 상한을 벗어난다), `JdbcJobQueue`의 `applyToCurrentTransaction` 8개 제거(`JobConfigurationIT`가 멈추지 않고 30초 timeout으로 실패한다), worker의 contention catch 제거(`JobAbandonedLeaseIT`의 `last_error_code`가 `HANDLER_ERROR`가 된다)도 확인했다.
+- 검증하지 않음: 여러 process의 worker. 위 test는 한 JVM 안의 두 connection으로 재인수를 재현하며, 이는 lease가 DB row 조건으로만 판정되므로 같은 의미다. 실제 다중 task 배포 확인은 ECS가 생기는 [BA-006](#ba-006) 이후에만 가능하다.
+- 남은 위험, handler slice가 책임진다: `JobUnitOfWorkGuard`는 handler thread에서 시작된 transaction만 본다. 짝이 되는 `ArchitectureRulesTest.jobHandlersNeverTouchTheDatabaseDirectly`는 **직접 참조만** 금지하므로, handler가 `@Transactional`이 전혀 없는 평범한 협력 class를 통해 `jdbc.sql("INSERT ...").update()`를 실행하면 rule도 guard도 통과하고 lease 밖에서 commit된다(측정함). 한 단계 건너뛴 협력자까지 막는 검사는 아직 없으므로, 첫 handler를 붙이는 [BA-012](#ba-012)가 handler의 모든 쓰기를 `JobContext.transactional` 안의 application service로 보내는 것을 slice 자체의 acceptance로 잡는다.
+- test로 지킬 수 없어 수치만 남기는 것: claim을 두 statement로 나눈 결정. 다시 OR 하나로 합쳐도 동작이 같아서 실패하는 기능 test가 없고, plan assertion은 PostgreSQL version과 data에 취약하다. 손으로 잰 근거는 — 완료 row 200,000개에서 V001의 OR 형태 Seq Scan 10.24ms, 분할한 첫 statement Index Scan 0.021ms, V004 이후 OR 형태 BitmapOr 0.022ms. 합치는 변경은 이 수치를 다시 재는 것을 조건으로 한다.
+- backlog에서 성능이 달라지는 두 statement: `CLAIM_EXPIRED_LEASE`와 `FAIL_ABANDONED`는 `status = 'RUNNING'`을 부분 index로 좁힐 수 없어 미완료 row 전체를 읽는다. 같은 PostgreSQL에 READY row 100,000개를 더한 뒤 측정: 둘 다 `background_jobs_outstanding_key_idx` Bitmap Index Scan으로 미완료 약 100,009건을 읽고 약 100,006건을 filter로 버리며 9.6ms, claim마다가 아니라 poll tick마다다. 지금은 index를 추가하지 않는다([ERD](../architecture/ERD.md)의 초기 index 목록은 실제 plan을 근거로만 유지한다). 미완료 job이 이 규모로 쌓이는 것이 관측되면 `(type, lease_until) WHERE status = 'RUNNING'`을 추가할 근거가 된다.
+- 미구현: handler는 아직 하나도 없다. 삭제 job은 B02/BA-012, collector는 B03, optimization은 B06에서 이 SPI로 붙는다. 그때까지 worker는 보존 sweep만 돌린다.
+- handler를 붙이는 slice가 함께 정해야 하는 값: worker의 최악 동시 connection 수요 `2 x slots + types + 1`에 readiness 여유분 2를 더한 값이 `NULLNULL_DB_POOL_MAX` 이하가 아니면 startup이 실패한다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)). type 3개를 기본 concurrency 2로 돌리려면 pool 18이 필요하다.
+- V004는 dedup unique를 미완료 row 부분 index로 바꾼다. `ON CONFLICT (deduplication_key)`를 쓰는 이전 binary의 enqueue는 이 migration 뒤 실패하므로, handler를 추가하는 첫 slice는 이 migration 이후에 배포한다.
 
 FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, polling·timeout은 취소가 아니라는 인계 설명. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

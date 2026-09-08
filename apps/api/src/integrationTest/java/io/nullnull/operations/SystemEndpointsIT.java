@@ -52,6 +52,19 @@ class SystemEndpointsIT {
     }
 
     @Test
+    void readinessReportsTheJobRuntimeAsDegradedWhileItIsNotRunning() {
+        // Every suite runs with nullnull.jobs.enabled=false. That used to publish jobs: READY while
+        // nothing was claimed and neither retention sweep ran, because the probe only counted dead
+        // letters and a queue that consumes nothing produces none.
+        MvcTestResult result = mvc.get().uri("/api/v1/health/ready").exchange();
+        assertThat(result).hasStatus(HttpStatus.OK);
+        assertThat(result).bodyJson().extractingPath("$.checks[?(@.name=='jobs')].status")
+                .asArray().containsExactly("DEGRADED");
+        assertThat(result).bodyJson().extractingPath("$.checks[?(@.name=='jobs')].detail")
+                .asArray().singleElement().asString().contains("nullnull.jobs.enabled");
+    }
+
+    @Test
     void unknownRouteIsProblemJsonWithMatchingRequestId() {
         MvcTestResult result = mvc.get().uri("/api/v1/does-not-exist")
                 .header(RequestIdFilter.HEADER, "req_it-00000001").exchange();

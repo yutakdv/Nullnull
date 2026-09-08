@@ -52,6 +52,23 @@ nullnull:
   idempotency:
     ttl: ${APP_IDEMPOTENCY_TTL:PT24H}
     lock-timeout: ${APP_IDEMPOTENCY_LOCK_TIMEOUT:PT3S}
+  # Leased background job runtime (docs/operations/ENVIRONMENT.md NULLNULL_JOB_*, card BA-005).
+  # Every value below is an engineering proposal, not a documented contract figure. The durations are
+  # ISO-8601 and floored in JobProperties, because a bare number is read as milliseconds:
+  # NULLNULL_JOB_LEASE=60 would be a 60 millisecond lease and every job would be re-taken forever.
+  # enabled=false stops polling AND the retention sweep, so only a test or maintenance run sets it.
+  jobs:
+    enabled: ${NULLNULL_JOBS_ENABLED:true}
+    lease: ${NULLNULL_JOB_LEASE:PT60S}
+    poll-interval: ${NULLNULL_JOB_POLL_INTERVAL:PT1S}
+    lock-timeout: ${NULLNULL_JOB_LOCK_TIMEOUT:PT3S}
+    max-attempts: ${NULLNULL_JOB_MAX_ATTEMPTS:5}
+    retry-backoff: ${NULLNULL_JOB_RETRY_BACKOFF:PT10S}
+    max-retry-backoff: ${NULLNULL_JOB_MAX_RETRY_BACKOFF:PT5M}
+    dead-letter-window: ${NULLNULL_JOB_DEAD_LETTER_WINDOW:PT15M}
+    finished-retention: ${NULLNULL_JOB_FINISHED_RETENTION:P7D}
+    retention-sweep-interval: ${NULLNULL_JOB_RETENTION_SWEEP_INTERVAL:PT1H}
+    default-concurrency: ${NULLNULL_JOB_DEFAULT_CONCURRENCY:2}
   # Recommendation service (apps/ai). No default host: a missing base URL fails startup.
   ai:
     base-url: ${NULLNULL_AI_BASE_URL}

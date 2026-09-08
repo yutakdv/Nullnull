@@ -282,7 +282,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "영속 job과 수집·추천·삭제 실행 격리",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-002",
         "BA-003",

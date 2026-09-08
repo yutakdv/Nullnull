@@ -775,7 +775,9 @@ erDiagram
 - 삭제 상태 token은 hash만 저장하고 7일 뒤 만료한다. 상태 전이는 `ACCEPTED → RUNNING → COMPLETED|PARTIAL_FAILED|FAILED`이며 retry는 attempt와 error code를 남긴다.
 - tombstone은 최대 backup 보존 기간보다 길게 유지한다. restore 직후 traffic을 열기 전에 tombstone의 `delete_before`를 재적용한다.
 - job claim은 `FOR UPDATE SKIP LOCKED` 또는 동등한 원자 연산으로 `locked_by/lease_until`을 쓴다. worker는 heartbeat하고, lease 만료 뒤에만 다른 worker가 재수행한다.
+- `background_jobs.deduplication_key`의 unique는 **미완료(`READY`/`RETRY`/`RUNNING`) row에만** 걸린다(부분 unique index). 같은 key의 job은 한 번에 하나만 미완료일 수 있고, 끝난 row는 key를 잡지 않으므로 `collector:kto:area-1` 같은 반복 key가 다음 주기에 다시 enqueue된다. 전체 row에 unique를 걸면 두 번째 실행이 기존 완료 row를 돌려받아 조용히 no-op가 된다.
 - handler는 deduplication key에 대해 멱등이어야 하며 max attempt 초과 시 FAILED와 운영 alert를 만든다. payload에는 원문/secret 대신 domain ID만 둔다.
+- attempt 상한은 handler가 예외를 던진 경우만이 아니라 **lease 만료 재인수에도** 적용한다. `attempt_count >= max_attempts`인 RUNNING row는 재인수하지 않고 `FAILED` + `last_error_code=LEASE_EXPIRED` + `completed_at`으로 끝내 dead-letter alert와 보존 sweep 대상이 되게 한다. 그러지 않으면 hang/OOM처럼 아무것도 던지지 않는 handler가 상한 없이 영원히 재실행된다.
 
 ## 5. Enum 초안
 
@@ -843,6 +845,7 @@ CREATE INDEX ON crowd_snapshots (place_id, target_at DESC, source_code);
 CREATE INDEX ON crowd_snapshots (live_area_id, observed_at DESC, source_code);
 CREATE INDEX ON analytics_events (occurred_at);
 CREATE INDEX ON background_jobs (status, next_attempt_at) WHERE status IN ('READY', 'RETRY');
+CREATE UNIQUE INDEX ON background_jobs (deduplication_key) WHERE status IN ('READY', 'RETRY', 'RUNNING');
 CREATE INDEX ON idempotency_records (expires_at);
 CREATE INDEX ON deletion_requests (status, requested_at) WHERE status IN ('ACCEPTED', 'RUNNING', 'PARTIAL_FAILED');
 ```
