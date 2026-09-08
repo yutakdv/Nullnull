@@ -95,6 +95,22 @@ git commit -m "feat(be): BA-0xx <한 줄 요약>"
 | C4 | BA-023 | `## Slice C4` | 혼잡 예보·provenance·비교 적격성 |
 | C5 | BA-024 | `## Slice C5` | 검증된 관련 장소 |
 
+### plan.md의 migration 번호는 하나씩 밀려 있다 (중요)
+
+A2(BA-005)가 계획에 없던 `V004__background_jobs_outstanding_key.sql`을 추가했기 때문에, `plan.md`가 B1 이후 slice에 적어둔 번호는 전부 +1 해야 한다. 현재 존재하는 것은 `V001__background_jobs` · `V002__owners` · `V003__idempotency_records` · `V004__background_jobs_outstanding_key` 넷이다.
+
+| slice | plan.md 표기 | 실제로 써야 할 번호 |
+| --- | --- | --- |
+| B1 BA-010 | `V004__demo_sessions.sql` | **`V005__demo_sessions.sql`** |
+| B3 BA-012 | `V005__deletion.sql` | **`V006__deletion.sql`** |
+| C1 BA-020 | `V006__sources.sql` | **`V007__sources.sql`** |
+| C2 BA-021 | `V007__catalog_places.sql` | **`V008__catalog_places.sql`** |
+| C3 BA-022 | `V008__catalog_rights.sql` | **`V009__catalog_rights.sql`** |
+| C4 BA-023 | `V009__crowd_snapshots.sql` | **`V010__crowd_snapshots.sql`** |
+| C5 BA-024 | `V010__place_relations.sql` | **`V011__place_relations.sql`** |
+
+**이미 적용된 migration(V001~V004)의 이름이나 내용을 고쳐서 번호를 맞추지 마라.** 어디서든 한 번 실행된 migration은 수정하지 않고 앞으로만 고친다(`.claude/rules/database-migrations.md`). 새 파일에 다음 번호를 쓰면 된다.
+
 ## 6. 검증 — 이 기기에서 실제로 도는 형태
 
 ```bash
