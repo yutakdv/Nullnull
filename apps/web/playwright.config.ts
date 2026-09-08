@@ -1,9 +1,9 @@
 import { defineConfig } from '@playwright/test';
 
 // One config for both modes. Locally it starts the dev server; inside the
-// docker-integration gate WEB_BASE_URL points at the composed web service
-// and no server is started.
-const integration = process.env.WEB_BASE_URL;
+// docker-integration gate the compose file sets PLAYWRIGHT_BASE_URL to the
+// composed web service and no server is started.
+const integration = process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL;
 
 export default defineConfig({
   testDir: './e2e',

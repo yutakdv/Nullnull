@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:integration": "WEB_BASE_URL=${WEB_BASE_URL:-http://web:4173} playwright test",
+    "test:e2e:integration": "playwright test",
     "verify:ci": "npm run tokens:check && npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
