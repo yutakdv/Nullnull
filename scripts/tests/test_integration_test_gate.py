@@ -149,6 +149,16 @@ class IntegrationScriptWiringTests(unittest.TestCase):
         # so only lines the shell executes count.
         self.assertIn(GATE_CALL, self.lines)
 
+    def test_the_root_lockfile_stays_required(self):
+        # npm ci reproducibility depends on the root lockfile being present in the image build.
+        self.assertIn('"package-lock.json"', self.lines)
+
+    def test_no_per_app_npm_lockfile_is_required(self):
+        # apps/web is an npm workspace member; npm writes one lockfile, at the root. Requiring
+        # apps/web/package-lock.json made the gate unsatisfiable and blocked M0 (issue #15).
+        # Comments do not count, so re-adding the path only as a note stays green.
+        self.assertNotIn('"apps/web/package-lock.json"', self.lines)
+
     def test_the_gate_runs_after_the_suite_that_writes_the_report(self):
         # Hoisted above ai-quality the checker would read a stale or absent artifact.
         self.assertIn(AI_QUALITY_RUN, self.lines)

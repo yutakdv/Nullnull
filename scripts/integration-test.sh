@@ -59,7 +59,9 @@ required_paths=(
   "apps/api/gradle/wrapper/gradle-wrapper.properties"
   "apps/web/Dockerfile"
   "apps/web/package.json"
-  "apps/web/package-lock.json"
+  # apps/web is an npm workspace member, and npm keeps exactly one lockfile at the root.
+  # A per-app lockfile cannot resolve the workspace sibling @nullnull/api-client, so requiring
+  # one here would be unsatisfiable. The root lockfile already pins apps/web's dependencies.
   "package.json"
   "package-lock.json"
   "compose.integration.yml"
