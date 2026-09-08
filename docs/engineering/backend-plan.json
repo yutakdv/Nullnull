@@ -188,7 +188,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "HTTP 공통 정책·readiness·capability",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-001",
         "BA-002"
@@ -229,7 +229,7 @@
           "assertion": "모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다"
         }
       ],
-      "handoff": "bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다.",
+      "handoff": "bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. capability 이름 집합(live·replay·optimization)은 계약에 enum이 없어 server가 정했으므로 FE_DRI 승인이 필요하고, /health/ready의 infrastructure check 이름과 섞지 않는다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-003"

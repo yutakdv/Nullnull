@@ -10,6 +10,15 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  jackson:
+    deserialization:
+      # docs/api/openapi.yaml declares additionalProperties: false on every request schema and
+      # x-nullnull-common-contract.bounds promises "Unknown object fields are rejected". Jackson's own
+      # default (and Spring Boot's) is to drop them silently, which made the contract, the code and the
+      # 400 detail ("contains unsupported fields") disagree. This is what makes the promise real; the
+      # refusal arrives as HttpMessageNotReadableException and GlobalExceptionHandler answers 400
+      # INVALID_REQUEST with a fixed sentence that never repeats the offending field or its value.
+      fail-on-unknown-properties: true
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -21,6 +30,19 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    # The swallow budget for a request body the application already REFUSED. Tomcat has to read the
+    # unsent remainder before it can write the 413 and keep the connection usable; past this many
+    # bytes it stops reading and drops the connection instead, and the caller gets no HTTP response
+    # at all. Both regimes are deliberate and documented (docs/operations/ENVIRONMENT.md §3,
+    # APP_MAX_REQUEST_BODY_BYTES): an overshoot inside the budget is a clean 413 Problem, a body far
+    # beyond it loses its connection, which is safe but is not a Problem response.
+    # 2097152 = 8 x the accepted bound 262144 (APP_MAX_REQUEST_BODY_BYTES). It is EXACTLY Tomcat's own
+    # default, so removing this line changes no behaviour and no test can tell the two apart. It is
+    # written out anyway to make the boundary between the two regimes an explicit, documented choice
+    # that moves with the bound, rather than a default nobody looked at. Unlimited (-1) is refused on
+    # purpose: reading an unbounded body that was already rejected is a denial-of-service path.
+    max-swallow-size: 2097152
   error:
     include-message: never
     include-stacktrace: never
@@ -41,11 +63,33 @@ logging:
   level:
     root: INFO
     org.hibernate.SQL: WARN
+  pattern:
+    # Puts the MDC requestId that RequestIdFilter sets into every log line. Without it the id existed
+    # in MDC and in the response header but appeared in no log line, so "quote your request id to
+    # support" had nothing to look up. LOG_CORRELATION_PATTERN is the slot Spring Boot's own default
+    # console/file patterns already carry, so this adds the field without restating either pattern and
+    # without a structured-logging encoder or a new dependency.
+    correlation: "[${spring.application.name:},%X{requestId:-}] "
 
 nullnull:
   env: ${NULLNULL_ENV:local}
   readiness:
     database-timeout-seconds: 2
+  http:
+    # Engineering proposal, derived in docs/operations/ENVIRONMENT.md §3 from the largest documented
+    # input in docs/api/README.md §14 (a 20,000 character paste). Both a declared Content-Length over
+    # the bound and a chunked body that passes it while streaming are refused with 413.
+    max-request-body-bytes: ${APP_MAX_REQUEST_BODY_BYTES:262144}
+    access-log:
+      # The documented default. AccessLogFilter refuses to start with this ON in production.
+      include-query: ${APP_ACCESS_LOG_INCLUDE_QUERY:false}
+  # Product capability flags (docs/operations/ENVIRONMENT.md §6), published by getDemoReadiness. A flag
+  # may only turn a feature OFF: no capability has a server-side source yet, so an ON value fails
+  # startup instead of advertising something nothing can answer.
+  capabilities:
+    live: ${FEATURE_LIVE_DATA:false}
+    replay: ${FEATURE_REPLAY_MODE:false}
+    optimization: ${FEATURE_OPTIMIZATION_ITEM:false}
   # Replay record retention and lock wait bound (docs/operations/ENVIRONMENT.md
   # APP_IDEMPOTENCY_TTL, APP_IDEMPOTENCY_LOCK_TIMEOUT). ISO-8601 durations: a bare number would be
   # read as milliseconds, so both values have a startup floor in IdempotencyGuard.

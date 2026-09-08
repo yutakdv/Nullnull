@@ -97,6 +97,7 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 | `CON-003` | FCR-010/011/015 Frontend 인계 계약 확정 | BE/AI |
 | `CON-004` | FCR-010/011/015 fixture용 additive 계약 보강(`attributionShort`, `revertAvailability`, KTO example, link host) | BE/AI |
 | `CON-005` | FE mock 근거 제공 — `Problem` 등 response example과 contract fixture, 오류 계약 문구 정정 | BE/AI |
+| `CON-006` | PM-019 operation별 오류 선언 보강 — 50개 operation 중 401은 4개, 429는 4개만 선언돼 있고 403은 0개, `default`는 6개가 없다. BA-003이 caller에게 보이게 만든 `413 INVALID_REQUEST`(body 상한)도 여기서 operation별로 선언한다. 누락 선언과 재사용 response를 채우고 생성 client를 재생성한다. 재생성이 빠지면 `api-client-diff` gate가 실패한다. 착수는 Frontend PR #17 병합 다음 PR | BE/AI |
 | `DX-001` | Node/npm/Java/Gradle wrapper/Docker의 exact version lock과 검증 script | 공동 |
 | `DX-002` | local compose, deterministic seed, local-only reset guard, generated client 명령 | 공동 |
 | `DX-003` | `docs-contract` CI와 `docker-integration` baseline/full 전환, `verify_target_stack.py`의 marker/task/stage/digest/internal-network fail-closed gate | BE/AI |

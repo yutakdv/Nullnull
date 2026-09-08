@@ -65,6 +65,22 @@ class SystemEndpointsIT {
     }
 
     @Test
+    void demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes() {
+        // A capability with no source behind it is UNAVAILABLE, never READY (BA-003 safety line), and
+        // the list never repeats a /health/ready probe name.
+        MvcTestResult result = mvc.get().uri("/api/v1/demo/readiness").exchange();
+        assertThat(result).hasStatus(HttpStatus.OK);
+        assertThat(result).bodyJson().extractingPath("$.overall").isEqualTo("NOT_READY");
+        assertThat(result).bodyJson().extractingPath("$.checkedAt").asString().endsWith("Z");
+        assertThat(result).bodyJson().extractingPath("$.capabilities[*].name").asArray()
+                .containsExactly("live", "replay", "optimization");
+        assertThat(result).bodyJson().extractingPath("$.capabilities[*].status").asArray()
+                .containsOnly("UNAVAILABLE");
+        assertThat(result).bodyJson().extractingPath("$.capabilities[?(@.name=='live')].detail")
+                .asArray().singleElement().asString().contains("FEATURE_LIVE_DATA");
+    }
+
+    @Test
     void unknownRouteIsProblemJsonWithMatchingRequestId() {
         MvcTestResult result = mvc.get().uri("/api/v1/does-not-exist")
                 .header(RequestIdFilter.HEADER, "req_it-00000001").exchange();

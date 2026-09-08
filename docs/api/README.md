@@ -189,7 +189,7 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 
 | Code | HTTP | UI 행동 | 자동 재시도 |
 | --- | --- | --- | --- |
-| `INVALID_REQUEST` | 400 | 입력/지원 문의 | 금지 |
+| `INVALID_REQUEST` | 400/405/406/413/415 | 입력/지원 문의 | 금지 |
 | `UNAUTHORIZED` | 401 | session bootstrap 또는 로그인 | GET 1회만 |
 | `FORBIDDEN` | 403 | 작업 불가 안내 | 금지 |
 | `NOT_FOUND` | 404 | 사라진 resource/목록 이동 | 금지 |
@@ -216,6 +216,8 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 Backend는 stack trace, SQL, 외부 API body, secret을 detail에 넣지 않는다. FE는 `detail`을 HTML로 렌더링하지 않는다.
 
 `retryable`은 **client가 사용자 개입 없이 같은 요청을 그대로 다시 보내도 안전한가**만 나타낸다. 현재 `true`인 code는 `ROUTE_UNAVAILABLE`, `SOURCE_UNAVAILABLE`, `RATE_LIMITED` 셋뿐이다. `UNAUTHORIZED`의 `GET 1회만`이나 `INTERNAL_ERROR`의 `안전한 GET만`처럼 method에 따라 갈리는 정책은 boolean 하나로 표현할 수 없으므로 위 표의 `자동 재시도` 열이 정본이고, frontend는 `retryable`만으로 자동 재시도를 결정하지 않는다.
+
+같은 owner의 command가 겹쳐 생기는 직렬화 대기는 server가 bounded retry로 흡수하므로 별도 code가 없고, 재시도 예산까지 소진되면 `INTERNAL_ERROR`다.
 
 모든 응답은 `X-Request-ID`를 제공한다. `requestId`는 server가 만든 UUIDv7이며, client가 보낸 `X-Request-ID`가 `^[A-Za-z0-9._-]{8,64}$`를 만족하면 그 값을 그대로 돌려준다. frontend는 이 값을 parsing하지 않고 표시와 지원 문의에만 쓴다. session 보호 operation은 명시되지 않아도 401, 모든 operation은 429 `RATE_LIMITED`를 반환할 수 있으며 429/503의 `Retry-After`는 초 단위다. CI는 이 공통 규칙과 operation별 response가 어긋나지 않는지 검사한다.
 

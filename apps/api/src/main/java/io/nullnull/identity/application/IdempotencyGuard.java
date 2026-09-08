@@ -12,12 +12,17 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -26,7 +31,9 @@ import tools.jackson.databind.ObjectMapper;
  *
  * <p>Everything happens in one transaction, in the documented lock order: the owner-lifecycle lock
  * first, then the idempotency reservation, then whatever the command locks. Every lock wait in that
- * transaction is bounded by {@code nullnull.idempotency.lock-timeout}. The reservation is a
+ * transaction is bounded by {@code nullnull.idempotency.lock-timeout}, and an expired bound is
+ * absorbed by a bounded retry of the whole transaction (see {@link #LOCK_CONTENTION_ATTEMPTS}) rather
+ * than published as its own error code. The reservation is a
  * conditional insert followed by a locking read, so two concurrent callers with the same key never
  * both run the command:
  * <ul>
@@ -101,16 +108,39 @@ public class IdempotencyGuard {
      */
     private static final int RESERVE_ATTEMPTS = 3;
 
+    /**
+     * How many times the whole guarded transaction is attempted when a lock wait expires (BA-003, the
+     * public contract BA-002 deferred). Two, so one transient blip is absorbed and the caller's worst
+     * case stays two lock waits rather than an unbounded queue.
+     *
+     * <p>Retrying is safe because a retried attempt is always one where the command had not started.
+     * That is ENFORCED here, not assumed: {@code commandStarted} is set immediately before
+     * {@code command.get()} and a {@link CommandLockTimeoutException} that arrives with the flag set
+     * is rethrown instead of retried. Today every reachable {@code BoundedLockWait.on} site - the
+     * owner-lifecycle lock and the idempotency reservation - precedes the command, so the flag is
+     * always false when the timeout arrives; the flag is what keeps that true when a command itself
+     * reaches identity persistence (BA-012's session deletion soft-deletes the owner row through it,
+     * and its own lock timeout would translate to this same exception).
+     *
+     * <p>There is no sleep between attempts: the failed attempt already waited the full
+     * {@code nullnull.idempotency.lock-timeout}, which is longer than any command is allowed to be.
+     */
+    private static final int LOCK_CONTENTION_ATTEMPTS = 2;
+
+    private static final Logger log = LoggerFactory.getLogger(IdempotencyGuard.class);
+
     private final OwnerRepository owners;
     private final IdempotencyRecordStore records;
     private final LockWaitLimit lockWaitLimit;
     private final ObjectMapper json;
     private final Clock clock;
+    private final TransactionTemplate transactions;
     private final Duration ttl;
     private final Duration lockTimeout;
 
     public IdempotencyGuard(OwnerRepository owners, IdempotencyRecordStore records,
             LockWaitLimit lockWaitLimit, ObjectMapper json, Clock clock,
+            PlatformTransactionManager transactionManager,
             @Value("${nullnull.idempotency.ttl}") Duration ttl,
             @Value("${nullnull.idempotency.lock-timeout}") Duration lockTimeout) {
         this.owners = Objects.requireNonNull(owners, "owners");
@@ -118,6 +148,10 @@ public class IdempotencyGuard {
         this.lockWaitLimit = Objects.requireNonNull(lockWaitLimit, "lockWaitLimit");
         this.json = Objects.requireNonNull(json, "json");
         this.clock = Objects.requireNonNull(clock, "clock");
+        // An explicit template rather than @Transactional on execute: the retry has to start a NEW
+        // transaction, and a self-invoked @Transactional method would run in the one that just failed.
+        this.transactions = new TransactionTemplate(
+                Objects.requireNonNull(transactionManager, "transactionManager"));
         this.ttl = requireAtLeast("nullnull.idempotency.ttl", ttl, MINIMUM_TTL);
         this.lockTimeout = requireAtLeast("nullnull.idempotency.lock-timeout", lockTimeout,
                 MINIMUM_LOCK_TIMEOUT);
@@ -138,7 +172,6 @@ public class IdempotencyGuard {
      *                         schema requires. Pass {@code Function.identity()} to store the whole
      *                         response.
      */
-    @Transactional
     public <T, S> GuardedResponse execute(UUID ownerId, String routeKey, String idempotencyKey,
             String requestHash, Supplier<CommandOutcome<T>> command, Function<T, S> responseProjection) {
         Objects.requireNonNull(ownerId, "ownerId");
@@ -155,6 +188,33 @@ public class IdempotencyGuard {
                 IdempotencyRecord.IDEMPOTENCY_KEY_MAX_LENGTH,
                 "The Idempotency-Key header is missing or malformed.");
 
+        // A retry needs a transaction of its own. Joining a caller's transaction means a rollback here
+        // has already poisoned theirs, so there is nothing left to retry into and one attempt is all
+        // this can honestly offer; the guard is meant to be the outermost boundary of a command.
+        int attempts = TransactionSynchronizationManager.isActualTransactionActive()
+                ? 1
+                : LOCK_CONTENTION_ATTEMPTS;
+        // Set before the command runs and never cleared: a timeout raised from inside the command is
+        // not a "nothing happened yet" timeout, and re-running it would repeat an effect that started.
+        AtomicBoolean commandStarted = new AtomicBoolean();
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return transactions.execute(status -> guarded(ownerId, routeKey, idempotencyKey,
+                        requestHash, command, responseProjection, commandStarted));
+            } catch (CommandLockTimeoutException contention) {
+                if (attempt >= attempts || commandStarted.get()) {
+                    throw contention;
+                }
+                // Route template only: never the owner, never the key.
+                log.warn("owner command lock contention absorbed route={} attempt={} of {}", routeKey,
+                        attempt, attempts);
+            }
+        }
+    }
+
+    private <T, S> GuardedResponse guarded(UUID ownerId, String routeKey, String idempotencyKey,
+            String requestHash, Supplier<CommandOutcome<T>> command, Function<T, S> responseProjection,
+            AtomicBoolean commandStarted) {
         // Before the first lock: a stuck command must not hold this connection or this owner forever.
         lockWaitLimit.applyToCurrentTransaction(lockTimeout);
 
@@ -173,6 +233,7 @@ public class IdempotencyGuard {
             return new GuardedResponse(reserved.responseStatus(), reserved.responseBody(), true);
         }
 
+        commandStarted.set(true);
         CommandOutcome<T> outcome = command.get();
         String response = json.writeValueAsString(outcome.body());
         String stored = json.writeValueAsString(responseProjection.apply(outcome.body()));

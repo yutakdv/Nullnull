@@ -149,7 +149,7 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 
 ### BA-003
 
-**HTTP 공통 정책·readiness·capability** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**HTTP 공통 정책·readiness·capability** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002)
 - 기능 ID: `FR-OPS-01`, `FR-OPS-02`, `FR-OPS-05`, `FR-OPS-10`
@@ -169,11 +169,45 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 
 필수 검증:
 
-- `BA-003-T1`: DB/source 각각의 장애가 올바른 health 범위에만 영향을 준다
-- `BA-003-T2`: unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다
-- `BA-003-T3`: 모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다
+- `BA-003-T1`: DB/source 각각의 장애가 올바른 health 범위에만 영향을 준다 — `HealthScopeIT.aDatabaseFailureAffectsReadinessOnly`(필수 database probe가 UNAVAILABLE이면 `/health/ready`가 503 `SOURCE_UNAVAILABLE`+`Retry-After: 5`, `/health/live`는 그대로 200 `UP`), `HealthScopeIT.anOptionalSourceFailureOnlyDegrades`(닿지 않는 추천 서비스는 200 `DEGRADED`이고 NOT_READY가 아니다), `HealthScopeIT.aDatabaseFailureDoesNotChangeTheDemoCapabilities`(infrastructure 장애가 product capability 목록을 바꾸지 않는다), `SystemEndpointsIT.readinessIsDegradedWhileOnlyTheOptionalRecommendationProbeFails`. probe를 DataSource 대신 교체하는 이유는 test class 주석에 적었다(DataSource를 깨면 Flyway·JPA가 함께 죽어 context가 뜨지 않는다).
+- `BA-003-T2`: unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다 — `HttpPolicyIT.anUnknownBodyFieldIsRefused`(400 `INVALID_REQUEST`, 응답이 필드명도 값도 되풀이하지 않는다), `HttpPolicyIT.aDeclaredContentLengthOverTheBoundIsRefused`와 `RequestBodyLimitIT.aDeclaredContentLengthOverTheBoundIsRefused`(413), `RequestSizeLimitFilterTest.anOversizedDeclaredLengthNeverReachesTheChain`(선언 길이 초과는 chain을 아예 호출하지 않는다), `RequestBodyLimitIT.aChunkedBodyOverTheBoundIsRefused`(실제 Tomcat에 `Transfer-Encoding: chunked`로 보내 stream 중 413), `DemoCapabilityQueryTest.aFlagTurnedOnWithoutASourceIsRefused`(source 없는 `FEATURE_*`를 켜면 startup 실패), `AccessLogFilterTest.includingTheQueryInProductionIsRefused`(`APP_ACCESS_LOG_INCLUDE_QUERY=true`+production은 startup 실패)
+- `BA-003-T3`: 모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다 — `HttpPolicyIT.everyErrorPathCarriesACodeAndARequestId`(404·405·415·body 상한·unknown field·cursor 2종·422 2종·header 누락·406·500 2종 열세 경로 전부 `code`·`requestId`·`X-Request-ID`를 갖고 exception class 이름이 새지 않는다), `HttpPolicyIT.noCanaryReachesALogLineOrAResponseBody`(header·cookie·query·body 네 경로에 같은 canary를 넣고 root logger의 `ListAppender`로 모든 log line을 확인한다)
+- 그 밖의 검증: `HttpPolicyIT.cursorFailuresKeepTheirOwnCodes`(`CURSOR_INVALID` 400 / `CURSOR_EXPIRED` 410), `HttpPolicyIT.aServiceConstraintViolationIsUnprocessable`(422 `VALIDATION_FAILED`, `fieldErrors[].field`가 내부 경로가 아닌 parameter 이름), `HttpPolicyIT.exhaustedOwnerCommandContentionIsInternalError`, `HttpPolicyIT.theAccessLogLineIsTheAllowedFieldsOnly`(허용 필드만·query 없음·MDC pattern이 console line에 requestId를 찍는다), `HttpPolicyIT.anUnmatchedRouteIsLoggedWithoutItsUri`, `HttpPolicyIT.aBodyUnderTheBoundIsAccepted`, `RequestBodyLimitIT.aChunkedBodyUnderTheBoundIsAccepted`, `OwnerCommandContentionIT`(흡수되는 경합과 소진되는 경합), `SystemEndpointsIT.demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes`, `SystemContractTest.demoReadinessMatchesDemoReadinessSchema`(`DemoReadiness` schema 검증과 capability 이름)
+- 단위 검증: `DemoCapabilityQueryTest`(vocabulary 고정, 두 namespace가 이름을 공유하지 않음, source 없는 capability는 UNAVAILABLE, overall 집계), `AccessLogFilterTest`, `RequestSizeLimitFilterTest`(설정 하한) — 모두 `test` suite
 
-FE 인계·완료 증거: bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+`BA-003`에서 실제로 검증한 것과 하지 않은 것:
+
+- 검증함: 결함을 되돌리면 test가 빨개진다. unknown field 거부 해제, 선언 `Content-Length` 검사 제거, stream byte counter 제거, log correlation pattern 제거, route template 대신 raw URI 기록, `CursorException`·`ConstraintViolationException`·`CommandLockTimeoutException` 매핑 제거, source 없는 flag 허용, 필수 probe를 선택으로 취급, production query logging 허용, query string 상시 기록, lock 경합 재시도 제거, 빈 capability 목록을 READY로 집계 — 14개를 하나씩 넣어 해당 test가 실패하는 것을 확인하고 원본을 sha256으로 복원했다.
+- 검증하지 않음: HTTP 정책을 실제 계약 endpoint로 확인하는 것. B01에는 request body를 받는 operation이 없어서 unknown field·body 상한·`ConstraintViolationException`은 integration suite 전용 route(`nullnull.testsupport.http`, scan root 밖)로 검증했다. 첫 실제 command endpoint를 만드는 slice가 같은 정책을 그 route에서 다시 확인한다.
+- 검증하지 않음: `getDemoReadiness`의 `sessionCookie` 강제. session/auth layer가 아직 없으므로 지금은 누구나 호출할 수 있고, 노출 정보는 `/health/ready`가 이미 공개하는 것과 같은 종류다. [BA-010](#ba-010)이 session filter 뒤로 넣는다.
+- 검증하지 않음: `APP_IDEMPOTENCY_LOCK_TIMEOUT`의 값. `PT3S`는 확정값이 아니라 **제안값**이고, 확인 가능한 근거는 측정이 아니라 구조 하나다 — `IdempotencyGuard`가 transaction 전체를 상한 2회 재시도하므로 caller가 겪는 최악은 `2 x PT3S = 6초`이고 그 뒤가 `INTERNAL_ERROR`다. `IdempotencyGuard.execute`를 부르는 production code가 아직 없어 "가장 느린 command"라고 부를 대상이 없다. 첫 실제 command endpoint를 만드는 slice가 그 command의 최악 소요를 **suite에 남는 test**로 재고 `PT3S`가 그것을 덮는 것을 확인하면 그때 확정값이 된다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)).
+
+확정한 계약 결정:
+
+- `CommandLockTimeoutException`은 24번째 `ProblemCode`를 만들지 않는다. 이 timeout은 owner row와 idempotency 예약을 잡는 동안, 즉 command가 실행되기 **전에만** 발생하고 transaction 전체가 rollback되므로 재시도가 idempotent해서가 아니라 구조적으로 안전하다. 그래서 `IdempotencyGuard`가 transaction 전체를 상한 2회까지 다시 시도해 흡수한다. 예산을 소진했다면 command가 owner row를 초 단위로 잡고 있었다는 뜻이고, command는 짧고 transaction 안 외부 호출은 금지이므로 이는 사용자가 재시도로 풀 수 없는 server 결함이다. `identity.api.IdentityProblemHandler`가 `INTERNAL_ERROR`(500, `retryable=false`)로 매핑하고 route template과 requestId만 담은 ERROR 한 줄을 남긴다.
+- 승격 경로: 실제 측정에서 사용자에게 보이는 경합이 확인되면 `COMMAND_IN_PROGRESS`(409, `retryable=false`)를 CON ticket으로 추가한다. 새 code에는 FE CTA와 Figma state가 함께 필요하다(`CLAUDE.md`).
+- 삭제 경로는 이 timeout에 닿지 않는다. 삭제는 owner를 먼저 soft delete하므로 경쟁하는 command는 `lockAlive`에서 401을 받는다.
+
+FE 검토가 필요한 항목:
+
+- **capability vocabulary**: `getDemoReadiness`의 `CapabilityStatus.name` 값 집합은 계약에 enum이 없어 server가 정한다. 현재 집합은 `live`, `replay`, `optimization` 셋뿐이고 `FR-OPS-02`의 "live/replay/optimization별 상태"가 유일한 문서 근거다. `DemoCapabilityQueryTest.theVocabularyIsPinned`가 고정하며, 이름을 더하거나 바꾸는 것은 FE-facing 계약 변경이므로 FE_DRI 승인이 필요하다.
+- `/health/ready`의 `checks`(infrastructure: `database`·`jobs`·`recommendation`)와 `getDemoReadiness`의 `capabilities`(product)는 다른 namespace이고 이름을 공유하지 않는다. FE는 앞의 목록에 화면을 걸지 않는다.
+- P0에서 세 capability는 모두 `UNAVAILABLE`이고 `overall`은 `NOT_READY`다. source가 없는 기능을 준비 완료로 광고하지 않는다는 뜻이며 실패 상태가 아니다.
+- **caller 동작 변경**: unknown field 거부를 켰으므로 schema에 없는 필드를 담아 보내던 요청은 이제 400이다. 이전에는 조용히 무시됐다. 계약(`additionalProperties: false`, `x-nullnull-common-contract.bounds`)은 처음부터 거부를 약속하고 있었으므로 계약 변경이 아니라 계약 이행이지만, FE mock이 그 사이 여분 필드를 보내고 있다면 같은 시점에 고쳐야 한다. 같은 설정이 `apps/ai` 응답 parsing에도 적용되어, 내부 계약에 없는 필드가 오면 gateway가 `RecommendationUnavailableException`으로 degrade한다(계약 drift를 조용히 삼키지 않는다).
+
+매핑하지 않은 exception과 담당 slice:
+
+- `RecommendationUnavailableException`: 아직 request thread에서 gateway를 부르는 곳이 없다. 처음 호출하는 slice([BA-032](#ba-032)/[BA-051](#ba-051))가 fallback과 함께 공개 매핑을 정한다.
+- `JobEnqueueException`: 같은 이유로 처음 request에서 enqueue하는 slice가 정한다.
+- `JobLockTimeoutException`, `StaleLeaseException`: worker 전용이며 답할 caller가 없다는 것이 그 자체의 설계다. 매핑하지 않는다.
+
+PM-019 검토 결과: operation별 401/429/`default`/403 선언 보강은 이 slice에서 하지 않는다. 생성 TypeScript client가 바뀌어 Frontend가 첫 green `docker-integration` 도중에 재생성을 강요받기 때문이다. [IMPLEMENTATION_PLAN](../engineering/IMPLEMENTATION_PLAN.md#공동-실행-id)의 `CON-006`으로 등록했고 착수는 Frontend PR #17 병합 다음 PR이다. 문서 전역 규칙(`x-nullnull-common-contract`의 `protectedErrors`·`rateLimitErrors`·`bounds`)은 이미 계약에 있으므로 이 slice는 그 약속을 server가 지키게 만드는 쪽만 했다.
+
+구현 산출물: `shared.http`의 `RouteTemplate`·`AccessLogFilter`·`RequestSizeLimitFilter`·`RequestBodyTooLargeException`, `shared.problem`의 `GlobalExceptionHandler` 확장(cursor·constraint violation·body 초과 매핑, catch-all이 raw URI 대신 route template을 남김, advice 순서 고정)과 `ProblemResponses.write`, `identity.api.IdentityProblemHandler`, `IdempotencyGuard`의 lock 경합 bounded retry(`TransactionTemplate`으로 attempt마다 새 transaction), `operations`의 `DemoCapabilities`·`DemoCapabilityQuery`·`DemoReadinessController`·`CapabilityStatusResponse`, property `spring.jackson.deserialization.fail-on-unknown-properties`·`logging.pattern.correlation`·`nullnull.http.max-request-body-bytes`(`APP_MAX_REQUEST_BODY_BYTES` 기본 `262144`, 최소 `4096`)·`nullnull.http.access-log.include-query`(`APP_ACCESS_LOG_INCLUDE_QUERY` 기본 `false`)·`nullnull.capabilities.*`(`FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 기본 OFF). Problem body의 `instance`는 실제 request URI를 유지하고 log만 route template으로 제한한다. 두 대상의 독자가 다르다는 근거는 `RouteTemplate`과 `ProblemResponses` 주석에 적었다([PRIVACY](../security/PRIVACY_REQUIREMENTS.md#8-로그관측) 8절).
+
+검증 실행과 report: `apps/api`에서 `./gradlew test integrationTest openapiContractTest recommendationTest`, report는 `apps/api/build/reports/tests/<suite>/index.html`이다. `verified`로 올리려면 CI report 경로·contract SHA·FE_DRI 재현 확인이 더 필요하다.
+
+FE 인계·완료 증거: bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. capability 이름 집합(`live`·`replay`·`optimization`)은 계약에 enum이 없어 server가 정했으므로 FE_DRI 승인이 필요하고, `/health/ready`의 infrastructure check 이름과 섞지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-019.
 

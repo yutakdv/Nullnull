@@ -58,7 +58,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 
 | 변수 | Secret | 기본/예 | 설명 |
 | --- | --- | --- | --- |
-| `NULLNULL_ENV` | 아니오 | `local` | local/staging/production |
+| `NULLNULL_ENV` | 아니오 | `local` | 1절 환경과 같은 어휘 `local`/`test`/`staging`/`production`. 이 넷 밖의 값은 startup에서 실패한다(access log filter가 유일한 소비자다) |
 | `SERVER_PORT` | 아니오 | `8080` | container port |
 | `APP_PUBLIC_ORIGIN` | 아니오 | `http://localhost:5173` | CORS/Origin 검증 |
 | `APP_COOKIE_DOMAIN` | 아니오 | 모든 환경에서 비움 | `__Host-` cookie에 Domain attribute 금지 |
@@ -66,13 +66,14 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_SESSION_TTL` | 아니오 | `P30D` | session expiry |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
-| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값, BA-003 검토 후 고정 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S` |
+| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
 | `APP_DELETION_RECEIPT_TTL` | 아니오 | 정책 승인값 | 완료/실패 receipt 보존 |
 | `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`. 아직 어떤 코드도 읽지 않는 문서값이고, 삭제 job을 만드는 B02/BA-012가 이 변수를 읽어 enqueue하면서 고정한다 |
 | `APP_NOTIFICATION_RETENTION` | 아니오 | P1 정책 승인값 | 알림 보존/cleanup |
 | `APP_SEARCH_MAX_QUERY_LENGTH` | 아니오 | OpenAPI constraint와 동일 | abuse/log 노출 최소화 |
-| `APP_ACCESS_LOG_INCLUDE_QUERY` | 아니오 | `false` | 검색어/identifier query logging 차단 |
+| `APP_MAX_REQUEST_BODY_BYTES` | 아니오 | `262144` 제안값 | request body 상한(byte), 최소 `4096`. 선언된 `Content-Length` 초과는 body를 읽기 전에, chunked 초과는 stream 중에 413 `INVALID_REQUEST`다. 근거는 아래 |
+| `APP_ACCESS_LOG_INCLUDE_QUERY` | 아니오 | `false` | 검색어/identifier query logging 차단. access log filter가 실제로 읽으며, `NULLNULL_ENV=production`에서 `true`면 startup이 실패한다 |
 | `APP_LOG_RETENTION_DAYS` | 아니오 | `30` IaC input | CloudWatch policy |
 | `APP_CROWD_DEFAULT_STALE_AFTER` | 아니오 | source override 필요 | fallback only |
 | `NULLNULL_JOBS_ENABLED` | 아니오 | `true` | job worker polling과 보존 sweep을 함께 켠다. `false`는 test/점검 전용이며 보존 sweep도 함께 멈춘다. 값이 없으면 startup에서 실패한다(primitive 기본값 `false`로 조용히 꺼지지 않게). 꺼져 있거나 아직 시작하지 않았으면 readiness `jobs`가 DEGRADED다 |
@@ -108,6 +109,27 @@ duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 �
 - attempt 상한 `5`: 위 backoff에서 시도 사이 대기는 10+20+40+80초 = 150초(2분 30초)이고 마지막 시도는 그 뒤에 실행된다. `NULLNULL_JOB_RETRY_BACKOFF`나 상한을 바꾸면 이 합도 함께 바뀐다. dead-letter alert가 사람에게 넘어가기 전 재시도로 풀릴 시간을 준다는 뜻이다.
 - dead-letter window `PT15M`: readiness scrape 간격보다 충분히 길어 한 번의 dead letter를 놓치지 않고, 반복되지 않으면 스스로 해제된다.
 - finished job 보존 `P7D`: 주말에 생긴 dead letter를 다음 근무일에 조사할 수 있고, table은 작게 유지된다.
+
+`APP_MAX_REQUEST_BODY_BYTES=262144`(256 KiB)도 계약 수치가 아니라 BA-003의 engineering 제안값이다. [API README 14절](../api/README.md#14-요청-한도)에 적힌 가장 큰 입력에서 유도한다.
+
+- 문서화된 최대 입력은 붙여넣기 원문 20,000자다. UTF-8 한글은 자당 3 byte이므로 자연스러운 형태로 60,000 byte다.
+- 같은 20,000자를 client가 전부 `\uXXXX` escape로 보내면 자당 6 byte라서 120,000 byte다. 규격을 지키는 client가 만들 수 있는 최악이 이 값이다.
+- 256 KiB = 262,144 byte는 그 최악의 약 2.18배, 자연스러운 형태의 약 4.37배다. envelope(locale·timezone·trip ID·draft item 등)까지 들어갈 여유가 남는다.
+- 한 단계 아래 128 KiB(131,072)는 최악 형태 위로 11,072 byte만 남아 draft item 100개짜리 confirm envelope을 덮지 못하고, 한 단계 위 512 KiB는 이를 정당화할 문서화된 입력이 없다.
+- 최소 `4096`: 그보다 낮은 값은 정상 요청도 통과할 수 없어 설정 실수가 "전부 거부하는 API"로 보이므로 startup에서 막는다.
+
+상한을 넘은 요청에는 **regime이 둘 있고 둘 다 의도된 동작**이다. 거절한 body의 남은 bytes를 서버가 읽어 버려야 413을 쓰고 connection을 재사용할 수 있는데, 그 예산이 `server.tomcat.max-swallow-size`(`apps/api/src/main/resources/application.yaml`)다.
+
+- 예산이 재는 것은 body 총량이 아니라 **거절 시점 이후 남은 bytes**다. 상한을 넘은 순간 이미 상한만큼은 읽힌 뒤이므로, 경계는 대략 `상한 + 예산 = 262144 + 2097152 = 2359296` byte 부근이고 정확한 지점은 converter가 미리 읽어 둔 buffer 크기만큼 움직인다.
+- 남은 bytes가 예산 안이면: 깨끗한 `413 INVALID_REQUEST` Problem이 온다. 선언된 `Content-Length`든 chunked든 같다.
+- 남은 bytes가 예산을 넘으면: 서버가 나머지를 읽지 않고 connection을 끊는다. caller는 HTTP 응답 없이 transport 오류를 받는다. 안전하지만 **Problem 응답이 아니므로** client는 이 경우를 network 실패로 처리한다.
+- 예산은 `2097152` byte(2 MiB) = 허용 상한 `262144`의 8배이며, Tomcat 기본값과 같은 수다. 명시적으로 적는 이유는 값을 바꾸기 위해서가 아니라 두 regime의 경계를 우리가 고른 수로 고정하기 위해서다. `APP_MAX_REQUEST_BODY_BYTES`를 바꾸면 이 값도 함께 다시 정한다.
+- 무제한(`-1`)은 쓰지 않는다. 이미 거절한 body를 끝없이 읽는 것은 DoS 경로다.
+- 두 regime은 `RequestBodySwallowBoundIT`가 shipped 상한(`262144`)에서 고정한다. `RequestBodyLimitIT`는 상한을 `8192`로 낮춰 property가 실제로 배선됐는지만 확인하므로 이 경계를 볼 수 없다.
+
+`APP_IDEMPOTENCY_LOCK_TIMEOUT=PT3S`도 BA-003의 engineering 제안값이며, 확인 가능한 근거는 측정이 아니라 구조 하나다. guard는 만료된 lock wait을 transaction 전체 재시도로 흡수하고 시도 횟수는 둘이므로(`IdempotencyGuard.LOCK_CONTENTION_ATTEMPTS`), caller가 겪는 최악은 `2 x PT3S = 6초`이고 그 뒤가 `INTERNAL_ERROR`다. 값을 올리면 그 6초가 같이 늘어난다. 바닥 `PT0.1S`는 PostgreSQL이 `lock_timeout = 0`을 "무한 대기"로 읽어 bound 자체가 사라지기 때문이다(`IdempotencyGuard.MINIMUM_LOCK_TIMEOUT`).
+
+이 값은 **측정으로 뒷받침되지 않았다**. `IdempotencyGuard.execute`를 호출하는 production code가 아직 없어서(B01은 command endpoint를 내보내지 않는다) "가장 느린 command"라고 부를 대상이 없다. 첫 실제 command endpoint를 만드는 slice가 그 command의 최악 소요를 suite에 남는 test로 재고 `PT3S`가 그것을 덮는지 확인하면, 그때 확정값이 된다.
 
 type별 동시 실행은 `nullnull.jobs.concurrency.<type>` property로 덮는다(예: `nullnull.jobs.concurrency.deletion=1`). map key라서 환경변수보다 설정 파일/실행 인자로 지정한다.
 
@@ -186,9 +208,9 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | Flag | P0 기본 | 설명/제거 조건 |
 | --- | --- | --- |
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
-| `FEATURE_LIVE_DATA` | OFF local, readiness 기반 cloud | source 불가 시 replay/empty |
-| `FEATURE_REPLAY_MODE` | ON staging | production 강제 replay는 banner 필요 |
-| `FEATURE_OPTIMIZATION_ITEM` | OFF → rollout | B06 safety gate 후 ON |
+| `FEATURE_LIVE_DATA` | OFF (모든 환경) | B10이 live source를 붙이는 slice에서만 ON 가능. source 불가 시 replay/empty |
+| `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |
+| `FEATURE_OPTIMIZATION_ITEM` | OFF (모든 환경) | B06 safety gate를 통과하는 slice에서만 ON 가능 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
 | `FEATURE_OPTIMIZATION_TRIP` | OFF | P1 |
 | `FEATURE_NOTIFICATIONS` | OFF | P1 |
@@ -200,6 +222,8 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | `FEATURE_AI_DRAFT` | OFF | 평가/근거/비용/privacy gate 후 |
 
 flag는 backend capability response가 정본이다. frontend build flag만으로 권한/안전 기능을 제어하지 않는다.
+
+BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. P0에는 셋 다 server-side source가 없어 응답은 `UNAVAILABLE`이고, `true`로 켜면 9절의 "LIVE feature가 ON이면 source registry/key/readiness 설정 존재" 규칙에 따라 startup이 실패한다. source를 만드는 slice(B03 replay, B06 optimization, B10 live)가 그 flag를 켤 수 있게 된다.
 
 공모전 profile `2026_KTO_WEBAPP`은 다음 startup invariant를 추가한다.
 

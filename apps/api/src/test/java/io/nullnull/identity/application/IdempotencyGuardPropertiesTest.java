@@ -12,6 +12,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -77,7 +80,7 @@ class IdempotencyGuardPropertiesTest {
 
     private static IdempotencyGuard guardWith(Duration ttl, Duration lockTimeout) {
         return new IdempotencyGuard(new UnusedOwners(), new UnusedRecords(), new UnusedLockWaitLimit(),
-                new ObjectMapper(), Clock.systemUTC(), ttl, lockTimeout);
+                new ObjectMapper(), Clock.systemUTC(), new UnusedTransactionManager(), ttl, lockTimeout);
     }
 
     /** The constructor must fail before any collaborator is touched. */
@@ -132,6 +135,25 @@ class IdempotencyGuardPropertiesTest {
 
         @Override
         public void applyToCurrentTransaction(Duration timeout) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /** The guard owns its transaction boundary so a lock-timeout retry starts a new one (BA-003). */
+    private static final class UnusedTransactionManager implements PlatformTransactionManager {
+
+        @Override
+        public TransactionStatus getTransaction(TransactionDefinition definition) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void commit(TransactionStatus status) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void rollback(TransactionStatus status) {
             throw new UnsupportedOperationException();
         }
     }
