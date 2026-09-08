@@ -6,14 +6,21 @@
 // docker-integration gate would report success while proving nothing. That
 // failure is silent, so this test makes it loud.
 //
-// It reads dist/ if a build is present and skips otherwise, so `npm run test`
-// stays fast on a clean checkout. verify:ci runs test before build, so the
-// assertion inspects the previous build there and CI keeps a dist around.
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+// The test builds its own bundle rather than reading whatever dist/ happens to
+// hold. An earlier version skipped when dist/ was absent, which passed locally
+// (a previous build had left one behind) and skipped in every container run,
+// because verify:ci runs test before build and the image starts clean. A guard
+// that disappears exactly where it is needed is worse than no guard: the suite
+// still reported success, so nothing pointed at the hole.
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const distDir = resolve(process.cwd(), 'dist');
+const webRoot = resolve(process.cwd());
+let outDir = '';
+let files: string[] = [];
 
 function bundleFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -23,10 +30,29 @@ function bundleFiles(dir: string): string[] {
   });
 }
 
-describe.skipIf(!existsSync(distDir))('production bundle', () => {
-  const files = existsSync(distDir) ? bundleFiles(distDir) : [];
+beforeAll(() => {
+  // Build into a temp directory so this never races with, or clobbers, the
+  // dist/ that verify:ci produces afterwards.
+  outDir = mkdtempSync(join(tmpdir(), 'nullnull-bundle-'));
+  execFileSync(
+    'npx',
+    ['vite', 'build', '--mode', 'production', '--outDir', outDir, '--emptyOutDir'],
+    {
+      cwd: webRoot,
+      stdio: 'pipe',
+    },
+  );
+  files = bundleFiles(outDir);
+}, 180_000);
 
+afterAll(() => {
+  if (outDir) rmSync(outDir, { recursive: true, force: true });
+});
+
+describe('production bundle', () => {
   it('emits javascript to inspect', () => {
+    // Without this the needle assertions below would pass vacuously on an
+    // empty directory.
     expect(files.length).toBeGreaterThan(0);
   });
 
