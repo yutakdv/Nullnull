@@ -93,6 +93,10 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 
 | ID | 작업 | 담당 |
 | --- | --- | --- |
+| `CON-001` | 생성 client의 generator·exact version 선택과 config(OAS 3.1 discriminator union narrowing 확인) | 공동 |
+| `CON-003` | FCR-010/011/015 Frontend 인계 계약 확정 | BE/AI |
+| `CON-004` | FCR-010/011/015 fixture용 additive 계약 보강(`attributionShort`, `revertAvailability`, KTO example, link host) | BE/AI |
+| `CON-005` | FE mock 근거 제공 — `Problem` 등 response example과 contract fixture, 오류 계약 문구 정정 | BE/AI |
 | `DX-001` | Node/npm/Java/Gradle wrapper/Docker의 exact version lock과 검증 script | 공동 |
 | `DX-002` | local compose, deterministic seed, local-only reset guard, generated client 명령 | 공동 |
 | `DX-003` | `docs-contract` CI와 `docker-integration` baseline/full 전환, `verify_target_stack.py`의 marker/task/stage/digest/internal-network fail-closed gate | BE/AI |

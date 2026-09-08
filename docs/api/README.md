@@ -173,15 +173,17 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
   "title": "Trip changed",
   "status": 409,
   "code": "TRIP_CHANGED",
-  "detail": "다른 곳에서 일정이 바뀌었어요.",
+  "detail": "The trip changed after this optimization started.",
   "instance": "/api/v1/optimizations/…/decisions",
-  "requestId": "req_…",
-  "retryable": true,
+  "requestId": "01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70",
+  "retryable": false,
   "fieldErrors": [],
   "currentTripVersion": 8,
   "recomputeUrl": "/api/v1/trips/…/optimizations"
 }
 ```
+
+`detail`은 **fallback**이다. 화면에 보이는 문구는 frontend가 `code`에 매핑한 message key가 소유한다(§12). server는 session locale과 무관하게 항상 영어 한 문장을 채우고, frontend가 그 code의 문구를 갖고 있으면 `detail`을 표시하지 않는다. 위 예시 문장도 형태를 보이기 위한 것이며 각 code의 실제 문장은 그 code를 발생시키는 slice에서 확정한다. `detail`에는 markup이 들어가지 않는다.
 
 ### UI mapping
 
@@ -213,7 +215,9 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 
 Backend는 stack trace, SQL, 외부 API body, secret을 detail에 넣지 않는다. FE는 `detail`을 HTML로 렌더링하지 않는다.
 
-모든 응답은 `X-Request-ID`를 제공한다. session 보호 operation은 명시되지 않아도 401, 모든 operation은 429 `RATE_LIMITED`를 반환할 수 있으며 429/503의 `Retry-After`는 초 단위다. CI는 이 공통 규칙과 operation별 response가 어긋나지 않는지 검사한다.
+`retryable`은 **client가 사용자 개입 없이 같은 요청을 그대로 다시 보내도 안전한가**만 나타낸다. 현재 `true`인 code는 `ROUTE_UNAVAILABLE`, `SOURCE_UNAVAILABLE`, `RATE_LIMITED` 셋뿐이다. `UNAUTHORIZED`의 `GET 1회만`이나 `INTERNAL_ERROR`의 `안전한 GET만`처럼 method에 따라 갈리는 정책은 boolean 하나로 표현할 수 없으므로 위 표의 `자동 재시도` 열이 정본이고, frontend는 `retryable`만으로 자동 재시도를 결정하지 않는다.
+
+모든 응답은 `X-Request-ID`를 제공한다. `requestId`는 server가 만든 UUIDv7이며, client가 보낸 `X-Request-ID`가 `^[A-Za-z0-9._-]{8,64}$`를 만족하면 그 값을 그대로 돌려준다. frontend는 이 값을 parsing하지 않고 표시와 지원 문의에만 쓴다. session 보호 operation은 명시되지 않아도 401, 모든 operation은 429 `RATE_LIMITED`를 반환할 수 있으며 429/503의 `Retry-After`는 초 단위다. CI는 이 공통 규칙과 operation별 response가 어긋나지 않는지 검사한다.
 
 ### Optimization 단계별 오류
 

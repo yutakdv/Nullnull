@@ -46,6 +46,12 @@ nullnull:
   env: ${NULLNULL_ENV:local}
   readiness:
     database-timeout-seconds: 2
+  # Replay record retention and lock wait bound (docs/operations/ENVIRONMENT.md
+  # APP_IDEMPOTENCY_TTL, APP_IDEMPOTENCY_LOCK_TIMEOUT). ISO-8601 durations: a bare number would be
+  # read as milliseconds, so both values have a startup floor in IdempotencyGuard.
+  idempotency:
+    ttl: ${APP_IDEMPOTENCY_TTL:PT24H}
+    lock-timeout: ${APP_IDEMPOTENCY_LOCK_TIMEOUT:PT3S}
   # Recommendation service (apps/ai). No default host: a missing base URL fails startup.
   ai:
     base-url: ${NULLNULL_AI_BASE_URL}

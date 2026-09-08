@@ -65,7 +65,8 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_COOKIE_SECURE` | 아니오 | `false` local, `true` cloud | prod false 금지 |
 | `APP_SESSION_TTL` | 아니오 | `P30D` | session expiry |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
-| `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record |
+| `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
+| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값, BA-003 검토 후 고정 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S` |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
 | `APP_DELETION_RECEIPT_TTL` | 아니오 | 정책 승인값 | 완료/실패 receipt 보존 |
 | `APP_DELETION_RETRY_LIMIT` | 아니오 | B01/BA-005와 B02/BA-012 검증 후 고정 | 삭제 job 무한 재시도 방지 |
@@ -84,7 +85,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `SPRING_DATASOURCE_PASSWORD` | 예 | runtime | Secrets Manager |
 | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | 아니오 | `health,prometheus` 내부만 | public actuator 제한 |
 
-duration은 ISO-8601 형식을 사용한다. production은 필수값 누락/안전하지 않은 cookie/CORS 설정이면 fail fast한다.
+duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 밀리초로 읽으므로 `APP_IDEMPOTENCY_TTL=24`는 24시간이 아니라 `PT0.024S`다. 두 idempotency duration은 위 최소값 미만이면 property 이름과 받은 값을 적어 startup에서 실패한다. production은 필수값 누락/안전하지 않은 cookie/CORS 설정이면 fail fast한다.
 
 ### 추천 서비스 `apps/ai` 설정
 

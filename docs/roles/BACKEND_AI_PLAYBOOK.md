@@ -111,7 +111,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-002
 
-**PostgreSQL·Flyway·트랜잭션 기반** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**PostgreSQL·Flyway·트랜잭션 기반** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001)
 - 기능 ID: 해당 없음
@@ -129,11 +129,23 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-002-T1`: 빈 DB와 직전 배포 schema에서 migration이 성공한다
-- `BA-002-T2`: check·unique·FK를 직접 SQL로 위반하면 거부된다
-- `BA-002-T3`: transaction 중간 장애는 전체 rollback하며 구버전 app 호환성이 유지된다
+- `BA-002-T1`: 빈 DB와 직전 배포 schema에서 migration이 성공한다 — `FlywayMigrationIT.baselineMigrationIsAppliedOnPostgres17`, `FlywayMigrationIT.previousSchemaUpgradesToTheLatestVersion`. 후자는 직전 schema의 모든 table에 대표 row를 넣은 뒤 최신으로 올린다. 빈 schema만 올리면 default 없는 NOT NULL column이나 기존 중복 위의 unique index처럼 데이터가 있어야 실패하는 migration을 못 잡는다.
+- `BA-002-T2`: check·unique·FK를 직접 SQL로 위반하면 거부된다 — `FlywayMigrationIT.ownerChecksRejectInvalidRows`, `FlywayMigrationIT.accountIdIsUniqueOnlyWhenPresent`, `FlywayMigrationIT.idempotencyRecordConstraintsRejectInvalidRows`, `FlywayMigrationIT.duplicateDeduplicationKeyIsRejected`, `FlywayMigrationIT.unknownStatusAndHalfLeaseAreRejected`
+- `BA-002-T3`: transaction 중간 장애는 전체 rollback하며 구버전 app 호환성이 유지된다 — `IdempotencyGuardIT.failureRollsBackTheReservationAndTheEffect`, `IdempotencyGuardIT.completedCommandsReplayAndNeverRunTwice`, `IdempotencyGuardIT.theSameKeyWithAnotherRequestIsRejected`, `IdempotencyGuardIT.theSameKeyAndBodyOnAnotherResourceIsRejected`, `IdempotencyGuardIT.reservationsAreScopedByOwnerAndRoute`, `IdempotencyGuardIT.theStoredProjectionCanDropFieldsFromTheResponse`, `IdempotencyGuardIT.aProjectedReplayIsNotRehydratedByTheGuard`, `IdempotencyGuardIT.malformedKeysAndRoutesAreRejectedBeforeAnythingIsReserved`, `IdempotencyGuardIT.aProjectionWithANulCharacterIsRejected`, `IdempotencyGuardIT.anOversizedProjectionIsRejected`, `IdempotencyGuardIT.anExpiredRecordDoesNotReplayItsStoredResponse`, `IdempotencyGuardIT.anExpiredRecordDoesNotRejectADifferentRequest`, `IdempotencyGuardIT.aDeletedOwnerIsRejectedBeforeAnythingIsReserved`, `IdempotencyConfigurationIT.expiryComesFromTheConfiguredTtlAndTheInjectedClock`, `IdempotencyConfigurationIT.theConfiguredLockTimeoutIsAppliedToTheGuardedTransaction`, `IdempotencyConfigurationIT.aBlockedCommandFailsWithinTheBound`, `OwnerLifecycleLockIT.aSoftDeleteWaitsForTheGuardedCommandThatHoldsTheOwner`
+- 단위 검증: canonical request hash `io.nullnull.identity.domain.RequestFingerprintTest`(golden vector로 parameter 정렬을 고정), duration property floor `io.nullnull.identity.application.IdempotencyGuardPropertiesTest` (둘 다 `test` suite)
 
-FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범위, local seed/reset 명령. 숫자 migration version은 실제 구현 때 충돌 없이 부여한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+`BA-002-T3`의 "구버전 app 호환성"에서 실제로 검증한 것과 하지 않은 것:
+
+- 검증함: 이 slice의 migration이 additive다. 직전 schema를 데이터가 있는 상태로 올린 뒤 `information_schema.columns`로 기존 table·column·type·nullability가 그대로 남았고 row가 사라지지 않았음을 확인한다. 새 table만 추가하며 기존 column을 drop/alter하지 않으므로 구버전 app이 읽는 대상은 그대로다.
+- 검증하지 않음: 구버전 application binary를 새 schema에 붙여 실제로 실행하는 배포 rehearsal. 배포 pipeline이 생기는 [BA-004](#ba-004) 이후에만 가능하며, 그전까지 이 항목을 통과로 쓰지 않는다.
+
+열린 계약 질문(구현 안에 주석으로도 남김): guarded transaction의 lock 대기 상한이 만료되면 identity가 `CommandLockTimeoutException`을 던진다. API layer는 이를 retryable Problem으로 매핑해야 하지만, 공개된 `ProblemCode` 23개 중 "같은 session의 다른 명령이 진행 중"을 뜻하는 값이 없다. A1에는 HTTP endpoint가 없으므로 여기서 공개 code를 만들지 않고 [BA-003](#ba-003)에서 확정한다.
+
+구현 산출물: migration `V002__owners.sql`·`V003__idempotency_records.sql`, `identity` module(domain `Owner`·`IdempotencyRecord`·`RequestFingerprint`, application port `OwnerRepository`·`IdempotencyRecordStore`·`LockWaitLimit`와 `IdempotencyGuard`·`CommandLockTimeoutException`, infrastructure의 JPA owner adapter·JdbcClient reservation store·`SET LOCAL lock_timeout` adapter), test fixture `OwnerFixtures`, property `nullnull.idempotency.ttl`(`APP_IDEMPOTENCY_TTL` 기본 `PT24H`, 최소 `PT1M`)과 `nullnull.idempotency.lock-timeout`(`APP_IDEMPOTENCY_LOCK_TIMEOUT` 제안 기본값 `PT3S`, 최소 `PT0.1S`). 잠금 순서는 owner lifecycle(`SELECT ... FOR UPDATE`) → idempotency reservation(`INSERT ... ON CONFLICT DO NOTHING` 뒤 `SELECT ... FOR UPDATE`) → command로 고정했고, 모든 대기는 transaction 단위 `lock_timeout`으로 상한을 둔다. 보존은 sweep job에 의존하지 않고 guard가 만료 row를 같은 transaction에서 삭제·재예약한다.
+
+검증 실행과 report: `apps/api`에서 `./gradlew test integrationTest openapiContractTest recommendationTest`, report는 `apps/api/build/reports/tests/<suite>/index.html`이다. `verified`로 올리려면 CI report 경로·contract SHA·FE_DRI 재현 확인이 더 필요하다.
+
+FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범위, local seed/reset 명령. 숫자 migration version은 실제 구현 때 충돌 없이 부여한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다. ERD 정련(`owners`의 anonymous account 금지와 locale/timezone 길이 check, `idempotency_records`의 예약 상태·route template·owner FK action·TTL index, `BackgroundJobStatus` enum)은 같은 slice에서 [ERD](../architecture/ERD.md)에 반영했다.
 
 ### BA-003
 
@@ -150,7 +162,8 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 1. body/enum/unknown field와 pagination 상한을 계약에서 검증하고 안전한 Problem mapper를 만든다
 2. liveness·DB readiness·선택 source readiness를 분리하며 server capability를 FE에 제공한다
 3. route template 기반 로그와 cookie·query·원문 redaction을 filter부터 적용한다
-4. 09-06 PM 검토 PM-019의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+4. [BA-002](#ba-002)가 남긴 `CommandLockTimeoutException`의 공개 계약을 확정한다. lock 대기 상한 만료를 retryable Problem으로 매핑하되 기존 `ProblemCode`로 충분한지, 새 code·status·CTA·Figma state가 필요한지 FE_DRI와 함께 정한다
+5. 09-06 PM 검토 PM-019의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: 선택 provider 장애로 liveness를 실패시키지 않는다. readiness가 없는 기능은 준비 완료로 광고하지 않는다. 안전 불변식 OFF flag는 금지한다.
 
@@ -339,7 +352,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. owner별 삭제 대상 registry를 만들고 새 테이블·cache·학습 export 추가 때 cleanup을 함께 등록한다
 4. 09-06 PM 검토 PM-002, PM-017, PM-018의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
-실패·안전 경계: 202는 접수이고 완료가 아니다. status token은 domain 읽기 권한이 없다. 삭제 중 새 데이터 생성과 worker 완료 쓰기를 차단한다.
+실패·안전 경계: 202는 접수이고 완료가 아니다. status token은 domain 읽기 권한이 없다. 삭제 중 새 데이터 생성과 worker 완료 쓰기를 차단한다. `IdempotencyGuard`는 replay 시 저장된 projection을 그대로 돌려주고 아무것도 재생성하지 않는다. `DeletionReceipt.statusToken`처럼 저장하지 않는 required 필드는 caller가 receipt ID/expiry에서 다시 유도해 응답에 채워야 하며, 그러지 않으면 replay 응답이 schema를 위반한다(현재 동작은 `IdempotencyGuardIT.aProjectedReplayIsNotRehydratedByTheGuard`가 고정한다).
 
 필수 검증:
 
