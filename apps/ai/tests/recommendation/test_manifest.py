@@ -65,9 +65,16 @@ def test_implemented_ids_are_a_subset_of_required_ids(manifest: dict) -> None:  
 
 
 def test_every_implemented_test_id_points_at_an_existing_file(manifest: dict) -> None:  # type: ignore[type-arg]
-    """A claimed ID is only evidence while the file it names is still there, under its own root."""
+    """A claimed ID is only evidence while the file it names is still there, under its own root.
+
+    Only this service's own files are resolved here. The image built from `apps/ai/Dockerfile`
+    ships `apps/ai` alone, so a path under a sibling app is unresolvable from inside it and the
+    check would fail on every container run whether or not the file exists (DX-004). The
+    `gradle:*` half is resolved by `apps/api`'s `recommendationTest` suite
+    (`ManifestTestPathParityTest`), whose image carries both this manifest and `apps/api/src`.
+    Between the two, every declared path is resolved exactly once and none is skipped.
+    """
     app_root = MANIFEST.parents[2]
-    repo_root = MANIFEST.parents[4]
     # An empty registry would pass this loop vacuously while `missingTestIds` claimed the whole
     # required set, so the floor is pinned the way `requiredTestIds` is pinned above.
     assert len(manifest["implementedTestIds"]) >= 11, "the implemented ID registry must not shrink"
@@ -75,9 +82,18 @@ def test_every_implemented_test_id_points_at_an_existing_file(manifest: dict) ->
         declared = entry["path"]
         paths = declared if isinstance(declared, list) else [declared]
         assert paths, entry["id"]
-        root = app_root if entry["suite"] == "pytest" else repo_root
+        suite = entry["suite"]
+        if suite == "pytest":
+            for relative in paths:
+                assert (app_root / relative).is_file(), f"{entry['id']} names a missing {relative}"
+            continue
+        # A row handed to the other side still has to name an owner that side can resolve, so a
+        # typo cannot park a path where neither suite ever looks for it.
+        assert suite.startswith("gradle:"), f"{entry['id']} declares an unknown suite {suite}"
         for relative in paths:
-            assert (root / relative).is_file(), f"{entry['id']} names a missing {relative}"
+            assert relative.startswith("apps/api/"), (
+                f"{entry['id']} is a {suite} row naming {relative}, which apps/api cannot resolve"
+            )
 
 
 def test_declared_fixtures_exist_with_matching_checksums(manifest: dict) -> None:  # type: ignore[type-arg]

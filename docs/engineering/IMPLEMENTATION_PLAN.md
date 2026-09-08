@@ -100,6 +100,7 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 | `DX-001` | Node/npm/Java/Gradle wrapper/Docker의 exact version lock과 검증 script | 공동 |
 | `DX-002` | local compose, deterministic seed, local-only reset guard, generated client 명령 | 공동 |
 | `DX-003` | `docs-contract` CI와 `docker-integration` baseline/full 전환, `verify_target_stack.py`의 marker/task/stage/digest/internal-network fail-closed gate | BE/AI |
+| `DX-004` | manifest `implementedTestIds` 경로 검증의 suite 분담 — `pytest` 행은 `ai-quality`, `gradle:*` 행은 `api-quality`(컨테이너에 없는 sibling app 경로를 해석하지 않는다) | BE/AI |
 | `GOV-001` | 실제 GitHub handle 기반 CODEOWNERS와 path review test | 공동 |
 | `GOV-002` | branch ruleset, required checks, merge queue/concurrency, GitHub environments checklist 검증 | 공동 |
 | `GOV-003` | Frontend Claude Code 시작 안내, FCR 착수 기준과 Ticket/Work ID 인계 규칙 | FE |
