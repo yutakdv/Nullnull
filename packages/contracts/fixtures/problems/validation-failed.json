@@ -1,17 +1,17 @@
 {
-  "type": "https://nullnull.app/problems/validation-failed",
-  "title": "Unprocessable Content",
+  "type": "/problems/validation-failed",
+  "title": "Validation failed",
   "status": 422,
   "code": "VALIDATION_FAILED",
-  "detail": "입력값을 확인해주세요.",
+  "detail": "One or more fields are invalid.",
   "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
   "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
   "retryable": false,
   "fieldErrors": [
     {
       "field": "title",
-      "code": "TOO_LONG",
-      "message": "제목이 너무 길어요."
+      "code": "NotBlank",
+      "message": "must not be blank"
     }
   ]
 }

@@ -1,9 +1,9 @@
 {
-  "type": "https://nullnull.app/problems/forbidden",
+  "type": "/problems/forbidden",
   "title": "Forbidden",
   "status": 403,
   "code": "FORBIDDEN",
-  "detail": "이 작업을 수행할 권한이 없어요.",
+  "detail": "This action is not allowed for the current owner.",
   "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
   "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
   "retryable": false

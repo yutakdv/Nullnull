@@ -1,9 +1,9 @@
 {
-  "type": "https://nullnull.app/problems/cursor-invalid",
-  "title": "Bad Request",
+  "type": "/problems/cursor-invalid",
+  "title": "Cursor invalid",
   "status": 400,
   "code": "CURSOR_INVALID",
-  "detail": "목록 위치 정보가 올바르지 않아요.",
+  "detail": "The pagination cursor is not valid.",
   "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
   "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
   "retryable": false

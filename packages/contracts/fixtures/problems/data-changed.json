@@ -1,9 +1,9 @@
 {
-  "type": "https://nullnull.app/problems/data-changed",
-  "title": "Conflict",
+  "type": "/problems/data-changed",
+  "title": "Data changed",
   "status": 409,
   "code": "DATA_CHANGED",
-  "detail": "기준 데이터가 바뀌었어요.",
+  "detail": "The underlying data changed since this preview was built.",
   "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
   "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
   "retryable": false,

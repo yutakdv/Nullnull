@@ -1,13 +1,18 @@
 // Turns a Problem into the text a screen shows.
 //
-// Ownership, which this file exists to keep straight:
+// Ownership, per docs/api/README.md §12 (confirmed on issue #16 R2):
 //
-// - The message is the server's. `Problem.detail` is a required field and
-//   docs/api/README.md §9 requires backend to put user-safe text there. FE does
-//   not invent wording for codes it has no copy for.
-// - Six optimization codes are the exception: docs/design/FIGMA_HANDOFF.md is
-//   the 문구 정본 for those, so its copy overrides `detail`.
-// - The CTA label is FE's, one per code, from the README UI mapping table.
+// - User-facing copy is FE's. `Problem.detail` is written by the server in
+//   English regardless of the requested locale, so it is a fallback, not the
+//   message a localised screen should show.
+// - Six optimization codes have confirmed copy in both locales from
+//   docs/design/FIGMA_HANDOFF.md, and those render localised today.
+// - The other 17 still fall through to the English `detail`. That is a known
+//   gap, not the intended end state: Korean copy for them needs PM and design
+//   sign-off because CLAUDE.md requires a Figma state alongside each message,
+//   so FE does not invent it here. Tracked as follow-up to FE-003.
+// - The CTA label is FE's, one per code, from the README UI mapping table, and
+//   is already localised for all 23.
 //
 // `detail` is returned as a plain string and must be rendered as a text node.
 // docs/api/README.md:214 — "FE는 detail을 HTML로 렌더링하지 않는다."
@@ -40,9 +45,10 @@ type Translate = (key: MessageKey) => string;
 /**
  * Resolve what to show for a parsed Problem.
  *
- * Falls back to `detail` whenever Figma has not fixed the wording, so a code
- * with no FE copy still shows the server's sentence rather than a blank or an
- * invented one.
+ * Falls back to the server's English `detail` when FE has no confirmed copy
+ * for the code, so a screen shows a real sentence rather than a blank or an
+ * invented one. Showing English on a Korean screen is the lesser failure, and
+ * it is visible, which is why the gap is not hidden behind a generic string.
  */
 export function problemPresentation(problem: Problem, t: Translate): ProblemPresentation {
   const policy = PROBLEM_POLICY[problem.code];
