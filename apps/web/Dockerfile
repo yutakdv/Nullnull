@@ -7,6 +7,7 @@ WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
 COPY packages/api-client/package.json packages/api-client/
+COPY packages/contracts/package.json packages/contracts/
 RUN npm ci --no-audit --no-fund
 
 FROM deps AS source

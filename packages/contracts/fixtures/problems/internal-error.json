@@ -1,0 +1,10 @@
+{
+  "type": "https://nullnull.app/problems/internal-error",
+  "title": "Internal Server Error",
+  "status": 500,
+  "code": "INTERNAL_ERROR",
+  "detail": "문제가 발생했어요. 잠시 후 다시 시도해주세요.",
+  "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
+  "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
+  "retryable": true
+}

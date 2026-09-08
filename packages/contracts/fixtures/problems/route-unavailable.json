@@ -1,0 +1,10 @@
+{
+  "type": "https://nullnull.app/problems/route-unavailable",
+  "title": "Service Unavailable",
+  "status": 503,
+  "code": "ROUTE_UNAVAILABLE",
+  "detail": "경로 정보를 가져오지 못했어요.",
+  "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
+  "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
+  "retryable": true
+}

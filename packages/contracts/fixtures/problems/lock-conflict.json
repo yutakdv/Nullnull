@@ -1,0 +1,10 @@
+{
+  "type": "https://nullnull.app/problems/lock-conflict",
+  "title": "Conflict",
+  "status": 409,
+  "code": "LOCK_CONFLICT",
+  "detail": "잠긴 일정이 있어 변경할 수 없어요.",
+  "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
+  "requestId": "01J8Z9K2Q4R6T8V0X2Z4B6D8F0",
+  "retryable": false
+}

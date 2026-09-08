@@ -1,16 +1,25 @@
 import { Outlet, type RouteObject } from 'react-router';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
+import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 
 // P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
 // their own slices; until then each route renders a labelled placeholder and
 // an unknown path renders an explicit not-found screen. Nothing paints blank.
+//
+// errorElement sits on the layout route so a screen that throws is replaced by
+// the boundary while the shell around it stays mounted (FE-003).
 export const routes: RouteObject[] = [
   {
     path: '/',
     element: (
       <main id="main">
         <Outlet />
+      </main>
+    ),
+    errorElement: (
+      <main id="main">
+        <RouteErrorBoundary />
       </main>
     ),
     children: [

@@ -31,6 +31,8 @@ EVENT_SCHEMA_PATH = ROOT / "docs/contracts/events.schema.json"
 EVENT_EXAMPLE_PATH = ROOT / "docs/contracts/events.example.json"
 INTEGRATION_WORKFLOW_PATH = ROOT / ".github/workflows/integration.yml"
 INTEGRATION_SCRIPT_PATH = ROOT / "scripts/integration-test.sh"
+PROBLEM_POLICY_PATH = ROOT / "apps/web/src/shared/api/problem-policy.ts"
+FE_MESSAGES_PATH = ROOT / "apps/web/src/i18n/messages.ts"
 TARGET_STACK_VERIFIER_PATH = ROOT / "scripts/verify_target_stack.py"
 COMPOSE_PATH = ROOT / "compose.integration.yml"
 CONTEST_MATRIX_PATH = ROOT / "docs/contest/COMPETITION_COMPLIANCE_MATRIX.md"
@@ -441,6 +443,58 @@ def validate_product_contract_alignment(problems: list[str]) -> None:
             problems.append(f"SOURCE_CATALOG is missing the FCR-011 contract: {fragment}")
 
 
+def validate_problem_code_mapping(problems: list[str]) -> None:
+    """Every Problem code must have a FE policy and a CTA label in both locales.
+
+    docs/api/README.md lists this as a CI gate: "Problem code enum과 FE
+    translation mapping 일치". The frontend only exists after M0, so the check
+    is skipped when the files are absent rather than failing a docs-only tree.
+    """
+    if not PROBLEM_POLICY_PATH.exists() or not FE_MESSAGES_PATH.exists():
+        return
+
+    openapi_text = OPENAPI_PATH.read_text(encoding="utf-8")
+    match = re.search(
+        r"^    Problem:\n(?:.*\n)*?        code:\n          type: string\n          enum:\n((?:            - [A-Z_]+\n)+)",
+        openapi_text,
+        re.MULTILINE,
+    )
+    if not match:
+        problems.append("Could not read the Problem.code enum from the OpenAPI document")
+        return
+    contract_codes = set(re.findall(r"- ([A-Z_]+)", match.group(1)))
+
+    policy_text = PROBLEM_POLICY_PATH.read_text(encoding="utf-8")
+    table = re.search(
+        r"export const PROBLEM_POLICY: Record<ProblemCode, ProblemPolicy> = \{\n((?:.*\n)*?)^\};",
+        policy_text,
+        re.MULTILINE,
+    )
+    if not table:
+        problems.append("Could not read PROBLEM_POLICY from the frontend policy table")
+        return
+    mapped_codes = set(re.findall(r"^  ([A-Z_]+): \{", table.group(1), re.MULTILINE))
+
+    for code in sorted(contract_codes - mapped_codes):
+        problems.append(f"Problem code {code} has no entry in PROBLEM_POLICY")
+    for code in sorted(mapped_codes - contract_codes):
+        problems.append(f"PROBLEM_POLICY maps {code}, which is not in the Problem.code enum")
+
+    messages_text = FE_MESSAGES_PATH.read_text(encoding="utf-8")
+    for locale in ("ko-KR", "en-US"):
+        block = re.search(
+            rf"'{locale}': \{{\n((?:.*\n)*?)^  \}},",
+            messages_text,
+            re.MULTILINE,
+        )
+        if not block:
+            problems.append(f"Could not read the {locale} message block")
+            continue
+        labelled = set(re.findall(r"'error\.([A-Z_]+)\.cta'", block.group(1)))
+        for code in sorted(contract_codes - labelled):
+            problems.append(f"Problem code {code} has no {locale} CTA label")
+
+
 def validate_json_files(problems: list[str]) -> None:
     for path in (EVENT_SCHEMA_PATH, EVENT_EXAMPLE_PATH):
         try:
@@ -558,6 +612,7 @@ def main() -> int:
     validate_inventory(operation_ids, problems)
     validate_figma_inventory(problems)
     validate_product_contract_alignment(problems)
+    validate_problem_code_mapping(problems)
     validate_json_files(problems)
     validate_delivery_contract(problems)
     validate_backend_plan(ROOT, problems)
@@ -571,7 +626,7 @@ def main() -> int:
     print(
         "Documentation validation passed: "
         f"{len(operation_ids)} OpenAPI operations, local links, exact Figma/component inventory, "
-        "product-contract alignment, JSON syntax, delivery policy, contest evidence, backend plan coverage/DAG and Obsidian links/Canvas."
+        "product-contract alignment, Problem code mapping, JSON syntax, delivery policy, contest evidence, backend plan coverage/DAG and Obsidian links/Canvas."
     )
     return 0
 
