@@ -77,10 +77,8 @@ describe('RouteErrorBoundary catches render failures', () => {
   });
 });
 
-// These throw from the rendered element, not from a route loader: react-router
-// 7.18.3 loaders cannot be exercised under vitest+MSW (#67). The boundary treats
-// both paths alike, so the contract copy is still covered — but the loader route
-// itself is not. Rename this block to say "loader" only once #67 lets one run.
+// These throw from the rendered element. The loader path is covered separately
+// in loader-error.test.tsx, which needs happy-dom to run at all (#67).
 describe('RouteErrorBoundary shows contract copy when a route throws a Problem', () => {
   function ThrowProblem(): never {
     throw problemFixtures.TRIP_CHANGED;

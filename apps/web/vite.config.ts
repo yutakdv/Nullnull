@@ -43,6 +43,11 @@ export default defineConfig({
   preview: { port: 4173 },
   test: {
     include: ['src/**/*.test.{ts,tsx}'],
+    // jsdom for the suite. Files that exercise a react-router loader override
+    // this with `// @vitest-environment happy-dom`: Vitest's jsdom environment
+    // installs jsdom's AbortController/AbortSignal but leaves Request as Node's
+    // undici, which brand-checks the signal against its own realm, so building
+    // the Request a loader is called with throws (#67).
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],

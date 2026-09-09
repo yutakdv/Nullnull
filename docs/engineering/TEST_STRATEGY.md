@@ -49,6 +49,8 @@ tags:
 - focus trap, focus restore, keyboard reorder
 - MSW 기반 default/loading/empty/error/stale/offline stories
 
+환경은 jsdom이 기본이고, **route loader를 실행하는 파일만 `// @vitest-environment happy-dom`으로 덮어쓴다.** Vitest의 jsdom 환경이 `AbortController`/`AbortSignal`은 jsdom 것으로 바꾸면서 `Request`는 Node undici로 남겨 두는데, undici가 signal을 자기 realm 기준으로 brand 검사하므로 loader 호출용 `Request` 생성이 실패한다. jsdom 26·27.0·27.4 모두 동일하고 MSW와는 무관하다. 근거와 실측은 이슈 #67에 있다.
+
 권장 gate:
 
 ```bash
