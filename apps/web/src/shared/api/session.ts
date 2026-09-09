@@ -98,3 +98,47 @@ export function useUpdatePreferences() {
     },
   });
 }
+
+type TripPage = components['schemas']['TripPage'];
+type OptimizationHistoryPage = components['schemas']['OptimizationHistoryPage'];
+
+/**
+ * The owner's trips, newest state first.
+ *
+ * Served by MOCK DATA today: listTrips has no approved example, so the fixture
+ * behind the msw handler is a schema-valid guess (packages/contracts). The call
+ * itself is real, so when BA-030 lands only the handler and fixture go away.
+ */
+export function useTrips(): UseQueryResult<TripPage, Problem | Error> {
+  return useQuery({
+    queryKey: ['trips'],
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET('/trips', {});
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+/**
+ * Optimization history for the profile screen.
+ *
+ * The contract limits this to status, timestamps, target trip and run link —
+ * it never returns itinerary content, and nothing here stores any (CLAUDE.md
+ * P0 decision on 최적화 이력).
+ *
+ * Also MOCK DATA today; replaced when BA-053 lands.
+ */
+export function useOptimizationHistory(): UseQueryResult<
+  OptimizationHistoryPage,
+  Problem | Error
+> {
+  return useQuery({
+    queryKey: ['optimizations', 'history'],
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET('/optimizations', {});
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}

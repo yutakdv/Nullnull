@@ -28,6 +28,8 @@ export {
   currentCsrfToken,
   getApiClient,
   sessionQueryKey,
+  useOptimizationHistory,
   useSessionBootstrap,
+  useTrips,
   useUpdatePreferences,
 } from './session.js';
