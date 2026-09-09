@@ -28,6 +28,7 @@ export {
   currentCsrfToken,
   getApiClient,
   sessionQueryKey,
+  useCreateTrip,
   useOptimizationHistory,
   usePlaceSearch,
   useSessionBootstrap,

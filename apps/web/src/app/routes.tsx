@@ -8,6 +8,7 @@ import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
 import { MustVisitScreen } from './trip-create/MustVisitScreen.js';
+import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
 
 // P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
 // their own slices; until then each route renders a labelled placeholder and
@@ -32,7 +33,12 @@ export const routes: RouteObject[] = [
       { index: true, element: <SplashScreen /> },
       { path: 'language', element: <LanguageScreen /> },
       { path: 'intro', element: <IntroScreen /> },
-      { path: 'start', element: <MustVisitScreen /> },
+      // S02 wizard. Steps 1-3 are the local draft (FE-102); step 4 collects
+      // must-visit places (FE-103) and is a nested step of the same flow, not a
+      // separate entry point. Wiring them into one flow is FE-102's follow-up
+      // once step 4 knows the draft it belongs to.
+      { path: 'start', element: <TripWizardScreen /> },
+      { path: 'start/must-visit', element: <MustVisitScreen /> },
       { path: 'feed', element: <PlaceholderScreen routeId="feed" /> },
       { path: 'posts/:postId', element: <PlaceholderScreen routeId="post-detail" /> },
       { path: 'trip/:tripId', element: <PlaceholderScreen routeId="trip" /> },

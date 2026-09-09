@@ -178,3 +178,29 @@ export function usePlaceSearch(
     },
   });
 }
+
+type CreateTripRequest = components['schemas']['CreateTripRequest'];
+type TripDetail = components['schemas']['TripDetail'];
+
+/**
+ * Creates a trip from the wizard draft.
+ *
+ * Carries an Idempotency-Key because the contract declares one and invariant 6
+ * requires it for retryable commands: a repeated submit — a double tap, a retry
+ * after a timeout that actually succeeded — must not create a second trip. The
+ * key is generated per attempt and reused for that attempt only.
+ *
+ * MOCK DATA today; replaced when BA-030 lands.
+ */
+export function useCreateTrip() {
+  return useMutation<TripDetail, Problem | Error, CreateTripRequest>({
+    mutationFn: async (request) => {
+      const { data, error, response } = await getApiClient().POST('/trips', {
+        body: request,
+        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}

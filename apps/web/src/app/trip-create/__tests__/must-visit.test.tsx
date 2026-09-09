@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 function renderScreen() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/start'] });
+  const router = createMemoryRouter(routes, { initialEntries: ['/start/must-visit'] });
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
