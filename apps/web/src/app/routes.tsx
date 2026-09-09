@@ -2,6 +2,9 @@ import { Outlet, type RouteObject } from 'react-router';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
+import { IntroScreen } from './onboarding/IntroScreen.js';
+import { LanguageScreen } from './onboarding/LanguageScreen.js';
+import { SplashScreen } from './onboarding/SplashScreen.js';
 
 // P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
 // their own slices; until then each route renders a labelled placeholder and
@@ -23,9 +26,9 @@ export const routes: RouteObject[] = [
       </main>
     ),
     children: [
-      { index: true, element: <PlaceholderScreen routeId="splash" /> },
-      { path: 'language', element: <PlaceholderScreen routeId="language" /> },
-      { path: 'intro', element: <PlaceholderScreen routeId="intro" /> },
+      { index: true, element: <SplashScreen /> },
+      { path: 'language', element: <LanguageScreen /> },
+      { path: 'intro', element: <IntroScreen /> },
       { path: 'start', element: <PlaceholderScreen routeId="start" /> },
       { path: 'feed', element: <PlaceholderScreen routeId="feed" /> },
       { path: 'posts/:postId', element: <PlaceholderScreen routeId="post-detail" /> },

@@ -1,0 +1,56 @@
+/* Figma: A-1 splash 388:257. Brand field with the wordmark and tagline. */
+
+.screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  min-height: 100%;
+  padding: var(--space-4);
+  background: var(--color-action-primary);
+  text-align: center;
+}
+
+.wordmark {
+  margin: 0;
+  color: var(--color-text-onAccent);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--color-text-onAccent);
+  font-size: var(--font-body-sm);
+  line-height: 21px;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 96px;
+}
+
+.message {
+  margin: 0;
+  color: var(--color-text-onAccent);
+  font-size: var(--font-body-sm);
+  line-height: 21px;
+}
+
+.retry {
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-default);
+  color: var(--color-action-strong);
+  font-family: inherit;
+  font-size: var(--font-body-md);
+  font-weight: 700;
+  cursor: pointer;
+}

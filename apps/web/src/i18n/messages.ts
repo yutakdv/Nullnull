@@ -56,6 +56,42 @@ export const messages = {
     'error.SOURCE_UNAVAILABLE.cta': '다시 시도',
     'error.RATE_LIMITED.cta': '잠시 후 다시 시도',
     'error.INTERNAL_ERROR.cta': '다시 시도',
+
+    // A-1 splash (388:257). The tagline is two lines in Figma.
+    'splash.tagline1': '내 일정을 읽고,',
+    'splash.tagline2': '취향으로 이어지는 여행 SNS',
+    'splash.retry': '다시 시도',
+    'splash.failed': '시작하지 못했어요. 다시 시도해주세요.',
+
+    // A-2 language (388:277). The heading is bilingual in both locales by
+    // design: the screen has to be readable before a language is chosen.
+    'language.title.en': 'Choose your language',
+    'language.title.ko': '언어를 선택해주세요',
+    'language.description': '한국어와 English를 지원해요. 日本語와 中文은 준비 중이에요.',
+    'language.next': '다음',
+    'language.ko.name': '한국어',
+    'language.ko.sub': 'Korean',
+    'language.en.name': 'English',
+    'language.en.sub': '영어',
+    'language.ja.name': '日本語',
+    'language.ja.sub': 'Japanese · 준비 중',
+    'language.zh.name': '中文',
+    'language.zh.sub': 'Chinese · 준비 중',
+    'language.selected': '선택됨',
+
+    // A-3 intro (388:321).
+    'intro.title1': '한국인이 진짜 가는 곳을',
+    'intro.title2': '찾아드려요',
+    'intro.body1': '유명한 곳은 그대로, 사이사이를',
+    'intro.body2': '덜 붐비는 시간과 장소로 채워드려요.',
+    'intro.point1.title': '관심사만 고르면',
+    'intro.point1.body': '취향에 맞는 곳이 피드에 흘러요',
+    'intro.point2.title': '피드를 넘기다 발견하면',
+    'intro.point2.body': '내 여행에 담아둘 수 있어요',
+    'intro.point3.title': '지금 붐비는 곳은',
+    'intro.point3.body': '덜 붐비는 때를 알려드려요',
+    'intro.start': '시작하기',
+    'intro.noLogin': '로그인 없이 바로 둘러볼 수 있어요',
   },
   'en-US': {
     'app.name': 'Nullnull',
@@ -102,6 +138,44 @@ export const messages = {
     'error.SOURCE_UNAVAILABLE.cta': 'Try again',
     'error.RATE_LIMITED.cta': 'Try again shortly',
     'error.INTERNAL_ERROR.cta': 'Try again',
+
+    // A-1 splash (388:257). Figma has no EN splash frame; these render only
+    // when the browser resolves to en-US before a language is chosen.
+    'splash.tagline1': 'Reads your itinerary,',
+    'splash.tagline2': 'a travel feed that follows your taste',
+    'splash.retry': 'Try again',
+    'splash.failed': "We couldn't start. Please try again.",
+
+    // A-2 language (643:4088, the EN-selected variant). The heading stays
+    // bilingual in both locales: the screen must be readable before choosing.
+    'language.title.en': 'Choose your language',
+    'language.title.ko': '언어를 선택해주세요',
+    'language.description':
+      'Korean and English are supported. Japanese and Chinese are coming soon.',
+    'language.next': 'Next',
+    'language.ko.name': '한국어',
+    'language.ko.sub': 'Korean',
+    'language.en.name': 'English',
+    'language.en.sub': 'English',
+    'language.ja.name': '日本語',
+    'language.ja.sub': 'Japanese · Coming soon',
+    'language.zh.name': '中文',
+    'language.zh.sub': 'Chinese · Coming soon',
+    'language.selected': 'Selected',
+
+    // A-3 intro (388:321). Figma has no EN intro frame either.
+    'intro.title1': 'We find the places',
+    'intro.title2': 'Koreans actually go',
+    'intro.body1': 'Keep the landmarks, and fill the gaps',
+    'intro.body2': 'with quieter times and places.',
+    'intro.point1.title': 'Pick your interests',
+    'intro.point1.body': 'and your feed follows your taste',
+    'intro.point2.title': 'Spot something in the feed',
+    'intro.point2.body': 'and save it to your trip',
+    'intro.point3.title': 'When a place is busy',
+    'intro.point3.body': "we'll tell you when it is not",
+    'intro.start': 'Get started',
+    'intro.noLogin': 'Browse right away, no sign-in needed',
   },
 } as const satisfies Record<SupportedLocale, Record<string, string>>;
 

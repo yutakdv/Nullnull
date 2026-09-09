@@ -229,7 +229,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "A-1/A-2/A-3 route와 redirect state",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-003",
         "BA-010"
@@ -248,7 +248,8 @@
       "figmaNodes": [
         "388:257",
         "388:277",
-        "388:321"
+        "388:321",
+        "643:4088"
       ],
       "designRequests": [],
       "steps": [
