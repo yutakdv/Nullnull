@@ -199,7 +199,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "packages/* typecheck를 실제로 실행하는 게이트",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-003"
       ],

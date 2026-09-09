@@ -14,7 +14,7 @@ MSW handler, Storybook story, vitest 테스트가 함께 import하는 계약 fix
 `OptimizationRun` 4건뿐이었기 때문이다.
 
 규칙의 취지는 "FE가 계약과 어긋난 모델을 손으로 만들지 말라"이다. 그 취지는
-`__tests__/fixtures.test.ts`가 지킨다. 모든 fixture를 `docs/api/openapi.yaml`의
+`apps/web/src/shared/api/__tests__/fixtures.test.ts`가 지킨다. 모든 fixture를 `docs/api/openapi.yaml`의
 component schema에 대해 ajv로 검증하며
 (`docs/contracts/review-2026-09-06/verify.cjs`와 같은 방식), 어긋나면
 `npm test`가 실패한다.
