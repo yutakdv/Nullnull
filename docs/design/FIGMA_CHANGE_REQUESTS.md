@@ -59,7 +59,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-026 | P0 blocker | Live/stale/replay 공통 단계·시간별 그래프, KTO는 상대 날짜 예측 | source별 단위/범례/시간 해상도·6-state·비교불가 표시; PM-013 | FE / BE·AI·PM | Open |
 | FCR-027 | P0 blocker | ITEM 대상 선택·취소 copy·refresh/만료/이력/undo 상태 불완전 | read 복구·back≠cancel·실패 복귀≠KEEP·서버 undo 가능성; PM-015 | FE / BE·AI·PM | Open |
 | FCR-028 | P0 major | 417:2567 NO_IMPROVEMENT가 전역 최적성을 주장 | 확인한 후보 범위 문구·UNKNOWN/CHECKING/NONE·유효 CTA; PM-020 | FE / BE·AI·PM | Open |
-| FCR-029 | P0 blocker | 필수 장소 `438:3158` 카드가 혼잡 단계(`4 · 혼잡`)·`공식 혼잡 예측`·출처를 표시하지만 `searchPlaces`가 돌려주는 `PlaceSummary`와 `PlaceDetail` 어디에도 crowd 필드가 없음 | 계약에 근거가 생기기 전에는 카드에서 혼잡 표시를 제거한다. 표시가 필요하면 `PlaceSummary`에 provenance를 갖춘 crowd를 추가하거나 별도 operation을 연결하고, 비교 자격·기준시각·출처를 함께 정의한다(불변식 8) | FE / BE·AI | Open |
+| FCR-029 | P0 major | 필수 장소 `438:3158` 카드가 혼잡 단계(`4 · 혼잡`)·`공식 혼잡 예측`·출처를 표시하지만 `searchPlaces`가 돌려주는 `PlaceSummary`와 `PlaceDetail` 어디에도 crowd 필드가 없음 | Figma 시안은 유지한다. Backend/AI 확인 결과 crowd는 아직 구현하지 않았고 추후 지원 예정이므로, 계약에 필드가 생기기 전까지 FE 카드는 혼잡 표시 없이 구현한다. `PlaceSummary`에 provenance를 갖춘 crowd가 추가되면 비교 자격·기준시각·출처와 함께 카드에 넣는다(불변식 8) | FE / BE·AI | 합의됨 · 계약 추가 대기 (BE 확인 2026-09-09) |
 
 FCR 번호는 기존 참조를 보존한다. FCR-010~015는 09-06 PR #6 계약 검토에서, FCR-016~028은 09-06 직접 canvas 대조와 API 검토에서, FCR-029는 FE-103 구현 중 계약 대조에서 추가했다. 등록은 문서 기준선이며 디자인 수정 완료를 뜻하지 않는다.
 

@@ -18,10 +18,13 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // is a schema-valid guess (packages/contracts). The screen calls the real
 // generated client, so BA-022 landing removes the fixture and handler only.
 //
-// NOT IMPLEMENTED, deliberately: the Figma card shows a crowd level, a "공식
-// 혼잡 예측" badge and a source line, but neither PlaceSummary nor PlaceDetail
-// has a crowd field. Rendering one would mean inventing an unsourced number,
-// which invariant 8 forbids. Raised as FCR-029; the rest of the card is built.
+// Waiting on the contract, not missed: the Figma card shows a crowd level, a
+// "공식 혼잡 예측" badge and a source line, but neither PlaceSummary nor
+// PlaceDetail carries a crowd field yet. Backend/AI confirmed crowd is not
+// implemented and is planned, so the Figma design stands and this card ships
+// without it -- rendering a number the contract cannot source is what
+// invariant 8 forbids. Add it here once PlaceSummary gains crowd with its
+// provenance and comparison eligibility (FCR-029).
 
 export function MustVisitScreen() {
   const { t } = useI18n();

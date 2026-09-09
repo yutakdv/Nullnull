@@ -103,10 +103,10 @@ export const optimizationFixtures = {
 // docs/api/openapi.yaml, so these were invented to match Figma S02-4B
 // (`438:3158`) and satisfy the schema. Schema-valid, not server-verified.
 //
-// They deliberately carry no crowd data. The Figma card shows a crowd level and
-// a forecast badge, but neither PlaceSummary nor PlaceDetail has such a field;
-// inventing one would be exactly the unsourced comparison CLAUDE.md invariant 8
-// forbids. Raised as FCR-029.
+// They carry no crowd data because the contract has none yet. Backend/AI
+// confirmed crowd is planned but unimplemented, so these stay as they are until
+// PlaceSummary gains the field with its provenance; inventing one meanwhile is
+// the unsourced comparison CLAUDE.md invariant 8 forbids (FCR-029).
 export const placeFixtures = {
   searchPage: placeSearchPage as components["schemas"]["PlaceSearchPage"],
   searchPageEmpty:

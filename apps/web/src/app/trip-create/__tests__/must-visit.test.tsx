@@ -151,9 +151,10 @@ describe('the card shows only what the contract supplies', () => {
     await searchFor('서울');
     await screen.findByText(first?.name ?? '');
 
-    // FCR-029: Figma shows "4 · 혼잡" and a forecast badge here, but neither
-    // PlaceSummary nor PlaceDetail carries crowd data. Until the contract does,
-    // a number on this card would be invented.
+    // FCR-029: Figma shows "4 · 혼잡" and a forecast badge here. Backend/AI
+    // confirmed crowd is planned but not yet in the contract, so the card ships
+    // without it; a number here would be invented. This test is what keeps that
+    // true until PlaceSummary actually gains the field.
     const body = document.body.textContent ?? '';
     expect(body).not.toMatch(/혼잡/);
     expect(body).not.toMatch(/공식 혼잡 예측/);
