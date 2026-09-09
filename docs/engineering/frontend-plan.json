@@ -282,7 +282,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "S14 프로필 shell: guest, disabled login `준비 중`, KO/EN, trips, 데이터 안내, 삭제 receipt/status",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-101",
         "BA-011",
@@ -325,7 +325,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Trip list and optimization history are served by provisional mock fixtures; listTrips and listOptimizationHistory have no approved example yet. Swap when BA-030/BA-053 land."
     },
     {
       "id": "FE-103",

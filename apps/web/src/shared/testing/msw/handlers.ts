@@ -3,7 +3,12 @@
 // Every response body here is ajv-validated against docs/api/openapi.yaml by
 // packages/contracts (see its README). Handlers must not build bodies inline —
 // an inline object is a hand-written model with nothing checking it.
-import { problemFixtures, sessionFixtures } from '@nullnull/contracts';
+import {
+  optimizationFixtures,
+  problemFixtures,
+  sessionFixtures,
+  tripFixtures,
+} from '@nullnull/contracts';
 import { http, HttpResponse } from 'msw';
 import type { ProblemCode } from '../../api/index.js';
 
@@ -49,4 +54,13 @@ export const handlers = [
     const patch = (await request.json()) as Partial<typeof sessionFixtures.owner>;
     return HttpResponse.json({ ...sessionFixtures.owner, ...patch });
   }),
+
+  // MOCK DATA (FE-105) — these two operations have no approved example, so the
+  // fixtures behind them are schema-valid guesses rather than real responses
+  // (packages/contracts/src/index.ts). Delete these two handlers once BA-030
+  // and BA-053 serve the real thing; the screens already call the real client.
+  http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.page)),
+  http.get(`${API_BASE}/optimizations`, () =>
+    HttpResponse.json(optimizationFixtures.historyPage),
+  ),
 ];
