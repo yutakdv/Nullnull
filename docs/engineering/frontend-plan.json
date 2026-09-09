@@ -1299,7 +1299,7 @@
       "phase": "B08",
       "priority": "P0",
       "title": "Lighthouse/performance budget와 bundle 분석",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-601"
       ],
@@ -1325,7 +1325,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Gzip bundle budget measured on the production build and fixed per TEST_STRATEGY.md 7; touch-target floor enforced in Playwright."
     },
     {
       "id": "FE-401",

@@ -18,7 +18,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "typecheck:packages": "node ../../scripts/typecheck-packages.mjs",
-    "verify:ci": "npm run tokens:check && npm run lint && npm run format:check && npm run typecheck && npm run typecheck:packages && npm run test && npm run build"
+    "verify:ci": "npm run tokens:check && npm run lint && npm run format:check && npm run typecheck && npm run typecheck:packages && npm run test && npm run build && npm run budget:check",
+    "budget:check": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
     "@nullnull/api-client": "*",
