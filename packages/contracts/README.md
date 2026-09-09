@@ -3,6 +3,20 @@
 MSW handler, Storybook story, vitest 테스트가 함께 import하는 계약 fixture다.
 `docs/api/openapi.yaml`이 정본이고 이 패키지는 그 정본을 만족하는 JSON만 담는다.
 
+## 교체 대상 목데이터 (FE-105)
+
+`fixtures/trips/`와 `fixtures/optimizations/` 4개는 **승인된 example 없이 만든
+목데이터**다. `listTrips`와 `listOptimizationHistory`는 `docs/api/openapi.yaml`에
+example이 없어서, Figma `422:2925`의 화면 내용에 맞추고 schema만 만족시켰다.
+**schema-valid일 뿐 서버 검증을 받지 않았다** — PR #17이 FE-003 fixture 4종에서
+찾아낸 것과 정확히 같은 종류의 간극이다(전부 ajv를 통과했지만 실제 응답과 달랐다).
+
+교체 방법: BE/AI의 실제 응답으로 JSON을 바꾸고, `src/index.ts`의
+`tripFixtures`·`optimizationFixtures` 위 주석을 지우고,
+`apps/web/src/shared/testing/msw/handlers.ts`에서 `/trips`·`/optimizations`
+handler를 제거한다. 화면은 이미 생성 client로 실제 호출을 하므로 코드 변경은 없다.
+선행: `BA-030`(#37), `BA-053`(#48).
+
 ## 현재 상태 — 잠정
 
 `TEST_STRATEGY.md:113`은 "BE/AI 담당이 schema-valid canonical JSON을 제공하고 FE
