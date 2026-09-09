@@ -65,9 +65,9 @@ FE는 response type을 재선언하거나 unknown field에 의존하지 않는�
 ## 3. Session과 CSRF
 
 - cookie가 없으면 `POST /demo/sessions`가 Owner, `__Host-nullnull_session` HttpOnly cookie, response body의 CSRF token을 만든다. valid cookie로 retry하면 200과 같은 Owner로 수렴하며 이유 없이 session을 rotate하지 않는다.
-- refresh/new tab은 valid cookie와 `POST /session/csrf`로 tab-local token을 받는다. token 발급은 same-origin 검증을 거치며 다른 tab token을 무효화하지 않는다.
-- FE는 CSRF token을 memory에만 두며 token별 `expiresAt` 전에 갱신한다. Backend는 session당 미만료 hash 최대 5개만 둔다.
-- 모든 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다.
+- refresh/new tab은 valid cookie와 `POST /session/csrf`로 tab-local token을 받는다. token 발급은 same-origin 검증을 거친다. 미만료 token 5개까지 함께 유지하고, 6번째 발급 시 `last_used_at`(미사용이면 `created_at`) 기준 LRU token을 회수한다. 동률은 `created_at`, `id` 순으로 결정한다.
+- FE는 CSRF token을 memory에만 두며 bootstrap/재발급 response의 `expiresAt` 전에 갱신한다. 이 시각은 CSRF 만료이며 session idle/absolute 만료와 별개다. Backend는 session당 미만료 hash 최대 5개만 둔다.
+- 일반 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다. 최초 bootstrap은 cookie/CSRF 없이, token 재발급과 read-only `POST /places/search`는 cookie만 요구한다. 모든 non-safe operation은 동일 origin의 `Origin`(없으면 `Referer`)을 검증한다.
 - cookie는 HTTPS production에서 `Secure; HttpOnly; SameSite=Lax; Path=/`를 사용한다.
 - 401이면 cookie 유무에 따라 CSRF 재발급 또는 session 생성을 한 번 시도한 뒤 안전한 read만 재시도한다. mutation 자동 재실행은 동일 idempotency key가 있는 경우에도 UI가 요청 결과 불명을 처리하는 경로에서만 허용한다.
 - 다른 owner의 resource도 404로 응답해 존재 여부를 노출하지 않는다.

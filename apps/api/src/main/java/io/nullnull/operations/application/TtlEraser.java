@@ -10,9 +10,8 @@ import java.time.Instant;
  * exactly the cross-module table access §4 forbids. Implement this next to the store it deletes from
  * and expose it as a bean; nothing else is needed to join the schedule.
  *
- * <p>Two erasers exist today - expired idempotency records (24 hours) and finished job rows. Revoked
- * sessions, CSRF tokens and deletion status tokens arrive with their own slices and add themselves
- * the same way.
+ * <p>Identity registers idempotency and session/CSRF retention; operations registers finished jobs.
+ * Later slices register their own erasers through the same interface.
  */
 public interface TtlEraser {
 

@@ -111,7 +111,7 @@ nullnull:
     max-retry-backoff: ${NULLNULL_JOB_MAX_RETRY_BACKOFF:PT5M}
     dead-letter-window: ${NULLNULL_JOB_DEAD_LETTER_WINDOW:PT15M}
     finished-retention: ${NULLNULL_JOB_FINISHED_RETENTION:P7D}
-    retention-sweep-interval: ${NULLNULL_JOB_RETENTION_SWEEP_INTERVAL:PT1H}
+    retention-sweep-interval: ${NULLNULL_JOB_RETENTION_SWEEP_INTERVAL:PT1M}
     default-concurrency: ${NULLNULL_JOB_DEFAULT_CONCURRENCY:2}
   # Recommendation service (apps/ai). No default host: a missing base URL fails startup.
   ai:

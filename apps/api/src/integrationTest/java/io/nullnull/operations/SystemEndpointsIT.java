@@ -29,6 +29,9 @@ class SystemEndpointsIT {
     @Autowired
     MockMvcTester mvc;
 
+    @Autowired
+    io.nullnull.identity.application.SessionService sessions;
+
     @Test
     void livenessReportsUpWithRequestId() {
         MvcTestResult result = mvc.get().uri("/api/v1/health/live").exchange();
@@ -68,7 +71,8 @@ class SystemEndpointsIT {
     void demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes() {
         // A capability with no source behind it is UNAVAILABLE, never READY (BA-003 safety line), and
         // the list never repeats a /health/ready probe name.
-        MvcTestResult result = mvc.get().uri("/api/v1/demo/readiness").exchange();
+        MvcTestResult result = mvc.get().uri("/api/v1/demo/readiness")
+                .cookie(new jakarta.servlet.http.Cookie("__Host-nullnull_session", sessions.bootstrap(null,null,null).cookie)).exchange();
         assertThat(result).hasStatus(HttpStatus.OK);
         assertThat(result).bodyJson().extractingPath("$.overall").isEqualTo("NOT_READY");
         assertThat(result).bodyJson().extractingPath("$.checkedAt").asString().endsWith("Z");

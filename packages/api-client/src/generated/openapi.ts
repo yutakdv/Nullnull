@@ -76,8 +76,9 @@ export interface paths {
          * Issue a tab-local CSRF token for an existing session
          * @description Safe bootstrap endpoint for refresh and new tabs. It requires a valid session cookie
          *     and a same-origin Origin or Referer, but no existing CSRF token. Issuing a token does
-         *     not invalidate tokens held by other tabs; each token expires independently and at most
-         *     five unexpired token hashes are retained per session.
+         *     not invalidate other tokens while fewer than five unexpired hashes exist. Each token
+         *     expires independently. When issuing a sixth unexpired token, the least recently used
+         *     token (last_used_at, falling back to created_at) is evicted; ties use created_at then id.
          */
         post: operations["issueCsrfToken"];
         delete?: never;
@@ -890,12 +891,18 @@ export interface components {
         SessionBootstrap: {
             owner: components["schemas"]["OwnerProfile"];
             csrfToken: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Expiry of the returned CSRF token; session idle and absolute TTL are server-enforced independently.
+             */
             expiresAt: string;
         };
         CsrfTokenResponse: {
             csrfToken: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Expiry of the returned CSRF token; session idle and absolute TTL are server-enforced independently.
+             */
             expiresAt: string;
         };
         OwnerProfile: {

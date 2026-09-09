@@ -42,6 +42,9 @@ class HealthScopeIT {
     @Autowired
     MockMvcTester mvc;
 
+    @Autowired
+    io.nullnull.identity.application.SessionService sessions;
+
     private void databaseReports(ProbeStatus status, String detail) {
         given(database.name()).willReturn("database");
         given(database.required()).willReturn(true);
@@ -89,7 +92,8 @@ class HealthScopeIT {
 
         // The two lists are separate namespaces: /health/ready is 503 above while this endpoint keeps
         // answering, because no demo capability claims to be backed by the database.
-        MvcTestResult demo = mvc.get().uri("/api/v1/demo/readiness").exchange();
+        MvcTestResult demo = mvc.get().uri("/api/v1/demo/readiness")
+                .cookie(new jakarta.servlet.http.Cookie("__Host-nullnull_session", sessions.bootstrap(null,null,null).cookie)).exchange();
         assertThat(demo).hasStatus(HttpStatus.OK);
         assertThat(demo).bodyJson().extractingPath("$.overall").isEqualTo("NOT_READY");
         assertThat(demo).bodyJson().extractingPath("$.capabilities[*].name").asArray()

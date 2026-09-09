@@ -639,6 +639,15 @@ B01 scaffold에서는 실제 구현한 기반 suite와 모든 미지원 capabili
 
 외부망 실제 KTO·AWS restore·alarm 수신·수동 screen reader·공식 접수는 실행 환경/사람 증거가 필요한 release gate다. 합성 PR test와 실제 증거를 별도 결과로 남긴다. 운영 수집 주기·nightly 성능 평가는 운영 검증 주기이며 날짜별 개발 일정이 아니다.
 
+### BA-010 세션 안전 검사
+
+`backend-plan.json`의 BA-010-T1~T3는 `integrationTest`의 `SessionSafetyIT`·`SessionTimeIT`와 `openapiContractTest`의 `SessionContractTest`가 실행한다. `test`의 `SessionPropertiesTest`는 cookie profile·Domain·duration 설정을 검사한다. `FlywayMigrationIT`는 빈 DB와 V004→V005의 기존 행·column 보존을 검증한다. 실제 PostgreSQL을 사용한다.
+
+- owner A/B/C는 cookie에서 유도하며 같은/타 session CSRF, Origin의 scheme/host/port, 중복 자격 증명, 다중 탭 LRU·동시 발급을 검사한다.
+- injected clock으로 first touch, throttle, idle/absolute·CSRF 만료의 등호 경계, orphan 및 revoked retention을 검사한다. DB `now()`를 테스트 clock으로 대신 쓰지 않는다.
+- `apps/web/e2e/session.spec.ts`는 `API_INTERNAL_BASE_URL`의 실제 API를 직접 호출하는 Playwright transport 검사다. Compose 내부 HTTP에서는 Secure cookie를 명시 전달한다. 브라우저 Secure cookie 수락이나 아직 없는 세션 UI를 검증했다고 쓰지 않는다. 기존 `shell.spec.ts`의 keyboard/focus 검사는 계속 실행한다.
+- report: `apps/api/build/test-results/{test,integrationTest,openapiContractTest}/*.xml`; 전체 gate의 복사본은 `.artifacts/integration/api-test-results/`와 `.artifacts/integration/test-results/`다. 전체 owner resource matrix와 삭제 receipt는 후속 slice 범위다.
+
 ### BA-004 보고서 집계와 CI 실패 증명
 
 `check_test_reports.py`는 `--junit-dir`, `--evaluation`, `--backend-plan`, `--manifest`를 각각 선택 입력으로 받는다. 입력 없이 실행하면 실패한다. plan/manifest에서 요구하는 Gradle ID는 제공한 JUnit 없이는 충족되지 않는다.

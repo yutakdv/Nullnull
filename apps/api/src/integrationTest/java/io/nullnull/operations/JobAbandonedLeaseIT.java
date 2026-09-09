@@ -187,6 +187,8 @@ class JobAbandonedLeaseIT {
         attemptedWrites = new CopyOnWriteArrayList<>();
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM background_jobs");
+        // Shared Compose DB retains earlier identity fixtures; clear children before owners.
+        jdbc.update("DELETE FROM demo_sessions");
         jdbc.update("DELETE FROM owners");
         workerLog = new ListAppender<>();
         workerLog.start();

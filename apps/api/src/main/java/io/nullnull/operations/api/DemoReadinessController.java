@@ -15,17 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code /health/ready}; see {@link io.nullnull.operations.application.DemoCapabilities} for why the
  * two namespaces are kept apart.
  *
- * <p>The contract declares {@code sessionCookie} on this operation. There is no session or auth layer
- * in the service yet - BA-010 builds it - so nothing enforces that here, and the endpoint answers any
- * caller. It exposes only capability names and their status, which is the same class of information
- * {@code /health/ready} already publishes unauthenticated, but the slice that adds sessions has to put
- * this route behind them.
- *
- * <p>That is not left to a card to remember. The operation is listed in
- * {@code ImplementedOperationsRegistry.SECURITY_NOT_YET_ENFORCED} and
- * {@code SystemContractTest.declaredSecurityIsNotEnforcedYet} asserts BOTH halves of the deviation -
- * that the contract still declares a scheme, and that this route still answers an unauthenticated
- * call. The day a session layer makes it a 401, that test goes red and the entry comes out with it.
+ * <p>Session security is enforced by the operation interceptor (BA-010).
  */
 @RestController
 public class DemoReadinessController {
@@ -37,6 +27,7 @@ public class DemoReadinessController {
     }
 
     @GetMapping("/demo/readiness")
+    @io.nullnull.shared.http.NullnullOperation(id = "getDemoReadiness", security = io.nullnull.shared.http.NullnullOperation.Security.SESSION)
     public DemoReadinessResponse demoReadiness() {
         DemoReadinessReport report = capabilities.readiness();
         List<CapabilityStatusResponse> statuses = report.capabilities().stream()

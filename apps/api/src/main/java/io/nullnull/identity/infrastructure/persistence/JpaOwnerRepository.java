@@ -33,6 +33,8 @@ public class JpaOwnerRepository implements OwnerRepository {
     public Owner create(Owner owner) {
         OwnerEntity entity = OwnerEntity.fromDomain(owner);
         entityManager.persist(entity);
+        // Session creation uses JDBC in this transaction and needs the owner FK visible now.
+        entityManager.flush();
         return entity.toDomain();
     }
 

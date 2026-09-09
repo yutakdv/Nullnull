@@ -45,6 +45,14 @@ jobs:
     name: api-quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      APP_COOKIE_SECURE: "true"
+      APP_COOKIE_DOMAIN: ""
+      APP_PUBLIC_ORIGIN: http://localhost:5173
+      APP_SESSION_TTL: P30D
+      APP_SESSION_ABSOLUTE_TTL: P90D
+      APP_CSRF_TOKEN_TTL: PT2H
+      NULLNULL_JOB_RETENTION_SWEEP_INTERVAL: PT1M
     defaults:
       run:
         working-directory: apps/api

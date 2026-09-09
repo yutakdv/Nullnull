@@ -330,7 +330,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-010
 
-**익명 owner·session·CSRF 복구** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**익명 owner·session·CSRF 복구** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: `FR-ONB-01`, `FR-SES-01`, `FR-SES-02`, `FR-SES-03`, `NFR-SEC-01`
@@ -351,10 +351,20 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 필수 검증:
 
 - `BA-010-T1`: owner A/B/C 교차 조회·변경과 CSRF/Origin 위조를 거부한다
-- `BA-010-T2`: 새 tab token 발급이 기존 tab을 깨뜨리지 않고 최대 개수를 넘으면 계약 오류다
+- `BA-010-T2`: 미만료 token 5개를 함께 유지하고 6번째 발급 시 last_used_at 기준 LRU token을 회수한다
 - `BA-010-T3`: expiry·rotation·response loss 이후 안전한 bootstrap으로 복구한다
 
 FE 인계·완료 증거: 쿠키/헤더 examples, 최초/refresh/만료/두 tab E2E fixture와 401 복구 순서. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+BA-010 구현 증거 (local·full Docker: Java 276 / 114 / 11 / 19, 0 fail/error/skip; Playwright 5건 통과):
+
+- `SessionSafetyIT.isolation/origins/ambiguousCredentials` 및 `SessionContractTest.securityParity`: cookie 유도 owner, 타 session CSRF, Origin·중복 credential과 operation 보안 정책을 검증한다. `/me` production route는 BA-011에서 추가하며 현재 owner 분리는 test-support route로 검사한다.
+- `SessionSafetyIT.lru/concurrentTokens/lockContention`, `SessionTimeIT.csrfExpiry`: 5개 유지·6번째 LRU·동시 revoke·token 만료를 검증한다.
+- `SessionSafetyIT.bootstrapAndOrphans/expiration/revokedRetention`, `SessionTimeIT.sliding/cutoffs`, `SessionContractTest.responses`: bootstrap 수렴·정리·idle/absolute·secure cookie·CSRF expiry response를 검증한다.
+- report: `apps/api/build/test-results/integrationTest/TEST-io.nullnull.identity.SessionSafetyIT.xml`, `TEST-io.nullnull.identity.SessionTimeIT.xml`; `apps/api/build/test-results/openapiContractTest/TEST-io.nullnull.contract.SessionContractTest.xml`. 설정은 `test`의 `SessionPropertiesTest`, migration은 기존 `FlywayMigrationIT`에서 검사한다.
+- Playwright `apps/web/e2e/session.spec.ts`: 실제 API transport bootstrap/refresh/다중 탭; HTTP Compose에서 Secure cookie 명시 전달. UI keyboard/focus는 기존 shell 검사이며 세션 화면 구현·브라우저 Secure cookie 수락 검증과 구분한다.
+- 공개 shape는 유지하고 LRU 및 response `expiresAt`의 CSRF 만료 의미를 명시했다. V005는 두 table 추가이며 V001~V004를 변경하지 않는다. absolute P90D·CSRF PT2H·touch PT1M은 제안값이다.
+- PM-017의 서버 만료/LRU/GC 경계는 구현했다. cookie 유실 안내와 401 뒤 mutation 재실행 금지는 FE 화면 검수로 넘긴다. staging·상대 재현 확인 전 `verified`나 이슈 완료로 쓰지 않는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-017.
 

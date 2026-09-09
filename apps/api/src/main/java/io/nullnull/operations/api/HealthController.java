@@ -34,11 +34,13 @@ public class HealthController {
     }
 
     @GetMapping("/health/live")
+    @io.nullnull.shared.http.NullnullOperation(id = "getLiveness")
     public HealthStatusResponse liveness() {
         return new HealthStatusResponse("UP", clock.instant());
     }
 
     @GetMapping("/health/ready")
+    @io.nullnull.shared.http.NullnullOperation(id = "getReadiness")
     public ReadinessStatusResponse readiness() {
         ReadinessReport report = readinessQuery.readiness();
         if (report.state() == ReadinessState.NOT_READY) {

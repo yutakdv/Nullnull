@@ -24,6 +24,13 @@ services:
       dockerfile: apps/api/Dockerfile
       target: test
     environment: &api-environment
+      APP_COOKIE_SECURE: "true"
+      APP_COOKIE_DOMAIN: ""
+      APP_PUBLIC_ORIGIN: http://localhost:5173
+      APP_SESSION_TTL: P30D
+      APP_SESSION_ABSOLUTE_TTL: P90D
+      APP_CSRF_TOKEN_TTL: PT2H
+      NULLNULL_JOB_RETENTION_SWEEP_INTERVAL: PT1M
       SPRING_PROFILES_ACTIVE: integration
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nullnull_integration
       SPRING_DATASOURCE_USERNAME: nullnull
@@ -174,6 +181,7 @@ services:
       target: e2e
     environment:
       PLAYWRIGHT_BASE_URL: http://web:4173
+      API_INTERNAL_BASE_URL: http://api:8080
       CI: "true"
     depends_on:
       - api

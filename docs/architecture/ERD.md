@@ -68,7 +68,7 @@ erDiagram
       uuid id PK
       uuid owner_id FK
       bytes token_hash UK
-      timestamptz last_seen_at
+      timestamptz last_seen_at "nullable until first non-bootstrap request"
       timestamptz expires_at
       timestamptz revoked_at
       timestamptz created_at
@@ -697,7 +697,7 @@ erDiagram
 - `demo_sessions.token_hash`: 원문 token 저장 금지, unique index.
 - session 조회 index: `(token_hash) WHERE revoked_at IS NULL`.
 - `demo_session_csrf_tokens`에는 token hash만 저장하고 token별 독립 만료를 둔다. session당 미만료 token은 최대 5개이며 새 tab 발급이 다른 tab token을 무효화하지 않는다.
-- `POST /demo/sessions`는 owner가 생기기 전이므로 일반 idempotency table을 사용하지 않는다. cookie를 받은 retry는 기존 owner로 수렴하고 cookie 이전에 남은 bootstrap owner/session은 15분 후 삭제한다.
+- `POST /demo/sessions`는 owner가 생기기 전이므로 일반 idempotency table을 사용하지 않는다. cookie를 받은 retry는 기존 owner로 수렴하고 cookie 이전에 남은 bootstrap owner/session은 15분에 정리 대상이 되며 기본 1분 sweep에서 삭제한다. 활성 session이 하나라도 남은 owner는 보존한다.
 - owner 삭제 시 session 즉시 revoke. 도메인 data 삭제는 짧은 background job으로 cascade하되 상태를 추적한다.
 
 ### Catalog/Social

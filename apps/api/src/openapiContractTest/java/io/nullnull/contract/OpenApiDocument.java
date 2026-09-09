@@ -73,28 +73,31 @@ public final class OpenApiDocument {
         return ids;
     }
 
-    /**
-     * The security scheme names one operation declares, or an empty set when it declares none. Used
-     * to keep {@code ImplementedOperationsRegistry.SECURITY_NOT_YET_ENFORCED} honest: an entry there
-     * must name an operation whose contract really does ask for a scheme.
-     */
-    @SuppressWarnings("unchecked")
-    public Set<String> declaredSecuritySchemes(String operationId) {
-        Set<String> schemes = new java.util.LinkedHashSet<>();
+    /** Exact alternatives: each OpenAPI security mapping is AND, the array is OR. */
+    public List<Set<String>> securityRequirements(String operationId) {
+        List<Set<String>> requirements = new ArrayList<>();
         Map<String, Object> paths = section(document.get("paths"), "paths");
         paths.forEach((path, item) -> section(item, "paths." + path).forEach((method, operation) -> {
             if (!HTTP_METHODS.contains(method) || !(operation instanceof Map<?, ?> op)
-                    || !operationId.equals(op.get("operationId"))) {
-                return;
-            }
-            if (op.get("security") instanceof List<?> declared) {
+                    || !operationId.equals(op.get("operationId"))) { return; }
+            Object security = op.containsKey("security") ? op.get("security") : document.get("security");
+            if (security instanceof List<?> declared) {
                 for (Object requirement : declared) {
-                    if (requirement instanceof Map<?, ?> map) {
-                        schemes.addAll((Set<String>) map.keySet());
+                    if (!(requirement instanceof Map<?, ?> map)) {
+                        throw new IllegalStateException("Invalid security requirement");
                     }
+                    Set<String> schemes = new TreeSet<>();
+                    map.keySet().forEach(key -> schemes.add(String.valueOf(key)));
+                    requirements.add(schemes);
                 }
             }
         }));
+        return requirements;
+    }
+
+    public Set<String> declaredSecuritySchemes(String operationId) {
+        Set<String> schemes = new TreeSet<>();
+        securityRequirements(operationId).forEach(schemes::addAll);
         return schemes;
     }
 

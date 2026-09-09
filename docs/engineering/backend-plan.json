@@ -369,7 +369,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "익명 owner·session·CSRF 복구",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-002",
         "BA-003",
@@ -406,7 +406,7 @@
         },
         {
           "id": "BA-010-T2",
-          "assertion": "새 tab token 발급이 기존 tab을 깨뜨리지 않고 최대 개수를 넘으면 계약 오류다"
+          "assertion": "미만료 token 5개를 함께 유지하고 6번째 발급 시 last_used_at 기준 LRU token을 회수한다"
         },
         {
           "id": "BA-010-T3",

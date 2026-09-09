@@ -25,11 +25,26 @@ cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전�
 
 Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
 
-순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → **B1 BA-010(다음)** → B2 BA-011 → B3 BA-012 → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → **B2 BA-011(다음)** → B3 BA-012 → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
 
-## 2. 현재 상태 (A4 Backend/AI CI 구현 후)
+## 2. 현재 상태 (B1 BA-010 구현 후)
 
 **최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper `integration_mode=full-docker`, exit 0을 확인했다. A4 자체 커밋은 `552a539`, main 수신 merge commit은 `308ee35`다.
+
+
+### B1(BA-010) — 세션·CSRF 구현
+
+- `V005__demo_sessions.sql`을 추가했다. V001~V004는 그대로다. session/CSRF bearer는 SecureRandom 32B base64url, DB에는 SHA-256만 저장한다.
+- `SessionService`는 bootstrap 201/valid-cookie 200 수렴, first touch/idle sliding/absolute cap, LRU 5개, owner→session lock을 강제한다. HTTP interceptor는 operation annotation에 따라 cookie/Origin/CSRF를 검증한다. `getDemoReadiness`의 미강제 예외는 제거됐다.
+- **`@NullnullOperation`은 A3 코드에 실제로 없었다.** B1이 새로 추가하고 모든 실제 controller의 route/security와 OpenAPI를 contract test로 맞췄다. 미매핑 404는 그대로다.
+- `SessionBootstrap.expiresAt`와 `CsrfTokenResponse.expiresAt`는 **반환한 CSRF token의 만료**다. session TTL은 서버에서 별도로 검사한다. body shape는 그대로이고 generated client를 재생성했다.
+- orphan owner/session은 15분에 정리 대상, 기본 sweep은 1분이다. 첫 비-bootstrap 요청을 기록한 session은 orphan cleanup에서 보존한다. revoked session은 30일, CSRF는 token 만료에 삭제한다. absolute P90D·CSRF PT2H·touch PT1M은 제안값이다.
+- local·full Docker Java **276 / 114 / 11 / 19**, 모두 0 fail/error/skip. AI pytest 410, web 148, Playwright 5건, client diff·audit·egress-denied 통과. docs·root unittest 89·Markdownlint·Redocly·AJV 통과.
+- 변이 **31종 최종 RED**, 모든 cp+SHA 복원 일치. 세션 lock 제거가 처음 살아남아 동시 revoke commit 뒤 발급 거부를 검사하도록 보강했고 재검증은 RED다. 기록 `.artifacts/ba-010/mutations.json`, 상세는 local progress.
+- 실제 Docker에서 기존 job suite 5개가 `DELETE FROM owners` 전에 session fixture를 정리하지 않아 FK 오류가 났다. 테스트 setup의 자식→owner 정리 순서를 고쳤다. 운영 FK를 완화하지 않았다.
+- Playwright는 `API_INTERNAL_BASE_URL`의 실제 API로 직접 호출한다. **현재 `apps/web/serve.mjs`에는 API proxy가 없다.** web 경유 시 HTML 200을 받아 테스트가 실패했고 직접 API 연결로 수정했다. HTTP Compose에서 Secure cookie를 명시 전송하는 transport 검사이며, browser Secure cookie 수락·아직 없는 session UI 검증은 아니다. FE runtime proxy와 cookie 유실 안내는 FE 인계 사항이다.
+- BA-010은 `integration-ready`; main merge·FE 재현 전 이슈 완료/`verified`로 쓰지 않는다. 새 PR #100은 필수 CI 통과지만 확인 시 승인 기록이 없어 미병합이다.
+- 다음은 **B2(BA-011)**. production `/me`를 추가하고 현재 test-support owner 분리 검사를 실제 route에 연결한다. B3는 revoked cookie의 24h replay context와 30d session retention을 재사용한다. **추가 점검:** 현 B3 계획에는 active session의 idle 만료 후 owner 데이터 자동 삭제 절차가 없다. privacy의 idle 보존 약속과 연결해 B3 구현 전에 정리해야 한다(현재 B1은 expired credential 사용을 거부하지만 해당 owner의 사업 데이터 삭제를 수행하지 않는다).
 
 ### main 수신 후 검증 기준선
 
@@ -63,7 +78,7 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 - 최종 실측(main 수신 전): local·offline Compose 각각 `274 / 101 / 9 / 17`, 0 fail/error/skip. Python unittest 89, docs·Markdownlint·Redocly·AJV 통과. 코드/설정 변이 25개 최종 RED+SHA 복원 일치, OpenAPI 경로 제거 변이 exit 1.
 - 변이/실행 근거: `.superpowers/sdd/2026-09-08-backend-a-to-d/progress.md`의 A4 절, `.artifacts/ba-004/`(로컬). 실행하지 않은 원격 PR gate를 로컬 재현과 혼동하지 않는다.
 
-**다음 작업은 B1(BA-010)이다.** `plan.md`의 `## Slice B1` 절, migration **V005**를 따른다.
+**다음 작업은 B2(BA-011)이다.** `plan.md`의 `## Slice B2` 절을 따른다.
 
 ## 3. A3에서 내린 판정 중 이후 slice가 알아야 할 것
 

@@ -62,8 +62,11 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `SERVER_PORT` | 아니오 | `8080` | container port |
 | `APP_PUBLIC_ORIGIN` | 아니오 | `http://localhost:5173` | CORS/Origin 검증 |
 | `APP_COOKIE_DOMAIN` | 아니오 | 모든 환경에서 비움 | `__Host-` cookie에 Domain attribute 금지 |
-| `APP_COOKIE_SECURE` | 아니오 | `false` local, `true` cloud | prod false 금지 |
-| `APP_SESSION_TTL` | 아니오 | `P30D` | session expiry |
+| `APP_COOKIE_SECURE` | 아니오 | 기본 `true`, `false`는 local 단독 profile만 | test/integration/cloud는 `true`; Domain 금지 |
+| `APP_SESSION_TTL` | 아니오 | `P30D` | idle sliding expiry |
+| `APP_SESSION_ABSOLUTE_TTL` | 아니오 | `P90D` (제안값) | 생성부터 absolute 상한; idle 30일의 3배 |
+| `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` (제안값) | tab token 갱신 주기; session 만료보다 길지 않음 |
+| `nullnull.session.touch-interval` | 아니오 | `PT1M` (제안값) | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록 |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
 | `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
@@ -85,7 +88,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_JOB_MAX_RETRY_BACKOFF` | 아니오 | `PT5M` 제안값 | 재시도 지연 상한, `NULLNULL_JOB_RETRY_BACKOFF` 이상 |
 | `NULLNULL_JOB_DEAD_LETTER_WINDOW` | 아니오 | `PT15M` 제안값 | 이 구간에 FAILED job이 있으면 readiness `jobs`가 DEGRADED, 최소 `PT1M` |
 | `NULLNULL_JOB_FINISHED_RETENTION` | 아니오 | `P7D` 제안값 | COMPLETED/FAILED job row 보존, 최소 `PT1H` |
-| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1H` 제안값 | TTL sweep 주기, 최소 `PT1M` |
+| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1M` 제안값 | bootstrap 15분 만료 후 다음 sweep에서 정리, 최소 `PT1M` |
 | `NULLNULL_JOB_DEFAULT_CONCURRENCY` | 아니오 | `2` 제안값 | type별 동시 실행 기본값(1..64). 아래 connection budget에 걸리면 startup에서 실패한다 |
 | `NULLNULL_DB_POOL_MAX` | 아니오 | `10` | `spring.datasource.hikari.maximum-pool-size`. HTTP thread와 job worker가 같이 쓰는 pool이다 |
 | `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
