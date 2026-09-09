@@ -20,11 +20,11 @@ function renderAt(path: string) {
 describe('P0 route table', () => {
   // Routes whose screens have not been built yet still resolve to a labelled
   // placeholder rather than a blank page. Rows leave this list as their slice
-  // lands: /, /language and /intro in FE-101, /profile in FE-105.
+  // lands: /, /language and /intro in FE-101, /profile in FE-105,
+  // /about-data in FE-404.
   it.each([
     ['/feed', 'feed'],
     ['/live', 'live'],
-    ['/about-data', 'about-data'],
   ])('resolves %s to its placeholder', async (path, routeId) => {
     renderAt(path);
     expect(await screen.findByTestId('placeholder-route')).toHaveTextContent(routeId);
@@ -42,6 +42,7 @@ describe('P0 route table', () => {
     ['/language', 'language-heading'],
     ['/intro', 'intro-heading'],
     ['/profile', 'profile-heading'],
+    ['/about-data', 'data-guide-heading'],
   ])('resolves %s to its built screen', async (path, headingId) => {
     renderAt(path);
     expect(await screen.findByRole('heading', { level: 1 })).toHaveAttribute(

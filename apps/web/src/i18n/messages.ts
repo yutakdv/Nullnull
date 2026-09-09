@@ -125,6 +125,40 @@ export const messages = {
     'profile.location.note': '기기 안에서만 사용 · 서버 전송 안 함',
     'profile.location.off': '허용 안 함',
     'profile.retry': '다시 시도',
+
+    // S15 data guide (423:2967). The six state labels live in StateLabel (C07);
+    // Figma pins that wording and forbids changing it, so it is not duplicated.
+    'dataGuide.title1': '이 앱의 데이터는',
+    'dataGuide.title2': '어떻게 동작하나요?',
+    'dataGuide.states.heading': '혼잡도 데이터 상태 6가지',
+    'dataGuide.state.LIVE':
+      '서울 열린데이터로 지금 상태를 관측한 권역이에요. 기준시각을 함께 표시해요.',
+    'dataGuide.state.FORECAST':
+      '한국관광공사 예측 범위 안이에요. 확정된 혼잡이 아니라 예측이에요.',
+    'dataGuide.state.QUALITATIVE':
+      '예측이 닿지 않는 기간이에요. 숫자를 만들지 않고 주말·공휴일만 알려드려요.',
+    'dataGuide.state.STALE': '최신 데이터를 못 받아 마지막 값을 쓰고 있어요.',
+    'dataGuide.state.UNAVAILABLE':
+      '쓸 수 있는 근거가 없어요. 임의로 점수를 만들지 않아요.',
+    'dataGuide.state.REPLAY':
+      '과거 관측을 다시 보여드리는 데모예요. 지금 실시간이 아니에요.',
+    'dataGuide.rules.heading': '일정과 AI는 이렇게 동작해요',
+    'dataGuide.rule1.title': '담아둔 장소와 내 일정은 달라요',
+    'dataGuide.rule1.body':
+      '+로 담으면 후보로만 보관해요. 날짜·시간을 정해 배치해야 내 일정이 돼요.',
+    'dataGuide.rule2.title': '잠금은 네 가지가 따로 움직여요',
+    'dataGuide.rule2.body':
+      'Must Visit(장소 유지) · 날짜 고정 · 시간 고정 · 예약 고정(출처 표시, 해제 시 추가 확인)은 각각 독립이에요.',
+    'dataGuide.rule3.title': 'AI는 제안까지만 해요',
+    'dataGuide.rule3.body':
+      '선호와 이유 설명은 AI가, 운영·혼잡·경로·도착 시간 검증은 출처 있는 데이터와 서버 규칙이 해요.',
+    'dataGuide.rule4.title': '승인 전에는 일정을 바꾸지 않아요',
+    'dataGuide.rule4.body':
+      '최적화 변경안은 미리보기일 뿐이에요. 적용을 누르기 전까지 일정은 그대로예요. 적용 후에도 되돌릴 수 있어요.',
+    'dataGuide.rule5.title': '모든 혼잡 표시에는 출처가 있어요',
+    'dataGuide.rule5.body':
+      'Live·예측·REPLAY와 경로 데이터 모두 출처·기준시각을 함께 보여드려요. 근거 없는 숫자를 만들지 않아요.',
+    'dataGuide.attribution': '출처: ⓒ한국관광공사 · 서울 열린데이터광장',
   },
   'en-US': {
     'app.name': 'Nullnull',
@@ -243,6 +277,39 @@ export const messages = {
     'profile.location.note': 'Used on device only · never sent to the server',
     'profile.location.off': 'Not allowed',
     'profile.retry': 'Try again',
+
+    // S15 data guide (423:2967). Figma has no EN frame; these are translations.
+    // The attribution line keeps the Korean source names, which are the
+    // approved wording (CLAUDE.md invariant 12).
+    'dataGuide.title1': 'How does this app',
+    'dataGuide.title2': 'handle its data?',
+    'dataGuide.states.heading': 'The six crowd data states',
+    'dataGuide.state.LIVE':
+      'An area observed right now via Seoul Open Data. The reference time is shown with it.',
+    'dataGuide.state.FORECAST':
+      'Inside the Korea Tourism Organization forecast range. A forecast, not a confirmed crowd level.',
+    'dataGuide.state.QUALITATIVE':
+      'Beyond the forecast range. We invent no number and only flag weekends and holidays.',
+    'dataGuide.state.STALE': 'No fresh data arrived, so the last value is being used.',
+    'dataGuide.state.UNAVAILABLE': 'No usable basis. We do not invent a score.',
+    'dataGuide.state.REPLAY': 'A demo replaying past observations. Not live right now.',
+    'dataGuide.rules.heading': 'How trips and AI work',
+    'dataGuide.rule1.title': 'Saved places and your itinerary are different',
+    'dataGuide.rule1.body':
+      'Tapping + keeps a place as a candidate. It joins your itinerary only once you give it a date and time.',
+    'dataGuide.rule2.title': 'The four locks work independently',
+    'dataGuide.rule2.body':
+      'Must Visit (keep the place), date lock, time lock and reservation lock (source shown, extra confirmation to release) are each separate.',
+    'dataGuide.rule3.title': 'AI only proposes',
+    'dataGuide.rule3.body':
+      'AI reads preferences and explains reasons; opening hours, crowding, routes and arrival times are verified by sourced data and server rules.',
+    'dataGuide.rule4.title': 'Nothing changes before you approve',
+    'dataGuide.rule4.body':
+      'An optimization is a preview only. Your itinerary stays as it is until you apply, and you can revert afterwards.',
+    'dataGuide.rule5.title': 'Every crowd figure has a source',
+    'dataGuide.rule5.body':
+      'Live, forecast, REPLAY and route data all show their source and reference time. We do not invent numbers.',
+    'dataGuide.attribution': '출처: ⓒ한국관광공사 · 서울 열린데이터광장',
   },
 } as const satisfies Record<SupportedLocale, Record<string, string>>;
 

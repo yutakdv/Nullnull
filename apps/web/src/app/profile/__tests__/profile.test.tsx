@@ -201,7 +201,10 @@ describe('the profile is reachable by keyboard', () => {
     });
     await user.click(guide);
     await waitFor(() => {
-      expect(screen.getByTestId('placeholder-route')).toHaveTextContent('about-data');
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'data-guide-heading',
+      );
     });
   });
 });

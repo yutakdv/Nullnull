@@ -385,7 +385,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "S15 데이터 안내의 source/state/freshness/confidence 설명 (서울 source는 B10에 추가)",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-105",
         "BA-023"
@@ -422,7 +422,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Static explanatory screen: no API and no mock data. State list is asserted against the OpenAPI SourceState enum."
     },
     {
       "id": "FE-102",

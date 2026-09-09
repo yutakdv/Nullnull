@@ -5,6 +5,7 @@ import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
 import { LanguageScreen } from './onboarding/LanguageScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
+import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
 
 // P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
@@ -40,7 +41,7 @@ export const routes: RouteObject[] = [
       },
       { path: 'live', element: <PlaceholderScreen routeId="live" /> },
       { path: 'profile', element: <ProfileScreen /> },
-      { path: 'about-data', element: <PlaceholderScreen routeId="about-data" /> },
+      { path: 'about-data', element: <DataGuideScreen /> },
       { path: '*', element: <NotFoundScreen /> },
     ],
   },
