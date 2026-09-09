@@ -254,9 +254,21 @@ class FlywayMigrationIT {
                         + " (id, kind, locale, timezone, created_at) VALUES (?, 'ANONYMOUS', ?, ?, ?)",
                 ownerId, "ko-KR", "Asia/Seoul", OffsetDateTime.now());
         insertRecordInto(UPGRADE_SCHEMA, ownerId);
+        UUID sessionId = UUID.randomUUID();
+        byte[] hash = new byte[32];
+        new java.security.SecureRandom().nextBytes(hash);
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".demo_sessions"
+                        + " (id, owner_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                sessionId, ownerId, hash, now.plusDays(30), now);
+        new java.security.SecureRandom().nextBytes(hash);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".demo_session_csrf_tokens"
+                        + " (id, demo_session_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                UUID.randomUUID(), sessionId, hash, now.plusHours(2), now);
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         assertThat(tablesInUpgradeSchema())
-                .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records");
+                .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records",
+                        "demo_sessions", "demo_session_csrf_tokens");
         return key;
     }
 

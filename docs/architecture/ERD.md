@@ -772,8 +772,8 @@ erDiagram
 
 - session 삭제 transaction은 session/CSRF token을 먼저 revoke하고 `deletion_requests`, `deletion_tombstones`, `background_jobs`를 함께 만든 뒤 202를 반환한다.
 - 같은 transaction에 DELETE `/session` idempotency receipt를 먼저 기록한다. 24시간 동안 revoked cookie hash와 동일 key/body만 receipt를 재생할 수 있고, status token은 request ID/expiry를 서명해 결정적으로 재생하므로 plaintext를 저장하지 않는다.
-- 삭제 상태 token은 hash만 저장하고 7일 뒤 만료한다. 상태 전이는 `ACCEPTED → RUNNING → COMPLETED|PARTIAL_FAILED|FAILED`이며 retry는 attempt와 error code를 남긴다.
-- tombstone은 최대 backup 보존 기간보다 길게 유지한다. restore 직후 traffic을 열기 전에 tombstone의 `delete_before`를 재적용한다.
+- 삭제 상태 token은 hash만 저장하고 7일 동안 반복 조회에 사용한 뒤 만료한다. `status_token_hash`는 7일 뒤 null로 지우며 receipt 행은 보존한다. 상태 전이는 `ACCEPTED → RUNNING → COMPLETED|PARTIAL_FAILED|FAILED`이며 retry는 attempt와 error code를 남긴다.
+- tombstone은 최대 backup 보존 기간보다 길게 유지한다. `retain_until` 뒤에도 revoked session의 30일 보존이나 미완료 삭제가 남아 있으면 owner hard delete와 tombstone 제거를 미룬다. restore 직후 traffic을 열기 전에 tombstone의 `delete_before`를 재적용한다.
 - job claim은 `FOR UPDATE SKIP LOCKED` 또는 동등한 원자 연산으로 `locked_by/lease_until`을 쓴다. worker는 heartbeat하고, lease 만료 뒤에만 다른 worker가 재수행한다.
 - `background_jobs.deduplication_key`의 unique는 **미완료(`READY`/`RETRY`/`RUNNING`) row에만** 걸린다(부분 unique index). 같은 key의 job은 한 번에 하나만 미완료일 수 있고, 끝난 row는 key를 잡지 않으므로 `collector:kto:area-1` 같은 반복 key가 다음 주기에 다시 enqueue된다. 전체 row에 unique를 걸면 두 번째 실행이 기존 완료 row를 돌려받아 조용히 no-op가 된다.
 - handler는 deduplication key에 대해 멱등이어야 하며 max attempt 초과 시 FAILED와 운영 alert를 만든다. payload에는 원문/secret 대신 domain ID만 둔다.

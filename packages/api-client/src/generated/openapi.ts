@@ -138,9 +138,10 @@ export interface paths {
         };
         /**
          * Get an owned-data deletion job status after session revocation
-         * @description Uses the one-time status token returned in DeletionReceipt because the original session
+         * @description Uses the receipt-scoped status token returned in DeletionReceipt because the original session
          *     is already revoked. The raw token is held in memory only, sent in a header, stored only
-         *     as a hash, expires after seven days, and cannot read any deleted domain data.
+         *     as a hash, expires after seven days, and can be reused for polling until expiry. It cannot
+         *     read any deleted domain data. A matching expired token returns 410; an unknown token returns 404.
          */
         get: operations["getDeletionRequest"];
         put?: never;
