@@ -1261,7 +1261,7 @@
       "phase": "B08",
       "priority": "P0",
       "title": "전체 P0 responsive/긴 텍스트/200% zoom pass",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-505"
       ],
@@ -1291,7 +1291,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Responsive/zoom/long-copy guards run in Playwright; they found and fixed a body min-width floor that forced horizontal scrolling at 200% zoom."
     },
     {
       "id": "FE-602",

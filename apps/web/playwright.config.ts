@@ -21,7 +21,12 @@ export default defineConfig({
   webServer: integration
     ? undefined
     : {
-        command: 'npm run dev',
+        // --host binds 127.0.0.1 as well as ::1. Without it Vite listens on
+        // IPv6 localhost only, Playwright's IPv4 baseURL never connects, and
+        // the suite runs against a blank page -- assertions on absent elements
+        // fail loudly, but any probe that only measures layout would "pass"
+        // while measuring nothing.
+        command: 'npm run dev -- --host 127.0.0.1',
         url: 'http://127.0.0.1:5173',
         reuseExistingServer: !process.env.CI,
       },
