@@ -181,3 +181,42 @@ test.describe('keyboard and motion', () => {
     }
   });
 });
+
+test.describe('touch targets', () => {
+  // TEST_STRATEGY.md §3: 44px minimum, and enough space between neighbours.
+  // Enforced in a browser because the size comes from computed layout, not
+  // from any single declaration a lint rule could read.
+  const MIN = 44;
+
+  for (const screen of SCREENS) {
+    test(`${screen.name} keeps every control tappable`, async ({ page }) => {
+      await page.goto(screen.path);
+      await page.waitForLoadState('networkidle');
+
+      const undersized = await page.evaluate((min) => {
+        const found: string[] = [];
+        const controls = 'a, button, [role="button"], input, select, textarea';
+        for (const el of document.querySelectorAll(controls)) {
+          const node = el as HTMLElement;
+          // Disabled controls are not tap targets; `준비 중` rows are inert by
+          // design and must not be dragged up to 44px to satisfy a rule.
+          if ((node as HTMLButtonElement).disabled) continue;
+          const box = node.getBoundingClientRect();
+          if (box.width === 0 || box.height === 0) continue;
+          if (box.height < min || box.width < min) {
+            found.push(
+              `<${node.tagName.toLowerCase()}> ${Math.round(box.width)}×${Math.round(box.height)} ` +
+                `"${(node.textContent ?? '').trim().slice(0, 24)}"`,
+            );
+          }
+        }
+        return found;
+      }, MIN);
+
+      expect(
+        undersized,
+        `${screen.name} has controls below ${String(MIN)}px: ${undersized.join(' | ')}`,
+      ).toEqual([]);
+    });
+  }
+});

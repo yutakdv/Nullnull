@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+// Performance budget for the production bundle (FE-602).
+//
+// TEST_STRATEGY.md §7 says to measure the mobile production build and then fix
+// the budget. These numbers are that measurement plus headroom, not a guess.
+//
+// The check is deliberately blunt: it fails when the bundle grows past the
+// budget, and it fails just as loudly when it cannot find the bundle at all.
+// A budget check that silently measures nothing is worse than none, because it
+// reports success while the thing it guards is unmeasured.
+import { gzipSync } from 'node:zlib';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const web = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const assets = join(web, 'dist/assets');
+
+// Budgets are gzip bytes, which is what a user actually downloads.
+// Measured 2026-09-09 on the production build; headroom is ~15%.
+const BUDGETS = {
+  js: 135_000, //  measured 115,004
+  css: 6_000, //   measured   2,588
+};
+
+if (!existsSync(assets)) {
+  console.error(`budget: no build at ${assets}. Run \`npm run build\` first.`);
+  process.exit(1);
+}
+
+const files = readdirSync(assets);
+const totals = { js: 0, css: 0 };
+const seen = { js: 0, css: 0 };
+
+for (const name of files) {
+  const kind = name.endsWith('.js') ? 'js' : name.endsWith('.css') ? 'css' : null;
+  if (!kind) continue;
+  seen[kind] += 1;
+  totals[kind] += gzipSync(readFileSync(join(assets, name)), { level: 9 }).length;
+}
+
+let failed = false;
+
+for (const kind of ['js', 'css']) {
+  // Zero files means the glob stopped matching, not that the bundle is small.
+  if (seen[kind] === 0) {
+    console.error(`budget: no ${kind} assets found, refusing to report a pass`);
+    failed = true;
+    continue;
+  }
+  const used = totals[kind];
+  const budget = BUDGETS[kind];
+  const pct = Math.round((used / budget) * 100);
+  const line = `${kind.toUpperCase().padEnd(3)} ${String(used).padStart(7)} / ${String(budget).padStart(7)} gzip bytes (${String(pct)}%)`;
+  if (used > budget) {
+    console.error(`budget: OVER  ${line}`);
+    failed = true;
+  } else {
+    console.log(`budget: ok    ${line}`);
+  }
+}
+
+process.exit(failed ? 1 : 0);
