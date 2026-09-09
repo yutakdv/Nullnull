@@ -61,6 +61,8 @@ issue를 먼저 연다.
 
 frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_MATRIX.md), 전체 operation은 [OpenAPI](../api/openapi.yaml), 상태별 동작은 [Figma 핸드오프](../design/FIGMA_HANDOFF.md), frame과 `FE-*` 실행 ID의 매핑은 [공통 실행 순서](../engineering/IMPLEMENTATION_PLAN.md)에 모았다. 이 문서에 같은 표를 복제하지 않는다.
 
+작업 목록의 기계 판독 정본은 [frontend-plan.json](../engineering/frontend-plan.json)이고 GitHub issue는 그 투영이다. 상태는 JSON이 정본이므로 구현 PR에서 `status`를 올리고 issue를 닫는다. `scripts/validate_frontend_plan.py`가 phase·기능 ID·operation·Figma node·선행 관계와 순환을 검사한다. Backend와 달리 operation 독점 소유와 전체 기능 coverage는 검사하지 않는다 — FE는 operation을 소비하므로 한 operation이 여러 화면에 나타나고, 서버·운영 전용 요구사항에는 FE task가 없다.
+
 ## 3. Client 공통 책임
 
 쿠키/CSRF/request ID/If-Match/Idempotency-Key를 공통 wrapper에서 처리하고 생성 타입을 수동 복제하지 않는다. 401은 안전한 GET만 1회 복구하며 mutation의 재시도는 동일 body/key에 대한 명시적 사용자 행동으로 제한한다. 검색·viewport는 민감 body이고 query cache persistence에서 제외한다.
@@ -71,7 +73,7 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
 
 ## 5. `frontend` 브랜치와 작업 절차
 
-`frontend`는 FE 전용 장기 역할 브랜치이며 `main`에 직접 push하지 않는다. 장기 브랜치를 재사용하므로 PR merge 방식은 **merge commit**으로 고정한다. squash/rebase merge를 쓰면 source branch와 `main` 이력이 갈라져 force push가 필요해지므로 금지한다. 모든 PR에는 상대 담당자 1인 승인, 최신 `main`, `docs-contract`, `docker-integration`이 필요하다.
+`frontend`는 FE 전용 장기 역할 브랜치이며 `main`에 직접 push하지 않는다. 장기 브랜치를 재사용하므로 PR merge 방식은 **merge commit**으로 고정한다. squash/rebase merge를 쓰면 source branch와 `main` 이력이 갈라져 force push가 필요해지므로 금지한다. 모든 PR은 최신 `main`, `docs-contract`, `docker-integration`이 green이면 상대 승인 대기 없이 auto-merge한다. 상대 담당자 검토는 계약과 server truth 피드백을 위한 비동기 절차다.
 
 ### 작업 시작
 
@@ -86,8 +88,8 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
 1. route/component/state를 작은 commit으로 구현한다.
 2. generated client가 없는 shape는 hand-written type으로 우회하지 않고 contract blocker로 전환한다.
 3. web gate와 영향 E2E를 실행하고 실제 결과를 기록한다.
-4. `frontend → main` PR 하나만 열고 BE/AI 담당자를 reviewer로 지정한다.
-5. PR의 `docker-integration`이 candidate merge ref를 실제 API·DB와 함께 검증해야 한다.
+4. `frontend → main` PR 하나만 열고 BE/AI 담당자에게 검토를 요청한다.
+5. PR의 `docker-integration`이 candidate merge ref를 실제 API·DB와 함께 검증하고, 두 required check가 green이면 auto-merge한다.
 6. merge 후 `frontend`를 `main`으로 fast-forward하고 merged branch를 삭제하지 않는다.
 
 두 역할 브랜치 사이의 PR이나 cherry-pick은 금지한다. 교차 기능은 `backend`의 contract-only PR → `main` merge → 두 역할 branch의 `main` 동기화 → backward-compatible Backend PR → Frontend PR 순서로 합친다. capability가 양쪽에서 준비되기 전에는 켜지 않아 반쪽 구현을 노출하지 않는다. Frontend PR 뒤 server-owned capability를 켤 때는 Backend/AI의 별도 flag/config PR, FE 승인, 두 required status와 staging acceptance가 필요하다.
@@ -216,7 +218,7 @@ Frontend는 심사위원이 외부망·익명창·로그인 없이 핵심 흐름
 | `contract-ready` | 필요한 field/state/error와 UI acceptance 승인 | OpenAPI/event/example/state transition 작성 | contract SHA, schema-valid fixture | 생성 client와 provider test가 같은 example 사용 |
 | `implementation-ready` | MSW·failing component/E2E test | DB/domain·failing contract/integration test | 양쪽 test ID | 상대 구현을 기다리지 않고 병렬 착수 가능 |
 | `integration-ready` | generated client·UI 전체 상태 | 실제 API·seed·readiness·migration | handoff packet, image digest | mock 전용 field 0, contract SHA 일치 |
-| `PR-ready` | `frontend → main` PR와 web evidence | server truth·문구 review | PR checklist | 상대 승인, unresolved conversation 0 |
+| `PR-ready` | `frontend → main` PR와 web evidence | server truth·문구 review | PR checklist | unresolved conversation 0 |
 | `merge-ready` | candidate merge ref 사용자 journey | Docker/API/DB/source fixture 검증 | `docker-integration` report | 모든 required check green |
 | `release-ready` | production web artifact·외부망 UX | API/data/AWS readiness·rollback | immutable release manifest | 둘 다 go, 실제 공모전 기능 증거 확보 |
 

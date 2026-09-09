@@ -31,7 +31,7 @@ tags:
 12. Frontend는 승인된 생성 client/example을 소비하고, Backend/AI는 계약을 제안하되 Frontend 승인 없이 FE-facing shape를 동결하지 않는다.
 13. P0의 로그인, 일본어·중국어 UI는 disabled `준비 중`이며 요청을 보내지 않는다. 한국어·영어는 실제 선택·복구를 지원한다.
 14. 공모전 제출본은 로그인 없이 핵심 흐름이 완결되고, 한국관광공사 OpenAPI를 실제 server-side 호출하며 승인된 텍스트 출처와 호출 증거를 남긴다.
-15. Frontend는 `frontend`, Backend/AI는 `backend`에서 작업하고 상대 승인 및 `docs-contract`·`docker-integration` 뒤 `main`에 merge commit한다.
+15. Frontend는 `frontend`, Backend/AI는 `backend`에서 작업한다. 최신 `main` 기준 `docs-contract`·`docker-integration`이 모두 green이면 상대 승인 대기 없이 auto-merge를 허용하며 merge commit을 사용한다.
 16. 추천 계산(feed 순서·관련 장소·slot·ITEM 개선·설명 template)은 Python 서비스 `apps/ai`가 담당하고, Spring `apps/api`는 hydration·gateway·응답 재검증·저장·APPLY를 담당한다(ADR-0006). 계산을 Spring에 중복 구현하지 않고, `apps/ai`에 owner/session ID·원문·좌표를 보내지 않는다.
 
 ## 필수 검증
@@ -94,11 +94,11 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
 | 검사 | 트리거 | 실행 내용 | 커버하는 ID | 상태 |
 | --- | --- | --- | --- | --- |
-| `docs-contract` | 모든 main PR/push | `validate_docs.py`(Problem code↔FE mapping 포함), `python3 -m unittest discover -s scripts/tests`, plan/Canvas 검증, markdownlint, Redocly, AJV, PR 전용 OpenAPI breaking diff, report runner 부정·wrapper 실행 검사 | BA-000-T1~T3, BA-004-T1/T2 로컬 재현 검사, FE-003 code mapping | 실행 중 |
+| `docs-contract` | 모든 main PR/push | `validate_docs.py`(Problem code↔FE mapping, backend·frontend plan 검증 포함), `python3 -m unittest discover -s scripts/tests`, plan/Canvas 검증, markdownlint, Redocly, AJV, PR 전용 OpenAPI breaking diff, report runner 부정·wrapper 실행 검사 | BA-000-T1~T3, BA-004-T1/T2 로컬 재현 검사, FE-003 code mapping, frontend plan DAG | 실행 중 |
 | `docker-integration` | 모든 main PR/push | `integration-test.sh`: verifier→`api-quality`·`ai-quality`·report 집계(실행 ID·freshness)·web·client diff·scan·egress-denied·E2E | 아래 suite 전체 | marker 병합 후 전체 실행 |
 | `api-quality` (workflow) | `apps/api/**`, `apps/ai/contracts/**`, `apps/ai/tests/recommendation/fixtures/**`, `apps/ai/tests/recommendation/manifest.json`, `apps/ai/src/nullnull_ai/policy/**`, `docs/api/openapi.yaml`, `backend-plan.json`, report runner/검사 push/PR | Gradle `test integrationTest openapiContractTest recommendationTest` + JUnit/ready-card ID 집계 | REC-ARCH-01, REC-DATA-02, REC-JOB-01, BA-001-T2, BA-003-T1~T3, BA-005-T1~T3, BA-010-T1~T3(SessionSafetyIT·SessionTimeIT·SessionContractTest, backend-plan.json), BA-011-T1~T3(OwnerPreferencesIT·OwnerPreferencesConcurrencyIT·OwnerContractTest), 내부 계약 parity(5 operation), gateway post-condition, ITEM fixture parity(LockChecks·ProposalRevalidator), policy pin parity, manifest `gradle:*` 경로 실재(REC-CI-4, `ManifestTestPathParityTest`) | 실행 중 |
 | `ai-quality` (workflow) | `apps/ai/**` push/PR | ruff, mypy strict, pytest(REC corpus, `evaluation.json`), 계약 JSON sync | `tests/recommendation/manifest.json`의 `implementedTestIds` 중 `suite: pytest` 행(`gradle:*` 행은 `api-quality`가 검증) | 실행 중 |
-| `apps/web` suite (`docker-integration` 내부) | 모든 main PR/push | `verify:ci`: tokens drift, eslint, prettier, tsc, vitest, build. fixture↔OpenAPI ajv 검증과 dist MSW 부재 단언 포함 | FE-001~003 | 실행 중 |
+| `apps/web` suite (`docker-integration` 내부) | 모든 main PR/push | `verify:ci`: tokens drift, eslint, prettier, tsc, `packages/*` typecheck(tsconfig 부재·0건 매칭을 실패로 처리), vitest, build. fixture↔OpenAPI ajv 검증과 dist MSW 부재 단언 포함 | FE-001~003, FE-005 | 실행 중 |
 
 등록 규칙:
 

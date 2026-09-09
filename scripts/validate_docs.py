@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from validate_backend_plan import validate as validate_backend_plan
+from validate_frontend_plan import validate as validate_frontend_plan
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -642,6 +643,7 @@ def main() -> int:
     validate_json_files(problems)
     validate_delivery_contract(problems)
     validate_backend_plan(ROOT, problems)
+    validate_frontend_plan(ROOT, problems)
 
     if problems:
         print("Documentation validation failed:", file=sys.stderr)
@@ -664,6 +666,7 @@ def main() -> int:
         "delivery policy",
         "contest evidence",
         "backend plan coverage/DAG and Obsidian links/Canvas",
+        "frontend plan features/nodes/DAG",
     ]
     print("Documentation validation passed: " + ", ".join(checks) + ".")
     if not problem_mapping_ran:

@@ -118,7 +118,7 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 - [BA-011 · 프로필·locale·onboarding·active trip](../roles/BACKEND_AI_PLAYBOOK.md#ba-011) — P0
 - [BA-012 · 세션 삭제 receipt·TTL·복원 후 재삭제](../roles/BACKEND_AI_PLAYBOOK.md#ba-012) — P0
 
-Frontend 실행 ID: `FE-101`, `FE-105`
+Frontend 실행 ID: `FE-005`, `FE-101`, `FE-105`
 
 완료 증거: owner/CSRF/다중 tab·삭제 receipt/TTL.
 
@@ -252,7 +252,8 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-002` | B01 | Figma token pipeline, Component Catalog 49종과 Storybook variant | 기반 · 화면 없음 |
 | `FE-003` | B01 | error boundary, API Problem mapper, MSW fixture | 기반 · 화면 없음 |
 | `FE-004` | B01 | PWA manifest/service-worker offline shell 최소 구성 | 기반 · 화면 없음 |
-| `FE-101` | B02 | A-1/A-2/A-3 route와 redirect state | `388:257`, `388:277`, `388:321` |
+| `FE-005` | B02 | `packages/*` typecheck를 실제로 실행하는 게이트 | 기반 · 화면 없음 |
+| `FE-101` | B02 | A-1/A-2/A-3 route와 redirect state | `388:257`, `388:277`, `388:321`, `643:4088` |
 | `FE-105` | B02 | S14 프로필 shell: guest, disabled login `준비 중`, KO/EN, trips, 데이터 안내, 삭제 receipt/status | `422:2925` |
 | `FE-103` | B03 | S02-4B/C 수동 입력과 장소 검색 integration | `438:3158`, `400:1201`, `438:3199` |
 | `FE-404` | B03 | S15 데이터 안내의 source/state/freshness/confidence 설명 (서울 source는 B10에 추가) | `423:2967` |

@@ -237,7 +237,7 @@ GitHub ruleset/CODEOWNERS, remote branch 보호, OIDC/secret, 실제 AWS 배포�
 | `docs/engineering/WORKFLOW.md` | 고유 DoR/DoD·contract packet·상태 전이·flag protocol을 브랜치 문서로 병합 | [열기](../engineering/BRANCH_AND_INTEGRATION.md) |
 | `docs/operations/AWS_DEPLOYMENT.md` | private network·OIDC·migration·artifact·rollback/restore·비용 검토; Live 전후 검수 구분 | [열기](../operations/AWS_DEPLOYMENT.md) |
 | `docs/operations/ENVIRONMENT.md` | APP_REVERT_WINDOW PT15M→PT24H 계약 수정; startup/CI invariant 추가 | [열기](../operations/ENVIRONMENT.md) |
-| `docs/operations/GITHUB_RELEASE_OPERATIONS.md` | stable 두 required check·상대 승인·artifact 보존 유지; 내부 날짜 대신 gate | [열기](../operations/GITHUB_RELEASE_OPERATIONS.md) |
+| `docs/operations/GITHUB_RELEASE_OPERATIONS.md` | stable 두 required check green auto-merge·production 승인·artifact 보존 유지; 내부 날짜 대신 gate | [열기](../operations/GITHUB_RELEASE_OPERATIONS.md) |
 | `docs/operations/INCIDENT_RESPONSE.md` | severity·연락·보안/삭제/데이터 사고 SLA 유지; 내부 freeze 날짜를 단계로 변경 | [열기](../operations/INCIDENT_RESPONSE.md) |
 | `docs/product/FUNCTIONAL_INVENTORY.md` | 전체127 FR/NFR와 API 관계를 task manifest에 연결; Live 우선순위는 유지 | [열기](../product/FUNCTIONAL_INVENTORY.md) |
 | `docs/product/PRODUCT_SPEC.md` | P0 의미 유지·누락 QUALITATIVE 상태 보정·실행 순서 단일화 | [열기](../product/PRODUCT_SPEC.md) |

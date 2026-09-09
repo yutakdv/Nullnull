@@ -22,6 +22,21 @@ export default tseslint.config(
     },
   },
   {
+    // The offline shell (FE-004) runs in a ServiceWorkerGlobalScope, not a
+    // window, so its globals have to be declared rather than assumed.
+    files: ['public/sw.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        Response: 'readonly',
+        URL: 'readonly',
+        Promise: 'readonly',
+      },
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2022,

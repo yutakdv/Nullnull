@@ -1,6 +1,6 @@
 {
   "synthetic": true,
-  "provisional": "FE-003, awaiting BE/AI review",
+  "provisional": "FE-003, FE-105 and FE-103, awaiting BE/AI review",
   "source": "docs/api/openapi.yaml + docs/api/README.md UI mapping table",
   "schemaVersion": "0.2.1-rc.1",
   "capturedAt": "2026-09-08",
@@ -9,12 +9,32 @@
     "problems": {
       "schema": "Problem",
       "count": 23,
-      "basis": "Every code in the Problem.code enum, with the status from the docs/api/README.md UI mapping table."
+      "basis": "Every code in the Problem.code enum, with the status from the docs/api/README.md UI mapping table.",
+      "serverVerified": false
     },
     "session": {
       "schemas": ["SessionBootstrap", "CsrfTokenResponse", "OwnerProfile"],
       "count": 3,
-      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies."
+      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies.",
+      "serverVerified": false
+    },
+    "trips": {
+      "schema": "TripPage",
+      "count": 2,
+      "basis": "NO approved example exists for listTrips. Values invented to match Figma S14 422:2925 (two trips, and an empty variant) and validated against the schema only. Replace with BE/AI's real response (BA-030).",
+      "serverVerified": false
+    },
+    "optimizations": {
+      "schema": "OptimizationHistoryPage",
+      "count": 2,
+      "basis": "NO approved example exists for listOptimizationHistory. Values invented to match Figma S14 422:2925 (applied/kept/reverted, and an empty variant) and validated against the schema only. Replace with BE/AI's real response (BA-053).",
+      "serverVerified": false
+    },
+    "places": {
+      "schema": "PlaceSearchPage",
+      "count": 2,
+      "basis": "NO approved example exists for searchPlaces. Values invented to match Figma S02-4B 438:3158 and validated against the schema only. Carries no crowd or provenance: PlaceSummary has no such field (FCR-029). Replace with BE/AI's real response (BA-022).",
+      "serverVerified": false
     }
   }
 }

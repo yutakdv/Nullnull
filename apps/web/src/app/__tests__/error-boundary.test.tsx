@@ -77,7 +77,9 @@ describe('RouteErrorBoundary catches render failures', () => {
   });
 });
 
-describe('RouteErrorBoundary shows contract copy when a loader throws a Problem', () => {
+// These throw from the rendered element. The loader path is covered separately
+// in loader-error.test.tsx, which needs happy-dom to run at all (#67).
+describe('RouteErrorBoundary shows contract copy when a route throws a Problem', () => {
   function ThrowProblem(): never {
     throw problemFixtures.TRIP_CHANGED;
   }

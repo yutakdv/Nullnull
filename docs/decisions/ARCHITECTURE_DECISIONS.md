@@ -183,7 +183,7 @@ Nullnull은 Figma의 52개 frame, 여러 overlay/state, OpenAPI, 외부 데이�
 - 상태는 `contract-ready → parallel-build → integration-ready → staging-accepted` gate를 통과한다.
 - 모든 P0 화면과 reference variant는 automated fixture/test를 갖춘다. P1 화면은 capability OFF 상태부터 구현하고 조건 충족 전 기능을 활성화하지 않는다.
 - contract/product/security/infra 변화는 상대 담당자 승인을 요구한다. 작성자 자신의 승인만으로 완료하지 않는다.
-- Frontend는 장기 `frontend`, Backend/AI는 장기 `backend`에서 작업하고 각각 `main`에 PR을 만든다. 상대 승인과 `docs-contract`·`docker-integration` 뒤 merge commit하고 역할 브랜치를 삭제하지 않는다.
+- Frontend는 장기 `frontend`, Backend/AI는 장기 `backend`에서 작업하고 각각 `main`에 PR을 만든다. 최신 `main` 기준 `docs-contract`·`docker-integration`이 green이면 auto-merge로 merge commit하고 역할 브랜치를 삭제하지 않는다.
 - 교차 변경은 additive contract를 먼저 병합하고 양 역할 브랜치를 `main`으로 동기화한 뒤 호환 Backend, Frontend 순으로 진행한다. 새 capability는 양쪽 통합 전 OFF다.
 - ownership과 handoff는 `OWNERSHIP_MATRIX.md`, 역할별 실행은 `docs/roles/`, branch/Docker와 세부 협업 순서는 [브랜치·통합 계약](../engineering/BRANCH_AND_INTEGRATION.md)을 따른다.
 

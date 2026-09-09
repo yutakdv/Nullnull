@@ -19,6 +19,20 @@ async function startMocking() {
   await worker.start({ onUnhandledRequest: 'bypass' });
 }
 
+// Offline shell (FE-004). Production only: in dev the MSW worker owns this
+// scope, and a second worker caching the shell would serve stale bundles while
+// the app is being edited. The worker itself never caches API responses — see
+// public/sw.js for why that boundary matters.
+function registerOfflineShell() {
+  if (import.meta.env.DEV || !('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+      // An unavailable worker costs offline support, not the app.
+      console.error('Offline shell failed to register', error);
+    });
+  });
+}
+
 // The app renders whether or not mocking starts. A failed worker registration
 // is a dev-tooling problem, not a reason to leave the page blank.
 void startMocking()
@@ -31,4 +45,5 @@ void startMocking()
         <App />
       </StrictMode>,
     );
+    registerOfflineShell();
   });

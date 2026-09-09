@@ -13,7 +13,13 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
-import { problemFixtures, sessionFixtures } from '@nullnull/contracts';
+import {
+  optimizationFixtures,
+  placeFixtures,
+  problemFixtures,
+  sessionFixtures,
+  tripFixtures,
+} from '@nullnull/contracts';
 
 // vitest runs with apps/web as the root, so the spec is two levels up.
 const specPath = resolve(process.cwd(), '../../docs/api/openapi.yaml');
@@ -48,11 +54,41 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     ['SessionBootstrap', sessionFixtures.bootstrap],
     ['CsrfTokenResponse', sessionFixtures.csrfToken],
     ['OwnerProfile', sessionFixtures.owner],
+    // Provisional mock data (FE-105): no approved example exists for these two
+    // operations yet, so the schema is the only thing holding them honest.
+    ['TripPage', tripFixtures.page],
+    ['TripPage', tripFixtures.pageEmpty],
+    ['OptimizationHistoryPage', optimizationFixtures.historyPage],
+    ['OptimizationHistoryPage', optimizationFixtures.historyPageEmpty],
+    ['PlaceSearchPage', placeFixtures.searchPage],
+    ['PlaceSearchPage', placeFixtures.searchPageEmpty],
   ])('%s fixture', (schemaName, fixture) => {
     const validate = validatorFor(schemaName);
     const valid = validate(fixture);
     expect(validate.errors ?? []).toEqual([]);
     expect(valid).toBe(true);
+  });
+});
+
+describe('optimization history carries no itinerary content', () => {
+  // The operation's own description limits it to "status, timestamps, target
+  // trip, and run link only", and CLAUDE.md forbids duplicating itinerary
+  // content for history. The schema is additionalProperties:false, so this
+  // asserts the fixture does not quietly become the place a snapshot lives.
+  const allowed = new Set([
+    'runId',
+    'tripId',
+    'tripTitle',
+    'scope',
+    'status',
+    'decision',
+    'runLink',
+    'queuedAt',
+    'decidedAt',
+  ]);
+
+  it.each(optimizationFixtures.historyPage.items)('item %#', (item) => {
+    expect(Object.keys(item).filter((key) => !allowed.has(key))).toEqual([]);
   });
 });
 
