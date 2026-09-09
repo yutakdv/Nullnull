@@ -11,7 +11,14 @@
   color: var(--color-text-secondary);
   font-size: var(--font-caption);
   line-height: 1.4;
-  white-space: nowrap;
+  /* The pill stays on one line where there is room, but must not set a floor
+     the page cannot go below: the longest label ("과거 관측 재생 · 실시간 아님")
+     is wider than the content box at 200% zoom, and nowrap would then force
+     horizontal scrolling for the whole document (WCAG 1.4.10). Wrapping a
+     badge is the lesser cost, and it only happens when the space is genuinely
+     too small. */
+  white-space: normal;
+  text-wrap: balance;
 }
 
 .label[data-state='LIVE'] {
