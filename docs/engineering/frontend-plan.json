@@ -1,0 +1,1465 @@
+{
+  "schemaVersion": 1,
+  "branch": "frontend",
+  "lastFeaturePhase": "B10",
+  "requiredChecks": [
+    "docs-contract",
+    "docker-integration"
+  ],
+  "phases": [
+    {
+      "id": "B00",
+      "title": "추천·계약 설계",
+      "purpose": "계약/example/FCR 검토·전체 요구사항 연결"
+    },
+    {
+      "id": "B01",
+      "title": "실행 기반·DB·상시 CI",
+      "purpose": "실제 web→API→PostgreSQL·client 생성·full Docker"
+    },
+    {
+      "id": "B02",
+      "title": "익명 세션·프로필·삭제",
+      "purpose": "owner/CSRF/다중 tab·삭제 receipt/TTL"
+    },
+    {
+      "id": "B03",
+      "title": "공통 데이터·KTO·장소·비교",
+      "purpose": "실제 KTO 연결 증거·provenance·mixed-source 차단"
+    },
+    {
+      "id": "B04",
+      "title": "여행·피드·피드백·후보",
+      "purpose": "후보201/duplicate·SavedPost 독립·이벤트 allowlist"
+    },
+    {
+      "id": "B05",
+      "title": "일정 편집·독립 잠금",
+      "purpose": "ETag 경쟁·독립 lock·일정화/reorder/replace 원자성"
+    },
+    {
+      "id": "B06",
+      "title": "승인형 추천·최적화",
+      "purpose": "preview 무변경·결정성·APPLY/KEEP·24시간 REVERT"
+    },
+    {
+      "id": "B07",
+      "title": "붙여넣기 import",
+      "purpose": "원문 비영속·remap stale·confirm 멱등 생성"
+    },
+    {
+      "id": "B08",
+      "title": "보안·성능·AWS·핵심 검수",
+      "purpose": "권한/성능·restore/rollback·외부망 핵심 journey"
+    },
+    {
+      "id": "B09",
+      "title": "선택 확장 검토",
+      "purpose": "선정 기능의 계약/ON·OFF CI·privacy·rollback"
+    },
+    {
+      "id": "B10",
+      "title": "Live 최종 기능 단계",
+      "purpose": "서울/Live/list·대안·replay·전체 P0 검수"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "FE-001",
+      "phase": "B01",
+      "priority": "P0",
+      "title": "React/TypeScript/Vite scaffold, router, query client, i18n",
+      "status": "integration-ready",
+      "dependsOn": [],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-001-T1",
+          "assertion": "라우터 셸이 P0 route 전체를 해석하고 알 수 없는 경로가 빈 화면을 만들지 않는다"
+        },
+        {
+          "id": "FE-001-T2",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI",
+      "note": "Merged to main in PR #17 and exercised by docker-integration."
+    },
+    {
+      "id": "FE-002",
+      "phase": "B01",
+      "priority": "P0",
+      "title": "Figma token pipeline, Component Catalog 49종과 Storybook variant",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-001"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-002-T1",
+          "assertion": "token 산출물이 Figma 변수와 drift 없이 재생성되고 component variant가 카탈로그와 일치한다"
+        },
+        {
+          "id": "FE-002-T2",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI",
+      "note": "Merged to main in PR #17 and exercised by docker-integration."
+    },
+    {
+      "id": "FE-003",
+      "phase": "B01",
+      "priority": "P0",
+      "title": "error boundary, API Problem mapper, MSW fixture",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-001"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-003-T1",
+          "assertion": "Problem code별 문구·CTA가 정책 표와 일치하고 적대적 detail이 markup으로 렌더되지 않는다"
+        },
+        {
+          "id": "FE-003-T2",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI",
+      "note": "Merged to main in PR #17 and exercised by docker-integration."
+    },
+    {
+      "id": "FE-004",
+      "phase": "B01",
+      "priority": "P0",
+      "title": "PWA manifest/service-worker offline shell 최소 구성",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-001"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-004-T1",
+          "assertion": "offline shell이 캐시된 route를 제공하고 stale 응답을 live로 표시하지 않는다"
+        },
+        {
+          "id": "FE-004-T2",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI",
+      "note": "Offline shell caches the app shell only; API responses are never cached so stale data cannot render as live."
+    },
+    {
+      "id": "FE-005",
+      "phase": "B02",
+      "priority": "P0",
+      "title": "packages/* typecheck를 실제로 실행하는 게이트",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-003"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "packages/contracts에 tsconfig.json을 추가해 typecheck가 실제로 파일을 검사하게 한다",
+        "두 패키지의 typecheck를 docker-integration이 실행하는 지점에 연결한다",
+        "타입 오류를 심어 게이트가 실패하는지 음성 대조로 확인한다",
+        "검사 대상이 0건이면 실패하도록 하한을 둔다"
+      ],
+      "safety": "게이트가 0건 실행으로 퇴화하지 않는다. 로컬 통과를 CI 통과로 쓰지 않는다.",
+      "tests": [
+        {
+          "id": "FE-005-T1",
+          "assertion": "두 패키지에 타입 오류를 심으면 CI 게이트가 실패하고 검사 대상 0건이면 실패한다"
+        }
+      ],
+      "handoff": "게이트 작업 · 화면 없음. BE/AI가 소유한 contracts fixture를 검사 범위에 포함하므로 상대 검토가 필요하다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-101",
+      "phase": "B02",
+      "priority": "P0",
+      "title": "A-1/A-2/A-3 route와 redirect state",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-003",
+        "BA-010"
+      ],
+      "operations": [
+        "createDemoSession",
+        "getCurrentOwner",
+        "issueCsrfToken",
+        "updatePreferences"
+      ],
+      "featureIds": [
+        "FR-ONB-01",
+        "FR-ONB-02",
+        "FR-ONB-03"
+      ],
+      "figmaNodes": [
+        "388:257",
+        "388:277",
+        "388:321",
+        "643:4088"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 example 기반 MSW fixture와 생성 client로 A-1/A-2/A-3 route를 구현한다",
+        "bootstrap 실패·재시도와 redirect loop 방지를 상태로 표현한다",
+        "KO/EN을 실제 선택·복구하고 JA/ZH는 요청 없는 disabled 준비 중으로 둔다",
+        "BA-010이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "JA/ZH와 정식 로그인은 요청을 보내지 않는 비활성 상태다. client가 owner/session ID를 만들지 않는다.",
+      "tests": [
+        {
+          "id": "FE-101-T1",
+          "assertion": "bootstrap 실패·재시도가 redirect loop를 만들지 않고 JA/ZH는 요청을 보내지 않는다"
+        },
+        {
+          "id": "FE-101-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-101-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-105",
+      "phase": "B02",
+      "priority": "P0",
+      "title": "S14 프로필 shell: guest, disabled login `준비 중`, KO/EN, trips, 데이터 안내, 삭제 receipt/status",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-101",
+        "BA-011",
+        "BA-012"
+      ],
+      "operations": [
+        "getCurrentOwner",
+        "listTrips",
+        "updatePreferences"
+      ],
+      "featureIds": [
+        "FR-PRO-01",
+        "FR-PRO-02",
+        "FR-PRO-03"
+      ],
+      "figmaNodes": [
+        "422:2925"
+      ],
+      "designRequests": [],
+      "steps": [
+        "S14 프로필 shell을 guest 상태·여행 목록·데이터 안내 진입으로 구현한다",
+        "로그인 CTA는 요청을 보내지 않는 disabled 준비 중으로 둔다",
+        "삭제 receipt/status 화면을 상태별로 구현한다",
+        "BA-011/BA-012가 열리면 fixture를 실제 응답으로 교체한다"
+      ],
+      "safety": "이력을 위해 일정 본문을 복제·장기 보관하지 않는다. 로그인 CTA는 가짜 활성 상태를 만들지 않는다.",
+      "tests": [
+        {
+          "id": "FE-105-T1",
+          "assertion": "로그인 CTA가 요청·route를 만들지 않고 삭제 receipt는 status만 조회한다"
+        },
+        {
+          "id": "FE-105-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-105-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI",
+      "note": "Trip list and optimization history are served by provisional mock fixtures; listTrips and listOptimizationHistory have no approved example yet. Swap when BA-030/BA-053 land."
+    },
+    {
+      "id": "FE-103",
+      "phase": "B03",
+      "priority": "P0",
+      "title": "S02-4B/C 수동 입력과 장소 검색 integration",
+      "status": "planned",
+      "dependsOn": [
+        "FE-101",
+        "BA-022"
+      ],
+      "operations": [
+        "searchPlaces"
+      ],
+      "featureIds": [
+        "FR-TRC-04",
+        "FR-TRC-05",
+        "FR-TRC-08"
+      ],
+      "figmaNodes": [
+        "438:3158",
+        "400:1201",
+        "438:3199"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-103-T1",
+          "assertion": "검색 결과 없음·오류와 수동 입력 draft가 계약 밖 값을 만들지 않는다"
+        },
+        {
+          "id": "FE-103-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-103-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-404",
+      "phase": "B03",
+      "priority": "P0",
+      "title": "S15 데이터 안내의 source/state/freshness/confidence 설명 (서울 source는 B10에 추가)",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-105",
+        "BA-023"
+      ],
+      "operations": [
+        "getDemoReadiness"
+      ],
+      "featureIds": [
+        "FR-DAT-01"
+      ],
+      "figmaNodes": [
+        "423:2967"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-404-T1",
+          "assertion": "6개 데이터 state를 구분해 표시하고 결측을 0/보통으로 채우지 않는다"
+        },
+        {
+          "id": "FE-404-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-404-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI",
+      "note": "Static explanatory screen: no API and no mock data. State list is asserted against the OpenAPI SourceState enum."
+    },
+    {
+      "id": "FE-102",
+      "phase": "B04",
+      "priority": "P0",
+      "title": "S02-1/2/3 wizard, resume, validation, 확인·결정적 draft",
+      "status": "planned",
+      "dependsOn": [
+        "FE-103",
+        "BA-030"
+      ],
+      "operations": [
+        "confirmTripImport",
+        "createTrip",
+        "replaceTripInterests"
+      ],
+      "featureIds": [
+        "FR-TRC-01",
+        "FR-TRC-02",
+        "FR-TRC-03",
+        "FR-TRC-09",
+        "FR-TRC-10"
+      ],
+      "figmaNodes": [
+        "438:3012",
+        "438:3108",
+        "438:3134",
+        "438:3259",
+        "384:5673"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-102-T1",
+          "assertion": "wizard resume과 validation이 중복 생성 없이 결정적 draft를 유지한다"
+        },
+        {
+          "id": "FE-102-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-102-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-106",
+      "phase": "B04",
+      "priority": "P0",
+      "title": "여행 선택과 여행별 관심사 전체 교체 UI/ETag conflict",
+      "status": "planned",
+      "dependsOn": [
+        "FE-105",
+        "BA-031"
+      ],
+      "operations": [
+        "getTrip",
+        "listTrips",
+        "replaceTripInterests"
+      ],
+      "featureIds": [
+        "FR-PRO-05"
+      ],
+      "figmaNodes": [
+        "422:2925"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-106-T1",
+          "assertion": "관심사 전체 교체가 ETag/If-Match 충돌을 사용자에게 복구 가능한 상태로 보여준다"
+        },
+        {
+          "id": "FE-106-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-106-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-201",
+      "phase": "B04",
+      "priority": "P0",
+      "title": "S03-F0/F1 feed card states와 pagination",
+      "status": "planned",
+      "dependsOn": [
+        "FE-101",
+        "BA-032"
+      ],
+      "operations": [
+        "listFeed",
+        "listTrips"
+      ],
+      "featureIds": [
+        "FR-FED-01",
+        "FR-FED-02"
+      ],
+      "figmaNodes": [
+        "391:310",
+        "396:2926"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-201-T1",
+          "assertion": "feed pagination이 중복·유실 없이 이어지고 cursor 만료를 오류로 구분한다"
+        },
+        {
+          "id": "FE-201-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-201-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-202",
+      "phase": "B04",
+      "priority": "P0",
+      "title": "S03-D 게시물 상세/SavedPost",
+      "status": "planned",
+      "dependsOn": [
+        "FE-201",
+        "BA-032"
+      ],
+      "operations": [
+        "getPost"
+      ],
+      "featureIds": [
+        "FR-PST-01"
+      ],
+      "figmaNodes": [
+        "398:611"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-202-T1",
+          "assertion": "SavedPost 저장이 일정을 변경하지 않는다"
+        },
+        {
+          "id": "FE-202-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-202-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-203",
+      "phase": "B04",
+      "priority": "P0",
+      "title": "S03-C1~C4, S06 sheet, saved/duplicate/error variant",
+      "status": "planned",
+      "dependsOn": [
+        "FE-202",
+        "BA-034"
+      ],
+      "operations": [
+        "addTripCandidate",
+        "listTrips"
+      ],
+      "featureIds": [
+        "FR-CAN-01",
+        "FR-CAN-02",
+        "FR-CAN-03",
+        "FR-CAN-04"
+      ],
+      "figmaNodes": [
+        "399:658",
+        "399:843",
+        "399:1011",
+        "399:1179",
+        "409:1595"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-203-T1",
+          "assertion": "후보 저장이 중복·dismiss 상태를 구분하고 TripItem을 만들지 않는다"
+        },
+        {
+          "id": "FE-203-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-203-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-301",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "S07-1 day/item/candidate 수와 empty state",
+      "status": "planned",
+      "dependsOn": [
+        "FE-102",
+        "BA-030"
+      ],
+      "operations": [
+        "getTrip"
+      ],
+      "featureIds": [
+        "FR-TRP-01"
+      ],
+      "figmaNodes": [
+        "410:1738"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-301-T1",
+          "assertion": "day/item/candidate 수가 empty state와 구분되고 잘못된 합계를 만들지 않는다"
+        },
+        {
+          "id": "FE-301-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-301-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-302",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "S07-2 edit buffer, dirty-exit, save/conflict recovery",
+      "status": "planned",
+      "dependsOn": [
+        "FE-301",
+        "BA-031"
+      ],
+      "operations": [
+        "updateTrip"
+      ],
+      "featureIds": [
+        "FR-TRP-02",
+        "FR-TRP-05",
+        "FR-TRP-03"
+      ],
+      "figmaNodes": [
+        "411:1837",
+        "413:2020"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-302-T1",
+          "assertion": "dirty-exit 경고와 저장 충돌 복구가 사용자 편집을 잃지 않는다"
+        },
+        {
+          "id": "FE-302-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-302-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-303",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "S07-8 후보 panel과 일정화 flow",
+      "status": "planned",
+      "dependsOn": [
+        "FE-301",
+        "BA-042"
+      ],
+      "operations": [
+        "getCandidateTripMatches",
+        "listTripCandidates"
+      ],
+      "featureIds": [
+        "FR-CAN-05",
+        "FR-CAN-07",
+        "FR-ITM-02"
+      ],
+      "figmaNodes": [
+        "412:1912"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-303-T1",
+          "assertion": "후보 일정화가 원자적으로 반영되고 실패 시 부분 상태를 남기지 않는다"
+        },
+        {
+          "id": "FE-303-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-303-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-304",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "lock control, unlock/date-lock confirm",
+      "status": "planned",
+      "dependsOn": [
+        "FE-302",
+        "BA-041"
+      ],
+      "operations": [
+        "removeTripItemConstraint"
+      ],
+      "featureIds": [
+        "FR-CON-05",
+        "FR-CON-02"
+      ],
+      "figmaNodes": [
+        "413:2081",
+        "527:3876"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-304-T1",
+          "assertion": "네 종류 잠금이 독립적으로 동작하고 자동 해제되지 않는다"
+        },
+        {
+          "id": "FE-304-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-304-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-305",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "검색/추가/교체/날짜·시간 이동 variant",
+      "status": "planned",
+      "dependsOn": [
+        "FE-302",
+        "BA-040"
+      ],
+      "operations": [
+        "addTripItem",
+        "listRelatedPlaces",
+        "reorderTripItems",
+        "replaceTripItem",
+        "updateTripItem"
+      ],
+      "featureIds": [
+        "FR-ITM-03",
+        "FR-ITM-08",
+        "FR-ITM-01",
+        "FR-ITM-07"
+      ],
+      "figmaNodes": [
+        "527:4085",
+        "414:2347",
+        "527:4537",
+        "476:3409",
+        "479:3497",
+        "479:3816",
+        "527:4380",
+        "521:3976",
+        "527:4695"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-305-T1",
+          "assertion": "검색/추가/교체/이동이 잠금과 충돌하면 명시적 확인 없이 진행하지 않는다"
+        },
+        {
+          "id": "FE-305-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-305-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-306",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "날짜 범위 변경 시 영향 preview/cancel/명시 처리",
+      "status": "planned",
+      "dependsOn": [
+        "FE-302",
+        "BA-031"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-306-T1",
+          "assertion": "날짜 범위 변경 영향이 preview로 표시되고 취소가 원상 복구한다"
+        },
+        {
+          "id": "FE-306-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-306-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-501",
+      "phase": "B06",
+      "priority": "P0",
+      "title": "S09-0 scope/item setup, 미지원 P1 state",
+      "status": "planned",
+      "dependsOn": [
+        "FE-301",
+        "BA-050"
+      ],
+      "operations": [
+        "createOptimization"
+      ],
+      "featureIds": [
+        "FR-OPT-01"
+      ],
+      "figmaNodes": [
+        "415:2268"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-501-T1",
+          "assertion": "ITEM 이외 scope는 P1 미지원 상태로 표시하고 요청을 보내지 않는다"
+        },
+        {
+          "id": "FE-501-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-501-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-502",
+      "phase": "B06",
+      "priority": "P0",
+      "title": "S09-1 loading/polling/background resume",
+      "status": "planned",
+      "dependsOn": [
+        "FE-501",
+        "BA-050"
+      ],
+      "operations": [
+        "getOptimization"
+      ],
+      "featureIds": [
+        "FR-OPT-03"
+      ],
+      "figmaNodes": [
+        "415:2413"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-502-T1",
+          "assertion": "polling이 background 복귀 후 재개되고 만료된 run을 live로 표시하지 않는다"
+        },
+        {
+          "id": "FE-502-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-502-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-503",
+      "phase": "B06",
+      "priority": "P0",
+      "title": "before/after MetricDelta, 근거, decision bar",
+      "status": "planned",
+      "dependsOn": [
+        "FE-502",
+        "BA-051"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-503-T1",
+          "assertion": "before/after 비교가 provenance 없는 수치를 만들지 않는다"
+        },
+        {
+          "id": "FE-503-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-503-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-504",
+      "phase": "B06",
+      "priority": "P0",
+      "title": "오류 6종·stale·no improvement 상태",
+      "status": "planned",
+      "dependsOn": [
+        "FE-502",
+        "BA-050"
+      ],
+      "operations": [],
+      "featureIds": [
+        "FR-OPT-12",
+        "FR-OPT-13",
+        "FR-OPT-14",
+        "FR-OPT-15",
+        "FR-OPT-10"
+      ],
+      "figmaNodes": [
+        "417:2567",
+        "485:3517"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-504-T1",
+          "assertion": "오류 6종·stale·no improvement가 각각 구분되고 APPLY를 유도하지 않는다"
+        },
+        {
+          "id": "FE-504-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-504-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-505",
+      "phase": "B06",
+      "priority": "P0",
+      "title": "applied/undo/recompute flow",
+      "status": "planned",
+      "dependsOn": [
+        "FE-503",
+        "BA-052",
+        "BA-053"
+      ],
+      "operations": [
+        "revertOptimizationDecision"
+      ],
+      "featureIds": [
+        "FR-OPT-09"
+      ],
+      "figmaNodes": [
+        "417:2412"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-505-T1",
+          "assertion": "APPLY 전에는 일정이 바뀌지 않고 undo가 24시간 창을 벗어나면 명시적으로 거부된다"
+        },
+        {
+          "id": "FE-505-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-505-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-506",
+      "phase": "B06",
+      "priority": "P0",
+      "title": "S14 최적화 이력 상태/scope/시각/decision과 상세 진입",
+      "status": "planned",
+      "dependsOn": [
+        "FE-105",
+        "BA-053"
+      ],
+      "operations": [
+        "getOptimization",
+        "listOptimizationHistory"
+      ],
+      "featureIds": [
+        "FR-PRO-04"
+      ],
+      "figmaNodes": [
+        "422:2925"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-506-T1",
+          "assertion": "이력이 상태·시각·대상 링크만 보여주고 일정 본문을 복제하지 않는다"
+        },
+        {
+          "id": "FE-506-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-506-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-104",
+      "phase": "B07",
+      "priority": "P0",
+      "title": "browser-first 한국어 parser와 correction UI",
+      "status": "planned",
+      "dependsOn": [
+        "FE-102",
+        "BA-060"
+      ],
+      "operations": [
+        "parseTripImport"
+      ],
+      "featureIds": [
+        "FR-TRC-06"
+      ],
+      "figmaNodes": [
+        "401:1221"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-104-T1",
+          "assertion": "붙여넣기 원문을 저장·로그·analytics에 남기지 않는다"
+        },
+        {
+          "id": "FE-104-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-104-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-601",
+      "phase": "B08",
+      "priority": "P0",
+      "title": "전체 P0 responsive/긴 텍스트/200% zoom pass",
+      "status": "planned",
+      "dependsOn": [
+        "FE-505"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-601-T1",
+          "assertion": "360px·200% zoom·ko/en 긴 문구에서 P0 화면이 깨지지 않는다"
+        },
+        {
+          "id": "FE-601-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-601-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-602",
+      "phase": "B08",
+      "priority": "P0",
+      "title": "Lighthouse/performance budget와 bundle 분석",
+      "status": "planned",
+      "dependsOn": [
+        "FE-601"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-602-T1",
+          "assertion": "performance budget 초과가 실패로 보고되고 통과로 대체되지 않는다"
+        },
+        {
+          "id": "FE-602-T2",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-401",
+      "phase": "B10",
+      "priority": "P0",
+      "title": "S11-1 list-first와 DataStateLabel, 승인 시 map capability",
+      "status": "planned",
+      "dependsOn": [
+        "FE-404",
+        "BA-091"
+      ],
+      "operations": [
+        "queryLiveAreas"
+      ],
+      "featureIds": [
+        "FR-LIV-01"
+      ],
+      "figmaNodes": [
+        "418:2523"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "map을 쓰면 같은 정보·필터의 list 대안을 함께 제공한다. 정밀 위치를 서버로 보내지 않는다.",
+      "tests": [
+        {
+          "id": "FE-401-T1",
+          "assertion": "map을 쓰면 같은 정보·필터의 list 대안이 함께 제공된다"
+        },
+        {
+          "id": "FE-401-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-401-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-402",
+      "phase": "B10",
+      "priority": "P0",
+      "title": "S11-2 상세/S11-3 대안/S11-N 없음",
+      "status": "planned",
+      "dependsOn": [
+        "FE-401",
+        "BA-091"
+      ],
+      "operations": [
+        "getLivePlace",
+        "listRelatedPlaces"
+      ],
+      "featureIds": [
+        "FR-LIV-03",
+        "FR-LIV-04",
+        "FR-LIV-05"
+      ],
+      "figmaNodes": [
+        "419:2617",
+        "420:2821",
+        "420:2950"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-402-T1",
+          "assertion": "대안 없음과 오류를 구분하고 비교 자격 없는 수치를 나란히 놓지 않는다"
+        },
+        {
+          "id": "FE-402-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-402-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-403",
+      "phase": "B10",
+      "priority": "P0",
+      "title": "S11-R replay mode와 degraded UI",
+      "status": "planned",
+      "dependsOn": [
+        "FE-401",
+        "BA-092"
+      ],
+      "operations": [],
+      "featureIds": [
+        "FR-LIV-07"
+      ],
+      "figmaNodes": [
+        "421:2850"
+      ],
+      "designRequests": [],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
+      "tests": [
+        {
+          "id": "FE-403-T1",
+          "assertion": "REPLAY를 live로 표시하지 않고 degraded 상태를 명시한다"
+        },
+        {
+          "id": "FE-403-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-403-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    }
+  ]
+}

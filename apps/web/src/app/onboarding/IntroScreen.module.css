@@ -1,0 +1,89 @@
+/* Figma: A-3 intro 388:321. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-4) 0;
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-lg);
+  font-weight: 700;
+  line-height: 34px;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 21px;
+}
+
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.point {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.badge {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+.pointText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pointTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+  line-height: 19px;
+}
+
+.pointBody {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+.noLogin {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  text-align: center;
+}

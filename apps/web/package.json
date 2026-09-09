@@ -17,7 +17,8 @@
     "test:e2e:integration": "playwright test",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "verify:ci": "npm run tokens:check && npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build"
+    "typecheck:packages": "node ../../scripts/typecheck-packages.mjs",
+    "verify:ci": "npm run tokens:check && npm run lint && npm run format:check && npm run typecheck && npm run typecheck:packages && npm run test && npm run build"
   },
   "dependencies": {
     "@nullnull/api-client": "*",
@@ -43,6 +44,7 @@
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "eslint": "10.10.0",
+    "happy-dom": "20.0.0",
     "js-yaml": "4.3.1",
     "jsdom": "27.0.0",
     "msw": "2.11.5",

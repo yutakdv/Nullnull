@@ -1,0 +1,157 @@
+/* Figma: S14 profile 422:2925. Cards on a subtle ground. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-title-md);
+  font-weight: 700;
+  line-height: 27px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-default);
+  padding-block: var(--space-1);
+}
+
+.guest {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.guestName {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 21px;
+}
+
+.guestNote {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+/* Disabled sign-in. Not a control: it is inert and says why. */
+.loginRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  opacity: 0.55;
+}
+
+.loginLabel {
+  color: var(--color-text-disabled);
+  font-size: var(--font-body-base);
+  font-weight: 500;
+}
+
+.badge {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  padding: 5px var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 500;
+}
+
+.sectionHead {
+  padding: var(--space-3) var(--space-4) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 13px var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: start;
+  text-decoration: none;
+}
+
+a.row,
+button.row {
+  cursor: pointer;
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 500;
+  line-height: 19px;
+}
+
+.rowNote {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+.rowValue {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+.note {
+  padding: var(--space-1) var(--space-4) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 13px var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.retry {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-action-subtle);
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-action-strong);
+  font-family: inherit;
+  font-size: var(--font-label);
+  font-weight: 700;
+  cursor: pointer;
+}

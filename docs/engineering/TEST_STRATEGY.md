@@ -49,6 +49,10 @@ tags:
 - focus trap, focus restore, keyboard reorder
 - MSW 기반 default/loading/empty/error/stale/offline stories
 
+offline shell(`apps/web/public/sw.js`, FE-004)은 **app shell만 캐시하고 API 응답은 캐시하지 않는다.** 캐시된 `/api/v1` 응답을 돌려주면 stale이 live로 보이고 화면은 그것을 알 방법이 없다. 이 경계는 worker를 가짜 `ServiceWorkerGlobalScope`에서 실제로 실행해 `respondWith` 호출 여부로 검증한다 — 소스에서 `if` 문자열을 찾는 검사는 그 줄을 주석 처리해도 통과하므로 쓰지 않는다.
+
+환경은 jsdom이 기본이고, **route loader를 실행하는 파일만 `// @vitest-environment happy-dom`으로 덮어쓴다.** Vitest의 jsdom 환경이 `AbortController`/`AbortSignal`은 jsdom 것으로 바꾸면서 `Request`는 Node undici로 남겨 두는데, undici가 signal을 자기 realm 기준으로 brand 검사하므로 loader 호출용 `Request` 생성이 실패한다. jsdom 26·27.0·27.4 모두 동일하고 MSW와는 무관하다. 근거와 실측은 이슈 #67에 있다.
+
 권장 gate:
 
 ```bash
