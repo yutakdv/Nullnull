@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
+      "name": "경복궁",
+      "categoryCode": "ATTRACTION",
+      "regionCode": "KR-11-110",
+      "thumbnailUrl": null,
+      "address": "서울 종로구 사직로 161"
+    },
+    {
+      "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
+      "name": "명동",
+      "categoryCode": "STREET",
+      "regionCode": "KR-11-140",
+      "thumbnailUrl": null,
+      "address": "서울 중구 명동길"
+    },
+    {
+      "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
+      "name": "북촌한옥마을",
+      "categoryCode": "ATTRACTION",
+      "regionCode": "KR-11-110",
+      "thumbnailUrl": null,
+      "address": "서울 종로구 계동길"
+    }
+  ],
+  "page": { "nextCursor": null, "hasMore": false }
+}

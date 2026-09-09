@@ -14,10 +14,18 @@
   box-sizing: border-box;
 }
 
+/* Long unbroken runs -- URLs, "Must Visit(장소 유지)", Live·예측·REPLAY -- would
+   otherwise set a minimum width the layout cannot go below, which is what
+   forces horizontal scrolling at 200% zoom even when no single element is
+   wider than the viewport. Figma marks every text layer word-break:break-word;
+   this is that, applied once. */
 body {
   margin: 0;
-  /* 360px is the narrowest supported width (.claude/rules/frontend.md). */
-  min-width: 360px;
+  overflow-wrap: break-word;
+  /* 360px is the narrowest *designed* width, but it must not be a floor:
+     min-width forces a horizontal scrollbar below it, and 200% zoom halves the
+     viewport, so pinning 360px here would break the zoom requirement the same
+     rule asks for (.claude/rules/frontend.md). Layouts reflow instead. */
 }
 
 main {

@@ -159,6 +159,26 @@ export const messages = {
     'dataGuide.rule5.body':
       'Live·예측·REPLAY와 경로 데이터 모두 출처·기준시각을 함께 보여드려요. 근거 없는 숫자를 만들지 않아요.',
     'dataGuide.attribution': '출처: ⓒ한국관광공사 · 서울 열린데이터광장',
+
+    // S02-4B must-visit places (438:3158).
+    'mustVisit.step': 'STEP 4',
+    'mustVisit.title1': '꼭 가고 싶은 곳을',
+    'mustVisit.title2': '알려주세요',
+    'mustVisit.body1': '이 장소는 그대로 지켜드리고,',
+    'mustVisit.body2': '나머지 시간은 취향에 맞춰 채워드릴게요.',
+    'mustVisit.search': '장소 검색',
+    'mustVisit.searchLabel': '장소 이름으로 검색',
+    'mustVisit.picked': '담은 곳',
+    'mustVisit.pickedCount': '곳',
+    'mustVisit.pickedEmpty': '아직 담은 곳이 없어요',
+    'mustVisit.results': '검색 결과',
+    'mustVisit.searching': '찾고 있어요',
+    'mustVisit.noResults': '검색 결과가 없어요',
+    'mustVisit.searchError': '검색하지 못했어요',
+    'mustVisit.add': '담기',
+    'mustVisit.remove': '빼기',
+    'mustVisit.next': '이대로 채우기',
+    'mustVisit.skip': '건너뛰기',
   },
   'en-US': {
     'app.name': 'Nullnull',
@@ -310,6 +330,26 @@ export const messages = {
     'dataGuide.rule5.body':
       'Live, forecast, REPLAY and route data all show their source and reference time. We do not invent numbers.',
     'dataGuide.attribution': '출처: ⓒ한국관광공사 · 서울 열린데이터광장',
+
+    // S02-4B must-visit places (438:3158). Figma has no EN frame.
+    'mustVisit.step': 'STEP 4',
+    'mustVisit.title1': 'Which places do you',
+    'mustVisit.title2': 'want to keep?',
+    'mustVisit.body1': "We'll keep these exactly as they are,",
+    'mustVisit.body2': 'and fill the rest around your taste.',
+    'mustVisit.search': 'Search places',
+    'mustVisit.searchLabel': 'Search by place name',
+    'mustVisit.picked': 'Kept places',
+    'mustVisit.pickedCount': '',
+    'mustVisit.pickedEmpty': 'Nothing kept yet',
+    'mustVisit.results': 'Results',
+    'mustVisit.searching': 'Searching',
+    'mustVisit.noResults': 'No matches',
+    'mustVisit.searchError': "We couldn't search",
+    'mustVisit.add': 'Keep',
+    'mustVisit.remove': 'Remove',
+    'mustVisit.next': 'Fill the rest',
+    'mustVisit.skip': 'Skip',
   },
 } as const satisfies Record<SupportedLocale, Record<string, string>>;
 

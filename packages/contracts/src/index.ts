@@ -35,6 +35,8 @@ import tripPage from "../fixtures/trips/trip-page.json" with { type: "json" };
 import tripPageEmpty from "../fixtures/trips/trip-page-empty.json" with { type: "json" };
 import historyPage from "../fixtures/optimizations/history-page.json" with { type: "json" };
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
+import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
+import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -93,4 +95,20 @@ export const optimizationFixtures = {
   historyPage: historyPage as components["schemas"]["OptimizationHistoryPage"],
   historyPageEmpty:
     historyPageEmpty as components["schemas"]["OptimizationHistoryPage"],
+};
+
+// PROVISIONAL MOCK DATA — replace when BA-022 serves searchPlaces for real.
+//
+// Same caveat as the trip and optimization sets: searchPlaces has no example in
+// docs/api/openapi.yaml, so these were invented to match Figma S02-4B
+// (`438:3158`) and satisfy the schema. Schema-valid, not server-verified.
+//
+// They carry no crowd data because the contract has none yet. Backend/AI
+// confirmed crowd is planned but unimplemented, so these stay as they are until
+// PlaceSummary gains the field with its provenance; inventing one meanwhile is
+// the unsourced comparison CLAUDE.md invariant 8 forbids (FCR-029).
+export const placeFixtures = {
+  searchPage: placeSearchPage as components["schemas"]["PlaceSearchPage"],
+  searchPageEmpty:
+    placeSearchPageEmpty as components["schemas"]["PlaceSearchPage"],
 };

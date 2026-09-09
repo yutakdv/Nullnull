@@ -145,6 +145,10 @@ button.row {
 }
 
 .retry {
+  /* 44px touch-target floor (TEST_STRATEGY.md §3). This sat at 23px, which is
+     roughly half; it is the recovery control on a failed list, so it has to be
+     easy to hit. */
+  min-height: 44px;
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--color-action-subtle);

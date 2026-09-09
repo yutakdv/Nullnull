@@ -44,6 +44,10 @@
 }
 
 .retry {
+  /* 44px is the touch-target floor (TEST_STRATEGY.md §3). Padding alone left
+     this at 42px, and this is the button someone presses when the app failed
+     to start -- the worst place to make a target hard to hit. */
+  min-height: 44px;
   padding: var(--space-3) var(--space-6);
   border: 0;
   border-radius: var(--radius-card);

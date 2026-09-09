@@ -92,6 +92,10 @@ export function useUpdatePreferences() {
     mutationFn: async (patch) => {
       const { data, error, response } = await getApiClient().PATCH('/me', {
         body: patch,
+        // The contract declares application/merge-patch+json and BA-011 enforces
+        // it with `consumes`; openapi-fetch would otherwise send
+        // application/json and every save would come back 415.
+        headers: { 'Content-Type': 'application/merge-patch+json' },
       });
       if (!data) fail(error, response);
       return data;
@@ -137,6 +141,38 @@ export function useOptimizationHistory(): UseQueryResult<
     queryKey: ['optimizations', 'history'],
     queryFn: async () => {
       const { data, error, response } = await getApiClient().GET('/optimizations', {});
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+type PlaceSearchPage = components['schemas']['PlaceSearchPage'];
+type PlaceSearchRequest = components['schemas']['PlaceSearchRequest'];
+
+/**
+ * Canonical place search.
+ *
+ * A read-only POST by contract: the query is free-form text, and putting it in
+ * a URL would leak it into CDN, proxy and browser history logs. The response is
+ * `no-store` for the same reason, so this is not cached across sessions either.
+ *
+ * MOCK DATA today; replaced when BA-022 lands.
+ */
+export function usePlaceSearch(
+  query: string,
+): UseQueryResult<PlaceSearchPage, Problem | Error> {
+  const trimmed = query.trim();
+  return useQuery({
+    // The query text is part of the cache key but never leaves the client in a
+    // URL; the request carries it in the body.
+    queryKey: ['places', 'search', trimmed],
+    enabled: trimmed.length > 0,
+    queryFn: async () => {
+      const body: PlaceSearchRequest = { query: trimmed };
+      const { data, error, response } = await getApiClient().POST('/places/search', {
+        body,
+      });
       if (!data) fail(error, response);
       return data;
     },

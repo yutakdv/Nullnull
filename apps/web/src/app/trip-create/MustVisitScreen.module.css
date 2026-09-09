@@ -1,0 +1,128 @@
+/* Figma: S02-4B must-visit 438:3158. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.step {
+  align-self: flex-end;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-lg);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.6;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sectionLabel {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 500;
+}
+
+.count {
+  color: var(--color-action-primary);
+  font-size: var(--font-label);
+  font-weight: 700;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 13px var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+}
+
+/* Kept places use the protective tint, matching the Figma card. */
+.picked {
+  background: var(--color-protect-subtle);
+}
+
+.cardText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.name {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 1.3;
+}
+
+.action {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-action-strong);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.state {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.skip {
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  min-height: 44px;
+  cursor: pointer;
+}

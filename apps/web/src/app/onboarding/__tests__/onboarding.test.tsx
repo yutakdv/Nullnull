@@ -187,8 +187,10 @@ describe('A-2 language selects Korean and English for real', () => {
 describe('A-3 intro completes onboarding', () => {
   it('records completion with only the contracted field', async () => {
     const bodies: unknown[] = [];
+    const contentTypes: (string | null)[] = [];
     server.use(
       http.patch(`${API_BASE}/me`, async ({ request }) => {
+        contentTypes.push(request.headers.get('content-type'));
         bodies.push(await request.json());
         return HttpResponse.json({ ok: true });
       }),
@@ -203,6 +205,11 @@ describe('A-3 intro completes onboarding', () => {
     // UpdatePreferencesRequest is additionalProperties:false and BA-003 turns
     // an unknown field into 400, so the body must carry nothing extra.
     expect(bodies[0]).toEqual({ onboardingCompleted: true });
+    // The contract declares application/merge-patch+json and BA-011's
+    // controller enforces it with `consumes`. openapi-fetch defaults to
+    // application/json, which the server answers with 415, so this is asserted
+    // rather than assumed.
+    expect(contentTypes[0]).toBe('application/merge-patch+json');
   });
 
   it('states that no sign-in is needed', async () => {
