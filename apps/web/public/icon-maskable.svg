@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Nullnull">
+  <!-- Maskable: the glyph stays inside the 40% safe zone so a platform can crop
+       this to a circle or squircle without clipping it. -->
+  <rect width="512" height="512" fill="#5498ff" />
+  <circle cx="212" cy="256" r="48" fill="none" stroke="#ffffff" stroke-width="26" />
+  <circle cx="300" cy="256" r="48" fill="none" stroke="#ffffff" stroke-width="26" />
+</svg>

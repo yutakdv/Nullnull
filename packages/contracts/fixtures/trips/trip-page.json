@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
+      "title": "서울 가을 여행",
+      "startDate": "2026-10-04",
+      "endDate": "2026-10-07",
+      "timezone": "Asia/Seoul",
+      "status": "ACTIVE",
+      "version": 3,
+      "candidateCount": 5
+    },
+    {
+      "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a02",
+      "title": "부산 겨울 여행",
+      "startDate": "2026-12-20",
+      "endDate": "2026-12-22",
+      "timezone": "Asia/Seoul",
+      "status": "DRAFT",
+      "version": 1,
+      "candidateCount": 0
+    }
+  ],
+  "page": { "nextCursor": null, "hasMore": false }
+}
