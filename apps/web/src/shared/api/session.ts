@@ -92,6 +92,10 @@ export function useUpdatePreferences() {
     mutationFn: async (patch) => {
       const { data, error, response } = await getApiClient().PATCH('/me', {
         body: patch,
+        // The contract declares application/merge-patch+json and BA-011 enforces
+        // it with `consumes`; openapi-fetch would otherwise send
+        // application/json and every save would come back 415.
+        headers: { 'Content-Type': 'application/merge-patch+json' },
       });
       if (!data) fail(error, response);
       return data;
