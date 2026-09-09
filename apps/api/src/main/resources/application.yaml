@@ -32,11 +32,10 @@ server:
   port: ${SERVER_PORT:8080}
   tomcat:
     # The swallow budget for a request body the application already REFUSED. Tomcat has to read the
-    # unsent remainder before it can write the 413 and keep the connection usable; past this many
-    # bytes it stops reading and drops the connection instead, and the caller gets no HTTP response
-    # at all. Both regimes are deliberate and documented (docs/operations/ENVIRONMENT.md §3,
-    # APP_MAX_REQUEST_BODY_BYTES): an overshoot inside the budget is a clean 413 Problem, a body far
-    # beyond it loses its connection, which is safe but is not a Problem response.
+    # unsent remainder to keep the connection usable; past this many bytes it stops reading and
+    # drops the connection. A caller may receive 413 before that close or see a transport error.
+    # Both regimes are documented in docs/operations/ENVIRONMENT.md §3 (APP_MAX_REQUEST_BODY_BYTES).
+    # A raw-socket integration test keeps uploading independently of the received response.
     # 2097152 = 8 x the accepted bound 262144 (APP_MAX_REQUEST_BODY_BYTES). It is EXACTLY Tomcat's own
     # default, so removing this line changes no behaviour and no test can tell the two apart. It is
     # written out anyway to make the boundary between the two regimes an explicit, documented choice

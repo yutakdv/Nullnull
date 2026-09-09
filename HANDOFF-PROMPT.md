@@ -25,12 +25,22 @@ cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전�
 
 Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
 
-순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → **B2 BA-011(다음)** → B3 BA-012 → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → **B3 BA-012(다음)** → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
 
-## 2. 현재 상태 (B1 BA-010 구현 후)
+## 2. 현재 상태 (B2 BA-011 구현 후)
 
 **최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper `integration_mode=full-docker`, exit 0을 확인했다. A4 자체 커밋은 `552a539`, main 수신 merge commit은 `308ee35`다.
 
+
+### B2(BA-011) — owner preference 구현
+
+- `GET /me`와 `PATCH /me`를 구현했다. merge-patch는 absent 유지/activeTripId null 해제, unknown/type/빈 object 거부, KO/EN·timezone 검증, session owner lock 뒤 갱신을 강제한다. `ApiException.fieldErrors`를 Problem 응답에 연결했다.
+- `TripLookup` port는 BA-030 전까지 production에서 항상 false다. test override로 owner/삭제 경계를 검증하지만 실제 trip table 구현이라고 쓰지 않는다. 반복 onboarding은 PostgreSQL `xmin`이 변하지 않는다.
+- local·full Docker: **276 / 121 / 13 / 19**, 전부 0 fail/error/skip. AI 410, web 148, Playwright 6. docs/root unittest 89/Markdownlint/Redocly/AJV/client diff/audit/egress-denied 통과.
+- 변이 **22종 최종 RED**, cp+SHA256 복원 일치. 저장 대입문 4종의 첫 시도는 넓은 치환으로 compile 실패했으므로 증거에서 제외했다. 정확한 대입문과 새 JUnit freshness로 재검증했다. `.artifacts/ba-011/mutations.json`과 local progress 참조.
+- 실제 full Docker에서 기존 `RequestBodySwallowBoundIT`가 IOException만 예상해 실패했다. 원래 `HttpClient`는 응답을 먼저 받으면 업로드를 중단할 수 있다. raw TCP로 응답과 독립적인 업로드/후속 pipeline을 검사하도록 고쳤고 `max-swallow-size=-1` 변이는 전체 upload 완료로 RED다. 정상 2097152 값은 그대로다. **큰 body는 413을 먼저 받거나 응답 없는 transport 오류일 수 있다.** 기존의 “반드시 HTTP 응답 없음” 주장은 폐기한다.
+- 공개 shape·migration 변화는 없다. 세부 문구와 generated client를 동기화했다. BA-011은 integration-ready; main merge·FE 검수는 별도다.
+- 다음 **B3(BA-012), V006**. API 삭제 transaction·receipt HMAC·job·tombstone을 구현한다. session token 보존은 idle 30일, 여행 데이터는 사용자 삭제까지라는 privacy 표를 따르고 두 보존 정책을 섞지 않는다. expired non-revoked session hash 정리는 보강해야 하며 owner 자동 GC는 PM-017의 별도 결정이다.
 
 ### B1(BA-010) — 세션·CSRF 구현
 
@@ -44,7 +54,7 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 - 실제 Docker에서 기존 job suite 5개가 `DELETE FROM owners` 전에 session fixture를 정리하지 않아 FK 오류가 났다. 테스트 setup의 자식→owner 정리 순서를 고쳤다. 운영 FK를 완화하지 않았다.
 - Playwright는 `API_INTERNAL_BASE_URL`의 실제 API로 직접 호출한다. **현재 `apps/web/serve.mjs`에는 API proxy가 없다.** web 경유 시 HTML 200을 받아 테스트가 실패했고 직접 API 연결로 수정했다. HTTP Compose에서 Secure cookie를 명시 전송하는 transport 검사이며, browser Secure cookie 수락·아직 없는 session UI 검증은 아니다. FE runtime proxy와 cookie 유실 안내는 FE 인계 사항이다.
 - BA-010은 `integration-ready`; main merge·FE 재현 전 이슈 완료/`verified`로 쓰지 않는다. 새 PR #100은 필수 CI 통과지만 확인 시 승인 기록이 없어 미병합이다.
-- 다음은 **B2(BA-011)**. production `/me`를 추가하고 현재 test-support owner 분리 검사를 실제 route에 연결한다. B3는 revoked cookie의 24h replay context와 30d session retention을 재사용한다. **추가 점검:** 현 B3 계획에는 active session의 idle 만료 후 owner 데이터 자동 삭제 절차가 없다. privacy의 idle 보존 약속과 연결해 B3 구현 전에 정리해야 한다(현재 B1은 expired credential 사용을 거부하지만 해당 owner의 사업 데이터 삭제를 수행하지 않는다).
+- 다음은 **B2(BA-011)**. production `/me`를 추가하고 현재 test-support owner 분리 검사를 실제 route에 연결한다. B3는 revoked cookie의 24h replay context와 30d session retention을 재사용한다. **B2에서 재확인한 보존 경계:** privacy의 30일은 session token이고 여행 데이터는 사용자 삭제까지다. idle 만료를 이유로 사업 데이터를 자동 삭제한다고 해석하지 않는다. B3에서 만료된 non-revoked session hash 정리를 보강하고, PM-017의 owner GC 정책은 별도 결정으로 유지한다.
 
 ### main 수신 후 검증 기준선
 
@@ -78,7 +88,7 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 - 최종 실측(main 수신 전): local·offline Compose 각각 `274 / 101 / 9 / 17`, 0 fail/error/skip. Python unittest 89, docs·Markdownlint·Redocly·AJV 통과. 코드/설정 변이 25개 최종 RED+SHA 복원 일치, OpenAPI 경로 제거 변이 exit 1.
 - 변이/실행 근거: `.superpowers/sdd/2026-09-08-backend-a-to-d/progress.md`의 A4 절, `.artifacts/ba-004/`(로컬). 실행하지 않은 원격 PR gate를 로컬 재현과 혼동하지 않는다.
 
-**다음 작업은 B2(BA-011)이다.** `plan.md`의 `## Slice B2` 절을 따른다.
+**다음 작업은 B3(BA-012)이다.** `plan.md`의 `## Slice B3` 절과 V006을 따른다.
 
 ## 3. A3에서 내린 판정 중 이후 slice가 알아야 할 것
 

@@ -165,7 +165,14 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update locale, timezone, onboarding, or active trip */
+        /**
+         * Update locale, timezone, onboarding, or active trip
+         * @description JSON Merge Patch: omitted fields are preserved; activeTripId null clears the selection.
+         *     Null is invalid for locale, timezone, and onboardingCompleted. Unsupported locale returns
+         *     422 VALIDATION_FAILED with field code UNSUPPORTED_LOCALE (P0 supports ko-KR and en-US).
+         *     Invalid timezone returns INVALID_TIMEZONE. A missing, deleted, or foreign-owner trip returns
+         *     the same TRIP_NOT_FOUND field error. Repeating onboardingCompleted has no additional effect.
+         */
         patch: operations["updatePreferences"];
         trace?: never;
     };

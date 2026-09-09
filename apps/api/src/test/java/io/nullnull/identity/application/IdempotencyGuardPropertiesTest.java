@@ -87,6 +87,9 @@ class IdempotencyGuardPropertiesTest {
     private static final class UnusedOwners implements OwnerRepository {
 
         @Override
+        public Owner updatePreferences(Owner owner) { throw new UnsupportedOperationException(); }
+
+        @Override
         public Owner create(Owner owner) {
             throw new UnsupportedOperationException();
         }

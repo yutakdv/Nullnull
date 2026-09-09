@@ -121,11 +121,11 @@ duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 �
 - 한 단계 아래 128 KiB(131,072)는 최악 형태 위로 11,072 byte만 남아 draft item 100개짜리 confirm envelope을 덮지 못하고, 한 단계 위 512 KiB는 이를 정당화할 문서화된 입력이 없다.
 - 최소 `4096`: 그보다 낮은 값은 정상 요청도 통과할 수 없어 설정 실수가 "전부 거부하는 API"로 보이므로 startup에서 막는다.
 
-상한을 넘은 요청에는 **regime이 둘 있고 둘 다 의도된 동작**이다. 거절한 body의 남은 bytes를 서버가 읽어 버려야 413을 쓰고 connection을 재사용할 수 있는데, 그 예산이 `server.tomcat.max-swallow-size`(`apps/api/src/main/resources/application.yaml`)다.
+상한을 넘은 요청에는 **regime이 둘 있고 둘 다 의도된 동작**이다. 거절한 body의 남은 bytes를 서버가 읽어 버려야 connection을 재사용할 수 있는데, 그 예산이 `server.tomcat.max-swallow-size`(`apps/api/src/main/resources/application.yaml`)다.
 
 - 예산이 재는 것은 body 총량이 아니라 **거절 시점 이후 남은 bytes**다. 상한을 넘은 순간 이미 상한만큼은 읽힌 뒤이므로, 경계는 대략 `상한 + 예산 = 262144 + 2097152 = 2359296` byte 부근이고 정확한 지점은 converter가 미리 읽어 둔 buffer 크기만큼 움직인다.
 - 남은 bytes가 예산 안이면: 깨끗한 `413 INVALID_REQUEST` Problem이 온다. 선언된 `Content-Length`든 chunked든 같다.
-- 남은 bytes가 예산을 넘으면: 서버가 나머지를 읽지 않고 connection을 끊는다. caller는 HTTP 응답 없이 transport 오류를 받는다. 안전하지만 **Problem 응답이 아니므로** client는 이 경우를 network 실패로 처리한다.
+- 남은 bytes가 예산을 넘으면: 서버가 나머지를 읽지 않고 connection을 끊는다. caller는 전송 타이밍에 따라 먼저 413을 받거나 HTTP 응답 없이 transport 오류를 받는다. 후자는 network 실패로 처리한다. raw-socket 검사는 응답과 독립적으로 upload하고 후속 request를 pipeline하여 connection 재사용이 거부됨을 검사한다.
 - 예산은 `2097152` byte(2 MiB) = 허용 상한 `262144`의 8배이며, Tomcat 기본값과 같은 수다. 명시적으로 적는 이유는 값을 바꾸기 위해서가 아니라 두 regime의 경계를 우리가 고른 수로 고정하기 위해서다. `APP_MAX_REQUEST_BODY_BYTES`를 바꾸면 이 값도 함께 다시 정한다.
 - 무제한(`-1`)은 쓰지 않는다. 이미 거절한 body를 끝없이 읽는 것은 DoS 경로다.
 - 두 regime은 `RequestBodySwallowBoundIT`가 shipped 상한(`262144`)에서 고정한다. `RequestBodyLimitIT`는 상한을 `8192`로 낮춰 property가 실제로 배선됐는지만 확인하므로 이 경계를 볼 수 없다.

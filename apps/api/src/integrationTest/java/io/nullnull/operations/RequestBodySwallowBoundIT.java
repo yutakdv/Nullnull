@@ -1,7 +1,6 @@
 package io.nullnull.operations;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.io.ByteArrayInputStream;
@@ -31,12 +30,10 @@ import org.springframework.context.annotation.Import;
  * it structurally cannot see this: everything it sends is far inside Tomcat's swallow budget. This
  * class deliberately configures NO override, so it exercises the number in application.yaml.
  *
- * <p>A refused body has to be swallowed before the 413 can be written and the connection reused.
- * {@code server.tomcat.max-swallow-size} bounds that, so two regimes exist and both are deliberate:
- * an overshoot within the budget gets a clean 413 Problem, while a body far beyond it has its
- * connection dropped with no HTTP response at all. The second one is correct and safe - reading an
- * unbounded body that was already rejected is a denial-of-service path - but it is NOT a Problem
- * response, and docs/operations/ENVIRONMENT.md §3 documents both next to APP_MAX_REQUEST_BODY_BYTES.
+ * <p>Oversized input is rejected with 413. Beyond the swallow budget the connection is closed;
+ * response timing determines whether the caller sees the 413 before that close or a transport error.
+ * The raw-socket test continues uploading independently of the response and pipelines another
+ * request, so unlimited swallowing cannot masquerade as a client-cancelled upload.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "nullnull.ai.base-url=http://127.0.0.1:1")
@@ -89,20 +86,55 @@ class RequestBodySwallowBoundIT {
     }
 
     @Test
-    @DisplayName("a body far beyond the swallow budget loses its connection instead of getting a 413")
-    void aBodyFarBeyondTheSwallowBudgetLosesItsConnection() {
-        // Four times the budget. What the budget actually measures is the REMAINDER left unread when
-        // the bound trips, so the boundary sits near (bound + budget); four times the budget is well
-        // past it either way. Tomcat stops reading that remainder and closes the connection, so the
-        // caller gets a transport failure and no Problem body. That is the documented second regime,
-        // not a defect: the alternative is reading an unbounded body that has already been rejected.
-        byte[] farTooLarge = json(4 * SWALLOW_BUDGET_BYTES);
-        assertThat(farTooLarge.length).isGreaterThan(SWALLOW_BUDGET_BYTES);
-
-        assertThatThrownBy(() -> send(
-                BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(farTooLarge))))
-                .as("no HTTP response is delivered once the connection is dropped")
-                .isInstanceOf(IOException.class);
+    @DisplayName("a body beyond the swallow budget closes the connection before a pipelined request")
+    void aBodyFarBeyondTheSwallowBudgetLosesItsConnection() throws Exception {
+        int valueLength = 32 * SWALLOW_BUDGET_BYTES;
+        byte[] block = new byte[8192];
+        java.util.Arrays.fill(block, (byte) 'x');
+        // Unlike HttpClient, this writer does not stop uploading when a 413 header arrives.
+        // That distinguishes a bounded swallow from a client-cancelled upload.
+        try (var socket = new java.net.Socket();
+                var executor = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            socket.setSendBufferSize(16 * 1024);
+            socket.connect(new java.net.InetSocketAddress("127.0.0.1", port), 5000);
+            socket.setSoTimeout((int) TIMEOUT.toMillis());
+            var reader = executor.submit(() -> {
+                var received = new java.io.ByteArrayOutputStream();
+                try {
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    while ((count = socket.getInputStream().read(buffer)) != -1) {
+                        received.write(buffer, 0, count);
+                        assertThat(received.size()).isLessThan(64 * 1024);
+                    }
+                } catch (java.net.SocketException closed) {
+                    // RST may arrive after the 413 was delivered, or before any response.
+                }
+                return received.toString(StandardCharsets.US_ASCII);
+            });
+            boolean bodySent = false;
+            try {
+                var output = socket.getOutputStream();
+                String head = "POST " + HttpPolicyTestEndpoints.ECHO + " HTTP/1.1\r\n"
+                        + "Host: localhost\r\nContent-Type: application/json\r\n"
+                        + "Transfer-Encoding: chunked\r\n\r\n";
+                output.write(head.getBytes(StandardCharsets.US_ASCII));
+                output.write((Integer.toHexString(valueLength + 12) + "\r\n").getBytes(StandardCharsets.US_ASCII));
+                output.write("{\"value\":\"".getBytes(StandardCharsets.US_ASCII));
+                for (int sent = 0; sent < valueLength; sent += block.length) { output.write(block); }
+                output.write("\"}".getBytes(StandardCharsets.US_ASCII));
+                bodySent = true;
+                output.write(("\r\n0\r\n\r\nGET /api/v1/health/live HTTP/1.1\r\n"
+                        + "Host: localhost\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+                output.flush();
+            } catch (java.net.SocketException closed) {
+                // Bounded swallowing may close while this independent writer is still sending.
+            }
+            String response = reader.get(TIMEOUT.toSeconds(), java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(bodySent).as("the server must stop the independent upload before swallowing the entire oversized body").isFalse();
+            assertThat(response).doesNotContain("HTTP/1.1 200");
+            if (!response.isEmpty()) { assertThat(response).startsWith("HTTP/1.1 413"); }
+        }
     }
 
     private HttpResponse<String> send(BodyPublisher body) throws Exception {

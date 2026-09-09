@@ -44,6 +44,14 @@ public class JpaOwnerRepository implements OwnerRepository {
         return owners.findById(id).map(OwnerEntity::toDomain);
     }
 
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Owner updatePreferences(Owner owner) {
+        OwnerEntity entity = entityManager.find(OwnerEntity.class, owner.id());
+        entity.updatePreferences(owner);
+        return entity.toDomain();
+    }
+
     /** MANDATORY: a row lock taken in its own short transaction would be released immediately. */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)

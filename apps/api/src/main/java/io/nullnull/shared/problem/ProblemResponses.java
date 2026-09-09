@@ -42,7 +42,7 @@ public final class ProblemResponses {
 
     public static ResponseEntity<Problem> of(HttpServletRequest request, ApiException exception) {
         return build(request, exception.code(), exception.status(), exception.getMessage(),
-                exception.retryable(), exception.retryAfterSeconds(), null);
+                exception.retryable(), exception.retryAfterSeconds(), exception.fieldErrors());
     }
 
     /**

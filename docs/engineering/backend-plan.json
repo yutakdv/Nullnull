@@ -423,7 +423,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "프로필·locale·onboarding·active trip",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-010"
       ],

@@ -72,6 +72,8 @@ FE는 response type을 재선언하거나 unknown field에 의존하지 않는�
 - 401이면 cookie 유무에 따라 CSRF 재발급 또는 session 생성을 한 번 시도한 뒤 안전한 read만 재시도한다. mutation 자동 재실행은 동일 idempotency key가 있는 경우에도 UI가 요청 결과 불명을 처리하는 경로에서만 허용한다.
 - 다른 owner의 resource도 404로 응답해 존재 여부를 노출하지 않는다.
 
+`PATCH /me`는 `application/merge-patch+json`만 받는다. 생략한 필드는 유지하고 `activeTripId: null`은 해제한다. 나머지 필드의 null·잘못된 JSON type·unknown key·빈 object는 400이다. locale은 P0 `ko-KR`/`en-US`이며 미지원 값은 422 `VALIDATION_FAILED`와 `UNSUPPORTED_LOCALE`, timezone 검증 실패는 `INVALID_TIMEZONE`, active trip이 없거나 타 owner/삭제 상태이면 구분 없이 `TRIP_NOT_FOUND` field error다. 반복 onboarding 완료는 추가 domain 효과를 만들지 않는다.
+
 ## 4. ETag와 trip version
 
 Trip 확정 상태를 바꾸는 응답은 `ETag: "7"`처럼 version을 준다. FE는 최신 ETag를 보관해 다음 mutation의 `If-Match`에 보낸다.

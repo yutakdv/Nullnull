@@ -68,6 +68,13 @@ class OwnerEntity {
         return entity;
     }
 
+    void updatePreferences(Owner owner) {
+        locale = owner.locale();
+        timezone = owner.timezone();
+        onboardingCompleted = owner.onboardingCompleted();
+        activeTripId = owner.activeTripId();
+    }
+
     Owner toDomain() {
         return new Owner(id, kind, accountId, locale, timezone, onboardingCompleted, activeTripId,
                 createdAt, deletedAt);

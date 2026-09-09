@@ -648,6 +648,12 @@ B01 scaffold에서는 실제 구현한 기반 suite와 모든 미지원 capabili
 - `apps/web/e2e/session.spec.ts`는 `API_INTERNAL_BASE_URL`의 실제 API를 직접 호출하는 Playwright transport 검사다. Compose 내부 HTTP에서는 Secure cookie를 명시 전달한다. 브라우저 Secure cookie 수락이나 아직 없는 세션 UI를 검증했다고 쓰지 않는다. 기존 `shell.spec.ts`의 keyboard/focus 검사는 계속 실행한다.
 - report: `apps/api/build/test-results/{test,integrationTest,openapiContractTest}/*.xml`; 전체 gate의 복사본은 `.artifacts/integration/api-test-results/`와 `.artifacts/integration/test-results/`다. 전체 owner resource matrix와 삭제 receipt는 후속 slice 범위다.
 
+### BA-011 프로필 검사
+
+`backend-plan.json`의 BA-011-T1~T3는 `integrationTest`의 `OwnerPreferencesIT`·`OwnerPreferencesConcurrencyIT`, `openapiContractTest`의 `OwnerContractTest`에서 실행한다. null/absent와 잘못된 patch의 원자성, 동일 owner의 동시 변경 보존, 반복 onboarding의 PostgreSQL row version 불변, field error와 response schema를 검사한다. 실제 TripLookup은 BA-030 전까지 fail-closed이며 test override의 owner/삭제 trip 검사를 실제 trip table 구현으로 쓰지 않는다. Playwright `session.spec.ts`는 실제 API에서 KO/EN 저장·재조회·unsupported locale 응답을 검사한다. UI-only 흐름과 기존 keyboard/focus 검사는 구분한다.
+
+`RequestBodySwallowBoundIT`는 큰 upload에 대해 `HttpClient`가 반드시 IOException을 던진다는 가정을 사용하지 않는다. raw TCP writer가 응답과 독립적으로 본문을 보내며 서버가 전체 upload를 중단하는지, 후속 pipelined request가 성공하지 않는지 검사한다. `max-swallow-size=-1` 변이에서 전체 본문 전송이 완료되어 새 단언이 실패한다. 정상 2 MiB 설정은 유지하며 413을 먼저 받는 경우와 응답 없는 transport 실패를 모두 표현한다.
+
 ### BA-004 보고서 집계와 CI 실패 증명
 
 `check_test_reports.py`는 `--junit-dir`, `--evaluation`, `--backend-plan`, `--manifest`를 각각 선택 입력으로 받는다. 입력 없이 실행하면 실패한다. plan/manifest에서 요구하는 Gradle ID는 제공한 JUnit 없이는 충족되지 않는다.

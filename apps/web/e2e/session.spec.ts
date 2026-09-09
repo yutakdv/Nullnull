@@ -48,3 +48,42 @@ test('BA-010 bootstrap, refresh and independent tabs use the same owner', async 
   });
   expect(expired.status()).toBe(401);
 });
+
+test('BA-011 preferences persist and reject unsupported locale', async ({ request }) => {
+  const origin = 'http://localhost:5173';
+  const bootstrap = await request.post('/api/v1/demo/sessions', {
+    headers: { Origin: origin },
+  });
+  expect(bootstrap.status()).toBe(201);
+  const owner = (await bootstrap.json()) as { csrfToken: string };
+  const cookie = bootstrap.headers()['set-cookie']?.split(';')[0];
+  expect(Boolean(cookie)).toBe(true);
+  const headers = {
+    Origin: origin,
+    Cookie: cookie!,
+    'X-CSRF-Token': owner.csrfToken,
+    'Content-Type': 'application/merge-patch+json',
+  };
+  for (const locale of ['en-US', 'ko-KR']) {
+    const patched = await request.patch('/api/v1/me', {
+      headers,
+      data: { locale, onboardingCompleted: true },
+    });
+    expect(patched.status()).toBe(200);
+    const read = await request.get('/api/v1/me', { headers });
+    expect(read.status()).toBe(200);
+    expect((await read.json()) as object).toMatchObject({
+      locale,
+      onboardingCompleted: true,
+    });
+  }
+  const unsupported = await request.patch('/api/v1/me', {
+    headers,
+    data: { locale: 'ja-JP' },
+  });
+  expect(unsupported.status()).toBe(422);
+  expect((await unsupported.json()) as object).toMatchObject({
+    code: 'VALIDATION_FAILED',
+    fieldErrors: [{ field: 'locale', code: 'UNSUPPORTED_LOCALE' }],
+  });
+});

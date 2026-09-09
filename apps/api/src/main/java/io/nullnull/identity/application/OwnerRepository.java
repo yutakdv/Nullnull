@@ -15,6 +15,9 @@ public interface OwnerRepository {
 
     Optional<Owner> findById(UUID id);
 
+    /** Applies preference fields only; caller holds the owner lifecycle lock in this transaction. */
+    Owner updatePreferences(Owner owner);
+
     /**
      * Takes the owner-lifecycle lock, the first lock in the order
      * {@code owner lifecycle -> idempotency reservation -> trip -> run/decision -> child rows}
