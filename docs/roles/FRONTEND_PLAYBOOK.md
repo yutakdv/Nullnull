@@ -61,6 +61,8 @@ issue를 먼저 연다.
 
 frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_MATRIX.md), 전체 operation은 [OpenAPI](../api/openapi.yaml), 상태별 동작은 [Figma 핸드오프](../design/FIGMA_HANDOFF.md), frame과 `FE-*` 실행 ID의 매핑은 [공통 실행 순서](../engineering/IMPLEMENTATION_PLAN.md)에 모았다. 이 문서에 같은 표를 복제하지 않는다.
 
+작업 목록의 기계 판독 정본은 [frontend-plan.json](../engineering/frontend-plan.json)이고 GitHub issue는 그 투영이다. 상태는 JSON이 정본이므로 구현 PR에서 `status`를 올리고 issue를 닫는다. `scripts/validate_frontend_plan.py`가 phase·기능 ID·operation·Figma node·선행 관계와 순환을 검사한다. Backend와 달리 operation 독점 소유와 전체 기능 coverage는 검사하지 않는다 — FE는 operation을 소비하므로 한 operation이 여러 화면에 나타나고, 서버·운영 전용 요구사항에는 FE task가 없다.
+
 ## 3. Client 공통 책임
 
 쿠키/CSRF/request ID/If-Match/Idempotency-Key를 공통 wrapper에서 처리하고 생성 타입을 수동 복제하지 않는다. 401은 안전한 GET만 1회 복구하며 mutation의 재시도는 동일 body/key에 대한 명시적 사용자 행동으로 제한한다. 검색·viewport는 민감 body이고 query cache persistence에서 제외한다.

@@ -123,6 +123,7 @@ CI 등록 규칙(required 두 개, `api-quality`·`ai-quality` workflow, test ID
 - 실행 toolchain은 앱별로 고정돼 있다. Gradle은 Temurin 21 `JAVA_HOME`으로만(설치형 금지, wrapper만), `apps/ai`는 uv 0.12.10 `.uv-bootstrap/bin/uv`로만 실행된다. compose `api-quality`의 external DB·offline 조건을 포함한 상세는 `apps/api/CLAUDE.md`·`apps/ai/CLAUDE.md`에 있다.
 - `docs/**/*.md`는 Obsidian frontmatter(`aliases`, `doc_type`, `status`, `area`, `tags`)가 필수다. `scripts/validate_docs.py`가 링크·heading anchor·frontmatter를 검사한다.
 - `docs/roles/BACKEND_AI_PLAYBOOK.md` 카드와 `docs/engineering/backend-plan.json`은 validator가 동기화를 검사한다. title/ID/기능/API/선행/test ID/`데이터·정책`은 둘 다 고친다.
+- `docs/engineering/frontend-plan.json`은 FE 작업 목록의 기계 판독 정본이고 GitHub issue는 투영이다. 상태는 JSON이 정본이며 `scripts/validate_frontend_plan.py`가 기능 ID·operation·Figma node·선행/순환을 검사한다. FE task를 추가하면 `IMPLEMENTATION_PLAN.md`의 실행 ID 표와 해당 B단계 `Frontend 실행 ID` 줄을 같은 PR에서 고친다.
 - `IMPLEMENTATION_PLAN.md`와 `BACKEND_AI_PLAYBOOK.md`에는 날짜·소요일을 쓸 수 없다. `validate_backend_plan.has_calendar_estimate`가 `2026-09-08`·`09/08`·`(1d)`를 거부한다(링크 URL은 제외되지만 링크 텍스트는 검사 대상).
 - 문서 본문에 `FCR-0XX`를 쓰면 `docs/design/FIGMA_CHANGE_REQUESTS.md` 표에 먼저 등록해야 한다. 미등록이면 `unregistered design request`로 실패한다(fenced code block은 예외).
 - Figma 구현 frame을 추가·삭제하면 `FIGMA_HANDOFF.md`의 node 목록과 `validate_docs.py`의 하드코딩된 frame 수 상수를 같은 PR에서 고친다.
