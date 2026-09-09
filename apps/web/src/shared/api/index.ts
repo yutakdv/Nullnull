@@ -23,3 +23,11 @@ export {
   type ProblemPresentation,
 } from './problem-message.js';
 export { createQueryClient } from './query-client.js';
+export {
+  apiBaseUrl,
+  currentCsrfToken,
+  getApiClient,
+  sessionQueryKey,
+  useSessionBootstrap,
+  useUpdatePreferences,
+} from './session.js';
