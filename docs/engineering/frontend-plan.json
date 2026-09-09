@@ -69,7 +69,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "React/TypeScript/Vite scaffold, router, query client, i18n",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [],
       "operations": [],
       "featureIds": [],
@@ -93,14 +93,15 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Merged to main in PR #17 and exercised by docker-integration."
     },
     {
       "id": "FE-002",
       "phase": "B01",
       "priority": "P0",
       "title": "Figma token pipeline, Component Catalog 49종과 Storybook variant",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-001"
       ],
@@ -126,14 +127,15 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Merged to main in PR #17 and exercised by docker-integration."
     },
     {
       "id": "FE-003",
       "phase": "B01",
       "priority": "P0",
       "title": "error boundary, API Problem mapper, MSW fixture",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-001"
       ],
@@ -159,14 +161,15 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Merged to main in PR #17 and exercised by docker-integration."
     },
     {
       "id": "FE-004",
       "phase": "B01",
       "priority": "P0",
       "title": "PWA manifest/service-worker offline shell 최소 구성",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-001"
       ],
@@ -192,7 +195,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Offline shell caches the app shell only; API responses are never cached so stale data cannot render as live."
     },
     {
       "id": "FE-005",

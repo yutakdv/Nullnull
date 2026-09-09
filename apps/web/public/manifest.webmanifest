@@ -1,0 +1,28 @@
+{
+  "id": "/",
+  "name": "널널 Nullnull",
+  "short_name": "널널",
+  "description": "발견한 장소를 여행 후보로 모으고, 검증된 근거로 더 나은 일정을 제안받습니다.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#5498ff",
+  "lang": "ko-KR",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
