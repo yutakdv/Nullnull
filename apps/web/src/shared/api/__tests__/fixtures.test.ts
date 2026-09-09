@@ -15,6 +15,7 @@ import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import {
   optimizationFixtures,
+  placeFixtures,
   problemFixtures,
   sessionFixtures,
   tripFixtures,
@@ -59,6 +60,8 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     ['TripPage', tripFixtures.pageEmpty],
     ['OptimizationHistoryPage', optimizationFixtures.historyPage],
     ['OptimizationHistoryPage', optimizationFixtures.historyPageEmpty],
+    ['PlaceSearchPage', placeFixtures.searchPage],
+    ['PlaceSearchPage', placeFixtures.searchPageEmpty],
   ])('%s fixture', (schemaName, fixture) => {
     const validate = validatorFor(schemaName);
     const valid = validate(fixture);

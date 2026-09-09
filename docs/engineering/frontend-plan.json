@@ -337,7 +337,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "S02-4B/C 수동 입력과 장소 검색 integration",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-101",
         "BA-022"
@@ -355,7 +355,9 @@
         "400:1201",
         "438:3199"
       ],
-      "designRequests": [],
+      "designRequests": [
+        "FCR-029"
+      ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -378,7 +380,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "Search UI on provisional mock data (searchPlaces has no approved example). Crowd display omitted: PlaceSummary has no crowd field, raised as FCR-029."
     },
     {
       "id": "FE-404",

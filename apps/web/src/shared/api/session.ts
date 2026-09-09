@@ -142,3 +142,35 @@ export function useOptimizationHistory(): UseQueryResult<
     },
   });
 }
+
+type PlaceSearchPage = components['schemas']['PlaceSearchPage'];
+type PlaceSearchRequest = components['schemas']['PlaceSearchRequest'];
+
+/**
+ * Canonical place search.
+ *
+ * A read-only POST by contract: the query is free-form text, and putting it in
+ * a URL would leak it into CDN, proxy and browser history logs. The response is
+ * `no-store` for the same reason, so this is not cached across sessions either.
+ *
+ * MOCK DATA today; replaced when BA-022 lands.
+ */
+export function usePlaceSearch(
+  query: string,
+): UseQueryResult<PlaceSearchPage, Problem | Error> {
+  const trimmed = query.trim();
+  return useQuery({
+    // The query text is part of the cache key but never leaves the client in a
+    // URL; the request carries it in the body.
+    queryKey: ['places', 'search', trimmed],
+    enabled: trimmed.length > 0,
+    queryFn: async () => {
+      const body: PlaceSearchRequest = { query: trimmed };
+      const { data, error, response } = await getApiClient().POST('/places/search', {
+        body,
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}

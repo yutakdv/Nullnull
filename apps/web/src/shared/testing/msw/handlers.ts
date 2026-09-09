@@ -5,6 +5,7 @@
 // an inline object is a hand-written model with nothing checking it.
 import {
   optimizationFixtures,
+  placeFixtures,
   problemFixtures,
   sessionFixtures,
   tripFixtures,
@@ -62,5 +63,12 @@ export const handlers = [
   http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.page)),
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
+  ),
+  // MOCK DATA (FE-103). searchPlaces is a read-only POST so the query never
+  // reaches a URL log; the handler matches that shape. Delete with BA-022.
+  http.post(`${API_BASE}/places/search`, () =>
+    HttpResponse.json(placeFixtures.searchPage, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    }),
   ),
 ];

@@ -29,6 +29,7 @@ export {
   getApiClient,
   sessionQueryKey,
   useOptimizationHistory,
+  usePlaceSearch,
   useSessionBootstrap,
   useTrips,
   useUpdatePreferences,

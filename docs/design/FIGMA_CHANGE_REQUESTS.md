@@ -59,8 +59,9 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-026 | P0 blocker | Live/stale/replay 공통 단계·시간별 그래프, KTO는 상대 날짜 예측 | source별 단위/범례/시간 해상도·6-state·비교불가 표시; PM-013 | FE / BE·AI·PM | Open |
 | FCR-027 | P0 blocker | ITEM 대상 선택·취소 copy·refresh/만료/이력/undo 상태 불완전 | read 복구·back≠cancel·실패 복귀≠KEEP·서버 undo 가능성; PM-015 | FE / BE·AI·PM | Open |
 | FCR-028 | P0 major | 417:2567 NO_IMPROVEMENT가 전역 최적성을 주장 | 확인한 후보 범위 문구·UNKNOWN/CHECKING/NONE·유효 CTA; PM-020 | FE / BE·AI·PM | Open |
+| FCR-029 | P0 blocker | 필수 장소 `438:3158` 카드가 혼잡 단계(`4 · 혼잡`)·`공식 혼잡 예측`·출처를 표시하지만 `searchPlaces`가 돌려주는 `PlaceSummary`와 `PlaceDetail` 어디에도 crowd 필드가 없음 | 계약에 근거가 생기기 전에는 카드에서 혼잡 표시를 제거한다. 표시가 필요하면 `PlaceSummary`에 provenance를 갖춘 crowd를 추가하거나 별도 operation을 연결하고, 비교 자격·기준시각·출처를 함께 정의한다(불변식 8) | FE / BE·AI | Open |
 
-FCR 번호는 기존 참조를 보존한다. FCR-010~015는 09-06 PR #6 계약 검토에서, FCR-016~028은 09-06 직접 canvas 대조와 API 검토에서 추가했다. 등록은 문서 기준선이며 디자인 수정 완료를 뜻하지 않는다.
+FCR 번호는 기존 참조를 보존한다. FCR-010~015는 09-06 PR #6 계약 검토에서, FCR-016~028은 09-06 직접 canvas 대조와 API 검토에서, FCR-029는 FE-103 구현 중 계약 대조에서 추가했다. 등록은 문서 기준선이며 디자인 수정 완료를 뜻하지 않는다.
 
 `CON-003` 계약은 PR #9의 merge commit `1b3931c`로 `main`에 반영됐다. 따라서
 FCR-010/011/015의 Backend/AI 계약 선행조건은 충족됐다. 세 FCR의 `Open` 상태는
