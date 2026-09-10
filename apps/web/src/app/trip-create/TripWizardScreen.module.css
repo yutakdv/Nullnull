@@ -101,6 +101,24 @@
   color: var(--color-action-primary);
 }
 
+/* Forced colours (Windows high contrast) drops background and colour, which
+   would leave the selected range indistinguishable -- TEST_STRATEGY.md §3 asks
+   that state survive with colour removed. An outline is honoured there, so the
+   selection stays visible without it. */
+@media (forced-colors: active) {
+  .dayEdge,
+  .dayBetween {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+
+  .dayEdge {
+    /* The ends are the range's boundary; a thicker rule separates them from
+       the days between without relying on a fill. */
+    outline-width: 3px;
+  }
+}
+
 .empty {
   min-height: 44px;
 }

@@ -19,6 +19,17 @@
   color: var(--color-action-onPrimary);
 }
 
+/* Forced colours drops background and colour, so a selected chip would look
+   like every other one. aria-pressed still carries the state to a screen
+   reader, but a sighted user in high contrast would have nothing to see.
+   TEST_STRATEGY.md §3: state must survive with colour removed. */
+@media (forced-colors: active) {
+  .chip[data-selected] {
+    outline: 3px solid CanvasText;
+    outline-offset: -3px;
+  }
+}
+
 .chip:disabled {
   color: var(--color-text-disabled);
   cursor: not-allowed;
