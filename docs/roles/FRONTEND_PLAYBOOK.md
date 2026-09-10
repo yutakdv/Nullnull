@@ -138,6 +138,14 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
   않았다. 대조에서 나온 차이는 (a) 구현하거나 (b) 계약에 근거가 없으면 `FCR-*`로
   등록하거나 (c) 다른 실행 ID의 범위임을 근거와 함께 적는다. 셋 중 하나로 처리하지 않은
   차이는 남기지 않는다.
+- **간격·타이포·색은 눈으로 비교하지 말고 frame의 실제 auto-layout 값을 읽어 대조한다.**
+  screenshot 비교는 chrome 부재 같은 덩어리는 잡지만 15px ramp를 14px로 그린 것이나
+  radius 12를 14로 그린 것은 잡지 못한다. Figma MCP `get_design_context`로 frame의
+  padding/gap/radius/font를 받아 CSS와 값 단위로 비교하고, 고친 뒤 실제 브라우저에서
+  `getComputedStyle`로 재서 frame 값과 같은지 확인한다. FE-301/303 대조에서 이 방식으로만
+  20건 이상이 나왔고, 그 중 `--color-action-strong`(CTA)과 `PlaceSummary.thumbnailUrl`은
+  **토큰과 계약 필드가 이미 있는데 잘못 고르거나 쓰지 않은** 경우였다. 없어서 못 한 것이
+  아니라 확인하지 않아서 생긴 차이가 대부분이므로, 대조는 선택이 아니라 절차다.
 - API는 generated client만 사용하고 재생성 뒤 manual diff가 없다.
 - default/loading/empty/error/offline 및 해당 stale/replay/conflict 상태가 구현됐다.
 - mutation 중복 실행이 막히고 성공·실패 결과가 toast 외 persistent UI에도 남는다.
