@@ -723,7 +723,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "S07-2 edit buffer, dirty-exit, save/conflict recovery",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-301",
         "BA-031"

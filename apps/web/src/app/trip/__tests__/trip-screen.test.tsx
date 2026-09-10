@@ -279,20 +279,27 @@ describe('FE-301-T3 the screen is reachable and named', () => {
     expect(all).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('does not offer P1 actions as pressable buttons', async () => {
+  it('does not offer the optimization entry as a pressable button', async () => {
     renderTrip();
     await loaded();
-    // `준비 중`: inert text, so there is nothing to press and no request.
+    // Optimization is FE-501, so it stays `준비 중`: inert text, nothing to
+    // press and no request. Editing is real as of FE-302.
     expect(
       screen.queryByRole('button', { name: new RegExp(copy['trip.optimize']) }),
     ).not.toBeInTheDocument();
     expect(screen.getByText(copy['trip.optimize'])).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: copy['trip.editStart'] }),
+    ).toBeInTheDocument();
   });
 
-  it('reaches the day chips by keyboard', async () => {
+  it('reaches the edit control and then the day chips by keyboard', async () => {
     const user = userEvent.setup();
     renderTrip();
     await loaded();
+    // The edit button sits in the header, so it comes first (FE-302).
+    await user.tab();
+    expect(screen.getByRole('button', { name: copy['trip.editStart'] })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('button', { name: copy['trip.allDays'] })).toHaveFocus();
   });

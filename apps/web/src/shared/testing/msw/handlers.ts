@@ -129,6 +129,27 @@ export const handlers = [
     const trip = currentTrip();
     return HttpResponse.json(trip, { headers: { ETag: `"${String(trip.version)}"` } });
   }),
+  http.patch(`${API_BASE}/trips/:tripId`, async ({ request }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const patch = (await request.json()) as Partial<typeof trip>;
+    // The contract refuses a date-range shrink while an item lies outside the
+    // new range, and says so with 422 rather than deleting anything. Modelled
+    // because FR-TRP-05's whole point is that no item is implicitly removed.
+    const endDate = patch.endDate ?? trip.endDate;
+    const startDate = patch.startDate ?? trip.startDate;
+    const orphaned = trip.days.some(
+      (day) => day.items.length > 0 && (day.date < startDate || day.date > endDate),
+    );
+    if (orphaned) return problemResponse('VALIDATION_FAILED');
+
+    tripState = { ...trip, ...patch, version: trip.version + 1 };
+    return HttpResponse.json(tripState, {
+      headers: { ETag: `"${String(tripState.version)}"` },
+    });
+  }),
   http.put(`${API_BASE}/trips/:tripId/interests`, async ({ request }) => {
     const trip = currentTrip();
     // The contract requires If-Match; a mismatch is the 409 the screen recovers

@@ -1,6 +1,7 @@
 export { BottomCta, type BottomCtaProps } from './BottomCta.js';
 export { CandidateCard, type CandidateCardProps } from './CandidateCard.js';
 export { Chip, type ChipProps } from './Chip.js';
+export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog.js';
 export { CrowdLevel, type CrowdLevelProps } from './CrowdLevel.js';
 export { DataAttribution, type DataAttributionProps } from './DataAttribution.js';
 export { DecisionBar, type DecisionBarProps, type DecisionState } from './DecisionBar.js';

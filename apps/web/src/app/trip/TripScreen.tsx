@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { isProblem, useTrip } from '../../shared/api/index.js';
 import { Chip } from '../../shared/ui/components/index.js';
+import { TripEditForm } from './TripEditForm.js';
 import styles from './TripScreen.module.css';
 import {
   daysUntil,
@@ -60,6 +61,9 @@ export function TripScreen() {
   const { locale, t } = useI18n();
   const query = useTrip(tripId ?? null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  // The button that opened edit mode, so focus can come back to it (FR-TRP-03).
+  const editButtonRef = useRef<HTMLButtonElement>(null);
 
   const trip = query.data?.trip;
   const days = trip?.days ?? [];
@@ -144,19 +148,40 @@ export function TripScreen() {
           </span>
         </p>
 
-        {/* P1 entry points. Inert text with a `준비 중` badge rather than
-            buttons: a disabled button still invites a press. */}
         <p className={styles.actions}>
+          {/* Optimization is FE-501. Inert text with a `준비 중` badge rather
+              than a disabled button, which would still invite a press. */}
           <span className={styles.actionLabel}>
             {t('trip.optimize')}
             <span className={styles.badge}>{t('trip.comingSoon')}</span>
           </span>
-          <span className={styles.actionLabel}>
-            {t('trip.edit')}
-            <span className={styles.badge}>{t('trip.comingSoon')}</span>
-          </span>
+          {editing ? null : (
+            <button
+              className={styles.action}
+              onClick={() => {
+                setEditing(true);
+              }}
+              ref={editButtonRef}
+              type="button"
+            >
+              {t('trip.editStart')}
+            </button>
+          )}
         </p>
       </header>
+
+      {editing ? (
+        <TripEditForm
+          etag={query.data.etag}
+          onClose={() => {
+            setEditing(false);
+            // Focus returns to the control that opened the form, after the
+            // button is back in the tree.
+            queueMicrotask(() => editButtonRef.current?.focus());
+          }}
+          trip={trip}
+        />
+      ) : null}
 
       <nav aria-label={t('trip.allDays')} className={styles.dayNav}>
         <ul className={styles.dayChips}>

@@ -364,3 +364,40 @@ export function useReplaceTripInterests(tripId: string | null) {
     },
   });
 }
+
+type UpdateTripRequest = components['schemas']['UpdateTripRequest'];
+
+/**
+ * Patches trip metadata (FR-TRP-05).
+ *
+ * merge-patch, like PATCH /me: the contract declares
+ * application/merge-patch+json and the server enforces it with `consumes`, so
+ * openapi-fetch's application/json default would come back 415.
+ *
+ * If-Match is required by the contract and required here. Without a known ETag
+ * this refuses rather than writing unconditionally — a blind PATCH is how one
+ * device's edit erases another's.
+ */
+export function useUpdateTrip(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripWithETag,
+    Problem | Error,
+    { patch: UpdateTripRequest; etag: string | null }
+  >({
+    mutationFn: async ({ patch, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot update a trip without its ETag');
+      const { data, error, response } = await getApiClient().PATCH('/trips/{tripId}', {
+        body: patch,
+        params: { path: { tripId }, header: { 'If-Match': etag } },
+        headers: { 'Content-Type': 'application/merge-patch+json' },
+      });
+      if (!data) fail(error, response);
+      return { trip: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: (result) => {
+      if (tripId !== null) queryClient.setQueryData(tripQueryKey(tripId), result);
+    },
+  });
+}

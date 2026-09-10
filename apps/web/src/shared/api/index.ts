@@ -39,6 +39,7 @@ export {
   useTrip,
   useTrips,
   useReplaceTripInterests,
+  useUpdateTrip,
   useUpdatePreferences,
   tripQueryKey,
   type TripWithETag,
