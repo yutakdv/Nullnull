@@ -601,7 +601,7 @@
           "assertion": "staging 실제 KTO 성공 이력과 공개 응답 provenance가 연결되며 mock-only 증거는 release에서 실패한다"
         }
       ],
-      "handoff": "V008은 detailCommon2만 허용하는 KTO registry revision 2·normalized snapshot·safe collector audit을 만든다. T1/T2는 KtoDetailResponseValidatorTest/KtoKorServicePropertiesTest/KtoPlaceDetailGatewayIT와 FlywayMigrationIT로 통과했고 full Docker Java 293/136/13/19, AI 410, web 224, Playwright 36도 GREEN이다. KTO_SERVICE_KEY와 staging public provenance가 없는 현재 runtime에서는 T3 actual-success evidence가 미실행이므로 status를 올리거나 C3 public projection을 시작하지 않는다.",
+      "handoff": "V008/V009은 detailCommon2 KTO registry revision 3 (`kto-kor-service2-detailcommon2-v2`)·normalized snapshot·safe collector audit을 만든다. current request는 serviceKey/MobileOS/MobileApp/contentId/_type만 전송하고 response content/type ID를 후보 기대값과 대조한다. T1/T2 fixture와 V007→V009 PostgreSQL upgrade는 KtoDetailResponseValidatorTest/KtoKorServicePropertiesTest/KtoPlaceDetailGatewayIT/FlywayMigrationIT로 통과했고 현재 backend Gradle suite 300/136/13/19도 GREEN이다. 직전 full Docker는 AI 410, web 224, Playwright 36, client diff/npm audit/egress-denied를 포함해 Java 299/136/13/19로 GREEN이었다; INF-001 없는 infra check는 skip이다. contentTypeId를 재도입하면 parameter-contract unit test가 RED가 된 뒤 복구했다. opt-in actualKtoSmoke는 disposable PostgreSQL에서 실제 KTO 성공 snapshot/audit을 확인했지만, 이는 local preflight이며 staging public provenance가 아니다. T3가 끝나기 전에는 status를 올리거나 C3 public projection을 시작하지 않는다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-021"

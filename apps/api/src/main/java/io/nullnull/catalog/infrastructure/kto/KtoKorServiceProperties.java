@@ -67,9 +67,7 @@ public class KtoKorServiceProperties {
                 + "&MobileOS=" + encode(mobileOs)
                 + "&MobileApp=" + encode(mobileApp)
                 + "&contentId=" + encode(request.contentId())
-                + "&contentTypeId=" + encode(request.contentTypeId())
-                + "&defaultYN=Y&firstImageYN=N&areacodeYN=Y&catcodeYN=Y&addrinfoYN=Y&mapinfoYN=Y"
-                + "&overviewYN=N&_type=json";
+                + "&_type=json";
         return URI.create(base + "/detailCommon2?" + query);
     }
 

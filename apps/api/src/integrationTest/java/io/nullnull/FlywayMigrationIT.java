@@ -90,8 +90,8 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V008 adds only the reviewed detailCommon2 source revision;
-            // the new cache table deliberately has no synthetic place row.
+            // Every existing row survived. V009 adds only the reviewed detailCommon2 request revision;
+            // V008's cache row is already part of the populated previous schema.
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -277,7 +277,7 @@ class FlywayMigrationIT {
                         + " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 UUID.randomUUID(), deletionRequestId, ownerId, now, now.plusDays(21), "c".repeat(64), now);
         // V007 source registry tables are already seeded with reviewed rows. Add rows to the three
-        // operational tables that are otherwise empty, so V008 is tested against populated C1 data too.
+        // operational tables that are otherwise empty, so the C2 migrations are tested against populated C1 data too.
         UUID collectorRunId = UUID.randomUUID();
         jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".source_quality_incidents"
                         + " (id, source_code, incident_code, affected_from, affected_to, scope, disposition, reviewed_at)"
@@ -293,12 +293,17 @@ class FlywayMigrationIT {
                         + " release_version, request_id, payload_hash, validation_result, created_at)"
                         + " VALUES (?, ?, 'UPGRADE_TEST', 'OK', 200, 1, 1, 'upgrade-release', ?, ?, 'OK', ?)",
                 UUID.randomUUID(), collectorRunId, "upgrade-request-" + UUID.randomUUID(), "d".repeat(64), now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".kto_place_snapshots"
+                        + " (id, source_code, source_registry_version, collector_run_id, content_id, content_type_id,"
+                        + " title, payload_hash, fetched_at, stale_at, created_at)"
+                        + " VALUES (?, 'KTO_KOR_SERVICE_2', 2, ?, '126508', '12', 'upgrade place', ?, ?, ?, ?)",
+                UUID.randomUUID(), collectorRunId, "e".repeat(64), now, now.plusDays(7), now);
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
                         "deletion_tombstones", "source_registry", "source_registry_revisions",
-                        "source_quality_incidents", "collector_runs", "api_ingest_logs");
+                        "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots");
         return key;
     }
 

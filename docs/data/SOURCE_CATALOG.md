@@ -71,7 +71,7 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 ### C2 고정 provider operation
 
 - exact base는 `https://apis.data.go.kr/B551011/KorService2`, operation은 `GET /detailCommon2`뿐이다. runtime에는 공공데이터포털 **decoding key**를 `KTO_SERVICE_KEY`로 주입하며 key·full URL/query는 log, audit, artifact, browser에 남기지 않는다.
-- request는 이미 검증된 숫자 `contentId`·`contentTypeId`와 `MobileOS=ETC`, `MobileApp=Nullnull`만 사용한다. `firstImageYN=N`, `overviewYN=N`으로 이미지와 소개 원문을 이 slice에서 요청·보존하지 않는다.
+- 2026-09-10 현재 request는 이미 검증된 숫자 `contentId`와 baseline `MobileOS=ETC`, `MobileApp=Nullnull`, `_type=json`만 사용한다. current `detailCommon2`는 `contentTypeId`와 legacy detail flag(`defaultYN`, `firstImageYN`, `areacodeYN`, `catcodeYN`, `addrinfoYN`, `mapinfoYN`, `overviewYN`)를 보내지 않는다. 후보에서 보유한 content type은 response의 normalized `contenttypeid`와 대조할 뿐 request parameter가 아니다.
 - response는 `resultCode=0000`, 하나의 matching item, bounded title/category/area/address, 함께 존재하는 지리 좌표와 지구 범위를 통과해야 한다. 정상 projection은 source registry revision·collector run·hash·fetched/stale 시각만 포함한 immutable snapshot이다.
 - `nullnull.env=test`의 loopback fixture만 official base 검사를 예외로 할 수 있다. 실제 staging success → collector audit → C3 public provenance projection은 BA-021-T3의 별도 release gate이며, 현재 fixture 결과로 대체할 수 없다.
 

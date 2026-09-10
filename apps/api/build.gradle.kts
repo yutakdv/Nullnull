@@ -79,6 +79,7 @@ testing {
                 implementation("org.springframework.boot:spring-boot-starter-flyway-test")
                 implementation("org.springframework.boot:spring-boot-testcontainers")
                 implementation("org.testcontainers:testcontainers-postgresql")
+                implementation("tools.jackson.core:jackson-databind")
                 runtimeOnly("org.postgresql:postgresql")
             }
             targets.all {
@@ -173,6 +174,33 @@ tasks.register("resolveTestClasspaths") {
             "openapiContractTestCompileClasspath", "openapiContractTestRuntimeClasspath",
             "recommendationTestCompileClasspath", "recommendationTestRuntimeClasspath"
         ).forEach { configurations.getByName(it).resolve() }
+    }
+}
+
+tasks.register<JavaExec>("ktoSmoke") {
+    group = "verification"
+    description = "Runs one explicitly approved KTO detailCommon2 smoke request and prints redacted evidence only"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoSmokeMain")
+    workingDir = projectDir
+}
+
+tasks.named<Test>("integrationTest") {
+    useJUnitPlatform {
+        excludeTags("actual-kto")
+    }
+}
+
+tasks.register<Test>("actualKtoSmoke") {
+    group = "verification"
+    description = "Runs the opt-in actual KTO smoke against Testcontainers PostgreSQL with redacted audit assertions"
+    dependsOn(tasks.named("integrationTestClasses"))
+    val integrationTestSourceSet = sourceSets.named("integrationTest")
+    testClassesDirs = integrationTestSourceSet.map { it.output.classesDirs }.get()
+    classpath = integrationTestSourceSet.map { it.runtimeClasspath }.get()
+    useJUnitPlatform {
+        includeTags("actual-kto")
     }
 }
 

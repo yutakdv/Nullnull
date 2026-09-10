@@ -82,7 +82,7 @@ class KtoPlaceDetailGatewayIT {
                     """, String.class, snapshot.collectorRunId());
 
             assertThat(stub.calls()).isEqualTo(1);
-            assertThat(snapshot.sourceRegistryVersion()).isEqualTo(2);
+            assertThat(snapshot.sourceRegistryVersion()).isEqualTo(3);
             assertThat(snapshotRow).doesNotContain(CANARY, RAW_BODY_CANARY, "serviceKey", "overview");
             assertThat(auditRow).doesNotContain(CANARY, RAW_BODY_CANARY, "serviceKey", "overview");
             assertThat(runRow).doesNotContain(CANARY, RAW_BODY_CANARY, "serviceKey", "overview");

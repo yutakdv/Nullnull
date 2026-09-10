@@ -35,22 +35,25 @@ public final class KtoDetailResponseValidator {
         } catch (RuntimeException failure) {
             return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, 0);
         }
+        if (topLevelProviderError(root)) {
+            return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR, 0);
+        }
         JsonNode envelope = root.path("response");
         JsonNode header = envelope.path("header");
         if (!envelope.isObject() || !header.isObject()) {
             return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, 0);
         }
-        if (!"0000".equals(header.path("resultCode").asText())) {
+        if (!"0000".equals(header.path("resultCode").asString())) {
             return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR, 0);
         }
         JsonNode body = envelope.path("body");
         JsonNode items = body.path("items");
-        JsonNode item = items.path("item");
+        JsonNode item = singleItem(items.path("item"));
         if (!body.isObject() || !items.isObject() || !item.isObject() || body.path("totalCount").asInt(-1) != 1) {
             return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, 0);
         }
-        if (!expected.contentId().equals(item.path("contentid").asText())
-                || !expected.contentTypeId().equals(item.path("contenttypeid").asText())) {
+        if (!expected.contentId().equals(item.path("contentid").asString())
+                || !expected.contentTypeId().equals(item.path("contenttypeid").asString())) {
             return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, 1);
         }
 
@@ -77,6 +80,21 @@ public final class KtoDetailResponseValidator {
         return new Validation(new ProviderResponseValidator.Verdict(outcome, 1), null, responseCount);
     }
 
+    private static boolean topLevelProviderError(JsonNode root) {
+        if (!root.isObject() || root.has("response") || !root.has("resultCode")) {
+            return false;
+        }
+        String code = root.path("resultCode").asString();
+        return !"0000".equals(code);
+    }
+
+    private static JsonNode singleItem(JsonNode candidate) {
+        if (candidate.isArray()) {
+            return candidate.size() == 1 ? candidate.get(0) : candidate;
+        }
+        return candidate;
+    }
+
     private static String required(JsonNode item, String field) {
         String value = optional(item, field);
         if (value == null) {
@@ -90,10 +108,10 @@ public final class KtoDetailResponseValidator {
         if (value == null || value.isNull()) {
             return null;
         }
-        if (!value.isTextual() && !value.isNumber()) {
+        if (!value.isString() && !value.isNumber()) {
             throw new IllegalArgumentException(field + " not scalar");
         }
-        String text = value.asText().trim();
+        String text = value.asString().trim();
         return text.isEmpty() ? null : text;
     }
 

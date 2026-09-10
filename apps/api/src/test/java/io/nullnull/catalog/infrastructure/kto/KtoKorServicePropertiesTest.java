@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.nullnull.catalog.application.KtoGatewayException;
 import io.nullnull.catalog.application.KtoPlaceRequest;
 import java.net.URI;
+import java.util.Arrays;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +26,11 @@ class KtoKorServicePropertiesTest {
         assertThat(uri.getScheme()).isEqualTo("https");
         assertThat(uri.getHost()).isEqualTo("apis.data.go.kr");
         assertThat(uri.getRawPath()).isEqualTo("/B551011/KorService2/detailCommon2");
+        assertThat(queryParameterNames(uri)).containsExactlyInAnyOrder(
+                "serviceKey", "MobileOS", "MobileApp", "contentId", "_type");
+        assertThat(queryParameterNames(uri)).doesNotContain(
+                "contentTypeId", "defaultYN", "firstImageYN", "areacodeYN", "catcodeYN", "addrinfoYN", "mapinfoYN",
+                "overviewYN");
         assertThat(properties).hasToString("KtoKorServiceProperties[configured=true, baseConfigured=true, contestProfile=NONE]");
         assertThat(properties.toString()).doesNotContain(canary);
     }
@@ -55,5 +62,11 @@ class KtoKorServicePropertiesTest {
         properties.setMobileOs("ETC");
         properties.setReleaseVersion("test-release");
         return properties;
+    }
+
+    private static Set<String> queryParameterNames(URI uri) {
+        return Arrays.stream(uri.getRawQuery().split("&"))
+                .map(parameter -> parameter.substring(0, parameter.indexOf('=')))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 }
