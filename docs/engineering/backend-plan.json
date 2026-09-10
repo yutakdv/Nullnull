@@ -649,7 +649,7 @@
           "assertion": "검색 canary 비로그와 미승인 media 비노출을 검증한다"
         }
       ],
-      "handoff": "검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정.",
+      "handoff": "V010은 public route 없이 canonical places/localizations/external refs와 reviewed asset license/media 경계를 만든 internal foundation이다. normalized KTO snapshot은 source registry revision 3을 같이 고정하며 동일 external ID는 하나의 active canonical POI로 수렴하고 missing category/area는 추측하지 않고 거부한다. PostgreSQL fixture에서 duplicate/invalid canonical target/source revision/partial coordinate/unapproved media가 차단되고, longitude required 조건을 제거한 좌표 쌍 mutation과 rights guard를 OR→AND로 약화한 mutation은 BA-022-T1/T3가 RED가 된 뒤 복구했다. 현재 backend Gradle suite 302/141/13/19가 GREEN이다. BA-021-T3 staging actual-success→public provenance 전에는 status와 `/places` public projection을 올리지 않는다. 이후 FE에는 검색 loading/empty/404/coverage 부족·KO/EN fallback fixture와 canonical ID만 전달한다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-022"

@@ -555,6 +555,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
+- 현재 V010은 C3 internal foundation만 만든다. normalized KTO snapshot의 canonical mapping은
+  `(source_code, source_registry_version, external_id, external_type)` provenance를 보존하고 unknown
+  category/area를 추측하지 않는다. C2 T3 staging actual-success→public provenance가 없으므로 `/places` route,
+  search cursor, public media projection은 아직 등록하지 않으며 BA-022 상태도 `planned`로 유지한다.
+- `CatalogFoundationIT`는 duplicate external ID, invalid canonical target/source revision, partial coordinate와
+  unapproved media를 PostgreSQL에서 차단한다. longitude required 조건을 제거한 좌표 쌍 변이와 rights guard
+  `OR`→`AND` 변이는 각각 BA-022-T1/T3를 RED로 만든 뒤 원본을 복구했다.
+
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
 
 ### BA-023

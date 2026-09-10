@@ -85,6 +85,7 @@ erDiagram
 
     PLACES {
       uuid id PK
+      uuid canonical_place_id FK
       string canonical_name
       string category_code
       decimal latitude
@@ -110,6 +111,7 @@ erDiagram
       uuid id PK
       uuid place_id FK
       string source_code
+      bigint source_registry_version FK
       string external_id
       string external_type
       timestamptz verified_at
@@ -600,6 +602,7 @@ erDiagram
     ASSET_LICENSES {
       uuid id PK
       string source_code FK
+      bigint source_registry_version FK
       string external_license_code
       string license_name
       string license_url
@@ -706,8 +709,13 @@ erDiagram
 
 ### Catalog/Social
 
+- `places`의 ACTIVE row는 `canonical_place_id`가 null이고, DEPRECATED row는 직접 ACTIVE canonical row 하나만
+  가리킨다. duplicate merge 전에 localizations/external refs/media를 target으로 옮겨 old ID에서 stale content가
+  다시 투영되지 않게 한다.
 - `place_localizations`: unique `(place_id, locale)`.
 - `place_external_refs`: unique `(source_code, external_id, external_type)`.
+- `place_external_refs`와 `asset_licenses`는 수집/검토 당시의 `(source_code, source_registry_version)`을
+  참조한다. 현재 registry row만 보고 과거 canonical mapping 또는 asset 권리의 source policy를 재해석하지 않는다.
 - 위경도는 허용 범위를 check하고 PostGIS 도입 전에는 numeric(9,6)을 사용한다. P0 nearby를 브라우저에서 처리하면 PostGIS는 보류 가능하다.
 - `post_places`: unique `(post_id, place_id)` 및 `(post_id, position)`.
 - `saved_posts`: primary key `(owner_id, post_id)`로 중복 저장 방지.

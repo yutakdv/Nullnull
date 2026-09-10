@@ -90,9 +90,9 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V009 adds only the reviewed detailCommon2 request revision;
-            // V008's cache row is already part of the populated previous schema.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
+            // Every existing row survived. V010 adds the empty C3 canonical-catalog foundation only;
+            // V009's reviewed detailCommon2 request revision is already part of the populated previous schema.
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
