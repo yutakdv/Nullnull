@@ -204,3 +204,81 @@ export function useCreateTrip() {
     },
   });
 }
+
+type DeletionReceipt = components['schemas']['DeletionReceipt'];
+type DeletionRequestStatus = components['schemas']['DeletionRequestStatus'];
+
+// The deletion status token lives here and nowhere else.
+//
+// The contract is explicit: "store in memory only and never log it". It is a
+// bearer token for a resource whose session has already been revoked, so
+// persisting it would outlive the session it replaced and leave a credential on
+// the device for something the user asked to erase.
+let deletionStatusToken: string | null = null;
+
+export function currentDeletionToken(): string | null {
+  return deletionStatusToken;
+}
+
+/** Drops the token, e.g. when the user leaves the receipt screen. */
+export function forgetDeletionToken(): void {
+  deletionStatusToken = null;
+}
+
+/**
+ * Requests deletion of the session and everything it owns.
+ *
+ * Returns 202: the job is queued, not finished. The session and its CSRF tokens
+ * are revoked immediately, so every later call on this device is unauthenticated
+ * — which is why the status route uses its own token rather than the cookie.
+ *
+ * Carries an Idempotency-Key: for 24 hours the same key replays the same
+ * receipt instead of queuing a second deletion (invariant 6).
+ */
+export function useRequestDeletion() {
+  return useMutation<DeletionReceipt, Problem | Error, void>({
+    mutationFn: async () => {
+      const { data, error, response } = await getApiClient().DELETE('/session', {
+        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+      });
+      if (!data) fail(error, response);
+      deletionStatusToken = data.statusToken;
+      return data;
+    },
+  });
+}
+
+/**
+ * Polls the deletion job.
+ *
+ * Authenticated by the receipt token, not the cookie — the cookie is already
+ * revoked. Disabled until a receipt exists, so it never fires unauthenticated.
+ */
+export function useDeletionStatus(
+  requestId: string | null,
+): UseQueryResult<DeletionRequestStatus, Problem | Error> {
+  return useQuery({
+    queryKey: ['deletion', requestId],
+    enabled: requestId !== null && deletionStatusToken !== null,
+    // Terminal states stop polling; the screen decides by reading status.
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'COMPLETED' || status === 'FAILED' ? false : 3000;
+    },
+    queryFn: async () => {
+      const token = deletionStatusToken;
+      if (!token) throw new Error('No deletion receipt token');
+      const { data, error, response } = await getApiClient().GET(
+        '/deletion-requests/{deletionRequestId}',
+        {
+          params: { path: { deletionRequestId: requestId ?? '' } },
+          // A security scheme, not a parameter, so the generated types do not
+          // carry it; openapi-fetch takes it as a request header instead.
+          headers: { 'X-Deletion-Status-Token': token },
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}

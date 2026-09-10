@@ -38,6 +38,8 @@ import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json"
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
+import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
+import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -73,6 +75,12 @@ export const sessionFixtures = {
   bootstrap: sessionBootstrap as components["schemas"]["SessionBootstrap"],
   csrfToken: csrfToken as components["schemas"]["CsrfTokenResponse"],
   owner: ownerProfileAnonymous as components["schemas"]["OwnerProfile"],
+  // PROVISIONAL (FE-105): deleteCurrentSession and getDeletionRequest have no
+  // approved example. The token is an obvious test string — a realistic-looking
+  // one in a repository would read as a leaked credential.
+  deletionReceipt: deletionReceipt as components["schemas"]["DeletionReceipt"],
+  deletionStatus:
+    deletionStatus as components["schemas"]["DeletionRequestStatus"],
 };
 
 // PROVISIONAL MOCK DATA — replace when BA-011/BA-030 serve these for real.

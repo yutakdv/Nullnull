@@ -16,9 +16,11 @@
       "schemas": [
         "SessionBootstrap",
         "CsrfTokenResponse",
-        "OwnerProfile"
+        "OwnerProfile",
+        "DeletionReceipt",
+        "DeletionRequestStatus"
       ],
-      "count": 3,
+      "count": 5,
       "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies.",
       "serverVerified": false
     },

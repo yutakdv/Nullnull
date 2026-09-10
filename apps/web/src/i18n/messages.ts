@@ -223,6 +223,29 @@ export const messages = {
     'interest.FOOD': '관광보다 먹방',
     'interest.LOCAL_VIBE': '여행지 느낌 물씬',
     'interest.ACTIVITY': '체험·액티비티',
+
+    // S14 session deletion. No Figma frame yet (FCR-016), so this copy is
+    // written from the contract's states and is subject to design review.
+    'deletion.title': '이 기기의 데이터 삭제',
+    'deletion.note': '익명 세션과 그 세션이 가진 여행·후보가 모두 지워져요',
+    'deletion.request': '삭제 요청하기',
+    'deletion.confirm.title': '정말 삭제할까요?',
+    'deletion.confirm.body':
+      '되돌릴 수 없어요. 이 기기의 여행과 담아둔 곳이 모두 지워져요.',
+    'deletion.confirm.yes': '삭제할게요',
+    'deletion.confirm.no': '취소',
+    'deletion.requested': '삭제를 접수했어요',
+    'deletion.receiptNote':
+      '처리 상태는 이 화면에서만 확인할 수 있어요. 창을 닫으면 다시 볼 수 없어요.',
+    'deletion.status.ACCEPTED': '접수됨',
+    'deletion.status.RUNNING': '지우는 중',
+    'deletion.status.COMPLETED': '삭제 완료',
+    'deletion.status.PARTIAL_FAILED': '일부만 지워졌어요',
+    'deletion.status.FAILED': '삭제하지 못했어요',
+    'deletion.retry': '다시 시도',
+    'deletion.contact': '문의하기',
+    'deletion.expired': '상태를 확인할 수 있는 기간이 지났어요',
+    'deletion.failed': '삭제를 요청하지 못했어요',
   },
   'en-US': {
     'app.name': 'Nullnull',
@@ -437,6 +460,29 @@ export const messages = {
     'interest.FOOD': 'Food over sightseeing',
     'interest.LOCAL_VIBE': 'Somewhere that feels away',
     'interest.ACTIVITY': 'Hands-on activities',
+
+    // S14 session deletion. No Figma frame yet (FCR-016).
+    'deletion.title': 'Delete this device\u2019s data',
+    'deletion.note':
+      'The anonymous session and every trip and candidate it holds are erased',
+    'deletion.request': 'Request deletion',
+    'deletion.confirm.title': 'Delete everything?',
+    'deletion.confirm.body':
+      'This cannot be undone. Every trip and saved place on this device is erased.',
+    'deletion.confirm.yes': 'Delete',
+    'deletion.confirm.no': 'Cancel',
+    'deletion.requested': 'Deletion requested',
+    'deletion.receiptNote':
+      'Progress is only visible on this screen. Close it and you cannot check again.',
+    'deletion.status.ACCEPTED': 'Accepted',
+    'deletion.status.RUNNING': 'Deleting',
+    'deletion.status.COMPLETED': 'Deleted',
+    'deletion.status.PARTIAL_FAILED': 'Partly deleted',
+    'deletion.status.FAILED': "Couldn't delete",
+    'deletion.retry': 'Try again',
+    'deletion.contact': 'Contact support',
+    'deletion.expired': 'The window for checking this has passed',
+    'deletion.failed': "We couldn't request deletion",
   },
 } as const satisfies Record<SupportedLocale, Record<string, string>>;
 

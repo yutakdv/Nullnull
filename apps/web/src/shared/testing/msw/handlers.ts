@@ -73,6 +73,19 @@ export const handlers = [
       headers: { ETag: 'W/"1"', Location: `/trips/${tripFixtures.detailCreated.id}` },
     }),
   ),
+  // MOCK DATA (FE-105). Deletion is 202 with a receipt, then a status the
+  // screen polls with the receipt token. Delete with BA-012.
+  http.delete(`${API_BASE}/session`, () =>
+    HttpResponse.json(sessionFixtures.deletionReceipt, {
+      status: 202,
+      headers: { Location: sessionFixtures.deletionReceipt.statusUrl },
+    }),
+  ),
+  http.get(`${API_BASE}/deletion-requests/:id`, () =>
+    HttpResponse.json(sessionFixtures.deletionStatus, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    }),
+  ),
   // MOCK DATA (FE-103). searchPlaces is a read-only POST so the query never
   // reaches a URL log; the handler matches that shape. Delete with BA-022.
   http.post(`${API_BASE}/places/search`, () =>

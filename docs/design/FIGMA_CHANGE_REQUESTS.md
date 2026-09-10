@@ -46,7 +46,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-013 | P0 blocker | 여행 보기 `410:1738`에 계약 연결 없이 `더 여유로운 날짜가 있어요 · 비교하기`가 노출됨 | P0에서 제거하거나 `getPlaceCrowdForecast`와 temporal comparison eligibility, 표시 threshold, unavailable 상태를 기능 ID에 연결. 단순 예보 비교와 적용 가능한 최적화 제안을 구분 | FE / BE·AI·PM | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-013-증거)) |
 | FCR-014 | P0 major | 계산 중 `415:2413`의 `취소하고 My Trip으로`가 한국어 tab 명칭과 다르고, client 이탈/timeout이 server run 취소를 뜻하는 것처럼 보임 | 취소 operation이 없는 P0에서는 `내 여행으로 돌아가기`처럼 navigation만 표현하고 run은 URL로 다시 조회할 수 있음을 안내. 실제 취소는 별도 계약·상태 전이 뒤에만 노출 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-014-증거)) |
 | FCR-015 | P0 blocker | 적용 완료 `417:2412`의 되돌리기가 toast action뿐이고 적용 대상 revision·24시간 `revertUntil`·만료 상태를 지속적으로 확인할 수 없음 | `ApplyOptimizationDecision`의 전후 revision·`revertUntil`을 persistent UI로 표시하고 가능/진행/완료/`REVERT_WINDOW_EXPIRED` 상태를 제공. toast는 보조 피드백으로만 사용 | FE / BE·AI | Figma 수정 완료 · 검토 대기 (2026-09-08, [증거](#fcr-015-증거)) |
-| FCR-016 | P0 blocker | S14 언어/여행 삭제/전체 데이터 삭제 보조 흐름과 시간/예약 입력 node 미확인 | 진입·확인·처리중·부분 실패·완료·복구 variant와 API 연결; PM-002 | FE / BE·AI·PM | Open |
+| FCR-016 | P0 blocker | S14 언어/여행 삭제/전체 데이터 삭제 보조 흐름과 시간/예약 입력 node 미확인 | 진입·확인·처리중·부분 실패·완료·복구 variant와 API 연결; PM-002 | FE / BE·AI·PM | Open · 전체 데이터 삭제는 계약(`DeletionRequestStatus` 5종)만으로 FE-105에서 선구현했고 문구·레이아웃은 Figma 확정 시 교체한다 |
 | FCR-017 | P0 blocker | 527:4085는 날짜 이동 결과, 527:4695는 후보 신규 일정화 날짜 선택 | node 의미 정정·별도 시간 편집·선택 Day 일치·삽입 위치 정책; PM-003/008 | FE / BE·AI·PM | Open |
 | FCR-018 | P0 blocker | 438:3158 untimed 필수 장소→384:5673 초안, 수동 시작/확인 단계 불일치 | 확인 전 초안 계약·세 분기·수정/만료·확정 경계; PM-004 | FE / BE·AI·PM | Open |
 | FCR-019 | P0 blocker | 401:1221 원문·438:3259 confirm에서 연도/제목/제거 수정 부족 | 날짜 기준·기본 제목·item 제거/remap·전송 안내·IMPORT 잠금; PM-005 | FE / BE·AI·PM | Open |

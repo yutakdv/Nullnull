@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useOptimizationHistory, useTrips } from '../../shared/api/index.js';
+import { DeletionSection } from './DeletionSection.js';
 import styles from './ProfileScreen.module.css';
 
 // Figma: S14 profile `422:2925`.
@@ -184,6 +185,8 @@ export function ProfileScreen() {
           </li>
         </ul>
       </div>
+
+      <DeletionSection />
     </section>
   );
 }

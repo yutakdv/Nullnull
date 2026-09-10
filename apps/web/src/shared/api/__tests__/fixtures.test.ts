@@ -63,6 +63,8 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     ['PlaceSearchPage', placeFixtures.searchPage],
     ['PlaceSearchPage', placeFixtures.searchPageEmpty],
     ['TripDetail', tripFixtures.detailCreated],
+    ['DeletionReceipt', sessionFixtures.deletionReceipt],
+    ['DeletionRequestStatus', sessionFixtures.deletionStatus],
   ])('%s fixture', (schemaName, fixture) => {
     const validate = validatorFor(schemaName);
     const valid = validate(fixture);
