@@ -143,6 +143,11 @@ export const messages = {
     'profile.retry': '다시 시도',
     // S15 `423:2967` and any sub-page reached by a back control.
     'nav.back': '뒤로',
+    'nav.tabs': '주요 메뉴',
+    'nav.tab.home': '홈',
+    'nav.tab.trip': '내 여행',
+    'nav.tab.live': '라이브',
+    'nav.tab.profile': '내 정보',
     'nav.settings': '설정',
 
     // S15 data guide (423:2967). The six state labels live in StateLabel (C07);
@@ -488,6 +493,11 @@ export const messages = {
     'profile.location.off': 'Not allowed',
     'profile.retry': 'Try again',
     'nav.back': 'Back',
+    'nav.tabs': 'Main menu',
+    'nav.tab.home': 'Home',
+    'nav.tab.trip': 'My trip',
+    'nav.tab.live': 'Live',
+    'nav.tab.profile': 'Me',
     'nav.settings': 'Settings',
 
     // S15 data guide (423:2967). Figma has no EN frame; these are translations.

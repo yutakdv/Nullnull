@@ -1,4 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router';
+import { useI18n } from '../i18n/I18nProvider.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
 
@@ -36,6 +37,7 @@ export interface AppShellProps {
 export function AppShell({ tabs = false }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   return (
     <div className={styles.shell}>
@@ -46,6 +48,13 @@ export function AppShell({ tabs = false }: AppShellProps) {
         <div className={styles.tabs}>
           <TabBar
             active={activeTab(location.pathname)}
+            labels={{
+              home: t('nav.tab.home'),
+              trip: t('nav.tab.trip'),
+              live: t('nav.tab.live'),
+              profile: t('nav.tab.profile'),
+            }}
+            navLabel={t('nav.tabs')}
             onSelect={(key) => {
               if (key === 'trip') {
                 // There is no single "my trip" URL: the active trip comes from
