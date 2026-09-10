@@ -162,12 +162,16 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
         HttpResponse.json(candidateFixtures.matchChecking),
       ),
     );
-    await openDates(active?.place.name ?? '');
+    const { card } = await openDates(active?.place.name ?? '');
+    // Scoped to one card: every unscheduled card now shows its own relation
+    // badge, so a document-wide query matches each of them.
     expect(
-      await screen.findByText(copy['candidates.match.CHECKING']),
+      await within(card).findByText(copy['candidates.match.CHECKING']),
     ).toBeInTheDocument();
     // The server has not finished looking, so it must not claim nothing works.
-    expect(screen.queryByText(copy['candidates.match.NONE'])).not.toBeInTheDocument();
+    expect(
+      within(card).queryByText(copy['candidates.match.NONE']),
+    ).not.toBeInTheDocument();
   });
 
   it('does not present UNKNOWN as "no dates" either', async () => {
@@ -176,9 +180,13 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
         HttpResponse.json(candidateFixtures.matchUnknown),
       ),
     );
-    await openDates(active?.place.name ?? '');
-    expect(await screen.findByText(copy['candidates.match.UNKNOWN'])).toBeInTheDocument();
-    expect(screen.queryByText(copy['candidates.match.NONE'])).not.toBeInTheDocument();
+    const { card } = await openDates(active?.place.name ?? '');
+    expect(
+      await within(card).findByText(copy['candidates.match.UNKNOWN']),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByText(copy['candidates.match.NONE']),
+    ).not.toBeInTheDocument();
   });
 
   it('says NONE only when the server actually decided nothing fits', async () => {
@@ -187,10 +195,12 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
         HttpResponse.json(candidateFixtures.matchNone),
       ),
     );
-    await openDates(active?.place.name ?? '');
-    expect(await screen.findByText(copy['candidates.match.NONE'])).toBeInTheDocument();
+    const { card } = await openDates(active?.place.name ?? '');
     expect(
-      screen.queryByRole('list', { name: copy['candidates.pickDate'] }),
+      await within(card).findByText(copy['candidates.match.NONE']),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole('list', { name: copy['candidates.pickDate'] }),
     ).not.toBeInTheDocument();
   });
 

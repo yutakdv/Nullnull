@@ -150,11 +150,17 @@ export function TripScreen() {
           </Link>
         </p>
 
+        {/* 462:3401: a hairline between the meta row and the actions. */}
+        <span className={styles.divider} />
+
         <p className={styles.actions}>
           {/* Optimization is FE-501. Inert text with a `준비 중` badge rather
               than a disabled button, which would still invite a press. */}
+          {/* The label and its `준비 중` marker stack rather than sitting side by
+              side: together they are wider than half of 360px, and the frame
+              draws this as one line of text in a pill. */}
           <span className={styles.actionLabel}>
-            {t('trip.optimize')}
+            <span className={styles.actionText}>{t('trip.optimize')}</span>
             <span className={styles.badge}>{t('trip.comingSoon')}</span>
           </span>
           {editing ? null : (

@@ -7,9 +7,12 @@
   justify-content: center;
   min-height: 44px;
   border-radius: var(--radius-pill);
+  /* A chip is as wide as its label; rows that overflow scroll. */
+  white-space: nowrap;
   border: var(--border-thin) solid transparent;
   background: var(--color-bg-subtle);
-  color: var(--color-text-primary);
+  /* Unselected reads as secondary in the frame; selected flips to onPrimary. */
+  color: var(--color-text-secondary);
   font-family: inherit;
   cursor: pointer;
 }
@@ -40,7 +43,8 @@
   font-size: var(--font-body-sm);
 }
 
+/* 462:3408: px12 py9 at Body/sm 12. */
 .sm {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-caption);
+  padding: 9px var(--space-3);
+  font-size: var(--font-label);
 }

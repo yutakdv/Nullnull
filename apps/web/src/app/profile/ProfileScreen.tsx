@@ -49,7 +49,10 @@ export function ProfileScreen() {
 
       <div className={styles.card}>
         <div className={styles.guest}>
-          <span>
+          {/* 422:2934: a 44px avatar. Decorative — the name beside it is the
+              content, so it carries no alternative text of its own. */}
+          <span aria-hidden="true" className={styles.avatar} />
+          <span className={styles.guestText}>
             <span className={styles.guestName}>{t('profile.guest.name')}</span>
             <span className={styles.guestNote}>{t('profile.guest.note')}</span>
           </span>
@@ -66,9 +69,17 @@ export function ProfileScreen() {
           both render links titled after a trip, so without a name on each
           group a screen reader hears two identical sets of links. */}
       <section aria-labelledby="profile-trips-heading" className={styles.card}>
-        <h2 className={styles.sectionHead} id="profile-trips-heading">
-          {t('profile.trips.title')}
-        </h2>
+        <div className={styles.sectionRow}>
+          <h2 className={styles.sectionHead} id="profile-trips-heading">
+            {t('profile.trips.title')}
+          </h2>
+          {/* 422:2943: the count sits at the end of the section row. */}
+          {trips.isSuccess ? (
+            <span className={styles.rowValue}>
+              {t('profile.trips.count', { count: trips.data.items.length })}
+            </span>
+          ) : null}
+        </div>
         {trips.isPending ? (
           <p className={styles.state} role="status">
             {t('profile.trips.loading')}

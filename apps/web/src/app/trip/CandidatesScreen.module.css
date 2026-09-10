@@ -47,13 +47,14 @@
   list-style: none;
 }
 
+/* Card / Candidate (412:1969): pt12 pb4 px12, gap12, r12, hairline border. */
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-1);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-card-lg);
+  border-radius: var(--radius-card);
   background: var(--color-bg-default);
 }
 
@@ -66,36 +67,42 @@
 .cardText {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  /* 379:367 */
+  gap: 3px;
   /* Lets the text shrink instead of pushing the card past 360px. */
   min-width: 0;
 }
 
+/* 379:366: 48px, r8, on the track grey while empty. */
 .thumb,
 .thumbEmpty {
   flex: none;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-sm);
   object-fit: cover;
-  background: var(--color-bg-subtle);
+  background: var(--color-bg-track, var(--color-bg-subtle));
 }
 
+/* actions (379:374): text buttons, gap 20, py12. */
 .rowActions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-5);
 }
 
 /* Secondary and quiet: removing is available but never the obvious action. */
 .remove {
   min-height: 44px;
-  padding: var(--space-2) 0;
+  padding: var(--space-3) 0;
   border: 0;
   background: none;
   color: var(--color-text-secondary);
   font-family: inherit;
   font-size: var(--font-body-sm);
+  font-weight: 500;
+  line-height: 18px;
   text-align: start;
   cursor: pointer;
 }
@@ -108,8 +115,10 @@
 .name {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: var(--font-body-base);
-  font-weight: 700;
+  /* Body/lg 15/20 medium (379:368) — medium, not bold. */
+  font-size: var(--font-body-md);
+  font-weight: 500;
+  line-height: 20px;
   /* Server-supplied and can be long. */
   overflow-wrap: anywhere;
 }
@@ -117,19 +126,29 @@
 .meta {
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-caption);
+  /* Body/sm 12/16 (379:369). */
+  font-size: var(--font-label);
+  line-height: 16px;
   overflow-wrap: anywhere;
 }
 
-/* Already scheduled. Reads as status, with no control to press. */
+/* relation-badge (379:371): a pill stating the relation or the scheduled
+   state. Action-tinted for SIMILAR, neutral otherwise — the frame draws both. */
 .badge {
   align-self: flex-start;
   margin: 0;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--color-bg-subtle);
   color: var(--color-text-secondary);
   font-size: var(--font-label);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.badgeRelated {
+  background: var(--color-action-subtle);
+  color: var(--color-action-primary);
 }
 
 .slots {
@@ -216,10 +235,16 @@
   cursor: pointer;
 }
 
+/* btn/일정에 추가 (379:389) is text in the action colour, not a filled pill —
+   the card already carries the emphasis. */
 .primary {
+  min-height: 44px;
+  padding: var(--space-3) 0;
   border: 0;
-  background: var(--color-action-primary);
-  color: var(--color-text-inverse);
+  background: none;
+  color: var(--color-action-primary);
+  font-weight: 500;
+  line-height: 18px;
 }
 
 .secondary {

@@ -145,7 +145,12 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
   // Only fetched once the user opens this card: asking the server for slots on
   // every candidate at once would be a burst of requests for answers nobody
   // has looked at yet.
-  const matches = useCandidateMatches(tripId, open && !scheduled ? candidate.id : null);
+  // Fetched for every unscheduled card, not only the expanded one: the frame
+  // shows the relation on each card, and a badge gated on expansion could never
+  // appear. The cost is one request per candidate, which is what a panel that
+  // states each card's relation up front necessarily costs — asked BE on #44
+  // whether a batch endpoint is preferred.
+  const matches = useCandidateMatches(tripId, scheduled ? null : candidate.id);
   const trip = useTrip(tripId);
   const add = useAddTripItem(tripId);
   const remove = useRemoveTripCandidate(tripId);
@@ -214,20 +219,26 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
         </div>
       </div>
 
+      {/* relation-badge (379:371): the card's state in a pill, above the
+          actions and visible without expanding — the frame shows it on every
+          card. SIMILAR is tinted; everything else is neutral. */}
       {scheduled ? (
-        // Already on the schedule: no add action, because adding it twice is
-        // the bug this state exists to prevent.
         <p className={styles.badge}>{t('candidates.scheduled')}</p>
       ) : (
         <>
-          <button
-            aria-expanded={open}
-            className={styles.primary}
-            onClick={onToggle}
-            type="button"
-          >
-            {open ? t('candidates.cancel') : t('candidates.add')}
-          </button>
+          {/* Every state gets a badge, EXACT included — the frame says
+              "현재 일정과 겹치지 않아요" there rather than leaving it blank. */}
+          {match ? (
+            <p
+              className={
+                match.state === 'SIMILAR'
+                  ? `${styles.badge} ${styles.badgeRelated}`
+                  : styles.badge
+              }
+            >
+              {t(`candidates.match.${match.state}` as MessageKey)}
+            </p>
+          ) : null}
 
           {open ? (
             <div className={styles.slots}>
@@ -240,15 +251,6 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
               {matches.isError ? (
                 <p className={styles.state} role="alert">
                   {t('candidates.match.error')}
-                </p>
-              ) : null}
-
-              {/* Each state says its own thing. CHECKING and UNKNOWN are not
-                  "no dates available" — one is unfinished, the other is
-                  unevidenced. */}
-              {match && match.state !== 'EXACT' ? (
-                <p className={styles.state} role="status">
-                  {t(`candidates.match.${match.state}` as MessageKey)}
                 </p>
               ) : null}
 
@@ -313,10 +315,21 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
         </>
       )}
 
-      {/* FR-CAN-06. Dismissing a candidate never touches the schedule
-          (invariant 1), so it stays available even for one already scheduled —
-          the item it produced is removed separately (FE-305). */}
+      {/* actions (379:374): one row of text buttons. Removing is always
+          available — dismissing a candidate never touches the schedule
+          (invariant 1), so it stays offered for one already scheduled; the item
+          it produced is removed separately (FE-305). */}
       <div className={styles.rowActions}>
+        {scheduled ? null : (
+          <button
+            aria-expanded={open}
+            className={styles.primary}
+            onClick={onToggle}
+            type="button"
+          >
+            {open ? t('candidates.cancel') : t('candidates.add')}
+          </button>
+        )}
         <button
           // Visible text stays short as the frame has it; the accessible name
           // carries the place, because three identical "제거" buttons in a list
