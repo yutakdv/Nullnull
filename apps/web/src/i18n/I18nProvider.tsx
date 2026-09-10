@@ -25,11 +25,43 @@ import { messages, type MessageKey } from './messages.js';
 
 const STORAGE_KEY = 'nullnull.locale';
 
+/** Values substitutable into a message placeholder. */
+export type MessageValues = Record<string, string | number>;
+
 interface I18nValue {
   locale: SupportedLocale;
   /** Persists the choice locally. Sends nothing until BA-011 opens. */
   setLocale: (locale: SupportedLocale) => void;
-  t: (key: MessageKey) => string;
+  /**
+   * Looks up a message, substituting `{name}` placeholders.
+   *
+   * Counts are formatted for the locale rather than interpolated raw, so a
+   * four-digit total does not appear unseparated in one language and separated
+   * in another.
+   */
+  t: (key: MessageKey, values?: MessageValues) => string;
+}
+
+/**
+ * Replaces `{name}` with the supplied value.
+ *
+ * A placeholder with no value is left as written rather than replaced with
+ * `undefined`: a visible `{count}` is a bug report, while "undefined" reads as
+ * real copy to a user and can ship unnoticed.
+ */
+function interpolate(
+  template: string,
+  values: MessageValues | undefined,
+  locale: SupportedLocale,
+): string {
+  if (!values) return template;
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => {
+    const value = values[name];
+    if (value === undefined) return whole;
+    return typeof value === 'number'
+      ? new Intl.NumberFormat(locale).format(value)
+      : value;
+  });
 }
 
 const I18nContext = createContext<I18nValue | null>(null);
@@ -62,7 +94,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<I18nValue>(
-    () => ({ locale, setLocale, t: (key) => messages[locale][key] }),
+    () => ({
+      locale,
+      setLocale,
+      t: (key, values) => interpolate(messages[locale][key], values, locale),
+    }),
     [locale, setLocale],
   );
 

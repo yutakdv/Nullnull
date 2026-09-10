@@ -1,0 +1,120 @@
+{
+  "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
+  "title": "서울 가을 여행",
+  "startDate": "2026-10-04",
+  "endDate": "2026-10-07",
+  "timezone": "Asia/Seoul",
+  "status": "ACTIVE",
+  "version": 3,
+  "candidateCount": 5,
+  "planningLevel": "MUST_VISIT_ONLY",
+  "interests": [
+    {
+      "code": "FRIENDS",
+      "weight": 3
+    },
+    {
+      "code": "FOOD",
+      "weight": 5
+    },
+    {
+      "code": "CULTURE",
+      "weight": 3
+    }
+  ],
+  "days": [
+    {
+      "date": "2026-10-04",
+      "items": [
+        {
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c01",
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
+            "name": "경복궁",
+            "categoryCode": "ATTRACTION",
+            "regionCode": "KR-11-110",
+            "thumbnailUrl": null,
+            "address": null
+          },
+          "date": "2026-10-04",
+          "position": 0,
+          "startTime": "09:30:00+09:00",
+          "durationMinutes": 120,
+          "note": null,
+          "constraints": [
+            {
+              "type": "MUST_VISIT",
+              "locked": true,
+              "source": "USER"
+            },
+            {
+              "type": "DATE",
+              "locked": true,
+              "source": "USER",
+              "date": "2026-10-04"
+            }
+          ],
+          "crowd": null
+        },
+        {
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02",
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
+            "name": "인사동",
+            "categoryCode": "STREET",
+            "regionCode": "KR-11-110",
+            "thumbnailUrl": null,
+            "address": null
+          },
+          "date": "2026-10-04",
+          "position": 1,
+          "startTime": "13:00:00+09:00",
+          "durationMinutes": 90,
+          "note": null,
+          "constraints": [
+            {
+              "type": "TIME",
+              "locked": true,
+              "source": "USER",
+              "startTime": "13:00:00+09:00",
+              "toleranceMinutes": 30
+            }
+          ],
+          "crowd": null
+        }
+      ]
+    },
+    {
+      "date": "2026-10-05",
+      "items": [
+        {
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03",
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
+            "name": "명동",
+            "categoryCode": "STREET",
+            "regionCode": "KR-11-140",
+            "thumbnailUrl": null,
+            "address": null
+          },
+          "date": "2026-10-05",
+          "position": 0,
+          "startTime": "14:00:00+09:00",
+          "durationMinutes": 120,
+          "note": null,
+          "constraints": [],
+          "crowd": null
+        }
+      ]
+    },
+    {
+      "date": "2026-10-06",
+      "items": []
+    },
+    {
+      "date": "2026-10-07",
+      "items": []
+    }
+  ],
+  "candidates": []
+}

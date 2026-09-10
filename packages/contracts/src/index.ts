@@ -39,6 +39,7 @@ import placeSearchPage from "../fixtures/places/search-page.json" with { type: "
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
+import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
 import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
 import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
 
@@ -106,6 +107,9 @@ export const tripFixtures = {
   // the detail agree. FE-106 needs a non-empty set; detailCreated only covers
   // the empty case.
   detailWithInterests: tripDetailInterests as components["schemas"]["TripDetail"],
+  // A trip with items on some days and none on others, so FE-301's per-day
+  // empty state is exercised by the data rather than only by a test.
+  detailScheduled: tripDetailScheduled as components["schemas"]["TripDetail"],
 };
 
 export const optimizationFixtures = {

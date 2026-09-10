@@ -26,8 +26,8 @@
     },
     "trips": {
       "schema": "TripPage, TripDetail",
-      "count": 4,
-      "basis": "NO approved example exists for listTrips, getTrip or replaceTripInterests. Values invented to match Figma S14 422:2925 (two trips, an empty variant, a created trip and one carrying interests) and validated against the schema only. Replace with BE/AI's real response (BA-030, BA-031).",
+      "count": 5,
+      "basis": "NO approved example exists for listTrips, getTrip or replaceTripInterests. Values invented to match Figma S14 422:2925 and S07-1 410:1738 (two trips, an empty variant, a created trip, one carrying interests, one with a scheduled itinerary) and validated against the schema only. Every TripItem.crowd is null: CrowdMetric requires a 29-field DataProvenance and inventing collector run ids or comparison eligibility would fabricate the evidence invariant 8 exists to protect (FCR-030). Replace with BE/AI's real response (BA-030, BA-031).",
       "serverVerified": false
     },
     "optimizations": {

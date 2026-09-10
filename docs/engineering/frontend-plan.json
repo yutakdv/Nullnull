@@ -677,7 +677,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "S07-1 day/item/candidate 수와 empty state",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-102",
         "BA-030"
@@ -691,7 +691,9 @@
       "figmaNodes": [
         "410:1738"
       ],
-      "designRequests": [],
+      "designRequests": [
+        "FCR-030"
+      ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",

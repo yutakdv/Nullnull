@@ -6,6 +6,7 @@ import { IntroScreen } from './onboarding/IntroScreen.js';
 import { LanguageScreen } from './onboarding/LanguageScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
+import { TripScreen } from './trip/TripScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
 import { MustVisitScreen } from './trip-create/MustVisitScreen.js';
 import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
@@ -41,7 +42,7 @@ export const routes: RouteObject[] = [
       { path: 'start/must-visit', element: <MustVisitScreen /> },
       { path: 'feed', element: <PlaceholderScreen routeId="feed" /> },
       { path: 'posts/:postId', element: <PlaceholderScreen routeId="post-detail" /> },
-      { path: 'trip/:tripId', element: <PlaceholderScreen routeId="trip" /> },
+      { path: 'trip/:tripId', element: <TripScreen /> },
       {
         path: 'trip/:tripId/optimizations/:runId',
         element: <PlaceholderScreen routeId="optimization" />,

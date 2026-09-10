@@ -44,7 +44,10 @@ export function problemResponse(code: ProblemCode, headers: Record<string, strin
 let tripState: (typeof tripFixtures)['detailWithInterests'] | null = null;
 
 function currentTrip() {
-  tripState ??= tripFixtures.detailWithInterests;
+  // The scheduled fixture is the default: it carries the interests FE-106
+  // edits *and* the days/items FE-301 renders, so one trip serves both screens
+  // and they cannot disagree about the same id.
+  tripState ??= tripFixtures.detailScheduled;
   return tripState;
 }
 

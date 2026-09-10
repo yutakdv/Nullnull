@@ -167,12 +167,17 @@ describe('the card shows only what the contract supplies', () => {
     // Every result renders, not just the first. getAllByText because a name can
     // also occur inside an address ("명동" is both a place and a street).
     expect(screen.getAllByText(second?.name ?? '').length).toBeGreaterThan(0);
-    // Category and address are the contract's own fields.
-    // Category and address are the contract's own fields; both appear on the
-    // card as one meta line.
-    expect(
-      screen.getByText(`${first?.categoryCode ?? ''} · ${first?.address ?? ''}`),
-    ).toBeInTheDocument();
+    // The address is the contract field that is already human text.
+    expect(screen.getByText(first?.address ?? '')).toBeInTheDocument();
+  });
+
+  it('does not show categoryCode, which is machine text', async () => {
+    await searchFor('서울');
+    await screen.findByText(first?.name ?? '');
+    // categoryCode is a free string in the contract with no enum and no display
+    // name, so there is nothing to map "ATTRACTION" onto for the user. Asked BE
+    // for the vocabulary and its labels on #34 (BA-022).
+    expect(screen.queryByText(new RegExp(first?.categoryCode ?? 'x'))).toBeNull();
   });
 });
 

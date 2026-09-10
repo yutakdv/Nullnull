@@ -16,6 +16,10 @@ const SCREENS = [
   { path: '/language', name: 'language' },
   { path: '/intro', name: 'intro' },
   { path: '/profile', name: 'profile' },
+  // A real trip id shape, though the built app has no API behind it yet: what
+  // this measures is the reflow of whichever state the screen reaches, and the
+  // error state has to survive 360px and 200% zoom too.
+  { path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01', name: 'trip' },
   { path: '/about-data', name: 'data guide' },
 ];
 

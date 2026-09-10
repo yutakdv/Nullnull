@@ -64,6 +64,7 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     ['PlaceSearchPage', placeFixtures.searchPageEmpty],
     ['TripDetail', tripFixtures.detailCreated],
     ['TripDetail', tripFixtures.detailWithInterests],
+    ['TripDetail', tripFixtures.detailScheduled],
     ['DeletionReceipt', sessionFixtures.deletionReceipt],
     ['DeletionRequestStatus', sessionFixtures.deletionStatus],
   ])('%s fixture', (schemaName, fixture) => {

@@ -36,7 +36,10 @@ export function MustVisitScreen() {
   const pickedIds = new Set(picked.map((place) => place.id));
 
   function meta(place: PlaceSummary): string {
-    return [place.categoryCode, place.address].filter(Boolean).join(' · ');
+    // Address only. categoryCode is a free string in the contract with no
+    // display name to map it to, so showing it puts machine text like
+    // "ATTRACTION" in front of the user (asked on #34 / BA-022).
+    return place.address ?? '';
   }
 
   return (
@@ -111,9 +114,11 @@ export function MustVisitScreen() {
           <span className={styles.sectionLabel} id="picked-places">
             {t('mustVisit.picked')}
           </span>
+          {/* One interpolated message, not a number glued to a suffix: the
+              noun goes before the count in English and after it in Korean, and
+              the concatenated form left English with a bare digit. */}
           <span className={styles.count}>
-            {picked.length}
-            {t('mustVisit.pickedCount')}
+            {t('mustVisit.pickedCount', { count: picked.length })}
           </span>
         </div>
         {picked.length === 0 ? (
