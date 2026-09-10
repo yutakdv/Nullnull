@@ -28,11 +28,13 @@ body {
      rule asks for (.claude/rules/frontend.md). Layouts reflow instead. */
 }
 
+/* The shell owns the viewport and the safe area; `main` is just the scrolling
+   region inside it (app/AppShell.module.css). It carried `min-height: 100dvh`
+   and its own padding before, which made the content alone as tall as the
+   screen — so the shell was always taller than the viewport and a bar pinned to
+   its bottom sat below the fold on a phone. */
 main {
-  min-height: 100dvh;
   padding: var(--space-4);
-  padding-top: calc(var(--space-4) + env(safe-area-inset-top));
-  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
 }
 
 @media (prefers-reduced-motion: reduce) {

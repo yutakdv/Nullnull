@@ -132,12 +132,21 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
 ## 7. Definition of Done
 
 - Figma node → 기능 ID → operationId → fixture → component/E2E test가 screen manifest에 연결됐다.
+- **구현한 화면을 실제 브라우저에서 띄우고 Figma frame과 나란히 대조했다.** 연결만으로는
+  부족하다. FE-303까지의 화면은 각자 test를 통과하면서도 tab bar와 top app bar가 통째로
+  빠져 있었고, 화면 test는 `<div>` 안에서도 그대로 통과했기 때문에 아무것도 실패하지
+  않았다. 대조에서 나온 차이는 (a) 구현하거나 (b) 계약에 근거가 없으면 `FCR-*`로
+  등록하거나 (c) 다른 실행 ID의 범위임을 근거와 함께 적는다. 셋 중 하나로 처리하지 않은
+  차이는 남기지 않는다.
 - API는 generated client만 사용하고 재생성 뒤 manual diff가 없다.
 - default/loading/empty/error/offline 및 해당 stale/replay/conflict 상태가 구현됐다.
 - mutation 중복 실행이 막히고 성공·실패 결과가 toast 외 persistent UI에도 남는다.
 - 360px·768px·1280px, KO/EN, 200% zoom, keyboard, focus, reduced motion을 검증했다.
 - SavedPost/Candidate/TripItem, four constraints, LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE를 혼용하지 않는다.
 - unit/component/visual/E2E와 `docker-integration`이 통과했다.
+- 화면이 shell 안에 있는지, 즉 tab destination이면 tab bar가 있고 flow 내부·하위 페이지면
+  없는지를 test가 단언한다(`app-shell.test.tsx`). 화면 test는 본문만 검사하므로 chrome
+  부재를 잡지 못한다.
 - BE/AI 담당자가 실제 API로 acceptance를 재현하고 승인했다.
 - 사용자 문구·화면과 공모전 기능설명서에 남길 증거가 실제 구현과 일치한다.
 - 실행하지 못한 검증은 통과로 표시하지 않고 PR에 `not run`과 이유를 남겼다.

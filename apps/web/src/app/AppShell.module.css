@@ -1,22 +1,41 @@
-/* App chrome. The tab bar floats above the safe area; the content scrolls
-   behind it and reserves room so the last row is never covered. */
+/* App chrome.
+ *
+ * The shell is exactly the viewport tall and does not scroll; `main` inside it
+ * is the scrolling region. That is what keeps the tab bar on the bottom edge of
+ * a phone screen rather than at the bottom of the document — `position: sticky`
+ * only pins while an ancestor scrolls, so with a page-scrolling body the bar
+ * drifted down with the content.
+ *
+ * 100dvh, not 100vh: mobile browsers shrink the visual viewport when the URL
+ * bar retracts, and vh keeps the larger value, which pushes the bar under it.
+ */
 
 .shell {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  /* vh first as the fallback, then dvh where it is supported: a browser that
+     does not understand dvh ignores the second declaration and keeps vh.
+     `max-height: 100vh` would be wrong here — when the URL bar is retracted the
+     dynamic viewport is *larger* than the static one, and the cap would clip
+     the shell short of the screen edge. */
+  height: 100vh;
+  height: 100dvh;
 }
 
 .content {
   flex: 1;
+  /* The scroll happens here, not on the body. */
+  overflow-y: auto;
+  /* Momentum scrolling on iOS. */
+  -webkit-overflow-scrolling: touch;
+  /* The notch sits above the content, not above the shell. */
+  padding-top: env(safe-area-inset-top);
 }
 
 .tabs {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
+  flex: none;
   padding: var(--space-2) var(--space-4);
   padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
-  /* Opaque: the bar sits over scrolling content. */
+  /* Opaque: content scrolls behind it. */
   background: var(--color-bg-default);
 }
