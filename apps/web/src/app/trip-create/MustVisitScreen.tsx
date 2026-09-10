@@ -88,6 +88,19 @@ export function MustVisitScreen() {
             <ul className={styles.list} aria-labelledby="search-results">
               {search.data.items.map((place) => (
                 <li className={styles.card} key={place.id}>
+                  {/* 438:3171: a 66px thumbnail. Decorative — the name beside
+                      it is the accessible content. */}
+                  {place.thumbnailUrl ? (
+                    <img
+                      alt=""
+                      className={styles.thumb}
+                      height={66}
+                      src={place.thumbnailUrl}
+                      width={66}
+                    />
+                  ) : (
+                    <span aria-hidden="true" className={styles.thumb} />
+                  )}
                   <span className={styles.cardText}>
                     <span className={styles.name}>{place.name}</span>
                     <span className={styles.meta}>{meta(place)}</span>
@@ -127,6 +140,19 @@ export function MustVisitScreen() {
           <ul className={styles.list} aria-labelledby="picked-places">
             {picked.map((place) => (
               <li className={`${styles.card} ${styles.picked}`} key={place.id}>
+                {/* 438:3171: a 66px thumbnail. Decorative — the name beside
+                    it is the accessible content. */}
+                {place.thumbnailUrl ? (
+                  <img
+                    alt=""
+                    className={styles.thumb}
+                    height={66}
+                    src={place.thumbnailUrl}
+                    width={66}
+                  />
+                ) : (
+                  <span aria-hidden="true" className={styles.thumb} />
+                )}
                 <span className={styles.cardText}>
                   <span className={styles.nameRow}>
                     <span className={styles.name}>{place.name}</span>
