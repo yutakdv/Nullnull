@@ -63,6 +63,28 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
 
 작업 목록의 기계 판독 정본은 [frontend-plan.json](../engineering/frontend-plan.json)이고 GitHub issue는 그 투영이다. 상태는 JSON이 정본이므로 구현 PR에서 `status`를 올리고 issue를 닫는다. `scripts/validate_frontend_plan.py`가 phase·기능 ID·operation·Figma node·선행 관계와 순환을 검사한다. Backend와 달리 operation 독점 소유와 전체 기능 coverage는 검사하지 않는다 — FE는 operation을 소비하므로 한 operation이 여러 화면에 나타나고, 서버·운영 전용 요구사항에는 FE task가 없다.
 
+### BE 미구현 endpoint를 목데이터로 선행할 때
+
+일정상 계약만 있고 구현이 없는 endpoint를 FE가 먼저 만들 수 있다. 그때 **선행했다는 사실을
+해당 Backend/AI issue에 코멘트로 남긴다.** 목데이터가 코드 안에만 있으면 나중에 누가 무엇을
+교체해야 하는지 저장소를 뒤져야 하고, 실제 응답과 다른 채로 병합될 위험이 PR #17에서 이미
+한 번 현실이 됐다(FE fixture 4종이 ajv를 통과하고도 서버와 달랐다).
+
+코멘트에 담을 것:
+
+- 어떤 FE 작업이 무엇을 가정하고 선행했는지
+- **실제 fixture 내용**(JSON 그대로). 값을 지어낸 필드는 그렇다고 밝힌다
+- FE가 가정한 서버 동작 중 **다르면 화면을 고쳐야 하는 것**
+- 교체 절차: fixture → `manifest.json`의 `serverVerified` → msw handler 삭제 → PROVISIONAL 주석 삭제
+
+코드 쪽에도 같은 내용을 남긴다 — `packages/contracts/src/index.ts`의 export 위 주석,
+`fixtures/manifest.json`의 `serverVerified: false`, 그리고 해당 msw handler에 삭제 조건.
+화면은 생성 client로 실제 호출하므로 endpoint가 열리면 fixture와 handler만 지우면 된다.
+
+계약에 필드가 아예 없어 화면을 못 만드는 경우는 목데이터로 메우지 않는다. 없는 값을 만들면
+불변식 8(provenance 없는 수치 비교 금지)에 걸리므로 `FCR-*`로 올리고 그 부분만 비운다
+(`FCR-029` 참조).
+
 ## 3. Client 공통 책임
 
 쿠키/CSRF/request ID/If-Match/Idempotency-Key를 공통 wrapper에서 처리하고 생성 타입을 수동 복제하지 않는다. 401은 안전한 GET만 1회 복구하며 mutation의 재시도는 동일 body/key에 대한 명시적 사용자 행동으로 제한한다. 검색·viewport는 민감 body이고 query cache persistence에서 제외한다.
