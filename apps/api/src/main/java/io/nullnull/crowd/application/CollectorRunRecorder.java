@@ -41,4 +41,25 @@ public class CollectorRunRecorder {
                 accepted ? null : verdict.outcome().name(), at));
         return accepted;
     }
+
+    /** Closes a reserved call without retaining any provider message, URI, body or credential. */
+    public void failSingleCall(UUID runId, UUID ingestLogId, IngestAudit.CallOutcome outcome, Integer httpStatus,
+            int durationMs, String errorCode, Instant at) {
+        if (outcome == IngestAudit.CallOutcome.STARTED || outcome == IngestAudit.CallOutcome.OK
+                || outcome == IngestAudit.CallOutcome.QUOTA_EXHAUSTED) {
+            throw new IllegalArgumentException("failure outcome required");
+        }
+        audit.record(new IngestAudit.CallRecord(ingestLogId, outcome, httpStatus, durationMs, 0, null,
+                IngestAudit.ValidationResult.PROVIDER_ERROR));
+        failRun(runId, errorCode, at);
+    }
+
+    /** Closes a run which could not reserve a provider call, such as a quota refusal. */
+    public void failRun(UUID runId, String errorCode, Instant at) {
+        if (errorCode == null || !errorCode.matches("[A-Z0-9_:-]{2,100}")) {
+            throw new IllegalArgumentException("safe errorCode required");
+        }
+        audit.finishRun(new IngestAudit.FinishRun(runId, IngestAudit.RunStatus.FAILED,
+                0, 0, 0, errorCode, at));
+    }
 }

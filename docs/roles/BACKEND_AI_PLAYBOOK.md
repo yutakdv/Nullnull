@@ -489,7 +489,7 @@ FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 
 
 ### BA-021
 
-**KTO 실제 gateway와 provenance 증거** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**KTO 실제 gateway와 provenance 증거** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-020](#ba-020)
 - 기능 ID: `FR-OPS-11`
@@ -514,6 +514,15 @@ FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 
 - `BA-021-T3`: staging 실제 KTO 성공 이력과 공개 응답 provenance가 연결되며 mock-only 증거는 release에서 실패한다
 
 FE 인계·완료 증거: 승인된 출처 텍스트·공식 URL·license URL·null 시각·provider별 field 설명, 실제 호출 증거 위치. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+구현·검증 증거 (T3 전):
+
+- `V008__catalog_places.sql`은 `KTO_KOR_SERVICE_2` registry revision 2 (`kto-kor-service2-detailcommon2-v1`)과 `kto_place_snapshots`를 추가한다. snapshot은 source revision·collector run·KTO content/type ID·정규화 title/category/area/address/좌표·hash·fetched/stale만 보존하며 key·전체 URL/query·원문 body·overview·image column은 없다.
+- C2 adapter는 오직 `KorService2/detailCommon2`를 server-side에서 호출한다. `firstImageYN=N`, `overviewYN=N`으로 이미지/소개 원문을 수집하지 않고 exact official base/host, transport, response envelope, matching content/type ID, coordinate range를 검증한 뒤에만 cache write와 call audit을 같은 transaction으로 완료한다. forecast와 related-place operation은 이 단계에서 callable하지 않다.
+- `KtoDetailResponseValidatorTest`, `KtoKorServicePropertiesTest`, `KtoPlaceDetailGatewayIT`, `FlywayMigrationIT`가 T1/T2와 V007→V008 populated upgrade를 검증한다. 같은 request는 single-flight로 합치고 P7D 이후에만 새 collector run을 만든다. fixture canary와 raw provider body marker가 snapshot·`api_ingest_logs`·`collector_runs`에 없음을 실제 PostgreSQL에서 확인한다.
+- C2 mutation은 single-flight 경로를 제거했을 때 `BA-021-T2`가 concurrent response 불일치로 RED가 되는 것과, content/type ID 비교의 `||`를 `&&`로 약화했을 때 `BA-021-T1`이 `SCHEMA_DRIFT` 대신 `OK`로 RED가 되는 것을 실제로 확인했다. 두 원본을 복구한 focused test는 다시 GREEN이다.
+- final full Docker gate는 Java `293/136/13/19`, AI pytest `410`, web unit `224`, Playwright `36`을 failure/error/skip 없이 통과했고 generated client, npm audit, egress-denied를 함께 확인했다. 이는 fixture/integration evidence이며 actual KTO success를 뜻하지 않는다.
+- `KTO_SERVICE_KEY`와 `KTO_BASE_URL`이 이 checkout/runtime에 제공되지 않아 T3의 staging actual-success/provenance chain은 아직 실행하지 않았다. fixture 성공은 actual KTO evidence가 아니므로 BA-021을 `integration-ready` 또는 완료로 올리지 않으며, C3 public place projection도 시작하지 않는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-014, PM-023.
 

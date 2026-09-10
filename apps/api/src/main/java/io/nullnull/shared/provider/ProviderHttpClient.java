@@ -75,7 +75,7 @@ public final class ProviderHttpClient {
                             circuit.failure();
                         }
                         throw new ProviderException(ProviderException.Category.HTTP_STATUS,
-                                ProviderException.classify(response.status()));
+                                ProviderException.classify(response.status()), response.status());
                     }
                     circuit.success();
                     result.complete(response);

@@ -25,7 +25,7 @@ cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전�
 
 Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
 
-순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → ~~B3 BA-012~~ → ~~C1 BA-020~~ → **C2 BA-021(다음)** → C3 BA-022 → C4 BA-023 → C5 BA-024.
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → ~~B3 BA-012~~ → ~~C1 BA-020~~ → **C2 BA-021(진행 중; T3 대기)** → C3 BA-022 → C4 BA-023 → C5 BA-024.
 
 ## 2. 현재 상태 (C1 BA-020 구현 후)
 
@@ -40,6 +40,15 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 - provider kit은 exact host·redirect 거부·bounded executor/permit·retry/jitter/429·circuit·response byte limit을 공통화한다. source run 재사용 quota reservation, audit canary, drift/incident quarantine, provider 지연 중 readiness/owner 요청 격리를 Testcontainers와 stub provider로 검증했다. fresh local Java 네 suite와 full Docker gate(Java 288/133/13/19, AI 410, web 224, Playwright 36; fail/error/skip 0)가 통과했고 C1은 `integration-ready`다.
 - C1 safety mutation 두 건도 실제 RED다: 다른 source collector run의 SQL predicate를 제거하면 `BA-020-T2`가, production host policy의 guard를 우회하면 `BA-020-T1`이 각각 실패한다. 두 구현을 복구한 focused test를 다시 통과시켰다.
 - 다음 C2는 승인된 KTO operation의 실제 server-side gateway와 provenance/snapshot·실제 호출 evidence다. C1의 registry decision은 provider key나 실제 호출을 구현한 것이 아니다.
+
+### C2(BA-021) — KTO `detailCommon2` gateway·normalized snapshot (진행 중)
+
+- `V008__catalog_places.sql`은 `KTO_KOR_SERVICE_2`를 revision 2 (`kto-kor-service2-detailcommon2-v1`)로 올리고 `kto_place_snapshots`를 추가했다. snapshot은 source revision/collector run/content/type ID/title/category/area/address/좌표/hash/fetched/stale만 가진다. key·full URL/query·raw body·overview·image는 schema와 audit API에 없다.
+- `KtoKorServiceClient`는 exact `https://apis.data.go.kr/B551011/KorService2/detailCommon2`만 쓴다. `firstImageYN=N`/`overviewYN=N`, matching content/type, envelope·range validation, P7D cache, same-request single-flight, quota/audit/transactional write를 구현했다. forecast와 related operation은 아직 callable하지 않다.
+- `KtoDetailResponseValidatorTest`, `KtoKorServicePropertiesTest`, `KtoPlaceDetailGatewayIT`, `FlywayMigrationIT`로 T1/T2와 V007→V008 populated upgrade를 통과했다. PostgreSQL fixture에서 service-key canary와 raw-body marker가 snapshot/audit/run row에 없고, concurrent miss 1회/expiry refresh 1회를 확인했다.
+- C2 mutation은 single-flight 제거 시 `BA-021-T2` RED, content/type identity check의 `||`→`&&` 약화 시 `BA-021-T1` RED를 실제 확인한 뒤 원본을 복구하고 focused test를 다시 GREEN으로 만들었다.
+- final full Docker gate는 Java `293/136/13/19`, AI `410`, web `224`, Playwright `36`, generated client·npm audit·egress-denied까지 GREEN이다. 이 fixture gate는 actual KTO success를 대체하지 않는다.
+- **남은 T3:** 이 runtime에는 `KTO_SERVICE_KEY`와 staging public provenance route가 없다. fixture 성공은 actual KTO evidence가 아니므로 BA-021은 `in-progress`이며, secret이 주입된 staging에서 actual success → collector audit → C3 public provenance를 확인하기 전에는 issue 종료·C3 시작·release claim을 하지 않는다.
 
 **최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper `integration_mode=full-docker`, exit 0을 확인했다. A4 자체 커밋은 `552a539`, main 수신 merge commit은 `308ee35`다.
 

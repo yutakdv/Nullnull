@@ -146,3 +146,13 @@ nullnull:
       allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
     SEOUL_CITYDATA:
       allowed-hosts: ["${SEOUL_ALLOWED_HOST:openapi.seoul.go.kr}"]
+  # C2 uses only KorService2/detailCommon2. There is intentionally no default URL or key: PR/local
+  # fixtures remain loopback-only, while the contest profile refuses to start without an explicit
+  # official endpoint and a runtime-only data.go.kr decoding key.
+  kto:
+    service-key: ${KTO_SERVICE_KEY:}
+    base-url: ${KTO_BASE_URL:}
+    mobile-app: ${KTO_MOBILE_APP:Nullnull}
+    mobile-os: ${KTO_MOBILE_OS:ETC}
+    release-version: ${APP_RELEASE_VERSION:local-unreleased}
+    contest-profile: ${APP_CONTEST_PROFILE:NONE}

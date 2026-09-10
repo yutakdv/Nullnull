@@ -182,8 +182,11 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 
 | 변수 | Secret | 설명 |
 | --- | --- | --- |
-| `KTO_SERVICE_KEY` | 예 | 한국관광공사 API key |
-| `KTO_BASE_URL` | 아니오 | 공식 endpoint, allowlist |
+| `KTO_SERVICE_KEY` | 예 | 공공데이터포털 KTO **decoding key**; runtime에만 주입 |
+| `KTO_BASE_URL` | 아니오 | C2 exact `https://apis.data.go.kr/B551011/KorService2`; contest profile에서는 다른 path/host 거부 |
+| `KTO_MOBILE_APP`, `KTO_MOBILE_OS` | 아니오 | C2 `detailCommon2` request metadata; 기본 `Nullnull`/`ETC` |
+| `APP_RELEASE_VERSION` | 아니오 | safe `api_ingest_logs.release_version`; credential나 URL이 아님 |
+| `APP_CONTEST_PROFILE` | 아니오 | `2026_KTO_WEBAPP`이면 KTO key와 exact base가 startup invariant |
 | `KTO_TIMEOUT` | 아니오 | connect/read timeout |
 | `KTO_RATE_LIMIT_PER_SECOND` | 아니오 | 승인 quota 이하 |
 | `KTO_ALLOWED_HOST` | 아니오 | `apis.data.go.kr`; C1 HTTP allowlist. production은 이 exact host 집합만 허용하며 `127.0.0.1` 같은 test stub으로 drift할 수 없다 |
@@ -199,7 +202,7 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | `AI_MODEL_ID` | 아니오 | 평가로 승인한 exact model identifier |
 | `AI_TIMEOUT` | 아니오 | request/job timeout |
 
-`ProviderHttpClient`는 redirect를 따르지 않고 source별 exact hostname·HTTPS만 허용한다. local/test fixture는 `127.0.0.1` override를 쓸 수 있지만 production은 `KTO_KOR_SERVICE_2`/`KTO_CONCENTRATION_FORECAST`/`KTO_RELATED_PLACES`의 `apis.data.go.kr` 및 `SEOUL_CITYDATA`의 `openapi.seoul.go.kr` 외의 host, 누락 source, 추가 source 설정으로 startup하지 않는다. provider key·전체 URL/query·응답 원문은 config/log/audit에 남기지 않는다.
+`ProviderHttpClient`는 redirect를 따르지 않고 source별 exact hostname·HTTPS만 허용한다. local/test fixture는 `127.0.0.1` override를 쓸 수 있지만 production은 `KTO_KOR_SERVICE_2`/`KTO_CONCENTRATION_FORECAST`/`KTO_RELATED_PLACES`의 `apis.data.go.kr` 및 `SEOUL_CITYDATA`의 `openapi.seoul.go.kr` 외의 host, 누락 source, 추가 source 설정으로 startup하지 않는다. C2 KTO client는 그 위에 `KorService2` exact path와 `detailCommon2` operation을 추가로 고정한다. provider key·전체 URL/query·응답 원문은 config/log/audit에 남기지 않는다.
 
 ## 5. AWS runtime metadata
 

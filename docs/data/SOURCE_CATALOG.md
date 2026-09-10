@@ -21,7 +21,7 @@ tags:
 
 | Source code | 제공자/데이터 | 제품 사용 | P0 상태 | 가장 큰 주의점 |
 | --- | --- | --- | --- | --- |
-| `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | C1 registry v1 `DEV_APPROVED`, `P7D` | 운영 승인·이미지별 이용 조건 |
+| `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | C2 registry v2 `DEV_APPROVED`, `P7D`; `detailCommon2`만 | 운영 승인·이미지별 이용 조건 |
 | `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | C1 registry v1 `DEV_APPROVED`, `PT24H` | 방문자 수가 아닌 상대 집중률 예측 |
 | `KTO_RELATED_PLACES` | 관광지별 연관 관광지 | 대체/연관 장소 근거 | `DISABLED` (미신청) | 차량 내비 데이터·과거 기간/의미 한계 |
 | `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | `DISABLED` (B10 전) | area scope, 장소 목록/field 변경, 품질 사고 |
@@ -29,7 +29,7 @@ tags:
 | `NULLNULL_CATALOG_RULE` | 내부 taxonomy·region 규칙 | C5 `SIMILAR` 대체 후보 | C1 registry v1 `PROD_APPROVED`, `P7D` | 외부 relation 사실·혼잡 근거로 표시 금지 |
 | `ROUTE_PROVIDER` | 미정 | 이동 시간/route matrix | P1 | provider/가격/쿼터/약관 미결정 |
 
-registry v1은 공모전 제출 빌드에서 KTO `DEV_APPROVED` 개발 키(1,000/일)를 실제 호출에 쓸 수 있다는 팀 결정을 기록한다. 이는 C2의 실제 gateway·서비스 내 사용 증거 또는 source capability ON을 대신하지 않는다. 서울/Replay/live flag와 D-003의 production 운영 key·재배포 조건은 여전히 별도 결정이다. 공모전 제출 서비스는 한국관광공사 OpenAPI를 실제로 사용해야 하므로 KTO 실제 호출·서비스 내 사용 증거가 없으면 제출 자체를 차단한다.
+registry v1은 공모전 제출 빌드에서 KTO `DEV_APPROVED` 개발 키(1,000/일)를 실제 호출에 쓸 수 있다는 팀 결정을 기록했다. C2 registry v2는 `KorService2/detailCommon2` 하나만 reviewed operation으로 고정하지만, fixture 검증은 actual KTO gateway·서비스 내 사용 증거 또는 source capability ON을 대신하지 않는다. 서울/Replay/live flag와 D-003의 production 운영 key·재배포 조건은 여전히 별도 결정이다. 공모전 제출 서비스는 한국관광공사 OpenAPI를 실제로 사용해야 하므로 KTO 실제 호출·서비스 내 사용 증거가 없으면 제출 자체를 차단한다.
 
 ## 2. KTO 국문 관광정보 서비스
 
@@ -63,10 +63,17 @@ license: RECORD_LEVEL_REVIEW_REQUIRED
 approvalState: DEV_APPROVED
 quotaPolicy: { perDay: 1000, thresholds: [60, 80, 90] }
 staleAfter: P7D
-registryVersion: 1
-providerSchemaVersion: pending-c2
+registryVersion: 2
+providerSchemaVersion: kto-kor-service2-detailcommon2-v1
 attributionTemplate: "출처: ⓒ한국관광공사"
 ```
+
+### C2 고정 provider operation
+
+- exact base는 `https://apis.data.go.kr/B551011/KorService2`, operation은 `GET /detailCommon2`뿐이다. runtime에는 공공데이터포털 **decoding key**를 `KTO_SERVICE_KEY`로 주입하며 key·full URL/query는 log, audit, artifact, browser에 남기지 않는다.
+- request는 이미 검증된 숫자 `contentId`·`contentTypeId`와 `MobileOS=ETC`, `MobileApp=Nullnull`만 사용한다. `firstImageYN=N`, `overviewYN=N`으로 이미지와 소개 원문을 이 slice에서 요청·보존하지 않는다.
+- response는 `resultCode=0000`, 하나의 matching item, bounded title/category/area/address, 함께 존재하는 지리 좌표와 지구 범위를 통과해야 한다. 정상 projection은 source registry revision·collector run·hash·fetched/stale 시각만 포함한 immutable snapshot이다.
+- `nullnull.env=test`의 loopback fixture만 official base 검사를 예외로 할 수 있다. 실제 staging success → collector audit → C3 public provenance projection은 BA-021-T3의 별도 release gate이며, 현재 fixture 결과로 대체할 수 없다.
 
 ## 3. KTO 관광지 집중률 예측
 

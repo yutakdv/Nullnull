@@ -11,11 +11,20 @@ public final class ProviderException extends RuntimeException {
 
     private final Category category;
     private final StatusClass statusClass;
+    private final Integer httpStatus;
 
     public ProviderException(Category category, StatusClass statusClass) {
+        this(category, statusClass, null);
+    }
+
+    public ProviderException(Category category, StatusClass statusClass, Integer httpStatus) {
         super(category.name(), null, false, false);
         this.category = category;
         this.statusClass = statusClass;
+        if (httpStatus != null && (httpStatus < 100 || httpStatus > 599)) {
+            throw new IllegalArgumentException("httpStatus must be a valid HTTP status");
+        }
+        this.httpStatus = httpStatus;
     }
 
     public Category category() {
@@ -24,6 +33,10 @@ public final class ProviderException extends RuntimeException {
 
     public StatusClass statusClass() {
         return statusClass;
+    }
+
+    public Integer httpStatus() {
+        return httpStatus;
     }
 
     public static StatusClass classify(int status) {

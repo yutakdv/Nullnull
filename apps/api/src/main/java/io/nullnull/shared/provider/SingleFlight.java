@@ -34,4 +34,37 @@ public final class SingleFlight<K, V> {
             throw failure;
         }
     }
+
+    /**
+     * Asynchronous equivalent of {@link #execute(Object, Supplier)}. The returned future is shared,
+     * while a failed refresh is removed immediately so a later request may retry it.
+     */
+    public CompletableFuture<V> executeAsync(K key, Supplier<CompletableFuture<V>> work) {
+        CompletableFuture<V> created = new CompletableFuture<>();
+        CompletableFuture<V> active = flights.putIfAbsent(key, created);
+        if (active != null) {
+            return active;
+        }
+        try {
+            CompletableFuture<V> supplied = work.get();
+            if (supplied == null) {
+                throw new IllegalStateException("single-flight work returned null future");
+            }
+            supplied.whenComplete((value, failure) -> {
+                try {
+                    if (failure == null) {
+                        created.complete(value);
+                    } else {
+                        created.completeExceptionally(failure);
+                    }
+                } finally {
+                    flights.remove(key, created);
+                }
+            });
+        } catch (RuntimeException | Error failure) {
+            created.completeExceptionally(failure);
+            flights.remove(key, created);
+        }
+        return created;
+    }
 }

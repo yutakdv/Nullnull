@@ -80,7 +80,8 @@ class FlywayMigrationIT {
             String outstandingKey = populateEveryTable(ownerId);
             List<String> columnsBefore = columnsInUpgradeSchema();
             long rowsBefore = totalRowsInUpgradeSchema();
-            assertThat(rowsBefore).isEqualTo(tablesInUpgradeSchema().size());
+            assertThat(tablesInUpgradeSchema()).allSatisfy(table -> assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM " + UPGRADE_SCHEMA + "." + table, Long.class)).isPositive());
 
             MigrateResult toLatest = upgradeSchemaFlyway(null).migrate();
             assertThat(toLatest.success).isTrue();
@@ -89,9 +90,9 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V007 also adds six reviewed source rows and their six
-            // immutable revision rows; those are product configuration, not synthetic user data.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 12);
+            // Every existing row survived. V008 adds only the reviewed detailCommon2 source revision;
+            // the new cache table deliberately has no synthetic place row.
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
@@ -275,11 +276,29 @@ class FlywayMigrationIT {
                         + " (id, deletion_request_id, owner_id, delete_before, retain_until, scope_hash, created_at)"
                         + " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 UUID.randomUUID(), deletionRequestId, ownerId, now, now.plusDays(21), "c".repeat(64), now);
+        // V007 source registry tables are already seeded with reviewed rows. Add rows to the three
+        // operational tables that are otherwise empty, so V008 is tested against populated C1 data too.
+        UUID collectorRunId = UUID.randomUUID();
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".source_quality_incidents"
+                        + " (id, source_code, incident_code, affected_from, affected_to, scope, disposition, reviewed_at)"
+                        + " VALUES (?, 'KTO_KOR_SERVICE_2', ?, ?, ?, 'PLACE', 'RESOLVED', ?)",
+                UUID.randomUUID(), "upgrade-incident-" + UUID.randomUUID(), now, now.plusMinutes(1), now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".collector_runs"
+                        + " (id, source_code, status, trigger_type, records_received, records_accepted,"
+                        + " records_rejected, schema_version, started_at, finished_at)"
+                        + " VALUES (?, 'KTO_KOR_SERVICE_2', 'COMPLETED', 'MANUAL', 1, 1, 0, 'upgrade-v1', ?, ?)",
+                collectorRunId, now.minusSeconds(1), now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".api_ingest_logs"
+                        + " (id, collector_run_id, endpoint_key, outcome, http_status, duration_ms, response_count,"
+                        + " release_version, request_id, payload_hash, validation_result, created_at)"
+                        + " VALUES (?, ?, 'UPGRADE_TEST', 'OK', 200, 1, 1, 'upgrade-release', ?, ?, 'OK', ?)",
+                UUID.randomUUID(), collectorRunId, "upgrade-request-" + UUID.randomUUID(), "d".repeat(64), now);
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
-                        "deletion_tombstones");
+                        "deletion_tombstones", "source_registry", "source_registry_revisions",
+                        "source_quality_incidents", "collector_runs", "api_ingest_logs");
         return key;
     }
 
