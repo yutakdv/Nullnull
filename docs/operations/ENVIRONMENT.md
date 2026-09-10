@@ -96,7 +96,8 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
 | `NULLNULL_AI_CONNECT_TIMEOUT` | 아니오 | `PT2S` | gateway connect timeout |
 | `NULLNULL_AI_READ_TIMEOUT` | 아니오 | `PT5S` | gateway read timeout; readiness probe는 별도 1초 |
-| `NULLNULL_CURSOR_SECRET` | 예 | runtime | feed/history opaque cursor 서명 key |
+| `NULLNULL_CATALOG_PUBLIC_ENABLED` | 아니오 | `false` | C3 canonical 장소 projection의 release gate. local/test 검증 외에는 C2 T3 staging KTO provenance와 최종 AWS release 전까지 `true` 금지 |
+| `NULLNULL_CURSOR_SECRET` | 예 | runtime | feed/history/catalog opaque cursor 서명 key. catalog projection을 production에서 켤 때 UTF-8 32 byte 이상 별도 값이 필요 |
 | `NULLNULL_PROVIDER_CONNECT_TIMEOUT` | 아니오 | `PT2S` | 외부 provider TCP connect 상한 |
 | `NULLNULL_PROVIDER_REQUEST_TIMEOUT` | 아니오 | `PT5S` | provider 전체 요청 상한; API request executor와 분리 |
 | `NULLNULL_PROVIDER_MAX_RESPONSE_BYTES` | 아니오 | `2097152` | provider 응답 최대 byte; 초과는 안전한 provider failure |
@@ -234,6 +235,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 
 | Flag | P0 기본 | 설명/제거 조건 |
 | --- | --- | --- |
+| `NULLNULL_CATALOG_PUBLIC_ENABLED` | OFF | C3 local projection은 기본 차단. C2 T3 staging provenance와 최종 AWS release에서만 별도 cursor secret과 함께 ON 가능 |
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
 | `FEATURE_LIVE_DATA` | OFF (모든 환경) | B10이 live source를 붙이는 slice에서만 ON 가능. source 불가 시 replay/empty |
 | `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |

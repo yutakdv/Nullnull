@@ -522,7 +522,7 @@ FE 인계·완료 증거: 승인된 출처 텍스트·공식 URL·license URL·n
 - `KtoDetailResponseValidatorTest`, `KtoKorServicePropertiesTest`, `KtoPlaceDetailGatewayIT`, `FlywayMigrationIT`가 T1/T2와 V007→V009 populated upgrade를 검증한다. same request는 single-flight로 합치고 P7D 이후에만 새 collector run을 만든다. fixture canary와 raw provider body marker가 snapshot·`api_ingest_logs`·`collector_runs`에 없음을 실제 PostgreSQL에서 확인한다. opt-in `KtoActualSmokeIT`는 disposable PostgreSQL에서 actual KTO success를 redacted snapshot/audit으로 확인한다.
 - C2 mutation은 single-flight 경로를 제거했을 때 `BA-021-T2`가 concurrent response 불일치로 RED가 되는 것과, content/type ID 비교의 `||`를 `&&`로 약화했을 때 `BA-021-T1`이 `SCHEMA_DRIFT` 대신 `OK`로 RED가 되는 것을 실제로 확인했다. current request mutation으로 `contentTypeId`를 다시 추가했을 때도 exact parameter-contract test가 RED였고 원본 복구 후 focused test는 GREEN이다.
 - v2 request-contract 뒤 current backend Gradle suite는 Java `300/136/13/19`가 GREEN이다. 직전 full Docker gate는 Java `299/136/13/19`, AI pytest `410`, web unit `224`, Playwright `36`, generated client, npm audit, egress-denied를 통과했다 (`INF-001` 미생성으로 `infra:check`는 skip이며 passing check로 세지 않는다). fixture/integration evidence는 actual KTO success를 뜻하지 않는다.
-- local `KTO_SERVICE_KEY`/`KTO_BASE_URL`로 opt-in actual smoke는 통과했으나 T3의 staging actual-success→public provenance chain은 아직 없다. local disposable-DB 성공은 staging 공개 증거로 대체할 수 없으므로 BA-021을 `integration-ready` 또는 완료로 올리지 않으며 C3 public place projection도 시작하지 않는다.
+- local `KTO_SERVICE_KEY`/`KTO_BASE_URL`로 opt-in actual smoke는 통과했으나 T3의 staging actual-success→public provenance chain은 아직 없다. local disposable-DB 성공은 staging 공개 증거로 대체할 수 없다. AWS 배포를 마지막 release gate로 두므로 C3 코드는 local/test에서만 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값의 fail-closed 상태로 구현·검증할 수 있고, T3 증거와 최종 배포 전에는 flag를 켜거나 외부 공개하지 않는다. 따라서 BA-021을 `integration-ready` 또는 완료로 올리지 않는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-014, PM-023.
 
@@ -530,7 +530,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-022
 
-**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-021](#ba-021)
 - 기능 ID: `FR-PLC-01`, `FR-TRC-04`
@@ -555,13 +555,25 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
-- 현재 V010은 C3 internal foundation만 만든다. normalized KTO snapshot의 canonical mapping은
+- V010은 C3 internal foundation을 만들며 normalized KTO snapshot의 canonical mapping은
   `(source_code, source_registry_version, external_id, external_type)` provenance를 보존하고 unknown
-  category/area를 추측하지 않는다. C2 T3 staging actual-success→public provenance가 없으므로 `/places` route,
-  search cursor, public media projection은 아직 등록하지 않으며 BA-022 상태도 `planned`로 유지한다.
+  category/area를 추측하지 않는다. 그 위에 `searchPlaces`와 `getPlace`의 local projection을 추가했지만
+  `NULLNULL_CATALOG_PUBLIC_ENABLED=false`가 기본값이라 route는 fail-closed다. production에서 이를 켜려면
+  별도 `NULLNULL_CURSOR_SECRET`(UTF-8 32 byte 이상)이 필요하며, C2 T3 staging actual-success→public
+  provenance와 최종 AWS release 전에는 flag를 켜거나 외부에 공개하지 않는다. 이 projection은 KTO를 호출하지
+  않고 active·좌표 완전 canonical row, locale fallback, 검토된 재배포 가능 media만 읽는다.
 - `CatalogFoundationIT`는 duplicate external ID, invalid canonical target/source revision, partial coordinate와
   unapproved media를 PostgreSQL에서 차단한다. longitude required 조건을 제거한 좌표 쌍 변이와 rights guard
   `OR`→`AND` 변이는 각각 BA-022-T1/T3를 RED로 만든 뒤 원본을 복구했다.
+- `CatalogPlaceApiIT`는 deprecated→canonical detail, KO/EN fallback, approved media만의 projection, bounded
+  POST search, signed owner/filter cursor의 변조·타 owner·다른 filter·15분 만료, SQL LIKE literal escaping,
+  canary 비로그를 PostgreSQL/MockMvc에서 확인한다. `CatalogPublicationPropertiesTest`는 disabled production
+  projection이 secret 없이도 fail-closed이고 enabled production은 별도 cursor secret 없이는 시작하지 않음을
+  확인하며, `CatalogPlaceProjectionServiceTest`는 gate가 catalog read보다 먼저 실행됨을 확인한다. C3 gate의
+  `!publicEnabled`를 `false`로 바꾼 mutation은 fail-closed test를 RED로 만든 뒤 원본을 복구했다. 이 local
+  evidence는 backend Gradle Java `305/145/13/19`와 full Docker gate(Java·AI pytest `410`·web unit `224`·
+  Playwright `36`·generated client·npm audit·egress-denied)가 GREEN인 것을 포함하지만, staging 공개
+  provenance나 BA-022 완료 증거는 아니다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
 

@@ -601,7 +601,7 @@
           "assertion": "staging 실제 KTO 성공 이력과 공개 응답 provenance가 연결되며 mock-only 증거는 release에서 실패한다"
         }
       ],
-      "handoff": "V008/V009은 detailCommon2 KTO registry revision 3 (`kto-kor-service2-detailcommon2-v2`)·normalized snapshot·safe collector audit을 만든다. current request는 serviceKey/MobileOS/MobileApp/contentId/_type만 전송하고 response content/type ID를 후보 기대값과 대조한다. T1/T2 fixture와 V007→V009 PostgreSQL upgrade는 KtoDetailResponseValidatorTest/KtoKorServicePropertiesTest/KtoPlaceDetailGatewayIT/FlywayMigrationIT로 통과했고 현재 backend Gradle suite 300/136/13/19도 GREEN이다. 직전 full Docker는 AI 410, web 224, Playwright 36, client diff/npm audit/egress-denied를 포함해 Java 299/136/13/19로 GREEN이었다; INF-001 없는 infra check는 skip이다. contentTypeId를 재도입하면 parameter-contract unit test가 RED가 된 뒤 복구했다. opt-in actualKtoSmoke는 disposable PostgreSQL에서 실제 KTO 성공 snapshot/audit을 확인했지만, 이는 local preflight이며 staging public provenance가 아니다. T3가 끝나기 전에는 status를 올리거나 C3 public projection을 시작하지 않는다.",
+      "handoff": "V008/V009은 detailCommon2 KTO registry revision 3 (`kto-kor-service2-detailcommon2-v2`)·normalized snapshot·safe collector audit을 만든다. current request는 serviceKey/MobileOS/MobileApp/contentId/_type만 전송하고 response content/type ID를 후보 기대값과 대조한다. T1/T2 fixture와 V007→V009 PostgreSQL upgrade는 KtoDetailResponseValidatorTest/KtoKorServicePropertiesTest/KtoPlaceDetailGatewayIT/FlywayMigrationIT로 통과했고 현재 backend Gradle suite 300/136/13/19도 GREEN이다. 직전 full Docker는 AI 410, web 224, Playwright 36, client diff/npm audit/egress-denied를 포함해 Java 299/136/13/19로 GREEN이었다; INF-001 없는 infra check는 skip이다. contentTypeId를 재도입하면 parameter-contract unit test가 RED가 된 뒤 복구했다. opt-in actualKtoSmoke는 disposable PostgreSQL에서 실제 KTO 성공 snapshot/audit을 확인했지만, 이는 local preflight이며 staging public provenance가 아니다. AWS 배포는 마지막 release gate이므로 C3는 `NULLNULL_CATALOG_PUBLIC_ENABLED=false`의 local fail-closed 구현·검증만 허용하며 T3와 최종 release 전에는 flag를 켜거나 외부 공개하지 않는다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-021"
@@ -611,7 +611,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "Canonical 장소·검색·상세·콘텐츠 권리",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-021"
       ],
@@ -649,7 +649,7 @@
           "assertion": "검색 canary 비로그와 미승인 media 비노출을 검증한다"
         }
       ],
-      "handoff": "V010은 public route 없이 canonical places/localizations/external refs와 reviewed asset license/media 경계를 만든 internal foundation이다. normalized KTO snapshot은 source registry revision 3을 같이 고정하며 동일 external ID는 하나의 active canonical POI로 수렴하고 missing category/area는 추측하지 않고 거부한다. PostgreSQL fixture에서 duplicate/invalid canonical target/source revision/partial coordinate/unapproved media가 차단되고, longitude required 조건을 제거한 좌표 쌍 mutation과 rights guard를 OR→AND로 약화한 mutation은 BA-022-T1/T3가 RED가 된 뒤 복구했다. 현재 backend Gradle suite 302/141/13/19가 GREEN이다. BA-021-T3 staging actual-success→public provenance 전에는 status와 `/places` public projection을 올리지 않는다. 이후 FE에는 검색 loading/empty/404/coverage 부족·KO/EN fallback fixture와 canonical ID만 전달한다.",
+      "handoff": "V010은 canonical places/localizations/external refs와 reviewed asset license/media 경계를 만든 internal foundation이다. normalized KTO snapshot은 source registry revision 3을 같이 고정하며 동일 external ID는 하나의 active canonical POI로 수렴하고 missing category/area는 추측하지 않고 거부한다. PostgreSQL fixture에서 duplicate/invalid canonical target/source revision/partial coordinate/unapproved media가 차단되고, longitude required 조건을 제거한 좌표 쌍 mutation과 rights guard를 OR→AND로 약화한 mutation은 BA-022-T1/T3를 RED로 만든 뒤 복구했다. `searchPlaces`/`getPlace` local projection은 active coordinate-complete canonical rows, locale fallback, approved media, signed owner/filter cursor만 읽으며 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값으로 fail-closed다. CatalogPlaceApiIT, CatalogPublicationPropertiesTest, CatalogPlaceProjectionServiceTest가 cursor tamper/owner/filter/expiry, canary 비로그, approved media, disabled production, enabled-secret gate와 gate-before-read를 확인한다. C3 gate의 `!publicEnabled`→`false` mutation은 fail-closed test를 RED로 만든 뒤 복구했다. backend Gradle Java 305/145/13/19와 full Docker gate(Java·AI pytest 410·web unit 224·Playwright 36·generated client·npm audit·egress-denied)는 GREEN이다. C2 T3 staging actual-success→public provenance와 최종 AWS release 전에는 flag를 켜거나 외부 공개하지 않으며 BA-022는 완료가 아니다. 이후 FE에는 검색 loading/empty/404/coverage 부족·KO/EN fallback fixture와 canonical ID만 전달한다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-022"

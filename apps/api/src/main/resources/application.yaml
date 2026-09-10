@@ -72,6 +72,10 @@ logging:
 
 nullnull:
   env: ${NULLNULL_ENV:local}
+  # C3 place reads remain unavailable unless the final staging provenance gate is evidenced and the
+  # release operator explicitly enables this runtime flag. Local tests opt in per test context.
+  catalog:
+    public-enabled: ${NULLNULL_CATALOG_PUBLIC_ENABLED:false}
   readiness:
     database-timeout-seconds: 2
   http:
