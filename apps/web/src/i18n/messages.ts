@@ -141,6 +141,9 @@ export const messages = {
     'profile.location.note': '기기 안에서만 사용 · 서버 전송 안 함',
     'profile.location.off': '허용 안 함',
     'profile.retry': '다시 시도',
+    // S15 `423:2967` and any sub-page reached by a back control.
+    'nav.back': '뒤로',
+    'nav.settings': '설정',
 
     // S15 data guide (423:2967). The six state labels live in StateLabel (C07);
     // Figma pins that wording and forbids changing it, so it is not duplicated.
@@ -297,6 +300,9 @@ export const messages = {
     'candidates.match.error': '가능한 날짜를 확인하지 못했어요',
     'candidates.blocked': '이 날은 넣을 수 없어요',
     'candidates.conflict': '다른 곳에서 일정이 바뀌었어요. 최신 일정을 불러왔어요.',
+    'candidates.remove': '담아둔 장소에서 제거',
+    'candidates.removeNamed': '{name} 담아둔 장소에서 제거',
+    'candidates.removeFailed': '제거하지 못했어요',
     'wizard.interests.later': '나중에 고를래요',
     'wizard.planning.title1': '어디까지',
     'wizard.planning.title2': '정하셨나요?',
@@ -481,6 +487,8 @@ export const messages = {
     'profile.location.note': 'Used on device only · never sent to the server',
     'profile.location.off': 'Not allowed',
     'profile.retry': 'Try again',
+    'nav.back': 'Back',
+    'nav.settings': 'Settings',
 
     // S15 data guide (423:2967). Figma has no EN frame; these are translations.
     // The attribution line keeps the Korean source names, which are the
@@ -625,6 +633,9 @@ export const messages = {
     'candidates.match.error': "We couldn't check which days would work",
     'candidates.blocked': "This day can't take it",
     'candidates.conflict': 'The itinerary changed elsewhere. We loaded the latest.',
+    'candidates.remove': 'Remove from saved',
+    'candidates.removeNamed': 'Remove {name} from saved',
+    'candidates.removeFailed': "We couldn't remove it",
     'wizard.interests.later': "I'll choose later",
     'wizard.planning.title1': 'How much have you',
     'wizard.planning.title2': 'planned already?',

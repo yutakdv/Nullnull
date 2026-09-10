@@ -43,6 +43,7 @@ export {
   useTripCandidates,
   useCandidateMatches,
   useAddTripItem,
+  useRemoveTripCandidate,
   candidatesQueryKey,
   useUpdatePreferences,
   tripQueryKey,

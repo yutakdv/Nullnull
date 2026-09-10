@@ -776,11 +776,14 @@
         "BA-042"
       ],
       "operations": [
+        "addTripItem",
         "getCandidateTripMatches",
-        "listTripCandidates"
+        "listTripCandidates",
+        "removeTripCandidate"
       ],
       "featureIds": [
         "FR-CAN-05",
+        "FR-CAN-06",
         "FR-CAN-07",
         "FR-ITM-02"
       ],

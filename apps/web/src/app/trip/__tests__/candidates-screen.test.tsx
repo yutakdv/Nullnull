@@ -283,6 +283,72 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
   });
 });
 
+describe('FE-303 removing a saved place (FR-CAN-06)', () => {
+  it('offers a remove action named after the place', async () => {
+    renderPanel();
+    await loaded();
+    // Named, not a bare "제거": three identical buttons in a list tell a screen
+    // reader nothing about which place they act on.
+    expect(
+      screen.getByRole('button', {
+        name: copy['candidates.removeNamed'].replace('{name}', active?.place.name ?? ''),
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('removes the candidate from the list', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await loaded();
+    await user.click(
+      screen.getByRole('button', {
+        name: copy['candidates.removeNamed'].replace('{name}', active?.place.name ?? ''),
+      }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('heading', { level: 2, name: active?.place.name ?? '' }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('offers removal for a scheduled candidate too, without touching the item', async () => {
+    renderPanel();
+    await loaded();
+    // Dismissing a candidate never changes the schedule (invariant 1), so the
+    // action stays available; the item it produced is removed separately.
+    expect(
+      screen.getByRole('button', {
+        name: copy['candidates.removeNamed'].replace(
+          '{name}',
+          scheduled?.place.name ?? '',
+        ),
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('reports a failed removal instead of hiding the row anyway', async () => {
+    server.use(
+      http.delete(`${API_BASE}/trips/:tripId/candidates/:candidateId`, () =>
+        HttpResponse.error(),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+    await loaded();
+    await user.click(
+      screen.getByRole('button', {
+        name: copy['candidates.removeNamed'].replace('{name}', active?.place.name ?? ''),
+      }),
+    );
+    expect(await screen.findByText(copy['candidates.removeFailed'])).toBeInTheDocument();
+    // Still listed: the client does not pretend a failed delete succeeded.
+    expect(
+      screen.getByRole('heading', { level: 2, name: active?.place.name ?? '' }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('FE-303-T3 the panel is reachable and named', () => {
   it('names the screen with the count once the list has arrived', async () => {
     renderPanel();
@@ -309,9 +375,16 @@ describe('FE-303-T3 the panel is reachable and named', () => {
   });
 
   it('offers a way back to the itinerary', async () => {
+    const user = userEvent.setup();
     renderPanel();
+    // A NavBar button, not a link: it navigates to a named destination rather
+    // than calling history.go(-1), which on a deep link or a reload would send
+    // the user off this app entirely (COMPONENT_CATALOG C49).
+    const back = await screen.findByRole('button', { name: copy['candidates.back'] });
+    await user.click(back);
+    // And it actually lands on the itinerary.
     expect(
-      await screen.findByRole('link', { name: copy['candidates.back'] }),
+      await screen.findByRole('heading', { level: 1, name: trip.title }),
     ).toBeInTheDocument();
   });
 

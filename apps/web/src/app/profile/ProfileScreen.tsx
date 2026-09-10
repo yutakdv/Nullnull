@@ -39,6 +39,10 @@ export function ProfileScreen() {
 
   return (
     <section className={styles.screen} aria-labelledby="profile-heading">
+      {/* No NavBar: this is a tab destination with no back control, the h1
+          below is the title the frame shows, and the settings glyph beside it
+          has no P0 destination — a control that goes nowhere is worse than an
+          absent one. An empty bar would be a spacer pretending to be chrome. */}
       <h1 className={styles.title} id="profile-heading">
         {t('profile.title')}
       </h1>

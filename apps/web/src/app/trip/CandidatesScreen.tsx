@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -7,9 +7,11 @@ import {
   isProblem,
   useAddTripItem,
   useCandidateMatches,
+  useRemoveTripCandidate,
   useTrip,
   useTripCandidates,
 } from '../../shared/api/index.js';
+import { NavBar } from '../../shared/ui/components/index.js';
 import styles from './CandidatesScreen.module.css';
 import {
   blockedSlots,
@@ -46,6 +48,7 @@ type TripCandidate = components['schemas']['TripCandidate'];
 export function CandidatesScreen() {
   const { tripId } = useParams();
   const { t } = useI18n();
+  const navigate = useNavigate();
   const trip = useTrip(tripId ?? null);
   const candidates = useTripCandidates(tripId ?? null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -54,10 +57,18 @@ export function CandidatesScreen() {
 
   return (
     <section className={styles.screen} aria-labelledby="candidates-heading">
+      {/* A named destination, not history.go(-1): this screen is reachable by
+          deep link and by reload, where "back" belongs to another site. */}
+      {/* Back control only: the h1 below is the title, and repeating it in the
+          bar shows the same words twice on a 360px screen. */}
+      <NavBar
+        backLabel={t('candidates.back')}
+        onBack={() => {
+          void navigate(`/trip/${tripId ?? ''}`);
+        }}
+      />
+
       <div className={styles.head}>
-        <Link className={styles.back} to={`/trip/${tripId ?? ''}`}>
-          {t('candidates.back')}
-        </Link>
         {/* The count waits for the list. Rendering `items.length` while the
             request is in flight shows "0 saved places" to someone who has
             three, which reads as data loss rather than as loading. */}
@@ -137,6 +148,7 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
   const matches = useCandidateMatches(tripId, open && !scheduled ? candidate.id : null);
   const trip = useTrip(tripId);
   const add = useAddTripItem(tripId);
+  const remove = useRemoveTripCandidate(tripId);
   const [failed, setFailed] = useState<string | null>(null);
 
   const match = matches.data;
@@ -178,11 +190,29 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
 
   return (
     <article className={styles.card}>
-      <h2 className={styles.name}>{candidate.place.name}</h2>
-      {candidate.place.address === null ||
-      candidate.place.address === undefined ? null : (
-        <p className={styles.meta}>{candidate.place.address}</p>
-      )}
+      <div className={styles.cardHead}>
+        {/* thumbnailUrl is a real contract field, unlike the source text the
+            frame also shows (FCR-031). Decorative: the place name beside it is
+            the accessible name, so an empty alt avoids announcing it twice. */}
+        {candidate.place.thumbnailUrl ? (
+          <img
+            alt=""
+            className={styles.thumb}
+            height={56}
+            src={candidate.place.thumbnailUrl}
+            width={56}
+          />
+        ) : (
+          <span aria-hidden="true" className={styles.thumbEmpty} />
+        )}
+        <div className={styles.cardText}>
+          <h2 className={styles.name}>{candidate.place.name}</h2>
+          {candidate.place.address === null ||
+          candidate.place.address === undefined ? null : (
+            <p className={styles.meta}>{candidate.place.address}</p>
+          )}
+        </div>
+      </div>
 
       {scheduled ? (
         // Already on the schedule: no add action, because adding it twice is
@@ -282,6 +312,32 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
           ) : null}
         </>
       )}
+
+      {/* FR-CAN-06. Dismissing a candidate never touches the schedule
+          (invariant 1), so it stays available even for one already scheduled —
+          the item it produced is removed separately (FE-305). */}
+      <div className={styles.rowActions}>
+        <button
+          // Visible text stays short as the frame has it; the accessible name
+          // carries the place, because three identical "제거" buttons in a list
+          // tell a screen reader nothing about which one they act on.
+          aria-label={t('candidates.removeNamed', { name: candidate.place.name })}
+          className={styles.remove}
+          disabled={remove.isPending}
+          onClick={() => {
+            remove.mutate({ candidateId: candidate.id });
+          }}
+          type="button"
+        >
+          {t('candidates.remove')}
+        </button>
+      </div>
+
+      {remove.isError ? (
+        <p className={styles.state} role="alert">
+          {t('candidates.removeFailed')}
+        </p>
+      ) : null}
     </article>
   );
 }

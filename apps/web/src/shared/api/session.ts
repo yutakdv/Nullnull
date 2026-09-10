@@ -514,3 +514,29 @@ export function useAddTripItem(tripId: string | null) {
     },
   });
 }
+
+/**
+ * Dismisses a candidate (FR-CAN-06).
+ *
+ * No If-Match: the contract does not ask for one, because dismissing a
+ * candidate does not touch the schedule — a candidate is not an item
+ * (invariant 1), and the operation's own summary says so.
+ */
+export function useRemoveTripCandidate(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Problem | Error, { candidateId: string }>({
+    mutationFn: async ({ candidateId }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      const { error, response } = await getApiClient().DELETE(
+        '/trips/{tripId}/candidates/{candidateId}',
+        { params: { path: { tripId, candidateId } } },
+      );
+      if (!response.ok) fail(error, response);
+    },
+    onSuccess: () => {
+      if (tripId !== null) {
+        void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(tripId) });
+      }
+    },
+  });
+}

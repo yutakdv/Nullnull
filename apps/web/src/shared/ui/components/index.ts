@@ -19,6 +19,7 @@ export { SearchField, type SearchFieldProps } from './SearchField.js';
 export { Segment, type SegmentOption, type SegmentProps } from './Segment.js';
 export { SheetGrab } from './SheetGrab.js';
 export { StateLabel, type SourceState, type StateLabelProps } from './StateLabel.js';
+export { NavBar, type NavBarProps } from './NavBar.js';
 export { TabBar, type TabBarProps, type TabKey } from './TabBar.js';
 export { Tag, type TagProps } from './Tag.js';
 export { Toast, type ToastProps } from './Toast.js';

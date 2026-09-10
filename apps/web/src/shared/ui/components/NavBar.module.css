@@ -1,0 +1,44 @@
+/* Figma `Nav / NavBar` (C49): top app bar with safe-area padding. */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  /* The notch/status bar on iOS sits above this. */
+  padding-top: max(var(--space-2), env(safe-area-inset-top));
+  background: var(--color-bg-default);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  /* Pulled left so the 44px target does not visually indent the glyph. */
+  margin-inline-start: calc(var(--space-2) * -1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.title {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+  /* A long trip name truncates rather than pushing the actions off-screen. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}

@@ -140,6 +140,18 @@ export const handlers = [
     if (id.endsWith('0001')) return HttpResponse.json(candidateFixtures.matchSimilar);
     return HttpResponse.json(candidateFixtures.matchExact);
   }),
+  http.delete(`${API_BASE}/trips/:tripId/candidates/:candidateId`, ({ params }) => {
+    const candidates = currentCandidates();
+    // DISMISSED rather than deleted: the contract keeps the row so the place is
+    // not re-suggested. The panel filters it out.
+    candidateState = {
+      ...candidates,
+      items: candidates.items.map((c) =>
+        c.id === String(params.candidateId) ? { ...c, status: 'DISMISSED' as const } : c,
+      ),
+    };
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.post(`${API_BASE}/trips/:tripId/items`, async ({ request }) => {
     const trip = currentTrip();
     if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
