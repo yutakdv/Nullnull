@@ -104,8 +104,8 @@ git push origin frontend  # backend 담당은 backend
 모든 `frontend → main`, `backend → main` PR은 다음을 만족한다.
 
 - base가 정확히 `main`, head가 정확히 역할 브랜치다.
-- 최신 `main`과 충돌이 없고 unresolved conversation이 없다.
-- 작성자가 아닌 팀원 1명이 승인한다. 새 commit 뒤 stale approval을 해제한다.
+- 최신 `main`과 충돌이 없다.
+- 상대 담당자 검토 요청과 대화는 비동기로 유지하며 approval과 conversation resolution을 merge 조건으로 두지 않는다.
 - `docs-contract`와 `docker-integration`이 성공한다.
 - ruleset required status 이름은 B01 전후 정확히 `docs-contract`,
   `docker-integration` 두 개다.
@@ -197,7 +197,7 @@ sandbox/production-approved key로 실제 KTO 호출과 attribution/call-audit �
 
 두 팀원의 실제 handle이 확정되면 다음을 GitHub ruleset에 적용하고 설정 화면 또는 export를 비공개 운영 증거로 남긴다.
 
-- `main`: PR 필수, approval 1, code-owner review, stale approval dismiss, conversation resolution
+- `main`: PR 필수, approval 0, code-owner review와 conversation resolution은 비필수
 - required checks: 정확히 `docs-contract`, `docker-integration`
 - allowed PR head는 같은 repository의 `frontend`, `backend`, dependency bot
 - force push와 branch deletion 차단, 관리자 우회 기본 금지
@@ -206,7 +206,7 @@ sandbox/production-approved key로 실제 KTO 호출과 attribution/call-audit �
 - 실행 경로의 CODEOWNERS에는 두 팀원을 함께 적어 작성자 단독 owner 때문에 gate가
   막히지 않게 하고, Primary DRI는 소유권 표에서 별도로 유지한다.
 
-브랜치 생성·ruleset·push·PR은 로컬 문서 작성만으로 완료된 것이 아니다. 저장소 관리자가 실제 설정 후 checklist와 test PR로 검증한다.
+외부 설정은 GitHub API로 적용한 뒤 read-back과 test PR로 검증한다.
 
 ## 11. 작업 단위
 

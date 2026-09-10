@@ -88,8 +88,8 @@ test와 API contract test를 모두 강제한다. required workflow가 skip이�
 | dependency lock/toolchain | 해당 DRI | FE_DRI + BE_AI_DRI | runtime/production 영향 |
 
 실행 경로에 두 팀원을 함께 CODEOWNER로 지정해 작성자와 반대 역할 모두 자동으로 검토 요청을
-받게 한다. ruleset은 code owner review와 approval 수를 required로 두지 않고 conversation
-resolution과 두 required check를 강제한다. Primary DRI는 구현 책임이며 CODEOWNERS 검토는
+받게 한다. ruleset은 code owner review, approval 수와 conversation resolution을 required로
+두지 않고 두 required check만 강제한다. Primary DRI는 구현 책임이며 CODEOWNERS 검토는
 auto-merge 뒤에도 이어질 수 있다.
 
 ## 5. GitHub ruleset 외부 설정 checklist
@@ -98,7 +98,7 @@ auto-merge 뒤에도 이어질 수 있다.
 - [ ] `frontend`, `backend`가 `main`에서 생성됐고 두 역할 브랜치의 force push/deletion이 차단됨
 - [ ] pull request 필수, direct push/force push/deletion 차단
 - [ ] required approval 0명, code owner review는 요청만 자동 배정
-- [ ] 모든 conversation resolved
+- [ ] conversation resolution은 merge 필수 조건에서 제외
 - [ ] 정확히 `docs-contract`, `docker-integration`만 stable required status로 연결됨
 - [ ] B01 뒤 모든 component gate가 `docker-integration` 내부에서 fail-closed로 집계됨
 - [ ] required check가 관리자/bypass actor에도 기본 적용됨

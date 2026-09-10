@@ -218,7 +218,7 @@ Frontend는 심사위원이 외부망·익명창·로그인 없이 핵심 흐름
 | `contract-ready` | 필요한 field/state/error와 UI acceptance 승인 | OpenAPI/event/example/state transition 작성 | contract SHA, schema-valid fixture | 생성 client와 provider test가 같은 example 사용 |
 | `implementation-ready` | MSW·failing component/E2E test | DB/domain·failing contract/integration test | 양쪽 test ID | 상대 구현을 기다리지 않고 병렬 착수 가능 |
 | `integration-ready` | generated client·UI 전체 상태 | 실제 API·seed·readiness·migration | handoff packet, image digest | mock 전용 field 0, contract SHA 일치 |
-| `PR-ready` | `frontend → main` PR와 web evidence | server truth·문구 review | PR checklist | unresolved conversation 0 |
+| `PR-ready` | `frontend → main` PR와 web evidence | server truth·문구 review | PR checklist | 두 required check green |
 | `merge-ready` | candidate merge ref 사용자 journey | Docker/API/DB/source fixture 검증 | `docker-integration` report | 모든 required check green |
 | `release-ready` | production web artifact·외부망 UX | API/data/AWS readiness·rollback | immutable release manifest | 둘 다 go, 실제 공모전 기능 증거 확보 |
 
