@@ -95,6 +95,10 @@ nullnull:
   idempotency:
     ttl: ${APP_IDEMPOTENCY_TTL:PT24H}
     lock-timeout: ${APP_IDEMPOTENCY_LOCK_TIMEOUT:PT3S}
+  deletion:
+    status-token-ttl: ${APP_DELETION_STATUS_TOKEN_TTL:P7D}
+    tombstone-retention: ${APP_DELETION_TOMBSTONE_RETENTION:P21D}
+    retry-limit: ${APP_DELETION_RETRY_LIMIT:5}
   # Leased background job runtime (docs/operations/ENVIRONMENT.md NULLNULL_JOB_*, card BA-005).
   # Every value below is an engineering proposal, not a documented contract figure. The durations are
   # ISO-8601 and floored in JobProperties, because a bare number is read as milliseconds:

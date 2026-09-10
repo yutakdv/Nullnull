@@ -26,6 +26,7 @@ services:
     environment: &api-environment
       APP_COOKIE_SECURE: "true"
       APP_COOKIE_DOMAIN: ""
+      NULLNULL_DELETION_TOKEN_SECRET: ${NULLNULL_DELETION_TOKEN_SECRET:-}
       APP_PUBLIC_ORIGIN: http://localhost:5173
       APP_SESSION_TTL: P30D
       APP_SESSION_ABSOLUTE_TTL: P90D

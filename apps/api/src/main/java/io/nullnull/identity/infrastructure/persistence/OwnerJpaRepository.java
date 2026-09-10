@@ -19,4 +19,8 @@ interface OwnerJpaRepository extends JpaRepository<OwnerEntity, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from OwnerEntity o where o.id = :id and o.deletedAt is null")
     Optional<OwnerEntity> lockAlive(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from OwnerEntity o where o.id = :id")
+    Optional<OwnerEntity> lockAny(@Param("id") UUID id);
 }

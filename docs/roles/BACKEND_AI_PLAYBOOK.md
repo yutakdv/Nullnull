@@ -287,7 +287,7 @@ A4 Backend/AI 구현 증거:
 - test로 지킬 수 없어 수치만 남기는 것: claim을 두 statement로 나눈 결정. 다시 OR 하나로 합쳐도 동작이 같아서 실패하는 기능 test가 없고, plan assertion은 PostgreSQL version과 data에 취약하다. 손으로 잰 근거는 — 완료 row 200,000개에서 V001의 OR 형태 Seq Scan 10.24ms, 분할한 첫 statement Index Scan 0.021ms, V004 이후 OR 형태 BitmapOr 0.022ms. 합치는 변경은 이 수치를 다시 재는 것을 조건으로 한다.
 - backlog에서 성능이 달라지는 두 statement: `CLAIM_EXPIRED_LEASE`와 `FAIL_ABANDONED`는 `status = 'RUNNING'`을 부분 index로 좁힐 수 없어 미완료 row 전체를 읽는다. 같은 PostgreSQL에 READY row 100,000개를 더한 뒤 측정: 둘 다 `background_jobs_outstanding_key_idx` Bitmap Index Scan으로 미완료 약 100,009건을 읽고 약 100,006건을 filter로 버리며 9.6ms, claim마다가 아니라 poll tick마다다. 지금은 index를 추가하지 않는다([ERD](../architecture/ERD.md)의 초기 index 목록은 실제 plan을 근거로만 유지한다). 미완료 job이 이 규모로 쌓이는 것이 관측되면 `(type, lease_until) WHERE status = 'RUNNING'`을 추가할 근거가 된다.
 - 미구현: handler는 아직 하나도 없다. 삭제 job은 B02/BA-012, collector는 B03, optimization은 B06에서 이 SPI로 붙는다. 그때까지 worker는 보존 sweep만 돌린다.
-- handler를 붙이는 slice가 함께 정해야 하는 값: worker의 최악 동시 connection 수요 `2 x slots + types + 1`에 readiness 여유분 2를 더한 값이 `NULLNULL_DB_POOL_MAX` 이하가 아니면 startup이 실패한다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)). type 3개를 기본 concurrency 2로 돌리려면 pool 18이 필요하다.
+- handler를 붙이는 slice가 함께 정해야 하는 값: worker의 최악 동시 connection 수요 `2 x slots + types + 1`에 readiness 여유분 2를 더한 값이 `NULLNULL_DB_POOL_MAX` 이하가 아니면 startup이 실패한다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)). BA-012의 실제 type 하나와 기본 concurrency 2는 pool 8이 필요해 기본 10에 들어가며, 이후 type 추가 때 다시 계산한다.
 - V004는 dedup unique를 미완료 row 부분 index로 바꾼다. `ON CONFLICT (deduplication_key)`를 쓰는 이전 binary의 enqueue는 이 migration 뒤 실패하므로, handler를 추가하는 첫 slice는 이 migration 이후에 배포한다.
 
 FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, polling·timeout은 취소가 아니라는 인계 설명. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
@@ -413,7 +413,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-012
 
-**세션 삭제 receipt·TTL·복원 후 재삭제** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**세션 삭제 receipt·TTL·복원 후 재삭제** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-005](#ba-005), [BA-010](#ba-010), [BA-011](#ba-011)
 - 기능 ID: `FR-OPS-09`, `FR-SES-04`
@@ -437,6 +437,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-012-T3`: backup 복원 뒤 tombstone 재적용 전 public traffic이 열리지 않는다
 
 FE 인계·완료 증거: S14 삭제 확인·상태 polling·receipt 분실/만료·부분 실패 예시. 보존 기간 안내는 privacy 문서와 동일하게 전달한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+BA-012 구현 증거:
+
+- `DeletionIT`가 `BA-012-T1`의 동일 receipt 재생, revoked cookie의 다른 key·route 401, header-only 상태 token의 정상/오류/정확한 7일 만료 경계, hash-only 저장과 enqueue 실패 원자 rollback을 실제 PostgreSQL에서 검사한다.
+- `DeletionJobIT`가 `BA-012-T2`와 `REC-SEC-03`의 부분 실패→재시도→완료, eraser 비중첩, owner profile 비부활을 실제 worker로 검사한다. 첫 production handler가 추가되어 기존 BA-005 synthetic handler 테스트의 pool은 각 context의 실제 type/slot 수식만큼 명시했다. 운영 기본 type 1개·concurrency 2는 reserve 포함 최소 pool 8이고 기본 10 안에 든다.
+- `DeletionIT.tombstoneReappliesRestoredOwnerData`와 `TombstoneReapplierTest`가 `BA-012-T3`의 restore 재삭제와 web lifecycle 이전 fail-closed 시작을 검사한다. owner hard delete는 tombstone 21일 뒤에도 30일 revoked session과 idempotency row가 없어질 때까지 기다린다.
+- `FlywayMigrationIT`는 V005 populated schema→V006 upgrade를, `SessionContractTest`는 두 operation의 route/security/response schema를 검사한다. report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}/*.xml`이며 Playwright transport는 `apps/web/e2e/session.spec.ts`에 있다.
+- token·transaction·worker·lifecycle·TTL 가드 변이 14종은 모두 RED였고 scratch backup 복원 SHA256이 일치한다. 로컬 증거는 `.artifacts/ba-012/token-mutations.json`과 `.artifacts/ba-012/mutations.json`이다.
+- 전체 Docker gate는 Java 280/127/13/19, AI pytest 410, web unit 224, Playwright 36을 failures/errors/skipped 0으로 실행했고 generated client diff·npm audit·egress-denied·readiness까지 통과했다. 공유 PostgreSQL에서 V006 FK가 드러낸 기존 BA-005 fixture 정리 순서는 tombstone→receipt→owner 순으로 보강했다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-017, PM-018.
 

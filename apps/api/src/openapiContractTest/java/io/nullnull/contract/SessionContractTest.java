@@ -36,7 +36,13 @@ class SessionContractTest {
             assertThat(op).as("Public controller must declare operation policy: %s",method.getMethod().getName()).isNotNull();
             assertThat(ids.add(op.id())).isTrue();
             Set<String> schemes=new HashSet<>();
-            for(var security:op.security()) { schemes.add(security==NullnullOperation.Security.SESSION?"sessionCookie":"csrfToken"); }
+            for(var security:op.security()) {
+                schemes.add(switch (security) {
+                    case SESSION -> "sessionCookie";
+                    case CSRF -> "csrfToken";
+                    case DELETION_STATUS_TOKEN -> "deletionStatusToken";
+                });
+            }
             assertThat(api.securityRequirements(op.id())).isEqualTo(schemes.isEmpty() ? List.of() : List.of(schemes));
             var declared=api.routeOf(op.id());
             assertThat(route.getPatternValues()).containsExactly(declared.path().substring("/api/v1".length()));
@@ -68,5 +74,17 @@ class SessionContractTest {
                 .andExpect(status().isOk()).andReturn().getResponse();
         assertThat(check.validate("CsrfTokenResponse",csrf.getContentAsString())).isEmpty();
         assertThat(csrf.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        var csrfPayload=tools.jackson.databind.json.JsonMapper.builder().build().readTree(csrf.getContentAsString());
+        var deleted=mvc.perform(delete("/api/v1/session").cookie(bearer)
+                        .header("Origin","http://localhost:5173")
+                        .header("X-CSRF-Token",csrfPayload.get("csrfToken").asText())
+                        .header("Idempotency-Key","contract-delete-"+UUID.randomUUID()))
+                .andExpect(status().isAccepted()).andReturn().getResponse();
+        assertThat(check.validate("DeletionReceipt",deleted.getContentAsString())).isEmpty();
+        var receipt=tools.jackson.databind.json.JsonMapper.builder().build().readTree(deleted.getContentAsString());
+        var deletionStatus=mvc.perform(get(receipt.get("statusUrl").asText())
+                        .header("X-Deletion-Status-Token",receipt.get("statusToken").asText()))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        assertThat(check.validate("DeletionRequestStatus",deletionStatus.getContentAsString())).isEmpty();
     }
 }

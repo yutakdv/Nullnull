@@ -55,10 +55,10 @@ import org.springframework.transaction.support.TransactionTemplate;
         "nullnull.jobs.enabled=true",
         "nullnull.jobs.poll-interval=PT0.05S",
         "nullnull.jobs.concurrency.isolation-slow=1",
-        // One slot per type: two units of work, two heartbeats, two claims and the sweep are seven
-        // connections in the worst case, which fits the shipped pool of 10 with the readiness reserve
-        // left over (io.nullnull.operations.application.JobConnectionBudget).
+        // The two synthetic types run beside the production deletion type. Three slots, heartbeats
+        // and claims plus the sweep require ten connections, with two reserved for readiness.
         "nullnull.jobs.default-concurrency=1",
+        "spring.datasource.hikari.maximum-pool-size=12",
         "nullnull.ai.base-url=http://127.0.0.1:1"})
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class,

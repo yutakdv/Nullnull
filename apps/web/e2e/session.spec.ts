@@ -87,3 +87,52 @@ test('BA-011 preferences persist and reject unsupported locale', async ({ reques
     fieldErrors: [{ field: 'locale', code: 'UNSUPPORTED_LOCALE' }],
   });
 });
+
+test('BA-012 deletion replays its receipt and status token cannot authorize the session', async ({
+  request,
+}) => {
+  const origin = 'http://localhost:5173';
+  const bootstrap = await request.post('/api/v1/demo/sessions', {
+    headers: { Origin: origin },
+  });
+  const session = (await bootstrap.json()) as { csrfToken: string };
+  const cookie = bootstrap.headers()['set-cookie']?.split(';')[0];
+  expect(Boolean(cookie)).toBe(true);
+  const key = `delete-${crypto.randomUUID()}`;
+  const accepted = await request.delete('/api/v1/session', {
+    headers: {
+      Origin: origin,
+      Cookie: cookie!,
+      'X-CSRF-Token': session.csrfToken,
+      'Idempotency-Key': key,
+    },
+  });
+  expect(accepted.status()).toBe(202);
+  const firstText = await accepted.text();
+  const receipt = JSON.parse(firstText) as {
+    requestId: string;
+    statusToken: string;
+    statusUrl: string;
+  };
+  const replay = await request.delete('/api/v1/session', {
+    headers: { Origin: origin, Cookie: cookie!, 'Idempotency-Key': key },
+  });
+  expect(replay.status()).toBe(202);
+  expect(await replay.text()).toBe(firstText);
+  const deletion = await request.get(receipt.statusUrl, {
+    headers: { 'X-Deletion-Status-Token': receipt.statusToken },
+  });
+  expect(deletion.status()).toBe(200);
+  const revoked = await request.get('/api/v1/me', {
+    headers: { Cookie: cookie! },
+  });
+  expect(revoked.status()).toBe(401);
+  const wrongKey = await request.delete('/api/v1/session', {
+    headers: {
+      Origin: origin,
+      Cookie: cookie!,
+      'Idempotency-Key': `delete-${crypto.randomUUID()}`,
+    },
+  });
+  expect(wrongKey.status()).toBe(401);
+});

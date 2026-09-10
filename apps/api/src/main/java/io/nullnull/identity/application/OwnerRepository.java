@@ -26,4 +26,13 @@ public interface OwnerRepository {
      * Requires an existing transaction: a lock without one would be meaningless.
      */
     Optional<Owner> lockAlive(UUID id);
+
+    /** Locks an owner even after soft deletion; used only for deletion receipt replay. */
+    Optional<Owner> lockAny(UUID id);
+
+    /** Soft-deletes and scrubs preference links while the caller holds the owner lock. */
+    void markDeleted(UUID id, java.time.Instant deletedAt);
+
+    /** Removes preferences from an already soft-deleted owner while retaining its receipt anchor. */
+    void scrubDeleted(UUID id);
 }

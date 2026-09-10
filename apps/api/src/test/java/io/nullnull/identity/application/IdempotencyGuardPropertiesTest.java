@@ -103,6 +103,15 @@ class IdempotencyGuardPropertiesTest {
         public Optional<Owner> lockAlive(UUID id) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public Optional<Owner> lockAny(UUID id) { throw new UnsupportedOperationException(); }
+
+        @Override
+        public void markDeleted(UUID id, Instant deletedAt) { throw new UnsupportedOperationException(); }
+
+        @Override
+        public void scrubDeleted(UUID id) { throw new UnsupportedOperationException(); }
     }
 
     private static final class UnusedRecords implements IdempotencyRecordStore {

@@ -12,6 +12,10 @@ import java.util.UUID;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,8 +24,10 @@ public class SessionController {
     private final SessionService sessions;
     private final SessionProperties properties;
     private final SessionHttpConfiguration http;
-    public SessionController(SessionService sessions, SessionProperties properties, SessionHttpConfiguration http) {
-        this.sessions = sessions; this.properties = properties; this.http = http;
+    private final io.nullnull.identity.application.DeletionService deletions;
+    public SessionController(SessionService sessions, SessionProperties properties, SessionHttpConfiguration http,
+            io.nullnull.identity.application.DeletionService deletions) {
+        this.sessions = sessions; this.properties = properties; this.http = http; this.deletions = deletions;
     }
     @PostMapping("/demo/sessions")
     @NullnullOperation(id = "createDemoSession")
@@ -42,6 +48,22 @@ public class SessionController {
     public CsrfResponse csrf(OwnerContext context) {
         var result = sessions.issueCsrf(context);
         return new CsrfResponse(result.token, result.expiresAt);
+    }
+    @DeleteMapping("/session")
+    @NullnullOperation(id = "deleteCurrentSession", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<io.nullnull.identity.application.DeletionService.DeletionReceipt> delete(
+            OwnerContext context, @RequestHeader("Idempotency-Key") String key) {
+        var receipt = deletions.accept(context, key);
+        return ResponseEntity.accepted().header("Location", receipt.statusUrl())
+                .header("Cache-Control", "private, no-store").body(receipt);
+    }
+    @GetMapping("/deletion-requests/{deletionRequestId}")
+    @NullnullOperation(id = "getDeletionRequest", security = Security.DELETION_STATUS_TOKEN)
+    public ResponseEntity<io.nullnull.identity.application.DeletionService.DeletionStatus> deletionStatus(
+            @PathVariable UUID deletionRequestId,
+            @RequestHeader("X-Deletion-Status-Token") String token) {
+        return ResponseEntity.ok().header("Cache-Control", "private, no-store")
+                .body(deletions.status(deletionRequestId, token));
     }
     public record CreateRequest(String locale, String timezone) { }
     public record OwnerProfile(UUID id, String kind, String locale, String timezone,

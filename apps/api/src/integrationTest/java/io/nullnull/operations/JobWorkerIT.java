@@ -62,12 +62,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @SpringBootTest(properties = {
         "nullnull.jobs.enabled=true",
         "nullnull.jobs.poll-interval=PT0.05S",
-        // Four handler types at one slot each: 4 units of work + 4 heartbeats + 4 claims + 1 sweep = 13
-        // connections in the worst case, which needs more than the shipped pool of 10 leaves over
-        // (io.nullnull.operations.application.JobConnectionBudget). Raising the pool is the operator
-        // move the startup failure names, so the context declares it instead of shrinking the test.
         "nullnull.jobs.default-concurrency=1",
-        "spring.datasource.hikari.maximum-pool-size=16",
+        // Four synthetic types run beside the production deletion type: 5 slots, heartbeats and
+        // claims plus the sweep require 16 connections, with two reserved for readiness.
+        "spring.datasource.hikari.maximum-pool-size=18",
         // Out of reach on purpose, so the optional recommendation probe cannot add latency or noise.
         "nullnull.ai.base-url=http://127.0.0.1:1"})
 @AutoConfigureMockMvc
@@ -206,6 +204,8 @@ class JobWorkerIT {
         ATTEMPTED_UNBOUND.clear();
         ATTEMPTED_INSIDE_UNIT_OF_WORK.clear();
         ATTEMPTED_REQUIRES_NEW.clear();
+        jdbc.update("DELETE FROM deletion_tombstones");
+        jdbc.update("DELETE FROM deletion_requests");
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM background_jobs");
         // Shared Compose DB retains earlier identity fixtures; clear children before owners.

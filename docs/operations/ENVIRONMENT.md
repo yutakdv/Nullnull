@@ -71,8 +71,10 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
 | `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
-| `APP_DELETION_RECEIPT_TTL` | 아니오 | 정책 승인값 | 완료/실패 receipt 보존 |
-| `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`. 아직 어떤 코드도 읽지 않는 문서값이고, 삭제 job을 만드는 B02/BA-012가 이 변수를 읽어 enqueue하면서 고정한다 |
+| `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`; BA-012가 enqueue 시 읽고 1~20을 강제한다 |
+| `APP_DELETION_STATUS_TOKEN_TTL` | 아니오 | `P7D` | 삭제 상태 bearer hash 보존 기간. 경계 시각부터 410이며 sweep은 hash를 null로 만든다 |
+| `APP_DELETION_TOMBSTONE_RETENTION` | 아니오 | `P21D` 제안값 | backup 최대 보존 14일과 추가 7일을 덮는 restore 재삭제 manifest 보존 |
+| `NULLNULL_DELETION_TOKEN_SECRET` | production 예 | runtime secret | request ID와 만료 시각을 묶는 HMAC-SHA256 key, UTF-8 32 byte 이상. cursor secret과 분리 |
 | `APP_NOTIFICATION_RETENTION` | 아니오 | P1 정책 승인값 | 알림 보존/cleanup |
 | `APP_SEARCH_MAX_QUERY_LENGTH` | 아니오 | OpenAPI constraint와 동일 | abuse/log 노출 최소화 |
 | `APP_MAX_REQUEST_BODY_BYTES` | 아니오 | `262144` 제안값 | request body 상한(byte), 최소 `4096`. 선언된 `Content-Length` 초과는 body를 읽기 전에, chunked 초과는 stream 중에 413 `INVALID_REQUEST`다. 근거는 아래 |
@@ -141,7 +143,12 @@ type별 동시 실행은 `nullnull.jobs.concurrency.<type>` property로 덮는�
 - 최악 수요 = `2 x slots + types + 1`. `slots`는 type별 concurrency의 합이다. in-flight job 하나가 unit of work로 connection 1개, 같은 job의 heartbeat가 다른 thread에서 1개를 더 쓰고, type마다 poll의 claim이 1개, 보존 sweep이 1개다.
 - 여유분은 2개다. readiness 응답 한 건이 한 번에 connection 1개를 쓰고(database probe → jobs probe 순차), ALB health check와 다른 호출이 겹칠 수 있어서다.
 - 조건: `2 x slots + types + 1 + 2 <= NULLNULL_DB_POOL_MAX`. 실패 message가 두 수와 대처(`NULLNULL_JOB_DEFAULT_CONCURRENCY`/`nullnull.jobs.concurrency.<type>` 낮추기 또는 `NULLNULL_DB_POOL_MAX` 올리기)를 함께 적는다.
-- 예: type 3개를 기본 concurrency 2로 돌리면 `2x6+3+1 = 16`, 여유분까지 18이므로 pool 10으로는 시작하지 않는다. handler가 붙는 slice(B02/B03/B06)는 이 값을 함께 정해야 한다.
+- 현재 BA-012의 실제 handler type은 `delete-owner-data` 하나다. 기본 concurrency 2이면 `2x2+1+1 = 6`, readiness 여유분까지 8이므로 pool 10에 들어간다. B03/B06에서 type이 늘면 같은 공식으로 다시 계산한다.
+
+삭제 receipt 행은 별도 환경값으로 임의 단축하지 않는다. status bearer hash는 7일에 null로 만들고,
+tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked session과 24시간 idempotency row가
+실제로 사라진 뒤에만 hard delete한다. local/test/integration은 secret이 비었을 때 process마다 임시 key를
+생성하므로 재시작을 넘는 status polling이 필요하면 명시적으로 설정해야 한다.
 
 ### 추천 서비스 `apps/ai` 설정
 

@@ -61,6 +61,13 @@ public class JdbcSessionStore implements SessionStore {
                 WHERE demo_session_id = ? AND token_hash = ? AND expires_at > ?
                 """, Timestamp.from(now), sessionId, hash, Timestamp.from(now)) == 1;
     }
+    @Override
+    public void revokeOwner(UUID ownerId, Instant at) {
+        jdbc.update("DELETE FROM demo_session_csrf_tokens WHERE demo_session_id IN"
+                + " (SELECT id FROM demo_sessions WHERE owner_id = ?)", ownerId);
+        jdbc.update("UPDATE demo_sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE owner_id = ?",
+                Timestamp.from(at), ownerId);
+    }
     private DemoSession map(ResultSet row, int index) throws SQLException {
         return new DemoSession(row.getObject("id", UUID.class), row.getObject("owner_id", UUID.class),
                 row.getTimestamp("created_at").toInstant(), row.getTimestamp("expires_at").toInstant(),

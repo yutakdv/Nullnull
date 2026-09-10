@@ -476,7 +476,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "세션 삭제 receipt·TTL·복원 후 재삭제",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-005",
         "BA-010",

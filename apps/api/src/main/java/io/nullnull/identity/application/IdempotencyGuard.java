@@ -212,6 +212,41 @@ public class IdempotencyGuard {
         }
     }
 
+    /**
+     * Replays an already completed command for a soft-deleted owner. It never reserves a slot and
+     * never invokes an effect, so a revoked deletion cookie cannot start a second command.
+     */
+    public GuardedResponse replayOnly(UUID ownerId, String routeKey, String idempotencyKey,
+            String requestHash) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        int keyLength = idempotencyKey == null ? -1
+                : idempotencyKey.codePointCount(0, idempotencyKey.length());
+        if (routeKey == null || routeKey.isEmpty()
+                || routeKey.codePointCount(0, routeKey.length()) > IdempotencyRecord.ROUTE_KEY_MAX_LENGTH
+                || keyLength < IdempotencyRecord.IDEMPOTENCY_KEY_MIN_LENGTH
+                || keyLength > IdempotencyRecord.IDEMPOTENCY_KEY_MAX_LENGTH
+                || requestHash == null || !REQUEST_HASH.matcher(requestHash).matches()) {
+            throw replayUnauthorized();
+        }
+        return transactions.execute(status -> {
+            lockWaitLimit.applyToCurrentTransaction(lockTimeout);
+            if (owners.lockAny(ownerId).isEmpty()) {
+                throw replayUnauthorized();
+            }
+            Instant now = clock.instant();
+            IdempotencyRecord record = records.lockExisting(ownerId, routeKey, idempotencyKey)
+                    .filter(existing -> existing.expiresAt().isAfter(now))
+                    .filter(IdempotencyRecord::completed)
+                    .filter(existing -> existing.requestHash().equals(requestHash))
+                    .orElseThrow(IdempotencyGuard::replayUnauthorized);
+            return new GuardedResponse(record.responseStatus(), record.responseBody(), true);
+        });
+    }
+
+    private static ApiException replayUnauthorized() {
+        return new ApiException(ProblemCode.UNAUTHORIZED, "A valid deletion replay is required.");
+    }
+
     private <T, S> GuardedResponse guarded(UUID ownerId, String routeKey, String idempotencyKey,
             String requestHash, Supplier<CommandOutcome<T>> command, Function<T, S> responseProjection,
             AtomicBoolean commandStarted) {

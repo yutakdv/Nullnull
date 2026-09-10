@@ -119,6 +119,8 @@ class JobConfigurationIT {
 
     @BeforeEach
     void clearTheQueue() {
+        jdbc.update("DELETE FROM deletion_tombstones");
+        jdbc.update("DELETE FROM deletion_requests");
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM background_jobs");
         // Shared Compose DB retains earlier identity fixtures; clear children before owners.

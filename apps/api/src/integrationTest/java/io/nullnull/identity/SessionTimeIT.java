@@ -52,6 +52,8 @@ class SessionTimeIT {
         clock.set(active.expiresAt.minusNanos(1000));assertThat(sessions.resolve(active.cookie,false)).isNotNull();
         clock.advance(Duration.ofNanos(1000));
         assertThatThrownBy(() -> sessions.resolve(active.cookie,false)).isInstanceOf(ApiException.class);
+        eraser.erase(clock.instant());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_sessions WHERE id = ?",Integer.class,ac.sessionId())).isZero();
     }
     @Test @DisplayName("BA-010-T2 CSRF expiry at equality requires a new independent token")
     void csrfExpiry() {

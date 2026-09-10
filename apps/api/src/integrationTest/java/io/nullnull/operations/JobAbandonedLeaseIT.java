@@ -62,14 +62,15 @@ import org.springframework.transaction.support.TransactionTemplate;
  * one of the attempts - lock contention alone could dead-letter a healthy job. It must be treated as
  * what it is instead: nothing was written, no attempt spent by the handler.
  *
- * <p>One slot per type on purpose: two units of work, two heartbeats, two claims and the retention
- * sweep are seven connections in the worst case, inside the shipped pool of 10
- * (io.nullnull.operations.application.JobConnectionBudget).
+ * <p>One slot per type on purpose. The two synthetic types run beside the production deletion type,
+ * so three units of work, three heartbeats, three claims and the retention sweep require ten
+ * connections plus the two-connection readiness reserve.
  */
 @SpringBootTest(properties = {
         "nullnull.jobs.enabled=true",
         "nullnull.jobs.poll-interval=PT0.05S",
         "nullnull.jobs.default-concurrency=1",
+        "spring.datasource.hikari.maximum-pool-size=12",
         "nullnull.ai.base-url=http://127.0.0.1:1"})
 @Import({TestcontainersConfiguration.class, JobAbandonedLeaseIT.TestJobs.class})
 @DisplayName("BA-005 abandoned lease and contention")
@@ -185,6 +186,8 @@ class JobAbandonedLeaseIT {
         release = new CountDownLatch(1);
         failureReported = new CountDownLatch(1);
         attemptedWrites = new CopyOnWriteArrayList<>();
+        jdbc.update("DELETE FROM deletion_tombstones");
+        jdbc.update("DELETE FROM deletion_requests");
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM background_jobs");
         // Shared Compose DB retains earlier identity fixtures; clear children before owners.

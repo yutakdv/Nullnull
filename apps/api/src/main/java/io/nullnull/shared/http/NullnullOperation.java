@@ -11,5 +11,5 @@ import java.lang.annotation.ElementType;
 public @interface NullnullOperation {
     String id();
     Security[] security() default {};
-    enum Security { SESSION, CSRF }
+    enum Security { SESSION, CSRF, DELETION_STATUS_TOKEN }
 }

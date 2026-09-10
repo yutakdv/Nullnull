@@ -27,26 +27,34 @@ public class SessionTtlEraser implements TtlEraser {
         int removed = 0;
         var owners = jdbc.queryForList("""
                 SELECT DISTINCT owner_id FROM demo_sessions
-                WHERE (last_seen_at IS NULL AND revoked_at IS NULL AND created_at <= ?) OR revoked_at <= ?
+                WHERE (last_seen_at IS NULL AND revoked_at IS NULL AND created_at <= ?)
+                   OR (revoked_at IS NULL AND expires_at <= ?) OR revoked_at <= ?
                 ORDER BY owner_id LIMIT 1000
                 """, UUID.class, Timestamp.from(now.minus(Duration.ofMinutes(15))),
+                Timestamp.from(now),
                 Timestamp.from(now.minus(Duration.ofDays(30))));
         for (UUID owner : owners) {
             jdbc.queryForList("SELECT id FROM owners WHERE id = ? FOR UPDATE", UUID.class, owner);
             boolean orphanOwner = Boolean.TRUE.equals(jdbc.queryForObject("""
                     SELECT EXISTS(SELECT 1 FROM demo_sessions WHERE owner_id = ?
                         AND last_seen_at IS NULL AND revoked_at IS NULL AND created_at <= ?)
-                    """, Boolean.class, owner, Timestamp.from(now.minus(Duration.ofMinutes(15)))));
+                    AND NOT EXISTS(SELECT 1 FROM demo_sessions WHERE owner_id = ?
+                        AND last_seen_at IS NOT NULL)
+                    """, Boolean.class, owner, Timestamp.from(now.minus(Duration.ofMinutes(15))), owner));
             removed += jdbc.update("""
                     DELETE FROM demo_session_csrf_tokens WHERE demo_session_id IN
                     (SELECT id FROM demo_sessions WHERE owner_id = ? AND
-                    ((last_seen_at IS NULL AND revoked_at IS NULL AND created_at <= ?) OR revoked_at <= ?))
+                    ((last_seen_at IS NULL AND revoked_at IS NULL AND created_at <= ?)
+                     OR (revoked_at IS NULL AND expires_at <= ?) OR revoked_at <= ?))
                     """, owner, Timestamp.from(now.minus(Duration.ofMinutes(15))),
+                    Timestamp.from(now),
                     Timestamp.from(now.minus(Duration.ofDays(30))));
             removed += jdbc.update("""
                     DELETE FROM demo_sessions WHERE owner_id = ? AND
-                    ((last_seen_at IS NULL AND revoked_at IS NULL AND created_at <= ?) OR revoked_at <= ?)
+                    ((last_seen_at IS NULL AND revoked_at IS NULL AND created_at <= ?)
+                     OR (revoked_at IS NULL AND expires_at <= ?) OR revoked_at <= ?)
                     """, owner, Timestamp.from(now.minus(Duration.ofMinutes(15))),
+                    Timestamp.from(now),
                     Timestamp.from(now.minus(Duration.ofDays(30))));
             if (orphanOwner) {
                 removed += jdbc.update("""

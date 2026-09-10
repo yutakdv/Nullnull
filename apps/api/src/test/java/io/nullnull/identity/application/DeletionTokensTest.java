@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 class DeletionTokensTest {
     private static String secret() {
@@ -35,5 +36,18 @@ class DeletionTokensTest {
         String tooShort = secret().substring(0, 31);
         assertThatThrownBy(() -> new DeletionTokens(tooShort))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageNotContaining(tooShort);
+    }
+
+    @Test void deletionSettingsFailClosedOutsideDevelopmentProfiles() {
+        var production = new MockEnvironment(); production.setActiveProfiles("production");
+        assertThatThrownBy(() -> new DeletionProperties("P7D", "P21D", 5, "", production))
+                .isInstanceOf(IllegalArgumentException.class);
+        var integration = new MockEnvironment(); integration.setActiveProfiles("integration");
+        assertThatCode(() -> new DeletionProperties("P7D", "P21D", 5, "", integration))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> new DeletionProperties("P7D", "P6D", 5, secret(), integration))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new DeletionProperties("P7D", "P21D", 21, secret(), integration))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

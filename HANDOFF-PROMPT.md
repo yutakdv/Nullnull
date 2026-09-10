@@ -25,9 +25,17 @@ cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전�
 
 Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
 
-순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → **B3 BA-012(다음)** → C1 BA-020 → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → ~~B3 BA-012~~ → **C1 BA-020(다음)** → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
 
-## 2. 현재 상태 (B2 BA-011 구현 후)
+## 2. 현재 상태 (B3 BA-012 구현 후)
+
+### B3(BA-012) — 삭제 receipt·worker·restore tombstone
+
+- V006과 `DELETE /session`, `GET /deletion-requests/{id}`를 구현했다. 접수 transaction은 모든 owner session/CSRF revoke, owner deleted 표시, hash-only receipt, tombstone, deletion job을 함께 만든다. revoked cookie는 같은 route/key의 완료 projection만 24시간 재생하며 다른 접근은 401이다.
+- 상태 token은 request ID와 정확한 expiry epoch를 HMAC-SHA256으로 묶고 DB에는 SHA-256 hash만 둔다. 7일 경계부터 410이며 token hash를 지운다. tombstone은 제안값 21일, revoked session은 30일이라 owner hard delete는 retained FK가 모두 사라질 때까지 기다린다.
+- 실제 worker는 `JobContext.transactional`의 짧은 eraser 단위로 실행하고 partial failure를 재시도한다. `TombstoneReapplier`는 web lifecycle보다 먼저 동기 재삭제하며 하나라도 실패하면 startup을 열지 않는다. `REC-SEC-03`을 `gradle:integrationTest`에 등록했다.
+- 변이 14종이 전부 RED였고 SHA 복원이 일치했다. 로컬 증거는 `.artifacts/ba-012/`; JUnit은 `apps/api/build/test-results/`다. BA-012는 `integration-ready`이며 다음은 C1 BA-020, V007이다.
+- 최종 local과 full Docker Java는 280/127/13/19, 실패·오류·skip 0이다. AI 410, web unit 224, Playwright 36, client diff·audit·egress-denied가 통과했다. Docker 공유 DB에서 발견한 V006 FK fixture 회귀도 자식→owner 정리 순서로 수정한 뒤 전체 gate를 다시 통과했다.
 
 **최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper `integration_mode=full-docker`, exit 0을 확인했다. A4 자체 커밋은 `552a539`, main 수신 merge commit은 `308ee35`다.
 

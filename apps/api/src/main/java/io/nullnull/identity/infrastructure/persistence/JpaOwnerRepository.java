@@ -60,4 +60,30 @@ public class JpaOwnerRepository implements OwnerRepository {
         // lock_timeout must surface as the module's own exception rather than a driver failure.
         return BoundedLockWait.on(() -> owners.lockAlive(id)).map(OwnerEntity::toDomain);
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Owner> lockAny(UUID id) {
+        return BoundedLockWait.on(() -> owners.lockAny(id)).map(OwnerEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void markDeleted(UUID id, java.time.Instant deletedAt) {
+        OwnerEntity entity = entityManager.find(OwnerEntity.class, id);
+        if (entity == null) {
+            throw new IllegalStateException("locked owner disappeared during deletion");
+        }
+        entity.markDeleted(deletedAt);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void scrubDeleted(UUID id) {
+        OwnerEntity entity = entityManager.find(OwnerEntity.class, id);
+        if (entity == null || entity.toDomain().deletedAt() == null) {
+            throw new IllegalStateException("only a soft-deleted owner can be scrubbed");
+        }
+        entity.scrubDeleted();
+    }
 }
