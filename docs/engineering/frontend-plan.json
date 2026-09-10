@@ -822,7 +822,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "lock control, unlock/date-lock confirm",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-302",
         "BA-041"

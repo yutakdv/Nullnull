@@ -540,3 +540,45 @@ export function useRemoveTripCandidate(tripId: string | null) {
     },
   });
 }
+
+type ConstraintType = components['schemas']['ConstraintType'];
+
+/**
+ * Releases one item lock (FR-CON-02, FR-CON-05).
+ *
+ * One constraint per request, which is the contract's own shape:
+ * DELETE /constraints/{constraintType}. Invariant 7 says the four locks are
+ * independent and none is released automatically, so there is deliberately no
+ * "clear all" here — a caller wanting two gone asks twice, and the user
+ * confirms each.
+ *
+ * If-Match because it changes the schedule and bumps the trip version.
+ */
+export function useRemoveItemConstraint(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    { itemId: string; constraintType: ConstraintType; etag: string | null }
+  >({
+    mutationFn: async ({ itemId, constraintType, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot change a lock without the trip ETag');
+      const { data, error, response } = await getApiClient().DELETE(
+        '/trips/{tripId}/items/{itemId}/constraints/{constraintType}',
+        {
+          params: {
+            path: { tripId, itemId, constraintType },
+            header: { 'If-Match': etag },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }) => {
+      if (tripId === null) return;
+      queryClient.setQueryData(tripQueryKey(tripId), { trip: result.trip, etag });
+    },
+  });
+}

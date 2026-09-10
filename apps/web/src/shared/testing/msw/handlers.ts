@@ -152,6 +152,43 @@ export const handlers = [
     };
     return new HttpResponse(null, { status: 204 });
   }),
+  // MOCK DATA (FE-304). removeTripItemConstraint has no approved example
+  // (BA-041). Stateful so a released lock stays released and the version
+  // advances, which is what makes a stale-ETag bug visible.
+  http.delete(
+    `${API_BASE}/trips/:tripId/items/:itemId/constraints/:constraintType`,
+    ({ request, params }) => {
+      const trip = currentTrip();
+      if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+        return problemResponse('TRIP_CHANGED');
+      }
+      const itemId = String(params.itemId);
+      const type = String(params.constraintType);
+      const next = {
+        ...trip,
+        version: trip.version + 1,
+        days: trip.days.map((day) => ({
+          ...day,
+          items: day.items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  // Only the named constraint goes. The others are copied
+                  // through untouched, which is invariant 7 modelled rather
+                  // than assumed.
+                  constraints: item.constraints.filter((c) => c.type !== type),
+                }
+              : item,
+          ),
+        })),
+      } as typeof trip;
+      tripState = next;
+      return HttpResponse.json(
+        { trip: next, changedItemIds: [itemId] },
+        { headers: { ETag: `"${String(next.version)}"` } },
+      );
+    },
+  ),
   http.post(`${API_BASE}/trips/:tripId/items`, async ({ request }) => {
     const trip = currentTrip();
     if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {

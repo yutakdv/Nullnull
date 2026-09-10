@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import styles from './ConfirmDialog.module.css';
 
 // Figma: S07-9 폐기 dialog `413:2020`, and the shape any confirm takes.
@@ -35,6 +35,10 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  // Unique per instance: more than one dialog can be mounted at once (a screen
+  // with a discard confirm and a lock confirm), and a hardcoded id points every
+  // one of them at the first heading in the document.
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +70,7 @@ export function ConfirmDialog({
 
   return (
     <dialog
-      aria-labelledby="confirm-dialog-title"
+      aria-labelledby={titleId}
       className={styles.dialog}
       onCancel={(event) => {
         // Escape, via the platform. Prevented so React owns the open state
@@ -93,7 +97,7 @@ export function ConfirmDialog({
       ref={ref}
     >
       <div className={styles.panel}>
-        <h2 className={styles.title} id="confirm-dialog-title">
+        <h2 className={styles.title} id={titleId}>
           {title}
         </h2>
         {body === undefined ? null : <div className={styles.body}>{body}</div>}

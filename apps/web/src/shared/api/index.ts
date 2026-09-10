@@ -44,6 +44,7 @@ export {
   useCandidateMatches,
   useAddTripItem,
   useRemoveTripCandidate,
+  useRemoveItemConstraint,
   candidatesQueryKey,
   useUpdatePreferences,
   tripQueryKey,

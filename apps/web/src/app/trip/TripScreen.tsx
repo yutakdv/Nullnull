@@ -2,9 +2,9 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import type { MessageKey } from '../../i18n/messages.js';
 import { isProblem, useTrip } from '../../shared/api/index.js';
 import { Chip } from '../../shared/ui/components/index.js';
+import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
 import styles from './TripScreen.module.css';
 import {
@@ -252,7 +252,11 @@ export function TripScreen() {
             <ul className={styles.items}>
               {orderedItems(day).map((item) => (
                 <li key={item.id}>
-                  <TripItemRow item={item} />
+                  <TripItemRow
+                    etag={query.data.etag}
+                    item={item}
+                    tripId={tripId ?? null}
+                  />
                 </li>
               ))}
             </ul>
@@ -271,9 +275,16 @@ export function TripScreen() {
  * pressable locks that do nothing would be a worse lie than showing them as
  * state.
  */
-function TripItemRow({ item }: { item: TripItem }) {
+function TripItemRow({
+  item,
+  tripId,
+  etag,
+}: {
+  item: TripItem;
+  tripId: string | null;
+  etag: string | null;
+}) {
   const { locale, t } = useI18n();
-  const locks = item.constraints.map((c) => c.type);
 
   return (
     <article className={styles.item}>
@@ -298,17 +309,9 @@ function TripItemRow({ item }: { item: TripItem }) {
         )}
       </p>
 
-      {/* Locks as status, not controls (FE-304 makes them operable). Named in
-          words so the state does not depend on an icon alone. */}
-      {locks.length > 0 ? (
-        <ul className={styles.locks}>
-          {locks.map((lock) => (
-            <li className={styles.lock} key={lock}>
-              {t(`trip.lock.${lock}` as MessageKey)}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {/* Operable as of FE-304: each lock releases on its own request, and the
+          two with confirm frames ask first. */}
+      <LockRow etag={etag} item={item} tripId={tripId} />
     </article>
   );
 }

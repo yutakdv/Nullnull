@@ -250,6 +250,24 @@ export const messages = {
     'trip.lock.DATE': '날짜 고정',
     'trip.lock.TIME': '시간 고정',
     'trip.lock.RESERVATION': '예약 고정',
+    // S07-7 `413:2081` and S07-10b `527:3876` (FE-304). The frames fix this
+    // wording: each dialog states which lock releases and what carries over.
+    'trip.lock.release': '{lock} 해제',
+    'trip.lock.reservationNote': '예약에서 관리해요',
+    'trip.lock.releasing': '해제하는 중이에요',
+    'trip.lock.releaseFailed': '잠금을 해제하지 못했어요',
+    'trip.lock.cancel': '취소',
+    'trip.lock.keeps': '{locks}은 그대로예요',
+    'trip.lock.keepsNone': '이 일정에 남는 잠금은 없어요',
+    // MUST_VISIT (413:2081)
+    'trip.lock.mustVisit.title': '꼭 가려던 곳이에요. 정말 해제할까요?',
+    'trip.lock.mustVisit.body':
+      '해제하면 Must Visit 표시가 풀려요. 날짜·시간은 그대로 이어받아요.',
+    'trip.lock.mustVisit.confirm': '해제하고 계속',
+    // DATE (527:3876)
+    'trip.lock.date.title': '날짜를 고정해둔 일정이에요. 해제할까요?',
+    'trip.lock.date.body': '해제하면 날짜 고정이 풀려요. 시작 시간은 그대로 이어받아요.',
+    'trip.lock.date.confirm': '해제하기',
 
     // S07-2 edit `411:1837`, S07-9 discard dialog `413:2020` (FE-302).
     'trip.editMode': '편집 중',
@@ -596,6 +614,21 @@ export const messages = {
     'trip.lock.DATE': 'Date locked',
     'trip.lock.TIME': 'Time locked',
     'trip.lock.RESERVATION': 'Reservation locked',
+    'trip.lock.release': 'Release {lock}',
+    'trip.lock.reservationNote': 'Managed by the reservation',
+    'trip.lock.releasing': 'Releasing',
+    'trip.lock.releaseFailed': "We couldn't release that lock",
+    'trip.lock.cancel': 'Cancel',
+    'trip.lock.keeps': '{locks} stay as they are',
+    'trip.lock.keepsNone': 'No other lock remains on this stop',
+    'trip.lock.mustVisit.title': 'This was a must-visit. Release it?',
+    'trip.lock.mustVisit.body':
+      'Releasing drops the must-visit mark. The date and time carry over unchanged.',
+    'trip.lock.mustVisit.confirm': 'Release and continue',
+    'trip.lock.date.title': 'This stop has its date locked. Release it?',
+    'trip.lock.date.body':
+      'Releasing drops the date lock. The start time carries over unchanged.',
+    'trip.lock.date.confirm': 'Release',
 
     'trip.editMode': 'Editing',
     'trip.editStart': 'Edit itinerary',
