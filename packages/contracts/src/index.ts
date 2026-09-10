@@ -37,6 +37,7 @@ import historyPage from "../fixtures/optimizations/history-page.json" with { typ
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
+import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -89,6 +90,9 @@ export const sessionFixtures = {
 export const tripFixtures = {
   page: tripPage as components["schemas"]["TripPage"],
   pageEmpty: tripPageEmpty as components["schemas"]["TripPage"],
+  // What createTrip returns: an empty trip with one day per date in the range,
+  // which is what the wizard's deterministic seed produces before any item.
+  detailCreated: tripDetailCreated as components["schemas"]["TripDetail"],
 };
 
 export const optimizationFixtures = {

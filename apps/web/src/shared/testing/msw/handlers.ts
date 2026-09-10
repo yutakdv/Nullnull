@@ -64,6 +64,15 @@ export const handlers = [
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
+  // MOCK DATA (FE-102). Without this the wizard's final submit is an unhandled
+  // request: the tests each stood up their own handler and passed, while the
+  // running app answered 500 and showed its failure state. Delete with BA-030.
+  http.post(`${API_BASE}/trips`, () =>
+    HttpResponse.json(tripFixtures.detailCreated, {
+      status: 201,
+      headers: { ETag: 'W/"1"', Location: `/trips/${tripFixtures.detailCreated.id}` },
+    }),
+  ),
   // MOCK DATA (FE-103). searchPlaces is a read-only POST so the query never
   // reaches a URL log; the handler matches that shape. Delete with BA-022.
   http.post(`${API_BASE}/places/search`, () =>

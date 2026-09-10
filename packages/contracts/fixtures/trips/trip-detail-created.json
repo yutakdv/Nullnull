@@ -1,0 +1,19 @@
+{
+  "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a03",
+  "title": "새 여행",
+  "startDate": "2026-10-04",
+  "endDate": "2026-10-07",
+  "timezone": "Asia/Seoul",
+  "status": "DRAFT",
+  "version": 1,
+  "candidateCount": 0,
+  "planningLevel": "NOTHING",
+  "interests": [],
+  "days": [
+    { "date": "2026-10-04", "items": [] },
+    { "date": "2026-10-05", "items": [] },
+    { "date": "2026-10-06", "items": [] },
+    { "date": "2026-10-07", "items": [] }
+  ],
+  "candidates": []
+}

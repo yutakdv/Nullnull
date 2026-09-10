@@ -13,14 +13,18 @@
       "serverVerified": false
     },
     "session": {
-      "schemas": ["SessionBootstrap", "CsrfTokenResponse", "OwnerProfile"],
+      "schemas": [
+        "SessionBootstrap",
+        "CsrfTokenResponse",
+        "OwnerProfile"
+      ],
       "count": 3,
       "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies.",
       "serverVerified": false
     },
     "trips": {
-      "schema": "TripPage",
-      "count": 2,
+      "schema": "TripPage, TripDetail",
+      "count": 3,
       "basis": "NO approved example exists for listTrips. Values invented to match Figma S14 422:2925 (two trips, and an empty variant) and validated against the schema only. Replace with BE/AI's real response (BA-030).",
       "serverVerified": false
     },
