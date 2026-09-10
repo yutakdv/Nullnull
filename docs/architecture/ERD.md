@@ -422,8 +422,10 @@ erDiagram
     SOURCE_REGISTRY {
       string code PK
       string display_name
+      string source_state
       string license_name
       string license_url
+      string license_review_state
       string official_url
       string terms_url
       string default_scope
@@ -432,10 +434,12 @@ erDiagram
       jsonb quota_policy
       string attribution_template
       string retention_policy
+      string refresh_expectation
       string provider_schema_version
       bigint current_revision
       int stale_after_seconds
       boolean enabled
+      jsonb contest_use
       timestamptz reviewed_at
       timestamptz updated_at
     }
@@ -485,7 +489,7 @@ erDiagram
       int duration_ms
       int response_count
       string release_version
-      uuid request_id
+      string request_id
       string payload_hash
       string validation_result
       timestamptz created_at
@@ -744,7 +748,7 @@ erDiagram
 
 - `crowd_snapshots`는 `place_id`와 `live_area_id` 중 정확히 하나를 요구한다.
 - `LIVE`는 `observed_at` 필수다. `FORECAST`는 `target_at`과 `forecast_issue_id`가 필수지만 provider가 발표 시각을 주지 않으면 `observed_at`은 null이어야 하며 `fetched_at`으로 대체하지 않는다.
-- 모든 snapshot은 수집 시점의 `(source_code, source_registry_version)`을 참조한다. registry revision은 immutable canonical contract/metric/license/attribution/schema hash다.
+- 모든 snapshot은 수집 시점의 `(source_code, source_registry_version)`을 참조한다. registry revision은 immutable canonical contract hash이며 approval·quota·license review·scope·retention·refresh·schema·stale·contest use를 함께 고정한다.
 - `source_quality_incidents`의 affected window/scope에 걸린 row는 `PROVIDER_INCIDENT` flag와 `comparison_eligible=false`가 강제된다.
 - `REPLAY`는 `replay_manifest_entries`를 통해 checksum·capture window·scrub·license 승인이 끝난 manifest에 속해야 하며 API에서 현재값으로 반환하지 않는다.
 - 정확한 비교 delta는 `comparison_eligible=true`인 row에만 계산/저장한다.

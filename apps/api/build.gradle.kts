@@ -27,6 +27,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation(libs.json.schema.validator)
     runtimeOnly("org.postgresql:postgresql")
 
     // Shared test support (Testcontainers wiring) for every suite that needs PostgreSQL.
@@ -97,6 +98,9 @@ testing {
                 implementation("org.testcontainers:testcontainers-postgresql")
                 implementation("org.yaml:snakeyaml")
                 implementation("tools.jackson.core:jackson-databind")
+                // JvmTestSuite's implementation(project()) deliberately does not expose the
+                // application's implementation dependencies. JsonSchemaCheck owns this direct
+                // OpenAPI contract dependency, while ProviderResponseValidator owns the main one.
                 implementation(libs.json.schema.validator)
                 runtimeOnly("org.postgresql:postgresql")
             }

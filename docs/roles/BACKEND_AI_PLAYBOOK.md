@@ -455,7 +455,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-020
 
-**공통 source registry·adapter·쿼터·drift** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**공통 source registry·adapter·쿼터·drift** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-005](#ba-005), [BA-010](#ba-010)
 - 기능 ID: `FR-DAT-04`, `FR-OPS-03`, `FR-OPS-04`
@@ -473,11 +473,19 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-020-T1`: 429·timeout·malformed·추가 enum·incident window를 합성 provider로 검증한다
-- `BA-020-T2`: collector 중복 호출과 쿼터 초과를 차단하고 60/80/90% 경보를 낸다
-- `BA-020-T3`: provider 장애가 trip CRUD executor를 고갈시키지 않는다
+- `BA-020-T1`: `ProviderKitTest`·`CollectorRunRecorderTest`·`SourceRegistryIT`가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 합성 provider와 PostgreSQL로 검증한다.
+- `BA-020-T2`: `SourceRegistryIT`가 KST 일일 quota의 60/80/90% 경보·100% 초과 거부 및 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다.
+- `BA-020-T3`: `SourceRegistryIT.slowProviderDoesNotBlockApiRequests`가 네 개의 지연 provider call 중에도 readiness와 owner `/me` 요청이 즉시 처리되는지를 검증한다.
 
-FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 대장. 서울 전용 adapter는 이 단계에서 구현하지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+구현·검증 증거:
+
+- `V007__sources.sql`은 source registry/revision/quality incident/collector run/safe ingest ledger를 만들고, immutable revision hash에 approval·quota·license review·scope·retention·refresh·schema·stale·contest use를 포함한다. KTO place detail은 `P7D`, forecast는 `PT24H`, 미신청 related와 B10 전 source는 `DISABLED`다.
+- provider transport는 source별 exact host/HTTPS(격리 test stub의 loopback HTTP만 예외), redirect 거부, bounded executor·source permit, retry/jitter/429, circuit, response size 제한과 sanitized error를 사용한다. production host map은 KTO `apis.data.go.kr`과 Seoul `openapi.seoul.go.kr`으로 code에서 고정한다.
+- canary는 provider URI에만 주입해 sanitized error와 `api_ingest_logs` row에 남지 않음을 검증한다. audit API/DDL에는 credential·full URI/query·body·user input field가 없다.
+- fresh local `./gradlew --no-daemon test --rerun integrationTest --rerun openapiContractTest --rerun recommendationTest --rerun`과 full Docker gate가 통과했다. Docker Java는 288/133/13/19, AI pytest 410, web unit 224, Playwright 36이며 fail/error/skip은 0이다. C1 JUnit은 `apps/api/build/test-results/test/`, `apps/api/build/test-results/integrationTest/`에 있다.
+- C1 safety mutation은 다른 source collector run의 SQL predicate 제거와 production host policy guard 우회 두 건을 실제로 RED로 확인했고, 원본을 복구한 focused `BA-020-T1/T2`를 다시 통과시켰다.
+
+FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 대장. C2에서만 실제 KTO gateway·key·provenance/snapshot을 추가하며, 서울 전용 adapter는 이 단계에서 구현하지 않는다.
 
 ### BA-021
 

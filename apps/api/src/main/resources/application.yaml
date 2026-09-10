@@ -121,3 +121,28 @@ nullnull:
     base-url: ${NULLNULL_AI_BASE_URL}
     connect-timeout: ${NULLNULL_AI_CONNECT_TIMEOUT:PT2S}
     read-timeout: ${NULLNULL_AI_READ_TIMEOUT:PT5S}
+  # External provider calls use an isolated bounded executor, exact host allowlists and no redirects.
+  provider:
+    connect-timeout: ${NULLNULL_PROVIDER_CONNECT_TIMEOUT:PT2S}
+    request-timeout: ${NULLNULL_PROVIDER_REQUEST_TIMEOUT:PT5S}
+    max-response-bytes: ${NULLNULL_PROVIDER_MAX_RESPONSE_BYTES:2097152}
+    executor-threads: ${NULLNULL_PROVIDER_EXECUTOR_THREADS:8}
+    executor-queue-capacity: ${NULLNULL_PROVIDER_EXECUTOR_QUEUE_CAPACITY:32}
+    per-source-concurrency: ${NULLNULL_PROVIDER_PER_SOURCE_CONCURRENCY:4}
+    retry:
+      attempts: ${NULLNULL_PROVIDER_RETRY_ATTEMPTS:3}
+      base-delay: ${NULLNULL_PROVIDER_RETRY_BASE_DELAY:PT0.1S}
+      max-delay: ${NULLNULL_PROVIDER_RETRY_MAX_DELAY:PT2S}
+    circuit:
+      failure-threshold: ${NULLNULL_PROVIDER_CIRCUIT_FAILURE_THRESHOLD:5}
+      failure-window: ${NULLNULL_PROVIDER_CIRCUIT_FAILURE_WINDOW:PT30S}
+      open-duration: ${NULLNULL_PROVIDER_CIRCUIT_OPEN_DURATION:PT60S}
+  sources:
+    KTO_KOR_SERVICE_2:
+      allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
+    KTO_CONCENTRATION_FORECAST:
+      allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
+    KTO_RELATED_PLACES:
+      allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
+    SEOUL_CITYDATA:
+      allowed-hosts: ["${SEOUL_ALLOWED_HOST:openapi.seoul.go.kr}"]

@@ -41,6 +41,7 @@ tags:
 | A-020 | 제출은 로그인 불필요·위치 OFF이며 실제 KTO OpenAPI 호출/이력/텍스트 출처가 필수 | 공모전 준수 매트릭스 |
 | A-021 | 총괄 PM은 scope·문구·공모전 claim·최종 go/no-go를 승인하되 두 기술 DRI의 safety veto와 필수 review를 대신하지 않음 | [현재 상태와 검수 gate](DECISIONS_AND_RISKS.md) |
 | A-022 | 추천 계산 전체(feed 순서·관련 장소·slot·ITEM·설명 template)는 Python 서비스 `apps/ai`가 담당하고 Spring은 hydration·gateway·재검증·저장을 담당. 공개 OpenAPI는 변경 없음 | [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006), 2026-09-07 결정 |
+| A-023 | D-015 stale threshold는 KTO forecast `PT24H`, KTO place detail 및 내부 catalog rule `P7D`로 고정한다. threshold가 없는 source는 collection하지 않는다 | 2026-09-07 팀 결정; C1 source registry v1 |
 
 ## 2. 열린 결정
 
@@ -60,7 +61,6 @@ tags:
 | D-010 | 두 팀원의 GitHub handle과 CODEOWNERS 경로는? | 공동 | B01 | CODEOWNERS 생성 보류 | branch protection reviewer 동작 |
 | D-011 | Figma variable/token과 icon export 방식은? | FE | FE-002 | 수동 수치 복제 금지 | token pipeline + visual diff |
 | D-014 | 사용자 삭제 시 최적화 감사 record를 얼마나 보존할 수 있는가? | BE/AI | B06 | trip 삭제와 함께 제거 | 개인정보/운영 합의 |
-| D-015 | 정확한 congestion source별 stale threshold는? | BE/AI | B03/B10 | source registry에서 미확정 source 비활성 | 공식 갱신 주기+probe 측정 |
 | D-016 | repository와 서비스 코드의 license는 무엇인가? | 공동 | 외부 기여/공개 배포 전 | 명시 license 없음, 재사용 허용을 가정하지 않음 | LICENSE 파일과 의존성 호환 검토 |
 | D-017 | staging/production AWS account를 분리할 수 있는가? | BE/AI | B01 staging/B08/최종 검수 | 별도 account 권장; 불가 시 role/VPC/KMS/secret/stack 완전 분리 | account/stack manifest 또는 예외 ADR |
 | D-018 | staging 월 비용 상한과 운영 시간은? | 공동 | INF-001 전 | 무제한 상시 운영 금지, replay/local 우선 | 승인 금액·Budget 50/80/100% 수신 test |
@@ -132,7 +132,6 @@ tags:
 - D-005 production availability/예산
 - D-007 콘텐츠 사용 권리
 - D-009 개인정보 보존·삭제 문구
-- D-015 source freshness threshold
 - D-016 공개/재사용 license
 - D-017 production account 격리 방식
 - D-018 staging 비용 상한과 production budget

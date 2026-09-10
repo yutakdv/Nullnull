@@ -89,9 +89,9 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived, and every column an older application reads is still there
-            // with the same type and nullability: this slice only adds tables.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
+            // Every existing row survived. V007 also adds six reviewed source rows and their six
+            // immutable revision rows; those are product configuration, not synthetic user data.
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 12);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
@@ -265,10 +265,21 @@ class FlywayMigrationIT {
         jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".demo_session_csrf_tokens"
                         + " (id, demo_session_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
                 UUID.randomUUID(), sessionId, hash, now.plusHours(2), now);
+        UUID deletionRequestId = UUID.randomUUID();
+        new java.security.SecureRandom().nextBytes(hash);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".deletion_requests"
+                        + " (id, owner_id, status_token_hash, status, status_token_expires_at,"
+                        + " requested_at, updated_at) VALUES (?, ?, ?, 'ACCEPTED', ?, ?, ?)",
+                deletionRequestId, ownerId, hash, now.plusDays(7), now, now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".deletion_tombstones"
+                        + " (id, deletion_request_id, owner_id, delete_before, retain_until, scope_hash, created_at)"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                UUID.randomUUID(), deletionRequestId, ownerId, now, now.plusDays(21), "c".repeat(64), now);
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records",
-                        "demo_sessions", "demo_session_csrf_tokens");
+                        "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
+                        "deletion_tombstones");
         return key;
     }
 

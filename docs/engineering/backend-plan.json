@@ -524,7 +524,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "공통 source registry·adapter·쿼터·drift",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-005",
         "BA-010"
@@ -547,18 +547,18 @@
       "tests": [
         {
           "id": "BA-020-T1",
-          "assertion": "429·timeout·malformed·추가 enum·incident window를 합성 provider로 검증한다"
+          "assertion": "ProviderKitTest·CollectorRunRecorderTest·SourceRegistryIT가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 검증한다"
         },
         {
           "id": "BA-020-T2",
-          "assertion": "collector 중복 호출과 쿼터 초과를 차단하고 60/80/90% 경보를 낸다"
+          "assertion": "SourceRegistryIT가 KST 일일 quota의 60/80/90 경보와 100% 초과 거부, 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다"
         },
         {
           "id": "BA-020-T3",
-          "assertion": "provider 장애가 trip CRUD executor를 고갈시키지 않는다"
+          "assertion": "SourceRegistryIT가 네 개의 지연된 provider call 중에도 readiness와 owner /me 요청이 즉시 처리되는지를 검증한다"
         }
       ],
-      "handoff": "source 상태·quota·운영 실패 fixture와 승인 대장. 서울 전용 adapter는 이 단계에서 구현하지 않는다.",
+      "handoff": "V007 source registry와 apps/api build/test-results/{test,integrationTest}의 C1 JUnit 증거. C2에서만 실제 KTO gateway·key·provenance/snapshot을 추가하며 서울 전용 adapter는 구현하지 않는다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-020"

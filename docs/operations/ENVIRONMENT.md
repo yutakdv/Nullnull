@@ -58,7 +58,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 
 | 변수 | Secret | 기본/예 | 설명 |
 | --- | --- | --- | --- |
-| `NULLNULL_ENV` | 아니오 | `local` | 1절 환경과 같은 어휘 `local`/`test`/`staging`/`production`. 이 넷 밖의 값은 startup에서 실패한다(access log filter가 유일한 소비자다) |
+| `NULLNULL_ENV` | 아니오 | `local` | 1절 환경과 같은 어휘 `local`/`test`/`staging`/`production`. 이 넷 밖의 값은 access-log·provider host guard에서 startup 실패한다 |
 | `SERVER_PORT` | 아니오 | `8080` | container port |
 | `APP_PUBLIC_ORIGIN` | 아니오 | `http://localhost:5173` | CORS/Origin 검증 |
 | `APP_COOKIE_DOMAIN` | 아니오 | 모든 환경에서 비움 | `__Host-` cookie에 Domain attribute 금지 |
@@ -97,6 +97,18 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_AI_CONNECT_TIMEOUT` | 아니오 | `PT2S` | gateway connect timeout |
 | `NULLNULL_AI_READ_TIMEOUT` | 아니오 | `PT5S` | gateway read timeout; readiness probe는 별도 1초 |
 | `NULLNULL_CURSOR_SECRET` | 예 | runtime | feed/history opaque cursor 서명 key |
+| `NULLNULL_PROVIDER_CONNECT_TIMEOUT` | 아니오 | `PT2S` | 외부 provider TCP connect 상한 |
+| `NULLNULL_PROVIDER_REQUEST_TIMEOUT` | 아니오 | `PT5S` | provider 전체 요청 상한; API request executor와 분리 |
+| `NULLNULL_PROVIDER_MAX_RESPONSE_BYTES` | 아니오 | `2097152` | provider 응답 최대 byte; 초과는 안전한 provider failure |
+| `NULLNULL_PROVIDER_EXECUTOR_THREADS` | 아니오 | `8` 제안값 | 외부 I/O 전용 bounded executor thread 수 |
+| `NULLNULL_PROVIDER_EXECUTOR_QUEUE_CAPACITY` | 아니오 | `32` 제안값 | provider executor 대기열 상한; 가득 차면 거부하고 API worker를 쓰지 않음 |
+| `NULLNULL_PROVIDER_PER_SOURCE_CONCURRENCY` | 아니오 | `4` 제안값 | source 하나가 executor를 독점하지 못하게 하는 permit 수 |
+| `NULLNULL_PROVIDER_RETRY_ATTEMPTS` | 아니오 | `3` | IO/5xx/429만 retry하는 전체 시도 수 |
+| `NULLNULL_PROVIDER_RETRY_BASE_DELAY` | 아니오 | `PT0.1S` | jitter가 붙는 첫 retry 지연 |
+| `NULLNULL_PROVIDER_RETRY_MAX_DELAY` | 아니오 | `PT2S` | retry 지연 상한; provider `Retry-After`도 이 상한 안에서만 존중 |
+| `NULLNULL_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` | 아니오 | `5` | 같은 source의 실패가 circuit을 여는 횟수 |
+| `NULLNULL_PROVIDER_CIRCUIT_FAILURE_WINDOW` | 아니오 | `PT30S` | 위 실패 횟수를 세는 창 |
+| `NULLNULL_PROVIDER_CIRCUIT_OPEN_DURATION` | 아니오 | `PT60S` | 열린 circuit이 빠른 안전 실패를 반환하는 기간 |
 | `SPRING_PROFILES_ACTIVE` | 아니오 | `local` | profile |
 | `SPRING_DATASOURCE_URL` | 아니오/민감 | JDBC URL | host는 내부 정보로 log redaction |
 | `SPRING_DATASOURCE_USERNAME` | 예 | runtime | DB app role |
@@ -174,9 +186,11 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | `KTO_BASE_URL` | 아니오 | 공식 endpoint, allowlist |
 | `KTO_TIMEOUT` | 아니오 | connect/read timeout |
 | `KTO_RATE_LIMIT_PER_SECOND` | 아니오 | 승인 quota 이하 |
+| `KTO_ALLOWED_HOST` | 아니오 | `apis.data.go.kr`; C1 HTTP allowlist. production은 이 exact host 집합만 허용하며 `127.0.0.1` 같은 test stub으로 drift할 수 없다 |
 | `SEOUL_API_KEY` | 예 | 서울 열린데이터 API key |
 | `SEOUL_BASE_URL` | 아니오 | 공식 endpoint |
 | `SEOUL_TIMEOUT` | 아니오 | timeout |
+| `SEOUL_ALLOWED_HOST` | 아니오 | `openapi.seoul.go.kr`; C1 HTTP allowlist. production은 이 exact host만 허용한다 |
 | `MAP_PROVIDER` | 아니오 | `NONE` P0, provider 결정 후 enum |
 | `MAP_API_KEY` | 예 | backend route/geocode key |
 | `MAP_BASE_URL` | 아니오 | provider endpoint |
@@ -185,7 +199,7 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | `AI_MODEL_ID` | 아니오 | 평가로 승인한 exact model identifier |
 | `AI_TIMEOUT` | 아니오 | request/job timeout |
 
-base URL override는 local/test fixture에 필요하지만 production에서는 hostname allowlist를 검증해 SSRF/잘못된 endpoint를 막는다.
+`ProviderHttpClient`는 redirect를 따르지 않고 source별 exact hostname·HTTPS만 허용한다. local/test fixture는 `127.0.0.1` override를 쓸 수 있지만 production은 `KTO_KOR_SERVICE_2`/`KTO_CONCENTRATION_FORECAST`/`KTO_RELATED_PLACES`의 `apis.data.go.kr` 및 `SEOUL_CITYDATA`의 `openapi.seoul.go.kr` 외의 host, 누락 source, 추가 source 설정으로 startup하지 않는다. provider key·전체 URL/query·응답 원문은 config/log/audit에 남기지 않는다.
 
 ## 5. AWS runtime metadata
 
@@ -282,6 +296,7 @@ startup에서 다음을 검증하고 production은 오류 시 시작하지 않�
 - datasource가 PostgreSQL이고 TLS 정책 충족
 - secret placeholder/빈 값 없음
 - timeout/rate limit/TTL이 안전 범위
+- provider timeout/response byte/executor/permit/retry/circuit 값이 양수 범위이고 production source host가 reviewed exact allowlist와 일치
 - LIVE feature가 ON이면 source registry/key/readiness 설정 존재
 - P1 flag가 승인 없이 ON이 아님
 - replay와 live가 동일 source state로 반환되지 않음

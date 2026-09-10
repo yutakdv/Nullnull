@@ -25,9 +25,9 @@ cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전�
 
 Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
 
-순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → ~~B3 BA-012~~ → **C1 BA-020(다음)** → C2 BA-021 → C3 BA-022 → C4 BA-023 → C5 BA-024.
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → ~~B3 BA-012~~ → ~~C1 BA-020~~ → **C2 BA-021(다음)** → C3 BA-022 → C4 BA-023 → C5 BA-024.
 
-## 2. 현재 상태 (B3 BA-012 구현 후)
+## 2. 현재 상태 (C1 BA-020 구현 후)
 
 ### B3(BA-012) — 삭제 receipt·worker·restore tombstone
 
@@ -36,6 +36,10 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 - 실제 worker는 `JobContext.transactional`의 짧은 eraser 단위로 실행하고 partial failure를 재시도한다. `TombstoneReapplier`는 web lifecycle보다 먼저 동기 재삭제하며 하나라도 실패하면 startup을 열지 않는다. `REC-SEC-03`을 `gradle:integrationTest`에 등록했다.
 - 변이 14종이 전부 RED였고 SHA 복원이 일치했다. 로컬 증거는 `.artifacts/ba-012/`; JUnit은 `apps/api/build/test-results/`다. BA-012는 `integration-ready`이며 다음은 C1 BA-020, V007이다.
 - 최종 local과 full Docker Java는 280/127/13/19, 실패·오류·skip 0이다. AI 410, web unit 224, Playwright 36, client diff·audit·egress-denied가 통과했다. Docker 공유 DB에서 발견한 V006 FK fixture 회귀도 자식→owner 정리 순서로 수정한 뒤 전체 gate를 다시 통과했다.
+- C1은 `V007__sources.sql`로 source registry/revision/quality incident/collector run/safe ingest ledger를 추가했다. revision hash는 collection controls 전체를 덮고, KTO place detail `P7D`·forecast `PT24H`, KTO development key `DEV_APPROVED`, 미신청 related/서울/Replay `DISABLED`, internal catalog rule `PROD_APPROVED`를 seed한다.
+- provider kit은 exact host·redirect 거부·bounded executor/permit·retry/jitter/429·circuit·response byte limit을 공통화한다. source run 재사용 quota reservation, audit canary, drift/incident quarantine, provider 지연 중 readiness/owner 요청 격리를 Testcontainers와 stub provider로 검증했다. fresh local Java 네 suite와 full Docker gate(Java 288/133/13/19, AI 410, web 224, Playwright 36; fail/error/skip 0)가 통과했고 C1은 `integration-ready`다.
+- C1 safety mutation 두 건도 실제 RED다: 다른 source collector run의 SQL predicate를 제거하면 `BA-020-T2`가, production host policy의 guard를 우회하면 `BA-020-T1`이 각각 실패한다. 두 구현을 복구한 focused test를 다시 통과시켰다.
+- 다음 C2는 승인된 KTO operation의 실제 server-side gateway와 provenance/snapshot·실제 호출 evidence다. C1의 registry decision은 provider key나 실제 호출을 구현한 것이 아니다.
 
 **최신 main 수신:** PR #17/#21의 `26d5d90`을 backend에 통합했다. 이제 `apps/web`, 생성 client, `.nullnull-target-stack`이 존재한다. 아래 과거 A3/A4 기록의 “marker 부재로 full wrapper exit 1”은 현재에는 적용하지 않는다. 전체 wrapper `integration_mode=full-docker`, exit 0을 확인했다. A4 자체 커밋은 `552a539`, main 수신 merge commit은 `308ee35`다.
 
@@ -91,7 +95,7 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 
 - PR 전용 `origin/main` OpenAPI breaking diff(oasdiff action v0.1.15 SHA pin), JUnit·ready-card ID·Gradle manifest·evaluation·freshness 집계와 native/Compose 연결을 구현했다.
 - `TemporalComparisonPolicyTest.randomPairsAreEligibleOnlyWhenAllFiveConditionsHold`에 `REC-DATA-02` testcase ID를 추가했다. 기존에는 class display name에만 있어 새 runner가 실제로 실패했다.
-- **A4 구현 완료와 BA-004 카드 전체 완료는 다르다.** 계획의 T3는 C1 stub으로 미뤄졌고 TS client/MSW는 FE 범위다. 카드를 `integration-ready`로 올리면 같은 계획이 요구한 “ready 카드의 모든 tests[].id” 검사와 모순된다. 예외 목록을 추가하지 않고 BA-004는 `in-progress`로 유지했다. C1에서 T3와 Python CI test ID report 연결까지 닫아야 한다.
+- **A4 구현 완료와 BA-004 카드 전체 완료는 다르다.** C1의 isolated provider stub은 구현됐지만, BA-004-T3의 실제 Compose egress evidence와 BA-004-T1/T2 Python CI test ID report 연결은 아직 하나의 ready-card report contract로 합쳐지지 않았다. 예외 목록을 추가하지 않고 BA-004는 `in-progress`로 유지한다.
 - 실제 Compose에서 기본 Spring context cache의 Hikari pool 누적으로 `SQLSTATE 53300`이 발생했다. Gradle test worker의 `spring.test.context.cache.maxSize=1`로 제한했다. app pool/worker budget은 그대로다.
 - 최종 실측(main 수신 전): local·offline Compose 각각 `274 / 101 / 9 / 17`, 0 fail/error/skip. Python unittest 89, docs·Markdownlint·Redocly·AJV 통과. 코드/설정 변이 25개 최종 RED+SHA 복원 일치, OpenAPI 경로 제거 변이 exit 1.
 - 변이/실행 근거: `.superpowers/sdd/2026-09-08-backend-a-to-d/progress.md`의 A4 절, `.artifacts/ba-004/`(로컬). 실행하지 않은 원격 PR gate를 로컬 재현과 혼동하지 않는다.
@@ -138,11 +142,11 @@ git commit -m "feat(be): BA-0xx <한 줄 요약>"
 
 | Slice | 카드 | plan.md 절 | 비고 |
 | --- | --- | --- | --- |
-| A4 | BA-004 | `## Slice A4` | Backend/AI CI 구현 완료. 카드 `in-progress`: T3(C1)·FE 범위 및 CI test ID report 연결 미완료 |
+| A4 | BA-004 | `## Slice A4` | Backend/AI CI 구현 완료. 카드 `in-progress`: C1 isolated stub은 구현됐지만 actual Compose egress evidence와 Python CI test ID report 연결 미완료 |
 | B1 | BA-010 | `## Slice B1` | 익명 owner·session·CSRF. `V005__demo_sessions.sql`. **A3의 `@NullnullOperation` 정책 표를 실제로 강제하는 slice** |
 | B2 | BA-011 | `## Slice B2` | 프로필·locale·onboarding. merge-patch의 null/absent 구분 |
 | B3 | BA-012 | `## Slice B3` | 세션 삭제 receipt·TTL·복원 후 재삭제(`TombstoneReapplier implements SmartLifecycle`) |
-| C1 | BA-020 | `## Slice C1` | source registry·adapter kit·쿼터·drift |
+| C1 | BA-020 | `## Slice C1` | `integration-ready`: source registry·adapter kit·쿼터·drift |
 | C2 | BA-021 | `## Slice C2` | KTO 실호출. **Step 0(provider spec 고정)을 코드보다 먼저** |
 | C3 | BA-022 | `## Slice C3` | canonical 장소·검색·상세·콘텐츠 권리 |
 | C4 | BA-023 | `## Slice C4` | 혼잡 예보·provenance·비교 적격성 |
