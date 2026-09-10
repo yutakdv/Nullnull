@@ -38,6 +38,7 @@ import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json"
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
+import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
 import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
 
@@ -101,6 +102,10 @@ export const tripFixtures = {
   // What createTrip returns: an empty trip with one day per date in the range,
   // which is what the wizard's deterministic seed produces before any item.
   detailCreated: tripDetailCreated as components["schemas"]["TripDetail"],
+  // A trip that already has interests, matching page.items[0] so the list and
+  // the detail agree. FE-106 needs a non-empty set; detailCreated only covers
+  // the empty case.
+  detailWithInterests: tripDetailInterests as components["schemas"]["TripDetail"],
 };
 
 export const optimizationFixtures = {

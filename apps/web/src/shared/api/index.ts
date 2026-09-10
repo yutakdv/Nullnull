@@ -36,6 +36,10 @@ export {
   useOptimizationHistory,
   usePlaceSearch,
   useSessionBootstrap,
+  useTrip,
   useTrips,
+  useReplaceTripInterests,
   useUpdatePreferences,
+  tripQueryKey,
+  type TripWithETag,
 } from './session.js';

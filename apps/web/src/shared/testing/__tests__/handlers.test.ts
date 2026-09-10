@@ -33,13 +33,26 @@ describe('default handlers cover what the screens call', () => {
     expect(called.length).toBeGreaterThan(3);
   });
 
+  /**
+   * Reduces a path to its shape so the two spellings of a parameter compare
+   * equal: the client uses OpenAPI's `{tripId}` and msw uses `:tripId`, and the
+   * names need not agree. Without this every parameterized path silently failed
+   * to match — `endsWith` compared `{deletionRequestId}` against `:id` — so the
+   * guard was passing without checking anything for exactly the handlers most
+   * likely to be missing.
+   */
+  function shape(path: string): string {
+    return path.replace(/\{[^}]+\}/g, '*').replace(/:[^/]+/g, '*');
+  }
+
   it.each(calledOperations())(
     '$method $path has a default handler',
     ({ method, path }) => {
       const served = handlers.some((handler) => {
         const info = (handler as { info?: { method?: string; path?: string } }).info;
         return (
-          info?.method?.toUpperCase() === method && String(info.path ?? '').endsWith(path)
+          info?.method?.toUpperCase() === method &&
+          shape(String(info.path ?? '')).endsWith(shape(path))
         );
       });
       expect(

@@ -8,7 +8,12 @@
 // The CSRF token is held in memory only. It is not a secret to persist: a token
 // in localStorage outlives the session it belongs to and would be attached to
 // requests the server has already stopped honouring.
-import { useMutation, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { createApiClient, type components } from '@nullnull/api-client';
 import { toProblem, type Problem } from './problem.js';
 
@@ -279,6 +284,83 @@ export function useDeletionStatus(
       );
       if (!data) fail(error, response);
       return data;
+    },
+  });
+}
+
+type ReplaceInterestsRequest = components['schemas']['ReplaceInterestsRequest'];
+
+/**
+ * A trip plus the ETag it was read at.
+ *
+ * The ETag is carried beside the body rather than derived from `version`
+ * because If-Match is about *this representation*: the server owns the
+ * validator's format, and a client that rebuilds it from a field has quietly
+ * decided the two can never disagree. When they do, the rebuilt one silently
+ * overwrites a concurrent edit — exactly what invariant 6 exists to stop.
+ */
+export interface TripWithETag {
+  trip: TripDetail;
+  etag: string | null;
+}
+
+export function tripQueryKey(tripId: string) {
+  return ['trip', tripId] as const;
+}
+
+/** Reads one trip, keeping the ETag needed to mutate it. */
+export function useTrip(
+  tripId: string | null,
+): UseQueryResult<TripWithETag, Problem | Error> {
+  return useQuery({
+    queryKey: tripQueryKey(tripId ?? ''),
+    enabled: tripId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET('/trips/{tripId}', {
+        params: { path: { tripId: tripId ?? '' } },
+      });
+      if (!data) fail(error, response);
+      return { trip: data, etag: response.headers.get('ETag') };
+    },
+  });
+}
+
+/**
+ * Replaces the whole interest set for a trip (FR-PRO-05).
+ *
+ * A replace, not a merge: the contract's PUT takes the complete set, so an
+ * empty array is a real value meaning "no interests" rather than a no-op.
+ *
+ * If-Match is required by the contract and not optional here either. Without a
+ * known ETag this refuses to send rather than falling back to an unconditional
+ * write — a blind PUT is how one device's edit erases another's.
+ */
+export function useReplaceTripInterests(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripWithETag,
+    Problem | Error,
+    { interests: ReplaceInterestsRequest['interests']; etag: string | null }
+  >({
+    mutationFn: async ({ interests, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) {
+        throw new Error('Cannot replace interests without the trip ETag');
+      }
+      const { data, error, response } = await getApiClient().PUT(
+        '/trips/{tripId}/interests',
+        {
+          params: { path: { tripId }, header: { 'If-Match': etag } },
+          body: { interests },
+        },
+      );
+      if (!data) fail(error, response);
+      return { trip: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: (result) => {
+      // Seed the cache with the response the server just returned, so the new
+      // ETag is in hand for the next edit without a refetch round-trip.
+      if (tripId !== null) queryClient.setQueryData(tripQueryKey(tripId), result);
     },
   });
 }

@@ -26,8 +26,8 @@
     },
     "trips": {
       "schema": "TripPage, TripDetail",
-      "count": 3,
-      "basis": "NO approved example exists for listTrips. Values invented to match Figma S14 422:2925 (two trips, and an empty variant) and validated against the schema only. Replace with BE/AI's real response (BA-030).",
+      "count": 4,
+      "basis": "NO approved example exists for listTrips, getTrip or replaceTripInterests. Values invented to match Figma S14 422:2925 (two trips, an empty variant, a created trip and one carrying interests) and validated against the schema only. Replace with BE/AI's real response (BA-030, BA-031).",
       "serverVerified": false
     },
     "optimizations": {

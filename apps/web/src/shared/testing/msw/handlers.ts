@@ -38,6 +38,22 @@ export function problemResponse(code: ProblemCode, headers: Record<string, strin
 }
 
 /**
+ * FE-106's trip state. A replace increments the version, so the next If-Match
+ * has to use the ETag the server just returned.
+ */
+let tripState: (typeof tripFixtures)['detailWithInterests'] | null = null;
+
+function currentTrip() {
+  tripState ??= tripFixtures.detailWithInterests;
+  return tripState;
+}
+
+/** Drops mutations between tests, so ordering cannot leak state. */
+export function resetMockState(): void {
+  tripState = null;
+}
+
+/**
  * Default happy-path handlers: only the session bootstrap trio, which is all
  * FE-003 needs. Screen slices add their own as their fixtures arrive from BE.
  */
@@ -70,7 +86,13 @@ export const handlers = [
   http.post(`${API_BASE}/trips`, () =>
     HttpResponse.json(tripFixtures.detailCreated, {
       status: 201,
-      headers: { ETag: 'W/"1"', Location: `/trips/${tripFixtures.detailCreated.id}` },
+      headers: {
+        // Strong, not W/"1": components.headers.ETag is `^"[1-9][0-9]*"$` and
+        // If-Match repeats that pattern, so a weak validator is one the real
+        // server would reject. Mirrors the body's own `version`.
+        ETag: `"${String(tripFixtures.detailCreated.version)}"`,
+        Location: `/trips/${tripFixtures.detailCreated.id}`,
+      },
     }),
   ),
   // MOCK DATA (FE-105). Deletion is 202 with a receipt, then a status the
@@ -93,4 +115,31 @@ export const handlers = [
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),
+
+  // MOCK DATA (FE-106). getTrip and replaceTripInterests have no approved
+  // example, so these are schema-valid guesses. Delete with BA-031.
+  //
+  // Stateful on purpose: the interest card reads an ETag, sends it back as
+  // If-Match and expects a new one. A handler that returned a fixed version
+  // would let a stale-ETag bug pass, because every save would look fresh.
+  http.get(`${API_BASE}/trips/:tripId`, () => {
+    const trip = currentTrip();
+    return HttpResponse.json(trip, { headers: { ETag: `"${String(trip.version)}"` } });
+  }),
+  http.put(`${API_BASE}/trips/:tripId/interests`, async ({ request }) => {
+    const trip = currentTrip();
+    // The contract requires If-Match; a mismatch is the 409 the screen recovers
+    // from. Modelled here so the conflict path is exercised for real rather
+    // than only by a test that forces it.
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const body = (await request.json()) as {
+      interests: (typeof trip)['interests'];
+    };
+    tripState = { ...trip, interests: body.interests, version: trip.version + 1 };
+    return HttpResponse.json(tripState, {
+      headers: { ETag: `"${String(tripState.version)}"` },
+    });
+  }),
 ];

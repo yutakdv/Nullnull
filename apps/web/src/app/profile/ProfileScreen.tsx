@@ -3,6 +3,7 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useOptimizationHistory, useTrips } from '../../shared/api/index.js';
 import { DeletionSection } from './DeletionSection.js';
+import { InterestsSection } from './InterestsSection.js';
 import styles from './ProfileScreen.module.css';
 
 // Figma: S14 profile `422:2925`.
@@ -57,8 +58,13 @@ export function ProfileScreen() {
         </p>
       </div>
 
-      <div className={styles.card}>
-        <p className={styles.sectionHead}>{t('profile.trips.title')}</p>
+      {/* Labelled section, not a bare div: the trip list and the history list
+          both render links titled after a trip, so without a name on each
+          group a screen reader hears two identical sets of links. */}
+      <section aria-labelledby="profile-trips-heading" className={styles.card}>
+        <h2 className={styles.sectionHead} id="profile-trips-heading">
+          {t('profile.trips.title')}
+        </h2>
         {trips.isPending ? (
           <p className={styles.state} role="status">
             {t('profile.trips.loading')}
@@ -100,10 +106,12 @@ export function ProfileScreen() {
             ))}
           </ul>
         ) : null}
-      </div>
+      </section>
 
-      <div className={styles.card}>
-        <p className={styles.sectionHead}>{t('profile.history.title')}</p>
+      <section aria-labelledby="profile-history-heading" className={styles.card}>
+        <h2 className={styles.sectionHead} id="profile-history-heading">
+          {t('profile.history.title')}
+        </h2>
         {history.isPending ? (
           <p className={styles.state} role="status">
             {t('profile.history.loading')}
@@ -149,18 +157,15 @@ export function ProfileScreen() {
         ) : null}
         {/* States it plainly, because the absence is the point. */}
         <p className={styles.note}>{t('profile.history.note')}</p>
+      </section>
+
+      {/* FE-106: was an inert row describing the feature; now the feature. */}
+      <div className={styles.card}>
+        <InterestsSection />
       </div>
 
       <div className={styles.card}>
         <ul className={styles.rows}>
-          <li>
-            <span className={styles.row}>
-              <span className={styles.rowText}>
-                <span className={styles.rowTitle}>{t('profile.interests.title')}</span>
-                <span className={styles.rowNote}>{t('profile.interests.note')}</span>
-              </span>
-            </span>
-          </li>
           <li>
             <Link className={styles.row} to="/about-data">
               <span className={styles.rowText}>

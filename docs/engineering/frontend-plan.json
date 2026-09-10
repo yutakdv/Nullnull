@@ -488,7 +488,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "여행 선택과 여행별 관심사 전체 교체 UI/ETag conflict",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-105",
         "BA-031"
