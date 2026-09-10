@@ -16,7 +16,11 @@ const source = readFileSync('src/shared/api/session.ts', 'utf8');
 /** Paths the API module calls, as (method, path) pairs. */
 function calledOperations(): { method: string; path: string }[] {
   const calls: { method: string; path: string }[] = [];
-  const pattern = /\.(GET|POST|PATCH|PUT|DELETE)\('([^']+)'/g;
+  // `\s*` between the method and the path: prettier wraps a long call so the
+  // path lands on the next line, and a same-line-only regex quietly stops
+  // seeing those operations. That is how /deletion-requests and every FE-303
+  // call were being counted as "not called" and so never checked for a mock.
+  const pattern = /\.(GET|POST|PATCH|PUT|DELETE)\(\s*'([^']+)'/g;
   let match = pattern.exec(source);
   while (match) {
     calls.push({ method: match[1] ?? '', path: match[2] ?? '' });
@@ -30,7 +34,7 @@ describe('default handlers cover what the screens call', () => {
 
   it('finds the calls it means to check', () => {
     // A refactor that moves these elsewhere would make the test vacuous.
-    expect(called.length).toBeGreaterThan(3);
+    expect(called.length).toBeGreaterThan(10);
   });
 
   /**

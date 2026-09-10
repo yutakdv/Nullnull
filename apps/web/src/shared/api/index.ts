@@ -40,7 +40,12 @@ export {
   useTrips,
   useReplaceTripInterests,
   useUpdateTrip,
+  useTripCandidates,
+  useCandidateMatches,
+  useAddTripItem,
+  candidatesQueryKey,
   useUpdatePreferences,
   tripQueryKey,
   type TripWithETag,
+  type TripMutationWithETag,
 } from './session.js';

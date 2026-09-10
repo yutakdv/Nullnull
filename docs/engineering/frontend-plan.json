@@ -770,7 +770,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "S07-8 후보 panel과 일정화 flow",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-301",
         "BA-042"
@@ -787,7 +787,9 @@
       "figmaNodes": [
         "412:1912"
       ],
-      "designRequests": [],
+      "designRequests": [
+        "FCR-031"
+      ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",

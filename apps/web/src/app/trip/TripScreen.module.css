@@ -52,6 +52,9 @@
 }
 
 .candidates {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   padding: 2px var(--space-2);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-pill, 999px);

@@ -40,6 +40,13 @@ import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" wit
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
+import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
+import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
+import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
+import matchSimilar from "../fixtures/candidates/match-similar.json" with { type: "json" };
+import matchNone from "../fixtures/candidates/match-none.json" with { type: "json" };
+import matchChecking from "../fixtures/candidates/match-checking.json" with { type: "json" };
+import matchUnknown from "../fixtures/candidates/match-unknown.json" with { type: "json" };
 import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
 import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
 
@@ -110,6 +117,18 @@ export const tripFixtures = {
   // A trip with items on some days and none on others, so FE-301's per-day
   // empty state is exercised by the data rather than only by a test.
   detailScheduled: tripDetailScheduled as components["schemas"]["TripDetail"],
+};
+
+export const candidateFixtures = {
+  page: candidatePage as components["schemas"]["CandidatePage"],
+  pageEmpty: candidatePageEmpty as components["schemas"]["CandidatePage"],
+  // One per match state. FIGMA_HANDOFF gives each a distinct UI, so each needs
+  // its own fixture rather than a single "no slots" stand-in.
+  matchExact: matchExact as components["schemas"]["CandidateMatchResult"],
+  matchSimilar: matchSimilar as components["schemas"]["CandidateMatchResult"],
+  matchNone: matchNone as components["schemas"]["CandidateMatchResult"],
+  matchChecking: matchChecking as components["schemas"]["CandidateMatchResult"],
+  matchUnknown: matchUnknown as components["schemas"]["CandidateMatchResult"],
 };
 
 export const optimizationFixtures = {

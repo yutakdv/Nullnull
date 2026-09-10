@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -143,9 +143,11 @@ export function TripScreen() {
           {/* candidateCount is the contract's own field, not a length taken
               from the `candidates` array: that array is a page of the
               candidates, so counting it would under-report the total. */}
-          <span className={styles.candidates}>
+          {/* The count is the way into the candidate panel (S07-8), so it is a
+              link rather than a label. */}
+          <Link className={styles.candidates} to={`/trip/${trip.id}/candidates`}>
             {t('trip.candidates', { count: trip.candidateCount })}
-          </span>
+          </Link>
         </p>
 
         <p className={styles.actions}>

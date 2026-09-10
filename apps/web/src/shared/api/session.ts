@@ -401,3 +401,116 @@ export function useUpdateTrip(tripId: string | null) {
     },
   });
 }
+
+type CandidatePage = components['schemas']['CandidatePage'];
+type CandidateMatchResult = components['schemas']['CandidateMatchResult'];
+type AddTripItemRequest = components['schemas']['AddTripItemRequest'];
+type TripMutationResult = components['schemas']['TripMutationResult'];
+
+export function candidatesQueryKey(tripId: string) {
+  return ['trip', tripId, 'candidates'] as const;
+}
+
+/** Candidates saved against a trip (FR-CAN-05). */
+export function useTripCandidates(
+  tripId: string | null,
+): UseQueryResult<CandidatePage, Problem | Error> {
+  return useQuery({
+    queryKey: candidatesQueryKey(tripId ?? ''),
+    enabled: tripId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET(
+        '/trips/{tripId}/candidates',
+        { params: { path: { tripId: tripId ?? '' } } },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+/**
+ * Eligible dates for scheduling one candidate (FR-CAN-07).
+ *
+ * CHECKING is an in-progress answer, so it is polled; the other four states are
+ * final and stop the polling. Without that a `CHECKING` panel would sit there
+ * forever showing a skeleton the server had already resolved.
+ */
+export function useCandidateMatches(
+  tripId: string | null,
+  candidateId: string | null,
+): UseQueryResult<CandidateMatchResult, Problem | Error> {
+  return useQuery({
+    queryKey: ['trip', tripId ?? '', 'candidates', candidateId ?? '', 'matches'],
+    enabled: tripId !== null && candidateId !== null,
+    refetchInterval: (query) => (query.state.data?.state === 'CHECKING' ? 2000 : false),
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET(
+        '/trips/{tripId}/candidates/{candidateId}/matches',
+        {
+          params: {
+            path: { tripId: tripId ?? '', candidateId: candidateId ?? '' },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+/**
+ * Schedules a candidate as a trip item (FR-ITM-02).
+ *
+ * One request, not two. The contract's 201 is "item added and candidate marked
+ * scheduled", which is the atomic transition invariant 5 requires: a client
+ * that added the item and then updated the candidate could leave a scheduled
+ * item beside an ACTIVE candidate if the second call failed.
+ *
+ * Carries If-Match because it changes the schedule, and an Idempotency-Key
+ * because a repeated submit must not add the place twice (invariant 6).
+ */
+export interface TripMutationWithETag {
+  result: TripMutationResult;
+  etag: string | null;
+}
+
+export function useAddTripItem(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    { item: AddTripItemRequest; etag: string | null }
+  >({
+    mutationFn: async ({ item, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot add an item without the trip ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/trips/{tripId}/items',
+        {
+          body: item,
+          params: {
+            path: { tripId },
+            header: {
+              'If-Match': etag,
+              'Idempotency-Key': crypto.randomUUID(),
+            },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      // The ETag rides beside the body rather than inside it: TripMutationResult
+      // is additionalProperties:false, so folding a header into it would be a
+      // shape the contract does not describe.
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }) => {
+      if (tripId === null) return;
+      // The response carries the whole trip, so the schedule updates without a
+      // refetch. The candidate list does need one: its statuses changed server
+      // -side as part of the same transaction.
+      queryClient.setQueryData(tripQueryKey(tripId), { trip: result.trip, etag });
+      void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(tripId) });
+    },
+  });
+}

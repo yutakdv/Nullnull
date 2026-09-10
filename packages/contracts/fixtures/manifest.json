@@ -41,6 +41,12 @@
       "count": 2,
       "basis": "NO approved example exists for searchPlaces. Values invented to match Figma S02-4B 438:3158 and validated against the schema only. Carries no crowd or provenance: PlaceSummary has no such field (FCR-029). Replace with BE/AI's real response (BA-022).",
       "serverVerified": false
+    },
+    "candidates": {
+      "schema": "CandidatePage, CandidateMatchResult",
+      "count": 7,
+      "basis": "NO approved example exists for listTripCandidates, getCandidateTripMatches or addTripItem. Values invented to match Figma S07-8 412:1912 (an active candidate, a SIMILAR one, one already SCHEDULED, an empty variant) plus one match result per state so EXACT/SIMILAR/NONE/CHECKING/UNKNOWN are each exercised rather than collapsed. No place carries a source or attribution because PlaceSummary has no such field (FCR-031). Replace with BE/AI's real response (BA-034, BA-042).",
+      "serverVerified": false
     }
   }
 }

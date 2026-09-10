@@ -4,6 +4,7 @@
 // packages/contracts (see its README). Handlers must not build bodies inline —
 // an inline object is a hand-written model with nothing checking it.
 import {
+  candidateFixtures,
   optimizationFixtures,
   placeFixtures,
   problemFixtures,
@@ -51,9 +52,17 @@ function currentTrip() {
   return tripState;
 }
 
+let candidateState: (typeof candidateFixtures)['page'] | null = null;
+
+function currentCandidates() {
+  candidateState ??= candidateFixtures.page;
+  return candidateState;
+}
+
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
   tripState = null;
+  candidateState = null;
 }
 
 /**
@@ -118,6 +127,75 @@ export const handlers = [
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),
+
+  // MOCK DATA (FE-303). listTripCandidates, getCandidateTripMatches and
+  // addTripItem have no approved example (BA-034, BA-042).
+  http.get(`${API_BASE}/trips/:tripId/candidates`, () =>
+    HttpResponse.json(currentCandidates()),
+  ),
+  http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, ({ params }) => {
+    // Keyed off the candidate so each match state is reachable from the running
+    // app, not only from a test that forces a handler.
+    const id = String(params.candidateId);
+    if (id.endsWith('0001')) return HttpResponse.json(candidateFixtures.matchSimilar);
+    return HttpResponse.json(candidateFixtures.matchExact);
+  }),
+  http.post(`${API_BASE}/trips/:tripId/items`, async ({ request }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const body = (await request.json()) as {
+      placeId: string;
+      candidateId?: string | null;
+      date: string;
+      position: number;
+      startTime?: string | null;
+    };
+    const candidates = currentCandidates();
+    const candidate = candidates.items.find((c) => c.id === body.candidateId);
+    // The contract's 201 is "item added and candidate marked scheduled": one
+    // transaction, so the mock applies both or neither (invariant 5).
+    const itemId = crypto.randomUUID();
+    const nextTrip = {
+      ...trip,
+      version: trip.version + 1,
+      days: trip.days.map((day) =>
+        day.date === body.date
+          ? {
+              ...day,
+              items: [
+                ...day.items,
+                {
+                  id: itemId,
+                  place: candidate?.place ?? trip.days[0]?.items[0]?.place,
+                  date: body.date,
+                  position: body.position,
+                  startTime: body.startTime ?? null,
+                  durationMinutes: null,
+                  note: null,
+                  constraints: [],
+                  crowd: null,
+                },
+              ],
+            }
+          : day,
+      ),
+    } as typeof trip;
+    tripState = nextTrip;
+    candidateState = {
+      ...candidates,
+      items: candidates.items.map((c) =>
+        c.id === body.candidateId
+          ? { ...c, status: 'SCHEDULED' as const, scheduledTripItemId: itemId }
+          : c,
+      ),
+    };
+    return HttpResponse.json(
+      { trip: nextTrip, changedItemIds: [itemId] },
+      { status: 201, headers: { ETag: `"${String(nextTrip.version)}"` } },
+    );
+  }),
 
   // MOCK DATA (FE-106). getTrip and replaceTripInterests have no approved
   // example, so these are schema-valid guesses. Delete with BA-031.

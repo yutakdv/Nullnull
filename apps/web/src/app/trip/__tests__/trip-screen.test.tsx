@@ -293,14 +293,27 @@ describe('FE-301-T3 the screen is reachable and named', () => {
     ).toBeInTheDocument();
   });
 
-  it('reaches the edit control and then the day chips by keyboard', async () => {
+  it('reaches the header controls and the day chips by keyboard', async () => {
     const user = userEvent.setup();
     renderTrip();
     await loaded();
-    // The edit button sits in the header, so it comes first (FE-302).
-    await user.tab();
-    expect(screen.getByRole('button', { name: copy['trip.editStart'] })).toHaveFocus();
-    await user.tab();
-    expect(screen.getByRole('button', { name: copy['trip.allDays'] })).toHaveFocus();
+    // Asserted as "reachable in order", not as an exact tab index: the header
+    // gains controls as slices land (FE-302's edit, FE-303's saved-places
+    // link), and pinning a position makes every later slice edit this test
+    // without telling us anything about accessibility.
+    const wanted = [
+      screen.getByRole('link', {
+        name: new RegExp(copy['trip.candidates'].replace('{count}', '')),
+      }),
+      screen.getByRole('button', { name: copy['trip.editStart'] }),
+      screen.getByRole('button', { name: copy['trip.allDays'] }),
+    ];
+    const seen: HTMLElement[] = [];
+    for (let i = 0; i < 8 && seen.length < wanted.length; i += 1) {
+      await user.tab();
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && wanted.includes(active)) seen.push(active);
+    }
+    expect(seen).toEqual(wanted);
   });
 });

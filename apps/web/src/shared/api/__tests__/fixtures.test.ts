@@ -14,6 +14,7 @@ import addFormats from 'ajv-formats';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import {
+  candidateFixtures,
   optimizationFixtures,
   placeFixtures,
   problemFixtures,
@@ -65,6 +66,13 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     ['TripDetail', tripFixtures.detailCreated],
     ['TripDetail', tripFixtures.detailWithInterests],
     ['TripDetail', tripFixtures.detailScheduled],
+    ['CandidatePage', candidateFixtures.page],
+    ['CandidatePage', candidateFixtures.pageEmpty],
+    ['CandidateMatchResult', candidateFixtures.matchExact],
+    ['CandidateMatchResult', candidateFixtures.matchSimilar],
+    ['CandidateMatchResult', candidateFixtures.matchNone],
+    ['CandidateMatchResult', candidateFixtures.matchChecking],
+    ['CandidateMatchResult', candidateFixtures.matchUnknown],
     ['DeletionReceipt', sessionFixtures.deletionReceipt],
     ['DeletionRequestStatus', sessionFixtures.deletionStatus],
   ])('%s fixture', (schemaName, fixture) => {

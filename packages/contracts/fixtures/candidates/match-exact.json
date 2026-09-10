@@ -1,0 +1,24 @@
+{
+  "candidateId": "018f4d40-1122-7a33-9b44-000000000002",
+  "state": "EXACT",
+  "slots": [
+    {
+      "date": "2026-10-05",
+      "suggestedTime": "14:00:00+09:00",
+      "eligible": true,
+      "reasonCode": null
+    },
+    {
+      "date": "2026-10-06",
+      "suggestedTime": null,
+      "eligible": true,
+      "reasonCode": null
+    },
+    {
+      "date": "2026-10-04",
+      "suggestedTime": null,
+      "eligible": false,
+      "reasonCode": "TIME_CONFLICT"
+    }
+  ]
+}
