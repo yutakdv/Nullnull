@@ -32,13 +32,17 @@ SEPARATOR = re.compile(r"^\|[\s|:-]+\|$")
 
 
 def registry_rows() -> dict[str, list[str]]:
-    """Data rows of the exception table: everything after the header separator."""
+    """Data rows of the ACTIVE exception table only; the expired section is history."""
     rows: dict[str, list[str]] = {}
     if not REGISTRY.exists():
         return rows
     in_table = False
     for raw in REGISTRY.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
+        if line.startswith("#"):
+            # A new section ends the active table; expired exceptions live below it.
+            in_table = False
+            continue
         if SEPARATOR.match(line):
             in_table = True
             continue

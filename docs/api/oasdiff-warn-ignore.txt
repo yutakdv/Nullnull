@@ -1,1 +1,0 @@
-in API GET /optimizations the `items/items/runLink` response's property pattern was changed from `^/trips/[0-9a-fA-F-]{36}/optimizations/[0-9a-fA-F-]{36}$` to `^/trip/[0-9a-fA-F-]{36}/optimizations/[0-9a-fA-F-]{36}$` for the status `200`

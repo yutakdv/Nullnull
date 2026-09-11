@@ -34,6 +34,13 @@ tags:
 
 ## 승인된 예외
 
+현재 활성 예외는 없다. 표가 비어 있는 것이 정상 상태다.
+
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| in API GET /optimizations the `items/items/runLink` response's property pattern was changed from `^/trips/[0-9a-fA-F-]{36}/optimizations/[0-9a-fA-F-]{36}$` to `^/trip/[0-9a-fA-F-]{36}/optimizations/[0-9a-fA-F-]{36}$` for the status `200` | 계약이 틀렸다. 앱 라우터는 `trip/:tripId/optimizations/:runId`(단수)인데 계약은 `/trips/`(복수)라 어떤 경로와도 일치하지 않았고 `ProfileScreen`의 링크가 404였다. **깨질 소비자가 없다** — 서버에 producer가 없고(BA-053 `planned`) 유일한 소비자는 현재 값으로 실패한다. pattern 삭제는 `response-property-pattern-removed` error라 더 나쁘다 | 오너 | #118 |
+
+## 만료된 예외 (기록)
+
+정정이 `main`에 반영되면 base가 새 값이 되어 해당 메시지는 더 이상 보고되지 않는다. 그 시점에 ignore 줄을 지우고 행을 여기로 옮긴다. `scripts/check_oasdiff_exceptions.py`가 CI에서 이 정리를 강제한다 — 매칭되지 않는 ignore 줄이 남아 있으면 실패한다.
+
+- **`runLink` pattern `/trips/` → `/trip/`** (승인: 오너, 추적: #118). PR #122로 반영됐고 base가 따라 움직여 만료됐다. 정정 내용은 `openapi.yaml`의 `runLink` description에 남아 있다.

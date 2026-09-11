@@ -339,7 +339,9 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 - **이 정정은 oasdiff 승인 예외로 통과시켰다. 예외 경로를 함부로 넓히지 마라.** oasdiff는 response property의 pattern 변경을 방향과 무관하게 잡는다 — 축소는 `response-property-pattern-changed`(warning, `fail-on: WARN`이라 실패), 삭제는 `response-property-pattern-removed`(error)로 더 나쁘다. 그래서 `docs/api/oasdiff-warn-ignore.txt`에 **정확한 메시지 한 줄**만 넣고 [등록부](docs/api/BREAKING_CHANGE_EXCEPTIONS.md)에 이유·승인자·추적 이슈를 적었다.
   - **이것은 검사를 끄는 것이 아니다.** 실측으로 확인했다 — 같은 spec에 `runLink` 외의 breaking 변경(required 응답 property를 optional로)을 넣으면 ignore 파일이 있어도 **error로 실패한다.**
   - `scripts/tests/test_oasdiff_exceptions.py`가 강제한다. 변이 4종이 전부 RED다: 등록부 행 삭제, 승인자 공백, 추적 이슈 제거, ignore 줄만 삭제(stale 행). SHA 복원 일치를 확인했다.
-  - **정정이 `main`에 들어가면 base가 새 값이 되어 그 ignore 줄은 더 이상 매칭되지 않는다. 그때 ignore 파일과 등록부에서 함께 지워야 한다** — 안 지우면 stale 행 test가 실패한다. 이것이 예외가 영구화되지 않는 장치다.
+  - **예외는 스스로 만료된다. 그걸 강제하는 것은 unit test가 아니라 `scripts/check_oasdiff_exceptions.py`다.** 정정이 `main`에 들어가면 base가 새 값이 되어 그 메시지가 더 이상 보고되지 않는데, `test_oasdiff_exceptions.py`는 ignore↔등록부 **대응만** 검사하므로 이 상황을 잡지 못한다(한 번 잘못 주장했다가 실측으로 확인했다). 그래서 `docs-contract`에 별도 step을 두어 **ignore 줄이 실제 oasdiff 출력에 없으면 실패**시킨다. 매칭되지 않는 줄은 지워야만 green이 된다.
+  - 만료된 예외는 등록부의 `## 만료된 예외 (기록)` 절로 옮긴다. parser는 `##`를 만나면 멈추므로 기록이 활성 표를 오염시키지 않는다.
+  - `runLink` 예외는 PR #122 병합으로 **이미 만료됐고 정리했다.** 현재 활성 예외는 0건이며 그것이 정상 상태다.
   - 로컬 재현(push 없이): `git show origin/main:docs/api/openapi.yaml > /tmp/base-openapi.yaml && docker run --rm -v /tmp:/spec -v "$PWD/docs/api:/rev" tufin/oasdiff breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN --warn-ignore /rev/oasdiff-warn-ignore.txt`. **계약 PR 전에 이걸 먼저 돌려라.**
 - **`getPlace` example의 `description`·`thumbnailUrl`·`thumbnailAsset`은 null이 정답이다.** collector가 `overviewYN=N`·`firstImageYN=N`으로 요청해 overview 텍스트와 이미지를 **저장하지 않는다.** 여기에 풍부한 텍스트를 넣은 example은 실제 연동 첫날 깨지는 허구다.
 - **`place-detail.json`의 `externalId`(`KTO-PENDING-CAPTURE`)와 `location` 좌표는 captured provider 증거가 아니다.** `categoryCode`/`regionCode`의 `HS`/`11`만 실제 `detailCommon2` 호출에서 온 값이다(#109). manifest `placeDetail.basis`에 이 구분을 적어 뒀다. 실응답을 잡으면 교체한다.
