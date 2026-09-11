@@ -36,10 +36,14 @@ interface Sent {
 }
 
 let sent: Sent[] = [];
+/** Every request, so a stray trip write cannot hide behind a filter. */
+let allRequests: { method: string; path: string }[] = [];
 
 beforeEach(() => {
   sent = [];
+  allRequests = [];
   server.events.on('request:start', ({ request }) => {
+    allRequests.push({ method: request.method, path: new URL(request.url).pathname });
     if (request.method !== 'POST') return;
     if (!new URL(request.url).pathname.endsWith('/optimizations')) return;
     const clone = request.clone();
@@ -171,9 +175,18 @@ describe('FE-501-T1 only ITEM is offered, and the others send nothing', () => {
     await waitFor(() => {
       expect(sent).toHaveLength(1);
     });
-    // Queuing a preview is not a trip mutation (invariant 4). The only write
-    // that left this screen is the optimization request itself.
-    expect(sent).toHaveLength(1);
+    // Queuing a preview is not a trip mutation (invariants 3 and 4). Checked
+    // against EVERY request, not just the optimization POST: asserting on a
+    // list that only ever collects optimization calls would say nothing about
+    // trip writes at all.
+    const tripWrites = allRequests.filter(
+      (r) => r.method !== 'GET' && /\/trips\/[^/]+$/.test(r.path),
+    );
+    expect(tripWrites).toEqual([]);
+    const itemWrites = allRequests.filter(
+      (r) => r.method !== 'GET' && r.path.includes('/items'),
+    );
+    expect(itemWrites).toEqual([]);
   });
 });
 

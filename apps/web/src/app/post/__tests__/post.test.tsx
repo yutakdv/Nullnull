@@ -208,9 +208,15 @@ describe('FE-202 the places are credited', () => {
     await screen.findByRole('heading', { level: 1, name: post.title });
     // CMP-ATT-001: a KTO-sourced place carries its credit wherever it appears,
     // shown verbatim (CMP-ATT-003).
-    const credit = post.places[0]?.sourceAttribution?.attribution ?? '';
+    //
+    // Counted, not merely present. Both fixture places carry the SAME credit
+    // string, so "at least one is on screen" passes even when only the first
+    // renders one — the count is what makes "for each place" mean anything.
+    const credited = post.places.filter((place) => place.sourceAttribution);
+    expect(credited.length).toBeGreaterThan(1);
+    const credit = credited[0]?.sourceAttribution?.attribution ?? '';
     expect(credit).not.toBe('');
-    expect(screen.getAllByText(credit).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(credit)).toHaveLength(credited.length);
   });
 
   it('does not render categoryCode, which is machine text', async () => {
