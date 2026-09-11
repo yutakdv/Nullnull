@@ -7,7 +7,7 @@
       "scope": "TRIP",
       "status": "RUNNING",
       "decision": null,
-      "runLink": "/trips/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b104",
+      "runLink": "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b104",
       "queuedAt": "2026-10-02T04:00:00Z",
       "decidedAt": null
     },
@@ -18,7 +18,7 @@
       "scope": "DAY",
       "status": "READY",
       "decision": null,
-      "runLink": "/trips/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b105",
+      "runLink": "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b105",
       "queuedAt": "2026-10-02T03:20:00Z",
       "decidedAt": null
     },
@@ -56,5 +56,8 @@
       "decidedAt": "2026-09-30T05:06:20Z"
     }
   ],
-  "page": { "nextCursor": null, "hasMore": false }
+  "page": {
+    "nextCursor": null,
+    "hasMore": false
+  }
 }

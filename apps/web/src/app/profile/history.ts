@@ -63,16 +63,13 @@ export function hasResult(item: HistoryItem): boolean {
 /**
  * Where the row's link points.
  *
- * NOT `item.runLink`, and that is deliberate. The contract's runLink pattern is
- * `/trips/{uuid}/optimizations/{uuid}` (plural) while the only route this app
- * registers is `/trip/:tripId/optimizations/:runId` (singular), so the server's
- * value renders the not-found screen on every click. The singular spelling is
- * also the one the analytics route enum accepts.
- *
- * Built from runId and tripId, which are both required on the item, so this
- * needs no contract change. PM-016 is open on which spelling is canonical; when
- * it is settled this either becomes `item.runLink` or stays as is.
+ * `item.runLink` directly, now that the contract and the app agree. It used to
+ * be built from tripId and runId here: the pattern said
+ * `/trips/{uuid}/optimizations/{uuid}` (plural) while the only registered
+ * route is `/trip/:tripId/optimizations/:runId`, so the server's value landed
+ * on the not-found screen. Backend/AI corrected the pattern (PM-016), so the
+ * workaround is gone and the fixture matches.
  */
 export function runHref(item: HistoryItem): string {
-  return `/trip/${item.tripId}/optimizations/${item.runId}`;
+  return item.runLink;
 }
