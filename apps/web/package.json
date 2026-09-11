@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "VITE_API_MOCKING=on vite",
+    "dev:api": "vite",
     "build": "tsc --noEmit && vite build",
     "tokens:build": "node scripts/build-tokens.mjs",
     "tokens:check": "node ../../scripts/check-generated.mjs src/design/tokens.css -- node scripts/build-tokens.mjs",
