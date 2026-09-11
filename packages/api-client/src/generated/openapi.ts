@@ -1668,7 +1668,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            type: "SetMustVisitConstraintInput";
+            type: "MUST_VISIT";
             /** @constant */
             locked: true;
         };
@@ -1677,7 +1677,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            type: "SetDateConstraintInput";
+            type: "DATE";
             /** @constant */
             locked: true;
             /** Format: date */
@@ -1688,7 +1688,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            type: "SetTimeConstraintInput";
+            type: "TIME";
             /** @constant */
             locked: true;
             /** Format: time */
@@ -1700,7 +1700,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            type: "SetReservationConstraintInput";
+            type: "RESERVATION";
             /** @constant */
             locked: true;
             /** Format: date */
@@ -1850,7 +1850,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            operation: "OptimizationExistingItemChange";
+            operation: "MOVE" | "REORDER" | "REPLACE";
             /** Format: uuid */
             itemId: string;
             before: components["schemas"]["TripItemState"];
@@ -1861,7 +1861,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            operation: "OptimizationAddChange";
+            operation: "ADD";
             /**
              * Format: uuid
              * @description Stable prospective item ID reserved by the preview.
@@ -1875,7 +1875,7 @@ export interface components {
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
-            operation: "OptimizationRemoveChange";
+            operation: "REMOVE";
             /** Format: uuid */
             itemId: string;
             before: components["schemas"]["TripItemState"];
