@@ -3998,7 +3998,11 @@ components:
         runLink:
           type: string
           format: uri-reference
-          pattern: '^/trips/[0-9a-fA-F-]{36}/optimizations/[0-9a-fA-F-]{36}$'
+          pattern: '^/trip/[0-9a-fA-F-]{36}/optimizations/[0-9a-fA-F-]{36}$'
+          description: |
+            Client router path for the run screen. This is not an API path: the `/api/v1` server base is
+            not included and the value must not be used as a request URL. Callers may navigate to it
+            verbatim, or rebuild it from `tripId` and `runId`, which are both required here.
         queuedAt:
           type: string
           format: date-time

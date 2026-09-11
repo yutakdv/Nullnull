@@ -335,13 +335,12 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 ### 되돌리지 말 것
 
-- **`runLink` 정정은 보류했다 — 계약 gate가 막는다.** 앱 라우터는 `trip/:tripId/optimizations/:runId`(**단수**)인데 계약 pattern은 `/trips/`(**복수**)라 `ProfileScreen`의 `to={run.runLink}`가 404다. 계약이 틀린 것이 맞지만 **고칠 수가 없다**:
-  - pattern을 `/trip/`으로 **좁히면** oasdiff `response-property-pattern-changed`가 **warning**이고 `fail-on: WARN`이라 `docs-contract`가 실패한다(PR #121에서 실제로 실패했다).
-  - pattern을 **지우면** `response-property-pattern-removed`가 **error**라 더 나쁘다.
-  - 로컬 재현: `docker run --rm -v /tmp:/spec -v "$PWD/docs/api:/rev" tufin/oasdiff breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN` (base는 `git show origin/main:docs/api/openapi.yaml`). **push 없이 iterate할 수 있으니 계약 PR 전에 이걸 먼저 돌려라.**
-  - 실제로는 깨질 소비자가 없다. 서버에 producer가 없고(BA-053 `planned`), 유일한 소비자는 현재 값으로 404를 받는다. 그래도 gate를 우회하지 않았다 — `warn-ignore`는 `AGENTS.md` 등록 규칙 4(skip 금지)와 충돌하고 `TEST_STRATEGY.md`가 WARN 기준을 의도적으로 고정했다.
-  - **오너 결정 필요**: 의도된 breaking 계약 정정을 어떻게 통과시킬지(승인된 예외 경로 신설 vs `runLink` 삭제 후 재도입 vs 현행 유지). PM-016과 함께 정한다. FE는 `tripId`+`runId` 조립 워크어라운드로 이미 막히지 않는다.
-- **response example은 media-type level에 둔다**(`responses.<code>.content.application/json.examples`). 실측으로 확인했다 — `getPlace` example을 이 위치에 넣고 client를 재생성했더니 **생성물 diff가 0줄**이었다. schema-level `examples:`에 넣으면 `@example` JSDoc이 생겨 재생성·커밋이 필요하다. 앞으로의 계약 PR도 이 위치를 쓴다.
+- **`runLink`는 API path가 아니라 client router path이고, pattern은 `/trip/`(단수)다.** 앱 라우터가 `trip/:tripId/optimizations/:runId`인데 계약의 옛 `/trips/`(복수)는 **앱 라우터와도 API와도 일치하지 않아** `ProfileScreen`의 `to={run.runLink}`가 404였다. 복수로 되돌리지 마라. `packages/contracts/fixtures/optimizations/history-page.json`의 3줄이 같이 움직인다 — **ajv가 pattern을 강제하므로 한쪽만 고치면 `apps/web` vitest가 깨진다.**
+- **이 정정은 oasdiff 승인 예외로 통과시켰다. 예외 경로를 함부로 넓히지 마라.** oasdiff는 response property의 pattern 변경을 방향과 무관하게 잡는다 — 축소는 `response-property-pattern-changed`(warning, `fail-on: WARN`이라 실패), 삭제는 `response-property-pattern-removed`(error)로 더 나쁘다. 그래서 `docs/api/oasdiff-warn-ignore.txt`에 **정확한 메시지 한 줄**만 넣고 [등록부](docs/api/BREAKING_CHANGE_EXCEPTIONS.md)에 이유·승인자·추적 이슈를 적었다.
+  - **이것은 검사를 끄는 것이 아니다.** 실측으로 확인했다 — 같은 spec에 `runLink` 외의 breaking 변경(required 응답 property를 optional로)을 넣으면 ignore 파일이 있어도 **error로 실패한다.**
+  - `scripts/tests/test_oasdiff_exceptions.py`가 강제한다. 변이 4종이 전부 RED다: 등록부 행 삭제, 승인자 공백, 추적 이슈 제거, ignore 줄만 삭제(stale 행). SHA 복원 일치를 확인했다.
+  - **정정이 `main`에 들어가면 base가 새 값이 되어 그 ignore 줄은 더 이상 매칭되지 않는다. 그때 ignore 파일과 등록부에서 함께 지워야 한다** — 안 지우면 stale 행 test가 실패한다. 이것이 예외가 영구화되지 않는 장치다.
+  - 로컬 재현(push 없이): `git show origin/main:docs/api/openapi.yaml > /tmp/base-openapi.yaml && docker run --rm -v /tmp:/spec -v "$PWD/docs/api:/rev" tufin/oasdiff breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN --warn-ignore /rev/oasdiff-warn-ignore.txt`. **계약 PR 전에 이걸 먼저 돌려라.**
 - **`getPlace` example의 `description`·`thumbnailUrl`·`thumbnailAsset`은 null이 정답이다.** collector가 `overviewYN=N`·`firstImageYN=N`으로 요청해 overview 텍스트와 이미지를 **저장하지 않는다.** 여기에 풍부한 텍스트를 넣은 example은 실제 연동 첫날 깨지는 허구다.
 - **`place-detail.json`의 `externalId`(`KTO-PENDING-CAPTURE`)와 `location` 좌표는 captured provider 증거가 아니다.** `categoryCode`/`regionCode`의 `HS`/`11`만 실제 `detailCommon2` 호출에서 온 값이다(#109). manifest `placeDetail.basis`에 이 구분을 적어 뒀다. 실응답을 잡으면 교체한다.
 - **`NULLNULL_CATALOG_PUBLIC_ENABLED=false`를 FE 편의를 위해 켜지 마라.** fail-closed는 BA-021-T3 staging 증거 전까지 유지되는 설계된 안전 gate다. FE가 막힌 문제는 flag가 아니라 **승인된 example이 없던 것**이었고, 그건 위 fixture로 풀었다.
