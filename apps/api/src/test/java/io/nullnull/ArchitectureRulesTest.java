@@ -126,6 +126,7 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    @DisplayName("BA-001-T2 modules never reach into another module's repository or infrastructure")
     void modulesNeverReachIntoAnotherModulesInfrastructure() {
         for (String module : MODULES) {
             noClasses().that().resideOutsideOfPackage("io.nullnull." + module + "..")

@@ -43,7 +43,7 @@ B01 이후 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest
 
 ### BA-000
 
-**추천 설계와 전체 계약 기준선 확정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**추천 설계와 전체 계약 기준선 확정** — P0 / `contract-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: 없음
 - 기능 ID: 해당 없음
@@ -63,9 +63,15 @@ B01 이후 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest
 
 필수 검증:
 
-- `BA-000-T1`: OpenAPI operation 전체와 기능 ID 전체에 담당 task가 존재한다
-- `BA-000-T2`: 순서 DAG에 cycle이 없고 P0 Live 작업이 마지막 기능 단계다
-- `BA-000-T3`: scope별 target 및 decision별 revision union의 잘못된 example을 거부한다
+- `BA-000-T1`: OpenAPI operation 전체와 기능 ID 전체에 담당 task가 존재한다 — `scripts/validate_backend_plan.py`의 operation·feature coverage 검사가 매 PR `docs-contract`에서 강제하고, 음성 검사는 `scripts/tests/test_backend_plan.py`에 있다
+- `BA-000-T2`: 순서 DAG에 cycle이 없고 P0 Live 작업이 마지막 기능 단계다 — 같은 script의 DAG·B10 순서 검사가 강제하며 음성 검사도 같은 파일에 있다
+- `BA-000-T3`: scope별 target 및 decision별 revision union의 잘못된 example을 거부한다 — **이 형태로는 아직 강제되지 않는다.** `scripts/validate_docs.py`의 `validate_product_contract_alignment`가 discriminator(`propertyName`)와 variant별 `const`·`required`를 고정해 "거부할 수 있는 구조"까지는 지키지만, 잘못된 example을 실제 JSON Schema evaluator에 넣어 거부를 확인하는 negative fixture는 없다
+
+`BA-000`에서 실제로 검사되는 것과 아닌 것:
+
+- 검사됨: T1·T2는 `docs-contract`가 매 PR 실행한다. operation·기능 ID 전체 coverage와 선행 DAG, B10 마지막 순서가 기계로 고정돼 있고 후속 카드가 이 기준선 위에서 구현 중이라 이 카드는 `contract-ready`다.
+- 검사되지 않음: T3의 "잘못된 example 거부". 구조를 고정하는 것과 거부를 증명하는 것은 다르다. negative fixture를 넣기 전에는 T3를 통과로 쓰지 않는다.
+- `integration-ready` 이상으로 올리지 않는다: `scripts/check_test_reports.py`는 `integration-ready`·`verified`인 task의 모든 `tests[].id`를 Gradle JUnit testcase 이름에서 찾는데, 이 카드의 증거는 Python gate라 JUnit XML에 나타나지 않는다.
 
 FE 인계·완료 증거: 검토할 schema diff·canonical examples·FCR evidence 요청·기능별 완료 조건. 디자인 파일을 실제 확인하기 전 FCR을 Closed로 바꾸지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -79,7 +85,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-001
 
-**Spring 모듈 구조와 실행 도구 고정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**Spring 모듈 구조와 실행 도구 고정** — P0 / `contract-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-000](#ba-000)
 - 기능 ID: 해당 없음
@@ -99,9 +105,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-001-T1`: 새 clone에서 고정 도구로 build하고 checksum 불일치는 실패한다
-- `BA-001-T2`: 다른 모듈 repository 직접 참조가 architecture test에서 실패한다
-- `BA-001-T3`: marker 뒤 필수 stage·task·digest 누락은 hard fail한다
+- `BA-001-T1`: 새 clone에서 고정 도구로 build하고 checksum 불일치는 실패한다 — 증거는 `scripts/verify_target_stack.py`(Gradle wrapper SHA·toolchain·marker·root script·필수 Compose service 검사)다. JUnit test가 아니다
+- `BA-001-T2`: 다른 모듈 repository 직접 참조가 architecture test에서 실패한다 — `ArchitectureRulesTest.modulesNeverReachIntoAnotherModulesInfrastructure`(Gradle `test`)가 강제하며, `@DisplayName`으로 testcase 이름에 이 ID를 노출한다
+- `BA-001-T3`: marker 뒤 필수 stage·task·digest 누락은 hard fail한다 — 증거는 같은 `scripts/verify_target_stack.py`다
+
+`BA-001`에서 실제로 검사되는 것과 아닌 것:
+
+- 세 검증 중 Gradle suite에 있는 것은 T2 하나다. T1·T3의 증거는 `scripts/verify_target_stack.py`이고 JUnit XML을 만들지 않으므로, `api-quality` 하나가 BA-001 전체를 덮는다고 읽으면 안 된다.
+- 검사되지 않음: T1의 "새 clone에서" 부분. 현재 검사는 이 작업 트리의 고정값을 확인하며 빈 디렉터리 clone부터의 재현을 돌리지 않는다.
+- `integration-ready` 이상으로 올리지 않는다: BA-000과 같은 이유로 `check_test_reports.py`가 T1·T3를 JUnit testcase 이름에서 찾지 못해 두 required check가 실패한다.
 
 FE 인계·완료 증거: API 실행/health 주소, 버전 manifest, FE scaffold와 필요한 generation command. 실제 FE scaffold는 FE 인계물이다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -294,7 +306,7 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 ### BA-006
 
-**로컬 Docker와 최소 staging 기반** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**로컬 Docker와 최소 staging 기반** — P0 / `blocked` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: `NFR-OPS-01`
@@ -311,6 +323,12 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 5. #10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다
 
 실패·안전 경계: 계정·비용·secret 미확정은 외부 배포 blocker이며 로컬 구현까지 막지 않는다. 실제 설정·배포 완료를 문서만으로 표시하지 않는다.
+
+이 카드의 절반은 끝났고 절반은 시작하지 않았다:
+
+- 완료: 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper. `scripts/integration-test.sh`가 `.nullnull-target-stack` marker를 확인한 뒤 `integration_mode=full-docker`로 실행되고 `compose.integration.yml`의 quality service와 `egress-denied` probe를 포함한다. T1의 internal network·outbound-deny probe는 이 경로에 있다.
+- 미착수: staging 절반. `infra/`가 없고 CDK app, OIDC exact subject, runtime secret 주입이 모두 없다. 따라서 T2(bundle·image layer·log의 secret 부재)와 T3(잘못된 repo/environment subject 거부)는 착수하지 않았다.
+- 상태 원인: [열린 결정 D-001·D-017·D-018](../project/DECISIONS_AND_RISKS.md#2-열린-결정)을 기다린다. 안전한 기본값은 로컬 Docker와 full-docker wrapper만 쓰고 외부 배포 capability를 OFF로 두는 것이며, 위 실패·안전 경계대로 이 대기가 로컬 구현까지 막지는 않는다.
 
 필수 검증:
 
