@@ -948,7 +948,14 @@ export interface components {
         DeletionRequestStatus: {
             /** Format: uuid */
             requestId: string;
-            /** @enum {string} */
+            /**
+             * @description COMPLETED and FAILED are the states a client may stop polling on. PARTIAL_FAILED is NOT
+             *     one of them: it means an attempt failed while the server still has attempts left, so the
+             *     server retries on its own and the status changes again without any client action. ACCEPTED
+             *     and RUNNING are in progress. Do not derive terminality from `completedAt` — it is set when
+             *     an erasure completes and is not cleared if a later attempt starts.
+             * @enum {string}
+             */
             status: "ACCEPTED" | "RUNNING" | "COMPLETED" | "PARTIAL_FAILED" | "FAILED";
             /** Format: date-time */
             requestedAt: string;
@@ -956,7 +963,12 @@ export interface components {
             updatedAt: string;
             /** Format: date-time */
             completedAt?: string | null;
-            /** @default false */
+            /**
+             * @description True exactly while `status` is PARTIAL_FAILED, meaning the server has attempts left and
+             *     will make them. It describes the server's own retrying, not a prompt for the client to
+             *     resubmit the deletion: the request is already accepted and resubmitting is never required.
+             * @default false
+             */
             retryable?: boolean;
             failureCode?: string | null;
         };
@@ -1367,10 +1379,22 @@ export interface components {
             status: components["schemas"]["TripStatus"];
             /** Format: int64 */
             version: number;
+            /**
+             * @description How many candidates the trip holds. This is the number to display; it is not
+             *     `candidates.length`, which may be smaller. Which statuses are counted is decided by the
+             *     candidate slice and is not fixed here yet, so do not derive a per-status breakdown from it.
+             */
             candidateCount: number;
             planningLevel: components["schemas"]["PlanningLevel"];
             interests: components["schemas"]["TripInterest"][];
             days: components["schemas"]["TripDay"][];
+            /**
+             * @description A bounded view of the trip's candidates, not guaranteed to be the whole set: it may hold
+             *     fewer entries than `candidateCount`, including none while the count is positive. The
+             *     paginated source is `listTripCandidates`, which also filters by status. Never treat this
+             *     array's length as the total, and refetch through that operation rather than assuming a
+             *     mutation here kept the array complete.
+             */
             candidates: components["schemas"]["TripCandidate"][];
         };
         TripInterest: {

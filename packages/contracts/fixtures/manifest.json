@@ -27,7 +27,7 @@
     "trips": {
       "schema": "TripPage, TripDetail",
       "count": 5,
-      "basis": "NO approved example exists for listTrips, getTrip or replaceTripInterests. Values invented to match Figma S14 422:2925 and S07-1 410:1738 (two trips, an empty variant, a created trip, one carrying interests, one with a scheduled itinerary) and validated against the schema only. Every TripItem.crowd is null: CrowdMetric requires a 29-field DataProvenance and inventing collector run ids or comparison eligibility would fabricate the evidence invariant 8 exists to protect (FCR-030). Replace with BE/AI's real response (BA-030, BA-031).",
+      "basis": "BE/AI authored. candidates is empty while candidateCount is 5 on purpose; the contract now states that candidates is a bounded view and listTripCandidates is the paginated source. KNOWN DEFECT: trip-detail-scheduled and trip-detail-interests share one trip id AND version 3 while holding different day items, so the ETag — a quoted trip version — claims one validator for two materially different bodies. Fixing it needs an FE test change in the same PR, because interests.test.tsx derives its If-Match expectation from detailWithInterests while the msw handler serves detailScheduled; the two only agree today because the versions are identical. Tracked separately.",
       "serverVerified": false
     },
     "optimizations": {
