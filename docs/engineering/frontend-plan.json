@@ -71,8 +71,12 @@
       "title": "React/TypeScript/Vite scaffold, router, query client, i18n",
       "status": "integration-ready",
       "dependsOn": [],
-      "operations": [],
-      "featureIds": [],
+      "operations": [
+        "createDemoSession"
+      ],
+      "featureIds": [
+        "FR-SES-01"
+      ],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
@@ -295,12 +299,15 @@
       "operations": [
         "getCurrentOwner",
         "listTrips",
-        "updatePreferences"
+        "updatePreferences",
+        "deleteCurrentSession",
+        "getDeletionRequest"
       ],
       "featureIds": [
         "FR-PRO-01",
         "FR-PRO-02",
-        "FR-PRO-03"
+        "FR-PRO-03",
+        "FR-SES-04"
       ],
       "figmaNodes": [
         "422:2925"
