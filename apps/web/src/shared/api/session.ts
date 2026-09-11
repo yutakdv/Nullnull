@@ -65,6 +65,77 @@ async function bootstrapSession(): Promise<SessionBootstrap> {
   return data;
 }
 
+/**
+ * Fetches a fresh tab-local CSRF token for the session the cookie already names.
+ *
+ * This is the recovery for a refresh or a second tab, and it is deliberately
+ * NOT a re-bootstrap. POST /demo/sessions reuses a live session, but when the
+ * session has expired it creates a NEW anonymous owner
+ * (SessionSafetyIT.expiration asserts the owner id differs), which would strand
+ * everything the user had. POST /session/csrf needs only the cookie and mints a
+ * token without touching the session, so it recovers or it fails honestly.
+ *
+ * Tokens are independent per tab and the server keeps five before evicting the
+ * least recently used, so this must not be called speculatively — see
+ * `reissueCsrfToken` for the single-flight wrapper the app uses.
+ */
+async function requestCsrfToken(): Promise<string> {
+  const { data, error, response } = await getApiClient().POST('/session/csrf', {});
+  if (!data) fail(error, response);
+  csrfToken = data.csrfToken;
+  return data.csrfToken;
+}
+
+/** In-flight reissue, so concurrent failures share one request. */
+let csrfInFlight: Promise<string> | null = null;
+
+/**
+ * Reissues the tab's CSRF token, at most one request at a time.
+ *
+ * Several mutations can fail with CSRF_INVALID at once. Without this they would
+ * each ask for a token, and the server evicts the least recently used once a
+ * sixth unexpired token exists — so a burst could evict the very token it just
+ * handed out, and the other tabs' tokens with it.
+ */
+export function reissueCsrfToken(): Promise<string> {
+  csrfInFlight ??= requestCsrfToken().finally(() => {
+    csrfInFlight = null;
+  });
+  return csrfInFlight;
+}
+
+/** Test seam: drops the token so a test can observe the recovery. */
+export function clearCsrfTokenForTest(): void {
+  csrfToken = null;
+}
+
+export const csrfQueryKey = ['session', 'csrf'] as const;
+
+/**
+ * Makes sure this tab holds a CSRF token, without minting a session.
+ *
+ * Why it exists: only the splash screen bootstraps, so a refresh or a deep
+ * link onto any other route left `currentCsrfToken()` null and every mutation
+ * would have been rejected. Verified by loading /feed directly — the token was
+ * null before this.
+ *
+ * It asks the server only when the token is actually missing, and only for a
+ * session the cookie already names. A 401 here means the session is gone, and
+ * it stays an error rather than bootstrapping a replacement: a fresh bootstrap
+ * on an expired session creates a DIFFERENT anonymous owner
+ * (SessionSafetyIT.expiration), silently stranding the user's trips.
+ */
+export function useCsrfToken(): UseQueryResult<string, Problem | Error> {
+  return useQuery({
+    queryKey: csrfQueryKey,
+    queryFn: () => reissueCsrfToken(),
+    enabled: currentCsrfToken() === null,
+    staleTime: Infinity,
+    // The contract's recovery for a failed reissue is the user's, not a loop.
+    retry: false,
+  });
+}
+
 export const sessionQueryKey = ['session', 'bootstrap'] as const;
 
 /**
