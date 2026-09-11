@@ -335,8 +335,12 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 ### 되돌리지 말 것
 
-- **`runLink`는 API path가 아니라 client router path다.** pattern을 `^/trip/…`(**단수**)로 고쳤다. 앱 라우터가 `trip/:tripId/optimizations/:runId`이고 계약의 옛 `/trips/`(복수)는 **앱 라우터와도 API와도 일치하지 않아** `ProfileScreen`의 `to={run.runLink}`가 404였다. `/api/v1`을 포함하지 않는다는 것을 description에 못박았다. 복수로 되돌리지 마라.
-  - 같은 커밋에서 `packages/contracts/fixtures/optimizations/history-page.json`의 3줄을 함께 고쳤다. **ajv가 pattern을 강제하므로 한쪽만 고치면 `apps/web` vitest가 깨진다.**
+- **`runLink` 정정은 보류했다 — 계약 gate가 막는다.** 앱 라우터는 `trip/:tripId/optimizations/:runId`(**단수**)인데 계약 pattern은 `/trips/`(**복수**)라 `ProfileScreen`의 `to={run.runLink}`가 404다. 계약이 틀린 것이 맞지만 **고칠 수가 없다**:
+  - pattern을 `/trip/`으로 **좁히면** oasdiff `response-property-pattern-changed`가 **warning**이고 `fail-on: WARN`이라 `docs-contract`가 실패한다(PR #121에서 실제로 실패했다).
+  - pattern을 **지우면** `response-property-pattern-removed`가 **error**라 더 나쁘다.
+  - 로컬 재현: `docker run --rm -v /tmp:/spec -v "$PWD/docs/api:/rev" tufin/oasdiff breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN` (base는 `git show origin/main:docs/api/openapi.yaml`). **push 없이 iterate할 수 있으니 계약 PR 전에 이걸 먼저 돌려라.**
+  - 실제로는 깨질 소비자가 없다. 서버에 producer가 없고(BA-053 `planned`), 유일한 소비자는 현재 값으로 404를 받는다. 그래도 gate를 우회하지 않았다 — `warn-ignore`는 `AGENTS.md` 등록 규칙 4(skip 금지)와 충돌하고 `TEST_STRATEGY.md`가 WARN 기준을 의도적으로 고정했다.
+  - **오너 결정 필요**: 의도된 breaking 계약 정정을 어떻게 통과시킬지(승인된 예외 경로 신설 vs `runLink` 삭제 후 재도입 vs 현행 유지). PM-016과 함께 정한다. FE는 `tripId`+`runId` 조립 워크어라운드로 이미 막히지 않는다.
 - **response example은 media-type level에 둔다**(`responses.<code>.content.application/json.examples`). 실측으로 확인했다 — `getPlace` example을 이 위치에 넣고 client를 재생성했더니 **생성물 diff가 0줄**이었다. schema-level `examples:`에 넣으면 `@example` JSDoc이 생겨 재생성·커밋이 필요하다. 앞으로의 계약 PR도 이 위치를 쓴다.
 - **`getPlace` example의 `description`·`thumbnailUrl`·`thumbnailAsset`은 null이 정답이다.** collector가 `overviewYN=N`·`firstImageYN=N`으로 요청해 overview 텍스트와 이미지를 **저장하지 않는다.** 여기에 풍부한 텍스트를 넣은 example은 실제 연동 첫날 깨지는 허구다.
 - **`place-detail.json`의 `externalId`(`KTO-PENDING-CAPTURE`)와 `location` 좌표는 captured provider 증거가 아니다.** `categoryCode`/`regionCode`의 `HS`/`11`만 실제 `detailCommon2` 호출에서 온 값이다(#109). manifest `placeDetail.basis`에 이 구분을 적어 뒀다. 실응답을 잡으면 교체한다.
