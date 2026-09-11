@@ -3,6 +3,7 @@ import { AppShell } from './AppShell.js';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { FeedScreen } from './feed/FeedScreen.js';
 import { PostScreen } from './post/PostScreen.js';
+import { OptimizeSetupScreen } from './optimize/OptimizeSetupScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
@@ -49,6 +50,11 @@ export const routes: RouteObject[] = [
       { path: 'posts/:postId', element: <PostScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
       { path: 'trip/:tripId/add-place', element: <AddPlaceScreen /> },
+      {
+        // S09-0 setup, before a run exists (FE-501).
+        path: 'trip/:tripId/optimize',
+        element: <OptimizeSetupScreen />,
+      },
       {
         path: 'trip/:tripId/optimizations/:runId',
         element: <PlaceholderScreen routeId="optimization" />,

@@ -1035,7 +1035,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "S09-0 scope/item setup, 미지원 P1 state",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-301",
         "BA-050"
@@ -1049,7 +1049,9 @@
       "figmaNodes": [
         "415:2268"
       ],
-      "designRequests": [],
+      "designRequests": [
+        "FCR-010"
+      ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",

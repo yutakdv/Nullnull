@@ -224,6 +224,60 @@ export function useOptimizationHistory(): UseQueryResult<
   });
 }
 
+type CreateOptimizationRequest = components['schemas']['CreateOptimizationRequest'];
+
+/**
+ * Queues a preview-only optimization run (FE-501, FR-OPT-01).
+ *
+ * "Preview-only" is the contract's own word: the run freezes an input revision
+ * and reports asynchronously, and a failure "never mutates the trip". Nothing
+ * here writes to the trip cache for the same reason — an itinerary changes on
+ * APPLY and nowhere else (invariants 3 and 4).
+ *
+ * The Idempotency-Key is minted by the CALLER, not in here. A key created
+ * inside mutationFn would be a fresh one on every attempt, so a retry would
+ * queue a second run rather than replaying the first — which is the exact
+ * failure invariant 6 exists to prevent.
+ *
+ * If-Match carries the trip's ETag and the body repeats the version as
+ * `inputTripVersion`: the header guards the request, the field records what
+ * the run was computed against.
+ *
+ * The return type is inferred rather than annotated. Writing
+ * `useMutation<OptimizationRun, …>` fails to compile with "two different types
+ * with this name exist": OptimizationRun nests the OptimizationChange union,
+ * and naming it explicitly produces an identity the client's own return type
+ * does not match. Letting it infer keeps one identity and the same safety.
+ */
+export function useCreateOptimization(tripId: string | null) {
+  return useMutation({
+    mutationFn: async ({
+      request,
+      etag,
+      idempotencyKey,
+    }: {
+      request: CreateOptimizationRequest;
+      etag: string | null;
+      idempotencyKey: string;
+    }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot optimize without the trip ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/trips/{tripId}/optimizations',
+        {
+          params: {
+            path: { tripId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+          body: request,
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
 type PostDetail = components['schemas']['PostDetail'];
 type SavedPostState = components['schemas']['SavedPostState'];
 

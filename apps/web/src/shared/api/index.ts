@@ -36,6 +36,7 @@ export {
   clearCsrfTokenForTest,
   reissueCsrfToken,
   useCsrfToken,
+  useCreateOptimization,
   useFeed,
   useOptimizationHistory,
   usePlaceSearch,

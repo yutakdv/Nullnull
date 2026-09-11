@@ -103,6 +103,40 @@ export const handlers = [
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
+  // MOCK DATA (FE-501). createOptimization has an approved example, so the
+  // request shape is the contract's own; the run it answers with is invented
+  // until BA-050 lands. 202 with a Location header, per the contract.
+  http.post(`${API_BASE}/trips/:tripId/optimizations`, async ({ request, params }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const body = (await request.json()) as { scope: string; targetItemId?: string };
+    // The mock refuses anything but ITEM. P0 ships one scope (FCR-010), and
+    // a handler that accepted DAY would let a regression through silently.
+    if (body.scope !== 'ITEM') return problemResponse('VALIDATION_FAILED');
+    const runId = '018f6a00-0000-7000-8000-000000000001';
+    const tripId = String(params.tripId);
+    return HttpResponse.json(
+      {
+        id: runId,
+        tripId,
+        scope: 'ITEM',
+        status: 'QUEUED',
+        inputTripVersion: trip.version,
+        includeCandidates: false,
+        queuedAt: '2026-09-11T06:00:00Z',
+        proposals: [],
+        snapshotSetIds: [],
+        decisions: [],
+      },
+      {
+        status: 202,
+        headers: { Location: `/trip/${tripId}/optimizations/${runId}` },
+      },
+    );
+  }),
+
   // MOCK DATA (FE-202). getPost, savePost and unsavePost have no approved
   // example (BA-032). Stateful so a save actually round-trips: a handler that
   // always answered `saved: false` would let a broken toggle pass.

@@ -1,0 +1,123 @@
+/* S09-0 `415:2268`. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-6);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-md);
+  font-weight: 700;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  background: var(--color-bg-default);
+  font-family: inherit;
+  text-align: start;
+}
+
+/* Selection is a border plus the pressed state, never colour alone. */
+.item[data-selected] {
+  border-color: var(--color-border-strong);
+  border-width: 2px;
+}
+
+.itemName {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+}
+
+.itemMeta,
+.note,
+.state {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
+}
+
+.note,
+.state {
+  margin: 0;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+}
+
+.submit {
+  min-height: 48px;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-action-strong);
+  color: var(--color-action-onPrimary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+}
+
+.submit:disabled {
+  background: var(--color-bg-track);
+  color: var(--color-text-disabled);
+}
+
+.retry {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
