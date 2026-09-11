@@ -1379,10 +1379,22 @@ export interface components {
             status: components["schemas"]["TripStatus"];
             /** Format: int64 */
             version: number;
+            /**
+             * @description How many candidates the trip holds. This is the number to display; it is not
+             *     `candidates.length`, which may be smaller. Which statuses are counted is decided by the
+             *     candidate slice and is not fixed here yet, so do not derive a per-status breakdown from it.
+             */
             candidateCount: number;
             planningLevel: components["schemas"]["PlanningLevel"];
             interests: components["schemas"]["TripInterest"][];
             days: components["schemas"]["TripDay"][];
+            /**
+             * @description A bounded view of the trip's candidates, not guaranteed to be the whole set: it may hold
+             *     fewer entries than `candidateCount`, including none while the count is positive. The
+             *     paginated source is `listTripCandidates`, which also filters by status. Never treat this
+             *     array's length as the total, and refetch through that operation rather than assuming a
+             *     mutation here kept the array complete.
+             */
             candidates: components["schemas"]["TripCandidate"][];
         };
         TripInterest: {
