@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import { isProblem, useReorderTripItems } from '../../shared/api/index.js';
+import {
+  isProblem,
+  useRelatedPlaces,
+  useReorderTripItems,
+  useReplaceTripItem,
+} from '../../shared/api/index.js';
 import { ConfirmDialog } from '../../shared/ui/components/index.js';
 import styles from './ItemMoveControls.module.css';
 import { MoveDaySheet } from './MoveDaySheet.js';
+import { ReplaceSheet } from './ReplaceSheet.js';
+import { isReplaceBlocked } from './replace.js';
 import {
   isFirstInDay,
   isLastInDay,
@@ -44,7 +51,12 @@ export interface ItemMoveControlsProps {
 export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsProps) {
   const { locale, t } = useI18n();
   const reorder = useReorderTripItems(tripId);
+  const replace = useReplaceTripItem(tripId);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
+  // Only fetched once the sheet opens: asking for alternatives to every stop
+  // up front is a burst of requests for answers nobody has looked at.
+  const related = useRelatedPlaces(replaceOpen ? item.place.id : null);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -135,6 +147,17 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
         >
           {t('trip.move.open', { name: item.place.name })}
         </button>
+        <button
+          className={styles.move}
+          disabled={busy || replace.isPending || isReplaceBlocked(item)}
+          onClick={() => {
+            setReplaceOpen(true);
+          }}
+          title={isReplaceBlocked(item) ? t('replace.blocked') : undefined}
+          type="button"
+        >
+          {t('replace.open', { name: item.place.name })}
+        </button>
       </div>
 
       {/* One live region per item: the result of a keyboard move has to be
@@ -162,6 +185,51 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
           commitMove(date);
         }}
         open={sheetOpen}
+      />
+
+      <ReplaceSheet
+        busy={replace.isPending}
+        failed={related.isError}
+        item={item}
+        loading={related.isPending && replaceOpen}
+        onCancel={() => {
+          setReplaceOpen(false);
+        }}
+        onConfirm={(choice) => {
+          setStatus(null);
+          replace.mutate(
+            {
+              itemId: item.id,
+              replacement: {
+                replacementPlaceId: choice.place.id,
+                // preserveDateTime is omitted: the contract defaults it true,
+                // and false would move the schedule without being asked.
+              },
+              etag,
+              idempotencyKey: crypto.randomUUID(),
+            },
+            {
+              onSuccess: () => {
+                setReplaceOpen(false);
+                setStatus(
+                  t('replace.replaced', {
+                    from: item.place.name,
+                    to: choice.place.name,
+                  }),
+                );
+              },
+              onError: (error) => {
+                setStatus(
+                  isProblem(error) && error.code === 'TRIP_CHANGED'
+                    ? t('trip.conflict')
+                    : t('replace.failed'),
+                );
+              },
+            },
+          );
+        }}
+        open={replaceOpen}
+        result={related.data}
       />
 
       <ConfirmDialog

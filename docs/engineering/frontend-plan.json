@@ -868,7 +868,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "검색/추가/교체/날짜·시간 이동 variant",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-302",
         "BA-040"
