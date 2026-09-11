@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { BottomCta, Chip } from '../../shared/ui/index.js';
+import { BottomCta, Chip, NavBar } from '../../shared/ui/index.js';
 import { useCreateTrip } from '../../shared/api/index.js';
 import {
   EMPTY_DRAFT,
@@ -84,8 +84,27 @@ export function TripWizardScreen() {
     );
   }
 
+  // Going back a step, and out of the flow from the first one.
+  //
+  // The steps are component state rather than routes, so browser Back leaves
+  // /start entirely and takes the draft with it — reproduced in a browser:
+  // picking 9/15-9/18, continuing, then pressing Back landed on the previously
+  // visited page, and returning to /start showed step 1 with no dates. There
+  // was no in-screen way back either, so a mistyped date range could only be
+  // fixed by redoing the whole wizard. FIGMA_HANDOFF's rule for this flow is
+  // that moving back preserves what was entered, and `wizard.back` was already
+  // translated in both locales for a control that had never been rendered.
+  function goBack() {
+    if (step > 1) {
+      setStep(step - 1);
+      return;
+    }
+    void navigate('/feed');
+  }
+
   return (
     <section className={styles.screen} aria-labelledby="wizard-heading">
+      <NavBar backLabel={t('wizard.back')} onBack={goBack} />
       <p className={styles.step}>
         {t('wizard.step')} {step}
       </p>

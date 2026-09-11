@@ -61,6 +61,69 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
   await user.click(numbered[3] as HTMLElement);
 }
 
+describe('the user can go back a step without losing the draft', () => {
+  // Reproduced in a browser before this existed: pick 9/15-9/18, press the
+  // CTA, and step 2 offers only 다음 and 나중에 고를래요. There is no back
+  // control and no tab bar, and the steps are component state rather than
+  // routes, so browser Back leaves /start altogether — it landed on the
+  // previously visited page and the dates were gone. A mistyped date range
+  // could only be fixed by redoing the whole wizard.
+  it('offers a way back from step 2', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await screen.findByText(`${copy['wizard.step']} 2`);
+    expect(screen.getByRole('button', { name: copy['wizard.back'] })).toBeInTheDocument();
+  });
+
+  it('returns to step 1 with the dates still chosen', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    const range = screen.getByRole('button', { name: /–/ }).textContent;
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await screen.findByText(`${copy['wizard.step']} 2`);
+    await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
+
+    // Back to step 1, and the CTA still names the range the user picked —
+    // FIGMA_HANDOFF's rule is that moving back preserves what was entered.
+    expect(await screen.findByText(`${copy['wizard.step']} 1`)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /–/ })).toHaveTextContent(range ?? '');
+  });
+
+  it('keeps the interests when stepping back from step 3', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    const interest = await screen.findByRole('button', {
+      name: copy['interest.ALONE'],
+    });
+    await user.click(interest);
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await screen.findByText(`${copy['wizard.step']} 3`);
+    await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
+
+    expect(
+      await screen.findByRole('button', { name: copy['interest.ALONE'] }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('leaves the flow from step 1, where there is no previous step', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await screen.findByText(`${copy['wizard.step']} 1`);
+    await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'feed-heading',
+      );
+    });
+  });
+});
+
 describe('step 1 will not let an invalid range continue', () => {
   it('keeps the CTA disabled until a range is complete', async () => {
     renderWizard();
