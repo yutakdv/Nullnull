@@ -9,7 +9,18 @@
         "categoryCode": "CAFE",
         "regionCode": "KR-11-130",
         "thumbnailUrl": null,
-        "address": null
+        "address": null,
+        "categoryName": null,
+        "regionName": null,
+        "sourceAttribution": {
+          "source": "KTO_KOR_SERVICE_2",
+          "sourceDisplayName": "한국관광공사 국문 관광정보",
+          "sourceRegistryVersion": 4,
+          "attribution": "출처: ⓒ한국관광공사",
+          "officialUrl": "https://www.data.go.kr/data/15101578/openapi.do",
+          "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+          "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+        }
       },
       "status": "ACTIVE",
       "scheduledTripItemId": null,
@@ -32,7 +43,18 @@
         "categoryCode": "PARK",
         "regionCode": "KR-11-120",
         "thumbnailUrl": null,
-        "address": null
+        "address": null,
+        "categoryName": null,
+        "regionName": null,
+        "sourceAttribution": {
+          "source": "KTO_KOR_SERVICE_2",
+          "sourceDisplayName": "한국관광공사 국문 관광정보",
+          "sourceRegistryVersion": 4,
+          "attribution": "출처: ⓒ한국관광공사",
+          "officialUrl": "https://www.data.go.kr/data/15101578/openapi.do",
+          "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+          "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+        }
       },
       "status": "ACTIVE",
       "scheduledTripItemId": null,
@@ -55,7 +77,10 @@
         "categoryCode": "STREET",
         "regionCode": "KR-11-140",
         "thumbnailUrl": null,
-        "address": null
+        "address": null,
+        "categoryName": null,
+        "regionName": null,
+        "sourceAttribution": null
       },
       "status": "SCHEDULED",
       "scheduledTripItemId": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03",

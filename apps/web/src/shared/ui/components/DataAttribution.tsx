@@ -14,12 +14,25 @@ import styles from './DataAttribution.module.css';
 //     provider URL of its own.
 
 type Provenance = components['schemas']['DataProvenance'];
+type SourceAttribution = components['schemas']['SourceAttribution'];
+
+/**
+ * What this component needs, which is less than either contract type supplies.
+ *
+ * Two shapes carry a credit: DataProvenance (crowd metrics, 29 fields) and
+ * SourceAttribution (place records, 7). Only the attribution text and the two
+ * links are common to both, and `attributionShort` exists on the first alone —
+ * hence optional here rather than a Pick that one of them cannot satisfy.
+ */
+export interface AttributionSource {
+  attribution: string;
+  attributionShort?: string | null;
+  officialUrl?: string | null;
+  licenseUrl?: string | null;
+}
 
 export interface DataAttributionProps {
-  provenance: Pick<
-    Provenance,
-    'attribution' | 'attributionShort' | 'officialUrl' | 'licenseUrl' | 'observedAt'
-  >;
+  provenance: AttributionSource | Provenance | SourceAttribution;
   /** Narrow cards prefer the server's short credit. */
   compact?: boolean;
   /** Renders the licence link. Detail views and the data guide use it. */
@@ -31,7 +44,10 @@ export function DataAttribution({
   compact = false,
   showLicense = false,
 }: DataAttributionProps) {
-  const { attribution, attributionShort, officialUrl, licenseUrl } = provenance;
+  const { attribution, officialUrl, licenseUrl } = provenance;
+  // Present on DataProvenance, absent on SourceAttribution.
+  const attributionShort =
+    'attributionShort' in provenance ? provenance.attributionShort : null;
   // Falling back to the full string is deliberate: an absent short form must
   // not become a client-side truncation.
   const text = compact ? (attributionShort ?? attribution) : attribution;

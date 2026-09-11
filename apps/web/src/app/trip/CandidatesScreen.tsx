@@ -11,7 +11,7 @@ import {
   useTrip,
   useTripCandidates,
 } from '../../shared/api/index.js';
-import { NavBar } from '../../shared/ui/components/index.js';
+import { DataAttribution, NavBar } from '../../shared/ui/components/index.js';
 import styles from './CandidatesScreen.module.css';
 import {
   blockedSlots,
@@ -156,6 +156,10 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
   const remove = useRemoveTripCandidate(tripId);
   const [failed, setFailed] = useState<string | null>(null);
 
+  const place = candidate.place;
+  const meta = [place.categoryName, place.regionName, place.address]
+    .filter((part): part is string => typeof part === 'string' && part.length > 0)
+    .join(' · ');
   const match = matches.data;
   const eligible = match ? eligibleSlots(match) : [];
   const blocked = match ? blockedSlots(match) : [];
@@ -212,10 +216,13 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
         )}
         <div className={styles.cardText}>
           <h2 className={styles.name}>{candidate.place.name}</h2>
-          {candidate.place.address === null ||
-          candidate.place.address === undefined ? null : (
-            <p className={styles.meta}>{candidate.place.address}</p>
-          )}
+          {/* categoryName, not categoryCode: BA-022 made the code explicitly
+              non-display, and a null name means "show no category". */}
+          {meta === '' ? null : <p className={styles.meta}>{meta}</p>}
+          {/* FCR-031 / CMP-ATT-001: the server's approved credit, verbatim. */}
+          {candidate.place.sourceAttribution ? (
+            <DataAttribution compact provenance={candidate.place.sourceAttribution} />
+          ) : null}
         </div>
       </div>
 
