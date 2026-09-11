@@ -5,6 +5,7 @@
 // an inline object is a hand-written model with nothing checking it.
 import {
   candidateFixtures,
+  relatedFixtures,
   optimizationFixtures,
   placeFixtures,
   problemFixtures,
@@ -152,6 +153,16 @@ export const handlers = [
     };
     return new HttpResponse(null, { status: 204 });
   }),
+  // MOCK DATA (FE-305). listRelatedPlaces has no approved example (BA-042).
+  // Every row's crowd is null: CrowdMetric needs a 29-field DataProvenance and
+  // the replace rules read comparisonEligible off it, so a synthesised one
+  // would be the fabricated evidence invariant 8 exists to stop.
+  http.get(`${API_BASE}/places/:placeId/related`, () =>
+    HttpResponse.json(relatedFixtures.page, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    }),
+  ),
+
   // MOCK DATA (FE-305). addTripCandidate has no approved example (BA-034).
   // The response asserts invariant 2 in its own shape: saving a candidate sets
   // tripScheduleChanged false and leaves the trip untouched here.
