@@ -2069,7 +2069,11 @@ components:
     PlaceSummary:
       type: object
       additionalProperties: false
-      required: [id, name, categoryCode, regionCode, categoryName, regionName, sourceAttribution]
+      # categoryName, regionName and sourceAttribution are always sent by the server. They stay out of
+      # `required` while the shape is a proposal, so adopting them is a choice rather than a forced
+      # edit to every existing consumer and test double. They move into `required` once the frontend
+      # has approved and adopted them (#34).
+      required: [id, name, categoryCode, regionCode]
       properties:
         id:
           type: string
@@ -2109,7 +2113,7 @@ components:
     PlaceDetail:
       type: object
       additionalProperties: false
-      required: [id, name, categoryCode, regionCode, categoryName, regionName, sourceAttribution, description, location, externalRefs]
+      required: [id, name, categoryCode, regionCode, description, location, externalRefs]
       properties:
         id:
           type: string
@@ -2511,6 +2515,11 @@ components:
           type: [string, "null"]
         label:
           type: string
+          description: |
+            Server-side name of the metric, in the source's own language. It is diagnostic, not display
+            copy: it is not localized and it is not the approved attribution. Build user-facing wording
+            from `state` and `provenance.metricDefinition`, and display `provenance.attribution` verbatim
+            for the credit.
         provenance:
           $ref: "#/components/schemas/DataProvenance"
     CrowdSeries:

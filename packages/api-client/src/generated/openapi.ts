@@ -1064,11 +1064,11 @@ export interface components {
              * @description Server-localized display name for `categoryCode`, or null when no reviewed mapping exists
              *     for that code yet. Null means "do not show a category", never "unknown category".
              */
-            categoryName: string | null;
+            categoryName?: string | null;
             /** @description Server-localized display name for `regionCode`, or null when no reviewed mapping exists. */
-            regionName: string | null;
+            regionName?: string | null;
             /** @description Null only for records with no external source, such as a user-created place. */
-            sourceAttribution: components["schemas"]["SourceAttribution"] | null;
+            sourceAttribution?: components["schemas"]["SourceAttribution"] | null;
             /** Format: uri */
             thumbnailUrl?: string | null;
             address?: string | null;
@@ -1081,9 +1081,9 @@ export interface components {
             categoryCode: string;
             /** @description Opaque provider-derived code. Render `regionName`, not this value. */
             regionCode: string;
-            categoryName: string | null;
-            regionName: string | null;
-            sourceAttribution: components["schemas"]["SourceAttribution"] | null;
+            categoryName?: string | null;
+            regionName?: string | null;
+            sourceAttribution?: components["schemas"]["SourceAttribution"] | null;
             /** Format: uri */
             thumbnailUrl?: string | null;
             thumbnailAsset?: components["schemas"]["MediaAsset"] | null;
@@ -1300,6 +1300,12 @@ export interface components {
             value?: number | null;
             unit?: string | null;
             ordinalLevel?: string | null;
+            /**
+             * @description Server-side name of the metric, in the source's own language. It is diagnostic, not display
+             *     copy: it is not localized and it is not the approved attribution. Build user-facing wording
+             *     from `state` and `provenance.metricDefinition`, and display `provenance.attribution` verbatim
+             *     for the credit.
+             */
             label: string;
             provenance: components["schemas"]["DataProvenance"];
         };
