@@ -9,24 +9,27 @@ export type TabKey = 'home' | 'trip' | 'live' | 'profile';
 
 export interface TabBarProps {
   active: TabKey;
+  /** Localised label per tab, in the caller's current locale. */
+  labels: Record<TabKey, string>;
+  /** Accessible name for the bar itself. */
+  navLabel: string;
   onSelect?: (key: TabKey) => void;
 }
 
-const TABS: ReadonlyArray<{
-  key: TabKey;
-  label: string;
-  Icon: typeof IconHome;
-}> = [
-  { key: 'home', label: '홈', Icon: IconHome },
-  { key: 'trip', label: '내 여행', Icon: IconTrip },
-  { key: 'live', label: '라이브', Icon: IconLive },
-  { key: 'profile', label: '내 정보', Icon: IconProfile },
+// Labels come from the caller, not from here: hardcoding Korean left the bar
+// in Korean while the rest of the app switched to English, which is worse than
+// an untranslated string elsewhere because it is on every screen.
+const TABS: ReadonlyArray<{ key: TabKey; Icon: typeof IconHome }> = [
+  { key: 'home', Icon: IconHome },
+  { key: 'trip', Icon: IconTrip },
+  { key: 'live', Icon: IconLive },
+  { key: 'profile', Icon: IconProfile },
 ];
 
-export function TabBar({ active, onSelect }: TabBarProps) {
+export function TabBar({ active, labels, navLabel, onSelect }: TabBarProps) {
   return (
-    <nav className={styles.bar} aria-label="주요 메뉴">
-      {TABS.map(({ key, label, Icon }) => (
+    <nav className={styles.bar} aria-label={navLabel}>
+      {TABS.map(({ key, Icon }) => (
         <button
           key={key}
           type="button"
@@ -36,7 +39,7 @@ export function TabBar({ active, onSelect }: TabBarProps) {
           onClick={() => onSelect?.(key)}
         >
           <Icon size={24} />
-          <span className={styles.label}>{label}</span>
+          <span className={styles.label}>{labels[key]}</span>
         </button>
       ))}
     </nav>

@@ -63,6 +63,28 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
 
 작업 목록의 기계 판독 정본은 [frontend-plan.json](../engineering/frontend-plan.json)이고 GitHub issue는 그 투영이다. 상태는 JSON이 정본이므로 구현 PR에서 `status`를 올리고 issue를 닫는다. `scripts/validate_frontend_plan.py`가 phase·기능 ID·operation·Figma node·선행 관계와 순환을 검사한다. Backend와 달리 operation 독점 소유와 전체 기능 coverage는 검사하지 않는다 — FE는 operation을 소비하므로 한 operation이 여러 화면에 나타나고, 서버·운영 전용 요구사항에는 FE task가 없다.
 
+### BE 미구현 endpoint를 목데이터로 선행할 때
+
+일정상 계약만 있고 구현이 없는 endpoint를 FE가 먼저 만들 수 있다. 그때 **선행했다는 사실을
+해당 Backend/AI issue에 코멘트로 남긴다.** 목데이터가 코드 안에만 있으면 나중에 누가 무엇을
+교체해야 하는지 저장소를 뒤져야 하고, 실제 응답과 다른 채로 병합될 위험이 PR #17에서 이미
+한 번 현실이 됐다(FE fixture 4종이 ajv를 통과하고도 서버와 달랐다).
+
+코멘트에 담을 것:
+
+- 어떤 FE 작업이 무엇을 가정하고 선행했는지
+- **실제 fixture 내용**(JSON 그대로). 값을 지어낸 필드는 그렇다고 밝힌다
+- FE가 가정한 서버 동작 중 **다르면 화면을 고쳐야 하는 것**
+- 교체 절차: fixture → `manifest.json`의 `serverVerified` → msw handler 삭제 → PROVISIONAL 주석 삭제
+
+코드 쪽에도 같은 내용을 남긴다 — `packages/contracts/src/index.ts`의 export 위 주석,
+`fixtures/manifest.json`의 `serverVerified: false`, 그리고 해당 msw handler에 삭제 조건.
+화면은 생성 client로 실제 호출하므로 endpoint가 열리면 fixture와 handler만 지우면 된다.
+
+계약에 필드가 아예 없어 화면을 못 만드는 경우는 목데이터로 메우지 않는다. 없는 값을 만들면
+불변식 8(provenance 없는 수치 비교 금지)에 걸리므로 `FCR-*`로 올리고 그 부분만 비운다
+(`FCR-029` 참조).
+
 ## 3. Client 공통 책임
 
 쿠키/CSRF/request ID/If-Match/Idempotency-Key를 공통 wrapper에서 처리하고 생성 타입을 수동 복제하지 않는다. 401은 안전한 GET만 1회 복구하며 mutation의 재시도는 동일 body/key에 대한 명시적 사용자 행동으로 제한한다. 검색·viewport는 민감 body이고 query cache persistence에서 제외한다.
@@ -110,12 +132,29 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
 ## 7. Definition of Done
 
 - Figma node → 기능 ID → operationId → fixture → component/E2E test가 screen manifest에 연결됐다.
+- **구현한 화면을 실제 브라우저에서 띄우고 Figma frame과 나란히 대조했다.** 연결만으로는
+  부족하다. FE-303까지의 화면은 각자 test를 통과하면서도 tab bar와 top app bar가 통째로
+  빠져 있었고, 화면 test는 `<div>` 안에서도 그대로 통과했기 때문에 아무것도 실패하지
+  않았다. 대조에서 나온 차이는 (a) 구현하거나 (b) 계약에 근거가 없으면 `FCR-*`로
+  등록하거나 (c) 다른 실행 ID의 범위임을 근거와 함께 적는다. 셋 중 하나로 처리하지 않은
+  차이는 남기지 않는다.
+- **간격·타이포·색은 눈으로 비교하지 말고 frame의 실제 auto-layout 값을 읽어 대조한다.**
+  screenshot 비교는 chrome 부재 같은 덩어리는 잡지만 15px ramp를 14px로 그린 것이나
+  radius 12를 14로 그린 것은 잡지 못한다. Figma MCP `get_design_context`로 frame의
+  padding/gap/radius/font를 받아 CSS와 값 단위로 비교하고, 고친 뒤 실제 브라우저에서
+  `getComputedStyle`로 재서 frame 값과 같은지 확인한다. FE-301/303 대조에서 이 방식으로만
+  20건 이상이 나왔고, 그 중 `--color-action-strong`(CTA)과 `PlaceSummary.thumbnailUrl`은
+  **토큰과 계약 필드가 이미 있는데 잘못 고르거나 쓰지 않은** 경우였다. 없어서 못 한 것이
+  아니라 확인하지 않아서 생긴 차이가 대부분이므로, 대조는 선택이 아니라 절차다.
 - API는 generated client만 사용하고 재생성 뒤 manual diff가 없다.
 - default/loading/empty/error/offline 및 해당 stale/replay/conflict 상태가 구현됐다.
 - mutation 중복 실행이 막히고 성공·실패 결과가 toast 외 persistent UI에도 남는다.
 - 360px·768px·1280px, KO/EN, 200% zoom, keyboard, focus, reduced motion을 검증했다.
 - SavedPost/Candidate/TripItem, four constraints, LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE를 혼용하지 않는다.
 - unit/component/visual/E2E와 `docker-integration`이 통과했다.
+- 화면이 shell 안에 있는지, 즉 tab destination이면 tab bar가 있고 flow 내부·하위 페이지면
+  없는지를 test가 단언한다(`app-shell.test.tsx`). 화면 test는 본문만 검사하므로 chrome
+  부재를 잡지 못한다.
 - BE/AI 담당자가 실제 API로 acceptance를 재현하고 승인했다.
 - 사용자 문구·화면과 공모전 기능설명서에 남길 증거가 실제 구현과 일치한다.
 - 실행하지 못한 검증은 통과로 표시하지 않고 PR에 `not run`과 이유를 남겼다.

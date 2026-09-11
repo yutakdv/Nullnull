@@ -1,0 +1,12 @@
+{
+  "candidateId": "018f4d40-1122-7a33-9b44-000000000001",
+  "state": "SIMILAR",
+  "slots": [
+    {
+      "date": "2026-10-06",
+      "suggestedTime": null,
+      "eligible": true,
+      "reasonCode": null
+    }
+  ]
+}

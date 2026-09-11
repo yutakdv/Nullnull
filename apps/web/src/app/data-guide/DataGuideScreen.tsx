@@ -1,6 +1,7 @@
+import { useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { StateLabel, type SourceState } from '../../shared/ui/index.js';
+import { NavBar, StateLabel, type SourceState } from '../../shared/ui/index.js';
 import styles from './DataGuideScreen.module.css';
 
 // Figma: S15 data-guide `423:2967`.
@@ -26,9 +27,19 @@ const RULES = [1, 2, 3, 4, 5] as const;
 
 export function DataGuideScreen() {
   const { t } = useI18n();
+  const navigate = useNavigate();
 
   return (
     <section className={styles.screen} aria-labelledby="data-guide-heading">
+      {/* Reached from the profile, and by deep link. Named destination rather
+          than history.go(-1) (COMPONENT_CATALOG C49). */}
+      <NavBar
+        backLabel={t('nav.back')}
+        onBack={() => {
+          void navigate('/profile');
+        }}
+      />
+
       <h1 className={styles.title} id="data-guide-heading">
         {t('dataGuide.title1')}
         <br />

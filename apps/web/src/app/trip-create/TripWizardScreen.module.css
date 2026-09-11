@@ -1,0 +1,210 @@
+/* Figma: S02-1/2/3 438:3012, 438:3108, 438:3134. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.step {
+  align-self: flex-end;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 500;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-lg);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+}
+
+/* Calendar */
+.month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.monthLabel {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 700;
+}
+
+.monthNav {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-title-md);
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dow {
+  padding-block: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  text-align: center;
+}
+
+.day {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}
+
+.day:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* Range ends carry the strong fill; the days between carry the tint. */
+.dayEdge {
+  background: var(--color-action-primary);
+  color: var(--color-text-onAccent);
+}
+
+.dayBetween {
+  border-radius: 0;
+  background: var(--color-action-subtle);
+  color: var(--color-action-primary);
+}
+
+/* Forced colours (Windows high contrast) drops background and colour, which
+   would leave the selected range indistinguishable -- TEST_STRATEGY.md §3 asks
+   that state survive with colour removed. An outline is honoured there, so the
+   selection stays visible without it. */
+@media (forced-colors: active) {
+  .dayEdge,
+  .dayBetween {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+
+  .dayEdge {
+    /* The ends are the range's boundary; a thicker rule separates them from
+       the days between without relying on a fill. */
+    outline-width: 3px;
+  }
+}
+
+.empty {
+  min-height: 44px;
+}
+
+/* Interests */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupLabel {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Planning level */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-default);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.optionSelected {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-subtle);
+}
+
+.optionText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.optionTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.optionBody {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.later {
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}

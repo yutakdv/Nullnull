@@ -1,0 +1,62 @@
+/* Form / LockControl (376:355) at px12 py3, pill, Label/sm 11/15. */
+
+.locks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lock {
+  min-height: 44px;
+  padding: 3px var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-default);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 500;
+  line-height: 15px;
+  cursor: pointer;
+}
+
+/* reservation-locked: shown, not operable here. Tinted with the protect colour
+   the catalog assigns it, so it reads as protected rather than broken. */
+.managed {
+  border-color: transparent;
+  background: var(--color-protect-subtle);
+  color: var(--color-protect-default);
+  cursor: not-allowed;
+}
+
+.lock:disabled:not(.managed) {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.state {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+.body {
+  display: block;
+}
+
+/* 413:2079: the consequence sits in its own tinted note. */
+.keeps {
+  display: block;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-protect-subtle);
+  color: var(--color-protect-default);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 18px;
+}

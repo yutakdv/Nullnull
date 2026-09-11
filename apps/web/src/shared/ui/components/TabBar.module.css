@@ -28,6 +28,16 @@
   color: var(--color-action-primary);
 }
 
+/* The active tab is distinguished only by colour, which forced colours
+   normalises away. aria-current still announces it; this keeps it visible
+   (TEST_STRATEGY.md §3). */
+@media (forced-colors: active) {
+  .tab[data-active] {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+}
+
 .label {
   font-size: var(--font-label);
   font-weight: 500;

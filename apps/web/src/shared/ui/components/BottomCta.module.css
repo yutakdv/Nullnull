@@ -13,7 +13,10 @@
   min-height: 47px;
   border: none;
   border-radius: var(--radius-card);
-  background: var(--color-action-primary);
+  /* action/strong, not action/primary: the frame's CTA is the darker blue
+     (I388:302;221:1980). primary is the tint used for links and selected
+     states, and using it here made every CTA a step too light. */
+  background: var(--color-action-strong);
   color: var(--color-action-onPrimary);
   font-family: inherit;
   font-size: var(--font-body-md);

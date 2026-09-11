@@ -26,6 +26,15 @@
   box-shadow: var(--elevation-subtle);
 }
 
+/* box-shadow and background are both dropped in forced colours; the selected
+   segment needs an outline to stay distinguishable (TEST_STRATEGY.md §3). */
+@media (forced-colors: active) {
+  .option[data-selected] {
+    outline: 3px solid CanvasText;
+    outline-offset: -3px;
+  }
+}
+
 .option:disabled {
   color: var(--color-text-disabled);
   cursor: not-allowed;

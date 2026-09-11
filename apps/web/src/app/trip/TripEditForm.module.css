@@ -1,0 +1,119 @@
+/* S07-2 edit `411:1837`. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-subtle);
+}
+
+.mode {
+  margin: 0;
+  color: var(--color-action-primary);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
+
+.input {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  /* A date input must not force the row wider than 360px. */
+  max-width: 100%;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--color-text-primary);
+  /* Not colour alone: the border thickens and the message names the problem. */
+  border-width: 2px;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.state {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
+
+.conflict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.conflictText {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  line-height: 18px;
+}
+
+.conflictActions,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions {
+  margin-top: var(--space-2);
+}
+
+.secondary,
+.primary {
+  flex: 1;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+}
+
+.primary {
+  border: 0;
+  background: var(--color-action-primary);
+  color: var(--color-text-inverse);
+}
+
+.primary:disabled {
+  background: var(--color-bg-default);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}

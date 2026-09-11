@@ -23,6 +23,13 @@ const provenance = {
   observedAt: null,
 } as components['schemas']['DataProvenance'];
 
+const TAB_LABELS = {
+  home: '홈',
+  trip: '내 여행',
+  live: '라이브',
+  profile: '내 정보',
+};
+
 describe('FeedPostCard', () => {
   const card = {
     post: {
@@ -124,7 +131,7 @@ describe('CandidateCard', () => {
 
 describe('TabBar', () => {
   it('exposes the four P0 tabs and marks the active one', () => {
-    render(<TabBar active="trip" />);
+    render(<TabBar active="trip" labels={TAB_LABELS} navLabel="주요 메뉴" />);
     expect(screen.getAllByRole('button')).toHaveLength(4);
     expect(screen.getByRole('button', { name: /내 여행/ })).toHaveAttribute(
       'aria-current',
@@ -133,7 +140,7 @@ describe('TabBar', () => {
   });
 
   it('does not render the P1 search tab', () => {
-    render(<TabBar active="home" />);
+    render(<TabBar active="home" labels={TAB_LABELS} navLabel="주요 메뉴" />);
     expect(screen.queryByRole('button', { name: /검색/ })).not.toBeInTheDocument();
   });
 });
