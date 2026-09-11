@@ -1081,7 +1081,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "S09-1 loading/polling/background resume",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-501",
         "BA-050"
@@ -1255,7 +1255,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "S14 최적화 이력 상태/scope/시각/decision과 상세 진입",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-105",
         "BA-053"
