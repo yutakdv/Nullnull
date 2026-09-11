@@ -18,7 +18,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { postFixtures } from '@nullnull/contracts';
+import { feedFixtures, postFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -181,6 +181,20 @@ describe('FE-202-T2 the screen renders each of its states', () => {
     renderPost('018f5b00-0000-7000-8000-0000000000ff');
     expect(await screen.findByRole('alert')).toHaveTextContent(copy['post.notFound']);
     expect(screen.queryByRole('button', { name: copy['post.retry'] })).toBeNull();
+  });
+
+  it('opens every post the feed offers, not only the one with a fixture', async () => {
+    // The feed lists five posts and the approved-shape fixture covers one, so
+    // the handler used to answer NOT_FOUND for the other four: four of the
+    // five cards in `npm run dev` opened onto 없는 게시물이에요, which reads as
+    // a broken app rather than as missing mock data. Every id the feed shows
+    // has to resolve, or the first thing anyone clicks is a dead end.
+    const listed = feedFixtures.page.items[1]?.post;
+    renderPost(listed?.id);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: listed?.title ?? '' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(copy['post.notFound'])).toBeNull();
   });
 
   it('offers a retry when the request fails', async () => {

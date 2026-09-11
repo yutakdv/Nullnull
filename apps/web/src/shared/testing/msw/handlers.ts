@@ -15,7 +15,10 @@ import {
   tripFixtures,
 } from '@nullnull/contracts';
 import { http, HttpResponse } from 'msw';
+import type { components } from '@nullnull/api-client';
 import type { ProblemCode } from '../../api/index.js';
+
+type PostDetail = components['schemas']['PostDetail'];
 
 /**
  * The dev proxy and the deployed app both serve the API under /api/v1.
@@ -68,6 +71,35 @@ function currentCandidates() {
  * them is what invariant 1 forbids.
  */
 const savedPosts = new Set<string>();
+
+/**
+ * A PostDetail for any post the feed lists.
+ *
+ * The single approved-shape fixture covers one of the five feed posts, so the
+ * other four answered NOT_FOUND: in `npm run dev` four of the five cards
+ * opened onto 없는 게시물이에요, which reads as a broken app rather than as
+ * missing mock data. The detail is built from the feed's own entry — same id,
+ * title, excerpt, cover and place — so the card and the screen it opens agree.
+ *
+ * An id the feed does not list still answers NOT_FOUND, which is what the
+ * deep-link-to-a-missing-post case needs.
+ */
+function postDetailFor(postId: string): PostDetail | null {
+  if (postId === postFixtures.detail.id) return postFixtures.detail;
+  const entry = [...feedFixtures.page.items, ...feedFixtures.pageTwo.items].find(
+    (item) => item.post.id === postId,
+  );
+  if (!entry) return null;
+  return {
+    ...postFixtures.detail,
+    id: entry.post.id,
+    title: entry.post.title,
+    excerpt: entry.post.excerpt,
+    coverUrl: entry.post.coverUrl,
+    publishedAt: entry.post.publishedAt,
+    places: [entry.primaryPlace],
+  };
+}
 
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
@@ -142,8 +174,9 @@ export const handlers = [
   // always answered `saved: false` would let a broken toggle pass.
   http.get(`${API_BASE}/posts/:postId`, ({ params }) => {
     const postId = String(params.postId);
-    if (postId !== postFixtures.detail.id) return problemResponse('NOT_FOUND');
-    return HttpResponse.json({ ...postFixtures.detail, saved: savedPosts.has(postId) });
+    const detail = postDetailFor(postId);
+    if (!detail) return problemResponse('NOT_FOUND');
+    return HttpResponse.json({ ...detail, saved: savedPosts.has(postId) });
   }),
   http.put(`${API_BASE}/posts/:postId/saved`, ({ params }) => {
     const postId = String(params.postId);
