@@ -62,6 +62,20 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
   `TatsCnctrRateService` 공식 활용가이드로 고정할 것.** 코드 체계 변경은 `PlaceSummary.categoryCode`/
   `regionCode`의 의미를 바꾸므로 FE(#34)와 함께 정한다.
 
+- **C3 후속 완료 (#109 절반 해소, PR #111 병합):** `V012`가 KTO_KOR_SERVICE_2를 revision 4
+  (`kto-kor-service2-detailcommon2-v3`)로 올리고 validator가 `lclsSystm1`·`lDongRegnCd`·`lDongSignguCd`를
+  읽는다. retired 식별자만 담긴 응답은 remap하지 않고 `SCHEMA_DRIFT`로 quarantine하고, 둘 다 없는 경우는
+  분류 없는 장소라 drift가 아니다. fixture는 실측 응답 모양이다. **실제 KTO place가 canonical catalog에
+  저장된다.**
+- **FE 승인 대기 계약 (되돌리지 말 것):** `PlaceSummary`/`PlaceDetail`의 `sourceAttribution`·`categoryName`·
+  `regionName`은 **`required`가 아니다.** 승인 전에 required로 올리면 FE의 `PlaceSummary` 리터럴
+  (`candidates.test.ts`·`locks.test.ts`·`trip-view.test.ts`)이 TS2739로 깨진다. 서버는 항상 보낸다. FE가
+  채택을 끝낸 뒤에만 required로 올린다(#34).
+- **표시용이 아닌 필드 3개:** `PlaceSummary.categoryCode`·`regionCode`와 `CrowdMetric.label`. 계약 설명에
+  명시돼 있다. 문구는 `state`+`provenance.metricDefinition`으로 만들고 credit은 `provenance.attribution`을
+  그대로 쓴다(FE 결정, #105).
+- **`FieldError.field`는 점 경로 전용**이고 슬래시를 쓰지 않는다. 빈 경로는 `"request"` 센티널이다(#38).
+
 - **다음은 C5 BA-024**(검증된 관련 장소·추천 후보 검색). 다만 FE가 #34에 올린 출처 표시 요청 — `PlaceSummary`에
   source/attribution field가 없어 공모전 REQUIRED `CMP-ATT-001`을 못 채우는 문제 — 를 **BA-024보다 먼저**
   처리하겠다고 #34에 적었다(해당 FCR 번호는 FE가 PR #106에서 `FIGMA_CHANGE_REQUESTS.md` 표에 등록 중이므로 여기서
