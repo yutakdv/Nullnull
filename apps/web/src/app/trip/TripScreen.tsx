@@ -146,6 +146,11 @@ export function TripScreen() {
               candidates, so counting it would under-report the total. */}
           {/* The count is the way into the candidate panel (S07-8), so it is a
               link rather than a label. */}
+          {/* 521:3989: the frame's mode bar pairs "+ 장소 추가" with the saved
+              places count. */}
+          <Link className={styles.addPlace} to={`/trip/${trip.id}/add-place`}>
+            {t('trip.addPlace')}
+          </Link>
           <Link className={styles.candidates} to={`/trip/${trip.id}/candidates`}>
             {t('trip.candidates', { count: trip.candidateCount })}
           </Link>

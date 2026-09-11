@@ -781,3 +781,52 @@ export function useRemoveTripItem(tripId: string | null) {
     },
   });
 }
+
+type AddCandidateRequest = components['schemas']['AddCandidateRequest'];
+type CandidateSaveResult = components['schemas']['CandidateSaveResult'];
+
+/**
+ * Saves a place as a candidate — no date, no schedule change (FR-CAN-02).
+ *
+ * This is the other half of the place-add choice: a chosen day goes to
+ * addTripItem and creates a TripItem, while "미정" comes here and creates a
+ * TripCandidate. Invariants 1 and 2 are that distinction, so the two are
+ * separate hooks rather than one that branches on whether a date is set.
+ *
+ * The response carries `tripScheduleChanged`, which the contract sets false for
+ * this operation: saving a candidate never touches the itinerary. Only the
+ * candidate list is invalidated here.
+ *
+ * Carries an Idempotency-Key because a repeated submit must not save the place
+ * twice; the server answers 200 with `duplicate: true` when it already exists.
+ */
+export function useAddTripCandidate(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    CandidateSaveResult,
+    Problem | Error,
+    { request: AddCandidateRequest; idempotencyKey: string }
+  >({
+    mutationFn: async ({ request, idempotencyKey }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      const { data, error, response } = await getApiClient().POST(
+        '/trips/{tripId}/candidates',
+        {
+          body: request,
+          params: {
+            path: { tripId },
+            header: { 'Idempotency-Key': idempotencyKey },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    onSuccess: () => {
+      if (tripId === null) return;
+      // The itinerary is untouched by construction, so only the candidate list
+      // is refetched.
+      void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(tripId) });
+    },
+  });
+}

@@ -7,6 +7,7 @@ import { IntroScreen } from './onboarding/IntroScreen.js';
 import { LanguageScreen } from './onboarding/LanguageScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
+import { AddPlaceScreen } from './trip/AddPlaceScreen.js';
 import { CandidatesScreen } from './trip/CandidatesScreen.js';
 import { TripScreen } from './trip/TripScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
@@ -45,6 +46,7 @@ export const routes: RouteObject[] = [
       // Sub-pages reached by a back control, so they carry a NavBar instead.
       { path: 'posts/:postId', element: <PlaceholderScreen routeId="post-detail" /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
+      { path: 'trip/:tripId/add-place', element: <AddPlaceScreen /> },
       {
         path: 'trip/:tripId/optimizations/:runId',
         element: <PlaceholderScreen routeId="optimization" />,

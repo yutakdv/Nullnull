@@ -152,6 +152,39 @@ export const handlers = [
     };
     return new HttpResponse(null, { status: 204 });
   }),
+  // MOCK DATA (FE-305). addTripCandidate has no approved example (BA-034).
+  // The response asserts invariant 2 in its own shape: saving a candidate sets
+  // tripScheduleChanged false and leaves the trip untouched here.
+  http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request }) => {
+    const body = (await request.json()) as { placeId: string };
+    const candidates = currentCandidates();
+    const existing = candidates.items.find((c) => c.place.id === body.placeId);
+    if (existing) {
+      return HttpResponse.json({
+        candidate: existing,
+        duplicate: true,
+        tripScheduleChanged: false,
+      });
+    }
+    const place =
+      placeFixtures.searchPage.items.find((p) => p.id === body.placeId) ??
+      placeFixtures.searchPage.items[0];
+    const template = candidates.items[0];
+    if (!place || !template) return problemResponse('VALIDATION_FAILED');
+    const candidate = {
+      ...template,
+      id: crypto.randomUUID(),
+      place,
+      status: 'ACTIVE' as const,
+      scheduledTripItemId: null,
+    };
+    candidateState = { ...candidates, items: [...candidates.items, candidate] };
+    return HttpResponse.json(
+      { candidate, duplicate: false, tripScheduleChanged: false },
+      { status: 201 },
+    );
+  }),
+
   // MOCK DATA (FE-305). updateTripItem, reorderTripItems, replaceTripItem and
   // removeTripItem have no approved example (BA-040). Each models the contract
   // rather than echoing a fixture, so a client that sends the wrong shape fails
