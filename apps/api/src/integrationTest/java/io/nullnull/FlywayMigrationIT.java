@@ -77,10 +77,11 @@ class FlywayMigrationIT {
             // An empty schema upgrades even when a migration cannot: a NOT NULL column without a
             // default, or a unique index over existing duplicates, only fails on populated tables.
             UUID ownerId = UUID.randomUUID();
-            populateEveryTable(ownerId);
+            String outstandingKey = populateEveryTable(ownerId);
             List<String> columnsBefore = columnsInUpgradeSchema();
             long rowsBefore = totalRowsInUpgradeSchema();
-            assertThat(rowsBefore).isEqualTo(tablesInUpgradeSchema().size());
+            assertThat(tablesInUpgradeSchema()).allSatisfy(table -> assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM " + UPGRADE_SCHEMA + "." + table, Long.class)).isPositive());
 
             MigrateResult toLatest = upgradeSchemaFlyway(null).migrate();
             assertThat(toLatest.success).isTrue();
@@ -89,12 +90,19 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived, and every column an older application reads is still there
-            // with the same type and nullability: this slice only adds tables.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
+            // Every existing row survived. V011 adds exactly one row of its own: the reviewed
+            // KTO_CONCENTRATION_FORECAST revision 2 contract that the C4 snapshot tables reference.
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
-            // The new table accepts a row that references the owner created before the upgrade.
+            // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
+                    .doesNotThrowAnyException();
+            // V004 narrowed the deduplication key from "one row ever" to "one outstanding job". The
+            // READY row written before the upgrade still holds its key...
+            assertThatThrownBy(() -> insertJobInto(UPGRADE_SCHEMA + ".background_jobs", outstandingKey, "READY"))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+            // ...and a finished job of the same key, which the old constraint refused, is now allowed.
+            assertThatCode(() -> insertJobInto(UPGRADE_SCHEMA + ".background_jobs", outstandingKey, "COMPLETED"))
                     .doesNotThrowAnyException();
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + UPGRADE_SCHEMA + " CASCADE");
@@ -108,6 +116,22 @@ class FlywayMigrationIT {
         insertJob(key, "READY");
         assertThatThrownBy(() -> insertJob(key, "READY"))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("BA-005 a finished job does not hold its deduplication key")
+    void aFinishedJobDoesNotHoldItsDeduplicationKey() {
+        String key = "it-dedup-finished-" + UUID.randomUUID();
+        insertJob(key, "COMPLETED");
+
+        // The measured product failure: a collector with a natural key ran once and then silently
+        // never again, because its second enqueue collided with the COMPLETED row.
+        assertThatCode(() -> insertJob(key, "READY")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> insertJob(key, "RUNNING"))
+                .as("only one job may be outstanding for a key")
+                .isInstanceOf(DataIntegrityViolationException.class);
+        // History does not collide with history either: several finished runs share the same key.
+        assertThatCode(() -> insertJob(key, "FAILED")).doesNotThrowAnyException();
     }
 
     @Test
@@ -219,18 +243,111 @@ class FlywayMigrationIT {
         return configuration.load();
     }
 
-    /** One representative row in every table the previous schema has, so the upgrade runs on data. */
-    private void populateEveryTable(UUID ownerId) {
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".background_jobs"
-                        + " (id, type, deduplication_key, status, max_attempts, next_attempt_at, created_at)"
-                        + " VALUES (?, 'OPTIMIZATION', ?, 'READY', 3, ?, ?)",
-                UUID.randomUUID(), "upgrade-" + UUID.randomUUID(), OffsetDateTime.now(),
-                OffsetDateTime.now());
+    /**
+     * One representative row in every table the previous schema has, so the upgrade runs on data.
+     *
+     * @return the deduplication key of the outstanding job row, which the upgrade must keep exclusive
+     */
+    private String populateEveryTable(UUID ownerId) {
+        String key = "upgrade-" + UUID.randomUUID();
+        insertJobInto(UPGRADE_SCHEMA + ".background_jobs", key, "READY");
         jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".owners"
                         + " (id, kind, locale, timezone, created_at) VALUES (?, 'ANONYMOUS', ?, ?, ?)",
                 ownerId, "ko-KR", "Asia/Seoul", OffsetDateTime.now());
+        insertRecordInto(UPGRADE_SCHEMA, ownerId);
+        UUID sessionId = UUID.randomUUID();
+        byte[] hash = new byte[32];
+        new java.security.SecureRandom().nextBytes(hash);
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".demo_sessions"
+                        + " (id, owner_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                sessionId, ownerId, hash, now.plusDays(30), now);
+        new java.security.SecureRandom().nextBytes(hash);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".demo_session_csrf_tokens"
+                        + " (id, demo_session_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                UUID.randomUUID(), sessionId, hash, now.plusHours(2), now);
+        UUID deletionRequestId = UUID.randomUUID();
+        new java.security.SecureRandom().nextBytes(hash);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".deletion_requests"
+                        + " (id, owner_id, status_token_hash, status, status_token_expires_at,"
+                        + " requested_at, updated_at) VALUES (?, ?, ?, 'ACCEPTED', ?, ?, ?)",
+                deletionRequestId, ownerId, hash, now.plusDays(7), now, now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".deletion_tombstones"
+                        + " (id, deletion_request_id, owner_id, delete_before, retain_until, scope_hash, created_at)"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                UUID.randomUUID(), deletionRequestId, ownerId, now, now.plusDays(21), "c".repeat(64), now);
+        // V007 source registry tables are already seeded with reviewed rows. Add rows to the three
+        // operational tables that are otherwise empty, so the C2 migrations are tested against populated C1 data too.
+        UUID collectorRunId = UUID.randomUUID();
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".source_quality_incidents"
+                        + " (id, source_code, incident_code, affected_from, affected_to, scope, disposition, reviewed_at)"
+                        + " VALUES (?, 'KTO_KOR_SERVICE_2', ?, ?, ?, 'PLACE', 'RESOLVED', ?)",
+                UUID.randomUUID(), "upgrade-incident-" + UUID.randomUUID(), now, now.plusMinutes(1), now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".collector_runs"
+                        + " (id, source_code, status, trigger_type, records_received, records_accepted,"
+                        + " records_rejected, schema_version, started_at, finished_at)"
+                        + " VALUES (?, 'KTO_KOR_SERVICE_2', 'COMPLETED', 'MANUAL', 1, 1, 0, 'upgrade-v1', ?, ?)",
+                collectorRunId, now.minusSeconds(1), now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".api_ingest_logs"
+                        + " (id, collector_run_id, endpoint_key, outcome, http_status, duration_ms, response_count,"
+                        + " release_version, request_id, payload_hash, validation_result, created_at)"
+                        + " VALUES (?, ?, 'UPGRADE_TEST', 'OK', 200, 1, 1, 'upgrade-release', ?, ?, 'OK', ?)",
+                UUID.randomUUID(), collectorRunId, "upgrade-request-" + UUID.randomUUID(), "d".repeat(64), now);
+        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".kto_place_snapshots"
+                        + " (id, source_code, source_registry_version, collector_run_id, content_id, content_type_id,"
+                        + " title, payload_hash, fetched_at, stale_at, created_at)"
+                        + " VALUES (?, 'KTO_KOR_SERVICE_2', 2, ?, '126508', '12', 'upgrade place', ?, ?, ?, ?)",
+                UUID.randomUUID(), collectorRunId, "e".repeat(64), now, now.plusDays(7), now);
+        // V010's canonical catalog belongs to the previous schema from V011 on, so the C4 crowd
+        // migration has to run against populated catalog rows too. V010's triggers look their
+        // parent rows up through search_path, so these inserts only see the upgrade schema when it
+        // is on the path; SET LOCAL confines that to this statement's own implicit transaction and
+        // therefore never leaks onto the pooled connection.
+        jdbc.execute("""
+                DO $upgrade$
+                DECLARE
+                    v_place uuid := gen_random_uuid();
+                    v_license uuid := gen_random_uuid();
+                    v_asset uuid := gen_random_uuid();
+                    v_at timestamptz := now();
+                BEGIN
+                    SET LOCAL search_path TO %s;
+                    INSERT INTO places (id, canonical_name, category_code, latitude, longitude,
+                                        region_code, status, created_at, updated_at)
+                    VALUES (v_place, 'upgrade place', 'A01', 37.579617, 126.977041, 'KR-11',
+                            'ACTIVE', v_at, v_at);
+                    INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)
+                    VALUES (gen_random_uuid(), v_place, 'ko-KR', 'upgrade place', 'upgrade address', v_at);
+                    INSERT INTO place_external_refs (id, place_id, source_code, source_registry_version,
+                                                     external_id, external_type, verified_at)
+                    VALUES (gen_random_uuid(), v_place, 'KTO_KOR_SERVICE_2', 2,
+                            'upgrade-' || gen_random_uuid()::text, 'CONTENT_ID', v_at);
+                    INSERT INTO asset_licenses (id, source_code, source_registry_version,
+                                                external_license_code, license_name, license_url,
+                                                attribution_template, redistribution_allowed,
+                                                derivative_allowed, reviewed_at)
+                    VALUES (v_license, 'KTO_KOR_SERVICE_2', 2, 'upgrade-' || gen_random_uuid()::text,
+                            'upgrade license', 'https://example.test/license', 'upgrade attribution',
+                            true, false, v_at);
+                    INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url,
+                                              served_url, checksum, media_type, alt_text, license_checked_at)
+                    VALUES (v_asset, v_license, 'upgrade-' || gen_random_uuid()::text,
+                            'https://example.test/origin.jpg', 'https://example.test/served.jpg',
+                            repeat('f', 64), 'IMAGE', 'upgrade alt text', v_at);
+                    INSERT INTO place_media_assets (place_id, media_asset_id, position)
+                    VALUES (v_place, v_asset, 0);
+                END
+                $upgrade$;
+                """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
-        assertThat(tablesInUpgradeSchema()).containsExactlyInAnyOrder("background_jobs", "owners");
+        assertThat(tablesInUpgradeSchema())
+                .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records",
+                        "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
+                        "deletion_tombstones", "source_registry", "source_registry_revisions",
+                        "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
+                        "places", "place_localizations", "place_external_refs", "asset_licenses",
+                        "media_assets", "place_media_assets");
+        return key;
     }
 
     private void insertRecordInto(String schema, UUID ownerId) {
@@ -266,7 +383,12 @@ class FlywayMigrationIT {
     }
 
     private void insertJob(String key, String status) {
-        jdbc.update("INSERT INTO background_jobs (id, type, deduplication_key, status, max_attempts, next_attempt_at, created_at)"
+        insertJobInto("background_jobs", key, status);
+    }
+
+    private void insertJobInto(String table, String key, String status) {
+        jdbc.update("INSERT INTO " + table + " (id, type, deduplication_key, status,"
+                        + " max_attempts, next_attempt_at, created_at)"
                         + " VALUES (?, 'OPTIMIZATION', ?, ?, ?, ?, ?)",
                 UUID.randomUUID(), key, status, 3, OffsetDateTime.now(), OffsetDateTime.now());
     }

@@ -115,6 +115,15 @@
       "id": "REC-DATA-02",
       "suite": "gradle:test",
       "path": "apps/api/src/test/java/io/nullnull/crowd/domain/TemporalComparisonPolicyTest.java"
+    },
+    {
+      "id": "REC-SEC-03",
+      "suite": "gradle:integrationTest",
+      "path": [
+        "apps/api/src/integrationTest/java/io/nullnull/identity/DeletionIT.java",
+        "apps/api/src/integrationTest/java/io/nullnull/identity/DeletionJobIT.java",
+        "apps/api/src/test/java/io/nullnull/identity/application/TombstoneReapplierTest.java"
+      ]
     }
   ],
   "fixtures": [

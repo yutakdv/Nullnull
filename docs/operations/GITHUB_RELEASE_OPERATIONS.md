@@ -38,8 +38,8 @@ tags:
 - merge commit을 사용해 역할 브랜치의 검토 단위를 보존한다. PR 제목과 commit은 기능 ID를 포함한 Conventional Commit 형식으로 정리한다.
 - `frontend`와 `backend`는 merge 뒤 삭제하지 않고 새 `main`으로 동기화한다.
 - force push, history rewrite, bypass는 production incident 승인 외 금지한다.
-- contract/DB/security/infra/release 변경은 상대 담당자의 명시적 승인이 필요하다.
-- 둘 중 한 명이 작성자이면 다른 한 명이 required reviewer다. 자기 승인 merge는 허용하지 않는다.
+- contract/DB/security/infra/release 변경은 상대 담당자에게 검토를 요청하고 합의가 필요한 결정은 구현 전에 기록한다. 코드 PR merge 자체는 green gate가 결정한다.
+- CODEOWNERS는 상대 담당자에게 검토를 요청하지만 코드 PR의 required reviewer는 두지 않는다. 최신 `main` 기준 두 required check가 green이면 auto-merge한다.
 - stale approval은 새 commit 또는 contract/generated diff 변경 시 dismiss한다.
 
 교차 slice의 additive contract → 호환 Backend → Frontend 순서, fast-forward/merge 동기화 방법과 B01 marker는 [브랜치·Docker 통합 계약](../engineering/BRANCH_AND_INTEGRATION.md)이 정본이다.
@@ -78,7 +78,7 @@ test와 API contract test를 모두 강제한다. required workflow가 skip이�
 
 실제 handle이 결정되기 전 placeholder CODEOWNERS를 merge하지 않는다. B01에서 `FE_DRI`, `BE_AI_DRI`를 실제 GitHub handle로 치환해 다음 의미를 구현한다.
 
-| Path | Primary DRI | CODEOWNERS | 상대 review가 필수인 변경 |
+| Path | Primary DRI | CODEOWNERS | 상대 review 초점 |
 | --- | --- | --- | --- |
 | `apps/web/**`, design docs | FE_DRI | FE_DRI + BE_AI_DRI | 모든 PR; BE/AI가 의미 경계 확인 |
 | `apps/api/**`, DB/source/AI | BE_AI_DRI | FE_DRI + BE_AI_DRI | 모든 PR; FE가 public 동작 확인 |
@@ -87,18 +87,18 @@ test와 API contract test를 모두 강제한다. required workflow가 skip이�
 | `infra/**`, workflows, operation docs | BE_AI_DRI | FE_DRI + BE_AI_DRI | 항상 |
 | dependency lock/toolchain | 해당 DRI | FE_DRI + BE_AI_DRI | runtime/production 영향 |
 
-PR 작성자는 자기 PR을 승인할 수 없으므로 단일 역할 owner만 두지 않는다. 실행 경로에 두 팀원을
-함께 CODEOWNER로 지정해 작성자와 반대 역할 모두 승인 자격을 갖게 하고, ruleset에서
-code owner review와 최소 1명 approval, conversation resolution, stale approval
-dismissal을 함께 켠다. Primary DRI는 단독 승인권이 아니라 구현 책임이다.
+실행 경로에 두 팀원을 함께 CODEOWNER로 지정해 작성자와 반대 역할 모두 자동으로 검토 요청을
+받게 한다. ruleset은 code owner review, approval 수와 conversation resolution을 required로
+두지 않고 두 required check만 강제한다. Primary DRI는 구현 책임이며 CODEOWNERS 검토는
+auto-merge 뒤에도 이어질 수 있다.
 
 ## 5. GitHub ruleset 외부 설정 checklist
 
 - [ ] default branch가 정확히 `main`
 - [ ] `frontend`, `backend`가 `main`에서 생성됐고 두 역할 브랜치의 force push/deletion이 차단됨
 - [ ] pull request 필수, direct push/force push/deletion 차단
-- [ ] 최소 승인 1명 + code owner review + stale approval dismiss
-- [ ] 모든 conversation resolved
+- [ ] required approval 0명, code owner review는 요청만 자동 배정
+- [ ] conversation resolution은 merge 필수 조건에서 제외
 - [ ] 정확히 `docs-contract`, `docker-integration`만 stable required status로 연결됨
 - [ ] B01 뒤 모든 component gate가 `docker-integration` 내부에서 fail-closed로 집계됨
 - [ ] required check가 관리자/bypass actor에도 기본 적용됨
@@ -110,7 +110,7 @@ dismissal을 함께 켠다. Primary DRI는 단독 승인권이 아니라 구현 
 - [ ] secret scanning/push protection와 Dependabot alert 활성화 가능 여부 확인
 - [ ] ruleset/export 또는 설정 screenshot을 private 운영 기록에 보존
 - [ ] 일반 PR head는 같은 repository의 `frontend`/`backend`로 제한되고 dependency bot만 명시적 예외
-- [ ] 실행 경로 CODEOWNERS에 두 팀원이 함께 있어 역할 owner가 작성자인 PR도 상대 승인이 가능함
+- [ ] 실행 경로 CODEOWNERS에 두 팀원이 함께 있어 상대 담당자에게 비동기 검토 요청이 자동 배정됨
 
 ## 6. GitHub environment checklist
 

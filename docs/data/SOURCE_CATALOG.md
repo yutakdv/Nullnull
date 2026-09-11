@@ -21,14 +21,15 @@ tags:
 
 | Source code | 제공자/데이터 | 제품 사용 | P0 상태 | 가장 큰 주의점 |
 | --- | --- | --- | --- | --- |
-| `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | 채택 후보 | 운영 승인·이미지별 이용 조건 |
-| `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | 채택 후보 | 방문자 수가 아닌 상대 집중률 예측 |
-| `KTO_RELATED_PLACES` | 관광지별 연관 관광지 | 대체/연관 장소 근거 | 조건부 | 차량 내비 데이터·과거 기간/의미 한계 |
-| `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | 채택 후보 | area scope, 장소 목록/field 변경, 품질 사고 |
-| `DEMO_REPLAY` | 검증된 내부 fixture | 시연/외부 장애 fallback | P0 필수 | 현재 실시간처럼 표시 금지 |
+| `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | C2 registry v2 `DEV_APPROVED`, `P7D`; `detailCommon2`만 | 운영 승인·이미지별 이용 조건 |
+| `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | C4 registry v2 `DEV_APPROVED`, operation `tatsCnctrRatedList`, schema `kto-tats-cnctr-rate-v4.1`, `PT24H` | 방문자 수가 아닌 상대 집중률 예측. 가장 붐비는 시기를 100으로 둔 날짜 단위 상대값이며 인원·수용률·시간대 예측이 아니다 |
+| `KTO_RELATED_PLACES` | 관광지별 연관 관광지 | 대체/연관 장소 근거 | `DISABLED` (미신청) | 차량 내비 데이터·과거 기간/의미 한계 |
+| `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | `DISABLED` (B10 전) | area scope, 장소 목록/field 변경, 품질 사고 |
+| `DEMO_REPLAY` | 검증된 내부 fixture | 시연/외부 장애 fallback | `DISABLED` (B10 전) | 현재 실시간처럼 표시 금지 |
+| `NULLNULL_CATALOG_RULE` | 내부 taxonomy·region 규칙 | C5 `SIMILAR` 대체 후보 | C1 registry v1 `PROD_APPROVED`, `P7D` | 외부 relation 사실·혼잡 근거로 표시 금지 |
 | `ROUTE_PROVIDER` | 미정 | 이동 시간/route matrix | P1 | provider/가격/쿼터/약관 미결정 |
 
-`채택 후보`는 기술적으로 적합하다는 뜻이며 production 이용 승인이 끝났다는 뜻이 아니다. D-003/D-015를 닫기 전 live flag를 켜지 않는다. 단, 공모전 제출 서비스는 한국관광공사 OpenAPI를 실제로 사용해야 하므로 KTO 운영 승인·실제 호출·서비스 내 사용 증거가 없으면 제출 자체를 차단한다.
+registry v1은 공모전 제출 빌드에서 KTO `DEV_APPROVED` 개발 키(1,000/일)를 실제 호출에 쓸 수 있다는 팀 결정을 기록했다. C2 registry v2는 `KorService2/detailCommon2` 하나만 reviewed operation으로 고정하지만, fixture 검증은 actual KTO gateway·서비스 내 사용 증거 또는 source capability ON을 대신하지 않는다. 서울/Replay/live flag와 D-003의 production 운영 key·재배포 조건은 여전히 별도 결정이다. 공모전 제출 서비스는 한국관광공사 OpenAPI를 실제로 사용해야 하므로 KTO 실제 호출·서비스 내 사용 증거가 없으면 제출 자체를 차단한다.
 
 ## 2. KTO 국문 관광정보 서비스
 
@@ -59,9 +60,21 @@ displayName: 한국관광공사 국문 관광정보
 scope: PLACE
 sourceState: QUALITATIVE
 license: RECORD_LEVEL_REVIEW_REQUIRED
-staleAfter: OPEN_D_015
+approvalState: DEV_APPROVED
+quotaPolicy: { perDay: 1000, thresholds: [60, 80, 90] }
+staleAfter: P7D
+registryVersion: 2
+providerSchemaVersion: kto-kor-service2-detailcommon2-v1
 attributionTemplate: "출처: ⓒ한국관광공사"
 ```
+
+### C2 고정 provider operation
+
+- exact base는 `https://apis.data.go.kr/B551011/KorService2`, operation은 `GET /detailCommon2`뿐이다. runtime에는 공공데이터포털 **decoding key**를 `KTO_SERVICE_KEY`로 주입하며 key·full URL/query는 log, audit, artifact, browser에 남기지 않는다.
+- 2026-09-10 현재 request는 이미 검증된 숫자 `contentId`와 baseline `MobileOS=ETC`, `MobileApp=Nullnull`, `_type=json`만 사용한다.
+- **2026-09-11 실제 호출 실측:** `detailCommon2` 응답에서 `areacode`·`sigungucode`·`cat1`·`cat2`·`cat3`은 빈 문자열이고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1`·`lclsSystm2`·`lclsSystm3`에 있다. 현재 validator는 빈 쪽을 읽으므로 실제 KTO place는 canonical ingest에서 거부된다. `tatsCnctrRatedList`는 `areaCd`가 필수(`resultCode 11 NO_MANDATORY_REQUEST_PARAMETERS_ERROR1`)이고, 법정동 `11/110`과 legacy `1/1` 모두 `resultCode 0000`·`totalCount 0`이라 코드 체계를 아직 확정할 수 없다. 공식 활용가이드로 고정하기 전까지 어느 쪽도 정본으로 적지 않는다(#109). current `detailCommon2`는 `contentTypeId`와 legacy detail flag(`defaultYN`, `firstImageYN`, `areacodeYN`, `catcodeYN`, `addrinfoYN`, `mapinfoYN`, `overviewYN`)를 보내지 않는다. 후보에서 보유한 content type은 response의 normalized `contenttypeid`와 대조할 뿐 request parameter가 아니다.
+- response는 `resultCode=0000`, 하나의 matching item, bounded title/category/area/address, 함께 존재하는 지리 좌표와 지구 범위를 통과해야 한다. 정상 projection은 source registry revision·collector run·hash·fetched/stale 시각만 포함한 immutable snapshot이다.
+- `nullnull.env=test`의 loopback fixture만 official base 검사를 예외로 할 수 있다. 실제 staging success → collector audit → C3 public provenance projection은 BA-021-T3의 별도 release gate이며, 현재 fixture 결과로 대체할 수 없다.
 
 ## 3. KTO 관광지 집중률 예측
 
@@ -93,7 +106,7 @@ comparisonAxis = TEMPORAL
 - 한 forecast issue의 series를 snapshot set으로 고정한다.
 - UI 요청은 Backend read-through/refresh 정책을 사용한다. 같은 요청을 중복 호출하지 않되 제출 심사 flow의 실제 KTO 호출과 서비스 내 사용을 재현할 수 있어야 한다.
 - 개발 quota 1,000을 전제로 full nationwide refresh를 설계하지 않는다.
-- 운영 트래픽 승인 결과와 공식 갱신 특성을 측정해 schedule/TTL을 D-015에서 확정한다.
+- D-015의 stale threshold는 forecast `PT24H`로 확정했다. 공식 갱신 특성과 실제 quota 관측은 collector schedule을 재검토하는 근거이며 threshold를 조용히 바꾸는 근거가 아니다.
 
 ## 4. KTO 관광지별 연관 관광지
 
@@ -101,6 +114,7 @@ comparisonAxis = TEMPORAL
 
 ### 사용 규칙
 
+- `KTO_RELATED_PLACES`는 신청하지 않았으므로 C1 registry에서 `DISABLED`다. adapter가 이 source를 선택하거나 quota를 예약하지 않는다.
 - 관계 원본은 `EXACT`가 아니라 provider relation evidence로 저장한다.
 - Nullnull의 `EXACT`는 공식 direct relation + canonical ID 검증 등 강한 조건을 만족할 때만 mapping policy가 부여한다.
 - category/거리/interest 후처리로 만든 후보는 `SIMILAR`이고 이유를 표시한다.
@@ -179,12 +193,14 @@ Replay는 외부 장애를 숨기는 fallback이 아니라 별도의 data produc
 | `displayName` | 사용자 출처 표기 |
 | `officialUrl` | 상세/약관의 공식 URL |
 | `licenseName/licenseUrl` | 출처·변경·상업 이용 조건 |
+| `licenseReviewState` | source 기본 license 또는 record별 review 필요 여부 |
+| `sourceState` | LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE 의미 |
 | `approvalState` | DEV_APPROVED/PROD_PENDING/PROD_APPROVED/DISABLED |
 | `quotaPolicy` | 일/초당 승인량과 60/80/90 threshold |
 | `scope` | PLACE/LIVE_AREA/REGION/ROUTE 등 |
 | `metricDefinition` | 값의 단위와 해석 |
 | `refreshExpectation` | 공식 설명과 관측된 주기 분리 |
-| `staleAfter` | D-015에서 승인한 기준 |
+| `staleAfter` | 승인된 freshness 경계 (forecast `PT24H`, place detail `P7D`) |
 | `retentionPolicy` | 원본/정규화 snapshot 보존 허용 |
 | `attributionTemplate` | UI/데이터 안내 문구 |
 | `schemaVersion` | adapter가 검증한 provider schema |
@@ -194,7 +210,7 @@ Replay는 외부 장애를 숨기는 fallback이 아니라 별도의 data produc
 
 `reviewedAt`이 release 기준보다 오래됐거나 official URL이 사라지면 readiness를 degraded로 하고 production flag를 자동으로 켜지 않는다.
 
-registry 수정은 기존 row를 덮어쓰지 않고 version을 올린 immutable revision을 만든다. 각 normalized snapshot은 `(sourceCode, sourceRegistryVersion)`을 필수로 참조하므로 당시 metric/license/attribution/schema 의미를 재현할 수 있다. `approvalState != PROD_APPROVED`인 source는 production live collector에서 선택할 수 없다.
+registry 수정은 기존 row를 덮어쓰지 않고 version을 올린 immutable revision을 만든다. 각 normalized snapshot은 `(sourceCode, sourceRegistryVersion)`을 필수로 참조하므로 당시 metric/license/attribution/schema 의미를 재현할 수 있다. canonical contract hash는 approval·quota·license review·scope·retention·refresh·schema·stale·contest use까지 포함한다. `DISABLED`, stale policy 없음, 또는 승인되지 않은 source는 collector에서 선택할 수 없다. 공모전 `2026_KTO_WEBAPP` 빌드에서는 팀 결정에 따라 `DEV_APPROVED` KTO source도 허용하며, 이 예외는 실제 C2 KTO gateway가 등록되기 전 provider 호출을 허용한다는 뜻은 아니다.
 
 ### 품질 사고 registry
 

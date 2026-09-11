@@ -33,6 +33,8 @@ public class JpaOwnerRepository implements OwnerRepository {
     public Owner create(Owner owner) {
         OwnerEntity entity = OwnerEntity.fromDomain(owner);
         entityManager.persist(entity);
+        // Session creation uses JDBC in this transaction and needs the owner FK visible now.
+        entityManager.flush();
         return entity.toDomain();
     }
 
@@ -42,6 +44,14 @@ public class JpaOwnerRepository implements OwnerRepository {
         return owners.findById(id).map(OwnerEntity::toDomain);
     }
 
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Owner updatePreferences(Owner owner) {
+        OwnerEntity entity = entityManager.find(OwnerEntity.class, owner.id());
+        entity.updatePreferences(owner);
+        return entity.toDomain();
+    }
+
     /** MANDATORY: a row lock taken in its own short transaction would be released immediately. */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -49,5 +59,31 @@ public class JpaOwnerRepository implements OwnerRepository {
         // This is the contended lock: every command for one owner waits here, so an expired
         // lock_timeout must surface as the module's own exception rather than a driver failure.
         return BoundedLockWait.on(() -> owners.lockAlive(id)).map(OwnerEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Owner> lockAny(UUID id) {
+        return BoundedLockWait.on(() -> owners.lockAny(id)).map(OwnerEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void markDeleted(UUID id, java.time.Instant deletedAt) {
+        OwnerEntity entity = entityManager.find(OwnerEntity.class, id);
+        if (entity == null) {
+            throw new IllegalStateException("locked owner disappeared during deletion");
+        }
+        entity.markDeleted(deletedAt);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void scrubDeleted(UUID id) {
+        OwnerEntity entity = entityManager.find(OwnerEntity.class, id);
+        if (entity == null || entity.toDomain().deletedAt() == null) {
+            throw new IllegalStateException("only a soft-deleted owner can be scrubbed");
+        }
+        entity.scrubDeleted();
     }
 }

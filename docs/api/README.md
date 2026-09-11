@@ -65,12 +65,14 @@ FE는 response type을 재선언하거나 unknown field에 의존하지 않는�
 ## 3. Session과 CSRF
 
 - cookie가 없으면 `POST /demo/sessions`가 Owner, `__Host-nullnull_session` HttpOnly cookie, response body의 CSRF token을 만든다. valid cookie로 retry하면 200과 같은 Owner로 수렴하며 이유 없이 session을 rotate하지 않는다.
-- refresh/new tab은 valid cookie와 `POST /session/csrf`로 tab-local token을 받는다. token 발급은 same-origin 검증을 거치며 다른 tab token을 무효화하지 않는다.
-- FE는 CSRF token을 memory에만 두며 token별 `expiresAt` 전에 갱신한다. Backend는 session당 미만료 hash 최대 5개만 둔다.
-- 모든 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다.
+- refresh/new tab은 valid cookie와 `POST /session/csrf`로 tab-local token을 받는다. token 발급은 same-origin 검증을 거친다. 미만료 token 5개까지 함께 유지하고, 6번째 발급 시 `last_used_at`(미사용이면 `created_at`) 기준 LRU token을 회수한다. 동률은 `created_at`, `id` 순으로 결정한다.
+- FE는 CSRF token을 memory에만 두며 bootstrap/재발급 response의 `expiresAt` 전에 갱신한다. 이 시각은 CSRF 만료이며 session idle/absolute 만료와 별개다. Backend는 session당 미만료 hash 최대 5개만 둔다.
+- 일반 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다. 최초 bootstrap은 cookie/CSRF 없이, token 재발급과 read-only `POST /places/search`는 cookie만 요구한다. 모든 non-safe operation은 동일 origin의 `Origin`(없으면 `Referer`)을 검증한다.
 - cookie는 HTTPS production에서 `Secure; HttpOnly; SameSite=Lax; Path=/`를 사용한다.
 - 401이면 cookie 유무에 따라 CSRF 재발급 또는 session 생성을 한 번 시도한 뒤 안전한 read만 재시도한다. mutation 자동 재실행은 동일 idempotency key가 있는 경우에도 UI가 요청 결과 불명을 처리하는 경로에서만 허용한다.
 - 다른 owner의 resource도 404로 응답해 존재 여부를 노출하지 않는다.
+
+`PATCH /me`는 `application/merge-patch+json`만 받는다. 생략한 필드는 유지하고 `activeTripId: null`은 해제한다. 나머지 필드의 null·잘못된 JSON type·unknown key·빈 object는 400이다. locale은 P0 `ko-KR`/`en-US`이며 미지원 값은 422 `VALIDATION_FAILED`와 `UNSUPPORTED_LOCALE`, timezone 검증 실패는 `INVALID_TIMEZONE`, active trip이 없거나 타 owner/삭제 상태이면 구분 없이 `TRIP_NOT_FOUND` field error다. 반복 onboarding 완료는 추가 domain 효과를 만들지 않는다.
 
 ## 4. ETag와 trip version
 
@@ -189,7 +191,7 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 
 | Code | HTTP | UI 행동 | 자동 재시도 |
 | --- | --- | --- | --- |
-| `INVALID_REQUEST` | 400 | 입력/지원 문의 | 금지 |
+| `INVALID_REQUEST` | 400/405/406/413/415 | 입력/지원 문의 | 금지 |
 | `UNAUTHORIZED` | 401 | session bootstrap 또는 로그인 | GET 1회만 |
 | `FORBIDDEN` | 403 | 작업 불가 안내 | 금지 |
 | `NOT_FOUND` | 404 | 사라진 resource/목록 이동 | 금지 |
@@ -216,6 +218,8 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 Backend는 stack trace, SQL, 외부 API body, secret을 detail에 넣지 않는다. FE는 `detail`을 HTML로 렌더링하지 않는다.
 
 `retryable`은 **client가 사용자 개입 없이 같은 요청을 그대로 다시 보내도 안전한가**만 나타낸다. 현재 `true`인 code는 `ROUTE_UNAVAILABLE`, `SOURCE_UNAVAILABLE`, `RATE_LIMITED` 셋뿐이다. `UNAUTHORIZED`의 `GET 1회만`이나 `INTERNAL_ERROR`의 `안전한 GET만`처럼 method에 따라 갈리는 정책은 boolean 하나로 표현할 수 없으므로 위 표의 `자동 재시도` 열이 정본이고, frontend는 `retryable`만으로 자동 재시도를 결정하지 않는다.
+
+같은 owner의 command가 겹쳐 생기는 직렬화 대기는 server가 bounded retry로 흡수하므로 별도 code가 없고, 재시도 예산까지 소진되면 `INTERNAL_ERROR`다.
 
 모든 응답은 `X-Request-ID`를 제공한다. `requestId`는 server가 만든 UUIDv7이며, client가 보낸 `X-Request-ID`가 `^[A-Za-z0-9._-]{8,64}$`를 만족하면 그 값을 그대로 돌려준다. frontend는 이 값을 parsing하지 않고 표시와 지원 문의에만 쓴다. session 보호 operation은 명시되지 않아도 401, 모든 operation은 429 `RATE_LIMITED`를 반환할 수 있으며 429/503의 `Retry-After`는 초 단위다. CI는 이 공통 규칙과 operation별 response가 어긋나지 않는지 검사한다.
 

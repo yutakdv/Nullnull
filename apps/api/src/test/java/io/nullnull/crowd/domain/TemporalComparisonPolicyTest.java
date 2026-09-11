@@ -221,6 +221,7 @@ class TemporalComparisonPolicyTest {
     }
 
     @Test
+    @DisplayName("REC-DATA-02 random pairs are eligible only when all five conditions hold")
     void randomPairsAreEligibleOnlyWhenAllFiveConditionsHold() {
         var rng = java.util.random.RandomGeneratorFactory.of("L64X128MixRandom").create(20260906L);
         SourceState[] states = SourceState.values();

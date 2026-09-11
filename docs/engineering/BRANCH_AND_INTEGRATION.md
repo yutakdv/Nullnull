@@ -20,13 +20,13 @@ tags:
 
 ## 1. 브랜치 역할
 
-| 브랜치 | 작성 책임 | 포함 범위 | 필수 검토자 |
+| 브랜치 | 작성 책임 | 포함 범위 | 검토 책임 |
 | --- | --- | --- | --- |
 | `frontend` | Frontend 담당 | `apps/web`, UI token/component, FE test/fixture, FE가 제안하는 contract 소비 변경 | Backend/AI 담당 |
 | `backend` | Backend/AI 담당 | `apps/api`, `apps/ai`, OpenAPI/event/ERD, source/optimizer, `infra`, 운영 변경 | Frontend 담당 |
-| `main` | 두 사람 공동 | 배포 가능한 통합 기준선만 유지 | 작성자가 아닌 상대 1명 |
+| `main` | 두 사람 공동 | 배포 가능한 통합 기준선만 유지 | 변경 영향에 따라 상대 담당자가 비동기 검토 |
 
-- `main` direct push, force push, branch deletion과 self-approval을 금지한다.
+- `main` direct push, force push와 branch deletion을 금지한다. PR은 최신 `main`의 두 required check가 green이면 상대 승인 대기 없이 auto-merge한다.
 - 두 역할 브랜치는 재사용하는 장기 브랜치다. 별도 기능 브랜치를 기본 흐름으로 만들지 않는다.
 - 사람별 WIP는 역할 브랜치의 미병합 vertical slice 1개다.
 - 모든 commit은 추적 가능한 Work ID를 포함한 Conventional Commit을 사용한다.
@@ -39,8 +39,8 @@ tags:
   기능 ID나 Figma/API 연결을 억지로 만들지 않고 적용 없음의 이유와 검증 대상을 적는다.
 - 이미 remote 역할 branch에 공개된 commit의 Work ID 누락을 뒤늦게 발견했으면
   amend/force push로 이력을 바꾸지 않는다. Ticket과 PR 제목·본문을 먼저 연결하고,
-  같은 Work ID를 포함한 후속 수정 commit에 누락 사유를 기록해 상대 검토자의 승인을
-  받는다. 이 예외는 새 commit의 ID 생략을 허용하지 않는다.
+  같은 Work ID를 포함한 후속 수정 commit에 누락 사유를 기록하고 상대 담당자에게 알린다.
+  이 예외는 새 commit의 ID 생략을 허용하지 않는다.
 
 ## 2. 한 slice의 merge 순서
 
@@ -49,7 +49,7 @@ tags:
 1. Frontend가 `frontend`를 최신 `main`으로 맞춘다.
 2. 승인된 OpenAPI example/mock으로 화면과 test를 구현한다.
 3. `frontend → main` PR을 만들고 Backend/AI가 데이터·권한·analytics 영향을 검토한다.
-4. required checks와 상대 승인이 끝나면 merge commit으로 병합한다.
+4. 최신 `main` 기준 required checks가 모두 green이면 auto-merge로 merge commit한다.
 5. 두 역할 브랜치를 새 `main`으로 동기화한 뒤 다음 작업을 시작한다.
 
 ### API/DB 내부 slice
@@ -72,7 +72,7 @@ flowchart LR
     E --> H[PR frontend → main]
     G --> H
     H --> I[backend: flag/config enable PR]
-    I --> J[FE 승인 + 두 required check + staging]
+    I --> J[두 required check + staging acceptance]
     J --> K[server capability ON]
 ```
 
@@ -80,7 +80,7 @@ flowchart LR
 - backend가 먼저 병합돼도 새 기능은 capability OFF이고 기존 흐름은 동작해야 한다.
 - FE PR은 같은 contract SHA를 사용한다. 서로 다른 SHA면 병합하지 않는다.
 - server-owned capability ON은 Frontend merge만으로 추정하지 않는다. Backend/AI가
-  flag/config 변경을 별도 `backend → main` PR로 만들고 FE 승인, 두 required check,
+  flag/config 변경을 별도 `backend → main` PR로 만들고 FE 영향 검토, 두 required check,
   staging acceptance 뒤 활성화한다. 긴급 차단을 위한 ON→OFF 외 console 직접 변경은
   허용하지 않는다.
 - breaking 제거는 양 구현이 배포·관측된 뒤 별도 backend PR에서 한다.
@@ -104,8 +104,8 @@ git push origin frontend  # backend 담당은 backend
 모든 `frontend → main`, `backend → main` PR은 다음을 만족한다.
 
 - base가 정확히 `main`, head가 정확히 역할 브랜치다.
-- 최신 `main`과 충돌이 없고 unresolved conversation이 없다.
-- 작성자가 아닌 팀원 1명이 승인한다. 새 commit 뒤 stale approval을 해제한다.
+- 최신 `main`과 충돌이 없다.
+- 상대 담당자 검토 요청과 대화는 비동기로 유지하며 approval과 conversation resolution을 merge 조건으로 두지 않는다.
 - `docs-contract`와 `docker-integration`이 성공한다.
 - ruleset required status 이름은 B01 전후 정확히 `docs-contract`,
   `docker-integration` 두 개다.
@@ -117,7 +117,7 @@ git push origin frontend  # backend 담당은 backend
   적용하지 않는 항목은 공란 대신 이유를 적는다.
 - incomplete P1 화면은 capability OFF/`준비 중`이며 기능설명서에 구현 완료로 기재하지 않는다.
 
-Dependabot PR은 head 예외지만 두 팀원의 일반 역할 브랜치를 대신하지 않는다. dependency PR도 상대 승인과 전체 통합 gate를 통과한다.
+Dependabot PR은 head 예외지만 두 팀원의 일반 역할 브랜치를 대신하지 않는다. dependency PR도 전체 통합 gate가 green이면 auto-merge한다.
 
 ## 5. Docker gate의 두 모드
 
@@ -197,7 +197,7 @@ sandbox/production-approved key로 실제 KTO 호출과 attribution/call-audit �
 
 두 팀원의 실제 handle이 확정되면 다음을 GitHub ruleset에 적용하고 설정 화면 또는 export를 비공개 운영 증거로 남긴다.
 
-- `main`: PR 필수, approval 1, code-owner review, stale approval dismiss, conversation resolution
+- `main`: PR 필수, approval 0, code-owner review와 conversation resolution은 비필수
 - required checks: 정확히 `docs-contract`, `docker-integration`
 - allowed PR head는 같은 repository의 `frontend`, `backend`, dependency bot
 - force push와 branch deletion 차단, 관리자 우회 기본 금지
@@ -206,7 +206,7 @@ sandbox/production-approved key로 실제 KTO 호출과 attribution/call-audit �
 - 실행 경로의 CODEOWNERS에는 두 팀원을 함께 적어 작성자 단독 owner 때문에 gate가
   막히지 않게 하고, Primary DRI는 소유권 표에서 별도로 유지한다.
 
-브랜치 생성·ruleset·push·PR은 로컬 문서 작성만으로 완료된 것이 아니다. 저장소 관리자가 실제 설정 후 checklist와 test PR로 검증한다.
+외부 설정은 GitHub API로 적용한 뒤 read-back과 test PR로 검증한다.
 
 ## 11. 작업 단위
 
@@ -343,4 +343,4 @@ keyboard sheet, component/API/E2E test를 포함하라. 먼저 변경 계획과
 
 ## #10 첫 scaffold의 교차 인계 제안
 
-[B01 기반 결정안](FOUNDATION_DECISIONS.md)의 D1~D5를 Frontend와 검토한다. backend가 최초 통합 PR을 host하고 FE 파일을 checksum/기준 SHA/작성자와 함께 인계받는 제한된 예외를 제안했다. 아직 상대 승인을 받지 않았으며 이후 일반 slice·두 required check·main merge commit 규칙은 동일하다. 최소 실제 session→CSRF→me 연결과 full Docker 검증 없이 B01을 완료 처리하지 않는다.
+[B01 기반 결정안](FOUNDATION_DECISIONS.md)의 D1~D5를 Frontend와 검토한다. backend가 최초 통합 PR을 host하고 FE 파일을 checksum/기준 SHA/작성자와 함께 인계받는 제한된 예외를 제안했다. 이후 일반 slice도 최신 `main` 기준 두 required check가 green이면 auto-merge하며 merge commit 규칙은 동일하다. 최소 실제 session→CSRF→me 연결과 full Docker 검증 없이 B01을 완료 처리하지 않는다.

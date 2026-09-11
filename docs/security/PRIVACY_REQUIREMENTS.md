@@ -86,7 +86,7 @@ flowchart LR
 - idle/absolute expiry를 두고 revoke를 지원한다.
 - CSRF token은 browser memory에만 보관하고 mutation에 header로 보낸다.
 - refresh/new tab은 valid cookie로 `POST /session/csrf`를 호출한다. 발급 token은 tab별 독립 만료이며 새 token이 다른 tab token을 폐기하지 않는다. DB에는 hash만, session당 미만료 5개까지만 둔다.
-- 최초 `POST /demo/sessions`는 owner 생성 전 일반 idempotency record를 만들지 않는다. valid cookie retry는 같은 owner로 수렴하고 cookie 없이 중단된 bootstrap record는 15분 안에 제거한다.
+- 최초 `POST /demo/sessions`는 owner 생성 전 일반 idempotency record를 만들지 않는다. valid cookie retry는 같은 owner로 수렴하고 cookie 없이 중단된 bootstrap owner/session은 생성 15분에 정리 대상이 되며 기본 1분 sweep의 다음 실행에서 제거한다.
 - essential session cookie 외 non-essential cookie를 P0에 추가하지 않는다.
 
 대외 cookie 문구에는 이름, 목적, 만료, essential 여부를 정확히 반영한다.

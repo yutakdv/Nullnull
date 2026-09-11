@@ -68,7 +68,7 @@ erDiagram
       uuid id PK
       uuid owner_id FK
       bytes token_hash UK
-      timestamptz last_seen_at
+      timestamptz last_seen_at "nullable until first non-bootstrap request"
       timestamptz expires_at
       timestamptz revoked_at
       timestamptz created_at
@@ -85,6 +85,7 @@ erDiagram
 
     PLACES {
       uuid id PK
+      uuid canonical_place_id FK
       string canonical_name
       string category_code
       decimal latitude
@@ -110,6 +111,7 @@ erDiagram
       uuid id PK
       uuid place_id FK
       string source_code
+      bigint source_registry_version FK
       string external_id
       string external_type
       timestamptz verified_at
@@ -422,8 +424,10 @@ erDiagram
     SOURCE_REGISTRY {
       string code PK
       string display_name
+      string source_state
       string license_name
       string license_url
+      string license_review_state
       string official_url
       string terms_url
       string default_scope
@@ -432,10 +436,12 @@ erDiagram
       jsonb quota_policy
       string attribution_template
       string retention_policy
+      string refresh_expectation
       string provider_schema_version
       bigint current_revision
       int stale_after_seconds
       boolean enabled
+      jsonb contest_use
       timestamptz reviewed_at
       timestamptz updated_at
     }
@@ -485,7 +491,7 @@ erDiagram
       int duration_ms
       int response_count
       string release_version
-      uuid request_id
+      string request_id
       string payload_hash
       string validation_result
       timestamptz created_at
@@ -496,11 +502,13 @@ erDiagram
       uuid collector_run_id FK
       string source_code FK
       bigint source_registry_version FK
-      string scope
+      string source_state
+      string forecast_issue_id
       string comparison_group_id
-      timestamptz observed_at_min
-      timestamptz observed_at_max
-      int skew_seconds
+      string normalization_version
+      timestamptz observed_at
+      timestamptz fetched_at
+      timestamptz stale_at
       timestamptz created_at
     }
 
@@ -516,18 +524,20 @@ erDiagram
       string unit
       string ordinal_level
       string scope
+      string scope_label
+      string mapping_type
+      boolean fallback_used
       string comparison_group_id
-      boolean comparison_eligible
-      string comparison_reason_code
       decimal confidence
       string normalization_version
       jsonb quality_flags
       string forecast_issue_id
       timestamptz observed_at
+      int observed_at_skew_seconds
       timestamptz target_at
       timestamptz fetched_at
       timestamptz stale_at
-      jsonb evidence
+      timestamptz created_at
     }
 
     REPLAY_MANIFESTS {
@@ -596,6 +606,7 @@ erDiagram
     ASSET_LICENSES {
       uuid id PK
       string source_code FK
+      bigint source_registry_version FK
       string external_license_code
       string license_name
       string license_url
@@ -697,13 +708,18 @@ erDiagram
 - `demo_sessions.token_hash`: 원문 token 저장 금지, unique index.
 - session 조회 index: `(token_hash) WHERE revoked_at IS NULL`.
 - `demo_session_csrf_tokens`에는 token hash만 저장하고 token별 독립 만료를 둔다. session당 미만료 token은 최대 5개이며 새 tab 발급이 다른 tab token을 무효화하지 않는다.
-- `POST /demo/sessions`는 owner가 생기기 전이므로 일반 idempotency table을 사용하지 않는다. cookie를 받은 retry는 기존 owner로 수렴하고 cookie 이전에 남은 bootstrap owner/session은 15분 후 삭제한다.
+- `POST /demo/sessions`는 owner가 생기기 전이므로 일반 idempotency table을 사용하지 않는다. cookie를 받은 retry는 기존 owner로 수렴하고 cookie 이전에 남은 bootstrap owner/session은 15분에 정리 대상이 되며 기본 1분 sweep에서 삭제한다. 활성 session이 하나라도 남은 owner는 보존한다.
 - owner 삭제 시 session 즉시 revoke. 도메인 data 삭제는 짧은 background job으로 cascade하되 상태를 추적한다.
 
 ### Catalog/Social
 
+- `places`의 ACTIVE row는 `canonical_place_id`가 null이고, DEPRECATED row는 직접 ACTIVE canonical row 하나만
+  가리킨다. duplicate merge 전에 localizations/external refs/media를 target으로 옮겨 old ID에서 stale content가
+  다시 투영되지 않게 한다.
 - `place_localizations`: unique `(place_id, locale)`.
 - `place_external_refs`: unique `(source_code, external_id, external_type)`.
+- `place_external_refs`와 `asset_licenses`는 수집/검토 당시의 `(source_code, source_registry_version)`을
+  참조한다. 현재 registry row만 보고 과거 canonical mapping 또는 asset 권리의 source policy를 재해석하지 않는다.
 - 위경도는 허용 범위를 check하고 PostGIS 도입 전에는 numeric(9,6)을 사용한다. P0 nearby를 브라우저에서 처리하면 PostGIS는 보류 가능하다.
 - `post_places`: unique `(post_id, place_id)` 및 `(post_id, position)`.
 - `saved_posts`: primary key `(owner_id, post_id)`로 중복 저장 방지.
@@ -744,10 +760,11 @@ erDiagram
 
 - `crowd_snapshots`는 `place_id`와 `live_area_id` 중 정확히 하나를 요구한다.
 - `LIVE`는 `observed_at` 필수다. `FORECAST`는 `target_at`과 `forecast_issue_id`가 필수지만 provider가 발표 시각을 주지 않으면 `observed_at`은 null이어야 하며 `fetched_at`으로 대체하지 않는다.
-- 모든 snapshot은 수집 시점의 `(source_code, source_registry_version)`을 참조한다. registry revision은 immutable canonical contract/metric/license/attribution/schema hash다.
-- `source_quality_incidents`의 affected window/scope에 걸린 row는 `PROVIDER_INCIDENT` flag와 `comparison_eligible=false`가 강제된다.
+- 모든 snapshot은 수집 시점의 `(source_code, source_registry_version)`을 참조한다. registry revision은 immutable canonical contract hash이며 approval·quota·license review·scope·retention·refresh·schema·stale·contest use를 함께 고정한다.
+- `source_quality_incidents`의 affected window/scope에 걸린 row는 투영 시점에 `PROVIDER_INCIDENT` flag가 붙고 그 결과 비교 적격성이 false가 된다.
 - `REPLAY`는 `replay_manifest_entries`를 통해 checksum·capture window·scrub·license 승인이 끝난 manifest에 속해야 하며 API에서 현재값으로 반환하지 않는다.
-- 정확한 비교 delta는 `comparison_eligible=true`인 row에만 계산/저장한다.
+- 비교 적격성과 delta는 **저장하지 않는다**. `crowd_snapshots`에는 `comparison_eligible`/`comparison_reason_code`/`evidence` column이 없고, 판정에 필요한 provenance 입력(source·revision·state·scope·issue·target·flag·normalization)만 남는다. 적격성은 요청 시점에 pair/point policy가 계산해 응답 `DataProvenance`로만 나가며, immutable snapshot 쌍이 결과를 이미 결정하므로 두 번째 정본을 만들지 않는다. `crowd_comparisons`는 optimization proposal에 묶인 별도 table이고 해당 slice 전까지 만들지 않는다.
+- `snapshot_sets`와 `crowd_snapshots`는 둘 다 UPDATE를 trigger로 거부하고, snapshot은 set의 source·revision·state·시각·issue·normalization을 그대로 유지해야 insert된다. 저장된 preview snapshot을 나중에 덮어쓸 경로가 없다.
 - `api_ingest_logs`는 KTO 실제 호출을 source operation(`endpoint_key`), 시각, outcome/status class, duration, response count, collector/request, release와 연결한다. response body, 전체 URL/query, API key, 사용자 입력은 저장하지 않는다. `payload_hash`가 필요하면 비밀·개인정보를 제거한 canonical validation payload의 단방향 hash만 허용한다.
 - 공모전 evidence는 `api_ingest_logs → collector_runs → snapshot_sets/snapshot provenance → 공개 API response의 provenanceId → Figma 화면`으로 연결한다. replay/mock run은 별도 trigger/source namespace이며 실제 KTO 호출로 집계하지 않는다.
 - media asset은 검토된 `asset_licenses`를 반드시 참조한다. `redistribution_allowed=false`이면 origin URL proxy/mirror를 금지하고, attribution이 필요한 asset은 API `MediaAsset`에 문구를 제공한다.
@@ -772,10 +789,12 @@ erDiagram
 
 - session 삭제 transaction은 session/CSRF token을 먼저 revoke하고 `deletion_requests`, `deletion_tombstones`, `background_jobs`를 함께 만든 뒤 202를 반환한다.
 - 같은 transaction에 DELETE `/session` idempotency receipt를 먼저 기록한다. 24시간 동안 revoked cookie hash와 동일 key/body만 receipt를 재생할 수 있고, status token은 request ID/expiry를 서명해 결정적으로 재생하므로 plaintext를 저장하지 않는다.
-- 삭제 상태 token은 hash만 저장하고 7일 뒤 만료한다. 상태 전이는 `ACCEPTED → RUNNING → COMPLETED|PARTIAL_FAILED|FAILED`이며 retry는 attempt와 error code를 남긴다.
-- tombstone은 최대 backup 보존 기간보다 길게 유지한다. restore 직후 traffic을 열기 전에 tombstone의 `delete_before`를 재적용한다.
+- 삭제 상태 token은 hash만 저장하고 7일 동안 반복 조회에 사용한 뒤 만료한다. `status_token_hash`는 7일 뒤 null로 지우며 receipt 행은 보존한다. 상태 전이는 `ACCEPTED → RUNNING → COMPLETED|PARTIAL_FAILED|FAILED`이며 retry는 attempt와 error code를 남긴다.
+- tombstone은 최대 backup 보존 기간보다 길게 유지한다. `retain_until` 뒤에도 revoked session의 30일 보존이나 미완료 삭제가 남아 있으면 owner hard delete와 tombstone 제거를 미룬다. restore 직후 traffic을 열기 전에 tombstone의 `delete_before`를 재적용한다.
 - job claim은 `FOR UPDATE SKIP LOCKED` 또는 동등한 원자 연산으로 `locked_by/lease_until`을 쓴다. worker는 heartbeat하고, lease 만료 뒤에만 다른 worker가 재수행한다.
+- `background_jobs.deduplication_key`의 unique는 **미완료(`READY`/`RETRY`/`RUNNING`) row에만** 걸린다(부분 unique index). 같은 key의 job은 한 번에 하나만 미완료일 수 있고, 끝난 row는 key를 잡지 않으므로 `collector:kto:area-1` 같은 반복 key가 다음 주기에 다시 enqueue된다. 전체 row에 unique를 걸면 두 번째 실행이 기존 완료 row를 돌려받아 조용히 no-op가 된다.
 - handler는 deduplication key에 대해 멱등이어야 하며 max attempt 초과 시 FAILED와 운영 alert를 만든다. payload에는 원문/secret 대신 domain ID만 둔다.
+- attempt 상한은 handler가 예외를 던진 경우만이 아니라 **lease 만료 재인수에도** 적용한다. `attempt_count >= max_attempts`인 RUNNING row는 재인수하지 않고 `FAILED` + `last_error_code=LEASE_EXPIRED` + `completed_at`으로 끝내 dead-letter alert와 보존 sweep 대상이 되게 한다. 그러지 않으면 hang/OOM처럼 아무것도 던지지 않는 handler가 상한 없이 영원히 재실행된다.
 
 ## 5. Enum 초안
 
@@ -843,6 +862,7 @@ CREATE INDEX ON crowd_snapshots (place_id, target_at DESC, source_code);
 CREATE INDEX ON crowd_snapshots (live_area_id, observed_at DESC, source_code);
 CREATE INDEX ON analytics_events (occurred_at);
 CREATE INDEX ON background_jobs (status, next_attempt_at) WHERE status IN ('READY', 'RETRY');
+CREATE UNIQUE INDEX ON background_jobs (deduplication_key) WHERE status IN ('READY', 'RETRY', 'RUNNING');
 CREATE INDEX ON idempotency_records (expires_at);
 CREATE INDEX ON deletion_requests (status, requested_at) WHERE status IN ('ACCEPTED', 'RUNNING', 'PARTIAL_FAILED');
 ```

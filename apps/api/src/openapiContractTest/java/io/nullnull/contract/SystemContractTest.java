@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
@@ -32,6 +33,9 @@ class SystemContractTest {
 
     @Autowired
     MockMvcTester mvc;
+
+    @Autowired
+    io.nullnull.identity.application.SessionService sessions;
 
     @BeforeAll
     static void loadContract() {
@@ -53,6 +57,11 @@ class SystemContractTest {
     }
 
     @Test
+    void demoReadinessRequiresSession() {
+        assertThat(mvc.get().uri("/api/v1/demo/readiness").exchange()).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void livenessMatchesHealthStatusSchema() {
         MvcTestResult result = mvc.get().uri("/api/v1/health/live").exchange();
         assertThat(result).hasStatus(HttpStatus.OK);
@@ -64,6 +73,19 @@ class SystemContractTest {
         MvcTestResult result = mvc.get().uri("/api/v1/health/ready").exchange();
         assertThat(result).hasStatus(HttpStatus.OK);
         assertThat(schemaCheck.validate("ReadinessStatus", body(result))).isEmpty();
+    }
+
+    @Test
+    void demoReadinessMatchesDemoReadinessSchema() {
+        var bootstrap = sessions.bootstrap(null, null, null);
+        MvcTestResult result = mvc.get().uri("/api/v1/demo/readiness")
+                .cookie(new jakarta.servlet.http.Cookie("__Host-nullnull_session", bootstrap.cookie)).exchange();
+        assertThat(result).hasStatus(HttpStatus.OK);
+        assertThat(schemaCheck.validate("DemoReadiness", body(result))).isEmpty();
+        // The capability vocabulary is a server decision (CapabilityStatus.name has no enum in the
+        // contract), so the contract check alone cannot pin it; DemoCapabilityQueryTest does.
+        assertThat(result).bodyJson().extractingPath("$.capabilities[*].name").asArray()
+                .containsExactly("live", "replay", "optimization");
     }
 
     @Test

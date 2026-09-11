@@ -188,7 +188,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "HTTP 공통 정책·readiness·capability",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-001",
         "BA-002"
@@ -229,7 +229,7 @@
           "assertion": "모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다"
         }
       ],
-      "handoff": "bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다.",
+      "handoff": "bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. capability 이름 집합(live·replay·optimization)은 계약에 enum이 없어 server가 정했으므로 FE_DRI 승인이 필요하고, /health/ready의 infrastructure check 이름과 섞지 않는다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-003"
@@ -239,7 +239,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "계약 생성·중요 기능 상시 CI 구성",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-001",
         "BA-002",
@@ -282,7 +282,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "영속 job과 수집·추천·삭제 실행 격리",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-002",
         "BA-003",
@@ -369,7 +369,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "익명 owner·session·CSRF 복구",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-002",
         "BA-003",
@@ -406,7 +406,7 @@
         },
         {
           "id": "BA-010-T2",
-          "assertion": "새 tab token 발급이 기존 tab을 깨뜨리지 않고 최대 개수를 넘으면 계약 오류다"
+          "assertion": "미만료 token 5개를 함께 유지하고 6번째 발급 시 last_used_at 기준 LRU token을 회수한다"
         },
         {
           "id": "BA-010-T3",
@@ -423,7 +423,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "프로필·locale·onboarding·active trip",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-010"
       ],
@@ -476,7 +476,7 @@
       "phase": "B02",
       "priority": "P0",
       "title": "세션 삭제 receipt·TTL·복원 후 재삭제",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-005",
         "BA-010",
@@ -524,7 +524,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "공통 source registry·adapter·쿼터·drift",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-005",
         "BA-010"
@@ -547,18 +547,18 @@
       "tests": [
         {
           "id": "BA-020-T1",
-          "assertion": "429·timeout·malformed·추가 enum·incident window를 합성 provider로 검증한다"
+          "assertion": "ProviderKitTest·CollectorRunRecorderTest·SourceRegistryIT가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 검증한다"
         },
         {
           "id": "BA-020-T2",
-          "assertion": "collector 중복 호출과 쿼터 초과를 차단하고 60/80/90% 경보를 낸다"
+          "assertion": "SourceRegistryIT가 KST 일일 quota의 60/80/90 경보와 100% 초과 거부, 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다"
         },
         {
           "id": "BA-020-T3",
-          "assertion": "provider 장애가 trip CRUD executor를 고갈시키지 않는다"
+          "assertion": "SourceRegistryIT가 네 개의 지연된 provider call 중에도 readiness와 owner /me 요청이 즉시 처리되는지를 검증한다"
         }
       ],
-      "handoff": "source 상태·quota·운영 실패 fixture와 승인 대장. 서울 전용 adapter는 이 단계에서 구현하지 않는다.",
+      "handoff": "V007 source registry와 apps/api build/test-results/{test,integrationTest}의 C1 JUnit 증거. C2에서만 실제 KTO gateway·key·provenance/snapshot을 추가하며 서울 전용 adapter는 구현하지 않는다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-020"
@@ -568,7 +568,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "KTO 실제 gateway와 provenance 증거",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-020"
       ],
@@ -601,7 +601,7 @@
           "assertion": "staging 실제 KTO 성공 이력과 공개 응답 provenance가 연결되며 mock-only 증거는 release에서 실패한다"
         }
       ],
-      "handoff": "승인된 출처 텍스트·공식 URL·license URL·null 시각·provider별 field 설명, 실제 호출 증거 위치.",
+      "handoff": "V008/V009은 detailCommon2 KTO registry revision 3 (`kto-kor-service2-detailcommon2-v2`)·normalized snapshot·safe collector audit을 만든다. current request는 serviceKey/MobileOS/MobileApp/contentId/_type만 전송하고 response content/type ID를 후보 기대값과 대조한다. T1/T2 fixture와 V007→V009 PostgreSQL upgrade는 KtoDetailResponseValidatorTest/KtoKorServicePropertiesTest/KtoPlaceDetailGatewayIT/FlywayMigrationIT로 통과했고 현재 backend Gradle suite 300/136/13/19도 GREEN이다. 직전 full Docker는 AI 410, web 224, Playwright 36, client diff/npm audit/egress-denied를 포함해 Java 299/136/13/19로 GREEN이었다; INF-001 없는 infra check는 skip이다. contentTypeId를 재도입하면 parameter-contract unit test가 RED가 된 뒤 복구했다. opt-in actualKtoSmoke는 disposable PostgreSQL에서 실제 KTO 성공 snapshot/audit을 확인했지만, 이는 local preflight이며 staging public provenance가 아니다. AWS 배포는 마지막 release gate이므로 C3는 `NULLNULL_CATALOG_PUBLIC_ENABLED=false`의 local fail-closed 구현·검증만 허용하며 T3와 최종 release 전에는 flag를 켜거나 외부 공개하지 않는다. **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`는 `areaCd`가 필수이며 법정동·legacy 두 코드 모두 `totalCount 0`이라 파라미터 계약이 미해결이다. 상세는 #109.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-021"
@@ -611,7 +611,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "Canonical 장소·검색·상세·콘텐츠 권리",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-021"
       ],
@@ -649,7 +649,7 @@
           "assertion": "검색 canary 비로그와 미승인 media 비노출을 검증한다"
         }
       ],
-      "handoff": "검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정.",
+      "handoff": "V010은 canonical places/localizations/external refs와 reviewed asset license/media 경계를 만든 internal foundation이다. normalized KTO snapshot은 source registry revision 3을 같이 고정하며 동일 external ID는 하나의 active canonical POI로 수렴하고 missing category/area는 추측하지 않고 거부한다. PostgreSQL fixture에서 duplicate/invalid canonical target/source revision/partial coordinate/unapproved media가 차단되고, longitude required 조건을 제거한 좌표 쌍 mutation과 rights guard를 OR→AND로 약화한 mutation은 BA-022-T1/T3를 RED로 만든 뒤 복구했다. `searchPlaces`/`getPlace` local projection은 active coordinate-complete canonical rows, locale fallback, approved media, signed owner/filter cursor만 읽으며 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값으로 fail-closed다. CatalogPlaceApiIT, CatalogPublicationPropertiesTest, CatalogPlaceProjectionServiceTest가 cursor tamper/owner/filter/expiry, canary 비로그, approved media, disabled production, enabled-secret gate와 gate-before-read를 확인한다. C3 gate의 `!publicEnabled`→`false` mutation은 fail-closed test를 RED로 만든 뒤 복구했다. backend Gradle Java 305/145/13/19와 full Docker gate(Java·AI pytest 410·web unit 224·Playwright 36·generated client·npm audit·egress-denied)는 GREEN이다. C2 T3 staging actual-success→public provenance와 최종 AWS release 전에는 flag를 켜거나 외부 공개하지 않으며 BA-022는 완료가 아니다. 이후 FE에는 검색 loading/empty/404/coverage 부족·KO/EN fallback fixture와 canonical ID만 전달한다. **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`는 `areaCd`가 필수이며 법정동·legacy 두 코드 모두 `totalCount 0`이라 파라미터 계약이 미해결이다. 상세는 #109.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-022"
@@ -659,7 +659,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "혼잡 예보·시각·비교 적격성·데이터 안내",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-020",
         "BA-021",
@@ -702,7 +702,7 @@
           "assertion": "최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다"
         }
       ],
-      "handoff": "S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다.",
+      "handoff": "V011은 immutable `snapshot_sets`/`crowd_snapshots`와 KTO_CONCENTRATION_FORECAST registry revision 2(`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw body·request URL·key column은 schema에 없고, set 대비 snapshot provenance 불일치와 모든 UPDATE는 trigger가 거부한다. `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하며 절대 provider를 호출하지 않는다. collector `KtoCrowdForecastGateway`는 operator/background 전용이고 source health·quota·collector run·ingest audit을 거친다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값에서 fail-closed다. observedAt은 provider 발표 시각이 없으면 null로 남고 fetchedAt으로 대체하지 않으며, FORECAST/LIVE가 stale 경계를 넘으면 응답 state가 STALE로 바뀌고 freshness가 분리된다. 비교는 저장하지 않는다(`crowd_comparisons` table 없음). 공개 응답은 `TemporalComparisonPolicy.eligibility(point)`만 쓰고 pair 판정 `evaluate`는 optimization preview용으로 domain에 남겨 둔다. 격리는 저장된 row가 가질 수 없는 flag이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(`QUARANTINE`)로 계산해 `PROVIDER_INCIDENT`를 붙이고 비교 자격을 false로 만든다. 검증: `CrowdProvenanceProjectionTest`(BA-023-T1 6-state·null provenance matrix), `CrowdForecastApiIT`(BA-023-T1 fresh/stale/invalid range, BA-023-T3 새 set이 저장된 snapshot을 덮지 않음), `KtoCrowdForecastGatewayIT`(BA-023-T1 normalized provenance·raw redaction·no-coverage·range quarantine), `CrowdProvenanceProjectionTest`·`CrowdForecastApiIT`(BA-023-T2 격리된 source는 값을 유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`; 수집 이후 선언된 QUARANTINE incident가 저장된 snapshot의 HTTP 응답에서도 같은 결과), `KtoForecastResponseValidatorTest`, `FlywayMigrationIT`(populated V010→V011 upgrade). report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}`이며 local Temurin 21 run과 full Docker gate(`integration_mode=full-docker`, exit 0)가 모두 `320/153/13/19`, failures/errors/skipped 0이다. AI pytest 410, web unit 224, Playwright 36, test_reports/evaluation_report valid, npm audit clean, egress-denied도 통과했다. `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 지우면 BA-023-T2 두 건이 RED이고 복원 SHA가 일치한다. 적대적 검토에서 production 호출자가 없는 `CrowdComparisonService`가 BA-023-T2 증거로 등록돼 있었다는 지적이 확정돼 service/test를 삭제하고 실제 경로 격리 가드 검증으로 교체했다. **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거는 이 저장소에서 아직 만들지 않았다. opt-in `actualKtoSmoke`/`ktoForecastSmoke`는 `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구하며, BA-021-T3의 staging actual-success→public provenance가 남아 있는 동안에는 BA-023도 `verified`가 아니고 flag를 켜거나 외부에 공개하지 않는다. fail-closed 응답 code를 `ROUTE_UNAVAILABLE`(최적화 run 실패용 문구)에서 `SOURCE_UNAVAILABLE`로 정정했으므로 catalog·crowd 경로를 쓰는 FE fixture는 기대 code를 바꿔야 한다. FE에는 `getPlaceCrowdForecast`만 제공하며 `PlaceSummary`/`PlaceDetail`에는 crowd field가 없다(FCR-029·#105). **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`는 `areaCd`가 필수이며 법정동·legacy 두 코드 모두 `totalCount 0`이라 파라미터 계약이 미해결이다. 상세는 #109.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-023"

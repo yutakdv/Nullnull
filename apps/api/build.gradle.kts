@@ -27,6 +27,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation(libs.json.schema.validator)
     runtimeOnly("org.postgresql:postgresql")
 
     // Shared test support (Testcontainers wiring) for every suite that needs PostgreSQL.
@@ -69,11 +70,16 @@ testing {
             dependencies {
                 implementation(project())
                 implementation(testFixtures(project()))
+                // Bean Validation constraints on the test-only @Validated service that HttpPolicyIT
+                // uses to raise a real ConstraintViolationException; implementation(project()) does not
+                // expose the application's own implementation dependencies.
+                implementation("org.springframework.boot:spring-boot-starter-validation")
                 implementation("org.springframework.boot:spring-boot-starter-webmvc-test")
                 implementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
                 implementation("org.springframework.boot:spring-boot-starter-flyway-test")
                 implementation("org.springframework.boot:spring-boot-testcontainers")
                 implementation("org.testcontainers:testcontainers-postgresql")
+                implementation("tools.jackson.core:jackson-databind")
                 runtimeOnly("org.postgresql:postgresql")
             }
             targets.all {
@@ -93,6 +99,9 @@ testing {
                 implementation("org.testcontainers:testcontainers-postgresql")
                 implementation("org.yaml:snakeyaml")
                 implementation("tools.jackson.core:jackson-databind")
+                // JvmTestSuite's implementation(project()) deliberately does not expose the
+                // application's implementation dependencies. JsonSchemaCheck owns this direct
+                // OpenAPI contract dependency, while ProviderResponseValidator owns the main one.
                 implementation(libs.json.schema.validator)
                 runtimeOnly("org.postgresql:postgresql")
             }
@@ -168,7 +177,51 @@ tasks.register("resolveTestClasspaths") {
     }
 }
 
+tasks.register<JavaExec>("ktoSmoke") {
+    group = "verification"
+    description = "Runs one explicitly approved KTO detailCommon2 smoke request and prints redacted evidence only"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoSmokeMain")
+    workingDir = projectDir
+}
+
+tasks.register<JavaExec>("ktoForecastSmoke") {
+    group = "verification"
+    description = "Runs one approved KTO forecast call from a verified canonical KTO mapping and prints redacted evidence only"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoForecastSmokeMain")
+    workingDir = projectDir
+}
+
+tasks.named<Test>("integrationTest") {
+    useJUnitPlatform {
+        excludeTags("actual-kto")
+    }
+}
+
+tasks.register<Test>("actualKtoSmoke") {
+    group = "verification"
+    description = "Runs the opt-in actual KTO smoke against Testcontainers PostgreSQL with redacted audit assertions"
+    dependsOn(tasks.named("integrationTestClasses"))
+    val integrationTestSourceSet = sourceSets.named("integrationTest")
+    testClassesDirs = integrationTestSourceSet.map { it.output.classesDirs }.get()
+    classpath = integrationTestSourceSet.map { it.runtimeClasspath }.get()
+    useJUnitPlatform {
+        includeTags("actual-kto")
+    }
+}
+
 tasks.withType<Test>().configureEach {
+    // Compose shares one PostgreSQL across test contexts. Keeping every context's Hikari pool
+    // cached exhausted that server (SQLSTATE 53300). Retain only the current context; Spring
+    // closes the evicted context and its pool. This does not change the application's pool budget.
+    systemProperty("spring.test.context.cache.maxSize", "1")
+    // The job worker is off in every suite by default: a running poll loop would race the test that
+    // seeds a job and claim it before the assertion. The worker's own tests turn it back on with
+    // @SpringBootTest(properties = "nullnull.jobs.enabled=true"), which outranks a system property.
+    systemProperty("nullnull.jobs.enabled", "false")
     // Failures are never ignored, and an empty suite is a configuration error, not a pass.
     ignoreFailures = false
     failOnNoDiscoveredTests = true

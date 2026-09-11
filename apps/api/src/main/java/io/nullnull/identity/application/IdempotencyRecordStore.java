@@ -1,6 +1,7 @@
 package io.nullnull.identity.application;
 
 import io.nullnull.identity.domain.IdempotencyRecord;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,4 +33,11 @@ public interface IdempotencyRecordStore {
      * same transaction.
      */
     void delete(UUID recordId);
+
+    /**
+     * The scheduled hard delete of docs/architecture/ERD.md §6: removes every record whose 24 hour
+     * retention has passed, and returns how many went. The guard already refuses to replay an expired
+     * row, so this is what actually stops the table from growing, not what makes retention correct.
+     */
+    int deleteExpired(Instant now);
 }

@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
  */
 public class ApiException extends RuntimeException {
 
+    private final java.util.List<FieldError> fieldErrors;
     private final ProblemCode code;
     private final HttpStatus status;
     private final boolean retryable;
@@ -20,7 +21,17 @@ public class ApiException extends RuntimeException {
 
     public ApiException(ProblemCode code, HttpStatus status, String detail, boolean retryable,
             Integer retryAfterSeconds) {
+        this(code, status, detail, retryable, retryAfterSeconds, java.util.List.of());
+    }
+
+    public ApiException(ProblemCode code, String detail, java.util.List<FieldError> errors) {
+        this(code, code.defaultStatus(), detail, code.defaultRetryable(), null, errors);
+    }
+
+    private ApiException(ProblemCode code, HttpStatus status, String detail, boolean retryable,
+            Integer retryAfterSeconds, java.util.List<FieldError> errors) {
         super(Objects.requireNonNull(detail, "detail"));
+        this.fieldErrors = java.util.List.copyOf(errors);
         this.code = Objects.requireNonNull(code, "code");
         this.status = Objects.requireNonNull(status, "status");
         this.retryable = retryable;
@@ -29,6 +40,8 @@ public class ApiException extends RuntimeException {
             throw new IllegalArgumentException("ApiException requires an error status: " + status);
         }
     }
+
+    public java.util.List<FieldError> fieldErrors() { return fieldErrors; }
 
     public ProblemCode code() {
         return code;

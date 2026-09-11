@@ -59,6 +59,11 @@ public class JdbcIdempotencyRecordStore implements IdempotencyRecordStore {
              WHERE id = :id
             """;
 
+    private static final String DELETE_EXPIRED = """
+            DELETE FROM idempotency_records
+             WHERE expires_at <= :now
+            """;
+
     private final JdbcClient jdbc;
 
     JdbcIdempotencyRecordStore(JdbcClient jdbc) {
@@ -119,6 +124,16 @@ public class JdbcIdempotencyRecordStore implements IdempotencyRecordStore {
     public void delete(UUID recordId) {
         // Only ever called for a row this transaction already holds FOR UPDATE, so no wait is possible.
         jdbc.sql(DELETE).param("id", recordId).update();
+    }
+
+    /**
+     * The sweep uses the (expires_at) index and can wait on a row a guarded command is holding, so it
+     * runs under the caller's bounded wait like every other locking statement in this store.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int deleteExpired(Instant now) {
+        return BoundedLockWait.on(() -> jdbc.sql(DELETE_EXPIRED).param("now", utc(now)).update());
     }
 
     /**

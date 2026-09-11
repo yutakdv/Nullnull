@@ -68,6 +68,27 @@ class OwnerEntity {
         return entity;
     }
 
+    void updatePreferences(Owner owner) {
+        locale = owner.locale();
+        timezone = owner.timezone();
+        onboardingCompleted = owner.onboardingCompleted();
+        activeTripId = owner.activeTripId();
+    }
+
+    void markDeleted(Instant at) {
+        deletedAt = at;
+        activeTripId = null;
+        onboardingCompleted = false;
+    }
+
+    void scrubDeleted() {
+        accountId = null;
+        locale = "ko-KR";
+        timezone = "UTC";
+        onboardingCompleted = false;
+        activeTripId = null;
+    }
+
     Owner toDomain() {
         return new Owner(id, kind, accountId, locale, timezone, onboardingCompleted, activeTripId,
                 createdAt, deletedAt);

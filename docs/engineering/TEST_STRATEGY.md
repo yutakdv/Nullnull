@@ -483,6 +483,13 @@ property test는 고정 seed 목록과 실패 시 재현 seed를 기록한다. �
 
 P0 LLM 기능이 OFF여도 결정적 template와 OFF 경로는 검증한다. 가짜 모델 adapter로 실패를 재현하며 PR에서 실제 모델 API를 호출하지 않는다.
 
+Spring 쪽에서 이미 구현한 REC ID와 실행 위치는 다음과 같다. 나머지 행은 해당 slice 구현 PR에서 같은 방식으로 채운다.
+
+| ID | 실행 suite | test |
+| --- | --- | --- |
+| REC-ARCH-01 | `apps/api` Gradle `test` | `io.nullnull.ArchitectureRulesTest` |
+| REC-JOB-01 | `apps/api` Gradle `integrationTest` | `io.nullnull.operations.JobLeaseIT.anExpiredLeaseCannotCommitAfterAnotherWorkerRetookTheJob`(= `BA-005-T2`), `JobQueueIT.aUnitOfWorkThatOutlivesItsLeaseRollsBackInsteadOfRunningTheJobTwice`(commit 직전 lease 재확인), `JobQueueIT.anAbandonedJobStopsAtTheCeilingAndBecomesADeadLetter`(재인수 상한), `JobAbandonedLeaseIT.anAbandonedJobReachesTheCeilingAndBecomesADeadLetter`(hang한 worker의 abandoned sweep과 dead letter), `JobCrashRetryIT.aCrashedAttemptIsRetakenAndOnlyTheCeilingEndsTheJob`(attempt가 남은 crash는 sweep이 아니라 재인수) |
+
 DB 테스트는 실제 PostgreSQL을 쓴다. 격리된 Gradle integrationTest는 Testcontainers로, Docker gate 내부는 기존 integration 계약의 PostgreSQL service로 같은 의미의 테스트를 실행할 수 있다. 어느 경로든 H2/SQLite로 대체하거나 DB 연결 실패 시 테스트를 skip하면 실패다. CI DB mode와 실제 PostgreSQL 버전을 report에 남긴다.
 
 #### 3.4 Frontend 연결
@@ -635,6 +642,41 @@ B01 scaffold에서는 실제 구현한 기반 suite와 모든 미지원 capabili
 현재 문서 CI는 전체 기능/API의 계획 배정, DAG, Live 마지막, task-card ID·메타데이터, Obsidian link/canvas/frontmatter와 API의 24시간 되돌리기 계약을 검사한다. 이는 **계획 누락 방지**이며 앱 기능 CI 구현을 대체하지 않는다. 검증기 자체에는 누락 API/기능·중복·cycle·Live 순서 변경·깨진 링크·report 없는 verified 상태의 부정 테스트를 둔다.
 
 외부망 실제 KTO·AWS restore·alarm 수신·수동 screen reader·공식 접수는 실행 환경/사람 증거가 필요한 release gate다. 합성 PR test와 실제 증거를 별도 결과로 남긴다. 운영 수집 주기·nightly 성능 평가는 운영 검증 주기이며 날짜별 개발 일정이 아니다.
+
+### BA-010 세션 안전 검사
+
+`backend-plan.json`의 BA-010-T1~T3는 `integrationTest`의 `SessionSafetyIT`·`SessionTimeIT`와 `openapiContractTest`의 `SessionContractTest`가 실행한다. `test`의 `SessionPropertiesTest`는 cookie profile·Domain·duration 설정을 검사한다. `FlywayMigrationIT`는 빈 DB와 V004→V005의 기존 행·column 보존을 검증한다. 실제 PostgreSQL을 사용한다.
+
+- owner A/B/C는 cookie에서 유도하며 같은/타 session CSRF, Origin의 scheme/host/port, 중복 자격 증명, 다중 탭 LRU·동시 발급을 검사한다.
+- injected clock으로 first touch, throttle, idle/absolute·CSRF 만료의 등호 경계, orphan 및 revoked retention을 검사한다. DB `now()`를 테스트 clock으로 대신 쓰지 않는다.
+- `apps/web/e2e/session.spec.ts`는 `API_INTERNAL_BASE_URL`의 실제 API를 직접 호출하는 Playwright transport 검사다. Compose 내부 HTTP에서는 Secure cookie를 명시 전달한다. 브라우저 Secure cookie 수락이나 아직 없는 세션 UI를 검증했다고 쓰지 않는다. 기존 `shell.spec.ts`의 keyboard/focus 검사는 계속 실행한다.
+- report: `apps/api/build/test-results/{test,integrationTest,openapiContractTest}/*.xml`; 전체 gate의 복사본은 `.artifacts/integration/api-test-results/`와 `.artifacts/integration/test-results/`다. 전체 owner resource matrix와 삭제 receipt는 후속 slice 범위다.
+
+### BA-011 프로필 검사
+
+`backend-plan.json`의 BA-011-T1~T3는 `integrationTest`의 `OwnerPreferencesIT`·`OwnerPreferencesConcurrencyIT`, `openapiContractTest`의 `OwnerContractTest`에서 실행한다. null/absent와 잘못된 patch의 원자성, 동일 owner의 동시 변경 보존, 반복 onboarding의 PostgreSQL row version 불변, field error와 response schema를 검사한다. 실제 TripLookup은 BA-030 전까지 fail-closed이며 test override의 owner/삭제 trip 검사를 실제 trip table 구현으로 쓰지 않는다. Playwright `session.spec.ts`는 실제 API에서 KO/EN 저장·재조회·unsupported locale 응답을 검사한다. UI-only 흐름과 기존 keyboard/focus 검사는 구분한다.
+
+### BA-012 삭제 수명주기 검사
+
+`backend-plan.json`의 BA-012-T1~T3는 `integrationTest`의 `DeletionIT`·`DeletionJobIT`, `test`의 `DeletionTokensTest`·`TombstoneReapplierTest`, `openapiContractTest`의 `SessionContractTest`에서 실행한다. V006 upgrade와 제약은 `FlywayMigrationIT`, 만료된 비폐기 session hash 정리는 `SessionTimeIT`가 실제 PostgreSQL에서 검사한다.
+
+- T1은 revoke/receipt/tombstone/job의 단일 transaction, 같은 revoked cookie와 key의 24시간 projection 재생, 다른 key·route 차단, 상태 token의 HMAC·저장 hash·정확한 만료 경계와 plaintext canary 부재를 검사한다.
+- T2는 실제 worker의 `PARTIAL_FAILED` 재시도, eraser의 짧은 `JobContext.transactional` 실행, 비중첩과 profile 비부활을 검사하며 testcase에 `REC-SEC-03`을 함께 등록한다.
+- T3는 retained tombstone의 restore 재적용, eraser 오류 시 startup 실패, web server보다 앞선 lifecycle phase, status hash 7일 삭제와 retained FK가 사라진 뒤의 owner hard delete를 검사한다.
+- `apps/web/e2e/session.spec.ts`는 실제 API에서 삭제 접수·정확한 replay·상태 조회·revoked 접근 차단을 검사한다. S14 UI의 확인 dialog, memory-only token 보관, polling 진행/부분 실패/만료 화면은 Frontend 검수 항목이다.
+
+`RequestBodySwallowBoundIT`는 큰 upload에 대해 `HttpClient`가 반드시 IOException을 던진다는 가정을 사용하지 않는다. raw TCP writer가 응답과 독립적으로 본문을 보내며 서버가 전체 upload를 중단하는지, 후속 pipelined request가 성공하지 않는지 검사한다. `max-swallow-size=-1` 변이에서 전체 본문 전송이 완료되어 새 단언이 실패한다. 정상 2 MiB 설정은 유지하며 413을 먼저 받는 경우와 응답 없는 transport 실패를 모두 표현한다.
+
+### BA-004 보고서 집계와 CI 실패 증명
+
+`check_test_reports.py`는 `--junit-dir`, `--evaluation`, `--backend-plan`, `--manifest`를 각각 선택 입력으로 받는다. 입력 없이 실행하면 실패한다. plan/manifest에서 요구하는 Gradle ID는 제공한 JUnit 없이는 충족되지 않는다.
+
+- JUnit root 아래 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest` 각각 XML과 실제 testcase가 필요하다. XML summary와 testcase의 failure/error/skipped를 모두 검사하고 실패 후 재시도 기록도 거부한다.
+- `integration-ready`/`verified` 카드의 모든 `tests[].id`가 testcase `name`의 완전한 ID 토큰으로 있어야 한다. suite 이름·stdout·주석·접두사가 같은 다른 ID는 증거가 아니다. manifest의 `gradle:<suite>` ID는 지정 suite에서만 인정한다. pytest coverage는 ai-quality/evaluation이 담당한다.
+- Gradle test worker의 Spring context cache는 1개로 제한한다. 기본 cache에 누적된 Hikari pool이 Compose의 단일 PostgreSQL 연결을 고갈시킨 실제 실패(SQLSTATE 53300)를 방지한다. app pool 크기와 worker budget은 바꾸지 않는다. cache eviction이 이전 context와 pool을 닫는다.
+- `--run-start` 파일을 producer 직전에 touch하고 JUnit/evaluation의 수정 시각과 비교한다. native API workflow는 실패 시에도 집계를 실행하며, Compose wrapper는 volume으로 전달된 API/AI report 뒤 집계한다. 네 Gradle task에는 각각 `--rerun`을 붙인다. 이 검사는 남아 있는 오래된 보고서를 거부하지만 testcase 단언의 정확성이나 모든 비테스트 command 오류를 증명하지는 않는다. 원래 command exit 전파도 유지한다.
+- `docs-contract`는 `test_check_test_reports.py`의 `ReportTests`, `WrapperExecutionTests`, `WorkflowWiringTests`를 실행한다. 실제 Bash wrapper에 실패/error/skip·suite report 누락·`|| true`와 stale report를 주입하는 검사는 BA-004-T1/T2의 로컬 재현이다. Docker test double의 성공을 실제 Compose 격리 증거(BA-004-T3)로 쓰지 않는다.
+- PR의 OpenAPI breaking diff는 `origin/main:docs/api/openapi.yaml`과 checkout된 계약을 비교한다. [oasdiff action](https://github.com/oasdiff/oasdiff-action/tree/9c0494cfee8b8fcc9fb383ed2d5d3fbdae169b93/breaking) v0.1.15 SHA와 WARN 실패 기준을 고정한다. spec upload와 PR comment는 끈다. push/workflow_dispatch에는 비교하지 않는다.
 
 ### 자원 간 멱등 key 재사용 검증
 
