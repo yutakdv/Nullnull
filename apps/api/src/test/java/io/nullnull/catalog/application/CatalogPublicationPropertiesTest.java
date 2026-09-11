@@ -20,7 +20,7 @@ class CatalogPublicationPropertiesTest {
         assertThatThrownBy(properties::requirePublicProjection)
                 .isInstanceOf(ApiException.class)
                 .extracting(error -> ((ApiException) error).code())
-                .isEqualTo(ProblemCode.ROUTE_UNAVAILABLE);
+                .isEqualTo(ProblemCode.SOURCE_UNAVAILABLE);
     }
 
     @Test

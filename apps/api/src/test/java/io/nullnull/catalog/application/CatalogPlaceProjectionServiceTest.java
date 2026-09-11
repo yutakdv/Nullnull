@@ -28,7 +28,7 @@ class CatalogPlaceProjectionServiceTest {
                 CatalogPlaceSearchRequest.of("장소", "ko-KR", null, null, null)))
                 .isInstanceOf(ApiException.class)
                 .extracting(error -> ((ApiException) error).code())
-                .isEqualTo(ProblemCode.ROUTE_UNAVAILABLE);
+                .isEqualTo(ProblemCode.SOURCE_UNAVAILABLE);
         verifyNoInteractions(catalog);
     }
 

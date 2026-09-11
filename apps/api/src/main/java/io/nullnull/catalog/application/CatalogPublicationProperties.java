@@ -52,10 +52,15 @@ public final class CatalogPublicationProperties {
         this.cursorCodec = new SignedCursorCodec(cursorSecret, KEY_ID);
     }
 
+    /**
+     * {@code ROUTE_UNAVAILABLE} is the optimization run-failure code whose approved copy is about a
+     * travel route that could not be confirmed. A catalog or crowd source that is not published yet
+     * is a data-source state, so it uses the source code and the fallback copy the UI already has.
+     */
     public void requirePublicProjection() {
         if (!publicEnabled) {
-            throw new ApiException(ProblemCode.ROUTE_UNAVAILABLE,
-                    "Canonical place projection is not available yet.");
+            throw new ApiException(ProblemCode.SOURCE_UNAVAILABLE,
+                    "This canonical place data source is not published yet.");
         }
     }
 
