@@ -33,6 +33,9 @@ import csrfToken from "../fixtures/session/csrf-token.json" with { type: "json" 
 import ownerProfileAnonymous from "../fixtures/session/owner-profile-anonymous.json" with { type: "json" };
 import tripPage from "../fixtures/trips/trip-page.json" with { type: "json" };
 import tripPageEmpty from "../fixtures/trips/trip-page-empty.json" with { type: "json" };
+import feedPage from "../fixtures/feed/page.json" with { type: "json" };
+import feedPage2 from "../fixtures/feed/page-2.json" with { type: "json" };
+import feedPageEmpty from "../fixtures/feed/page-empty.json" with { type: "json" };
 import historyPage from "../fixtures/optimizations/history-page.json" with { type: "json" };
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
@@ -116,7 +119,8 @@ export const tripFixtures = {
   // A trip that already has interests, matching page.items[0] so the list and
   // the detail agree. FE-106 needs a non-empty set; detailCreated only covers
   // the empty case.
-  detailWithInterests: tripDetailInterests as components["schemas"]["TripDetail"],
+  detailWithInterests:
+    tripDetailInterests as components["schemas"]["TripDetail"],
   // A trip with items on some days and none on others, so FE-301's per-day
   // empty state is exercised by the data rather than only by a test.
   detailScheduled: tripDetailScheduled as components["schemas"]["TripDetail"],
@@ -141,6 +145,22 @@ export const relatedFixtures = {
   page: relatedPage as components["schemas"]["RelatedPlaceResult"],
   none: relatedNone as components["schemas"]["RelatedPlaceResult"],
   checking: relatedChecking as components["schemas"]["RelatedPlaceResult"],
+};
+
+// PROVISIONAL MOCK DATA — replace when BA-032 serves listFeed for real.
+//
+// listFeed has no example in docs/api/openapi.yaml, so these were built to
+// satisfy the schema and to cover every state the screen has to render:
+// all four candidateState values, a FORECAST crowd reading and an
+// UNAVAILABLE one, a post with no excerpt, and a second page so pagination
+// is exercised rather than assumed.
+//
+// The crowd provenance is copied from the related-places fixture rather than
+// retyped: DataProvenance requires 29 fields and a hand-written one drifts.
+export const feedFixtures = {
+  page: feedPage as components["schemas"]["FeedPage"],
+  pageTwo: feedPage2 as components["schemas"]["FeedPage"],
+  pageEmpty: feedPageEmpty as components["schemas"]["FeedPage"],
 };
 
 export const optimizationFixtures = {

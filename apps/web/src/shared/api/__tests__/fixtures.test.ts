@@ -15,6 +15,7 @@ import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import {
   candidateFixtures,
+  feedFixtures,
   optimizationFixtures,
   placeFixtures,
   relatedFixtures,
@@ -60,6 +61,9 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     // operations yet, so the schema is the only thing holding them honest.
     ['TripPage', tripFixtures.page],
     ['TripPage', tripFixtures.pageEmpty],
+    ['FeedPage', feedFixtures.page],
+    ['FeedPage', feedFixtures.pageTwo],
+    ['FeedPage', feedFixtures.pageEmpty],
     ['OptimizationHistoryPage', optimizationFixtures.historyPage],
     ['OptimizationHistoryPage', optimizationFixtures.historyPageEmpty],
     ['PlaceSearchPage', placeFixtures.searchPage],

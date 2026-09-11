@@ -1,6 +1,7 @@
 import { type RouteObject } from 'react-router';
 import { AppShell } from './AppShell.js';
 import { NotFoundScreen } from './NotFoundScreen.js';
+import { FeedScreen } from './feed/FeedScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
@@ -65,7 +66,7 @@ export const routes: RouteObject[] = [
       </main>
     ),
     children: [
-      { path: 'feed', element: <PlaceholderScreen routeId="feed" /> },
+      { path: 'feed', element: <FeedScreen /> },
       { path: 'trip/:tripId', element: <TripScreen /> },
       { path: 'live', element: <PlaceholderScreen routeId="live" /> },
       { path: 'profile', element: <ProfileScreen /> },

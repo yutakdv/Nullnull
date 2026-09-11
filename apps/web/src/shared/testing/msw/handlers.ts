@@ -5,6 +5,7 @@
 // an inline object is a hand-written model with nothing checking it.
 import {
   candidateFixtures,
+  feedFixtures,
   relatedFixtures,
   optimizationFixtures,
   placeFixtures,
@@ -93,6 +94,21 @@ export const handlers = [
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
+  // MOCK DATA (FE-201). listFeed has no approved example either. This handler
+  // reads the cursor rather than always answering page one, so pagination is
+  // exercised for real: a handler that ignored it would let a broken "load
+  // more" pass by returning the same page forever.
+  http.get(`${API_BASE}/feed`, ({ request }) => {
+    const cursor = new URL(request.url).searchParams.get('cursor');
+    if (cursor === null) return HttpResponse.json(feedFixtures.page);
+    if (cursor === feedFixtures.page.page.nextCursor) {
+      return HttpResponse.json(feedFixtures.pageTwo);
+    }
+    // Any other cursor is one this mock never issued. The contract answers 410
+    // CURSOR_EXPIRED for a cursor past its 15 minutes, and the screen has to
+    // recover from the first page rather than retry (problem-policy.ts).
+    return problemResponse('CURSOR_EXPIRED');
+  }),
   // MOCK DATA (FE-102). Without this the wizard's final submit is an unhandled
   // request: the tests each stood up their own handler and passed, while the
   // running app answered 500 and showed its failure state. Delete with BA-030.

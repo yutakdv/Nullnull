@@ -9,6 +9,7 @@
 // in localStorage outlives the session it belongs to and would be attached to
 // requests the server has already stopped honouring.
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -149,6 +150,52 @@ export function useOptimizationHistory(): UseQueryResult<
       if (!data) fail(error, response);
       return data;
     },
+  });
+}
+
+type FeedPage = components['schemas']['FeedPage'];
+
+/**
+ * The personalized feed, one cursor page at a time.
+ *
+ * useInfiniteQuery rather than useQuery because the contract paginates by an
+ * opaque cursor the server mints: the next page is only reachable through the
+ * `nextCursor` the previous one returned, so pages have to accumulate in one
+ * cache entry rather than replace each other.
+ *
+ * `tripId` is part of the key. The contract says it "adds candidate state for
+ * the selected trip without changing ranking semantics", and the cursor is
+ * bound to that selection — reusing a cursor issued for another trip is
+ * CURSOR_INVALID, so a different trip has to start its own page one.
+ *
+ * MOCK DATA today; replaced when BA-032 lands.
+ */
+export function useFeed(tripId: string | null = null, enabled = true) {
+  return useInfiniteQuery<FeedPage, Problem | Error>({
+    queryKey: ['feed', tripId],
+    // The caller waits until the trip selection is settled. Querying before
+    // then sends one request under the wrong key and a second under the right
+    // one, and the cursor from the first is bound to a selection the user
+    // never had.
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const cursor = pageParam as string | null;
+      const { data, error, response } = await getApiClient().GET('/feed', {
+        params: {
+          query: {
+            ...(cursor === null ? {} : { cursor }),
+            ...(tripId === null ? {} : { tripId }),
+          },
+        },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+    // hasMore is the contract's own flag. Reading only nextCursor would ask
+    // for another page whenever the server sent a cursor with hasMore false.
+    getNextPageParam: (last) =>
+      last.page.hasMore ? (last.page.nextCursor ?? null) : null,
   });
 }
 

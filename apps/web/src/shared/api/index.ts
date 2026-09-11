@@ -33,6 +33,7 @@ export {
   useCreateTrip,
   useDeletionStatus,
   useRequestDeletion,
+  useFeed,
   useOptimizationHistory,
   usePlaceSearch,
   useSessionBootstrap,

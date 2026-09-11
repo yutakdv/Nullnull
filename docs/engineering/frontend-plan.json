@@ -534,7 +534,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "S03-F0/F1 feed card states와 pagination",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-101",
         "BA-032"
@@ -551,7 +551,9 @@
         "391:310",
         "396:2926"
       ],
-      "designRequests": [],
+      "designRequests": [
+        "FCR-024"
+      ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",

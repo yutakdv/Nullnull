@@ -233,6 +233,19 @@ export const messages = {
 
     // S07-1 trip view `410:1738` (FE-301).
     'trip.loading': '일정을 불러오는 중이에요',
+    // FE-201 feed (S03-F0 `391:310`, S03-F1 `396:2926`).
+    'feed.title': '둘러보기',
+    'feed.loading': '불러오는 중이에요',
+    'feed.error': '피드를 불러오지 못했어요',
+    'feed.empty': '아직 보여드릴 게시물이 없어요',
+    'feed.emptyNoTrip': '여행을 만들면 일정에 맞춰 추천해드려요',
+    'feed.createTrip': '여행 만들기',
+    'feed.more': '더 보기',
+    'feed.loadingMore': '더 불러오는 중이에요',
+    'feed.end': '마지막 게시물이에요',
+    // cursor는 15분 뒤 만료된다. 재시도가 아니라 처음부터 다시 봐야 한다.
+    'feed.cursorExpired': '목록이 오래돼서 처음부터 다시 불러왔어요',
+    'feed.retry': '다시 시도',
     'trip.error': '일정을 불러오지 못했어요',
     'trip.notFound': '찾을 수 없는 여행이에요',
     'trip.retry': '다시 시도',
@@ -696,6 +709,18 @@ export const messages = {
     'wizard.interests.style': 'Travel style',
 
     'trip.loading': 'Loading your itinerary',
+    'feed.title': 'Browse',
+    'feed.loading': 'Loading',
+    'feed.error': "We couldn't load the feed",
+    'feed.empty': 'Nothing to show yet',
+    'feed.emptyNoTrip': 'Make a trip and we will suggest places for it',
+    'feed.createTrip': 'Make a trip',
+    'feed.more': 'Show more',
+    'feed.loadingMore': 'Loading more',
+    'feed.end': "That's the last post",
+    'feed.cursorExpired':
+      'That list was out of date, so we loaded it again from the start',
+    'feed.retry': 'Try again',
     'trip.error': "We couldn't load this itinerary",
     'trip.notFound': 'We can’t find that trip',
     'trip.retry': 'Try again',

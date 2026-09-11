@@ -231,7 +231,12 @@ describe('keyboard and continuation', () => {
     renderScreen();
     await user.click(await screen.findByRole('button', { name: copy['mustVisit.skip'] }));
     await waitFor(() => {
-      expect(screen.getByTestId('placeholder-route')).toHaveTextContent('feed');
+      // The feed is a real screen since FE-201, so the landing check is its
+      // heading rather than the placeholder's text.
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'feed-heading',
+      );
     });
   });
 });

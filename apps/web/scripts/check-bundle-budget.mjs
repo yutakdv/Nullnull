@@ -29,9 +29,17 @@ const assets = join(web, 'dist/assets');
 // openapi-fetch each appear once) and the growth is screen code. Headroom is
 // ~15% again, so the next slice that doubles the app will fail this check the
 // way it is meant to.
+//
+// Raised again for FE-201's feed screen: CSS reached 7,263 of 7,300, which is
+// a tripwire with no room left rather than a budget. The growth is one more
+// screen module, not waste — the 44px-button block it repeats is duplicated
+// across eight screen modules already, and folding that into a shared class
+// is its own change with its own tests, not something to smuggle into a
+// feature slice. Measured before raising, and the check still fails when the
+// limit is passed (verified by lowering it).
 const BUDGETS = {
-  js: 157_000, //  measured 136,194
-  css: 7_300, //   measured   6,338
+  js: 157_000, //  measured 142,812
+  css: 8_400, //   measured   7,263
 };
 
 if (!existsSync(assets)) {

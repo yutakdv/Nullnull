@@ -128,12 +128,15 @@ describe('the shell survives a crashed screen', () => {
   });
 
   it('leaves the real route table intact for working routes', async () => {
-    const router = createMemoryRouter(routes, { initialEntries: ['/feed'] });
+    // /live rather than /feed: this renders without a QueryClientProvider, so
+    // it needs a route that makes no request. /feed became a real screen in
+    // FE-201 and now fetches.
+    const router = createMemoryRouter(routes, { initialEntries: ['/live'] });
     render(
       <I18nProvider>
         <RouterProvider router={router} />
       </I18nProvider>,
     );
-    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent('feed');
+    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent('live');
   });
 });
