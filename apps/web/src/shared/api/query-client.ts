@@ -6,6 +6,7 @@
 // contract's rules and leaves mutations at zero retries.
 import { QueryClient } from '@tanstack/react-query';
 import { toProblem } from './problem.js';
+import { reissueCsrfToken } from './session.js';
 import { retryDelayMs, shouldRetry } from './problem-policy.js';
 
 /**
@@ -33,7 +34,20 @@ export function createQueryClient(): QueryClient {
       // Mutations never auto-retry. Trip mutations are guarded by ETag and
       // Idempotency-Key (invariant 6); replaying one without the user asking
       // is exactly what those guards exist to prevent.
-      mutations: { retry: 0 },
+      mutations: {
+        retry: 0,
+        // A stale tab token repairs itself, so the user's own retry can work.
+        // Set here rather than on each mutation: there are fourteen, and the
+        // one that forgot would be the one that loops.
+        //
+        // Never a replay — the contract's policy is "tab token 1회 재발급 후
+        // 사용자 action 재확인" (docs/api/README.md), and the error still
+        // reaches the caller unchanged.
+        onError(error) {
+          if (toProblem(error)?.code !== 'CSRF_INVALID') return;
+          void reissueCsrfToken().catch(() => undefined);
+        },
+      },
     },
   });
 }

@@ -22,7 +22,9 @@ import {
   clearCsrfTokenForTest,
   createQueryClient,
   currentCsrfToken,
+  getApiClient,
   reissueCsrfToken,
+  toProblem,
 } from '../index.js';
 import { API_BASE, problemResponse } from '../../testing/msw/handlers.js';
 import { server } from '../../testing/msw/server.js';
@@ -139,6 +141,85 @@ describe('FR-SES-02 recovery does not multiply requests or owners', () => {
     await expect(reissueCsrfToken()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
     expect(currentCsrfToken()).toBeNull();
     expect(paths).not.toContain('/api/v1/demo/sessions');
+  });
+
+  it('replaces a stale tab token when a mutation is rejected for it', async () => {
+    // Proven before the fix: after a 403 the dead token stayed in memory, so
+    // the user's own retry sent it again and failed identically — a loop with
+    // no way out but a reload.
+    await reissueCsrfToken();
+    const stale = currentCsrfToken();
+    server.use(
+      http.delete(`${API_BASE}/session`, () => problemResponse('CSRF_INVALID')),
+      http.post(`${API_BASE}/session/csrf`, () =>
+        HttpResponse.json({
+          csrfToken: 'ZnJlc2gtdG9rZW4tYWZ0ZXItY3NyZi1pbnZhbGlkLW9uZQ',
+          expiresAt: '2026-09-11T12:00:00Z',
+        }),
+      ),
+    );
+
+    const client = createQueryClient();
+    await client
+      .getMutationCache()
+      .build(client, {
+        mutationFn: async () => {
+          const { data, error, response } = await getApiClient().DELETE('/session', {
+            params: { header: { 'Idempotency-Key': 'test-key' } },
+          } as never);
+          if (!data) {
+            const problem = toProblem(error);
+            if (problem) throw problem;
+            throw new Error(String(response.status));
+          }
+          return data;
+        },
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+
+    await waitFor(() => {
+      expect(currentCsrfToken()).not.toBe(stale);
+    });
+    expect(currentCsrfToken()).not.toBeNull();
+  });
+
+  it('does not replay the mutation it just repaired the token for', async () => {
+    // The contract says reissue then re-confirm with the user, never replay:
+    // a non-idempotent mutation sent twice is what invariant 6's guards exist
+    // to prevent.
+    await reissueCsrfToken();
+    let deletes = 0;
+    server.use(
+      http.delete(`${API_BASE}/session`, () => {
+        deletes += 1;
+        return problemResponse('CSRF_INVALID');
+      }),
+    );
+
+    const client = createQueryClient();
+    await client
+      .getMutationCache()
+      .build(client, {
+        mutationFn: async () => {
+          const { data, error, response } = await getApiClient().DELETE('/session', {
+            params: { header: { 'Idempotency-Key': 'test-key' } },
+          } as never);
+          if (!data) {
+            const problem = toProblem(error);
+            if (problem) throw problem;
+            throw new Error(String(response.status));
+          }
+          return data;
+        },
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/session/csrf');
+    });
+    expect(deletes).toBe(1);
   });
 
   it('does not retry a failed reissue on its own', async () => {
