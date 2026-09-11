@@ -90,10 +90,18 @@ describe('FE-304-T2 the locks an item carries are shown', () => {
     expect(releaseButton(card, 'DATE')).toBeInTheDocument();
   });
 
-  it('renders nothing for an item with no locks', async () => {
+  it('offers no lock control for an item with no locks', async () => {
     renderTrip();
     const card = await cardFor('명동');
-    expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+    // Scoped to lock controls: the card also carries FE-305's move and
+    // reorder buttons, which are not locks.
+    for (const lock of ['MUST_VISIT', 'DATE', 'TIME', 'RESERVATION'] as const) {
+      expect(
+        within(card).queryByRole('button', {
+          name: copy['trip.lock.release'].replace('{lock}', copy[`trip.lock.${lock}`]),
+        }),
+      ).not.toBeInTheDocument();
+    }
   });
 });
 

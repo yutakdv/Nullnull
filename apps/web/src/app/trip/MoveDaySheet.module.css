@@ -1,0 +1,173 @@
+/* S07-10 move sheet `522:4050`: bottom sheet, pt10 pb24 px16, top radius 24. */
+
+.sheet {
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
+  max-height: 100vh;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.sheet::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.panel {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px var(--space-4) var(--space-6);
+  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--color-bg-default);
+  /* Never taller than the screen; the day list scrolls instead. */
+  max-height: 90dvh;
+}
+
+/* 522:4052 */
+.grab {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-track, #e5e7ea);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 14px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-sm);
+  font-weight: 700;
+}
+
+.cancel {
+  min-height: 44px;
+  margin-inline-start: auto;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-body-base);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* 522:4059: which item is moving, tinted. */
+.context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-action-subtle);
+}
+
+.contextName {
+  color: var(--color-action-strong);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.contextNow {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.pick {
+  margin: 18px 0 10px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  font-weight: 500;
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+/* 522:4075: px14 py12, r12. */
+.day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) 14px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* The day the item is already on. Disabled, not hidden. */
+.dayHere {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.dayText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dayName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.dayHere .dayName {
+  color: var(--color-text-disabled);
+}
+
+.dayDate {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 400;
+}
+
+.dayHere .dayDate {
+  color: var(--color-text-disabled);
+}
+
+.dayNote {
+  color: var(--color-text-disabled);
+  font-size: var(--font-caption);
+}
+
+.chevron {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-md);
+}
+
+.footnote {
+  margin: 14px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
