@@ -63,10 +63,16 @@ public final class KtoDetailResponseValidator {
             if ((latitude == null) != (longitude == null)) {
                 return rejected(ProviderResponseValidator.Outcome.RANGE, 1);
             }
+            if (legacyCodesOnly(item)) {
+                // The reviewed revision 4 contract reads lclsSystm1/lDongRegnCd/lDongSignguCd. A response
+                // that carries only the retired cat1/areacode identifiers is provider drift, not data to
+                // reinterpret, so it is quarantined rather than silently mapped onto the new columns.
+                return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, 1);
+            }
             KtoPlaceSnapshot snapshot = KtoPlaceSnapshot.accepted(sourceRegistryVersion, collectorRunId,
-                    expected.contentId(), expected.contentTypeId(), required(item, "title"), optional(item, "cat1"),
-                    optional(item, "areacode"), optional(item, "sigungucode"), optional(item, "addr1"), latitude,
-                    longitude, fetchedAt, staleAfter);
+                    expected.contentId(), expected.contentTypeId(), required(item, "title"),
+                    optional(item, "lclsSystm1"), optional(item, "lDongRegnCd"), optional(item, "lDongSignguCd"),
+                    optional(item, "addr1"), latitude, longitude, fetchedAt, staleAfter);
             return new Validation(new ProviderResponseValidator.Verdict(ProviderResponseValidator.Outcome.OK, 0),
                     snapshot, 1);
         } catch (CoordinateOutOfRangeException failure) {
@@ -78,6 +84,19 @@ public final class KtoDetailResponseValidator {
 
     private static Validation rejected(ProviderResponseValidator.Outcome outcome, int responseCount) {
         return new Validation(new ProviderResponseValidator.Verdict(outcome, 1), null, responseCount);
+    }
+
+    /**
+     * True when the provider supplies the retired identifiers and none of the current ones. Both sets
+     * being absent is not drift: KTO legitimately leaves a place unclassified, and the canonical
+     * ingest rejects that separately instead of inventing a category.
+     */
+    private static boolean legacyCodesOnly(JsonNode item) {
+        boolean current = optional(item, "lclsSystm1") != null || optional(item, "lDongRegnCd") != null
+                || optional(item, "lDongSignguCd") != null;
+        boolean legacy = optional(item, "cat1") != null || optional(item, "areacode") != null
+                || optional(item, "sigungucode") != null;
+        return legacy && !current;
     }
 
     private static boolean topLevelProviderError(JsonNode root) {

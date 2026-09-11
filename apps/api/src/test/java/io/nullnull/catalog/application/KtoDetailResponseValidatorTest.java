@@ -24,6 +24,9 @@ class KtoDetailResponseValidatorTest {
         assertThat(result.snapshot().title()).isEqualTo("서울 테스트 관광지");
         assertThat(result.snapshot().latitude().toPlainString()).isEqualTo("37.566535");
         assertThat(result.snapshot().longitude().toPlainString()).isEqualTo("126.978001");
+        assertThat(result.snapshot().categoryCode()).isEqualTo("HS");
+        assertThat(result.snapshot().areaCode()).isEqualTo("11");
+        assertThat(result.snapshot().sigunguCode()).isEqualTo("110");
         assertThat(result.snapshot().payloadHash()).matches("[0-9a-f]{64}");
         assertThat(result.snapshot().staleAt()).isEqualTo(Instant.parse("2026-09-17T00:00:00Z"));
     }
@@ -57,6 +60,44 @@ class KtoDetailResponseValidatorTest {
         assertThat(mismatch.snapshot()).isNull();
     }
 
+    /**
+     * An actual 2026-09-11 call showed KorService2 sends cat1/areacode/sigungucode as empty strings and
+     * carries the real identifiers in lclsSystm1/lDongRegnCd/lDongSignguCd. Reading the retired fields
+     * had left every real place unclassified, so a response that only carries them must quarantine.
+     */
+    @Test
+    @DisplayName("BA-021-T1 a response carrying only the retired identifiers is drift, not a remap")
+    void rejectsLegacyOnlyIdentifiers() {
+        KtoDetailResponseValidator.Validation legacyOnly = validate("""
+                {"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{
+                  "items":{"item":{"contentid":"126508","contenttypeid":"12","title":"서울 테스트 관광지",
+                  "cat1":"A0101","areacode":"1","sigungucode":"1","lclsSystm1":"","lDongRegnCd":"",
+                  "lDongSignguCd":"","addr1":"서울특별시 종로구","mapy":"37.566535","mapx":"126.978001"}},
+                  "numOfRows":1,"pageNo":1,"totalCount":1}}}
+                """);
+
+        assertThat(legacyOnly.verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+        assertThat(legacyOnly.snapshot()).isNull();
+    }
+
+    /** Neither identifier set is present: legitimate for an unclassified KTO place, not provider drift. */
+    @Test
+    @DisplayName("BA-021-T1 a place with no classification at all is accepted without inventing one")
+    void acceptsAnUnclassifiedPlaceWithNullCodes() {
+        KtoDetailResponseValidator.Validation result = validate("""
+                {"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{
+                  "items":{"item":{"contentid":"126508","contenttypeid":"12","title":"서울 테스트 관광지",
+                  "cat1":"","areacode":"","sigungucode":"","lclsSystm1":"","lDongRegnCd":"",
+                  "lDongSignguCd":"","addr1":"서울특별시 종로구","mapy":"37.566535","mapx":"126.978001"}},
+                  "numOfRows":1,"pageNo":1,"totalCount":1}}}
+                """);
+
+        assertThat(result.accepted()).isTrue();
+        assertThat(result.snapshot().categoryCode()).isNull();
+        assertThat(result.snapshot().areaCode()).isNull();
+        assertThat(result.snapshot().sigunguCode()).isNull();
+    }
+
     @Test
     @DisplayName("BA-021-T1 incomplete or out-of-range map coordinates cannot become a snapshot")
     void rejectsUnsafeCoordinates() {
@@ -88,7 +129,8 @@ class KtoDetailResponseValidatorTest {
         return """
                 {"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{
                   "items":{"item":%s"contentid":"%s","contenttypeid":"%s","title":"서울 테스트 관광지",
-                  "cat1":"A0101","areacode":"1","sigungucode":"1","addr1":"서울특별시 종로구",
+                  "cat1":"","areacode":"","sigungucode":"","lclsSystm1":"HS","lDongRegnCd":"11",
+                  "lDongSignguCd":"110","addr1":"서울특별시 종로구",
                   "mapy":"%s","mapx":"%s","overview":"raw-provider-body-must-not-persist"%s},
                   "numOfRows":1,"pageNo":1,"totalCount":1}}}
                 """.formatted(itemStart, contentId, contentTypeId, latitude, longitude, itemEnd);

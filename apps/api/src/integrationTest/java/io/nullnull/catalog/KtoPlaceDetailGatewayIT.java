@@ -82,7 +82,7 @@ class KtoPlaceDetailGatewayIT {
                     """, String.class, snapshot.collectorRunId());
 
             assertThat(stub.calls()).isEqualTo(1);
-            assertThat(snapshot.sourceRegistryVersion()).isEqualTo(3);
+            assertThat(snapshot.sourceRegistryVersion()).isEqualTo(4);
             assertThat(snapshotRow).doesNotContain(CANARY, RAW_BODY_CANARY, "serviceKey", "overview");
             assertThat(auditRow).doesNotContain(CANARY, RAW_BODY_CANARY, "serviceKey", "overview");
             assertThat(runRow).doesNotContain(CANARY, RAW_BODY_CANARY, "serviceKey", "overview");
@@ -162,7 +162,8 @@ class KtoPlaceDetailGatewayIT {
         return """
                 {"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{
                   "items":{"item":{"contentid":"%s","contenttypeid":"12","title":"%s",
-                  "cat1":"A0101","areacode":"1","sigungucode":"1","addr1":"서울특별시 종로구",
+                  "cat1":"","areacode":"","sigungucode":"","lclsSystm1":"HS","lDongRegnCd":"11",
+                  "lDongSignguCd":"110","addr1":"서울특별시 종로구",
                   "mapy":"37.566535","mapx":"126.978001","overview":"%s"}},
                   "numOfRows":1,"pageNo":1,"totalCount":1}}}
                 """.formatted(contentId, title, RAW_BODY_CANARY);
