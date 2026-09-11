@@ -341,6 +341,6 @@ keyboard sheet, component/API/E2E test를 포함하라. 먼저 변경 계획과
 
 작업 시작·계약 변경·인계·통합·출시 gate마다 contract SHA, 필요한 fixture, 열린 결정과 다음 acceptance를 확인한다. 개발 달력이나 정기 회의 시간을 이 문서에서 고정하지 않는다. 담당자별 WIP는 구현 slice 1개와 review 1개다. Backend와 AI는 모두 `backend` 역할 브랜치에서 개발한다.
 
-## #10 첫 scaffold의 교차 인계 제안
+## #10 첫 scaffold의 실제 결과
 
-[B01 기반 결정안](FOUNDATION_DECISIONS.md)의 D1~D5를 Frontend와 검토한다. backend가 최초 통합 PR을 host하고 FE 파일을 checksum/기준 SHA/작성자와 함께 인계받는 제한된 예외를 제안했다. 이후 일반 slice도 최신 `main` 기준 두 required check가 green이면 auto-merge하며 merge commit 규칙은 동일하다. 최소 실제 session→CSRF→me 연결과 full Docker 검증 없이 B01을 완료 처리하지 않는다.
+[B01 기반 결정안](FOUNDATION_DECISIONS.md)의 D1(backend가 최초 통합 PR을 host하고 FE 파일을 인계받는 제한된 예외)은 **채택되지 않았다.** `apps/web`·`packages/api-client`·root script·`.nullnull-target-stack`은 `frontend`에서 만들어져 PR #17로 `frontend → main`에 병합됐다. 즉 이 문서의 브랜치 규칙에 scaffold 예외는 없고, 일반 slice와 같이 최신 `main` 기준 두 required check가 green이면 auto-merge하며 merge commit 규칙도 동일하다. 최소 실제 session→CSRF→me 연결과 full Docker 검증 없이 B01을 완료 처리하지 않는다.

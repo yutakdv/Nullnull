@@ -298,3 +298,35 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 - secret·cookie·token·계정 ID·원문 일정·실제 위치를 source/fixture/screenshot/prompt/log에 넣지 않는다.
 - 파괴적·유료 작업(rm -rf, reset --hard, DROP, AWS delete/deploy)은 세션에서 명시 확인을 받는다.
 - 실행하지 못한 검사를 통과로 쓰지 않는다. 불가능하면 `검증 생략: <이유>`를 명시한다.
+
+## 11. 정본 정합성 PR 이후 (P0 묶음 PR의 첫 번째)
+
+이 절은 `~/.claude/plans/fe-be-ai-dazzling-dongarra.md`의 **P0 PR**을 실행한 기록이다. 코드 변경은 `@DisplayName` 한 줄뿐이고 나머지는 문서·정본이다.
+
+### 되돌리지 말 것
+
+- **`BA-000`·`BA-001`은 `contract-ready`, `BA-006`은 `blocked`다.** 셋 다 `backend-plan.json`과 `BACKEND_AI_PLAYBOOK.md` 카드 제목 줄을 **같은 커밋에서** 바꿨다. 한쪽만 바꾸면 `docs-contract`가 양방향으로 실패한다(JSON만 → `task card missing manifest value contract-ready`, 카드만 → `... missing manifest value planned`).
+- **`BA-000`·`BA-001`을 `integration-ready` 이상으로 올리지 마라.** `scripts/check_test_reports.py:99-100`은 `integration-ready`·`verified`인 task에 한해 모든 `tests[].id`를 **Gradle JUnit testcase 이름**에서 찾는다. 두 카드의 증거는 Python gate(`validate_backend_plan.py`·`validate_docs.py`·`verify_target_stack.py`)라 JUnit XML에 나타나지 않으므로 두 required check가 즉시 실패한다. `contract-ready`와 `blocked`는 이 검사에서 건너뛴다(실측 확인).
+- **카드↔JSON status 동기화는 "포함 여부"만 본다**(`validate_backend_plan.py:154`, `value not in card`). 즉 카드 **본문 산문**에 status 단어가 들어 있으면 **제목 줄이 낡아도 validator가 통과한다.** 상태를 바꿀 때는 반드시 `### BA-xxx` 바로 아래 굵은 제목 줄(`**제목** — P0 / \`status\` / …`)을 직접 확인하라. 현재 이 가면 현상을 이미 가진 카드가 7개 있다(BA-002/003/010/023이 `verified`, BA-004/021이 `integration-ready`, BA-081이 `blocked`를 산문에 포함).
+- **`BA-000-T3`은 CI가 강제하지 않는다.** `AGENTS.md`의 `docs-contract` 행에서 T3를 등록 해제했다. `validate_docs.py`의 `validate_product_contract_alignment`는 discriminator와 variant별 `const`·`required`를 고정해 "거부할 수 있는 구조"까지만 지키고, 잘못된 example을 실제 evaluator에 넣어 거부를 확인하는 negative fixture가 없다. 구조 고정과 거부 증명을 같은 것으로 쓰지 마라.
+- **`BA-001-T2`는 `ArchitectureRulesTest.modulesNeverReachIntoAnotherModulesInfrastructure`다.** `@DisplayName("BA-001-T2 …")`를 붙여야 testcase `name` 속성에 ID가 실려 집계에 잡힌다(class-level `@DisplayName`은 testsuite 이름이라 잡히지 않는다). 이 줄을 지우면 `AGENTS.md`의 `api-quality` 행이 다시 거짓이 된다.
+- **root `package.json`의 `security:scan`을 삭제하지 마라.** `scripts/verify_target_stack.py:98`이 `{api:check, security:scan, infra:check}` 세 이름의 **선언**을 요구한다. 이름을 지우면 target-stack 검사가 실패한다. "호출하는 gate가 없다"는 진단은 맞지만 해법이 삭제가 아니다 → #119.
+- **`scripts/infra-check.mjs`는 죽은 script가 아니라 `docker-integration` 안에서 돈다**(`compose.integration.yml`의 `infra-plan` service). `infra/`가 없으면 exit 0이라 통과로 집계된다. 지금 hard fail로 바꾸면 `main`이 깨지므로(BA-006이 `blocked`) #119에서 `infra/` 생성과 함께 처리한다.
+- **`FOUNDATION_DECISIONS.md` D1은 "채택되지 않음"이다.** `apps/web`·marker는 `frontend`에서 만들어져 PR #17로 `frontend → main` 병합됐다. backend가 scaffold를 host한 적이 없으므로 이 절을 근거로 새 인계 절차를 만들지 마라. D2 anchor는 `docs/api/README.md:28`이 링크하므로 건드리지 마라.
+
+### 이슈 상태
+
+- **닫았다**: #25(BA-003) #27(BA-005) #29(BA-010) #30(BA-011) #31(BA-012) #35(BA-023). 여섯 건 모두 plan status는 `integration-ready` 그대로이고 **`verified`로 올리지 않았다.** 카드·이슈 본문의 "상대 재현 확인 전 완료로 쓰지 않는다"가 막는 것은 `verified` 승격이며, 잔여는 각각 다른 이슈가 단독 추적한다는 오너 판단으로 닫았다.
+- **새로 연 이슈**: #118(계약 공백 — `statusUrl` 정의, terminal status 집합, `Retry-After`, 404/410 응답별 `code` const, 429 미구현, merge-patch 415 미열거, `createDemoSession` `Cache-Control` 미선언), #119(root gate script 2건이 선언만 되고 강제하지 않음).
+- **추적자 없는 잔여 1건**: BA-010의 FE 화면 검수 인계(cookie 유실 안내, 401 뒤 mutation 자동 재실행 금지, `apps/web/serve.mjs`의 API proxy 부재, browser Secure cookie 수락). 전용 FE 이슈를 찾지 못했고 #29를 닫았으므로 **여기가 유일한 기록이다.**
+- **#107의 전제는 절반만 맞다.** `FR-SES-01`·`FR-SES-04`만 구현 완료이고, `FR-SES-02`(재-bootstrap 없음)·`FR-SES-03`(`issueCsrfToken` 호출 없음)은 부분, **`FR-PLC-01`은 미구현**이다(`apps/web` 전체에서 `getPlace` 호출 0건). 다섯 개를 한꺼번에 featureIds에 넣으면 plan이 실제보다 앞선다.
+
+### 이 PR에서 실제로 실행한 검증
+
+- `python3 scripts/validate_docs.py` 통과(50 operation, link/anchor, product-contract alignment, backend·frontend plan).
+- `python3 -m unittest discover -s scripts/tests` **110건 OK**. `test_current_repository`가 실제 저장소에 대해 validator 문제 0건을 단언하므로 JSON·카드가 갈라진 중간 커밋은 push할 수 없다.
+- `npx markdownlint-cli2@0.23.2` 47파일 0 issue, `@redocly/cli@2.51.1 lint` valid, AJV valid.
+- Temurin 21 `test integrationTest openapiContractTest recommendationTest` = **322 / 154 / 13 / 19**, failure·error·skip 0. `--rerun`을 task마다 반복했다.
+- `grep -o 'name="BA-001-T2[^"]*"' build/test-results/test/TEST-io.nullnull.ArchitectureRulesTest.xml`이 실제로 ID를 반환한다. **build 성공이 아니라 이 grep이 `@DisplayName`이 testcase 이름에 실렸다는 증거다.**
+- `scripts/check_test_reports.py` → `test_reports=valid` (새 status 3개 반영 후).
+- `bash scripts/integration-test.sh` → **EXIT=0, `integration_mode=full-docker`**. AI pytest 410, web unit 597(42 파일), Playwright 51, `evaluation_report=valid`, `test_reports=valid`, npm audit 보고서 생성, egress-denied 통과.

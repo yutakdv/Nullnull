@@ -69,7 +69,7 @@
       "phase": "B00",
       "priority": "P0",
       "title": "추천 설계와 전체 계약 기준선 확정",
-      "status": "planned",
+      "status": "contract-ready",
       "dependsOn": [],
       "operations": [],
       "featureIds": [],
@@ -108,7 +108,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "Spring 모듈 구조와 실행 도구 고정",
-      "status": "planned",
+      "status": "contract-ready",
       "dependsOn": [
         "BA-000"
       ],
@@ -323,7 +323,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "로컬 Docker와 최소 staging 기반",
-      "status": "planned",
+      "status": "blocked",
       "dependsOn": [
         "BA-001",
         "BA-002",
@@ -345,6 +345,7 @@
         "#10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다"
       ],
       "safety": "계정·비용·secret 미확정은 외부 배포 blocker이며 로컬 구현까지 막지 않는다. 실제 설정·배포 완료를 문서만으로 표시하지 않는다.",
+      "reason": "D-001 도메인, D-017 AWS 계정 분리, D-018 staging 비용 상한이 미확정이라 staging 절반(CDK network/data/API/web edge, OIDC exact subject, runtime secret 주입)을 시작하지 않는다. 안전한 기본값은 로컬 Docker와 full-docker wrapper만 사용하고 외부 배포 capability를 OFF로 두는 것이다.",
       "tests": [
         {
           "id": "BA-006-T1",
