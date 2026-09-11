@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
@@ -38,6 +38,11 @@ export function OptimizeSetupScreen() {
   const create = useCreateOptimization(tripId);
 
   const [targetItemId, setTargetItemId] = useState<string | null>(null);
+  // The key for the attempt in progress. Held across retries of the SAME
+  // request so a user who presses submit again after a failure replays that
+  // run instead of queuing a second one; cleared whenever the request changes
+  // or succeeds, so a genuinely different run gets a genuinely new key.
+  const idempotencyKey = useRef<string | null>(null);
   const [includeCandidates, setIncludeCandidates] = useState(false);
   const [missingTarget, setMissingTarget] = useState(false);
 
@@ -49,9 +54,15 @@ export function OptimizeSetupScreen() {
     void navigate(tripId === null ? '/feed' : `/trip/${tripId}`);
   }
 
+  // The selection only counts while the stop is still in the trip. A
+  // background refetch can remove it — another device edits the trip, the
+  // window regains focus, the list re-renders without it — and the id would
+  // otherwise stay selected and be sent for a stop that no longer exists.
+  const selected = items.some((item) => item.id === targetItemId) ? targetItemId : null;
+
   function submit() {
     if (detail === undefined) return;
-    if (targetItemId === null) {
+    if (selected === null) {
       // Stated rather than silently ignored: the contract requires
       // targetItemId, so there is nothing to send until one is chosen.
       setMissingTarget(true);
@@ -65,18 +76,21 @@ export function OptimizeSetupScreen() {
           // which is what makes "요청 0건" a property of the code rather than
           // a promise about the UI.
           scope: 'ITEM',
-          targetItemId,
+          targetItemId: selected,
           // What the run is computed against, taken from the trip we loaded.
           inputTripVersion: detail.version,
           includeCandidates,
         },
         etag,
-        // Minted per attempt by the caller, so a retry of THIS submit replays
-        // the same run rather than queuing a second one (invariant 6).
-        idempotencyKey: crypto.randomUUID(),
+        // Reused across retries of this same request. Minting here would give
+        // every press a fresh key, so a user pressing submit again after a
+        // failed attempt would queue a SECOND run against the same stop —
+        // which is the duplicate command invariant 6 exists to prevent.
+        idempotencyKey: (idempotencyKey.current ??= crypto.randomUUID()),
       },
       {
         onSuccess: (run) => {
+          idempotencyKey.current = null;
           void navigate(`/trip/${detail.id}/optimizations/${run.id}`);
         },
       },
@@ -168,12 +182,14 @@ export function OptimizeSetupScreen() {
             {items.map((item) => (
               <li key={item.id}>
                 <button
-                  aria-pressed={targetItemId === item.id}
+                  aria-pressed={selected === item.id}
                   className={styles.item}
-                  data-selected={targetItemId === item.id || undefined}
+                  data-selected={selected === item.id || undefined}
                   onClick={() => {
                     setTargetItemId(item.id);
                     setMissingTarget(false);
+                    // A different stop is a different command.
+                    idempotencyKey.current = null;
                   }}
                   type="button"
                 >
@@ -193,6 +209,8 @@ export function OptimizeSetupScreen() {
           checked={includeCandidates}
           onChange={(event) => {
             setIncludeCandidates(event.target.checked);
+            // So is a different candidate setting.
+            idempotencyKey.current = null;
           }}
           type="checkbox"
         />

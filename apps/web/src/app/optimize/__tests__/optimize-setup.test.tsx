@@ -131,6 +131,55 @@ describe('FE-501-T1 only ITEM is offered, and the others send nothing', () => {
     expect(sent[0]?.idempotencyKey).not.toBeNull();
   });
 
+  it('replays the same key when the user retries a failed submit', async () => {
+    // Without this the screen minted a fresh UUID per press, so a user
+    // pressing submit again after a failure queued a SECOND run against the
+    // same stop — the duplicate command invariant 6 exists to prevent.
+    // Reproduced before the fix: the two keys differed.
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/optimizations`, () =>
+        problemResponse('RATE_LIMITED'),
+      ),
+    );
+    const user = userEvent.setup();
+    await pickFirstStop(user);
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    expect(sent[0]?.idempotencyKey).toBe(sent[1]?.idempotencyKey);
+  });
+
+  it('uses a new key once the request itself changes', async () => {
+    // Single-flight must not become single-shot: choosing a different stop is
+    // a different command and deserves its own key.
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/optimizations`, () =>
+        problemResponse('RATE_LIMITED'),
+      ),
+    );
+    const user = userEvent.setup();
+    await pickFirstStop(user);
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+
+    const second = trip.days.flatMap((day) => day.items)[1];
+    await user.click(
+      screen.getByRole('button', { name: new RegExp(second?.place.name ?? '') }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    expect(sent[0]?.idempotencyKey).not.toBe(sent[1]?.idempotencyKey);
+  });
+
   it('never sends a DAY or TRIP scope, whatever is pressed', async () => {
     const user = userEvent.setup();
     await pickFirstStop(user);

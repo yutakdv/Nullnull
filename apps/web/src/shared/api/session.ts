@@ -328,6 +328,13 @@ export function useSavePost(postId: string) {
       if (!data) fail(error, response);
       return data;
     },
+    // A GET for this post may already be in flight — TanStack refetches on
+    // window focus by default — and it would resolve with the pre-save body
+    // and overwrite the flag we are about to set, silently flipping the
+    // button back. Cancelling first is what keeps the toggle honest.
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: postQueryKey(postId) });
+    },
     onSuccess: (state) => {
       // Only the post's own saved flag moves. Nothing here writes to a trip
       // cache, which is what keeps the three resources apart.
@@ -348,6 +355,9 @@ export function useUnsavePost(postId: string) {
         params: { path: { postId } },
       });
       if (response.status !== 204) fail(error, response);
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: postQueryKey(postId) });
     },
     onSuccess: () => {
       queryClient.setQueryData(postQueryKey(postId), (current: PostDetail | undefined) =>
