@@ -2060,7 +2060,12 @@ export interface components {
             status: components["schemas"]["OptimizationStatus"];
             /** @enum {string|null} */
             decision?: "APPLY" | "KEEP" | "REVERT" | null;
-            /** Format: uri-reference */
+            /**
+             * Format: uri-reference
+             * @description Client router path for the run screen. This is not an API path: the `/api/v1` server base is
+             *     not included and the value must not be used as a request URL. Callers may navigate to it
+             *     verbatim, or rebuild it from `tripId` and `runId`, which are both required here.
+             */
             runLink: string;
             /** Format: date-time */
             queuedAt: string;
