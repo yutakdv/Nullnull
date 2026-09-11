@@ -40,13 +40,18 @@ export function CrowdLevel({
     );
   }
 
-  // ordinalLevel is an untyped, enum-less string in the contract
-  // (openapi.yaml: `type: [string, "null"]`), so the 1..4 read here is a
-  // guess. Real KTO-shaped data uses words — the feed fixture carries
-  // "보통" — and those draw no bars at all rather than a wrong number, which
-  // is the safe direction (invariant 8). Asked Backend/AI for the vocabulary:
-  // if it is ordinal words the bar needs a mapping, and if it is 1..4 the
-  // contract should say so with an enum.
+  // The 1..4 scale is documented, not invented: COMPONENT_CATALOG.md:136
+  // defines CrowdLevel as "1~4단계, 데이터 없음, 척도 밖" and
+  // FIGMA_CHANGE_REQUESTS.md:201 fixes the wording (1·매우 여유 … 4·혼잡).
+  //
+  // The server cannot fill it yet — JdbcKtoForecastSnapshotStore inserts
+  // ordinal_level as a NULL literal — so today every reading lands here as
+  // null and draws no bars. That is the agreed state, not a bug: FCR-029
+  // says the card ships without a crowd figure until the contract carries
+  // one. The remaining gap is the WORD, not the number: the design wants
+  // "4 · 혼잡" and `label` is diagnostic text we are forbidden to render, so
+  // there is nowhere to read "혼잡" from. Backend/AI is confirming the
+  // vocabulary against a real response before adding it to the contract.
   const parsed = Number(crowd.ordinalLevel);
   const level =
     Number.isInteger(parsed) && parsed >= 1 && parsed <= STEPS ? parsed : null;

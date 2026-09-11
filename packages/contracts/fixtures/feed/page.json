@@ -33,7 +33,7 @@
         "state": "FORECAST",
         "value": 62,
         "unit": "상대 집중률",
-        "ordinalLevel": "보통",
+        "ordinalLevel": null,
         "label": "관광지별 집중률 예측",
         "provenance": {
           "source": "KTO_KOR_SERVICE_2",

@@ -63,8 +63,12 @@ export const Forecast: Story = {
       post: { ...base.post, title: '도심 속 숲길 산책' },
       crowd: {
         state: 'FORECAST',
-        label: '1 · 매우 여유',
-        ordinalLevel: '1',
+        // Both null, because the server cannot send anything else today:
+        // JdbcKtoForecastSnapshotStore inserts ordinal_level as a NULL
+        // literal, and `label` is diagnostic text the card must not render
+        // (FCR-029 — no crowd figure until the contract carries one).
+        label: '',
+        ordinalLevel: null,
         provenance: ktoProvenance,
       } as components['schemas']['CrowdMetric'],
     },

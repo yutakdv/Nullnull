@@ -980,6 +980,53 @@
       "reviewer": "BE_AI_DRI"
     },
     {
+      "id": "FE-307",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "item 편집 시트에서 잠금 종류별 독립 설정",
+      "status": "planned",
+      "dependsOn": [
+        "FE-304",
+        "BA-041"
+      ],
+      "operations": [
+        "setTripItemConstraint"
+      ],
+      "featureIds": [
+        "FR-CON-01",
+        "FR-CON-03"
+      ],
+      "figmaNodes": [
+        "411:1837"
+      ],
+      "designRequests": [
+        "FCR-033"
+      ],
+      "steps": [
+        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
+        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
+        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+      ],
+      "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. RESERVATION은 toggle로 제공하지 않는다(COMPONENT_CATALOG 잠금 규칙). 한 요청은 한 constraintType만 바꾸며 다른 잠금 상태를 건드리지 않는다.",
+      "tests": [
+        {
+          "id": "FE-307-T1",
+          "assertion": "잠금을 설정해도 다른 종류의 잠금 상태가 바뀌지 않고 RESERVATION은 toggle로 노출되지 않는다"
+        },
+        {
+          "id": "FE-307-T2",
+          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+        },
+        {
+          "id": "FE-307-T3",
+          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        }
+      ],
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
       "id": "FE-501",
       "phase": "B06",
       "priority": "P0",
