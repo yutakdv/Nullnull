@@ -52,6 +52,16 @@ Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대�
 - **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거가 없다. `ktoForecastSmoke`는 `KTO_SERVICE_KEY`와
   `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`가 필요하다. BA-021-T3와 함께 남아 있어 BA-023도 `verified`가
   아니고 #35를 닫지 않았다.
+- **2026-09-11 실제 KTO 호출에서 드러난 차단 요인 (#109):** 승인 후 `actualKtoSmoke`를 돌렸더니
+  `KtoForecastRequest`가 `areaCode is not a KTO area identifier`로 실패했다. C2 detail 호출 자체는 성공했다.
+  실제 `detailCommon2` 응답은 `areacode`·`sigungucode`·`cat1/2/3`이 빈 문자열이고 값은 `lDongRegnCd`·
+  `lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽만 읽으므로 **실제 KTO place는 canonical
+  ingest에서 전부 거부되고 forecast 수집도 시작되지 않는다.** fixture가 전부 legacy 필드 이름이라 네 suite가
+  GREEN인 채로 이 단절을 덮고 있었다. `tatsCnctrRatedList`는 `areaCd`가 필수이고 법정동 `11/110`과 legacy
+  `1/1` 모두 `totalCount 0`이라 파라미터 계약도 미해결이다. **추측으로 채우지 말고 공공데이터포털
+  `TatsCnctrRateService` 공식 활용가이드로 고정할 것.** 코드 체계 변경은 `PlaceSummary.categoryCode`/
+  `regionCode`의 의미를 바꾸므로 FE(#34)와 함께 정한다.
+
 - **다음은 C5 BA-024**(검증된 관련 장소·추천 후보 검색). 다만 FE가 #34에 올린 출처 표시 요청 — `PlaceSummary`에
   source/attribution field가 없어 공모전 REQUIRED `CMP-ATT-001`을 못 채우는 문제 — 를 **BA-024보다 먼저**
   처리하겠다고 #34에 적었다(해당 FCR 번호는 FE가 PR #106에서 `FIGMA_CHANGE_REQUESTS.md` 표에 등록 중이므로 여기서
