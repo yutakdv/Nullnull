@@ -49,6 +49,7 @@ export {
   useReorderTripItems,
   useReplaceTripItem,
   useRemoveTripItem,
+  useAddTripCandidate,
   candidatesQueryKey,
   useUpdatePreferences,
   tripQueryKey,

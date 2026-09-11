@@ -1,0 +1,141 @@
+/* S07-3 place search `476:3409`. Body: pt12 pb24 px16, gap 12. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-6);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-sm);
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.dayRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dayLabel {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+.dayChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sectionHead {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 476:3466: p12, gap 12, r12. */
+.result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+}
+
+/* 476:3467: 44px, r8, on the track grey while empty. */
+.thumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-bg-track, var(--color-bg-subtle));
+}
+
+.resultText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.name {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* 477:3498: a 62x30 filled pill. min-height lifts the hit area to 44px
+   without redrawing the box, as Chip does. */
+.add {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-action-onPrimary);
+  font-family: inherit;
+  font-size: var(--font-label);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.add:disabled {
+  background: var(--color-bg-track);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+.state {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+.state:empty {
+  display: none;
+}

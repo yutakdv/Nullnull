@@ -57,6 +57,22 @@
   line-height: 16px;
 }
 
+/* 521:3989: the filled pill that opens place search. */
+.addPlace {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-strong);
+  color: var(--color-text-inverse);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 18px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 /* 468:3397: a white pill on the subtle hero, in the action colour. */
 .candidates {
   display: inline-flex;
