@@ -98,6 +98,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_AI_READ_TIMEOUT` | 아니오 | `PT5S` | gateway read timeout; readiness probe는 별도 1초 |
 | `NULLNULL_CATALOG_PUBLIC_ENABLED` | 아니오 | `false` | C3 canonical 장소 projection의 release gate. local/test 검증 외에는 C2 T3 staging KTO provenance와 최종 AWS release 전까지 `true` 금지 |
 | `NULLNULL_CURSOR_SECRET` | 예 | runtime | feed/history/catalog opaque cursor 서명 key. catalog projection을 production에서 켤 때 UTF-8 32 byte 이상 별도 값이 필요 |
+| `NULLNULL_CROWD_MAX_RANGE_DAYS` | 아니오 | `30` | `getPlaceCrowdForecast`의 from~to 상한(일). provider가 30일 일 단위 series만 발표하므로 1~31 밖의 값은 startup에서 거부한다 |
 | `NULLNULL_PROVIDER_CONNECT_TIMEOUT` | 아니오 | `PT2S` | 외부 provider TCP connect 상한 |
 | `NULLNULL_PROVIDER_REQUEST_TIMEOUT` | 아니오 | `PT5S` | provider 전체 요청 상한; API request executor와 분리 |
 | `NULLNULL_PROVIDER_MAX_RESPONSE_BYTES` | 아니오 | `2097152` | provider 응답 최대 byte; 초과는 안전한 provider failure |
@@ -185,6 +186,7 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | --- | --- | --- |
 | `KTO_SERVICE_KEY` | 예 | 공공데이터포털 KTO **decoding key**; runtime에만 주입 |
 | `KTO_BASE_URL` | 아니오 | C2 exact `https://apis.data.go.kr/B551011/KorService2`; contest profile에서는 다른 path/host 거부 |
+| `KTO_FORECAST_BASE_URL` | 아니오 | C4 exact `https://apis.data.go.kr/B551011/TatsCnctrRateService`; KorService2의 하위 경로가 아닌 별도 승인 endpoint이며 contest profile에서는 다른 path/host 거부 |
 | `KTO_MOBILE_APP`, `KTO_MOBILE_OS` | 아니오 | C2 `detailCommon2` request metadata; 기본 `Nullnull`/`ETC` |
 | `APP_RELEASE_VERSION` | 아니오 | safe `api_ingest_logs.release_version`; credential나 URL이 아님 |
 | `APP_CONTEST_PROFILE` | 아니오 | `2026_KTO_WEBAPP`이면 KTO key와 exact base가 startup invariant |
@@ -257,7 +259,7 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 공모전 profile `2026_KTO_WEBAPP`은 다음 startup invariant를 추가한다.
 
 - `FEATURE_ACCOUNT_LOGIN`, `FEATURE_NEARBY_LOCATION`, `FEATURE_NOTIFICATIONS`, `FEATURE_POST_CREATION`, `FEATURE_OPTIMIZATION_DAY`, `FEATURE_OPTIMIZATION_TRIP`은 OFF다.
-- `KTO_SERVICE_KEY`가 runtime secret으로 존재하고 `KTO_BASE_URL`이 공식 allowlist와 일치한다.
+- `KTO_SERVICE_KEY`가 runtime secret으로 존재하고 `KTO_BASE_URL`·`KTO_FORECAST_BASE_URL`이 각각 공식 allowlist와 일치한다. 둘 중 하나라도 어긋나면 startup이 실패한다.
 - KTO 실제 호출과 redacted call-audit가 활성화되고, fixture-only/replay-only provider가 primary가 아니다.
 - 익명 demo session, 한국어/영어, P0 핵심 capability가 readiness에 나타난다.
 - Frontend에는 profile 이름과 공개 capability만 전달하며 secret이나 provider credential을 전달하지 않는다.
@@ -269,6 +271,7 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 - shell history에 secret을 직접 입력하지 않는다.
 - test는 fake key와 network stub을 사용한다.
 - debug log level에서도 configuration value를 전체 출력하지 않는다.
+- 실제 KTO 호출 증거를 만드는 operator smoke는 별도 승인 변수가 있어야 한다. C2 `ktoSmoke`는 `NULLNULL_KTO_SMOKE_APPROVED=true`(+`NULLNULL_KTO_SMOKE_CONTENT_ID`/`_CONTENT_TYPE_ID`), C4 `ktoForecastSmoke`는 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`가 필요하며 둘 다 redacted ID만 출력한다. CI와 PR gate는 이 변수를 설정하지 않는다.
 - B01 scaffold는 `apps/api/.env.example`, `apps/web/.env.example`를 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다.
 
 exact tool version, port, seed와 guarded reset은 [LOCAL_DEVELOPMENT.md](../engineering/LOCAL_DEVELOPMENT.md)를 따른다. example 파일은 매 CI에서 실제 configuration binding과 비교해 누락/폐기 변수를 검출한다.

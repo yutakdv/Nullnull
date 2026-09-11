@@ -12,6 +12,40 @@ import java.util.Objects;
 public final class TemporalComparisonPolicy {
 
     /**
+     * Whether one normalized point may participate in a temporal pair once another target from the
+     * same forecast issue is selected. This is intentionally weaker than {@link #evaluate}: it does
+     * not invent a peer or a delta, but gives the UI a stable per-point eligibility explanation.
+     */
+    public ComparisonVerdict eligibility(CrowdPoint point) {
+        Objects.requireNonNull(point, "point");
+        if (missingEligibilityProvenance(point)) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.MISSING_PROVENANCE);
+        }
+        if (has(point, QualityFlag.PROVIDER_INCIDENT)) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.PROVIDER_INCIDENT);
+        }
+        if (point.sourceState() == SourceState.REPLAY) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.REPLAY_INPUT);
+        }
+        if (point.sourceState() == SourceState.STALE) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.STALE_INPUT);
+        }
+        if (point.sourceState() == SourceState.QUALITATIVE || point.value() == null) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.QUALITATIVE_ONLY);
+        }
+        if (point.scope() != ComparisonScope.PLACE || point.placeId() == null) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.DIFFERENT_SCOPE);
+        }
+        if (has(point, QualityFlag.MAPPING_UNCERTAIN)) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.MAPPING_UNCERTAIN);
+        }
+        if (point.sourceState() != SourceState.FORECAST || point.forecastIssueId() == null) {
+            return ComparisonVerdict.ineligible(ComparisonReasonCode.DIFFERENT_FORECAST_ISSUE);
+        }
+        return ComparisonVerdict.eligible(ComparisonReasonCode.SAME_METRIC_AND_ISSUE);
+    }
+
+    /**
      * Precondition: the two points must describe different targets. Two equal non-null targetAt values are
      * a caller/hydration bug with one shape, so they throw before any eligibility check runs; a null
      * targetAt is missing metadata and is answered with MISSING_PROVENANCE like any other absent field.
@@ -69,6 +103,15 @@ public final class TemporalComparisonPolicy {
                 || point.sourceState() == SourceState.UNAVAILABLE
                 || has(point, QualityFlag.SCHEMA_DRIFT) || has(point, QualityFlag.OBSERVED_AT_SKEW)
                 || has(point, QualityFlag.PARTIAL_PAYLOAD);
+    }
+
+    /** A non-forecast point legitimately has no target; temporal pair evaluation still requires one. */
+    private static boolean missingEligibilityProvenance(CrowdPoint point) {
+        return !point.provenanceComplete() || point.snapshotId() == null
+                || (point.sourceState() == SourceState.FORECAST || point.sourceState() == SourceState.STALE)
+                        && point.targetAt() == null
+                || point.sourceState() == SourceState.UNAVAILABLE || has(point, QualityFlag.SCHEMA_DRIFT)
+                || has(point, QualityFlag.OBSERVED_AT_SKEW) || has(point, QualityFlag.PARTIAL_PAYLOAD);
     }
 
     private static boolean has(CrowdPoint point, QualityFlag flag) {

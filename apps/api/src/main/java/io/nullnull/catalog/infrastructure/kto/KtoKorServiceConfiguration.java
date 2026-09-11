@@ -15,6 +15,7 @@ public class KtoKorServiceConfiguration {
         return () -> {
             if (properties.isContestProfile()) {
                 properties.requireConfigured(false);
+                properties.requireForecastConfigured(false);
             }
         };
     }

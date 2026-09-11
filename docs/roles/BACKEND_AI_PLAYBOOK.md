@@ -579,7 +579,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-023
 
-**혼잡 예보·시각·비교 적격성·데이터 안내** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**혼잡 예보·시각·비교 적격성·데이터 안내** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-020](#ba-020), [BA-021](#ba-021), [BA-022](#ba-022)
 - 기능 ID: `FR-DAT-01`, `FR-DAT-02`, `FR-DAT-03`, `FR-DAT-04`, `FR-DAT-05`, `NFR-DATA-01`
@@ -602,7 +602,54 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-023-T2`: mixed source/scope/issue/set·stale·replay·incident pair의 delta가 null이다
 - `BA-023-T3`: 최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다
 
-FE 인계·완료 증거: S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+구현 결과:
+
+- `V011`은 immutable `snapshot_sets`·`crowd_snapshots`와 KTO 집중률 registry revision 2
+  (`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw response body, 요청 URL,
+  service key는 column 자체가 없고, snapshot이 set의 provenance를 그대로 유지하지 않으면 trigger가 insert를
+  거부하며 두 table의 모든 UPDATE도 거부한다. 저장된 preview snapshot을 나중에 덮어쓸 경로가 없다는 뜻이다.
+- 공개 `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하고 provider를 호출하지 않는다.
+  수집은 operator/background 전용 `KtoCrowdForecastGateway`가 source health·quota·collector run·ingest audit을
+  거쳐 수행한다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false`
+  기본값에서 fail-closed다.
+- provider가 발표 시각을 주지 않으면 `observedAt`은 null로 남고 `fetchedAt`으로 대체하지 않는다. FORECAST/LIVE가
+  stale 경계를 넘으면 응답 state가 `STALE`이 되고 freshness가 따로 표시되며, 값이 없으면 숫자를 만들지 않고
+  `UNAVAILABLE`과 이유만 남긴다.
+- 비교는 저장하지 않는다. `데이터·정책`이 적은 `crowd_comparisons`에 해당하는 table을 만들지 않고, 공개 응답이
+  쓰는 것은 `TemporalComparisonPolicy.eligibility(point)` 하나다. 기존 pair 판정 `evaluate(before, after)`는
+  optimization preview의 MetricDelta가 쓸 자리이므로 domain에 그대로 두되, **이 slice는 그것을 감싸는 service를
+  만들지 않는다.** 호출자 없는 service의 test는 acceptance 증거가 될 수 없다.
+- 격리(quarantine)는 저장된 row가 가질 수 없는 유일한 flag다. incident는 수집 이후에 선언되고 snapshot은 immutable
+  이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(disposition `QUARANTINE`)로 계산해
+  `PROVIDER_INCIDENT`를 붙이고, 그 결과 비교 자격이 false가 된다.
+
+검증 결과:
+
+- `CrowdProvenanceProjectionTest`가 `BA-023-T1`의 6-state와 null provenance matrix를 property로,
+  `CrowdForecastApiIT`가 fresh·stale fallback·잘못된 range를 PostgreSQL/MockMvc로,
+  `KtoCrowdForecastGatewayIT`가 normalized provenance·raw redaction·명시적 no coverage·범위 밖 값의 quarantine을
+  확인한다. `BA-023-T2`는 실제 응답 경로로 검증한다 — `CrowdProvenanceProjectionTest`가 격리된 source의 값은
+  유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`가 되는지를, `CrowdForecastApiIT`가 수집 이후 선언된
+  `QUARANTINE` incident row가 이미 저장된 snapshot의 HTTP 응답에서 같은 결과를 만드는지를 확인한다.
+  `CrowdForecastApiIT`가 `BA-023-T3`의 "새 set은 최신 응답만 바꾸고 저장된 snapshot은 못 바꾼다"를 확인한다.
+- 적대적 검토에서 **`CrowdComparisonService`가 production 호출자 없는 코드**이고 그 test가 `BA-023-T2` 증거로
+  등록돼 있었다는 지적이 확정됐다. service와 test를 지우고 실제 경로의 격리 가드 검증으로 증거를 바꿨다.
+- 변이 검증: `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 삭제하면
+  `CrowdProvenanceProjectionTest`의 `BA-023-T2`가 RED, `CrowdForecastApiIT`의 `BA-023-T2`가
+  `comparisonEligible expected:<false> but was:<true>`로 RED다. 원본 복원 후 SHA-256
+  `b93a46858dba9ad104e4f1d9f623bd5ff6c8e7493a7b5a8464d8c120b0ef5659`이 일치하고 두 test가 다시 GREEN이다.
+- `FlywayMigrationIT`는 이제 populated V010 canonical catalog 위에서 V010→V011 upgrade를 돌린다. V010의 trigger가
+  `search_path`로 부모 row를 찾으므로 upgrade schema를 경로에 올린 `SET LOCAL` 안에서 채운다.
+- local Temurin 21 run: `test 320 / integrationTest 153 / openapiContractTest 13 / recommendationTest 19`,
+  failures·errors·skipped 0. report는 `apps/api/build/test-results/`다. 같은 상태에서
+  `bash scripts/integration-test.sh`가 `integration_mode=full-docker`로 exit 0이며 Java 네 suite 집계가 같고
+  AI pytest 410, web unit 224, Playwright 36, `test_reports=valid`, `evaluation_report=valid`,
+  generated client diff, `npm_audit_report=clean`, egress-denied가 모두 통과했다.
+- **미완료**: 실제 KTO `tatsCnctrRatedList` 호출 증거는 아직 없다. opt-in `ktoForecastSmoke`·`actualKtoSmoke`는
+  `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구한다. BA-021-T3의 staging
+  actual-success→public provenance가 남아 있는 동안 BA-023도 `verified`가 아니며 공개 flag를 켜지 않는다.
+
+FE 인계·완료 증거: S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다. crowd는 `PlaceSummary`·`PlaceDetail`이 아니라 별도 operation `getPlaceCrowdForecast`로 제공하므로 FE는 카드에서 필요한 시점에만 호출한다(`FCR-029`).
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-013, PM-014.
 

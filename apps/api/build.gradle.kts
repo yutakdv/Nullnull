@@ -186,6 +186,15 @@ tasks.register<JavaExec>("ktoSmoke") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("ktoForecastSmoke") {
+    group = "verification"
+    description = "Runs one approved KTO forecast call from a verified canonical KTO mapping and prints redacted evidence only"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoForecastSmokeMain")
+    workingDir = projectDir
+}
+
 tasks.named<Test>("integrationTest") {
     useJUnitPlatform {
         excludeTags("actual-kto")

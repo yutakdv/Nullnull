@@ -659,7 +659,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "혼잡 예보·시각·비교 적격성·데이터 안내",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-020",
         "BA-021",
@@ -702,7 +702,7 @@
           "assertion": "최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다"
         }
       ],
-      "handoff": "S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다.",
+      "handoff": "V011은 immutable `snapshot_sets`/`crowd_snapshots`와 KTO_CONCENTRATION_FORECAST registry revision 2(`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw body·request URL·key column은 schema에 없고, set 대비 snapshot provenance 불일치와 모든 UPDATE는 trigger가 거부한다. `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하며 절대 provider를 호출하지 않는다. collector `KtoCrowdForecastGateway`는 operator/background 전용이고 source health·quota·collector run·ingest audit을 거친다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값에서 fail-closed다. observedAt은 provider 발표 시각이 없으면 null로 남고 fetchedAt으로 대체하지 않으며, FORECAST/LIVE가 stale 경계를 넘으면 응답 state가 STALE로 바뀌고 freshness가 분리된다. 비교는 저장하지 않는다(`crowd_comparisons` table 없음). 공개 응답은 `TemporalComparisonPolicy.eligibility(point)`만 쓰고 pair 판정 `evaluate`는 optimization preview용으로 domain에 남겨 둔다. 격리는 저장된 row가 가질 수 없는 flag이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(`QUARANTINE`)로 계산해 `PROVIDER_INCIDENT`를 붙이고 비교 자격을 false로 만든다. 검증: `CrowdProvenanceProjectionTest`(BA-023-T1 6-state·null provenance matrix), `CrowdForecastApiIT`(BA-023-T1 fresh/stale/invalid range, BA-023-T3 새 set이 저장된 snapshot을 덮지 않음), `KtoCrowdForecastGatewayIT`(BA-023-T1 normalized provenance·raw redaction·no-coverage·range quarantine), `CrowdProvenanceProjectionTest`·`CrowdForecastApiIT`(BA-023-T2 격리된 source는 값을 유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`; 수집 이후 선언된 QUARANTINE incident가 저장된 snapshot의 HTTP 응답에서도 같은 결과), `KtoForecastResponseValidatorTest`, `FlywayMigrationIT`(populated V010→V011 upgrade). report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}`이며 local Temurin 21 run과 full Docker gate(`integration_mode=full-docker`, exit 0)가 모두 `320/153/13/19`, failures/errors/skipped 0이다. AI pytest 410, web unit 224, Playwright 36, test_reports/evaluation_report valid, npm audit clean, egress-denied도 통과했다. `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 지우면 BA-023-T2 두 건이 RED이고 복원 SHA가 일치한다. 적대적 검토에서 production 호출자가 없는 `CrowdComparisonService`가 BA-023-T2 증거로 등록돼 있었다는 지적이 확정돼 service/test를 삭제하고 실제 경로 격리 가드 검증으로 교체했다. **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거는 이 저장소에서 아직 만들지 않았다. opt-in `actualKtoSmoke`/`ktoForecastSmoke`는 `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구하며, BA-021-T3의 staging actual-success→public provenance가 남아 있는 동안에는 BA-023도 `verified`가 아니고 flag를 켜거나 외부에 공개하지 않는다. fail-closed 응답 code를 `ROUTE_UNAVAILABLE`(최적화 run 실패용 문구)에서 `SOURCE_UNAVAILABLE`로 정정했으므로 catalog·crowd 경로를 쓰는 FE fixture는 기대 code를 바꿔야 한다. FE에는 `getPlaceCrowdForecast`만 제공하며 `PlaceSummary`/`PlaceDetail`에는 crowd field가 없다(FCR-029·#105).",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-023"

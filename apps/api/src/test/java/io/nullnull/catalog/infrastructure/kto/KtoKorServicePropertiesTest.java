@@ -31,8 +31,30 @@ class KtoKorServicePropertiesTest {
         assertThat(queryParameterNames(uri)).doesNotContain(
                 "contentTypeId", "defaultYN", "firstImageYN", "areacodeYN", "catcodeYN", "addrinfoYN", "mapinfoYN",
                 "overviewYN");
-        assertThat(properties).hasToString("KtoKorServiceProperties[configured=true, baseConfigured=true, contestProfile=NONE]");
+        assertThat(properties).hasToString("KtoKorServiceProperties[configured=true, baseConfigured=true, "
+                + "forecastBaseConfigured=false, contestProfile=NONE]");
         assertThat(properties.toString()).doesNotContain(canary);
+    }
+
+    @Test
+    @DisplayName("BA-023-T1 pins the concentration service to its own exact official path")
+    void forecastBaseAndQueryAreReviewedSeparatelyFromKorService2() {
+        KtoKorServiceProperties properties = configured("fake-secret-key-never-retain",
+                "https://apis.data.go.kr/B551011/KorService2");
+        properties.setForecastBaseUrl("https://apis.data.go.kr/B551011/TatsCnctrRateService");
+
+        URI uri = properties.concentrationForecastUri("1", "1", "경복궁", false);
+
+        assertThat(uri.getRawPath()).isEqualTo("/B551011/TatsCnctrRateService/tatsCnctrRatedList");
+        assertThat(queryParameterNames(uri)).containsExactlyInAnyOrder(
+                "serviceKey", "pageNo", "numOfRows", "MobileOS", "MobileApp", "areaCd", "signguCd", "tAtsNm",
+                "_type");
+        KtoKorServiceProperties wrongPath = configured("fake-secret-key-never-retain",
+                "https://apis.data.go.kr/B551011/KorService2");
+        wrongPath.setForecastBaseUrl("https://apis.data.go.kr/B551011/KorService2");
+        assertThatThrownBy(() -> wrongPath.requireForecastConfigured(false))
+                .isInstanceOf(KtoGatewayException.class)
+                .hasMessage("KTO_BASE_URL_NOT_APPROVED");
     }
 
     @Test

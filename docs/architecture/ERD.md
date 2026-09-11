@@ -502,11 +502,13 @@ erDiagram
       uuid collector_run_id FK
       string source_code FK
       bigint source_registry_version FK
-      string scope
+      string source_state
+      string forecast_issue_id
       string comparison_group_id
-      timestamptz observed_at_min
-      timestamptz observed_at_max
-      int skew_seconds
+      string normalization_version
+      timestamptz observed_at
+      timestamptz fetched_at
+      timestamptz stale_at
       timestamptz created_at
     }
 
@@ -522,18 +524,20 @@ erDiagram
       string unit
       string ordinal_level
       string scope
+      string scope_label
+      string mapping_type
+      boolean fallback_used
       string comparison_group_id
-      boolean comparison_eligible
-      string comparison_reason_code
       decimal confidence
       string normalization_version
       jsonb quality_flags
       string forecast_issue_id
       timestamptz observed_at
+      int observed_at_skew_seconds
       timestamptz target_at
       timestamptz fetched_at
       timestamptz stale_at
-      jsonb evidence
+      timestamptz created_at
     }
 
     REPLAY_MANIFESTS {
@@ -757,9 +761,10 @@ erDiagram
 - `crowd_snapshots`는 `place_id`와 `live_area_id` 중 정확히 하나를 요구한다.
 - `LIVE`는 `observed_at` 필수다. `FORECAST`는 `target_at`과 `forecast_issue_id`가 필수지만 provider가 발표 시각을 주지 않으면 `observed_at`은 null이어야 하며 `fetched_at`으로 대체하지 않는다.
 - 모든 snapshot은 수집 시점의 `(source_code, source_registry_version)`을 참조한다. registry revision은 immutable canonical contract hash이며 approval·quota·license review·scope·retention·refresh·schema·stale·contest use를 함께 고정한다.
-- `source_quality_incidents`의 affected window/scope에 걸린 row는 `PROVIDER_INCIDENT` flag와 `comparison_eligible=false`가 강제된다.
+- `source_quality_incidents`의 affected window/scope에 걸린 row는 투영 시점에 `PROVIDER_INCIDENT` flag가 붙고 그 결과 비교 적격성이 false가 된다.
 - `REPLAY`는 `replay_manifest_entries`를 통해 checksum·capture window·scrub·license 승인이 끝난 manifest에 속해야 하며 API에서 현재값으로 반환하지 않는다.
-- 정확한 비교 delta는 `comparison_eligible=true`인 row에만 계산/저장한다.
+- 비교 적격성과 delta는 **저장하지 않는다**. `crowd_snapshots`에는 `comparison_eligible`/`comparison_reason_code`/`evidence` column이 없고, 판정에 필요한 provenance 입력(source·revision·state·scope·issue·target·flag·normalization)만 남는다. 적격성은 요청 시점에 pair/point policy가 계산해 응답 `DataProvenance`로만 나가며, immutable snapshot 쌍이 결과를 이미 결정하므로 두 번째 정본을 만들지 않는다. `crowd_comparisons`는 optimization proposal에 묶인 별도 table이고 해당 slice 전까지 만들지 않는다.
+- `snapshot_sets`와 `crowd_snapshots`는 둘 다 UPDATE를 trigger로 거부하고, snapshot은 set의 source·revision·state·시각·issue·normalization을 그대로 유지해야 insert된다. 저장된 preview snapshot을 나중에 덮어쓸 경로가 없다.
 - `api_ingest_logs`는 KTO 실제 호출을 source operation(`endpoint_key`), 시각, outcome/status class, duration, response count, collector/request, release와 연결한다. response body, 전체 URL/query, API key, 사용자 입력은 저장하지 않는다. `payload_hash`가 필요하면 비밀·개인정보를 제거한 canonical validation payload의 단방향 hash만 허용한다.
 - 공모전 evidence는 `api_ingest_logs → collector_runs → snapshot_sets/snapshot provenance → 공개 API response의 provenanceId → Figma 화면`으로 연결한다. replay/mock run은 별도 trigger/source namespace이며 실제 KTO 호출로 집계하지 않는다.
 - media asset은 검토된 `asset_licenses`를 반드시 참조한다. `redistribution_allowed=false`이면 origin URL proxy/mirror를 금지하고, attribution이 필요한 asset은 API `MediaAsset`에 문구를 제공한다.

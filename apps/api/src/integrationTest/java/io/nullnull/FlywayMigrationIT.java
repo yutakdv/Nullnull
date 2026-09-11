@@ -90,9 +90,9 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V010 adds the empty C3 canonical-catalog foundation only;
-            // V009's reviewed detailCommon2 request revision is already part of the populated previous schema.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
+            // Every existing row survived. V011 adds exactly one row of its own: the reviewed
+            // KTO_CONCENTRATION_FORECAST revision 2 contract that the C4 snapshot tables reference.
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
@@ -298,12 +298,55 @@ class FlywayMigrationIT {
                         + " title, payload_hash, fetched_at, stale_at, created_at)"
                         + " VALUES (?, 'KTO_KOR_SERVICE_2', 2, ?, '126508', '12', 'upgrade place', ?, ?, ?, ?)",
                 UUID.randomUUID(), collectorRunId, "e".repeat(64), now, now.plusDays(7), now);
+        // V010's canonical catalog belongs to the previous schema from V011 on, so the C4 crowd
+        // migration has to run against populated catalog rows too. V010's triggers look their
+        // parent rows up through search_path, so these inserts only see the upgrade schema when it
+        // is on the path; SET LOCAL confines that to this statement's own implicit transaction and
+        // therefore never leaks onto the pooled connection.
+        jdbc.execute("""
+                DO $upgrade$
+                DECLARE
+                    v_place uuid := gen_random_uuid();
+                    v_license uuid := gen_random_uuid();
+                    v_asset uuid := gen_random_uuid();
+                    v_at timestamptz := now();
+                BEGIN
+                    SET LOCAL search_path TO %s;
+                    INSERT INTO places (id, canonical_name, category_code, latitude, longitude,
+                                        region_code, status, created_at, updated_at)
+                    VALUES (v_place, 'upgrade place', 'A01', 37.579617, 126.977041, 'KR-11',
+                            'ACTIVE', v_at, v_at);
+                    INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)
+                    VALUES (gen_random_uuid(), v_place, 'ko-KR', 'upgrade place', 'upgrade address', v_at);
+                    INSERT INTO place_external_refs (id, place_id, source_code, source_registry_version,
+                                                     external_id, external_type, verified_at)
+                    VALUES (gen_random_uuid(), v_place, 'KTO_KOR_SERVICE_2', 2,
+                            'upgrade-' || gen_random_uuid()::text, 'CONTENT_ID', v_at);
+                    INSERT INTO asset_licenses (id, source_code, source_registry_version,
+                                                external_license_code, license_name, license_url,
+                                                attribution_template, redistribution_allowed,
+                                                derivative_allowed, reviewed_at)
+                    VALUES (v_license, 'KTO_KOR_SERVICE_2', 2, 'upgrade-' || gen_random_uuid()::text,
+                            'upgrade license', 'https://example.test/license', 'upgrade attribution',
+                            true, false, v_at);
+                    INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url,
+                                              served_url, checksum, media_type, alt_text, license_checked_at)
+                    VALUES (v_asset, v_license, 'upgrade-' || gen_random_uuid()::text,
+                            'https://example.test/origin.jpg', 'https://example.test/served.jpg',
+                            repeat('f', 64), 'IMAGE', 'upgrade alt text', v_at);
+                    INSERT INTO place_media_assets (place_id, media_asset_id, position)
+                    VALUES (v_place, v_asset, 0);
+                END
+                $upgrade$;
+                """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
                         "deletion_tombstones", "source_registry", "source_registry_revisions",
-                        "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots");
+                        "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
+                        "places", "place_localizations", "place_external_refs", "asset_licenses",
+                        "media_assets", "place_media_assets");
         return key;
     }
 

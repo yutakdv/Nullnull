@@ -67,6 +67,7 @@ class KtoSmokeMainTest {
         Files.writeString(dotenv, """
                 KTO_SERVICE_KEY='test-decoding-key'
                 KTO_BASE_URL=https://apis.data.go.kr/B551011/KorService2
+                KTO_FORECAST_BASE_URL=https://apis.data.go.kr/B551011/TatsCnctrRateService
                 APP_COOKIE_SECURE=
                 SPRING_DATASOURCE_PASSWORD=
                 UNRELATED_VALUE=must-not-load
@@ -76,7 +77,8 @@ class KtoSmokeMainTest {
         Map<String, Object> gateway = KtoSmokeEnvironment.gatewayProperties(values);
         Map<String, Object> runtime = KtoSmokeEnvironment.runtimeProperties(values);
 
-        assertThat(gateway).containsKeys("nullnull.kto.service-key", "nullnull.kto.base-url")
+        assertThat(gateway).containsKeys("nullnull.kto.service-key", "nullnull.kto.base-url",
+                "nullnull.kto.forecast-base-url")
                 .doesNotContainKeys("APP_COOKIE_SECURE", "unrelated.value", "spring.datasource.password");
         assertThat(runtime).doesNotContainKey("spring.datasource.password");
     }

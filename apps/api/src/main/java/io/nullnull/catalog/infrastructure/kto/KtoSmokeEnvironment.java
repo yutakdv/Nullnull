@@ -16,6 +16,7 @@ final class KtoSmokeEnvironment {
             "NULLNULL_ENV",
             "KTO_SERVICE_KEY",
             "KTO_BASE_URL",
+            "KTO_FORECAST_BASE_URL",
             "KTO_MOBILE_APP",
             "KTO_MOBILE_OS",
             "KTO_ALLOWED_HOST",
@@ -48,6 +49,7 @@ final class KtoSmokeEnvironment {
         }
         put(properties, values, "KTO_SERVICE_KEY", "nullnull.kto.service-key");
         put(properties, values, "KTO_BASE_URL", "nullnull.kto.base-url");
+        put(properties, values, "KTO_FORECAST_BASE_URL", "nullnull.kto.forecast-base-url");
         put(properties, values, "KTO_MOBILE_APP", "nullnull.kto.mobile-app");
         put(properties, values, "KTO_MOBILE_OS", "nullnull.kto.mobile-os");
         put(properties, values, "APP_RELEASE_VERSION", "nullnull.kto.release-version");

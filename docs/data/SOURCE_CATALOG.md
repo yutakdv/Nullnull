@@ -22,7 +22,7 @@ tags:
 | Source code | 제공자/데이터 | 제품 사용 | P0 상태 | 가장 큰 주의점 |
 | --- | --- | --- | --- | --- |
 | `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | C2 registry v2 `DEV_APPROVED`, `P7D`; `detailCommon2`만 | 운영 승인·이미지별 이용 조건 |
-| `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | C1 registry v1 `DEV_APPROVED`, `PT24H` | 방문자 수가 아닌 상대 집중률 예측 |
+| `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | C4 registry v2 `DEV_APPROVED`, operation `tatsCnctrRatedList`, schema `kto-tats-cnctr-rate-v4.1`, `PT24H` | 방문자 수가 아닌 상대 집중률 예측. 가장 붐비는 시기를 100으로 둔 날짜 단위 상대값이며 인원·수용률·시간대 예측이 아니다 |
 | `KTO_RELATED_PLACES` | 관광지별 연관 관광지 | 대체/연관 장소 근거 | `DISABLED` (미신청) | 차량 내비 데이터·과거 기간/의미 한계 |
 | `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | `DISABLED` (B10 전) | area scope, 장소 목록/field 변경, 품질 사고 |
 | `DEMO_REPLAY` | 검증된 내부 fixture | 시연/외부 장애 fallback | `DISABLED` (B10 전) | 현재 실시간처럼 표시 금지 |

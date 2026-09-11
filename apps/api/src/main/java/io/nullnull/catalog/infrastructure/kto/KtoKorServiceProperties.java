@@ -16,10 +16,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class KtoKorServiceProperties {
 
     private static final String OFFICIAL_HOST = "apis.data.go.kr";
-    private static final String OFFICIAL_PATH = "/B551011/KorService2";
+    private static final String DETAIL_OFFICIAL_PATH = "/B551011/KorService2";
+    private static final String FORECAST_OFFICIAL_PATH = "/B551011/TatsCnctrRateService";
 
     private String serviceKey = "";
     private String baseUrl = "";
+    private String forecastBaseUrl = "";
     private String mobileApp = "Nullnull";
     private String mobileOs = "ETC";
     private String releaseVersion = "local-unreleased";
@@ -31,6 +33,11 @@ public class KtoKorServiceProperties {
 
     public void setBaseUrl(String baseUrl) {
         this.baseUrl = stripTrailingSlash(normalized(baseUrl));
+    }
+
+    /** Separate approved endpoint: KTO's concentration service is not a KorService2 sub-route. */
+    public void setForecastBaseUrl(String forecastBaseUrl) {
+        this.forecastBaseUrl = stripTrailingSlash(normalized(forecastBaseUrl));
     }
 
     public void setMobileApp(String mobileApp) {
@@ -53,7 +60,18 @@ public class KtoKorServiceProperties {
         if (serviceKey.isBlank()) {
             throw new KtoGatewayException(KtoGatewayException.Code.KTO_NOT_CONFIGURED);
         }
-        baseUri(testEndpointAllowed);
+        detailBaseUri(testEndpointAllowed);
+        safeValue(mobileApp, 50);
+        safeValue(mobileOs, 20);
+        safeValue(releaseVersion, 100);
+    }
+
+    /** Validates the independent, reviewed {@code tatsCnctrRatedList} endpoint before a call. */
+    public void requireForecastConfigured(boolean testEndpointAllowed) {
+        if (serviceKey.isBlank()) {
+            throw new KtoGatewayException(KtoGatewayException.Code.KTO_NOT_CONFIGURED);
+        }
+        forecastBaseUri(testEndpointAllowed);
         safeValue(mobileApp, 50);
         safeValue(mobileOs, 20);
         safeValue(releaseVersion, 100);
@@ -62,13 +80,36 @@ public class KtoKorServiceProperties {
     public URI detailCommonUri(KtoPlaceRequest request, boolean testEndpointAllowed) {
         Objects.requireNonNull(request, "request");
         requireConfigured(testEndpointAllowed);
-        URI base = baseUri(testEndpointAllowed);
+        URI base = detailBaseUri(testEndpointAllowed);
         String query = "serviceKey=" + encode(serviceKey)
                 + "&MobileOS=" + encode(mobileOs)
                 + "&MobileApp=" + encode(mobileApp)
                 + "&contentId=" + encode(request.contentId())
                 + "&_type=json";
         return URI.create(base + "/detailCommon2?" + query);
+    }
+
+    /**
+     * Builds the one C4-reviewed KTO request. Values originate in a validated canonical KTO mapping,
+     * never in a browser query, and the service key remains confined to this URI construction boundary.
+     */
+    public URI concentrationForecastUri(String areaCode, String sigunguCode, String touristSiteName,
+            boolean testEndpointAllowed) {
+        requireForecastConfigured(testEndpointAllowed);
+        String area = safeCode(areaCode, "areaCode");
+        String sigungu = safeCode(sigunguCode, "sigunguCode");
+        String name = safeValue(touristSiteName, 300);
+        URI base = forecastBaseUri(testEndpointAllowed);
+        String query = "serviceKey=" + encode(serviceKey)
+                + "&pageNo=1"
+                + "&numOfRows=100"
+                + "&MobileOS=" + encode(mobileOs)
+                + "&MobileApp=" + encode(mobileApp)
+                + "&areaCd=" + encode(area)
+                + "&signguCd=" + encode(sigungu)
+                + "&tAtsNm=" + encode(name)
+                + "&_type=json";
+        return URI.create(base + "/tatsCnctrRatedList?" + query);
     }
 
     public String releaseVersion() {
@@ -82,28 +123,38 @@ public class KtoKorServiceProperties {
     @Override
     public String toString() {
         return "KtoKorServiceProperties[configured=" + !serviceKey.isBlank()
-                + ", baseConfigured=" + !baseUrl.isBlank() + ", contestProfile=" + contestProfile + "]";
+                + ", baseConfigured=" + !baseUrl.isBlank()
+                + ", forecastBaseConfigured=" + !forecastBaseUrl.isBlank()
+                + ", contestProfile=" + contestProfile + "]";
     }
 
-    private URI baseUri(boolean testEndpointAllowed) {
-        if (baseUrl.isBlank()) {
+    private URI detailBaseUri(boolean testEndpointAllowed) {
+        return approvedBaseUri(baseUrl, DETAIL_OFFICIAL_PATH, testEndpointAllowed);
+    }
+
+    private URI forecastBaseUri(boolean testEndpointAllowed) {
+        return approvedBaseUri(forecastBaseUrl, FORECAST_OFFICIAL_PATH, testEndpointAllowed);
+    }
+
+    private static URI approvedBaseUri(String rawBaseUrl, String officialPath, boolean testEndpointAllowed) {
+        if (rawBaseUrl.isBlank()) {
             throw new KtoGatewayException(KtoGatewayException.Code.KTO_NOT_CONFIGURED);
         }
         URI candidate;
         try {
-            candidate = URI.create(baseUrl);
+            candidate = URI.create(rawBaseUrl);
         } catch (IllegalArgumentException failure) {
             throw new KtoGatewayException(KtoGatewayException.Code.KTO_BASE_URL_NOT_APPROVED);
         }
-        if (official(candidate) || testEndpointAllowed && loopbackFixture(candidate)) {
+        if (official(candidate, officialPath) || testEndpointAllowed && loopbackFixture(candidate)) {
             return candidate;
         }
         throw new KtoGatewayException(KtoGatewayException.Code.KTO_BASE_URL_NOT_APPROVED);
     }
 
-    private static boolean official(URI uri) {
+    private static boolean official(URI uri, String officialPath) {
         return "https".equals(uri.getScheme()) && OFFICIAL_HOST.equalsIgnoreCase(uri.getHost())
-                && uri.getPort() == -1 && OFFICIAL_PATH.equals(uri.getRawPath()) && noExtras(uri);
+                && uri.getPort() == -1 && officialPath.equals(uri.getRawPath()) && noExtras(uri);
     }
 
     private static boolean loopbackFixture(URI uri) {
@@ -121,6 +172,14 @@ public class KtoKorServiceProperties {
             throw new KtoGatewayException(KtoGatewayException.Code.KTO_NOT_CONFIGURED);
         }
         return value;
+    }
+
+    private static String safeCode(String value, String name) {
+        String normalized = safeValue(value, 10);
+        if (!normalized.matches("[1-9][0-9]{0,9}")) {
+            throw new KtoGatewayException(KtoGatewayException.Code.KTO_NOT_CONFIGURED);
+        }
+        return normalized;
     }
 
     private static String normalized(String value) {
