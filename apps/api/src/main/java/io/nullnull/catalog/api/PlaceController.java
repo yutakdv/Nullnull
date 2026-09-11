@@ -6,6 +6,7 @@ import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogExternalReferenc
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogMediaAsset;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceDetail;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
+import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogSourceAttribution;
 import io.nullnull.catalog.application.CatalogPlaceSearchRequest;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.http.NullnullOperation;
@@ -59,21 +60,39 @@ public class PlaceController {
     }
 
     public record PlaceSummaryResponse(UUID id, String name, String categoryCode, String regionCode,
-            String thumbnailUrl, String address) {
+            String categoryName, String regionName, String thumbnailUrl, String address,
+            SourceAttributionResponse sourceAttribution) {
         static PlaceSummaryResponse from(CatalogPlaceSummary source) {
             return new PlaceSummaryResponse(source.id(), source.name(), source.categoryCode(), source.regionCode(),
-                    source.thumbnailUrl(), source.address());
+                    source.categoryName(), source.regionName(), source.thumbnailUrl(), source.address(),
+                    SourceAttributionResponse.from(source.sourceAttribution()));
         }
     }
 
     public record PlaceDetailResponse(UUID id, String name, String categoryCode, String regionCode,
-            String thumbnailUrl, MediaAssetResponse thumbnailAsset, String address, String description,
-            GeoPointResponse location, List<ExternalReferenceResponse> externalRefs) {
+            String categoryName, String regionName, String thumbnailUrl, MediaAssetResponse thumbnailAsset,
+            String address, String description, GeoPointResponse location,
+            List<ExternalReferenceResponse> externalRefs, SourceAttributionResponse sourceAttribution) {
         static PlaceDetailResponse from(CatalogPlaceDetail source) {
             return new PlaceDetailResponse(source.id(), source.name(), source.categoryCode(), source.regionCode(),
-                    source.thumbnailUrl(), MediaAssetResponse.from(source.thumbnailAsset()), source.address(),
-                    source.description(), new GeoPointResponse(source.latitude(), source.longitude()),
-                    source.externalReferences().stream().map(ExternalReferenceResponse::from).toList());
+                    source.categoryName(), source.regionName(), source.thumbnailUrl(),
+                    MediaAssetResponse.from(source.thumbnailAsset()), source.address(), source.description(),
+                    new GeoPointResponse(source.latitude(), source.longitude()),
+                    source.externalReferences().stream().map(ExternalReferenceResponse::from).toList(),
+                    SourceAttributionResponse.from(source.sourceAttribution()));
+        }
+    }
+
+    /** The server-owned credit for the place's source; the client displays {@code attribution} verbatim. */
+    public record SourceAttributionResponse(String source, String sourceDisplayName, long sourceRegistryVersion,
+            String attribution, String officialUrl, String licenseUrl, String license) {
+        static SourceAttributionResponse from(CatalogSourceAttribution source) {
+            if (source == null) {
+                return null;
+            }
+            return new SourceAttributionResponse(source.source(), source.sourceDisplayName(),
+                    source.sourceRegistryVersion(), source.attribution(), source.officialUrl(), source.licenseUrl(),
+                    source.license());
         }
     }
 

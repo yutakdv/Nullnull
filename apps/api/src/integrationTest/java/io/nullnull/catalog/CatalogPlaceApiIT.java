@@ -166,9 +166,44 @@ class CatalogPlaceApiIT {
                 .andExpect(jsonPath("$.thumbnailUrl").value("https://cdn.example.test/approved.jpg"))
                 .andExpect(jsonPath("$.thumbnailAsset.id").value(approved.toString()))
                 .andExpect(jsonPath("$.thumbnailAsset.redistributionAllowed").value(true))
+                // The credit comes from the reviewed revision the reference points at, so the client
+                // never decides which provider to name. Display names stay null until a reviewed
+                // code-to-label mapping exists; null means "show nothing", not "unknown".
+                .andExpect(jsonPath("$.sourceAttribution.source").value(SOURCE))
+                .andExpect(jsonPath("$.sourceAttribution.sourceRegistryVersion").value(3))
+                .andExpect(jsonPath("$.sourceAttribution.attribution").value("출처: ⓒ한국관광공사"))
+                .andExpect(jsonPath("$.sourceAttribution.sourceDisplayName").isNotEmpty())
                 .andReturn();
         assertThat(result.getResponse().getContentAsString())
-                .doesNotContain(originOnly.toString(), "origin-only.jpg", "https://origin.example.test");
+                .doesNotContain(originOnly.toString(), "origin-only.jpg", "https://origin.example.test")
+                .contains("\"categoryName\":null", "\"regionName\":null");
+    }
+
+    /**
+     * CMP-ATT-001 needs a credit on every KTO-sourced screen and CMP-ATT-003 forbids implying one that
+     * was not given. A place with no reviewed external reference therefore projects no attribution at
+     * all rather than a default or a guessed provider.
+     */
+    @Test
+    @DisplayName("BA-022-T3 a place with no reviewed source projects no attribution instead of a default")
+    void aPlaceWithoutAnExternalReferenceHasNoAttribution() throws Exception {
+        SessionService.Bootstrap owner = owner("ko-KR");
+        UUID credited = activePlace("출처 있는 장소", true);
+        UUID uncredited = activePlace("출처 없는 장소", true);
+        localization(credited, "ko-KR", "출처 있는 장소", null, null);
+        localization(uncredited, "ko-KR", "출처 없는 장소", null, null);
+        reference(credited);
+
+        mvc.perform(get("/api/v1/places/{placeId}", credited).cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceAttribution.attribution").value("출처: ⓒ한국관광공사"));
+
+        MvcResult result = mvc.perform(get("/api/v1/places/{placeId}", uncredited).cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(result.getResponse().getContentAsString())
+                .contains("\"sourceAttribution\":null")
+                .doesNotContain("한국관광공사");
     }
 
     @Test

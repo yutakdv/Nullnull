@@ -1023,12 +1023,52 @@ export interface components {
             /** Format: date-time */
             occurredAt: string;
         };
+        /**
+         * @description Where this place record came from and the credit text approved for it. The server projects
+         *     the reviewed source registry revision that the place was collected under, so the client never
+         *     decides which provider to credit and never hardcodes a provider name.
+         */
+        SourceAttribution: {
+            /** @description Source registry code, e.g. the KTO tourism service. Machine identifier, not display copy. */
+            source: string;
+            sourceDisplayName: string;
+            /** @description The reviewed revision in force when this place was collected. */
+            sourceRegistryVersion: number;
+            /**
+             * @description The approved credit text to display verbatim, e.g. the public-data source line. Display
+             *     this string as given; do not compose, translate or abbreviate it, and never merge two
+             *     providers into one credit.
+             */
+            attribution: string;
+            /** Format: uri */
+            officialUrl: string | null;
+            /** Format: uri */
+            licenseUrl: string | null;
+            license: string | null;
+        };
         PlaceSummary: {
             /** Format: uuid */
             id: string;
             name: string;
+            /**
+             * @description Opaque provider-derived classification code for filtering and sorting. It is not display
+             *     copy: render `categoryName` instead, and render nothing when that is null.
+             */
             categoryCode: string;
+            /**
+             * @description Opaque provider-derived region code for filtering and sorting. It is not display copy:
+             *     render `regionName` instead, and render nothing when that is null.
+             */
             regionCode: string;
+            /**
+             * @description Server-localized display name for `categoryCode`, or null when no reviewed mapping exists
+             *     for that code yet. Null means "do not show a category", never "unknown category".
+             */
+            categoryName: string | null;
+            /** @description Server-localized display name for `regionCode`, or null when no reviewed mapping exists. */
+            regionName: string | null;
+            /** @description Null only for records with no external source, such as a user-created place. */
+            sourceAttribution: components["schemas"]["SourceAttribution"] | null;
             /** Format: uri */
             thumbnailUrl?: string | null;
             address?: string | null;
@@ -1037,8 +1077,13 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+            /** @description Opaque provider-derived code. Render `categoryName`, not this value. */
             categoryCode: string;
+            /** @description Opaque provider-derived code. Render `regionName`, not this value. */
             regionCode: string;
+            categoryName: string | null;
+            regionName: string | null;
+            sourceAttribution: components["schemas"]["SourceAttribution"] | null;
             /** Format: uri */
             thumbnailUrl?: string | null;
             thumbnailAsset?: components["schemas"]["MediaAsset"] | null;
