@@ -43,6 +43,7 @@ import relatedPage from "../fixtures/places/related-page.json" with { type: "jso
 import relatedNone from "../fixtures/places/related-none.json" with { type: "json" };
 import relatedChecking from "../fixtures/places/related-checking.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
+import placeDetail from "../fixtures/places/place-detail.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
@@ -183,4 +184,9 @@ export const placeFixtures = {
   searchPage: placeSearchPage as components["schemas"]["PlaceSearchPage"],
   searchPageEmpty:
     placeSearchPageEmpty as components["schemas"]["PlaceSearchPage"],
+  // getPlace is fail-closed behind NULLNULL_CATALOG_PUBLIC_ENABLED until BA-021-T3
+  // staging evidence exists, so this is the only PlaceDetail shape FE can build
+  // against. description and both thumbnail fields are null because the collector
+  // requests overviewYN=N and firstImageYN=N.
+  detail: placeDetail as components["schemas"]["PlaceDetail"],
 };

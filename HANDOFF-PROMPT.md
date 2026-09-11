@@ -298,3 +298,64 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 - secret·cookie·token·계정 ID·원문 일정·실제 위치를 source/fixture/screenshot/prompt/log에 넣지 않는다.
 - 파괴적·유료 작업(rm -rf, reset --hard, DROP, AWS delete/deploy)은 세션에서 명시 확인을 받는다.
 - 실행하지 못한 검사를 통과로 쓰지 않는다. 불가능하면 `검증 생략: <이유>`를 명시한다.
+
+## 11. 정본 정합성 PR 이후 (P0 묶음 PR의 첫 번째)
+
+이 절은 `~/.claude/plans/fe-be-ai-dazzling-dongarra.md`의 **P0 PR**을 실행한 기록이다. 코드 변경은 `@DisplayName` 한 줄뿐이고 나머지는 문서·정본이다.
+
+### 되돌리지 말 것
+
+- **`BA-000`·`BA-001`은 `contract-ready`, `BA-006`은 `blocked`다.** 셋 다 `backend-plan.json`과 `BACKEND_AI_PLAYBOOK.md` 카드 제목 줄을 **같은 커밋에서** 바꿨다. 한쪽만 바꾸면 `docs-contract`가 양방향으로 실패한다(JSON만 → `task card missing manifest value contract-ready`, 카드만 → `... missing manifest value planned`).
+- **`BA-000`·`BA-001`을 `integration-ready` 이상으로 올리지 마라.** `scripts/check_test_reports.py:99-100`은 `integration-ready`·`verified`인 task에 한해 모든 `tests[].id`를 **Gradle JUnit testcase 이름**에서 찾는다. 두 카드의 증거는 Python gate(`validate_backend_plan.py`·`validate_docs.py`·`verify_target_stack.py`)라 JUnit XML에 나타나지 않으므로 두 required check가 즉시 실패한다. `contract-ready`와 `blocked`는 이 검사에서 건너뛴다(실측 확인).
+- **카드↔JSON status 동기화는 "포함 여부"만 본다**(`validate_backend_plan.py:154`, `value not in card`). 즉 카드 **본문 산문**에 status 단어가 들어 있으면 **제목 줄이 낡아도 validator가 통과한다.** 상태를 바꿀 때는 반드시 `### BA-xxx` 바로 아래 굵은 제목 줄(`**제목** — P0 / \`status\` / …`)을 직접 확인하라. 현재 이 가면 현상을 이미 가진 카드가 7개 있다(BA-002/003/010/023이 `verified`, BA-004/021이 `integration-ready`, BA-081이 `blocked`를 산문에 포함).
+- **`BA-000-T3`은 CI가 강제하지 않는다.** `AGENTS.md`의 `docs-contract` 행에서 T3를 등록 해제했다. `validate_docs.py`의 `validate_product_contract_alignment`는 discriminator와 variant별 `const`·`required`를 고정해 "거부할 수 있는 구조"까지만 지키고, 잘못된 example을 실제 evaluator에 넣어 거부를 확인하는 negative fixture가 없다. 구조 고정과 거부 증명을 같은 것으로 쓰지 마라.
+- **`BA-001-T2`는 `ArchitectureRulesTest.modulesNeverReachIntoAnotherModulesInfrastructure`다.** `@DisplayName("BA-001-T2 …")`를 붙여야 testcase `name` 속성에 ID가 실려 집계에 잡힌다(class-level `@DisplayName`은 testsuite 이름이라 잡히지 않는다). 이 줄을 지우면 `AGENTS.md`의 `api-quality` 행이 다시 거짓이 된다.
+- **root `package.json`의 `security:scan`을 삭제하지 마라.** `scripts/verify_target_stack.py:98`이 `{api:check, security:scan, infra:check}` 세 이름의 **선언**을 요구한다. 이름을 지우면 target-stack 검사가 실패한다. "호출하는 gate가 없다"는 진단은 맞지만 해법이 삭제가 아니다 → #119.
+- **`scripts/infra-check.mjs`는 죽은 script가 아니라 `docker-integration` 안에서 돈다**(`compose.integration.yml`의 `infra-plan` service). `infra/`가 없으면 exit 0이라 통과로 집계된다. 지금 hard fail로 바꾸면 `main`이 깨지므로(BA-006이 `blocked`) #119에서 `infra/` 생성과 함께 처리한다.
+- **`FOUNDATION_DECISIONS.md` D1은 "채택되지 않음"이다.** `apps/web`·marker는 `frontend`에서 만들어져 PR #17로 `frontend → main` 병합됐다. backend가 scaffold를 host한 적이 없으므로 이 절을 근거로 새 인계 절차를 만들지 마라. D2 anchor는 `docs/api/README.md:28`이 링크하므로 건드리지 마라.
+
+### 이슈 상태
+
+- **닫았다**: #25(BA-003) #27(BA-005) #29(BA-010) #30(BA-011) #31(BA-012) #35(BA-023). 여섯 건 모두 plan status는 `integration-ready` 그대로이고 **`verified`로 올리지 않았다.** 카드·이슈 본문의 "상대 재현 확인 전 완료로 쓰지 않는다"가 막는 것은 `verified` 승격이며, 잔여는 각각 다른 이슈가 단독 추적한다는 오너 판단으로 닫았다.
+- **새로 연 이슈**: #118(계약 공백 — `statusUrl` 정의, terminal status 집합, `Retry-After`, 404/410 응답별 `code` const, 429 미구현, merge-patch 415 미열거, `createDemoSession` `Cache-Control` 미선언), #119(root gate script 2건이 선언만 되고 강제하지 않음).
+- **추적자 없는 잔여 1건**: BA-010의 FE 화면 검수 인계(cookie 유실 안내, 401 뒤 mutation 자동 재실행 금지, `apps/web/serve.mjs`의 API proxy 부재, browser Secure cookie 수락). 전용 FE 이슈를 찾지 못했고 #29를 닫았으므로 **여기가 유일한 기록이다.**
+- **#107의 전제는 절반만 맞다.** `FR-SES-01`·`FR-SES-04`만 구현 완료이고, `FR-SES-02`(재-bootstrap 없음)·`FR-SES-03`(`issueCsrfToken` 호출 없음)은 부분, **`FR-PLC-01`은 미구현**이다(`apps/web` 전체에서 `getPlace` 호출 0건). 다섯 개를 한꺼번에 featureIds에 넣으면 plan이 실제보다 앞선다.
+
+### 이 PR에서 실제로 실행한 검증
+
+- `python3 scripts/validate_docs.py` 통과(50 operation, link/anchor, product-contract alignment, backend·frontend plan).
+- `python3 -m unittest discover -s scripts/tests` **110건 OK**. `test_current_repository`가 실제 저장소에 대해 validator 문제 0건을 단언하므로 JSON·카드가 갈라진 중간 커밋은 push할 수 없다.
+- `npx markdownlint-cli2@0.23.2` 47파일 0 issue, `@redocly/cli@2.51.1 lint` valid, AJV valid.
+- Temurin 21 `test integrationTest openapiContractTest recommendationTest` = **322 / 154 / 13 / 19**, failure·error·skip 0. `--rerun`을 task마다 반복했다.
+- `grep -o 'name="BA-001-T2[^"]*"' build/test-results/test/TEST-io.nullnull.ArchitectureRulesTest.xml`이 실제로 ID를 반환한다. **build 성공이 아니라 이 grep이 `@DisplayName`이 testcase 이름에 실렸다는 증거다.**
+- `scripts/check_test_reports.py` → `test_reports=valid` (새 status 3개 반영 후).
+- `bash scripts/integration-test.sh` → **EXIT=0, `integration_mode=full-docker`**. AI pytest 410, web unit 597(42 파일), Playwright 51, `evaluation_report=valid`, `test_reports=valid`, npm audit 보고서 생성, egress-denied 통과.
+
+## 12. FE 질문 대응 — 계약 정정과 첫 response example
+
+### 되돌리지 말 것
+
+- **`runLink`는 API path가 아니라 client router path이고, pattern은 `/trip/`(단수)다.** 앱 라우터가 `trip/:tripId/optimizations/:runId`인데 계약의 옛 `/trips/`(복수)는 **앱 라우터와도 API와도 일치하지 않아** `ProfileScreen`의 `to={run.runLink}`가 404였다. 복수로 되돌리지 마라. `packages/contracts/fixtures/optimizations/history-page.json`의 3줄이 같이 움직인다 — **ajv가 pattern을 강제하므로 한쪽만 고치면 `apps/web` vitest가 깨진다.**
+- **이 정정은 oasdiff 승인 예외로 통과시켰다. 예외 경로를 함부로 넓히지 마라.** oasdiff는 response property의 pattern 변경을 방향과 무관하게 잡는다 — 축소는 `response-property-pattern-changed`(warning, `fail-on: WARN`이라 실패), 삭제는 `response-property-pattern-removed`(error)로 더 나쁘다. 그래서 `docs/api/oasdiff-warn-ignore.txt`에 **정확한 메시지 한 줄**만 넣고 [등록부](docs/api/BREAKING_CHANGE_EXCEPTIONS.md)에 이유·승인자·추적 이슈를 적었다.
+  - **이것은 검사를 끄는 것이 아니다.** 실측으로 확인했다 — 같은 spec에 `runLink` 외의 breaking 변경(required 응답 property를 optional로)을 넣으면 ignore 파일이 있어도 **error로 실패한다.**
+  - `scripts/tests/test_oasdiff_exceptions.py`가 강제한다. 변이 4종이 전부 RED다: 등록부 행 삭제, 승인자 공백, 추적 이슈 제거, ignore 줄만 삭제(stale 행). SHA 복원 일치를 확인했다.
+  - **예외는 스스로 만료된다. 그걸 강제하는 것은 unit test가 아니라 `scripts/check_oasdiff_exceptions.py`다.** 정정이 `main`에 들어가면 base가 새 값이 되어 그 메시지가 더 이상 보고되지 않는데, `test_oasdiff_exceptions.py`는 ignore↔등록부 **대응만** 검사하므로 이 상황을 잡지 못한다(한 번 잘못 주장했다가 실측으로 확인했다). 그래서 `docs-contract`에 별도 step을 두어 **ignore 줄이 실제 oasdiff 출력에 없으면 실패**시킨다. 매칭되지 않는 줄은 지워야만 green이 된다.
+  - 만료된 예외는 등록부의 `## 만료된 예외 (기록)` 절로 옮긴다. parser는 `##`를 만나면 멈추므로 기록이 활성 표를 오염시키지 않는다.
+  - `runLink` 예외는 PR #122 병합으로 **이미 만료됐고 정리했다.** 현재 활성 예외는 0건이며 그것이 정상 상태다.
+  - 로컬 재현(push 없이): `git show origin/main:docs/api/openapi.yaml > /tmp/base-openapi.yaml && docker run --rm -v /tmp:/spec -v "$PWD/docs/api:/rev" tufin/oasdiff breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN --warn-ignore /rev/oasdiff-warn-ignore.txt`. **계약 PR 전에 이걸 먼저 돌려라.**
+- **`getPlace` example의 `description`·`thumbnailUrl`·`thumbnailAsset`은 null이 정답이다.** collector가 `overviewYN=N`·`firstImageYN=N`으로 요청해 overview 텍스트와 이미지를 **저장하지 않는다.** 여기에 풍부한 텍스트를 넣은 example은 실제 연동 첫날 깨지는 허구다.
+- **`place-detail.json`의 `externalId`(`KTO-PENDING-CAPTURE`)와 `location` 좌표는 captured provider 증거가 아니다.** `categoryCode`/`regionCode`의 `HS`/`11`만 실제 `detailCommon2` 호출에서 온 값이다(#109). manifest `placeDetail.basis`에 이 구분을 적어 뒀다. 실응답을 잡으면 교체한다.
+- **`NULLNULL_CATALOG_PUBLIC_ENABLED=false`를 FE 편의를 위해 켜지 마라.** fail-closed는 BA-021-T3 staging 증거 전까지 유지되는 설계된 안전 gate다. FE가 막힌 문제는 flag가 아니라 **승인된 example이 없던 것**이었고, 그건 위 fixture로 풀었다.
+- **`FCR-005`의 조건부는 해제했다.** `418:2523`의 정렬 control 결함은 **`FCR-025`(P0 blocker, Open)가 단독 추적**한다. `FCR-005` 증거 절에 메모 한 줄만 남겼고 중복 추적하지 않는다. `#13`은 `FCR-016~028`을 명시적 비범위로 두므로 이 결함은 `#13`을 막는 근거가 아니다.
+- **`FCR-011`의 폭 blocker 원인은 계약 버전이 아니다.** 문서에 있던 "main은 아직 `0.2.0`"은 거짓이었다(main은 `0.2.1-rc.1`이고 `attributionShort`와 example 2개가 있다). 진짜 원인은 **서버가 `attributionShort`를 항상 `null`로 내보내는 것**이다 — `apps/api` main 전체에서 이 필드를 채우는 코드가 없고 `CrowdProvenanceProjection`이 `null` 리터럴을 넣는다. crowd 계약 PR에서 서버가 실제 값을 채운다.
+
+### FE에 넘긴 것 (BE가 더 댈 것 없음)
+
+- `FR-SES-02`(401 뒤 재-bootstrap)·`FR-SES-03`(`issueCsrfToken` 호출)은 서버가 이미 완성돼 있어 client 작업만 남았다. 재시도는 **safe GET·1회**로 제한해야 한다(mutation 자동 재시도는 불변식 6 위반).
+- 두 기능 ID가 **어느 FE task에도 등록돼 있지 않다.** FE-101이 이미 `operations`에 `issueCsrfToken`을 갖고 있어 거기 붙이는 것이 가장 싸다.
+- `FR-PLC-01`은 FE 소유가 맞지만 `getPlace`를 부르는 화면이 Figma에 없다. 기존 task에 억지로 붙이지 말고 화면 결정 후 신규 task를 만든다.
+- **`fixtures.test.ts`는 `apps/web`(FE 소유)라 새 fixture의 ajv 단언을 내가 넣지 못했다.** `placeFixtures.detail`을 export까지 해 뒀으니 FE가 한 줄 추가하면 된다. 이번 세션에서 같은 ajv 설정으로 직접 검증했고 `PlaceDetail` 스키마를 통과한다.
+
+### 남은 계약 공백 (#118)
+
+`ordinalLevel`의 진짜 공백은 숫자가 아니라 **표시 단어**다. 디자인 정본은 "막대 + `4 · 혼잡` 문구"를 요구하는데(`COMPONENT_CATALOG.md:90`, 어휘는 `FIGMA_CHANGE_REQUESTS.md:200`의 `1 · 매우 여유`~`4 · 혼잡`), 계약의 `label`은 "diagnostic, not display copy"라 FE가 단어를 받을 곳이 없다. `pattern`만 추가하는 안은 채택하지 않는다. 어휘는 서울 실시간 도시데이터 실응답 1건으로 확정한 뒤 계약에 넣는다 — 지금 enum에 적으면 임의 기입이다. `FCR-029`가 그때까지 "혼잡 표시 없이 구현"으로 이미 합의돼 있다.

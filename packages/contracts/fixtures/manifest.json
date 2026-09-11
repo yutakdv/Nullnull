@@ -42,6 +42,12 @@
       "basis": "BE/AI authored from the approved searchPlaces contract. Shapes match the server projection, including sourceAttribution read from the reviewed source registry revision and the categoryName/regionName that stay null until a reviewed code-to-label mapping exists. categoryCode/regionCode are opaque machine values and must not be rendered; only 경복궁's HS/11 came from an actual detailCommon2 call (#109), the others share its shape. Still not a captured server response, so serverVerified stays false until BA-022 has one.",
       "serverVerified": false
     },
+    "placeDetail": {
+      "schema": "PlaceDetail",
+      "count": 1,
+      "basis": "BE/AI authored from the server projection (PlaceController.PlaceDetailResponse.from) so FE can build getPlace before the route opens. description/thumbnailUrl/thumbnailAsset are null because the collector requests overviewYN=N and firstImageYN=N, so overview text and images are never stored — an example with rich text there would break on first real integration. categoryCode/regionCode reuse 경복궁's HS/11, the only pair that came from an actual detailCommon2 call (#109). externalId is the placeholder KTO-PENDING-CAPTURE and location uses public reference coordinates: neither came from a captured response, so do not treat them as provider evidence. Note getPlace is fail-closed behind NULLNULL_CATALOG_PUBLIC_ENABLED=false until BA-021-T3 staging evidence exists, so this fixture is the only shape FE can build against today.",
+      "serverVerified": false
+    },
     "candidates": {
       "schema": "CandidatePage, CandidateMatchResult",
       "count": 7,

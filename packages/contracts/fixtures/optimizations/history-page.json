@@ -29,7 +29,7 @@
       "scope": "ITEM",
       "status": "APPLIED",
       "decision": "APPLY",
-      "runLink": "/trips/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b101",
+      "runLink": "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b101",
       "queuedAt": "2026-10-02T01:12:00Z",
       "decidedAt": "2026-10-02T01:13:40Z"
     },
@@ -40,7 +40,7 @@
       "scope": "ITEM",
       "status": "KEPT",
       "decision": "KEEP",
-      "runLink": "/trips/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b102",
+      "runLink": "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b102",
       "queuedAt": "2026-10-01T02:40:00Z",
       "decidedAt": "2026-10-01T02:41:10Z"
     },
@@ -51,7 +51,7 @@
       "scope": "ITEM",
       "status": "REVERTED",
       "decision": "REVERT",
-      "runLink": "/trips/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b103",
+      "runLink": "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b103",
       "queuedAt": "2026-09-30T05:05:00Z",
       "decidedAt": "2026-09-30T05:06:20Z"
     }

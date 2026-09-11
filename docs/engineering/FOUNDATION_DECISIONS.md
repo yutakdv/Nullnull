@@ -15,9 +15,13 @@ tags:
 
 이슈의 ARC-001/M0는 현재 B01 통합 slice, CON-001은 BA-000/004, DX-001/QA-002는 BA-004/006과 연결한다. 옛 M0 날짜를 새 일정으로 복사하지 않는다. 실제 앱 scaffold·Figma 수정·GitHub ruleset 변경은 이 결정안의 산출물이 아니다.
 
-## D1 · 첫 scaffold는 backend에서 조립
+## D1 · 첫 scaffold host (채택되지 않음)
 
-첫 통합 PR의 host는 backend, 작성 책임은 Backend/AI로 제안한다. Frontend는 apps/web·FE test·Docker stage·생성 client wrapper를 검토 가능한 파일 patch로 인계한다.
+**이 제안은 실행되지 않았다.** 아래 원안은 기록으로 남긴다. 실제로는 Frontend가 `frontend` 브랜치에서 `apps/web`, `packages/api-client`, root `package.json`, `scripts/infra-check.mjs`를 직접 만들고(`05eb142`), 같은 브랜치에서 `.nullnull-target-stack` marker를 더한 뒤(`bd506fb`), [PR #17](https://github.com/yutakdv/Nullnull/pull/17)로 `frontend → main`에 병합했다. backend가 최초 통합 PR을 host하거나 FE 파일을 인계받은 적은 없다.
+
+따라서 아래의 "파일 소유권 인계 예외"는 존재하지 않는다. 두 역할은 처음부터 각자의 역할 브랜치에서 작업했고 [브랜치 계약](BRANCH_AND_INTEGRATION.md)이 그대로 정본이다. 이 절을 근거로 새 인계 절차를 만들지 않는다.
+
+원안(참고): 첫 통합 PR의 host는 backend, 작성 책임은 Backend/AI로 제안했다. Frontend는 apps/web·FE test·Docker stage·생성 client wrapper를 검토 가능한 파일 patch로 인계한다.
 
 1. 두 담당자는 같은 main 기준 SHA, OpenAPI SHA와 인계 파일 목록을 적는다.
 2. Frontend는 자신의 작업 파일 diff와 검증 기록을 제공한다. 인계물에 기준 SHA, checksum, 작성자를 함께 남긴다.
@@ -59,12 +63,14 @@ openapi-fetch wrapper 한 곳에서 credentials, CSRF, If-Match, Idempotency-Key
 | root 명령 | 실제 수행 | 실패 조건 / 증거 |
 | --- | --- | --- |
 | api:check | 위 generator --check + AJV 정본 예시/negative fixture + TS strict | 생성 diff·예시/타입 오류는 실패, spec SHA와 실행 수 기록 |
-| security:scan | Gitleaks 8.30.1 dir scan + Trivy 0.74.0 filesystem vuln/misconfig scan | secret 또는 미승인 HIGH/CRITICAL은 실패, redacted report |
+| security:scan | **제안 상태.** 실제 root script는 `npm audit --audit-level=high --omit=dev` 한 줄이고 Gitleaks·Trivy는 붙지 않았다 | 아래 "실제로 강제되는 것" 참조 |
 | infra:check | CDK CLI 2.1140.0 + aws-cdk-lib 2.268.0 + constructs 10.8.1로 실제 infra app typecheck/synth·정책 검사·local template diff | 합성/정책 오류는 실패, template·diff artifact; 정상 변경은 상대 검토 |
 
 CDK CLI와 library의 minor 번호는 같을 필요가 없다. 위 exact pair는 별도로 설치하여 Node 24에서 최소 Stack을 실제 합성해 호환성을 검사했다. 앱의 network/data/API/web 인프라 합성 성공이나 AWS 배포 증거는 아니다. infra:check의 B01 구현은 실제 환경 parameter/stack을 합성하고 공개 storage, wide IAM, DB public access 등 승인된 정책 검사를 실행해야 한다.
 
 Gitleaks는 --redact=100으로 파일만 검사해 git 이력이 Docker image에 없어도 실행한다. 이력 검사는 별도 checkout gate에서 수행하며 파일 검사와 혼동하지 않는다. Trivy는 vuln,misconfig scanner를 명시하고 --offline-scan, --skip-db-update, --skip-java-db-update, --skip-check-update를 적용한다. lockfile·Java dependency inventory와 IaC template이 실제 scan 대상이어야 한다.
+
+**실제로 강제되는 것(현재):** 위 세 명령 중 CI가 실행하는 것은 `infra:check` 하나이며 `compose.integration.yml`의 `infra-plan` service가 부른다. `security:scan`은 어떤 gate도 호출하지 않는다 — 실제 의존성 판정은 `security-scan` service가 만든 `npm audit` 보고서를 host가 `scripts/check_npm_audit_report.py`로 offline 판정하는 경로다. 세 root script의 **선언 자체**는 `scripts/verify_target_stack.py`가 요구하므로 이름을 지우면 target-stack 검사가 실패한다. 이 표의 Gitleaks·Trivy·CDK synth 행을 구현된 것으로 읽지 않는다. 두 script를 실제 gate에 연결하는 작업은 이슈 #119가 추적한다.
 
 도구 binary checksum과 Trivy DB/Java DB/check bundle의 digest·수집 시각은 image build 단계에서 고정한다. runtime에는 다운로드하지 않는다. cache 누락·24시간 초과·scanner 오류는 성공 처리하지 않는다. 도구 설치/캐시 갱신에 필요한 외부망과 runtime의 internal network는 구분한다. 앱 base image의 취약점 검사도 B01 artifact gate에 포함한다.
 
@@ -116,7 +122,7 @@ B01 seed는 owner/session·locale·disabled capability와 이 hello에 필요한
 
 | 항목 | 현재 | 다음 증거 |
 | --- | --- | --- |
-| D1 host/인계 경계 | backend 제안 작성 | Frontend 교차 승인 |
+| D1 host/인계 경계 | **채택되지 않음** — `apps/web`·marker를 `frontend`에서 만들어 PR #17로 `frontend → main` 병합 | 없음. 브랜치 계약이 정본 |
 | D2 generator/runtime | 기존 FE 제안 채택, BE/AI Node 24 생성·strict 검증으로 승인 | 후속 B01 root lock/client 반영 |
 | D3 gate 도구 | exact version 제안, CDK package smoke 확인 | 실제 tooling stage의 세 명령/실패 주입 |
 | D4 image/RDS | BE/AI major 17·두 digest 선택, Compose 반영 | 후속 B01 RDS region/minor·scan·DB 실행 |
