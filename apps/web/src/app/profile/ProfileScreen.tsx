@@ -3,6 +3,7 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useOptimizationHistory, useTrips } from '../../shared/api/index.js';
 import { DeletionSection } from './DeletionSection.js';
+import { hasResult, rowState, runHref } from './history.js';
 import { InterestsSection } from './InterestsSection.js';
 import styles from './ProfileScreen.module.css';
 
@@ -151,23 +152,55 @@ export function ProfileScreen() {
         ) : null}
         {history.isSuccess && history.data.items.length > 0 ? (
           <ul className={styles.rows}>
-            {history.data.items.map((run) => (
-              <li key={run.runId}>
-                <Link className={styles.row} to={run.runLink}>
+            {history.data.items.map((run) => {
+              const state = rowState(run);
+              const secondary =
+                state.kind === 'decision'
+                  ? t(`profile.history.decision.${state.value}` as MessageKey)
+                  : state.kind === 'pending'
+                    ? t('profile.history.pending')
+                    : t(`profile.history.${state.value}` as MessageKey);
+              const body = (
+                <>
                   <span className={styles.rowText}>
                     <span className={styles.rowTitle}>
                       {runDate(run.queuedAt, locale)} · {run.tripTitle}
                     </span>
                     <span className={styles.rowNote}>
-                      {t(`profile.history.${run.status}` as MessageKey)}
+                      {/* Scope first: an APPLIED run means something different
+                          for one stop than for the whole trip. */}
+                      {t(`profile.history.scope.${run.scope}` as MessageKey)} ·{' '}
+                      {secondary}
                     </span>
                   </span>
-                  <span className={styles.rowValue} aria-hidden="true">
-                    ›
-                  </span>
-                </Link>
-              </li>
-            ))}
+                  {hasResult(run) ? (
+                    <span className={styles.rowValue} aria-hidden="true">
+                      ›
+                    </span>
+                  ) : null}
+                </>
+              );
+              return (
+                <li key={run.runId}>
+                  {/* A queued or running run has no result to open, so the row
+                      states its status instead of linking to nothing. */}
+                  {hasResult(run) ? (
+                    <Link
+                      aria-label={t('profile.history.openRun', {
+                        date: runDate(run.queuedAt, locale),
+                        trip: run.tripTitle,
+                      })}
+                      className={styles.row}
+                      to={runHref(run)}
+                    >
+                      {body}
+                    </Link>
+                  ) : (
+                    <span className={styles.row}>{body}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : null}
         {/* States it plainly, because the absence is the point. */}

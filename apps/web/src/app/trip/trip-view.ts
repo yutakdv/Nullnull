@@ -121,3 +121,20 @@ export function formatTime(
     timeZone: 'UTC',
   }).format(at);
 }
+
+/**
+ * A contract `date` (YYYY-MM-DD) as short, locale-aware text.
+ *
+ * Parsed as UTC and formatted in UTC: a plain date has no timezone, and
+ * letting the runtime apply the local one shifts "2026-10-04" to the 3rd for
+ * anyone west of Greenwich.
+ */
+export function formatDate(date: string, locale: string): string {
+  const at = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(at.getTime())) return date;
+  return new Intl.DateTimeFormat(locale, {
+    month: 'numeric',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(at);
+}

@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { load } from 'js-yaml';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
@@ -40,6 +40,37 @@ function renderGuide() {
   );
 }
 
+// The locale is stored, so a test that sets it must put it back or every
+// later test in this file inherits it.
+afterEach(() => {
+  localStorage.clear();
+});
+
+describe('the screen speaks one language at a time', () => {
+  it('renders the state labels in the selected locale, not always Korean', async () => {
+    // The defect this guards: StateLabel keeps Korean defaults so Storybook
+    // can mount it without a provider, and this screen did not pass the
+    // localized set — so an English reader saw "실시간 관측" welded to the
+    // English sentence explaining it.
+    localStorage.setItem('nullnull.locale', 'en-US');
+    renderGuide();
+    await screen.findByRole('heading', { level: 1 });
+    const copyEn = messages['en-US'];
+    expect(screen.getByText(copyEn['state.LIVE'])).toBeInTheDocument();
+    expect(screen.getByText(copyEn['state.UNAVAILABLE'])).toBeInTheDocument();
+    expect(screen.queryByText(messages['ko-KR']['state.LIVE'])).toBeNull();
+  });
+
+  it('still renders the pinned Korean wording in Korean', async () => {
+    // Figma pins these strings ("문구 임의 변경 금지"), so ko-KR must match the
+    // component's own defaults exactly.
+    localStorage.setItem('nullnull.locale', 'ko-KR');
+    renderGuide();
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.getByText(messages['ko-KR']['state.LIVE'])).toBeInTheDocument();
+  });
+});
+
 describe('the data guide explains every state the contract can return', () => {
   it('covers each SourceState in the OpenAPI enum', () => {
     renderGuide();
@@ -54,16 +85,13 @@ describe('the data guide explains every state the contract can return', () => {
 
   it('names each state, so colour is never the only signal', () => {
     renderGuide();
-    // StateLabel owns the wording; these are the labels it renders.
-    for (const label of [
-      '실시간 관측',
-      '공식 혼잡 예측',
-      '공식 혼잡 예측 범위 밖',
-      '업데이트 지연',
-      '현재 데이터 없음',
-      '과거 관측 재생 · 실시간 아님',
-    ]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+    // Read from the message table rather than repeated literals: the wording
+    // is pinned by Figma, and a second hand-typed copy is a second thing to
+    // keep in sync — which is exactly what this screen's own comment forbids.
+    for (const state of contractStates) {
+      const key = `state.${state}` as keyof typeof copy;
+      expect(copy[key], `no label for SourceState ${state}`).toBeDefined();
+      expect(screen.getByText(copy[key])).toBeInTheDocument();
     }
   });
 

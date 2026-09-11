@@ -5,6 +5,7 @@
 // an inline object is a hand-written model with nothing checking it.
 import {
   candidateFixtures,
+  feedFixtures,
   relatedFixtures,
   optimizationFixtures,
   placeFixtures,
@@ -93,6 +94,21 @@ export const handlers = [
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
+  // MOCK DATA (FE-201). listFeed has no approved example either. This handler
+  // reads the cursor rather than always answering page one, so pagination is
+  // exercised for real: a handler that ignored it would let a broken "load
+  // more" pass by returning the same page forever.
+  http.get(`${API_BASE}/feed`, ({ request }) => {
+    const cursor = new URL(request.url).searchParams.get('cursor');
+    if (cursor === null) return HttpResponse.json(feedFixtures.page);
+    if (cursor === feedFixtures.page.page.nextCursor) {
+      return HttpResponse.json(feedFixtures.pageTwo);
+    }
+    // Any other cursor is one this mock never issued. The contract answers 410
+    // CURSOR_EXPIRED for a cursor past its 15 minutes, and the screen has to
+    // recover from the first page rather than retry (problem-policy.ts).
+    return problemResponse('CURSOR_EXPIRED');
+  }),
   // MOCK DATA (FE-102). Without this the wizard's final submit is an unhandled
   // request: the tests each stood up their own handler and passed, while the
   // running app answered 500 and showed its failure state. Delete with BA-030.
@@ -367,6 +383,50 @@ export const handlers = [
                   // through untouched, which is invariant 7 modelled rather
                   // than assumed.
                   constraints: item.constraints.filter((c) => c.type !== type),
+                }
+              : item,
+          ),
+        })),
+      } as typeof trip;
+      tripState = next;
+      return HttpResponse.json(
+        { trip: next, changedItemIds: [itemId] },
+        { headers: { ETag: `"${String(next.version)}"` } },
+      );
+    },
+  ),
+  // MOCK DATA (FE-307). setTripItemConstraint has no approved example either
+  // (BA-041). Stateful for the same reason as the release above: a lock that
+  // is set has to stay set, and the version has to advance so a stale ETag
+  // shows up as a conflict rather than passing silently.
+  http.put(
+    `${API_BASE}/trips/:tripId/items/:itemId/constraints/:constraintType`,
+    async ({ request, params }) => {
+      const trip = currentTrip();
+      if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+        return problemResponse('TRIP_CHANGED');
+      }
+      const itemId = String(params.itemId);
+      const type = String(params.constraintType);
+      const body = (await request.json()) as { type: string };
+      // The contract requires the body's type to equal the path's, so a mock
+      // that ignored the mismatch would let a real bug through.
+      if (body.type !== type) return problemResponse('VALIDATION_FAILED');
+      const next = {
+        ...trip,
+        version: trip.version + 1,
+        days: trip.days.map((day) => ({
+          ...day,
+          items: day.items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  // Replaces this one type and copies the rest through, which
+                  // is invariant 7 modelled rather than assumed.
+                  constraints: [
+                    ...item.constraints.filter((c) => c.type !== type),
+                    body as (typeof item.constraints)[number],
+                  ],
                 }
               : item,
           ),

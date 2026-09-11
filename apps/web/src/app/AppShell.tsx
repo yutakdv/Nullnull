@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
+import { useCsrfToken } from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
 
@@ -38,6 +39,15 @@ export function AppShell({ tabs = false }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useI18n();
+
+  // FR-SES-03. This is the root element of every route, which is why the call
+  // lives here: only the splash screen bootstraps, so a refresh or a deep link
+  // onto /feed or /profile used to leave the tab with no CSRF token and every
+  // mutation would have been rejected. The hook asks only when the token is
+  // missing, and only for the session the cookie already names — it never
+  // bootstraps a replacement, because doing that on an expired session creates
+  // a different anonymous owner and strands the user's trips.
+  useCsrfToken();
 
   return (
     <div className={styles.shell}>

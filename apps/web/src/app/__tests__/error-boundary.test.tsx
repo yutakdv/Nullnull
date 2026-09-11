@@ -1,9 +1,11 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { problemFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../i18n/I18nProvider.js';
 import { messages } from '../../i18n/messages.js';
+import { createQueryClient } from '../../shared/api/index.js';
 import { RouteErrorBoundary } from '../RouteErrorBoundary.js';
 import { routes } from '../routes.js';
 
@@ -128,12 +130,20 @@ describe('the shell survives a crashed screen', () => {
   });
 
   it('leaves the real route table intact for working routes', async () => {
-    const router = createMemoryRouter(routes, { initialEntries: ['/feed'] });
+    // /live rather than /feed: this renders without a QueryClientProvider, so
+    // it needs a route that makes no request. /feed became a real screen in
+    // FE-201 and now fetches.
+    const router = createMemoryRouter(routes, { initialEntries: ['/live'] });
+    // AppShell is the root element of every route and asks for this tab's CSRF
+    // token there (FR-SES-03), so the real table needs a query client even for
+    // a route that fetches nothing of its own.
     render(
-      <I18nProvider>
-        <RouterProvider router={router} />
-      </I18nProvider>,
+      <QueryClientProvider client={createQueryClient()}>
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
+      </QueryClientProvider>,
     );
-    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent('feed');
+    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent('live');
   });
 });

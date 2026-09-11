@@ -12,12 +12,18 @@
 // Owner identity is never sent by the client; the server derives it from the
 // authenticated session (CLAUDE.md invariant 11).
 
-import createClient, { type Middleware } from 'openapi-fetch';
-import type { paths } from './generated/openapi.js';
+import createClient, { type Middleware } from "openapi-fetch";
+import type { paths } from "./generated/openapi.js";
 
-export type { paths, components, operations } from './generated/openapi.js';
+export type { paths, components, operations } from "./generated/openapi.js";
 
-const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+// Method, not operation. A couple of reads are POSTs on purpose — searchPlaces
+// is "read-only POST so free-form search text does not enter CDN, ALB, proxy,
+// or browser URL logs" — and those get a token the server does not ask for
+// (searchPlaces is Security.SESSION only). Sending a spare token is harmless;
+// deciding per operation would mean this layer tracking which POSTs are reads,
+// and a wrong entry there fails a real mutation.
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export interface ApiClientOptions {
   /** Same-origin by default; the dev server proxies to the API. */
@@ -30,7 +36,7 @@ export interface ApiClientOptions {
 }
 
 /** Header name agreed with the API; see docs/api/README.md. */
-export const CSRF_HEADER = 'X-CSRF-Token';
+export const CSRF_HEADER = "X-CSRF-Token";
 
 function csrfMiddleware(getToken: () => string | null): Middleware {
   return {
@@ -49,9 +55,9 @@ function csrfMiddleware(getToken: () => string | null): Middleware {
 
 export function createApiClient(options: ApiClientOptions = {}) {
   const client = createClient<paths>({
-    baseUrl: options.baseUrl ?? '/',
+    baseUrl: options.baseUrl ?? "/",
     // The session cookie is HttpOnly; the browser must attach it itself.
-    credentials: 'include',
+    credentials: "include",
   });
 
   if (options.getCsrfToken) {

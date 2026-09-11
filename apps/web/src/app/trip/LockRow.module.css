@@ -60,3 +60,11 @@
   font-weight: 700;
   line-height: 18px;
 }
+
+/* FE-307: a lock the user can still add, as opposed to one already set.
+   Dashed rather than a different colour, because colour alone is not a
+   signal (COMPONENT_CATALOG) and the label already says "설정". */
+.settable {
+  border-style: dashed;
+  color: var(--color-text-secondary);
+}

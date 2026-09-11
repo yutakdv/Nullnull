@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "post": {
+        "id": "018f5b00-0000-7000-8000-000000000005",
+        "title": "서촌 골목 산책",
+        "excerpt": "조용한 오전에 걷기 좋아요",
+        "coverUrl": "https://cdn.example.test/posts/05.jpg",
+        "publishedAt": "2026-09-05T02:00:00Z"
+      },
+      "primaryPlace": {
+        "id": "018f5b10-0000-7000-8000-000000000005",
+        "name": "서촌",
+        "categoryCode": "ATTRACTION",
+        "regionCode": "KR-11-130",
+        "categoryName": "동네",
+        "regionName": "서울 종로구",
+        "thumbnailUrl": null,
+        "address": "서울 종로구 자하문로",
+        "sourceAttribution": {
+          "source": "KTO_KOR_SERVICE_2",
+          "sourceDisplayName": "한국관광공사 국문 관광정보",
+          "sourceRegistryVersion": 4,
+          "attribution": "출처: ⓒ한국관광공사",
+          "officialUrl": "https://www.data.go.kr/data/15101578/openapi.do",
+          "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+          "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+        }
+      },
+      "savedPost": false,
+      "candidateState": "NOT_SAVED"
+    }
+  ],
+  "page": {
+    "nextCursor": null,
+    "hasMore": false
+  }
+}

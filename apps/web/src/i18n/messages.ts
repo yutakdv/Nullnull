@@ -118,6 +118,17 @@ export const messages = {
     'profile.history.READY': '결과 준비됨',
     'profile.history.FAILED': '실패함',
     'profile.history.EXPIRED': '만료됨',
+    // Scope: which part of the trip a run covered (FE-506).
+    'profile.history.scope.ITEM': '일정 1개',
+    'profile.history.scope.DAY': '하루',
+    'profile.history.scope.TRIP': '여행 전체',
+    // Decision: what the user chose when the run finished. Distinct from
+    // status — a run can be READY with no decision yet.
+    'profile.history.decision.APPLY': '적용함',
+    'profile.history.decision.KEEP': '유지함',
+    'profile.history.decision.REVERT': '되돌림',
+    'profile.history.pending': '아직 결정하지 않았어요',
+    'profile.history.openRun': '{date} {trip} 최적화 결과 보기',
     'profile.interests.title': '여행별 관심사 관리',
     'profile.interests.note': '일정에서 읽은 관심사 · 조회·수정·삭제',
     'profile.interests.pickTrip': '여행 선택',
@@ -155,6 +166,26 @@ export const messages = {
     // Figma pins that wording and forbids changing it, so it is not duplicated.
     'dataGuide.title1': '이 앱의 데이터는',
     'dataGuide.title2': '어떻게 동작하나요?',
+    // StateLabel (C07) short labels. Figma pins the Korean wording
+    // ("문구 임의 변경 금지"), so ko-KR matches it exactly; en-US is the same
+    // distinction in English. Long-form explanations live in dataGuide.state.*.
+    'mustVisit.badge': '꼭 가요',
+    'state.LIVE': '실시간 관측',
+    'state.FORECAST': '공식 혼잡 예측',
+    'state.QUALITATIVE': '공식 혼잡 예측 범위 밖',
+    'state.STALE': '업데이트 지연',
+    'state.UNAVAILABLE': '현재 데이터 없음',
+    'state.REPLAY': '과거 관측 재생 · 실시간 아님',
+    // TripAddButton (C04). Saving a place makes a TripCandidate, never a
+    // TripItem, so the words say 담기 and never 일정 (invariants 1 and 2).
+    'tripAdd.idle': '내 여행에 담기',
+    'tripAdd.saved': '담았어요',
+    'tripAdd.duplicate': '이미 담아둔 장소예요',
+    'tripAdd.no-trip': '여행을 만들고 담기',
+    'tripAdd.loading': '담는 중이에요',
+    'tripAdd.error': '담지 못했어요. 다시 시도',
+    'crowd.level': '{steps}단계 중 {level}번째',
+    'license.terms': '이용조건',
     'dataGuide.states.heading': '혼잡도 데이터 상태 6가지',
     'dataGuide.state.LIVE':
       '서울 열린데이터로 지금 상태를 관측한 권역이에요. 기준시각을 함께 표시해요.',
@@ -222,6 +253,19 @@ export const messages = {
 
     // S07-1 trip view `410:1738` (FE-301).
     'trip.loading': '일정을 불러오는 중이에요',
+    // FE-201 feed (S03-F0 `391:310`, S03-F1 `396:2926`).
+    'feed.title': '둘러보기',
+    'feed.loading': '불러오는 중이에요',
+    'feed.error': '피드를 불러오지 못했어요',
+    'feed.empty': '아직 보여드릴 게시물이 없어요',
+    'feed.emptyNoTrip': '여행을 만들면 일정에 맞춰 추천해드려요',
+    'feed.createTrip': '여행 만들기',
+    'feed.more': '더 보기',
+    'feed.loadingMore': '더 불러오는 중이에요',
+    'feed.end': '마지막 게시물이에요',
+    // cursor는 15분 뒤 만료된다. 재시도가 아니라 처음부터 다시 봐야 한다.
+    'feed.cursorExpired': '목록이 오래돼서 처음부터 다시 불러왔어요',
+    'feed.retry': '다시 시도',
     'trip.error': '일정을 불러오지 못했어요',
     'trip.notFound': '찾을 수 없는 여행이에요',
     'trip.retry': '다시 시도',
@@ -254,6 +298,10 @@ export const messages = {
     // S07-7 `413:2081` and S07-10b `527:3876` (FE-304). The frames fix this
     // wording: each dialog states which lock releases and what carries over.
     'trip.lock.release': '{lock} 해제',
+    // FE-307: 설정 쪽. 한 번 누르면 한 종류만 걸리고 나머지는 그대로다.
+    'trip.lock.apply': '{lock} 설정',
+    'trip.lock.applying': '설정하는 중이에요',
+    'trip.lock.applyFailed': '잠금을 설정하지 못했어요',
     'trip.lock.reservationNote': '예약에서 관리해요',
     'trip.lock.releasing': '해제하는 중이에요',
     'trip.lock.releaseFailed': '잠금을 해제하지 못했어요',
@@ -363,6 +411,17 @@ export const messages = {
     'trip.error.title-too-long': '여행 이름은 100자까지 쓸 수 있어요',
     'trip.error.range-reversed': '종료일이 시작일보다 빨라요',
     'trip.error.range-too-long': '여행은 최대 30일까지 만들 수 있어요',
+    // FE-306 / FCR-032: 날짜 범위를 줄일 때 영향 받는 일정을 저장 전에 보여준다.
+    // 거절을 단정하지 않는다 — 화면의 trip은 캐시된 값이라 실제 판정은 서버가 한다.
+    'trip.range.impactTitle': '이 날짜 범위 밖에 있는 일정',
+    'trip.range.impactNote':
+      '지금 범위를 저장하면 이 일정들이 여행 기간을 벗어나요. 저장은 눌러볼 수 있고, 결과는 서버가 확인해요.',
+    'trip.range.impactCount': '{count}개',
+    'trip.range.lockDate': '날짜 고정',
+    'trip.range.lockReservation': '예약',
+    'trip.range.lockedOn': '{date}에 고정됨',
+    'trip.range.undo': '날짜 되돌리기',
+    'trip.range.undone': '날짜를 원래대로 되돌렸어요',
     'trip.saveFailed': '변경사항을 저장하지 못했어요',
     // Figma `413:2020` fixes this wording.
     'trip.discard.title': '변경 내용을 버릴까요?',
@@ -566,6 +625,14 @@ export const messages = {
     'profile.history.READY': 'Ready',
     'profile.history.FAILED': 'Failed',
     'profile.history.EXPIRED': 'Expired',
+    'profile.history.scope.ITEM': 'One stop',
+    'profile.history.scope.DAY': 'One day',
+    'profile.history.scope.TRIP': 'Whole trip',
+    'profile.history.decision.APPLY': 'Applied',
+    'profile.history.decision.KEEP': 'Kept',
+    'profile.history.decision.REVERT': 'Reverted',
+    'profile.history.pending': 'Not decided yet',
+    'profile.history.openRun': 'Open the {date} {trip} optimization result',
     'profile.interests.title': 'Interests per trip',
     'profile.interests.note': 'Read from your itinerary · view, edit, delete',
     'profile.interests.pickTrip': 'Choose a trip',
@@ -602,6 +669,21 @@ export const messages = {
     // approved wording (CLAUDE.md invariant 12).
     'dataGuide.title1': 'How does this app',
     'dataGuide.title2': 'handle its data?',
+    'mustVisit.badge': 'Must visit',
+    'state.LIVE': 'Observed live',
+    'state.FORECAST': 'Official crowd forecast',
+    'state.QUALITATIVE': 'Outside the forecast range',
+    'state.STALE': 'Update delayed',
+    'state.UNAVAILABLE': 'No data right now',
+    'state.REPLAY': 'Replaying past observations · not live',
+    'tripAdd.idle': 'Add to my trip',
+    'tripAdd.saved': 'Added',
+    'tripAdd.duplicate': 'Already in your trip',
+    'tripAdd.no-trip': 'Make a trip and add it',
+    'tripAdd.loading': 'Adding',
+    'tripAdd.error': "Couldn't add it. Try again",
+    'crowd.level': 'Level {level} of {steps}',
+    'license.terms': 'Licence terms',
     'dataGuide.states.heading': 'The six crowd data states',
     'dataGuide.state.LIVE':
       'An area observed right now via Seoul Open Data. The reference time is shown with it.',
@@ -666,6 +748,18 @@ export const messages = {
     'wizard.interests.style': 'Travel style',
 
     'trip.loading': 'Loading your itinerary',
+    'feed.title': 'Browse',
+    'feed.loading': 'Loading',
+    'feed.error': "We couldn't load the feed",
+    'feed.empty': 'Nothing to show yet',
+    'feed.emptyNoTrip': 'Make a trip and we will suggest places for it',
+    'feed.createTrip': 'Make a trip',
+    'feed.more': 'Show more',
+    'feed.loadingMore': 'Loading more',
+    'feed.end': "That's the last post",
+    'feed.cursorExpired':
+      'That list was out of date, so we loaded it again from the start',
+    'feed.retry': 'Try again',
     'trip.error': "We couldn't load this itinerary",
     'trip.notFound': 'We can’t find that trip',
     'trip.retry': 'Try again',
@@ -692,6 +786,9 @@ export const messages = {
     'trip.lock.TIME': 'Time locked',
     'trip.lock.RESERVATION': 'Reservation locked',
     'trip.lock.release': 'Release {lock}',
+    'trip.lock.apply': 'Set {lock}',
+    'trip.lock.applying': 'Setting',
+    'trip.lock.applyFailed': "We couldn't set that lock",
     'trip.lock.reservationNote': 'Managed by the reservation',
     'trip.lock.releasing': 'Releasing',
     'trip.lock.releaseFailed': "We couldn't release that lock",
@@ -786,6 +883,15 @@ export const messages = {
     'trip.error.title-too-long': 'A trip name can be up to 100 characters',
     'trip.error.range-reversed': 'The end date is before the start date',
     'trip.error.range-too-long': 'A trip can be up to 30 days',
+    'trip.range.impactTitle': 'Stops outside this date range',
+    'trip.range.impactNote':
+      'Saving this range leaves these stops outside the trip. You can still try — the server decides.',
+    'trip.range.impactCount': '{count}',
+    'trip.range.lockDate': 'Date locked',
+    'trip.range.lockReservation': 'Reservation',
+    'trip.range.lockedOn': 'Locked to {date}',
+    'trip.range.undo': 'Undo date change',
+    'trip.range.undone': 'Dates restored',
     'trip.saveFailed': "We couldn't save your changes",
     'trip.discard.title': 'Discard your changes?',
     'trip.discard.body': "You have unsaved changes. Discarding them can't be undone.",

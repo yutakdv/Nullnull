@@ -117,3 +117,96 @@
   color: var(--color-text-disabled);
   cursor: not-allowed;
 }
+
+/* FE-306 / FCR-032: the stranded-items preview. No Figma node exists for this
+   state, so it borrows the form's own tokens rather than inventing a look. */
+.impact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-bg-subtle);
+}
+
+.impactHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.impactTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.impactCount {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
+
+.impactNote {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
+}
+
+.impactList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.impactItem {
+  /* Wraps rather than truncating: a long place name plus two lock chips has to
+     stay readable at 360px and at 200% zoom. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-caption);
+}
+
+.impactName {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.impactDate,
+.impactLock {
+  padding: 2px var(--space-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+}
+
+.impactUndo {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

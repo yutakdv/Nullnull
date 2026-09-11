@@ -1,6 +1,7 @@
 import type { components } from '@nullnull/api-client';
 import { CrowdLevel } from './CrowdLevel.js';
 import { DataAttribution } from './DataAttribution.js';
+import type { SourceState } from './StateLabel.js';
 import { TripAddButton, type TripAddState } from './TripAddButton.js';
 import styles from './FeedPostCard.module.css';
 
@@ -24,6 +25,13 @@ export interface FeedPostCardProps {
   onAddCandidate?: (placeId: string) => void;
   /** Overrides the derived button state while a save is in flight or failed. */
   addState?: TripAddState;
+  /** Localized copy from the caller; each falls back to the component default. */
+  labels?: {
+    add?: Partial<Record<TripAddState, string>>;
+    state?: Partial<Record<SourceState, string>>;
+    crowdLevel?: string;
+    licenseTerms?: string;
+  };
 }
 
 /** The API's candidate state maps onto the add button's own states. */
@@ -44,6 +52,7 @@ export function FeedPostCard({
   onOpenPost,
   onAddCandidate,
   addState,
+  labels,
 }: FeedPostCardProps) {
   const { post, primaryPlace, crowd } = card;
   return (
@@ -58,16 +67,27 @@ export function FeedPostCard({
       </button>
 
       <div className={styles.body}>
-        <CrowdLevel crowd={crowd ?? null} />
+        <CrowdLevel
+          crowd={crowd ?? null}
+          levelLabel={labels?.crowdLevel}
+          stateLabels={labels?.state}
+        />
         <h3 className={styles.title}>{post.title}</h3>
         <p className={styles.region}>{primaryPlace.name}</p>
-        {crowd ? <DataAttribution provenance={crowd.provenance} compact /> : null}
+        {crowd ? (
+          <DataAttribution
+            compact
+            provenance={crowd.provenance}
+            termsLabel={labels?.licenseTerms}
+          />
+        ) : null}
       </div>
 
       <div className={styles.action}>
         <TripAddButton
-          state={addState ?? toAddState(card.candidateState)}
+          labels={labels?.add}
           onClick={() => onAddCandidate?.(primaryPlace.id)}
+          state={addState ?? toAddState(card.candidateState)}
         />
       </div>
     </article>

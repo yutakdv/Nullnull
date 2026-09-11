@@ -9,6 +9,7 @@
 // in localStorage outlives the session it belongs to and would be attached to
 // requests the server has already stopped honouring.
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -62,6 +63,77 @@ async function bootstrapSession(): Promise<SessionBootstrap> {
   if (!data) fail(error, response);
   csrfToken = data.csrfToken;
   return data;
+}
+
+/**
+ * Fetches a fresh tab-local CSRF token for the session the cookie already names.
+ *
+ * This is the recovery for a refresh or a second tab, and it is deliberately
+ * NOT a re-bootstrap. POST /demo/sessions reuses a live session, but when the
+ * session has expired it creates a NEW anonymous owner
+ * (SessionSafetyIT.expiration asserts the owner id differs), which would strand
+ * everything the user had. POST /session/csrf needs only the cookie and mints a
+ * token without touching the session, so it recovers or it fails honestly.
+ *
+ * Tokens are independent per tab and the server keeps five before evicting the
+ * least recently used, so this must not be called speculatively — see
+ * `reissueCsrfToken` for the single-flight wrapper the app uses.
+ */
+async function requestCsrfToken(): Promise<string> {
+  const { data, error, response } = await getApiClient().POST('/session/csrf', {});
+  if (!data) fail(error, response);
+  csrfToken = data.csrfToken;
+  return data.csrfToken;
+}
+
+/** In-flight reissue, so concurrent failures share one request. */
+let csrfInFlight: Promise<string> | null = null;
+
+/**
+ * Reissues the tab's CSRF token, at most one request at a time.
+ *
+ * Several mutations can fail with CSRF_INVALID at once. Without this they would
+ * each ask for a token, and the server evicts the least recently used once a
+ * sixth unexpired token exists — so a burst could evict the very token it just
+ * handed out, and the other tabs' tokens with it.
+ */
+export function reissueCsrfToken(): Promise<string> {
+  csrfInFlight ??= requestCsrfToken().finally(() => {
+    csrfInFlight = null;
+  });
+  return csrfInFlight;
+}
+
+/** Test seam: drops the token so a test can observe the recovery. */
+export function clearCsrfTokenForTest(): void {
+  csrfToken = null;
+}
+
+export const csrfQueryKey = ['session', 'csrf'] as const;
+
+/**
+ * Makes sure this tab holds a CSRF token, without minting a session.
+ *
+ * Why it exists: only the splash screen bootstraps, so a refresh or a deep
+ * link onto any other route left `currentCsrfToken()` null and every mutation
+ * would have been rejected. Verified by loading /feed directly — the token was
+ * null before this.
+ *
+ * It asks the server only when the token is actually missing, and only for a
+ * session the cookie already names. A 401 here means the session is gone, and
+ * it stays an error rather than bootstrapping a replacement: a fresh bootstrap
+ * on an expired session creates a DIFFERENT anonymous owner
+ * (SessionSafetyIT.expiration), silently stranding the user's trips.
+ */
+export function useCsrfToken(): UseQueryResult<string, Problem | Error> {
+  return useQuery({
+    queryKey: csrfQueryKey,
+    queryFn: () => reissueCsrfToken(),
+    enabled: currentCsrfToken() === null,
+    staleTime: Infinity,
+    // The contract's recovery for a failed reissue is the user's, not a loop.
+    retry: false,
+  });
 }
 
 export const sessionQueryKey = ['session', 'bootstrap'] as const;
@@ -149,6 +221,52 @@ export function useOptimizationHistory(): UseQueryResult<
       if (!data) fail(error, response);
       return data;
     },
+  });
+}
+
+type FeedPage = components['schemas']['FeedPage'];
+
+/**
+ * The personalized feed, one cursor page at a time.
+ *
+ * useInfiniteQuery rather than useQuery because the contract paginates by an
+ * opaque cursor the server mints: the next page is only reachable through the
+ * `nextCursor` the previous one returned, so pages have to accumulate in one
+ * cache entry rather than replace each other.
+ *
+ * `tripId` is part of the key. The contract says it "adds candidate state for
+ * the selected trip without changing ranking semantics", and the cursor is
+ * bound to that selection — reusing a cursor issued for another trip is
+ * CURSOR_INVALID, so a different trip has to start its own page one.
+ *
+ * MOCK DATA today; replaced when BA-032 lands.
+ */
+export function useFeed(tripId: string | null = null, enabled = true) {
+  return useInfiniteQuery<FeedPage, Problem | Error>({
+    queryKey: ['feed', tripId],
+    // The caller waits until the trip selection is settled. Querying before
+    // then sends one request under the wrong key and a second under the right
+    // one, and the cursor from the first is bound to a selection the user
+    // never had.
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const cursor = pageParam as string | null;
+      const { data, error, response } = await getApiClient().GET('/feed', {
+        params: {
+          query: {
+            ...(cursor === null ? {} : { cursor }),
+            ...(tripId === null ? {} : { tripId }),
+          },
+        },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+    // hasMore is the contract's own flag. Reading only nextCursor would ask
+    // for another page whenever the server sent a cursor with hasMore false.
+    getNextPageParam: (last) =>
+      last.page.hasMore ? (last.page.nextCursor ?? null) : null,
   });
 }
 
@@ -571,6 +689,78 @@ export function useRemoveItemConstraint(tripId: string | null) {
             path: { tripId, itemId, constraintType },
             header: { 'If-Match': etag },
           },
+        },
+      );
+      if (!data) fail(error, response);
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }) => {
+      if (tripId === null) return;
+      queryClient.setQueryData(tripQueryKey(tripId), { trip: result.trip, etag });
+    },
+  });
+}
+
+/**
+ * The body of a set-constraint request, typed the way the CONTRACT defines it.
+ *
+ * Not `components['schemas']['SetConstraintInput']`, and that is deliberate.
+ * openapi-typescript rewrites a discriminated union's property to the schema
+ * NAME unless the spec supplies a `discriminator.mapping`, so the generated
+ * type demands `type: 'SetDateConstraintInput'` while openapi.yaml says
+ * `const: DATE`. SetConstraintInput is the only union in the spec without a
+ * mapping — every other one, including the read-side TripConstraint, has it
+ * and generates correctly.
+ *
+ * Sending the generated spelling would be sending something the contract does
+ * not describe, so the wire shape is written out here. Reported to Backend/AI;
+ * when the mapping lands this alias becomes the generated type again.
+ */
+type SetConstraintInput =
+  | { type: 'MUST_VISIT'; locked: true }
+  | { type: 'DATE'; locked: true; date: string }
+  | { type: 'TIME'; locked: true; startTime: string; toleranceMinutes: number }
+  | {
+      type: 'RESERVATION';
+      locked: true;
+      date: string;
+      startTime: string;
+      endTime?: string | null;
+    };
+
+/**
+ * Sets one item lock (FE-307, FR-CON-01/FR-CON-03).
+ *
+ * One request per lock, because the contract gives each its own endpoint:
+ * PUT /constraints/{constraintType}, with the body's `type` required to equal
+ * the path's. There is no way to set two at once and nothing here tries —
+ * that is invariant 7's independence expressed as a route, not as a promise.
+ *
+ * Mirrors useRemoveItemConstraint: If-Match is required, and the result
+ * carries the whole trip plus a new ETag, so the cache takes both.
+ */
+export function useSetItemConstraint(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    { itemId: string; constraint: SetConstraintInput; etag: string | null }
+  >({
+    mutationFn: async ({ itemId, constraint, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot change a lock without the trip ETag');
+      const { data, error, response } = await getApiClient().PUT(
+        '/trips/{tripId}/items/{itemId}/constraints/{constraintType}',
+        {
+          params: {
+            // The path decides which lock this is; the body repeats it because
+            // the contract makes `type` the union's discriminator.
+            path: { tripId, itemId, constraintType: constraint.type },
+            header: { 'If-Match': etag },
+          },
+          // The generated body type carries openapi-typescript's schema-name
+          // spelling, so this asserts the contract's shape at the boundary.
+          body: constraint as never,
         },
       );
       if (!data) fail(error, response);

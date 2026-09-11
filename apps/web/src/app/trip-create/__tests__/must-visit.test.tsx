@@ -35,6 +35,9 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  // The locale is stored, so a test that sets it must put it back or every
+  // later test inherits it.
+  localStorage.clear();
   server.events.removeAllListeners();
 });
 
@@ -98,7 +101,20 @@ describe('results and the kept list', () => {
 
     const kept = await screen.findByRole('list', { name: copy['mustVisit.picked'] });
     expect(kept).toHaveTextContent(first?.name ?? '');
-    expect(kept).toHaveTextContent('꼭 가요');
+    expect(kept).toHaveTextContent(copy['mustVisit.badge']);
+  });
+
+  it('labels the badge in the selected locale', async () => {
+    // MustVisitBadge keeps a Korean default so Storybook can mount it without
+    // a provider. The screen must pass the chosen locale's word instead, or
+    // the badge ignores the locale entirely — this file runs in en-US, so the
+    // default and the correct answer differ and the assertion is meaningful.
+    const user = await searchFor('서울');
+    const add = await screen.findAllByRole('button', { name: copy['mustVisit.add'] });
+    await user.click(add[0] as HTMLElement);
+    const kept = await screen.findByRole('list', { name: copy['mustVisit.picked'] });
+    expect(kept).toHaveTextContent(copy['mustVisit.badge']);
+    expect(kept).not.toHaveTextContent('꼭 가요');
   });
 
   it('removes a kept place again', async () => {
@@ -231,7 +247,12 @@ describe('keyboard and continuation', () => {
     renderScreen();
     await user.click(await screen.findByRole('button', { name: copy['mustVisit.skip'] }));
     await waitFor(() => {
-      expect(screen.getByTestId('placeholder-route')).toHaveTextContent('feed');
+      // The feed is a real screen since FE-201, so the landing check is its
+      // heading rather than the placeholder's text.
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'feed-heading',
+      );
     });
   });
 });

@@ -67,3 +67,26 @@ export function isReservationManaged(item: TripItem): boolean {
 export function needsConfirm(type: ConstraintType): boolean {
   return type === 'MUST_VISIT' || type === 'DATE';
 }
+
+/**
+ * Locks this screen can offer to SET on an item (FE-307, FR-CON-01/03).
+ *
+ * Not all four, and the omissions are the design:
+ *
+ *   - RESERVATION is excluded by the component rule — COMPONENT_CATALOG says
+ *     `reservation-locked`는 toggle로 제공하지 않는다 — and the contract agrees,
+ *     because its body needs a date and a startTime rather than a boolean. Its
+ *     input has no design yet (FCR-033), so offering it here would mean
+ *     inventing one.
+ *   - TIME is excluded while an item has no startTime: the contract requires
+ *     startTime and toleranceMinutes, and there is nothing to pin an item to
+ *     when the schedule has not given it a time.
+ *
+ * Already-set locks never appear — setting one that exists would send a
+ * request that changes nothing.
+ */
+export function settableLocks(item: TripItem): ConstraintType[] {
+  const settable: ConstraintType[] = ['MUST_VISIT', 'DATE'];
+  if (item.startTime != null) settable.push('TIME');
+  return settable.filter((type) => !hasLock(item, type));
+}

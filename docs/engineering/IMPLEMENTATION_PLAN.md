@@ -158,7 +158,7 @@ Frontend 실행 ID: `FE-102`, `FE-106`, `FE-201`, `FE-202`, `FE-203`
 - [BA-041 · 네 종류 독립 잠금과 동시 편집 충돌](../roles/BACKEND_AI_PLAYBOOK.md#ba-041) — P0
 - [BA-042 · 후보 slot 판정·비교 후 장소 교체](../roles/BACKEND_AI_PLAYBOOK.md#ba-042) — P0
 
-Frontend 실행 ID: `FE-301`, `FE-302`, `FE-303`, `FE-304`, `FE-305`, `FE-306`
+Frontend 실행 ID: `FE-301`, `FE-302`, `FE-303`, `FE-304`, `FE-305`, `FE-306`, `FE-307`
 
 완료 증거: ETag 경쟁·독립 lock·일정화/reorder/replace 원자성.
 
@@ -268,6 +268,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-304` | B05 | lock control, unlock/date-lock confirm | `413:2081`, `527:3876` |
 | `FE-305` | B05 | 검색/추가/교체/날짜·시간 이동 variant | `527:4085`, `414:2347`, `527:4537`, `476:3409`, `479:3497`, `479:3816`, `527:4380`, `521:3976`, `527:4695` |
 | `FE-306` | B05 | 날짜 범위 변경 시 영향 preview/cancel/명시 처리 | 미지정 · S07 편집 흐름 |
+| `FE-307` | B05 | item 편집 시트에서 잠금 종류별 독립 설정 | `411:1837` |
 | `FE-501` | B06 | S09-0 scope/item setup, 미지원 P1 state | `415:2268` |
 | `FE-502` | B06 | S09-1 loading/polling/background resume | `415:2413` |
 | `FE-503` | B06 | before/after MetricDelta, 근거, decision bar | FCR-004 READY preview frame (병합 후 확정) |
