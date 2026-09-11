@@ -2,6 +2,7 @@ import { type RouteObject } from 'react-router';
 import { AppShell } from './AppShell.js';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { FeedScreen } from './feed/FeedScreen.js';
+import { PostScreen } from './post/PostScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
@@ -45,7 +46,7 @@ export const routes: RouteObject[] = [
       { path: 'start', element: <TripWizardScreen /> },
       { path: 'start/must-visit', element: <MustVisitScreen /> },
       // Sub-pages reached by a back control, so they carry a NavBar instead.
-      { path: 'posts/:postId', element: <PlaceholderScreen routeId="post-detail" /> },
+      { path: 'posts/:postId', element: <PostScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
       { path: 'trip/:tripId/add-place', element: <AddPlaceScreen /> },
       {

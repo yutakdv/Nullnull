@@ -224,6 +224,86 @@ export function useOptimizationHistory(): UseQueryResult<
   });
 }
 
+type PostDetail = components['schemas']['PostDetail'];
+type SavedPostState = components['schemas']['SavedPostState'];
+
+export function postQueryKey(postId: string) {
+  return ['post', postId] as const;
+}
+
+/**
+ * One post and the places it links to (FE-202, FR-PST-01).
+ *
+ * MOCK DATA today; replaced when BA-032 lands.
+ */
+export function usePost(
+  postId: string | null,
+): UseQueryResult<PostDetail, Problem | Error> {
+  return useQuery({
+    queryKey: postQueryKey(postId ?? ''),
+    enabled: postId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET('/posts/{postId}', {
+        params: { path: { postId: postId ?? '' } },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+/**
+ * Bookmarks a post (FR-PST-02).
+ *
+ * A SavedPost and nothing else. It creates no TripCandidate, no TripItem, and
+ * touches no trip — the resource is /posts/{postId}/saved, with no trip in the
+ * path and no ETag, so there is no trip for it to change (invariant 1).
+ *
+ * No Idempotency-Key: the contract puts idempotency in the resource instead,
+ * answering 201 when the save is new and 200 when it already existed, and
+ * saying which through `duplicate`. A repeat save is a success, not an error.
+ */
+export function useSavePost(postId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<SavedPostState, Problem | Error, void>({
+    mutationFn: async () => {
+      const { data, error, response } = await getApiClient().PUT(
+        '/posts/{postId}/saved',
+        { params: { path: { postId } } },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    onSuccess: (state) => {
+      // Only the post's own saved flag moves. Nothing here writes to a trip
+      // cache, which is what keeps the three resources apart.
+      queryClient.setQueryData(postQueryKey(postId), (current: PostDetail | undefined) =>
+        current === undefined ? current : { ...current, saved: state.saved },
+      );
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
+}
+
+/** Removes the bookmark. 204 whether or not it was there, so this is safe to repeat. */
+export function useUnsavePost(postId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Problem | Error, void>({
+    mutationFn: async () => {
+      const { error, response } = await getApiClient().DELETE('/posts/{postId}/saved', {
+        params: { path: { postId } },
+      });
+      if (response.status !== 204) fail(error, response);
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(postQueryKey(postId), (current: PostDetail | undefined) =>
+        current === undefined ? current : { ...current, saved: false },
+      );
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
+}
+
 type FeedPage = components['schemas']['FeedPage'];
 
 /**

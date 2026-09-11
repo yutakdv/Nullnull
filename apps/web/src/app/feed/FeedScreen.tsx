@@ -11,9 +11,10 @@ import styles from './FeedScreen.module.css';
 // difference is whether a trip is selected, which the contract expresses as
 // `tripId` on the request and `candidateState` on each card.
 //
-// Scope: listing, card states and pagination. Saving a post is savePost on
-// its own resource and belongs to FE-202, so the card's actions stay unbound
-// here — a `+` that silently did nothing would be worse than none.
+// Scope: listing, card states and pagination. The cover opens the post detail
+// (FE-202). The `+` stays unbound: adding a place as a trip candidate is
+// FE-303's surface, and a control that silently did nothing would be worse
+// than none.
 //
 // MOCK DATA: listFeed has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
@@ -142,6 +143,12 @@ export function FeedScreen() {
             <li key={card.post.id}>
               <FeedPostCard
                 card={card}
+                // Live since FE-202: the cover button opens the post. Before
+                // that this callback was unbound and pressing the cover did
+                // nothing at all.
+                onOpenPost={(postId) => {
+                  void navigate(`/posts/${postId}`);
+                }}
                 labels={{
                   ...cardLabels,
                   // Interpolated per card: the level is part of the sentence.

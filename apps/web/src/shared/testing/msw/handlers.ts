@@ -6,6 +6,7 @@
 import {
   candidateFixtures,
   feedFixtures,
+  postFixtures,
   relatedFixtures,
   optimizationFixtures,
   placeFixtures,
@@ -61,10 +62,18 @@ function currentCandidates() {
   return candidateState;
 }
 
+/**
+ * Which posts are bookmarked. A SavedPost is its own resource with no trip in
+ * its path, so this state is deliberately separate from the trip's — mixing
+ * them is what invariant 1 forbids.
+ */
+const savedPosts = new Set<string>();
+
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
   tripState = null;
   candidateState = null;
+  savedPosts.clear();
 }
 
 /**
@@ -94,6 +103,36 @@ export const handlers = [
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
+  // MOCK DATA (FE-202). getPost, savePost and unsavePost have no approved
+  // example (BA-032). Stateful so a save actually round-trips: a handler that
+  // always answered `saved: false` would let a broken toggle pass.
+  http.get(`${API_BASE}/posts/:postId`, ({ params }) => {
+    const postId = String(params.postId);
+    if (postId !== postFixtures.detail.id) return problemResponse('NOT_FOUND');
+    return HttpResponse.json({ ...postFixtures.detail, saved: savedPosts.has(postId) });
+  }),
+  http.put(`${API_BASE}/posts/:postId/saved`, ({ params }) => {
+    const postId = String(params.postId);
+    // The contract makes this idempotent in the resource: 201 when the save is
+    // new, 200 when it already existed, and `duplicate` says which.
+    const duplicate = savedPosts.has(postId);
+    savedPosts.add(postId);
+    return HttpResponse.json(
+      {
+        postId,
+        saved: true,
+        duplicate,
+        savedAt: postFixtures.savedState.savedAt,
+      },
+      { status: duplicate ? 200 : 201 },
+    );
+  }),
+  http.delete(`${API_BASE}/posts/:postId/saved`, ({ params }) => {
+    // 204 "removed or already absent", so this is safe to repeat.
+    savedPosts.delete(String(params.postId));
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   // MOCK DATA (FE-201). listFeed has no approved example either. This handler
   // reads the cursor rather than always answering page one, so pagination is
   // exercised for real: a handler that ignored it would let a broken "load

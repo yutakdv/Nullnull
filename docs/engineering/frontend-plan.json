@@ -591,16 +591,19 @@
       "phase": "B04",
       "priority": "P0",
       "title": "S03-D 게시물 상세/SavedPost",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-201",
         "BA-032"
       ],
       "operations": [
-        "getPost"
+        "getPost",
+        "savePost",
+        "unsavePost"
       ],
       "featureIds": [
-        "FR-PST-01"
+        "FR-PST-01",
+        "FR-PST-02"
       ],
       "figmaNodes": [
         "398:611"

@@ -94,6 +94,19 @@ export const messages = {
     'intro.noLogin': '로그인 없이 바로 둘러볼 수 있어요',
 
     // S14 profile (422:2925).
+    // FE-202 게시물 상세 (S03-D `398:611`).
+    'post.back': '뒤로',
+    'post.loading': '불러오는 중이에요',
+    'post.error': '게시물을 불러오지 못했어요',
+    'post.notFound': '없는 게시물이에요',
+    'post.retry': '다시 시도',
+    'post.places': '이 글에 나온 장소',
+    // 저장은 게시물만 저장한다. 일정에 담는 것과 다른 동작이라 문구도 다르다.
+    'post.save': '이 글 저장',
+    'post.unsave': '저장 해제',
+    'post.saving': '저장하는 중이에요',
+    'post.saveFailed': '저장하지 못했어요',
+    'post.saveNote': '글만 저장해요. 여행 일정은 그대로예요',
     'profile.title': '내 정보',
     'profile.guest.name': '게스트',
     'profile.guest.note':
@@ -601,6 +614,17 @@ export const messages = {
     'intro.noLogin': 'Browse right away, no sign-in needed',
 
     // S14 profile (422:2925). Figma has no EN frame; these are translations.
+    'post.back': 'Back',
+    'post.loading': 'Loading',
+    'post.error': "We couldn't load this post",
+    'post.notFound': 'That post does not exist',
+    'post.retry': 'Try again',
+    'post.places': 'Places in this post',
+    'post.save': 'Save this post',
+    'post.unsave': 'Remove from saved',
+    'post.saving': 'Saving',
+    'post.saveFailed': "We couldn't save it",
+    'post.saveNote': 'Saves the post only. Your trip is unchanged',
     'profile.title': 'My info',
     'profile.guest.name': 'Guest',
     'profile.guest.note':

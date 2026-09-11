@@ -59,6 +59,12 @@
       "count": 3,
       "basis": "listFeed has no OpenAPI example. Built to cover every state S03-F0 `391:310` and S03-F1 `396:2926` have to render: all four candidateState values, a FORECAST crowd reading and an UNAVAILABLE one, a post with no excerpt, and a second page so pagination is walked rather than assumed. Crowd provenance is copied from the related-places fixture rather than retyped, because DataProvenance requires 29 fields. Page size is 4, not the contract default of 20.",
       "serverVerified": false
+    },
+    "posts": {
+      "schema": "PostDetail",
+      "count": 3,
+      "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState.",
+      "serverVerified": false
     }
   }
 }

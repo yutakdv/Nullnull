@@ -30,10 +30,14 @@ describe('P0 route table', () => {
     },
   );
 
-  it('resolves deep-linked detail routes', async () => {
+  it('resolves a deep-linked post to its screen, not a blank page', async () => {
+    // A post detail is a real screen since FE-202. An id the mock does not
+    // serve still resolves to the screen, which says the post is missing —
+    // that is FR-PST-01's deep-link/404 requirement.
     renderAt('/posts/018f3f8e-9b67-7a21-8d31-31d315b93911');
-    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent(
-      'post-detail',
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'post-heading',
     );
   });
 
