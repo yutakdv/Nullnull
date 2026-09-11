@@ -781,32 +781,7 @@ export function useRemoveItemConstraint(tripId: string | null) {
   });
 }
 
-/**
- * The body of a set-constraint request, typed the way the CONTRACT defines it.
- *
- * Not `components['schemas']['SetConstraintInput']`, and that is deliberate.
- * openapi-typescript rewrites a discriminated union's property to the schema
- * NAME unless the spec supplies a `discriminator.mapping`, so the generated
- * type demands `type: 'SetDateConstraintInput'` while openapi.yaml says
- * `const: DATE`. SetConstraintInput is the only union in the spec without a
- * mapping — every other one, including the read-side TripConstraint, has it
- * and generates correctly.
- *
- * Sending the generated spelling would be sending something the contract does
- * not describe, so the wire shape is written out here. Reported to Backend/AI;
- * when the mapping lands this alias becomes the generated type again.
- */
-type SetConstraintInput =
-  | { type: 'MUST_VISIT'; locked: true }
-  | { type: 'DATE'; locked: true; date: string }
-  | { type: 'TIME'; locked: true; startTime: string; toleranceMinutes: number }
-  | {
-      type: 'RESERVATION';
-      locked: true;
-      date: string;
-      startTime: string;
-      endTime?: string | null;
-    };
+type SetConstraintInput = components['schemas']['SetConstraintInput'];
 
 /**
  * Sets one item lock (FE-307, FR-CON-01/FR-CON-03).
@@ -838,9 +813,7 @@ export function useSetItemConstraint(tripId: string | null) {
             path: { tripId, itemId, constraintType: constraint.type },
             header: { 'If-Match': etag },
           },
-          // The generated body type carries openapi-typescript's schema-name
-          // spelling, so this asserts the contract's shape at the boundary.
-          body: constraint as never,
+          body: constraint,
         },
       );
       if (!data) fail(error, response);
