@@ -11,8 +11,9 @@ import styles from './DataGuideScreen.module.css';
 // so everything here is copy plus the StateLabel component (C07).
 //
 // The state wording is deliberately NOT duplicated here. Figma's component
-// description pins it ("문구 임의 변경 금지"), StateLabel owns it, and a second
-// copy would be a second thing to keep in sync.
+// description pins it ("문구 임의 변경 금지") and StateLabel owns the shape, so
+// this screen passes the localized strings through rather than writing its
+// own second set beside the long-form explanations.
 
 const STATES: SourceState[] = [
   'LIVE',
@@ -28,6 +29,13 @@ const RULES = [1, 2, 3, 4, 5] as const;
 export function DataGuideScreen() {
   const { t } = useI18n();
   const navigate = useNavigate();
+
+  // StateLabel keeps Korean defaults so Storybook can mount it without a
+  // provider; inside the app it takes the selected locale's words. Without
+  // this the screen read "실시간 관측" beside an English explanation of it.
+  const stateLabels = Object.fromEntries(
+    STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
+  ) as Partial<Record<SourceState, string>>;
 
   return (
     <section className={styles.screen} aria-labelledby="data-guide-heading">
@@ -52,7 +60,7 @@ export function DataGuideScreen() {
       <ul className={styles.rows} aria-labelledby="data-guide-states">
         {STATES.map((state) => (
           <li className={styles.row} key={state}>
-            <StateLabel state={state} />
+            <StateLabel labels={stateLabels} state={state} />
             <p className={styles.rowBody}>
               {t(`dataGuide.state.${state}` as MessageKey)}
             </p>

@@ -11,7 +11,13 @@ import styles from './StateLabel.module.css';
 
 export type SourceState = components['schemas']['SourceState'];
 
-/** Wording matches the Figma variants and the S15 data guide. */
+/**
+ * Korean wording, matching the Figma variants and the S15 data guide.
+ *
+ * A default, not the only copy: a caller inside the app passes the selected
+ * locale's words through `labels`. The default keeps this renderable without
+ * an I18nProvider, which is how the Storybook stories mount it.
+ */
 const LABELS: Record<SourceState, string> = {
   LIVE: '실시간 관측',
   FORECAST: '공식 혼잡 예측',
@@ -24,16 +30,24 @@ const LABELS: Record<SourceState, string> = {
 export interface StateLabelProps {
   state: SourceState;
   /**
+   * Localized wording for each state, from the caller.
+   *
+   * Figma pins the Korean strings ("문구 임의 변경 금지") and this component
+   * owns them, so the app passes the same distinction in the chosen language
+   * rather than each screen inventing its own.
+   */
+  labels?: Partial<Record<SourceState, string>>;
+  /**
    * Observation or target time. Shown next to the label because a state
    * without a reference time cannot be judged (CLAUDE.md invariant 8).
    */
   observedAt?: string | null;
 }
 
-export function StateLabel({ state, observedAt }: StateLabelProps) {
+export function StateLabel({ state, labels, observedAt }: StateLabelProps) {
   return (
     <span className={styles.label} data-state={state}>
-      {LABELS[state]}
+      {labels?.[state] ?? LABELS[state]}
       {observedAt ? <span className={styles.time}>{observedAt}</span> : null}
     </span>
   );

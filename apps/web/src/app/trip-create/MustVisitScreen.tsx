@@ -172,7 +172,7 @@ export function MustVisitScreen() {
                 <span className={styles.cardText}>
                   <span className={styles.nameRow}>
                     <span className={styles.name}>{place.name}</span>
-                    <MustVisitBadge />
+                    <MustVisitBadge label={t('mustVisit.badge')} />
                   </span>
                   <span className={styles.meta}>{meta(place)}</span>
                   {place.sourceAttribution ? (

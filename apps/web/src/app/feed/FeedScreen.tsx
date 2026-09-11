@@ -54,6 +54,29 @@ export function FeedScreen() {
     });
   }, [expired, feed]);
 
+  // The shared card components keep Korean defaults so Storybook can mount
+  // them without a provider; inside the app the selected locale's words are
+  // passed in. Built once rather than per card.
+  const cardLabels = {
+    add: {
+      idle: t('tripAdd.idle'),
+      saved: t('tripAdd.saved'),
+      duplicate: t('tripAdd.duplicate'),
+      'no-trip': t('tripAdd.no-trip'),
+      loading: t('tripAdd.loading'),
+      error: t('tripAdd.error'),
+    },
+    state: {
+      LIVE: t('state.LIVE'),
+      FORECAST: t('state.FORECAST'),
+      QUALITATIVE: t('state.QUALITATIVE'),
+      STALE: t('state.STALE'),
+      UNAVAILABLE: t('state.UNAVAILABLE'),
+      REPLAY: t('state.REPLAY'),
+    },
+    licenseTerms: t('license.terms'),
+  };
+
   const cards = feed.data?.pages.flatMap((page) => page.items) ?? [];
   const noTrip = trips.isSuccess && trips.data.items.length === 0;
 
@@ -117,7 +140,17 @@ export function FeedScreen() {
         <ul aria-labelledby="feed-heading" className={styles.list}>
           {cards.map((card) => (
             <li key={card.post.id}>
-              <FeedPostCard card={card} />
+              <FeedPostCard
+                card={card}
+                labels={{
+                  ...cardLabels,
+                  // Interpolated per card: the level is part of the sentence.
+                  crowdLevel: t('crowd.level', {
+                    steps: 4,
+                    level: Number(card.crowd?.ordinalLevel) || 0,
+                  }),
+                }}
+              />
             </li>
           ))}
         </ul>

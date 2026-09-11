@@ -166,6 +166,26 @@ export const messages = {
     // Figma pins that wording and forbids changing it, so it is not duplicated.
     'dataGuide.title1': '이 앱의 데이터는',
     'dataGuide.title2': '어떻게 동작하나요?',
+    // StateLabel (C07) short labels. Figma pins the Korean wording
+    // ("문구 임의 변경 금지"), so ko-KR matches it exactly; en-US is the same
+    // distinction in English. Long-form explanations live in dataGuide.state.*.
+    'mustVisit.badge': '꼭 가요',
+    'state.LIVE': '실시간 관측',
+    'state.FORECAST': '공식 혼잡 예측',
+    'state.QUALITATIVE': '공식 혼잡 예측 범위 밖',
+    'state.STALE': '업데이트 지연',
+    'state.UNAVAILABLE': '현재 데이터 없음',
+    'state.REPLAY': '과거 관측 재생 · 실시간 아님',
+    // TripAddButton (C04). Saving a place makes a TripCandidate, never a
+    // TripItem, so the words say 담기 and never 일정 (invariants 1 and 2).
+    'tripAdd.idle': '내 여행에 담기',
+    'tripAdd.saved': '담았어요',
+    'tripAdd.duplicate': '이미 담아둔 장소예요',
+    'tripAdd.no-trip': '여행을 만들고 담기',
+    'tripAdd.loading': '담는 중이에요',
+    'tripAdd.error': '담지 못했어요. 다시 시도',
+    'crowd.level': '{steps}단계 중 {level}번째',
+    'license.terms': '이용조건',
     'dataGuide.states.heading': '혼잡도 데이터 상태 6가지',
     'dataGuide.state.LIVE':
       '서울 열린데이터로 지금 상태를 관측한 권역이에요. 기준시각을 함께 표시해요.',
@@ -645,6 +665,21 @@ export const messages = {
     // approved wording (CLAUDE.md invariant 12).
     'dataGuide.title1': 'How does this app',
     'dataGuide.title2': 'handle its data?',
+    'mustVisit.badge': 'Must visit',
+    'state.LIVE': 'Observed live',
+    'state.FORECAST': 'Official crowd forecast',
+    'state.QUALITATIVE': 'Outside the forecast range',
+    'state.STALE': 'Update delayed',
+    'state.UNAVAILABLE': 'No data right now',
+    'state.REPLAY': 'Replaying past observations · not live',
+    'tripAdd.idle': 'Add to my trip',
+    'tripAdd.saved': 'Added',
+    'tripAdd.duplicate': 'Already in your trip',
+    'tripAdd.no-trip': 'Make a trip and add it',
+    'tripAdd.loading': 'Adding',
+    'tripAdd.error': "Couldn't add it. Try again",
+    'crowd.level': 'Level {level} of {steps}',
+    'license.terms': 'Licence terms',
     'dataGuide.states.heading': 'The six crowd data states',
     'dataGuide.state.LIVE':
       'An area observed right now via Seoul Open Data. The reference time is shown with it.',

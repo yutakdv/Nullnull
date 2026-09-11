@@ -37,10 +37,18 @@ export interface DataAttributionProps {
   compact?: boolean;
   /** Renders the licence link. Detail views and the data guide use it. */
   showLicense?: boolean;
+  /**
+   * Localized text for the licence link, from the caller.
+   *
+   * The credit itself is never localized — it is the server's approved
+   * wording, shown verbatim (CMP-ATT-003). Only this link is our own label.
+   */
+  termsLabel?: string;
 }
 
 export function DataAttribution({
   provenance,
+  termsLabel = '이용조건',
   compact = false,
   showLicense = false,
 }: DataAttributionProps) {
@@ -66,7 +74,7 @@ export function DataAttribution({
         <>
           {' · '}
           <a href={licenseUrl} target="_blank" rel="noreferrer noopener">
-            이용조건
+            {termsLabel}
           </a>
         </>
       ) : null}

@@ -20,10 +20,18 @@ export type TripAddState =
 export interface TripAddButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'disabled'> {
   state: TripAddState;
+  /** Localized accessible name per state, from the caller. */
+  labels?: Partial<Record<TripAddState, string>>;
 }
 
-/** Each state needs its own accessible name; the glyph alone is ambiguous. */
-const labels: Record<TripAddState, string> = {
+/**
+ * Korean names for each state; the glyph alone is ambiguous.
+ *
+ * A default, not the only copy — the app passes the selected locale's words
+ * through `labels`. Keeping the default here lets the Storybook stories mount
+ * the button without an I18nProvider.
+ */
+const DEFAULT_LABELS: Record<TripAddState, string> = {
   idle: '내 여행에 담기',
   saved: '담았어요',
   duplicate: '이미 담아둔 장소예요',
@@ -32,13 +40,13 @@ const labels: Record<TripAddState, string> = {
   error: '담지 못했어요. 다시 시도',
 };
 
-export function TripAddButton({ state, ...rest }: TripAddButtonProps) {
+export function TripAddButton({ state, labels, ...rest }: TripAddButtonProps) {
   return (
     <button
       type="button"
       className={styles.button}
       data-state={state}
-      aria-label={labels[state]}
+      aria-label={labels?.[state] ?? DEFAULT_LABELS[state]}
       aria-busy={state === 'loading' || undefined}
       // Only the in-flight request blocks input. A failure must stay
       // retryable, and a duplicate must stay navigable to the existing one.

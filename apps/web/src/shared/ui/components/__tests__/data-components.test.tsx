@@ -66,6 +66,28 @@ describe('DataAttribution', () => {
 });
 
 describe('CrowdLevel', () => {
+  it('takes its wording from the caller when given', () => {
+    // How the app localizes it: the Korean defaults stay for Storybook, and
+    // the screen passes the selected locale's words in.
+    render(
+      <CrowdLevel
+        crowd={{
+          state: 'LIVE',
+          label: '4 · 혼잡',
+          ordinalLevel: '4',
+          value: null,
+          unit: null,
+          provenance: {} as never,
+        }}
+        levelLabel="Level 4 of 4"
+        stateLabels={{ LIVE: 'Observed live' }}
+      />,
+    );
+    expect(screen.getByText('Observed live')).toBeInTheDocument();
+    expect(screen.queryByText('실시간 관측')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Level 4 of 4' })).toBeInTheDocument();
+  });
+
   it('says data is missing instead of drawing an empty bar', () => {
     render(<CrowdLevel crowd={null} unavailableReason="관측 권역 밖이에요" />);
     expect(screen.getByText('현재 데이터 없음')).toBeInTheDocument();
@@ -85,7 +107,13 @@ describe('CrowdLevel', () => {
         }}
       />,
     );
-    expect(screen.getByText('4 · 혼잡')).toBeInTheDocument();
+    // The words come from the data state, not from `label`. The contract calls
+    // label "diagnostic, not display copy: it is not localized", and says to
+    // build user-facing wording from `state` and `provenance.metricDefinition`
+    // — so rendering it was showing the user an internal metric name in the
+    // source's language whatever locale they chose.
+    expect(screen.queryByText('4 · 혼잡')).toBeNull();
+    expect(screen.getByText('실시간 관측')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: '4단계 중 4번째' })).toBeInTheDocument();
   });
 });
