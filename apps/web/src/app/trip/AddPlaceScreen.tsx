@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import {
@@ -49,6 +49,8 @@ export function AddPlaceScreen() {
   const days = trip.data?.trip.days ?? [];
   const targets = addTargets(days);
   const busy = addItem.isPending || addCandidate.isPending;
+  /** The key for the add in flight, held across retries of that same add. */
+  const addKey = useRef<{ for: string; key: string } | null>(null);
 
   function dayLabel(date: AddTarget) {
     if (date === null) return t('addPlace.someday');
@@ -59,14 +61,24 @@ export function AddPlaceScreen() {
   function add(placeId: string, name: string) {
     setStatus(null);
     const plan = planAdd(days, target);
-    // One key per user action, reused if this same press is retried.
-    const idempotencyKey = crypto.randomUUID();
+    // One key per user action, genuinely reused if this same press is
+    // retried. It used to be minted here on every call, which made the
+    // comment above it false: the retry after a lost response carried a new
+    // key, so the server read it as a fresh command and added the place a
+    // second time (invariant 6). Keyed by place and destination so a retry of
+    // the same press replays and a different choice does not.
+    const fingerprint = `${placeId}:${plan.kind}:${plan.kind === 'item' ? plan.date : ''}`;
+    if (addKey.current?.for !== fingerprint) {
+      addKey.current = { for: fingerprint, key: crypto.randomUUID() };
+    }
+    const idempotencyKey = addKey.current.key;
 
     if (plan.kind === 'candidate') {
       addCandidate.mutate(
         { request: { placeId, source: { type: 'SEARCH' } }, idempotencyKey },
         {
           onSuccess: (result) => {
+            addKey.current = null;
             setStatus(
               result.duplicate
                 ? t('addPlace.duplicate', { name })
@@ -85,9 +97,11 @@ export function AddPlaceScreen() {
       {
         item: { placeId, date: plan.date, position: plan.position },
         etag: trip.data?.etag ?? null,
+        idempotencyKey,
       },
       {
         onSuccess: () => {
+          addKey.current = null;
           setStatus(t('addPlace.addedItem', { name, day: dayLabel(plan.date) }));
         },
         onError: (error) => {

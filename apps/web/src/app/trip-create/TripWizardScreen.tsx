@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
@@ -45,6 +45,13 @@ export function TripWizardScreen() {
   const [draft, setDraft] = useState<WizardDraft>(EMPTY_DRAFT);
   const [month, setMonth] = useState(() => new Date());
   const createTrip = useCreateTrip();
+  // The key for the request in flight, held across retries of THAT request.
+  // Keyed by the request body so it rotates exactly when the draft changes:
+  // pressing 만들기 again after a failure replays the first attempt, while
+  // editing the dates or the planning level makes it a new command. Minting
+  // one per press would let a retry after a lost response create a second
+  // trip (invariant 6).
+  const submitKey = useRef<{ for: string; key: string } | null>(null);
 
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -62,11 +69,19 @@ export function TripWizardScreen() {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const request = toCreateRequest(draft, timezone);
     if (!request) return;
-    createTrip.mutate(request, {
-      onSuccess: (trip) => {
-        void navigate(`/trip/${trip.id}`, { replace: true });
+    const fingerprint = JSON.stringify(request);
+    if (submitKey.current?.for !== fingerprint) {
+      submitKey.current = { for: fingerprint, key: crypto.randomUUID() };
+    }
+    createTrip.mutate(
+      { request, idempotencyKey: submitKey.current.key },
+      {
+        onSuccess: (trip) => {
+          submitKey.current = null;
+          void navigate(`/trip/${trip.id}`, { replace: true });
+        },
       },
-    });
+    );
   }
 
   return (

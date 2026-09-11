@@ -454,17 +454,27 @@ type TripDetail = components['schemas']['TripDetail'];
  *
  * Carries an Idempotency-Key because the contract declares one and invariant 6
  * requires it for retryable commands: a repeated submit — a double tap, a retry
- * after a timeout that actually succeeded — must not create a second trip. The
- * key is generated per attempt and reused for that attempt only.
+ * after a timeout that actually succeeded — must not create a second trip.
+ *
+ * The key comes from the CALLER, for the same reason it does in
+ * useCreateOptimization above. Minting it in here produced a fresh one on
+ * every attempt, so the retry after a lost response looked to the server like
+ * an unrelated command with an identical body and created a second trip —
+ * exactly what the key exists to prevent. The wizard holds one key across
+ * retries of the same draft and rotates it when the draft changes.
  *
  * MOCK DATA today; replaced when BA-030 lands.
  */
 export function useCreateTrip() {
-  return useMutation<TripDetail, Problem | Error, CreateTripRequest>({
-    mutationFn: async (request) => {
+  return useMutation<
+    TripDetail,
+    Problem | Error,
+    { request: CreateTripRequest; idempotencyKey: string }
+  >({
+    mutationFn: async ({ request, idempotencyKey }) => {
       const { data, error, response } = await getApiClient().POST('/trips', {
         body: request,
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
       });
       if (!data) fail(error, response);
       return data;
@@ -730,7 +740,10 @@ export function useCandidateMatches(
  * item beside an ACTIVE candidate if the second call failed.
  *
  * Carries If-Match because it changes the schedule, and an Idempotency-Key
- * because a repeated submit must not add the place twice (invariant 6).
+ * because a repeated submit must not add the place twice (invariant 6). The
+ * key comes from the CALLER for the reason useCreateOptimization spells out:
+ * one minted in here is new on every attempt, so the retry after a lost
+ * response reads as a fresh command and the place lands on the day twice.
  */
 export interface TripMutationWithETag {
   result: TripMutationResult;
@@ -742,9 +755,9 @@ export function useAddTripItem(tripId: string | null) {
   return useMutation<
     TripMutationWithETag,
     Problem | Error,
-    { item: AddTripItemRequest; etag: string | null }
+    { item: AddTripItemRequest; etag: string | null; idempotencyKey: string }
   >({
-    mutationFn: async ({ item, etag }) => {
+    mutationFn: async ({ item, etag, idempotencyKey }) => {
       if (tripId === null) throw new Error('No trip selected');
       if (etag === null) throw new Error('Cannot add an item without the trip ETag');
       const { data, error, response } = await getApiClient().POST(
@@ -755,7 +768,7 @@ export function useAddTripItem(tripId: string | null) {
             path: { tripId },
             header: {
               'If-Match': etag,
-              'Idempotency-Key': crypto.randomUUID(),
+              'Idempotency-Key': idempotencyKey,
             },
           },
         },

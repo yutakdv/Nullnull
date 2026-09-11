@@ -156,6 +156,94 @@ describe('creating the trip', () => {
     expect(created[0]?.key).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
+  it('replays the same key when the user retries a failed submit', async () => {
+    // The previous test submits once, so it cannot see the failure that
+    // matters: a key minted per attempt is still a valid UUID. What makes the
+    // key worth sending is that a RETRY carries the one before it.
+    //
+    // The scenario is the ordinary one. The request reaches the server and
+    // commits, the response is lost, the screen says 만들지 못했어요 and
+    // re-enables the CTA. The user presses again. With a fresh key the server
+    // has no way to know it is the same command and creates a second trip;
+    // with the same key it replays the first.
+    let attempt = 0;
+    server.use(
+      http.post(`${API_BASE}/trips`, async ({ request }) => {
+        created.push({
+          key: request.headers.get('idempotency-key'),
+          body: await request.json(),
+        });
+        attempt += 1;
+        if (attempt === 1) return HttpResponse.error();
+        return HttpResponse.json(
+          { id: '018f4c00-0000-7000-8000-000000000001' },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.NOTHING.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+
+    await screen.findByText(copy['wizard.createFailed']);
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(2);
+    });
+    expect(created[0]?.key).toBe(created[1]?.key);
+  });
+
+  it('mints a new key once a draft change makes it a different trip', async () => {
+    // The other direction, so the fix cannot be "hold one key forever". A
+    // retry of the same request replays; a changed request is a new command
+    // and must not be replayed against the old one.
+    server.use(
+      http.post(`${API_BASE}/trips`, async ({ request }) => {
+        created.push({
+          key: request.headers.get('idempotency-key'),
+          body: await request.json(),
+        });
+        return HttpResponse.error();
+      }),
+    );
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.NOTHING.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await screen.findByText(copy['wizard.createFailed']);
+
+    // Change the draft, then submit again. Step 3 still shows the planning
+    // options after a failure, so picking a different one is a real change to
+    // the request the user is about to send.
+    await user.click(
+      screen.getByRole('button', {
+        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(2);
+    });
+    expect(created[0]?.key).not.toBe(created[1]?.key);
+  });
+
   it('blocks a second submit while the first is in flight', async () => {
     server.use(
       http.post(`${API_BASE}/trips`, async ({ request }) => {
