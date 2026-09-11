@@ -116,12 +116,10 @@ Storybook/fixture에서 제외하지 않는다. 다만 ITEM READY preview가 빠
 | `docs/contest/**`, 제출 PDF/evidence | 공동(항목별 DRI) | 둘 다 | 실제 배포·KTO 호출·출처·양식·마감 대조 |
 
 Primary DRI와 CODEOWNERS는 같은 개념이 아니다. 실제 handle 확정 뒤 실행 경로의
-CODEOWNERS에는 두 팀원을 함께 지정한다. PR 작성자는 자기 PR을 승인할 수 없으므로
-web에 FE만, API에 BE/AI만 owner로 지정한 상태에서 code-owner review를 강제하면
-일반 역할 PR이 막힐 수 있다. 표의 Primary DRI는 구현 책임을, ruleset의 상대 1인
-승인은 독립 검토를 보장한다. required reviewer가 휴가·장애로 부재하면 production
-merge를 미루는 것이 기본이며 긴급 변경은 incident 절차와 다음 영업일 사후 검토가
-필요하다.
+CODEOWNERS에는 두 팀원을 함께 지정해 검토 요청을 자동 배정한다. 표의 Primary DRI는
+구현 책임을 나타낸다. 코드 PR은 최신 `main` 기준 두 required check가 green이면
+상대 승인 대기 없이 auto-merge하고, 계약·사용자 문구·production 위험의 사람 검토는
+비동기로 계속한다. production 배포 승인은 별도 release gate다.
 
 ## 3. Slice별 handoff 경계
 
@@ -146,8 +144,8 @@ merge를 미루는 것이 기본이며 긴급 변경은 incident 절차와 다�
 - 기능 ID, priority, 개인정보, 일정 무결성, production 비용을 바꾸는 PR은 둘 다 승인한다.
 - scope, 사용자 문구, 공모전 claim은 두 DRI의 기술 영향 검토 뒤 총괄 PM이 승인한다.
   PM 승인은 자동 gate나 필수 상대 review를 대체하지 않는다.
-- 자신의 변경을 자신만의 수동 확인으로 승인하지 않는다. 자동 gate와 상대의 재현 evidence가 모두 필요하다.
-- FE는 `frontend`, BE/AI는 `backend`에서 작업해 `main`에 PR을 만들고 상대 승인·`docs-contract`·`docker-integration` 후 merge commit한다.
+- 자신의 변경을 수동 확인만으로 병합하지 않는다. 최신 `main`의 자동 gate 두 개가 모두 green이어야 한다.
+- FE는 `frontend`, BE/AI는 `backend`에서 작업해 `main`에 PR을 만들고 `docs-contract`·`docker-integration`이 green이면 auto-merge로 merge commit한다.
 - 공모전 제출 기술 go/no-go와 접수 완료는 둘 다 확인하며, 제출 양식의 실제
   구현/API 목록은 각 담당자가 자기 영역을 서명하고 상대가 대조한다. 총괄 PM은 이
   증거를 바탕으로 최종 제출 범위와 claim의 go/no-go를 결정한다.

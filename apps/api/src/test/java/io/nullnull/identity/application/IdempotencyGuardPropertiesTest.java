@@ -7,10 +7,14 @@ import io.nullnull.identity.domain.IdempotencyRecord;
 import io.nullnull.identity.domain.Owner;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -76,11 +80,14 @@ class IdempotencyGuardPropertiesTest {
 
     private static IdempotencyGuard guardWith(Duration ttl, Duration lockTimeout) {
         return new IdempotencyGuard(new UnusedOwners(), new UnusedRecords(), new UnusedLockWaitLimit(),
-                new ObjectMapper(), Clock.systemUTC(), ttl, lockTimeout);
+                new ObjectMapper(), Clock.systemUTC(), new UnusedTransactionManager(), ttl, lockTimeout);
     }
 
     /** The constructor must fail before any collaborator is touched. */
     private static final class UnusedOwners implements OwnerRepository {
+
+        @Override
+        public Owner updatePreferences(Owner owner) { throw new UnsupportedOperationException(); }
 
         @Override
         public Owner create(Owner owner) {
@@ -96,6 +103,15 @@ class IdempotencyGuardPropertiesTest {
         public Optional<Owner> lockAlive(UUID id) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public Optional<Owner> lockAny(UUID id) { throw new UnsupportedOperationException(); }
+
+        @Override
+        public void markDeleted(UUID id, Instant deletedAt) { throw new UnsupportedOperationException(); }
+
+        @Override
+        public void scrubDeleted(UUID id) { throw new UnsupportedOperationException(); }
     }
 
     private static final class UnusedRecords implements IdempotencyRecordStore {
@@ -120,12 +136,36 @@ class IdempotencyGuardPropertiesTest {
         public void delete(UUID recordId) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public int deleteExpired(Instant now) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static final class UnusedLockWaitLimit implements LockWaitLimit {
 
         @Override
         public void applyToCurrentTransaction(Duration timeout) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /** The guard owns its transaction boundary so a lock-timeout retry starts a new one (BA-003). */
+    private static final class UnusedTransactionManager implements PlatformTransactionManager {
+
+        @Override
+        public TransactionStatus getTransaction(TransactionDefinition definition) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void commit(TransactionStatus status) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void rollback(TransactionStatus status) {
             throw new UnsupportedOperationException();
         }
     }

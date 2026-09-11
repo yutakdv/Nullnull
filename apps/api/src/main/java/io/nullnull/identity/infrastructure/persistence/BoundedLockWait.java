@@ -6,8 +6,15 @@ import java.util.function.Supplier;
 
 /**
  * Translates the driver's expired {@code lock_timeout} into the identity module's own exception, so
- * no layer above this package has to recognise a PostgreSQL SQLState. Every operation that can wait
- * for a row lock inside a guarded transaction goes through it.
+ * no layer above this package has to recognise a PostgreSQL SQLState. Every statement in this package
+ * that can wait for a row lock goes through it.
+ *
+ * <p>Translating is all it does. It does not <em>set</em> {@code lock_timeout}, so wrapping a statement
+ * in it proves nothing about how long that statement can block: the bound comes from
+ * {@link io.nullnull.identity.application.LockWaitLimit#applyToCurrentTransaction}, which the entry
+ * point owning the transaction has to call. Both are needed, and each one alone is a trap - an
+ * unbounded wait that is faithfully translated after forever, or a bound whose expiry arrives as a
+ * driver exception.
  */
 final class BoundedLockWait {
 

@@ -149,7 +149,7 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 
 ### BA-003
 
-**HTTP 공통 정책·readiness·capability** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**HTTP 공통 정책·readiness·capability** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002)
 - 기능 ID: `FR-OPS-01`, `FR-OPS-02`, `FR-OPS-05`, `FR-OPS-10`
@@ -169,17 +169,51 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 
 필수 검증:
 
-- `BA-003-T1`: DB/source 각각의 장애가 올바른 health 범위에만 영향을 준다
-- `BA-003-T2`: unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다
-- `BA-003-T3`: 모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다
+- `BA-003-T1`: DB/source 각각의 장애가 올바른 health 범위에만 영향을 준다 — `HealthScopeIT.aDatabaseFailureAffectsReadinessOnly`(필수 database probe가 UNAVAILABLE이면 `/health/ready`가 503 `SOURCE_UNAVAILABLE`+`Retry-After: 5`, `/health/live`는 그대로 200 `UP`), `HealthScopeIT.anOptionalSourceFailureOnlyDegrades`(닿지 않는 추천 서비스는 200 `DEGRADED`이고 NOT_READY가 아니다), `HealthScopeIT.aDatabaseFailureDoesNotChangeTheDemoCapabilities`(infrastructure 장애가 product capability 목록을 바꾸지 않는다), `SystemEndpointsIT.readinessIsDegradedWhileOnlyTheOptionalRecommendationProbeFails`. probe를 DataSource 대신 교체하는 이유는 test class 주석에 적었다(DataSource를 깨면 Flyway·JPA가 함께 죽어 context가 뜨지 않는다).
+- `BA-003-T2`: unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다 — `HttpPolicyIT.anUnknownBodyFieldIsRefused`(400 `INVALID_REQUEST`, 응답이 필드명도 값도 되풀이하지 않는다), `HttpPolicyIT.aDeclaredContentLengthOverTheBoundIsRefused`와 `RequestBodyLimitIT.aDeclaredContentLengthOverTheBoundIsRefused`(413), `RequestSizeLimitFilterTest.anOversizedDeclaredLengthNeverReachesTheChain`(선언 길이 초과는 chain을 아예 호출하지 않는다), `RequestBodyLimitIT.aChunkedBodyOverTheBoundIsRefused`(실제 Tomcat에 `Transfer-Encoding: chunked`로 보내 stream 중 413), `DemoCapabilityQueryTest.aFlagTurnedOnWithoutASourceIsRefused`(source 없는 `FEATURE_*`를 켜면 startup 실패), `AccessLogFilterTest.includingTheQueryInProductionIsRefused`(`APP_ACCESS_LOG_INCLUDE_QUERY=true`+production은 startup 실패)
+- `BA-003-T3`: 모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다 — `HttpPolicyIT.everyErrorPathCarriesACodeAndARequestId`(404·405·415·body 상한·unknown field·cursor 2종·422 2종·header 누락·406·500 2종 열세 경로 전부 `code`·`requestId`·`X-Request-ID`를 갖고 exception class 이름이 새지 않는다), `HttpPolicyIT.noCanaryReachesALogLineOrAResponseBody`(header·cookie·query·body 네 경로에 같은 canary를 넣고 root logger의 `ListAppender`로 모든 log line을 확인한다)
+- 그 밖의 검증: `HttpPolicyIT.cursorFailuresKeepTheirOwnCodes`(`CURSOR_INVALID` 400 / `CURSOR_EXPIRED` 410), `HttpPolicyIT.aServiceConstraintViolationIsUnprocessable`(422 `VALIDATION_FAILED`, `fieldErrors[].field`가 내부 경로가 아닌 parameter 이름), `HttpPolicyIT.exhaustedOwnerCommandContentionIsInternalError`, `HttpPolicyIT.theAccessLogLineIsTheAllowedFieldsOnly`(허용 필드만·query 없음·MDC pattern이 console line에 requestId를 찍는다), `HttpPolicyIT.anUnmatchedRouteIsLoggedWithoutItsUri`, `HttpPolicyIT.aBodyUnderTheBoundIsAccepted`, `RequestBodyLimitIT.aChunkedBodyUnderTheBoundIsAccepted`, `OwnerCommandContentionIT`(흡수되는 경합과 소진되는 경합), `SystemEndpointsIT.demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes`, `SystemContractTest.demoReadinessMatchesDemoReadinessSchema`(`DemoReadiness` schema 검증과 capability 이름)
+- 단위 검증: `DemoCapabilityQueryTest`(vocabulary 고정, 두 namespace가 이름을 공유하지 않음, source 없는 capability는 UNAVAILABLE, overall 집계), `AccessLogFilterTest`, `RequestSizeLimitFilterTest`(설정 하한) — 모두 `test` suite
 
-FE 인계·완료 증거: bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+`BA-003`에서 실제로 검증한 것과 하지 않은 것:
+
+- 검증함: 결함을 되돌리면 test가 빨개진다. unknown field 거부 해제, 선언 `Content-Length` 검사 제거, stream byte counter 제거, log correlation pattern 제거, route template 대신 raw URI 기록, `CursorException`·`ConstraintViolationException`·`CommandLockTimeoutException` 매핑 제거, source 없는 flag 허용, 필수 probe를 선택으로 취급, production query logging 허용, query string 상시 기록, lock 경합 재시도 제거, 빈 capability 목록을 READY로 집계 — 14개를 하나씩 넣어 해당 test가 실패하는 것을 확인하고 원본을 sha256으로 복원했다.
+- 검증하지 않음: HTTP 정책을 실제 계약 endpoint로 확인하는 것. B01에는 request body를 받는 operation이 없어서 unknown field·body 상한·`ConstraintViolationException`은 integration suite 전용 route(`nullnull.testsupport.http`, scan root 밖)로 검증했다. 첫 실제 command endpoint를 만드는 slice가 같은 정책을 그 route에서 다시 확인한다.
+- 검증하지 않음: `getDemoReadiness`의 `sessionCookie` 강제. session/auth layer가 아직 없으므로 지금은 누구나 호출할 수 있고, 노출 정보는 `/health/ready`가 이미 공개하는 것과 같은 종류다. [BA-010](#ba-010)이 session filter 뒤로 넣는다.
+- 검증하지 않음: `APP_IDEMPOTENCY_LOCK_TIMEOUT`의 값. `PT3S`는 확정값이 아니라 **제안값**이고, 확인 가능한 근거는 측정이 아니라 구조 하나다 — `IdempotencyGuard`가 transaction 전체를 상한 2회 재시도하므로 caller가 겪는 최악은 `2 x PT3S = 6초`이고 그 뒤가 `INTERNAL_ERROR`다. `IdempotencyGuard.execute`를 부르는 production code가 아직 없어 "가장 느린 command"라고 부를 대상이 없다. 첫 실제 command endpoint를 만드는 slice가 그 command의 최악 소요를 **suite에 남는 test**로 재고 `PT3S`가 그것을 덮는 것을 확인하면 그때 확정값이 된다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)).
+
+확정한 계약 결정:
+
+- `CommandLockTimeoutException`은 24번째 `ProblemCode`를 만들지 않는다. 이 timeout은 owner row와 idempotency 예약을 잡는 동안, 즉 command가 실행되기 **전에만** 발생하고 transaction 전체가 rollback되므로 재시도가 idempotent해서가 아니라 구조적으로 안전하다. 그래서 `IdempotencyGuard`가 transaction 전체를 상한 2회까지 다시 시도해 흡수한다. 예산을 소진했다면 command가 owner row를 초 단위로 잡고 있었다는 뜻이고, command는 짧고 transaction 안 외부 호출은 금지이므로 이는 사용자가 재시도로 풀 수 없는 server 결함이다. `identity.api.IdentityProblemHandler`가 `INTERNAL_ERROR`(500, `retryable=false`)로 매핑하고 route template과 requestId만 담은 ERROR 한 줄을 남긴다.
+- 승격 경로: 실제 측정에서 사용자에게 보이는 경합이 확인되면 `COMMAND_IN_PROGRESS`(409, `retryable=false`)를 CON ticket으로 추가한다. 새 code에는 FE CTA와 Figma state가 함께 필요하다(`CLAUDE.md`).
+- 삭제 경로는 이 timeout에 닿지 않는다. 삭제는 owner를 먼저 soft delete하므로 경쟁하는 command는 `lockAlive`에서 401을 받는다.
+
+FE 검토가 필요한 항목:
+
+- **capability vocabulary**: `getDemoReadiness`의 `CapabilityStatus.name` 값 집합은 계약에 enum이 없어 server가 정한다. 현재 집합은 `live`, `replay`, `optimization` 셋뿐이고 `FR-OPS-02`의 "live/replay/optimization별 상태"가 유일한 문서 근거다. `DemoCapabilityQueryTest.theVocabularyIsPinned`가 고정하며, 이름을 더하거나 바꾸는 것은 FE-facing 계약 변경이므로 FE_DRI 승인이 필요하다.
+- `/health/ready`의 `checks`(infrastructure: `database`·`jobs`·`recommendation`)와 `getDemoReadiness`의 `capabilities`(product)는 다른 namespace이고 이름을 공유하지 않는다. FE는 앞의 목록에 화면을 걸지 않는다.
+- P0에서 세 capability는 모두 `UNAVAILABLE`이고 `overall`은 `NOT_READY`다. source가 없는 기능을 준비 완료로 광고하지 않는다는 뜻이며 실패 상태가 아니다.
+- **caller 동작 변경**: unknown field 거부를 켰으므로 schema에 없는 필드를 담아 보내던 요청은 이제 400이다. 이전에는 조용히 무시됐다. 계약(`additionalProperties: false`, `x-nullnull-common-contract.bounds`)은 처음부터 거부를 약속하고 있었으므로 계약 변경이 아니라 계약 이행이지만, FE mock이 그 사이 여분 필드를 보내고 있다면 같은 시점에 고쳐야 한다. 같은 설정이 `apps/ai` 응답 parsing에도 적용되어, 내부 계약에 없는 필드가 오면 gateway가 `RecommendationUnavailableException`으로 degrade한다(계약 drift를 조용히 삼키지 않는다).
+
+매핑하지 않은 exception과 담당 slice:
+
+- `RecommendationUnavailableException`: 아직 request thread에서 gateway를 부르는 곳이 없다. 처음 호출하는 slice([BA-032](#ba-032)/[BA-051](#ba-051))가 fallback과 함께 공개 매핑을 정한다.
+- `JobEnqueueException`: 같은 이유로 처음 request에서 enqueue하는 slice가 정한다.
+- `JobLockTimeoutException`, `StaleLeaseException`: worker 전용이며 답할 caller가 없다는 것이 그 자체의 설계다. 매핑하지 않는다.
+
+PM-019 검토 결과: operation별 401/429/`default`/403 선언 보강은 이 slice에서 하지 않는다. 생성 TypeScript client가 바뀌어 Frontend가 첫 green `docker-integration` 도중에 재생성을 강요받기 때문이다. [IMPLEMENTATION_PLAN](../engineering/IMPLEMENTATION_PLAN.md#공동-실행-id)의 `CON-006`으로 등록했고 착수는 Frontend PR #17 병합 다음 PR이다. 문서 전역 규칙(`x-nullnull-common-contract`의 `protectedErrors`·`rateLimitErrors`·`bounds`)은 이미 계약에 있으므로 이 slice는 그 약속을 server가 지키게 만드는 쪽만 했다.
+
+구현 산출물: `shared.http`의 `RouteTemplate`·`AccessLogFilter`·`RequestSizeLimitFilter`·`RequestBodyTooLargeException`, `shared.problem`의 `GlobalExceptionHandler` 확장(cursor·constraint violation·body 초과 매핑, catch-all이 raw URI 대신 route template을 남김, advice 순서 고정)과 `ProblemResponses.write`, `identity.api.IdentityProblemHandler`, `IdempotencyGuard`의 lock 경합 bounded retry(`TransactionTemplate`으로 attempt마다 새 transaction), `operations`의 `DemoCapabilities`·`DemoCapabilityQuery`·`DemoReadinessController`·`CapabilityStatusResponse`, property `spring.jackson.deserialization.fail-on-unknown-properties`·`logging.pattern.correlation`·`nullnull.http.max-request-body-bytes`(`APP_MAX_REQUEST_BODY_BYTES` 기본 `262144`, 최소 `4096`)·`nullnull.http.access-log.include-query`(`APP_ACCESS_LOG_INCLUDE_QUERY` 기본 `false`)·`nullnull.capabilities.*`(`FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 기본 OFF). Problem body의 `instance`는 실제 request URI를 유지하고 log만 route template으로 제한한다. 두 대상의 독자가 다르다는 근거는 `RouteTemplate`과 `ProblemResponses` 주석에 적었다([PRIVACY](../security/PRIVACY_REQUIREMENTS.md#8-로그관측) 8절).
+
+검증 실행과 report: `apps/api`에서 `./gradlew test integrationTest openapiContractTest recommendationTest`, report는 `apps/api/build/reports/tests/<suite>/index.html`이다. `verified`로 올리려면 CI report 경로·contract SHA·FE_DRI 재현 확인이 더 필요하다.
+
+FE 인계·완료 증거: bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. capability 이름 집합(`live`·`replay`·`optimization`)은 계약에 enum이 없어 server가 정했으므로 FE_DRI 승인이 필요하고, `/health/ready`의 infrastructure check 이름과 섞지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-019.
 
 ### BA-004
 
-**계약 생성·중요 기능 상시 CI 구성** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**계약 생성·중요 기능 상시 CI 구성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003)
 - 기능 ID: 해당 없음
@@ -209,9 +243,19 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
 
+A4 Backend/AI 구현 증거:
+
+- OpenAPI 비교는 `docs-contract`의 PR event에서만 `origin/main`과 현재 계약을 비교한다. `oasdiff-action/breaking` release SHA를 고정하고 `fail-on: WARN`, `review: false`로 실행한다.
+- `scripts/check_test_reports.py`는 네 Gradle suite의 실제 testcase·summary count·실패/error/skip·필수 ID와 report freshness를 확인한다. ready 카드의 모든 acceptance ID를 검사하며 카드별 예외 목록은 없다.
+- `BA-004-T1` 로컬 재현: `scripts/tests/test_check_test_reports.py`의 `ReportTests.test_BA_004_T1_failure_error_skip_counts_and_children`, `WrapperExecutionTests.test_BA_004_T1_actual_wrapper_propagates_command_failure`. 실제 wrapper의 하위 command exit 42를 보존한다. PR 생성·원격 required gate 실행 증거는 아직 없다.
+- `BA-004-T2`: `ReportTests`, `WrapperExecutionTests.test_BA_004_T2_actual_wrapper_rejects_bad_evidence_and_suppression`, `WorkflowWiringTests.test_BA_004_T2_shipping_wrapper_does_not_suppress_quality_commands`. shell wrapper는 실제 실행하고 Docker/scaffold만 test double로 바꾼다. 실패·skip·suite XML 누락·오래된 보고서가 있는 `|| true` 변이를 거부한다. 모든 command 오류를 XML만으로 추론한다는 보장은 하지 않는다.
+- 실제 offline Compose에서 context cache에 누적된 Hikari pool로 SQLSTATE 53300을 재현했다. Gradle test worker의 cache를 1개로 제한해 네 suite를 실행하고, 이 제한 제거 변이도 실제 Compose에서 검사한다. 운영 pool 크기·worker budget은 그대로다.
+- 로컬 report: `.artifacts/ba-004/scripts-tests.log`, `.artifacts/ba-004/mutations.json`, `.artifacts/ba-004/oasdiff-breaking.log`. 네 Java suite는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}/TEST-*.xml`이다. CI 검사는 `docs-contract` unittest와 `api-quality`/통합 wrapper의 집계 runner로 등록했다.
+- A4는 Backend/AI 잔여 CI 범위다. `BA-004-T3`는 C1 source stub의 실제 offline Compose 실행까지 미완료이며 TS client·MSW·client diff는 Frontend 범위다. 따라서 **A4 구현 완료와 BA-004 카드 전체 완료를 구분**하고 카드는 `in-progress`로 유지한다. T3와 Python CI test ID의 report 연결을 완료하기 전에 `integration-ready`로 올리면 집계 runner가 누락 ID를 거부한다.
+
 ### BA-005
 
-**영속 job과 수집·추천·삭제 실행 격리** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**영속 job과 수집·추천·삭제 실행 격리** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: 해당 없음
@@ -229,9 +273,22 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-005-T1`: 두 worker가 같은 job을 동시에 commit하지 못한다
-- `BA-005-T2`: lease 만료 후 이전 worker의 commit을 거부한다
-- `BA-005-T3`: poison job 재시도 상한과 삭제 우선 처리 중 API 지연 격리를 검증한다
+- `BA-005-T1`: 두 worker가 같은 job을 동시에 commit하지 못한다 — `JobLeaseIT.twoWorkersRacingForOneJobProduceOneClaimAndOneCommit`. 첫 worker가 claim transaction을 연 채로 둘째가 claim하면 `FOR UPDATE SKIP LOCKED`가 즉시 빈 결과를 돌려준다(막히지 않는다). 이어서 자기가 소유자라고 믿는 둘째의 unit of work와 완료를 모두 거부하고 그 domain write는 rollback한다.
+- `BA-005-T2`: lease 만료 후 이전 worker의 commit을 거부한다 — `JobLeaseIT.anExpiredLeaseCannotCommitAfterAnotherWorkerRetookTheJob`. `REC-JOB-01`과 같은 test다. lease 만료 → 둘째 worker 재인수(attempt 2) → 첫 worker의 `JobContext.transactional` domain write·완료·heartbeat·retry가 모두 `StaleLeaseException`이고 owner row는 정확히 1개다.
+- `BA-005-T3`: poison job 재시도 상한과 삭제 우선 처리 중 API 지연 격리를 검증한다 — `JobWorkerIT.aPoisonJobStopsAtTheCeilingAndDegradesTheJobsCapability`(attempt 3에서 FAILED, `last_error_code`, dead-letter ERROR 한 줄에 key·payload 없음, readiness `jobs`만 DEGRADED, `/health/ready` 200), `JobIsolationIT.aSaturatedExecutorDoesNotDelayAnotherTypeOrTheApi`(포화된 executor가 handler를 잡고 있는 동안 다른 type의 job 완료 지연과 `/health/ready` 지연을 실제로 측정한다).
+- port·worker 그 밖의 검증: `JobQueueIT`(enqueue transaction 강제, deduplication 충돌, 다른 type의 key 점유 거부, handler 없는 type 거부, attempt 상한 거부, back-off 전 claim 없음, crash 후 lease 만료 재인수, stale lease의 모든 쓰기 거부, payload 왕복, TTL sweep 정확도, commit 직전 lease 재확인으로 중복 실행 차단, lease 만료 재인수의 attempt 상한과 `LEASE_EXPIRED` dead letter, 완료 job의 dedup key 해제, 비기본값 `nullnull.idempotency.lock-timeout`으로 측정한 TTL sweep의 fast fail 상한), `JobCrashRetryIT`(attempt가 남은 crash는 abandoned sweep이 아니라 `CLAIM_EXPIRED_LEASE`가 재인수하고, 상한에서야 handler 자신의 code로 dead letter가 된다), `JobWorkerIT`(정상 handler의 lease 검증 commit, unit of work 밖 쓰기 거부, unit of work 안 `REQUIRES_NEW` 거부, dead letter 없을 때 probe READY), `JobAbandonedLeaseIT`(hang한 worker의 job이 상한에서 dead letter가 되고 probe가 DEGRADED, row 경합은 attempt를 쓰지 않음), `JobConfigurationIT`(비기본값 `lock-timeout`이 claim·failAbandoned·assertLeaseHeld·heartbeat·complete·retry·deadLetter·deleteFinishedBefore 8개 statement 모두에 걸림, 막힌 쓰기의 fast fail, unit of work의 lease 상한), `FlywayMigrationIT`(완료 job은 dedup key를 잡지 않고, 채워진 previous schema가 V004로 올라간다), `SystemEndpointsIT`(worker가 꺼져 있으면 `jobs` DEGRADED)
+- 단위 검증: `JobPayloadTest`(원문·좌표·secret 거부), `JobRequestTest`, `JobPropertiesTest`(단위 없는 숫자 = 밀리초 함정, back-off 계단, `enabled` 누락 시 startup 실패), `JobHandlerRegistryTest`(type 중복·미등록), `JobConnectionBudgetTest`(worker 최악 connection 수요 공식과 거부 message), `JobWorkerStartupTest`(그 검사가 실제로 `start()`에 걸려 있다), `ArchitectureRulesTest.jobHandlersNeverTouchTheDatabaseDirectly`(handler가 JDBC·EntityManager를 직접 만지지 못한다) — 모두 `test` suite
+
+`BA-005`에서 실제로 검증한 것과 하지 않은 것:
+
+- 검증함: 결함을 되돌리면 test가 빨개진다. claim의 `FOR UPDATE SKIP LOCKED` 제거, 완료의 lease 조건 제거, `JobContext.transactional`의 lease 재확인 제거, attempt 상한 off-by-one, unit-of-work guard 무력화를 각각 넣어 해당 test가 실패하는 것을 확인하고 원본을 복원했다. 같은 방식으로 `FAIL_ABANDONED`의 `attempt_count >= max_attempts` 제거(`JobCrashRetryIT`가 attempt 1에서 dead letter를 잡아낸다), `ExpiredIdempotencyRecordEraser`의 주입 값 하드코딩(sweep이 3.04초를 기다려 주입한 1초 상한을 벗어난다), `JdbcJobQueue`의 `applyToCurrentTransaction` 8개 제거(`JobConfigurationIT`가 멈추지 않고 30초 timeout으로 실패한다), worker의 contention catch 제거(`JobAbandonedLeaseIT`의 `last_error_code`가 `HANDLER_ERROR`가 된다)도 확인했다.
+- 검증하지 않음: 여러 process의 worker. 위 test는 한 JVM 안의 두 connection으로 재인수를 재현하며, 이는 lease가 DB row 조건으로만 판정되므로 같은 의미다. 실제 다중 task 배포 확인은 ECS가 생기는 [BA-006](#ba-006) 이후에만 가능하다.
+- 남은 위험, handler slice가 책임진다: `JobUnitOfWorkGuard`는 handler thread에서 시작된 transaction만 본다. 짝이 되는 `ArchitectureRulesTest.jobHandlersNeverTouchTheDatabaseDirectly`는 **직접 참조만** 금지하므로, handler가 `@Transactional`이 전혀 없는 평범한 협력 class를 통해 `jdbc.sql("INSERT ...").update()`를 실행하면 rule도 guard도 통과하고 lease 밖에서 commit된다(측정함). 한 단계 건너뛴 협력자까지 막는 검사는 아직 없으므로, 첫 handler를 붙이는 [BA-012](#ba-012)가 handler의 모든 쓰기를 `JobContext.transactional` 안의 application service로 보내는 것을 slice 자체의 acceptance로 잡는다.
+- test로 지킬 수 없어 수치만 남기는 것: claim을 두 statement로 나눈 결정. 다시 OR 하나로 합쳐도 동작이 같아서 실패하는 기능 test가 없고, plan assertion은 PostgreSQL version과 data에 취약하다. 손으로 잰 근거는 — 완료 row 200,000개에서 V001의 OR 형태 Seq Scan 10.24ms, 분할한 첫 statement Index Scan 0.021ms, V004 이후 OR 형태 BitmapOr 0.022ms. 합치는 변경은 이 수치를 다시 재는 것을 조건으로 한다.
+- backlog에서 성능이 달라지는 두 statement: `CLAIM_EXPIRED_LEASE`와 `FAIL_ABANDONED`는 `status = 'RUNNING'`을 부분 index로 좁힐 수 없어 미완료 row 전체를 읽는다. 같은 PostgreSQL에 READY row 100,000개를 더한 뒤 측정: 둘 다 `background_jobs_outstanding_key_idx` Bitmap Index Scan으로 미완료 약 100,009건을 읽고 약 100,006건을 filter로 버리며 9.6ms, claim마다가 아니라 poll tick마다다. 지금은 index를 추가하지 않는다([ERD](../architecture/ERD.md)의 초기 index 목록은 실제 plan을 근거로만 유지한다). 미완료 job이 이 규모로 쌓이는 것이 관측되면 `(type, lease_until) WHERE status = 'RUNNING'`을 추가할 근거가 된다.
+- 미구현: handler는 아직 하나도 없다. 삭제 job은 B02/BA-012, collector는 B03, optimization은 B06에서 이 SPI로 붙는다. 그때까지 worker는 보존 sweep만 돌린다.
+- handler를 붙이는 slice가 함께 정해야 하는 값: worker의 최악 동시 connection 수요 `2 x slots + types + 1`에 readiness 여유분 2를 더한 값이 `NULLNULL_DB_POOL_MAX` 이하가 아니면 startup이 실패한다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)). BA-012의 실제 type 하나와 기본 concurrency 2는 pool 8이 필요해 기본 10에 들어가며, 이후 type 추가 때 다시 계산한다.
+- V004는 dedup unique를 미완료 row 부분 index로 바꾼다. `ON CONFLICT (deduplication_key)`를 쓰는 이전 binary의 enqueue는 이 migration 뒤 실패하므로, handler를 추가하는 첫 slice는 이 migration 이후에 배포한다.
 
 FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, polling·timeout은 취소가 아니라는 인계 설명. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -273,7 +330,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-010
 
-**익명 owner·session·CSRF 복구** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**익명 owner·session·CSRF 복구** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: `FR-ONB-01`, `FR-SES-01`, `FR-SES-02`, `FR-SES-03`, `NFR-SEC-01`
@@ -294,10 +351,20 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 필수 검증:
 
 - `BA-010-T1`: owner A/B/C 교차 조회·변경과 CSRF/Origin 위조를 거부한다
-- `BA-010-T2`: 새 tab token 발급이 기존 tab을 깨뜨리지 않고 최대 개수를 넘으면 계약 오류다
+- `BA-010-T2`: 미만료 token 5개를 함께 유지하고 6번째 발급 시 last_used_at 기준 LRU token을 회수한다
 - `BA-010-T3`: expiry·rotation·response loss 이후 안전한 bootstrap으로 복구한다
 
 FE 인계·완료 증거: 쿠키/헤더 examples, 최초/refresh/만료/두 tab E2E fixture와 401 복구 순서. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+BA-010 구현 증거 (local·full Docker: Java 276 / 114 / 11 / 19, 0 fail/error/skip; Playwright 5건 통과):
+
+- `SessionSafetyIT.isolation/origins/ambiguousCredentials` 및 `SessionContractTest.securityParity`: cookie 유도 owner, 타 session CSRF, Origin·중복 credential과 operation 보안 정책을 검증한다. `/me` production route는 BA-011에서 추가하며 현재 owner 분리는 test-support route로 검사한다.
+- `SessionSafetyIT.lru/concurrentTokens/lockContention`, `SessionTimeIT.csrfExpiry`: 5개 유지·6번째 LRU·동시 revoke·token 만료를 검증한다.
+- `SessionSafetyIT.bootstrapAndOrphans/expiration/revokedRetention`, `SessionTimeIT.sliding/cutoffs`, `SessionContractTest.responses`: bootstrap 수렴·정리·idle/absolute·secure cookie·CSRF expiry response를 검증한다.
+- report: `apps/api/build/test-results/integrationTest/TEST-io.nullnull.identity.SessionSafetyIT.xml`, `TEST-io.nullnull.identity.SessionTimeIT.xml`; `apps/api/build/test-results/openapiContractTest/TEST-io.nullnull.contract.SessionContractTest.xml`. 설정은 `test`의 `SessionPropertiesTest`, migration은 기존 `FlywayMigrationIT`에서 검사한다.
+- Playwright `apps/web/e2e/session.spec.ts`: 실제 API transport bootstrap/refresh/다중 탭; HTTP Compose에서 Secure cookie 명시 전달. UI keyboard/focus는 기존 shell 검사이며 세션 화면 구현·브라우저 Secure cookie 수락 검증과 구분한다.
+- 공개 shape는 유지하고 LRU 및 response `expiresAt`의 CSRF 만료 의미를 명시했다. V005는 두 table 추가이며 V001~V004를 변경하지 않는다. absolute P90D·CSRF PT2H·touch PT1M은 제안값이다.
+- PM-017의 서버 만료/LRU/GC 경계는 구현했다. cookie 유실 안내와 401 뒤 mutation 재실행 금지는 FE 화면 검수로 넘긴다. staging·상대 재현 확인 전 `verified`나 이슈 완료로 쓰지 않는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-017.
 
@@ -305,7 +372,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-011
 
-**프로필·locale·onboarding·active trip** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**프로필·locale·onboarding·active trip** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-010](#ba-010)
 - 기능 ID: `FR-ONB-02`, `FR-ONB-03`, `FR-PRO-01`, `FR-PRO-02`
@@ -331,13 +398,22 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 FE 인계·완료 증거: A-2/S14 정상·empty·disabled·refresh states; UI-only intro skip/route 복구는 FE 담당. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
+BA-011 구현 증거 (local·full Docker Java 276 / 121 / 13 / 19, 0 fail/error/skip; Playwright 6건 통과):
+
+- `OwnerPreferencesIT.localeRoundTrip/expiredCookie`: KO/EN·timezone 저장/재조회, unsupported locale 422 field error, 인증을 검사한다.
+- `OwnerPreferencesIT.isolationAndUnavailableTrip`, `OwnerPreferencesConcurrencyIT.ownerBoundTripPort`: 실제 cookie owner 분리와 TripLookup에 전달하는 owner 경계를 검사한다. production TripLookup은 BA-030 전까지 항상 부재이며, positive/foreign/deleted trip port 동작은 test override다. 실제 trip table 검증으로 쓰지 않는다.
+- `OwnerPreferencesIT.mergePatchAndRepeat/malformedAndAtomic`, `OwnerPreferencesConcurrencyIT.lockedReadPreservesConcurrentChange`: null/absent, unknown/type/content-type, 실패 원자성, owner 잠금 뒤 최신 필드 보존, 반복 onboarding의 owner row version 불변을 검사한다.
+- `OwnerContractTest.schemas/mediaType`는 OwnerProfile·Problem과 merge-patch 415를 검사한다. `SessionContractTest.securityParity`가 실제 route/operation/security를 함께 검사한다.
+- report: `apps/api/build/test-results/integrationTest/TEST-io.nullnull.identity.OwnerPreferencesIT.xml`, `TEST-io.nullnull.identity.OwnerPreferencesConcurrencyIT.xml`; `apps/api/build/test-results/openapiContractTest/TEST-io.nullnull.contract.OwnerContractTest.xml`. Playwright는 `apps/web/e2e/session.spec.ts`의 BA-011 transport 검사이며 shell keyboard/focus와 함께 실행한다.
+- 공개 shape·migration은 그대로다. PM-001/002/017의 서버 KO/EN/guest 상태를 구현했고 UI-only intro·비활성 CTA·cookie 유실 안내는 FE 검수다. PM-006 taxonomy는 BA-030/031의 trip 관심사 범위이며 `/me`에 새 field를 만들지 않았다.
+
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-001, PM-002, PM-006, PM-017.
 
 이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
 
 ### BA-012
 
-**세션 삭제 receipt·TTL·복원 후 재삭제** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**세션 삭제 receipt·TTL·복원 후 재삭제** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-005](#ba-005), [BA-010](#ba-010), [BA-011](#ba-011)
 - 기능 ID: `FR-OPS-09`, `FR-SES-04`
@@ -362,6 +438,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 FE 인계·완료 증거: S14 삭제 확인·상태 polling·receipt 분실/만료·부분 실패 예시. 보존 기간 안내는 privacy 문서와 동일하게 전달한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
+BA-012 구현 증거:
+
+- `DeletionIT`가 `BA-012-T1`의 동일 receipt 재생, revoked cookie의 다른 key·route 401, header-only 상태 token의 정상/오류/정확한 7일 만료 경계, hash-only 저장과 enqueue 실패 원자 rollback을 실제 PostgreSQL에서 검사한다.
+- `DeletionJobIT`가 `BA-012-T2`와 `REC-SEC-03`의 부분 실패→재시도→완료, eraser 비중첩, owner profile 비부활을 실제 worker로 검사한다. 첫 production handler가 추가되어 기존 BA-005 synthetic handler 테스트의 pool은 각 context의 실제 type/slot 수식만큼 명시했다. 운영 기본 type 1개·concurrency 2는 reserve 포함 최소 pool 8이고 기본 10 안에 든다.
+- `DeletionIT.tombstoneReappliesRestoredOwnerData`와 `TombstoneReapplierTest`가 `BA-012-T3`의 restore 재삭제와 web lifecycle 이전 fail-closed 시작을 검사한다. owner hard delete는 tombstone 21일 뒤에도 30일 revoked session과 idempotency row가 없어질 때까지 기다린다.
+- `FlywayMigrationIT`는 V005 populated schema→V006 upgrade를, `SessionContractTest`는 두 operation의 route/security/response schema를 검사한다. report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}/*.xml`이며 Playwright transport는 `apps/web/e2e/session.spec.ts`에 있다.
+- token·transaction·worker·lifecycle·TTL 가드 변이 14종은 모두 RED였고 scratch backup 복원 SHA256이 일치한다. 로컬 증거는 `.artifacts/ba-012/token-mutations.json`과 `.artifacts/ba-012/mutations.json`이다.
+- 전체 Docker gate는 Java 280/127/13/19, AI pytest 410, web unit 224, Playwright 36을 failures/errors/skipped 0으로 실행했고 generated client diff·npm audit·egress-denied·readiness까지 통과했다. 공유 PostgreSQL에서 V006 FK가 드러낸 기존 BA-005 fixture 정리 순서는 tombstone→receipt→owner 순으로 보강했다.
+
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-017, PM-018.
 
 ## B03 · 공통 데이터·KTO·장소·비교
@@ -370,7 +455,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-020
 
-**공통 source registry·adapter·쿼터·drift** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**공통 source registry·adapter·쿼터·drift** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-005](#ba-005), [BA-010](#ba-010)
 - 기능 ID: `FR-DAT-04`, `FR-OPS-03`, `FR-OPS-04`
@@ -388,15 +473,23 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-020-T1`: 429·timeout·malformed·추가 enum·incident window를 합성 provider로 검증한다
-- `BA-020-T2`: collector 중복 호출과 쿼터 초과를 차단하고 60/80/90% 경보를 낸다
-- `BA-020-T3`: provider 장애가 trip CRUD executor를 고갈시키지 않는다
+- `BA-020-T1`: `ProviderKitTest`·`CollectorRunRecorderTest`·`SourceRegistryIT`가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 합성 provider와 PostgreSQL로 검증한다.
+- `BA-020-T2`: `SourceRegistryIT`가 KST 일일 quota의 60/80/90% 경보·100% 초과 거부 및 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다.
+- `BA-020-T3`: `SourceRegistryIT.slowProviderDoesNotBlockApiRequests`가 네 개의 지연 provider call 중에도 readiness와 owner `/me` 요청이 즉시 처리되는지를 검증한다.
 
-FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 대장. 서울 전용 adapter는 이 단계에서 구현하지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+구현·검증 증거:
+
+- `V007__sources.sql`은 source registry/revision/quality incident/collector run/safe ingest ledger를 만들고, immutable revision hash에 approval·quota·license review·scope·retention·refresh·schema·stale·contest use를 포함한다. KTO place detail은 `P7D`, forecast는 `PT24H`, 미신청 related와 B10 전 source는 `DISABLED`다.
+- provider transport는 source별 exact host/HTTPS(격리 test stub의 loopback HTTP만 예외), redirect 거부, bounded executor·source permit, retry/jitter/429, circuit, response size 제한과 sanitized error를 사용한다. production host map은 KTO `apis.data.go.kr`과 Seoul `openapi.seoul.go.kr`으로 code에서 고정한다.
+- canary는 provider URI에만 주입해 sanitized error와 `api_ingest_logs` row에 남지 않음을 검증한다. audit API/DDL에는 credential·full URI/query·body·user input field가 없다.
+- fresh local `./gradlew --no-daemon test --rerun integrationTest --rerun openapiContractTest --rerun recommendationTest --rerun`과 full Docker gate가 통과했다. Docker Java는 288/133/13/19, AI pytest 410, web unit 224, Playwright 36이며 fail/error/skip은 0이다. C1 JUnit은 `apps/api/build/test-results/test/`, `apps/api/build/test-results/integrationTest/`에 있다.
+- C1 safety mutation은 다른 source collector run의 SQL predicate 제거와 production host policy guard 우회 두 건을 실제로 RED로 확인했고, 원본을 복구한 focused `BA-020-T1/T2`를 다시 통과시켰다.
+
+FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 대장. C2에서만 실제 KTO gateway·key·provenance/snapshot을 추가하며, 서울 전용 adapter는 이 단계에서 구현하지 않는다.
 
 ### BA-021
 
-**KTO 실제 gateway와 provenance 증거** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**KTO 실제 gateway와 provenance 증거** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-020](#ba-020)
 - 기능 ID: `FR-OPS-11`
@@ -422,13 +515,22 @@ FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 
 
 FE 인계·완료 증거: 승인된 출처 텍스트·공식 URL·license URL·null 시각·provider별 field 설명, 실제 호출 증거 위치. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
+구현·검증 증거 (T3 전):
+
+- `V008__catalog_places.sql`과 `V009__kto_detail_common_request_v2.sql`은 `KTO_KOR_SERVICE_2` registry revision 3 (`kto-kor-service2-detailcommon2-v2`)과 `kto_place_snapshots`를 만든다. snapshot은 source revision·collector run·KTO content/type ID·정규화 title/category/area/address/좌표·hash·fetched/stale만 보존하며 key·전체 URL/query·원문 body·overview·image column은 없다.
+- C2 adapter는 오직 `KorService2/detailCommon2`를 server-side에서 호출한다. current request는 `serviceKey`, `MobileOS`, `MobileApp`, `contentId`, `_type`만 전송하며 `contentTypeId`와 legacy detail flag를 전송하지 않는다. image/소개 원문은 저장하지 않고 exact official base/host, transport, response envelope, response content/type ID의 후보 기대값 일치, coordinate range를 검증한 뒤에만 cache write와 call audit을 같은 transaction으로 완료한다. forecast와 related-place operation은 이 단계에서 callable하지 않다.
+- `KtoDetailResponseValidatorTest`, `KtoKorServicePropertiesTest`, `KtoPlaceDetailGatewayIT`, `FlywayMigrationIT`가 T1/T2와 V007→V009 populated upgrade를 검증한다. same request는 single-flight로 합치고 P7D 이후에만 새 collector run을 만든다. fixture canary와 raw provider body marker가 snapshot·`api_ingest_logs`·`collector_runs`에 없음을 실제 PostgreSQL에서 확인한다. opt-in `KtoActualSmokeIT`는 disposable PostgreSQL에서 actual KTO success를 redacted snapshot/audit으로 확인한다.
+- C2 mutation은 single-flight 경로를 제거했을 때 `BA-021-T2`가 concurrent response 불일치로 RED가 되는 것과, content/type ID 비교의 `||`를 `&&`로 약화했을 때 `BA-021-T1`이 `SCHEMA_DRIFT` 대신 `OK`로 RED가 되는 것을 실제로 확인했다. current request mutation으로 `contentTypeId`를 다시 추가했을 때도 exact parameter-contract test가 RED였고 원본 복구 후 focused test는 GREEN이다.
+- v2 request-contract 뒤 current backend Gradle suite는 Java `300/136/13/19`가 GREEN이다. 직전 full Docker gate는 Java `299/136/13/19`, AI pytest `410`, web unit `224`, Playwright `36`, generated client, npm audit, egress-denied를 통과했다 (`INF-001` 미생성으로 `infra:check`는 skip이며 passing check로 세지 않는다). fixture/integration evidence는 actual KTO success를 뜻하지 않는다.
+- local `KTO_SERVICE_KEY`/`KTO_BASE_URL`로 opt-in actual smoke는 통과했으나 T3의 staging actual-success→public provenance chain은 아직 없다. local disposable-DB 성공은 staging 공개 증거로 대체할 수 없다. AWS 배포를 마지막 release gate로 두므로 C3 코드는 local/test에서만 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값의 fail-closed 상태로 구현·검증할 수 있고, T3 증거와 최종 배포 전에는 flag를 켜거나 외부 공개하지 않는다. 따라서 BA-021을 `integration-ready` 또는 완료로 올리지 않는다.
+
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-014, PM-023.
 
 이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
 
 ### BA-022
 
-**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-021](#ba-021)
 - 기능 ID: `FR-PLC-01`, `FR-TRC-04`
@@ -453,11 +555,31 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
+- V010은 C3 internal foundation을 만들며 normalized KTO snapshot의 canonical mapping은
+  `(source_code, source_registry_version, external_id, external_type)` provenance를 보존하고 unknown
+  category/area를 추측하지 않는다. 그 위에 `searchPlaces`와 `getPlace`의 local projection을 추가했지만
+  `NULLNULL_CATALOG_PUBLIC_ENABLED=false`가 기본값이라 route는 fail-closed다. production에서 이를 켜려면
+  별도 `NULLNULL_CURSOR_SECRET`(UTF-8 32 byte 이상)이 필요하며, C2 T3 staging actual-success→public
+  provenance와 최종 AWS release 전에는 flag를 켜거나 외부에 공개하지 않는다. 이 projection은 KTO를 호출하지
+  않고 active·좌표 완전 canonical row, locale fallback, 검토된 재배포 가능 media만 읽는다.
+- `CatalogFoundationIT`는 duplicate external ID, invalid canonical target/source revision, partial coordinate와
+  unapproved media를 PostgreSQL에서 차단한다. longitude required 조건을 제거한 좌표 쌍 변이와 rights guard
+  `OR`→`AND` 변이는 각각 BA-022-T1/T3를 RED로 만든 뒤 원본을 복구했다.
+- `CatalogPlaceApiIT`는 deprecated→canonical detail, KO/EN fallback, approved media만의 projection, bounded
+  POST search, signed owner/filter cursor의 변조·타 owner·다른 filter·15분 만료, SQL LIKE literal escaping,
+  canary 비로그를 PostgreSQL/MockMvc에서 확인한다. `CatalogPublicationPropertiesTest`는 disabled production
+  projection이 secret 없이도 fail-closed이고 enabled production은 별도 cursor secret 없이는 시작하지 않음을
+  확인하며, `CatalogPlaceProjectionServiceTest`는 gate가 catalog read보다 먼저 실행됨을 확인한다. C3 gate의
+  `!publicEnabled`를 `false`로 바꾼 mutation은 fail-closed test를 RED로 만든 뒤 원본을 복구했다. 이 local
+  evidence는 backend Gradle Java `305/145/13/19`와 full Docker gate(Java·AI pytest `410`·web unit `224`·
+  Playwright `36`·generated client·npm audit·egress-denied)가 GREEN인 것을 포함하지만, staging 공개
+  provenance나 BA-022 완료 증거는 아니다.
+
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
 
 ### BA-023
 
-**혼잡 예보·시각·비교 적격성·데이터 안내** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**혼잡 예보·시각·비교 적격성·데이터 안내** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-020](#ba-020), [BA-021](#ba-021), [BA-022](#ba-022)
 - 기능 ID: `FR-DAT-01`, `FR-DAT-02`, `FR-DAT-03`, `FR-DAT-04`, `FR-DAT-05`, `NFR-DATA-01`
@@ -480,7 +602,54 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-023-T2`: mixed source/scope/issue/set·stale·replay·incident pair의 delta가 null이다
 - `BA-023-T3`: 최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다
 
-FE 인계·완료 증거: S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+구현 결과:
+
+- `V011`은 immutable `snapshot_sets`·`crowd_snapshots`와 KTO 집중률 registry revision 2
+  (`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw response body, 요청 URL,
+  service key는 column 자체가 없고, snapshot이 set의 provenance를 그대로 유지하지 않으면 trigger가 insert를
+  거부하며 두 table의 모든 UPDATE도 거부한다. 저장된 preview snapshot을 나중에 덮어쓸 경로가 없다는 뜻이다.
+- 공개 `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하고 provider를 호출하지 않는다.
+  수집은 operator/background 전용 `KtoCrowdForecastGateway`가 source health·quota·collector run·ingest audit을
+  거쳐 수행한다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false`
+  기본값에서 fail-closed다.
+- provider가 발표 시각을 주지 않으면 `observedAt`은 null로 남고 `fetchedAt`으로 대체하지 않는다. FORECAST/LIVE가
+  stale 경계를 넘으면 응답 state가 `STALE`이 되고 freshness가 따로 표시되며, 값이 없으면 숫자를 만들지 않고
+  `UNAVAILABLE`과 이유만 남긴다.
+- 비교는 저장하지 않는다. `데이터·정책`이 적은 `crowd_comparisons`에 해당하는 table을 만들지 않고, 공개 응답이
+  쓰는 것은 `TemporalComparisonPolicy.eligibility(point)` 하나다. 기존 pair 판정 `evaluate(before, after)`는
+  optimization preview의 MetricDelta가 쓸 자리이므로 domain에 그대로 두되, **이 slice는 그것을 감싸는 service를
+  만들지 않는다.** 호출자 없는 service의 test는 acceptance 증거가 될 수 없다.
+- 격리(quarantine)는 저장된 row가 가질 수 없는 유일한 flag다. incident는 수집 이후에 선언되고 snapshot은 immutable
+  이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(disposition `QUARANTINE`)로 계산해
+  `PROVIDER_INCIDENT`를 붙이고, 그 결과 비교 자격이 false가 된다.
+
+검증 결과:
+
+- `CrowdProvenanceProjectionTest`가 `BA-023-T1`의 6-state와 null provenance matrix를 property로,
+  `CrowdForecastApiIT`가 fresh·stale fallback·잘못된 range를 PostgreSQL/MockMvc로,
+  `KtoCrowdForecastGatewayIT`가 normalized provenance·raw redaction·명시적 no coverage·범위 밖 값의 quarantine을
+  확인한다. `BA-023-T2`는 실제 응답 경로로 검증한다 — `CrowdProvenanceProjectionTest`가 격리된 source의 값은
+  유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`가 되는지를, `CrowdForecastApiIT`가 수집 이후 선언된
+  `QUARANTINE` incident row가 이미 저장된 snapshot의 HTTP 응답에서 같은 결과를 만드는지를 확인한다.
+  `CrowdForecastApiIT`가 `BA-023-T3`의 "새 set은 최신 응답만 바꾸고 저장된 snapshot은 못 바꾼다"를 확인한다.
+- 적대적 검토에서 **`CrowdComparisonService`가 production 호출자 없는 코드**이고 그 test가 `BA-023-T2` 증거로
+  등록돼 있었다는 지적이 확정됐다. service와 test를 지우고 실제 경로의 격리 가드 검증으로 증거를 바꿨다.
+- 변이 검증: `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 삭제하면
+  `CrowdProvenanceProjectionTest`의 `BA-023-T2`가 RED, `CrowdForecastApiIT`의 `BA-023-T2`가
+  `comparisonEligible expected:<false> but was:<true>`로 RED다. 원본 복원 후 SHA-256
+  `b93a46858dba9ad104e4f1d9f623bd5ff6c8e7493a7b5a8464d8c120b0ef5659`이 일치하고 두 test가 다시 GREEN이다.
+- `FlywayMigrationIT`는 이제 populated V010 canonical catalog 위에서 V010→V011 upgrade를 돌린다. V010의 trigger가
+  `search_path`로 부모 row를 찾으므로 upgrade schema를 경로에 올린 `SET LOCAL` 안에서 채운다.
+- local Temurin 21 run: `test 320 / integrationTest 153 / openapiContractTest 13 / recommendationTest 19`,
+  failures·errors·skipped 0. report는 `apps/api/build/test-results/`다. 같은 상태에서
+  `bash scripts/integration-test.sh`가 `integration_mode=full-docker`로 exit 0이며 Java 네 suite 집계가 같고
+  AI pytest 410, web unit 224, Playwright 36, `test_reports=valid`, `evaluation_report=valid`,
+  generated client diff, `npm_audit_report=clean`, egress-denied가 모두 통과했다.
+- **미완료**: 실제 KTO `tatsCnctrRatedList` 호출 증거는 아직 없다. opt-in `ktoForecastSmoke`·`actualKtoSmoke`는
+  `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구한다. BA-021-T3의 staging
+  actual-success→public provenance가 남아 있는 동안 BA-023도 `verified`가 아니며 공개 flag를 켜지 않는다.
+
+FE 인계·완료 증거: S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다. crowd는 `PlaceSummary`·`PlaceDetail`이 아니라 별도 operation `getPlaceCrowdForecast`로 제공하므로 FE는 카드에서 필요한 시점에만 호출한다(`FCR-029`).
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-013, PM-014.
 

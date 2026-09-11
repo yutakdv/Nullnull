@@ -12,6 +12,10 @@ on:
       - "apps/ai/tests/recommendation/manifest.json"
       - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
+      - "docs/engineering/backend-plan.json"
+      - "scripts/check_test_reports.py"
+      - "scripts/check_evaluation_report.py"
+      - "scripts/tests/test_check_test_reports.py"
       - ".github/workflows/api-quality.yml"
   push:
     branches: [main, backend]
@@ -22,6 +26,10 @@ on:
       - "apps/ai/tests/recommendation/manifest.json"
       - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
+      - "docs/engineering/backend-plan.json"
+      - "scripts/check_test_reports.py"
+      - "scripts/check_evaluation_report.py"
+      - "scripts/tests/test_check_test_reports.py"
       - ".github/workflows/api-quality.yml"
   workflow_dispatch:
 
@@ -37,11 +45,36 @@ jobs:
     name: api-quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      NULLNULL_ENV: test
+      APP_COOKIE_SECURE: "true"
+      APP_COOKIE_DOMAIN: ""
+      APP_PUBLIC_ORIGIN: http://localhost:5173
+      APP_SESSION_TTL: P30D
+      APP_SESSION_ABSOLUTE_TTL: P90D
+      APP_CSRF_TOKEN_TTL: PT2H
+      NULLNULL_JOB_RETENTION_SWEEP_INTERVAL: PT1M
+      KTO_ALLOWED_HOST: apis.data.go.kr
+      SEOUL_ALLOWED_HOST: openapi.seoul.go.kr
+      NULLNULL_PROVIDER_CONNECT_TIMEOUT: PT2S
+      NULLNULL_PROVIDER_REQUEST_TIMEOUT: PT5S
+      NULLNULL_PROVIDER_MAX_RESPONSE_BYTES: "2097152"
+      NULLNULL_PROVIDER_EXECUTOR_THREADS: "8"
+      NULLNULL_PROVIDER_EXECUTOR_QUEUE_CAPACITY: "32"
+      NULLNULL_PROVIDER_PER_SOURCE_CONCURRENCY: "4"
+      NULLNULL_PROVIDER_RETRY_ATTEMPTS: "3"
+      NULLNULL_PROVIDER_RETRY_BASE_DELAY: PT0.1S
+      NULLNULL_PROVIDER_RETRY_MAX_DELAY: PT2S
+      NULLNULL_PROVIDER_CIRCUIT_FAILURE_THRESHOLD: "5"
+      NULLNULL_PROVIDER_CIRCUIT_FAILURE_WINDOW: PT30S
+      NULLNULL_PROVIDER_CIRCUIT_OPEN_DURATION: PT60S
     defaults:
       run:
         working-directory: apps/api
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate deletion token test secret
+        run: echo "NULLNULL_DELETION_TOKEN_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
@@ -53,7 +86,17 @@ jobs:
             apps/api/gradle/libs.versions.toml
             apps/api/build.gradle.kts
       - name: Unit, PostgreSQL (Testcontainers), OpenAPI contract, apps/ai contract parity
-        run: ./gradlew --no-daemon test integrationTest openapiContractTest recommendationTest
+        run: |
+          mkdir -p ../../.artifacts
+          touch ../../.artifacts/api-quality-start
+          ./gradlew --no-daemon test --rerun integrationTest --rerun openapiContractTest --rerun recommendationTest --rerun
+      - name: Validate executed JUnit evidence and ready-card IDs
+        if: always()
+        run: >-
+          python3 ../../scripts/check_test_reports.py
+          --junit-dir build/test-results
+          --backend-plan ../../docs/engineering/backend-plan.json
+          --run-start ../../.artifacts/api-quality-start
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -144,11 +144,11 @@ git push origin frontend
 없으면 rebase나 force push를 하지 않는다. `git merge origin/main`으로 병합하고 충돌을
 해결한 뒤 전체 gate를 다시 실행한 다음 `frontend`를 push한다.
 
-- 작업 PR은 항상 `frontend → main`이다. `main` direct push, force push, self-approval,
+- 작업 PR은 항상 `frontend → main`이다. `main` direct push, force push,
   `backend ↔ frontend` PR/cherry-pick은 금지한다.
 - 병합 방식은 merge commit이다. merge 뒤 `frontend`는 새 `main`으로 fast-forward한다.
 - 한 사람의 동시 작업은 main slice 1개와 review 1개다.
-- PR에는 Backend/AI 담당자 1인의 승인, `docs-contract`, `docker-integration` 통과가 필요하다.
+- PR은 최신 `main` 기준 `docs-contract`, `docker-integration`이 green이면 auto-merge한다. Backend/AI 검토 요청은 merge를 막지 않는 비동기 피드백이다.
 
 ## 5. Frontend가 바로 할 수 있는 최소 작업
 

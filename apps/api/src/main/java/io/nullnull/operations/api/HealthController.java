@@ -1,6 +1,5 @@
 package io.nullnull.operations.api;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import io.nullnull.operations.application.ReadinessQuery;
 import io.nullnull.operations.application.ReadinessQuery.ReadinessReport;
 import io.nullnull.operations.application.ReadinessQuery.ReadinessState;
@@ -16,6 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * operationId getLiveness / getReadiness (docs/api/openapi.yaml, tag System). Response shapes
  * are the contract DTOs {@code HealthStatus}, {@code ReadinessStatus} and {@code CapabilityStatus}.
+ *
+ * <p>{@code checks} is the INFRASTRUCTURE namespace - database, jobs, recommendation - and is what
+ * decides whether this task stays in the load balancer. Product capabilities are a separate list on
+ * {@code getDemoReadiness}; see {@link io.nullnull.operations.application.DemoCapabilities}.
  */
 @RestController
 public class HealthController {
@@ -31,11 +34,13 @@ public class HealthController {
     }
 
     @GetMapping("/health/live")
+    @io.nullnull.shared.http.NullnullOperation(id = "getLiveness")
     public HealthStatusResponse liveness() {
         return new HealthStatusResponse("UP", clock.instant());
     }
 
     @GetMapping("/health/ready")
+    @io.nullnull.shared.http.NullnullOperation(id = "getReadiness")
     public ReadinessStatusResponse readiness() {
         ReadinessReport report = readinessQuery.readiness();
         if (report.state() == ReadinessState.NOT_READY) {
@@ -54,9 +59,5 @@ public class HealthController {
     }
 
     public record ReadinessStatusResponse(String status, List<CapabilityStatusResponse> checks) {
-    }
-
-    public record CapabilityStatusResponse(String name, String status,
-            @JsonInclude(JsonInclude.Include.NON_NULL) Instant checkedAt, String detail) {
     }
 }

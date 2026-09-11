@@ -58,27 +58,59 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 
 | 변수 | Secret | 기본/예 | 설명 |
 | --- | --- | --- | --- |
-| `NULLNULL_ENV` | 아니오 | `local` | local/staging/production |
+| `NULLNULL_ENV` | 아니오 | `local` | 1절 환경과 같은 어휘 `local`/`test`/`staging`/`production`. 이 넷 밖의 값은 access-log·provider host guard에서 startup 실패한다 |
 | `SERVER_PORT` | 아니오 | `8080` | container port |
 | `APP_PUBLIC_ORIGIN` | 아니오 | `http://localhost:5173` | CORS/Origin 검증 |
 | `APP_COOKIE_DOMAIN` | 아니오 | 모든 환경에서 비움 | `__Host-` cookie에 Domain attribute 금지 |
-| `APP_COOKIE_SECURE` | 아니오 | `false` local, `true` cloud | prod false 금지 |
-| `APP_SESSION_TTL` | 아니오 | `P30D` | session expiry |
+| `APP_COOKIE_SECURE` | 아니오 | 기본 `true`, `false`는 local 단독 profile만 | test/integration/cloud는 `true`; Domain 금지 |
+| `APP_SESSION_TTL` | 아니오 | `P30D` | idle sliding expiry |
+| `APP_SESSION_ABSOLUTE_TTL` | 아니오 | `P90D` (제안값) | 생성부터 absolute 상한; idle 30일의 3배 |
+| `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` (제안값) | tab token 갱신 주기; session 만료보다 길지 않음 |
+| `nullnull.session.touch-interval` | 아니오 | `PT1M` (제안값) | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록 |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
-| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값, BA-003 검토 후 고정 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S` |
+| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
-| `APP_DELETION_RECEIPT_TTL` | 아니오 | 정책 승인값 | 완료/실패 receipt 보존 |
-| `APP_DELETION_RETRY_LIMIT` | 아니오 | B01/BA-005와 B02/BA-012 검증 후 고정 | 삭제 job 무한 재시도 방지 |
+| `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`; BA-012가 enqueue 시 읽고 1~20을 강제한다 |
+| `APP_DELETION_STATUS_TOKEN_TTL` | 아니오 | `P7D` | 삭제 상태 bearer hash 보존 기간. 경계 시각부터 410이며 sweep은 hash를 null로 만든다 |
+| `APP_DELETION_TOMBSTONE_RETENTION` | 아니오 | `P21D` 제안값 | backup 최대 보존 14일과 추가 7일을 덮는 restore 재삭제 manifest 보존 |
+| `NULLNULL_DELETION_TOKEN_SECRET` | production 예 | runtime secret | request ID와 만료 시각을 묶는 HMAC-SHA256 key, UTF-8 32 byte 이상. cursor secret과 분리 |
 | `APP_NOTIFICATION_RETENTION` | 아니오 | P1 정책 승인값 | 알림 보존/cleanup |
 | `APP_SEARCH_MAX_QUERY_LENGTH` | 아니오 | OpenAPI constraint와 동일 | abuse/log 노출 최소화 |
-| `APP_ACCESS_LOG_INCLUDE_QUERY` | 아니오 | `false` | 검색어/identifier query logging 차단 |
+| `APP_MAX_REQUEST_BODY_BYTES` | 아니오 | `262144` 제안값 | request body 상한(byte), 최소 `4096`. 선언된 `Content-Length` 초과는 body를 읽기 전에, chunked 초과는 stream 중에 413 `INVALID_REQUEST`다. 근거는 아래 |
+| `APP_ACCESS_LOG_INCLUDE_QUERY` | 아니오 | `false` | 검색어/identifier query logging 차단. access log filter가 실제로 읽으며, `NULLNULL_ENV=production`에서 `true`면 startup이 실패한다 |
 | `APP_LOG_RETENTION_DAYS` | 아니오 | `30` IaC input | CloudWatch policy |
 | `APP_CROWD_DEFAULT_STALE_AFTER` | 아니오 | source override 필요 | fallback only |
+| `NULLNULL_JOBS_ENABLED` | 아니오 | `true` | job worker polling과 보존 sweep을 함께 켠다. `false`는 test/점검 전용이며 보존 sweep도 함께 멈춘다. 값이 없으면 startup에서 실패한다(primitive 기본값 `false`로 조용히 꺼지지 않게). 꺼져 있거나 아직 시작하지 않았으면 readiness `jobs`가 DEGRADED다 |
+| `NULLNULL_JOB_LEASE` | 아니오 | `PT60S` 제안값 | claim이 잡는 lease 길이, 최소 `PT1S`. heartbeat 주기는 lease/3으로 파생한다 |
+| `NULLNULL_JOB_POLL_INTERVAL` | 아니오 | `PT1S` 제안값 | type별 claim 주기, 최소 `PT0.01S` |
+| `NULLNULL_JOB_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | job 자신의 transaction에 거는 `lock_timeout`, 최소 `PT0.1S` |
+| `NULLNULL_JOB_MAX_ATTEMPTS` | 아니오 | `5` 제안값 | enqueue가 허용하는 `max_attempts` 상한(1..20). 각 job은 자기 값을 따로 정한다 |
+| `NULLNULL_JOB_RETRY_BACKOFF` | 아니오 | `PT10S` 제안값 | 첫 재시도 지연, 실패마다 2배, 최소 `PT1S` |
+| `NULLNULL_JOB_MAX_RETRY_BACKOFF` | 아니오 | `PT5M` 제안값 | 재시도 지연 상한, `NULLNULL_JOB_RETRY_BACKOFF` 이상 |
+| `NULLNULL_JOB_DEAD_LETTER_WINDOW` | 아니오 | `PT15M` 제안값 | 이 구간에 FAILED job이 있으면 readiness `jobs`가 DEGRADED, 최소 `PT1M` |
+| `NULLNULL_JOB_FINISHED_RETENTION` | 아니오 | `P7D` 제안값 | COMPLETED/FAILED job row 보존, 최소 `PT1H` |
+| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1M` 제안값 | bootstrap 15분 만료 후 다음 sweep에서 정리, 최소 `PT1M` |
+| `NULLNULL_JOB_DEFAULT_CONCURRENCY` | 아니오 | `2` 제안값 | type별 동시 실행 기본값(1..64). 아래 connection budget에 걸리면 startup에서 실패한다 |
+| `NULLNULL_DB_POOL_MAX` | 아니오 | `10` | `spring.datasource.hikari.maximum-pool-size`. HTTP thread와 job worker가 같이 쓰는 pool이다 |
 | `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
 | `NULLNULL_AI_CONNECT_TIMEOUT` | 아니오 | `PT2S` | gateway connect timeout |
 | `NULLNULL_AI_READ_TIMEOUT` | 아니오 | `PT5S` | gateway read timeout; readiness probe는 별도 1초 |
-| `NULLNULL_CURSOR_SECRET` | 예 | runtime | feed/history opaque cursor 서명 key |
+| `NULLNULL_CATALOG_PUBLIC_ENABLED` | 아니오 | `false` | C3 canonical 장소 projection의 release gate. local/test 검증 외에는 C2 T3 staging KTO provenance와 최종 AWS release 전까지 `true` 금지 |
+| `NULLNULL_CURSOR_SECRET` | 예 | runtime | feed/history/catalog opaque cursor 서명 key. catalog projection을 production에서 켤 때 UTF-8 32 byte 이상 별도 값이 필요 |
+| `NULLNULL_CROWD_MAX_RANGE_DAYS` | 아니오 | `30` | `getPlaceCrowdForecast`의 from~to 상한(일). provider가 30일 일 단위 series만 발표하므로 1~31 밖의 값은 startup에서 거부한다 |
+| `NULLNULL_PROVIDER_CONNECT_TIMEOUT` | 아니오 | `PT2S` | 외부 provider TCP connect 상한 |
+| `NULLNULL_PROVIDER_REQUEST_TIMEOUT` | 아니오 | `PT5S` | provider 전체 요청 상한; API request executor와 분리 |
+| `NULLNULL_PROVIDER_MAX_RESPONSE_BYTES` | 아니오 | `2097152` | provider 응답 최대 byte; 초과는 안전한 provider failure |
+| `NULLNULL_PROVIDER_EXECUTOR_THREADS` | 아니오 | `8` 제안값 | 외부 I/O 전용 bounded executor thread 수 |
+| `NULLNULL_PROVIDER_EXECUTOR_QUEUE_CAPACITY` | 아니오 | `32` 제안값 | provider executor 대기열 상한; 가득 차면 거부하고 API worker를 쓰지 않음 |
+| `NULLNULL_PROVIDER_PER_SOURCE_CONCURRENCY` | 아니오 | `4` 제안값 | source 하나가 executor를 독점하지 못하게 하는 permit 수 |
+| `NULLNULL_PROVIDER_RETRY_ATTEMPTS` | 아니오 | `3` | IO/5xx/429만 retry하는 전체 시도 수 |
+| `NULLNULL_PROVIDER_RETRY_BASE_DELAY` | 아니오 | `PT0.1S` | jitter가 붙는 첫 retry 지연 |
+| `NULLNULL_PROVIDER_RETRY_MAX_DELAY` | 아니오 | `PT2S` | retry 지연 상한; provider `Retry-After`도 이 상한 안에서만 존중 |
+| `NULLNULL_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` | 아니오 | `5` | 같은 source의 실패가 circuit을 여는 횟수 |
+| `NULLNULL_PROVIDER_CIRCUIT_FAILURE_WINDOW` | 아니오 | `PT30S` | 위 실패 횟수를 세는 창 |
+| `NULLNULL_PROVIDER_CIRCUIT_OPEN_DURATION` | 아니오 | `PT60S` | 열린 circuit이 빠른 안전 실패를 반환하는 기간 |
 | `SPRING_PROFILES_ACTIVE` | 아니오 | `local` | profile |
 | `SPRING_DATASOURCE_URL` | 아니오/민감 | JDBC URL | host는 내부 정보로 log redaction |
 | `SPRING_DATASOURCE_USERNAME` | 예 | runtime | DB app role |
@@ -86,6 +118,51 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | 아니오 | `health,prometheus` 내부만 | public actuator 제한 |
 
 duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 밀리초로 읽으므로 `APP_IDEMPOTENCY_TTL=24`는 24시간이 아니라 `PT0.024S`다. 두 idempotency duration은 위 최소값 미만이면 property 이름과 받은 값을 적어 startup에서 실패한다. production은 필수값 누락/안전하지 않은 cookie/CORS 설정이면 fail fast한다.
+
+`NULLNULL_JOB_*` duration도 같은 규칙과 같은 startup 실패를 따른다. `NULLNULL_JOB_LEASE=60`은 1분이 아니라 60밀리초여서 어떤 handler도 lease 안에 끝내지 못하고 모든 job이 무한히 재인수되므로, 최소값 미만은 시작을 막는다.
+
+위 job 값은 계약 문서의 수치가 아니라 BA-005의 engineering 제안값이다. 근거는 다음과 같고 실제 부하 측정 뒤 다시 정한다.
+
+- lease `PT60S`와 heartbeat lease/3: heartbeat 한 번을 놓쳐도 lease가 남고, worker가 죽으면 1분 안에 다른 worker가 재인수한다.
+- 재시도 `PT10S`→2배→`PT5M`: 일시적 provider 오류는 초 단위에 풀리고, 상한은 poison job이 attempt 상한까지 도달하는 시간을 사람이 대응할 수 있는 범위로 묶는다. jitter는 넣지 않는다(worker 수가 적고 claim이 이미 직렬화한다).
+- attempt 상한 `5`: 위 backoff에서 시도 사이 대기는 10+20+40+80초 = 150초(2분 30초)이고 마지막 시도는 그 뒤에 실행된다. `NULLNULL_JOB_RETRY_BACKOFF`나 상한을 바꾸면 이 합도 함께 바뀐다. dead-letter alert가 사람에게 넘어가기 전 재시도로 풀릴 시간을 준다는 뜻이다.
+- dead-letter window `PT15M`: readiness scrape 간격보다 충분히 길어 한 번의 dead letter를 놓치지 않고, 반복되지 않으면 스스로 해제된다.
+- finished job 보존 `P7D`: 주말에 생긴 dead letter를 다음 근무일에 조사할 수 있고, table은 작게 유지된다.
+
+`APP_MAX_REQUEST_BODY_BYTES=262144`(256 KiB)도 계약 수치가 아니라 BA-003의 engineering 제안값이다. [API README 14절](../api/README.md#14-요청-한도)에 적힌 가장 큰 입력에서 유도한다.
+
+- 문서화된 최대 입력은 붙여넣기 원문 20,000자다. UTF-8 한글은 자당 3 byte이므로 자연스러운 형태로 60,000 byte다.
+- 같은 20,000자를 client가 전부 `\uXXXX` escape로 보내면 자당 6 byte라서 120,000 byte다. 규격을 지키는 client가 만들 수 있는 최악이 이 값이다.
+- 256 KiB = 262,144 byte는 그 최악의 약 2.18배, 자연스러운 형태의 약 4.37배다. envelope(locale·timezone·trip ID·draft item 등)까지 들어갈 여유가 남는다.
+- 한 단계 아래 128 KiB(131,072)는 최악 형태 위로 11,072 byte만 남아 draft item 100개짜리 confirm envelope을 덮지 못하고, 한 단계 위 512 KiB는 이를 정당화할 문서화된 입력이 없다.
+- 최소 `4096`: 그보다 낮은 값은 정상 요청도 통과할 수 없어 설정 실수가 "전부 거부하는 API"로 보이므로 startup에서 막는다.
+
+상한을 넘은 요청에는 **regime이 둘 있고 둘 다 의도된 동작**이다. 거절한 body의 남은 bytes를 서버가 읽어 버려야 connection을 재사용할 수 있는데, 그 예산이 `server.tomcat.max-swallow-size`(`apps/api/src/main/resources/application.yaml`)다.
+
+- 예산이 재는 것은 body 총량이 아니라 **거절 시점 이후 남은 bytes**다. 상한을 넘은 순간 이미 상한만큼은 읽힌 뒤이므로, 경계는 대략 `상한 + 예산 = 262144 + 2097152 = 2359296` byte 부근이고 정확한 지점은 converter가 미리 읽어 둔 buffer 크기만큼 움직인다.
+- 남은 bytes가 예산 안이면: 깨끗한 `413 INVALID_REQUEST` Problem이 온다. 선언된 `Content-Length`든 chunked든 같다.
+- 남은 bytes가 예산을 넘으면: 서버가 나머지를 읽지 않고 connection을 끊는다. caller는 전송 타이밍에 따라 먼저 413을 받거나 HTTP 응답 없이 transport 오류를 받는다. 후자는 network 실패로 처리한다. raw-socket 검사는 응답과 독립적으로 upload하고 후속 request를 pipeline하여 connection 재사용이 거부됨을 검사한다.
+- 예산은 `2097152` byte(2 MiB) = 허용 상한 `262144`의 8배이며, Tomcat 기본값과 같은 수다. 명시적으로 적는 이유는 값을 바꾸기 위해서가 아니라 두 regime의 경계를 우리가 고른 수로 고정하기 위해서다. `APP_MAX_REQUEST_BODY_BYTES`를 바꾸면 이 값도 함께 다시 정한다.
+- 무제한(`-1`)은 쓰지 않는다. 이미 거절한 body를 끝없이 읽는 것은 DoS 경로다.
+- 두 regime은 `RequestBodySwallowBoundIT`가 shipped 상한(`262144`)에서 고정한다. `RequestBodyLimitIT`는 상한을 `8192`로 낮춰 property가 실제로 배선됐는지만 확인하므로 이 경계를 볼 수 없다.
+
+`APP_IDEMPOTENCY_LOCK_TIMEOUT=PT3S`도 BA-003의 engineering 제안값이며, 확인 가능한 근거는 측정이 아니라 구조 하나다. guard는 만료된 lock wait을 transaction 전체 재시도로 흡수하고 시도 횟수는 둘이므로(`IdempotencyGuard.LOCK_CONTENTION_ATTEMPTS`), caller가 겪는 최악은 `2 x PT3S = 6초`이고 그 뒤가 `INTERNAL_ERROR`다. 값을 올리면 그 6초가 같이 늘어난다. 바닥 `PT0.1S`는 PostgreSQL이 `lock_timeout = 0`을 "무한 대기"로 읽어 bound 자체가 사라지기 때문이다(`IdempotencyGuard.MINIMUM_LOCK_TIMEOUT`).
+
+이 값은 **측정으로 뒷받침되지 않았다**. `IdempotencyGuard.execute`를 호출하는 production code가 아직 없어서(B01은 command endpoint를 내보내지 않는다) "가장 느린 command"라고 부를 대상이 없다. 첫 실제 command endpoint를 만드는 slice가 그 command의 최악 소요를 suite에 남는 test로 재고 `PT3S`가 그것을 덮는지 확인하면, 그때 확정값이 된다.
+
+type별 동시 실행은 `nullnull.jobs.concurrency.<type>` property로 덮는다(예: `nullnull.jobs.concurrency.deletion=1`). map key라서 환경변수보다 설정 파일/실행 인자로 지정한다.
+
+동시 실행은 thread만이 아니라 **connection**을 쓴다. worker는 HTTP thread와 같은 Hikari pool을 쓰므로, worker가 pool을 다 가져가면 readiness의 database probe가 connection을 못 받아 503이 되고 task가 ALB에서 빠진다(측정: 한 type을 concurrency 10으로 두고 unit of work를 잡게 하니 `/health/ready`가 10.08초 뒤 503). 그래서 시작할 때 최악 수요를 계산해 넘으면 startup에서 실패한다.
+
+- 최악 수요 = `2 x slots + types + 1`. `slots`는 type별 concurrency의 합이다. in-flight job 하나가 unit of work로 connection 1개, 같은 job의 heartbeat가 다른 thread에서 1개를 더 쓰고, type마다 poll의 claim이 1개, 보존 sweep이 1개다.
+- 여유분은 2개다. readiness 응답 한 건이 한 번에 connection 1개를 쓰고(database probe → jobs probe 순차), ALB health check와 다른 호출이 겹칠 수 있어서다.
+- 조건: `2 x slots + types + 1 + 2 <= NULLNULL_DB_POOL_MAX`. 실패 message가 두 수와 대처(`NULLNULL_JOB_DEFAULT_CONCURRENCY`/`nullnull.jobs.concurrency.<type>` 낮추기 또는 `NULLNULL_DB_POOL_MAX` 올리기)를 함께 적는다.
+- 현재 BA-012의 실제 handler type은 `delete-owner-data` 하나다. 기본 concurrency 2이면 `2x2+1+1 = 6`, readiness 여유분까지 8이므로 pool 10에 들어간다. B03/B06에서 type이 늘면 같은 공식으로 다시 계산한다.
+
+삭제 receipt 행은 별도 환경값으로 임의 단축하지 않는다. status bearer hash는 7일에 null로 만들고,
+tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked session과 24시간 idempotency row가
+실제로 사라진 뒤에만 hard delete한다. local/test/integration은 secret이 비었을 때 process마다 임시 key를
+생성하므로 재시작을 넘는 status polling이 필요하면 명시적으로 설정해야 한다.
 
 ### 추천 서비스 `apps/ai` 설정
 
@@ -107,13 +184,19 @@ duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 �
 
 | 변수 | Secret | 설명 |
 | --- | --- | --- |
-| `KTO_SERVICE_KEY` | 예 | 한국관광공사 API key |
-| `KTO_BASE_URL` | 아니오 | 공식 endpoint, allowlist |
+| `KTO_SERVICE_KEY` | 예 | 공공데이터포털 KTO **decoding key**; runtime에만 주입 |
+| `KTO_BASE_URL` | 아니오 | C2 exact `https://apis.data.go.kr/B551011/KorService2`; contest profile에서는 다른 path/host 거부 |
+| `KTO_FORECAST_BASE_URL` | 아니오 | C4 exact `https://apis.data.go.kr/B551011/TatsCnctrRateService`; KorService2의 하위 경로가 아닌 별도 승인 endpoint이며 contest profile에서는 다른 path/host 거부 |
+| `KTO_MOBILE_APP`, `KTO_MOBILE_OS` | 아니오 | C2 `detailCommon2` request metadata; 기본 `Nullnull`/`ETC` |
+| `APP_RELEASE_VERSION` | 아니오 | safe `api_ingest_logs.release_version`; credential나 URL이 아님 |
+| `APP_CONTEST_PROFILE` | 아니오 | `2026_KTO_WEBAPP`이면 KTO key와 exact base가 startup invariant |
 | `KTO_TIMEOUT` | 아니오 | connect/read timeout |
 | `KTO_RATE_LIMIT_PER_SECOND` | 아니오 | 승인 quota 이하 |
+| `KTO_ALLOWED_HOST` | 아니오 | `apis.data.go.kr`; C1 HTTP allowlist. production은 이 exact host 집합만 허용하며 `127.0.0.1` 같은 test stub으로 drift할 수 없다 |
 | `SEOUL_API_KEY` | 예 | 서울 열린데이터 API key |
 | `SEOUL_BASE_URL` | 아니오 | 공식 endpoint |
 | `SEOUL_TIMEOUT` | 아니오 | timeout |
+| `SEOUL_ALLOWED_HOST` | 아니오 | `openapi.seoul.go.kr`; C1 HTTP allowlist. production은 이 exact host만 허용한다 |
 | `MAP_PROVIDER` | 아니오 | `NONE` P0, provider 결정 후 enum |
 | `MAP_API_KEY` | 예 | backend route/geocode key |
 | `MAP_BASE_URL` | 아니오 | provider endpoint |
@@ -122,7 +205,7 @@ duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 �
 | `AI_MODEL_ID` | 아니오 | 평가로 승인한 exact model identifier |
 | `AI_TIMEOUT` | 아니오 | request/job timeout |
 
-base URL override는 local/test fixture에 필요하지만 production에서는 hostname allowlist를 검증해 SSRF/잘못된 endpoint를 막는다.
+`ProviderHttpClient`는 redirect를 따르지 않고 source별 exact hostname·HTTPS만 허용한다. local/test fixture는 `127.0.0.1` override를 쓸 수 있지만 production은 `KTO_KOR_SERVICE_2`/`KTO_CONCENTRATION_FORECAST`/`KTO_RELATED_PLACES`의 `apis.data.go.kr` 및 `SEOUL_CITYDATA`의 `openapi.seoul.go.kr` 외의 host, 누락 source, 추가 source 설정으로 startup하지 않는다. C2 KTO client는 그 위에 `KorService2` exact path와 `detailCommon2` operation을 추가로 고정한다. provider key·전체 URL/query·응답 원문은 config/log/audit에 남기지 않는다.
 
 ## 5. AWS runtime metadata
 
@@ -154,10 +237,11 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 
 | Flag | P0 기본 | 설명/제거 조건 |
 | --- | --- | --- |
+| `NULLNULL_CATALOG_PUBLIC_ENABLED` | OFF | C3 local projection은 기본 차단. C2 T3 staging provenance와 최종 AWS release에서만 별도 cursor secret과 함께 ON 가능 |
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
-| `FEATURE_LIVE_DATA` | OFF local, readiness 기반 cloud | source 불가 시 replay/empty |
-| `FEATURE_REPLAY_MODE` | ON staging | production 강제 replay는 banner 필요 |
-| `FEATURE_OPTIMIZATION_ITEM` | OFF → rollout | B06 safety gate 후 ON |
+| `FEATURE_LIVE_DATA` | OFF (모든 환경) | B10이 live source를 붙이는 slice에서만 ON 가능. source 불가 시 replay/empty |
+| `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |
+| `FEATURE_OPTIMIZATION_ITEM` | OFF (모든 환경) | B06 safety gate를 통과하는 slice에서만 ON 가능 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
 | `FEATURE_OPTIMIZATION_TRIP` | OFF | P1 |
 | `FEATURE_NOTIFICATIONS` | OFF | P1 |
@@ -170,10 +254,12 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 
 flag는 backend capability response가 정본이다. frontend build flag만으로 권한/안전 기능을 제어하지 않는다.
 
+BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. P0에는 셋 다 server-side source가 없어 응답은 `UNAVAILABLE`이고, `true`로 켜면 9절의 "LIVE feature가 ON이면 source registry/key/readiness 설정 존재" 규칙에 따라 startup이 실패한다. source를 만드는 slice(B03 replay, B06 optimization, B10 live)가 그 flag를 켤 수 있게 된다.
+
 공모전 profile `2026_KTO_WEBAPP`은 다음 startup invariant를 추가한다.
 
 - `FEATURE_ACCOUNT_LOGIN`, `FEATURE_NEARBY_LOCATION`, `FEATURE_NOTIFICATIONS`, `FEATURE_POST_CREATION`, `FEATURE_OPTIMIZATION_DAY`, `FEATURE_OPTIMIZATION_TRIP`은 OFF다.
-- `KTO_SERVICE_KEY`가 runtime secret으로 존재하고 `KTO_BASE_URL`이 공식 allowlist와 일치한다.
+- `KTO_SERVICE_KEY`가 runtime secret으로 존재하고 `KTO_BASE_URL`·`KTO_FORECAST_BASE_URL`이 각각 공식 allowlist와 일치한다. 둘 중 하나라도 어긋나면 startup이 실패한다.
 - KTO 실제 호출과 redacted call-audit가 활성화되고, fixture-only/replay-only provider가 primary가 아니다.
 - 익명 demo session, 한국어/영어, P0 핵심 capability가 readiness에 나타난다.
 - Frontend에는 profile 이름과 공개 capability만 전달하며 secret이나 provider credential을 전달하지 않는다.
@@ -185,6 +271,7 @@ flag는 backend capability response가 정본이다. frontend build flag만으�
 - shell history에 secret을 직접 입력하지 않는다.
 - test는 fake key와 network stub을 사용한다.
 - debug log level에서도 configuration value를 전체 출력하지 않는다.
+- 실제 KTO 호출 증거를 만드는 operator smoke는 별도 승인 변수가 있어야 한다. C2 `ktoSmoke`는 `NULLNULL_KTO_SMOKE_APPROVED=true`(+`NULLNULL_KTO_SMOKE_CONTENT_ID`/`_CONTENT_TYPE_ID`), C4 `ktoForecastSmoke`는 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`가 필요하며 둘 다 redacted ID만 출력한다. CI와 PR gate는 이 변수를 설정하지 않는다.
 - B01 scaffold는 `apps/api/.env.example`, `apps/web/.env.example`를 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다.
 
 exact tool version, port, seed와 guarded reset은 [LOCAL_DEVELOPMENT.md](../engineering/LOCAL_DEVELOPMENT.md)를 따른다. example 파일은 매 CI에서 실제 configuration binding과 비교해 누락/폐기 변수를 검출한다.
@@ -217,6 +304,7 @@ startup에서 다음을 검증하고 production은 오류 시 시작하지 않�
 - datasource가 PostgreSQL이고 TLS 정책 충족
 - secret placeholder/빈 값 없음
 - timeout/rate limit/TTL이 안전 범위
+- provider timeout/response byte/executor/permit/retry/circuit 값이 양수 범위이고 production source host가 reviewed exact allowlist와 일치
 - LIVE feature가 ON이면 source registry/key/readiness 설정 존재
 - P1 flag가 승인 없이 ON이 아님
 - replay와 live가 동일 source state로 반환되지 않음

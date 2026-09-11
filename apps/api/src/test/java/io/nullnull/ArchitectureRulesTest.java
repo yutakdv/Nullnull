@@ -5,7 +5,10 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import io.nullnull.operations.application.JobHandler;
+import jakarta.persistence.EntityManager;
 import java.security.SecureRandom;
+import java.sql.Connection;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -15,9 +18,12 @@ import java.time.ZonedDateTime;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
  * REC-ARCH-01 and BA-001-T2: module and layer boundaries from
@@ -130,6 +136,26 @@ class ArchitectureRulesTest {
                     .allowEmptyShould(true)
                     .check(classes);
         }
+    }
+
+    /**
+     * The half of "a handler writes only through {@code JobContext.transactional}" that
+     * {@code JobUnitOfWorkGuard} cannot enforce. The guard is a transaction listener, so it sees
+     * begins; a statement run in autocommit through one of these types begins nothing and commits
+     * unbound, with no lease assertion anywhere near it. Forbidding the types narrows that hole to what a
+     * dependency check can see: a handler that names one of them. A collaborator one hop away is not
+     * covered - see {@code JobUnitOfWorkGuard} and the BA-005 card. A handler writes through an
+     * application service of the owning module, called inside the unit of work.
+     */
+    @Test
+    void jobHandlersNeverTouchTheDatabaseDirectly() {
+        noClasses().that().implement(JobHandler.class)
+                .should().dependOnClassesThat().belongToAnyOf(JdbcClient.class, JdbcTemplate.class,
+                        EntityManager.class, DataSource.class, Connection.class)
+                .because("a write outside JobContext.transactional is not bound to the lease, and a "
+                        + "statement in autocommit never reaches JobUnitOfWorkGuard (REC-JOB-01)")
+                .allowEmptyShould(true)
+                .check(classes);
     }
 
     @Test

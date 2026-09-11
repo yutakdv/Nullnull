@@ -8,6 +8,7 @@ readonly artifact_dir="${project_root}/.artifacts/integration"
 readonly compose_file="${project_root}/compose.integration.yml"
 readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
 readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
+readonly test_report_checker="${project_root}/scripts/check_test_reports.py"
 readonly npm_audit_report_checker="${project_root}/scripts/check_npm_audit_report.py"
 
 compose_available=false
@@ -109,6 +110,7 @@ python3 "${target_stack_verifier}" \
   web \
   e2e
 "${compose[@]}" up --detach postgres
+touch "${artifact_dir}/quality-run-start"
 "${compose[@]}" run --rm api-quality
 "${compose[@]}" run --rm ai-quality
 
@@ -121,6 +123,12 @@ if [[ ! -f "${recommendation_report}" ]]; then
   exit 1
 fi
 python3 "${evaluation_report_checker}" "${recommendation_report}"
+python3 "${test_report_checker}" \
+  --junit-dir "${artifact_dir}/api-test-results" \
+  --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
+  --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
+  --evaluation "${recommendation_report}" \
+  --run-start "${artifact_dir}/quality-run-start"
 
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff

@@ -23,7 +23,7 @@ tags:
 2. Frontend는 자신의 작업 파일 diff와 검증 기록을 제공한다. 인계물에 기준 SHA, checksum, 작성자를 함께 남긴다.
 3. Backend/AI는 인계 범위만 backend에 적용해 API·DB·CI와 조립한다. 상대 역할 브랜치를 직접 push하거나 merge/cherry-pick하지 않는다. 충돌은 해당 파일 작성자가 수정한다.
 4. frontend와 backend 사이의 PR 없이 backend → main 하나로 검토한다. Frontend는 자신이 제공한 UI 외에도 API·DB·security·infra 통합을 교차 검토한다.
-5. required checks 두 개와 상대 승인을 충족한 뒤 merge commit한다. 양 역할 브랜치는 main으로 동기화한다.
+5. 최신 `main` 기준 required checks 두 개가 green이면 auto-merge로 merge commit한다. 양 역할 브랜치는 main으로 동기화한다.
 
 이는 B01 최초 scaffold의 파일 소유권 인계 예외다. 전체 기능을 한 교차 PR로 합치는 일반 규칙이 아니다. FE 인계물의 출처·작성자 기록을 보존하고, 이후 slice는 기존 [브랜치 계약](BRANCH_AND_INTEGRATION.md)을 따른다.
 

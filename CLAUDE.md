@@ -68,7 +68,7 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 - handoff에는 기능 ID, Figma node/state, operationId/schema, 성공·실패 상태, 미결정, 실행한 검증을 남긴다.
 - 모든 commit은 Work ID를 포함한다(`FR-*`, `FCR-*`, 또는 `IMPLEMENTATION_PLAN.md`에 정의된 `FE-*`/`BE-*`/`CON-*`/`DX-*`/`GOV-*`/`REL-*`). 문서를 개편할 때 상대 역할의 실행 ID 정의를 지우면 규칙이 깨지므로 개편 전후로 ID 집합을 diff한다.
 - `FIGMA_CHANGE_REQUESTS.md`·`FIGMA_HANDOFF.md`는 두 역할이 동시에 고치는 파일이다. 병합 순서를 판단할 때는 격리 worktree에서 실제로 merge한 뒤 validator를 돌려 확인한다.
-- Frontend는 `frontend`, Backend/AI는 `backend`에서 작업하고 상대 승인과 두 required check 뒤 `main`에 merge commit한다.
+- Frontend는 `frontend`, Backend/AI는 `backend`에서 작업한다. 최신 `main` 기준 두 required check가 green이면 auto-merge하며 merge commit을 사용한다. 상대 검토는 계약 합의와 위험 검토에 활용하되 merge 대기 조건으로 두지 않는다.
 
 구체 기능은 `/nullnull-slice <기능 ID 또는 설명>` project skill을 사용한다.
 

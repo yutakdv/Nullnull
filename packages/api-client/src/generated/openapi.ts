@@ -76,8 +76,9 @@ export interface paths {
          * Issue a tab-local CSRF token for an existing session
          * @description Safe bootstrap endpoint for refresh and new tabs. It requires a valid session cookie
          *     and a same-origin Origin or Referer, but no existing CSRF token. Issuing a token does
-         *     not invalidate tokens held by other tabs; each token expires independently and at most
-         *     five unexpired token hashes are retained per session.
+         *     not invalidate other tokens while fewer than five unexpired hashes exist. Each token
+         *     expires independently. When issuing a sixth unexpired token, the least recently used
+         *     token (last_used_at, falling back to created_at) is evicted; ties use created_at then id.
          */
         post: operations["issueCsrfToken"];
         delete?: never;
@@ -137,9 +138,10 @@ export interface paths {
         };
         /**
          * Get an owned-data deletion job status after session revocation
-         * @description Uses the one-time status token returned in DeletionReceipt because the original session
+         * @description Uses the receipt-scoped status token returned in DeletionReceipt because the original session
          *     is already revoked. The raw token is held in memory only, sent in a header, stored only
-         *     as a hash, expires after seven days, and cannot read any deleted domain data.
+         *     as a hash, expires after seven days, and can be reused for polling until expiry. It cannot
+         *     read any deleted domain data. A matching expired token returns 410; an unknown token returns 404.
          */
         get: operations["getDeletionRequest"];
         put?: never;
@@ -164,7 +166,14 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update locale, timezone, onboarding, or active trip */
+        /**
+         * Update locale, timezone, onboarding, or active trip
+         * @description JSON Merge Patch: omitted fields are preserved; activeTripId null clears the selection.
+         *     Null is invalid for locale, timezone, and onboardingCompleted. Unsupported locale returns
+         *     422 VALIDATION_FAILED with field code UNSUPPORTED_LOCALE (P0 supports ko-KR and en-US).
+         *     Invalid timezone returns INVALID_TIMEZONE. A missing, deleted, or foreign-owner trip returns
+         *     the same TRIP_NOT_FOUND field error. Repeating onboardingCompleted has no additional effect.
+         */
         patch: operations["updatePreferences"];
         trace?: never;
     };
@@ -890,12 +899,18 @@ export interface components {
         SessionBootstrap: {
             owner: components["schemas"]["OwnerProfile"];
             csrfToken: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Expiry of the returned CSRF token; session idle and absolute TTL are server-enforced independently.
+             */
             expiresAt: string;
         };
         CsrfTokenResponse: {
             csrfToken: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Expiry of the returned CSRF token; session idle and absolute TTL are server-enforced independently.
+             */
             expiresAt: string;
         };
         OwnerProfile: {

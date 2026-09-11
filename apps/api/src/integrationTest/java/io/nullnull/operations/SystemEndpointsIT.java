@@ -29,6 +29,9 @@ class SystemEndpointsIT {
     @Autowired
     MockMvcTester mvc;
 
+    @Autowired
+    io.nullnull.identity.application.SessionService sessions;
+
     @Test
     void livenessReportsUpWithRequestId() {
         MvcTestResult result = mvc.get().uri("/api/v1/health/live").exchange();
@@ -49,6 +52,36 @@ class SystemEndpointsIT {
                 .asArray().containsExactly("READY");
         assertThat(result).bodyJson().extractingPath("$.checks[?(@.name=='recommendation')].status")
                 .asArray().containsExactly("UNAVAILABLE");
+    }
+
+    @Test
+    void readinessReportsTheJobRuntimeAsDegradedWhileItIsNotRunning() {
+        // Every suite runs with nullnull.jobs.enabled=false. That used to publish jobs: READY while
+        // nothing was claimed and neither retention sweep ran, because the probe only counted dead
+        // letters and a queue that consumes nothing produces none.
+        MvcTestResult result = mvc.get().uri("/api/v1/health/ready").exchange();
+        assertThat(result).hasStatus(HttpStatus.OK);
+        assertThat(result).bodyJson().extractingPath("$.checks[?(@.name=='jobs')].status")
+                .asArray().containsExactly("DEGRADED");
+        assertThat(result).bodyJson().extractingPath("$.checks[?(@.name=='jobs')].detail")
+                .asArray().singleElement().asString().contains("nullnull.jobs.enabled");
+    }
+
+    @Test
+    void demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes() {
+        // A capability with no source behind it is UNAVAILABLE, never READY (BA-003 safety line), and
+        // the list never repeats a /health/ready probe name.
+        MvcTestResult result = mvc.get().uri("/api/v1/demo/readiness")
+                .cookie(new jakarta.servlet.http.Cookie("__Host-nullnull_session", sessions.bootstrap(null,null,null).cookie)).exchange();
+        assertThat(result).hasStatus(HttpStatus.OK);
+        assertThat(result).bodyJson().extractingPath("$.overall").isEqualTo("NOT_READY");
+        assertThat(result).bodyJson().extractingPath("$.checkedAt").asString().endsWith("Z");
+        assertThat(result).bodyJson().extractingPath("$.capabilities[*].name").asArray()
+                .containsExactly("live", "replay", "optimization");
+        assertThat(result).bodyJson().extractingPath("$.capabilities[*].status").asArray()
+                .containsOnly("UNAVAILABLE");
+        assertThat(result).bodyJson().extractingPath("$.capabilities[?(@.name=='live')].detail")
+                .asArray().singleElement().asString().contains("FEATURE_LIVE_DATA");
     }
 
     @Test
