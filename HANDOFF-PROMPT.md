@@ -25,9 +25,40 @@ cat .superpowers/sdd/2026-09-08-backend-a-to-d/plan.md                   # 전�
 
 Frontend 협업 없이 Backend/AI 혼자 닫을 수 있는 카드를 순서대로 구현한다. 인프라(E)는 범위 밖.
 
-순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → ~~B3 BA-012~~ → ~~C1 BA-020~~ → **C2 BA-021(진행 중; T3 대기)** → C3 BA-022 → C4 BA-023 → C5 BA-024.
+순서: ~~Slice 0(D)~~ → ~~A1 BA-002~~ → ~~A2 BA-005~~ → ~~A3 BA-003~~ → ~~A4 BA-004 Backend/AI CI~~ → ~~B1 BA-010~~ → ~~B2 BA-011~~ → ~~B3 BA-012~~ → ~~C1 BA-020~~ → **C2 BA-021(진행 중; T3 대기)** → **C3 BA-022(진행 중; 같은 T3 대기)** → ~~C4 BA-023~~ → **C5 BA-024(다음)**.
 
-## 2. 현재 상태 (C1 BA-020 구현 후)
+## 2. 현재 상태 (C4 BA-023 구현 후, PR #108 대기)
+
+### C4(BA-023) — 혼잡 예보 · 2026-09-11
+
+- `V011`이 immutable `snapshot_sets`/`crowd_snapshots`와 KTO 집중률 registry revision 2
+  (`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 추가한다. raw body·요청 URL·key는
+  column이 없고, 모든 `UPDATE`와 set-snapshot provenance 불일치를 trigger가 거부한다.
+- 공개 `getPlaceCrowdForecast`는 저장된 검증 완료 snapshot set만 투영하고 provider를 부르지 않는다. 수집은
+  operator/background 전용 `KtoCrowdForecastGateway`다. route는 C3 canonical resolver를 재사용하므로
+  `NULLNULL_CATALOG_PUBLIC_ENABLED=false`에서 fail-closed다.
+- **되돌리지 말 것:** 비교 결과를 저장하지 않는다(`crowd_comparisons` table 없음). 격리는 읽기 시점에
+  `source_quality_incidents`로 계산한다 — snapshot이 immutable이라 저장된 row가 가질 수 없는 유일한 사실이다.
+- **적대적 검토 결과:** 최초 구현의 `CrowdComparisonService`는 production 호출자가 없었고 그 test가
+  `BA-023-T2` 증거로 등록돼 있었다. 삭제하고 실제 경로(`eligibility()`의 `PROVIDER_INCIDENT` 가드)로 교체했다.
+  변이 실측: 가드 삭제 시 두 test RED, 복원 SHA `b93a468…` 일치 후 GREEN.
+- **`ROUTE_UNAVAILABLE` → `SOURCE_UNAVAILABLE`:** fail-closed catalog/crowd gate가 최적화 run 실패용 code를
+  쓰고 있었다(`경로를 확인하지 못했어요`). 커밋 `69805f6`에서 고쳤다. FE fixture 영향 있음 — #105/#106에 기록.
+- **`FlywayMigrationIT` 주의:** migration을 추가할 때마다 직전 migration의 table을 `populateEveryTable`에
+  넣어야 한다. V010의 trigger는 `search_path`로 부모 row를 찾으므로 upgrade schema를 경로에 올린
+  `SET LOCAL` 안에서 채운다. V012를 추가하는 사람은 V011의 두 table을 같은 방식으로 채워야 한다.
+- 검증: Temurin 21 `320/153/13/19` 0 fail/error/skip, `scripts/integration-test.sh` exit 0
+  `integration_mode=full-docker`(AI 410, web 224, Playwright 36, npm audit clean, egress-denied).
+- **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거가 없다. `ktoForecastSmoke`는 `KTO_SERVICE_KEY`와
+  `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`가 필요하다. BA-021-T3와 함께 남아 있어 BA-023도 `verified`가
+  아니고 #35를 닫지 않았다.
+- **다음은 C5 BA-024**(검증된 관련 장소·추천 후보 검색). 다만 FE가 #34에 올린 출처 표시 요청 — `PlaceSummary`에
+  source/attribution field가 없어 공모전 REQUIRED `CMP-ATT-001`을 못 채우는 문제 — 를 **BA-024보다 먼저**
+  처리하겠다고 #34에 적었다(해당 FCR 번호는 FE가 PR #106에서 `FIGMA_CHANGE_REQUESTS.md` 표에 등록 중이므로 여기서
+  중복 등록하지 않는다). 서버는 `place_external_refs` + `source_registry_revisions.canonical_contract`에 데이터를
+  이미 갖고 있고 계약/투영만 없다. FE의 shape 승인 대기 중이다.
+
+### C1 BA-020 이후 누적 상태
 
 ### B3(BA-012) — 삭제 receipt·worker·restore tombstone
 
