@@ -395,6 +395,50 @@ export const handlers = [
       );
     },
   ),
+  // MOCK DATA (FE-307). setTripItemConstraint has no approved example either
+  // (BA-041). Stateful for the same reason as the release above: a lock that
+  // is set has to stay set, and the version has to advance so a stale ETag
+  // shows up as a conflict rather than passing silently.
+  http.put(
+    `${API_BASE}/trips/:tripId/items/:itemId/constraints/:constraintType`,
+    async ({ request, params }) => {
+      const trip = currentTrip();
+      if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+        return problemResponse('TRIP_CHANGED');
+      }
+      const itemId = String(params.itemId);
+      const type = String(params.constraintType);
+      const body = (await request.json()) as { type: string };
+      // The contract requires the body's type to equal the path's, so a mock
+      // that ignored the mismatch would let a real bug through.
+      if (body.type !== type) return problemResponse('VALIDATION_FAILED');
+      const next = {
+        ...trip,
+        version: trip.version + 1,
+        days: trip.days.map((day) => ({
+          ...day,
+          items: day.items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  // Replaces this one type and copies the rest through, which
+                  // is invariant 7 modelled rather than assumed.
+                  constraints: [
+                    ...item.constraints.filter((c) => c.type !== type),
+                    body as (typeof item.constraints)[number],
+                  ],
+                }
+              : item,
+          ),
+        })),
+      } as typeof trip;
+      tripState = next;
+      return HttpResponse.json(
+        { trip: next, changedItemIds: [itemId] },
+        { headers: { ETag: `"${String(next.version)}"` } },
+      );
+    },
+  ),
   http.post(`${API_BASE}/trips/:tripId/items`, async ({ request }) => {
     const trip = currentTrip();
     if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {

@@ -4,6 +4,7 @@
 // others exactly as they were, and nothing releases on its own.
 import { describe, expect, it } from 'vitest';
 import type { components } from '@nullnull/api-client';
+import { tripFixtures } from '@nullnull/contracts';
 import {
   LOCK_TYPES,
   activeLocks,
@@ -11,6 +12,7 @@ import {
   isReservationManaged,
   needsConfirm,
   remainingLocks,
+  settableLocks,
 } from '../locks.js';
 
 type TripItem = components['schemas']['TripDetail']['days'][number]['items'][number];
@@ -113,5 +115,41 @@ describe('only the locks with a confirm frame ask for one', () => {
     // No frame asks for one, and a dialog the design never specified is a
     // decision made in code rather than in the design.
     expect(needsConfirm('TIME')).toBe(false);
+  });
+});
+
+describe('settableLocks offers only what this screen can actually send', () => {
+  const base = tripFixtures.detailScheduled.days[0]?.items[0];
+
+  function item(overrides: Partial<NonNullable<typeof base>>) {
+    return { ...(base as NonNullable<typeof base>), ...overrides };
+  }
+
+  it('never offers RESERVATION', () => {
+    // COMPONENT_CATALOG forbids a reservation toggle, and the contract needs a
+    // date and a startTime for it — an input, not a switch (FCR-033).
+    expect(settableLocks(item({ constraints: [] }))).not.toContain('RESERVATION');
+  });
+
+  it('omits a lock the item already carries', () => {
+    const withMustVisit = item({
+      constraints: [{ type: 'MUST_VISIT', locked: true, source: 'USER' }],
+    });
+    expect(settableLocks(withMustVisit)).not.toContain('MUST_VISIT');
+    expect(settableLocks(withMustVisit)).toContain('DATE');
+  });
+
+  it('omits TIME when the item has no time to pin', () => {
+    // SetTimeConstraintInput requires startTime; with none there is nothing to
+    // lock to, so the control would build a request we cannot fill.
+    expect(settableLocks(item({ constraints: [], startTime: null }))).not.toContain(
+      'TIME',
+    );
+  });
+
+  it('offers TIME once the item has a time', () => {
+    expect(
+      settableLocks(item({ constraints: [], startTime: '09:30:00+09:00' })),
+    ).toContain('TIME');
   });
 });

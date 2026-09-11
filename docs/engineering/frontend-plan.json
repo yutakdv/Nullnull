@@ -985,7 +985,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "item 편집 시트에서 잠금 종류별 독립 설정",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-304",
         "BA-041"

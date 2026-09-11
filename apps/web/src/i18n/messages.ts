@@ -298,6 +298,10 @@ export const messages = {
     // S07-7 `413:2081` and S07-10b `527:3876` (FE-304). The frames fix this
     // wording: each dialog states which lock releases and what carries over.
     'trip.lock.release': '{lock} 해제',
+    // FE-307: 설정 쪽. 한 번 누르면 한 종류만 걸리고 나머지는 그대로다.
+    'trip.lock.apply': '{lock} 설정',
+    'trip.lock.applying': '설정하는 중이에요',
+    'trip.lock.applyFailed': '잠금을 설정하지 못했어요',
     'trip.lock.reservationNote': '예약에서 관리해요',
     'trip.lock.releasing': '해제하는 중이에요',
     'trip.lock.releaseFailed': '잠금을 해제하지 못했어요',
@@ -782,6 +786,9 @@ export const messages = {
     'trip.lock.TIME': 'Time locked',
     'trip.lock.RESERVATION': 'Reservation locked',
     'trip.lock.release': 'Release {lock}',
+    'trip.lock.apply': 'Set {lock}',
+    'trip.lock.applying': 'Setting',
+    'trip.lock.applyFailed': "We couldn't set that lock",
     'trip.lock.reservationNote': 'Managed by the reservation',
     'trip.lock.releasing': 'Releasing',
     'trip.lock.releaseFailed': "We couldn't release that lock",

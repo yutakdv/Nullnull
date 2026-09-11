@@ -41,6 +41,7 @@ export {
   usePlaceSearch,
   useSessionBootstrap,
   useTrip,
+  useSetItemConstraint,
   useTrips,
   useReplaceTripInterests,
   useUpdateTrip,

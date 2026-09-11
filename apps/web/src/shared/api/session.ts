@@ -701,6 +701,78 @@ export function useRemoveItemConstraint(tripId: string | null) {
   });
 }
 
+/**
+ * The body of a set-constraint request, typed the way the CONTRACT defines it.
+ *
+ * Not `components['schemas']['SetConstraintInput']`, and that is deliberate.
+ * openapi-typescript rewrites a discriminated union's property to the schema
+ * NAME unless the spec supplies a `discriminator.mapping`, so the generated
+ * type demands `type: 'SetDateConstraintInput'` while openapi.yaml says
+ * `const: DATE`. SetConstraintInput is the only union in the spec without a
+ * mapping — every other one, including the read-side TripConstraint, has it
+ * and generates correctly.
+ *
+ * Sending the generated spelling would be sending something the contract does
+ * not describe, so the wire shape is written out here. Reported to Backend/AI;
+ * when the mapping lands this alias becomes the generated type again.
+ */
+type SetConstraintInput =
+  | { type: 'MUST_VISIT'; locked: true }
+  | { type: 'DATE'; locked: true; date: string }
+  | { type: 'TIME'; locked: true; startTime: string; toleranceMinutes: number }
+  | {
+      type: 'RESERVATION';
+      locked: true;
+      date: string;
+      startTime: string;
+      endTime?: string | null;
+    };
+
+/**
+ * Sets one item lock (FE-307, FR-CON-01/FR-CON-03).
+ *
+ * One request per lock, because the contract gives each its own endpoint:
+ * PUT /constraints/{constraintType}, with the body's `type` required to equal
+ * the path's. There is no way to set two at once and nothing here tries —
+ * that is invariant 7's independence expressed as a route, not as a promise.
+ *
+ * Mirrors useRemoveItemConstraint: If-Match is required, and the result
+ * carries the whole trip plus a new ETag, so the cache takes both.
+ */
+export function useSetItemConstraint(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    { itemId: string; constraint: SetConstraintInput; etag: string | null }
+  >({
+    mutationFn: async ({ itemId, constraint, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot change a lock without the trip ETag');
+      const { data, error, response } = await getApiClient().PUT(
+        '/trips/{tripId}/items/{itemId}/constraints/{constraintType}',
+        {
+          params: {
+            // The path decides which lock this is; the body repeats it because
+            // the contract makes `type` the union's discriminator.
+            path: { tripId, itemId, constraintType: constraint.type },
+            header: { 'If-Match': etag },
+          },
+          // The generated body type carries openapi-typescript's schema-name
+          // spelling, so this asserts the contract's shape at the boundary.
+          body: constraint as never,
+        },
+      );
+      if (!data) fail(error, response);
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }) => {
+      if (tripId === null) return;
+      queryClient.setQueryData(tripQueryKey(tripId), { trip: result.trip, etag });
+    },
+  });
+}
+
 type UpdateTripItemRequest = components['schemas']['UpdateTripItemRequest'];
 type ReorderTripItemsRequest = components['schemas']['ReorderTripItemsRequest'];
 type ReplaceTripItemRequest = components['schemas']['ReplaceTripItemRequest'];
