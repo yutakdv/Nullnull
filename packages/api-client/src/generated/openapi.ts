@@ -948,7 +948,14 @@ export interface components {
         DeletionRequestStatus: {
             /** Format: uuid */
             requestId: string;
-            /** @enum {string} */
+            /**
+             * @description COMPLETED and FAILED are the states a client may stop polling on. PARTIAL_FAILED is NOT
+             *     one of them: it means an attempt failed while the server still has attempts left, so the
+             *     server retries on its own and the status changes again without any client action. ACCEPTED
+             *     and RUNNING are in progress. Do not derive terminality from `completedAt` — it is set when
+             *     an erasure completes and is not cleared if a later attempt starts.
+             * @enum {string}
+             */
             status: "ACCEPTED" | "RUNNING" | "COMPLETED" | "PARTIAL_FAILED" | "FAILED";
             /** Format: date-time */
             requestedAt: string;
@@ -956,7 +963,12 @@ export interface components {
             updatedAt: string;
             /** Format: date-time */
             completedAt?: string | null;
-            /** @default false */
+            /**
+             * @description True exactly while `status` is PARTIAL_FAILED, meaning the server has attempts left and
+             *     will make them. It describes the server's own retrying, not a prompt for the client to
+             *     resubmit the deletion: the request is already accepted and resubmitting is never required.
+             * @default false
+             */
             retryable?: boolean;
             failureCode?: string | null;
         };
