@@ -107,6 +107,14 @@ export const messages = {
     'post.saving': '저장하는 중이에요',
     'post.saveFailed': '저장하지 못했어요',
     'post.saveNote': '글만 저장해요. 여행 일정은 그대로예요',
+    // FE-401~403 라이브 (S11 `418:2523`). BA-091이 열리기 전까지는 화면이
+    // 없으므로, 탭이 무엇을 준비 중인지 말한다. 없는 혼잡도를 만들지 않는다.
+    'live.title': '라이브',
+    'live.comingSoon': '준비 중이에요',
+    'live.description':
+      '지금 붐비는 정도를 지도와 목록으로 보여드릴 예정이에요. 실제 관측·예측 데이터가 연결되면 열려요',
+    'live.meanwhile': '그동안 혼잡도 데이터가 무엇을 뜻하는지 먼저 살펴보세요',
+    'live.dataGuide': '혼잡도 데이터 안내',
     'profile.title': '내 정보',
     'profile.guest.name': '게스트',
     'profile.guest.note':
@@ -677,6 +685,12 @@ export const messages = {
     'post.saving': 'Saving',
     'post.saveFailed': "We couldn't save it",
     'post.saveNote': 'Saves the post only. Your trip is unchanged',
+    'live.title': 'Live',
+    'live.comingSoon': 'Coming soon',
+    'live.description':
+      "We'll show how busy places are right now, on a map and as a list. It opens once real observed and forecast data is connected",
+    'live.meanwhile': 'Meanwhile, see what the crowd figures actually mean',
+    'live.dataGuide': 'About crowd data',
     'profile.title': 'My info',
     'profile.guest.name': 'Guest',
     'profile.guest.note':

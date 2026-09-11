@@ -5,12 +5,12 @@ import { FeedScreen } from './feed/FeedScreen.js';
 import { PostScreen } from './post/PostScreen.js';
 import { OptimizeSetupScreen } from './optimize/OptimizeSetupScreen.js';
 import { OptimizationRunScreen } from './optimize/OptimizationRunScreen.js';
-import { PlaceholderScreen } from './PlaceholderScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
 import { LanguageScreen } from './onboarding/LanguageScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
+import { LiveScreen } from './live/LiveScreen.js';
 import { AddPlaceScreen } from './trip/AddPlaceScreen.js';
 import { CandidatesScreen } from './trip/CandidatesScreen.js';
 import { TripScreen } from './trip/TripScreen.js';
@@ -77,7 +77,8 @@ export const routes: RouteObject[] = [
     children: [
       { path: 'feed', element: <FeedScreen /> },
       { path: 'trip/:tripId', element: <TripScreen /> },
-      { path: 'live', element: <PlaceholderScreen routeId="live" /> },
+      // S11 live, a 준비 중 screen until BA-091 opens the data (FE-401).
+      { path: 'live', element: <LiveScreen /> },
       { path: 'profile', element: <ProfileScreen /> },
     ],
   },

@@ -17,7 +17,10 @@ test.describe('app shell', () => {
 
   test('resolves a deep link without a full reload', async ({ page }) => {
     await page.goto('/live');
-    await expect(page.getByTestId('placeholder-route')).toHaveText('live');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'live-heading',
+    );
   });
 
   test('shows an explicit not-found screen with a way back', async ({ page }) => {
