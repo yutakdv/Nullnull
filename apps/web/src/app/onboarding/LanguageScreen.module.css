@@ -66,6 +66,16 @@
   background: var(--color-action-subtle);
 }
 
+/* The ✓ mark already survives forced colours, so the row stays identifiable
+   there; the outline makes the whole target obvious rather than just its
+   trailing glyph (TEST_STRATEGY.md §3). */
+@media (forced-colors: active) {
+  .selected {
+    outline: 3px solid CanvasText;
+    outline-offset: -3px;
+  }
+}
+
 .names {
   display: flex;
   flex-direction: column;

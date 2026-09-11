@@ -16,6 +16,14 @@ const SCREENS = [
   { path: '/language', name: 'language' },
   { path: '/intro', name: 'intro' },
   { path: '/profile', name: 'profile' },
+  // A real trip id shape, though the built app has no API behind it yet: what
+  // this measures is the reflow of whichever state the screen reaches, and the
+  // error state has to survive 360px and 200% zoom too.
+  { path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01', name: 'trip' },
+  {
+    path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/candidates',
+    name: 'saved places',
+  },
   { path: '/about-data', name: 'data guide' },
 ];
 
@@ -219,4 +227,50 @@ test.describe('touch targets', () => {
       ).toEqual([]);
     });
   }
+});
+
+test.describe('the app shell fits the screen', () => {
+  // The tab bar drifted off a phone screen because `main` carried
+  // `min-height: 100dvh`: the content alone was a full viewport tall, so the
+  // shell came to twice that and the bar sat ~750px below the fold. Desktop
+  // Chrome hid it — `position: sticky` still clamped the bar into view — which
+  // is why this measures the document rather than the bar's own rectangle.
+  for (const path of [
+    '/profile',
+    '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01',
+    '/live',
+    '/feed',
+  ]) {
+    test(`${path} does not scroll the page itself`, async ({ page }) => {
+      await page.goto(path);
+      await page.waitForLoadState('networkidle');
+      const { docHeight, viewportHeight } = await page.evaluate(() => ({
+        docHeight: document.documentElement.scrollHeight,
+        viewportHeight: window.innerHeight,
+      }));
+      // The shell owns the viewport; scrolling belongs to the region inside it.
+      // A document taller than the screen means the bar is below the fold.
+      expect(docHeight).toBeLessThanOrEqual(viewportHeight + 1);
+    });
+  }
+
+  test('the tab bar sits on the bottom edge and stays there', async ({ page }) => {
+    await page.goto('/profile');
+    await page.waitForLoadState('networkidle');
+    const bar = page.locator('nav').last();
+    const read = async () => {
+      const box = await bar.boundingBox();
+      const height = await page.evaluate(() => window.innerHeight);
+      return { bottom: Math.round(box?.y ?? 0) + Math.round(box?.height ?? 0), height };
+    };
+    const before = await read();
+    expect(before.bottom).toBeLessThanOrEqual(before.height + 1);
+
+    await page.evaluate(() => {
+      const main = document.querySelector('main');
+      if (main) main.scrollTop = main.scrollHeight;
+    });
+    const after = await read();
+    expect(after.bottom).toBe(before.bottom);
+  });
 });

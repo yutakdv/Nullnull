@@ -13,15 +13,21 @@
       "serverVerified": false
     },
     "session": {
-      "schemas": ["SessionBootstrap", "CsrfTokenResponse", "OwnerProfile"],
-      "count": 3,
+      "schemas": [
+        "SessionBootstrap",
+        "CsrfTokenResponse",
+        "OwnerProfile",
+        "DeletionReceipt",
+        "DeletionRequestStatus"
+      ],
+      "count": 5,
       "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies.",
       "serverVerified": false
     },
     "trips": {
-      "schema": "TripPage",
-      "count": 2,
-      "basis": "NO approved example exists for listTrips. Values invented to match Figma S14 422:2925 (two trips, and an empty variant) and validated against the schema only. Replace with BE/AI's real response (BA-030).",
+      "schema": "TripPage, TripDetail",
+      "count": 5,
+      "basis": "NO approved example exists for listTrips, getTrip or replaceTripInterests. Values invented to match Figma S14 422:2925 and S07-1 410:1738 (two trips, an empty variant, a created trip, one carrying interests, one with a scheduled itinerary) and validated against the schema only. Every TripItem.crowd is null: CrowdMetric requires a 29-field DataProvenance and inventing collector run ids or comparison eligibility would fabricate the evidence invariant 8 exists to protect (FCR-030). Replace with BE/AI's real response (BA-030, BA-031).",
       "serverVerified": false
     },
     "optimizations": {
@@ -34,6 +40,12 @@
       "schema": "PlaceSearchPage",
       "count": 2,
       "basis": "NO approved example exists for searchPlaces. Values invented to match Figma S02-4B 438:3158 and validated against the schema only. Carries no crowd or provenance: PlaceSummary has no such field (FCR-029). Replace with BE/AI's real response (BA-022).",
+      "serverVerified": false
+    },
+    "candidates": {
+      "schema": "CandidatePage, CandidateMatchResult",
+      "count": 7,
+      "basis": "NO approved example exists for listTripCandidates, getCandidateTripMatches or addTripItem. Values invented to match Figma S07-8 412:1912 (an active candidate, a SIMILAR one, one already SCHEDULED, an empty variant) plus one match result per state so EXACT/SIMILAR/NONE/CHECKING/UNKNOWN are each exercised rather than collapsed. No place carries a source or attribution because PlaceSummary has no such field (FCR-031). Replace with BE/AI's real response (BA-034, BA-042).",
       "serverVerified": false
     }
   }

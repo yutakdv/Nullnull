@@ -1,0 +1,254 @@
+/* S07-8 candidate panel `412:1912`. A route, not an overlay: the frame is a
+   full screen with its own back control. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.back {
+  align-self: flex-start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-action-primary);
+  font-size: var(--font-body-sm);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-lg);
+  font-weight: 700;
+  line-height: 30px;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Card / Candidate (412:1969): pt12 pb4 px12, gap12, r12, hairline border. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-default);
+}
+
+.cardHead {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.cardText {
+  display: flex;
+  flex-direction: column;
+  /* 379:367 */
+  gap: 3px;
+  /* Lets the text shrink instead of pushing the card past 360px. */
+  min-width: 0;
+}
+
+/* 379:366: 48px, r8, on the track grey while empty. */
+.thumb,
+.thumbEmpty {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-bg-track, var(--color-bg-subtle));
+}
+
+/* actions (379:374): text buttons, gap 20, py12. */
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+/* Secondary and quiet: removing is available but never the obvious action. */
+.remove {
+  min-height: 44px;
+  padding: var(--space-3) 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 500;
+  line-height: 18px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.remove:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.name {
+  margin: 0;
+  color: var(--color-text-primary);
+  /* Body/lg 15/20 medium (379:368) — medium, not bold. */
+  font-size: var(--font-body-md);
+  font-weight: 500;
+  line-height: 20px;
+  /* Server-supplied and can be long. */
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-text-secondary);
+  /* Body/sm 12/16 (379:369). */
+  font-size: var(--font-label);
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* relation-badge (379:371): a pill stating the relation or the scheduled
+   state. Action-tinted for SIMILAR, neutral otherwise — the frame draws both. */
+.badge {
+  align-self: flex-start;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.badgeRelated {
+  background: var(--color-action-subtle);
+  color: var(--color-action-primary);
+}
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.date {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}
+
+.date:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* A blocked date is text, not a button: there is nothing to press. */
+.blocked {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
+
+.state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-card-lg);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.primary,
+.secondary {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* btn/일정에 추가 (379:389) is text in the action colour, not a filled pill —
+   the card already carries the emphasis. */
+.primary {
+  min-height: 44px;
+  padding: var(--space-3) 0;
+  border: 0;
+  background: none;
+  color: var(--color-action-primary);
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.secondary {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+}

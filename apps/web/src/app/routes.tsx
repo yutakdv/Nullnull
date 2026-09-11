@@ -1,4 +1,5 @@
-import { Outlet, type RouteObject } from 'react-router';
+import { type RouteObject } from 'react-router';
+import { AppShell } from './AppShell.js';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
@@ -6,8 +7,11 @@ import { IntroScreen } from './onboarding/IntroScreen.js';
 import { LanguageScreen } from './onboarding/LanguageScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
+import { CandidatesScreen } from './trip/CandidatesScreen.js';
+import { TripScreen } from './trip/TripScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
 import { MustVisitScreen } from './trip-create/MustVisitScreen.js';
+import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
 
 // P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
 // their own slices; until then each route renders a labelled placeholder and
@@ -18,32 +22,51 @@ import { MustVisitScreen } from './trip-create/MustVisitScreen.js';
 export const routes: RouteObject[] = [
   {
     path: '/',
-    element: (
-      <main id="main">
-        <Outlet />
-      </main>
-    ),
+    element: <AppShell />,
     errorElement: (
       <main id="main">
         <RouteErrorBoundary />
       </main>
     ),
     children: [
+      // Onboarding: no tab bar. The user is inside a flow, and a tab press here
+      // would abandon it before a session even exists.
       { index: true, element: <SplashScreen /> },
       { path: 'language', element: <LanguageScreen /> },
       { path: 'intro', element: <IntroScreen /> },
-      { path: 'start', element: <MustVisitScreen /> },
-      { path: 'feed', element: <PlaceholderScreen routeId="feed" /> },
+      // S02 wizard. Steps 1-3 are the local draft (FE-102); step 4 collects
+      // must-visit places (FE-103) and is a nested step of the same flow, not a
+      // separate entry point. Wiring them into one flow is FE-102's follow-up
+      // once step 4 knows the draft it belongs to.
+      //
+      // No tab bar either: the draft is unsaved, so a stray tap discards it.
+      { path: 'start', element: <TripWizardScreen /> },
+      { path: 'start/must-visit', element: <MustVisitScreen /> },
+      // Sub-pages reached by a back control, so they carry a NavBar instead.
       { path: 'posts/:postId', element: <PlaceholderScreen routeId="post-detail" /> },
-      { path: 'trip/:tripId', element: <PlaceholderScreen routeId="trip" /> },
+      { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
       {
         path: 'trip/:tripId/optimizations/:runId',
         element: <PlaceholderScreen routeId="optimization" />,
       },
-      { path: 'live', element: <PlaceholderScreen routeId="live" /> },
-      { path: 'profile', element: <ProfileScreen /> },
       { path: 'about-data', element: <DataGuideScreen /> },
       { path: '*', element: <NotFoundScreen /> },
+    ],
+  },
+  {
+    // Tab destinations. Same shell, with the bar (S03, S07-1, S11, S14).
+    path: '/',
+    element: <AppShell tabs />,
+    errorElement: (
+      <main id="main">
+        <RouteErrorBoundary />
+      </main>
+    ),
+    children: [
+      { path: 'feed', element: <PlaceholderScreen routeId="feed" /> },
+      { path: 'trip/:tripId', element: <TripScreen /> },
+      { path: 'live', element: <PlaceholderScreen routeId="live" /> },
+      { path: 'profile', element: <ProfileScreen /> },
     ],
   },
 ];

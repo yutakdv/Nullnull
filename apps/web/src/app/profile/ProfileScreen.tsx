@@ -2,6 +2,8 @@ import { Link } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useOptimizationHistory, useTrips } from '../../shared/api/index.js';
+import { DeletionSection } from './DeletionSection.js';
+import { InterestsSection } from './InterestsSection.js';
 import styles from './ProfileScreen.module.css';
 
 // Figma: S14 profile `422:2925`.
@@ -37,13 +39,20 @@ export function ProfileScreen() {
 
   return (
     <section className={styles.screen} aria-labelledby="profile-heading">
+      {/* No NavBar: this is a tab destination with no back control, the h1
+          below is the title the frame shows, and the settings glyph beside it
+          has no P0 destination — a control that goes nowhere is worse than an
+          absent one. An empty bar would be a spacer pretending to be chrome. */}
       <h1 className={styles.title} id="profile-heading">
         {t('profile.title')}
       </h1>
 
       <div className={styles.card}>
         <div className={styles.guest}>
-          <span>
+          {/* 422:2934: a 44px avatar. Decorative — the name beside it is the
+              content, so it carries no alternative text of its own. */}
+          <span aria-hidden="true" className={styles.avatar} />
+          <span className={styles.guestText}>
             <span className={styles.guestName}>{t('profile.guest.name')}</span>
             <span className={styles.guestNote}>{t('profile.guest.note')}</span>
           </span>
@@ -56,8 +65,21 @@ export function ProfileScreen() {
         </p>
       </div>
 
-      <div className={styles.card}>
-        <p className={styles.sectionHead}>{t('profile.trips.title')}</p>
+      {/* Labelled section, not a bare div: the trip list and the history list
+          both render links titled after a trip, so without a name on each
+          group a screen reader hears two identical sets of links. */}
+      <section aria-labelledby="profile-trips-heading" className={styles.card}>
+        <div className={styles.sectionRow}>
+          <h2 className={styles.sectionHead} id="profile-trips-heading">
+            {t('profile.trips.title')}
+          </h2>
+          {/* 422:2943: the count sits at the end of the section row. */}
+          {trips.isSuccess ? (
+            <span className={styles.rowValue}>
+              {t('profile.trips.count', { count: trips.data.items.length })}
+            </span>
+          ) : null}
+        </div>
         {trips.isPending ? (
           <p className={styles.state} role="status">
             {t('profile.trips.loading')}
@@ -99,10 +121,12 @@ export function ProfileScreen() {
             ))}
           </ul>
         ) : null}
-      </div>
+      </section>
 
-      <div className={styles.card}>
-        <p className={styles.sectionHead}>{t('profile.history.title')}</p>
+      <section aria-labelledby="profile-history-heading" className={styles.card}>
+        <h2 className={styles.sectionHead} id="profile-history-heading">
+          {t('profile.history.title')}
+        </h2>
         {history.isPending ? (
           <p className={styles.state} role="status">
             {t('profile.history.loading')}
@@ -148,18 +172,15 @@ export function ProfileScreen() {
         ) : null}
         {/* States it plainly, because the absence is the point. */}
         <p className={styles.note}>{t('profile.history.note')}</p>
+      </section>
+
+      {/* FE-106: was an inert row describing the feature; now the feature. */}
+      <div className={styles.card}>
+        <InterestsSection />
       </div>
 
       <div className={styles.card}>
         <ul className={styles.rows}>
-          <li>
-            <span className={styles.row}>
-              <span className={styles.rowText}>
-                <span className={styles.rowTitle}>{t('profile.interests.title')}</span>
-                <span className={styles.rowNote}>{t('profile.interests.note')}</span>
-              </span>
-            </span>
-          </li>
           <li>
             <Link className={styles.row} to="/about-data">
               <span className={styles.rowText}>
@@ -184,6 +205,8 @@ export function ProfileScreen() {
           </li>
         </ul>
       </div>
+
+      <DeletionSection />
     </section>
   );
 }

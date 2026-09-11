@@ -4,6 +4,7 @@
 // packages/contracts (see its README). Handlers must not build bodies inline —
 // an inline object is a hand-written model with nothing checking it.
 import {
+  candidateFixtures,
   optimizationFixtures,
   placeFixtures,
   problemFixtures,
@@ -38,6 +39,33 @@ export function problemResponse(code: ProblemCode, headers: Record<string, strin
 }
 
 /**
+ * FE-106's trip state. A replace increments the version, so the next If-Match
+ * has to use the ETag the server just returned.
+ */
+let tripState: (typeof tripFixtures)['detailWithInterests'] | null = null;
+
+function currentTrip() {
+  // The scheduled fixture is the default: it carries the interests FE-106
+  // edits *and* the days/items FE-301 renders, so one trip serves both screens
+  // and they cannot disagree about the same id.
+  tripState ??= tripFixtures.detailScheduled;
+  return tripState;
+}
+
+let candidateState: (typeof candidateFixtures)['page'] | null = null;
+
+function currentCandidates() {
+  candidateState ??= candidateFixtures.page;
+  return candidateState;
+}
+
+/** Drops mutations between tests, so ordering cannot leak state. */
+export function resetMockState(): void {
+  tripState = null;
+  candidateState = null;
+}
+
+/**
  * Default happy-path handlers: only the session bootstrap trio, which is all
  * FE-003 needs. Screen slices add their own as their fixtures arrive from BE.
  */
@@ -64,6 +92,34 @@ export const handlers = [
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
+  // MOCK DATA (FE-102). Without this the wizard's final submit is an unhandled
+  // request: the tests each stood up their own handler and passed, while the
+  // running app answered 500 and showed its failure state. Delete with BA-030.
+  http.post(`${API_BASE}/trips`, () =>
+    HttpResponse.json(tripFixtures.detailCreated, {
+      status: 201,
+      headers: {
+        // Strong, not W/"1": components.headers.ETag is `^"[1-9][0-9]*"$` and
+        // If-Match repeats that pattern, so a weak validator is one the real
+        // server would reject. Mirrors the body's own `version`.
+        ETag: `"${String(tripFixtures.detailCreated.version)}"`,
+        Location: `/trips/${tripFixtures.detailCreated.id}`,
+      },
+    }),
+  ),
+  // MOCK DATA (FE-105). Deletion is 202 with a receipt, then a status the
+  // screen polls with the receipt token. Delete with BA-012.
+  http.delete(`${API_BASE}/session`, () =>
+    HttpResponse.json(sessionFixtures.deletionReceipt, {
+      status: 202,
+      headers: { Location: sessionFixtures.deletionReceipt.statusUrl },
+    }),
+  ),
+  http.get(`${API_BASE}/deletion-requests/:id`, () =>
+    HttpResponse.json(sessionFixtures.deletionStatus, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    }),
+  ),
   // MOCK DATA (FE-103). searchPlaces is a read-only POST so the query never
   // reaches a URL log; the handler matches that shape. Delete with BA-022.
   http.post(`${API_BASE}/places/search`, () =>
@@ -71,4 +127,170 @@ export const handlers = [
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),
+
+  // MOCK DATA (FE-303). listTripCandidates, getCandidateTripMatches and
+  // addTripItem have no approved example (BA-034, BA-042).
+  http.get(`${API_BASE}/trips/:tripId/candidates`, () =>
+    HttpResponse.json(currentCandidates()),
+  ),
+  http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, ({ params }) => {
+    // Keyed off the candidate so each match state is reachable from the running
+    // app, not only from a test that forces a handler.
+    const id = String(params.candidateId);
+    if (id.endsWith('0001')) return HttpResponse.json(candidateFixtures.matchSimilar);
+    return HttpResponse.json(candidateFixtures.matchExact);
+  }),
+  http.delete(`${API_BASE}/trips/:tripId/candidates/:candidateId`, ({ params }) => {
+    const candidates = currentCandidates();
+    // DISMISSED rather than deleted: the contract keeps the row so the place is
+    // not re-suggested. The panel filters it out.
+    candidateState = {
+      ...candidates,
+      items: candidates.items.map((c) =>
+        c.id === String(params.candidateId) ? { ...c, status: 'DISMISSED' as const } : c,
+      ),
+    };
+    return new HttpResponse(null, { status: 204 });
+  }),
+  // MOCK DATA (FE-304). removeTripItemConstraint has no approved example
+  // (BA-041). Stateful so a released lock stays released and the version
+  // advances, which is what makes a stale-ETag bug visible.
+  http.delete(
+    `${API_BASE}/trips/:tripId/items/:itemId/constraints/:constraintType`,
+    ({ request, params }) => {
+      const trip = currentTrip();
+      if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+        return problemResponse('TRIP_CHANGED');
+      }
+      const itemId = String(params.itemId);
+      const type = String(params.constraintType);
+      const next = {
+        ...trip,
+        version: trip.version + 1,
+        days: trip.days.map((day) => ({
+          ...day,
+          items: day.items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  // Only the named constraint goes. The others are copied
+                  // through untouched, which is invariant 7 modelled rather
+                  // than assumed.
+                  constraints: item.constraints.filter((c) => c.type !== type),
+                }
+              : item,
+          ),
+        })),
+      } as typeof trip;
+      tripState = next;
+      return HttpResponse.json(
+        { trip: next, changedItemIds: [itemId] },
+        { headers: { ETag: `"${String(next.version)}"` } },
+      );
+    },
+  ),
+  http.post(`${API_BASE}/trips/:tripId/items`, async ({ request }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const body = (await request.json()) as {
+      placeId: string;
+      candidateId?: string | null;
+      date: string;
+      position: number;
+      startTime?: string | null;
+    };
+    const candidates = currentCandidates();
+    const candidate = candidates.items.find((c) => c.id === body.candidateId);
+    // The contract's 201 is "item added and candidate marked scheduled": one
+    // transaction, so the mock applies both or neither (invariant 5).
+    const itemId = crypto.randomUUID();
+    const nextTrip = {
+      ...trip,
+      version: trip.version + 1,
+      days: trip.days.map((day) =>
+        day.date === body.date
+          ? {
+              ...day,
+              items: [
+                ...day.items,
+                {
+                  id: itemId,
+                  place: candidate?.place ?? trip.days[0]?.items[0]?.place,
+                  date: body.date,
+                  position: body.position,
+                  startTime: body.startTime ?? null,
+                  durationMinutes: null,
+                  note: null,
+                  constraints: [],
+                  crowd: null,
+                },
+              ],
+            }
+          : day,
+      ),
+    } as typeof trip;
+    tripState = nextTrip;
+    candidateState = {
+      ...candidates,
+      items: candidates.items.map((c) =>
+        c.id === body.candidateId
+          ? { ...c, status: 'SCHEDULED' as const, scheduledTripItemId: itemId }
+          : c,
+      ),
+    };
+    return HttpResponse.json(
+      { trip: nextTrip, changedItemIds: [itemId] },
+      { status: 201, headers: { ETag: `"${String(nextTrip.version)}"` } },
+    );
+  }),
+
+  // MOCK DATA (FE-106). getTrip and replaceTripInterests have no approved
+  // example, so these are schema-valid guesses. Delete with BA-031.
+  //
+  // Stateful on purpose: the interest card reads an ETag, sends it back as
+  // If-Match and expects a new one. A handler that returned a fixed version
+  // would let a stale-ETag bug pass, because every save would look fresh.
+  http.get(`${API_BASE}/trips/:tripId`, () => {
+    const trip = currentTrip();
+    return HttpResponse.json(trip, { headers: { ETag: `"${String(trip.version)}"` } });
+  }),
+  http.patch(`${API_BASE}/trips/:tripId`, async ({ request }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const patch = (await request.json()) as Partial<typeof trip>;
+    // The contract refuses a date-range shrink while an item lies outside the
+    // new range, and says so with 422 rather than deleting anything. Modelled
+    // because FR-TRP-05's whole point is that no item is implicitly removed.
+    const endDate = patch.endDate ?? trip.endDate;
+    const startDate = patch.startDate ?? trip.startDate;
+    const orphaned = trip.days.some(
+      (day) => day.items.length > 0 && (day.date < startDate || day.date > endDate),
+    );
+    if (orphaned) return problemResponse('VALIDATION_FAILED');
+
+    tripState = { ...trip, ...patch, version: trip.version + 1 };
+    return HttpResponse.json(tripState, {
+      headers: { ETag: `"${String(tripState.version)}"` },
+    });
+  }),
+  http.put(`${API_BASE}/trips/:tripId/interests`, async ({ request }) => {
+    const trip = currentTrip();
+    // The contract requires If-Match; a mismatch is the 409 the screen recovers
+    // from. Modelled here so the conflict path is exercised for real rather
+    // than only by a test that forces it.
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const body = (await request.json()) as {
+      interests: (typeof trip)['interests'];
+    };
+    tripState = { ...trip, interests: body.interests, version: trip.version + 1 };
+    return HttpResponse.json(tripState, {
+      headers: { ETag: `"${String(tripState.version)}"` },
+    });
+  }),
 ];

@@ -29,6 +29,30 @@
   padding: var(--space-4);
 }
 
+/* 422:2934 */
+.avatar {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-track, var(--color-bg-subtle));
+}
+
+.guestText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 422:2939: the section head and its trailing value share a row. */
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
 .guestName {
   display: block;
   color: var(--color-text-primary);
@@ -69,7 +93,7 @@
 }
 
 .sectionHead {
-  padding: var(--space-3) var(--space-4) 0;
+  margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-label);
   line-height: 16px;

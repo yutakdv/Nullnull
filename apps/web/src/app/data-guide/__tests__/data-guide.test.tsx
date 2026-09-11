@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
+import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { DataGuideScreen } from '../DataGuideScreen.js';
@@ -26,9 +27,15 @@ const spec = load(
 const contractStates = spec.components.schemas.SourceState.enum;
 
 function renderGuide() {
+  // Wrapped in a router: the screen's NavBar navigates to a named destination
+  // rather than calling history.go(-1), so it needs the router context.
+  const router = createMemoryRouter(
+    [{ path: '/about-data', element: <DataGuideScreen /> }],
+    { initialEntries: ['/about-data'] },
+  );
   return render(
     <I18nProvider>
-      <DataGuideScreen />
+      <RouterProvider router={router} />
     </I18nProvider>,
   );
 }

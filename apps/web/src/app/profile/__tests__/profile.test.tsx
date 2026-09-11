@@ -12,7 +12,7 @@
 // itinerary content for history, so a test checks the screen shows status and
 // target only, rather than trusting the fixture to stay thin.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -81,8 +81,16 @@ describe('S14 profile shows the anonymous guest state', () => {
 describe('the trip list renders each of its states', () => {
   it('lists the trips it is given', async () => {
     renderProfile();
+    // Scoped to the trips section: the history card links its target trip by
+    // the same title, and FE-106's interest selector names every trip too, so
+    // a document-wide query matches several places at once.
+    const card = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
     for (const trip of tripFixtures.page.items) {
-      expect(await screen.findByText(trip.title)).toBeInTheDocument();
+      expect(
+        await within(card).findByRole('link', { name: new RegExp(trip.title) }),
+      ).toBeInTheDocument();
     }
   });
 
@@ -184,7 +192,12 @@ describe('the profile is reachable by keyboard', () => {
   it('moves focus through the links in order', async () => {
     const user = userEvent.setup();
     renderProfile();
-    await screen.findByText(tripFixtures.page.items[0]?.title ?? '');
+    const card = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+    await within(card).findByRole('link', {
+      name: new RegExp(tripFixtures.page.items[0]?.title ?? ''),
+    });
 
     await user.tab();
     const first = screen

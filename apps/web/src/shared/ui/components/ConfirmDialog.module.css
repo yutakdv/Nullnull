@@ -1,0 +1,90 @@
+/* S07-9 `413:2020`. The panel is the card; the dialog element is the backdrop. */
+
+.dialog {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  /* The element fills the viewport so a click anywhere outside the panel lands
+     on the dialog itself and reads as a backdrop press. */
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100%;
+  height: 100%;
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(320px, calc(100vw - var(--space-8, 32px)));
+  margin: auto;
+  padding: var(--space-5, 20px);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-default);
+  /* Centred without transforms so reduced-motion and zoom behave. */
+  position: absolute;
+  inset: 0;
+  height: fit-content;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.body {
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 20px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.cancel,
+.confirm,
+.destructive {
+  flex: 1;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cancel {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+}
+
+.confirm,
+.destructive {
+  border: 0;
+  background: var(--color-action-primary);
+  color: var(--color-text-inverse);
+}
+
+/* Same weight as confirm: the wording carries the warning, not the colour,
+   so the meaning survives forced colours and colour-blindness. */
+.destructive {
+  background: var(--color-action-primary);
+}
+
+@media (forced-colors: active) {
+  .panel {
+    border: 1px solid CanvasText;
+  }
+}

@@ -69,6 +69,16 @@
   background: var(--color-protect-subtle);
 }
 
+/* 438:3171: 66px, r8, on the track grey while empty. */
+.thumb {
+  flex: none;
+  width: 66px;
+  height: 66px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-bg-track, var(--color-bg-subtle));
+}
+
 .cardText {
   display: flex;
   flex: 1;

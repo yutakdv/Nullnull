@@ -1,0 +1,44 @@
+{
+  "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
+  "title": "서울 가을 여행",
+  "startDate": "2026-10-04",
+  "endDate": "2026-10-07",
+  "timezone": "Asia/Seoul",
+  "status": "ACTIVE",
+  "version": 3,
+  "candidateCount": 5,
+  "planningLevel": "MUST_VISIT_ONLY",
+  "interests": [
+    {
+      "code": "FRIENDS",
+      "weight": 3
+    },
+    {
+      "code": "FOOD",
+      "weight": 5
+    },
+    {
+      "code": "CULTURE",
+      "weight": 3
+    }
+  ],
+  "days": [
+    {
+      "date": "2026-10-04",
+      "items": []
+    },
+    {
+      "date": "2026-10-05",
+      "items": []
+    },
+    {
+      "date": "2026-10-06",
+      "items": []
+    },
+    {
+      "date": "2026-10-07",
+      "items": []
+    }
+  ],
+  "candidates": []
+}

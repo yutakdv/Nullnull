@@ -37,6 +37,18 @@ import historyPage from "../fixtures/optimizations/history-page.json" with { typ
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
+import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
+import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
+import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
+import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
+import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
+import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
+import matchSimilar from "../fixtures/candidates/match-similar.json" with { type: "json" };
+import matchNone from "../fixtures/candidates/match-none.json" with { type: "json" };
+import matchChecking from "../fixtures/candidates/match-checking.json" with { type: "json" };
+import matchUnknown from "../fixtures/candidates/match-unknown.json" with { type: "json" };
+import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
+import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -72,6 +84,12 @@ export const sessionFixtures = {
   bootstrap: sessionBootstrap as components["schemas"]["SessionBootstrap"],
   csrfToken: csrfToken as components["schemas"]["CsrfTokenResponse"],
   owner: ownerProfileAnonymous as components["schemas"]["OwnerProfile"],
+  // PROVISIONAL (FE-105): deleteCurrentSession and getDeletionRequest have no
+  // approved example. The token is an obvious test string — a realistic-looking
+  // one in a repository would read as a leaked credential.
+  deletionReceipt: deletionReceipt as components["schemas"]["DeletionReceipt"],
+  deletionStatus:
+    deletionStatus as components["schemas"]["DeletionRequestStatus"],
 };
 
 // PROVISIONAL MOCK DATA — replace when BA-011/BA-030 serve these for real.
@@ -89,6 +107,28 @@ export const sessionFixtures = {
 export const tripFixtures = {
   page: tripPage as components["schemas"]["TripPage"],
   pageEmpty: tripPageEmpty as components["schemas"]["TripPage"],
+  // What createTrip returns: an empty trip with one day per date in the range,
+  // which is what the wizard's deterministic seed produces before any item.
+  detailCreated: tripDetailCreated as components["schemas"]["TripDetail"],
+  // A trip that already has interests, matching page.items[0] so the list and
+  // the detail agree. FE-106 needs a non-empty set; detailCreated only covers
+  // the empty case.
+  detailWithInterests: tripDetailInterests as components["schemas"]["TripDetail"],
+  // A trip with items on some days and none on others, so FE-301's per-day
+  // empty state is exercised by the data rather than only by a test.
+  detailScheduled: tripDetailScheduled as components["schemas"]["TripDetail"],
+};
+
+export const candidateFixtures = {
+  page: candidatePage as components["schemas"]["CandidatePage"],
+  pageEmpty: candidatePageEmpty as components["schemas"]["CandidatePage"],
+  // One per match state. FIGMA_HANDOFF gives each a distinct UI, so each needs
+  // its own fixture rather than a single "no slots" stand-in.
+  matchExact: matchExact as components["schemas"]["CandidateMatchResult"],
+  matchSimilar: matchSimilar as components["schemas"]["CandidateMatchResult"],
+  matchNone: matchNone as components["schemas"]["CandidateMatchResult"],
+  matchChecking: matchChecking as components["schemas"]["CandidateMatchResult"],
+  matchUnknown: matchUnknown as components["schemas"]["CandidateMatchResult"],
 };
 
 export const optimizationFixtures = {

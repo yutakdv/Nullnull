@@ -1,0 +1,309 @@
+/* S07-1 trip view `410:1738`. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  /* Figma 462:3386 sets 10px, which is off the 4px token scale. */
+  gap: 10px;
+  padding: var(--space-4);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-subtle);
+}
+
+.headRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* 462:3387 */
+  gap: 6px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  /* Title/md 20/27 (462:3388), not title-lg. */
+  font-size: var(--font-title-md);
+  font-weight: 700;
+  line-height: 27px;
+}
+
+.dday {
+  /* 462:3391 */
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-subtle);
+  color: var(--color-action-primary);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  line-height: 15px;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-secondary);
+  /* Body/sm 12/16 (462:3393). */
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+/* 468:3397: a white pill on the subtle hero, in the action colour. */
+.candidates {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 5px var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-default);
+  color: var(--color-action-primary);
+  font-size: var(--font-label);
+  font-weight: 700;
+  line-height: 16px;
+  text-decoration: none;
+}
+
+/* 462:3401 */
+.divider {
+  width: 100%;
+  height: 1px;
+  background: var(--color-border-default);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* Figma shows two pills of equal width. The optimization one is `준비 중` and
+   inert, so it reads as unavailable rather than merely quiet — but it keeps the
+   same footprint so the row does not reflow when FE-501 makes it real. */
+/* 462:3402: two equal pills, px16 py8, Body/md strong 13/18. */
+.actionLabel,
+.action {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* btn/optimize is the filled one in the frame (462:3403). It is `준비 중`
+   until FE-501, so it renders as inert text — but at the frame's weight, so
+   the row does not reflow when it becomes real. */
+.actionLabel {
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-default);
+  color: var(--color-text-disabled);
+  /* Two short lines rather than one wrapped mid-word at 360px. */
+  line-height: 15px;
+}
+
+.actionText {
+  white-space: nowrap;
+}
+
+/* btn/edit (462:3405): white with the default border, not the strong one. */
+.action {
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.badge {
+  flex: none;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-default);
+  color: var(--color-text-disabled);
+  font-size: var(--font-label);
+}
+
+.dayNav {
+  overflow-x: auto;
+  /* The chip row scrolls itself rather than pushing the page sideways at
+     360px or 200% zoom. */
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
+}
+
+.dayChips {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each chip keeps its own width; the row scrolls instead. Without this they
+   shrink to fit and wrap their label mid-word at 360px. */
+.dayChips > li {
+  flex: none;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 410:4404: Title/sm 15/20 with a 12/16 date beside it. */
+.dayTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.dayDate {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 400;
+  line-height: 16px;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Card / TripItem (410:4407): p16, gap8, r14. */
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-subtle);
+}
+
+/* title-row (381:351): gap 6. */
+.itemHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.itemName {
+  margin: 0;
+  color: var(--color-text-primary);
+  /* Title/sm 15/20 (381:353). */
+  font-size: var(--font-body-md);
+  font-weight: 700;
+  line-height: 20px;
+  /* Place names come from the server and can be long. */
+  overflow-wrap: anywhere;
+}
+
+.itemTime {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+  /* Body/sm 12/16 (381:355). */
+  font-size: var(--font-label);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-secondary);
+  /* Body/sm 12/16 (381:357). */
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+/* locks (381:368): gap 6. */
+.locks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Form / LockControl (376:355) at its unlocked/user-locked resting size:
+   px12 py3, pill, Label/sm 11/15. Status here, not a control — FE-304 makes
+   these operable, and the component itself is used then. */
+.lock {
+  padding: 3px var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-default);
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  font-weight: 500;
+  line-height: 15px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-card-lg);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.state {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
+}
+
+.retry {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}

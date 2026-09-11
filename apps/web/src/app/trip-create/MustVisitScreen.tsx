@@ -36,7 +36,10 @@ export function MustVisitScreen() {
   const pickedIds = new Set(picked.map((place) => place.id));
 
   function meta(place: PlaceSummary): string {
-    return [place.categoryCode, place.address].filter(Boolean).join(' · ');
+    // Address only. categoryCode is a free string in the contract with no
+    // display name to map it to, so showing it puts machine text like
+    // "ATTRACTION" in front of the user (asked on #34 / BA-022).
+    return place.address ?? '';
   }
 
   return (
@@ -85,6 +88,19 @@ export function MustVisitScreen() {
             <ul className={styles.list} aria-labelledby="search-results">
               {search.data.items.map((place) => (
                 <li className={styles.card} key={place.id}>
+                  {/* 438:3171: a 66px thumbnail. Decorative — the name beside
+                      it is the accessible content. */}
+                  {place.thumbnailUrl ? (
+                    <img
+                      alt=""
+                      className={styles.thumb}
+                      height={66}
+                      src={place.thumbnailUrl}
+                      width={66}
+                    />
+                  ) : (
+                    <span aria-hidden="true" className={styles.thumb} />
+                  )}
                   <span className={styles.cardText}>
                     <span className={styles.name}>{place.name}</span>
                     <span className={styles.meta}>{meta(place)}</span>
@@ -111,9 +127,11 @@ export function MustVisitScreen() {
           <span className={styles.sectionLabel} id="picked-places">
             {t('mustVisit.picked')}
           </span>
+          {/* One interpolated message, not a number glued to a suffix: the
+              noun goes before the count in English and after it in Korean, and
+              the concatenated form left English with a bare digit. */}
           <span className={styles.count}>
-            {picked.length}
-            {t('mustVisit.pickedCount')}
+            {t('mustVisit.pickedCount', { count: picked.length })}
           </span>
         </div>
         {picked.length === 0 ? (
@@ -122,6 +140,19 @@ export function MustVisitScreen() {
           <ul className={styles.list} aria-labelledby="picked-places">
             {picked.map((place) => (
               <li className={`${styles.card} ${styles.picked}`} key={place.id}>
+                {/* 438:3171: a 66px thumbnail. Decorative — the name beside
+                    it is the accessible content. */}
+                {place.thumbnailUrl ? (
+                  <img
+                    alt=""
+                    className={styles.thumb}
+                    height={66}
+                    src={place.thumbnailUrl}
+                    width={66}
+                  />
+                ) : (
+                  <span aria-hidden="true" className={styles.thumb} />
+                )}
                 <span className={styles.cardText}>
                   <span className={styles.nameRow}>
                     <span className={styles.name}>{place.name}</span>
