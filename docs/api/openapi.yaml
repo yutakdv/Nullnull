@@ -3342,6 +3342,11 @@ components:
         - $ref: "#/components/schemas/SetReservationConstraintInput"
       discriminator:
         propertyName: type
+        mapping:
+          MUST_VISIT: "#/components/schemas/SetMustVisitConstraintInput"
+          DATE: "#/components/schemas/SetDateConstraintInput"
+          TIME: "#/components/schemas/SetTimeConstraintInput"
+          RESERVATION: "#/components/schemas/SetReservationConstraintInput"
     SetMustVisitConstraintInput:
       type: object
       additionalProperties: false
@@ -3639,6 +3644,12 @@ components:
         - $ref: "#/components/schemas/OptimizationRemoveChange"
       discriminator:
         propertyName: operation
+        mapping:
+          MOVE: "#/components/schemas/OptimizationExistingItemChange"
+          REORDER: "#/components/schemas/OptimizationExistingItemChange"
+          REPLACE: "#/components/schemas/OptimizationExistingItemChange"
+          ADD: "#/components/schemas/OptimizationAddChange"
+          REMOVE: "#/components/schemas/OptimizationRemoveChange"
     OptimizationExistingItemChange:
       type: object
       additionalProperties: false
