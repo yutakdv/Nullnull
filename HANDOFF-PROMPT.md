@@ -330,3 +330,27 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 - `grep -o 'name="BA-001-T2[^"]*"' build/test-results/test/TEST-io.nullnull.ArchitectureRulesTest.xml`이 실제로 ID를 반환한다. **build 성공이 아니라 이 grep이 `@DisplayName`이 testcase 이름에 실렸다는 증거다.**
 - `scripts/check_test_reports.py` → `test_reports=valid` (새 status 3개 반영 후).
 - `bash scripts/integration-test.sh` → **EXIT=0, `integration_mode=full-docker`**. AI pytest 410, web unit 597(42 파일), Playwright 51, `evaluation_report=valid`, `test_reports=valid`, npm audit 보고서 생성, egress-denied 통과.
+
+## 12. FE 질문 대응 — 계약 정정과 첫 response example
+
+### 되돌리지 말 것
+
+- **`runLink`는 API path가 아니라 client router path다.** pattern을 `^/trip/…`(**단수**)로 고쳤다. 앱 라우터가 `trip/:tripId/optimizations/:runId`이고 계약의 옛 `/trips/`(복수)는 **앱 라우터와도 API와도 일치하지 않아** `ProfileScreen`의 `to={run.runLink}`가 404였다. `/api/v1`을 포함하지 않는다는 것을 description에 못박았다. 복수로 되돌리지 마라.
+  - 같은 커밋에서 `packages/contracts/fixtures/optimizations/history-page.json`의 3줄을 함께 고쳤다. **ajv가 pattern을 강제하므로 한쪽만 고치면 `apps/web` vitest가 깨진다.**
+- **response example은 media-type level에 둔다**(`responses.<code>.content.application/json.examples`). 실측으로 확인했다 — `getPlace` example을 이 위치에 넣고 client를 재생성했더니 **생성물 diff가 0줄**이었다. schema-level `examples:`에 넣으면 `@example` JSDoc이 생겨 재생성·커밋이 필요하다. 앞으로의 계약 PR도 이 위치를 쓴다.
+- **`getPlace` example의 `description`·`thumbnailUrl`·`thumbnailAsset`은 null이 정답이다.** collector가 `overviewYN=N`·`firstImageYN=N`으로 요청해 overview 텍스트와 이미지를 **저장하지 않는다.** 여기에 풍부한 텍스트를 넣은 example은 실제 연동 첫날 깨지는 허구다.
+- **`place-detail.json`의 `externalId`(`KTO-PENDING-CAPTURE`)와 `location` 좌표는 captured provider 증거가 아니다.** `categoryCode`/`regionCode`의 `HS`/`11`만 실제 `detailCommon2` 호출에서 온 값이다(#109). manifest `placeDetail.basis`에 이 구분을 적어 뒀다. 실응답을 잡으면 교체한다.
+- **`NULLNULL_CATALOG_PUBLIC_ENABLED=false`를 FE 편의를 위해 켜지 마라.** fail-closed는 BA-021-T3 staging 증거 전까지 유지되는 설계된 안전 gate다. FE가 막힌 문제는 flag가 아니라 **승인된 example이 없던 것**이었고, 그건 위 fixture로 풀었다.
+- **`FCR-005`의 조건부는 해제했다.** `418:2523`의 정렬 control 결함은 **`FCR-025`(P0 blocker, Open)가 단독 추적**한다. `FCR-005` 증거 절에 메모 한 줄만 남겼고 중복 추적하지 않는다. `#13`은 `FCR-016~028`을 명시적 비범위로 두므로 이 결함은 `#13`을 막는 근거가 아니다.
+- **`FCR-011`의 폭 blocker 원인은 계약 버전이 아니다.** 문서에 있던 "main은 아직 `0.2.0`"은 거짓이었다(main은 `0.2.1-rc.1`이고 `attributionShort`와 example 2개가 있다). 진짜 원인은 **서버가 `attributionShort`를 항상 `null`로 내보내는 것**이다 — `apps/api` main 전체에서 이 필드를 채우는 코드가 없고 `CrowdProvenanceProjection`이 `null` 리터럴을 넣는다. crowd 계약 PR에서 서버가 실제 값을 채운다.
+
+### FE에 넘긴 것 (BE가 더 댈 것 없음)
+
+- `FR-SES-02`(401 뒤 재-bootstrap)·`FR-SES-03`(`issueCsrfToken` 호출)은 서버가 이미 완성돼 있어 client 작업만 남았다. 재시도는 **safe GET·1회**로 제한해야 한다(mutation 자동 재시도는 불변식 6 위반).
+- 두 기능 ID가 **어느 FE task에도 등록돼 있지 않다.** FE-101이 이미 `operations`에 `issueCsrfToken`을 갖고 있어 거기 붙이는 것이 가장 싸다.
+- `FR-PLC-01`은 FE 소유가 맞지만 `getPlace`를 부르는 화면이 Figma에 없다. 기존 task에 억지로 붙이지 말고 화면 결정 후 신규 task를 만든다.
+- **`fixtures.test.ts`는 `apps/web`(FE 소유)라 새 fixture의 ajv 단언을 내가 넣지 못했다.** `placeFixtures.detail`을 export까지 해 뒀으니 FE가 한 줄 추가하면 된다. 이번 세션에서 같은 ajv 설정으로 직접 검증했고 `PlaceDetail` 스키마를 통과한다.
+
+### 남은 계약 공백 (#118)
+
+`ordinalLevel`의 진짜 공백은 숫자가 아니라 **표시 단어**다. 디자인 정본은 "막대 + `4 · 혼잡` 문구"를 요구하는데(`COMPONENT_CATALOG.md:90`, 어휘는 `FIGMA_CHANGE_REQUESTS.md:200`의 `1 · 매우 여유`~`4 · 혼잡`), 계약의 `label`은 "diagnostic, not display copy"라 FE가 단어를 받을 곳이 없다. `pattern`만 추가하는 안은 채택하지 않는다. 어휘는 서울 실시간 도시데이터 실응답 1건으로 확정한 뒤 계약에 넣는다 — 지금 enum에 적으면 임의 기입이다. `FCR-029`가 그때까지 "혼잡 표시 없이 구현"으로 이미 합의돼 있다.

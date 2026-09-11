@@ -223,6 +223,8 @@ top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 54개다(FCR-001 �
 4. 직선거리(`Data / Distance` 컴포넌트)는 `FCR-009`(거리 기준·산식 표시) 종료 전까지 이번 change set에서 추가하지 않았다.
 5. 구현 acceptance: `queryLiveAreas`/`listLiveAreaPlaces`/`getOptimization` READY 응답 어디에도 route provider가 계산한 시간·거리·우회 값이 없는 한 화면에 관련 수치를 표시하지 않는다. 필터는 provider 독립적인 값(거리순은 좌표 기반 정렬 가능, 혼잡순은 crowd 계약 존재)만 노출한다.
 
+> **BE/AI 검토 메모 (조건부 해제).** 위 3번의 교체 칩 자체에는 남은 문제가 있다 — `가까운 순`은 좌표와 기준점이 필요한데 이 문서 아래 표가 `PlaceSummary`에 좌표가 없고 기준점도 계약에 없다고 기록하고 있으며, `혼잡 낮은 순`은 provenance·비교 자격 없는 혼잡 순위라 안전 불변식 8에 걸린다. 다만 `418:2523`의 정렬 control은 **`FCR-025`(P0 blocker, Open)가 이미 추적**하고 있으므로 여기서 중복 추적하지 않는다. `FCR-005`의 route 수치 제거 범위는 이 조건 없이 승인한다.
+
 ## FCR-006 증거
 
 - 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
@@ -358,7 +360,9 @@ top-level frame이 4개 늘어 `02 UI Design` 구현 frame은 58개다(FCR-007�
 
 11px 기준 46자 전문은 약 300px 이상을 차지하므로 172px·190px 카드에서는 3줄 이상이 되어 다른 정보를 밀어낸다. 세 곳 모두 축약 없이는 레이아웃이 성립하지 않는다.
 
-`CON-004` A2에서 BE/AI가 `attributionShort`(optional nullable, 1~160자, 없으면 full 표시·FE 임의 절단 금지)를 이미 **추가하기로 결정**했으나, 해당 계약은 backend 작업 트리의 `0.2.1-rc.1`에만 있고 `origin/backend`·`main`은 아직 `0.2.0`이라 FE가 값을 확인할 수 없다. 따라서 현재 Figma 표기는 **잠정**이며 다음이 필요하다.
+`CON-004` A2에서 BE/AI가 `attributionShort`(optional nullable, 1~160자, 없으면 full 표시·FE 임의 절단 금지)를 이미 **추가하기로 결정**했고, 그 계약은 이제 `main`에 있다(`0.2.1-rc.1`, `attributionShort`와 두 example 포함).
+
+**폭 blocker가 아직 살아 있는 이유는 계약이 아니라 서버다.** `CrowdProvenanceProjection`이 `DataProvenance`를 만들 때 `attributionShort` 자리에 `null` 리터럴을 넣는다(`apps/api` main 전체에서 이 필드를 채우는 코드는 없다). `SOURCE_CATALOG`가 값이 없으면 전문 표시를 요구하므로 위 46자 문제가 그대로 재현된다. 서버가 실제 값을 채우는 것은 crowd 계약 PR에서 처리한다. 그때 FE가 확인할 수 없다. 따라서 현재 Figma 표기는 **잠정**이며 다음이 필요하다.
 
 1. `0.2.1-rc.1`이 `backend → main`으로 병합되어 FE가 `SEOUL_CITYDATA`의 `attributionShort` 실제 값을 확인
 2. 그 값에 맞춰 세 화면의 표기를 다시 맞추고 전문은 상세·데이터 안내(S15)에서 제공
