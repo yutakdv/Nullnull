@@ -51,6 +51,21 @@ function renderProfile() {
   );
 }
 
+/**
+ * Same screen in Korean.
+ *
+ * Seeds the stored locale rather than taking a test-only prop, so the provider
+ * resolves it through the path the app actually uses.
+ */
+function renderKo() {
+  localStorage.setItem('nullnull.locale', 'ko-KR');
+  return renderProfile();
+}
+
+afterEach(() => {
+  localStorage.clear();
+});
+
 describe('S14 profile shows the anonymous guest state', () => {
   it('explains where trips are stored', async () => {
     renderProfile();
@@ -124,11 +139,82 @@ describe('the trip list renders each of its states', () => {
 });
 
 describe('optimization history shows status without itinerary content', () => {
-  it('renders one row per run with its decision state', async () => {
+  it('shows what the user chose, not just where the run ended', async () => {
     renderProfile();
-    expect(await screen.findByText(copy['profile.history.APPLIED'])).toBeInTheDocument();
-    expect(screen.getByText(copy['profile.history.KEPT'])).toBeInTheDocument();
-    expect(screen.getByText(copy['profile.history.REVERTED'])).toBeInTheDocument();
+    // The decision is the half of the row a status cannot supply. "APPLIED" is
+    // where the run got to; "적용함" is that the user chose it. A row that
+    // printed only the status would read the same for a run the server ended
+    // and a run the user ended.
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    expect(
+      screen.getByText(new RegExp(copy['profile.history.decision.KEEP'])),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(copy['profile.history.decision.REVERT'])),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the decision for a decided run and the status for an undecided one', async () => {
+    renderProfile();
+    await screen.findByText(new RegExp(copy['profile.history.scope.TRIP']));
+    const notes = screen.getAllByText(/·/).map((n) => n.textContent ?? '');
+    const running = notes.find((n) => n.includes(copy['profile.history.scope.TRIP']));
+    expect(running).toContain(copy['profile.history.RUNNING']);
+    expect(running).not.toContain(copy['profile.history.pending']);
+  });
+
+  it('renders the decision rather than the status for a decided run', async () => {
+    // Korean is the only locale where this is observable: 적용됨 (the run
+    // reached APPLIED) and 적용함 (the user chose APPLY) are different words,
+    // while en-US spells both "Applied" and KEPT/REVERTED collide in both
+    // locales. Without this assertion the screen could ignore rowState's
+    // decision branch entirely and every other test would still pass.
+    renderKo();
+    const ko = messages['ko-KR'];
+    await screen.findByText(new RegExp(ko['profile.history.scope.TRIP']));
+    const notes = screen.getAllByText(/·/).map((n) => n.textContent ?? '');
+    const applied = notes.filter((n) => n.includes(ko['profile.history.decision.APPLY']));
+    expect(applied.length).toBeGreaterThan(0);
+    for (const note of notes) {
+      expect(note).not.toContain(ko['profile.history.APPLIED']);
+    }
+  });
+
+  it('separates a READY run awaiting a decision from a decided one', async () => {
+    renderProfile();
+    // The one actionable row: the result exists and nobody has answered it.
+    // It must not borrow the copy of a run that was actually decided.
+    const pending = await screen.findByText(new RegExp(copy['profile.history.pending']));
+    expect(pending).toBeInTheDocument();
+    expect(pending.textContent).not.toContain(copy['profile.history.decision.APPLY']);
+  });
+
+  it('does not offer a link for a run that has no result yet', async () => {
+    renderProfile();
+    await screen.findByText(new RegExp(copy['profile.history.RUNNING']));
+    const running = optimizationFixtures.historyPage.items.find(
+      (run) => run.status === 'RUNNING',
+    );
+    // A queued or running run has nothing to open; linking to it would land
+    // the user on an empty page.
+    // Matched on runId, not runLink: the href is built from tripId+runId
+    // rather than echoing the server's value, so comparing runLink would
+    // pass even if the row did render a link.
+    expect(
+      screen
+        .queryAllByRole('link')
+        .find((a) =>
+          a.getAttribute('href')?.endsWith(`/optimizations/${running?.runId}`),
+        ),
+    ).toBeUndefined();
+  });
+
+  it('names the scope, because APPLIED means different things per scope', async () => {
+    renderProfile();
+    await screen.findByText(new RegExp(copy['profile.history.scope.TRIP']));
+    expect(
+      screen.getAllByText(new RegExp(copy['profile.history.scope.ITEM'])).length,
+    ).toBeGreaterThan(0);
   });
 
   it('states that itinerary content is not kept', async () => {
@@ -138,13 +224,49 @@ describe('optimization history shows status without itinerary content', () => {
 
   it('links each run to its own page rather than inlining the plan', async () => {
     renderProfile();
-    await screen.findByText(copy['profile.history.APPLIED']);
-    for (const run of optimizationFixtures.historyPage.items) {
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    const withResult = optimizationFixtures.historyPage.items.filter(
+      (run) => run.status !== 'QUEUED' && run.status !== 'RUNNING',
+    );
+    expect(withResult.length).toBeGreaterThan(0);
+    for (const run of withResult) {
       const link = screen
         .getAllByRole('link')
-        .find((a) => a.getAttribute('href') === run.runLink);
+        .find(
+          (a) =>
+            a.getAttribute('href') === `/trip/${run.tripId}/optimizations/${run.runId}`,
+        );
       expect(link).toBeDefined();
     }
+  });
+
+  it('opens a run instead of the not-found screen', async () => {
+    // The regression this guards: the row used to render `run.runLink`
+    // verbatim, and the contract spells it `/trips/{id}/optimizations/{id}`
+    // (plural) while the only route registered here is `/trip/:tripId/...`
+    // (singular). Every link rendered fine and 404'd on click, which an
+    // href-only assertion cannot catch — so this one clicks.
+    const router = createMemoryRouter(routes, { initialEntries: ['/profile'] });
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByText(new RegExp(copy['profile.history.scope.TRIP']));
+    const decided = optimizationFixtures.historyPage.items.find(
+      (r) => r.status === 'APPLIED',
+    );
+    const link = screen
+      .getAllByRole('link')
+      .find((a) => a.getAttribute('href')?.endsWith(`/optimizations/${decided?.runId}`));
+    expect(link).toBeDefined();
+    await userEvent.click(link as HTMLElement);
+    expect(router.state.location.pathname).toBe(
+      `/trip/${decided?.tripId}/optimizations/${decided?.runId}`,
+    );
+    expect(document.body.textContent ?? '').not.toMatch(/not found/i);
   });
 
   it('says so when there is no history', async () => {

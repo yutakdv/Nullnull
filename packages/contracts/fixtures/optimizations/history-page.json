@@ -1,6 +1,28 @@
 {
   "items": [
     {
+      "runId": "018f4a20-9f11-7c08-b3d7-2e5a41c9b104",
+      "tripId": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
+      "tripTitle": "서울 가을 여행",
+      "scope": "TRIP",
+      "status": "RUNNING",
+      "decision": null,
+      "runLink": "/trips/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b104",
+      "queuedAt": "2026-10-02T04:00:00Z",
+      "decidedAt": null
+    },
+    {
+      "runId": "018f4a20-9f11-7c08-b3d7-2e5a41c9b105",
+      "tripId": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
+      "tripTitle": "서울 가을 여행",
+      "scope": "DAY",
+      "status": "READY",
+      "decision": null,
+      "runLink": "/trips/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b105",
+      "queuedAt": "2026-10-02T03:20:00Z",
+      "decidedAt": null
+    },
+    {
       "runId": "018f4a20-9f11-7c08-b3d7-2e5a41c9b101",
       "tripId": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
       "tripTitle": "서울 가을 여행",
