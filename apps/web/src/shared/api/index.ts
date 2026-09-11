@@ -50,6 +50,7 @@ export {
   useReplaceTripItem,
   useRemoveTripItem,
   useAddTripCandidate,
+  useRelatedPlaces,
   candidatesQueryKey,
   useUpdatePreferences,
   tripQueryKey,

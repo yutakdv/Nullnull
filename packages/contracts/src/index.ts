@@ -36,6 +36,9 @@ import tripPageEmpty from "../fixtures/trips/trip-page-empty.json" with { type: 
 import historyPage from "../fixtures/optimizations/history-page.json" with { type: "json" };
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
+import relatedPage from "../fixtures/places/related-page.json" with { type: "json" };
+import relatedNone from "../fixtures/places/related-none.json" with { type: "json" };
+import relatedChecking from "../fixtures/places/related-checking.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
@@ -129,6 +132,15 @@ export const candidateFixtures = {
   matchNone: matchNone as components["schemas"]["CandidateMatchResult"],
   matchChecking: matchChecking as components["schemas"]["CandidateMatchResult"],
   matchUnknown: matchUnknown as components["schemas"]["CandidateMatchResult"],
+};
+
+export const relatedFixtures = {
+  // Alternatives for a replace. crowd is null on every row: CrowdMetric needs a
+  // 29-field DataProvenance and the comparison rules read it, so a synthesised
+  // one would be exactly the fabricated evidence invariant 8 protects.
+  page: relatedPage as components["schemas"]["RelatedPlaceResult"],
+  none: relatedNone as components["schemas"]["RelatedPlaceResult"],
+  checking: relatedChecking as components["schemas"]["RelatedPlaceResult"],
 };
 
 export const optimizationFixtures = {

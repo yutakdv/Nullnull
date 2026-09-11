@@ -830,3 +830,37 @@ export function useAddTripCandidate(tripId: string | null) {
     },
   });
 }
+
+type RelatedPlaceResult = components['schemas']['RelatedPlaceResult'];
+
+/**
+ * Places that could stand in for this one (FR-ITM-08).
+ *
+ * CHECKING is an in-progress answer, so it is polled; the other four states are
+ * final and stop it. Without that a CHECKING panel would sit showing a
+ * skeleton the server had already resolved.
+ *
+ * Read fresh rather than cached long: each row carries a provenance whose
+ * `comparisonEligible` is computed per request, and a provider incident can
+ * flip it between two reads of the same row. A stale copy would let the screen
+ * show a comparison the server no longer permits.
+ */
+export function useRelatedPlaces(
+  placeId: string | null,
+): UseQueryResult<RelatedPlaceResult, Problem | Error> {
+  return useQuery({
+    queryKey: ['places', placeId ?? '', 'related'],
+    enabled: placeId !== null,
+    gcTime: 0,
+    staleTime: 0,
+    refetchInterval: (query) => (query.state.data?.state === 'CHECKING' ? 2000 : false),
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET(
+        '/places/{placeId}/related',
+        { params: { path: { placeId: placeId ?? '' } } },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
