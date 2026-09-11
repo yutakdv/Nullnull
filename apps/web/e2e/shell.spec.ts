@@ -32,6 +32,14 @@ test.describe('app shell', () => {
 
   test('keyboard focus reaches interactive content', async ({ page }) => {
     await page.goto('/no-such-page');
+    // Wait for the link to be there before pressing anything. Tab is sent to
+    // whatever the page is at that instant, so pressing it during hydration
+    // moves focus inside a document that React then replaces, and the
+    // assertion sees an element that is attached but not yet focusable. The
+    // sibling tests above all await an assertion before they act; this one
+    // did not, and it only passed while the unmocked app had no data to wait
+    // for.
+    await expect(page.getByRole('link')).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link')).toBeFocused();
   });

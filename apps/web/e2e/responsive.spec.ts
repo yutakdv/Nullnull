@@ -32,10 +32,35 @@ async function overflow(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
     const spilling: string[] = [];
     const clipped: string[] = [];
+    /**
+     * Whether some ancestor is a row that deliberately scrolls sideways.
+     *
+     * Such a row satisfies WCAG 1.4.10: the PAGE still does not scroll, and
+     * the user reaches the rest of the row without a second axis of page
+     * scrolling. The trip day selector is built that way on purpose
+     * (TripScreen.module.css `.dayNav`), so its chips sit past the viewport
+     * edge by design. The `clipped` check below already made this
+     * distinction; `spilling` did not, so every scrolling row read as an
+     * overflow failure once the screens had data to render.
+     *
+     * A container that only asked for `overflow-y: auto` does NOT count.
+     * CSS computes the other axis to `auto` as well, so the scroll container
+     * wrapping the whole app (AppShell's `.main`) reports `overflow-x: auto`
+     * without anyone writing it — and accepting that would suppress every
+     * genuine overflow on every screen, leaving the assertion unable to fail.
+     * The marker below is therefore opt-in: a row that means to scroll
+     * sideways says so with `data-scrolls-x`.
+     */
+    const insideScroller = (node: HTMLElement) => {
+      for (let p = node.parentElement; p; p = p.parentElement) {
+        if (p.dataset.scrollsX !== undefined) return true;
+      }
+      return false;
+    };
     for (const el of document.querySelectorAll('*')) {
       const node = el as HTMLElement;
       const box = node.getBoundingClientRect();
-      if (box.right > window.innerWidth + 1) {
+      if (box.right > window.innerWidth + 1 && !insideScroller(node)) {
         spilling.push(
           `<${node.tagName.toLowerCase()}> reaches ${Math.round(box.right)}px`,
         );
@@ -209,6 +234,14 @@ test.describe('touch targets', () => {
           // Disabled controls are not tap targets; `준비 중` rows are inert by
           // design and must not be dragged up to 44px to satisfy a rule.
           if ((node as HTMLButtonElement).disabled) continue;
+          // A link inside a run of text is measured by the line it sits on,
+          // not by a box of its own, and WCAG 2.5.5/2.5.8 exempt it for that
+          // reason. The KTO credit is exactly this: required caption text
+          // (CMP-ATT-001) whose provider link wraps with the sentence. Giving
+          // it a 44px box would either inflate the caption or detach the link
+          // from the words around it. `display: inline` is the test: a control
+          // laid out as a block or flex item is a tap target and is measured.
+          if (getComputedStyle(node).display === 'inline') continue;
           const box = node.getBoundingClientRect();
           if (box.width === 0 || box.height === 0) continue;
           if (box.height < min || box.width < min) {

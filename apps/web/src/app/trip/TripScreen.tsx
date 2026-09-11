@@ -193,7 +193,11 @@ export function TripScreen() {
         />
       ) : null}
 
-      <nav aria-label={t('trip.allDays')} className={styles.dayNav}>
+      {/* data-scrolls-x: this row scrolls itself rather than widening the
+          page, so its chips reach past the viewport edge on purpose. The
+          reflow check in e2e/responsive.spec.ts reads the marker to tell that
+          apart from a screen that genuinely overflows. */}
+      <nav aria-label={t('trip.allDays')} className={styles.dayNav} data-scrolls-x>
         <ul className={styles.dayChips}>
           <li>
             <Chip
