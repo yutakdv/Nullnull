@@ -876,15 +876,17 @@
       "operations": [
         "addTripItem",
         "listRelatedPlaces",
+        "removeTripItem",
         "reorderTripItems",
         "replaceTripItem",
         "updateTripItem"
       ],
       "featureIds": [
-        "FR-ITM-03",
-        "FR-ITM-08",
         "FR-ITM-01",
-        "FR-ITM-07"
+        "FR-ITM-03",
+        "FR-ITM-05",
+        "FR-ITM-07",
+        "FR-ITM-08"
       ],
       "figmaNodes": [
         "527:4085",

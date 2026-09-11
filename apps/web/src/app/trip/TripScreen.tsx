@@ -4,6 +4,7 @@ import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useTrip } from '../../shared/api/index.js';
 import { Chip } from '../../shared/ui/components/index.js';
+import { ItemMoveControls } from './ItemMoveControls.js';
 import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
 import styles from './TripScreen.module.css';
@@ -253,6 +254,7 @@ export function TripScreen() {
               {orderedItems(day).map((item) => (
                 <li key={item.id}>
                   <TripItemRow
+                    days={days}
                     etag={query.data.etag}
                     item={item}
                     tripId={tripId ?? null}
@@ -277,10 +279,12 @@ export function TripScreen() {
  */
 function TripItemRow({
   item,
+  days,
   tripId,
   etag,
 }: {
   item: TripItem;
+  days: readonly TripDetail['days'][number][];
   tripId: string | null;
   etag: string | null;
 }) {
@@ -312,6 +316,10 @@ function TripItemRow({
       {/* Operable as of FE-304: each lock releases on its own request, and the
           two with confirm frames ask first. */}
       <LockRow etag={etag} item={item} tripId={tripId} />
+
+      {/* FR-ITM-03 / FR-ITM-05: reorder within the day and move to another,
+          each one atomic reorder request. */}
+      <ItemMoveControls days={days} etag={etag} item={item} tripId={tripId} />
     </article>
   );
 }

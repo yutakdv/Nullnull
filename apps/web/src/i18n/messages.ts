@@ -269,6 +269,32 @@ export const messages = {
     'trip.lock.date.body': '해제하면 날짜 고정이 풀려요. 시작 시간은 그대로 이어받아요.',
     'trip.lock.date.confirm': '해제하기',
 
+    // S07-10 move sheet `521:3976` (FE-305). The frame fixes this wording.
+    'trip.move.open': '{name} 날짜 옮기기',
+    'trip.move.title': '어느 날로 옮길까요?',
+    'trip.move.cancel': '취소',
+    'trip.move.now': '지금 {day} · {date}',
+    'trip.move.pick': '옮길 날짜를 고르세요',
+    'trip.move.current': '지금 이 날짜예요',
+    'trip.move.keepsTime': '옮기면 시작 시간은 그대로 이어받아요',
+    'trip.move.moving': '옮기는 중이에요',
+    'trip.move.moved': '{name}을 {day}로 옮겼어요',
+    'trip.move.failed': '옮기지 못했어요',
+    // A DATE lock pins the item to its day, so moving it releases that lock —
+    // never silently (invariant 7).
+    'trip.move.dateLock.title': '날짜를 고정해둔 일정이에요. 옮길까요?',
+    'trip.move.dateLock.body':
+      '옮기면 날짜 고정이 풀려요. 시작 시간은 그대로 이어받아요.',
+    'trip.move.dateLock.confirm': '해제하고 옮기기',
+    // A reservation is managed where the booking is, so this screen refuses
+    // rather than offering a confirm it cannot honour.
+    'trip.move.reservation': '예약 고정된 일정이라 여기서 옮길 수 없어요',
+    // Reorder within a day. Keyboard alternative to drag, required by the
+    // Card/TripItem spec.
+    'trip.reorder.up': '{name} 위로 옮기기',
+    'trip.reorder.down': '{name} 아래로 옮기기',
+    'trip.reorder.moved': '{name}을 {position}번째로 옮겼어요',
+
     // S07-2 edit `411:1837`, S07-9 discard dialog `413:2020` (FE-302).
     'trip.editMode': '편집 중',
     'trip.editStart': '일정 편집',
@@ -629,6 +655,25 @@ export const messages = {
     'trip.lock.date.body':
       'Releasing drops the date lock. The start time carries over unchanged.',
     'trip.lock.date.confirm': 'Release',
+
+    'trip.move.open': 'Move {name} to another day',
+    'trip.move.title': 'Which day should it move to?',
+    'trip.move.cancel': 'Cancel',
+    'trip.move.now': 'Now {day} · {date}',
+    'trip.move.pick': 'Choose a day',
+    'trip.move.current': "It's on this day now",
+    'trip.move.keepsTime': 'The start time carries over unchanged',
+    'trip.move.moving': 'Moving',
+    'trip.move.moved': 'Moved {name} to {day}',
+    'trip.move.failed': "We couldn't move it",
+    'trip.move.dateLock.title': 'This stop has its date locked. Move it?',
+    'trip.move.dateLock.body':
+      'Moving drops the date lock. The start time carries over unchanged.',
+    'trip.move.dateLock.confirm': 'Release and move',
+    'trip.move.reservation': "A reservation pins this stop, so it can't move here",
+    'trip.reorder.up': 'Move {name} up',
+    'trip.reorder.down': 'Move {name} down',
+    'trip.reorder.moved': 'Moved {name} to position {position}',
 
     'trip.editMode': 'Editing',
     'trip.editStart': 'Edit itinerary',

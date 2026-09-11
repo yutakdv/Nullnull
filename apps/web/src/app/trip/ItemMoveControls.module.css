@@ -1,0 +1,58 @@
+/* Move/reorder controls on one item row. The frame draws a drag handle (≡) and
+   a row menu; these are the keyboard equivalents the catalog requires. */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-base);
+  cursor: pointer;
+}
+
+.step:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.move {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--color-action-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.move:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.status {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+/* An empty live region must not reserve a line. */
+.status:empty {
+  display: none;
+}
