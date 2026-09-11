@@ -929,15 +929,23 @@
       "phase": "B05",
       "priority": "P0",
       "title": "날짜 범위 변경 시 영향 preview/cancel/명시 처리",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-302",
         "BA-031"
       ],
-      "operations": [],
-      "featureIds": [],
-      "figmaNodes": [],
-      "designRequests": [],
+      "operations": [
+        "updateTrip"
+      ],
+      "featureIds": [
+        "FR-TRP-05"
+      ],
+      "figmaNodes": [
+        "411:1837"
+      ],
+      "designRequests": [
+        "FCR-032"
+      ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",

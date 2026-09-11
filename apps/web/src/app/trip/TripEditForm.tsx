@@ -5,6 +5,7 @@ import type { MessageKey } from '../../i18n/messages.js';
 import { isProblem, useUpdateTrip } from '../../shared/api/index.js';
 import { ConfirmDialog } from '../../shared/ui/components/index.js';
 import styles from './TripEditForm.module.css';
+import { formatDate } from './trip-view.js';
 import {
   MAX_TITLE_LENGTH,
   type TripDraft,
@@ -12,6 +13,8 @@ import {
   draftFrom,
   fieldToInput,
   isDirty,
+  isShrink,
+  outOfRangeItems,
   toPatch,
 } from './trip-edit.js';
 
@@ -60,12 +63,13 @@ function FieldMessage({ id, message }: { id: string; message: string | null }) {
 }
 
 export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [draft, setDraft] = useState<TripDraft>(() => draftFrom(trip));
   const [confirming, setConfirming] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [saved, setSaved] = useState(false);
+  const [datesUndone, setDatesUndone] = useState(false);
   const update = useUpdateTrip(trip.id);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -74,6 +78,10 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
 
   const dirty = isDirty(draft, trip);
   const localError = draftError(draft);
+
+  // Only for a shrink: widening the range strands nothing, and listing items
+  // that sit outside a range the user is growing would be noise.
+  const stranded = isShrink(draft, trip) ? outOfRangeItems(trip, draft) : [];
 
   // Warns on a real browser close/refresh too, not just an in-app exit. The
   // browser owns this dialog; the in-app one below covers navigation.
@@ -216,6 +224,68 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
           value={draft.endDate}
         />
         <FieldMessage id="trip-end-error" message={errorFor('endDate')} />
+      </p>
+
+      {/* FE-306 / FCR-032: what a narrowed range would leave outside.
+          Deliberately NOT part of the save-disabled expression below — the
+          contract's rule is predictable from data we hold, but `trip` is a
+          cached query and may be stale, so the server stays the judge and the
+          user keeps the right to try (FR-TRP-05: no implicit deletion). */}
+      {stranded.length > 0 ? (
+        <aside aria-labelledby="trip-range-impact" className={styles.impact}>
+          <p className={styles.impactHead}>
+            <span className={styles.impactTitle} id="trip-range-impact">
+              {t('trip.range.impactTitle')}
+            </span>
+            <span className={styles.impactCount}>
+              {t('trip.range.impactCount', { count: stranded.length })}
+            </span>
+          </p>
+          <p className={styles.impactNote}>{t('trip.range.impactNote')}</p>
+          <ul className={styles.impactList}>
+            {stranded.map((item) => (
+              <li className={styles.impactItem} key={item.itemId}>
+                <span className={styles.impactName}>{item.placeName}</span>
+                {/* The item's own date, when that is what puts it outside.
+                    Null when only a lock's date does, so naming it would
+                    point at a date that is actually inside the range. */}
+                {item.date ? (
+                  <span className={styles.impactDate}>
+                    {formatDate(item.date, locale)}
+                  </span>
+                ) : null}
+                {item.blockingLocks.map((lock) => (
+                  <span className={styles.impactLock} key={lock}>
+                    {lock === 'DATE'
+                      ? t('trip.range.lockDate')
+                      : t('trip.range.lockReservation')}
+                  </span>
+                ))}
+              </li>
+            ))}
+          </ul>
+          {/* FE-306-T1's 취소: restores only the dates, leaving an edited
+              title alone. The whole-form discard is a different control. */}
+          <button
+            className={styles.impactUndo}
+            onClick={() => {
+              setDraft((current) => ({
+                ...current,
+                startDate: trip.startDate,
+                endDate: trip.endDate,
+              }));
+              setDatesUndone(true);
+            }}
+            type="button"
+          >
+            {t('trip.range.undo')}
+          </button>
+        </aside>
+      ) : null}
+      {/* Announced outside the block, because restoring the dates removes the
+          block itself — a message inside it would vanish before it was read. */}
+      <p aria-live="polite" className={styles.srOnly}>
+        {datesUndone ? t('trip.range.undone') : ''}
       </p>
 
       <p className={styles.field}>

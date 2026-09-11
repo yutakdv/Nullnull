@@ -121,3 +121,100 @@ export function fieldToInput(field: string): keyof TripDraft | null {
   const leaf = field.split(/[./]/).filter(Boolean).pop() ?? '';
   return known[leaf] ?? null;
 }
+
+/** One item that would fall outside the draft's date range. */
+export interface OutOfRangeItem {
+  itemId: string;
+  placeName: string;
+  /** The item's own date. Null when only a lock's date is out of range. */
+  date: string | null;
+  /**
+   * The locks on this item that the shrink rule names.
+   *
+   * Only DATE and RESERVATION appear: UpdateTripRequest's rule is about "any
+   * item or DATE/RESERVATION lock", so MUST_VISIT and TIME do not change the
+   * outcome and listing them would imply they do (invariant 7 — the four locks
+   * are independent).
+   */
+  blockingLocks: ('DATE' | 'RESERVATION')[];
+}
+
+/**
+ * True once both ends of the draft range are actually filled in.
+ *
+ * A `type="date"` input reads as "" while it is being typed or after it is
+ * cleared, and string comparison puts "" before every real date — so an
+ * unguarded range check treats a half-typed range as one that excludes
+ * everything.
+ */
+function isCompleteRange(draft: TripDraft): boolean {
+  return draft.startDate !== '' && draft.endDate !== '';
+}
+
+/** True while `date` sits outside the inclusive [start, end] range. */
+function outsideRange(date: string, startDate: string, endDate: string): boolean {
+  return date < startDate || date > endDate;
+}
+
+/**
+ * The items a date-range change would leave outside the trip.
+ *
+ * Computed entirely from the trip already on screen — TripItem requires `date`
+ * and `constraints`, so this needs no extra request.
+ *
+ * This reports; it does not decide. UpdateTripRequest states the rule exactly:
+ * a shrink "is rejected with VALIDATION_FAILED while any item or DATE/
+ * RESERVATION lock lies outside the new range". The client holds those inputs,
+ * so the outcome is genuinely predictable — but the trip is a cached query and
+ * may be stale, so the save stays enabled and the server remains the judge.
+ * Blocking it here would turn a stale snapshot into a refusal to let the user
+ * try (FR-TRP-05: the 422 is surfaced, never pre-empted).
+ *
+ * Dates compare as ISO strings, which sorts correctly for `format: date` and
+ * avoids inventing a timezone the comparison does not need.
+ */
+export function outOfRangeItems(trip: TripDetail, draft: TripDraft): OutOfRangeItem[] {
+  // A half-typed date input reports an empty value, and "" sorts before every
+  // real date — so an unguarded compare marks the whole trip out of range
+  // mid-keystroke. An incomplete range has nothing to say yet.
+  if (!isCompleteRange(draft)) return [];
+  const affected: OutOfRangeItem[] = [];
+  for (const day of trip.days) {
+    for (const item of day.items) {
+      // The item's own date, not the day's: they agree today, but the item
+      // carries the field the rule is written against.
+      const itemOutside = outsideRange(item.date, draft.startDate, draft.endDate);
+
+      // "any item OR DATE/RESERVATION lock lies outside" is two conditions, not
+      // one. Both constraints carry their own `date`, and nothing in the
+      // contract ties it to the item's, so a lock is checked on its own date.
+      const blockingLocks = item.constraints
+        .filter(
+          (constraint) =>
+            (constraint.type === 'DATE' || constraint.type === 'RESERVATION') &&
+            outsideRange(constraint.date, draft.startDate, draft.endDate),
+        )
+        .map((constraint) => constraint.type as 'DATE' | 'RESERVATION');
+
+      if (!itemOutside && blockingLocks.length === 0) continue;
+      affected.push({
+        itemId: item.id,
+        placeName: item.place.name,
+        date: itemOutside ? item.date : null,
+        blockingLocks,
+      });
+    }
+  }
+  return affected;
+}
+
+/**
+ * True when the range actually narrowed on either end.
+ *
+ * Growing a range strands nothing, so the preview stays silent for it rather
+ * than listing items that are outside a range the user is widening.
+ */
+export function isShrink(draft: TripDraft, trip: TripDetail): boolean {
+  if (!isCompleteRange(draft)) return false;
+  return draft.startDate > trip.startDate || draft.endDate < trip.endDate;
+}

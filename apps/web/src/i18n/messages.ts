@@ -374,6 +374,17 @@ export const messages = {
     'trip.error.title-too-long': '여행 이름은 100자까지 쓸 수 있어요',
     'trip.error.range-reversed': '종료일이 시작일보다 빨라요',
     'trip.error.range-too-long': '여행은 최대 30일까지 만들 수 있어요',
+    // FE-306 / FCR-032: 날짜 범위를 줄일 때 영향 받는 일정을 저장 전에 보여준다.
+    // 거절을 단정하지 않는다 — 화면의 trip은 캐시된 값이라 실제 판정은 서버가 한다.
+    'trip.range.impactTitle': '이 날짜 범위 밖에 있는 일정',
+    'trip.range.impactNote':
+      '지금 범위를 저장하면 이 일정들이 여행 기간을 벗어나요. 저장은 눌러볼 수 있고, 결과는 서버가 확인해요.',
+    'trip.range.impactCount': '{count}개',
+    'trip.range.lockDate': '날짜 고정',
+    'trip.range.lockReservation': '예약',
+    'trip.range.lockedOn': '{date}에 고정됨',
+    'trip.range.undo': '날짜 되돌리기',
+    'trip.range.undone': '날짜를 원래대로 되돌렸어요',
     'trip.saveFailed': '변경사항을 저장하지 못했어요',
     // Figma `413:2020` fixes this wording.
     'trip.discard.title': '변경 내용을 버릴까요?',
@@ -805,6 +816,15 @@ export const messages = {
     'trip.error.title-too-long': 'A trip name can be up to 100 characters',
     'trip.error.range-reversed': 'The end date is before the start date',
     'trip.error.range-too-long': 'A trip can be up to 30 days',
+    'trip.range.impactTitle': 'Stops outside this date range',
+    'trip.range.impactNote':
+      'Saving this range leaves these stops outside the trip. You can still try — the server decides.',
+    'trip.range.impactCount': '{count}',
+    'trip.range.lockDate': 'Date locked',
+    'trip.range.lockReservation': 'Reservation',
+    'trip.range.lockedOn': 'Locked to {date}',
+    'trip.range.undo': 'Undo date change',
+    'trip.range.undone': 'Dates restored',
     'trip.saveFailed': "We couldn't save your changes",
     'trip.discard.title': 'Discard your changes?',
     'trip.discard.body': "You have unsaved changes. Discarding them can't be undone.",
