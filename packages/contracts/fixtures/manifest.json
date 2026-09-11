@@ -39,7 +39,7 @@
     "places": {
       "schema": "PlaceSearchPage",
       "count": 2,
-      "basis": "NO approved example exists for searchPlaces. Values invented to match Figma S02-4B 438:3158 and validated against the schema only. Carries no crowd or provenance: PlaceSummary has no such field (FCR-029). Replace with BE/AI's real response (BA-022).",
+      "basis": "BE/AI authored from the approved searchPlaces contract. Shapes match the server projection, including sourceAttribution read from the reviewed source registry revision and the categoryName/regionName that stay null until a reviewed code-to-label mapping exists. categoryCode/regionCode are opaque machine values and must not be rendered; only 경복궁's HS/11 came from an actual detailCommon2 call (#109), the others share its shape. Still not a captured server response, so serverVerified stays false until BA-022 has one.",
       "serverVerified": false
     },
     "candidates": {

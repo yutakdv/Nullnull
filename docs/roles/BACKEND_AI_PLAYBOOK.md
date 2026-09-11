@@ -575,6 +575,32 @@ FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallba
   Playwright `36`·generated client·npm audit·egress-denied)가 GREEN인 것을 포함하지만, staging 공개
   provenance나 BA-022 완료 증거는 아니다.
 
+실제 호출이 드러낸 수정:
+
+- opt-in `actualKtoSmoke`가 실패해 추적한 결과, KorService2 `detailCommon2`는 `areacode`·`sigungucode`·
+  `cat1/2/3`을 **빈 문자열**로 주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있었다. validator가
+  빈 쪽을 읽고 있었으므로 실제 KTO place는 canonical ingest에서 전부 거부되고 있었다. fixture가 legacy 필드
+  이름으로 만들어져 있어 네 suite가 GREEN인 채 이 단절을 덮었다(#109).
+- `V012`가 registry를 revision 4(`kto-kor-service2-detailcommon2-v3`)로 올리고 validator가 값이 있는 쪽을
+  읽는다. 두 코드 체계를 섞지 않으므로 revision 3 이하로 수집된 snapshot은 수집 당시 의미를 유지한다. retired
+  식별자만 담긴 응답은 remap하지 않고 `SCHEMA_DRIFT`로 quarantine한다. 둘 다 없는 경우는 분류 없는 장소이므로
+  drift가 아니며 category를 지어내지 않는다.
+- fixture를 실측 응답 모양으로 교체했다. 이제 fixture가 provider가 실제로 보내는 형태를 모델링한다.
+
+FE 계약 제안 (승인 대기):
+
+- `PlaceSummary`/`PlaceDetail`에 **additive**로 `sourceAttribution`·`categoryName`·`regionName`을 추가했다.
+  기존 필드와 응답 의미는 바뀌지 않는다.
+- `sourceAttribution`은 place의 `place_external_refs`가 가리키는 검토된 registry revision에서 읽는다. 서버가
+  승인 문구(`출처: ⓒ한국관광공사`)를 그대로 주므로 FE가 provider를 단정하지 않는다(`CMP-ATT-001`/`CMP-ATT-003`).
+  source나 승인 문구가 없으면 부분 credit 대신 null이다.
+- `categoryCode`/`regionCode`는 **표시용이 아니다.** provider 코드 체계가 바뀌어도 FE가 영향받지 않도록
+  표시는 `categoryName`/`regionName`이 맡고, 검토된 코드→문구 매핑이 생기기 전까지 null이다. null은 "분류를
+  표시하지 않는다"이지 "분류 미상"이 아니다.
+- `CatalogPlaceApiIT`가 credit 투영과 credit 없는 place의 null을 확인한다. `sourceAttribution`을 항상 null로
+  만드는 변이는 두 단언을 RED로 만들었고 복원 SHA가 일치한다.
+- **FE 승인 전까지 이 shape를 동결하지 않는다.** 승인 결과는 #34에서 받는다.
+
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
 
 ### BA-023

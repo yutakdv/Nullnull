@@ -90,8 +90,8 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V011 adds exactly one row of its own: the reviewed
-            // KTO_CONCENTRATION_FORECAST revision 2 contract that the C4 snapshot tables reference.
+            // Every existing row survived. V012 adds exactly one row of its own: the reviewed
+            // KTO_KOR_SERVICE_2 revision 4 contract that fixes the detailCommon2 response mapping.
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -309,9 +309,16 @@ class FlywayMigrationIT {
                     v_place uuid := gen_random_uuid();
                     v_license uuid := gen_random_uuid();
                     v_asset uuid := gen_random_uuid();
+                    v_set uuid := gen_random_uuid();
+                    v_forecast_run uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
+                    INSERT INTO collector_runs
+                        (id, source_code, status, trigger_type, records_received, records_accepted,
+                         records_rejected, schema_version, started_at, finished_at)
+                    VALUES (v_forecast_run, 'KTO_CONCENTRATION_FORECAST', 'COMPLETED', 'MANUAL', 1, 1, 0,
+                            'upgrade-forecast-v1', v_at, v_at);
                     INSERT INTO places (id, canonical_name, category_code, latitude, longitude,
                                         region_code, status, created_at, updated_at)
                     VALUES (v_place, 'upgrade place', 'A01', 37.579617, 126.977041, 'KR-11',
@@ -336,6 +343,27 @@ class FlywayMigrationIT {
                             repeat('f', 64), 'IMAGE', 'upgrade alt text', v_at);
                     INSERT INTO place_media_assets (place_id, media_asset_id, position)
                     VALUES (v_place, v_asset, 0);
+                    -- V011's immutable crowd tables are part of the previous schema from V012 on. Their
+                    -- insert trigger also resolves the parent set through search_path, so they belong in
+                    -- this same block.
+                    INSERT INTO snapshot_sets
+                        (id, source_code, source_registry_version, collector_run_id, source_state,
+                         forecast_issue_id, comparison_group_id, observed_at, fetched_at, stale_at,
+                         normalization_version, created_at)
+                    VALUES (v_set, 'KTO_CONCENTRATION_FORECAST', 2, v_forecast_run, 'FORECAST',
+                            'upgrade-issue', 'upgrade-issue', NULL, v_at, v_at + interval '1 day',
+                            'upgrade-norm-v1', v_at);
+                    INSERT INTO crowd_snapshots
+                        (id, snapshot_set_id, source_code, source_registry_version, place_id, source_state,
+                         observed_at, target_at, fetched_at, stale_at, metric_code, value, unit, ordinal_level,
+                         confidence, quality_flags, forecast_issue_id, comparison_group_id,
+                         normalization_version, observed_at_skew_seconds, scope, scope_label, mapping_type,
+                         fallback_used, created_at)
+                    VALUES (gen_random_uuid(), v_set, 'KTO_CONCENTRATION_FORECAST', 2, v_place, 'FORECAST',
+                            NULL, v_at + interval '1 day', v_at, v_at + interval '1 day',
+                            'KTO_RELATIVE_CONCENTRATION_INDEX', 42.5, 'relative-index', NULL, NULL,
+                            '[]'::jsonb, 'upgrade-issue', 'upgrade-issue', 'upgrade-norm-v1', NULL,
+                            'PLACE', 'upgrade place', 'DIRECT', false, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -346,7 +374,7 @@ class FlywayMigrationIT {
                         "deletion_tombstones", "source_registry", "source_registry_revisions",
                         "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
-                        "media_assets", "place_media_assets");
+                        "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots");
         return key;
     }
 

@@ -2026,9 +2026,53 @@ components:
           type: string
           format: date-time
 
+    SourceAttribution:
+      type: object
+      additionalProperties: false
+      description: |
+        Where this place record came from and the credit text approved for it. The server projects
+        the reviewed source registry revision that the place was collected under, so the client never
+        decides which provider to credit and never hardcodes a provider name.
+      required: [source, sourceDisplayName, sourceRegistryVersion, attribution, officialUrl, licenseUrl, license]
+      properties:
+        source:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Source registry code, e.g. the KTO tourism service. Machine identifier, not display copy.
+        sourceDisplayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sourceRegistryVersion:
+          type: integer
+          minimum: 1
+          description: The reviewed revision in force when this place was collected.
+        attribution:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: |
+            The approved credit text to display verbatim, e.g. the public-data source line. Display
+            this string as given; do not compose, translate or abbreviate it, and never merge two
+            providers into one credit.
+        officialUrl:
+          type: [string, "null"]
+          format: uri
+        licenseUrl:
+          type: [string, "null"]
+          format: uri
+        license:
+          type: [string, "null"]
+          maxLength: 200
+
     PlaceSummary:
       type: object
       additionalProperties: false
+      # categoryName, regionName and sourceAttribution are always sent by the server. They stay out of
+      # `required` while the shape is a proposal, so adopting them is a choice rather than a forced
+      # edit to every existing consumer and test double. They move into `required` once the frontend
+      # has approved and adopted them (#34).
       required: [id, name, categoryCode, regionCode]
       properties:
         id:
@@ -2038,8 +2082,29 @@ components:
           type: string
         categoryCode:
           type: string
+          description: |
+            Opaque provider-derived classification code for filtering and sorting. It is not display
+            copy: render `categoryName` instead, and render nothing when that is null.
         regionCode:
           type: string
+          description: |
+            Opaque provider-derived region code for filtering and sorting. It is not display copy:
+            render `regionName` instead, and render nothing when that is null.
+        categoryName:
+          type: [string, "null"]
+          maxLength: 200
+          description: |
+            Server-localized display name for `categoryCode`, or null when no reviewed mapping exists
+            for that code yet. Null means "do not show a category", never "unknown category".
+        regionName:
+          type: [string, "null"]
+          maxLength: 200
+          description: Server-localized display name for `regionCode`, or null when no reviewed mapping exists.
+        sourceAttribution:
+          oneOf:
+            - $ref: "#/components/schemas/SourceAttribution"
+            - type: "null"
+          description: Null only for records with no external source, such as a user-created place.
         thumbnailUrl:
           type: [string, "null"]
           format: uri
@@ -2061,10 +2126,22 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+          description: Opaque provider-derived code. Render `categoryName`, not this value.
         regionCode:
           type: string
           minLength: 1
           maxLength: 100
+          description: Opaque provider-derived code. Render `regionName`, not this value.
+        categoryName:
+          type: [string, "null"]
+          maxLength: 200
+        regionName:
+          type: [string, "null"]
+          maxLength: 200
+        sourceAttribution:
+          oneOf:
+            - $ref: "#/components/schemas/SourceAttribution"
+            - type: "null"
         thumbnailUrl:
           type: [string, "null"]
           format: uri
@@ -2438,6 +2515,11 @@ components:
           type: [string, "null"]
         label:
           type: string
+          description: |
+            Server-side name of the metric, in the source's own language. It is diagnostic, not display
+            copy: it is not localized and it is not the approved attribution. Build user-facing wording
+            from `state` and `provenance.metricDefinition`, and display `provenance.attribution` verbatim
+            for the credit.
         provenance:
           $ref: "#/components/schemas/DataProvenance"
     CrowdSeries:

@@ -66,7 +66,7 @@ class KtoActualSmokeIT {
                     + "," + safeResponseShape(request));
         }
 
-        assertThat(snapshot.sourceRegistryVersion()).isEqualTo(3);
+        assertThat(snapshot.sourceRegistryVersion()).isEqualTo(4);
         assertThat(snapshot.contentId()).isEqualTo(request.contentId());
         assertThat(snapshot.contentTypeId()).isEqualTo(request.contentTypeId());
         assertThat(snapshot.collectorRunId()).isNotNull();
