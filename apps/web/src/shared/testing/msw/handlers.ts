@@ -101,11 +101,24 @@ function postDetailFor(postId: string): PostDetail | null {
   };
 }
 
+/**
+ * How many times each run has been polled, so the mock can progress.
+ *
+ * A handler that answered the same status forever would let a screen that
+ * never polls, or one that polls a settled run for ever, pass identically.
+ * This one moves QUEUED → RUNNING → READY as it is asked.
+ */
+const runPolls = new Map<string, number>();
+
+/** Runs the mock should answer for. Seeded by createOptimization. */
+const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
+
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
   tripState = null;
   candidateState = null;
   savedPosts.clear();
+  runPolls.clear();
 }
 
 /**
@@ -166,6 +179,43 @@ export const handlers = [
         status: 202,
         headers: { Location: `/trip/${tripId}/optimizations/${runId}` },
       },
+    );
+  }),
+
+  // MOCK DATA (FE-502). getOptimization has no approved example (BA-050), so
+  // the run below is a schema-valid invention. It PROGRESSES: the first poll
+  // answers QUEUED, the second RUNNING, the third READY, and Retry-After
+  // carries the interval the contract says to send "for QUEUED/RUNNING
+  // responses". A handler pinned to one status would let a screen that never
+  // polls and a screen that polls a settled run for ever both pass.
+  //
+  // proposals stays empty because BA-051 computes them and nothing here may
+  // invent a metric or a change list — an unsourced comparison is what
+  // invariant 8 forbids. The READY state a user reaches is therefore the
+  // "result arrived, the preview screen is FE-503" state, not a fake preview.
+  http.get(`${API_BASE}/optimizations/:runId`, ({ params }) => {
+    const runId = String(params.runId);
+    if (runId !== MOCK_RUN_ID) return problemResponse('NOT_FOUND');
+    const seen = (runPolls.get(runId) ?? 0) + 1;
+    runPolls.set(runId, seen);
+    const status = seen === 1 ? 'QUEUED' : seen === 2 ? 'RUNNING' : 'READY';
+    const trip = currentTrip();
+    return HttpResponse.json(
+      {
+        id: runId,
+        tripId: trip.id,
+        scope: 'ITEM',
+        status,
+        inputTripVersion: trip.version,
+        includeCandidates: false,
+        queuedAt: '2026-09-11T06:00:00Z',
+        completedAt: status === 'READY' ? '2026-09-11T06:00:12Z' : null,
+        proposals: [],
+        snapshotSetIds: [],
+        decisions: [],
+      },
+      // Seconds, per the contract's integer schema. Only while working.
+      status === 'READY' ? undefined : { headers: { 'Retry-After': '1' } },
     );
   }),
 

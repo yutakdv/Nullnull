@@ -16,7 +16,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { createApiClient, type components } from '@nullnull/api-client';
-import { toProblem, type Problem } from './problem.js';
+import { isProblem, toProblem, type Problem } from './problem.js';
 
 type SessionBootstrap = components['schemas']['SessionBootstrap'];
 type OwnerProfile = components['schemas']['OwnerProfile'];
@@ -220,6 +220,85 @@ export function useOptimizationHistory(): UseQueryResult<
       const { data, error, response } = await getApiClient().GET('/optimizations', {});
       if (!data) fail(error, response);
       return data;
+    },
+  });
+}
+
+type OptimizationStatus = components['schemas']['OptimizationStatus'];
+
+/** The two statuses the server is still working on. Everything else is settled. */
+const RUNNING_STATUSES: OptimizationStatus[] = ['QUEUED', 'RUNNING'];
+
+export function isRunning(status: OptimizationStatus): boolean {
+  return RUNNING_STATUSES.includes(status);
+}
+
+/** Seconds the server asked us to wait, clamped to something sane. */
+function retryAfterMs(header: string | null): number {
+  const seconds = Number(header);
+  if (!Number.isFinite(seconds) || seconds <= 0) return 2000;
+  return Math.min(Math.max(seconds, 1), 30) * 1000;
+}
+
+export const optimizationQueryKey = (runId: string) => ['optimizations', runId];
+
+/**
+ * One optimization run, polled while the server is still computing it (FE-502,
+ * FR-OPT-03).
+ *
+ * Polling stops the moment the run reaches a terminal status. QUEUED and
+ * RUNNING are the only two the server is still working on; READY, APPLIED,
+ * KEPT, REVERTED, FAILED and EXPIRED are settled, and continuing to ask would
+ * be a request per interval forever on a screen the user may leave open.
+ *
+ * The interval comes from the response's own Retry-After, which the contract
+ * sends "for QUEUED/RUNNING responses", rather than from a number invented
+ * here. It is clamped because the value is server-controlled and a zero would
+ * spin.
+ *
+ * A 410 PREVIEW_EXPIRED is not retried: the contract is explicit that an
+ * undecided preview expires and that this "does not apply to an already
+ * recorded decision", so there is nothing to wait for. It surfaces as a
+ * Problem the screen renders as its own state.
+ *
+ * Nothing here writes to the trip cache. A run is a preview until the user
+ * applies it, and reading one must not move an itinerary (invariants 3 and 4).
+ *
+ * MOCK DATA today; replaced when BA-050 lands.
+ *
+ * The return type is inferred rather than annotated, for the same reason
+ * useCreateOptimization gives below: naming OptimizationRun in the signature
+ * fails to compile with "two different types with this name exist", because
+ * the run nests the OptimizationChange union.
+ */
+export function useOptimization(runId: string | null) {
+  return useQuery({
+    queryKey: optimizationQueryKey(runId ?? ''),
+    enabled: runId !== null,
+    queryFn: async () => {
+      if (runId === null) throw new Error('No run selected');
+      const { data, error, response } = await getApiClient().GET(
+        '/optimizations/{runId}',
+        { params: { path: { runId } } },
+      );
+      if (!data) fail(error, response);
+      return { run: data, retryAfter: response.headers.get('Retry-After') };
+    },
+    select: (result) => result.run,
+    refetchInterval: (query) => {
+      const result = query.state.data;
+      if (!result || !isRunning(result.run.status)) return false;
+      return retryAfterMs(result.retryAfter);
+    },
+    // A run that is still queued is not an error and not stale data; the
+    // screen shows it as working. Refetching it on focus is what the poll
+    // already does.
+    refetchOnWindowFocus: false,
+    retry: (count, error) => {
+      // An expired preview is terminal. Asking again cannot un-expire it.
+      if (isProblem(error) && error.code === 'PREVIEW_EXPIRED') return false;
+      if (isProblem(error) && error.code === 'NOT_FOUND') return false;
+      return count < 2;
     },
   });
 }

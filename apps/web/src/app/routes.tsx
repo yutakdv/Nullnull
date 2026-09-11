@@ -4,6 +4,7 @@ import { NotFoundScreen } from './NotFoundScreen.js';
 import { FeedScreen } from './feed/FeedScreen.js';
 import { PostScreen } from './post/PostScreen.js';
 import { OptimizeSetupScreen } from './optimize/OptimizeSetupScreen.js';
+import { OptimizationRunScreen } from './optimize/OptimizationRunScreen.js';
 import { PlaceholderScreen } from './PlaceholderScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
@@ -56,8 +57,9 @@ export const routes: RouteObject[] = [
         element: <OptimizeSetupScreen />,
       },
       {
+        // S09-1 run state, after submit and before a decision (FE-502).
         path: 'trip/:tripId/optimizations/:runId',
-        element: <PlaceholderScreen routeId="optimization" />,
+        element: <OptimizationRunScreen />,
       },
       { path: 'about-data', element: <DataGuideScreen /> },
       { path: '*', element: <NotFoundScreen /> },
