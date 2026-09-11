@@ -582,3 +582,202 @@ export function useRemoveItemConstraint(tripId: string | null) {
     },
   });
 }
+
+type UpdateTripItemRequest = components['schemas']['UpdateTripItemRequest'];
+type ReorderTripItemsRequest = components['schemas']['ReorderTripItemsRequest'];
+type ReplaceTripItemRequest = components['schemas']['ReplaceTripItemRequest'];
+type RemoveDisposition = 'RESTORE_CANDIDATE' | 'REMOVE';
+
+/**
+ * Applies a trip mutation result to the cache.
+ *
+ * Only the removal path touches the candidate list, and only when it restores
+ * one: `trip.candidates` is a page rather than the whole set (TripScreen reads
+ * `candidateCount` for the total), so the list has to be refetched rather than
+ * read out of this response.
+ */
+function useApplyTripMutation(tripId: string | null) {
+  const queryClient = useQueryClient();
+  return (result: TripMutationResult, etag: string | null, touchedCandidates = false) => {
+    if (tripId === null) return;
+    queryClient.setQueryData(tripQueryKey(tripId), { trip: result.trip, etag });
+    if (touchedCandidates) {
+      void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(tripId) });
+    }
+  };
+}
+
+/**
+ * Edits one scheduled item's date, position, time, duration or note
+ * (FR-ITM-03, FR-ITM-04).
+ *
+ * merge-patch, not JSON: the contract declares application/merge-patch+json
+ * and openapi-fetch sends application/json regardless of the typed media key,
+ * so the header is set explicitly or the server answers 415.
+ *
+ * No Idempotency-Key. The contract declares none on this operation — unlike
+ * add, reorder and replace — and sending one "for consistency" is a header the
+ * server did not ask for.
+ *
+ * `date` and `position` are not nullable in the schema; only startTime,
+ * durationMinutes and note clear with null. An empty patch is minProperties:1
+ * and would be rejected, so the caller must send at least one field.
+ */
+export function useUpdateTripItem(tripId: string | null) {
+  const apply = useApplyTripMutation(tripId);
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    { itemId: string; patch: UpdateTripItemRequest; etag: string | null }
+  >({
+    mutationFn: async ({ itemId, patch, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot edit an item without the trip ETag');
+      if (Object.keys(patch).length === 0) {
+        throw new Error('An empty item patch is rejected by the contract');
+      }
+      const { data, error, response } = await getApiClient().PATCH(
+        '/trips/{tripId}/items/{itemId}',
+        {
+          body: patch,
+          params: { path: { tripId, itemId }, header: { 'If-Match': etag } },
+          headers: { 'Content-Type': 'application/merge-patch+json' },
+        },
+      );
+      if (!data) fail(error, response);
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }) => {
+      apply(result, etag);
+    },
+  });
+}
+
+/**
+ * Moves and reorders items in one atomic request (FR-ITM-03, FR-ITM-05).
+ *
+ * The contract has no separate "move" operation: this one carries the complete
+ * ordering for every day it touches and the server applies it as a unit. A
+ * cross-day move sent as a sequence of single-item edits would collide with the
+ * (trip, date, position) uniqueness partway through and leave the trip in a
+ * state no user asked for.
+ *
+ * The key is minted by the caller, not here, so a retry of the same user action
+ * reuses it rather than counting as a fresh command.
+ */
+export function useReorderTripItems(tripId: string | null) {
+  const apply = useApplyTripMutation(tripId);
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    {
+      order: ReorderTripItemsRequest['items'];
+      etag: string | null;
+      idempotencyKey: string;
+    }
+  >({
+    mutationFn: async ({ order, etag, idempotencyKey }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot reorder without the trip ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/trips/{tripId}/items/reorder',
+        {
+          body: { items: order },
+          params: {
+            path: { tripId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }) => {
+      apply(result, etag);
+    },
+  });
+}
+
+/**
+ * Swaps an item's place after the user has compared the two (FR-ITM-08).
+ *
+ * `preserveDateTime` is omitted rather than sent as `true`: the contract's
+ * default already is true, and sending `false` moves the item's schedule, which
+ * has to be an explicit user choice rather than a serialized form default.
+ *
+ * `relationId` links the replacement back to the listRelatedPlaces row that
+ * suggested it, so the server can check the evidence the user actually saw.
+ */
+export function useReplaceTripItem(tripId: string | null) {
+  const apply = useApplyTripMutation(tripId);
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    {
+      itemId: string;
+      replacement: ReplaceTripItemRequest;
+      etag: string | null;
+      idempotencyKey: string;
+    }
+  >({
+    mutationFn: async ({ itemId, replacement, etag, idempotencyKey }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot replace an item without the trip ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/trips/{tripId}/items/{itemId}/replace',
+        {
+          body: replacement,
+          params: {
+            path: { tripId, itemId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }) => {
+      apply(result, etag);
+    },
+  });
+}
+
+/**
+ * Removes an item, either restoring its candidate or dropping it (FR-ITM-06).
+ *
+ * `disposition` is a required query parameter, not a body field and not
+ * optional: the contract offers RESTORE_CANDIDATE and REMOVE and forces the
+ * caller to say which. Defaulting it here would decide on the user's behalf
+ * whether their saved place survives.
+ *
+ * Restoring a candidate is the one item mutation that changes the candidate
+ * list, so it is the only one that invalidates it.
+ */
+export function useRemoveTripItem(tripId: string | null) {
+  const apply = useApplyTripMutation(tripId);
+  return useMutation<
+    TripMutationWithETag,
+    Problem | Error,
+    { itemId: string; disposition: RemoveDisposition; etag: string | null }
+  >({
+    mutationFn: async ({ itemId, disposition, etag }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot remove an item without the trip ETag');
+      const { data, error, response } = await getApiClient().DELETE(
+        '/trips/{tripId}/items/{itemId}',
+        {
+          params: {
+            path: { tripId, itemId },
+            query: { disposition },
+            header: { 'If-Match': etag },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return { result: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: ({ result, etag }, { disposition }) => {
+      apply(result, etag, disposition === 'RESTORE_CANDIDATE');
+    },
+  });
+}

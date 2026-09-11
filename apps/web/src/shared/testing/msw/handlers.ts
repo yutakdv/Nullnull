@@ -152,6 +152,152 @@ export const handlers = [
     };
     return new HttpResponse(null, { status: 204 });
   }),
+  // MOCK DATA (FE-305). updateTripItem, reorderTripItems, replaceTripItem and
+  // removeTripItem have no approved example (BA-040). Each models the contract
+  // rather than echoing a fixture, so a client that sends the wrong shape fails
+  // here instead of in staging.
+  http.patch(`${API_BASE}/trips/:tripId/items/:itemId`, async ({ request, params }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    // The contract declares application/merge-patch+json on this operation and
+    // BA-011's controller enforces consumes, so a JSON body is a 415.
+    if (!(request.headers.get('content-type') ?? '').includes('merge-patch+json')) {
+      return problemResponse('INVALID_REQUEST');
+    }
+    const patch = (await request.json()) as Record<string, unknown>;
+    if (Object.keys(patch).length === 0) return problemResponse('VALIDATION_FAILED');
+    const itemId = String(params.itemId);
+    const next = {
+      ...trip,
+      version: trip.version + 1,
+      days: trip.days.map((day) => ({
+        ...day,
+        items: day.items.map((item) =>
+          item.id === itemId ? { ...item, ...patch } : item,
+        ),
+      })),
+    } as typeof trip;
+    tripState = next;
+    return HttpResponse.json(
+      { trip: next, changedItemIds: [itemId] },
+      { headers: { ETag: `"${String(next.version)}"` } },
+    );
+  }),
+  http.post(`${API_BASE}/trips/:tripId/items/reorder`, async ({ request }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const body = (await request.json()) as {
+      items: { itemId: string; date: string; position: number }[];
+    };
+    const moves = new Map(body.items.map((entry) => [entry.itemId, entry]));
+    // Applied as one unit: every item named moves to its stated day and
+    // position together, which is what "reorder or move atomically" means.
+    const pool = trip.days.flatMap((day) => day.items);
+    const next = {
+      ...trip,
+      version: trip.version + 1,
+      days: trip.days.map((day) => ({
+        ...day,
+        items: pool
+          .map((item) => {
+            const move = moves.get(item.id);
+            return move ? { ...item, date: move.date, position: move.position } : item;
+          })
+          .filter((item) => item.date === day.date)
+          .sort((a, b) => a.position - b.position),
+      })),
+    } as typeof trip;
+    tripState = next;
+    return HttpResponse.json(
+      { trip: next, changedItemIds: body.items.map((entry) => entry.itemId) },
+      { headers: { ETag: `"${String(next.version)}"` } },
+    );
+  }),
+  http.post(
+    `${API_BASE}/trips/:tripId/items/:itemId/replace`,
+    async ({ request, params }) => {
+      const trip = currentTrip();
+      if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+        return problemResponse('TRIP_CHANGED');
+      }
+      const body = (await request.json()) as {
+        replacementPlaceId: string;
+        preserveDateTime?: boolean;
+      };
+      const itemId = String(params.itemId);
+      const replacement = placeFixtures.searchPage.items.find(
+        (place) => place.id === body.replacementPlaceId,
+      );
+      const next = {
+        ...trip,
+        version: trip.version + 1,
+        days: trip.days.map((day) => ({
+          ...day,
+          items: day.items.map((item) =>
+            item.id === itemId && replacement
+              ? {
+                  ...item,
+                  place: replacement,
+                  // preserveDateTime defaults to true in the contract, so the
+                  // schedule survives unless the caller opts out.
+                  startTime: body.preserveDateTime === false ? null : item.startTime,
+                }
+              : item,
+          ),
+        })),
+      } as typeof trip;
+      tripState = next;
+      return HttpResponse.json(
+        { trip: next, changedItemIds: [itemId] },
+        { headers: { ETag: `"${String(next.version)}"` } },
+      );
+    },
+  ),
+  http.delete(`${API_BASE}/trips/:tripId/items/:itemId`, ({ request, params }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    // Required by the contract, with no default: the caller must say whether
+    // the saved place survives the removal.
+    const disposition = new URL(request.url).searchParams.get('disposition');
+    if (disposition !== 'RESTORE_CANDIDATE' && disposition !== 'REMOVE') {
+      return problemResponse('VALIDATION_FAILED');
+    }
+    const itemId = String(params.itemId);
+    const removed = trip.days
+      .flatMap((day) => day.items)
+      .find((item) => item.id === itemId);
+    const next = {
+      ...trip,
+      version: trip.version + 1,
+      days: trip.days.map((day) => ({
+        ...day,
+        items: day.items.filter((item) => item.id !== itemId),
+      })),
+    } as typeof trip;
+    tripState = next;
+    if (disposition === 'RESTORE_CANDIDATE' && removed) {
+      const candidates = currentCandidates();
+      candidateState = {
+        ...candidates,
+        items: candidates.items.map((candidate) =>
+          candidate.scheduledTripItemId === itemId
+            ? { ...candidate, status: 'ACTIVE' as const, scheduledTripItemId: null }
+            : candidate,
+        ),
+      };
+    }
+    return HttpResponse.json(
+      { trip: next, changedItemIds: [itemId] },
+      { headers: { ETag: `"${String(next.version)}"` } },
+    );
+  }),
+
   // MOCK DATA (FE-304). removeTripItemConstraint has no approved example
   // (BA-041). Stateful so a released lock stays released and the version
   // advances, which is what makes a stale-ETag bug visible.
