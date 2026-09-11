@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { usePlaceSearch } from '../../shared/api/index.js';
-import { BottomCta, MustVisitBadge, SearchField } from '../../shared/ui/index.js';
+import {
+  BottomCta,
+  DataAttribution,
+  MustVisitBadge,
+  SearchField,
+} from '../../shared/ui/index.js';
 import styles from './MustVisitScreen.module.css';
 
 type PlaceSummary = components['schemas']['PlaceSummary'];
@@ -36,10 +41,13 @@ export function MustVisitScreen() {
   const pickedIds = new Set(picked.map((place) => place.id));
 
   function meta(place: PlaceSummary): string {
-    // Address only. categoryCode is a free string in the contract with no
-    // display name to map it to, so showing it puts machine text like
-    // "ATTRACTION" in front of the user (asked on #34 / BA-022).
-    return place.address ?? '';
+    // categoryName, not categoryCode. BA-022 made the distinction explicit in
+    // the contract: the code is "opaque provider-derived … not display copy",
+    // and a null name means "do not show a category", never "unknown". So a
+    // missing name drops the segment rather than falling back to the code.
+    return [place.categoryName, place.regionName, place.address]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .join(' · ');
   }
 
   return (
@@ -104,6 +112,14 @@ export function MustVisitScreen() {
                   <span className={styles.cardText}>
                     <span className={styles.name}>{place.name}</span>
                     <span className={styles.meta}>{meta(place)}</span>
+                    {/* FCR-031 / CMP-ATT-001: the credit the server approved for
+                        this record, shown verbatim. Never composed here — the
+                        contract says to display the string as given, and
+                        CMP-ATT-003 forbids implying a source that was not
+                        granted. Null only for places with no external source. */}
+                    {place.sourceAttribution ? (
+                      <DataAttribution compact provenance={place.sourceAttribution} />
+                    ) : null}
                   </span>
                   <button
                     type="button"
@@ -159,6 +175,9 @@ export function MustVisitScreen() {
                     <MustVisitBadge />
                   </span>
                   <span className={styles.meta}>{meta(place)}</span>
+                  {place.sourceAttribution ? (
+                    <DataAttribution compact provenance={place.sourceAttribution} />
+                  ) : null}
                 </span>
                 <button
                   type="button"

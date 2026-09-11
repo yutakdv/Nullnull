@@ -147,18 +147,48 @@ describe('results and the kept list', () => {
 });
 
 describe('the card shows only what the contract supplies', () => {
-  it('renders no crowd figure, because PlaceSummary has none', async () => {
+  it('renders no crowd figure, because PlaceSummary still has none', async () => {
     await searchFor('서울');
     await screen.findByText(first?.name ?? '');
 
-    // FCR-029: Figma shows "4 · 혼잡" and a forecast badge here. Backend/AI
-    // confirmed crowd is planned but not yet in the contract, so the card ships
-    // without it; a number here would be invented. This test is what keeps that
-    // true until PlaceSummary actually gains the field.
+    // FCR-029, still open. Figma shows "4 · 혼잡" and a forecast badge here.
+    // BA-023 added crowd as a separate dated series (getPlaceCrowdForecast),
+    // deliberately not as a scalar on PlaceSummary, so the card still has no
+    // single value to show and a number here would be invented.
     const body = document.body.textContent ?? '';
     expect(body).not.toMatch(/혼잡/);
     expect(body).not.toMatch(/공식 혼잡 예측/);
-    expect(screen.queryByText(/ⓒ한국관광공사/)).not.toBeInTheDocument();
+  });
+
+  it('credits the source the server named (FCR-031, CMP-ATT-001)', async () => {
+    await searchFor('서울');
+    await screen.findByText(first?.name ?? '');
+
+    // This assertion used to run the other way: PlaceSummary carried no source
+    // at all, so the card could satisfy neither CMP-ATT-001 (a credit on every
+    // KTO screen) nor CMP-ATT-003 (never imply one that was not given), and the
+    // test guarded the absence. BA-022 added sourceAttribution, so it now
+    // guards the presence instead of being deleted.
+    const credit = first?.sourceAttribution?.attribution ?? '';
+    expect(credit).not.toBe('');
+    expect(screen.getAllByText(credit).length).toBeGreaterThan(0);
+  });
+
+  it('does not hardcode the provider name', async () => {
+    await searchFor('서울');
+    await screen.findByText(first?.name ?? '');
+
+    // Every credit on screen has to be a string the response supplied. A card
+    // that prints "ⓒ한국관광공사" for a place the server did not attribute is
+    // exactly what CMP-ATT-003 forbids.
+    const served = new Set(
+      placeFixtures.searchPage.items
+        .map((item) => item.sourceAttribution?.attribution)
+        .filter((text): text is string => typeof text === 'string'),
+    );
+    for (const node of screen.queryAllByText(/한국관광공사/)) {
+      expect(served).toContain(node.textContent?.trim());
+    }
   });
 
   it('shows the fields the contract does supply', async () => {

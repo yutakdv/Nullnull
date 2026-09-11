@@ -422,13 +422,42 @@ describe('FE-303-T3 the panel is reachable and named', () => {
   });
 });
 
-describe('FE-303 renders no value the contract does not carry', () => {
-  it('shows no source attribution, because PlaceSummary has none (FCR-031)', async () => {
+describe('FE-303 credits each source the way the server named it', () => {
+  it('shows the approved credit on a place that has one (FCR-031)', async () => {
     renderPanel();
     await loaded();
-    // The Figma card shows ⓒ한국관광공사 under each place. Hardcoding it would
-    // assert an origin the response never stated, which CMP-ATT-003 forbids.
-    expect(screen.queryByText(/한국관광공사/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/ⓒ/)).not.toBeInTheDocument();
+    // This ran the other way until BA-022: PlaceSummary carried no source, so
+    // the card could satisfy neither CMP-ATT-001 nor CMP-ATT-003 and the test
+    // guarded the absence. It now guards the presence.
+    const credit = active?.place.sourceAttribution?.attribution ?? '';
+    expect(credit).not.toBe('');
+    expect(screen.getAllByText(credit).length).toBeGreaterThan(0);
+  });
+
+  it('shows no credit for a place the server did not attribute', async () => {
+    renderPanel();
+    await loaded();
+    // sourceAttribution is null for a record with no external source. Printing
+    // a provider there would imply an origin that was never granted, which is
+    // what CMP-ATT-003 forbids.
+    const unattributed = page.items.find((item) => !item.place.sourceAttribution);
+    expect(unattributed).toBeDefined();
+    const card = screen
+      .getByRole('heading', { level: 2, name: unattributed?.place.name ?? '' })
+      .closest('article') as HTMLElement;
+    expect(within(card).queryByText(/한국관광공사/)).not.toBeInTheDocument();
+  });
+
+  it('prints no credit the response did not supply', async () => {
+    renderPanel();
+    await loaded();
+    const served = new Set(
+      page.items
+        .map((item) => item.place.sourceAttribution?.attribution)
+        .filter((text): text is string => typeof text === 'string'),
+    );
+    for (const node of screen.queryAllByText(/한국관광공사/)) {
+      expect(served).toContain(node.textContent?.trim());
+    }
   });
 });
