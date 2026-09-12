@@ -2495,6 +2495,7 @@ export interface operations {
                     "application/json": components["schemas"]["HealthStatus"];
                 };
             };
+            default: components["responses"]["Problem"];
         };
     };
     getReadiness: {
@@ -2516,6 +2517,7 @@ export interface operations {
                 };
             };
             503: components["responses"]["SourceUnavailable"];
+            default: components["responses"]["Problem"];
         };
     };
     createDemoSession: {
@@ -2696,6 +2698,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            default: components["responses"]["Problem"];
         };
     };
     updatePreferences: {
@@ -2803,6 +2806,7 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             503: components["responses"]["SourceUnavailable"];
+            default: components["responses"]["Problem"];
         };
     };
     savePost: {
@@ -2910,6 +2914,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            default: components["responses"]["Problem"];
         };
     };
     getPlaceCrowdForecast: {
@@ -3048,6 +3053,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            default: components["responses"]["Problem"];
         };
     };
     deleteTrip: {
