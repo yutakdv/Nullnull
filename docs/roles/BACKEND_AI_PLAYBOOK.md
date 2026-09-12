@@ -243,6 +243,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 중요 기능 suite는 경로 필터와 관계없이 모든 main PR에서 실행한다. 구현 전 missing suite를 green placeholder로 대체하지 않는다.
 
+잔여 범위(`in-progress`가 뜻하는 것): 이슈 [#26](https://github.com/yutakdv/Nullnull/issues/26)에 적었던 셋 중 **둘은 닫혔다.**
+
+- **egress probe가 report를 남긴다.** 이전에는 exit code만 증거였다. probe가 출력하는 `outbound_network=denied` 토큰을 `check_egress_report.py`가 판정하므로, probe가 probe이기를 그만둔 경우(아무것도 조회하지 않는 명령으로 바뀌어 0으로 끝나는 경우)를 잡는다.
+- **pytest test ID가 집계에 연결됐다.** `check_test_reports.check_manifest`가 `suite: pytest` 행을 **그냥 건너뛰고** 있었고, 주석은 `ai-quality`와 `evaluation.json`이 덮는다고 적었지만 `check_evaluation_report`는 `corpus.partial`과 `safety.failures`만 읽는다 — 컨테이너 밖에서 test ID를 본 것이 아무것도 없었다. 이제 manifest의 pytest 행과 report의 `implementedTestIds`를 양방향으로 대조한다.
+
+**셋째가 남았고, 그 이유가 처음 생각과 다르다.** 이 카드의 acceptance인 `BA-004-T1`~`T3`는 Python `scripts/tests`에만 있고 Gradle JUnit 이름에는 없다. 그런데 `check_test_reports.required_plan_ids`는 `integration-ready`·`verified` 카드의 test ID를 **JUnit 이름에서** 찾으므로, 지금 이 카드를 올리면 집계기가 자기 카드의 증거를 찾지 못해 실패한다. 즉 report contract에 **`scripts/tests`를 위한 채널이 없다.** 그것이 `in-progress`의 실제 사유이고, 예외 목록으로 우회하지 않는다.
+
 선행 PM 항목 상태:
 
 - **PM-008·PM-016은 닫혔다**(#145·#150, #161). **PM-024의 `slotDates` 동기화도 이미 끝나 있다** — `policy-v1.yaml`은 30이고 `PolicyPinsParityTest`가 Spring pin과 대조한다.
@@ -861,6 +868,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 **feed는 catalog 공개 게이트가 닫혀 있으면 503이다.** `FeedCard.primaryPlace`가 필수인데 place는 KTO 유래 canonical catalog이고, BA-021-T3의 staging 호출 증거가 없어 그 게이트는 닫혀 있다. feed가 catalog query port를 직접 읽으면 그 fail-closed 결정이 무의미해지므로 **같은 게이트를 통과한다**. `FeedFailsClosedIT`가 이걸 고정하고, 게이트 호출을 빼면 빨개진다.
 
 **남은 것은 그 게이트 하나다.** 네 operation은 전부 `main`에 있고 `candidateState`도 완성됐지만, feed가 실제로 응답을 내려면 catalog가 열려야 하고 그것은 BA-021-T3의 staging 호출 증거에 달려 있다. 선행 카드 [BA-022](#ba-022)가 같은 이유로 `in-progress`이므로 이 카드도 `integration-ready`로 올리지 않는다.
+
+PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSummary.sourceAttribution`으로 제안돼 FE 승인(#34)을 기다리지만, **`PostSummary.coverUrl`은 권리를 전달하지 않는다** — `posts.cover_url`이 단순 text column이고, 장소 media가 쓰는 `asset_licenses`·`media_assets` 연결이 없다. 지금 fixture의 cover는 전부 `cdn.example.test` placeholder라 잘못 표기된 실제 이미지는 없고, 큐레이션된 post에 실제 이미지가 들어오는 시점이 이 공백이 실제 문제가 되는 시점이다. 공개 shape 변경은 FE 검토가 필요하므로 제안을 내기 전에 여기 적어 둔다.
 
 필수 검증:
 

@@ -17,7 +17,10 @@ SUITES = ("test", "integrationTest", "openapiContractTest", "recommendationTest"
 PLAN = {"tasks": [{"id": "BA-099", "status": "integration-ready",
                    "tests": [{"id": "BA-099-T1"}]}]}
 MANIFEST = {"implementedTestIds": [{"id": "REC-DATA-02", "suite": "gradle:test"}]}
-EVALUATION = {"corpus": {"partial": False}, "safety": {"failures": []}}
+# implementedTestIds is part of the report contract now: the manifest's pytest rows are checked
+# against it, so a report without it is incomplete evidence rather than a silent pass.
+EVALUATION = {"corpus": {"partial": False}, "safety": {"failures": []},
+              "implementedTestIds": ["REC-DATA-02"]}
 
 
 def xml(name="BA-099-T1 REC-DATA-02 passes", child="", **counts):
@@ -131,9 +134,15 @@ class ReportTests(unittest.TestCase):
     def test_manifest_checks_the_declared_gradle_suite(self):
         self.target.write_text(xml(name='BA-099-T1'))
         self.rejected(self.check(), 'REC-DATA-02 missing from gradle:test')
+        # A pytest row used to pass here with no evidence at all - the suite was skipped outright.
+        # It now needs the evaluation report to be checked against, and says so when it has none.
         (self.root / 'manifest.json').write_text(json.dumps({'implementedTestIds': [
             {'id': 'REC-OPT-01', 'suite': 'pytest'}]}))
-        self.assertEqual(0, self.check().returncode)
+        self.rejected(self.check(), 'needs --evaluation to be checked')
+        (self.root / 'evaluation.json').write_text(json.dumps(
+            {**EVALUATION, 'implementedTestIds': ['REC-OPT-01']}))
+        self.assertEqual(
+            0, self.check('--evaluation', self.root / 'evaluation.json').returncode)
         for suite in ('gradle:typo', 'gradle', 'typo'):
             (self.root / 'manifest.json').write_text(json.dumps({'implementedTestIds': [
                 {'id': 'REC-DATA-02', 'suite': suite}]}))
@@ -147,6 +156,50 @@ class ReportTests(unittest.TestCase):
                 path.write_text(data)
                 self.assertNotEqual(0, self.run_check(flag, path).returncode)
             self.assertNotEqual(0, self.run_check(flag, self.root / 'absent').returncode)
+
+    def test_a_pytest_row_the_report_does_not_carry_is_rejected(self):
+        """The hole this closed: `suite: pytest` rows used to be skipped outright.
+
+        `check_evaluation_report` reads only corpus.partial and safety.failures, so nothing
+        outside the container ever looked at a test ID. A manifest could claim a pytest ID the
+        corpus never exercises and every gate stayed green.
+        """
+        (self.root / "manifest.json").write_text(json.dumps({"implementedTestIds": [
+            {"id": "REC-DATA-02", "suite": "gradle:test"},
+            {"id": "REC-OPT-01", "suite": "pytest"}]}))
+        self.rejected(self.check("--evaluation", self.root / "evaluation.json"),
+                      "REC-OPT-01 claims the pytest suite but evaluation.json does not report it")
+
+    def test_a_pytest_row_the_report_does_carry_passes(self):
+        (self.root / "manifest.json").write_text(json.dumps({"implementedTestIds": [
+            {"id": "REC-DATA-02", "suite": "gradle:test"},
+            {"id": "REC-OPT-01", "suite": "pytest"}]}))
+        (self.root / "evaluation.json").write_text(json.dumps(
+            {**EVALUATION, "implementedTestIds": ["REC-DATA-02", "REC-OPT-01"]}))
+        result = self.check("--evaluation", self.root / "evaluation.json")
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_coverage_the_report_claims_must_be_registered_in_the_manifest(self):
+        # The other direction, and AGENTS.md rule 1: a REC ID that ran but is not declared is
+        # coverage nobody registered, so the table and the manifest stop describing the suite.
+        (self.root / "evaluation.json").write_text(json.dumps(
+            {**EVALUATION, "implementedTestIds": ["REC-DATA-02", "REC-LLM-01"]}))
+        self.rejected(self.check("--evaluation", self.root / "evaluation.json"),
+                      "evaluation.json reports REC-LLM-01 as implemented but the manifest does not")
+
+    def test_a_pytest_row_without_the_evaluation_report_is_not_checked_silently(self):
+        # Without --evaluation there is nothing to check a pytest row against. Passing anyway is
+        # exactly the "green because nothing ran" shape; it says so instead.
+        (self.root / "manifest.json").write_text(json.dumps({"implementedTestIds": [
+            {"id": "REC-DATA-02", "suite": "gradle:test"},
+            {"id": "REC-OPT-01", "suite": "pytest"}]}))
+        self.rejected(self.check(), "needs --evaluation to be checked")
+
+    def test_a_report_without_implementedTestIds_is_incomplete_evidence(self):
+        (self.root / "evaluation.json").write_text(json.dumps(
+            {"corpus": {"partial": False}, "safety": {"failures": []}}))
+        self.rejected(self.check("--evaluation", self.root / "evaluation.json"),
+                      "implementedTestIds must be a list of strings")
 
     def test_evaluation_content_is_validated_by_aggregate_runner(self):
         for document, message in (({'corpus': {'partial': True}, 'safety': {'failures': []}}, 'partial corpus'),
@@ -186,7 +239,7 @@ class WrapperExecutionTests(unittest.TestCase):
                                         '"${compose[@]}" run --rm api-quality || true')
             (root / 'scripts/integration-test.sh').write_text(script)
             for filename in ('check_test_reports.py', 'check_evaluation_report.py', 'check_npm_audit_report.py',
-                             'check_infra_report.py'):
+                             'check_infra_report.py', 'check_egress_report.py'):
                 shutil.copy2(ROOT / 'scripts' / filename, root / 'scripts' / filename)
             (root / 'scripts/verify_target_stack.py').write_text('')
             for relative in ('.nullnull-target-stack', 'apps/api/Dockerfile', 'apps/api/gradlew',
@@ -231,6 +284,10 @@ elif 'run' in args and 'infra-plan' in args:
     # machine token. A stub that printed nothing would make check_infra_report.py fail, which
     # is the point of that checker: a step producing no outcome is not a pass.
     print('infra_check=blocked reason=infra-not-scaffolded owner=BA-006')
+elif 'run' in args and 'egress-denied' in args:
+    # Same reason as infra-plan above: the probe states a verdict token, and a stub that printed
+    # nothing would fail check_egress_report.py - which is exactly what that checker is for.
+    print('outbound_network=denied')
 elif 'exec' in args:
     print('{{"status":"READY"}}')
 else:

@@ -9,6 +9,7 @@ readonly compose_file="${project_root}/compose.integration.yml"
 readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
 readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
 readonly test_report_checker="${project_root}/scripts/check_test_reports.py"
+readonly egress_report_checker="${project_root}/scripts/check_egress_report.py"
 readonly npm_audit_report_checker="${project_root}/scripts/check_npm_audit_report.py"
 readonly infra_report_checker="${project_root}/scripts/check_infra_report.py"
 
@@ -161,7 +162,19 @@ rm -f "${infra_report}"
 }
 cat "${infra_report}"
 python3 "${infra_report_checker}" "${infra_report}"
-"${compose[@]}" run --rm egress-denied
+# BA-004-T3: the probe's exit code is only evidence while the probe is intact. It prints a verdict
+# token for exactly that reason, and nothing was reading it - so a command changed to something
+# that does not probe would exit 0 and pass. Capture the output and judge the token, the same way
+# infra-plan and the npm audit report are judged.
+readonly egress_report="${artifact_dir}/egress-denied.txt"
+rm -f "${egress_report}"
+"${compose[@]}" run --rm egress-denied >"${egress_report}" 2>&1 || {
+  cat "${egress_report}" >&2
+  echo "egress-denied exited non-zero" >&2
+  exit 1
+}
+cat "${egress_report}"
+python3 "${egress_report_checker}" "${egress_report}"
 "${compose[@]}" up --detach ai api web
 
 # integration-internal is internal: true, so a published port never reaches the host. Both

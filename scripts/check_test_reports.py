@@ -109,10 +109,41 @@ def required_plan_ids(plan: dict) -> set[str]:
     return result
 
 
-def check_manifest(manifest: dict, ids: dict[str, set[str]], errors: list[str]) -> None:
+def reported_implemented_ids(path: Path, errors: list[str]) -> set[str] | None:
+    """`implementedTestIds` out of the evaluation report, or None when it cannot be read.
+
+    None rather than an empty set on purpose: an empty set would silently satisfy every
+    "claimed and reported" comparison below, which is the failure mode this whole file is about.
+    """
+    report = read_object(path)
+    value = report.get("implementedTestIds")
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        errors.append(f"{path}: implementedTestIds must be a list of strings")
+        return None
+    return set(value)
+
+
+def check_manifest(manifest: dict, ids: dict[str, set[str]],
+                   reported: set[str] | None, errors: list[str]) -> None:
+    """Both halves of the manifest are held to evidence, not just the Gradle half.
+
+    A `gradle:*` row is checked against the JUnit testcase names this run produced. A `pytest` row
+    used to be SKIPPED, with a comment saying ai-quality and evaluation.json covered it - and
+    neither did: `check_evaluation_report` only reads `corpus.partial` and `safety.failures`, so
+    nothing outside the container ever looked at a test ID. A manifest could claim a pytest ID the
+    corpus never exercises and every gate stayed green, which is the shape this checker exists to
+    refuse.
+
+    `reported` is `evaluation.json`'s own `implementedTestIds`. The two lists must agree exactly:
+    an ID the manifest claims and the report does not is an unrun claim, and an ID the report
+    carries and the manifest does not declare is coverage nobody registered (AGENTS.md rule 1).
+    `missingTestIds` is deliberately NOT asserted empty - those are the REC IDs nothing implements
+    yet, and that backlog is a fact, not a failure.
+    """
     entries = manifest.get("implementedTestIds")
     if not isinstance(entries, list) or not entries:
         raise ValueError("manifest: non-empty implementedTestIds required")
+    declared: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict) or not isinstance(entry.get("suite"), str):
             raise ValueError("manifest: invalid entry/suite")
@@ -120,12 +151,25 @@ def check_manifest(manifest: dict, ids: dict[str, set[str]], errors: list[str]) 
         ident = entry.get("id")
         if not isinstance(ident, str) or not re.fullmatch(r"REC-[A-Z]+-\d+", ident):
             raise ValueError("manifest: invalid REC ID")
+        declared.add(ident)
         if suite == "pytest":
-            continue  # pytest corpus coverage is checked by ai-quality and evaluation.json.
+            if reported is None:
+                errors.append(
+                    f"manifest: {ident} is a pytest row, which needs --evaluation to be checked")
+            elif ident not in reported:
+                errors.append(
+                    f"manifest: {ident} claims the pytest suite but evaluation.json does not "
+                    "report it as implemented")
+            continue
         if not suite.startswith("gradle:") or suite[7:] not in GRADLE_SUITES:
             raise ValueError(f"manifest: unknown suite {suite}")
         if ident not in ids.get(suite[7:], set()):
             errors.append(f"manifest: {ident} missing from {suite} testcase names")
+    if reported is not None:
+        for ident in sorted(reported - declared):
+            errors.append(
+                f"evaluation.json reports {ident} as implemented but the manifest does not "
+                "declare it")
 
 
 def main() -> int:
@@ -150,11 +194,13 @@ def main() -> int:
             observed = set().union(*ids.values())
             for ident in sorted(required - observed):
                 errors.append(f"backend plan: {ident} missing from JUnit testcase names")
-        if args.manifest is not None:
-            check_manifest(read_object(args.manifest), ids, errors)
+        reported: set[str] | None = None
         if args.evaluation is not None:
             fresh(args.evaluation, args.run_start)
             check_evaluation_report(args.evaluation, errors)
+            reported = reported_implemented_ids(args.evaluation, errors)
+        if args.manifest is not None:
+            check_manifest(read_object(args.manifest), ids, reported, errors)
     except (OSError, ValueError) as error:
         errors.append(str(error))
     for error in errors:
