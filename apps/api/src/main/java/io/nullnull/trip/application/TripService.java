@@ -10,7 +10,11 @@ import io.nullnull.shared.problem.ProblemCode;
 import io.nullnull.trip.domain.PlanningLevel;
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripDateRange;
+import io.nullnull.trip.domain.TripConstraint;
 import io.nullnull.trip.domain.TripInterest;
+import io.nullnull.trip.domain.TripItem;
+import io.nullnull.trip.domain.TripScheduleRules;
+import io.nullnull.trip.domain.TripValidationException;
 import io.nullnull.trip.domain.TripStatus;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -26,6 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
@@ -42,6 +48,9 @@ public class TripService {
     /** Bumped when the persisted snapshot's shape changes, so a reader can tell which it has. */
     public static final String SNAPSHOT_SCHEMA_VERSION = "trip-aggregate-v1";
     private static final String CREATE_ROUTE = "POST /trips";
+    private static final String DELETE_ROUTE = "DELETE /trips/{tripId}";
+    private static final java.util.regex.Pattern IF_MATCH =
+            java.util.regex.Pattern.compile("^\"[1-9][0-9]*\"$");
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 50;
 
@@ -50,9 +59,11 @@ public class TripService {
     private final TripCursorProperties cursors;
     private final Clock clock;
     private final ObjectMapper json;
+    private final TransactionTemplate transactions;
 
     public TripService(TripStore trips, IdempotencyGuard idempotency, TripCursorProperties cursors,
-            Clock clock, ObjectMapper json) {
+            Clock clock, ObjectMapper json, PlatformTransactionManager transactionManager) {
+        this.transactions = new TransactionTemplate(transactionManager);
         this.trips = trips;
         this.idempotency = idempotency;
         this.cursors = cursors;
@@ -118,8 +129,9 @@ public class TripService {
         Instant now = clock.instant();
         Trip trip = new Trip(UUID.randomUUID(), ownerId, command.title(), command.range(),
                 command.planningLevel(), TripStatus.DRAFT, 1L, command.interests(), now, now, null);
-        String snapshot = snapshot(trip);
-        trips.create(trip, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+        String snapshot = snapshot(trip, command.seedItems());
+        trips.create(trip, command.seedItems(), SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot),
+                snapshot);
         // A created trip holds no candidates: saving a candidate is a separate resource and is not
         // part of creation (invariant 1).
         return Projection.of(trip, 0);
@@ -130,7 +142,7 @@ public class TripService {
      * the same trip always hashes the same way and the hash means "this content" rather than "this
      * serializer's field order today".
      */
-    private String snapshot(Trip trip) {
+    private String snapshot(Trip trip, List<TripItem> items) {
         return "{\"schemaVersion\":\"" + SNAPSHOT_SCHEMA_VERSION + "\""
                 + ",\"tripId\":\"" + trip.id() + "\""
                 + ",\"version\":" + trip.version()
@@ -141,7 +153,7 @@ public class TripService {
                 + ",\"planningLevel\":\"" + trip.planningLevel() + "\""
                 + ",\"status\":\"" + trip.status() + "\""
                 + ",\"interests\":" + sortedInterests(trip.interests())
-                + ",\"items\":[]"
+                + ",\"items\":" + canonicalItems(items)
                 + ",\"candidates\":[]}";
     }
 
@@ -208,6 +220,107 @@ public class TripService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 unavailable", exception);
         }
+    }
+
+    /**
+     * updateTrip. Merge-patch: an absent field keeps its value, so only what the caller sent moves.
+     *
+     * <p>The version rises by EXACTLY ONE however many fields changed (invariant 6). A caller that
+     * sent a patch equal to the current state still gets a new version, because the ETag it holds
+     * was checked and a no-op that left the ETag alone would make "my If-Match succeeded" mean two
+     * different things.
+     */
+    public TripView update(OwnerContext context, UUID tripId, String ifMatch, UpdateTripCommand patch) {
+        long expected = parseIfMatch(ifMatch);
+        return transactions.execute(status -> {
+            Trip current = trips.findForUpdate(context.ownerId(), tripId).orElseThrow(TripService::notFound);
+            if (current.version() != expected) {
+                throw tripChanged(current.version());
+            }
+            Trip updated = patch.applyTo(current, clock.instant());
+            List<TripItem> items = trips.items(tripId);
+            // A shrink is refused ENTIRELY while anything falls outside the new range. Nothing is
+            // moved and no lock is released to make room (invariant 7): the user placed them.
+            List<TripValidationException.FieldViolation> conflicts =
+                    TripScheduleRules.shrinkConflicts(updated.range(), items);
+            if (!conflicts.isEmpty()) {
+                throw new TripValidationException(conflicts);
+            }
+            String snapshot = snapshot(updated, items);
+            trips.updateMetadata(updated, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+            return new TripView(updated,
+                    trips.candidateCounts(List.of(tripId)).getOrDefault(tripId, 0));
+        });
+    }
+
+    /**
+     * deleteTrip. Guarded by both If-Match and Idempotency-Key: the ETag says which trip state the
+     * caller meant to delete, and the key makes a repeat safe once it is gone.
+     */
+    public void delete(OwnerContext context, UUID tripId, String ifMatch, String idempotencyKey) {
+        long expected = parseIfMatch(ifMatch);
+        String fingerprint = RequestFingerprint
+                .of("deleteTrip", Map.of("tripId", tripId.toString()), Long.toString(expected))
+                .sha256Hex();
+        idempotency.execute(context.ownerId(), DELETE_ROUTE, idempotencyKey, fingerprint, () -> {
+            Trip current = trips.findForUpdate(context.ownerId(), tripId).orElseThrow(TripService::notFound);
+            if (current.version() != expected) {
+                throw tripChanged(current.version());
+            }
+            // Items, constraints, interests and revisions follow through the foreign keys, and
+            // owners.active_trip_id is cleared by its own ON DELETE SET NULL. One statement, one
+            // transaction: a trip that half-disappeared would leave a pointer at nothing.
+            trips.delete(context.ownerId(), tripId);
+            return new CommandOutcome<>(204, "");
+        }, value -> value);
+    }
+
+    private static long parseIfMatch(String ifMatch) {
+        if (ifMatch == null || !IF_MATCH.matcher(ifMatch).matches()) {
+            // 400, not 412: a malformed header is a request the server cannot interpret, while a
+            // well-formed one that lost the race is a conflict the caller can resolve by refetching.
+            throw new ApiException(ProblemCode.INVALID_REQUEST,
+                    "If-Match must be the quoted trip version.");
+        }
+        return Long.parseLong(ifMatch.substring(1, ifMatch.length() - 1));
+    }
+
+    private static ApiException tripChanged(long currentVersion) {
+        ApiException conflict = new ApiException(ProblemCode.TRIP_CHANGED,
+                "The trip was modified elsewhere.");
+        return conflict;
+    }
+
+    private String canonicalItems(List<TripItem> items) {
+        if (items == null || items.isEmpty()) {
+            return "[]";
+        }
+        List<TripItem> sorted = new ArrayList<>(items);
+        sorted.sort(Comparator.comparing(TripItem::date).thenComparing(TripItem::position));
+        StringBuilder out = new StringBuilder("[");
+        for (int index = 0; index < sorted.size(); index++) {
+            TripItem item = sorted.get(index);
+            if (index > 0) {
+                out.append(',');
+            }
+            out.append("{\"id\":\"").append(item.id()).append('"')
+                    .append(",\"placeId\":\"").append(item.placeId()).append('"')
+                    .append(",\"date\":\"").append(item.date()).append('"')
+                    .append(",\"position\":").append(item.position())
+                    .append(",\"startTime\":").append(item.startTime() == null ? "null"
+                            : '"' + item.startTime().toString() + '"')
+                    .append(",\"constraints\":[");
+            List<TripConstraint> constraints = new ArrayList<>(item.constraints());
+            constraints.sort(Comparator.comparing(constraint -> constraint.type().name()));
+            for (int at = 0; at < constraints.size(); at++) {
+                if (at > 0) {
+                    out.append(',');
+                }
+                out.append("{\"type\":\"").append(constraints.get(at).type()).append("\"}");
+            }
+            out.append("]}");
+        }
+        return out.append(']').toString();
     }
 
     /** What the idempotency guard stores for replay. Holds no owner identifier. */

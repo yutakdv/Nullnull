@@ -823,7 +823,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "여행 metadata·관심사·삭제",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-030",
         "BA-012"
