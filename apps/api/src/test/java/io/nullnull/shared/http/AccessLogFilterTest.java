@@ -1,5 +1,6 @@
 package io.nullnull.shared.http;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -63,4 +64,48 @@ class AccessLogFilterTest {
         org.assertj.core.api.Assertions.assertThat(AccessLogFilter.NON_PRODUCTION)
                 .containsExactlyInAnyOrder("local", "test", "staging");
     }
+    @Test
+    @DisplayName("BA-003-T2 the access log carries no header value, whatever the request sent")
+    void theLogLineNeverCarriesAHeader() throws Exception {
+        // What this adds is the FIELD SET, not canary absence. HttpPolicyIT already attaches a
+        // ListAppender to the ROOT logger and asserts its canary reaches no log line, which covers
+        // this filter's line too - so "a header value does not leak" was already held.
+        //
+        // What it did not hold is a field arriving that HttpPolicyIT's canary does not travel in.
+        // Measured: adding `auth={}` fed by request.getHeader("X-Deletion-Status-Token") logs
+        // `auth=null` there, because that test sends X-Canary, and it stays green. The filter's
+        // javadoc says "never a header" and the deletion status token, the CSRF token and the
+        // session cookie all arrive as one, so the line's shape is pinned here instead.
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AccessLogFilter.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            var request = new org.springframework.mock.web.MockHttpServletRequest("GET",
+                    "/api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666");
+            request.addHeader("X-Deletion-Status-Token", "dst-canary-must-not-be-logged");
+            request.addHeader("X-CSRF-Token", "csrf-canary-must-not-be-logged");
+            request.addHeader("Cookie", "__Host-nullnull_session=cookie-canary-must-not-be-logged");
+            request.addHeader("Authorization", "Bearer authz-canary-must-not-be-logged");
+            request.setQueryString("q=query-canary-must-not-be-logged");
+            var response = new org.springframework.mock.web.MockHttpServletResponse();
+
+            new AccessLogFilter(false, "production")
+                    .doFilter(request, response, new org.springframework.mock.web.MockFilterChain());
+
+            assertThat(appender.list).as("the filter logged exactly one line").hasSize(1);
+            String line = appender.list.get(0).getFormattedMessage();
+            assertThat(line).as("a canary reached the access log")
+                    .doesNotContain("canary-must-not-be-logged");
+            // And positively: only the five documented values, so a new field has to be added here
+            // deliberately rather than arriving unnoticed.
+            assertThat(line.replaceAll("=[^ ]*", "="))
+                    .isEqualTo("request method= route= status= durationMs= requestId=");
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
 }

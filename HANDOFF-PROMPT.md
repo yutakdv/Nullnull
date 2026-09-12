@@ -428,6 +428,25 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **FE 답을 기다리는 이슈에 코멘트를 추가할 때는 첫 줄에 BE/AI 것임을 밝힌다.** 두 세션이 같은 계정으로 쓰므로 작성자로는 구분되지 않고, 옆 세션이 내 코멘트를 FE 답으로 오독해 "답이 왔다"고 전달한 적이 있다.
 
+**PM 항목 24개를 전수 확인했다 — 다음 세션은 다시 훑지 않아도 된다.** 카드가 「PM 검토 연결」로 지목한 항목은 24개이고, 이 세션에서 전부 열어봤다. "unblocked 작업이 없다"를 두 번 틀린 뒤 만든 방법이고(두 번 다 이 방법으로 찾았다: BA-022 label, PM-019), 이제 결과는 이렇다.
+
+| 분류 | 항목 | 내가 할 수 있나 |
+| --- | --- | --- |
+| **이 세션에서 닫음** | PM-008·016(계약 정정), PM-019 절반(`default` 선언) | — |
+| **이미 끝나 있었다(확인함)** | PM-018(삭제 receipt 예외 projection — `DeletionIT`가 token 부재를 단언), PM-022 쿠키 절반(`cookieName()`이 `secure`일 때만 `__Host-`, `SessionPropertiesTest`가 양쪽 분기 고정), PM-024 `slotDates`(policy-v1.yaml이 30), PM-020 문서 정정(`SOURCE_CATALOG` §123의 UNKNOWN/NONE 구분, `FIGMA_HANDOFF` §230 문구), PM-023 문구(개인화 ranking은 P2·범위 밖) | — |
+| **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
+| **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
+| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 배포 절반, PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+| **키·게이트 대기** | PM-014(KTO 키), PM-010(데이터가 먼저), PM-005(BA-060 미구현) | 아니오 |
+
+**PM-018을 따라가다 access log의 필드 집합을 고정했다 — 다만 처음 주장한 만큼 큰 공백은 아니었다.** "log 쪽에 단언이 없다"고 적었다가 `HttpPolicyIT`를 읽고 정정했다: 그 test는 **root logger**에 appender를 붙여 canary가 어떤 log 줄에도 없음을 이미 단언하고 있었고, 그 범위에 이 filter의 줄도 들어간다.
+
+실제로 비어 있던 것은 **필드가 늘어나는 경우**다. canary 검사는 *그 canary 값이* 없음을 보므로, 그 test가 보내지 않는 header는 통과한다 — 실측: log 문에 `auth={}`를 `X-Deletion-Status-Token`으로 채우는 변이는 `HttpPolicyIT`에서 `auth=null`로 찍히고 초록이다. `AccessLogFilterTest`가 이제 줄이 문서화된 다섯 필드뿐임을 단언해 그 변이를 RED로 만든다.
+
+**교훈 둘.** 하나, 문서에만 있는 안전 속성은 PM 항목을 따라갈 때 함께 찾는다. 둘, **"단언이 없다"고 쓰기 전에 반대편 test를 읽는다** — 이 세션에서 겹치는 가드를 못 보고 새 공백이라고 주장한 것이 이 한 번이다.
+
+**두 훑기는 공백 0건이었다(다시 돌리지 마라).** ERD가 이름을 대는 table 중 migration이 만들지 않는 것은 `feed_feedback`·`notifications`·`optimization_runs` 셋뿐이고 전부 미구현 카드(BA-033 나머지·P1·BA-050)라 정상이다. ERD가 `table.column` 형태로 지목한 13쌍도 전부 실재한다. `analytics_events.session_id` 누락은 backtick이 아니라 **산문 문장**에서 나왔으므로, 다음에 같은 대조를 할 때는 산문까지 읽어야 한다.
+
 **BA-022 label 절반은 게이트가 아니라 근거가 막고 있다.** 자세한 것은 BA-022 카드에 적었다. 요지는 공식 포털이 "법정동코드정보"·"분류체계코드정보" 기능의 **존재만 적고 operation 이름도 응답 필드도 주지 않으며**, 활용가이드 사이트는 SPA라 fetch로 읽히지 않는다는 것이다. 서드파티가 하드코딩한 `lclsSystm1` 표는 우리 example과 값이 맞지만 license·provenance가 없어 출처로 쓸 수 없다. **#109가 정한 "공식 활용가이드 전까지 정본으로 적지 않는다"를 그대로 따른다.** 허용 목록 밖 operation을 실호출해 보는 것도, 새 source를 등록하는 것도 오너 결정이다.
 
 ### 자율 진행에서 제외 (오너 권한·비용)
