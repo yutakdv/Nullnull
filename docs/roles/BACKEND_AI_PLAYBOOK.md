@@ -898,7 +898,7 @@ PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSum
 
 그래서 순서는 **(1) 큐레이션된 cover와 검토된 licence를 잇는 데이터 → (2) detail의 `coverAsset` 채우기 → (3) list 투영**이고, (3)의 화면 표시 방법은 `FCR-023`(`Open`)이 정한다. 지금 fixture의 cover는 전부 `cdn.example.test` placeholder라 잘못 표기된 실제 이미지는 없다. **BE 단독으로 끝낼 수 있는 항목이 아니다.**
 
-**그보다 앞에 있는 공백: feed에 넣을 게시물을 만드는 경로가 없다(조사 결과).** `INSERT INTO posts`는 integration test 5개 파일에만 있고, OpenAPI에는 post를 만드는 operation이 없으며, main에서 `posts`를 만지는 코드는 읽기(`JdbcFeedStore`)와 삭제(`SocialOwnerDataEraser`)뿐이다. 위 구현 순서 1번의 `curated post`는 **조회만** 서술하고, 사용자 작성·업로드는 [BA-082](#ba-082)이며 P1이다. 그래서 catalog 게이트가 열리는 날 feed는 오류가 아니라 **빈 page**를 내고, 그 빈 page는 `FR-FED-01`이 말하는 "여행이 없을 때"와 화면에서 구분되지 않는다. 콘텐츠 출처와 위 표지 권리는 같은 자리에서 답해야 하므로 [#183](https://github.com/yutakdv/Nullnull/issues/183)이 둘을 함께 추적한다.
+**그보다 앞에 있는 공백: feed에 넣을 게시물을 만드는 경로가 없다(조사 결과).** `INSERT INTO posts`는 integration test 5개 파일에만 있고, OpenAPI에는 post를 만드는 operation이 없으며, main에서 `posts`를 만지는 코드는 읽기(`JdbcFeedStore`)와 삭제(`SocialOwnerDataEraser`)뿐이다. 위 구현 순서 1번의 `curated post`는 **조회만** 서술하고, 사용자 작성·업로드는 [BA-082](#ba-082)이며 P1이다. 그래서 catalog 게이트가 열리는 날 feed는 오류가 아니라 **빈 page**를 내고, 그 빈 page는 `FR-FED-01`이 말하는 "여행이 없을 때"와 화면에서 구분되지 않는다. 표지 **권리**는 A-024로 닫혔지만(1st-party 일러스트만, [DECISIONS_AND_RISKS](../project/DECISIONS_AND_RISKS.md)) 그 결정은 자산의 조건을 정한 것이지 게시물을 만들지는 않는다 — 어떤 게시물을 몇 개 어떻게 넣을지는 여전히 열려 있고 [#183](https://github.com/yutakdv/Nullnull/issues/183)이 단독 추적한다.
 
 필수 검증:
 
