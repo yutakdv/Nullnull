@@ -9,6 +9,7 @@ COPY apps/api/gradle ./gradle
 RUN ./gradlew --no-daemon --version
 COPY apps/api/src ./src
 COPY docs/api/openapi.yaml /workspace/docs/api/openapi.yaml
+COPY docs/contracts/events.schema.json /workspace/docs/contracts/events.schema.json
 # ProblemFixtureContractTest pins packages/contracts/fixtures/problems to ProblemCode, so the
 # fixtures have to be inside the image: the test reads them and fails loudly when they are
 # absent rather than skipping, which is how the native api-quality run passed while this one

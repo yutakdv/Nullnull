@@ -3024,6 +3024,11 @@ paths:
       responses:
         "202":
           description: Valid events accepted; duplicate eventIds ignored
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:

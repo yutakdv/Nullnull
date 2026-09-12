@@ -71,6 +71,10 @@ logging:
     correlation: "[${spring.application.name:},%X{requestId:-}] "
 
 nullnull:
+  analytics:
+    # ERD §6 retention for client analytics events. Not configurable down to zero: a zero would
+    # delete every row on the next sweep, which reads like a policy and is usually an unset value.
+    retention: ${NULLNULL_ANALYTICS_RETENTION:P90D}
   crowd:
     max-range-days: ${NULLNULL_CROWD_MAX_RANGE_DAYS:30}
   env: ${NULLNULL_ENV:local}

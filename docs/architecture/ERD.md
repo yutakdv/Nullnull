@@ -780,7 +780,8 @@ erDiagram
 - `response_body`에는 byte 상한을 둔다. 계약 문서의 수치가 아니라 engineering 제안값이고, 근거는 문서화된 가장 큰 응답 형태가 [API README](../api/README.md) 14절의 item 100개 여행이라는 점이다. 첫 대형 APPLY 응답이 나오면 실제 크기로 다시 정한다. 사용자에게 약속하는 application 상한은 compact JSON text 65536 byte이고, 초과는 저장 전에 named error로 거부한다.
 - column check `octet_length(response_body::text) <= 131072`는 같은 byte를 재지 않는다. `response_body::text`는 PostgreSQL이 jsonb에서 다시 직렬화한 문자열이라 `:`과 `,` 뒤에 공백이 붙는다. 따라서 column 상한은 application 상한보다 느슨해야 하며, 그렇지 않으면 application이 통과시킨 값이 named error 대신 constraint 위반으로 터진다. 느슨한 정도는 추측이 아니라 유도한다. 삽입되는 공백은 모두 `:` 또는 `,` 뒤에 오고, jsonb는 member/element를 늘리지 않으며(중복 key는 제거만 한다), compact text에서 그 구분자는 각각 자기 자신과 바로 뒤 byte(key 따옴표 또는 값 시작이라 구분자가 아니다) 두 byte를 독점한다. 그래서 구조 팽창의 상한은 1.5배이고, 2배(131072)는 여기에 여유를 둔 값이다. 다만 이 유도는 구조에만 해당한다. jsonb는 숫자도 십진 표기로 다시 쓰므로 어떤 고정 배수도 성립하지 않는다. 예외적인 지수만의 문제가 아니라 평범한 finite double이면 충분하다(Jackson은 `1.0E18`을 6자로 쓰지만 PostgreSQL은 19자리로 돌려준다). 따라서 application 상한 안에 있는 응답도 column 상한을 넘을 수 있고, 이 경우 store가 해당 constraint 위반을 pre-check와 같은 named error로 번역해 호출자가 driver 오류를 만나지 않게 한다.
 - 구조가 아닌 부분은 덮이지 않는다. jsonb는 숫자를 평문 10진수로 다시 쓰므로 극단적인 지수는 어떤 고정 배수도 넘는다(pin된 image에서 측정: 8 byte `1E-16383` → 16385 byte). 문서화된 응답 형태에는 그런 값이 없다. 그러므로 column 상한은 여유를 둔 backstop이지 두 번째 계약 수치가 아니다.
-- `analytics_events.event_id`: client retry dedup key.
+- `analytics_events.event_id`: client retry dedup key. **primary key로 둔다** — dedup을 service의 read-then-write로 하면 같은 batch의 동시 재전송 둘이 모두 통과한다.
+- retention sweep은 `occurred_at`이 아니라 **`received_at`** 기준이고 index도 그쪽이다. `occurred_at`은 기기 시계라, 과거로 맞춰진 기기의 event는 도착하자마자 만료로 보이고 미래로 맞춰진 기기의 event는 보존 기간을 넘겨 남는다. 90일은 *우리가* 보관하는 기간에 대한 약속이므로 우리 시계로 잰다.
 - `analytics_events.owner_id/session_id`는 request body가 아니라 인증 cookie에서 server가 bind한다. session hard delete 시 `session_id ON DELETE SET NULL`; owner 삭제 job은 raw event도 삭제한다.
 - event name과 property는 JSON Schema allowlist를 통과한 것만 저장한다.
 - 자유 텍스트, 좌표, 붙여넣기 원문, cookie/token을 event property에 넣지 않는다.
@@ -860,7 +861,7 @@ CREATE INDEX ON notifications (owner_id, read_at, created_at DESC);
 CREATE INDEX ON feed_feedback (owner_id, post_id, occurred_at DESC);
 CREATE INDEX ON crowd_snapshots (place_id, target_at DESC, source_code);
 CREATE INDEX ON crowd_snapshots (live_area_id, observed_at DESC, source_code);
-CREATE INDEX ON analytics_events (occurred_at);
+CREATE INDEX ON analytics_events (received_at);
 CREATE INDEX ON background_jobs (status, next_attempt_at) WHERE status IN ('READY', 'RETRY');
 CREATE UNIQUE INDEX ON background_jobs (deduplication_key) WHERE status IN ('READY', 'RETRY', 'RUNNING');
 CREATE INDEX ON idempotency_records (expires_at);

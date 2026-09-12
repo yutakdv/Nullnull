@@ -833,7 +833,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-033
 
-**피드백·분석 이벤트 무결성** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**피드백·분석 이벤트 무결성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-010](#ba-010), [BA-032](#ba-032)
 - 기능 ID: `FR-FED-04`, `FR-OPS-06`
@@ -850,7 +850,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: client event는 실제 일정 변경·노출 인증·방문 증명이 아니다. impression lineage가 없는 P0 데이터로 개인화 모델을 학습시키지 않는다.
 
-선행 PM 항목 상태(`planned`이 뜻하는 것): 두 operation은 아직 구현하지 않았다. 다만 **PM-016이 지목한 계약 결함 중 셋은 닫았다.**
+착수 범위(`in-progress`가 뜻하는 것): `ingestEventBatch`가 `main`에 있다. V017의 `analytics_events`, 정본 schema 검증, eventId dedup, batch 50, 90일 retention, owner 삭제, cookie에서 유도한 owner까지다. **`recordFeedFeedback`은 구현하지 않았다** — PM-011이 열려 있다. 그리고 **PM-016이 지목한 계약 결함 중 셋은 닫았다.**
 
 - `runLink`의 `/trips/` → `/trip/`: [#118](https://github.com/yutakdv/Nullnull/issues/118), PR #122로 이미 반영됐고 `context.route` allowlist의 `/trip/:tripId/optimizations/:runId`와 맞는다.
 - `trip_created.dayCount` 상한 90 → **30**, `itemCount` 1000 → **100**. 제품 상한은 `TripDateRange.MAX_DAYS`와 계약의 `seedItems` `maxItems: 100`이다. 넓은 쪽 bound는 도달할 수 없는 값을 허용할 뿐이어서, 위조되거나 drift한 client를 구분하지 못하게 했다.

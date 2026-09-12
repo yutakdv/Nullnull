@@ -14,6 +14,7 @@ public final class ImplementedOperationsRegistry {
                     "searchPlaces", "getPlace", "getPlaceCrowdForecast",
                     "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip",
                     "listFeed", "getPost", "savePost", "unsavePost",
+                    "ingestEventBatch",
                     "listTripCandidates", "addTripCandidate", "removeTripCandidate",
                     "replaceTripInterests");
 
