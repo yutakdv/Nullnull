@@ -214,7 +214,9 @@ describe('FE-304-T2 a failed release says so and changes nothing', () => {
     const card = await cardFor('인사동');
     await user.click(releaseButton(card, 'TIME'));
 
-    expect(await screen.findByText(copy['trip.lock.releaseFailed'])).toBeInTheDocument();
+    // TRIP_CHANGED is named as a conflict rather than a generic failure, and
+    // the trip is refetched so the retry carries a current ETag.
+    expect(await screen.findByText(copy['trip.lock.conflict'])).toBeInTheDocument();
     // The lock is still there: the client does not pretend a failed delete
     // succeeded.
     expect(within(card).getByText(copy['trip.lock.TIME'])).toBeInTheDocument();
@@ -277,5 +279,81 @@ describe('FE-304-T3 the controls are reachable and named', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
     expect(sent).toEqual([]);
+  });
+});
+
+describe('FE-304 a lock conflict reloads the trip it conflicted with', () => {
+  // 409 TRIP_CHANGED means the trip moved on somewhere else. The lock is
+  // unchanged either way, but the cached ETag is now stale, so pressing again
+  // sends the SAME If-Match and fails identically — the user is stuck on a
+  // control that cannot work until they reload the page themselves.
+  // CandidatesScreen already refetches on this code; this path did not, and
+  // its branch was an explicit `return` that did nothing at all.
+  function conflicts() {
+    server.use(
+      http.delete(`${API_BASE}/trips/:tripId/items/:itemId/constraints/:type`, () =>
+        problemResponse('TRIP_CHANGED'),
+      ),
+    );
+  }
+
+  async function releaseMustVisit(user: ReturnType<typeof userEvent.setup>) {
+    const card = await cardFor('경복궁');
+    await user.click(releaseButton(card, 'MUST_VISIT'));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: copy['trip.lock.mustVisit.confirm'],
+      }),
+    );
+  }
+
+  it('refetches the trip so the next attempt carries a current ETag', async () => {
+    let reads = 0;
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () => {
+        reads += 1;
+        return HttpResponse.json(trip, {
+          headers: { ETag: `"${String(trip.version)}"` },
+        });
+      }),
+    );
+    conflicts();
+    const user = userEvent.setup();
+    renderTrip();
+    await cardFor('경복궁');
+    const before = reads;
+    await releaseMustVisit(user);
+
+    await waitFor(() => {
+      expect(reads).toBeGreaterThan(before);
+    });
+  });
+
+  it('names the conflict rather than reporting a plain failure', async () => {
+    conflicts();
+    const user = userEvent.setup();
+    renderTrip();
+    await releaseMustVisit(user);
+
+    // "해제하지 못했어요" alone reads as a server error worth retrying as-is.
+    // This says what happened and that a retry is now worth making.
+    expect(await screen.findByText(copy['trip.lock.conflict'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['trip.lock.releaseFailed'])).toBeNull();
+  });
+
+  it('still reports an ordinary failure as a failure', async () => {
+    // Only TRIP_CHANGED is a conflict. A 429 is not, and must not claim the
+    // trip was reloaded when nothing was.
+    server.use(
+      http.delete(`${API_BASE}/trips/:tripId/items/:itemId/constraints/:type`, () =>
+        problemResponse('RATE_LIMITED'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTrip();
+    await releaseMustVisit(user);
+
+    expect(await screen.findByText(copy['trip.lock.releaseFailed'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['trip.lock.conflict'])).toBeNull();
   });
 });

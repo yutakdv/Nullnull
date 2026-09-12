@@ -232,10 +232,13 @@ describe('FE-307-T2 the set action shows its states', () => {
   });
 
   it('reports a failure to set, not a failure to release', async () => {
+    // RATE_LIMITED rather than TRIP_CHANGED: a conflict now has its own
+    // message and its own recovery (the trip is refetched), so it would no
+    // longer exercise the set-vs-release distinction this test is about.
     server.use(
       http.put(
         `${API_BASE}/trips/:tripId/items/:itemId/constraints/:constraintType`,
-        () => problemResponse('TRIP_CHANGED'),
+        () => problemResponse('RATE_LIMITED'),
       ),
     );
     const user = userEvent.setup();

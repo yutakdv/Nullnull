@@ -385,6 +385,11 @@ export const messages = {
     'trip.lock.reservationNote': '예약에서 관리해요',
     'trip.lock.releasing': '해제하는 중이에요',
     'trip.lock.releaseFailed': '잠금을 해제하지 못했어요',
+    // 409 TRIP_CHANGED는 서버 오류가 아니라 다른 곳에서 일정이 바뀐 것이다.
+    // 같은 ETag로 다시 눌러도 똑같이 실패하므로, 최신 일정을 불러왔다는 사실과
+    // 다시 시도하면 된다는 것을 함께 말한다. 잠금 자체는 그대로다.
+    'trip.lock.conflict':
+      '다른 곳에서 일정이 바뀌었어요. 최신 내용을 불러왔으니 다시 시도해주세요',
     'trip.lock.cancel': '취소',
     'trip.lock.keeps': '{locks}은 그대로예요',
     'trip.lock.keepsNone': '이 일정에 남는 잠금은 없어요',
@@ -935,6 +940,7 @@ export const messages = {
     'trip.lock.reservationNote': 'Managed by the reservation',
     'trip.lock.releasing': 'Releasing',
     'trip.lock.releaseFailed': "We couldn't release that lock",
+    'trip.lock.conflict': 'This trip changed somewhere else. We reloaded it — try again',
     'trip.lock.cancel': 'Cancel',
     'trip.lock.keeps': '{locks} stay as they are',
     'trip.lock.keepsNone': 'No other lock remains on this stop',
