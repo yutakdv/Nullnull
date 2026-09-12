@@ -106,9 +106,30 @@ function* exampleSites(api) {
   }
 }
 
+// BA-000-T3: the contract must REJECT a malformed scope target or decision revision union.
+// Pinning the discriminator proves the shape can reject; only feeding it a bad payload proves it does.
+const negativePath = resolve(ROOT, 'packages/contracts/fixtures/negative/README.json');
+let rejected = 0;
+{
+  const suite = JSON.parse(readFileSync(negativePath, 'utf8'));
+  for (const testCase of suite.cases) {
+    const validate = ajv.compile({
+      components: api.components,
+      $ref: `#/components/schemas/${testCase.schema}`,
+    });
+    if (validate(testCase.payload)) {
+      errors.push(
+        `negative case "${testCase.name}" was ACCEPTED by ${testCase.schema}: ${testCase.why}`,
+      );
+    } else {
+      rejected += 1;
+    }
+  }
+}
+
 for (const line of errors) console.error(line);
 if (errors.length) {
   console.error(`contract_examples=invalid failures=${errors.length}`);
   process.exit(1);
 }
-console.log(`contract_examples=valid checked=${checked} fixture_pinned=${pinned}`);
+console.log(`contract_examples=valid checked=${checked} fixture_pinned=${pinned} negative_rejected=${rejected}`);
