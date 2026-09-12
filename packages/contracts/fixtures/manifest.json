@@ -39,7 +39,7 @@
     "places": {
       "schema": "PlaceSearchPage",
       "count": 2,
-      "basis": "BE/AI authored from the approved searchPlaces contract. Shapes match the server projection, including sourceAttribution read from the reviewed source registry revision and the categoryName/regionName that stay null until a reviewed code-to-label mapping exists. categoryCode/regionCode are opaque machine values and must not be rendered; only 경복궁's HS/11 came from an actual detailCommon2 call (#109), the others share its shape. Still not a captured server response, so serverVerified stays false until BA-022 has one.",
+      "basis": "BE/AI authored from the approved searchPlaces contract. Shapes match the server projection, including sourceAttribution read from the reviewed source registry revision and the categoryName/regionName that stay null until a reviewed code-to-label mapping exists. categoryCode/regionCode are opaque machine values and must not be rendered; only 경복궁's HS/11 came from an actual detailCommon2 call (#109), the others share its shape. Still not a captured server response, so serverVerified stays false until BA-022 has one. Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce.",
       "serverVerified": false
     },
     "placeDetail": {
@@ -49,21 +49,21 @@
       "serverVerified": false
     },
     "candidates": {
-      "schema": "CandidatePage, CandidateMatchResult",
-      "count": 7,
-      "basis": "NO approved example exists for listTripCandidates, getCandidateTripMatches or addTripItem. Values invented to match Figma S07-8 412:1912 (an active candidate, a SIMILAR one, one already SCHEDULED, an empty variant) plus one match result per state so EXACT/SIMILAR/NONE/CHECKING/UNKNOWN are each exercised rather than collapsed. No place carries a source or attribution because PlaceSummary has no such field (FCR-031). Replace with BE/AI's real response (BA-034, BA-042).",
+      "schema": "CandidatePage, CandidateMatchResult, CandidateSaveResult",
+      "count": 9,
+      "basis": "NO approved example exists for listTripCandidates, getCandidateTripMatches or addTripItem. Values invented to match Figma S07-8 412:1912 (an active candidate, a SIMILAR one, one already SCHEDULED, an empty variant) plus one match result per state so EXACT/SIMILAR/NONE/CHECKING/UNKNOWN are each exercised rather than collapsed. No place carries a source or attribution because PlaceSummary has no such field (FCR-031). Replace with BE/AI's real response (BA-034, BA-042). Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce. save-result-created.json and save-result-duplicate.json are new: addTripCandidate had no CandidateSaveResult fixture anywhere, so FE's msw handler was the de-facto contract for it. Both carry tripScheduleChanged false, which is invariant 2 in the response shape rather than in prose.",
       "serverVerified": false
     },
     "feed": {
       "schema": "FeedPage",
       "count": 3,
-      "basis": "listFeed has no OpenAPI example. Built to cover every state S03-F0 `391:310` and S03-F1 `396:2926` have to render: all four candidateState values, a FORECAST crowd reading and an UNAVAILABLE one, a post with no excerpt, and a second page so pagination is walked rather than assumed. Crowd provenance is copied from the related-places fixture rather than retyped, because DataProvenance requires 29 fields. Page size is 4, not the contract default of 20.",
+      "basis": "listFeed has no OpenAPI example. Built to cover every state S03-F0 `391:310` and S03-F1 `396:2926` have to render: all four candidateState values, a FORECAST crowd reading and an UNAVAILABLE one, a post with no excerpt, and a second page so pagination is walked rather than assumed. Crowd provenance is copied from the related-places fixture rather than retyped, because DataProvenance requires 29 fields. Page size is 4, not the contract default of 20. Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce.",
       "serverVerified": false
     },
     "posts": {
       "schema": "PostDetail",
       "count": 4,
-      "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState. savePost's 200 and 201 now have openapi.yaml examples pinned to saved-post-state-duplicate.json and saved-post-state.json; the two differ only in `duplicate`, and savedAt is identical on purpose because saving again must not move the timestamp. getPost still has no example: its places carry categoryName \"고궁\" while the server returns null (#129).",
+      "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState. savePost's 200 and 201 now have openapi.yaml examples pinned to saved-post-state-duplicate.json and saved-post-state.json; the two differ only in `duplicate`, and savedAt is identical on purpose because saving again must not move the timestamp. getPost still has no example: its places carry categoryName \"고궁\" while the server returns null (#129). Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce.",
       "serverVerified": false
     }
   }

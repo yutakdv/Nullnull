@@ -382,6 +382,206 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeedPage"
+              examples:
+                feedPage:
+                  summary: A feed page with a next cursor
+                  description: |
+                    savedPost and candidateState are independent: a post can be saved without being a candidate and
+                    the reverse, because SavedPost and TripCandidate are different resources. categoryName and
+                    regionName are null until a reviewed code-to-label mapping exists - render nothing rather than
+                    falling back to the opaque categoryCode.
+                  value:
+                    items:
+                      -
+                        post:
+                          id: "018f5b00-0000-7000-8000-000000000001"
+                          title: "가을 서울 산책 코스"
+                          excerpt: "고궁과 골목을 하루에 걷는 길"
+                          coverUrl: "https://cdn.example.test/posts/01.jpg"
+                          publishedAt: "2026-09-09T02:00:00Z"
+                        primaryPlace:
+                          id: "018f5b10-0000-7000-8000-000000000001"
+                          name: "경복궁"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          address: "서울 종로구 사직로 161"
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        savedPost: false
+                        candidateState: "NOT_SAVED"
+                        crowd:
+                          state: "FORECAST"
+                          value: 62
+                          unit: "상대 집중률"
+                          ordinalLevel: null
+                          label: "관광지별 집중률 예측"
+                          provenance:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            sourceState: "FORECAST"
+                            observedAt: null
+                            targetAt: "2026-10-05T00:00:00Z"
+                            freshness: "FRESH"
+                            fetchedAt: "2026-09-11T05:35:00Z"
+                            staleAt: "2026-09-12T05:35:00Z"
+                            confidence: 0.72
+                            license: "이용허락범위 제한 없음"
+                            officialUrl: "https://www.data.go.kr/data/15128555/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            attribution: "출처: ⓒ한국관광공사"
+                            metricDefinition: "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측"
+                            normalizationVersion: "1.0.0"
+                            qualityFlags: []
+                            forecastIssueId: "2026-09-11"
+                            comparisonAxis: "TEMPORAL"
+                            comparisonEligible: true
+                            comparisonReasonCode: "SAME_METRIC_AND_ISSUE"
+                            comparisonGroupId: "KTO_CONCENTRATION_FORECAST"
+                            collectorRunId: "018f5a00-0000-7000-8000-000000000001"
+                            snapshotSetId: "018f5a00-0000-7000-8000-000000000002"
+                            observedAtSkewSeconds: 0
+                            scope: "PLACE"
+                            scopeLabel: "장소"
+                            mappingType: "DIRECT"
+                            fallbackUsed: false
+                            provenanceId: "018f5a00-0000-7000-8000-000000000003"
+                      -
+                        post:
+                          id: "018f5b00-0000-7000-8000-000000000002"
+                          title: "비 오는 날의 연희동"
+                          excerpt: "실내에서 오래 머물기 좋은 곳"
+                          coverUrl: "https://cdn.example.test/posts/02.jpg"
+                          publishedAt: "2026-09-08T02:00:00Z"
+                        primaryPlace:
+                          id: "018f5b10-0000-7000-8000-000000000002"
+                          name: "연희동 카페거리"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          address: "서울 서대문구 연희로"
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        savedPost: true
+                        candidateState: "SAVED_TO_SELECTED_TRIP"
+                        crowd:
+                          state: "UNAVAILABLE"
+                          value: null
+                          unit: null
+                          ordinalLevel: null
+                          label: "관광지별 집중률 예측"
+                          provenance:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            sourceState: "UNAVAILABLE"
+                            observedAt: null
+                            targetAt: null
+                            freshness: "UNKNOWN"
+                            fetchedAt: "2026-09-11T05:35:00Z"
+                            staleAt: "2026-09-12T05:35:00Z"
+                            confidence: null
+                            license: "이용허락범위 제한 없음"
+                            officialUrl: "https://www.data.go.kr/data/15128555/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            attribution: "출처: ⓒ한국관광공사"
+                            metricDefinition: "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측"
+                            normalizationVersion: "1.0.0"
+                            qualityFlags: []
+                            forecastIssueId: "2026-09-11"
+                            comparisonAxis: "TEMPORAL"
+                            comparisonEligible: false
+                            comparisonReasonCode: "NO_READING"
+                            comparisonGroupId: "KTO_CONCENTRATION_FORECAST"
+                            collectorRunId: "018f5a00-0000-7000-8000-000000000001"
+                            snapshotSetId: "018f5a00-0000-7000-8000-000000000002"
+                            observedAtSkewSeconds: 0
+                            scope: "PLACE"
+                            scopeLabel: "장소"
+                            mappingType: "DIRECT"
+                            fallbackUsed: false
+                            provenanceId: "018f5a00-0000-7000-8000-000000000003"
+                      -
+                        post:
+                          id: "018f5b00-0000-7000-8000-000000000003"
+                          title: "명동에서 저녁까지"
+                          excerpt: "저녁 시간대가 가장 한산해요"
+                          coverUrl: "https://cdn.example.test/posts/03.jpg"
+                          publishedAt: "2026-09-07T02:00:00Z"
+                        primaryPlace:
+                          id: "018f5b10-0000-7000-8000-000000000003"
+                          name: "명동"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          address: "서울 중구 명동길"
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        savedPost: false
+                        candidateState: "SCHEDULED_IN_SELECTED_TRIP"
+                      -
+                        post:
+                          id: "018f5b00-0000-7000-8000-000000000004"
+                          title: "북촌 한옥 골목"
+                          excerpt: null
+                          coverUrl: "https://cdn.example.test/posts/04.jpg"
+                          publishedAt: "2026-09-06T02:00:00Z"
+                        primaryPlace:
+                          id: "018f5b10-0000-7000-8000-000000000004"
+                          name: "북촌한옥마을"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          address: "서울 종로구 계동길"
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        savedPost: false
+                        candidateState: "NO_TRIP_SELECTED"
+                    page:
+                      nextCursor: "ZmVlZC1wYWdlLTItb3BhcXVlLWN1cnNvcg"
+                      hasMore: true
+                emptyFeed:
+                  summary: No posts to show
+                  description: |
+                    hasMore is false and nextCursor is null: the end of the feed, not an error.
+                  value:
+                    items: []
+                    page:
+                      nextCursor: null
+                      hasMore: false
         default:
           $ref: "#/components/responses/Problem"
   /feed/feedback:
@@ -421,6 +621,103 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PostDetail"
+              examples:
+                post:
+                  summary: A post the viewer has not saved
+                  description: |
+                    saved is false. Saving it creates only the SavedPost relation - no trip, no schedule, no version.
+                  value:
+                    id: "018f5b00-0000-7000-8000-000000000001"
+                    title: "가을 서울 산책 코스"
+                    excerpt: "고궁과 골목을 하루에 걷는 길"
+                    coverUrl: "https://cdn.example.test/posts/01.jpg"
+                    coverAsset: null
+                    publishedAt: "2026-09-09T02:00:00Z"
+                    body: "고궁에서 시작해 골목으로 이어지는 하루 코스예요. 아침 일찍 경복궁을 보고, 점심 무렵 인사동으로 넘어가면 사람이 몰리는 시간을 피할 수 있어요. 저녁은 명동에서 마무리하면 이동이 짧습니다."
+                    places:
+                      -
+                        id: "018f5b10-0000-7000-8000-000000000001"
+                        name: "경복궁"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        address: "서울 종로구 사직로 161"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      -
+                        id: "018f5b10-0000-7000-8000-000000000003"
+                        name: "명동"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        address: "서울 중구 명동길"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                    saved: false
+                savedPost:
+                  summary: The same post once saved
+                  description: |
+                    saved is true and nothing else about the post changes.
+                  value:
+                    id: "018f5b00-0000-7000-8000-000000000001"
+                    title: "가을 서울 산책 코스"
+                    excerpt: "고궁과 골목을 하루에 걷는 길"
+                    coverUrl: "https://cdn.example.test/posts/01.jpg"
+                    coverAsset: null
+                    publishedAt: "2026-09-09T02:00:00Z"
+                    body: "고궁에서 시작해 골목으로 이어지는 하루 코스예요. 아침 일찍 경복궁을 보고, 점심 무렵 인사동으로 넘어가면 사람이 몰리는 시간을 피할 수 있어요. 저녁은 명동에서 마무리하면 이동이 짧습니다."
+                    places:
+                      -
+                        id: "018f5b10-0000-7000-8000-000000000001"
+                        name: "경복궁"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        address: "서울 종로구 사직로 161"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      -
+                        id: "018f5b10-0000-7000-8000-000000000003"
+                        name: "명동"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        address: "서울 중구 명동길"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                    saved: true
         "404":
           $ref: "#/components/responses/NotFound"
   /posts/{postId}/saved:
@@ -1263,6 +1560,105 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CandidatePage"
+              examples:
+                candidates:
+                  summary: Candidates saved to a trip
+                  description: |
+                    The paginated source of truth. TripDetail.candidates is only a bounded view and its length is
+                    never the total. A candidate carries no date or time: scheduling one is a separate act that
+                    creates a TripItem.
+                  value:
+                    items:
+                      -
+                        id: "018f4d40-1122-7a33-9b44-000000000001"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        place:
+                          id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b11"
+                          name: "연희동 카페거리"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          thumbnailUrl: null
+                          address: null
+                          categoryName: null
+                          regionName: null
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        status: "ACTIVE"
+                        scheduledTripItemId: null
+                        note: null
+                        sources:
+                          -
+                            type: "POST"
+                            postId: "018f4e50-2233-7b44-8c55-000000000001"
+                            createdAt: "2026-09-08T02:00:00Z"
+                        createdAt: "2026-09-08T02:00:00Z"
+                      -
+                        id: "018f4d40-1122-7a33-9b44-000000000002"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        place:
+                          id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b12"
+                          name: "서울숲"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          thumbnailUrl: null
+                          address: null
+                          categoryName: null
+                          regionName: null
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        status: "ACTIVE"
+                        scheduledTripItemId: null
+                        note: null
+                        sources:
+                          -
+                            type: "SEARCH"
+                            postId: null
+                            createdAt: "2026-09-08T03:00:00Z"
+                        createdAt: "2026-09-08T03:00:00Z"
+                      -
+                        id: "018f4d40-1122-7a33-9b44-000000000003"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        place:
+                          id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02"
+                          name: "명동"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          thumbnailUrl: null
+                          address: null
+                          categoryName: null
+                          regionName: null
+                          sourceAttribution: null
+                        status: "SCHEDULED"
+                        scheduledTripItemId: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03"
+                        note: null
+                        sources:
+                          -
+                            type: "LIVE"
+                            postId: null
+                            createdAt: "2026-09-08T04:00:00Z"
+                        createdAt: "2026-09-08T04:00:00Z"
+                    page:
+                      nextCursor: null
+                      hasMore: false
+                noCandidates:
+                  summary: Nothing saved yet
+                  value:
+                    items: []
+                    page:
+                      nextCursor: null
+                      hasMore: false
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -1288,12 +1684,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CandidateSaveResult"
+              examples:
+                alreadyACandidate:
+                  summary: Saving the same place again
+                  description: |
+                    duplicate is true and the same candidate comes back. tripScheduleChanged is const false here and
+                    on the 201: saving a candidate never edits the schedule, so the trip version does not move and no
+                    If-Match is needed.
+                  value:
+                    candidate:
+                      id: "018f4d40-1122-7a33-9b44-000000000001"
+                      tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                      place:
+                        id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b11"
+                        name: "연희동 카페거리"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        thumbnailUrl: null
+                        address: null
+                        categoryName: null
+                        regionName: null
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      status: "ACTIVE"
+                      scheduledTripItemId: null
+                      note: null
+                      sources:
+                        -
+                          type: "POST"
+                          postId: "018f4e50-2233-7b44-8c55-000000000001"
+                          createdAt: "2026-09-08T02:00:00Z"
+                      createdAt: "2026-09-08T02:00:00Z"
+                    duplicate: true
+                    tripScheduleChanged: false
         "201":
           description: Candidate created
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CandidateSaveResult"
+              examples:
+                candidateCreated:
+                  summary: A new candidate
+                  description: |
+                    status is ACTIVE and scheduledTripItemId is null - a candidate has no date or time until it is
+                    scheduled. tripScheduleChanged is false because the trip itself was not touched.
+                  value:
+                    candidate:
+                      id: "018f4d40-1122-7a33-9b44-000000000001"
+                      tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                      place:
+                        id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b11"
+                        name: "연희동 카페거리"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        thumbnailUrl: null
+                        address: null
+                        categoryName: null
+                        regionName: null
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      status: "ACTIVE"
+                      scheduledTripItemId: null
+                      note: null
+                      sources:
+                        -
+                          type: "POST"
+                          postId: "018f4e50-2233-7b44-8c55-000000000001"
+                          createdAt: "2026-09-08T02:00:00Z"
+                      createdAt: "2026-09-08T02:00:00Z"
+                    duplicate: false
+                    tripScheduleChanged: false
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
