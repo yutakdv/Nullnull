@@ -90,9 +90,11 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V012 adds exactly one row of its own: the reviewed
-            // KTO_KOR_SERVICE_2 revision 4 contract that fixes the detailCommon2 response mapping.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
+            // Every existing row survived. V013 adds no rows of its own: it is pure DDL - the trips
+            // aggregate's tables, plus the owners.active_trip_id foreign key V002 deferred until the
+            // trips table existed. This count is deliberately exact rather than "at least", so a
+            // migration that quietly seeds data has to say so here.
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
@@ -311,6 +313,8 @@ class FlywayMigrationIT {
                     v_asset uuid := gen_random_uuid();
                     v_set uuid := gen_random_uuid();
                     v_forecast_run uuid := gen_random_uuid();
+                    v_trip uuid := gen_random_uuid();
+                    v_item uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -364,6 +368,28 @@ class FlywayMigrationIT {
                             'KTO_RELATIVE_CONCENTRATION_INDEX', 42.5, 'relative-index', NULL, NULL,
                             '[]'::jsonb, 'upgrade-issue', 'upgrade-issue', 'upgrade-norm-v1', NULL,
                             'PLACE', 'upgrade place', 'DIRECT', false, v_at);
+                    -- V013's trip aggregate. The owner is created outside this block, so it is
+                    -- looked up rather than generated: trips.owner_id has a foreign key and the
+                    -- same-owner trigger on owners.active_trip_id reads it back.
+                    INSERT INTO trips (id, owner_id, title, start_date, end_date, timezone,
+                                       planning_level, status, version, created_at, updated_at)
+                    VALUES (v_trip, (SELECT id FROM owners LIMIT 1), '업그레이드 여행',
+                            v_at::date, (v_at + interval '3 days')::date, 'Asia/Seoul',
+                            'NOTHING', 'DRAFT', 1, v_at, v_at);
+                    INSERT INTO trip_interests (trip_id, interest_code, weight, created_at)
+                    VALUES (v_trip, 'upgrade-interest', 3, v_at);
+                    INSERT INTO trip_revisions (id, trip_id, version, snapshot_schema_version,
+                                                snapshot_hash, aggregate_snapshot, created_at)
+                    VALUES (gen_random_uuid(), v_trip, 1, 'trip-aggregate-v1', repeat('f', 64),
+                            '{}'::jsonb, v_at);
+                    -- V014's scheduled half. The date must lie inside the trip range above, which
+                    -- a trigger enforces, so it reuses v_at rather than a fixed day.
+                    INSERT INTO trip_items (id, trip_id, place_id, trip_date, position, start_time,
+                                            created_at, updated_at)
+                    VALUES (v_item, v_trip, v_place, v_at::date, 0, '09:30:00', v_at, v_at);
+                    INSERT INTO trip_constraints (id, trip_id, trip_item_id, type, source,
+                                                  created_at, updated_at)
+                    VALUES (gen_random_uuid(), v_trip, v_item, 'MUST_VISIT', 'USER', v_at, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -374,7 +400,8 @@ class FlywayMigrationIT {
                         "deletion_tombstones", "source_registry", "source_registry_revisions",
                         "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
-                        "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots");
+                        "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
+                        "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints");
         return key;
     }
 

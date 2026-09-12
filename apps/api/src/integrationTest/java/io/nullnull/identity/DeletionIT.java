@@ -45,6 +45,7 @@ class DeletionIT {
             return MutableClock.at(Instant.parse("2032-01-01T00:00:00.123456Z"));
         }
     }
+    @org.springframework.beans.factory.annotation.Value("${spring.mvc.servlet.path}") String servletPath;
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -73,6 +74,11 @@ class DeletionIT {
         String token = body.get("statusToken").asText();
         String requestId = body.get("requestId").asText();
         assertThat(first.getHeader("Location")).isEqualTo(body.get("statusUrl").asText());
+        // statusUrl is built from a literal in DeletionService, not from the configured servlet
+        // path, so the two can drift apart the moment that setting changes. Pin them together.
+        assertThat(body.get("statusUrl").asText())
+                .as("statusUrl must start with the servlet path the app is actually served under")
+                .startsWith(servletPath + "/deletion-requests/");
         assertThat(jdbc.queryForObject("SELECT bool_and(revoked_at IS NOT NULL) FROM demo_sessions WHERE owner_id=?",
                 Boolean.class, bootstrap.owner.id())).as("accept must revoke every owner session").isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_session_csrf_tokens c JOIN demo_sessions s"
@@ -97,10 +103,26 @@ class DeletionIT {
                         .header("X-Deletion-Status-Token", token))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "private, no-store"))
+                // Still moving, so the caller is told when to look again rather than guessing.
+                .andExpect(header().exists("Retry-After"))
                 .andExpect(jsonPath("$.requestId").value(requestId));
-        mvc.perform(get("/api/v1/deletion-requests/{id}", requestId)
+        var wrongToken = mvc.perform(get("/api/v1/deletion-requests/{id}", requestId)
                         .header("X-Deletion-Status-Token", token.substring(1) + "A"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse();
+        // An unknown id and a token that does not verify must be one answer. If they differed, a
+        // caller could probe which deletion requests exist by reading the difference.
+        var unknownId = mvc.perform(get("/api/v1/deletion-requests/{id}", UUID.randomUUID())
+                        .header("X-Deletion-Status-Token", token))
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse();
+        assertThat(json.readTree(unknownId.getContentAsString()).get("code").asText())
+                .as("unknown id and wrong token must answer with the same code")
+                .isEqualTo(json.readTree(wrongToken.getContentAsString()).get("code").asText())
+                .isEqualTo("NOT_FOUND");
+        assertThat(json.readTree(unknownId.getContentAsString()).get("detail").asText())
+                .as("neither may say which of the two it was")
+                .isEqualTo(json.readTree(wrongToken.getContentAsString()).get("detail").asText());
 
         jdbc.update("UPDATE deletion_requests SET status_token_hash=decode(repeat('00',32),'hex') WHERE id=?",
                 UUID.fromString(requestId));
@@ -150,17 +172,33 @@ class DeletionIT {
     }
 
     @Test
-    @DisplayName("BA-012-T2 every owner_id table is erased by its module or retained for a named reason")
+    @DisplayName("BA-012-T2 every table holding an owner reference is erased by its module or retained for a named reason")
     void ownerIdTableCoverageIsExplicit() {
         Map<String,String> retained = Map.of(
                 "demo_sessions", "revoked cookie supports 24h replay and hash is removed by 30d session TTL",
                 "idempotency_records", "DELETE /session receipt projection supports 24h replay",
                 "deletion_requests", "status receipt is retained after bearer expiry",
-                "deletion_tombstones", "restore deletion manifest is retained through backup recovery");
+                "deletion_tombstones", "restore deletion manifest is retained through backup recovery",
+                "source_registry_revisions", "reviewed_by_owner_id records who approved a provider"
+                        + " contract revision; no row sets it today and an operator approval is an"
+                        + " audit fact about the registry, not the traveller's own data");
         var covered = new HashSet<>(retained.keySet());
         erasers.forEach(eraser -> covered.addAll(eraser.ownerIdTables()));
-        List<String> actual = jdbc.queryForList("SELECT table_name FROM information_schema.columns"
-                + " WHERE table_schema='public' AND column_name='owner_id' ORDER BY table_name", String.class);
+        // Found by the FOREIGN KEY to owners, not by the column being called owner_id. The name-based
+        // sweep this replaced missed source_registry_revisions.reviewed_by_owner_id from V007 and
+        // posts.author_owner_id from V015 - an owner identifier escaped the guarantee simply by
+        // being spelled differently, which is the one thing a coverage check must not permit.
+        List<String> actual = jdbc.queryForList("""
+                SELECT DISTINCT source.relname
+                  FROM pg_constraint constraint_
+                  JOIN pg_class source ON source.oid = constraint_.conrelid
+                  JOIN pg_class target ON target.oid = constraint_.confrelid
+                  JOIN pg_namespace space ON space.oid = source.relnamespace
+                 WHERE constraint_.contype = 'f' AND target.relname = 'owners'
+                   AND space.nspname = 'public'
+                 ORDER BY source.relname
+                """, String.class);
+        assertThat(actual).as("tables referencing owners").isNotEmpty();
         assertThat(actual).allMatch(covered::contains);
         assertThat(retained.values()).allMatch(reason -> !reason.isBlank());
     }

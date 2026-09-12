@@ -62,7 +62,13 @@ public class PlaceController {
     public record PlaceSummaryResponse(UUID id, String name, String categoryCode, String regionCode,
             String categoryName, String regionName, String thumbnailUrl, String address,
             SourceAttributionResponse sourceAttribution) {
-        static PlaceSummaryResponse from(CatalogPlaceSummary source) {
+        /**
+         * Public because PlaceSummary is ONE contract schema that several resources embed - a feed
+         * card's primaryPlace and a post's places are the same shape as a search result. A second
+         * mapping in the embedding module would drift, and the field most likely to be dropped in
+         * the copy is sourceAttribution, which is the one a KTO-derived place may not appear without.
+         */
+        public static PlaceSummaryResponse from(CatalogPlaceSummary source) {
             return new PlaceSummaryResponse(source.id(), source.name(), source.categoryCode(), source.regionCode(),
                     source.categoryName(), source.regionName(), source.thumbnailUrl(), source.address(),
                     SourceAttributionResponse.from(source.sourceAttribution()));

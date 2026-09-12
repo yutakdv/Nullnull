@@ -78,7 +78,10 @@ public final class KtoForecastResponseValidator {
             LocalDate lastAllowed = firstAllowed.plusDays(MAX_FORECAST_DAYS);
             for (JsonNode item : items) {
                 requireEqual(expected.areaCode(), scalar(item, "areaCd"));
-                requireEqual(expected.sigunguCode(), scalar(item, "signguCd"));
+                // The provider echoes back what was sent, and what is sent is the JOINED code
+                // (KtoForecastRequest.signguRequestCode), so comparing the raw stored sigungu code
+                // here would reject every real response.
+                requireEqual(expected.signguRequestCode(), scalar(item, "signguCd"));
                 requireEqual(expected.touristSiteName(), scalar(item, "tAtsNm"));
                 LocalDate targetDate = date(scalar(item, "baseYmd"));
                 if (targetDate.isBefore(firstAllowed) || targetDate.isAfter(lastAllowed)) {

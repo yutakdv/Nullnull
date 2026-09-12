@@ -12,13 +12,13 @@ class KtoForecastResponseValidatorTest {
 
     private static final Instant FETCHED_AT = Instant.parse("2032-01-01T00:00:00Z");
     private final KtoForecastResponseValidator validator = new KtoForecastResponseValidator();
-    private final KtoForecastRequest request = new KtoForecastRequest(UUID.randomUUID(), "1", "1", "테스트 관광지");
+    private final KtoForecastRequest request = new KtoForecastRequest(UUID.randomUUID(), "11", "110", "테스트 관광지");
 
     @Test
     void preservesKtoDailyTargetsAsSeoulMidnightAndKeepsPublisherTimeAbsent() {
         KtoForecastResponseValidator.Validation validation = validate(response("""
-                {"areaCd":"1","signguCd":"1","tAtsNm":"테스트 관광지","baseYmd":"20320101","cnctrRate":"42.5"},
-                {"areaCd":"1","signguCd":"1","tAtsNm":"테스트 관광지","baseYmd":"20320102","cnctrRate":"67"}
+                {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지","baseYmd":"20320101","cnctrRate":"42.5"},
+                {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지","baseYmd":"20320102","cnctrRate":"67"}
                 """));
 
         assertThat(validation.accepted()).as("verdict=%s, responseCount=%s", validation.verdict(),
@@ -37,13 +37,13 @@ class KtoForecastResponseValidatorTest {
     @Test
     void rejectsProviderRowsThatWouldSilentlyChangeTheCanonicalPlaceOrRange() {
         KtoForecastResponseValidator.Validation wrongPlace = validate(response("""
-                {"areaCd":"1","signguCd":"1","tAtsNm":"다른 관광지","baseYmd":"20320101","cnctrRate":"42"}
+                {"areaCd":"11","signguCd":"11110","tAtsNm":"다른 관광지","baseYmd":"20320101","cnctrRate":"42"}
                 """));
         KtoForecastResponseValidator.Validation outOfRange = validate(response("""
-                {"areaCd":"1","signguCd":"1","tAtsNm":"테스트 관광지","baseYmd":"20320101","cnctrRate":"101"}
+                {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지","baseYmd":"20320101","cnctrRate":"101"}
                 """));
         KtoForecastResponseValidator.Validation hourlyFantasy = validate(response("""
-                {"areaCd":"1","signguCd":"1","tAtsNm":"테스트 관광지","baseYmd":"20320315","cnctrRate":"42"}
+                {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지","baseYmd":"20320315","cnctrRate":"42"}
                 """));
 
         assertThat(wrongPlace.verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);

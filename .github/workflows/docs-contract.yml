@@ -34,7 +34,14 @@ jobs:
           # Approved, individually justified exceptions only. test_oasdiff_exceptions.py requires
           # each line to carry a registered reason, approver and issue; the next step fails the
           # build once a line stops matching a real finding, so an exemption cannot outlive its fix.
-          warn-ignore: docs/api/oasdiff-warn-ignore.txt
+          #
+          # BOTH severities. Only warn-ignore was wired at first, which meant the exception path
+          # covered nothing that oasdiff reports as an error - and almost every breaking change is
+          # an error. An intended correction therefore had no route through the gate at all, which
+          # is a standing invitation to weaken fail-on instead. One file serves both flags so a
+          # registered exception cannot be silently limited to the lesser severity.
+          err-ignore: docs/api/oasdiff-ignore.txt
+          warn-ignore: docs/api/oasdiff-ignore.txt
           review: "false"
           github-token: ""
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -48,7 +55,7 @@ jobs:
             tufin/oasdiff@sha256:6b06f8a79a1461a9e915625d13d07ff0aba2ea930f1dc154f86fb6ee5f450469 \
             breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN \
             > "$RUNNER_TEMP/oasdiff.txt" 2>&1 || true
-          python scripts/check_oasdiff_exceptions.py "$RUNNER_TEMP/oasdiff.txt" docs/api/oasdiff-warn-ignore.txt
+          python scripts/check_oasdiff_exceptions.py "$RUNNER_TEMP/oasdiff.txt" docs/api/oasdiff-ignore.txt
       - name: Validate contracts, backend plan, and Obsidian references
         run: |
           python scripts/validate_docs.py

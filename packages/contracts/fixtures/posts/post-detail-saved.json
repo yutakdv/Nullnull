@@ -10,10 +10,10 @@
     {
       "id": "018f5b10-0000-7000-8000-000000000001",
       "name": "경복궁",
-      "categoryCode": "ATTRACTION",
-      "regionCode": "KR-11-130",
-      "categoryName": "고궁",
-      "regionName": "서울 종로구",
+      "categoryCode": "HS",
+      "regionCode": "11",
+      "categoryName": null,
+      "regionName": null,
       "thumbnailUrl": null,
       "address": "서울 종로구 사직로 161",
       "sourceAttribution": {
@@ -29,10 +29,10 @@
     {
       "id": "018f5b10-0000-7000-8000-000000000003",
       "name": "명동",
-      "categoryCode": "SHOPPING",
-      "regionCode": "KR-11-130",
-      "categoryName": "쇼핑",
-      "regionName": "서울 중구",
+      "categoryCode": "HS",
+      "regionCode": "11",
+      "categoryName": null,
+      "regionName": null,
       "thumbnailUrl": null,
       "address": "서울 중구 명동길",
       "sourceAttribution": {

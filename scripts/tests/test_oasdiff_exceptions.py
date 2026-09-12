@@ -11,10 +11,24 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-IGNORE = ROOT / "docs/api/oasdiff-warn-ignore.txt"
+IGNORE = ROOT / "docs/api/oasdiff-ignore.txt"
 REGISTRY = ROOT / "docs/api/BREAKING_CHANGE_EXCEPTIONS.md"
 
 ROW = re.compile(r"^\|(?P<message>[^|]+)\|(?P<rest>.*)\|\s*$")
+
+# A markdown cell escapes a literal pipe as \|, and an oasdiff message can contain one: the
+# offset-less time pattern is `^([01][0-9]|2[0-3]):...`. Splitting such a row on a bare | tears the
+# message in half and it silently stops matching its ignore line, so escapes are folded out before
+# the row is parsed and the message is restored afterwards.
+PIPE = "\x00PIPE\x00"
+
+
+def _unescape(text: str) -> str:
+    return text.replace(PIPE, "|")
+
+
+def _protect(text: str) -> str:
+    return text.replace("\\|", PIPE)
 
 
 def ignored_messages() -> list[str]:
@@ -48,11 +62,11 @@ def registry_rows() -> dict[str, list[str]]:
             continue
         if not in_table:
             continue
-        match = ROW.match(line)
+        match = ROW.match(_protect(line))
         if not match:
             continue
-        cells = [cell.strip() for cell in match.group("rest").split("|")]
-        rows[match.group("message").strip()] = cells
+        cells = [_unescape(cell).strip() for cell in match.group("rest").split("|")]
+        rows[_unescape(match.group("message")).strip()] = cells
     return rows
 
 

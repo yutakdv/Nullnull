@@ -11,10 +11,10 @@
       "primaryPlace": {
         "id": "018f5b10-0000-7000-8000-000000000005",
         "name": "서촌",
-        "categoryCode": "ATTRACTION",
-        "regionCode": "KR-11-130",
-        "categoryName": "동네",
-        "regionName": "서울 종로구",
+        "categoryCode": "HS",
+        "regionCode": "11",
+        "categoryName": null,
+        "regionName": null,
         "thumbnailUrl": null,
         "address": "서울 종로구 자하문로",
         "sourceAttribution": {

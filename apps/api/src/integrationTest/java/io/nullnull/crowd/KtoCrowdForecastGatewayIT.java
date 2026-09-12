@@ -81,13 +81,23 @@ class KtoCrowdForecastGatewayIT {
         UUID place = place(clock);
         try (StubProviderServer stub = new StubProviderServer()
                 .enqueue(new StubProviderServer.Response(200, response("""
-                        {"areaCd":"1","signguCd":"1","tAtsNm":"테스트 관광지","baseYmd":"20320102","cnctrRate":"42.5","ignored":"%s"},
-                        {"areaCd":"1","signguCd":"1","tAtsNm":"테스트 관광지","baseYmd":"20320103","cnctrRate":"58"}
+                        {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지","baseYmd":"20320102","cnctrRate":"42.5","ignored":"%s"},
+                        {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지","baseYmd":"20320103","cnctrRate":"58"}
                         """.formatted(CANARY))))) {
             KtoCrowdForecastGateway.RefreshResult result = gateway(stub, clock)
-                    .refresh(new KtoForecastRequest(place, "1", "1", "테스트 관광지")).join();
+                    .refresh(new KtoForecastRequest(place, "11", "110", "테스트 관광지")).join();
 
             assertThat(stub.calls()).isEqualTo(1);
+            // #109: the adapter is given the RAW stored pair (11, 110) and must send the JOINED
+            // region code. Sending 110 is not an error the provider reports - it answers
+            // resultCode 0000 with totalCount 0 - so nothing downstream would ever go red, and the
+            // collector would record "no coverage" forever. This is the only assertion in the
+            // codebase that looks at what actually left the process.
+            assertThat(stub.observedQuery(0))
+                    .containsEntry("areaCd", "11")
+                    .containsEntry("signguCd", "11110")
+                    .containsEntry("tAtsNm", "테스트 관광지")
+                    .doesNotContainKey("serviceKey");
             assertThat(result.hasCoverage()).isTrue();
             assertThat(result.snapshotSet().orElseThrow().sourceRegistryVersion()).isEqualTo(2);
             assertThat(result.snapshotSet().orElseThrow().points()).hasSize(2);
@@ -127,7 +137,7 @@ class KtoCrowdForecastGatewayIT {
                 {"response":{"header":{"resultCode":"0000"},"body":{"items":{"item":[]},"totalCount":0}}}
                 """))) {
             KtoCrowdForecastGateway.RefreshResult result = gateway(stub, clock)
-                    .refresh(new KtoForecastRequest(place, "1", "1", "테스트 관광지")).join();
+                    .refresh(new KtoForecastRequest(place, "11", "110", "테스트 관광지")).join();
 
             assertThat(result.hasCoverage()).isFalse();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM crowd_snapshots WHERE source_code = ?", Integer.class,
@@ -146,10 +156,10 @@ class KtoCrowdForecastGatewayIT {
         UUID place = place(clock);
         try (StubProviderServer stub = new StubProviderServer()
                 .enqueue(new StubProviderServer.Response(200, response("""
-                        {"areaCd":"1","signguCd":"1","tAtsNm":"테스트 관광지","baseYmd":"20320102","cnctrRate":"101"}
+                        {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지","baseYmd":"20320102","cnctrRate":"101"}
                         """)))) {
             assertThatThrownBy(() -> gateway(stub, clock)
-                    .refresh(new KtoForecastRequest(place, "1", "1", "테스트 관광지")).join())
+                    .refresh(new KtoForecastRequest(place, "11", "110", "테스트 관광지")).join())
                     .hasRootCauseInstanceOf(KtoGatewayException.class)
                     .rootCause().hasMessage("KTO_RESPONSE_REJECTED");
 

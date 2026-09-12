@@ -1,0 +1,67 @@
+{
+  "purpose": "BA-000-T3 evidence. Each entry MUST be rejected by the schema it names.",
+  "why": "Pinning a discriminator and its per-variant required set proves the contract is SHAPED to reject bad payloads; it does not prove rejection happens. These payloads are fed to a JSON Schema evaluator and the check fails if any of them validates.",
+  "cases": [
+    {
+      "name": "item scope without its target",
+      "schema": "CreateOptimizationRequest",
+      "why": "scope ITEM carries targetItemId. Dropping it must not fall through to another variant.",
+      "payload": { "scope": "ITEM", "inputTripVersion": 3, "includeCandidates": true }
+    },
+    {
+      "name": "day scope without its date",
+      "schema": "CreateOptimizationRequest",
+      "why": "scope DAY carries targetDate.",
+      "payload": { "scope": "DAY", "inputTripVersion": 3, "includeCandidates": true }
+    },
+    {
+      "name": "item scope wearing the day target",
+      "schema": "CreateOptimizationRequest",
+      "why": "Per-scope targets are not interchangeable; a DAY field under ITEM must not validate.",
+      "payload": { "scope": "ITEM", "targetDate": "2026-10-04", "inputTripVersion": 3, "includeCandidates": true }
+    },
+    {
+      "name": "apply decision without the revision pair",
+      "schema": "OptimizationDecision",
+      "why": "APPLY is the decision that moves the trip, so it must name both sides of the move.",
+      "payload": {
+        "id": "018f4e60-0000-7000-8000-000000000001",
+        "runId": "018f4a20-9f11-7c08-b3d7-2e5a41c9b101",
+        "proposalId": "018f4e70-0000-7000-8000-000000000001",
+        "decision": "APPLY",
+        "resultingTripVersion": 4,
+        "decidedAt": "2026-09-11T05:40:00Z"
+      }
+    },
+    {
+      "name": "revert decision without the decision it reverts",
+      "schema": "OptimizationDecision",
+      "why": "REVERT undoes one named APPLY; without revertedDecisionId it names nothing.",
+      "payload": {
+        "id": "018f4e60-0000-7000-8000-000000000002",
+        "runId": "018f4a20-9f11-7c08-b3d7-2e5a41c9b101",
+        "proposalId": "018f4e70-0000-7000-8000-000000000001",
+        "decision": "REVERT",
+        "resultingTripVersion": 5,
+        "beforeRevisionId": "018f4e80-0000-7000-8000-000000000001",
+        "afterRevisionId": "018f4e80-0000-7000-8000-000000000002",
+        "decidedAt": "2026-09-11T06:00:00Z"
+      }
+    },
+    {
+      "name": "keep decision carrying a revision pair it cannot have",
+      "schema": "OptimizationDecision",
+      "why": "KEEP changes nothing, so there is no before/after to report. additionalProperties is false.",
+      "payload": {
+        "id": "018f4e60-0000-7000-8000-000000000003",
+        "runId": "018f4a20-9f11-7c08-b3d7-2e5a41c9b101",
+        "proposalId": "018f4e70-0000-7000-8000-000000000001",
+        "decision": "KEEP",
+        "resultingTripVersion": 3,
+        "beforeRevisionId": "018f4e80-0000-7000-8000-000000000001",
+        "afterRevisionId": "018f4e80-0000-7000-8000-000000000002",
+        "decidedAt": "2026-09-11T06:10:00Z"
+      }
+    }
+  ]
+}

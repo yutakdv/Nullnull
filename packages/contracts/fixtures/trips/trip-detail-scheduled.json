@@ -31,14 +31,14 @@
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
             "name": "경복궁",
-            "categoryCode": "ATTRACTION",
-            "regionCode": "KR-11-110",
+            "categoryCode": "HS",
+            "regionCode": "11",
             "thumbnailUrl": null,
             "address": null
           },
           "date": "2026-10-04",
           "position": 0,
-          "startTime": "09:30:00+09:00",
+          "startTime": "09:30:00",
           "durationMinutes": 120,
           "note": null,
           "constraints": [
@@ -61,14 +61,14 @@
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
             "name": "인사동",
-            "categoryCode": "STREET",
-            "regionCode": "KR-11-110",
+            "categoryCode": "HS",
+            "regionCode": "11",
             "thumbnailUrl": null,
             "address": null
           },
           "date": "2026-10-04",
           "position": 1,
-          "startTime": "13:00:00+09:00",
+          "startTime": "13:00:00",
           "durationMinutes": 90,
           "note": null,
           "constraints": [
@@ -76,7 +76,7 @@
               "type": "TIME",
               "locked": true,
               "source": "USER",
-              "startTime": "13:00:00+09:00",
+              "startTime": "13:00:00",
               "toleranceMinutes": 30
             }
           ],
@@ -92,14 +92,14 @@
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
             "name": "명동",
-            "categoryCode": "STREET",
-            "regionCode": "KR-11-140",
+            "categoryCode": "HS",
+            "regionCode": "11",
             "thumbnailUrl": null,
             "address": null
           },
           "date": "2026-10-05",
           "position": 0,
-          "startTime": "14:00:00+09:00",
+          "startTime": "14:00:00",
           "durationMinutes": 120,
           "note": null,
           "constraints": [],

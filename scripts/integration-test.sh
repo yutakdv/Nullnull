@@ -10,6 +10,7 @@ readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
 readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
 readonly test_report_checker="${project_root}/scripts/check_test_reports.py"
 readonly npm_audit_report_checker="${project_root}/scripts/check_npm_audit_report.py"
+readonly infra_report_checker="${project_root}/scripts/check_infra_report.py"
 
 compose_available=false
 compose=()
@@ -148,7 +149,18 @@ if [[ ! -f "${npm_audit_report}" ]]; then
 fi
 python3 "${npm_audit_report_checker}" "${npm_audit_report}"
 
-"${compose[@]}" run --rm infra-plan
+# infra:check cannot fail the build yet (infra/ is not scaffolded, BA-006 is blocked), so its exit
+# code says nothing. Capture what it stated and let the checker decide: blocked is recorded as
+# blocked and never counted as a pass, and a run that states no outcome at all fails here.
+readonly infra_report="${artifact_dir}/infra-check.txt"
+rm -f "${infra_report}"
+"${compose[@]}" run --rm infra-plan >"${infra_report}" 2>&1 || {
+  cat "${infra_report}" >&2
+  echo "infra-plan exited non-zero" >&2
+  exit 1
+}
+cat "${infra_report}"
+python3 "${infra_report_checker}" "${infra_report}"
 "${compose[@]}" run --rm egress-denied
 "${compose[@]}" up --detach ai api web
 

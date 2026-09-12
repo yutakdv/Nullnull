@@ -185,7 +185,8 @@ class WrapperExecutionTests(unittest.TestCase):
                 script = script.replace('"${compose[@]}" run --rm api-quality',
                                         '"${compose[@]}" run --rm api-quality || true')
             (root / 'scripts/integration-test.sh').write_text(script)
-            for filename in ('check_test_reports.py', 'check_evaluation_report.py', 'check_npm_audit_report.py'):
+            for filename in ('check_test_reports.py', 'check_evaluation_report.py', 'check_npm_audit_report.py',
+                             'check_infra_report.py'):
                 shutil.copy2(ROOT / 'scripts' / filename, root / 'scripts' / filename)
             (root / 'scripts/verify_target_stack.py').write_text('')
             for relative in ('.nullnull-target-stack', 'apps/api/Dockerfile', 'apps/api/gradlew',
@@ -225,6 +226,11 @@ elif 'run' in args and 'security-scan' in args:
     path = root / 'audit/npm-audit.json'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({{'metadata': {{'vulnerabilities': {{k: 0 for k in ('critical', 'high', 'moderate', 'low', 'info')}}}}}}))
+elif 'run' in args and 'infra-plan' in args:
+    # The real infra-plan service runs `npm run infra:check`, which states its outcome as a
+    # machine token. A stub that printed nothing would make check_infra_report.py fail, which
+    # is the point of that checker: a step producing no outcome is not a pass.
+    print('infra_check=blocked reason=infra-not-scaffolded owner=BA-006')
 elif 'exec' in args:
     print('{{"status":"READY"}}')
 else:

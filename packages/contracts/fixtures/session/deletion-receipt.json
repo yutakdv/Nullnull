@@ -4,5 +4,5 @@
   "statusToken": "dGVzdC1kZWxldGlvbi1zdGF0dXMtdG9rZW4tZm9yLXRlc3RzLW9ubHktMDE",
   "statusTokenExpiresAt": "2026-09-17T00:00:00Z",
   "requestedAt": "2026-09-10T00:00:00Z",
-  "statusUrl": "/deletion-requests/018f4d00-1111-7222-8333-444455556666"
+  "statusUrl": "/api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666"
 }

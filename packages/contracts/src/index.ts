@@ -39,6 +39,7 @@ import feedPageEmpty from "../fixtures/feed/page-empty.json" with { type: "json"
 import postDetail from "../fixtures/posts/post-detail.json" with { type: "json" };
 import postDetailSaved from "../fixtures/posts/post-detail-saved.json" with { type: "json" };
 import savedPostState from "../fixtures/posts/saved-post-state.json" with { type: "json" };
+import savedPostStateDuplicate from "../fixtures/posts/saved-post-state-duplicate.json" with { type: "json" };
 import historyPage from "../fixtures/optimizations/history-page.json" with { type: "json" };
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
@@ -59,6 +60,12 @@ import matchChecking from "../fixtures/candidates/match-checking.json" with { ty
 import matchUnknown from "../fixtures/candidates/match-unknown.json" with { type: "json" };
 import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
 import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
+import deletionStatusCompleted from "../fixtures/session/deletion-status-completed.json" with { type: "json" };
+import deletionStatusPartialFailed from "../fixtures/session/deletion-status-partial-failed.json" with { type: "json" };
+import deletionStatusFailed from "../fixtures/session/deletion-status-failed.json" with { type: "json" };
+import demoReadinessNotReady from "../fixtures/system/demo-readiness-not-ready.json" with { type: "json" };
+import healthLive from "../fixtures/system/health-live.json" with { type: "json" };
+import readinessReady from "../fixtures/system/readiness-ready.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -90,6 +97,22 @@ export const problemFixtures: Record<ProblemCode, Problem> = {
   INTERNAL_ERROR: internalError as Problem,
 };
 
+// BE/AI authored from DemoCapabilityQuery. Not provisional and not invented: apps/api's
+// DemoReadinessContractTest builds the real query and asserts it produces exactly this document,
+// so the detail strings and the NOT_READY/UNAVAILABLE combination are the server's own output.
+export const systemFixtures = {
+  // The P0 answer. READY and DEGRADED have no fixture because no capability has a source yet, so
+  // one would be a claim about behaviour that does not exist.
+  demoReadinessNotReady:
+    demoReadinessNotReady as components["schemas"]["DemoReadiness"],
+  // Liveness says only that the process runs. It makes no claim about the database, the jobs
+  // runner or the recommendation service, so it must not be read as readiness.
+  healthLive: healthLive as components["schemas"]["HealthStatus"],
+  // The INFRASTRUCTURE checks, which is a different list from the product capabilities above.
+  // detail is null on a passing check; NOT_READY never reaches a 200 at all (it is a 503).
+  readinessReady: readinessReady as components["schemas"]["ReadinessStatus"],
+};
+
 export const sessionFixtures = {
   bootstrap: sessionBootstrap as components["schemas"]["SessionBootstrap"],
   csrfToken: csrfToken as components["schemas"]["CsrfTokenResponse"],
@@ -100,6 +123,19 @@ export const sessionFixtures = {
   deletionReceipt: deletionReceipt as components["schemas"]["DeletionReceipt"],
   deletionStatus:
     deletionStatus as components["schemas"]["DeletionRequestStatus"],
+  // The other four states the job actually reaches. Every value here is decided by the server:
+  // markCompleted clears failureCode and sets completedAt, and markFailed sets completedAt only
+  // when the status is FAILED, which is why the FAILED body carries one and PARTIAL_FAILED does
+  // not. retryable is true exactly while status is PARTIAL_FAILED.
+  //
+  // FAILED carrying completedAt is the trap: terminality is read from status, never from
+  // completedAt. Without these three there was no fixture to test that against.
+  deletionStatusCompleted:
+    deletionStatusCompleted as components["schemas"]["DeletionRequestStatus"],
+  deletionStatusPartialFailed:
+    deletionStatusPartialFailed as components["schemas"]["DeletionRequestStatus"],
+  deletionStatusFailed:
+    deletionStatusFailed as components["schemas"]["DeletionRequestStatus"],
 };
 
 // PROVISIONAL MOCK DATA — replace when BA-011/BA-030 serve these for real.
@@ -120,9 +156,9 @@ export const tripFixtures = {
   // What createTrip returns: an empty trip with one day per date in the range,
   // which is what the wizard's deterministic seed produces before any item.
   detailCreated: tripDetailCreated as components["schemas"]["TripDetail"],
-  // A trip that already has interests, matching page.items[0] so the list and
-  // the detail agree. FE-106 needs a non-empty set; detailCreated only covers
-  // the empty case.
+  // A trip whose interests are set but whose days are still empty. It is its own
+  // trip with its own page entry, not a second face of detailScheduled: the ETag
+  // is the quoted trip version, so one id at one version must mean one body.
   detailWithInterests:
     tripDetailInterests as components["schemas"]["TripDetail"],
   // A trip with items on some days and none on others, so FE-301's per-day
@@ -181,6 +217,10 @@ export const postFixtures = {
   detail: postDetail as components["schemas"]["PostDetail"],
   detailSaved: postDetailSaved as components["schemas"]["PostDetail"],
   savedState: savedPostState as components["schemas"]["SavedPostState"],
+  // savePost is idempotent: saving again returns duplicate: true with the ORIGINAL
+  // savedAt, so the timestamp never moves. Both responses mean "it is saved now".
+  savedStateDuplicate:
+    savedPostStateDuplicate as components["schemas"]["SavedPostState"],
 };
 
 export const optimizationFixtures = {

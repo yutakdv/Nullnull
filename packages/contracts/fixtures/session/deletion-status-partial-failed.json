@@ -1,0 +1,9 @@
+{
+  "requestId": "018f4d00-1111-7222-8333-444455556666",
+  "status": "PARTIAL_FAILED",
+  "requestedAt": "2026-09-10T00:00:00Z",
+  "updatedAt": "2026-09-10T00:00:09Z",
+  "completedAt": null,
+  "retryable": true,
+  "failureCode": "OWNER_DATA_ERASE_FAILED"
+}

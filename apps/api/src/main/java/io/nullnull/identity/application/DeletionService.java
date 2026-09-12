@@ -2,6 +2,7 @@ package io.nullnull.identity.application;
 
 import io.nullnull.identity.application.IdempotencyGuard.CommandOutcome;
 import io.nullnull.identity.domain.RequestFingerprint;
+import io.nullnull.operations.application.JobProperties;
 import io.nullnull.operations.application.JobQueue;
 import io.nullnull.operations.domain.JobPayload;
 import io.nullnull.operations.domain.JobRequest;
@@ -12,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Map;
@@ -34,12 +36,14 @@ public class DeletionService {
     private final Clock clock;
     private final ObjectMapper json;
 
+    private final JobProperties jobProperties;
+
     public DeletionService(IdempotencyGuard idempotency, SessionStore sessions,
             OwnerRepository owners, DeletionStore deletions, JobQueue jobs,
-            DeletionProperties properties, Clock clock, ObjectMapper json) {
+            DeletionProperties properties, JobProperties jobProperties, Clock clock, ObjectMapper json) {
         this.idempotency=idempotency; this.sessions=sessions; this.owners=owners;
         this.deletions=deletions; this.jobs=jobs; this.properties=properties;
-        this.clock=clock; this.json=json;
+        this.jobProperties=jobProperties; this.clock=clock; this.json=json;
     }
 
     public DeletionReceipt accept(OwnerContext context, String key) {
@@ -55,7 +59,7 @@ public class DeletionService {
     }
 
     @Transactional(readOnly = true)
-    public DeletionStatus status(UUID id, String suppliedToken) {
+    public StatusView status(UUID id, String suppliedToken) {
         DeletionRecord record = deletions.find(id).orElseThrow(DeletionService::notFound);
         if (!properties.tokens.matches(suppliedToken, id, record.tokenExpiresAt())) {
             throw notFound();
@@ -68,8 +72,35 @@ public class DeletionService {
         if (!deletions.hasStatusTokenHash(id, properties.tokens.hash(suppliedToken))) {
             throw notFound();
         }
-        return new DeletionStatus(id, record.status(), record.requestedAt(), record.updatedAt(),
+        var body = new DeletionStatus(id, record.status(), record.requestedAt(), record.updatedAt(),
                 record.completedAt(), "PARTIAL_FAILED".equals(record.status()), record.failureCode());
+        return new StatusView(body, retryAfter(record, now));
+    }
+
+    /**
+     * Whole seconds a caller should wait before asking again, or null once there is nothing left to
+     * wait for. This is derived from the job runtime rather than a fixed number, so changing the
+     * retry configuration moves the advice with it instead of leaving the contract stale.
+     */
+    private Duration retryAfter(DeletionRecord record, Instant now) {
+        Duration wait = switch (record.status()) {
+            // Terminal: another request would return exactly what the caller already has.
+            case "COMPLETED", "FAILED" -> null;
+            // The server owes this one another attempt, so point at when that attempt becomes due.
+            case "PARTIAL_FAILED" -> Duration.between(now,
+                    jobProperties.nextAttemptAt(record.updatedAt(), Math.max(1, record.attemptCount())));
+            // Accepted or running: the worker claims work at its poll interval.
+            default -> jobProperties.pollInterval();
+        };
+        if (wait == null) {
+            return null;
+        }
+        // Retry-After is whole seconds and 0 would invite a hot loop, so one second is the floor.
+        return wait.compareTo(Duration.ofSeconds(1)) < 0 ? Duration.ofSeconds(1) : wait;
+    }
+
+    /** The response body and the polling hint that travels beside it as a header, not inside it. */
+    public record StatusView(DeletionStatus status, Duration retryAfter) {
     }
 
     private Projection create(UUID ownerId) {

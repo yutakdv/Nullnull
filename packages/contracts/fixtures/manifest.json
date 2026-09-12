@@ -1,6 +1,6 @@
 {
   "synthetic": true,
-  "provisional": "FE-003, FE-105 and FE-103, awaiting BE/AI review",
+  "provisional": "FE-003, FE-105 and FE-103 were authored by FE. The problems and session sets have since been reviewed by BE/AI (#16 R1); the rest still await review.",
   "source": "docs/api/openapi.yaml + docs/api/README.md UI mapping table",
   "schemaVersion": "0.2.1-rc.1",
   "capturedAt": "2026-09-08",
@@ -9,7 +9,7 @@
     "problems": {
       "schema": "Problem",
       "count": 23,
-      "basis": "Every code in the Problem.code enum, with the status from the docs/api/README.md UI mapping table.",
+      "basis": "BE/AI reviewed (#16 R1). Every code in the Problem.code enum, one fixture per code holding that code's DEFAULT face. apps/api ProblemFixtureContractTest now pins type/title/status/retryable to io.nullnull.shared.problem.ProblemCode, so these four can no longer drift from what the server answers with; the review found APPLY_FAILED carrying retryable true, which contradicted both the enum and docs/api/README.md's statement that only ROUTE_UNAVAILABLE, SOURCE_UNAVAILABLE and RATE_LIMITED are retryable. requestId is a UUIDv7 because that is what RequestIdFilter generates (the earlier ULID was a shape the server never produces on its own). NOT verified here: `detail` is the contract's English fallback and is deliberately generic rather than the literal sentence a given throw site uses (README says the raising slice owns that sentence, and FE renders its own copy from `code`); `instance` is a plausible path, not a captured one, except for DELETION_STATUS_EXPIRED which has exactly one throw site. NOT COVERED: the codes README's UI mapping table gives a second status - INVALID_REQUEST 400/405/406/413/415, LOCK_CONFLICT 409/422, APPLY_FAILED 500/503 - have no variant fixture, because the index is keyed by code and holds one entry per code. 11 of the 23 codes have no throw site in apps/api yet.",
       "serverVerified": false
     },
     "session": {
@@ -20,14 +20,14 @@
         "DeletionReceipt",
         "DeletionRequestStatus"
       ],
-      "count": 5,
-      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies.",
+      "count": 8,
+      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies. deletion-receipt.statusUrl now carries the /api/v1 server base, matching what DeletionService actually emits; it previously omitted it and the contract constrained neither, so both spellings passed. The contract now describes statusUrl as an API path and DeletionIT pins its prefix to spring.mvc.servlet.path so the literal and the configured path cannot drift. BE/AI reviewed (#16 R1): DeletionStatus is a plain record with no @JsonInclude, so the server really does send completedAt, failureCode and retryable rather than omitting them, and the fixture's retryable false with status RUNNING matches the rule that retryable is true exactly while status is PARTIAL_FAILED. Three more DeletionRequestStatus fixtures cover COMPLETED, PARTIAL_FAILED and FAILED: every field is decided by apps/api (JdbcDeletionStore.markCompleted clears failureCode and sets completedAt; markFailed sets completedAt only when the status is FAILED), so FAILED carries a completedAt while PARTIAL_FAILED does not - which is exactly why terminality is read from status and never from completedAt. These are derived from the server's own write paths rather than invented, but no captured response backs them, so serverVerified stays false.",
       "serverVerified": false
     },
     "trips": {
       "schema": "TripPage, TripDetail",
-      "count": 5,
-      "basis": "BE/AI authored. candidates is empty while candidateCount is 5 on purpose; the contract now states that candidates is a bounded view and listTripCandidates is the paginated source. KNOWN DEFECT: trip-detail-scheduled and trip-detail-interests share one trip id AND version 3 while holding different day items, so the ETag — a quoted trip version — claims one validator for two materially different bodies. Fixing it needs an FE test change in the same PR, because interests.test.tsx derives its If-Match expectation from detailWithInterests while the msw handler serves detailScheduled; the two only agree today because the versions are identical. Tracked separately.",
+      "count": 6,
+      "basis": "BE/AI authored. candidates is empty while candidateCount is 5 on purpose: the contract states that candidates is a bounded view and listTripCandidates is the paginated source, so the array length is never the total. trip-detail-interests is its own trip with its own trip-page entry, not a second face of trip-detail-scheduled. They previously shared one id AND version 3 while holding different day items, which made the ETag - a quoted trip version - claim one validator for two materially different bodies. Each detail fixture now maps to exactly one row in trip-page.json, and the openapi.yaml response examples are generated from these files and pinned to them by packages/contracts/scripts/check-examples.mjs. The places inside day items now use the HS/11 pair like the places set: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy such as ATTRACTION/KR-11-110 does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call; the others share its SHAPE and are not themselves verified provider values. Wall-clock times lost their +09:00 offset (#145): the contract declared startTime and suggestedTime as format: time, which is RFC 3339 full-time and REQUIRES an offset, while ERD.md stores them in a PostgreSQL `time` column that cannot hold one and README.md calls them offset-less local time. The contract was the outlier, and it let \"09:30:00Z\" through - which the column would have silently reduced to 09:30 local, nine hours off for a Seoul trip. The fields now carry an explicit HH:mm:ss pattern and these values match it.",
       "serverVerified": false
     },
     "optimizations": {
@@ -39,7 +39,7 @@
     "places": {
       "schema": "PlaceSearchPage",
       "count": 2,
-      "basis": "BE/AI authored from the approved searchPlaces contract. Shapes match the server projection, including sourceAttribution read from the reviewed source registry revision and the categoryName/regionName that stay null until a reviewed code-to-label mapping exists. categoryCode/regionCode are opaque machine values and must not be rendered; only 경복궁's HS/11 came from an actual detailCommon2 call (#109), the others share its shape. Still not a captured server response, so serverVerified stays false until BA-022 has one.",
+      "basis": "BE/AI authored from the approved searchPlaces contract. Shapes match the server projection, including sourceAttribution read from the reviewed source registry revision and the categoryName/regionName that stay null until a reviewed code-to-label mapping exists. categoryCode/regionCode are opaque machine values and must not be rendered; only 경복궁's HS/11 came from an actual detailCommon2 call (#109), the others share its shape. Still not a captured server response, so serverVerified stays false until BA-022 has one. Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce.",
       "serverVerified": false
     },
     "placeDetail": {
@@ -49,21 +49,27 @@
       "serverVerified": false
     },
     "candidates": {
-      "schema": "CandidatePage, CandidateMatchResult",
-      "count": 7,
-      "basis": "NO approved example exists for listTripCandidates, getCandidateTripMatches or addTripItem. Values invented to match Figma S07-8 412:1912 (an active candidate, a SIMILAR one, one already SCHEDULED, an empty variant) plus one match result per state so EXACT/SIMILAR/NONE/CHECKING/UNKNOWN are each exercised rather than collapsed. No place carries a source or attribution because PlaceSummary has no such field (FCR-031). Replace with BE/AI's real response (BA-034, BA-042).",
+      "schema": "CandidatePage, CandidateMatchResult, CandidateSaveResult",
+      "count": 9,
+      "basis": "NO approved example exists for listTripCandidates, getCandidateTripMatches or addTripItem. Values invented to match Figma S07-8 412:1912 (an active candidate, a SIMILAR one, one already SCHEDULED, an empty variant) plus one match result per state so EXACT/SIMILAR/NONE/CHECKING/UNKNOWN are each exercised rather than collapsed. No place carries a source or attribution because PlaceSummary has no such field (FCR-031). Replace with BE/AI's real response (BA-034, BA-042). Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce. save-result-created.json and save-result-duplicate.json are new: addTripCandidate had no CandidateSaveResult fixture anywhere, so FE's msw handler was the de-facto contract for it. Both carry tripScheduleChanged false, which is invariant 2 in the response shape rather than in prose. Wall-clock times lost their +09:00 offset (#145): the contract declared startTime and suggestedTime as format: time, which is RFC 3339 full-time and REQUIRES an offset, while ERD.md stores them in a PostgreSQL `time` column that cannot hold one and README.md calls them offset-less local time. The contract was the outlier, and it let \"09:30:00Z\" through - which the column would have silently reduced to 09:30 local, nine hours off for a Seoul trip. The fields now carry an explicit HH:mm:ss pattern and these values match it.",
       "serverVerified": false
     },
     "feed": {
       "schema": "FeedPage",
       "count": 3,
-      "basis": "listFeed has no OpenAPI example. Built to cover every state S03-F0 `391:310` and S03-F1 `396:2926` have to render: all four candidateState values, a FORECAST crowd reading and an UNAVAILABLE one, a post with no excerpt, and a second page so pagination is walked rather than assumed. Crowd provenance is copied from the related-places fixture rather than retyped, because DataProvenance requires 29 fields. Page size is 4, not the contract default of 20.",
+      "basis": "listFeed has no OpenAPI example. Built to cover every state S03-F0 `391:310` and S03-F1 `396:2926` have to render: all four candidateState values, a FORECAST crowd reading and an UNAVAILABLE one, a post with no excerpt, and a second page so pagination is walked rather than assumed. Crowd provenance is copied from the related-places fixture rather than retyped, because DataProvenance requires 29 fields. Page size is 4, not the contract default of 20. Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce.",
       "serverVerified": false
     },
     "posts": {
       "schema": "PostDetail",
+      "count": 4,
+      "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState. savePost's 200 and 201 now have openapi.yaml examples pinned to saved-post-state-duplicate.json and saved-post-state.json; the two differ only in `duplicate`, and savedAt is identical on purpose because saving again must not move the timestamp. getPost still has no example: its places carry categoryName \"고궁\" while the server returns null (#129). Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce.",
+      "serverVerified": false
+    },
+    "system": {
+      "schema": "DemoReadiness, HealthStatus, ReadinessStatus",
       "count": 3,
-      "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState.",
+      "basis": "BE/AI authored from the operations controllers. Mixed evidence, stated per file rather than collapsed into one flag. demo-readiness-not-ready.json is PROVEN: apps/api's DemoReadinessContractTest builds the real DemoCapabilityQuery with every flag OFF and asserts it produces exactly that document, so its detail strings are the server's own. NOT_READY with three UNAVAILABLE capabilities is the correct P0 answer - no capability has a server-side source yet, and a FEATURE_* flag turned ON without one fails startup rather than advertising it; there is no READY or DEGRADED fixture because producing one would be a claim about behaviour that does not exist. health-live.json and readiness-ready.json are DERIVED, not proven: the values come from HealthController (status UP; checks named database, jobs and recommendation with detail null, because every probe returns null detail when READY) but no test regenerates them, so a probe renaming itself would not be caught here. NOT_READY is absent from readiness-ready.json on purpose - HealthController throws 503 SOURCE_UNAVAILABLE instead of answering 200 in that state. serverVerified stays false for the set because two of the three are not captured or proven.",
       "serverVerified": false
     }
   }

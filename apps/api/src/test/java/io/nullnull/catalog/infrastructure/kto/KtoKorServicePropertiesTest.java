@@ -43,12 +43,16 @@ class KtoKorServicePropertiesTest {
                 "https://apis.data.go.kr/B551011/KorService2");
         properties.setForecastBaseUrl("https://apis.data.go.kr/B551011/TatsCnctrRateService");
 
-        URI uri = properties.concentrationForecastUri("1", "1", "경복궁", false);
+        URI uri = properties.concentrationForecastUri("11", "11110", "경복궁", false);
 
         assertThat(uri.getRawPath()).isEqualTo("/B551011/TatsCnctrRateService/tatsCnctrRatedList");
         assertThat(queryParameterNames(uri)).containsExactlyInAnyOrder(
                 "serviceKey", "pageNo", "numOfRows", "MobileOS", "MobileApp", "areaCd", "signguCd", "tAtsNm",
                 "_type");
+        // #109: this builder is handed an already-joined signguCd and passes it through unchanged.
+        // Whether the CALLER joined it is asserted in KtoCrowdForecastGatewayIT, against what the
+        // adapter actually sent - this layer cannot tell "110" from a joined code.
+        assertThat(uri.getRawQuery()).contains("areaCd=11").contains("signguCd=11110");
         KtoKorServiceProperties wrongPath = configured("fake-secret-key-never-retain",
                 "https://apis.data.go.kr/B551011/KorService2");
         wrongPath.setForecastBaseUrl("https://apis.data.go.kr/B551011/KorService2");

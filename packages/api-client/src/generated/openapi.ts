@@ -942,7 +942,15 @@ export interface components {
             statusTokenExpiresAt: string;
             /** Format: date-time */
             requestedAt: string;
-            /** Format: uri-reference */
+            /**
+             * Format: uri-reference
+             * @description Absolute API path of the status resource, including the `/api/v1` server base - unlike
+             *     `runLink`, which is a client router path and carries no base. A client using the generated
+             *     client should call getDeletionRequest with `requestId` rather than reusing this string,
+             *     because that client already applies the base and would double it. Treat this as
+             *     informational, or as the target for a raw request that applies no base of its own.
+             * @example /api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666
+             */
             statusUrl: string;
         };
         DeletionRequestStatus: {
@@ -992,7 +1000,19 @@ export interface components {
             primaryPlace: components["schemas"]["PlaceSummary"];
             crowd?: components["schemas"]["CrowdMetric"] | null;
             savedPost: boolean;
-            /** @enum {string} */
+            /**
+             * @description What the selected trip already knows about `primaryPlace`. It changes what the card
+             *     shows and never where it sits: the feed order is fixed for everyone.
+             *
+             *     `NO_TRIP_SELECTED` describes the REQUEST, not the card - it is the answer when no
+             *     `tripId` was supplied, so it applies to every card in the page or to none of them. A
+             *     page mixing it with the other three cannot occur. The other three are per-card and may
+             *     appear together.
+             *
+             *     `NO_TRIP_SELECTED` is not `NOT_SAVED`: the first means the question has no answer, the
+             *     second that the answer is no.
+             * @enum {string}
+             */
             candidateState: "NOT_SAVED" | "SAVED_TO_SELECTED_TRIP" | "SCHEDULED_IN_SELECTED_TRIP" | "NO_TRIP_SELECTED";
         };
         PostSummary: {
@@ -1413,7 +1433,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             durationMinutes?: number | null;
             note?: string | null;
@@ -1457,7 +1476,6 @@ export interface components {
             locked: true;
             /** @enum {string} */
             source: "USER" | "IMPORT";
-            /** Format: time */
             startTime: string;
             toleranceMinutes: number;
         };
@@ -1473,9 +1491,7 @@ export interface components {
             source: "USER" | "IMPORT";
             /** Format: date */
             date: string;
-            /** Format: time */
             startTime: string;
-            /** Format: time */
             endTime?: string | null;
         };
         CreateTripRequest: {
@@ -1500,7 +1516,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             constraints?: components["schemas"]["SetConstraintInput"][];
         };
@@ -1554,7 +1569,6 @@ export interface components {
             originalLabel?: string;
             /** Format: date */
             date: string | null;
-            /** Format: time */
             startTime?: string | null;
             position: number;
             confidence: number;
@@ -1575,7 +1589,6 @@ export interface components {
                 placeId?: string | null;
                 /** Format: date */
                 date?: string | null;
-                /** Format: time */
                 startTime?: string | null;
                 position?: number | null;
                 constraints?: components["schemas"]["SetConstraintInput"][] | null;
@@ -1640,7 +1653,6 @@ export interface components {
             slots: {
                 /** Format: date */
                 date: string;
-                /** Format: time */
                 suggestedTime?: string | null;
                 eligible: boolean;
                 reasonCode?: string | null;
@@ -1654,7 +1666,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             durationMinutes?: number | null;
             note?: string | null;
@@ -1664,7 +1675,6 @@ export interface components {
             /** Format: date */
             date?: string;
             position?: number;
-            /** Format: time */
             startTime?: string | null;
             durationMinutes?: number | null;
             note?: string | null;
@@ -1715,7 +1725,6 @@ export interface components {
             type: "TIME";
             /** @constant */
             locked: true;
-            /** Format: time */
             startTime: string;
             toleranceMinutes: number;
         };
@@ -1729,9 +1738,7 @@ export interface components {
             locked: true;
             /** Format: date */
             date: string;
-            /** Format: time */
             startTime: string;
-            /** Format: time */
             endTime?: string | null;
         };
         SetConstraintRequest: components["schemas"]["SetConstraintInput"];
@@ -1911,7 +1918,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             crowd?: components["schemas"]["CrowdMetric"] | null;
         };
@@ -2353,6 +2359,20 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description Request body media type is not the one the operation declares. The merge-patch operations
+         *     accept application/merge-patch+json only, because absent-means-keep and null-means-clear are
+         *     semantics of that media type rather than of the schema.
+         */
+        UnsupportedMediaType: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description A required capability is temporarily unavailable */
         ServiceUnavailable: {
             headers: {
@@ -2466,6 +2486,7 @@ export interface operations {
             /** @description Existing valid anonymous session resumed */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     "X-Request-ID": components["headers"]["RequestId"];
                     [name: string]: unknown;
                 };
@@ -2476,6 +2497,7 @@ export interface operations {
             /** @description Anonymous session created */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     /** @description Secure HttpOnly session cookie */
                     "Set-Cookie"?: string;
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -2501,6 +2523,7 @@ export interface operations {
             /** @description A new independently valid CSRF token */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2524,6 +2547,7 @@ export interface operations {
             /** @description Per-capability readiness */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2575,6 +2599,15 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "private, no-store";
+                    /**
+                     * @description Whole seconds to wait before asking again. Present only while the request is still
+                     *     moving: absent on COMPLETED and FAILED, because another call would return what the
+                     *     caller already has. The server derives it from its own job runtime - the poll interval
+                     *     while work is queued or running, and the time until the next attempt is due after a
+                     *     PARTIAL_FAILED - so it is advice that tracks the deployment, not a fixed figure. Prefer
+                     *     it over a hardcoded interval when it is present.
+                     */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2607,6 +2640,7 @@ export interface operations {
             /** @description Current anonymous or account owner */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2632,12 +2666,14 @@ export interface operations {
             /** @description Preferences updated */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["OwnerProfile"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2659,6 +2695,7 @@ export interface operations {
             /** @description Cursor page of feed cards */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2708,6 +2745,7 @@ export interface operations {
             /** @description Post details and linked places */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2731,6 +2769,7 @@ export interface operations {
             /** @description Existing saved-post state returned */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2740,6 +2779,7 @@ export interface operations {
             /** @description Post saved */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2763,6 +2803,7 @@ export interface operations {
             /** @description Saved-post relation removed or already absent */
             204: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -2811,6 +2852,7 @@ export interface operations {
             /** @description Canonical place detail */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2837,6 +2879,7 @@ export interface operations {
             /** @description Forecast series; may explicitly be unavailable */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2889,6 +2932,7 @@ export interface operations {
             /** @description Trips owned by the current owner only */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2917,6 +2961,7 @@ export interface operations {
             /** @description Trip created */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     Location?: string;
                     [name: string]: unknown;
@@ -2944,6 +2989,7 @@ export interface operations {
             /** @description Complete trip view */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
@@ -2973,6 +3019,7 @@ export interface operations {
             /** @description Trip deleted */
             204: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -3002,6 +3049,7 @@ export interface operations {
             /** @description Trip metadata/date range updated */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
@@ -3010,6 +3058,7 @@ export interface operations {
                 };
             };
             409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
         };
@@ -3403,6 +3452,7 @@ export interface operations {
                 };
             };
             409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
         };
