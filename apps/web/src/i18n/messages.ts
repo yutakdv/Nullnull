@@ -414,6 +414,19 @@ export const messages = {
 
     // S07-10 move sheet `521:3976` (FE-305). The frame fixes this wording.
     'trip.move.open': '{name} 날짜 옮기기',
+    // FR-ITM-05 일정에서 빼기. 계약의 disposition은 RESTORE_CANDIDATE가 UI
+    // 기본이고("Restore as a candidate by default in the UI") REMOVE는 완전
+    // 삭제다. 둘은 다른 자원으로 가므로(불변식 1) 사용자가 고른다.
+    'trip.remove.open': '{name} 일정에서 빼기',
+    'trip.remove.title': '일정에서 뺄까요?',
+    'trip.remove.body':
+      '{name}을(를) 이 날짜에서 뺍니다. 나중에 다시 담을 수 있게 후보로 남겨둘까요?',
+    'trip.remove.keepCandidate': '후보로 남기기',
+    'trip.remove.discard': '완전히 빼기',
+    'trip.remove.cancel': '취소',
+    'trip.remove.keptAsCandidate': '{name}을(를) 후보로 남겼어요',
+    'trip.remove.removed': '{name}을(를) 일정에서 뺐어요',
+    'trip.remove.failed': '빼지 못했어요',
     'trip.move.title': '어느 날로 옮길까요?',
     'trip.move.cancel': '취소',
     'trip.move.now': '지금 {day} · {date}',
@@ -972,6 +985,16 @@ export const messages = {
     'trip.lock.date.confirm': 'Release',
 
     'trip.move.open': 'Move {name} to another day',
+    'trip.remove.open': 'Remove {name} from the itinerary',
+    'trip.remove.title': 'Remove from the itinerary?',
+    'trip.remove.body':
+      'This takes {name} off this day. Keep it as a saved place so you can add it again?',
+    'trip.remove.keepCandidate': 'Keep as a saved place',
+    'trip.remove.discard': 'Remove completely',
+    'trip.remove.cancel': 'Cancel',
+    'trip.remove.keptAsCandidate': '{name} is back in your saved places',
+    'trip.remove.removed': '{name} is off the itinerary',
+    'trip.remove.failed': "We couldn't remove it",
     'trip.move.title': 'Which day should it move to?',
     'trip.move.cancel': 'Cancel',
     'trip.move.now': 'Now {day} · {date}',
