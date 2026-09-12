@@ -114,6 +114,15 @@ testing {
                             .orElse(layout.projectDirectory.file("../../docs/api/openapi.yaml").asFile.absolutePath)
                             .get()
                     )
+                    // The Problem fixtures FE mocks against are the same artifact as the contract:
+                    // ProblemFixtureContractTest pins them to ProblemCode so a fixture cannot claim a
+                    // status or a retryable the server does not emit.
+                    systemProperty(
+                        "nullnull.fixtures.path",
+                        providers.gradleProperty("nullnull.fixtures.path")
+                            .orElse(layout.projectDirectory.dir("../../packages/contracts/fixtures").asFile.absolutePath)
+                            .get()
+                    )
                 }
             }
         }

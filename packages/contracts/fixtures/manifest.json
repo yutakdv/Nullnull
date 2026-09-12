@@ -1,6 +1,6 @@
 {
   "synthetic": true,
-  "provisional": "FE-003, FE-105 and FE-103, awaiting BE/AI review",
+  "provisional": "FE-003, FE-105 and FE-103 were authored by FE. The problems and session sets have since been reviewed by BE/AI (#16 R1); the rest still await review.",
   "source": "docs/api/openapi.yaml + docs/api/README.md UI mapping table",
   "schemaVersion": "0.2.1-rc.1",
   "capturedAt": "2026-09-08",
@@ -9,7 +9,7 @@
     "problems": {
       "schema": "Problem",
       "count": 23,
-      "basis": "Every code in the Problem.code enum, with the status from the docs/api/README.md UI mapping table.",
+      "basis": "BE/AI reviewed (#16 R1). Every code in the Problem.code enum, one fixture per code holding that code's DEFAULT face. apps/api ProblemFixtureContractTest now pins type/title/status/retryable to io.nullnull.shared.problem.ProblemCode, so these four can no longer drift from what the server answers with; the review found APPLY_FAILED carrying retryable true, which contradicted both the enum and docs/api/README.md's statement that only ROUTE_UNAVAILABLE, SOURCE_UNAVAILABLE and RATE_LIMITED are retryable. requestId is a UUIDv7 because that is what RequestIdFilter generates (the earlier ULID was a shape the server never produces on its own). NOT verified here: `detail` is the contract's English fallback and is deliberately generic rather than the literal sentence a given throw site uses (README says the raising slice owns that sentence, and FE renders its own copy from `code`); `instance` is a plausible path, not a captured one, except for DELETION_STATUS_EXPIRED which has exactly one throw site. NOT COVERED: the codes README's UI mapping table gives a second status - INVALID_REQUEST 400/405/406/413/415, LOCK_CONFLICT 409/422, APPLY_FAILED 500/503 - have no variant fixture, because the index is keyed by code and holds one entry per code. 11 of the 23 codes have no throw site in apps/api yet.",
       "serverVerified": false
     },
     "session": {
@@ -21,7 +21,7 @@
         "DeletionRequestStatus"
       ],
       "count": 5,
-      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies. deletion-receipt.statusUrl now carries the /api/v1 server base, matching what DeletionService actually emits; it previously omitted it and the contract constrained neither, so both spellings passed. The contract now describes statusUrl as an API path and DeletionIT pins its prefix to spring.mvc.servlet.path so the literal and the configured path cannot drift.",
+      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies. deletion-receipt.statusUrl now carries the /api/v1 server base, matching what DeletionService actually emits; it previously omitted it and the contract constrained neither, so both spellings passed. The contract now describes statusUrl as an API path and DeletionIT pins its prefix to spring.mvc.servlet.path so the literal and the configured path cannot drift. BE/AI reviewed (#16 R1): DeletionStatus is a plain record with no @JsonInclude, so the server really does send completedAt, failureCode and retryable rather than omitting them, and the fixture's retryable false with status RUNNING matches the rule that retryable is true exactly while status is PARTIAL_FAILED.",
       "serverVerified": false
     },
     "trips": {

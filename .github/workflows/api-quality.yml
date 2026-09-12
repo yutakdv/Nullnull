@@ -13,6 +13,9 @@ on:
       - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
       - "docs/engineering/backend-plan.json"
+      # ProblemFixtureContractTest pins these to ProblemCode, so a fixture-only
+      # edit is a change this suite must see.
+      - "packages/contracts/fixtures/problems/**"
       - "scripts/check_test_reports.py"
       - "scripts/check_evaluation_report.py"
       - "scripts/tests/test_check_test_reports.py"
@@ -27,6 +30,9 @@ on:
       - "apps/ai/src/nullnull_ai/policy/**"
       - "docs/api/openapi.yaml"
       - "docs/engineering/backend-plan.json"
+      # ProblemFixtureContractTest pins these to ProblemCode, so a fixture-only
+      # edit is a change this suite must see.
+      - "packages/contracts/fixtures/problems/**"
       - "scripts/check_test_reports.py"
       - "scripts/check_evaluation_report.py"
       - "scripts/tests/test_check_test_reports.py"

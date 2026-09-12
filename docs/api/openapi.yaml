@@ -23,7 +23,13 @@ x-nullnull-contract-review:
 x-nullnull-common-contract:
   requestId: Every response, including errors and 204 responses, carries X-Request-ID.
   protectedErrors: Every session-protected operation may return 401 UNAUTHORIZED.
+  csrfErrors: Every state-changing operation may return 403 CSRF_INVALID; 403 FORBIDDEN is the
+    container-level refusal of an action this owner may not take.
   rateLimitErrors: Every operation may return 429 RATE_LIMITED with Retry-After.
+  bodyLimit: A request body over the configured limit is refused with 413 INVALID_REQUEST before
+    any of it is read, so the status arrives without the body having been parsed.
+  serverErrors: Any operation may return 500 INTERNAL_ERROR. The body carries requestId and never
+    a stack trace, SQL, external response, or secret.
   cache: Owner-scoped, search, import, deletion, and optimization responses are never CDN cached.
   bounds: Unknown object fields are rejected and application limits are revalidated server-side.
 x-nullnull-competition-contract:
@@ -295,8 +301,8 @@ paths:
                     status: 410
                     code: "DELETION_STATUS_EXPIRED"
                     detail: "The deletion status is no longer available."
-                    instance: "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911"
-                    requestId: "01J8Z9K2Q4R6T8V0X2Z4B6D8F0"
+                    instance: "/api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666"
+                    requestId: "01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70"
                     retryable: false
         "429":
           $ref: "#/components/responses/RateLimited"
@@ -2616,7 +2622,7 @@ components:
                 code: "NOT_FOUND"
                 detail: "The requested resource does not exist."
                 instance: "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911"
-                requestId: "01J8Z9K2Q4R6T8V0X2Z4B6D8F0"
+                requestId: "01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70"
                 retryable: false
     Conflict:
       description: Version, idempotency, or current-state conflict
