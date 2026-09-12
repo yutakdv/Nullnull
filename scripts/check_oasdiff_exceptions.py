@@ -33,7 +33,7 @@ def main(argv: list[str]) -> int:
         print(f"stale oasdiff exception (no longer reported, remove it): {line}", file=sys.stderr)
     if stale:
         print(
-            "Remove the line from docs/api/oasdiff-warn-ignore.txt and move its row to the "
+            "Remove the line from docs/api/oasdiff-ignore.txt and move its row to the "
             "expired section of docs/api/BREAKING_CHANGE_EXCEPTIONS.md.",
             file=sys.stderr,
         )

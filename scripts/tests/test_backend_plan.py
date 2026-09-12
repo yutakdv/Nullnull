@@ -43,6 +43,42 @@ class BackendPlanTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertTrue(has_calendar_estimate(text))
 
+    def test_every_manifest_field_is_compared_against_the_line_that_declares_it(self):
+        """No field may be satisfied by prose elsewhere in the card.
+
+        The card/manifest loop used to ask only whether each value appeared SOMEWHERE in the card.
+        Two fields were already living on that hole when it was found: BA-030's prose named
+        `integration-ready` and `FCR-020`, so the manifest could have claimed either and passed.
+        Fixing one field and leaving the rest is how the same defect comes back under a different
+        name, so every field the loop covered is pinned here.
+        """
+        cases = (
+            ('designRequests', lambda t: t.update({'designRequests': ['FCR-020']}),
+             'differs for FCR'),
+            ('priority', lambda t: t.update({'priority': 'P1'}), 'card header declares'),
+            ('figmaNodes', lambda t: t.update({'figmaNodes': ['999:999']}), 'differs for - Figma:'),
+            ('title', lambda t: t.update({'title': '다른 제목'}), 'does not declare the manifest title'),
+            ('status', lambda t: t.update({'status': 'integration-ready'}), 'card header declares'),
+            ('testIds', lambda t: t['tests'].append({'id': 'BA-030-T4', 'assertion': 'x'}),
+             'test IDs'),
+        )
+        for field, mutate, expected in cases:
+            with self.subTest(field=field):
+                self.check_mutation(
+                    lambda p, mutate=mutate: mutate(
+                        next(t for t in p['tasks'] if t['id'] == 'BA-030')),
+                    expected)
+
+    def test_the_card_really_does_mention_those_values_in_prose(self):
+        """Guards the test above: if BA-030's prose stopped naming them it would pass vacuously."""
+        card = self.cards[self.cards.index('### BA-030'):]
+        card = card[:card.index('### BA-031')]
+        self.assertIn('FCR-020', card)
+        self.assertIn('integration-ready', card)
+        # ...while the rows that actually declare them say otherwise.
+        figma_row = next(line for line in card.splitlines() if line.startswith('- Figma:'))
+        self.assertIn('FCR: 해당 없음', figma_row)
+
     def test_status_must_match_the_card_header_not_prose(self):
         """A card that merely MENTIONS a status must not satisfy the status check.
 
@@ -134,7 +170,9 @@ class BackendPlanTests(unittest.TestCase):
         self.check_mutation(mutate, 'duplicate backend acceptance')
 
     def test_stale_human_card(self):
-        self.check_mutation(lambda p: None, 'task card missing manifest value', self.cards.replace('BA-051-T2','REMOVED'))
+        # The card losing a test ID is now reported by the exact per-card comparison rather than
+        # by "this value appears nowhere", which could be satisfied by prose.
+        self.check_mutation(lambda p: None, 'task card test IDs', self.cards.replace('BA-051-T2','REMOVED'))
 
     def test_missing_card(self):
         self.check_mutation(lambda p: None, 'task card IDs differ', self.cards.replace('### BA-051','### Removed'))

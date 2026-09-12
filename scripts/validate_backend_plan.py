@@ -147,31 +147,52 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
                 problems.append(f'{tid}: missing assertion for {ident}')
         card = card_sections.get(tid, '')
         # Keep machine metadata and human task cards synchronized.
-        values = ([task.get('title', ''), task.get('priority', '')] +
-                  task['operations'] + task['featureIds'] + task['figmaNodes'] +
-                  task['designRequests'] + task['dependsOn'] + [t.get('id', '') for t in required])
-        for value in values:
-            if isinstance(value, str) and value and value not in card:
-                problems.append(f'{tid}: task card missing manifest value {value}')
-        # status is checked against the card's HEADER line, not "somewhere in the card".
-        # Presence anywhere is not a synchronisation check: a card that merely MENTIONS a status
-        # in prose satisfies it. Writing "integration-ready로 올리지 않는다" in a note silently
-        # accepted integration-ready in the manifest from then on, for that card, forever - and
-        # this loop is the only thing holding the two in step.
-        header = next((line for line in card.splitlines()
-                       if line.startswith('**') and ' — ' in line), '')
-        declared = re.findall(r'`([a-z][a-z-]*)`', header)
-        if task.get('status') not in declared:
-            problems.append(f'{tid}: card header declares {declared or "no status"}, '
+        #
+        # Every field is compared against the ONE line of the card that declares it. There used to be
+        # a loop asking only whether each manifest value appeared somewhere in the card, and that is
+        # not a synchronisation check: a card that merely MENTIONS a value satisfies it. Writing
+        # "integration-ready로 올리지 않는다" in a note accepted integration-ready in the manifest for
+        # that card from then on, and a card whose prose names FCR-020 accepted it in
+        # designRequests while the card's own FCR row still read 해당 없음. Prose about a status, a
+        # priority or a change request is the most natural thing to write in a task card, so the
+        # hole opens by accident rather than by carelessness.
+        lines = card.splitlines()
+        header = next((line for line in lines if line.startswith('**') and ' — ' in line), '')
+        if not header.startswith(f"**{task.get('title', '')}**"):
+            problems.append(f'{tid}: card header does not declare the manifest title')
+        declared_status = re.findall(r'`([a-z][a-z-]*)`', header)
+        if task.get('status') not in declared_status:
+            problems.append(f'{tid}: card header declares {declared_status or "no status"}, '
                             f'manifest says {task.get("status")}')
+        declared_priority = re.findall(r'—\s*(P[0-9])\b', header)
+        if task.get('priority') not in declared_priority:
+            problems.append(f'{tid}: card header declares {declared_priority or "no priority"}, '
+                            f'manifest says {task.get("priority")}')
         for prefix, expected, pattern in (
             ('- 기능 ID:', task['featureIds'], r'(?:FR|NFR)-[A-Z0-9]+-\d+'),
             ('- API:', task['operations'], r'`([a-z][A-Za-z0-9]+)`'),
             ('- 선행:', task['dependsOn'], r'BA-\d{3}'),
         ):
-            row = next((line for line in card.splitlines() if line.startswith(prefix)), '')
+            row = next((line for line in lines if line.startswith(prefix)), '')
             if set(re.findall(pattern, row)) != set(expected):
                 problems.append(f'{tid}: task card metadata differs for {prefix}')
+        # Figma nodes and design requests share one row, split at "; FCR:". They are compared
+        # separately because a node list that swallowed an FCR (or the reverse) would still match
+        # if the row were read as one bag of tokens. "해당 없음" normalises to the empty set.
+        figma_row = next((line for line in lines if line.startswith('- Figma:')), '')
+        nodes_part, _, requests_part = figma_row.partition('; FCR:')
+        if set(re.findall(r'\d+:\d+', nodes_part)) != set(task['figmaNodes']):
+            problems.append(f'{tid}: task card metadata differs for - Figma:')
+        if set(re.findall(r'FCR-\d+', requests_part)) != set(task['designRequests']):
+            problems.append(f'{tid}: task card metadata differs for FCR')
+        # Acceptance test IDs are the 필수 검증 rows, not "mentioned anywhere": a card that names
+        # BA-030-T4 only in prose must not satisfy a manifest that requires it.
+        declared_tests = set(re.findall(r'^- `(' + re.escape(tid) + r'-T\d+)`', card, re.M))
+        # This task's IDs only: test_ids accumulates across every task for the duplicate check below.
+        required_tests = {t.get('id') for t in required if isinstance(t.get('id'), str)}
+        if declared_tests != required_tests:
+            problems.append(f'{tid}: task card test IDs {sorted(declared_tests)} differ from '
+                            f'manifest {sorted(required_tests)}')
         if task.get('note') != f'{CARD}#{tid.lower()}':
             problems.append(f'{tid}: note must link to its exact task card')
         if task.get('status') == 'verified':
