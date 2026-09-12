@@ -270,6 +270,23 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+              examples:
+                statusExpired:
+                  summary: The receipt outlived its status token
+                  description: |
+                    410 means the request existed and its token has expired; 404 means no answer is
+                    available, whether the id is unknown, the token does not verify, or its hash was
+                    already erased. Show the two differently: 410 is "the window closed", 404 is "this
+                    receipt cannot be opened".
+                  value:
+                    type: "/problems/deletion-status-expired"
+                    title: "Deletion status expired"
+                    status: 410
+                    code: "DELETION_STATUS_EXPIRED"
+                    detail: "The deletion status is no longer available."
+                    instance: "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911"
+                    requestId: "01J8Z9K2Q4R6T8V0X2Z4B6D8F0"
+                    retryable: false
         "429":
           $ref: "#/components/responses/RateLimited"
         default:
@@ -2102,6 +2119,21 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          examples:
+            notFound:
+              summary: NOT_FOUND is the only code this status carries
+              description: |
+                Absent and not-yours are one answer on purpose: telling them apart would let a caller
+                probe which identifiers exist. Branch on `code`, not on the wording of `detail`.
+              value:
+                type: "/problems/not-found"
+                title: "Not found"
+                status: 404
+                code: "NOT_FOUND"
+                detail: "The requested resource does not exist."
+                instance: "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911"
+                requestId: "01J8Z9K2Q4R6T8V0X2Z4B6D8F0"
+                retryable: false
     Conflict:
       description: Version, idempotency, or current-state conflict
       headers:

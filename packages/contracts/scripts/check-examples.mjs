@@ -24,6 +24,8 @@ const FIXTURE_OF = {
   scheduledTrip: 'trips/trip-detail-scheduled.json',
   updatedTrip: 'trips/trip-detail-scheduled.json',
   interestsReplaced: 'trips/trip-detail-interests.json',
+  notFound: 'problems/not-found.json',
+  statusExpired: 'problems/deletion-status-expired.json',
   alreadySaved: 'posts/saved-post-state-duplicate.json',
   newlySaved: 'posts/saved-post-state.json',
 };
@@ -36,16 +38,38 @@ const errors = [];
 let checked = 0;
 let pinned = 0;
 
-for (const [path, item] of Object.entries(api.paths ?? {})) {
-  for (const [method, op] of Object.entries(item)) {
-    if (!op || typeof op !== 'object' || !op.responses) continue;
-    for (const [code, response] of Object.entries(op.responses)) {
-      const media = response?.content?.['application/json'];
-      if (!media?.examples || !media.schema) continue;
+/** Every (schema, examples, label) triple in the document, whatever media type carries it. */
+function* exampleSites(api) {
+  for (const [path, item] of Object.entries(api.paths ?? {})) {
+    for (const [method, op] of Object.entries(item ?? {})) {
+      if (!op || typeof op !== 'object' || !op.responses) continue;
+      for (const [code, response] of Object.entries(op.responses)) {
+        for (const [type, media] of Object.entries(response?.content ?? {})) {
+          if (media?.examples && media.schema) {
+            yield [media, `${method.toUpperCase()} ${path} ${code} (${type})`];
+          }
+        }
+      }
+    }
+  }
+  // Shared responses are referenced by many operations, so an example here is the one place a
+  // reusable error's code can be pinned at all - a $ref cannot carry a sibling example.
+  for (const [name, response] of Object.entries(api.components?.responses ?? {})) {
+    for (const [type, media] of Object.entries(response?.content ?? {})) {
+      if (media?.examples && media.schema) {
+        yield [media, `components.responses.${name} (${type})`];
+      }
+    }
+  }
+}
+
+{
+  for (const [media, label] of exampleSites(api)) {
+    {
       for (const [name, example] of Object.entries(media.examples)) {
         if (!('value' in (example ?? {}))) continue;
         checked += 1;
-        const where = `${method.toUpperCase()} ${path} ${code} examples.${name}`;
+        const where = `${label} examples.${name}`;
 
         let validate;
         try {

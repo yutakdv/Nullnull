@@ -104,9 +104,23 @@ class DeletionIT {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "private, no-store"))
                 .andExpect(jsonPath("$.requestId").value(requestId));
-        mvc.perform(get("/api/v1/deletion-requests/{id}", requestId)
+        var wrongToken = mvc.perform(get("/api/v1/deletion-requests/{id}", requestId)
                         .header("X-Deletion-Status-Token", token.substring(1) + "A"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse();
+        // An unknown id and a token that does not verify must be one answer. If they differed, a
+        // caller could probe which deletion requests exist by reading the difference.
+        var unknownId = mvc.perform(get("/api/v1/deletion-requests/{id}", UUID.randomUUID())
+                        .header("X-Deletion-Status-Token", token))
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse();
+        assertThat(json.readTree(unknownId.getContentAsString()).get("code").asText())
+                .as("unknown id and wrong token must answer with the same code")
+                .isEqualTo(json.readTree(wrongToken.getContentAsString()).get("code").asText())
+                .isEqualTo("NOT_FOUND");
+        assertThat(json.readTree(unknownId.getContentAsString()).get("detail").asText())
+                .as("neither may say which of the two it was")
+                .isEqualTo(json.readTree(wrongToken.getContentAsString()).get("detail").asText());
 
         jdbc.update("UPDATE deletion_requests SET status_token_hash=decode(repeat('00',32),'hex') WHERE id=?",
                 UUID.fromString(requestId));
