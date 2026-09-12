@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "api:generate": "npm run generate --workspace @nullnull/api-client",
-    "api:check": "npm run check --workspace @nullnull/api-client",
+    "api:check": "npm run check --workspace @nullnull/api-client && npm run check:examples --workspace @nullnull/contracts",
     "security:scan": "npm audit --audit-level=high --omit=dev",
     "infra:check": "node scripts/infra-check.mjs",
     "verify": "npm run api:check && npm run verify:ci --workspace @nullnull/web"

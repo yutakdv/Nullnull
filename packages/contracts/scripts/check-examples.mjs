@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+// Every response example in the contract must (a) validate against the schema it is
+// declared under and (b) equal the fixture it was derived from, where one exists.
+//
+// (a) stops an example from promising a shape the schema forbids: a client built from
+// a bad example fails at integration, not at lint time. (b) stops the spec and the
+// approved mocks from drifting apart, which would leave Frontend building against one
+// truth and Backend testing against another.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import { load } from 'js-yaml';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const api = load(readFileSync(resolve(ROOT, 'docs/api/openapi.yaml'), 'utf8'));
+
+// Examples that were derived from an approved fixture, and must stay equal to it.
+const FIXTURE_OF = {
+  trips: 'trips/trip-page.json',
+  noTrips: 'trips/trip-page-empty.json',
+  createdTrip: 'trips/trip-detail-created.json',
+  scheduledTrip: 'trips/trip-detail-scheduled.json',
+  updatedTrip: 'trips/trip-detail-scheduled.json',
+  interestsReplaced: 'trips/trip-detail-interests.json',
+};
+
+const ajv = new Ajv2020({ strict: false, allErrors: true, logger: false });
+addFormats(ajv);
+ajv.addFormat('int64', true);
+
+const errors = [];
+let checked = 0;
+let pinned = 0;
+
+for (const [path, item] of Object.entries(api.paths ?? {})) {
+  for (const [method, op] of Object.entries(item)) {
+    if (!op || typeof op !== 'object' || !op.responses) continue;
+    for (const [code, response] of Object.entries(op.responses)) {
+      const media = response?.content?.['application/json'];
+      if (!media?.examples || !media.schema) continue;
+      for (const [name, example] of Object.entries(media.examples)) {
+        if (!('value' in (example ?? {}))) continue;
+        checked += 1;
+        const where = `${method.toUpperCase()} ${path} ${code} examples.${name}`;
+
+        let validate;
+        try {
+          validate = ajv.compile({ components: api.components, ...media.schema });
+        } catch (cause) {
+          errors.push(`${where}: cannot compile its schema (${cause.message})`);
+          continue;
+        }
+        if (!validate(example.value)) {
+          const first = validate.errors?.[0];
+          errors.push(`${where}: does not satisfy its schema (${first?.instancePath || '/'} ${first?.message})`);
+        }
+
+        const fixture = FIXTURE_OF[name];
+        if (fixture) {
+          pinned += 1;
+          const onDisk = JSON.parse(
+            readFileSync(resolve(ROOT, 'packages/contracts/fixtures', fixture), 'utf8'),
+          );
+          if (JSON.stringify(example.value) !== JSON.stringify(onDisk)) {
+            errors.push(`${where}: drifted from packages/contracts/fixtures/${fixture}`);
+          }
+        }
+      }
+    }
+  }
+}
+
+for (const line of errors) console.error(line);
+if (errors.length) {
+  console.error(`contract_examples=invalid failures=${errors.length}`);
+  process.exit(1);
+}
+console.log(`contract_examples=valid checked=${checked} fixture_pinned=${pinned}`);
