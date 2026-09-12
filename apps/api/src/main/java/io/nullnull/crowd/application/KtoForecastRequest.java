@@ -35,11 +35,21 @@ public record KtoForecastRequest(UUID placeId, String areaCode, String sigunguCo
      * {@code 11110}.
      *
      * <p>This is a fact about the provider's code system, which is why it lives here and not in URI
-     * assembly. It was established by a real call (#109): {@code areaCd=11&signguCd=110} - the raw
-     * stored pair - answers {@code resultCode 0000} with {@code totalCount 0}, and so does
-     * {@code areaCd=11110&signguCd=11110}, while {@code areaCd=11&signguCd=11110} answers with
-     * rows. A zero count is not an error here, so nothing upstream would have reported the mismatch;
-     * the collector would simply have recorded "no coverage" forever.
+     * assembly, and it is now measured rather than argued. The probe recorded in
+     * docs/data/SOURCE_CATALOG.md answers: {@code areaCd=11&signguCd=110} - the raw stored pair -
+     * gives {@code resultCode 0000} with {@code totalCount 0}, {@code areaCd=11110&signguCd=11110}
+     * gives 0 as well, and {@code areaCd=11&signguCd=11110} gives 30 rows for one site (3390 for the
+     * whole sigungu when {@code tAtsNm} is omitted, because that parameter is a filter).
+     *
+     * <p>The standard says the same thing independently: a 법정동 code is ten digits as
+     * [sido 2][sigungu 3][eupmyeondong 3][ri 2], so {@code 11} + {@code 110} is the five-digit
+     * sido+sigungu prefix rather than two values to send separately.
+     *
+     * <p>A zero count is not an error here, so nothing upstream would have reported the mismatch;
+     * the collector would simply have recorded "no coverage" forever. That is also why this was
+     * asserted from the standard before it was measured - and the assertion happened to be right,
+     * but it stood in the source as established fact while the only recorded smoke run had failed
+     * before its HTTP call. Evidence and a correct guess are not the same thing.
      */
     public String signguRequestCode() {
         return areaCode + sigunguCode;

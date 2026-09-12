@@ -74,8 +74,19 @@ public final class KtoForecastResponseValidator {
         try {
             List<KtoForecastSnapshotSet.ForecastPoint> points = new ArrayList<>();
             Set<Instant> targets = new HashSet<>();
-            LocalDate firstAllowed = LocalDate.ofInstant(fetchedAt, SEOUL);
-            LocalDate lastAllowed = firstAllowed.plusDays(MAX_FORECAST_DAYS);
+            // The provider's batch is keyed by the date it was PRODUCED, not by the moment of the
+            // request, so its earliest row can be the day before the fetch. Measured: an answer
+            // fetched at 02:00 Asia/Seoul carried baseYmd 20260912..20261011 - thirty rows starting
+            // one day back. Anchoring the window at the fetch date rejected every real response
+            // whole, on its first row, with RANGE. Nothing had caught that because no real response
+            // had ever reached this validator (the one recorded harness run failed before its HTTP
+            // call), which is what "fixture green is not integration evidence" costs.
+            //
+            // Widened by exactly one day rather than removed: two days back is a stale batch or a
+            // misparse and must still be refused. The row count stays bounded by MAX_RECORDS.
+            LocalDate fetchDate = LocalDate.ofInstant(fetchedAt, SEOUL);
+            LocalDate firstAllowed = fetchDate.minusDays(1);
+            LocalDate lastAllowed = fetchDate.plusDays(MAX_FORECAST_DAYS);
             for (JsonNode item : items) {
                 requireEqual(expected.areaCode(), scalar(item, "areaCd"));
                 // The provider echoes back what was sent, and what is sent is the JOINED code

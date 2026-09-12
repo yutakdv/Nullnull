@@ -114,6 +114,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - 세 검증 중 Gradle suite에 있는 것은 T2 하나다. T1·T3의 증거는 `scripts/verify_target_stack.py`이고 JUnit XML을 만들지 않으므로, `api-quality` 하나가 BA-001 전체를 덮는다고 읽으면 안 된다.
 - 검사되지 않음: T1의 "새 clone에서" 부분. 현재 검사는 이 작업 트리의 고정값을 확인하며 빈 디렉터리 clone부터의 재현을 돌리지 않는다.
 - `integration-ready` 이상으로 올리지 않는다: BA-000과 같은 이유로 `check_test_reports.py`가 T1·T3를 JUnit testcase 이름에서 찾지 못해 두 required check가 실패한다.
+- PM-022의 쿠키 절반은 **이미 해결돼 있다(확인함)**. PM-022는 `APP_COOKIE_SECURE=false`와 `__Host-` 쿠키를 함께 쓰는 개발 설정을 문제로 들었는데, `SessionProperties.cookieName()`이 `secure`일 때만 `__Host-` 접두사를 붙이고 insecure 쿠키는 local profile 단독에서만 허용된다. `SessionPropertiesTest`가 양쪽 분기를 고정하므로 되돌아가면 빨개진다. 남은 절반(local compose wrapper의 `localhost:5433` 실제 확인, staging→production `VITE_APP_ENV` 승격 정책)은 [BA-006](#ba-006)이고 배포 단계다.
 
 FE 인계·완료 증거: API 실행/health 주소, 버전 manifest, FE scaffold와 필요한 generation command. 실제 FE scaffold는 FE 인계물이다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -410,6 +411,7 @@ BA-010 구현 증거 (local·full Docker: Java 276 / 114 / 11 / 19, 0 fail/error
 - Playwright `apps/web/e2e/session.spec.ts`: 실제 API transport bootstrap/refresh/다중 탭; HTTP Compose에서 Secure cookie 명시 전달. UI keyboard/focus는 기존 shell 검사이며 세션 화면 구현·브라우저 Secure cookie 수락 검증과 구분한다.
 - 공개 shape는 유지하고 LRU 및 response `expiresAt`의 CSRF 만료 의미를 명시했다. V005는 두 table 추가이며 V001~V004를 변경하지 않는다. absolute P90D·CSRF PT2H·touch PT1M은 제안값이다.
 - PM-017의 서버 만료/LRU/GC 경계는 구현했다. cookie 유실 안내와 401 뒤 mutation 재실행 금지는 FE 화면 검수로 넘긴다. staging·상대 재현 확인 전 `verified`나 이슈 완료로 쓰지 않는다.
+- **LRU는 PM-017의 우려를 없앤 것이 아니라 옮긴 것이다.** PM-017은 "6번째 탭이 막힐 수 있다"를 걱정했는데, `JdbcSessionStore.issue`가 `OFFSET 4`로 회수하므로 6번째는 **막히지 않는다** — 대신 가장 오래 쓰지 않은 탭의 token이 무효화되고, 그 탭의 다음 mutation이 CSRF 실패로 돌아온다. 상한 5는 그대로다. 이것은 오너가 확정한 동작(`last_used_at` 기준 LRU 회수)이고 `SessionSafetyIT.lru`가 고정하지만, **사용자에게 보이는 결과가 사라진 것은 아니므로** 그 탭이 무엇을 보게 되는지는 여전히 FE 화면 몫이다. "해결됨"으로 적지 않는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-017.
 
@@ -693,6 +695,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-010, PM-013, PM-014의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: provider 발표 시각이 없으면 observedAt=null이고 fetchedAt과 구분한다. 서로 다른 POI의 상대 집중률·AREA와 PLACE·ordinal 단계를 공통 숫자로 환산하지 않는다.
+
+실호출로 확정한 것(#109 남은 절반): `tatsCnctrRatedList`의 지역 코드 체계는 **`areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리**다. `11`+`110`이 `resultCode 0000`·`totalCount 0`이던 것은 형식 오류가 아니라 `signguCd`가 5자리여야 했기 때문이고, `11`+`11110`은 한 장소에 30건을 돌려준다. 측정 표와 item field 집합은 [source catalog](../data/SOURCE_CATALOG.md)에 있다. `KtoForecastRequest.signguRequestCode()`가 만드는 값이 바로 그것이며, 그 javadoc은 이제 추론이 아니라 측정을 인용한다.
+
+**PM-013의 전제가 같은 측정으로 확정된다.** `baseYmd`는 `yyyyMMdd` **일 단위**이고 조회일부터 30건이며, `cnctrRate`는 문자열로 오는 상대 수치다. 즉 시간대별 예보를 만들 source가 아니고, 서울 4단계·공통 5단계로 환산할 근거도 없다 — PM-013이 금지한 그대로다. 단위·정규화·target granularity·timezone·coverage를 계약과 ERD에 연결하는 것은 이 카드의 몫이고, `selectorMode`의 응답 위치만 FE 합의가 남는다.
+
+**실호출이 코드 결함을 하나 드러냈다.** validator가 예보 창의 하한을 `fetchedAt`의 Seoul 날짜로 잡았는데, provider는 **그 전날부터** 30건을 준다(batch 생성일 기준). 즉 파라미터가 맞아도 **실응답은 첫 행에서 `RANGE`로 전체 거절**됐다. fixture는 모두 합성이라 초록이었고, 실응답이 이 validator에 도달한 적이 한 번도 없어 아무도 몰랐다. 하한을 하루만 넓혔다 — 이틀 전은 stale batch이거나 misparse라 여전히 거절한다. `KtoForecastResponseValidatorTest`의 두 case가 양쪽을 고정한다.
+
+**측정과 증거의 층위를 섞지 않는다.** 위 표는 **실제 HTTP 성공 호출**이고 파라미터 계약을 확정한다. 반면 **승인된 harness(`actualKtoSmoke`)로 `api_ingest_logs`·`collector_runs`·snapshot row까지 남긴 forecast 성공 실행은 아직 없다** — 마지막 harness 실행은 HTTP 호출 전에 `areaCode is not a KTO area identifier`로 실패했고, `.env.local`에 `KTO_FORECAST_BASE_URL`이 없어 forecast endpoint 설정이 비어 있으며 `NULLNULL_KTO_SMOKE_CONTENT_ID`도 필요하다. 셋 중 어느 것도 BA-021-T3의 **staging** 공개 증거를 대신하지 않는다.
 
 필수 검증:
 

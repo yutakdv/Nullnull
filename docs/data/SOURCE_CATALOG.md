@@ -72,7 +72,19 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 
 - exact base는 `https://apis.data.go.kr/B551011/KorService2`, operation은 `GET /detailCommon2`뿐이다. runtime에는 공공데이터포털 **decoding key**를 `KTO_SERVICE_KEY`로 주입하며 key·full URL/query는 log, audit, artifact, browser에 남기지 않는다.
 - 2026-09-10 현재 request는 이미 검증된 숫자 `contentId`와 baseline `MobileOS=ETC`, `MobileApp=Nullnull`, `_type=json`만 사용한다.
-- **2026-09-11 실제 호출 실측:** `detailCommon2` 응답에서 `areacode`·`sigungucode`·`cat1`·`cat2`·`cat3`은 빈 문자열이고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1`·`lclsSystm2`·`lclsSystm3`에 있다. registry revision 4(`kto-kor-service2-detailcommon2-v3`)부터 validator가 실제로 값이 있는 쪽을 읽는다. 두 코드 체계를 섞지 않으므로 revision 3 이하로 수집된 snapshot은 수집 당시의 의미를 유지한다. retired 식별자만 담긴 응답은 remap하지 않고 `SCHEMA_DRIFT`로 quarantine한다. `tatsCnctrRatedList`는 `areaCd`가 필수(`resultCode 11 NO_MANDATORY_REQUEST_PARAMETERS_ERROR1`)이고, 법정동 `11/110`과 legacy `1/1` 모두 `resultCode 0000`·`totalCount 0`이라 코드 체계를 아직 확정할 수 없다. 공식 활용가이드로 고정하기 전까지 어느 쪽도 정본으로 적지 않는다(#109). current `detailCommon2`는 `contentTypeId`와 legacy detail flag(`defaultYN`, `firstImageYN`, `areacodeYN`, `catcodeYN`, `addrinfoYN`, `mapinfoYN`, `overviewYN`)를 보내지 않는다. 후보에서 보유한 content type은 response의 normalized `contenttypeid`와 대조할 뿐 request parameter가 아니다.
+- **2026-09-11 실제 호출 실측:** `detailCommon2` 응답에서 `areacode`·`sigungucode`·`cat1`·`cat2`·`cat3`은 빈 문자열이고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1`·`lclsSystm2`·`lclsSystm3`에 있다. registry revision 4(`kto-kor-service2-detailcommon2-v3`)부터 validator가 실제로 값이 있는 쪽을 읽는다. 두 코드 체계를 섞지 않으므로 revision 3 이하로 수집된 snapshot은 수집 당시의 의미를 유지한다. retired 식별자만 담긴 응답은 remap하지 않고 `SCHEMA_DRIFT`로 quarantine한다. `tatsCnctrRatedList`는 `areaCd`가 필수(`resultCode 11 NO_MANDATORY_REQUEST_PARAMETERS_ERROR1`)이고, **코드 체계는 실호출로 확정됐다(#109)**: `areaCd`는 시도 2자리, `signguCd`는 **시도+시군구 5자리 법정동 접두사**다. 측정한 조합과 결과는 아래와 같으며, 값이 아니라 `resultCode`·`totalCount`·item field 이름만 기록한다.
+
+| `areaCd` | `signguCd` | `tAtsNm` | `resultCode` | `totalCount` |
+| --- | --- | --- | --- | --- |
+| `11` | `110` | 있음 | `0000` | **0** |
+| `11` | `11110` | 있음 | `0000` | **30** |
+| `11110` | `11110` | 있음 | `0000` | 0 |
+| `1111000000` | `1111000000` | 있음 | `0000` | 0 |
+| `11` | `11110` | 생략 | `0000` | **3390** |
+| `11` | `110` | 생략 | `0000` | 0 |
+
+즉 `11`+`110`이 0건이던 것은 파라미터 형식 오류가 아니라 `signguCd`가 5자리여야 하기 때문이었고, `tAtsNm`은 **필터**라 생략하면 같은 시군구 전체가 돌아온다(30건 대 3390건). item은 `areaCd`·`areaNm`·`baseYmd`·`cnctrRate`·`signguCd`·`signguNm`·`tAtsNm`이고, `areaCd`/`signguCd`는 보낸 값을 그대로 echo하므로 validator가 보낸 값과 대조하는 것이 맞다. `baseYmd`는 `yyyyMMdd` 일 단위 30건인데 **조회일부터가 아니라 조회일 전날부터**다 — 02:00 KST 조회에서 `20260912..20261011`이 왔다. batch가 생성된 날짜로 키를 잡기 때문이고, 이 하루 차이가 validator의 하한을 조회일에 맞춰 두면 **실응답 전체가 `RANGE`로 거절되는** 원인이었다. `cnctrRate`는 **문자열**로 오고 실측 소수 자릿수는 1~2자리(허용 상한 4), 값은 0~100 안이다. 한 시군구 전체는 3390건이라 `MAX_RECORDS`(31)를 넘으므로 `tAtsNm`는 선택이 아니라 필수이며, 그 값은 **정확히 일치**해야 한다(보낸 `경복궁`이 그대로 echo됐다). provider가 `areaNm`(시도명)·`signguNm`(시군구명)을 함께 주지만 이는 forecast source의 값이므로 catalog의 `regionName`으로 그대로 쓰지 않는다 — source가 다르고 forecast coverage가 있는 장소만 덮는다. current `detailCommon2`는 `contentTypeId`와 legacy detail flag(`defaultYN`, `firstImageYN`, `areacodeYN`, `catcodeYN`, `addrinfoYN`, `mapinfoYN`, `overviewYN`)를 보내지 않는다. 후보에서 보유한 content type은 response의 normalized `contenttypeid`와 대조할 뿐 request parameter가 아니다.
+
 - response는 `resultCode=0000`, 하나의 matching item, bounded title/category/area/address, 함께 존재하는 지리 좌표와 지구 범위를 통과해야 한다. 정상 projection은 source registry revision·collector run·hash·fetched/stale 시각만 포함한 immutable snapshot이다.
 - `nullnull.env=test`의 loopback fixture만 official base 검사를 예외로 할 수 있다. 실제 staging success → collector audit → C3 public provenance projection은 BA-021-T3의 별도 release gate이며, 현재 fixture 결과로 대체할 수 없다.
 

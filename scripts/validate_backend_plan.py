@@ -280,6 +280,47 @@ def validate_canvas(root: Path, data: dict, problems: list[str]) -> None:
             problems.append(f'Canvas {ident}: invalid side')
 
 
+REGISTRY_HEADER = '| ID | Pri | 현재 Figma 증거 | 목표 상태 | 소유/검토 | 상태 |'
+
+
+def check_fcr_registry(text: str, problems: list[str]) -> None:
+    """Every registry row must actually carry a status, in the table that declares one.
+
+    What was checked before is a PROSE bullet near the top of the document ("- 상태: Open — ...").
+    That line would survive every row's status being emptied or replaced, so the registry's own
+    column was unguarded: the check confirmed a sentence about the table rather than the table.
+
+    This does not fix the status VOCABULARY - the column holds 20+ distinct freeform values and
+    settling them is a joint FE/BE decision (PM-021). It fixes the part that needs no vocabulary:
+    the table exists in the shape the document promises, and no row loses its status.
+    """
+    if REGISTRY_HEADER not in text:
+        problems.append('FIGMA_CHANGE_REQUESTS.md: the FCR registry table header is missing or changed; '
+                        'the status column can no longer be located')
+        return
+    lines = text.splitlines()
+    start = lines.index(REGISTRY_HEADER)
+    rows = 0
+    for line in lines[start + 1:]:
+        if not line.startswith('|'):
+            break
+        if re.fullmatch(r'\|[\s|:-]+\|', line):
+            continue
+        row = re.match(r'^\|\s*(FCR-\d{3})\s*\|(.*)\|\s*$', line)
+        if row is None:
+            continue
+        rows += 1
+        cells = [cell.strip() for cell in row.group(2).split('|')]
+        if len(cells) != 5:
+            problems.append(f'FIGMA_CHANGE_REQUESTS.md: {row.group(1)} has {len(cells) + 1} columns, '
+                            'expected 6')
+        elif not cells[-1]:
+            problems.append(f'FIGMA_CHANGE_REQUESTS.md: {row.group(1)} has an empty status cell; '
+                            'a change request without a status is neither open nor closed')
+    if rows == 0:
+        problems.append('FIGMA_CHANGE_REQUESTS.md: the FCR registry table has no rows')
+
+
 def has_calendar_estimate(text: str) -> bool:
     # Citation paths may contain dates; visible labels still must avoid calendar estimates.
     visible = re.sub(r'(\[[^\]\n]*\])\([^\)\n]*\)', r'\1', text)
@@ -326,6 +367,7 @@ def validate(root: Path, problems: list[str]) -> None:
     paths += sorted(root.glob('apps/*/CLAUDE.md'))
     fcr_text = (root/'docs/design/FIGMA_CHANGE_REQUESTS.md').read_text()
     fcr_ids = set(re.findall(r'^\| (FCR-\d+) \|', fcr_text, re.M))
+    check_fcr_registry(fcr_text, problems)
     for path in paths:
         text = path.read_text(encoding='utf-8')
         label = str(path.relative_to(root))
