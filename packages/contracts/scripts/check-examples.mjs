@@ -36,6 +36,27 @@ const FIXTURE_OF = {
   candidateCreated: 'candidates/save-result-created.json',
   alreadySaved: 'posts/saved-post-state-duplicate.json',
   newlySaved: 'posts/saved-post-state.json',
+  created: 'session/session-bootstrap.json',
+  resumed: 'session/session-bootstrap.json',
+  newTabToken: 'session/csrf-token.json',
+  anonymous: 'session/owner-profile-anonymous.json',
+  accepted: 'session/deletion-receipt.json',
+  running: 'session/deletion-status.json',
+  completed: 'session/deletion-status-completed.json',
+  partialFailed: 'session/deletion-status-partial-failed.json',
+  failed: 'session/deletion-status-failed.json',
+  results: 'places/search-page.json',
+  noResults: 'places/search-page-empty.json',
+  alternatives: 'places/related-page.json',
+  noAlternatives: 'places/related-none.json',
+  checking: 'places/related-checking.json',
+  history: 'optimizations/history-page.json',
+  noHistory: 'optimizations/history-page-empty.json',
+  matchExact: 'candidates/match-exact.json',
+  matchSimilar: 'candidates/match-similar.json',
+  matchNone: 'candidates/match-none.json',
+  matchUnknown: 'candidates/match-unknown.json',
+  matchChecking: 'candidates/match-checking.json',
 };
 
 const ajv = new Ajv2020({ strict: false, allErrors: true, logger: false });
@@ -43,6 +64,7 @@ addFormats(ajv);
 ajv.addFormat('int64', true);
 
 const errors = [];
+const pinnedSites = new Map();
 let checked = 0;
 let pinned = 0;
 
@@ -91,8 +113,21 @@ function* exampleSites(api) {
           errors.push(`${where}: does not satisfy its schema (${first?.instancePath || '/'} ${first?.message})`);
         }
 
+        // FIXTURE_OF is keyed by example name alone, so the same name at two sites would pin
+        // both to one fixture and quietly assert the wrong thing wherever the two happen to
+        // agree. getCandidateTripMatches and listRelatedPlaces both wanted to call an example
+        // "checking"; that collision is why this exists.
+        const seenAt = pinnedSites.get(name);
+        if (seenAt && seenAt !== label) {
+          errors.push(
+            `examples.${name} is pinned but used at two sites (${seenAt} and ${label}); ` +
+              'give one of them its own name so each pins to its own fixture',
+          );
+        }
+
         const fixture = FIXTURE_OF[name];
         if (fixture) {
+          pinnedSites.set(name, label);
           pinned += 1;
           const onDisk = JSON.parse(
             readFileSync(resolve(ROOT, 'packages/contracts/fixtures', fixture), 'utf8'),
@@ -103,6 +138,14 @@ function* exampleSites(api) {
         }
       }
     }
+  }
+}
+
+// A FIXTURE_OF entry that matches no example is a pin that quietly stopped pinning - exactly how
+// an example could be renamed out from under its fixture and nobody notice.
+for (const name of Object.keys(FIXTURE_OF)) {
+  if (!pinnedSites.has(name)) {
+    errors.push(`FIXTURE_OF.${name} pins nothing: no example in the contract carries that name`);
   }
 }
 

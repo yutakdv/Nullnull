@@ -1,0 +1,9 @@
+{
+  "requestId": "018f4d00-1111-7222-8333-444455556666",
+  "status": "COMPLETED",
+  "requestedAt": "2026-09-10T00:00:00Z",
+  "updatedAt": "2026-09-10T00:00:12Z",
+  "completedAt": "2026-09-10T00:00:12Z",
+  "retryable": false,
+  "failureCode": null
+}

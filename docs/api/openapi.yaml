@@ -23,7 +23,13 @@ x-nullnull-contract-review:
 x-nullnull-common-contract:
   requestId: Every response, including errors and 204 responses, carries X-Request-ID.
   protectedErrors: Every session-protected operation may return 401 UNAUTHORIZED.
+  csrfErrors: Every state-changing operation may return 403 CSRF_INVALID; 403 FORBIDDEN is the
+    container-level refusal of an action this owner may not take.
   rateLimitErrors: Every operation may return 429 RATE_LIMITED with Retry-After.
+  bodyLimit: A request body over the configured limit is refused with 413 INVALID_REQUEST before
+    any of it is read, so the status arrives without the body having been parsed.
+  serverErrors: Any operation may return 500 INTERNAL_ERROR. The body carries requestId and never
+    a stack trace, SQL, external response, or secret.
   cache: Owner-scoped, search, import, deletion, and optimization responses are never CDN cached.
   bounds: Unknown object fields are rejected and application limits are revalidated server-side.
 x-nullnull-competition-contract:
@@ -129,6 +135,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SessionBootstrap"
+              examples:
+                resumed:
+                  summary: "The cookie already identified an owner, so nothing was created"
+                  description: |
+                    Identical to the 201 body. Bootstrap converges: repeating the call with a valid cookie
+                    returns the existing owner rather than making a second one, which is why this is not an
+                    error and why the shape must not differ.
+                  value:
+                    owner:
+                      id: "018f3f8e-9b67-7a21-8d31-31d315b93911"
+                      kind: "ANONYMOUS"
+                      locale: "ko-KR"
+                      timezone: "Asia/Seoul"
+                      onboardingCompleted: false
+                      activeTripId: null
+                    csrfToken: "cS8kZ2xhc3Nob3VzZS10b2tlbi1mb3ItdGVzdHMtb25seQ"
+                    expiresAt: "2026-09-08T12:00:00Z"
         "201":
           description: Anonymous session created
           headers:
@@ -146,6 +169,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SessionBootstrap"
+              examples:
+                created:
+                  summary: "A new anonymous owner and its first tab token"
+                  description: |
+                    The 200 body is deliberately the same shape: a caller cannot tell the two apart by reading
+                    the body, only by the status. `expiresAt` is the CSRF token's expiry, not the session's.
+                    The token decodes to the words "for-tests-only" - a literal placeholder, not a sample of
+                    what a real token looks like.
+                  value:
+                    owner:
+                      id: "018f3f8e-9b67-7a21-8d31-31d315b93911"
+                      kind: "ANONYMOUS"
+                      locale: "ko-KR"
+                      timezone: "Asia/Seoul"
+                      onboardingCompleted: false
+                      activeTripId: null
+                    csrfToken: "cS8kZ2xhc3Nob3VzZS10b2tlbi1mb3ItdGVzdHMtb25seQ"
+                    expiresAt: "2026-09-08T12:00:00Z"
         "409":
           $ref: "#/components/responses/Conflict"
         default:
@@ -175,6 +216,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CsrfTokenResponse"
+              examples:
+                newTabToken:
+                  summary: "One tab asking for its own token"
+                  description: |
+                    Tokens are per tab and independently valid, so this does not invalidate the token another
+                    tab holds. `expiresAt` belongs to this token alone.
+                  value:
+                    csrfToken: "cS8kbmV3LXRhYi10b2tlbi1mb3ItdGVzdHMtb25seS0y"
+                    expiresAt: "2026-09-08T12:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "429":
@@ -234,6 +284,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DeletionReceipt"
+              examples:
+                accepted:
+                  summary: "Erasure accepted; the session is already revoked"
+                  description: |
+                    202 means accepted, not finished. `statusToken` is the only way to read the status
+                    afterwards and Frontend keeps it in memory only; it decodes to the words
+                    "test-deletion-status-token-for-tests-only".
+                  value:
+                    requestId: "018f4d00-1111-7222-8333-444455556666"
+                    status: "ACCEPTED"
+                    statusToken: "dGVzdC1kZWxldGlvbi1zdGF0dXMtdG9rZW4tZm9yLXRlc3RzLW9ubHktMDE"
+                    statusTokenExpiresAt: "2026-09-17T00:00:00Z"
+                    requestedAt: "2026-09-10T00:00:00Z"
+                    statusUrl: "/api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666"
         default:
           $ref: "#/components/responses/Problem"
   /deletion-requests/{deletionRequestId}:
@@ -273,6 +337,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DeletionRequestStatus"
+              examples:
+                running:
+                  summary: "Erasure in progress"
+                  description: |
+                    Not terminal: only COMPLETED and FAILED are. `completedAt` and `failureCode` arrive as
+                    explicit nulls rather than omitted, and `retryable` is false because it is true exactly
+                    while `status` is PARTIAL_FAILED.
+                  value:
+                    requestId: "018f4d00-1111-7222-8333-444455556666"
+                    status: "RUNNING"
+                    requestedAt: "2026-09-10T00:00:00Z"
+                    updatedAt: "2026-09-10T00:00:05Z"
+                    completedAt: null
+                    retryable: false
+                    failureCode: null
+                partialFailed:
+                  summary: "An attempt failed and the server still owes another"
+                  description: |
+                    NOT terminal, and not a prompt to resubmit. `retryable` is true exactly here, and it
+                    describes the SERVER retrying on its own; the request is already accepted and resubmitting
+                    is never required. `completedAt` stays null and Retry-After points at when the next attempt
+                    becomes due.
+                  value:
+                    requestId: "018f4d00-1111-7222-8333-444455556666"
+                    status: "PARTIAL_FAILED"
+                    requestedAt: "2026-09-10T00:00:00Z"
+                    updatedAt: "2026-09-10T00:00:09Z"
+                    completedAt: null
+                    retryable: true
+                    failureCode: "OWNER_DATA_ERASE_FAILED"
+                completed:
+                  summary: "Erasure finished"
+                  description: |
+                    Terminal. `failureCode` is cleared and `completedAt` is set, and no Retry-After accompanies
+                    this: another request would return exactly what the caller already holds.
+                  value:
+                    requestId: "018f4d00-1111-7222-8333-444455556666"
+                    status: "COMPLETED"
+                    requestedAt: "2026-09-10T00:00:00Z"
+                    updatedAt: "2026-09-10T00:00:12Z"
+                    completedAt: "2026-09-10T00:00:12Z"
+                    retryable: false
+                    failureCode: null
+                failed:
+                  summary: "Attempts are exhausted"
+                  description: |
+                    Terminal, and the reason this response carries `completedAt` even though nothing was
+                    completed: the field records when the job stopped, not that it succeeded. Read terminality
+                    from `status`, never from `completedAt` - the same body distinguishes FAILED from
+                    PARTIAL_FAILED by status alone.
+                  value:
+                    requestId: "018f4d00-1111-7222-8333-444455556666"
+                    status: "FAILED"
+                    requestedAt: "2026-09-10T00:00:00Z"
+                    updatedAt: "2026-09-10T00:00:31Z"
+                    completedAt: "2026-09-10T00:00:31Z"
+                    retryable: false
+                    failureCode: "OWNER_DATA_ERASE_FAILED"
         "404":
           $ref: "#/components/responses/NotFound"
         "410":
@@ -295,8 +417,8 @@ paths:
                     status: 410
                     code: "DELETION_STATUS_EXPIRED"
                     detail: "The deletion status is no longer available."
-                    instance: "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911"
-                    requestId: "01J8Z9K2Q4R6T8V0X2Z4B6D8F0"
+                    instance: "/api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666"
+                    requestId: "01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70"
                     retryable: false
         "429":
           $ref: "#/components/responses/RateLimited"
@@ -321,6 +443,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OwnerProfile"
+              examples:
+                anonymous:
+                  summary: "The P0 owner, anonymous and with no account"
+                  description: |
+                    `activeTripId` is null until a trip is created, and `onboardingCompleted` false is what a
+                    freshly bootstrapped owner carries.
+                  value:
+                    id: "018f3f8e-9b67-7a21-8d31-31d315b93911"
+                    kind: "ANONYMOUS"
+                    locale: "ko-KR"
+                    timezone: "Asia/Seoul"
+                    onboardingCompleted: false
+                    activeTripId: null
         "401":
           $ref: "#/components/responses/Unauthorized"
     patch:
@@ -811,6 +946,77 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlaceSearchPage"
+              examples:
+                results:
+                  summary: "A page of matches"
+                  description: |
+                    `categoryName` and `regionName` are null: the server returns null for both until a reviewed
+                    code-to-label mapping exists, and `categoryCode`/`regionCode` are opaque provider-derived
+                    machine values that must not be rendered. This value is schema-shaped, not a captured server response: it is pinned to the fixture
+                    Frontend mocks against so the two cannot drift, and packages/contracts/fixtures/manifest.json
+                    records which sets are server-verified.
+                  value:
+                    items:
+                      - id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                        name: "경복궁"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        address: "서울 종로구 사직로 161"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      - id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02"
+                        name: "명동"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        address: "서울 중구 명동길"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      - id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03"
+                        name: "북촌한옥마을"
+                        categoryCode: "HS"
+                        regionCode: "11"
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        address: "서울 종로구 계동길"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                    page:
+                      nextCursor: null
+                      hasMore: false
+                noResults:
+                  summary: "A query that matched nothing"
+                  description: |
+                    An empty page, not a 404: the search ran and its answer is zero rows.
+                  value:
+                    items: []
+                    page:
+                      nextCursor: null
+                      hasMore: false
         "400":
           $ref: "#/components/responses/BadRequest"
         default:
@@ -935,6 +1141,141 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RelatedPlaceResult"
+              examples:
+                alternatives:
+                  summary: "Alternatives found for a replace"
+                  description: |
+                    `crowd` is null on every row. CrowdMetric needs a full DataProvenance and the comparison
+                    rules read it, so a synthesised one would be exactly the fabricated evidence invariant 8
+                    exists to prevent. This value is schema-shaped, not a captured server response: it is pinned to the fixture
+                    Frontend mocks against so the two cannot drift, and packages/contracts/fixtures/manifest.json
+                    records which sets are server-verified.
+                  value:
+                    sourcePlaceId: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                    state: "SIMILAR"
+                    reason: null
+                    items:
+                      - place:
+                          id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b11"
+                          name: "연희동 카페거리"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          address: "서울 서대문구 연희로"
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        relation: "SIMILAR"
+                        relationReason: "같은 카페 분위기 · 음식 관심사와 맞아요"
+                        crowd: null
+                        provenance:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          sourceState: "FORECAST"
+                          observedAt: null
+                          targetAt: "2026-10-05T00:00:00Z"
+                          freshness: "FRESH"
+                          fetchedAt: "2026-09-11T05:35:00Z"
+                          staleAt: "2026-09-12T05:35:00Z"
+                          confidence: 0.72
+                          license: "이용허락범위 제한 없음"
+                          officialUrl: "https://www.data.go.kr/data/15128555/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          attribution: "출처: ⓒ한국관광공사"
+                          metricDefinition: "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측"
+                          normalizationVersion: "1.0.0"
+                          qualityFlags: []
+                          forecastIssueId: "2026-09-11"
+                          comparisonAxis: "TEMPORAL"
+                          comparisonEligible: true
+                          comparisonReasonCode: "SAME_METRIC_AND_ISSUE"
+                          comparisonGroupId: "KTO_CONCENTRATION_FORECAST"
+                          collectorRunId: "018f5a00-0000-7000-8000-000000000001"
+                          snapshotSetId: "018f5a00-0000-7000-8000-000000000002"
+                          observedAtSkewSeconds: 0
+                          scope: "PLACE"
+                          scopeLabel: "장소"
+                          mappingType: "DIRECT"
+                          fallbackUsed: false
+                          provenanceId: "018f5a00-0000-7000-8000-000000000003"
+                      - place:
+                          id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b12"
+                          name: "서울숲"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          address: "서울 성동구 뚝섬로"
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        relation: "EXACT"
+                        relationReason: "검수된 연관 장소"
+                        crowd: null
+                        provenance:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          sourceState: "FORECAST"
+                          observedAt: null
+                          targetAt: "2026-10-05T00:00:00Z"
+                          freshness: "FRESH"
+                          fetchedAt: "2026-09-11T05:35:00Z"
+                          staleAt: "2026-09-12T05:35:00Z"
+                          confidence: 0.72
+                          license: "이용허락범위 제한 없음"
+                          officialUrl: "https://www.data.go.kr/data/15128555/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          attribution: "출처: ⓒ한국관광공사"
+                          metricDefinition: "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측"
+                          normalizationVersion: "1.0.0"
+                          qualityFlags: []
+                          forecastIssueId: "2026-09-11"
+                          comparisonAxis: "TEMPORAL"
+                          comparisonEligible: true
+                          comparisonReasonCode: "SAME_METRIC_AND_ISSUE"
+                          comparisonGroupId: "KTO_CONCENTRATION_FORECAST"
+                          collectorRunId: "018f5a00-0000-7000-8000-000000000001"
+                          snapshotSetId: "018f5a00-0000-7000-8000-000000000002"
+                          observedAtSkewSeconds: 0
+                          scope: "PLACE"
+                          scopeLabel: "장소"
+                          mappingType: "DIRECT"
+                          fallbackUsed: false
+                          provenanceId: "018f5a00-0000-7000-8000-000000000003"
+                noAlternatives:
+                  summary: "The lookup finished and found nothing"
+                  description: |
+                    NONE is an answer. `items` is empty and `reason` is null because nothing failed.
+                  value:
+                    sourcePlaceId: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                    state: "NONE"
+                    reason: null
+                    items: []
+                checking:
+                  summary: "The lookup has not finished yet"
+                  description: |
+                    CHECKING is not an error and not an empty result: the client keeps the current schedule and
+                    shows progress rather than "no alternatives".
+                  value:
+                    sourcePlaceId: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                    state: "CHECKING"
+                    reason: null
+                    items: []
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1808,6 +2149,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CandidateMatchResult"
+              examples:
+                matchExact:
+                  summary: "The candidate already matches a scheduled item"
+                  description: |
+                    EXACT with slots offered. Matching does not schedule anything: SavedPost, TripCandidate and
+                    TripItem stay distinct resources (invariant 1) and this response changes no trip.
+                  value:
+                    candidateId: "018f4d40-1122-7a33-9b44-000000000002"
+                    state: "EXACT"
+                    slots:
+                      - date: "2026-10-05"
+                        suggestedTime: "14:00:00+09:00"
+                        eligible: true
+                        reasonCode: null
+                      - date: "2026-10-06"
+                        suggestedTime: null
+                        eligible: true
+                        reasonCode: null
+                      - date: "2026-10-04"
+                        suggestedTime: null
+                        eligible: false
+                        reasonCode: "TIME_CONFLICT"
+                matchSimilar:
+                  summary: "A near match rather than the same place"
+                  description: |
+                    SIMILAR must be shown as a near match, never silently treated as EXACT.
+                  value:
+                    candidateId: "018f4d40-1122-7a33-9b44-000000000001"
+                    state: "SIMILAR"
+                    slots:
+                      - date: "2026-10-06"
+                        suggestedTime: null
+                        eligible: true
+                        reasonCode: null
+                matchNone:
+                  summary: "No slot fits this candidate"
+                  description: |
+                    NONE with an empty `slots`: the answer is known and it is no.
+                  value:
+                    candidateId: "018f4d40-1122-7a33-9b44-000000000001"
+                    state: "NONE"
+                    slots: []
+                matchChecking:
+                  summary: "Matching has not finished"
+                  description: |
+                    CHECKING is distinct from NONE. An empty `slots` here means "not answered yet", so it must
+                    not be rendered as "no slot fits".
+                  value:
+                    candidateId: "018f4d40-1122-7a33-9b44-000000000001"
+                    state: "CHECKING"
+                    slots: []
+                matchUnknown:
+                  summary: "Matching could not be determined"
+                  description: |
+                    UNKNOWN is distinct from both NONE and CHECKING: the attempt finished without an answer, so
+                    polling will not resolve it on its own.
+                  value:
+                    candidateId: "018f4d40-1122-7a33-9b44-000000000001"
+                    state: "UNKNOWN"
+                    slots: []
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2119,6 +2520,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OptimizationHistoryPage"
+              examples:
+                history:
+                  summary: "Applied, kept and reverted runs"
+                  description: |
+                    The history carries status, time and a link to the target trip only. Schedule contents are
+                    deliberately not duplicated here or kept long-term for the sake of history. This value is schema-shaped, not a captured server response: it is pinned to the fixture
+                    Frontend mocks against so the two cannot drift, and packages/contracts/fixtures/manifest.json
+                    records which sets are server-verified.
+                  value:
+                    items:
+                      - runId: "018f4a20-9f11-7c08-b3d7-2e5a41c9b104"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        tripTitle: "서울 가을 여행"
+                        scope: "TRIP"
+                        status: "RUNNING"
+                        decision: null
+                        runLink: "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b104"
+                        queuedAt: "2026-10-02T04:00:00Z"
+                        decidedAt: null
+                      - runId: "018f4a20-9f11-7c08-b3d7-2e5a41c9b105"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        tripTitle: "서울 가을 여행"
+                        scope: "DAY"
+                        status: "READY"
+                        decision: null
+                        runLink: "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b105"
+                        queuedAt: "2026-10-02T03:20:00Z"
+                        decidedAt: null
+                      - runId: "018f4a20-9f11-7c08-b3d7-2e5a41c9b101"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        tripTitle: "서울 가을 여행"
+                        scope: "ITEM"
+                        status: "APPLIED"
+                        decision: "APPLY"
+                        runLink: "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b101"
+                        queuedAt: "2026-10-02T01:12:00Z"
+                        decidedAt: "2026-10-02T01:13:40Z"
+                      - runId: "018f4a20-9f11-7c08-b3d7-2e5a41c9b102"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        tripTitle: "서울 가을 여행"
+                        scope: "ITEM"
+                        status: "KEPT"
+                        decision: "KEEP"
+                        runLink: "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b102"
+                        queuedAt: "2026-10-01T02:40:00Z"
+                        decidedAt: "2026-10-01T02:41:10Z"
+                      - runId: "018f4a20-9f11-7c08-b3d7-2e5a41c9b103"
+                        tripId: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        tripTitle: "서울 가을 여행"
+                        scope: "ITEM"
+                        status: "REVERTED"
+                        decision: "REVERT"
+                        runLink: "/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4a20-9f11-7c08-b3d7-2e5a41c9b103"
+                        queuedAt: "2026-09-30T05:05:00Z"
+                        decidedAt: "2026-09-30T05:06:20Z"
+                    page:
+                      nextCursor: null
+                      hasMore: false
+                noHistory:
+                  summary: "An owner who has run no optimization"
+                  description: |
+                    An empty page, which is the state a new owner is in.
+                  value:
+                    items: []
+                    page:
+                      nextCursor: null
+                      hasMore: false
         "401":
           $ref: "#/components/responses/Unauthorized"
         "429":
@@ -2616,7 +3084,7 @@ components:
                 code: "NOT_FOUND"
                 detail: "The requested resource does not exist."
                 instance: "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911"
-                requestId: "01J8Z9K2Q4R6T8V0X2Z4B6D8F0"
+                requestId: "01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70"
                 retryable: false
     Conflict:
       description: Version, idempotency, or current-state conflict
