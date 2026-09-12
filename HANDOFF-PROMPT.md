@@ -425,9 +425,30 @@ ITEM 평가기가 요구하는 증거와 지금 그것을 댈 수 있는 곳:
 
 **그러므로 어떤 planningLevel에서도 ITEM 제안이 `ELIGIBLE`이 될 수 없다.** 지금 증상이 없는 이유는 단 하나 — **recommendation slice에 호출자가 없어서**(위 호출자 추적) 아무도 `ItemProposeRequest`를 만들지 않기 때문이다. BA-051이 배선되는 날 전부 UNKNOWN으로 나온다.
 
+**같은 질문을 ITEM 평가기의 관문 전부에 돌렸다.** 영업시간만 그런 게 아니었다.
+
+| 관문 | production 입력 출처 | 판정 |
+| --- | --- | --- |
+| `within_trip_range` | `trips.start_date`/`end_date` | 있음 |
+| `lock_checks` | `trip_constraints`(BA-031) | 있음 |
+| `same_place`·`not_unchanged` | 내부 비교 | 해당 없음 |
+| **`opening_hours`** | **없음** | **무조건 UNKNOWN** |
+| `neighbour_overlap` | `trip_items.duration_minutes` — nullable, **사용자 입력** | 사용자가 넣어야만 |
+| **`route_evidence`** | **없음**(P0 route provider 부재) | leg이 바뀔 때만 UNKNOWN |
+
+**둘은 출처가 아예 없고 하나는 사용자에게 의존한다.** 그중 `opening_hours`만 **무조건** 걸린다 — `evaluator.py:222`가 `inp.opening_hours.get(day, UnknownHours())`로 **없으면 Unknown**을 넣고, 그 filter가 항상 chain에 있다. `route_evidence`는 그 날짜에 이웃이 있을 때만 발화하므로 여행의 첫 항목은 통과한다.
+
 **필요한 것은 추천 모델이 아니라 영업시간 source다.** KTO에는 `detailIntro2`의 `usetime`·`restdate`가 있지만 **새 operation이라 C2 승인이 필요하고, 그건 오너 결정이다**(새 external provider를 동료 승인으로 열지 않는다는 이 세션의 선). `SOURCE_CATALOG`의 승인 범위는 `detailCommon2` 하나뿐이다.
 
 **PM-014가 요구한 "최소 성공 사례"는 지금 만들 수 없다.** 만들려면 영업시간이 먼저 있어야 하고, 그전에 만든 어떤 사례도 사용자가 직접 duration을 넣은 것뿐이며 그래도 영업시간 UNKNOWN에서 멈춘다. **안전 조건을 낮춰서 사례를 만드는 것은 금지다** — 그게 PM-014가 경고한 바로 그 일이다.
+
+#### 부류 목록 갱신 — **성공 경로가 도달 불가능한 것**이 가장 위험하다
+
+2번은 *실패를 알리는 길*이 막힌 것이고, PM-014는 ***성공하는 길*이 막힌 것**이다. 후자가 더 위험하다 — 2번은 조용하지만 이건 **배선되는 날 전부 UNKNOWN으로 한꺼번에** 터지고, 그때는 이미 그 위에 화면이 얹혀 있다.
+
+탐지 질문이 또 다르다. 호출자 추적이 **코드를 거슬러 올랐다면** 이건 **데이터를 거슬러 오른다**: *"이 평가기가 `ELIGIBLE`을 내려면 어떤 입력이 필요한가. 그 입력을 만드는 production source가 있나."*
+
+**그리고 REC corpus가 이걸 잡지 못하는 이유가 구조적이다.** fixture가 `OpenWindow`를 **합성으로** 주므로 알고리즘은 증명되고 **그 입력이 실제로 생길 수 있는지는 증명되지 않는다.** 이 세션 내내 본 "fixture가 실응답을 덮는다"가 `apps/ai` 쪽에서 같은 모양으로 반복된 것이다 — 다만 여기서는 덮이는 것이 *provider 응답*이 아니라 **우리 자신의 hydration**이다.
 
 #### 네 번째: **실패한 뒤에도 동작해서 실패가 안 보이는 명령**(PM-022, 실측)
 

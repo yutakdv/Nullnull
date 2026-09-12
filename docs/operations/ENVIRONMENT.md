@@ -327,6 +327,8 @@ KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- .env.local
 KTO_SMOKE_SETTINGS KTO_FORECAST_BASE_URL <- absent
 ```
 
+  **`.env.local`을 shell로 내보내는 우회로를 쓸 때 주의.** 이 파일에는 의도적으로 **빈 값**이 여럿 있고(`APP_COOKIE_SECURE=` 등, `.env.example`의 규칙대로 사용자 값은 비워 둔다), `readDotenv`는 `if (!value.isEmpty())`로 **빈 값을 버린다** — 그래서 Spring 기본값이 살아난다. 그런데 `set -a; source .env.local`처럼 통째로 내보내면 **빈 문자열이 그대로 process 환경변수가 되어** 기본값을 누르고 `Invalid boolean value []`로 죽는다. 우회로는 `readDotenv`의 규칙을 재현해야 하며, 필요한 변수만 골라 넘기는 편이 안전하다.
+
   **이름과 출처만 찍고 값은 절대 찍지 않는다** — 이 목록에는 `KTO_SERVICE_KEY`와 `SPRING_DATASOURCE_PASSWORD`가 들어 있고, 값이 새면 진단이 제거하는 혼란보다 나쁘다. `KtoSmokeEnvironmentTest`가 그 부재를 변이로 고정한다.
 
   `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
