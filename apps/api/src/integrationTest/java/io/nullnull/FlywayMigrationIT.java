@@ -408,12 +408,25 @@ class FlywayMigrationIT {
                     VALUES (v_candidate, v_trip, v_place, 'ACTIVE', v_at, v_at);
                     INSERT INTO candidate_sources (id, candidate_id, source_type, post_id, created_at)
                     VALUES (gen_random_uuid(), v_candidate, 'POST', v_post, v_at);
+                    -- V017's analytics. Nothing joins to it, but the upgrade still has to run with a
+                    -- row present: V018 alters a CHECK, and a constraint change is exactly the kind
+                    -- that only fails on populated tables.
+                    INSERT INTO analytics_events (event_id, owner_id, session_id, name, occurred_at,
+                                                  received_at, route, locale, timezone, app_version,
+                                                  properties)
+                    -- A real event name and a real route template from
+                    -- docs/contracts/events.schema.json, so this row does not quietly record a
+                    -- vocabulary that does not exist. properties stays empty: the canonical schema is
+                    -- enforced by the ingest service, which a migration test deliberately bypasses.
+                    VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), NULL, 'trip_created',
+                            v_at, v_at, '/trip/:tripId', 'ko-KR', 'Asia/Seoul', '0.0.0-test',
+                            '{}'::jsonb);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         assertThat(tablesInUpgradeSchema())
-                .containsExactlyInAnyOrder("background_jobs", "owners", "idempotency_records",
+                .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
                         "deletion_tombstones", "source_registry", "source_registry_revisions",
                         "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",

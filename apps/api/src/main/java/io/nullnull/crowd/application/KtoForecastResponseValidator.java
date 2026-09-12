@@ -64,8 +64,18 @@ public final class KtoForecastResponseValidator {
         JsonNode body = envelope.path("body");
         int total = body.path("totalCount").asInt(-1);
         List<JsonNode> items = items(body.path("items").path("item"));
-        if (!body.isObject() || total < 0 || items == null || total != items.size() || total > MAX_RECORDS) {
+        if (!body.isObject() || total < 0 || items == null) {
             return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Math.max(0, total));
+        }
+        // Beyond this point the envelope is intact, so too many rows is not the provider changing
+        // shape. tAtsNm is a FILTER on this operation, not a key, and the request pins numOfRows=100
+        // (KtoKorServiceProperties.concentrationForecastUri): a canonical touristSiteName matching
+        // more than one site answers with more than one site's window, or with a page smaller than
+        // its own totalCount. Both mean our mapping did not identify a single place. Measured: one
+        // sigungu without tAtsNm returns 3390 rows against a 30-row window (#109). Still a rejection,
+        // because rows we cannot attribute must not become a snapshot - but recorded as ours.
+        if (total != items.size() || total > MAX_RECORDS) {
+            return rejected(ProviderResponseValidator.Outcome.MAPPING_UNCERTAIN, items.size());
         }
         if (items.isEmpty()) {
             return acceptedNoCoverage();
