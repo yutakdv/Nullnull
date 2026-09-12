@@ -255,7 +255,15 @@ export const handlers = [
   // exercised for real: a handler that ignored it would let a broken "load
   // more" pass by returning the same page forever.
   http.get(`${API_BASE}/feed`, ({ request }) => {
-    const cursor = new URL(request.url).searchParams.get('cursor');
+    const url = new URL(request.url);
+    const cursor = url.searchParams.get('cursor');
+    // `candidateState` describes the REQUEST, not the card: without a tripId
+    // every card is NO_TRIP_SELECTED, and with one none of them is. A page
+    // mixing the two is a document the server cannot produce (#156), so the
+    // mock answers from the fixture that matches the request it was given.
+    if (url.searchParams.get('tripId') === null) {
+      return HttpResponse.json(feedFixtures.pageNoTrip);
+    }
     if (cursor === null) return HttpResponse.json(feedFixtures.page);
     if (cursor === feedFixtures.page.page.nextCursor) {
       return HttpResponse.json(feedFixtures.pageTwo);
@@ -315,6 +323,15 @@ export const handlers = [
   }),
   http.delete(`${API_BASE}/trips/:tripId/candidates/:candidateId`, ({ params }) => {
     const candidates = currentCandidates();
+    const target = candidates.items.find((c) => c.id === String(params.candidateId));
+    // Only an ACTIVE candidate can be dismissed. BA-034's CandidateService
+    // throws LOCK_CONFLICT for a SCHEDULED one — "A scheduled candidate is
+    // removed through its trip item, not dismissed" — and a mock that
+    // accepted every id let the screen offer a button the server always
+    // refuses.
+    if (target && target.status !== 'ACTIVE') {
+      return problemResponse('LOCK_CONFLICT');
+    }
     // DISMISSED rather than deleted: the contract keeps the row so the place is
     // not re-suggested. The panel filters it out.
     candidateState = {

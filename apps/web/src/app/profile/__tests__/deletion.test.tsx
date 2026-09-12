@@ -176,6 +176,63 @@ describe('the screen shows the job, not the request', () => {
     expect(await screen.findByText(label)).toBeInTheDocument();
   });
 
+  it('keeps polling a PARTIAL_FAILED deletion, which the server is still working on', async () => {
+    // The contract is explicit in the schema: "COMPLETED and FAILED are the
+    // states a client may stop polling on. PARTIAL_FAILED is NOT one of them:
+    // it means an attempt failed while the server still has attempts left, so
+    // the server retries on its own and the status changes again without any
+    // client action."
+    //
+    // The screen treated it as terminal, so it stopped showing progress and
+    // offered a retry for work already in hand. The test beside this one only
+    // checked the label renders, which is true either way.
+    let polls = 0;
+    server.use(
+      http.get(`${API_BASE}/deletion-requests/:id`, () => {
+        polls += 1;
+        return HttpResponse.json({
+          ...sessionFixtures.deletionStatus,
+          status: 'PARTIAL_FAILED',
+          retryable: true,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderSection();
+    await requestDeletion(user);
+    await screen.findByText(copy['deletion.status.PARTIAL_FAILED']);
+
+    // It is progress, not a problem the user must act on.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: copy['deletion.retry'] })).toBeNull();
+
+    // And the poll continues: the interval is 3s, so this waits past one.
+    const before = polls;
+    await new Promise((resolve) => setTimeout(resolve, 3400));
+    expect(polls).toBeGreaterThan(before);
+  }, 10000);
+
+  it('stops polling once the deletion is COMPLETED', async () => {
+    // The other direction, so "keep polling" cannot become "poll for ever".
+    let polls = 0;
+    server.use(
+      http.get(`${API_BASE}/deletion-requests/:id`, () => {
+        polls += 1;
+        return HttpResponse.json({
+          ...sessionFixtures.deletionStatus,
+          status: 'COMPLETED',
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderSection();
+    await requestDeletion(user);
+    await screen.findByText(copy['deletion.status.COMPLETED']);
+    const settled = polls;
+    await new Promise((resolve) => setTimeout(resolve, 3400));
+    expect(polls).toBe(settled);
+  }, 10000);
+
   it('offers a retry only when the server says it is retryable', async () => {
     server.use(
       http.get(`${API_BASE}/deletion-requests/:id`, () =>

@@ -202,7 +202,7 @@ describe('a reservation blocks replacement outright', () => {
           locked: true as const,
           source: 'IMPORT' as const,
           date: '2026-10-05',
-          startTime: '19:00:00+09:00',
+          startTime: '19:00:00',
           endTime: null,
         },
       ],

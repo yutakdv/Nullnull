@@ -33,6 +33,47 @@ import styles from './OptimizationRunScreen.module.css';
 // arrived and stops. Rendering a preview from an empty proposals array would
 // mean inventing the comparison invariant 8 forbids.
 
+type OptimizationStatus = components['schemas']['OptimizationStatus'];
+
+/**
+ * What the live region says for each run status.
+ *
+ * All eight are named. An earlier version fell through to `run.ready` for
+ * anything that was not QUEUED, RUNNING, READY or a failure, which meant an
+ * APPLIED, KEPT, REVERTED or EXPIRED run announced "대안이 준비됐어요" — a
+ * finished decision presented as one still waiting to be made. Those rows are
+ * reachable: the profile's optimization history links straight to them, and
+ * the history fixture ships one of each.
+ *
+ * EXPIRED is a status, not a failure: OptimizationFailure's code enum has no
+ * EXPIRED member, so an expired run legitimately arrives with failure null and
+ * would otherwise have taken the fallback too.
+ */
+function statusMessage(status: OptimizationStatus, failed: boolean): MessageKey {
+  switch (status) {
+    case 'QUEUED':
+      return 'run.queued';
+    case 'RUNNING':
+      return 'run.running';
+    case 'READY':
+      return 'run.ready';
+    case 'APPLIED':
+      return 'run.applied';
+    case 'KEPT':
+      return 'run.kept';
+    case 'REVERTED':
+      return 'run.reverted';
+    case 'EXPIRED':
+      return 'run.expiredStatus';
+    case 'FAILED':
+      return 'run.failed';
+    default:
+      // The union is exhausted above; this keeps a server that adds a status
+      // from silently reading as one of the others.
+      return failed ? 'run.failed' : 'run.loading';
+  }
+}
+
 type OptimizationFailure = components['schemas']['OptimizationFailure'];
 
 /**
@@ -133,15 +174,7 @@ export function OptimizationRunScreen() {
       {/* One live region for the whole run, so a screen reader hears the
           state change instead of only the first state it landed on. */}
       <p aria-live="polite" className={styles.status} role="status">
-        {detail.status === 'QUEUED'
-          ? t('run.queued')
-          : detail.status === 'RUNNING'
-            ? t('run.running')
-            : detail.status === 'READY'
-              ? t('run.ready')
-              : failure
-                ? t('run.failed')
-                : t('run.ready')}
+        {t(statusMessage(detail.status, failure !== null))}
       </p>
 
       {working ? (

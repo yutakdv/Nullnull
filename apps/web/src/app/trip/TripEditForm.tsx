@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { useBlocker } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { isProblem, useUpdateTrip } from '../../shared/api/index.js';
+import { isProblem, useTrip, useUpdateTrip } from '../../shared/api/index.js';
 import { ConfirmDialog } from '../../shared/ui/components/index.js';
 import styles from './TripEditForm.module.css';
 import { formatDate } from './trip-view.js';
@@ -67,6 +68,9 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
   const [draft, setDraft] = useState<TripDraft>(() => draftFrom(trip));
   const [confirming, setConfirming] = useState(false);
   const [conflict, setConflict] = useState(false);
+  // Same query key as the screen's, so this is the one cached trip. The form
+  // needs it to refetch after a conflict rather than only to read.
+  const query = useTrip(trip.id);
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [saved, setSaved] = useState(false);
   const [datesUndone, setDatesUndone] = useState(false);
@@ -82,6 +86,16 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
   // Only for a shrink: widening the range strands nothing, and listing items
   // that sit outside a range the user is growing would be noise.
   const stranded = isShrink(draft, trip) ? outOfRangeItems(trip, draft) : [];
+
+  // Router navigation with unsaved work: the tab bar, a link, anything that
+  // changes the route. beforeunload below covers closing the tab and
+  // requestClose covers this form's own exit, but neither sees a react-router
+  // navigation — pressing 내 여행 or 내 정보 while editing left the screen and
+  // discarded the draft with no warning at all. Reproduced before this existed.
+  const blocker = useBlocker(dirty);
+  useEffect(() => {
+    if (blocker.state === 'blocked') setConfirming(true);
+  }, [blocker.state]);
 
   // Warns on a real browser close/refresh too, not just an in-app exit. The
   // browser owns this dialog; the in-app one below covers navigation.
@@ -343,9 +357,13 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
             <button
               className={styles.secondary}
               onClick={() => {
-                // Keep typing against the refreshed trip: the parent refetches
-                // and hands down a new ETag, so the next save can succeed.
+                // Keep typing against the refreshed trip. The refetch is done
+                // HERE: nothing else triggers one, so the comment that used to
+                // say "the parent refetches" described something no code did —
+                // the stale ETag stayed, and every later save failed the same
+                // way with the same message.
                 setConflict(false);
+                void query.refetch();
               }}
               type="button"
             >
@@ -387,9 +405,18 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
         destructive
         onCancel={() => {
           setConfirming(false);
+          // A blocked navigation has to be released, or the router stays
+          // blocked and the next press does nothing at all.
+          if (blocker.state === 'blocked') blocker.reset();
         }}
         onConfirm={() => {
           setConfirming(false);
+          if (blocker.state === 'blocked') {
+            // Let the navigation the user asked for through; the screen it
+            // leaves unmounts the form, so onClose would fight it.
+            blocker.proceed();
+            return;
+          }
           onClose();
         }}
         open={confirming}

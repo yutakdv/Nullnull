@@ -259,6 +259,37 @@ describe('FE-502-T2 the screen renders each of its states', () => {
     ).toBeInTheDocument();
   });
 
+  it('names every terminal status instead of calling them all ready', async () => {
+    // OptimizationStatus has eight values and the screen used to fall through
+    // to run.ready for anything that was not QUEUED, RUNNING, READY or a
+    // failure — so an APPLIED run announced "대안이 준비됐어요", a finished
+    // decision presented as one still waiting. The profile's history links
+    // straight to these rows and its fixture ships one of each.
+    for (const [status, key] of [
+      ['APPLIED', 'run.applied'],
+      ['KEPT', 'run.kept'],
+      ['REVERTED', 'run.reverted'],
+      ['EXPIRED', 'run.expiredStatus'],
+    ] as const) {
+      runIs(status);
+      const view = renderRun();
+      expect(await screen.findByText(copy[key])).toBeInTheDocument();
+      // The one word that must not appear: these runs are settled.
+      expect(screen.queryByText(copy['run.ready'])).toBeNull();
+      view.unmount();
+    }
+  });
+
+  it('does not offer a preview for a run that is already decided', async () => {
+    // run.readyPending explains that FE-503 has not built the preview yet.
+    // Showing it on an APPLIED run would promise a screen that is not coming
+    // for a decision already made.
+    runIs('APPLIED');
+    renderRun();
+    await screen.findByText(copy['run.applied']);
+    expect(screen.queryByText(copy['run.readyPending'])).toBeNull();
+  });
+
   it('does not claim a preview exists before FE-503 can show one', async () => {
     // proposals is empty until BA-051 computes them. A before/after built from
     // nothing would be the unsourced comparison invariant 8 forbids.

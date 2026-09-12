@@ -260,6 +260,9 @@ export const messages = {
     'mustVisit.noResults': '검색 결과가 없어요',
     'mustVisit.searchError': '검색하지 못했어요',
     'mustVisit.add': '담기',
+    // 검색 결과의 버튼은 전부 `담기`라 스크린리더로는 구분되지 않는다. 보이는
+    // 라벨은 그대로 두고 접근성 이름에만 장소를 넣는다.
+    'mustVisit.addNamed': '{place} 담기',
     'mustVisit.remove': '빼기',
     'mustVisit.next': '이대로 채우기',
     'mustVisit.skip': '건너뛰기',
@@ -347,6 +350,12 @@ export const messages = {
     'run.queued': '차례를 기다리고 있어요',
     'run.running': '계산하고 있어요',
     'run.ready': '대안이 준비됐어요',
+    // 종료 상태 4종. 전부 `run.ready`로 떨어지면 이미 적용한 최적화를 열었을 때
+    // 아직 결정할 게 남은 것처럼 보인다(프로필 이력에서 실제로 도달한다).
+    'run.applied': '이 대안을 적용했어요',
+    'run.kept': '현재 일정을 유지했어요',
+    'run.reverted': '적용을 되돌렸어요',
+    'run.expiredStatus': '제안이 만료됐어요',
     // BA-051이 제안을 만들기 전까지는 결과 본문을 보여줄 수 없다. 없는 수치를
     // 만들지 않는다(불변식 8).
     'run.readyPending': '결과 화면은 준비 중이에요',
@@ -385,6 +394,11 @@ export const messages = {
     'trip.lock.reservationNote': '예약에서 관리해요',
     'trip.lock.releasing': '해제하는 중이에요',
     'trip.lock.releaseFailed': '잠금을 해제하지 못했어요',
+    // 409 TRIP_CHANGED는 서버 오류가 아니라 다른 곳에서 일정이 바뀐 것이다.
+    // 같은 ETag로 다시 눌러도 똑같이 실패하므로, 최신 일정을 불러왔다는 사실과
+    // 다시 시도하면 된다는 것을 함께 말한다. 잠금 자체는 그대로다.
+    'trip.lock.conflict':
+      '다른 곳에서 일정이 바뀌었어요. 최신 내용을 불러왔으니 다시 시도해주세요',
     'trip.lock.cancel': '취소',
     'trip.lock.keeps': '{locks}은 그대로예요',
     'trip.lock.keepsNone': '이 일정에 남는 잠금은 없어요',
@@ -400,6 +414,19 @@ export const messages = {
 
     // S07-10 move sheet `521:3976` (FE-305). The frame fixes this wording.
     'trip.move.open': '{name} 날짜 옮기기',
+    // FR-ITM-05 일정에서 빼기. 계약의 disposition은 RESTORE_CANDIDATE가 UI
+    // 기본이고("Restore as a candidate by default in the UI") REMOVE는 완전
+    // 삭제다. 둘은 다른 자원으로 가므로(불변식 1) 사용자가 고른다.
+    'trip.remove.open': '{name} 일정에서 빼기',
+    'trip.remove.title': '일정에서 뺄까요?',
+    'trip.remove.body':
+      '{name}을(를) 이 날짜에서 뺍니다. 나중에 다시 담을 수 있게 후보로 남겨둘까요?',
+    'trip.remove.keepCandidate': '후보로 남기기',
+    'trip.remove.discard': '완전히 빼기',
+    'trip.remove.cancel': '취소',
+    'trip.remove.keptAsCandidate': '{name}을(를) 후보로 남겼어요',
+    'trip.remove.removed': '{name}을(를) 일정에서 뺐어요',
+    'trip.remove.failed': '빼지 못했어요',
     'trip.move.title': '어느 날로 옮길까요?',
     'trip.move.cancel': '취소',
     'trip.move.now': '지금 {day} · {date}',
@@ -543,6 +570,10 @@ export const messages = {
     'candidates.remove': '담아둔 장소에서 제거',
     'candidates.removeNamed': '{name} 담아둔 장소에서 제거',
     'candidates.removeFailed': '제거하지 못했어요',
+    // 서버는 일정에 올라간 후보의 dismiss를 409로 거절한다("A scheduled
+    // candidate is removed through its trip item, not dismissed"). 일반 실패로
+    // 보여주면 다시 눌러도 똑같이 실패하므로, 어디서 빼야 하는지 말한다.
+    'candidates.removeScheduled': '이미 일정에 올라간 곳이에요. 일정에서 빼주세요',
     'wizard.interests.later': '나중에 고를래요',
     'wizard.planning.title1': '어디까지',
     'wizard.planning.title2': '정하셨나요?',
@@ -828,6 +859,7 @@ export const messages = {
     'mustVisit.noResults': 'No matches',
     'mustVisit.searchError': "We couldn't search",
     'mustVisit.add': 'Keep',
+    'mustVisit.addNamed': 'Keep {place}',
     'mustVisit.remove': 'Remove',
     'mustVisit.next': 'Fill the rest',
     'mustVisit.skip': 'Skip',
@@ -907,6 +939,10 @@ export const messages = {
     'run.queued': 'Waiting its turn',
     'run.running': 'Working on it',
     'run.ready': 'Your alternatives are ready',
+    'run.applied': 'You applied this alternative',
+    'run.kept': 'You kept your current plan',
+    'run.reverted': 'You undid this change',
+    'run.expiredStatus': 'This suggestion expired',
     'run.readyPending': 'The result screen is still being built',
     'run.loading': 'Loading',
     'run.error': "We couldn't load the status",
@@ -935,6 +971,7 @@ export const messages = {
     'trip.lock.reservationNote': 'Managed by the reservation',
     'trip.lock.releasing': 'Releasing',
     'trip.lock.releaseFailed': "We couldn't release that lock",
+    'trip.lock.conflict': 'This trip changed somewhere else. We reloaded it — try again',
     'trip.lock.cancel': 'Cancel',
     'trip.lock.keeps': '{locks} stay as they are',
     'trip.lock.keepsNone': 'No other lock remains on this stop',
@@ -948,6 +985,16 @@ export const messages = {
     'trip.lock.date.confirm': 'Release',
 
     'trip.move.open': 'Move {name} to another day',
+    'trip.remove.open': 'Remove {name} from the itinerary',
+    'trip.remove.title': 'Remove from the itinerary?',
+    'trip.remove.body':
+      'This takes {name} off this day. Keep it as a saved place so you can add it again?',
+    'trip.remove.keepCandidate': 'Keep as a saved place',
+    'trip.remove.discard': 'Remove completely',
+    'trip.remove.cancel': 'Cancel',
+    'trip.remove.keptAsCandidate': '{name} is back in your saved places',
+    'trip.remove.removed': '{name} is off the itinerary',
+    'trip.remove.failed': "We couldn't remove it",
     'trip.move.title': 'Which day should it move to?',
     'trip.move.cancel': 'Cancel',
     'trip.move.now': 'Now {day} · {date}',
@@ -1071,6 +1118,8 @@ export const messages = {
     'candidates.remove': 'Remove from saved',
     'candidates.removeNamed': 'Remove {name} from saved',
     'candidates.removeFailed': "We couldn't remove it",
+    'candidates.removeScheduled':
+      'This place is already on your itinerary. Remove it from there',
     'wizard.interests.later': "I'll choose later",
     'wizard.planning.title1': 'How much have you',
     'wizard.planning.title2': 'planned already?',

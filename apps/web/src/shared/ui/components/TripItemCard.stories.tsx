@@ -27,7 +27,7 @@ const base = {
   },
   date: '2026-10-04',
   position: 0,
-  startTime: '09:30',
+  startTime: '09:30:00',
   constraints: [],
 } as unknown as TripItem;
 

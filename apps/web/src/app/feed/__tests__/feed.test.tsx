@@ -19,7 +19,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { feedFixtures, tripFixtures } from '@nullnull/contracts';
+import { candidateFixtures, feedFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -250,6 +250,67 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
     expect(served).toBeGreaterThan(0);
   });
 
+  it('gives up rather than looping when the reset also expires', async () => {
+    // The guard against re-entering the reset is a latch released in a
+    // .finally(), and the effect's deps include the query object, which is new
+    // on every render. If the reset refetch ALSO answers CURSOR_EXPIRED the
+    // latch is already open when the effect re-runs, so it fires again — a
+    // request per render, against a code the contract marks retry: 'none'
+    // (problem-policy.ts:103-108).
+    let feedCalls = 0;
+    server.use(
+      http.get(`${API_BASE}/feed`, () => {
+        feedCalls += 1;
+        return problemResponse('CURSOR_EXPIRED');
+      }),
+    );
+    renderFeed();
+    await screen.findByText(copy['feed.cursorExpired']);
+    const settled = feedCalls;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    // A couple of attempts is recovery; a climbing count is a loop.
+    expect(feedCalls).toBe(settled);
+    expect(feedCalls).toBeLessThanOrEqual(3);
+  });
+
+  it('recovers again when a later cursor expires in the same session', async () => {
+    // The mark that stops the loop has to clear once a page loads, or the
+    // first expiry in a session is the only one ever recovered from and every
+    // later one leaves the user on a dead 더 보기.
+    let expireNext = true;
+    const served: string[] = [];
+    server.use(
+      http.get(`${API_BASE}/feed`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (cursor !== null && expireNext) {
+          expireNext = false;
+          return problemResponse('CURSOR_EXPIRED');
+        }
+        served.push(cursor ?? 'first');
+        return HttpResponse.json(
+          cursor === null ? feedFixtures.page : feedFixtures.pageTwo,
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+
+    // First expiry: recovered, page one served again.
+    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    await screen.findByText(copy['feed.cursorExpired']);
+    await waitFor(() => {
+      expect(served.filter((c) => c === 'first').length).toBeGreaterThan(1);
+    });
+
+    // A second expiry later in the same session must recover too.
+    expireNext = true;
+    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    await waitFor(() => {
+      expect(served.filter((c) => c === 'first').length).toBeGreaterThan(2);
+    });
+  });
+
   it('does not show the load error while a cursor reset is still in flight', async () => {
     // The window this guards: the query is in its error state with a cursor
     // code, and the refetch has not resolved yet. Without the `expired` check
@@ -358,5 +419,211 @@ describe('FE-201-T3 keyboard and accessible names', () => {
     await waitFor(() => {
       expect(screen.getByText(copy['feed.loadingMore'])).toBeInTheDocument();
     });
+  });
+});
+
+describe('FE-203 the add button actually saves a candidate', () => {
+  // The card has taken an onAddCandidate prop since it was built, and the
+  // screen never passed one. Pressing 내 여행에 담기 sent nothing, changed
+  // nothing and said nothing — confirmed in a browser by wrapping fetch:
+  // zero requests, the aria-label unchanged. A screen-reader user heard a
+  // button that promised to add the place and had no way to learn it had not.
+  //
+  // Saving a candidate is not scheduling. It writes /trips/:id/candidates and
+  // creates no TripItem, so the itinerary's version cannot move (invariant 1
+  // and 2) — asserted at the wire below.
+  let posted: { path: string; body: unknown; key: string | null }[] = [];
+
+  /**
+   * The contract's own save results, not a hand-built one.
+   *
+   * These arrived with BA-032 and replace the object this test used to
+   * assemble from the candidate page: 201 for a new candidate, 200 with
+   * duplicate:true when it already existed. Both carry
+   * `tripScheduleChanged: false`, which is a `const` in the schema — invariant
+   * 2 written into the contract rather than asserted by this file's guess.
+   */
+  /**
+   * The add button on the card for `title`.
+   *
+   * Scoped to one card rather than queried across the document: more than one
+   * feed card is NOT_SAVED, so a bare name query matches several and the first
+   * match was only ever right by accident. Naming the card also makes each
+   * test say which place it pressed.
+   */
+  const addButtonOn = (title: string) => {
+    const card = screen.getByText(title).closest('article') as HTMLElement;
+    return within(card).getByRole('button', { name: copy['tripAdd.idle'] });
+  };
+
+  const saveResult = (duplicate: boolean) =>
+    duplicate
+      ? candidateFixtures.saveResultDuplicate
+      : candidateFixtures.saveResultCreated;
+
+  beforeEach(() => {
+    posted = [];
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request }) => {
+        posted.push({
+          path: new URL(request.url).pathname,
+          body: await request.json(),
+          key: request.headers.get('Idempotency-Key'),
+        });
+        return HttpResponse.json(saveResult(false), { status: 201 });
+      }),
+    );
+  });
+
+  it('sends the place the card is about', async () => {
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(addButtonOn(firstTitle));
+
+    await waitFor(() => {
+      expect(posted).toHaveLength(1);
+    });
+    const first = feedFixtures.page.items[0];
+    expect((posted[0]?.body as Record<string, unknown>).placeId).toBe(
+      first?.primaryPlace.id,
+    );
+    expect(posted[0]?.path).toBe(
+      `/api/v1/trips/${tripFixtures.page.items[0]?.id ?? ''}/candidates`,
+    );
+  });
+
+  it('creates no trip item and touches no itinerary', async () => {
+    const writes: string[] = [];
+    const record = ({ request }: { request: Request }) => {
+      if (request.method === 'GET') return;
+      const path = new URL(request.url).pathname;
+      if (path.startsWith('/api/v1/session') || path.startsWith('/api/v1/demo')) return;
+      writes.push(`${request.method} ${path}`);
+    };
+    server.events.on('request:start', record);
+    try {
+      const user = userEvent.setup();
+      renderFeed();
+      await screen.findByText(firstTitle);
+      await user.click(addButtonOn(firstTitle));
+      await waitFor(() => {
+        expect(posted).toHaveLength(1);
+      });
+      // Exactly one write, to the candidates resource. /items would be a
+      // TripItem, which invariant 2 says a candidate save must never create.
+      expect(writes).toHaveLength(1);
+      expect(writes[0]).toMatch(/\/candidates$/);
+      expect(writes.some((w) => w.includes('/items'))).toBe(false);
+    } finally {
+      server.events.removeListener('request:start', record);
+    }
+  });
+
+  it('carries an Idempotency-Key, and the same one on a retry', async () => {
+    // invariant 6. A fresh key per press would let the retry after a lost
+    // response save the place twice.
+    let attempt = 0;
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request }) => {
+        posted.push({
+          path: new URL(request.url).pathname,
+          body: await request.json(),
+          key: request.headers.get('Idempotency-Key'),
+        });
+        attempt += 1;
+        if (attempt === 1) return HttpResponse.error();
+        return HttpResponse.json(saveResult(false), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(addButtonOn(firstTitle));
+    await screen.findByRole('button', { name: copy['tripAdd.error'] });
+    await user.click(screen.getByRole('button', { name: copy['tripAdd.error'] }));
+
+    await waitFor(() => {
+      expect(posted).toHaveLength(2);
+    });
+    expect(posted[0]?.key).toBeTruthy();
+    expect(posted[0]?.key).toBe(posted[1]?.key);
+  });
+
+  it('says it worked, on the button the user pressed', async () => {
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    // Scoped to the card that was pressed: two other fixture cards are
+    // already saved, so a document-wide query matches them too and would pass
+    // without this card changing at all.
+    const card = screen.getByText(firstTitle).closest('article') as HTMLElement;
+    await user.click(within(card).getByRole('button', { name: copy['tripAdd.idle'] }));
+    expect(
+      await within(card).findByRole('button', { name: copy['tripAdd.saved'] }),
+    ).toBeInTheDocument();
+  });
+
+  it('distinguishes an already-saved place from a new one', async () => {
+    // The contract answers 200 with duplicate:true when the candidate already
+    // existed and 201 when it is new. Both mean saved, and the user is told
+    // which rather than being shown a plain success for a no-op.
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, () =>
+        HttpResponse.json(saveResult(true), { status: 200 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(addButtonOn(firstTitle));
+    expect(
+      await screen.findByRole('button', { name: copy['tripAdd.duplicate'] }),
+    ).toBeInTheDocument();
+  });
+
+  it('reports a failure instead of claiming the place was saved', async () => {
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, () =>
+        problemResponse('RATE_LIMITED'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(addButtonOn(firstTitle));
+    expect(
+      await screen.findByRole('button', { name: copy['tripAdd.error'] }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not send anything when no trip is selected', async () => {
+    // NO_TRIP_SELECTED has nowhere to save to, and it describes the request:
+    // with no tripId EVERY card carries it, which is why the fixture for that
+    // case is its own page (#156). The button says so and the press must not
+    // reach the server with a guessed trip id.
+    server.use(
+      http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.pageEmpty)),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(feedFixtures.pageNoTrip.items[0]?.post.title ?? '');
+    const [first] = screen.getAllByRole('button', { name: copy['tripAdd.no-trip'] });
+    await user.click(first as HTMLElement);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(posted).toHaveLength(0);
+  });
+
+  it('leaves a place already in the trip alone', async () => {
+    // SAVED_TO_SELECTED_TRIP and SCHEDULED_IN_SELECTED_TRIP are both already
+    // there; pressing again would be a duplicate request for no gain.
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    const saved = screen.getAllByRole('button', { name: copy['tripAdd.saved'] });
+    expect(saved.length).toBeGreaterThan(0);
+    await user.click(saved[0] as HTMLElement);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(posted).toHaveLength(0);
   });
 });
