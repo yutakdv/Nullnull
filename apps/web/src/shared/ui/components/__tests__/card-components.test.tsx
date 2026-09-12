@@ -77,7 +77,7 @@ describe('TripItemCard', () => {
     place,
     date: '2026-10-04',
     position: 0,
-    startTime: '09:30',
+    startTime: '09:30:00',
     constraints: [{ type: 'DATE' }, { type: 'MUST_VISIT' }],
   } as TripItem;
 

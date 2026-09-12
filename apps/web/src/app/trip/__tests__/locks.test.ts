@@ -29,7 +29,7 @@ const TIME: TripConstraint = {
   type: 'TIME',
   locked: true,
   source: 'USER',
-  startTime: '13:00:00+09:00',
+  startTime: '13:00:00',
   toleranceMinutes: 30,
 };
 const RESERVATION: TripConstraint = {
@@ -37,7 +37,7 @@ const RESERVATION: TripConstraint = {
   locked: true,
   source: 'IMPORT',
   date: '2026-10-05',
-  startTime: '19:00:00+09:00',
+  startTime: '19:00:00',
   endTime: null,
 };
 
@@ -148,8 +148,8 @@ describe('settableLocks offers only what this screen can actually send', () => {
   });
 
   it('offers TIME once the item has a time', () => {
-    expect(
-      settableLocks(item({ constraints: [], startTime: '09:30:00+09:00' })),
-    ).toContain('TIME');
+    expect(settableLocks(item({ constraints: [], startTime: '09:30:00' }))).toContain(
+      'TIME',
+    );
   });
 });
