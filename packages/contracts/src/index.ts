@@ -39,6 +39,7 @@ import feedPageEmpty from "../fixtures/feed/page-empty.json" with { type: "json"
 import postDetail from "../fixtures/posts/post-detail.json" with { type: "json" };
 import postDetailSaved from "../fixtures/posts/post-detail-saved.json" with { type: "json" };
 import savedPostState from "../fixtures/posts/saved-post-state.json" with { type: "json" };
+import savedPostStateDuplicate from "../fixtures/posts/saved-post-state-duplicate.json" with { type: "json" };
 import historyPage from "../fixtures/optimizations/history-page.json" with { type: "json" };
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
@@ -181,6 +182,10 @@ export const postFixtures = {
   detail: postDetail as components["schemas"]["PostDetail"],
   detailSaved: postDetailSaved as components["schemas"]["PostDetail"],
   savedState: savedPostState as components["schemas"]["SavedPostState"],
+  // savePost is idempotent: saving again returns duplicate: true with the ORIGINAL
+  // savedAt, so the timestamp never moves. Both responses mean "it is saved now".
+  savedStateDuplicate:
+    savedPostStateDuplicate as components["schemas"]["SavedPostState"],
 };
 
 export const optimizationFixtures = {

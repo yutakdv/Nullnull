@@ -24,6 +24,8 @@ const FIXTURE_OF = {
   scheduledTrip: 'trips/trip-detail-scheduled.json',
   updatedTrip: 'trips/trip-detail-scheduled.json',
   interestsReplaced: 'trips/trip-detail-interests.json',
+  alreadySaved: 'posts/saved-post-state-duplicate.json',
+  newlySaved: 'posts/saved-post-state.json',
 };
 
 const ajv = new Ajv2020({ strict: false, allErrors: true, logger: false });
