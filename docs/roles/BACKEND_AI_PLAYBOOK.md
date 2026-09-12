@@ -475,6 +475,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 202는 접수이고 완료가 아니다. status token은 domain 읽기 권한이 없다. 삭제 중 새 데이터 생성과 worker 완료 쓰기를 차단한다. `IdempotencyGuard`는 replay 시 저장된 projection을 그대로 돌려주고 아무것도 재생성하지 않는다. `DeletionReceipt.statusToken`처럼 저장하지 않는 required 필드는 caller가 receipt ID/expiry에서 다시 유도해 응답에 채워야 하며, 그러지 않으면 replay 응답이 schema를 위반한다(현재 동작은 `IdempotencyGuardIT.aProjectedReplayIsNotRehydratedByTheGuard`가 고정한다).
 
+PM-018 확인 결과: **요구한 예외 projection은 이미 구현돼 있고 검증돼 있다.** `idempotency_records.response_body`에 저장되는 것은 `Projection`(requestId·statusTokenExpiresAt·requestedAt·statusUrl)이고 token은 없다 — token은 projection을 읽어온 **뒤에** 결정적으로 재발행되며 DB에는 `status_token_hash`만 남는다. `DeletionIT`가 token 원문이 `response_body`에도 `background_jobs.payload_reference`에도 없음(`position(...) = 0`)과 hash가 32 byte임을 단언하고, `IdempotencyGuardIT`가 replay 본문에 `statusToken` 키 자체가 없음을 단언한다.
+
+**다만 PM-018이 함께 요구한 "log 원문 0"에는 단언이 없었다.** token은 header(`X-Deletion-Status-Token`)로 오므로 query 로깅 여부와 무관하고, `AccessLogFilter`의 javadoc이 "never a header"라고 적고 있었지만 그것을 고정하는 test가 없었다 — log 문에 필드가 하나 늘어도 아무것도 빨개지지 않았다. `AccessLogFilterTest`가 이제 cookie·CSRF·삭제 token·Authorization을 실은 요청을 흘려보내고 log 줄에 그 값이 없음과, 줄이 문서화된 다섯 필드뿐임을 단언한다. 변이(log 문에 header 추가)로 RED를 확인했다.
+
 필수 검증:
 
 - `BA-012-T1`: 응답 유실 뒤 같은 receipt만 재생하고 revoked cookie의 다른 API는 401이다
@@ -873,7 +877,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **남은 것은 그 게이트 하나다.** 네 operation은 전부 `main`에 있고 `candidateState`도 완성됐지만, feed가 실제로 응답을 내려면 catalog가 열려야 하고 그것은 BA-021-T3의 staging 호출 증거에 달려 있다. 선행 카드 [BA-022](#ba-022)가 같은 이유로 `in-progress`이므로 이 카드도 `integration-ready`로 올리지 않는다.
 
-PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSummary.sourceAttribution`으로 제안돼 FE 승인(#34)을 기다리지만, **`PostSummary.coverUrl`은 권리를 전달하지 않는다** — `posts.cover_url`이 단순 text column이고, 장소 media가 쓰는 `asset_licenses`·`media_assets` 연결이 없다. 지금 fixture의 cover는 전부 `cdn.example.test` placeholder라 잘못 표기된 실제 이미지는 없고, 큐레이션된 post에 실제 이미지가 들어오는 시점이 이 공백이 실제 문제가 되는 시점이다. 공개 shape 변경은 FE 검토가 필요하므로 제안을 내기 전에 여기 적어 둔다.
+PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSummary.sourceAttribution`으로 제안돼 FE 승인(#34)을 기다린다. post 쪽은 이렇다.
+
+- `PostDetail`에는 **이미 `coverAsset` 필드가 있고 항상 `null`이다**(`FeedController` 주석이 그 이유를 적고 있다: 검토된 media licence가 없다).
+- `PostSummary`에는 그 필드조차 없다. PM-010이 말하는 "list 응답에서 끊김"이 이것이다.
+
+**그런데 list에 필드를 더하는 것이 먼저가 아니다.** `posts.cover_url`은 단순 text column이고 `asset_licenses`·`media_assets`로 가는 연결이 없다 — 즉 detail에 이미 있는 필드도 채울 데이터가 없다. list에 같은 필드를 더하면 모든 행이 `null`인 shape가 하나 느는 것이고, 그건 "계약이 아무도 만들지 않는 것을 약속한다"는 오늘 여러 번 닫은 패턴이다.
+
+그래서 순서는 **(1) 큐레이션된 cover와 검토된 licence를 잇는 데이터 → (2) detail의 `coverAsset` 채우기 → (3) list 투영**이고, (3)의 화면 표시 방법은 `FCR-023`(`Open`)이 정한다. 지금 fixture의 cover는 전부 `cdn.example.test` placeholder라 잘못 표기된 실제 이미지는 없다. **BE 단독으로 끝낼 수 있는 항목이 아니다.**
 
 필수 검증:
 
