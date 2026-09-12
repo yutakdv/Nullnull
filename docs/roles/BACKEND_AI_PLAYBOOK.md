@@ -860,7 +860,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-034
 
-**여행 후보 저장·중복·dismiss** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**여행 후보 저장·중복·dismiss** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-030](#ba-030), [BA-032](#ba-032)
 - 기능 ID: `FR-CAN-01`, `FR-CAN-02`, `FR-CAN-03`, `FR-CAN-04`, `FR-CAN-05`, `FR-CAN-06`
@@ -876,6 +876,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-009의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: 후보는 날짜/시간 없이 저장하고 item 생성·trip version 증가가 없다. 다른 게시물의 같은 POI도 활성 후보 한 개로 수렴한다.
+
+착수 범위(`in-progress`가 뜻하는 것): `listTripCandidates`·`addTripCandidate`·`removeTripCandidate`가 `main`에 있다. 수렴은 partial unique `(trip_id, place_id) WHERE status <> 'DISMISSED'`가 **저장 계층에서** 보장하므로 동시 요청 넷 중 하나만 201이고 나머지는 200이다(서비스 계층의 "읽고 나서 쓰기"였다면 둘 다 통과했을 자리다). DISMISSED 재저장은 **새 row**이고 기존 dismissal은 사용자가 한 번 아니라고 한 기록으로 남는다. SCHEDULED 직접 해제는 409다 — 일정에서 빼는 것은 trip version을 움직여야 하는 변경이라 item 쪽 operation이 한다.
+
+**남은 것**: PM-009/FCR-022가 정할 item REMOVE·RESTORE_CANDIDATE 전이, 교체 전후 linkage, APPLY→REVERT의 복원 범위. 전부 BA-040/042/053 소유이고 이 카드가 정하지 않는다. `integration-ready`로 올리지 않는다.
 
 필수 검증:
 
