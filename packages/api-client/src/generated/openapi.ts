@@ -3002,6 +3002,7 @@ export interface operations {
             /** @description Trip deleted */
             204: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -3031,6 +3032,7 @@ export interface operations {
             /** @description Trip metadata/date range updated */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };

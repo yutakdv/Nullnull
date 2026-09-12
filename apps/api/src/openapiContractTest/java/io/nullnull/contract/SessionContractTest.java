@@ -41,7 +41,9 @@ class SessionContractTest {
             var op = method.getMethodAnnotation(NullnullOperation.class);
             if (op == null || !List.of(op.security()).contains(Security.SESSION)) { return; }
             boolean declaredSomewhere = false;
-            for (String code : List.of("200", "201", "202")) {
+            // 204 too: deleteTrip answers with no body and still sets the header, and a check
+            // that cannot see its status would report it as missing forever.
+            for (String code : List.of("200", "201", "202", "204")) {
                 try {
                     if (api.responseHeaders(op.id(), code).contains("Cache-Control")) { declaredSomewhere = true; }
                 } catch (IllegalArgumentException unknown) {

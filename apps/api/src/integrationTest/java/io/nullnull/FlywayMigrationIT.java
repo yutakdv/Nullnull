@@ -313,6 +313,7 @@ class FlywayMigrationIT {
                     v_asset uuid := gen_random_uuid();
                     v_set uuid := gen_random_uuid();
                     v_forecast_run uuid := gen_random_uuid();
+                    v_trip uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -366,6 +367,20 @@ class FlywayMigrationIT {
                             'KTO_RELATIVE_CONCENTRATION_INDEX', 42.5, 'relative-index', NULL, NULL,
                             '[]'::jsonb, 'upgrade-issue', 'upgrade-issue', 'upgrade-norm-v1', NULL,
                             'PLACE', 'upgrade place', 'DIRECT', false, v_at);
+                    -- V013's trip aggregate. The owner is created outside this block, so it is
+                    -- looked up rather than generated: trips.owner_id has a foreign key and the
+                    -- same-owner trigger on owners.active_trip_id reads it back.
+                    INSERT INTO trips (id, owner_id, title, start_date, end_date, timezone,
+                                       planning_level, status, version, created_at, updated_at)
+                    VALUES (v_trip, (SELECT id FROM owners LIMIT 1), '업그레이드 여행',
+                            v_at::date, (v_at + interval '3 days')::date, 'Asia/Seoul',
+                            'NOTHING', 'DRAFT', 1, v_at, v_at);
+                    INSERT INTO trip_interests (trip_id, interest_code, weight, created_at)
+                    VALUES (v_trip, 'upgrade-interest', 3, v_at);
+                    INSERT INTO trip_revisions (id, trip_id, version, snapshot_schema_version,
+                                                snapshot_hash, aggregate_snapshot, created_at)
+                    VALUES (gen_random_uuid(), v_trip, 1, 'trip-aggregate-v1', repeat('f', 64),
+                            '{}'::jsonb, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -376,7 +391,8 @@ class FlywayMigrationIT {
                         "deletion_tombstones", "source_registry", "source_registry_revisions",
                         "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
-                        "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots");
+                        "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
+                        "trips", "trip_interests", "trip_revisions");
         return key;
     }
 

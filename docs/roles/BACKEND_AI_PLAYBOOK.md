@@ -763,7 +763,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-031
 
-**여행 metadata·관심사·삭제** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**여행 metadata·관심사·삭제** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-030](#ba-030), [BA-012](#ba-012)
 - 기능 ID: `FR-PRO-05`, `FR-TRP-04`, `FR-TRP-05`
@@ -779,6 +779,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-002, PM-006의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: timezone 변경 시 local wall-clock 보존 규칙을 지킨다. 후보 저장과 달리 관심사·metadata 변경은 기존 preview를 stale로 만든다.
+
+착수 범위(`in-progress`가 뜻하는 것): `updateTrip`과 `deleteTrip`이 `main`에 있다. If-Match와 단일 version 증가, 기간 축소 시 범위 밖 item이나 DATE/RESERVATION 잠금이 있으면 422 전체 거절, timezone 변경 시 local date·wall-clock 보존, 삭제의 하위 cascade와 `active_trip_id` 정리까지다. **`replaceTripInterests`는 구현하지 않았다** — 관심사 code 어휘가 FCR-020 `Open`이라 무엇으로 교체를 검증할지가 없다. 위 4항이 금지한 "경계 확정"에 해당하므로 해결 전에는 구현하지 않는다. `integration-ready`로 올리지 않는다.
 
 필수 검증:
 
@@ -928,6 +930,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-002, PM-003, PM-005, PM-007, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: 예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다.
+
+**이미 고정된 것(BA-030/031이 넣음, 다시 정하지 않는다):** `trip_constraints` table과 그 typed check가 `V014__trip_items.sql`에 있다. 네 type의 필수/null 조합, `tolerance_minutes` 0..180, `(trip_item_id, type)` 유일성, `locked=true` row만 저장하고 해제는 row 삭제라는 표현까지 ERD §11 그대로다. domain 쪽은 `ItemLock`(네 type의 tagged shape)·`TripConstraint`(lock + `source`)·`ConstraintSource`이고, `createTrip`의 `seedItems[].constraints`로 쓰기와 `getTrip`의 `constraints`로 읽기가 동작한다. **이건 계약이 이미 고정한 모양을 이행한 것이지 설계 결정이 아니다** — `SetConstraintInput`·`TripConstraint`의 discriminator와 네 variant가 `openapi.yaml`에 있었다.
+
+**이 카드가 정할 것(위가 대신 정하지 않았다):** `setTripItemConstraint`·`removeTripItemConstraint`의 전이 규칙, path type과 body type의 일치 검증, 한 type의 변경이 다른 type을 건드리지 못한다는 독립성 검증, 수동 edit·교체·optimizer가 같은 validator를 재사용하는 구조, stale If-Match 거부. `TripScheduleRules`는 **기간 축소가 DATE/RESERVATION 잠금을 존중하는지**만 보고, 잠금을 설정·해제하는 의미는 전혀 다루지 않는다.
 
 필수 검증:
 

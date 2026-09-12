@@ -1635,6 +1635,10 @@ paths:
         "200":
           description: Trip metadata/date range updated
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               $ref: "#/components/headers/ETag"
           content:
@@ -1765,6 +1769,11 @@ paths:
       responses:
         "204":
           description: Trip deleted
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
         "409":
           $ref: "#/components/responses/Conflict"
         default:
