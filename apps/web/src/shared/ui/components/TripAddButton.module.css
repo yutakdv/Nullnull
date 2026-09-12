@@ -1,34 +1,59 @@
-/* Figma `Action / TripAddButton`: 36px circle. The painted size stays 36px
-   while the hit area reaches the 44px minimum. */
+/* Figma `Action / TripAddButton`: 36px circle.
+
+   The painted size stays 36px while the hit area reaches the 44px minimum.
+   That was the stated intent, but nothing here implemented it — no padding,
+   no min-width/height, no pseudo-element — so the rendered target was exactly
+   36x36, a fifth under the floor, and the comment was describing a box that
+   did not exist. The feed was also missing from the E2E screen list, so
+   nothing measured it.
+
+   A transparent border grows the hit box without moving the paint:
+   background-clip keeps the colour inside the content box, so the circle
+   still reads as 36px while the button is 44x44 to a finger.
+
+   padding: 0 is not redundant. A button carries the browser's own padding
+   (1px 6px in Chromium), which box-sizing: border-box used to absorb into
+   the 36px; with content-box it adds on top, and the measured box came out
+   56x46 instead of 44x44. */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: content-box;
   width: 36px;
   height: 36px;
-  border: none;
+  padding: 0;
+  border: 4px solid transparent;
   border-radius: var(--radius-pill);
   background: var(--color-action-primary);
+  background-clip: content-box;
   color: var(--color-action-onPrimary);
   cursor: pointer;
-  outline-offset: 4px;
+  outline-offset: 0;
 }
 
+/* Each state re-declares the background, and the `background` shorthand
+   resets background-clip to border-box — which would paint the fill and draw
+   the inset ring at the 44px hit edge rather than around the 36px circle. The
+   clip is restated for that reason, not by habit. */
 .button[data-state='saved'],
 .button[data-state='duplicate'] {
   background: var(--color-bg-surface);
+  background-clip: content-box;
   color: var(--color-action-primary);
   box-shadow: inset 0 0 0 var(--border-thin) var(--color-action-primary);
 }
 
 .button[data-state='error'] {
   background: var(--color-bg-surface);
+  background-clip: content-box;
   color: var(--color-text-secondary);
   box-shadow: inset 0 0 0 var(--border-thin) var(--color-border-strong);
 }
 
 .button[data-state='loading'] {
   background: var(--color-bg-track);
+  background-clip: content-box;
   color: var(--color-text-secondary);
   cursor: progress;
 }

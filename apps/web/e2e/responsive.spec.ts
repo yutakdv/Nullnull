@@ -13,6 +13,10 @@ import { expect, test } from '@playwright/test';
 
 const SCREENS = [
   { path: '/', name: 'splash' },
+  // The first screen a user sees, and the one with the most content per card.
+  // It was absent from this list, so the feed card's controls were never
+  // measured at 360px, at 200% zoom, or against the 44px touch floor.
+  { path: '/feed', name: 'feed' },
   { path: '/language', name: 'language' },
   { path: '/intro', name: 'intro' },
   { path: '/profile', name: 'profile' },
