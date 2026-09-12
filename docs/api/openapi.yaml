@@ -569,6 +569,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripPage"
+              examples:
+                trips:
+                  summary: Two trips the owner owns
+                  description: |
+                    candidateCount is the trip's own total. The list carries no candidates array; read the
+                    complete trip through getTrip and the paginated candidates through listTripCandidates.
+                  value:
+                    items:
+                      -
+                        id: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                        title: "서울 가을 여행"
+                        startDate: "2026-10-04"
+                        endDate: "2026-10-07"
+                        timezone: "Asia/Seoul"
+                        status: "ACTIVE"
+                        version: 3
+                        candidateCount: 5
+                      -
+                        id: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a02"
+                        title: "부산 겨울 여행"
+                        startDate: "2026-12-20"
+                        endDate: "2026-12-22"
+                        timezone: "Asia/Seoul"
+                        status: "DRAFT"
+                        version: 1
+                        candidateCount: 0
+                    page:
+                      nextCursor: null
+                      hasMore: false
+                noTrips:
+                  summary: No trips yet
+                  description: |
+                    hasMore is false and nextCursor is null, which is the end of the list rather than an error.
+                  value:
+                    items: []
+                    page:
+                      nextCursor: null
+                      hasMore: false
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -599,6 +637,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripDetail"
+              examples:
+                createdTrip:
+                  summary: A new trip seeded with one empty day per date
+                  description: |
+                    version is 1 and the ETag is "1". Every date in the range gets a day, each with an empty
+                    items array, which is the deterministic seed the wizard produces before anything is scheduled.
+                  value:
+                    id: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a03"
+                    title: "새 여행"
+                    startDate: "2026-10-04"
+                    endDate: "2026-10-07"
+                    timezone: "Asia/Seoul"
+                    status: "DRAFT"
+                    version: 1
+                    candidateCount: 0
+                    planningLevel: "NOTHING"
+                    interests: []
+                    days:
+                      -
+                        date: "2026-10-04"
+                        items: []
+                      -
+                        date: "2026-10-05"
+                        items: []
+                      -
+                        date: "2026-10-06"
+                        items: []
+                      -
+                        date: "2026-10-07"
+                        items: []
+                    candidates: []
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -624,6 +693,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripDetail"
+              examples:
+                scheduledTrip:
+                  summary: A trip with items scheduled across its days
+                  description: |
+                    The ETag is the quoted version, here "3"; send it back as If-Match on any mutation.
+                    candidates is empty while candidateCount is 5 - the array is a bounded view, never the total.
+                  value:
+                    id: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                    title: "서울 가을 여행"
+                    startDate: "2026-10-04"
+                    endDate: "2026-10-07"
+                    timezone: "Asia/Seoul"
+                    status: "ACTIVE"
+                    version: 3
+                    candidateCount: 5
+                    planningLevel: "MUST_VISIT_ONLY"
+                    interests:
+                      -
+                        code: "FRIENDS"
+                        weight: 3
+                      -
+                        code: "FOOD"
+                        weight: 5
+                      -
+                        code: "CULTURE"
+                        weight: 3
+                    days:
+                      -
+                        date: "2026-10-04"
+                        items:
+                          -
+                            id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c01"
+                            place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                              name: "경복궁"
+                              categoryCode: "ATTRACTION"
+                              regionCode: "KR-11-110"
+                              thumbnailUrl: null
+                              address: null
+                            date: "2026-10-04"
+                            position: 0
+                            startTime: "09:30:00+09:00"
+                            durationMinutes: 120
+                            note: null
+                            constraints:
+                              -
+                                type: "MUST_VISIT"
+                                locked: true
+                                source: "USER"
+                              -
+                                type: "DATE"
+                                locked: true
+                                source: "USER"
+                                date: "2026-10-04"
+                            crowd: null
+                          -
+                            id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02"
+                            place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03"
+                              name: "인사동"
+                              categoryCode: "STREET"
+                              regionCode: "KR-11-110"
+                              thumbnailUrl: null
+                              address: null
+                            date: "2026-10-04"
+                            position: 1
+                            startTime: "13:00:00+09:00"
+                            durationMinutes: 90
+                            note: null
+                            constraints:
+                              -
+                                type: "TIME"
+                                locked: true
+                                source: "USER"
+                                startTime: "13:00:00+09:00"
+                                toleranceMinutes: 30
+                            crowd: null
+                      -
+                        date: "2026-10-05"
+                        items:
+                          -
+                            id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03"
+                            place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02"
+                              name: "명동"
+                              categoryCode: "STREET"
+                              regionCode: "KR-11-140"
+                              thumbnailUrl: null
+                              address: null
+                            date: "2026-10-05"
+                            position: 0
+                            startTime: "14:00:00+09:00"
+                            durationMinutes: 120
+                            note: null
+                            constraints: []
+                            crowd: null
+                      -
+                        date: "2026-10-06"
+                        items: []
+                      -
+                        date: "2026-10-07"
+                        items: []
+                    candidates: []
         "404":
           $ref: "#/components/responses/NotFound"
     patch:
@@ -651,6 +823,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripDetail"
+              examples:
+                updatedTrip:
+                  summary: The whole trip after a metadata change
+                  description: |
+                    A merge-patch returns the complete trip, not a diff, and the ETag carries the new version.
+                    Re-read this body rather than merging the patch into a cached copy.
+                  value:
+                    id: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                    title: "서울 가을 여행"
+                    startDate: "2026-10-04"
+                    endDate: "2026-10-07"
+                    timezone: "Asia/Seoul"
+                    status: "ACTIVE"
+                    version: 3
+                    candidateCount: 5
+                    planningLevel: "MUST_VISIT_ONLY"
+                    interests:
+                      -
+                        code: "FRIENDS"
+                        weight: 3
+                      -
+                        code: "FOOD"
+                        weight: 5
+                      -
+                        code: "CULTURE"
+                        weight: 3
+                    days:
+                      -
+                        date: "2026-10-04"
+                        items:
+                          -
+                            id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c01"
+                            place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                              name: "경복궁"
+                              categoryCode: "ATTRACTION"
+                              regionCode: "KR-11-110"
+                              thumbnailUrl: null
+                              address: null
+                            date: "2026-10-04"
+                            position: 0
+                            startTime: "09:30:00+09:00"
+                            durationMinutes: 120
+                            note: null
+                            constraints:
+                              -
+                                type: "MUST_VISIT"
+                                locked: true
+                                source: "USER"
+                              -
+                                type: "DATE"
+                                locked: true
+                                source: "USER"
+                                date: "2026-10-04"
+                            crowd: null
+                          -
+                            id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02"
+                            place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03"
+                              name: "인사동"
+                              categoryCode: "STREET"
+                              regionCode: "KR-11-110"
+                              thumbnailUrl: null
+                              address: null
+                            date: "2026-10-04"
+                            position: 1
+                            startTime: "13:00:00+09:00"
+                            durationMinutes: 90
+                            note: null
+                            constraints:
+                              -
+                                type: "TIME"
+                                locked: true
+                                source: "USER"
+                                startTime: "13:00:00+09:00"
+                                toleranceMinutes: 30
+                            crowd: null
+                      -
+                        date: "2026-10-05"
+                        items:
+                          -
+                            id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03"
+                            place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02"
+                              name: "명동"
+                              categoryCode: "STREET"
+                              regionCode: "KR-11-140"
+                              thumbnailUrl: null
+                              address: null
+                            date: "2026-10-05"
+                            position: 0
+                            startTime: "14:00:00+09:00"
+                            durationMinutes: 120
+                            note: null
+                            constraints: []
+                            crowd: null
+                      -
+                        date: "2026-10-06"
+                        items: []
+                      -
+                        date: "2026-10-07"
+                        items: []
+                    candidates: []
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -702,6 +977,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripDetail"
+              examples:
+                interestsReplaced:
+                  summary: The trip after its interest set was replaced
+                  description: |
+                    The set is replaced wholesale, never merged, and the version increments so the previous
+                    ETag stops matching. Scheduled items are untouched by an interest change.
+                  value:
+                    id: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01"
+                    title: "서울 가을 여행"
+                    startDate: "2026-10-04"
+                    endDate: "2026-10-07"
+                    timezone: "Asia/Seoul"
+                    status: "ACTIVE"
+                    version: 3
+                    candidateCount: 5
+                    planningLevel: "MUST_VISIT_ONLY"
+                    interests:
+                      -
+                        code: "FRIENDS"
+                        weight: 3
+                      -
+                        code: "FOOD"
+                        weight: 5
+                      -
+                        code: "CULTURE"
+                        weight: 3
+                    days:
+                      -
+                        date: "2026-10-04"
+                        items: []
+                      -
+                        date: "2026-10-05"
+                        items: []
+                      -
+                        date: "2026-10-06"
+                        items: []
+                      -
+                        date: "2026-10-07"
+                        items: []
+                    candidates: []
         "409":
           $ref: "#/components/responses/Conflict"
         default:
