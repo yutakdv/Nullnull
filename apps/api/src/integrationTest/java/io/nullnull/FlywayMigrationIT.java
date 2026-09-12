@@ -315,6 +315,7 @@ class FlywayMigrationIT {
                     v_forecast_run uuid := gen_random_uuid();
                     v_trip uuid := gen_random_uuid();
                     v_item uuid := gen_random_uuid();
+                    v_post uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -390,6 +391,15 @@ class FlywayMigrationIT {
                     INSERT INTO trip_constraints (id, trip_id, trip_item_id, type, source,
                                                   created_at, updated_at)
                     VALUES (gen_random_uuid(), v_trip, v_item, 'MUST_VISIT', 'USER', v_at, v_at);
+                    -- V015's curated feed.
+                    INSERT INTO posts (id, status, title, body, cover_url, published_at,
+                                       created_at, updated_at)
+                    VALUES (v_post, 'PUBLISHED', '업그레이드 글', '본문',
+                            'https://example.test/cover.jpg', v_at, v_at, v_at);
+                    INSERT INTO post_places (post_id, place_id, position, mention_type)
+                    VALUES (v_post, v_place, 0, 'PRIMARY');
+                    INSERT INTO saved_posts (owner_id, post_id, created_at)
+                    VALUES ((SELECT id FROM owners LIMIT 1), v_post, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -401,7 +411,8 @@ class FlywayMigrationIT {
                         "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
                         "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
-                        "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints");
+                        "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
+                        "posts", "post_places", "saved_posts");
         return key;
     }
 

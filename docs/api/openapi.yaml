@@ -2009,6 +2009,11 @@ paths:
       responses:
         "200":
           description: Candidate page
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -2133,6 +2138,11 @@ paths:
       responses:
         "200":
           description: Same active candidate already existed
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -2178,6 +2188,11 @@ paths:
                     tripScheduleChanged: false
         "201":
           description: Candidate created
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -2240,6 +2255,11 @@ paths:
       responses:
         "204":
           description: Active candidate dismissed
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
         "409":
           $ref: "#/components/responses/Conflict"
         default:
