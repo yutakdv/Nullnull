@@ -72,11 +72,15 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 
 - exact base는 `https://apis.data.go.kr/B551011/KorService2`, operation은 `GET /detailCommon2`뿐이다. runtime에는 공공데이터포털 **decoding key**를 `KTO_SERVICE_KEY`로 주입하며 key·full URL/query는 log, audit, artifact, browser에 남기지 않는다.
 - 2026-09-10 현재 request는 이미 검증된 숫자 `contentId`와 baseline `MobileOS=ETC`, `MobileApp=Nullnull`, `_type=json`만 사용한다.
-- **quota 회계가 key가 아니라 source 단위다(2026-09-13 확인).** 저장소 스스로 개발 키를 *"`DEV_APPROVED` 개발 키(**1,000/일**)"* 로 적는데 그것은 **키당** 한도다. 그런데 `JdbcSourceQuotaStore.reserveInTransaction`은 사용량을 `WHERE r.source_code = ?`로 세고 `source_registry`의 두 KTO 행이 **각각** `perDay: 1000`을 갖는다. 그리고 `KtoKorServiceProperties`의 **`serviceKey` 한 필드**가 detail URI(`:84`)와 forecast URI(`:109`) 양쪽에 쓰인다 — **자격증명은 하나인데 카운터는 둘이다.**
+- **quota 회계 단위가 아직 정해지지 않았다 — 결함인지 아닌지가 거기에 달려 있다(2026-09-13 정정).** `JdbcSourceQuotaStore.reserveInTransaction`은 사용량을 `WHERE r.source_code = ?`로 세고 `source_registry`의 두 KTO 행이 **각각** `perDay: 1000`을 갖는데, `KtoKorServiceProperties`의 **`serviceKey` 한 필드**가 detail URI(`:84`)와 forecast URI(`:109`) 양쪽에 쓰인다. 그래서 처음에는 *"자격증명은 하나인데 카운터는 둘이니 guard가 하루 2,000회를 허용한다"* 고 **결함으로 적었는데, 그 결론은 공공데이터포털의 일일 트래픽이 인증키 단위일 때만 성립한다.**
 
-  즉 우리 guard는 **하루 2,000회까지 허용**하고 실제 한도는 1,000회다. 초과분은 provider가 `resultCode 22`로 거절하고 그것은 `PROVIDER_ERROR`로 처리되므로 **틀린 데이터가 저장되지는 않는다** — 안전하게 실패한다. 다만 **우리 quota 정지선이 먼저 걸리지 않아** 운영자는 provider 오류를 보게 되고, `thresholds [60,80,90]` 경고도 실제 소진율의 절반에서 울린다. 한도를 키 단위로 모으거나 두 행의 합이 1,000을 넘지 않게 배분해야 맞다.
+  **위 두 공식 화면이 오히려 반대를 가리킨다.** 국문 관광정보 상세는 *"개발 계정 신청 가능 트래픽 1,000"*, 집중률 예측 상세는 *"개발 계정 1,000"* 을 **각자 자기 화면에** 적는다 — 활용신청이 API마다 따로이고 한도도 그 신청에 붙는다는 읽기다. 이 읽기가 맞으면 source별 카운트가 **정확하고 고칠 것이 없다.**
 
-  **소진 속도 자체는 데모에 문제가 아니다.** `KTO_KOR_SERVICE_2`는 `stale_after_seconds` 604800(P7D)이라 장소당 7일에 1회, `KTO_CONCENTRATION_FORECAST`는 86400(PT24H)이라 장소당 하루 1회다. 장소 N개면 하루 약 `N + N/7 ≈ 1.14N`회이므로 **1,000회 안에서 약 870개 장소**를 덮는다. P0 제출 데모 규모에서는 여유가 있다.
+  **확인하지 못했다.** 포털 이용가이드 두 곳을 실제로 열어 트래픽 단위를 찾았으나 그 문장이 없었다(검사를 못 돌린 것이 아니라 **문서에 없다**). 이걸 정하는 것은 **오너의 마이페이지**다 — 활용신청 상세가 API별 일일 트래픽을 따로 보여주면 per-API, 계정 전체에 하나만 보이면 per-key다.
+
+  **정해지기 전까지 guard를 건드리지 않는다.** 안전한 쪽으로 미리 조이면(가령 500/500) per-API가 맞을 때 멀쩡한 용량을 절반 버린다. per-key로 밝혀지면 고칠 곳은 둘이다 — 카운트를 자격증명 단위로 모으는 것과, `thresholds [60,80,90]` 경고가 실제 소진율에서 울리게 하는 것. 어느 쪽이든 초과분은 provider가 `resultCode 22`로 막아 `PROVIDER_ERROR`로 기록되므로 **틀린 데이터가 저장되지는 않는다.** 그리고 **새 source를 같은 키로 추가할 때마다 이 질문이 다시 걸린다**(법정동코드가 그렇다).
+
+  **소진 속도 자체는 어느 읽기에서도 데모에 문제가 아니다.** `KTO_KOR_SERVICE_2`는 `stale_after_seconds` 604800(P7D)이라 장소당 7일에 1회, `KTO_CONCENTRATION_FORECAST`는 86400(PT24H)이라 장소당 하루 1회다. 장소 N개면 forecast가 `N`, detail이 `N/7`이므로 per-API 읽기에서는 forecast가 병목이라 **약 1,000개 장소**, per-key 읽기에서는 합이 `1.14N`이라 **약 870개 장소**를 덮는다. P0 제출 데모 규모에서는 둘 다 여유가 있다.
 
 - **2026-09-13 실제 호출 성공(local profile).** 세 단계(`ktoSmoke` → `ktoCanonicalIngest` → `ktoForecastSmoke`)가 end-to-end로 통과했다. fetch는 `2026-09-12T18:56:08Z`(= 09-13 03:56 KST)이고, DB에서 직접 확인한 결과는 아래와 같다. 값이 아니라 **집계와 content 유래 식별자만** 기록한다.
 
