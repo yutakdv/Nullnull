@@ -250,6 +250,67 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
     expect(served).toBeGreaterThan(0);
   });
 
+  it('gives up rather than looping when the reset also expires', async () => {
+    // The guard against re-entering the reset is a latch released in a
+    // .finally(), and the effect's deps include the query object, which is new
+    // on every render. If the reset refetch ALSO answers CURSOR_EXPIRED the
+    // latch is already open when the effect re-runs, so it fires again — a
+    // request per render, against a code the contract marks retry: 'none'
+    // (problem-policy.ts:103-108).
+    let feedCalls = 0;
+    server.use(
+      http.get(`${API_BASE}/feed`, () => {
+        feedCalls += 1;
+        return problemResponse('CURSOR_EXPIRED');
+      }),
+    );
+    renderFeed();
+    await screen.findByText(copy['feed.cursorExpired']);
+    const settled = feedCalls;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    // A couple of attempts is recovery; a climbing count is a loop.
+    expect(feedCalls).toBe(settled);
+    expect(feedCalls).toBeLessThanOrEqual(3);
+  });
+
+  it('recovers again when a later cursor expires in the same session', async () => {
+    // The mark that stops the loop has to clear once a page loads, or the
+    // first expiry in a session is the only one ever recovered from and every
+    // later one leaves the user on a dead 더 보기.
+    let expireNext = true;
+    const served: string[] = [];
+    server.use(
+      http.get(`${API_BASE}/feed`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (cursor !== null && expireNext) {
+          expireNext = false;
+          return problemResponse('CURSOR_EXPIRED');
+        }
+        served.push(cursor ?? 'first');
+        return HttpResponse.json(
+          cursor === null ? feedFixtures.page : feedFixtures.pageTwo,
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+
+    // First expiry: recovered, page one served again.
+    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    await screen.findByText(copy['feed.cursorExpired']);
+    await waitFor(() => {
+      expect(served.filter((c) => c === 'first').length).toBeGreaterThan(1);
+    });
+
+    // A second expiry later in the same session must recover too.
+    expireNext = true;
+    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    await waitFor(() => {
+      expect(served.filter((c) => c === 'first').length).toBeGreaterThan(2);
+    });
+  });
+
   it('does not show the load error while a cursor reset is still in flight', async () => {
     // The window this guards: the query is in its error state with a cursor
     // code, and the refetch has not resolved yet. Without the `expired` check

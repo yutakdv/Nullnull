@@ -97,7 +97,14 @@ export function FeedScreen() {
   // start again from page one rather than retry (problem-policy.ts:103), so
   // the screen says what happened instead of showing a dead end.
   const [cursorReset, setCursorReset] = useState(false);
-  const resetting = useRef(false);
+  // Whether page one has already been asked for on account of an expired
+  // cursor. NOT a latch released when the refetch settles: the effect's deps
+  // include the query object, which is new on every render, so a reset that
+  // ALSO answers CURSOR_EXPIRED found the latch open again and fired
+  // immediately — measured at ~14,900 requests in 600ms against a code the
+  // contract marks retry: 'none'. Recovery is one attempt, and the screen
+  // reports it rather than trying for ever.
+  const resetAttempted = useRef(false);
   const error = feed.error;
   const expired =
     isProblem(error) &&
@@ -105,13 +112,17 @@ export function FeedScreen() {
   const failed = feed.isError;
 
   useEffect(() => {
-    if (!expired || resetting.current) return;
-    resetting.current = true;
+    if (!expired) {
+      // A page that loads clears the mark, so a cursor that expires later in
+      // the same session is recovered from again.
+      resetAttempted.current = false;
+      return;
+    }
+    if (resetAttempted.current) return;
+    resetAttempted.current = true;
     setCursorReset(true);
     // Drops every accumulated page and refetches from the first one.
-    void feed.refetch().finally(() => {
-      resetting.current = false;
-    });
+    void feed.refetch();
   }, [expired, feed]);
 
   // The shared card components keep Korean defaults so Storybook can mount
