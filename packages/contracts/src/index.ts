@@ -60,6 +60,9 @@ import matchChecking from "../fixtures/candidates/match-checking.json" with { ty
 import matchUnknown from "../fixtures/candidates/match-unknown.json" with { type: "json" };
 import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
 import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
+import deletionStatusCompleted from "../fixtures/session/deletion-status-completed.json" with { type: "json" };
+import deletionStatusPartialFailed from "../fixtures/session/deletion-status-partial-failed.json" with { type: "json" };
+import deletionStatusFailed from "../fixtures/session/deletion-status-failed.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -101,6 +104,19 @@ export const sessionFixtures = {
   deletionReceipt: deletionReceipt as components["schemas"]["DeletionReceipt"],
   deletionStatus:
     deletionStatus as components["schemas"]["DeletionRequestStatus"],
+  // The other four states the job actually reaches. Every value here is decided by the server:
+  // markCompleted clears failureCode and sets completedAt, and markFailed sets completedAt only
+  // when the status is FAILED, which is why the FAILED body carries one and PARTIAL_FAILED does
+  // not. retryable is true exactly while status is PARTIAL_FAILED.
+  //
+  // FAILED carrying completedAt is the trap: terminality is read from status, never from
+  // completedAt. Without these three there was no fixture to test that against.
+  deletionStatusCompleted:
+    deletionStatusCompleted as components["schemas"]["DeletionRequestStatus"],
+  deletionStatusPartialFailed:
+    deletionStatusPartialFailed as components["schemas"]["DeletionRequestStatus"],
+  deletionStatusFailed:
+    deletionStatusFailed as components["schemas"]["DeletionRequestStatus"],
 };
 
 // PROVISIONAL MOCK DATA — replace when BA-011/BA-030 serve these for real.
