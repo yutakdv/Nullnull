@@ -277,7 +277,7 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 
 **선행 조건 넷.** 하나라도 빠지면 실패 메시지가 원인을 가리키지 않는다.
 
-1. **DB가 떠 있고 그 container가 포트를 갖는다.** `up -d`가 성공했는지가 아니라 **running인지**를 본다.
+1. **앱이 붙을 포트를 우리가 띄운 container가 publish한다.** container가 떴는지만 보면 부족하다 — container는 5434에 떠 있고 `.env.local`은 5433(host postgres)을 가리키는 상태가 **그 검사를 통과한다.** 그래서 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 본다.
 2. **`SPRING_DATASOURCE_*` 세 값이 그 DB와 맞는다.** 비밀번호는 `compose.yml`의 `local-only`다. 포트는 기기마다 다를 수 있으니 `.env.local`을 정본으로 본다.
 3. **shell에 `SPRING_DATASOURCE_*`가 export돼 있지 않다.** 있으면 `.env.local`을 **덮는다**(아래).
 4. **`JAVA_HOME`이 Temurin 21**이고, Gradle daemon이 예전 환경을 들고 있지 않다(`./gradlew --stop`).
@@ -289,7 +289,10 @@ cd "$(git rev-parse --show-toplevel)"
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 env | grep '^SPRING_DATASOURCE_' && echo 'WARNING: these override .env.local'
 docker compose up -d postgres
-docker compose ps --status running --quiet postgres | grep -q . || echo 'FAIL: container not running'
+port=$(sed -n 's#^SPRING_DATASOURCE_URL=jdbc:postgresql://[^:]*:\([0-9]\{1,5\}\)/.*#\1#p' apps/api/.env.local)
+docker ps --format '{{.Ports}}' | grep -q ":${port}->" \
+  && echo "OK: a running container publishes ${port}" \
+  || echo "FAIL: .env.local points at ${port} and no container publishes it"
 ```
 
 ```bash
@@ -317,7 +320,9 @@ NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
 
   위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
 
-  해결은 host PostgreSQL을 멈추거나 publish 포트를 이 기기에서만 바꾸는 것이고, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다. 포트를 옮겼다면 `.env.local`의 `SPRING_DATASOURCE_URL`도 함께 옮긴다 — 한쪽만 바꾸면 다시 엉뚱한 서버에 붙는다.
+  해결은 host PostgreSQL을 멈추거나 publish 포트를 이 기기에서만 바꾸는 것이고, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다.
+
+  **그리고 그 확인이 liveness가 아니라 신원을 봐야 한다.** "container가 떴다"와 "앱이 붙을 곳이 그 container다"는 다르다 — 포트를 옮기면서 `.env.local`만, 혹은 compose만 고치면 **container는 멀쩡히 running인 채로 앱은 host 서버에 붙는다.** 이번에 우리를 구한 것은 그 host 서버의 비밀번호가 달랐다는 우연뿐이고, 맞았다면 migration 18개가 남의 DB에 **오류 없이** 걸렸을 것이다. 그래서 0단계는 두 값을 **묶어서** 비교한다.
 
   **그리고 `.env.local`을 고쳤는데 반영이 안 될 수 있다.** `KtoSmokeEnvironment.load`는 파일을 먼저 읽은 뒤 **process 환경변수로 덮는다** — 그게 올바른 우선순위지만 **증상이 없다.** 파일은 맞는데 예전 값으로 계속 실패하고, 파일이 읽히긴 했는지조차 알 수 없다(실제로 운영자가 여기서 30분을 썼다). 그래서 세 main이 부팅 전에 **각 설정이 어디서 왔는지**를 출력한다.
 

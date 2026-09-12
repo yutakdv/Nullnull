@@ -476,6 +476,12 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 
 **위험한 쪽은 실패가 아니라 그 뒤다.** `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 **연결은 성공한다** — 상대가 host 서버일 뿐이다. 그대로 두면 `flywayMigrate`가 프로젝트와 무관한 서버에 migration을 건다. `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 그리고 `docker compose … | tail`처럼 파이프를 쓰면 **exit code가 사라져** 실패조차 안 보인다(이 세션에서 두 번째로 당한 모양이다).
 
+**그리고 첫 수정도 부족했다 — liveness를 봤지 신원을 안 봤다.** 0단계를 `docker compose ps --status running`으로 고쳤는데, 그건 **container가 떴는지**만 본다. 오늘의 실제 구성(container는 5434, `.env.local`은 5433)에서는 **그 검사가 통과하고 앱은 여전히 host 서버에 붙는다.** 나는 그 규칙을 *산문으로* 적어 뒀다 — *"포트를 옮겼다면 URL도 함께 옮긴다"* — 그런데 **산문은 검사가 아니다.** 이 세션에서 다섯 번 고친 것이 정확히 그 변환인데 내가 쓴 문서에서 같은 일을 했다.
+
+이제 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 비교한다. 양방향 확인: 현재 5434 구성에서 PASS, 5433에 대해서는 *"어떤 container도 publish하지 않음"* 으로 **정확히 잡는다**.
+
+**우리를 구한 것은 우연이었다.** host 서버의 `nullnull` 역할 비밀번호가 달라서 `28P01`로 죽었을 뿐, 맞았다면 migration 18개가 남의 DB에 **오류 없이** 걸렸을 것이다.
+
 **"명령을 돌렸다"와 "그 명령이 의도한 것을 했다"는 다르다.** §6의 "검증 명령은 성공 여부를 확인하고 출력을 버리지 않는다"의 한 단계 아래 — **성공해도 의도한 대상이 아닐 수 있다.** 그래서 smoke runbook의 0단계는 `up -d`가 아니라 *"그 container가 5433을 갖는지"* 를 확인한다(`ENVIRONMENT.md` §7, `LOCAL_DEVELOPMENT.md`).
 
 **내가 쓴 runbook에 그대로 있던 함정이다.** 앞 커밋에서 `docker compose up -d postgres`를 0단계로 적어 두고 다음 단계로 넘어갔었다 — 승인이 왔다면 host DB에 migration이 걸렸을 것이다.
