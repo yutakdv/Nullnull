@@ -98,6 +98,12 @@ public class KtoKorServiceProperties {
         requireForecastConfigured(testEndpointAllowed);
         String area = safeCode(areaCode, "areaCode");
         String sigungu = safeCode(sigunguCode, "sigunguCode");
+        // signguCd must already be the JOINED code (KtoForecastRequest.signguRequestCode): the sido
+        // code followed by the sigungu code, so Jongno-gu is 11 + 110 = 11110. This cannot verify
+        // that from the two strings it is handed - "110" also starts with "11" - so the guard is
+        // KtoCrowdForecastGatewayIT asserting what the adapter actually sent. It matters because
+        // sending the raw code is not an error the provider reports: it answers resultCode 0000 with
+        // totalCount 0, and the collector would record "no coverage" forever (#109).
         String name = safeValue(touristSiteName, 300);
         URI base = forecastBaseUri(testEndpointAllowed);
         String query = "serviceKey=" + encode(serviceKey)

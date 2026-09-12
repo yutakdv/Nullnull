@@ -90,9 +90,11 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V012 adds exactly one row of its own: the reviewed
-            // KTO_KOR_SERVICE_2 revision 4 contract that fixes the detailCommon2 response mapping.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + 1);
+            // Every existing row survived. V013 adds no rows of its own: it is pure DDL - the trips
+            // aggregate's tables, plus the owners.active_trip_id foreign key V002 deferred until the
+            // trips table existed. This count is deliberately exact rather than "at least", so a
+            // migration that quietly seeds data has to say so here.
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
