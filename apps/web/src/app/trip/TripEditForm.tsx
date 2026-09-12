@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { isProblem, useUpdateTrip } from '../../shared/api/index.js';
+import { isProblem, useTrip, useUpdateTrip } from '../../shared/api/index.js';
 import { ConfirmDialog } from '../../shared/ui/components/index.js';
 import styles from './TripEditForm.module.css';
 import { formatDate } from './trip-view.js';
@@ -67,6 +67,9 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
   const [draft, setDraft] = useState<TripDraft>(() => draftFrom(trip));
   const [confirming, setConfirming] = useState(false);
   const [conflict, setConflict] = useState(false);
+  // Same query key as the screen's, so this is the one cached trip. The form
+  // needs it to refetch after a conflict rather than only to read.
+  const query = useTrip(trip.id);
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [saved, setSaved] = useState(false);
   const [datesUndone, setDatesUndone] = useState(false);
@@ -343,9 +346,13 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
             <button
               className={styles.secondary}
               onClick={() => {
-                // Keep typing against the refreshed trip: the parent refetches
-                // and hands down a new ETag, so the next save can succeed.
+                // Keep typing against the refreshed trip. The refetch is done
+                // HERE: nothing else triggers one, so the comment that used to
+                // say "the parent refetches" described something no code did —
+                // the stale ETag stayed, and every later save failed the same
+                // way with the same message.
                 setConflict(false);
+                void query.refetch();
               }}
               type="button"
             >

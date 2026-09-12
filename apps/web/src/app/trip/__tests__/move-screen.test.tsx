@@ -328,6 +328,58 @@ describe('FE-305-T2 a failed move says so and changes nothing', () => {
     expect(names.slice(0, 2)).toEqual(['경복궁', '인사동']);
   });
 
+  it('reloads the trip so the next press carries a current ETag', async () => {
+    // The cached ETag is stale the moment the server says TRIP_CHANGED, so
+    // without a refetch every later press sends the same If-Match and fails
+    // identically — every move control on every item is dead until the page is
+    // reloaded. LockRow documents the same defect it already fixed.
+    let reads = 0;
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () => {
+        reads += 1;
+        return HttpResponse.json(trip, {
+          headers: { ETag: `"${String(trip.version)}"` },
+        });
+      }),
+      http.post(`${API_BASE}/trips/:tripId/items/reorder`, () =>
+        problemResponse('TRIP_CHANGED'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('인사동');
+    const before = reads;
+    await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+    await screen.findByText(copy['trip.conflict']);
+
+    await waitFor(() => {
+      expect(reads).toBeGreaterThan(before);
+    });
+  });
+
+  it('does not reload for an ordinary failure', async () => {
+    // Only a conflict means the cached trip is stale. A dropped connection
+    // leaves it current, and refetching would hide that nothing changed.
+    let reads = 0;
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () => {
+        reads += 1;
+        return HttpResponse.json(trip, {
+          headers: { ETag: `"${String(trip.version)}"` },
+        });
+      }),
+      http.post(`${API_BASE}/trips/:tripId/items/reorder`, () => HttpResponse.error()),
+    );
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('인사동');
+    await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+    await screen.findByText(copy['trip.move.failed']);
+    const after = reads;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(reads).toBe(after);
+  });
+
   it('reports a plain failure too', async () => {
     server.use(
       http.post(`${API_BASE}/trips/:tripId/items/reorder`, () => HttpResponse.error()),

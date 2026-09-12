@@ -243,6 +243,41 @@ describe('FE-302-T1 saving uses optimistic concurrency', () => {
       within(alert).getByRole('button', { name: copy['trip.conflict.discard'] }),
     ).toBeInTheDocument();
   });
+
+  it('reloads the trip when the user keeps editing', async () => {
+    // The test above proves both buttons exist; neither was ever pressed, so
+    // nothing noticed that 계속 편집 only cleared the banner. The cached ETag
+    // is stale the moment the server says TRIP_CHANGED, so the next save sent
+    // the same If-Match and failed the same way — the form's own comment said
+    // "the parent refetches", which no code did.
+    let reads = 0;
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () => {
+        reads += 1;
+        return HttpResponse.json(trip, {
+          headers: { ETag: `"${String(trip.version)}"` },
+        });
+      }),
+      http.patch(`${API_BASE}/trips/:tripId`, () => problemResponse('TRIP_CHANGED')),
+    );
+    const user = await openEditor();
+    await user.type(screen.getByLabelText(copy['trip.field.title']), ' 수정');
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
+    const alert = await screen.findByRole('alert');
+    const before = reads;
+    await user.click(
+      within(alert).getByRole('button', { name: copy['trip.conflict.reload'] }),
+    );
+
+    await waitFor(() => {
+      expect(reads).toBeGreaterThan(before);
+    });
+    // And the draft survives: reloading the trip must not discard what the
+    // user typed, which is the whole point of offering 계속 편집.
+    expect(screen.getByLabelText(copy['trip.field.title'])).toHaveValue(
+      `${trip.title} 수정`,
+    );
+  });
 });
 
 describe('FE-302-T2 a rejected save explains itself', () => {

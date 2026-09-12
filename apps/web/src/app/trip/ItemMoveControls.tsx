@@ -6,6 +6,7 @@ import {
   useRelatedPlaces,
   useReorderTripItems,
   useReplaceTripItem,
+  useTrip,
 } from '../../shared/api/index.js';
 import { ConfirmDialog } from '../../shared/ui/components/index.js';
 import styles from './ItemMoveControls.module.css';
@@ -49,6 +50,12 @@ export interface ItemMoveControlsProps {
 }
 
 export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsProps) {
+  // Same query key as the screen's, so this is the one cached trip rather than
+  // a second copy. Used to refetch after a conflict: the cached ETag is stale
+  // the moment the server says TRIP_CHANGED, so without this every later press
+  // sends the same If-Match and fails identically — LockRow documents the same
+  // defect it already fixed.
+  const trip = useTrip(tripId);
   const { locale, t } = useI18n();
   const reorder = useReorderTripItems(tripId);
   const replace = useReplaceTripItem(tripId);
@@ -81,11 +88,11 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
           setStatus(announce);
         },
         onError: (error) => {
-          setStatus(
-            isProblem(error) && error.code === 'TRIP_CHANGED'
-              ? t('trip.conflict')
-              : t('trip.move.failed'),
-          );
+          const conflict = isProblem(error) && error.code === 'TRIP_CHANGED';
+          setStatus(conflict ? t('trip.conflict') : t('trip.move.failed'));
+          // Reload so the next press carries a current ETag. Without it every
+          // move control on every item stays dead until the page is reloaded.
+          if (conflict) void trip.refetch();
         },
       },
     );
@@ -219,11 +226,9 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
                 );
               },
               onError: (error) => {
-                setStatus(
-                  isProblem(error) && error.code === 'TRIP_CHANGED'
-                    ? t('trip.conflict')
-                    : t('replace.failed'),
-                );
+                const conflict = isProblem(error) && error.code === 'TRIP_CHANGED';
+                setStatus(conflict ? t('trip.conflict') : t('replace.failed'));
+                if (conflict) void trip.refetch();
               },
             },
           );
