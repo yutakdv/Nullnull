@@ -72,6 +72,21 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 
 - exact base는 `https://apis.data.go.kr/B551011/KorService2`, operation은 `GET /detailCommon2`뿐이다. runtime에는 공공데이터포털 **decoding key**를 `KTO_SERVICE_KEY`로 주입하며 key·full URL/query는 log, audit, artifact, browser에 남기지 않는다.
 - 2026-09-10 현재 request는 이미 검증된 숫자 `contentId`와 baseline `MobileOS=ETC`, `MobileApp=Nullnull`, `_type=json`만 사용한다.
+- **2026-09-13 실제 호출 성공(local profile).** 세 단계(`ktoSmoke` → `ktoCanonicalIngest` → `ktoForecastSmoke`)가 end-to-end로 통과했다. fetch는 `2026-09-12T18:56:08Z`(= 09-13 03:56 KST)이고, DB에서 직접 확인한 결과는 아래와 같다. 값이 아니라 **집계와 content 유래 식별자만** 기록한다.
+
+  | 확인 항목 | 값 |
+  | --- | --- |
+  | `collector_runs` | 2건 모두 `COMPLETED`, `records_rejected=0` — `KTO_KOR_SERVICE_2` 1/1, `KTO_CONCENTRATION_FORECAST` **30/30** |
+  | `api_ingest_logs` | `KOR_SERVICE_2_DETAIL_COMMON_2` OK/200/1/OK, `TATS_CNCTR_RATE_LIST` OK/200/**30**/OK |
+  | 저장된 행 | `kto_place_snapshots` 1, `places` 1, `place_external_refs` 1, `snapshot_sets` 1, `crowd_snapshots` **30** |
+  | detail snapshot | registry revision **4**, `contentId` 126508 / `contentTypeId` 12, `payloadHash` `3a59a84a…a700d` |
+  | forecast set | registry revision 2, `kto-tats-cnctr-rate-v4.1`, `forecastIssueId` `kto-tats-6ffe43bd…3ca8` |
+  | `quality_flags` | 30행 전부 `[]` — `PROVIDER_INCIDENT` 외에는 생산자가 없으므로 예상대로다 |
+
+  **저장된 예보 창은 `2026-09-12` ~ `2026-10-11`(KST)이고, 첫 행이 조회일(09-13)보다 하루 앞선다.** 이것이 창 하한 수정(#174)을 **실응답으로 증명한 값**이다 — 하한이 조회일이었다면 첫 행에서 `RANGE`로 **30행 전체가 거절**됐을 것이고, `records_rejected=0`이 그렇지 않았음을 말한다. 상한은 조회일 +28일이라 `MAX_FORECAST_DAYS`(30) 안이다.
+
+  **이것은 local 증거이지 staging 증거가 아니다.** `BA-021-T3`(*staging 실제 KTO 성공 이력과 공개 응답 provenance 연결*)과 compliance의 `EV-KTO-02`(*매 staging release*)는 **여전히 열려 있다.** local 실행으로 그 행을 채우지 않는다.
+
 - **2026-09-11 실제 호출 실측:** `detailCommon2` 응답에서 `areacode`·`sigungucode`·`cat1`·`cat2`·`cat3`은 빈 문자열이고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1`·`lclsSystm2`·`lclsSystm3`에 있다. registry revision 4(`kto-kor-service2-detailcommon2-v3`)부터 validator가 실제로 값이 있는 쪽을 읽는다. 두 코드 체계를 섞지 않으므로 revision 3 이하로 수집된 snapshot은 수집 당시의 의미를 유지한다. retired 식별자만 담긴 응답은 remap하지 않고 `SCHEMA_DRIFT`로 quarantine한다. `tatsCnctrRatedList`는 `areaCd`가 필수(`resultCode 11 NO_MANDATORY_REQUEST_PARAMETERS_ERROR1`)이고, **코드 체계는 실호출로 확정됐다(#109)**: `areaCd`는 시도 2자리, `signguCd`는 **시도+시군구 5자리 법정동 접두사**다. 측정한 조합과 결과는 아래와 같으며, 값이 아니라 `resultCode`·`totalCount`·item field 이름만 기록한다.
 
 | `areaCd` | `signguCd` | `tAtsNm` | `resultCode` | `totalCount` |

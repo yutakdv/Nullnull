@@ -314,6 +314,16 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
 
+### 2026-09-13: 실호출이 성공했고 **B 등급 여럿이 A가 됐다**
+
+세 단계가 end-to-end로 통과했다(`coverage=30`, `records_rejected=0`). DB에서 직접 확인했고 집계는 `SOURCE_CATALOG`에 있다.
+
+**특히 `baseYmd` 창.** 저장된 창이 `2026-09-12`~`2026-10-11`(KST)이고 조회일은 09-13이라 **첫 행이 조회일보다 하루 앞섰다.** 하한이 조회일이었다면 첫 행에서 30행 전체가 `RANGE`였을 것이고, `records_rejected=0`이 그렇지 않았음을 말한다. **#174의 수정이 추론이 아니라 값으로 증명됐다.**
+
+`KtoActualSmokeIT`를 canonical ingest까지 늘린 것도 값을 했다 — `places`·`place_external_refs`가 실제로 채워졌고, 그 확장이 없었으면 이 실행은 `kto_place_snapshots`에서 멈춘 **반쪽 증거**였을 것이다.
+
+**다만 local 증거다.** `BA-021-T3`(staging 성공 이력 + 공개 응답 provenance)과 `EV-KTO-02`(매 staging release)는 **그대로 열려 있다.** local 실행으로 그 행을 채우지 않는다 — 이 세션 내내 지킨 "증거의 범위를 넘겨 쓰지 않는다"가 여기서도 같다. 아래 표의 등급도 그래서 **local 기준**으로 읽는다.
+
 ### provider validator 관문 — 실응답을 본 적이 있는가 (2026-09-13 조사)
 
 **"실응답을 본 적 없는 관문"이 남은 결함의 목록이다.** 이번 세션에 나온 세 결함(detailCommon2 legacy field, `signguCd` 5자리 결합, 예보 창 하한)이 **전부** 이 칸에 있었다. 그래서 `crowd`·`catalog`의 두 validator가 거는 조건을 전부 열거하고 증거 등급을 매겼다.
@@ -407,6 +417,107 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 `ktoCanonicalIngest`(`KtoCanonicalIngestMain`)를 추가해 그 명시적 호출을 만들었다. 외부 호출을 하지 않으므로 provider 승인 flag가 없다 — **승인은 snapshot을 만든 호출에 이미 붙어 있었다.** 출력은 `placeId` 한 줄이고, 그게 3단계가 `NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID`로 받는 값이다. canonical 행을 쓰는 것은 **공개하는 것이 아니다** — 공개 projection은 `nullnull.catalog.public-enabled`(`CatalogPublicationProperties`)가 따로 막고, 이건 거기를 건드리지 않는다. 세 단계 명령은 `ENVIRONMENT.md` §7에 있다.
 
 **이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
+
+#### PM-004 — 절반은 이미 FE에 구현돼 있었고, 남은 절반은 범위 질문이다(#180)
+
+**"승인된 브라우저 초안 규칙"은 제안할 것이 없다.** `apps/web/.../trip-create/wizard.ts`가 이미 그 규칙이다 — *"Steps 1-3 are a local draft … the only server call in this flow is `createTrip` at the end"*, 그리고 `toCreateRequest`가 불완전하면 `null`을 반환해 반쯤 채운 여행을 제출할 수 없게 한다. **PM-017·FCR-020에 이어 세 번째로 "결정이 필요하다"고 분류된 것이 이미 상대 코드에 있었다** — 상대 역할의 코드를 먼저 읽는 것이 규칙이다.
+
+남은 갭은 **날짜 없는 필수 장소**이고 진짜다. `FIGMA_HANDOFF:150`의 `438:3158`은 날짜가 없는데 `SeedTripItem.required`가 `[placeId, date, position]`이고, `WizardDraft`에는 장소가 아예 없고, `TripCandidate`는 확인 전에 존재할 수 없는 `tripId`를 요구한다(`:362` *"부분 trip 0건"*). **갈 길이 없다.**
+
+**그런데 계약 제안을 먼저 올리지 않았다.** 더 싼 질문이 앞에 있다 — *"S02-4B가 P0 제출 범위인가"*. 범위 밖이면 계약 작업 자체가 필요 없고, FE 큐가 5건이라 여섯 번째는 **답하는 비용이 가장 싼 형태**여야 한다. #180이 그 질문이고, 근거 네 줄을 함께 넣어 FE가 재조사하지 않게 했다. FE-103은 `operations: [searchPlaces]`뿐이라 이 갭의 소유가 아니라는 것도 적었다.
+
+#### PM-014 — 제품 성립성 위험을 실측했다. **위험이 아니라 현재 상태다**
+
+PM-014가 *"P0 route provider는 없고 slot/optimizer는 영업·체류·이웃 이동 증거가 없으면 거절한다 → 사용자에게 계속 UNKNOWN만 나올 수 있다"* 고 적었다. 확인했고, **"수 있다"가 아니라 "그렇다"다.**
+
+ITEM 평가기가 요구하는 증거와 지금 그것을 댈 수 있는 곳:
+
+| 요구 증거 | 오늘의 출처 | 결과 |
+| --- | --- | --- |
+| **`OpenWindow`(검증된 영업시간)** | **없다.** migration 전체에 `opening`이라는 문자열이 **0건**이고, C2 승인 operation인 `detailCommon2`는 이용시간을 주지 않는다 | 항상 `UnknownHours` |
+| target `durationMinutes` | `trip_items.duration_minutes` — nullable, 사용자 입력 | 사용자가 넣어야만 known |
+| 이웃 `durationMinutes` | 같음 | 같음 |
+| `RouteEvidence.VERIFIED` | P0 route provider 없음 | leg이 바뀌면 `ROUTE_EVIDENCE_MISSING` |
+
+**결정적인 것은 영업시간이고, 그게 날짜만 있는 제안까지 막는다.** `filters.opening_hours`는 `UnknownHours()`를 **가장 먼저** 보고 UNKNOWN을 돌려준다 — `start is None`(날짜만) 분기는 **window가 `OpenWindow`일 때만** 도달한다. 즉 시간을 안 정한 제안도 UNKNOWN이다. `neighbour_overlap`은 날짜만이면 통과하지만 순서상 의미가 없다.
+
+**그러므로 어떤 planningLevel에서도 ITEM 제안이 `ELIGIBLE`이 될 수 없다.** 지금 증상이 없는 이유는 단 하나 — **recommendation slice에 호출자가 없어서**(위 호출자 추적) 아무도 `ItemProposeRequest`를 만들지 않기 때문이다. BA-051이 배선되는 날 전부 UNKNOWN으로 나온다.
+
+**같은 질문을 ITEM 평가기의 관문 전부에 돌렸다.** 영업시간만 그런 게 아니었다.
+
+| 관문 | production 입력 출처 | 판정 |
+| --- | --- | --- |
+| `within_trip_range` | `trips.start_date`/`end_date` | 있음 |
+| `lock_checks` | `trip_constraints`(BA-031) | 있음 |
+| `same_place`·`not_unchanged` | 내부 비교 | 해당 없음 |
+| **`opening_hours`** | **없음** | **무조건 UNKNOWN** |
+| `neighbour_overlap` | `trip_items.duration_minutes` — nullable, **사용자 입력** | 사용자가 넣어야만 |
+| **`route_evidence`** | **없음**(P0 route provider 부재) | leg이 바뀔 때만 UNKNOWN |
+
+**둘은 출처가 아예 없고 하나는 사용자에게 의존한다.** 그중 `opening_hours`만 **무조건** 걸린다 — `evaluator.py:222`가 `inp.opening_hours.get(day, UnknownHours())`로 **없으면 Unknown**을 넣고, 그 filter가 항상 chain에 있다. `route_evidence`는 그 날짜에 이웃이 있을 때만 발화하므로 여행의 첫 항목은 통과한다.
+
+**필요한 것은 추천 모델이 아니라 영업시간 source다.** KTO에는 `detailIntro2`의 `usetime`·`restdate`가 있지만 **새 operation이라 C2 승인이 필요하고, 그건 오너 결정이다**(새 external provider를 동료 승인으로 열지 않는다는 이 세션의 선). `SOURCE_CATALOG`의 승인 범위는 `detailCommon2` 하나뿐이다.
+
+**PM-014가 요구한 "최소 성공 사례"는 지금 만들 수 없다.** 만들려면 영업시간이 먼저 있어야 하고, 그전에 만든 어떤 사례도 사용자가 직접 duration을 넣은 것뿐이며 그래도 영업시간 UNKNOWN에서 멈춘다. **안전 조건을 낮춰서 사례를 만드는 것은 금지다** — 그게 PM-014가 경고한 바로 그 일이다.
+
+#### 부류 목록 갱신 — **성공 경로가 도달 불가능한 것**이 가장 위험하다
+
+2번은 *실패를 알리는 길*이 막힌 것이고, PM-014는 ***성공하는 길*이 막힌 것**이다. 후자가 더 위험하다 — 2번은 조용하지만 이건 **배선되는 날 전부 UNKNOWN으로 한꺼번에** 터지고, 그때는 이미 그 위에 화면이 얹혀 있다.
+
+탐지 질문이 또 다르다. 호출자 추적이 **코드를 거슬러 올랐다면** 이건 **데이터를 거슬러 오른다**: *"이 평가기가 `ELIGIBLE`을 내려면 어떤 입력이 필요한가. 그 입력을 만드는 production source가 있나."*
+
+**그리고 REC corpus가 이걸 잡지 못하는 이유가 구조적이다.** fixture가 `OpenWindow`를 **합성으로** 주므로 알고리즘은 증명되고 **그 입력이 실제로 생길 수 있는지는 증명되지 않는다.** 이 세션 내내 본 "fixture가 실응답을 덮는다"가 `apps/ai` 쪽에서 같은 모양으로 반복된 것이다 — 다만 여기서는 덮이는 것이 *provider 응답*이 아니라 **우리 자신의 hydration**이다.
+
+#### 네 번째: **실패한 뒤에도 동작해서 실패가 안 보이는 명령**(PM-022, 실측)
+
+PM-022의 열린 항목이 *"localhost:5433 연결을 실제 wrapper에서 확인해야 한다"* 였고, 확인했더니 **성립하지 않았다.**
+
+```
+$ docker compose up -d postgres
+Error response from daemon: ports are not available: exposing port TCP 127.0.0.1:5433
+  -> listen tcp4 127.0.0.1:5433: bind: address already in use
+$ docker ps -a --filter name=nullnull-local-postgres
+nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
+```
+
+**Docker가 아닌 host PostgreSQL이 5433을 잡고 있다.** SCRAM 응답으로 확인했고 `postgres` 사용자로 7월부터 떠 있다. `compose.yml`의 주석이 5433을 고른 이유가 *"기기 기본 PostgreSQL과 충돌 완화"* 인데, **그 자리가 이미 그것에 점유돼 있었다.**
+
+**위험한 쪽은 실패가 아니라 그 뒤다.** `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 **연결은 성공한다** — 상대가 host 서버일 뿐이다. 그대로 두면 `flywayMigrate`가 프로젝트와 무관한 서버에 migration을 건다. `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 그리고 `docker compose … | tail`처럼 파이프를 쓰면 **exit code가 사라져** 실패조차 안 보인다(이 세션에서 두 번째로 당한 모양이다).
+
+**그리고 첫 수정도 부족했다 — liveness를 봤지 신원을 안 봤다.** 0단계를 `docker compose ps --status running`으로 고쳤는데, 그건 **container가 떴는지**만 본다. 오늘의 실제 구성(container는 5434, `.env.local`은 5433)에서는 **그 검사가 통과하고 앱은 여전히 host 서버에 붙는다.** 나는 그 규칙을 *산문으로* 적어 뒀다 — *"포트를 옮겼다면 URL도 함께 옮긴다"* — 그런데 **산문은 검사가 아니다.** 이 세션에서 다섯 번 고친 것이 정확히 그 변환인데 내가 쓴 문서에서 같은 일을 했다.
+
+이제 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 비교한다. 양방향 확인: 현재 5434 구성에서 PASS, 5433에 대해서는 *"어떤 container도 publish하지 않음"* 으로 **정확히 잡는다**.
+
+**우리를 구한 것은 우연이었다.** host 서버의 `nullnull` 역할 비밀번호가 달라서 `28P01`로 죽었을 뿐, 맞았다면 migration 18개가 남의 DB에 **오류 없이** 걸렸을 것이다.
+
+**"명령을 돌렸다"와 "그 명령이 의도한 것을 했다"는 다르다.** §6의 "검증 명령은 성공 여부를 확인하고 출력을 버리지 않는다"의 한 단계 아래 — **성공해도 의도한 대상이 아닐 수 있다.** 그래서 smoke runbook의 0단계는 `up -d`가 아니라 *"그 container가 5433을 갖는지"* 를 확인한다(`ENVIRONMENT.md` §7, `LOCAL_DEVELOPMENT.md`).
+
+**내가 쓴 runbook에 그대로 있던 함정이다.** 앞 커밋에서 `docker compose up -d postgres`를 0단계로 적어 두고 다음 단계로 넘어갔었다 — 승인이 왔다면 host DB에 migration이 걸렸을 것이다.
+
+#### 세 가지 결함 부류와 **각각을 찾는 질문이 다르다**
+
+이 세션이 모은 것을 정리하면 세 가지이고, **탐지 방법이 서로 대체되지 않는다.** 한 줄로 합치지 말 것.
+
+| | 증상 | 찾는 질문 | 왜 다른 방법으로는 안 나오나 |
+| --- | --- | --- | --- |
+| 1 | 통과하지만 아무것도 증명하지 않는 검사 | **변이** — 고장을 되살리면 빨개지나 | — |
+| 2 | 완전히 구현됐지만 **발화할 수 없는** 가드 | **생산자 추적** — 이 값을 세우는 코드가 있나 | 가드가 **옳으므로** 변이로 안 잡힌다 |
+| 3 | 완전히 구현·test됐는데 **아무도 부르지 않는** 서비스 | **호출자 추적** — production 경로에서 누가 부르나 | 코드가 옳고, test가 직접 부르니 coverage도 초록이다 |
+
+**3번이 가장 늦게 드러난다.** `KtoSnapshotCatalogIngest`가 그랬다 — 구현·test 모두 있는데 production 호출자가 없어서 C4 smoke에 실행 경로가 없었고, 그걸 **명령을 적으려다** 발견했다.
+
+**그래서 호출자 추적을 한 바퀴 돌렸다.** `application` package의 service 후보 **70개**를 훑어 production 참조가 0인 것을 셌고, 6건이 나왔는데 **3건은 오탐이었다.**
+
+- `ExpiredAnalyticsEventEraser`·`ExpiredIdempotencyRecordEraser` — `TtlEraser` SPI 구현이고 `TtlSweep(List<TtlEraser>)`이 모은다. **이름으로는 아무도 안 부르지만 type으로 불린다.**
+- `TombstoneReapplier` — `SmartLifecycle`이라 Spring이 `start()`를 부른다.
+
+**SPI·lifecycle은 이름 기반 grep에 잡히지 않는다.** 호출자 추적을 할 때 이 둘을 먼저 배제하지 않으면 오탐이 절반이다.
+
+진짜는 3건이고 전부 `recommendation.application`이다 — `FeedFallback`·`RunFingerprint`·`ProposalRevalidator`. 그 module에는 **controller도 job도 없다**(`RecommendationGateway`와 probe뿐). 즉 **slice가 아직 안 붙은 상태**이지 결함은 아니다. 다만 아무도 그렇게 적어 두지 않았다.
+
+`ArchitectureRulesTest`에 규칙으로 넣었다: `recommendation.application`의 class는 **production 유입 의존이 있거나, 그것을 붙일 slice 이름과 함께 등록돼 있거나** 둘 중 하나여야 한다. **변이로 공허하지 않음을 확인했다** — `FeedFallback`에 production 참조를 하나 넣자 `uncalled`에서 빠지며 RED가 됐다(등록은 남아 있으므로). 이 검사 자체가 1번 부류가 되기 쉬운 모양이라 그 확인이 필수였다.
+
+등록을 지우는 순간이 **옆 것도 함께 배선됐는지 확인할 자리**다. `ProposalRevalidator`는 AI가 최종 판정자가 되지 않게 하는 재검증(불변식 9)이라, feed slice가 `FeedFallback`만 붙이고 이걸 빠뜨리면 조용한 구멍이 된다.
 
 #### 규칙
 
@@ -534,8 +645,23 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 | **이미 끝나 있었다(확인함)** | PM-018(삭제 receipt 예외 projection — `DeletionIT`가 token 부재를 단언), PM-022 쿠키 절반(`cookieName()`이 `secure`일 때만 `__Host-`, `SessionPropertiesTest`가 양쪽 분기 고정), PM-024 `slotDates`(policy-v1.yaml이 30), PM-020 문서 정정(`SOURCE_CATALOG` §123의 UNKNOWN/NONE 구분, `FIGMA_HANDOFF` §230 문구), PM-023 문구(개인화 ranking은 P2·범위 밖) | — |
 | **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
 | **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
-| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 배포 절반, PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 **배포 절반**(local 절반은 위에서 실측·해소), PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+
+**PM-017은 조사해 보니 만들 것이 없다 — 세 항목 다 구현·고정돼 있고 남은 건 숫자 확정뿐이다.** 다시 열어보지 않도록 근거를 적는다.
+
+- **absolute 경계**: `SessionProperties`가 `APP_SESSION_ABSOLUTE_TTL:P90D`를 읽고, `SessionTimeIT`가 *"absolute TTL caps sliding"* 과 *"idle and orphan cutoff reject at equality"* 로 **경계를 이미 고정**한다(등호에서 거절하는 것까지).
+- **owner 자동 삭제 시점**: `SessionTtlEraser:59`가 orphan owner(`kind='ANONYMOUS'`, 남은 session 없음, `deleted_at IS NULL`)를 **TTL sweep 안에서** 지운다. 별도 GC 값이 아니라 session TTL에서 파생된다.
+- **cookie 유실 뒤**: 새 익명 owner가 생기고 이전 owner는 orphan이 되어 위 경로로 지워진다. 서버 동작은 정의돼 있고 **안내 문구는 FE 소유**다.
+- **다중 탭 CSRF**: FE `problem-schema` 쪽에서 이미 해소됐다(`problem-policy.ts`의 `reissue-csrf-once`는 silent retry가 아니라 *"token 1회 재발급 후 사용자 재확인"* 이라 PM-017의 *"401 뒤 mutation 자동 재실행 없음"* 을 그대로 만족한다). **FE 이슈를 올리지 않았다.**
+
+남은 것은 `ENVIRONMENT.md`가 **`(제안값)`으로 표시한 세 숫자**(`APP_SESSION_ABSOLUTE_TTL`·`APP_CSRF_TOKEN_TTL`·`nullnull.session.touch-interval`) 확정이고, 그것은 오너 결정이다. **`(제안값)` 표기 자체가 "임의 기입 금지"를 지키고 있는 것이므로 지우지 말 것.**
 | **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
+
+**PM-013도 절반은 이미 지켜지고 있었고, 지키는 것이 아무것도 없었다.** "혼잡 단계 과장 위험"인데 — KTO 상대 집중률은 **날짜 단위**이고 서울4단계도 공통5단계도 아니다. 확인해 보니 registry의 `metric_definition`이 *"가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님"* 이라고 **정확히** 적고 그게 `metricDefinition`으로 client까지 간다. `ordinal_level`도 NULL로 저장된다.
+
+**그런데 NULL을 지키는 단언이 없었다.** FE의 `CrowdLevel.tsx`는 `ordinalLevel`로 1~4 막대를 그리고(그 주석이 서버가 NULL을 넣는다는 것까지 정확히 적고 있다), 누가 `cnctrRate`에서 단계를 유도하는 순간 카드가 **source에 없는 척도를 주장**하기 시작한다 — 그것도 버그가 아니라 데이터처럼 보이면서. `KtoCrowdForecastGatewayIT`가 실제 쓰기 경로에서 `ordinal_level IS NULL`과 `unit = 'relative-index'`를 고정한다(변이 확인: `'3'`을 넣으면 RED).
+
+PM-013의 나머지(**기계 판독 가능한 target granularity**와 단계 어휘)는 FE 주석이 적은 대로 *"실응답으로 어휘를 확인한 뒤 계약에 추가"* 라 **smoke 승인과 같은 것을 기다린다.**
 
 **PM-010의 절반은 실제로 열려 있었고, 나머지 절반은 열 수 없다.** 표에 "데이터가 먼저"로 적어 둔 채 넘겼는데 그게 두 개의 다른 문제를 하나로 묶고 있었다.
 

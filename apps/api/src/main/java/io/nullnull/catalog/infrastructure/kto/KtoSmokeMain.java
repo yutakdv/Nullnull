@@ -28,6 +28,8 @@ public final class KtoSmokeMain {
         SmokeRequest request = SmokeRequest.from(System.getenv());
         Map<String, String> settings = KtoSmokeEnvironment.load(System.getenv(), java.nio.file.Path.of(".env.local"));
         String requestedEnvironment = KtoSmokeEnvironment.environment(settings);
+        KtoSmokeEnvironment.sources(System.getenv(), java.nio.file.Path.of(".env.local"))
+                .forEach(line -> System.out.println("KTO_SMOKE_SETTINGS " + line));
         request.requirePermittedEnvironment(requestedEnvironment);
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
                 .web(WebApplicationType.NONE)

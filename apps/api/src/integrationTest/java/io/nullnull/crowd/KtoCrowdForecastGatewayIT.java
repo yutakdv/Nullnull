@@ -107,6 +107,19 @@ class KtoCrowdForecastGatewayIT {
                     SELECT value FROM crowd_snapshots WHERE source_code = ? ORDER BY target_at LIMIT 1
                     """, BigDecimal.class, SOURCE)).isEqualByComparingTo("42.5");
 
+            // PM-013: a KTO relative concentration rate is a DAILY index whose 100 is "the busiest
+            // period", not the Seoul four-level or the common five-level scale. The frontend's
+            // CrowdLevel renders a 1..4 bar from ordinalLevel, so the moment this collector derives
+            // a level from cnctrRate the card starts claiming a scale the source does not have -
+            // and it would look like data rather than like a bug. unit stays the relative index and
+            // ordinal_level stays absent until a reviewed vocabulary exists (FCR-029).
+            assertThat(jdbc.queryForObject("""
+                    SELECT count(*) FROM crowd_snapshots
+                     WHERE source_code = ? AND (ordinal_level IS NOT NULL OR unit <> 'relative-index')
+                    """, Integer.class, SOURCE))
+                    .as("a daily relative index must not be projected onto a level scale")
+                    .isZero();
+
             String snapshotRows = jdbc.queryForObject("""
                     SELECT string_agg(row_to_json(s)::text, E'\\n')
                       FROM crowd_snapshots s WHERE s.source_code = ?

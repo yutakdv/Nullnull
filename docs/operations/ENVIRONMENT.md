@@ -275,27 +275,72 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 - **승인 변수는 `.env.local`에서 읽히지 않는다.** `KtoSmokeEnvironment.ALLOWED_NAMES`에 없고 두 main이 `System.getenv()`로만 읽으므로, **승인은 명령을 실행하는 사람의 shell이 갖는다.** 파일에 적어도 승인이 되지 않는 것이 설계다 — 감사 기록의 출처가 사람이어야 하기 때문이다.
 - **세 단계이며 순서가 있다.** `ktoForecastSmoke`는 `place_external_refs`를 join하는데 그 행은 canonical ingest만 만든다. C2 gateway는 자기 snapshot을 스스로 매핑하지 않으므로(의도된 분리), 가운데 단계 없이 C4를 돌리면 `NoVerifiedKtoMappingException`으로 끝난다.
 
-```bash
-cd apps/api
-export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-docker compose -f ../../compose.yml up -d postgres   # SPRING_DATASOURCE_* 가 가리키는 DB
+**선행 조건 넷.** 하나라도 빠지면 실패 메시지가 원인을 가리키지 않는다.
 
-# 1. C2 — 실제 detailCommon2 호출 1회. 승인은 이 줄을 타이핑하는 행위다.
+1. **앱이 붙을 포트를 우리가 띄운 container가 publish한다.** container가 떴는지만 보면 부족하다 — container는 5434에 떠 있고 `.env.local`은 5433(host postgres)을 가리키는 상태가 **그 검사를 통과한다.** 그래서 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 본다.
+2. **`SPRING_DATASOURCE_*` 세 값이 그 DB와 맞는다.** 비밀번호는 `compose.yml`의 `local-only`다. 포트는 기기마다 다를 수 있으니 `.env.local`을 정본으로 본다.
+3. **shell에 `SPRING_DATASOURCE_*`가 export돼 있지 않다.** 있으면 `.env.local`을 **덮는다**(아래).
+4. **`JAVA_HOME`이 Temurin 21**이고, Gradle daemon이 예전 환경을 들고 있지 않다(`./gradlew --stop`).
+
+명령은 저장소 root에서 시작한다. 대화형 zsh는 `interactive_comments`가 기본 off라 **`#` 주석을 붙여 붙여넣으면 `command not found: #`**가 나므로 블록 안에 주석을 두지 않는다.
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+env | grep '^SPRING_DATASOURCE_' && echo 'WARNING: these override .env.local'
+docker compose up -d postgres
+port=$(sed -n 's#^SPRING_DATASOURCE_URL=jdbc:postgresql://[^:]*:\([0-9]\{1,5\}\)/.*#\1#p' apps/api/.env.local)
+docker ps --format '{{.Ports}}' | grep -q ":${port}->" \
+  && echo "OK: a running container publishes ${port}" \
+  || echo "FAIL: .env.local points at ${port} and no container publishes it"
+```
+
+```bash
+cd "$(git rev-parse --show-toplevel)/apps/api"
+./gradlew --stop
 NULLNULL_KTO_SMOKE_APPROVED=true \
 NULLNULL_KTO_SMOKE_CONTENT_ID=126508 \
 NULLNULL_KTO_SMOKE_CONTENT_TYPE_ID=12 \
   ./gradlew ktoSmoke --console=plain
+```
 
-# 2. snapshot을 canonical catalog로 매핑한다. 외부 호출 없음. placeId를 출력한다.
+```bash
 NULLNULL_KTO_INGEST_CONTENT_ID=126508 \
 NULLNULL_KTO_INGEST_CONTENT_TYPE_ID=12 \
   ./gradlew ktoCanonicalIngest --console=plain
+```
 
-# 3. C4 — 2단계가 출력한 placeId를 그대로 넣는다.
+```bash
 NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true \
 NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
   ./gradlew ktoForecastSmoke --console=plain
 ```
+
+  **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패한다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 지금까지 `Created` 상태로 **한 번도 뜬 적이 없다.**
+
+  위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
+
+  해결은 host PostgreSQL을 멈추거나 publish 포트를 이 기기에서만 바꾸는 것이고, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다.
+
+  **그리고 그 확인이 liveness가 아니라 신원을 봐야 한다.** "container가 떴다"와 "앱이 붙을 곳이 그 container다"는 다르다 — 포트를 옮기면서 `.env.local`만, 혹은 compose만 고치면 **container는 멀쩡히 running인 채로 앱은 host 서버에 붙는다.** 이번에 우리를 구한 것은 그 host 서버의 비밀번호가 달랐다는 우연뿐이고, 맞았다면 migration 18개가 남의 DB에 **오류 없이** 걸렸을 것이다. 그래서 0단계는 두 값을 **묶어서** 비교한다.
+
+  **그리고 `.env.local`을 고쳤는데 반영이 안 될 수 있다.** `KtoSmokeEnvironment.load`는 파일을 먼저 읽은 뒤 **process 환경변수로 덮는다** — 그게 올바른 우선순위지만 **증상이 없다.** 파일은 맞는데 예전 값으로 계속 실패하고, 파일이 읽히긴 했는지조차 알 수 없다(실제로 운영자가 여기서 30분을 썼다). 그래서 세 main이 부팅 전에 **각 설정이 어디서 왔는지**를 출력한다.
+
+```text
+KTO_SMOKE_SETTINGS SPRING_DATASOURCE_URL <- process env (overrides .env.local)
+KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- .env.local
+KTO_SMOKE_SETTINGS KTO_FORECAST_BASE_URL <- absent
+```
+
+  **shell 우회로가 필요하면 `readDotenv`의 규칙을 그대로 재현한다.** 빈 값을 버리는 형태는 이렇다.
+
+```bash
+while IFS='=' read -r k v; do [ -n "$v" ] && export "$k=$v"; done < .env.local
+```
+
+  **`.env.local`을 shell로 내보내는 우회로를 쓸 때 주의.** 이 파일에는 의도적으로 **빈 값**이 여럿 있고(`APP_COOKIE_SECURE=` 등, `.env.example`의 규칙대로 사용자 값은 비워 둔다), `readDotenv`는 `if (!value.isEmpty())`로 **빈 값을 버린다** — 그래서 Spring 기본값이 살아난다. 그런데 `set -a; source .env.local`처럼 통째로 내보내면 **빈 문자열이 그대로 process 환경변수가 되어** 기본값을 누르고 `Invalid boolean value []`로 죽는다. 우회로는 `readDotenv`의 규칙을 재현해야 하며, 필요한 변수만 골라 넘기는 편이 안전하다.
+
+  **이름과 출처만 찍고 값은 절대 찍지 않는다** — 이 목록에는 `KTO_SERVICE_KEY`와 `SPRING_DATASOURCE_PASSWORD`가 들어 있고, 값이 새면 진단이 제거하는 혼란보다 나쁘다. `KtoSmokeEnvironmentTest`가 그 부재를 변이로 고정한다.
 
   `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
 
