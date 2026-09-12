@@ -243,6 +243,22 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 중요 기능 suite는 경로 필터와 관계없이 모든 main PR에서 실행한다. 구현 전 missing suite를 green placeholder로 대체하지 않는다.
 
+선행 PM 항목 상태:
+
+- **PM-008·PM-016은 닫혔다**(#145·#150, #161). **PM-024의 `slotDates` 동기화도 이미 끝나 있다** — `policy-v1.yaml`은 30이고 `PolicyPinsParityTest`가 Spring pin과 대조한다.
+- **PM-019는 절반 닫혔다.** `default: Problem`이 없던 여섯 operation에 그것을 넣어 모든 operation이 오류에 타입을 갖는다(`ProblemResponseCoverageTest`). 남은 절반은 operation별 status 열거이고, 어느 status를 화면이 구분해야 하는지는 FE만 답할 수 있어 [#170](https://github.com/yutakdv/Nullnull/issues/170)으로 올렸다. 측정값: session 보호 21개 중 **19개가 401 미선언**, CSRF 보호 11개 **전부 403 미선언**.
+- **PM-024의 probe 8건을 현재 계약으로 실제로 돌려봤다.** 결과는 아래와 같고, 그 probe 파일은 [#11 계약 검토 재현 자료](../contracts/review-2026-09-06/README.md)라 **기대값을 내가 고치지 않았다.**
+
+| probe | 결과 | 뜻 |
+| --- | --- | --- |
+| `PM08-hhmmss`, `PM08-offset` | MATCH | #145·#150으로 해소 |
+| `PM16-days`, `PM16-items`, `PM16-entry-query` | MATCH | #161로 해소 |
+| `PM06-duplicate-code` | schema는 MISMATCH | **domain에서 해소됐다** — `TripInterest.validated`가 `Duplicate`로 거절한다. probe의 `enforcementLayer`가 "domain rule"이라고 이미 적고 있으므로 schema 실행만으로는 보이지 않는다 |
+| `PM08-hhmm` | MISMATCH | **기대값이 낡았다.** #145가 `HH:mm:ss`로 정했으므로 `09:30`은 이제 거절이 맞다 |
+| `PM05-no-title` | MISMATCH | **진짜 미해결.** `confirmTripImport`는 BA-060이고 아직 구현되지 않았다 |
+
+probe를 CI 게이트로 승격하려면 위 두 기대값(낡은 것·layer 구분)을 먼저 정리해야 하고 그건 FE 자료이므로, FE 큐가 비면 제안으로 올린다. 지금 올리면 답을 기다리는 이슈만 하나 늘어난다.
+
 필수 검증:
 
 - `BA-004-T1`: 실패 test를 의도적으로 넣은 PR에서 두 required gate 중 해당 gate가 빨갛다
