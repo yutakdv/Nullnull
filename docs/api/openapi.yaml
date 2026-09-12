@@ -382,12 +382,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SavedPostState"
+              examples:
+                alreadySaved:
+                  summary: The post was already saved
+                  description: |
+                    duplicate is true and savedAt is the ORIGINAL save time, not now: saving again is
+                    idempotent and does not move the timestamp. Saving a post never schedules anything -
+                    a SavedPost, a TripCandidate and a TripItem are separate resources, which is why this
+                    body carries no trip, no version and no schedule field at all.
+                  value:
+                    postId: "018f5b00-0000-7000-8000-000000000001"
+                    saved: true
+                    duplicate: true
+                    savedAt: "2026-09-11T05:40:00Z"
         "201":
           description: Post saved
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SavedPostState"
+              examples:
+                newlySaved:
+                  summary: The post was saved for the first time
+                  description: |
+                    duplicate is false and savedAt is when the save happened. Compare with the 200 above:
+                    the only difference is duplicate, so a client can treat both as "it is saved now"
+                    and use duplicate solely to decide whether to announce it.
+                  value:
+                    postId: "018f5b00-0000-7000-8000-000000000001"
+                    saved: true
+                    duplicate: false
+                    savedAt: "2026-09-11T05:40:00Z"
         default:
           $ref: "#/components/responses/Problem"
     delete:

@@ -62,8 +62,8 @@
     },
     "posts": {
       "schema": "PostDetail",
-      "count": 3,
-      "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState.",
+      "count": 4,
+      "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState. savePost's 200 and 201 now have openapi.yaml examples pinned to saved-post-state-duplicate.json and saved-post-state.json; the two differ only in `duplicate`, and savedAt is identical on purpose because saving again must not move the timestamp. getPost still has no example: its places carry categoryName \"고궁\" while the server returns null (#129).",
       "serverVerified": false
     }
   }
