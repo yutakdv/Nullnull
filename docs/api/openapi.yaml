@@ -578,6 +578,11 @@ paths:
       responses:
         "200":
           description: Cursor page of feed cards
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -817,6 +822,11 @@ paths:
       responses:
         "200":
           description: Post details and linked places
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -933,6 +943,11 @@ paths:
       responses:
         "200":
           description: Existing saved-post state returned
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -952,6 +967,11 @@ paths:
                     savedAt: "2026-09-11T05:40:00Z"
         "201":
           description: Post saved
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -980,6 +1000,11 @@ paths:
       responses:
         "204":
           description: Saved-post relation removed or already absent
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3471,6 +3496,17 @@ components:
         candidateState:
           type: string
           enum: [NOT_SAVED, SAVED_TO_SELECTED_TRIP, SCHEDULED_IN_SELECTED_TRIP, NO_TRIP_SELECTED]
+          description: |
+            What the selected trip already knows about `primaryPlace`. It changes what the card
+            shows and never where it sits: the feed order is fixed for everyone.
+
+            `NO_TRIP_SELECTED` describes the REQUEST, not the card - it is the answer when no
+            `tripId` was supplied, so it applies to every card in the page or to none of them. A
+            page mixing it with the other three cannot occur. The other three are per-card and may
+            appear together.
+
+            `NO_TRIP_SELECTED` is not `NOT_SAVED`: the first means the question has no answer, the
+            second that the answer is no.
     PostSummary:
       type: object
       additionalProperties: false

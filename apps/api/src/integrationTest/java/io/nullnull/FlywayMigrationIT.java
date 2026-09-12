@@ -314,6 +314,7 @@ class FlywayMigrationIT {
                     v_set uuid := gen_random_uuid();
                     v_forecast_run uuid := gen_random_uuid();
                     v_trip uuid := gen_random_uuid();
+                    v_item uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -381,6 +382,14 @@ class FlywayMigrationIT {
                                                 snapshot_hash, aggregate_snapshot, created_at)
                     VALUES (gen_random_uuid(), v_trip, 1, 'trip-aggregate-v1', repeat('f', 64),
                             '{}'::jsonb, v_at);
+                    -- V014's scheduled half. The date must lie inside the trip range above, which
+                    -- a trigger enforces, so it reuses v_at rather than a fixed day.
+                    INSERT INTO trip_items (id, trip_id, place_id, trip_date, position, start_time,
+                                            created_at, updated_at)
+                    VALUES (v_item, v_trip, v_place, v_at::date, 0, '09:30:00', v_at, v_at);
+                    INSERT INTO trip_constraints (id, trip_id, trip_item_id, type, source,
+                                                  created_at, updated_at)
+                    VALUES (gen_random_uuid(), v_trip, v_item, 'MUST_VISIT', 'USER', v_at, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -392,7 +401,7 @@ class FlywayMigrationIT {
                         "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
                         "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
-                        "trips", "trip_interests", "trip_revisions");
+                        "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints");
         return key;
     }
 

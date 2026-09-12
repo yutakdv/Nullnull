@@ -12,7 +12,8 @@ public final class ImplementedOperationsRegistry {
             Set.of("getLiveness", "getReadiness", "getDemoReadiness", "createDemoSession", "issueCsrfToken",
                     "getCurrentOwner", "updatePreferences", "deleteCurrentSession", "getDeletionRequest",
                     "searchPlaces", "getPlace", "getPlaceCrowdForecast",
-                    "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip");
+                    "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip",
+                    "listFeed", "getPost", "savePost", "unsavePost");
 
     private ImplementedOperationsRegistry() {
     }

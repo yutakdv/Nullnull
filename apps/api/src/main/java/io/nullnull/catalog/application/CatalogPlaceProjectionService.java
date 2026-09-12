@@ -64,6 +64,25 @@ public class CatalogPlaceProjectionService {
                 .orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "The requested place is unavailable."));
     }
 
+    /**
+     * Summaries for places another resource embeds, behind the SAME publication gate as searchPlaces
+     * and getPlace.
+     *
+     * <p>The gate exists because the canonical catalog is KTO-derived and BA-021-T3's staging
+     * call evidence does not exist yet. A caller that read {@link CatalogPlaceQuery} directly would
+     * serve exactly that data through a different operation and the fail-closed decision would mean
+     * nothing - so embedding callers come through here.
+     */
+    @Transactional(readOnly = true)
+    public List<CatalogPlaceSummary> embeddedSummaries(OwnerContext owner, List<UUID> placeIds) {
+        publication.requirePublicProjection();
+        Objects.requireNonNull(owner, "owner");
+        if (placeIds == null || placeIds.isEmpty()) {
+            return List.of();
+        }
+        return catalog.summaries(List.copyOf(placeIds), preferences.get(owner).locale(), clock.instant());
+    }
+
     private long offset(CatalogPlaceSearchRequest request, Instant now, String ownerBinding) {
         if (request.cursor() == null) {
             return 0;
