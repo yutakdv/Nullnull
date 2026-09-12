@@ -12,6 +12,7 @@
         "categoryName": null,
         "regionName": null,
         "thumbnailUrl": null,
+        "thumbnailAttribution": null,
         "address": "서울 서대문구 연희로",
         "sourceAttribution": {
           "source": "KTO_KOR_SERVICE_2",
@@ -68,6 +69,7 @@
         "categoryName": null,
         "regionName": null,
         "thumbnailUrl": null,
+        "thumbnailAttribution": null,
         "address": "서울 성동구 뚝섬로",
         "sourceAttribution": {
           "source": "KTO_KOR_SERVICE_2",

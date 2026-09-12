@@ -60,8 +60,8 @@ public class PlaceController {
     }
 
     public record PlaceSummaryResponse(UUID id, String name, String categoryCode, String regionCode,
-            String categoryName, String regionName, String thumbnailUrl, String address,
-            SourceAttributionResponse sourceAttribution) {
+            String categoryName, String regionName, String thumbnailUrl, String thumbnailAttribution,
+            String address, SourceAttributionResponse sourceAttribution) {
         /**
          * Public because PlaceSummary is ONE contract schema that several resources embed - a feed
          * card's primaryPlace and a post's places are the same shape as a search result. A second
@@ -70,7 +70,8 @@ public class PlaceController {
          */
         public static PlaceSummaryResponse from(CatalogPlaceSummary source) {
             return new PlaceSummaryResponse(source.id(), source.name(), source.categoryCode(), source.regionCode(),
-                    source.categoryName(), source.regionName(), source.thumbnailUrl(), source.address(),
+                    source.categoryName(), source.regionName(), source.thumbnailUrl(),
+                    source.thumbnailAttribution(), source.address(),
                     SourceAttributionResponse.from(source.sourceAttribution()));
         }
     }

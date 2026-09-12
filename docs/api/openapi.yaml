@@ -618,6 +618,7 @@ paths:
                           categoryName: null
                           regionName: null
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: "서울 종로구 사직로 161"
                           sourceAttribution:
                             source: "KTO_KOR_SERVICE_2"
@@ -681,6 +682,7 @@ paths:
                           categoryName: null
                           regionName: null
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: "서울 서대문구 연희로"
                           sourceAttribution:
                             source: "KTO_KOR_SERVICE_2"
@@ -744,6 +746,7 @@ paths:
                           categoryName: null
                           regionName: null
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: "서울 중구 명동길"
                           sourceAttribution:
                             source: "KTO_KOR_SERVICE_2"
@@ -770,6 +773,7 @@ paths:
                           categoryName: null
                           regionName: null
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: "서울 종로구 계동길"
                           sourceAttribution:
                             source: "KTO_KOR_SERVICE_2"
@@ -861,6 +865,7 @@ paths:
                         categoryName: null
                         regionName: null
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: "서울 종로구 사직로 161"
                         sourceAttribution:
                           source: "KTO_KOR_SERVICE_2"
@@ -878,6 +883,7 @@ paths:
                         categoryName: null
                         regionName: null
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: "서울 중구 명동길"
                         sourceAttribution:
                           source: "KTO_KOR_SERVICE_2"
@@ -909,6 +915,7 @@ paths:
                         categoryName: null
                         regionName: null
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: "서울 종로구 사직로 161"
                         sourceAttribution:
                           source: "KTO_KOR_SERVICE_2"
@@ -926,6 +933,7 @@ paths:
                         categoryName: null
                         regionName: null
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: "서울 중구 명동길"
                         sourceAttribution:
                           source: "KTO_KOR_SERVICE_2"
@@ -1066,6 +1074,7 @@ paths:
                         categoryName: null
                         regionName: null
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: "서울 종로구 사직로 161"
                         sourceAttribution:
                           source: "KTO_KOR_SERVICE_2"
@@ -1082,6 +1091,7 @@ paths:
                         categoryName: null
                         regionName: null
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: "서울 중구 명동길"
                         sourceAttribution:
                           source: "KTO_KOR_SERVICE_2"
@@ -1098,6 +1108,7 @@ paths:
                         categoryName: null
                         regionName: null
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: "서울 종로구 계동길"
                         sourceAttribution:
                           source: "KTO_KOR_SERVICE_2"
@@ -1267,6 +1278,7 @@ paths:
                           categoryName: null
                           regionName: null
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: "서울 서대문구 연희로"
                           sourceAttribution:
                             source: "KTO_KOR_SERVICE_2"
@@ -1318,6 +1330,7 @@ paths:
                           categoryName: null
                           regionName: null
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: "서울 성동구 뚝섬로"
                           sourceAttribution:
                             source: "KTO_KOR_SERVICE_2"
@@ -1596,6 +1609,7 @@ paths:
                               categoryCode: "HS"
                               regionCode: "11"
                               thumbnailUrl: null
+                              thumbnailAttribution: null
                               address: null
                             date: "2026-10-04"
                             position: 0
@@ -1621,6 +1635,7 @@ paths:
                               categoryCode: "HS"
                               regionCode: "11"
                               thumbnailUrl: null
+                              thumbnailAttribution: null
                               address: null
                             date: "2026-10-04"
                             position: 1
@@ -1646,6 +1661,7 @@ paths:
                               categoryCode: "HS"
                               regionCode: "11"
                               thumbnailUrl: null
+                              thumbnailAttribution: null
                               address: null
                             date: "2026-10-05"
                             position: 0
@@ -1732,6 +1748,7 @@ paths:
                               categoryCode: "HS"
                               regionCode: "11"
                               thumbnailUrl: null
+                              thumbnailAttribution: null
                               address: null
                             date: "2026-10-04"
                             position: 0
@@ -1757,6 +1774,7 @@ paths:
                               categoryCode: "HS"
                               regionCode: "11"
                               thumbnailUrl: null
+                              thumbnailAttribution: null
                               address: null
                             date: "2026-10-04"
                             position: 1
@@ -1782,6 +1800,7 @@ paths:
                               categoryCode: "HS"
                               regionCode: "11"
                               thumbnailUrl: null
+                              thumbnailAttribution: null
                               address: null
                             date: "2026-10-05"
                             position: 0
@@ -2064,6 +2083,7 @@ paths:
                           categoryCode: "HS"
                           regionCode: "11"
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: null
                           categoryName: null
                           regionName: null
@@ -2093,6 +2113,7 @@ paths:
                           categoryCode: "HS"
                           regionCode: "11"
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: null
                           categoryName: null
                           regionName: null
@@ -2122,6 +2143,7 @@ paths:
                           categoryCode: "HS"
                           regionCode: "11"
                           thumbnailUrl: null
+                          thumbnailAttribution: null
                           address: null
                           categoryName: null
                           regionName: null
@@ -2192,6 +2214,7 @@ paths:
                         categoryCode: "HS"
                         regionCode: "11"
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: null
                         categoryName: null
                         regionName: null
@@ -2241,6 +2264,7 @@ paths:
                         categoryCode: "HS"
                         regionCode: "11"
                         thumbnailUrl: null
+                        thumbnailAttribution: null
                         address: null
                         categoryName: null
                         regionName: null
@@ -3761,6 +3785,17 @@ components:
         thumbnailUrl:
           type: [string, "null"]
           format: uri
+          description: |
+            A thumbnail whose reviewed licence allows redistribution, or null. Never render it
+            without `thumbnailAttribution` when that field is non-null.
+        thumbnailAttribution:
+          type: [string, "null"]
+          maxLength: 500
+          description: |
+            Ready-to-render credit for `thumbnailUrl`, or null when the reviewed licence requires
+            none. Redistributable is not the same as creditless, and a card that cannot name the
+            image's source must not show the image. Displayed verbatim; it is not `sourceAttribution`,
+            which credits the place record rather than the photograph.
         address:
           type: [string, "null"]
     PlaceDetail:

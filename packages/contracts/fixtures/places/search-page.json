@@ -8,6 +8,7 @@
       "categoryName": null,
       "regionName": null,
       "thumbnailUrl": null,
+      "thumbnailAttribution": null,
       "address": "서울 종로구 사직로 161",
       "sourceAttribution": {
         "source": "KTO_KOR_SERVICE_2",
@@ -27,6 +28,7 @@
       "categoryName": null,
       "regionName": null,
       "thumbnailUrl": null,
+      "thumbnailAttribution": null,
       "address": "서울 중구 명동길",
       "sourceAttribution": {
         "source": "KTO_KOR_SERVICE_2",
@@ -46,6 +48,7 @@
       "categoryName": null,
       "regionName": null,
       "thumbnailUrl": null,
+      "thumbnailAttribution": null,
       "address": "서울 종로구 계동길",
       "sourceAttribution": {
         "source": "KTO_KOR_SERVICE_2",

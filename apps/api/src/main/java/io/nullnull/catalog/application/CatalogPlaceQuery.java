@@ -24,9 +24,15 @@ public interface CatalogPlaceQuery {
      */
     List<CatalogPlaceSummary> summaries(List<UUID> placeIds, String locale, Instant observedAt);
 
+    /**
+     * {@code thumbnailAttribution} is the ready-to-render credit for {@code thumbnailUrl}, or null
+     * when the reviewed licence requires none. A summary already only carries a thumbnail whose
+     * licence allows redistribution, but redistributable is not the same as creditless: without this
+     * field a card could serve an attribution-required image with no way to name its source.
+     */
     record CatalogPlaceSummary(UUID id, String name, String categoryCode, String regionCode,
-            String categoryName, String regionName, String thumbnailUrl, String address,
-            CatalogSourceAttribution sourceAttribution) {
+            String categoryName, String regionName, String thumbnailUrl, String thumbnailAttribution,
+            String address, CatalogSourceAttribution sourceAttribution) {
     }
 
     record CatalogPlaceDetail(UUID id, String name, String categoryCode, String regionCode,

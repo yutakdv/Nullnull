@@ -500,7 +500,14 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 | **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
 | **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
 | **오너/정책** | PM-017(세션 만료·GC 값), PM-022 배포 절반, PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
-| **키·게이트 대기** | PM-014(KTO 키), PM-010(데이터가 먼저), PM-005(BA-060 미구현) | 아니오 |
+| **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
+
+**PM-010의 절반은 실제로 열려 있었고, 나머지 절반은 열 수 없다.** 표에 "데이터가 먼저"로 적어 둔 채 넘겼는데 그게 두 개의 다른 문제를 하나로 묶고 있었다.
+
+- **projection 공백(닫았다).** `PlaceSummary.thumbnailUrl`은 이미 `license.redistribution_allowed`를 요구하는 join으로만 나오지만 — **재배포 허용과 크레딧 불필요는 다른 허가다.** summary가 `attribution_template`을 버리고 있어서, 크레딧이 필요한 이미지를 카드가 출처 없이 띄울 수 있었고 client가 그걸 알 방법은 N+1 상세 호출뿐이었다. `thumbnailAttribution`을 summary에 추가했다(`required` 밖, #34 선례). 변이로 확인: SELECT를 `NULL AS thumbnail_attribution`으로 바꾸면 그 test만 RED.
+- **데이터 공백(못 닫는다).** `posts.cover_url`은 `text NOT NULL` + 비어있지 않음 CHECK이고 **licence로 가는 길이 없다.** 즉 모든 post가 심사를 통과하지 않은 표지 이미지를 **의무적으로** 갖는다. V010이 `places`·`place_localizations`에 URL column을 **일부러 두지 않은** 이유("could bypass this boundary")가 그대로 `posts`에 뚫려 있다. P0 표지가 어디서 오는지는 오너 결정이고, KTO 이미지라면 이용 조건이 이미지별이다. `FeedIT`가 그 공백을 pin한다 — 심사된 표지가 생기는 순간 RED.
+
+**그리고 그 자리에서 "공유한다"고 적힌 주석이 거짓이었다.** `SUMMARY_PROJECTION`의 javadoc은 *"Shared by the search and the by-id read … a second copy of this would drift and one of the two callers would lose its attribution"* 라고 적어 놓고, **60줄 아래 `search`가 62줄짜리 복사본**을 갖고 있었다. 지금은 값이 같아서 아무 증상이 없었지만, 내가 `thumbnailAttribution`을 한쪽에만 넣었으면 주석이 예고한 그 결함이 그대로 났을 것이다. `search`가 실제로 `SUMMARY_PROJECTION`을 쓰도록 고쳤다. **drift를 막는다고 주석에 쓴 것은 주석이 막지 않는다.**
 
 **PM-018을 따라가다 access log의 필드 집합을 고정했다 — 다만 처음 주장한 만큼 큰 공백은 아니었다.** "log 쪽에 단언이 없다"고 적었다가 `HttpPolicyIT`를 읽고 정정했다: 그 test는 **root logger**에 appender를 붙여 canary가 어떤 log 줄에도 없음을 이미 단언하고 있었고, 그 범위에 이 filter의 줄도 들어간다.
 
