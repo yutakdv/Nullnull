@@ -254,6 +254,33 @@ public class TripService {
     }
 
     /**
+     * replaceTripInterests. The whole set is replaced, and the version rises by exactly one.
+     *
+     * <p>Unlike saving a candidate, changing interests is a change to the trip itself: the contract
+     * says so by requiring If-Match and returning the new ETag. It also makes any existing
+     * optimization preview stale, which is why it cannot be a quiet side write.
+     */
+    public TripView replaceInterests(OwnerContext context, UUID tripId, String ifMatch,
+            List<TripInterest> interests) {
+        long expected = parseIfMatch(ifMatch);
+        List<TripInterest> validated = TripInterest.validated(interests);
+        return transactions.execute(status -> {
+            Trip current = trips.findForUpdate(context.ownerId(), tripId).orElseThrow(TripService::notFound);
+            if (current.version() != expected) {
+                throw tripChanged(current.version());
+            }
+            Instant now = clock.instant();
+            Trip updated = new Trip(current.id(), current.ownerId(), current.title(), current.range(),
+                    current.planningLevel(), current.status(), current.version() + 1, validated,
+                    current.createdAt(), now, current.archivedAt());
+            String snapshot = snapshot(updated, trips.items(tripId));
+            trips.updateMetadata(updated, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+            return new TripView(updated,
+                    trips.candidateCounts(List.of(tripId)).getOrDefault(tripId, 0));
+        });
+    }
+
+    /**
      * deleteTrip. Guarded by both If-Match and Idempotency-Key: the ETag says which trip state the
      * caller meant to delete, and the key makes a repeat safe once it is gone.
      */

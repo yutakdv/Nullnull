@@ -191,7 +191,7 @@ class TripMutationIT {
         var owner = owner();
         UUID place = seedPlace();
         String body = "{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\",\"timezone\":\"Asia/Seoul\","
-                + "\"planningLevel\":\"NOTHING\",\"interests\":[{\"code\":\"food\",\"weight\":3}],"
+                + "\"planningLevel\":\"NOTHING\",\"interests\":[{\"code\":\"FOOD\",\"weight\":3}],"
                 + "\"seedItems\":[{\"placeId\":\"" + place + "\",\"date\":\"2026-10-04\",\"position\":0,"
                 + "\"constraints\":[{\"type\":\"MUST_VISIT\",\"locked\":true,\"source\":\"USER\"}]}]}";
         String created = mvc.perform(post("/api/v1/trips").cookie(cookie(owner))
@@ -289,6 +289,71 @@ class TripMutationIT {
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("nonsense"));
         // An empty patch is refused too: it would raise the version for nothing.
         patchTrip(owner, id, "\"1\"", "{}").andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    @DisplayName("BA-031 replaceTripInterests swaps the whole set and raises the version once")
+    void replacingInterestsIsOneVersion() throws Exception {
+        var owner = owner();
+        String id = createTrip(owner, "2026-10-04", "2026-10-07");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/v1/trips/" + id + "/interests").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .contentType("application/json")
+                        .content("{\"interests\":[{\"code\":\"FOOD\",\"weight\":3},"
+                                + "{\"code\":\"NATURE\",\"weight\":3}]}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "\"2\""))
+                .andExpect(jsonPath("$.interests.length()").value(2));
+
+        // Replace, not merge: the previous set is gone rather than added to.
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/v1/trips/" + id + "/interests").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"2\"")
+                        .contentType("application/json")
+                        .content("{\"interests\":[{\"code\":\"ALONE\",\"weight\":3}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.interests.length()").value(1))
+                .andExpect(jsonPath("$.interests[0].code").value("ALONE"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_interests WHERE trip_id = ?",
+                Integer.class, UUID.fromString(id))).isOne();
+        // An empty set is valid: the wizard allows choosing nothing.
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/v1/trips/" + id + "/interests").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"3\"")
+                        .contentType("application/json").content("{\"interests\":[]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.interests").isEmpty());
+    }
+
+    @Test
+    @DisplayName("BA-030 an interest code outside the FCR-020 vocabulary is refused")
+    void anUnsupportedInterestCodeIsRefused() throws Exception {
+        var owner = owner();
+        // Plausible but not a chip. Before FCR-020 settled this was accepted, which would have left
+        // rows no screen could render.
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/v1/trips").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "vocab-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\","
+                                + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\","
+                                + "\"interests\":[{\"code\":\"SHOPPING\",\"weight\":3}]}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("Unsupported"))
+                // The rejected value is never echoed back.
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("SHOPPING"))));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trips WHERE owner_id = ?", Integer.class,
+                owner.owner.id())).isZero();
     }
 
     @Test

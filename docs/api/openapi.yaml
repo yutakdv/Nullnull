@@ -774,7 +774,7 @@ paths:
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
                         savedPost: false
-                        candidateState: "NO_TRIP_SELECTED"
+                        candidateState: "NOT_SAVED"
                     page:
                       nextCursor: "ZmVlZC1wYWdlLTItb3BhcXVlLWN1cnNvcg"
                       hasMore: true
@@ -787,6 +787,8 @@ paths:
                     page:
                       nextCursor: null
                       hasMore: false
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
   /feed/feedback:
@@ -928,6 +930,8 @@ paths:
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
                     saved: true
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
         "404":
           $ref: "#/components/responses/NotFound"
   /posts/{postId}/saved:
@@ -1430,6 +1434,14 @@ paths:
                         status: "ACTIVE"
                         version: 3
                         candidateCount: 5
+                      - id: "018f4a10-2c31-7d42-9a55-6b1f0c3e8a09"
+                        title: "예약이 있는 여행"
+                        startDate: "2026-10-04"
+                        endDate: "2026-10-07"
+                        timezone: "Asia/Seoul"
+                        status: "ACTIVE"
+                        version: 3
+                        candidateCount: 5
                     page:
                       nextCursor: null
                       hasMore: false
@@ -1825,6 +1837,10 @@ paths:
         "200":
           description: Interests replaced and trip version incremented
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               $ref: "#/components/headers/ETag"
           content:
@@ -4283,10 +4299,31 @@ components:
       properties:
         code:
           type: string
+          description: |
+            The interest chip the traveller selected, one of `x-nullnull-interest-codes`. A code
+            outside that list is refused with VALIDATION_FAILED and a `Unsupported` field error, and
+            case is part of the code: `food` is rejected rather than normalised to `FOOD`.
+
+            The list is an extension rather than an `enum` on purpose. Its canon is the Figma chip
+            list at `438:3108` (FCR-020), which Frontend owns; a closed `enum` would make every new
+            chip a breaking response change, and the set is expected to grow. Frontend asked for
+            server-side rejection, not for the type to be closed.
+          x-nullnull-interest-codes:
+            description: |
+              The thirteen codes `apps/web/src/app/trip-create/wizard.ts` sends, in the order the
+              screen draws them. `who` and `style` are how the screen groups the chips, not a second
+              axis in the data: the array is flat and a request carries no group. Labels are
+              Frontend's (`i18n/messages.ts` `interest.*`) and are never stored server-side.
+            who: [ALONE, FRIENDS, PARTNER, SPOUSE, KIDS, PARENTS]
+            style: [LANDMARKS, RELAXED, CULTURE, NATURE, FOOD, LOCAL_VIBE, ACTIVITY]
         weight:
           type: integer
           minimum: 1
           maximum: 5
+          description: |
+            How strongly the interest applies. The chip screen collects membership rather than
+            strength, so it sends the neutral midpoint 3 for every chip; the range stays 1..5
+            because a later surface may mean something by it.
     TripDay:
       type: object
       additionalProperties: false
@@ -4451,6 +4488,12 @@ components:
           minItems: 0
           maxItems: 20
           uniqueItems: true
+          description: |
+            At most one entry per code. `uniqueItems` compares whole objects, so it admits
+            `{code: FOOD, weight: 1}` alongside `{code: FOOD, weight: 5}`; the ERD's primary key
+            `(trip_id, interest_code)` forbids that pair and the server answers VALIDATION_FAILED
+            with a `Duplicate` field error rather than a constraint violation the caller cannot read.
+            With thirteen codes and one entry each, a valid list holds at most thirteen.
           items:
             $ref: "#/components/schemas/TripInterest"
         seedItems:
@@ -4516,6 +4559,12 @@ components:
           minItems: 0
           maxItems: 20
           uniqueItems: true
+          description: |
+            At most one entry per code. `uniqueItems` compares whole objects, so it admits
+            `{code: FOOD, weight: 1}` alongside `{code: FOOD, weight: 5}`; the ERD's primary key
+            `(trip_id, interest_code)` forbids that pair and the server answers VALIDATION_FAILED
+            with a `Duplicate` field error rather than a constraint violation the caller cannot read.
+            With thirteen codes and one entry each, a valid list holds at most thirteen.
           items:
             $ref: "#/components/schemas/TripInterest"
 

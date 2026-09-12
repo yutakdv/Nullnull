@@ -22,6 +22,20 @@ class BackendPlanTests(unittest.TestCase):
         cls.ops = set(re.findall(r'^\s+operationId: (\w+)', (ROOT/'docs/api/openapi.yaml').read_text(), re.M))
         cls.features = set(re.findall(r'^\| ((?:FR|NFR)-[A-Z0-9]+-\d+) \|', (ROOT/'docs/product/FUNCTIONAL_INVENTORY.md').read_text(), re.M))
         cls.canvas = json.loads((ROOT/'docs/BACKEND_ROADMAP.canvas').read_text())
+        # The specimen card's header status, read rather than assumed. These tests mutate a status
+        # and expect the mismatch to be reported; hard-coding the card's current value made every
+        # one of them a silent no-op the day BA-030 was raised to integration-ready - the mutation
+        # set the status to what the card already declared, so nothing was compared.
+        cls.specimen = 'BA-030'
+        card = cls.cards[cls.cards.index('### BA-030'):]
+        cls.specimen_card = card[:card.index('### BA-031')]
+        header = next(line for line in cls.specimen_card.splitlines()
+                      if line.startswith('**') and ' — ' in line)
+        cls.specimen_header = header
+        cls.specimen_status = re.findall(r'`([a-z][a-z-]*)`', header)[0]
+        # Any status the card does not declare. Never equal to the above, whatever it becomes.
+        cls.other_status = next(s for s in ('planned', 'in-progress', 'integration-ready', 'verified')
+                                if s != cls.specimen_status)
 
     def check_mutation(self, mutate, expected, cards=None):
         plan = copy.deepcopy(self.plan)
@@ -58,7 +72,7 @@ class BackendPlanTests(unittest.TestCase):
             ('priority', lambda t: t.update({'priority': 'P1'}), 'card header declares'),
             ('figmaNodes', lambda t: t.update({'figmaNodes': ['999:999']}), 'differs for - Figma:'),
             ('title', lambda t: t.update({'title': '다른 제목'}), 'does not declare the manifest title'),
-            ('status', lambda t: t.update({'status': 'integration-ready'}), 'card header declares'),
+            ('status', lambda t: t.update({'status': self.other_status}), 'card header declares'),
             ('testIds', lambda t: t['tests'].append({'id': 'BA-030-T4', 'assertion': 'x'}),
              'test IDs'),
         )
@@ -74,7 +88,8 @@ class BackendPlanTests(unittest.TestCase):
         card = self.cards[self.cards.index('### BA-030'):]
         card = card[:card.index('### BA-031')]
         self.assertIn('FCR-020', card)
-        self.assertIn('integration-ready', card)
+        # Not the status: the card declares its own status in the header now, so asserting the
+        # card 'mentions' it would pass on the header and guard nothing.
         # ...while the rows that actually declare them say otherwise.
         figma_row = next(line for line in card.splitlines() if line.startswith('- Figma:'))
         self.assertIn('FCR: 해당 없음', figma_row)
@@ -86,25 +101,32 @@ class BackendPlanTests(unittest.TestCase):
         "integration-ready로 올리지 않는다", and the old presence-anywhere comparison then
         accepted integration-ready in the manifest for that card indefinitely. Prose about a
         status is the most natural thing to write in a card, so the hole opens by accident.
+
+        The prose is written here rather than borrowed from whatever the card happens to say
+        today. Borrowing it is what made this test stop testing: the sentence it relied on was
+        rewritten when the card was raised, and the mutation quietly became a no-op.
         """
         prose_card = self.cards.replace(
-            '**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress`',
-            '**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress`', 1)
-        self.assertIn('integration-ready', prose_card,
+            self.specimen_header,
+            self.specimen_header + f'\n\n아직 `{self.other_status}`로 올리지 않는다.', 1)
+        self.assertIn(self.other_status, prose_card,
                       'the card really does mention the status in prose')
         self.check_mutation(
-            lambda p: next(t for t in p['tasks'] if t['id'] == 'BA-030').update(
-                {'status': 'integration-ready'}),
+            lambda p: next(t for t in p['tasks'] if t['id'] == self.specimen).update(
+                {'status': self.other_status}),
             'card header declares', cards=prose_card)
 
     def test_status_drift_in_either_direction_is_caught(self):
         # The manifest moving without the card...
         self.check_mutation(
-            lambda p: next(t for t in p['tasks'] if t['id'] == 'BA-030').update({'status': 'planned'}),
+            lambda p: next(t for t in p['tasks'] if t['id'] == self.specimen).update(
+                {'status': self.other_status}),
             'card header declares')
         # ...and the card moving without the manifest.
-        moved = self.cards.replace('**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress`',
-                                   '**여행 생성·목록·결정적 초기 일정** — P0 / `verified`', 1)
+        moved = self.cards.replace(
+            self.specimen_header,
+            self.specimen_header.replace(f'`{self.specimen_status}`', f'`{self.other_status}`'), 1)
+        self.assertNotEqual(moved, self.cards, 'the specimen header was actually rewritten')
         errors = []
         validate_plan(copy.deepcopy(self.plan), self.ops, self.features, moved, ROOT, errors)
         self.assertTrue(any('card header declares' in e for e in errors), errors)

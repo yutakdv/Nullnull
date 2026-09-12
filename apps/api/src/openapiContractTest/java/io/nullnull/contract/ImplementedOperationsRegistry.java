@@ -14,7 +14,8 @@ public final class ImplementedOperationsRegistry {
                     "searchPlaces", "getPlace", "getPlaceCrowdForecast",
                     "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip",
                     "listFeed", "getPost", "savePost", "unsavePost",
-                    "listTripCandidates", "addTripCandidate", "removeTripCandidate");
+                    "listTripCandidates", "addTripCandidate", "removeTripCandidate",
+                    "replaceTripInterests");
 
     private ImplementedOperationsRegistry() {
     }
