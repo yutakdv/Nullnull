@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useTrip } from '../../shared/api/index.js';
-import { Chip } from '../../shared/ui/components/index.js';
+import { Chip, DataAttribution } from '../../shared/ui/components/index.js';
 import { ItemMoveControls } from './ItemMoveControls.js';
 import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
@@ -40,9 +40,10 @@ import {
 //   - Route-based distance/time text, already removed from the frame by
 //     FCR-005 because P0 has no route provider.
 //
-// Crowd, by contrast, *is* in the contract on TripItem, with a required
-// provenance, so it renders through CrowdLevel/DataAttribution which carry the
-// source and the observation time.
+// Crowd, by contrast, *is* in the contract on TripItem with a required
+// provenance. The place's own credit renders through DataAttribution below;
+// the crowd reading itself is not shown on this row yet, and this comment used
+// to claim both reached the screen when neither did.
 
 type TripDetail = components['schemas']['TripDetail'];
 type TripItem = TripDetail['days'][number]['items'][number];
@@ -317,6 +318,17 @@ function TripItemRow({
           <span>{formatDuration(item.durationMinutes, t)}</span>
         )}
       </p>
+
+      {/* CMP-ATT-001: a KTO-sourced place carries its credit wherever it
+          appears, shown verbatim (CMP-ATT-003). This row rendered the place
+          name and address with none — the header comment above claimed the
+          credit reached the screen through CrowdLevel/DataAttribution, and
+          neither was imported. It went unnoticed because the trip fixture
+          carries sourceAttribution: null; BA-030 now maps places through the
+          shared catalog projection, so the real response populates it. */}
+      {item.place.sourceAttribution ? (
+        <DataAttribution compact provenance={item.place.sourceAttribution} />
+      ) : null}
 
       {/* Operable as of FE-304: each lock releases on its own request, and the
           two with confirm frames ask first. */}
