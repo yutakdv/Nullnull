@@ -271,7 +271,34 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 - shell history에 secret을 직접 입력하지 않는다.
 - test는 fake key와 network stub을 사용한다.
 - debug log level에서도 configuration value를 전체 출력하지 않는다.
-- 실제 KTO 호출 증거를 만드는 operator smoke는 별도 승인 변수가 있어야 한다. C2 `ktoSmoke`는 `NULLNULL_KTO_SMOKE_APPROVED=true`(+`NULLNULL_KTO_SMOKE_CONTENT_ID`/`_CONTENT_TYPE_ID`), C4 `ktoForecastSmoke`는 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`가 필요하며 둘 다 redacted ID만 출력한다. CI와 PR gate는 이 변수를 설정하지 않는다.
+- 실제 KTO 호출 증거를 만드는 operator smoke는 별도 승인 변수가 있어야 한다. C2 `ktoSmoke`는 `NULLNULL_KTO_SMOKE_APPROVED=true`(+`NULLNULL_KTO_SMOKE_CONTENT_ID`/`_CONTENT_TYPE_ID`), C4 `ktoForecastSmoke`는 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`(+`NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID`)가 필요하며 둘 다 redacted ID만 출력한다. CI와 PR gate는 이 변수를 설정하지 않는다.
+- **승인 변수는 `.env.local`에서 읽히지 않는다.** `KtoSmokeEnvironment.ALLOWED_NAMES`에 없고 두 main이 `System.getenv()`로만 읽으므로, **승인은 명령을 실행하는 사람의 shell이 갖는다.** 파일에 적어도 승인이 되지 않는 것이 설계다 — 감사 기록의 출처가 사람이어야 하기 때문이다.
+- **세 단계이며 순서가 있다.** `ktoForecastSmoke`는 `place_external_refs`를 join하는데 그 행은 canonical ingest만 만든다. C2 gateway는 자기 snapshot을 스스로 매핑하지 않으므로(의도된 분리), 가운데 단계 없이 C4를 돌리면 `NoVerifiedKtoMappingException`으로 끝난다.
+
+```bash
+cd apps/api
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+docker compose -f ../../compose.yml up -d postgres   # SPRING_DATASOURCE_* 가 가리키는 DB
+
+# 1. C2 — 실제 detailCommon2 호출 1회. 승인은 이 줄을 타이핑하는 행위다.
+NULLNULL_KTO_SMOKE_APPROVED=true \
+NULLNULL_KTO_SMOKE_CONTENT_ID=126508 \
+NULLNULL_KTO_SMOKE_CONTENT_TYPE_ID=12 \
+  ./gradlew ktoSmoke --console=plain
+
+# 2. snapshot을 canonical catalog로 매핑한다. 외부 호출 없음. placeId를 출력한다.
+NULLNULL_KTO_INGEST_CONTENT_ID=126508 \
+NULLNULL_KTO_INGEST_CONTENT_TYPE_ID=12 \
+  ./gradlew ktoCanonicalIngest --console=plain
+
+# 3. C4 — 2단계가 출력한 placeId를 그대로 넣는다.
+NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true \
+NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
+  ./gradlew ktoForecastSmoke --console=plain
+```
+
+  `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
+
 - B01 scaffold는 `apps/api/.env.example`, `apps/web/.env.example`를 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다.
 
 exact tool version, port, seed와 guarded reset은 [LOCAL_DEVELOPMENT.md](../engineering/LOCAL_DEVELOPMENT.md)를 따른다. example 파일은 매 CI에서 실제 configuration binding과 비교해 누락/폐기 변수를 검출한다.
