@@ -26,8 +26,8 @@
     },
     "trips": {
       "schema": "TripPage, TripDetail",
-      "count": 5,
-      "basis": "BE/AI authored. candidates is empty while candidateCount is 5 on purpose; the contract now states that candidates is a bounded view and listTripCandidates is the paginated source. KNOWN DEFECT: trip-detail-scheduled and trip-detail-interests share one trip id AND version 3 while holding different day items, so the ETag — a quoted trip version — claims one validator for two materially different bodies. Fixing it needs an FE test change in the same PR, because interests.test.tsx derives its If-Match expectation from detailWithInterests while the msw handler serves detailScheduled; the two only agree today because the versions are identical. Tracked separately.",
+      "count": 6,
+      "basis": "BE/AI authored. candidates is empty while candidateCount is 5 on purpose: the contract states that candidates is a bounded view and listTripCandidates is the paginated source, so the array length is never the total. trip-detail-interests is its own trip with its own trip-page entry, not a second face of trip-detail-scheduled. They previously shared one id AND version 3 while holding different day items, which made the ETag - a quoted trip version - claim one validator for two materially different bodies. Each detail fixture now maps to exactly one row in trip-page.json, and the openapi.yaml response examples are generated from these files and pinned to them by packages/contracts/scripts/check-examples.mjs.",
       "serverVerified": false
     },
     "optimizations": {

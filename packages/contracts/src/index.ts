@@ -120,9 +120,9 @@ export const tripFixtures = {
   // What createTrip returns: an empty trip with one day per date in the range,
   // which is what the wizard's deterministic seed produces before any item.
   detailCreated: tripDetailCreated as components["schemas"]["TripDetail"],
-  // A trip that already has interests, matching page.items[0] so the list and
-  // the detail agree. FE-106 needs a non-empty set; detailCreated only covers
-  // the empty case.
+  // A trip whose interests are set but whose days are still empty. It is its own
+  // trip with its own page entry, not a second face of detailScheduled: the ETag
+  // is the quoted trip version, so one id at one version must mean one body.
   detailWithInterests:
     tripDetailInterests as components["schemas"]["TripDetail"],
   // A trip with items on some days and none on others, so FE-301's per-day
