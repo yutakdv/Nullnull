@@ -1,0 +1,24 @@
+{
+  "overall": "NOT_READY",
+  "capabilities": [
+    {
+      "name": "live",
+      "status": "UNAVAILABLE",
+      "checkedAt": "2026-09-10T00:00:00Z",
+      "detail": "FEATURE_LIVE_DATA is OFF and no server-side source answers this capability yet"
+    },
+    {
+      "name": "replay",
+      "status": "UNAVAILABLE",
+      "checkedAt": "2026-09-10T00:00:00Z",
+      "detail": "FEATURE_REPLAY_MODE is OFF and no server-side source answers this capability yet"
+    },
+    {
+      "name": "optimization",
+      "status": "UNAVAILABLE",
+      "checkedAt": "2026-09-10T00:00:00Z",
+      "detail": "FEATURE_OPTIMIZATION_ITEM is OFF and no server-side source answers this capability yet"
+    }
+  ],
+  "checkedAt": "2026-09-10T00:00:00Z"
+}

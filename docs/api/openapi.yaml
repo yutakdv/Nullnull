@@ -25,7 +25,10 @@ x-nullnull-common-contract:
   protectedErrors: Every session-protected operation may return 401 UNAUTHORIZED.
   csrfErrors: Every state-changing operation may return 403 CSRF_INVALID; 403 FORBIDDEN is the
     container-level refusal of an action this owner may not take.
-  rateLimitErrors: Every operation may return 429 RATE_LIMITED with Retry-After.
+  rateLimitErrors: Every operation may return 429 RATE_LIMITED with Retry-After. No part of
+    apps/api produces one today - the code is declared so a client can handle a refusal an edge
+    layer returns, and that layer lives outside this repository. Treat 429 as reachable and do
+    not treat it as proof that this service is rate limited (DECISIONS_AND_RISKS.md D-033).
   bodyLimit: A request body over the configured limit is refused with 413 INVALID_REQUEST before
     any of it is read, so the status arrives without the body having been parsed.
   serverErrors: Any operation may return 500 INTERNAL_ERROR. The body carries requestId and never
@@ -86,6 +89,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+              examples:
+                alive:
+                  summary: "The process answers"
+                  description: |
+                    Liveness says only that this process is running; it makes no claim about the database, the job
+                    runner or the recommendation service. Those belong to getReadiness, and a load balancer that
+                    reads this one as readiness will keep sending traffic to a task that cannot serve it.
+                  value:
+                    status: "UP"
+                    time: "2026-09-10T00:00:00Z"
   /health/ready:
     get:
       tags: [System]
@@ -99,6 +112,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReadinessStatus"
+              examples:
+                everyCheckReady:
+                  summary: "Every infrastructure check answers"
+                  description: |
+                    `checks` is the INFRASTRUCTURE namespace - database, jobs, recommendation - and is what decides
+                    whether this task stays in the load balancer. Product capabilities are a different list on
+                    getDemoReadiness, so a READY here says nothing about whether anything is demonstrable.
+                    `detail` is null on a passing check because it carries operator-safe text only when something
+                    is wrong; it never carries a hostname, a credential or an exception message. NOT_READY never
+                    reaches this response at all - it is answered as 503 SOURCE_UNAVAILABLE with Retry-After.
+                  value:
+                    status: "READY"
+                    checks:
+                      - name: "database"
+                        status: "READY"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: null
+                      - name: "jobs"
+                        status: "READY"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: null
+                      - name: "recommendation"
+                        status: "READY"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: null
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
@@ -250,6 +288,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DemoReadiness"
+              examples:
+                noCapabilityHasASource:
+                  summary: "The P0 answer: nothing is demonstrable yet"
+                  description: |
+                    This is the CORRECT answer today, not a failure. BA-003 draws the line at "a capability with
+                    nothing behind it is never advertised as ready", and in P0 no capability has a server-side
+                    source - no live provider, no replay dataset, no optimizer - so all three report UNAVAILABLE
+                    and overall is NOT_READY. A FEATURE_* flag can only turn a capability OFF; turning one ON with
+                    no source behind it fails startup rather than publishing a claim the server cannot keep.
+                    Every checkedAt is the same instant because one readiness pass stamps them all. The slice that
+                    adds a source is the slice that changes this response.
+                  value:
+                    overall: "NOT_READY"
+                    capabilities:
+                      - name: "live"
+                        status: "UNAVAILABLE"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: "FEATURE_LIVE_DATA is OFF and no server-side source answers this capability yet"
+                      - name: "replay"
+                        status: "UNAVAILABLE"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: "FEATURE_REPLAY_MODE is OFF and no server-side source answers this capability yet"
+                      - name: "optimization"
+                        status: "UNAVAILABLE"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: "FEATURE_OPTIMIZATION_ITEM is OFF and no server-side source answers this capability yet"
+                    checkedAt: "2026-09-10T00:00:00Z"
         default:
           $ref: "#/components/responses/Problem"
   /session:

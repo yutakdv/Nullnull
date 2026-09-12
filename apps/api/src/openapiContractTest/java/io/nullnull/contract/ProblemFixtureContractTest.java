@@ -132,6 +132,46 @@ class ProblemFixtureContractTest {
                 .containsExactly("RATE_LIMITED", "ROUTE_UNAVAILABLE", "SOURCE_UNAVAILABLE");
     }
 
+    @Test
+    @DisplayName("BA-000-T3 the contract's claim about who produces 429 matches who actually does")
+    void rateLimitedHasNoProducerInThisService() throws IOException {
+        // The contract declares 429 on six operations and promises it everywhere else through
+        // x-nullnull-common-contract.rateLimitErrors, and Frontend built a retry policy for it -
+        // while nothing in apps/api has ever thrown RATE_LIMITED. That gap is a recorded decision
+        // (DECISIONS_AND_RISKS.md D-033), and a decision is only worth recording if it cannot
+        // silently stop being true. Implementing an in-app limiter must update that note; deleting
+        // the note while no limiter exists must fail too.
+        Path main = Path.of(System.getProperty("nullnull.api.source", "src/main/java"));
+        List<String> producers = new ArrayList<>();
+        try (Stream<Path> files = Files.walk(main)) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
+                if (file.endsWith("ProblemCode.java")) {
+                    continue; // the enum declares the constant; declaring is not producing
+                }
+                if (Files.readString(file, StandardCharsets.UTF_8).contains("ProblemCode.RATE_LIMITED")) {
+                    producers.add(main.relativize(file).toString());
+                }
+            }
+        }
+        // Whitespace-collapsed because the claim is a wrapped YAML scalar: re-flowing the line must
+        // not be what decides whether the contract still says this.
+        String contract = Files.readString(
+                Path.of(System.getProperty("nullnull.openapi.path")), StandardCharsets.UTF_8)
+                .replaceAll("\\s+", " ");
+        boolean contractSaysNoProducer =
+                contract.contains("No part of apps/api produces one today");
+
+        if (producers.isEmpty()) {
+            assertThat(contractSaysNoProducer)
+                    .as("no apps/api code throws RATE_LIMITED, so rateLimitErrors must keep saying so")
+                    .isTrue();
+        } else {
+            assertThat(contractSaysNoProducer)
+                    .as("%s now throws RATE_LIMITED, so rateLimitErrors and D-033 are stale", producers)
+                    .isFalse();
+        }
+    }
+
     private static void check(List<String> mismatches, ProblemCode code, String field,
             String expected, String actual) {
         if (!expected.equals(actual)) {

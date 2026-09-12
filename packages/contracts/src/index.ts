@@ -63,6 +63,9 @@ import deletionStatus from "../fixtures/session/deletion-status.json" with { typ
 import deletionStatusCompleted from "../fixtures/session/deletion-status-completed.json" with { type: "json" };
 import deletionStatusPartialFailed from "../fixtures/session/deletion-status-partial-failed.json" with { type: "json" };
 import deletionStatusFailed from "../fixtures/session/deletion-status-failed.json" with { type: "json" };
+import demoReadinessNotReady from "../fixtures/system/demo-readiness-not-ready.json" with { type: "json" };
+import healthLive from "../fixtures/system/health-live.json" with { type: "json" };
+import readinessReady from "../fixtures/system/readiness-ready.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -92,6 +95,22 @@ export const problemFixtures: Record<ProblemCode, Problem> = {
   SOURCE_UNAVAILABLE: sourceUnavailable as Problem,
   RATE_LIMITED: rateLimited as Problem,
   INTERNAL_ERROR: internalError as Problem,
+};
+
+// BE/AI authored from DemoCapabilityQuery. Not provisional and not invented: apps/api's
+// DemoReadinessContractTest builds the real query and asserts it produces exactly this document,
+// so the detail strings and the NOT_READY/UNAVAILABLE combination are the server's own output.
+export const systemFixtures = {
+  // The P0 answer. READY and DEGRADED have no fixture because no capability has a source yet, so
+  // one would be a claim about behaviour that does not exist.
+  demoReadinessNotReady:
+    demoReadinessNotReady as components["schemas"]["DemoReadiness"],
+  // Liveness says only that the process runs. It makes no claim about the database, the jobs
+  // runner or the recommendation service, so it must not be read as readiness.
+  healthLive: healthLive as components["schemas"]["HealthStatus"],
+  // The INFRASTRUCTURE checks, which is a different list from the product capabilities above.
+  // detail is null on a passing check; NOT_READY never reaches a 200 at all (it is a 503).
+  readinessReady: readinessReady as components["schemas"]["ReadinessStatus"],
 };
 
 export const sessionFixtures = {

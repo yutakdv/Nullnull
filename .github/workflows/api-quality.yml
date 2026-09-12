@@ -15,7 +15,7 @@ on:
       - "docs/engineering/backend-plan.json"
       # ProblemFixtureContractTest pins these to ProblemCode, so a fixture-only
       # edit is a change this suite must see.
-      - "packages/contracts/fixtures/problems/**"
+      - "packages/contracts/fixtures/**"
       - "scripts/check_test_reports.py"
       - "scripts/check_evaluation_report.py"
       - "scripts/tests/test_check_test_reports.py"
@@ -32,7 +32,7 @@ on:
       - "docs/engineering/backend-plan.json"
       # ProblemFixtureContractTest pins these to ProblemCode, so a fixture-only
       # edit is a change this suite must see.
-      - "packages/contracts/fixtures/problems/**"
+      - "packages/contracts/fixtures/**"
       - "scripts/check_test_reports.py"
       - "scripts/check_evaluation_report.py"
       - "scripts/tests/test_check_test_reports.py"
