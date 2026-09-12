@@ -45,6 +45,7 @@ class DeletionIT {
             return MutableClock.at(Instant.parse("2032-01-01T00:00:00.123456Z"));
         }
     }
+    @org.springframework.beans.factory.annotation.Value("${spring.mvc.servlet.path}") String servletPath;
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -73,6 +74,11 @@ class DeletionIT {
         String token = body.get("statusToken").asText();
         String requestId = body.get("requestId").asText();
         assertThat(first.getHeader("Location")).isEqualTo(body.get("statusUrl").asText());
+        // statusUrl is built from a literal in DeletionService, not from the configured servlet
+        // path, so the two can drift apart the moment that setting changes. Pin them together.
+        assertThat(body.get("statusUrl").asText())
+                .as("statusUrl must start with the servlet path the app is actually served under")
+                .startsWith(servletPath + "/deletion-requests/");
         assertThat(jdbc.queryForObject("SELECT bool_and(revoked_at IS NOT NULL) FROM demo_sessions WHERE owner_id=?",
                 Boolean.class, bootstrap.owner.id())).as("accept must revoke every owner session").isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_session_csrf_tokens c JOIN demo_sessions s"
