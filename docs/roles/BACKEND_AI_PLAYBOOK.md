@@ -248,7 +248,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - **egress probe가 report를 남긴다.** 이전에는 exit code만 증거였다. probe가 출력하는 `outbound_network=denied` 토큰을 `check_egress_report.py`가 판정하므로, probe가 probe이기를 그만둔 경우(아무것도 조회하지 않는 명령으로 바뀌어 0으로 끝나는 경우)를 잡는다.
 - **pytest test ID가 집계에 연결됐다.** `check_test_reports.check_manifest`가 `suite: pytest` 행을 **그냥 건너뛰고** 있었고, 주석은 `ai-quality`와 `evaluation.json`이 덮는다고 적었지만 `check_evaluation_report`는 `corpus.partial`과 `safety.failures`만 읽는다 — 컨테이너 밖에서 test ID를 본 것이 아무것도 없었다. 이제 manifest의 pytest 행과 report의 `implementedTestIds`를 양방향으로 대조한다.
 
-**셋째가 남았고, 그 이유가 처음 생각과 다르다.** 이 카드의 acceptance인 `BA-004-T1`~`T3`는 Python `scripts/tests`에만 있고 Gradle JUnit 이름에는 없다. 그런데 `check_test_reports.required_plan_ids`는 `integration-ready`·`verified` 카드의 test ID를 **JUnit 이름에서** 찾으므로, 지금 이 카드를 올리면 집계기가 자기 카드의 증거를 찾지 못해 실패한다. 즉 report contract에 **`scripts/tests`를 위한 채널이 없다.** 그것이 `in-progress`의 실제 사유이고, 예외 목록으로 우회하지 않는다.
+**셋째가 남았고, 그 이유가 처음 생각과 다르다.** 이 카드의 acceptance인 `BA-004-T1`~`T3`는 Python `scripts/tests`에만 있고 Gradle JUnit 이름에는 없다. `check_test_reports.required_plan_ids`는 `integration-ready`·`verified` 카드의 test ID를 **JUnit 이름에서** 찾으므로, 지금 카드를 올리면 집계기가 자기 카드의 증거를 찾지 못해 실패한다.
+
+**그렇다고 `scripts/tests`에서 JUnit을 뽑아 채널을 만드는 것은 답이 아니다.** `BA-004-T3`("외부 egress가 차단된 실제 Compose에서 fixture만으로 재현한다")의 증거는 **실제 full-docker 실행**인데, Python wrapper test는 `docker compose`를 stub한다. emitter를 만들면 stub된 실행이 T3의 증거로 집계되고, 그것은 이 카드의 안전 경계가 금지한 "missing suite를 green placeholder로 대체"에 정확히 해당한다. 실제로 T3을 증거하는 것은 `docker-integration`이 매 PR에서 돌리는 full-docker 실행이다.
+
+그래서 이 카드는 **집계 채널이 없어서가 아니라, acceptance의 성격이 JUnit 집계와 맞지 않아서** `in-progress`에 머문다. 올리려면 Gradle 쪽 acceptance를 따로 두거나 집계 규칙 자체를 바꿔야 하고, 둘 다 계획 소유자의 판단이다. 예외 목록으로 우회하지 않는다.
 
 선행 PM 항목 상태:
 
