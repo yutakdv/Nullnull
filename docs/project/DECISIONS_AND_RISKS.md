@@ -77,6 +77,7 @@ tags:
 | D-030 | Figma `FCR-001~015`가 실제 디자인 파일에 반영됐는가? | FE, PM 승인 | 영향 slice 착수 전 | 기존 충돌 화면 구현 금지 | 수정 node URL·전후 screenshot·계약 검토 |
 | D-031 | `apps/ai` ECS 배포 경로(ECR·service·내부 DNS·SG·`NULLNULL_AI_BASE_URL`)를 제출 빌드 전에 만들 것인가? | BE/AI | B08/제출 빌드 전 | 미배포 시 feed는 Spring 고정 순서, related/slot은 `UNKNOWN`, ITEM run은 `FAILED`(fallback-only); ITEM 최적화 제출 제외는 별도 범위 결정 | staging `getReadiness`의 recommendation `READY`, release manifest `aiImageDigest` |
 | D-032 | Spring→`apps/ai` 내부 호출 인증(token/mTLS)이 필요한가? | BE/AI | staging 배포 전 | internal network·security group 격리만, 공개 노출 금지 | SG/compose `internal: true` 검증과 인증 ADR 또는 예외 기록 |
+| D-033 | inbound rate limiting을 application에서 구현할 것인가, edge에만 둘 것인가? | BE/AI | staging/제출 빌드 전 | application은 429를 발행하지 않는다. 계약의 `RATE_LIMITED`는 edge가 돌려줄 수 있는 응답을 client가 처리할 수 있게 선언해 둔 것이고, `apps/api`에는 producer가 없다(#148) | 실제 429를 만드는 계층과 그 한도·`Retry-After` 산출식, 또는 edge-only 결정 ADR |
 
 ## 3. 위험 대장
 

@@ -25,7 +25,10 @@ x-nullnull-common-contract:
   protectedErrors: Every session-protected operation may return 401 UNAUTHORIZED.
   csrfErrors: Every state-changing operation may return 403 CSRF_INVALID; 403 FORBIDDEN is the
     container-level refusal of an action this owner may not take.
-  rateLimitErrors: Every operation may return 429 RATE_LIMITED with Retry-After.
+  rateLimitErrors: Every operation may return 429 RATE_LIMITED with Retry-After. No part of
+    apps/api produces one today - the code is declared so a client can handle a refusal an edge
+    layer returns, and that layer lives outside this repository. Treat 429 as reachable and do
+    not treat it as proof that this service is rate limited (DECISIONS_AND_RISKS.md D-033).
   bodyLimit: A request body over the configured limit is refused with 413 INVALID_REQUEST before
     any of it is read, so the status arrives without the body having been parsed.
   serverErrors: Any operation may return 500 INTERNAL_ERROR. The body carries requestId and never
