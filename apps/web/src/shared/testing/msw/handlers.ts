@@ -255,7 +255,15 @@ export const handlers = [
   // exercised for real: a handler that ignored it would let a broken "load
   // more" pass by returning the same page forever.
   http.get(`${API_BASE}/feed`, ({ request }) => {
-    const cursor = new URL(request.url).searchParams.get('cursor');
+    const url = new URL(request.url);
+    const cursor = url.searchParams.get('cursor');
+    // `candidateState` describes the REQUEST, not the card: without a tripId
+    // every card is NO_TRIP_SELECTED, and with one none of them is. A page
+    // mixing the two is a document the server cannot produce (#156), so the
+    // mock answers from the fixture that matches the request it was given.
+    if (url.searchParams.get('tripId') === null) {
+      return HttpResponse.json(feedFixtures.pageNoTrip);
+    }
     if (cursor === null) return HttpResponse.json(feedFixtures.page);
     if (cursor === feedFixtures.page.page.nextCursor) {
       return HttpResponse.json(feedFixtures.pageTwo);

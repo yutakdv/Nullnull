@@ -443,6 +443,19 @@ describe('FE-203 the add button actually saves a candidate', () => {
    * `tripScheduleChanged: false`, which is a `const` in the schema — invariant
    * 2 written into the contract rather than asserted by this file's guess.
    */
+  /**
+   * The add button on the card for `title`.
+   *
+   * Scoped to one card rather than queried across the document: more than one
+   * feed card is NOT_SAVED, so a bare name query matches several and the first
+   * match was only ever right by accident. Naming the card also makes each
+   * test say which place it pressed.
+   */
+  const addButtonOn = (title: string) => {
+    const card = screen.getByText(title).closest('article') as HTMLElement;
+    return within(card).getByRole('button', { name: copy['tripAdd.idle'] });
+  };
+
   const saveResult = (duplicate: boolean) =>
     duplicate
       ? candidateFixtures.saveResultDuplicate
@@ -466,7 +479,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+    await user.click(addButtonOn(firstTitle));
 
     await waitFor(() => {
       expect(posted).toHaveLength(1);
@@ -493,7 +506,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
       const user = userEvent.setup();
       renderFeed();
       await screen.findByText(firstTitle);
-      await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+      await user.click(addButtonOn(firstTitle));
       await waitFor(() => {
         expect(posted).toHaveLength(1);
       });
@@ -526,7 +539,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+    await user.click(addButtonOn(firstTitle));
     await screen.findByRole('button', { name: copy['tripAdd.error'] });
     await user.click(screen.getByRole('button', { name: copy['tripAdd.error'] }));
 
@@ -563,7 +576,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+    await user.click(addButtonOn(firstTitle));
     expect(
       await screen.findByRole('button', { name: copy['tripAdd.duplicate'] }),
     ).toBeInTheDocument();
@@ -578,19 +591,25 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+    await user.click(addButtonOn(firstTitle));
     expect(
       await screen.findByRole('button', { name: copy['tripAdd.error'] }),
     ).toBeInTheDocument();
   });
 
-  it('does not send anything for a card with no trip selected', async () => {
-    // NO_TRIP_SELECTED has nowhere to save to. The button says so and the
-    // press must not reach the server with a guessed trip id.
+  it('does not send anything when no trip is selected', async () => {
+    // NO_TRIP_SELECTED has nowhere to save to, and it describes the request:
+    // with no tripId EVERY card carries it, which is why the fixture for that
+    // case is its own page (#156). The button says so and the press must not
+    // reach the server with a guessed trip id.
+    server.use(
+      http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.pageEmpty)),
+    );
     const user = userEvent.setup();
     renderFeed();
-    await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['tripAdd.no-trip'] }));
+    await screen.findByText(feedFixtures.pageNoTrip.items[0]?.post.title ?? '');
+    const [first] = screen.getAllByRole('button', { name: copy['tripAdd.no-trip'] });
+    await user.click(first as HTMLElement);
     await new Promise((resolve) => setTimeout(resolve, 150));
     expect(posted).toHaveLength(0);
   });

@@ -350,6 +350,12 @@ export const messages = {
     'run.queued': '차례를 기다리고 있어요',
     'run.running': '계산하고 있어요',
     'run.ready': '대안이 준비됐어요',
+    // 종료 상태 4종. 전부 `run.ready`로 떨어지면 이미 적용한 최적화를 열었을 때
+    // 아직 결정할 게 남은 것처럼 보인다(프로필 이력에서 실제로 도달한다).
+    'run.applied': '이 대안을 적용했어요',
+    'run.kept': '현재 일정을 유지했어요',
+    'run.reverted': '적용을 되돌렸어요',
+    'run.expiredStatus': '제안이 만료됐어요',
     // BA-051이 제안을 만들기 전까지는 결과 본문을 보여줄 수 없다. 없는 수치를
     // 만들지 않는다(불변식 8).
     'run.readyPending': '결과 화면은 준비 중이에요',
@@ -916,6 +922,10 @@ export const messages = {
     'run.queued': 'Waiting its turn',
     'run.running': 'Working on it',
     'run.ready': 'Your alternatives are ready',
+    'run.applied': 'You applied this alternative',
+    'run.kept': 'You kept your current plan',
+    'run.reverted': 'You undid this change',
+    'run.expiredStatus': 'This suggestion expired',
     'run.readyPending': 'The result screen is still being built',
     'run.loading': 'Loading',
     'run.error': "We couldn't load the status",
