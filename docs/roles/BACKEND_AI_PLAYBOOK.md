@@ -813,11 +813,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 착수 범위(`in-progress`가 뜻하는 것): `listFeed`·`getPost`·`savePost`·`unsavePost`가 `main`에 있다. V015의 `posts`·`post_places`·`saved_posts`, 고정 순서(`publishedAt DESC, id ASC` — `FeedOrdering` 정본), owner별 saved·candidate 상태의 batch hydration, save/unsave 멱등성까지다.
 
-**`candidateState`는 두 값만 만든다** — `NOT_SAVED`와 `SCHEDULED_IN_SELECTED_TRIP`(그리고 tripId가 없으면 `NO_TRIP_SELECTED`). `SAVED_TO_SELECTED_TRIP`은 `trip_candidates`가 필요하고 그건 BA-034다. 지어내지 않는다.
+**`candidateState`는 이제 네 값을 모두 만든다.** 이 문단은 한동안 "두 값만 만든다 — `SAVED_TO_SELECTED_TRIP`은 BA-034다"라고 적혀 있었는데, BA-034가 병합되면서 `FeedService`가 `trip_candidates`의 `ACTIVE`를 그 값으로 투영하기 시작했고 카드만 낡은 채로 남아 있었다. `CandidateIT`가 feed 응답에서 `SAVED_TO_SELECTED_TRIP`을 단언한다.
+
+우선순위는 **SCHEDULED가 이긴다**: 일정에 오른 장소는 어떻게 올랐든 일정에 있는 것이고, 그 옆의 `ACTIVE` candidate row는 둘 중 덜 최신이다. `DISMISSED`는 `NOT_SAVED`로 접힌다 — 사용자가 한 번 아니라고 한 기록은 남지만 화면에 "담김"으로 보일 이유가 없다. `NO_TRIP_SELECTED`는 여전히 **요청**을 서술하며(tripId가 없음) 카드의 상태가 아니다(#156).
 
 **feed는 catalog 공개 게이트가 닫혀 있으면 503이다.** `FeedCard.primaryPlace`가 필수인데 place는 KTO 유래 canonical catalog이고, BA-021-T3의 staging 호출 증거가 없어 그 게이트는 닫혀 있다. feed가 catalog query port를 직접 읽으면 그 fail-closed 결정이 무의미해지므로 **같은 게이트를 통과한다**. `FeedFailsClosedIT`가 이걸 고정하고, 게이트 호출을 빼면 빨개진다.
 
-`integration-ready`로 올리지 않는다.
+**남은 것은 그 게이트 하나다.** 네 operation은 전부 `main`에 있고 `candidateState`도 완성됐지만, feed가 실제로 응답을 내려면 catalog가 열려야 하고 그것은 BA-021-T3의 staging 호출 증거에 달려 있다. 선행 카드 [BA-022](#ba-022)가 같은 이유로 `in-progress`이므로 이 카드도 `integration-ready`로 올리지 않는다.
 
 필수 검증:
 
@@ -847,6 +849,16 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-011, PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: client event는 실제 일정 변경·노출 인증·방문 증명이 아니다. impression lineage가 없는 P0 데이터로 개인화 모델을 학습시키지 않는다.
+
+선행 PM 항목 상태(`planned`이 뜻하는 것): 두 operation은 아직 구현하지 않았다. 다만 **PM-016이 지목한 계약 결함 중 셋은 닫았다.**
+
+- `runLink`의 `/trips/` → `/trip/`: [#118](https://github.com/yutakdv/Nullnull/issues/118), PR #122로 이미 반영됐고 `context.route` allowlist의 `/trip/:tripId/optimizations/:runId`와 맞는다.
+- `trip_created.dayCount` 상한 90 → **30**, `itemCount` 1000 → **100**. 제품 상한은 `TripDateRange.MAX_DAYS`와 계약의 `seedItems` `maxItems: 100`이다. 넓은 쪽 bound는 도달할 수 없는 값을 허용할 뿐이어서, 위조되거나 drift한 client를 구분하지 못하게 했다.
+- `data_guide_opened.entryRoute`가 자유 문자열이라 `context.route`의 template allowlist를 우회했다. 둘이 같은 `$defs/routeTemplate`을 가리키게 바꿨다 — 같은 개념의 사본이 둘이었고 그중 하나만 allowlist였던 것이 원인이다. **이것은 개인정보 경계다**: 구체 경로에는 여행 id가, query에는 사용자가 입력한 문자열이 실린다.
+
+조임이 실제로 거절하는지는 `docs/contracts/events-negative/`의 5건과 `scripts/check_event_negatives.py`가 고정한다. `ajv test --invalid`는 **glob이 0건이면 exit 0**이므로 exit code를 믿지 않고 디렉터리 목록과 대조한다.
+
+**남은 것 둘.** `recordFeedFeedback`은 PM-011이 막는다 — 어떤 표시값과 행동을 P0에 남길지가 FE 범위이고, 그것이 정해지기 전에는 재조회할 반응 상태·수·LIKE 취소·HIDE 복구 진입점을 계약으로 고정할 수 없다. 그리고 PM-016이 함께 요구한 **오류 enum 정렬은 하지 않았다**: event schema의 `errorCode`가 `OPTIMIZATION_FAILED`를 담고 있는데 이 값은 `ProblemCode`가 아니라 `Notification.type`이고, optimization run-failure plane 자체가 아직 없다(BA-050~053). 무엇에 맞출지가 없으므로 맞추지 않는다.
 
 필수 검증:
 

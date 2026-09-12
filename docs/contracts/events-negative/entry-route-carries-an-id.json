@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.1.0",
+  "events": [
+    {
+      "eventId": "018f3f8e-9b67-7a21-8d31-31d315b938f2",
+      "name": "data_guide_opened",
+      "occurredAt": "2026-09-04T09:00:00+09:00",
+      "context": {
+        "locale": "ko-KR",
+        "timezone": "Asia/Seoul",
+        "route": "/start",
+        "appVersion": "3546086"
+      },
+      "properties": {
+        "entryRoute": "/trip/018f3f8e-9b67-7a21-8d31-31d315b938f3"
+      }
+    }
+  ]
+}
