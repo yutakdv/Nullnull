@@ -519,13 +519,16 @@ class HttpPolicyIT {
     @Test
     @DisplayName("a request that matched no handler is logged without its raw URI")
     void anUnmatchedRouteIsLoggedWithoutItsUri() {
-        MvcTestResult result = mvc.get().uri("/api/v1/trips/11111111-2222-3333-4444-555555555555")
+        // A collection the contract does not define. It used to be /trips/{id}, which BA-030 now
+        // serves - and a route that exists answers 401 without a session, not 404, so it stopped
+        // testing the unmatched path at all.
+        MvcTestResult result = mvc.get().uri("/api/v1/no-such-collection/11111111-2222-3333-4444-555555555555")
                 .exchange();
 
         assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
         // instance still returns the real URI to the caller that sent it; only the log is restricted.
         assertThat(result).bodyJson().extractingPath("$.instance")
-                .isEqualTo("/api/v1/trips/11111111-2222-3333-4444-555555555555");
+                .isEqualTo("/api/v1/no-such-collection/11111111-2222-3333-4444-555555555555");
         String line = accessLogLines().getLast();
         assertThat(line).contains("route=" + RouteTemplate.UNMATCHED);
         assertThat(line).doesNotContain("11111111-2222-3333-4444-555555555555");

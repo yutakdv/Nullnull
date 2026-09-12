@@ -11,7 +11,8 @@ public final class ImplementedOperationsRegistry {
     public static final Set<String> IMPLEMENTED =
             Set.of("getLiveness", "getReadiness", "getDemoReadiness", "createDemoSession", "issueCsrfToken",
                     "getCurrentOwner", "updatePreferences", "deleteCurrentSession", "getDeletionRequest",
-                    "searchPlaces", "getPlace", "getPlaceCrowdForecast");
+                    "searchPlaces", "getPlace", "getPlaceCrowdForecast",
+                    "listTrips", "createTrip", "getTrip");
 
     private ImplementedOperationsRegistry() {
     }
