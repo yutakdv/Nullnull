@@ -220,3 +220,79 @@ fccfa10 fix(frontend): FE-001 make `npm run dev` actually run the app
 
 `origin/main`은 작업 시작 시 merge했습니다(계약 변경 4건, 충돌 없음). **push는 하지
 않았습니다.**
+
+---
+
+# 후속 작업 — 2026-09-12 (PR #130 병합 후)
+
+커밋 5개. 남은 P0 8개 중 6개가 BE 대기(BA-034·050·051·060·091)라, FE가 독립적으로
+할 수 있는 것 — 이미 만든 화면의 미완성 배선과 접근성 결함 — 을 처리했습니다.
+
+## 1. 피드 `+` 버튼이 죽어 있었다 → FE-203 배선 (`2a6ee18`)
+
+`FeedPostCard`는 `onAddCandidate` prop을 처음부터 갖고 있었고 `FeedScreen`이 넘기지
+않았습니다. 브라우저에서 fetch를 감싸고 눌러본 결과 **요청 0건, aria-label 변화 없음,
+메시지 없음**. `FeedScreen`의 헤더 주석이 경고하던 바로 그 상태였습니다 — "a control
+that silently did nothing would be worse than none".
+
+훅·계약·6개 상태 문구가 전부 이미 있었고 핸들러만 없었습니다. 이제 누르면
+`POST /trips/{id}/candidates` → 201, 버튼이 `담았어요`로 바뀝니다.
+
+- 일정이 아니라 후보입니다. 계약의 `tripScheduleChanged`가 `const: false`라 불변식 2가
+  스키마에 박혀 있고, 테스트가 wire에서 `/items` 요청이 없음을 확인합니다.
+- source는 `POST` + 그 게시물 id. `FEED`라는 타입을 지어내면 컴파일이 안 됩니다.
+- 장소당 Idempotency-Key 하나, 재시도 동안 유지.
+- 이미 담긴 카드와 여행 없는 카드는 아예 바인딩하지 않습니다.
+
+**여행 선택 sheet(S06)는 만들지 않았습니다** — FE-203 본체이고 BA-034가 필요합니다.
+
+## 2. 같은 버튼이 36×36이었다 → 44px (`b8add16`)
+
+`TripAddButton` 주석이 "hit area reaches the 44px minimum"이라고 했는데 구현이
+없었습니다. **`/feed`가 E2E 측정 대상 목록에 없어서** 아무도 못 봤습니다. 목록에 추가하니
+즉시 4개가 잡혔습니다.
+
+측정해서 찾은 것 2가지 (테스트만 봤으면 놓쳤을 것):
+- `box-sizing: content-box`가 브라우저 기본 button padding(1px 6px)을 더해 56×46이 됨
+- state variant들이 `background` shorthand로 `background-clip`을 리셋 → 링이 44px
+  가장자리에 그려짐
+
+## 3. 잠금 충돌이 복구 불가였다 → refetch (`b870a47`)
+
+409 TRIP_CHANGED 분기가 **아무것도 안 하는 `return`**이었습니다. ETag가 stale해진
+순간이라 다시 눌러도 같은 If-Match로 똑같이 실패 — 페이지를 새로고침하기 전까지
+동작할 수 없는 버튼 앞에 사용자가 갇힙니다. `CandidatesScreen`은 이미 refetch하고
+있었습니다.
+
+## 4. 접근성 2건 (`23ba4a2`)
+
+- MustVisit 검색 결과 버튼이 전부 `담기` → 스크린리더로 구분 불가. 접근성 이름에만
+  장소를 넣었습니다(같은 화면 remove 버튼이 이미 쓰던 방식).
+- 후보 일정화 후 포커스가 `document.body`로 떨어짐. 첫 수정은 toggle 버튼을 가리켰는데
+  **실패했습니다** — 렌더 트리를 찍어보니 성공 후 그 버튼이 사라집니다. remove 버튼으로
+  바꿨습니다.
+
+## 5. cursor reset 무한 루프 (`1beb2cf`) — 감사 평가보다 심각했음
+
+reset refetch가 또 CURSOR_EXPIRED를 받으면 latch가 이미 풀려 있어 즉시 재발동.
+**600ms에 약 14,900건**을 측정했습니다. 계약이 `retry: 'none'`으로 표시한 코드입니다.
+
+## 검증
+
+| 검사 | 결과 |
+|---|---|
+| `verify:ci` | ✅ **847 tests / 55 files** (밤 작업 시작 시 793) |
+| Playwright E2E | ✅ **53 passed** (신규 피드 화면 5건 포함), 3건은 백엔드 필요 |
+| 번들 | JS 95%, CSS 96% |
+
+전부 negative control로 양방향 확인했습니다. 이 과정에서 제가 새로 쓴 테스트 2개가
+정작 버그를 못 잡는 걸 발견해 보강했습니다(세션 만료 판정, cursor 두 번째 복구).
+
+## 여전히 남은 것
+
+- **FE-503/504/505** — BA-050/051/052 없음. 특히 503은 `proposals`가 비어 있어 지금
+  만들면 불변식 8 위반
+- **FE-104, FE-402, FE-403** — BA-060/091 없음
+- **FE-203 여행 선택 sheet** — BA-034 없음
+- **CMP-ATT-001 출처 표기 범위** — 공모전 규정 해석, 당신 판단 대기
+- **CSS 96%** — 화면 추가 시 상한 초과
