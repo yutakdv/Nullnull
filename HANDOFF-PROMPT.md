@@ -408,6 +408,31 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 
 **이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
 
+#### 세 가지 결함 부류와 **각각을 찾는 질문이 다르다**
+
+이 세션이 모은 것을 정리하면 세 가지이고, **탐지 방법이 서로 대체되지 않는다.** 한 줄로 합치지 말 것.
+
+| | 증상 | 찾는 질문 | 왜 다른 방법으로는 안 나오나 |
+| --- | --- | --- | --- |
+| 1 | 통과하지만 아무것도 증명하지 않는 검사 | **변이** — 고장을 되살리면 빨개지나 | — |
+| 2 | 완전히 구현됐지만 **발화할 수 없는** 가드 | **생산자 추적** — 이 값을 세우는 코드가 있나 | 가드가 **옳으므로** 변이로 안 잡힌다 |
+| 3 | 완전히 구현·test됐는데 **아무도 부르지 않는** 서비스 | **호출자 추적** — production 경로에서 누가 부르나 | 코드가 옳고, test가 직접 부르니 coverage도 초록이다 |
+
+**3번이 가장 늦게 드러난다.** `KtoSnapshotCatalogIngest`가 그랬다 — 구현·test 모두 있는데 production 호출자가 없어서 C4 smoke에 실행 경로가 없었고, 그걸 **명령을 적으려다** 발견했다.
+
+**그래서 호출자 추적을 한 바퀴 돌렸다.** `application` package의 service 후보 **70개**를 훑어 production 참조가 0인 것을 셌고, 6건이 나왔는데 **3건은 오탐이었다.**
+
+- `ExpiredAnalyticsEventEraser`·`ExpiredIdempotencyRecordEraser` — `TtlEraser` SPI 구현이고 `TtlSweep(List<TtlEraser>)`이 모은다. **이름으로는 아무도 안 부르지만 type으로 불린다.**
+- `TombstoneReapplier` — `SmartLifecycle`이라 Spring이 `start()`를 부른다.
+
+**SPI·lifecycle은 이름 기반 grep에 잡히지 않는다.** 호출자 추적을 할 때 이 둘을 먼저 배제하지 않으면 오탐이 절반이다.
+
+진짜는 3건이고 전부 `recommendation.application`이다 — `FeedFallback`·`RunFingerprint`·`ProposalRevalidator`. 그 module에는 **controller도 job도 없다**(`RecommendationGateway`와 probe뿐). 즉 **slice가 아직 안 붙은 상태**이지 결함은 아니다. 다만 아무도 그렇게 적어 두지 않았다.
+
+`ArchitectureRulesTest`에 규칙으로 넣었다: `recommendation.application`의 class는 **production 유입 의존이 있거나, 그것을 붙일 slice 이름과 함께 등록돼 있거나** 둘 중 하나여야 한다. **변이로 공허하지 않음을 확인했다** — `FeedFallback`에 production 참조를 하나 넣자 `uncalled`에서 빠지며 RED가 됐다(등록은 남아 있으므로). 이 검사 자체가 1번 부류가 되기 쉬운 모양이라 그 확인이 필수였다.
+
+등록을 지우는 순간이 **옆 것도 함께 배선됐는지 확인할 자리**다. `ProposalRevalidator`는 AI가 최종 판정자가 되지 않게 하는 재검증(불변식 9)이라, feed slice가 `FeedFallback`만 붙이고 이걸 빠뜨리면 조용한 구멍이 된다.
+
 #### 규칙
 
 **validator에 관문을 추가할 때 등급을 함께 적는다.** B를 A로 바꾸는 방법은 하나뿐이다 — 승인된 harness를 실제로 돌려 그 코드가 실응답을 처리하게 하는 것. 그때까지 B는 "검증됐다"가 아니라 **"아직 안 본 곳"**이다.
@@ -536,6 +561,12 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 | **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
 | **오너/정책** | PM-017(세션 만료·GC 값), PM-022 배포 절반, PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
 | **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
+
+**PM-013도 절반은 이미 지켜지고 있었고, 지키는 것이 아무것도 없었다.** "혼잡 단계 과장 위험"인데 — KTO 상대 집중률은 **날짜 단위**이고 서울4단계도 공통5단계도 아니다. 확인해 보니 registry의 `metric_definition`이 *"가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님"* 이라고 **정확히** 적고 그게 `metricDefinition`으로 client까지 간다. `ordinal_level`도 NULL로 저장된다.
+
+**그런데 NULL을 지키는 단언이 없었다.** FE의 `CrowdLevel.tsx`는 `ordinalLevel`로 1~4 막대를 그리고(그 주석이 서버가 NULL을 넣는다는 것까지 정확히 적고 있다), 누가 `cnctrRate`에서 단계를 유도하는 순간 카드가 **source에 없는 척도를 주장**하기 시작한다 — 그것도 버그가 아니라 데이터처럼 보이면서. `KtoCrowdForecastGatewayIT`가 실제 쓰기 경로에서 `ordinal_level IS NULL`과 `unit = 'relative-index'`를 고정한다(변이 확인: `'3'`을 넣으면 RED).
+
+PM-013의 나머지(**기계 판독 가능한 target granularity**와 단계 어휘)는 FE 주석이 적은 대로 *"실응답으로 어휘를 확인한 뒤 계약에 추가"* 라 **smoke 승인과 같은 것을 기다린다.**
 
 **PM-010의 절반은 실제로 열려 있었고, 나머지 절반은 열 수 없다.** 표에 "데이터가 먼저"로 적어 둔 채 넘겼는데 그게 두 개의 다른 문제를 하나로 묶고 있었다.
 

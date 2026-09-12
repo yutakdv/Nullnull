@@ -46,6 +46,49 @@ class ArchitectureRulesTest {
                 .importPackages("io.nullnull");
     }
 
+    /**
+     * The third defect class this session found, made repeatable. A service can be fully implemented,
+     * fully tested and called by nobody in production - KtoSnapshotCatalogIngest was, and the C4
+     * forecast smoke could not run because of it. Mutation testing does not find that (the code is
+     * correct), and neither does coverage (the tests call it directly). The only question that finds
+     * it is "who calls this on a production path".
+     *
+     * <p>Every class in recommendation.application either has an incoming production dependency or is
+     * listed here with the slice that will give it one. Wiring a listed class means deleting its line,
+     * which is the moment to check whether its neighbours were wired too - ProposalRevalidator is the
+     * revalidation that keeps the AI from being the final judge (invariant 9), and a feed slice that
+     * wired FeedFallback without it would be a silent hole.
+     */
+    private static final java.util.Map<String, String> AWAITING_THEIR_SLICE = java.util.Map.of(
+            "FeedFallback", "BA-050 feed slice",
+            "RunFingerprint", "BA-050 feed slice",
+            "ProposalRevalidator", "BA-051 ITEM proposal slice");
+
+    @Test
+    @DisplayName("REC-ARCH-01 an uncalled recommendation service names the slice that will call it")
+    void everyRecommendationServiceIsCalledOrRegisteredAsAwaitingItsSlice() {
+        java.util.Set<String> uncalled = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass candidate : classes) {
+            if (!candidate.getPackageName().equals("io.nullnull.recommendation.application")
+                    || candidate.isInterface() || candidate.isEnum() || candidate.isRecord()
+                    || candidate.getSimpleName().endsWith("Exception")
+                    || candidate.getSimpleName().contains("$")) {
+                continue;
+            }
+            boolean called = candidate.getDirectDependenciesToSelf().stream()
+                    .anyMatch(dependency -> !dependency.getOriginClass().equals(candidate));
+            if (!called) {
+                uncalled.add(candidate.getSimpleName());
+            }
+        }
+
+        org.assertj.core.api.Assertions.assertThat(uncalled)
+                .as("a recommendation service with no production caller must say which slice adds one")
+                .containsExactlyInAnyOrderElementsOf(new java.util.TreeSet<>(AWAITING_THEIR_SLICE.keySet()));
+        org.assertj.core.api.Assertions.assertThat(AWAITING_THEIR_SLICE.values())
+                .allSatisfy(slice -> org.assertj.core.api.Assertions.assertThat(slice).isNotBlank());
+    }
+
     @Test
     void recommendationPackageHasNoFrameworkOrIoDependencies() {
         // The HTTP adapter to apps/ai belongs to recommendation.infrastructure; domain/application stay pure.
