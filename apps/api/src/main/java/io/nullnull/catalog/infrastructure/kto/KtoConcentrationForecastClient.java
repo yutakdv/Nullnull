@@ -32,7 +32,7 @@ public class KtoConcentrationForecastClient implements KtoForecastFetcher {
     @Override
     public CompletableFuture<ProviderResponse> fetch(KtoForecastRequest request) {
         return provider.get(KtoForecastSnapshotSet.SOURCE_CODE,
-                properties.concentrationForecastUri(request.areaCode(), request.sigunguCode(), request.touristSiteName(),
+                properties.concentrationForecastUri(request.areaCode(), request.signguRequestCode(), request.touristSiteName(),
                         testEndpointAllowed));
     }
 
