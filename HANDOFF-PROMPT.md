@@ -294,6 +294,16 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
 
+**변이 테스트가 카드의 현재 값에 의존하면 그 카드를 올리는 날 죽는다.** `test_backend_plan.py`의 status 검사 세 건이 BA-030의 status를 `in-progress`로 하드코딩하고 `integration-ready`로 바꾸는 것을 변이로 썼다. 카드를 `integration-ready`로 올린 순간 그 변이는 **카드가 이미 선언한 값을 다시 넣는 것**이 되어 아무것도 비교하지 않았다 — validator는 멀쩡한데 test가 조용히 죽었다. 로컬에서 수정 전에 돌렸을 때는 통과했고 CI가 잡았다. 이제 카드 헤더에서 현재 status를 **읽고** 카드가 선언하지 않은 다른 값을 변이로 쓴다. 산문 시나리오도 카드의 현재 문장을 빌리지 않고 test가 직접 써 넣는다. **fixture나 정본의 특정 값을 변이의 재료로 쓰면 그 값이 바뀌는 날 함께 죽는다.**
+
+**계약을 좁히는 것과 계약을 적는 것은 다르다.** FCR-020의 13개 관심사 code를 `enum`으로 선언하려 했더니 oasdiff가 `response-property-enum-value-added` **156건**을 냈다. 이전이 `type: string`이라 oasdiff는 "빈 enum에 13개 추가"로 읽지만 응답 소비자에게는 좁아진 변경이라 오탐이다 — 다만 예외 등록부는 **한 줄 = 한 메시지**를 요구하므로 159행을 넣어야 하고, 그러면 게이트가 의미를 잃는다. 더 중요한 이유는 **어휘의 정본이 FE 소유 Figma chip 목록**이라는 점이다. 닫힌 enum은 chip 추가마다 breaking 절차를 강요한다. `x-nullnull-interest-codes` extension으로 적고, extension은 아무것도 강제하지 못하므로 계약↔서버 parity를 **test로** 고정했다(양방향 변이 확인). **소유자가 상대 역할인 목록은 계약에서 닫지 않는다.**
+
+**fixture는 계약을 앞서 갈 수 있고, 그 사실을 test로 적지 않으면 "서버가 보낸다"로 읽힌다.** `getTrip`의 `days[].items`는 지금 **항상 비어 있다** — DB에는 item·constraint가 들어가는데 `TripController.TripDayResponse`가 `List.of()`를 반환한다. BA-040까지 의도적으로 미룬 것이지만 그것을 고정하는 test가 없어서, item을 가진 `trip-detail-scheduled.json`·`trip-detail-reservation.json` 때문에 서버가 그 응답을 낸다고 믿기 쉬웠다. 비어 있음 자체를 `TripCreationIT.theDetailProjectionDoesNotYetCarryItems`로 적었다 — **BA-040이 projection을 시작하면 RED가 되어 진짜 단언으로 교체된다.** 미룬 것은 주석이 아니라 test로 남긴다.
+
+**어휘를 좁힐 때 기존 데이터를 확인한 근거(FCR-020).** 관심사 code를 13개로 좁히면 그 밖의 값이 저장돼 있을 경우 화면이 그릴 수 없는 행이 남는다. 확인했고 **그런 행은 존재할 수 없다**: migration 어디에도 `trip_interests`에 대한 INSERT가 없고(`grep -rn 'trip_interests' .../db/migration/ | grep -i insert` → 없음), `infra/` 디렉터리가 없으며 `AGENTS.md`의 `infra_check=blocked`가 **아무것도 배포되지 않았음**을 뜻한다. 남는 것은 실행마다 새로 만들어지는 Testcontainers DB뿐이고, 거기에 소문자 `food`를 넣던 test 4곳은 실제 code로 고쳤다. **좁히는 변경 전에는 "그 값이 어디에 저장돼 있는가"를 명령으로 답한다.**
+
+**auto-merge는 마지막 push를 기다려 주지 않는다.** PR #158의 CI가 끝나는 사이에 세 번째 커밋을 push했는데, auto-merge가 두 번째 커밋 시점에 발동해 그 커밋은 병합되지 않았다. 그런데 나는 이미 이슈에 "PR #158에 있습니다"라고 적은 뒤였다. **PR이 열려 있어도 push한 커밋이 그 PR로 병합된다는 보장이 없다** — 이슈에 PR 번호를 적기 전에 `git branch -r --contains <sha>`로 실제로 `origin/main`에 있는지 확인한다.
+
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
 
 ## 9. 사용자 확정 결정 (재논의 불필요)

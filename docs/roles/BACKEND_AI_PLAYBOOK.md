@@ -813,11 +813,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 착수 범위(`in-progress`가 뜻하는 것): `listFeed`·`getPost`·`savePost`·`unsavePost`가 `main`에 있다. V015의 `posts`·`post_places`·`saved_posts`, 고정 순서(`publishedAt DESC, id ASC` — `FeedOrdering` 정본), owner별 saved·candidate 상태의 batch hydration, save/unsave 멱등성까지다.
 
-**`candidateState`는 두 값만 만든다** — `NOT_SAVED`와 `SCHEDULED_IN_SELECTED_TRIP`(그리고 tripId가 없으면 `NO_TRIP_SELECTED`). `SAVED_TO_SELECTED_TRIP`은 `trip_candidates`가 필요하고 그건 BA-034다. 지어내지 않는다.
+**`candidateState`는 이제 네 값을 모두 만든다.** 이 문단은 한동안 "두 값만 만든다 — `SAVED_TO_SELECTED_TRIP`은 BA-034다"라고 적혀 있었는데, BA-034가 병합되면서 `FeedService`가 `trip_candidates`의 `ACTIVE`를 그 값으로 투영하기 시작했고 카드만 낡은 채로 남아 있었다. `CandidateIT`가 feed 응답에서 `SAVED_TO_SELECTED_TRIP`을 단언한다.
+
+우선순위는 **SCHEDULED가 이긴다**: 일정에 오른 장소는 어떻게 올랐든 일정에 있는 것이고, 그 옆의 `ACTIVE` candidate row는 둘 중 덜 최신이다. `DISMISSED`는 `NOT_SAVED`로 접힌다 — 사용자가 한 번 아니라고 한 기록은 남지만 화면에 "담김"으로 보일 이유가 없다. `NO_TRIP_SELECTED`는 여전히 **요청**을 서술하며(tripId가 없음) 카드의 상태가 아니다(#156).
 
 **feed는 catalog 공개 게이트가 닫혀 있으면 503이다.** `FeedCard.primaryPlace`가 필수인데 place는 KTO 유래 canonical catalog이고, BA-021-T3의 staging 호출 증거가 없어 그 게이트는 닫혀 있다. feed가 catalog query port를 직접 읽으면 그 fail-closed 결정이 무의미해지므로 **같은 게이트를 통과한다**. `FeedFailsClosedIT`가 이걸 고정하고, 게이트 호출을 빼면 빨개진다.
 
-`integration-ready`로 올리지 않는다.
+**남은 것은 그 게이트 하나다.** 네 operation은 전부 `main`에 있고 `candidateState`도 완성됐지만, feed가 실제로 응답을 내려면 catalog가 열려야 하고 그것은 BA-021-T3의 staging 호출 증거에 달려 있다. 선행 카드 [BA-022](#ba-022)가 같은 이유로 `in-progress`이므로 이 카드도 `integration-ready`로 올리지 않는다.
 
 필수 검증:
 
