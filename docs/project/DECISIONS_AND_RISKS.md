@@ -42,6 +42,7 @@ tags:
 | A-021 | 총괄 PM은 scope·문구·공모전 claim·최종 go/no-go를 승인하되 두 기술 DRI의 safety veto와 필수 review를 대신하지 않음 | [현재 상태와 검수 gate](DECISIONS_AND_RISKS.md) |
 | A-022 | 추천 계산 전체(feed 순서·관련 장소·slot·ITEM·설명 template)는 Python 서비스 `apps/ai`가 담당하고 Spring은 hydration·gateway·재검증·저장을 담당. 공개 OpenAPI는 변경 없음 | [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006), 2026-09-07 결정 |
 | A-023 | D-015 stale threshold는 KTO forecast `PT24H`, KTO place detail 및 내부 catalog rule `P7D`로 고정한다. threshold가 없는 source는 collection하지 않는다 | 2026-09-07 팀 결정; C1 source registry v1 |
+| A-025 | inbound rate limiting은 edge에만 두고 application은 429를 발행하지 않는다. P0 제출 범위에 포함하지 않는다 | 2026-09-13 결정, #148과 D-033. 익명 전용 P0에서 owner 축 제한은 cookie를 버리면 우회되고, IP 축은 심사 환경의 공유 NAT에서 오탐이 크다. 심사위원을 막는 것이 데모의 최악 실패다 |
 | A-024 | post 표지는 팀이 직접 만든 1st-party 자산만 쓰고 provider 사진을 재배포하지 않는다. `MediaAsset`은 `attributionRequired=false`·`redistributionAllowed=true`로 채우며, 실제 장소를 사진처럼 묘사하지 않는 명시적 일러스트로 제한한다 | 2026-09-13 오너 결정, D-007의 post 절반. provider 사진은 record별 공공누리 유형 심사가 필요하고 `PostSummary`에 credit 경로가 없어 계약 breaking이 된다. 실사풍 합성은 불변식 6의 합성·관측 구분을 깬다 |
 
 ## 2. 열린 결정
@@ -78,7 +79,7 @@ tags:
 | D-030 | Figma `FCR-001~015`가 실제 디자인 파일에 반영됐는가? | FE, PM 승인 | 영향 slice 착수 전 | 기존 충돌 화면 구현 금지 | 수정 node URL·전후 screenshot·계약 검토 |
 | D-031 | `apps/ai` ECS 배포 경로(ECR·service·내부 DNS·SG·`NULLNULL_AI_BASE_URL`)를 제출 빌드 전에 만들 것인가? | BE/AI | B08/제출 빌드 전 | 미배포 시 feed는 Spring 고정 순서, related/slot은 `UNKNOWN`, ITEM run은 `FAILED`(fallback-only); ITEM 최적화 제출 제외는 별도 범위 결정 | staging `getReadiness`의 recommendation `READY`, release manifest `aiImageDigest` |
 | D-032 | Spring→`apps/ai` 내부 호출 인증(token/mTLS)이 필요한가? | BE/AI | staging 배포 전 | internal network·security group 격리만, 공개 노출 금지 | SG/compose `internal: true` 검증과 인증 ADR 또는 예외 기록 |
-| D-033 | inbound rate limiting을 application에서 구현할 것인가, edge에만 둘 것인가? | BE/AI | staging/제출 빌드 전 | application은 429를 발행하지 않는다. 계약의 `RATE_LIMITED`는 edge가 돌려줄 수 있는 응답을 client가 처리할 수 있게 선언해 둔 것이고, `apps/api`에는 producer가 없다(#148) | 실제 429를 만드는 계층과 그 한도·`Retry-After` 산출식, 또는 edge-only 결정 ADR |
+| D-033 | edge rate limiting의 축·한도·`Retry-After` 산출식은 무엇인가? 계층은 A-025로 edge 확정이고 application은 429를 발행하지 않는다 | BE/AI | edge를 켜기 전 | application은 429를 발행하지 않는다. 계약의 `RATE_LIMITED`는 edge가 돌려줄 수 있는 응답을 client가 처리할 수 있게 선언해 둔 것이고, `apps/api`에는 producer가 없다(#148) | edge 429가 계약 `Problem`임을 실제 응답으로 확인한다 — `application/problem+json` 콘텐츠 타입, client가 이미 아는 `code`, `requestId`가 모두 필요하다. 하나라도 빠지면 FE `toProblem`이 null을 반환해 재시도 정책이 조용히 적용되지 않는다(`problem.test.ts`로 확인) |
 
 ## 3. 위험 대장
 
