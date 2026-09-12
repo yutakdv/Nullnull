@@ -104,6 +104,20 @@ public class TripController {
                 .body(TripDetailResponse.from(updated));
     }
 
+    @org.springframework.web.bind.annotation.PutMapping(value = "/trips/{tripId}/interests",
+            consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "replaceTripInterests", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripDetailResponse> replaceInterests(OwnerContext owner,
+            @PathVariable UUID tripId, @RequestHeader("If-Match") String ifMatch,
+            @RequestBody ReplaceInterestsBody body) {
+        TripView updated = trips.replaceInterests(owner, tripId, ifMatch,
+                interests(body == null ? null : body.interests()));
+        return ResponseEntity.ok()
+                .eTag(updated.trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripDetailResponse.from(updated));
+    }
+
     @org.springframework.web.bind.annotation.DeleteMapping("/trips/{tripId}")
     @NullnullOperation(id = "deleteTrip", security = {Security.SESSION, Security.CSRF})
     public ResponseEntity<Void> delete(OwnerContext owner, @PathVariable UUID tripId,
@@ -167,6 +181,8 @@ public class TripController {
             LocalTime startTime, LocalTime endTime, Integer toleranceMinutes) { }
 
     public record TripInterestBody(String code, Integer weight) { }
+
+    public record ReplaceInterestsBody(List<TripInterestBody> interests) { }
 
     public record TripPageResponse(List<TripSummaryResponse> items, CursorPageResponse page) { }
 

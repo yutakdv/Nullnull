@@ -28,7 +28,7 @@
         }
       },
       "savedPost": false,
-      "candidateState": "NOT_SAVED",
+      "candidateState": "NO_TRIP_SELECTED",
       "crowd": {
         "state": "FORECAST",
         "value": 62,
@@ -97,7 +97,7 @@
         }
       },
       "savedPost": true,
-      "candidateState": "SAVED_TO_SELECTED_TRIP",
+      "candidateState": "NO_TRIP_SELECTED",
       "crowd": {
         "state": "UNAVAILABLE",
         "value": null,
@@ -166,7 +166,7 @@
         }
       },
       "savedPost": false,
-      "candidateState": "SCHEDULED_IN_SELECTED_TRIP"
+      "candidateState": "NO_TRIP_SELECTED"
     },
     {
       "post": {
@@ -196,7 +196,7 @@
         }
       },
       "savedPost": false,
-      "candidateState": "NOT_SAVED"
+      "candidateState": "NO_TRIP_SELECTED"
     }
   ],
   "page": {

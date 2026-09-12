@@ -35,6 +35,7 @@ import tripPage from "../fixtures/trips/trip-page.json" with { type: "json" };
 import tripPageEmpty from "../fixtures/trips/trip-page-empty.json" with { type: "json" };
 import feedPage from "../fixtures/feed/page.json" with { type: "json" };
 import feedPage2 from "../fixtures/feed/page-2.json" with { type: "json" };
+import feedPageNoTrip from "../fixtures/feed/page-no-trip.json" with { type: "json" };
 import feedPageEmpty from "../fixtures/feed/page-empty.json" with { type: "json" };
 import postDetail from "../fixtures/posts/post-detail.json" with { type: "json" };
 import postDetailSaved from "../fixtures/posts/post-detail-saved.json" with { type: "json" };
@@ -51,6 +52,7 @@ import placeDetail from "../fixtures/places/place-detail.json" with { type: "jso
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
+import tripDetailReservation from "../fixtures/trips/trip-detail-reservation.json" with { type: "json" };
 import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
 import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
 import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
@@ -164,6 +166,10 @@ export const tripFixtures = {
   // A trip with items on some days and none on others, so FE-301's per-day
   // empty state is exercised by the data rather than only by a test.
   detailScheduled: tripDetailScheduled as components["schemas"]["TripDetail"],
+  // Its own trip, not a variant of detailScheduled: the RESERVATION lock had no fixture anywhere
+  // while four FE code paths branch on it. It is separate because detailScheduled's unlocked item
+  // is what FE-307 uses to exercise "a lock can still be set here" (#144).
+  detailReservation: tripDetailReservation as components["schemas"]["TripDetail"],
 };
 
 export const candidateFixtures = {
@@ -200,6 +206,10 @@ export const relatedFixtures = {
 export const feedFixtures = {
   page: feedPage as components["schemas"]["FeedPage"],
   pageTwo: feedPage2 as components["schemas"]["FeedPage"],
+  // The page a request with no tripId produces. candidateState describes the REQUEST, so every
+  // card carries NO_TRIP_SELECTED or none does - one file could not hold both cases, and S03-F0
+  // is the screen that needs this one (#156).
+  pageNoTrip: feedPageNoTrip as components["schemas"]["FeedPage"],
   pageEmpty: feedPageEmpty as components["schemas"]["FeedPage"],
 };
 

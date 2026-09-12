@@ -148,7 +148,7 @@ class TripCreationIT {
         create(owner, "dup-" + UUID.randomUUID(),
                 "{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\",\"timezone\":\"Asia/Seoul\","
                         + "\"planningLevel\":\"NOTHING\",\"interests\":"
-                        + "[{\"code\":\"food\",\"weight\":1},{\"code\":\"food\",\"weight\":5}]}")
+                        + "[{\"code\":\"FOOD\",\"weight\":1},{\"code\":\"FOOD\",\"weight\":5}]}")
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.fieldErrors[0].code").value("Duplicate"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM trips WHERE owner_id = ?", Integer.class,
@@ -166,7 +166,7 @@ class TripCreationIT {
         String created = create(owner, "get-" + UUID.randomUUID(),
                 "{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-05\",\"timezone\":\"Asia/Seoul\","
                         + "\"planningLevel\":\"MUST_VISIT_ONLY\",\"interests\":"
-                        + "[{\"code\":\"food\",\"weight\":3}]}")
+                        + "[{\"code\":\"FOOD\",\"weight\":3}]}")
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
 
@@ -175,7 +175,7 @@ class TripCreationIT {
                 .andExpect(status().isOk())
                 .andExpect(header().string("ETag", "\"1\""))
                 .andExpect(jsonPath("$.planningLevel").value("MUST_VISIT_ONLY"))
-                .andExpect(jsonPath("$.interests[0].code").value("food"))
+                .andExpect(jsonPath("$.interests[0].code").value("FOOD"))
                 .andExpect(jsonPath("$.interests[0].weight").value(3))
                 .andExpect(jsonPath("$.days.length()").value(2));
     }

@@ -1418,7 +1418,22 @@ export interface components {
             candidates: components["schemas"]["TripCandidate"][];
         };
         TripInterest: {
+            /**
+             * @description The interest chip the traveller selected, one of `x-nullnull-interest-codes`. A code
+             *     outside that list is refused with VALIDATION_FAILED and a `Unsupported` field error, and
+             *     case is part of the code: `food` is rejected rather than normalised to `FOOD`.
+             *
+             *     The list is an extension rather than an `enum` on purpose. Its canon is the Figma chip
+             *     list at `438:3108` (FCR-020), which Frontend owns; a closed `enum` would make every new
+             *     chip a breaking response change, and the set is expected to grow. Frontend asked for
+             *     server-side rejection, not for the type to be closed.
+             */
             code: string;
+            /**
+             * @description How strongly the interest applies. The chip screen collects membership rather than
+             *     strength, so it sends the neutral midpoint 3 for every chip; the range stays 1..5
+             *     because a later surface may mean something by it.
+             */
             weight: number;
         };
         TripDay: {
@@ -1507,6 +1522,13 @@ export interface components {
             /** @default Asia/Seoul */
             timezone: string;
             planningLevel: components["schemas"]["PlanningLevel"];
+            /**
+             * @description At most one entry per code. `uniqueItems` compares whole objects, so it admits
+             *     `{code: FOOD, weight: 1}` alongside `{code: FOOD, weight: 5}`; the ERD's primary key
+             *     `(trip_id, interest_code)` forbids that pair and the server answers VALIDATION_FAILED
+             *     with a `Duplicate` field error rather than a constraint violation the caller cannot read.
+             *     With thirteen codes and one entry each, a valid list holds at most thirteen.
+             */
             interests: components["schemas"]["TripInterest"][];
             seedItems?: components["schemas"]["SeedTripItem"][];
         };
@@ -1532,6 +1554,13 @@ export interface components {
             status?: components["schemas"]["TripStatus"];
         };
         ReplaceInterestsRequest: {
+            /**
+             * @description At most one entry per code. `uniqueItems` compares whole objects, so it admits
+             *     `{code: FOOD, weight: 1}` alongside `{code: FOOD, weight: 5}`; the ERD's primary key
+             *     `(trip_id, interest_code)` forbids that pair and the server answers VALIDATION_FAILED
+             *     with a `Duplicate` field error rather than a constraint violation the caller cannot read.
+             *     With thirteen codes and one entry each, a valid list holds at most thirteen.
+             */
             interests: components["schemas"]["TripInterest"][];
         };
         ParseImportRequest: {
@@ -2702,6 +2731,7 @@ export interface operations {
                     "application/json": components["schemas"]["FeedPage"];
                 };
             };
+            503: components["responses"]["ServiceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2753,6 +2783,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     savePost: {
@@ -3084,6 +3115,7 @@ export interface operations {
             /** @description Interests replaced and trip version incremented */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };

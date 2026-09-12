@@ -145,7 +145,7 @@ class TripCreationRulesTest {
             // This is the pair the contract's uniqueItems lets through - the objects differ - and
             // the ERD's primary key (trip_id, interest_code) forbids.
             assertThatThrownBy(() -> TripInterest.validated(List.of(
-                    new TripInterest("food", 1), new TripInterest("food", 5))))
+                    new TripInterest("FOOD", 1), new TripInterest("FOOD", 5))))
                     .isInstanceOf(TripValidationException.class)
                     .extracting(failure -> ((TripValidationException) failure).violations().get(0).code())
                     .isEqualTo("Duplicate");
@@ -153,30 +153,61 @@ class TripCreationRulesTest {
 
         @Test
         void rejectsWeightsOutsideTheContractRange() {
-            assertThatThrownBy(() -> new TripInterest("food", 0)).isInstanceOf(TripValidationException.class);
-            assertThatThrownBy(() -> new TripInterest("food", 6)).isInstanceOf(TripValidationException.class);
-            assertThatCode(() -> new TripInterest("food", 1)).doesNotThrowAnyException();
-            assertThatCode(() -> new TripInterest("food", 5)).doesNotThrowAnyException();
+            assertThatThrownBy(() -> new TripInterest("FOOD", 0)).isInstanceOf(TripValidationException.class);
+            assertThatThrownBy(() -> new TripInterest("FOOD", 6)).isInstanceOf(TripValidationException.class);
+            assertThatCode(() -> new TripInterest("FOOD", 1)).doesNotThrowAnyException();
+            assertThatCode(() -> new TripInterest("FOOD", 5)).doesNotThrowAnyException();
         }
 
         @Test
-        void rejectsMoreThanTwenty() {
-            List<TripInterest> twentyOne = new java.util.ArrayList<>();
-            for (int index = 0; index <= TripInterest.MAX_INTERESTS; index++) {
-                twentyOne.add(new TripInterest("code-" + index, 3));
+        @DisplayName("the whole vocabulary fits under the size cap, so the cap never refuses a full screen")
+        void theWholeVocabularyFitsUnderTheSizeCap() {
+            // MAX_INTERESTS (20) can no longer be reached: every code must be one of the thirteen and a
+            // code may appear once, so a valid list tops out at thirteen. The cap stays because the
+            // contract declares maxItems 20, but the real bound is the vocabulary - and the invariant
+            // worth holding is that selecting EVERY chip is still accepted. Adding an eighth style code
+            // is fine; adding eight would silently make a full selection unsubmittable.
+            List<TripInterest> everyChip = InterestVocabulary.codes().stream()
+                    .map(code -> new TripInterest(code, InterestVocabulary.NEUTRAL_WEIGHT)).toList();
+            assertThat(everyChip).hasSize(13);
+            assertThat(everyChip.size()).isLessThanOrEqualTo(TripInterest.MAX_INTERESTS);
+            assertThatCode(() -> TripInterest.validated(everyChip)).doesNotThrowAnyException();
+
+            // The size guard itself still holds for a list that reaches it.
+            List<TripInterest> tooMany = new java.util.ArrayList<>(everyChip);
+            while (tooMany.size() <= TripInterest.MAX_INTERESTS) {
+                tooMany.add(everyChip.get(0));
             }
-            assertThatThrownBy(() -> TripInterest.validated(twentyOne))
+            assertThatThrownBy(() -> TripInterest.validated(tooMany))
                     .isInstanceOf(TripValidationException.class);
         }
 
         @Test
-        @DisplayName("any non-blank code is accepted: the vocabulary is still open (FCR-020)")
-        void doesNotEnforceAVocabularyNobodyHasDecided() {
-            // Deliberate. docs/design/FIGMA_CHANGE_REQUESTS.md FCR-020 is Open and the canon is the
-            // Figma chip list, so an allowlist here would be invented. Blankness is still refused.
-            assertThatCode(() -> TripInterest.validated(List.of(new TripInterest("anything-at-all", 3))))
-                    .doesNotThrowAnyException();
+        @DisplayName("only the thirteen FCR-020 codes are accepted, exactly as the chips spell them")
+        void enforcesTheVocabularyFcr020Settled() {
+            // Until FCR-020 was answered any non-blank string was accepted, because inventing an
+            // allowlist would have produced either codes no chip can send or chips the server rejects.
+            assertThatThrownBy(() -> new TripInterest("anything-at-all", 3))
+                    .isInstanceOf(TripValidationException.class)
+                    .extracting(failure -> ((TripValidationException) failure).violations().get(0).code())
+                    .isEqualTo("Unsupported");
             assertThatThrownBy(() -> new TripInterest("  ", 3)).isInstanceOf(TripValidationException.class);
+            // Case is part of the code. Normalising it here would be a silent fallback: the ERD key
+            // is (trip_id, interest_code), so "food" and "FOOD" would be two rows for one chip.
+            assertThatThrownBy(() -> new TripInterest("food", 3))
+                    .isInstanceOf(TripValidationException.class);
+            assertThatCode(() -> new TripInterest("FOOD", 3)).doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("the rejection never echoes the value the caller sent")
+        void doesNotEchoTheRejectedCode() {
+            // A code arrives from a client and lands in a Problem detail that is logged and shown.
+            assertThatThrownBy(() -> new TripInterest("<script>alert(1)</script>", 3))
+                    .isInstanceOf(TripValidationException.class)
+                    .satisfies(failure -> assertThat(
+                            ((TripValidationException) failure).violations().get(0).message())
+                            .doesNotContain("script").contains("13"));
         }
     }
 
