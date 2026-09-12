@@ -14,6 +14,16 @@ public interface CatalogPlaceQuery {
 
     Optional<CatalogPlaceDetail> find(UUID requestedPlaceId, String locale, Instant observedAt);
 
+    /**
+     * Active canonical summaries for the given ids, for callers that embed places in another
+     * resource (a feed card, a post's linked places). One statement rather than N: a per-place
+     * lookup is what makes an embedding caller reach for a shared cache.
+     *
+     * <p>Ids that resolve to nothing are simply absent from the result. A deprecated id resolves to
+     * its canonical row, the same as {@link #find}, so an embedding never renders a stale duplicate.
+     */
+    List<CatalogPlaceSummary> summaries(List<UUID> placeIds, String locale, Instant observedAt);
+
     record CatalogPlaceSummary(UUID id, String name, String categoryCode, String regionCode,
             String categoryName, String regionName, String thumbnailUrl, String address,
             CatalogSourceAttribution sourceAttribution) {

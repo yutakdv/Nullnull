@@ -794,7 +794,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-032
 
-**고정 feed·게시물·SavedPost** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**고정 feed·게시물·SavedPost** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-030](#ba-030)
 - 기능 ID: `FR-FED-01`, `FR-FED-02`, `FR-FED-03`, `FR-PST-01`, `FR-PST-02`
@@ -810,6 +810,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-001, PM-010, PM-011의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: P0 tripId는 candidate/scheduled 표시만 바꾸며 순위를 바꾸지 않는다. snapshot table이 필요하면 REC-CON-01/07 ERD·TTL·삭제 검토를 선행한다.
+
+착수 범위(`in-progress`가 뜻하는 것): `listFeed`·`getPost`·`savePost`·`unsavePost`가 `main`에 있다. V015의 `posts`·`post_places`·`saved_posts`, 고정 순서(`publishedAt DESC, id ASC` — `FeedOrdering` 정본), owner별 saved·candidate 상태의 batch hydration, save/unsave 멱등성까지다.
+
+**`candidateState`는 두 값만 만든다** — `NOT_SAVED`와 `SCHEDULED_IN_SELECTED_TRIP`(그리고 tripId가 없으면 `NO_TRIP_SELECTED`). `SAVED_TO_SELECTED_TRIP`은 `trip_candidates`가 필요하고 그건 BA-034다. 지어내지 않는다.
+
+**feed는 catalog 공개 게이트가 닫혀 있으면 503이다.** `FeedCard.primaryPlace`가 필수인데 place는 KTO 유래 canonical catalog이고, BA-021-T3의 staging 호출 증거가 없어 그 게이트는 닫혀 있다. feed가 catalog query port를 직접 읽으면 그 fail-closed 결정이 무의미해지므로 **같은 게이트를 통과한다**. `FeedFailsClosedIT`가 이걸 고정하고, 게이트 호출을 빼면 빨개진다.
+
+`integration-ready`로 올리지 않는다.
 
 필수 검증:
 

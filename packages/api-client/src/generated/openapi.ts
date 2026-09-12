@@ -1000,7 +1000,19 @@ export interface components {
             primaryPlace: components["schemas"]["PlaceSummary"];
             crowd?: components["schemas"]["CrowdMetric"] | null;
             savedPost: boolean;
-            /** @enum {string} */
+            /**
+             * @description What the selected trip already knows about `primaryPlace`. It changes what the card
+             *     shows and never where it sits: the feed order is fixed for everyone.
+             *
+             *     `NO_TRIP_SELECTED` describes the REQUEST, not the card - it is the answer when no
+             *     `tripId` was supplied, so it applies to every card in the page or to none of them. A
+             *     page mixing it with the other three cannot occur. The other three are per-card and may
+             *     appear together.
+             *
+             *     `NO_TRIP_SELECTED` is not `NOT_SAVED`: the first means the question has no answer, the
+             *     second that the answer is no.
+             * @enum {string}
+             */
             candidateState: "NOT_SAVED" | "SAVED_TO_SELECTED_TRIP" | "SCHEDULED_IN_SELECTED_TRIP" | "NO_TRIP_SELECTED";
         };
         PostSummary: {
@@ -2683,6 +2695,7 @@ export interface operations {
             /** @description Cursor page of feed cards */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2732,6 +2745,7 @@ export interface operations {
             /** @description Post details and linked places */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2755,6 +2769,7 @@ export interface operations {
             /** @description Existing saved-post state returned */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2764,6 +2779,7 @@ export interface operations {
             /** @description Post saved */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2787,6 +2803,7 @@ export interface operations {
             /** @description Saved-post relation removed or already absent */
             204: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content?: never;

@@ -875,7 +875,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "고정 feed·게시물·SavedPost",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-022",
         "BA-030"

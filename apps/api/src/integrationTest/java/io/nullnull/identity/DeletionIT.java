@@ -172,17 +172,33 @@ class DeletionIT {
     }
 
     @Test
-    @DisplayName("BA-012-T2 every owner_id table is erased by its module or retained for a named reason")
+    @DisplayName("BA-012-T2 every table holding an owner reference is erased by its module or retained for a named reason")
     void ownerIdTableCoverageIsExplicit() {
         Map<String,String> retained = Map.of(
                 "demo_sessions", "revoked cookie supports 24h replay and hash is removed by 30d session TTL",
                 "idempotency_records", "DELETE /session receipt projection supports 24h replay",
                 "deletion_requests", "status receipt is retained after bearer expiry",
-                "deletion_tombstones", "restore deletion manifest is retained through backup recovery");
+                "deletion_tombstones", "restore deletion manifest is retained through backup recovery",
+                "source_registry_revisions", "reviewed_by_owner_id records who approved a provider"
+                        + " contract revision; no row sets it today and an operator approval is an"
+                        + " audit fact about the registry, not the traveller's own data");
         var covered = new HashSet<>(retained.keySet());
         erasers.forEach(eraser -> covered.addAll(eraser.ownerIdTables()));
-        List<String> actual = jdbc.queryForList("SELECT table_name FROM information_schema.columns"
-                + " WHERE table_schema='public' AND column_name='owner_id' ORDER BY table_name", String.class);
+        // Found by the FOREIGN KEY to owners, not by the column being called owner_id. The name-based
+        // sweep this replaced missed source_registry_revisions.reviewed_by_owner_id from V007 and
+        // posts.author_owner_id from V015 - an owner identifier escaped the guarantee simply by
+        // being spelled differently, which is the one thing a coverage check must not permit.
+        List<String> actual = jdbc.queryForList("""
+                SELECT DISTINCT source.relname
+                  FROM pg_constraint constraint_
+                  JOIN pg_class source ON source.oid = constraint_.conrelid
+                  JOIN pg_class target ON target.oid = constraint_.confrelid
+                  JOIN pg_namespace space ON space.oid = source.relnamespace
+                 WHERE constraint_.contype = 'f' AND target.relname = 'owners'
+                   AND space.nspname = 'public'
+                 ORDER BY source.relname
+                """, String.class);
+        assertThat(actual).as("tables referencing owners").isNotEmpty();
         assertThat(actual).allMatch(covered::contains);
         assertThat(retained.values()).allMatch(reason -> !reason.isBlank());
     }
