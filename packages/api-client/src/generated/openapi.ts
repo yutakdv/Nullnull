@@ -2601,6 +2601,15 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "private, no-store";
+                    /**
+                     * @description Whole seconds to wait before asking again. Present only while the request is still
+                     *     moving: absent on COMPLETED and FAILED, because another call would return what the
+                     *     caller already has. The server derives it from its own job runtime - the poll interval
+                     *     while work is queued or running, and the time until the next attempt is due after a
+                     *     PARTIAL_FAILED - so it is advice that tracks the deployment, not a fixed figure. Prefer
+                     *     it over a hardcoded interval when it is present.
+                     */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
