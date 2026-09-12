@@ -9,15 +9,13 @@ import java.util.Set;
 /**
  * {@code TripInterest} in docs/api/openapi.yaml: an interest code and how strongly it applies.
  *
- * <p>Which codes are SUPPORTED is not decided here, and deliberately so. The contract types `code` as
- * a free string with no enum, and the dictionary - supported codes, KO/EN labels, single or multiple
- * selection, default weight - is still open as FCR-020 / PM-006, whose canon is the Figma chip list.
- * The BA-030 card forbids fixing that boundary while it is open, so this validates only what the
- * contract and the ERD already decide, and accepts any non-blank code.
+ * <p>Which codes are supported is {@link InterestVocabulary}, settled by FCR-020. Before that it
+ * accepted any non-blank string, because inventing a vocabulary would have produced either codes no
+ * chip can send or chips the server rejects.
  *
  * <p>What IS decided: the ERD's primary key {@code (trip_id, interest_code)} means one weight per
  * code. The contract's `uniqueItems: true` compares whole objects and therefore lets
- * {@code {code:"food",weight:1}} and {@code {code:"food",weight:5}} through together; the database
+ * {@code {code:"FOOD",weight:1}} and {@code {code:"FOOD",weight:5}} through together; the database
  * would reject that pair, so it is rejected here with a field error rather than as a constraint
  * violation the caller cannot read.
  */
@@ -38,6 +36,7 @@ public record TripInterest(String code, int weight) {
             throw new TripValidationException("interests[].code", "Size",
                     "interest code must be at most " + MAX_CODE_LENGTH + " characters");
         }
+        InterestVocabulary.require(code);
         if (weight < MIN_WEIGHT || weight > MAX_WEIGHT) {
             throw new TripValidationException("interests[].weight", "Range",
                     "weight must be between " + MIN_WEIGHT + " and " + MAX_WEIGHT);

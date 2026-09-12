@@ -29,6 +29,16 @@
       "status": "ACTIVE",
       "version": 3,
       "candidateCount": 5
+    },
+    {
+      "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a09",
+      "title": "예약이 있는 여행",
+      "startDate": "2026-10-04",
+      "endDate": "2026-10-07",
+      "timezone": "Asia/Seoul",
+      "status": "ACTIVE",
+      "version": 3,
+      "candidateCount": 5
     }
   ],
   "page": {

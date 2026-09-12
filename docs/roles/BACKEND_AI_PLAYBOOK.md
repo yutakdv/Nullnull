@@ -732,7 +732,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-030
 
-**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**여행 생성·목록·결정적 초기 일정** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-010](#ba-010), [BA-011](#ba-011), [BA-022](#ba-022)
 - 기능 ID: `FR-PRO-03`, `FR-TRC-01`, `FR-TRC-02`, `FR-TRC-03`, `FR-TRC-05`, `FR-TRC-08`, `FR-TRC-09`, `FR-TRC-10`, `FR-TRC-12`, `FR-TRP-01`
@@ -749,7 +749,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 빈 관심사 허용·30일/총100개/하루20개 상한을 지킨다. FR-TRC-10 추천 draft preview/read 공백은 REC-CON-04에서 계약 해결 후 제공하고 묵시적 일정을 생성하지 않는다.
 
-착수 범위(`in-progress`가 뜻하는 것): Phase A만 끝났다. `listTrips`·`createTrip`·`getTrip`, trips/trip_interests/trip_revisions migration, create 멱등성, ETag, owner 범위 cursor, `JdbcTripLookup`이 `main`에 있다. **남은 Phase B는 `seedItems.startTime`(PM-008 미해결, 계약의 `format: time`이 offset을 요구하는데 ERD의 `time` column은 저장할 수 없다)과 관심사 code 어휘 검증(FCR-020 `Open`)이다.** 둘 다 위 4항이 금지한 "경계 확정"에 해당하므로 해결 전에는 구현하지 않는다. `integration-ready`로 올리지 않는다.
+범위(`integration-ready`가 뜻하는 것): Phase A와 B가 끝났다. `listTrips`·`createTrip`·`getTrip`, trips/trip_interests/trip_revisions migration, create 멱등성, ETag, owner 범위 cursor, `JdbcTripLookup`에 더해 Phase B를 막던 두 경계가 모두 답을 받았다. `seedItems.startTime`은 PM-008을 정리한 [#145](https://github.com/yutakdv/Nullnull/issues/145)로 offset 없는 local time이 되어 `SeedTripItemBody`가 `LocalTime`으로 받고, 관심사 code 어휘는 FCR-020을 답한 [#154](https://github.com/yutakdv/Nullnull/issues/154)로 Figma `438:3108`의 13개로 고정돼 `InterestVocabulary`가 강제한다. 남은 것은 staging 재현이며 [BA-006](#ba-006)이 단독으로 추적한다.
 
 필수 검증:
 
@@ -763,7 +763,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-031
 
-**여행 metadata·관심사·삭제** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**여행 metadata·관심사·삭제** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-030](#ba-030), [BA-012](#ba-012)
 - 기능 ID: `FR-PRO-05`, `FR-TRP-04`, `FR-TRP-05`
@@ -780,7 +780,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: timezone 변경 시 local wall-clock 보존 규칙을 지킨다. 후보 저장과 달리 관심사·metadata 변경은 기존 preview를 stale로 만든다.
 
-착수 범위(`in-progress`가 뜻하는 것): `updateTrip`과 `deleteTrip`이 `main`에 있다. If-Match와 단일 version 증가, 기간 축소 시 범위 밖 item이나 DATE/RESERVATION 잠금이 있으면 422 전체 거절, timezone 변경 시 local date·wall-clock 보존, 삭제의 하위 cascade와 `active_trip_id` 정리까지다. **`replaceTripInterests`는 구현하지 않았다** — 관심사 code 어휘가 FCR-020 `Open`이라 무엇으로 교체를 검증할지가 없다. 위 4항이 금지한 "경계 확정"에 해당하므로 해결 전에는 구현하지 않는다. `integration-ready`로 올리지 않는다.
+범위(`integration-ready`가 뜻하는 것): 세 operation이 모두 있다. `updateTrip`·`deleteTrip`은 If-Match와 단일 version 증가, 기간 축소 시 범위 밖 item이나 DATE/RESERVATION 잠금이 있으면 422 전체 거절, timezone 변경 시 local date·wall-clock 보존, 삭제의 하위 cascade와 `active_trip_id` 정리까지다. `replaceTripInterests`는 FCR-020을 답한 [#154](https://github.com/yutakdv/Nullnull/issues/154) 뒤에 붙였다 — 교체는 merge가 아니라 전체 치환이고, 빈 집합도 유효하며, 어휘 밖 code는 422 `Unsupported`다. 남은 것은 staging 재현이며 [BA-006](#ba-006)이 단독으로 추적한다.
 
 필수 검증:
 

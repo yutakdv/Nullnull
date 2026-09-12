@@ -110,7 +110,7 @@ class OwnerDataErasureIT {
                         .contentType("application/json")
                         .content("{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\","
                                 + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\","
-                                + "\"interests\":[{\"code\":\"food\",\"weight\":3}],\"seedItems\":["
+                                + "\"interests\":[{\"code\":\"FOOD\",\"weight\":3}],\"seedItems\":["
                                 + "{\"placeId\":\"" + placeId + "\",\"date\":\"2026-10-04\",\"position\":0,"
                                 + "\"constraints\":[{\"type\":\"MUST_VISIT\",\"locked\":true,"
                                 + "\"source\":\"USER\"}]}]}"))
