@@ -898,6 +898,8 @@ PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSum
 
 그래서 순서는 **(1) 큐레이션된 cover와 검토된 licence를 잇는 데이터 → (2) detail의 `coverAsset` 채우기 → (3) list 투영**이고, (3)의 화면 표시 방법은 `FCR-023`(`Open`)이 정한다. 지금 fixture의 cover는 전부 `cdn.example.test` placeholder라 잘못 표기된 실제 이미지는 없다. **BE 단독으로 끝낼 수 있는 항목이 아니다.**
 
+**그보다 앞에 있는 공백: feed에 넣을 게시물을 만드는 경로가 없다(조사 결과).** `INSERT INTO posts`는 integration test 5개 파일에만 있고, OpenAPI에는 post를 만드는 operation이 없으며, main에서 `posts`를 만지는 코드는 읽기(`JdbcFeedStore`)와 삭제(`SocialOwnerDataEraser`)뿐이다. 위 구현 순서 1번의 `curated post`는 **조회만** 서술하고, 사용자 작성·업로드는 [BA-082](#ba-082)이며 P1이다. 그래서 catalog 게이트가 열리는 날 feed는 오류가 아니라 **빈 page**를 내고, 그 빈 page는 `FR-FED-01`이 말하는 "여행이 없을 때"와 화면에서 구분되지 않는다. 콘텐츠 출처와 위 표지 권리는 같은 자리에서 답해야 하므로 [#183](https://github.com/yutakdv/Nullnull/issues/183)이 둘을 함께 추적한다.
+
 필수 검증:
 
 - `BA-032-T1`: 페이지 사이 새 글·삭제·숨김·같은 정렬 시각에서 중복/누락 정책을 검증한다
@@ -1064,6 +1066,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-007, PM-009, PM-014, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: query는 일정을 바꾸지 않는다. 관계 추천과 일정 실행 가능성은 별도이며 suggestedTime을 추정 사실로 만들어 넣지 않는다.
+
+**1번 단계는 지금 입력을 댈 수 없다(실측).** `SlotEvaluator`에 빈 여행·사용자가 넣은 `durationMinutes`·`routeEvidence=VERIFIED`를 주고 `openingHours`만 비우면 모든 날짜가 `OPENING_HOURS_UNKNOWN`이고 집계는 `UNKNOWN`이다. 같은 입력에 검증된 창 하나를 넣으면 `EXACT`가 된다 — **`EXACT`와 `UNKNOWN` 사이에 있는 것은 알고리즘이 아니라 창 하나**이고, 그 창을 만드는 production source가 저장소에 없다(migration 전체에 `opening` 문자열 0건이고 승인 operation `detailCommon2`는 이용시간을 주지 않는다). 그래서 2번의 `UNKNOWN`이 정상 경로가 아니라 **유일한 경로**다. source 확대는 오너 결정이라 [#181](https://github.com/yutakdv/Nullnull/issues/181)이 단독 추적한다. 이 카드를 진행할 때 `UnknownHours`를 열린 것으로 바꾸거나 기본 창을 지어내어 `EXACT`를 만들지 않는다 — 같은 source가 [BA-051](#ba-051)의 `ELIGIBLE`도 막고 있으므로 한쪽에서 완화하면 두 화면이 함께 틀어진다.
 
 필수 검증:
 

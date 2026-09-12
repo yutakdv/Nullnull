@@ -479,6 +479,36 @@ ITEM 평가기가 요구하는 증거와 지금 그것을 댈 수 있는 곳:
 
 **PM-014가 요구한 "최소 성공 사례"는 지금 만들 수 없다.** 만들려면 영업시간이 먼저 있어야 하고, 그전에 만든 어떤 사례도 사용자가 직접 duration을 넣은 것뿐이며 그래도 영업시간 UNKNOWN에서 멈춘다. **안전 조건을 낮춰서 사례를 만드는 것은 금지다** — 그게 PM-014가 경고한 바로 그 일이다.
 
+#### 표를 네 계산 표면 전부로 넓혔다 — **ITEM만의 문제가 아니었다**
+
+ITEM 평가기에만 돌렸던 질문(*"이 표면이 성공 상태를 내려면 어떤 입력이 필요하고, 그것을 만드는 production source가 있나"*)을 `apps/ai`의 계산 표면 **넷 전부**에 돌렸다.
+
+| 계산 표면 | 성공 상태 | 그 상태에 필요한 입력 | production source | 판정 |
+| --- | --- | --- | --- | --- |
+| **SLOT**(BA-042 · `FR-CAN-07`) | `EXACT` | 날짜별 `OpenWindow` | **없다** | **항상 `UNKNOWN`** (실측) |
+| **ITEM**(BA-051) | `ELIGIBLE` | `OpenWindow` + duration + route 증거 | 없음 / 사용자 / 없음 | 항상 UNKNOWN (위 표) |
+| **RELATED**(C5) | `EXACT`·`SIMILAR` | `place_relations` 행 | **writer 0건** | 항상 `NONE`/`UNKNOWN` — **이미 결정된 것** |
+| **FEED**(BA-032) | 비어 있지 않은 page | `posts`의 `PUBLISHED` 행 | **writer 0건** | **항상 빈 feed** |
+
+**SLOT은 추론이 아니라 실측이다.** `SlotEvaluator`를 실제로 돌렸다 — 빈 여행(이웃 0건), 사용자가 넣은 `durationMinutes=90`, `routeEvidence=VERIFIED`, 그리고 production이 유일하게 못 주는 것 하나(`openingHours={}`):
+
+```text
+state = UNKNOWN
+  2026-10-01 eligible=False reason=OPENING_HOURS_UNKNOWN
+  2026-10-02 eligible=False reason=OPENING_HOURS_UNKNOWN
+  2026-10-03 eligible=False reason=OPENING_HOURS_UNKNOWN
+```
+
+**판별 방향도 같이 봤다** — 같은 입력에 검증된 창 하나(`09:00~18:00`)를 넣으면 `state = EXACT`가 된다. UNKNOWN과 EXACT 사이에 있는 것은 알고리즘이 아니라 **그 창 하나**다.
+
+**그리고 ITEM보다 SLOT이 먼저 아프다.** ITEM은 최적화(B06 이후) 화면이지만 SLOT은 **후보를 일정에 올리는 P0 기본 동작**(`FR-CAN-07`)이다. `SlotEvaluator._evaluate_date`가 `filters.opening_hours`를 그대로 호출하므로 **source 하나가 두 화면을 동시에 막는다.** 날짜만 고르는 SLOT은 `start=None`이라 창의 시각을 쓰지도 않는데, 그래도 창이 `UnknownHours`면 첫 줄에서 UNKNOWN이다.
+
+**RELATED는 셋과 다르다 — 이미 결정된 것이다.** `KTO_RELATED_PLACES`가 미신청이라 `DISABLED`이고 C5는 `UNKNOWN(reason SOURCE_DISABLED)`만 낸다는 것이 §9의 확정 결정이다. 표에 넣은 이유는 **같은 모양이 "결정된 것"과 "잊힌 것" 두 가지로 나타난다**는 것을 보이기 위해서다. 결정된 것은 결함이 아니다.
+
+**FEED는 새로 나온 것이고, 제출 데모의 첫 화면이다.** `posts`에 행을 만드는 production 경로가 **없다** — `INSERT INTO posts`는 integration test 5개 파일에만 있고, OpenAPI에는 post를 만드는 operation이 없으며(`listFeed`·`getPost`·`savePost`·`unsavePost`·`recordFeedFeedback`뿐), BA-032 구현 순서 1번은 *"게시 가능한 curated post … 를 **조회**하고"* 라 읽기만 서술한다. 사용자 작성은 BA-082인데 **P1**이다. `curated`라는 말은 저장소 전체에서 그 한 줄과 그 JSON 복제본에만 있다. 즉 **큐레이션된 게시물을 만드는 일을 어느 카드도 갖고 있지 않다.** catalog 게이트가 열려도 feed는 빈 page를 낸다.
+
+**셋 다 "구현이 끝났는데 아무도 그 입력을 만들지 않는다"이지만 움직일 사람이 다르다** — 영업시간은 오너(승인 operation 확대), 게시물은 오너·제품(P0 콘텐츠를 어디서 가져오는가), related는 아무도(이미 결정됨). **부류 4를 찾으면 "누가 그 source를 만드는가"까지 적어야 다음 사람이 움직일 수 있다.** 그래서 앞의 둘은 이슈로 냈다.
+
 #### 부류 목록 갱신 — **성공 경로가 도달 불가능한 것**이 가장 위험하다
 
 2번은 *실패를 알리는 길*이 막힌 것이고, PM-014는 ***성공하는 길*이 막힌 것**이다. 후자가 더 위험하다 — 2번은 조용하지만 이건 **배선되는 날 전부 UNKNOWN으로 한꺼번에** 터지고, 그때는 이미 그 위에 화면이 얹혀 있다.
@@ -678,7 +708,7 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 **2026-09-13 오너가 세 숫자를 확정했다 — `APP_SESSION_ABSOLUTE_TTL=P90D`, `APP_CSRF_TOKEN_TTL=PT2H`, `nullnull.session.touch-interval=PT1M`.** `ENVIRONMENT.md`에서 그 세 행의 `(제안값)`을 지우고 승인 사실을 적었다. **PM-017은 닫힌다.**
 
 **나머지 `제안값` 20곳은 그대로 두었다**(`APP_IDEMPOTENCY_LOCK_TIMEOUT`, job 값들, provider executor 값들 — 표기 형태가 괄호 없는 ` 제안값`이라 이번 편집과 겹치지 않았고, 실제로 3줄만 바뀐 것을 diff로 확인했다). 그 표기는 **"임의 기입 금지"를 지키는 장치**이므로 각자의 카드 소유자가 확정하기 전에는 지우지 않는다.
-| **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
+| **source 부재 대기** | PM-014 — **KTO 키가 아니라 영업시간 source다**(키는 오늘 실호출로 성립했다). PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
 
 **PM-013도 절반은 이미 지켜지고 있었고, 지키는 것이 아무것도 없었다.** "혼잡 단계 과장 위험"인데 — KTO 상대 집중률은 **날짜 단위**이고 서울4단계도 공통5단계도 아니다. 확인해 보니 registry의 `metric_definition`이 *"가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님"* 이라고 **정확히** 적고 그게 `metricDefinition`으로 client까지 간다. `ordinal_level`도 NULL로 저장된다.
 
