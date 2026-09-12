@@ -316,6 +316,7 @@ class FlywayMigrationIT {
                     v_trip uuid := gen_random_uuid();
                     v_item uuid := gen_random_uuid();
                     v_post uuid := gen_random_uuid();
+                    v_candidate uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -400,6 +401,13 @@ class FlywayMigrationIT {
                     VALUES (v_post, v_place, 0, 'PRIMARY');
                     INSERT INTO saved_posts (owner_id, post_id, created_at)
                     VALUES ((SELECT id FROM owners LIMIT 1), v_post, v_at);
+                    -- V016's candidates. ACTIVE rather than SCHEDULED: the shape CHECK requires a
+                    -- SCHEDULED row to point at an item, and this is about populating the table,
+                    -- not about the transition.
+                    INSERT INTO trip_candidates (id, trip_id, place_id, status, created_at, updated_at)
+                    VALUES (v_candidate, v_trip, v_place, 'ACTIVE', v_at, v_at);
+                    INSERT INTO candidate_sources (id, candidate_id, source_type, post_id, created_at)
+                    VALUES (gen_random_uuid(), v_candidate, 'POST', v_post, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -412,7 +420,7 @@ class FlywayMigrationIT {
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
                         "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
                         "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
-                        "posts", "post_places", "saved_posts");
+                        "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources");
         return key;
     }
 

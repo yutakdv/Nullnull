@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.PathSensitivity
 plugins {
     java
     `java-test-fixtures`
@@ -17,6 +18,18 @@ java {
 
 repositories {
     mavenCentral()
+}
+
+// docs/contracts/events.schema.json is the event canon (AGENTS.md). The runtime validates
+// batches against it directly, so it is packaged rather than re-declared: a copy checked into
+// src/main/resources would be a second definition, and the route allowlist has already been split
+// in two once (PM-016) with only one half enforcing anything.
+val canonicalEventSchema = layout.projectDirectory.file("../../docs/contracts/events.schema.json")
+
+tasks.named<ProcessResources>("processResources") {
+    from(canonicalEventSchema) {
+        into("contracts")
+    }
 }
 
 dependencies {
@@ -54,6 +67,11 @@ testing {
             }
             targets.all {
                 testTask.configure {
+                    // Declared as an INPUT as well as a property: see the openapiContractTest block
+                    // below for what a path handed over only as a property costs.
+                    inputs.dir(layout.projectDirectory.dir("../ai/tests/recommendation/fixtures"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiOrderParityFixtures")
                     // Order parity fixtures are owned by apps/ai and read by both languages.
                     systemProperty(
                         "nullnull.ai.fixtures.path",
@@ -108,6 +126,22 @@ testing {
             targets.all {
                 testTask.configure {
                     shouldRunAfter(test)
+                    // Declared as INPUTS, not only as system properties. A path handed over as a
+                    // property is invisible to the up-to-date check, so editing the contract and
+                    // re-running this suite reported the previous run's result - a stale PASS,
+                    // exactly where a contract test is supposed to be the thing that notices.
+                    // Measured: a mutation that pointed listFeed at the wrong 503 response stayed
+                    // green until --rerun-tasks. CI is a fresh checkout and always runs, which is
+                    // why this hid in the local loop rather than in the gate.
+                    inputs.file(layout.projectDirectory.file("../../docs/api/openapi.yaml"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("openapiContract")
+                    inputs.dir(layout.projectDirectory.dir("../../packages/contracts/fixtures"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("contractFixtures")
+                    inputs.file(layout.projectDirectory.file("../../docs/contracts/events.schema.json"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("eventSchema")
                     systemProperty(
                         "nullnull.openapi.path",
                         providers.gradleProperty("nullnull.openapi.path")
@@ -141,6 +175,23 @@ testing {
                 testTask.configure {
                     description = "Checks parity between Spring DTOs and the apps/ai internal contract"
                     shouldRunAfter(test)
+                    // This suite is the ADR-0006 boundary guard - the only thing that catches a
+                    // Spring DTO drifting from the apps/ai internal contract, and the policy pin
+                    // that keeps both sides on the same numbers. Handing those paths over as
+                    // properties alone made it the WORST case of the stale-pass defect: the
+                    // documented procedure is to regenerate the contract JSON with
+                    // `uv run python -m nullnull_ai.contracts export` and then check parity, and
+                    // the check step reported the previous run. Measured: changing a pinned policy
+                    // number left this suite green until --rerun-tasks.
+                    inputs.file(layout.projectDirectory.file("../ai/contracts/recommendation-internal-v1.json"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiInternalContract")
+                    inputs.file(layout.projectDirectory.file("../ai/src/nullnull_ai/policy/policy-v1.yaml"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiPolicy")
+                    inputs.file(layout.projectDirectory.file("../ai/tests/recommendation/manifest.json"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiRecommendationManifest")
                     systemProperty(
                         "nullnull.ai.contract.path",
                         providers.gradleProperty("nullnull.ai.contract.path")

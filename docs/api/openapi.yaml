@@ -99,6 +99,8 @@ paths:
                   value:
                     status: "UP"
                     time: "2026-09-10T00:00:00Z"
+        default:
+          $ref: "#/components/responses/Problem"
   /health/ready:
     get:
       tags: [System]
@@ -138,8 +140,10 @@ paths:
                         checkedAt: "2026-09-10T00:00:00Z"
                         detail: null
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          $ref: "#/components/responses/SourceUnavailable"
 
+        default:
+          $ref: "#/components/responses/Problem"
   /demo/sessions:
     post:
       tags: [Session]
@@ -523,6 +527,8 @@ paths:
                     activeTripId: null
         "401":
           $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/Problem"
     patch:
       tags: [Session]
       operationId: updatePreferences
@@ -788,7 +794,7 @@ paths:
                       nextCursor: null
                       hasMore: false
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
   /feed/feedback:
@@ -931,9 +937,11 @@ paths:
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
                     saved: true
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          $ref: "#/components/responses/SourceUnavailable"
         "404":
           $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Problem"
   /posts/{postId}/saved:
     parameters:
       - $ref: "#/components/parameters/PostId"
@@ -1173,6 +1181,8 @@ paths:
                       license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
         "404":
           $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Problem"
   /places/{placeId}/crowd-forecast:
     parameters:
       - $ref: "#/components/parameters/PlaceId"
@@ -1653,6 +1663,8 @@ paths:
                     candidates: []
         "404":
           $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Problem"
     patch:
       tags: [Trips]
       operationId: updateTrip
@@ -3024,6 +3036,11 @@ paths:
       responses:
         "202":
           description: Valid events accepted; duplicate eventIds ignored
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -3265,7 +3282,14 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
     ServiceUnavailable:
-      description: A required capability is temporarily unavailable
+      description: |
+        A required capability is temporarily unavailable, WITHOUT saying which code arrives.
+
+        503 carries two codes - `SOURCE_UNAVAILABLE` for a data source that is not published, and
+        `ROUTE_UNAVAILABLE` for a travel route that could not be confirmed - so this response cannot
+        name one. An operation that knows which of them it sends uses `SourceUnavailable` instead;
+        this generic form is for operations whose 503 does not exist yet and whose code is therefore
+        not decided. `EventContractTest` keeps that true: an implemented operation may not use it.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"
@@ -3276,6 +3300,35 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+    SourceUnavailable:
+      description: A canonical data source this operation reads is not published yet
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            sourceUnavailable:
+              summary: SOURCE_UNAVAILABLE is the code this operation's 503 carries
+              description: |
+                Declared because 503 alone does not identify the failure: `ROUTE_UNAVAILABLE` is also
+                a 503, and a client reading only the status has nothing to branch on. This is a
+                source state, not a request error - retrying the same request later can succeed, and
+                `retryable` is true. Branch on `code`, not on the wording of `detail`.
+              value:
+                type: "/problems/source-unavailable"
+                title: "Source unavailable"
+                status: 503
+                code: "SOURCE_UNAVAILABLE"
+                detail: "This canonical place data source is not published yet."
+                instance: "/api/v1/feed"
+                requestId: "01931f7e-8b2c-7a44-9f13-6d2b8c4e5a71"
+                retryable: true
     RateLimited:
       description: Owner, IP, or provider-safe rate limit exceeded
       headers:

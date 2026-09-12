@@ -294,6 +294,24 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
 
+**계약 파일이 Gradle task 입력이 아니어서 로컬에서 stale PASS가 났다.** `openapiContractTest`는 `docs/api/openapi.yaml` 경로를 **system property로만** 받았다. property는 up-to-date 검사에 보이지 않으므로, 계약만 고치고 suite를 다시 돌리면 **직전 실행 결과가 그대로 보고된다**. 실측: `listFeed`의 503을 틀린 응답으로 바꾸는 변이가 `--rerun-tasks` 없이는 GREEN이었고, 붙이면 RED였다. CI는 매번 새 checkout이라 항상 돌기 때문에 **게이트가 아니라 개발자의 loop에만 숨어 있었다** — 그래서 "가드가 변이를 못 잡네"로 오진하기 쉽다. `inputs.file(...)`/`inputs.dir(...)`로 선언해 고쳤다. **경로를 property로 넘기면 입력으로도 선언한다.**
+
+그리고 **`openapiContractTest`만 고치고 끝낸 것이 이 세션의 두 번째 "같은 루프의 나머지를 안 본" 사례였다**(첫 번째는 `validate_backend_plan.py`의 `status`만 고친 것). 같은 결함이 네 곳 더 있었고 그중 `recommendationTest`가 가장 위험했다 — **ADR-0006 경계의 parity 가드**이자 policy pin을 보는 유일한 장치인데, `apps/ai` 계약 JSON을 `uv run python -m nullnull_ai.contracts export`로 갱신한 **뒤의 parity 확인이 직전 실행 결과를 보고**했다. 실측으로 확인했다: `policy-v1.yaml`의 `scale: 6 → 7`이 `--rerun-tasks` 없이는 GREEN, 붙이면 RED, 입력 선언 뒤에는 없이도 RED. 내부 계약의 `SlotOut.suggestedTime` type 변경도 같다. 선언한 것은 `nullnull.ai.fixtures.path`(`test`), `nullnull.ai.contract.path`·`nullnull.ai.policy.path`·`nullnull.ai.manifest.path`(`recommendationTest`)다.
+
+변이를 고를 때도 배운 게 있다. 내부 계약에 무관한 top-level key를 넣는 변이는 GREEN이었는데 그건 stale이 아니라 **parity가 보지 않는 것을 건드린 것**이었다. 변이는 **그 가드가 실제로 단언하는 대상**을 건드려야 한다.
+
+**변이가 살아남았을 때 먼저 의심할 것은 가드가 아니라 실행 여부다.** 위 건과 `SendMessage` 이전에 겪은 "BUILD FAILED인데 exit 0"(파이프로 인한) 둘 다, 결과를 읽기 전에 **그 명령이 실제로 무엇을 실행했는지**를 확인했어야 했다.
+
+**변이 테스트가 카드의 현재 값에 의존하면 그 카드를 올리는 날 죽는다.** `test_backend_plan.py`의 status 검사 세 건이 BA-030의 status를 `in-progress`로 하드코딩하고 `integration-ready`로 바꾸는 것을 변이로 썼다. 카드를 `integration-ready`로 올린 순간 그 변이는 **카드가 이미 선언한 값을 다시 넣는 것**이 되어 아무것도 비교하지 않았다 — validator는 멀쩡한데 test가 조용히 죽었다. 로컬에서 수정 전에 돌렸을 때는 통과했고 CI가 잡았다. 이제 카드 헤더에서 현재 status를 **읽고** 카드가 선언하지 않은 다른 값을 변이로 쓴다. 산문 시나리오도 카드의 현재 문장을 빌리지 않고 test가 직접 써 넣는다. **fixture나 정본의 특정 값을 변이의 재료로 쓰면 그 값이 바뀌는 날 함께 죽는다.**
+
+**계약을 좁히는 것과 계약을 적는 것은 다르다.** FCR-020의 13개 관심사 code를 `enum`으로 선언하려 했더니 oasdiff가 `response-property-enum-value-added` **156건**을 냈다. 이전이 `type: string`이라 oasdiff는 "빈 enum에 13개 추가"로 읽지만 응답 소비자에게는 좁아진 변경이라 오탐이다 — 다만 예외 등록부는 **한 줄 = 한 메시지**를 요구하므로 159행을 넣어야 하고, 그러면 게이트가 의미를 잃는다. 더 중요한 이유는 **어휘의 정본이 FE 소유 Figma chip 목록**이라는 점이다. 닫힌 enum은 chip 추가마다 breaking 절차를 강요한다. `x-nullnull-interest-codes` extension으로 적고, extension은 아무것도 강제하지 못하므로 계약↔서버 parity를 **test로** 고정했다(양방향 변이 확인). **소유자가 상대 역할인 목록은 계약에서 닫지 않는다.**
+
+**fixture는 계약을 앞서 갈 수 있고, 그 사실을 test로 적지 않으면 "서버가 보낸다"로 읽힌다.** `getTrip`의 `days[].items`는 지금 **항상 비어 있다** — DB에는 item·constraint가 들어가는데 `TripController.TripDayResponse`가 `List.of()`를 반환한다. BA-040까지 의도적으로 미룬 것이지만 그것을 고정하는 test가 없어서, item을 가진 `trip-detail-scheduled.json`·`trip-detail-reservation.json` 때문에 서버가 그 응답을 낸다고 믿기 쉬웠다. 비어 있음 자체를 `TripCreationIT.theDetailProjectionDoesNotYetCarryItems`로 적었다 — **BA-040이 projection을 시작하면 RED가 되어 진짜 단언으로 교체된다.** 미룬 것은 주석이 아니라 test로 남긴다.
+
+**어휘를 좁힐 때 기존 데이터를 확인한 근거(FCR-020).** 관심사 code를 13개로 좁히면 그 밖의 값이 저장돼 있을 경우 화면이 그릴 수 없는 행이 남는다. 확인했고 **그런 행은 존재할 수 없다**: migration 어디에도 `trip_interests`에 대한 INSERT가 없고(`grep -rn 'trip_interests' .../db/migration/ | grep -i insert` → 없음), `infra/` 디렉터리가 없으며 `AGENTS.md`의 `infra_check=blocked`가 **아무것도 배포되지 않았음**을 뜻한다. 남는 것은 실행마다 새로 만들어지는 Testcontainers DB뿐이고, 거기에 소문자 `food`를 넣던 test 4곳은 실제 code로 고쳤다. **좁히는 변경 전에는 "그 값이 어디에 저장돼 있는가"를 명령으로 답한다.**
+
+**auto-merge는 마지막 push를 기다려 주지 않는다.** PR #158의 CI가 끝나는 사이에 세 번째 커밋을 push했는데, auto-merge가 두 번째 커밋 시점에 발동해 그 커밋은 병합되지 않았다. 그런데 나는 이미 이슈에 "PR #158에 있습니다"라고 적은 뒤였다. **PR이 열려 있어도 push한 커밋이 그 PR로 병합된다는 보장이 없다** — 이슈에 PR 번호를 적기 전에 `git branch -r --contains <sha>`로 실제로 `origin/main`에 있는지 확인한다.
+
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
 
 ## 9. 사용자 확정 결정 (재논의 불필요)
@@ -394,6 +412,46 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
   - 일정 위험: **불변식 12**(제출 서비스가 KTO를 실제 server-side 호출하고 증거를 보존)가 배포 단계에 묶여 있는데, forecast 실호출이 배포 직전에 처음 시도되면 위험하다. 그래서 #109를 미리 푸는 것이 순서상 중요하다.
 - **#118 429 범위**, **#119 `infra:check`** — 자율 판단으로 진행 승인됨. 근거를 PR 본문과 이슈 코멘트에 남긴다.
   - **#119 설계 전제**: `infra/`는 계획상 마지막에 생긴다. 따라서 "부재하면 통과"도 틀렸지만 **"부재하면 즉시 hard fail"도 지금은 틀리다.** 부재를 명시적으로 `blocked`/`not-yet`으로 기록하고 **통과로 집계하지 않는** 형태가 맞다. 조용한 `exit 0`만 없애면 된다.
+
+### 현재 대기 지도 (BA-030~033 구간 종료 시점)
+
+**FE/PM 답을 기다리는 것.** 넷 다 내가 제안이나 질문을 냈고 답이 오면 바로 구현으로 들어간다.
+
+| 이슈 | 기다리는 답 | 오면 고칠 곳 |
+| --- | --- | --- |
+| [#162](https://github.com/yutakdv/Nullnull/issues/162) | `getTrip`의 item 투영: A(503) / B(degraded 상태) | `TripController.TripDayResponse` — 지금 `List.of()` 고정. `TripCreationIT.theDetailProjectionDoesNotYetCarryItems`가 그 사실을 고정하고 있으므로 **투영을 켜면 그 test가 RED가 되고 진짜 단언으로 교체된다** |
+| [#165](https://github.com/yutakdv/Nullnull/issues/165) | PM-009 후보 전이 matrix 결정 1·2 | `removeTripItem` disposition 분기. DB가 이미 강제하는 부분은 `CandidateSchedulingInvariantsIT`가 고정 |
+| [#166](https://github.com/yutakdv/Nullnull/issues/166) | PM-007: FE-305 편집 buffer가 한 item이냐 여러 item이냐 | 한 item이면 `updateTripItem`/`replaceTripItem`을 넓히고, 여러 item이면 batch commit endpoint |
+| [#163](https://github.com/yutakdv/Nullnull/issues/163) | PM-011 표시값·반응 행동 | `recordFeedFeedback`. BA-033의 나머지 절반 |
+
+**#162가 가장 무겁다** — BA-040이 막히면 BA-041·042·050~053·060 일곱 카드가 함께 막힌다.
+
+**FE 답을 기다리는 이슈에 코멘트를 추가할 때는 첫 줄에 BE/AI 것임을 밝힌다.** 두 세션이 같은 계정으로 쓰므로 작성자로는 구분되지 않고, 옆 세션이 내 코멘트를 FE 답으로 오독해 "답이 왔다"고 전달한 적이 있다.
+
+**PM 항목 24개를 전수 확인했다 — 다음 세션은 다시 훑지 않아도 된다.** 카드가 「PM 검토 연결」로 지목한 항목은 24개이고, 이 세션에서 전부 열어봤다. "unblocked 작업이 없다"를 두 번 틀린 뒤 만든 방법이고(두 번 다 이 방법으로 찾았다: BA-022 label, PM-019), 이제 결과는 이렇다.
+
+| 분류 | 항목 | 내가 할 수 있나 |
+| --- | --- | --- |
+| **이 세션에서 닫음** | PM-008·016(계약 정정), PM-019 절반(`default` 선언) | — |
+| **이미 끝나 있었다(확인함)** | PM-018(삭제 receipt 예외 projection — `DeletionIT`가 token 부재를 단언), PM-022 쿠키 절반(`cookieName()`이 `secure`일 때만 `__Host-`, `SessionPropertiesTest`가 양쪽 분기 고정), PM-024 `slotDates`(policy-v1.yaml이 30), PM-020 문서 정정(`SOURCE_CATALOG` §123의 UNKNOWN/NONE 구분, `FIGMA_HANDOFF` §230 문구), PM-023 문구(개인화 ranking은 P2·범위 밖) | — |
+| **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
+| **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
+| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 배포 절반, PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+| **키·게이트 대기** | PM-014(KTO 키), PM-010(데이터가 먼저), PM-005(BA-060 미구현) | 아니오 |
+
+**PM-018을 따라가다 access log의 필드 집합을 고정했다 — 다만 처음 주장한 만큼 큰 공백은 아니었다.** "log 쪽에 단언이 없다"고 적었다가 `HttpPolicyIT`를 읽고 정정했다: 그 test는 **root logger**에 appender를 붙여 canary가 어떤 log 줄에도 없음을 이미 단언하고 있었고, 그 범위에 이 filter의 줄도 들어간다.
+
+실제로 비어 있던 것은 **필드가 늘어나는 경우**다. canary 검사는 *그 canary 값이* 없음을 보므로, 그 test가 보내지 않는 header는 통과한다 — 실측: log 문에 `auth={}`를 `X-Deletion-Status-Token`으로 채우는 변이는 `HttpPolicyIT`에서 `auth=null`로 찍히고 초록이다. `AccessLogFilterTest`가 이제 줄이 문서화된 다섯 필드뿐임을 단언해 그 변이를 RED로 만든다.
+
+**교훈 둘.** 하나, 문서에만 있는 안전 속성은 PM 항목을 따라갈 때 함께 찾는다. 둘, **"단언이 없다"고 쓰기 전에 반대편 test를 읽는다** — 이 세션에서 겹치는 가드를 못 보고 새 공백이라고 주장한 것이 이 한 번이다.
+
+**틀린 이유로 실패하는 검사도 같은 뿌리다.** 이 세션의 대부분은 *통과하지만 아무것도 증명하지 않는* 검사였는데, CI가 그 거울을 하나 잡았다: `HttpPolicyIT` BA-003-T2가 "거절된 값 `999`가 본문에 없다"를 **본문 전체**에 대고 확인했고, 본문에는 서버가 만든 `requestId`가 있어 그 hex가 `-8999-`로 우연히 맞았다(연속된 '9' nibble 셋, 대략 백여 번에 한 번). **canary는 값이 실제로 echo될 수 있는 곳에서 찾는다** — 서버가 지어낸 field는 그 곳이 아니다. requestId를 건초더미에서 뺐고, 진짜 echo는 여전히 RED임을 변이로 확인했다.
+
+같은 부류를 세어 봤다: 짧은 literal을 body 전체에 대고 `doesNotContain` 하는 곳은 그 한 군데뿐이다. `seoul`·`save`·`장소` 등은 UUID hex(0-9a-f)에 나타날 수 없는 글자를 포함해 안전하고, 시각 기반 정확 일치 단언은 없다.
+
+**두 훑기는 공백 0건이었다(다시 돌리지 마라).** ERD가 이름을 대는 table 중 migration이 만들지 않는 것은 `feed_feedback`·`notifications`·`optimization_runs` 셋뿐이고 전부 미구현 카드(BA-033 나머지·P1·BA-050)라 정상이다. ERD가 `table.column` 형태로 지목한 13쌍도 전부 실재한다. `analytics_events.session_id` 누락은 backtick이 아니라 **산문 문장**에서 나왔으므로, 다음에 같은 대조를 할 때는 산문까지 읽어야 한다.
+
+**BA-022 label 절반은 게이트가 아니라 근거가 막고 있다.** 자세한 것은 BA-022 카드에 적었다. 요지는 공식 포털이 "법정동코드정보"·"분류체계코드정보" 기능의 **존재만 적고 operation 이름도 응답 필드도 주지 않으며**, 활용가이드 사이트는 SPA라 fetch로 읽히지 않는다는 것이다. 서드파티가 하드코딩한 `lclsSystm1` 표는 우리 example과 값이 맞지만 license·provenance가 없어 출처로 쓸 수 없다. **#109가 정한 "공식 활용가이드 전까지 정본으로 적지 않는다"를 그대로 따른다.** 허용 목록 밖 operation을 실호출해 보는 것도, 새 source를 등록하는 것도 오너 결정이다.
 
 ### 자율 진행에서 제외 (오너 권한·비용)
 

@@ -931,7 +931,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "피드백·분석 이벤트 무결성",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-010",
         "BA-032"

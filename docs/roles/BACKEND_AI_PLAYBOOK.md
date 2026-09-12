@@ -243,6 +243,33 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 중요 기능 suite는 경로 필터와 관계없이 모든 main PR에서 실행한다. 구현 전 missing suite를 green placeholder로 대체하지 않는다.
 
+잔여 범위(`in-progress`가 뜻하는 것): 이슈 [#26](https://github.com/yutakdv/Nullnull/issues/26)에 적었던 셋 중 **둘은 닫혔다.**
+
+- **egress probe가 report를 남긴다.** 이전에는 exit code만 증거였다. probe가 출력하는 `outbound_network=denied` 토큰을 `check_egress_report.py`가 판정하므로, probe가 probe이기를 그만둔 경우(아무것도 조회하지 않는 명령으로 바뀌어 0으로 끝나는 경우)를 잡는다.
+- **pytest test ID가 집계에 연결됐다.** `check_test_reports.check_manifest`가 `suite: pytest` 행을 **그냥 건너뛰고** 있었고, 주석은 `ai-quality`와 `evaluation.json`이 덮는다고 적었지만 `check_evaluation_report`는 `corpus.partial`과 `safety.failures`만 읽는다 — 컨테이너 밖에서 test ID를 본 것이 아무것도 없었다. 이제 manifest의 pytest 행과 report의 `implementedTestIds`를 양방향으로 대조한다.
+
+**셋째가 남았고, 그 이유가 처음 생각과 다르다.** 이 카드의 acceptance인 `BA-004-T1`~`T3`는 Python `scripts/tests`에만 있고 Gradle JUnit 이름에는 없다. `check_test_reports.required_plan_ids`는 `integration-ready`·`verified` 카드의 test ID를 **JUnit 이름에서** 찾으므로, 지금 카드를 올리면 집계기가 자기 카드의 증거를 찾지 못해 실패한다.
+
+**그렇다고 `scripts/tests`에서 JUnit을 뽑아 채널을 만드는 것은 답이 아니다.** `BA-004-T3`("외부 egress가 차단된 실제 Compose에서 fixture만으로 재현한다")의 증거는 **실제 full-docker 실행**인데, Python wrapper test는 `docker compose`를 stub한다. emitter를 만들면 stub된 실행이 T3의 증거로 집계되고, 그것은 이 카드의 안전 경계가 금지한 "missing suite를 green placeholder로 대체"에 정확히 해당한다. 실제로 T3을 증거하는 것은 `docker-integration`이 매 PR에서 돌리는 full-docker 실행이다.
+
+그래서 이 카드는 **집계 채널이 없어서가 아니라, acceptance의 성격이 JUnit 집계와 맞지 않아서** `in-progress`에 머문다. 올리려면 Gradle 쪽 acceptance를 따로 두거나 집계 규칙 자체를 바꿔야 하고, 둘 다 계획 소유자의 판단이다. 예외 목록으로 우회하지 않는다.
+
+선행 PM 항목 상태:
+
+- **PM-008·PM-016은 닫혔다**(#145·#150, #161). **PM-024의 `slotDates` 동기화도 이미 끝나 있다** — `policy-v1.yaml`은 30이고 `PolicyPinsParityTest`가 Spring pin과 대조한다.
+- **PM-019는 절반 닫혔다.** `default: Problem`이 없던 여섯 operation에 그것을 넣어 모든 operation이 오류에 타입을 갖는다(`ProblemResponseCoverageTest`). 남은 절반은 operation별 status 열거이고, 어느 status를 화면이 구분해야 하는지는 FE만 답할 수 있어 [#170](https://github.com/yutakdv/Nullnull/issues/170)으로 올렸다. 측정값: session 보호 21개 중 **19개가 401 미선언**, CSRF 보호 11개 **전부 403 미선언**.
+- **PM-024의 probe 8건을 현재 계약으로 실제로 돌려봤다.** 결과는 아래와 같고, 그 probe 파일은 [#11 계약 검토 재현 자료](../contracts/review-2026-09-06/README.md)라 **기대값을 내가 고치지 않았다.**
+
+| probe | 결과 | 뜻 |
+| --- | --- | --- |
+| `PM08-hhmmss`, `PM08-offset` | MATCH | #145·#150으로 해소 |
+| `PM16-days`, `PM16-items`, `PM16-entry-query` | MATCH | #161로 해소 |
+| `PM06-duplicate-code` | schema는 MISMATCH | **domain에서 해소됐다** — `TripInterest.validated`가 `Duplicate`로 거절한다. probe의 `enforcementLayer`가 "domain rule"이라고 이미 적고 있으므로 schema 실행만으로는 보이지 않는다 |
+| `PM08-hhmm` | MISMATCH | **기대값이 낡았다.** #145가 `HH:mm:ss`로 정했으므로 `09:30`은 이제 거절이 맞다 |
+| `PM05-no-title` | MISMATCH | **진짜 미해결.** `confirmTripImport`는 BA-060이고 아직 구현되지 않았다 |
+
+probe를 CI 게이트로 승격하려면 위 두 기대값(낡은 것·layer 구분)을 먼저 정리해야 하고 그건 FE 자료이므로, FE 큐가 비면 제안으로 올린다. 지금 올리면 답을 기다리는 이슈만 하나 늘어난다.
+
 필수 검증:
 
 - `BA-004-T1`: 실패 test를 의도적으로 넣은 PR에서 두 required gate 중 해당 gate가 빨갛다
@@ -448,6 +475,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 202는 접수이고 완료가 아니다. status token은 domain 읽기 권한이 없다. 삭제 중 새 데이터 생성과 worker 완료 쓰기를 차단한다. `IdempotencyGuard`는 replay 시 저장된 projection을 그대로 돌려주고 아무것도 재생성하지 않는다. `DeletionReceipt.statusToken`처럼 저장하지 않는 required 필드는 caller가 receipt ID/expiry에서 다시 유도해 응답에 채워야 하며, 그러지 않으면 replay 응답이 schema를 위반한다(현재 동작은 `IdempotencyGuardIT.aProjectedReplayIsNotRehydratedByTheGuard`가 고정한다).
 
+PM-018 확인 결과: **요구한 예외 projection은 이미 구현돼 있고 검증돼 있다.** `idempotency_records.response_body`에 저장되는 것은 `Projection`(requestId·statusTokenExpiresAt·requestedAt·statusUrl)이고 token은 없다 — token은 projection을 읽어온 **뒤에** 결정적으로 재발행되며 DB에는 `status_token_hash`만 남는다. `DeletionIT`가 token 원문이 `response_body`에도 `background_jobs.payload_reference`에도 없음(`position(...) = 0`)과 hash가 32 byte임을 단언하고, `IdempotencyGuardIT`가 replay 본문에 `statusToken` 키 자체가 없음을 단언한다.
+
+**다만 PM-018이 함께 요구한 "log 원문 0"에는 단언이 없었다.** token은 header(`X-Deletion-Status-Token`)로 오므로 query 로깅 여부와 무관하고, `AccessLogFilter`의 javadoc이 "never a header"라고 적고 있었지만 그것을 고정하는 test가 없었다 — log 문에 필드가 하나 늘어도 아무것도 빨개지지 않았다. `AccessLogFilterTest`가 이제 cookie·CSRF·삭제 token·Authorization을 실은 요청을 흘려보내고 log 줄에 그 값이 없음과, 줄이 문서화된 다섯 필드뿐임을 단언한다. 변이(log 문에 header 추가)로 RED를 확인했다.
+
 필수 검증:
 
 - `BA-012-T1`: 응답 유실 뒤 같은 receipt만 재생하고 revoked cookie의 다른 API는 401이다
@@ -617,6 +648,29 @@ FE 계약 제안 (승인 대기):
   표시하지 않는다"이지 "분류 미상"이 아니다.
 - `CatalogPlaceApiIT`가 credit 투영과 credit 없는 place의 null을 확인한다. `sourceAttribution`을 항상 null로
   만드는 변이는 두 단언을 RED로 만들었고 복원 SHA가 일치한다.
+- **코드→문구 매핑이 왜 아직 없는지.** 이 절반은 catalog 공개 게이트와 무관하다 — 게이트는
+  *서빙*을 막지 코드표 *수집·저장*을 막지 않는다. 막고 있는 것은 **근거**다. `regionName`은 법정동 코드표,
+  `categoryName`은 `lclsSystm*` 분류체계 코드표가 있어야 하는데, 공식 [공공데이터포털
+  상세](https://www.data.go.kr/data/15101578/openapi.do)는 두 기능("법정동코드정보"·"분류체계코드정보")의
+  **존재만 적고 operation 이름도 응답 필드도 주지 않는다.** `api.visitkorea.or.kr` 활용가이드는 SPA라
+  fetch로 읽히지 않는다. 즉 registry에 등록할 operation 이름조차 확인되지 않았다.
+- 서드파티 저장소가 하드코딩한 `lclsSystm1` 표(`NA` 자연관광, `HS` 역사관광 …)가 우리 example의 경복궁
+  `HS`와 일치하기는 한다. **그래도 출처로 쓰지 않는다** — license·attribution·snapshot provenance가 없어
+  「Contract and data rules」의 외부 record 보존 요건과 불변식 12(승인된 텍스트 출처)를 만족하지 못한다.
+  교차 검증용으로만 쓸 수 있고, 그러려면 먼저 정본이 있어야 한다.
+- 따라서 이 항목은 **[#109](https://github.com/yutakdv/Nullnull/issues/109)가 정한 기준을 그대로 따른다**:
+  "공식 활용가이드로 고정하기 전까지 어느 쪽도 정본으로 적지 않는다." 필요한 것은 구현이 아니라 **공식
+  operation 목록과 응답 스펙**이고, 그것을 얻는 경로(허용 목록 밖 operation 실호출 또는 새 source 등록)는
+  둘 다 오너 결정이다.
+- **`regionName`에는 KTO가 아닌 후보 출처가 있다(진행하지 않음, 결정 대기).** `lDongRegnCd`/`lDongSignguCd`는
+  KTO 고유 코드가 아니라 **법정동 표준 코드**이므로 그 label의 정본은 KTO가 아니라 행정안전부 행정표준코드다.
+  식별된 후보 둘: 공공데이터포털 [15077871 `행정안전부_행정표준코드_법정동코드`](https://www.data.go.kr/data/15077871/openapi.do),
+  그리고 [행정표준코드관리시스템 법정동코드목록조회](https://www.code.go.kr/stdcode/regCodeL.do). 둘 다 공개·문서화된
+  정부 데이터셋이라 operation 이름을 추측할 필요가 없고 license·attribution도 명확하다. **다만 새 provider
+  추가는 오너 결정이므로 등록하지 않았다** — 여기 적는 이유는, 결정할 때 "출처를 찾아야 한다"와 "이 둘 중
+  고르면 된다"가 전혀 다른 질문이기 때문이다.
+- **`categoryName`에는 대안이 없다.** `lclsSystm*`은 KTO 고유 분류체계라 KTO 자체 코드표가 유일한 정본이고,
+  그건 키와 operation 승인이 둘 다 필요하다.
 - **FE 승인 전까지 이 shape를 동결하지 않는다.** 승인 결과는 #34에서 받는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
@@ -706,6 +760,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - API: `listRelatedPlaces` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: catalog.place_relations · relation evidence · RelatedPlaceRanker(apps/ai related/rank)
+
+착수 불가 사유(조사 결과): `RelatedPlace.place`가 **required `PlaceSummary`**다. 그 값은 `CatalogPlaceProjectionService.embeddedSummaries`를 지나고 그 첫 줄이 `requirePublicProjection()`이므로, catalog 공개 게이트가 닫혀 있는 동안 `listRelatedPlaces`는 **응답을 만들 수 없다**. 게이트는 BA-021-T3(staging 실호출 증거)까지 열리지 않고 그건 [BA-006](#ba-006)에 달려 있다. 즉 이 카드는 계약이 아니라 **증거**를 기다린다.
 
 구현 순서:
 
@@ -813,11 +869,22 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 착수 범위(`in-progress`가 뜻하는 것): `listFeed`·`getPost`·`savePost`·`unsavePost`가 `main`에 있다. V015의 `posts`·`post_places`·`saved_posts`, 고정 순서(`publishedAt DESC, id ASC` — `FeedOrdering` 정본), owner별 saved·candidate 상태의 batch hydration, save/unsave 멱등성까지다.
 
-**`candidateState`는 두 값만 만든다** — `NOT_SAVED`와 `SCHEDULED_IN_SELECTED_TRIP`(그리고 tripId가 없으면 `NO_TRIP_SELECTED`). `SAVED_TO_SELECTED_TRIP`은 `trip_candidates`가 필요하고 그건 BA-034다. 지어내지 않는다.
+**`candidateState`는 이제 네 값을 모두 만든다.** 이 문단은 한동안 "두 값만 만든다 — `SAVED_TO_SELECTED_TRIP`은 BA-034다"라고 적혀 있었는데, BA-034가 병합되면서 `FeedService`가 `trip_candidates`의 `ACTIVE`를 그 값으로 투영하기 시작했고 카드만 낡은 채로 남아 있었다. `CandidateIT`가 feed 응답에서 `SAVED_TO_SELECTED_TRIP`을 단언한다.
+
+우선순위는 **SCHEDULED가 이긴다**: 일정에 오른 장소는 어떻게 올랐든 일정에 있는 것이고, 그 옆의 `ACTIVE` candidate row는 둘 중 덜 최신이다. `DISMISSED`는 `NOT_SAVED`로 접힌다 — 사용자가 한 번 아니라고 한 기록은 남지만 화면에 "담김"으로 보일 이유가 없다. `NO_TRIP_SELECTED`는 여전히 **요청**을 서술하며(tripId가 없음) 카드의 상태가 아니다(#156).
 
 **feed는 catalog 공개 게이트가 닫혀 있으면 503이다.** `FeedCard.primaryPlace`가 필수인데 place는 KTO 유래 canonical catalog이고, BA-021-T3의 staging 호출 증거가 없어 그 게이트는 닫혀 있다. feed가 catalog query port를 직접 읽으면 그 fail-closed 결정이 무의미해지므로 **같은 게이트를 통과한다**. `FeedFailsClosedIT`가 이걸 고정하고, 게이트 호출을 빼면 빨개진다.
 
-`integration-ready`로 올리지 않는다.
+**남은 것은 그 게이트 하나다.** 네 operation은 전부 `main`에 있고 `candidateState`도 완성됐지만, feed가 실제로 응답을 내려면 catalog가 열려야 하고 그것은 BA-021-T3의 staging 호출 증거에 달려 있다. 선행 카드 [BA-022](#ba-022)가 같은 이유로 `in-progress`이므로 이 카드도 `integration-ready`로 올리지 않는다.
+
+PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSummary.sourceAttribution`으로 제안돼 FE 승인(#34)을 기다린다. post 쪽은 이렇다.
+
+- `PostDetail`에는 **이미 `coverAsset` 필드가 있고 항상 `null`이다**(`FeedController` 주석이 그 이유를 적고 있다: 검토된 media licence가 없다).
+- `PostSummary`에는 그 필드조차 없다. PM-010이 말하는 "list 응답에서 끊김"이 이것이다.
+
+**그런데 list에 필드를 더하는 것이 먼저가 아니다.** `posts.cover_url`은 단순 text column이고 `asset_licenses`·`media_assets`로 가는 연결이 없다 — 즉 detail에 이미 있는 필드도 채울 데이터가 없다. list에 같은 필드를 더하면 모든 행이 `null`인 shape가 하나 느는 것이고, 그건 "계약이 아무도 만들지 않는 것을 약속한다"는 오늘 여러 번 닫은 패턴이다.
+
+그래서 순서는 **(1) 큐레이션된 cover와 검토된 licence를 잇는 데이터 → (2) detail의 `coverAsset` 채우기 → (3) list 투영**이고, (3)의 화면 표시 방법은 `FCR-023`(`Open`)이 정한다. 지금 fixture의 cover는 전부 `cdn.example.test` placeholder라 잘못 표기된 실제 이미지는 없다. **BE 단독으로 끝낼 수 있는 항목이 아니다.**
 
 필수 검증:
 
@@ -831,7 +898,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-033
 
-**피드백·분석 이벤트 무결성** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**피드백·분석 이벤트 무결성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-010](#ba-010), [BA-032](#ba-032)
 - 기능 ID: `FR-FED-04`, `FR-OPS-06`
@@ -847,6 +914,16 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-011, PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: client event는 실제 일정 변경·노출 인증·방문 증명이 아니다. impression lineage가 없는 P0 데이터로 개인화 모델을 학습시키지 않는다.
+
+착수 범위(`in-progress`가 뜻하는 것): `ingestEventBatch`가 `main`에 있다. V017의 `analytics_events`, 정본 schema 검증, eventId dedup, batch 50, 90일 retention, owner 삭제, cookie에서 유도한 owner까지다. **`recordFeedFeedback`은 구현하지 않았다** — PM-011이 열려 있다. 그리고 **PM-016이 지목한 계약 결함 중 셋은 닫았다.**
+
+- `runLink`의 `/trips/` → `/trip/`: [#118](https://github.com/yutakdv/Nullnull/issues/118), PR #122로 이미 반영됐고 `context.route` allowlist의 `/trip/:tripId/optimizations/:runId`와 맞는다.
+- `trip_created.dayCount` 상한 90 → **30**, `itemCount` 1000 → **100**. 제품 상한은 `TripDateRange.MAX_DAYS`와 계약의 `seedItems` `maxItems: 100`이다. 넓은 쪽 bound는 도달할 수 없는 값을 허용할 뿐이어서, 위조되거나 drift한 client를 구분하지 못하게 했다.
+- `data_guide_opened.entryRoute`가 자유 문자열이라 `context.route`의 template allowlist를 우회했다. 둘이 같은 `$defs/routeTemplate`을 가리키게 바꿨다 — 같은 개념의 사본이 둘이었고 그중 하나만 allowlist였던 것이 원인이다. **이것은 개인정보 경계다**: 구체 경로에는 여행 id가, query에는 사용자가 입력한 문자열이 실린다.
+
+조임이 실제로 거절하는지는 `docs/contracts/events-negative/`의 5건과 `scripts/check_event_negatives.py`가 고정한다. `ajv test --invalid`는 **glob이 0건이면 exit 0**이므로 exit code를 믿지 않고 디렉터리 목록과 대조한다.
+
+**남은 것 둘.** `recordFeedFeedback`은 PM-011이 막는다 — 어떤 표시값과 행동을 P0에 남길지가 FE 범위이고, 그것이 정해지기 전에는 재조회할 반응 상태·수·LIKE 취소·HIDE 복구 진입점을 계약으로 고정할 수 없다. 그리고 PM-016이 함께 요구한 **오류 enum 정렬은 하지 않았다**: event schema의 `errorCode`가 `OPTIMIZATION_FAILED`를 담고 있는데 이 값은 `ProblemCode`가 아니라 `Notification.type`이고, optimization run-failure plane 자체가 아직 없다(BA-050~053). 무엇에 맞출지가 없으므로 맞추지 않는다.
 
 필수 검증:
 
@@ -1125,6 +1202,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - API: `parseTripImport`, `remapTripImport`, `confirmTripImport` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `401:1221`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: itinerary_import_drafts structured only · version · import constraints
+
+착수 범위 조사 결과: **`parseTripImport`만은 catalog 게이트와 무관하다.** `ImportDraftItem.place`가 nullable(`PlaceSummary | null`)이라, 붙여넣기 원문을 토큰으로 쪼개 `place: null`과 `unresolved`로 채운 draft는 catalog를 읽지 않고 만들 수 있다. 반면 `remapTripImport`는 토큰을 실제 장소로 해결하므로 게이트를 지나고, `confirmTripImport`는 item을 만들므로 [BA-040](#ba-040)·[BA-041](#ba-041)을 기다린다.
+
+그래도 **parse만 먼저 내지는 않는다**: 확정할 수 없는 draft는 FE가 화면으로 완결할 수 없고, `itinerary_import_drafts`의 저장·TTL·삭제는 그 draft가 쓰일 때 의미가 생긴다. 선행이 풀린 뒤 한 slice로 낸다.
 
 구현 순서:
 

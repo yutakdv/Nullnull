@@ -286,7 +286,13 @@ class HttpPolicyIT {
         // The rejected value is request content and is never read back out of the violation, and the
         // leading message codes ("Max.testSupportController#bounded.limit") name the server class.
         // instance legitimately repeats the URI the caller just requested; only the codes are cut.
-        assertThat(body(overTheMaximum)).doesNotContain("999")
+        //
+        // requestId is excluded from the haystack because it is a server-generated UUID whose hex
+        // can contain "999" by chance - three consecutive '9' nibbles, roughly one run in a
+        // hundred-odd. CI caught it: the body was clean and the assertion failed on
+        // "01a0967b-90c7-7f72-8999-d7a69589b06b". A canary must be searched where the value could
+        // actually be echoed, not in a field the server made up.
+        assertThat(withoutRequestId(overTheMaximum)).doesNotContain("999")
                 .doesNotContain("TestSupportController").doesNotContain("testSupportController");
 
         MvcTestResult methodValidated = mvc.get().uri(HttpPolicyTestEndpoints.BOUNDED + "?limit=0")
@@ -543,6 +549,14 @@ class HttpPolicyIT {
      * of the 145 throw statements in {@code apps/api/src/main/java} - was logged in full while the
      * assertion stayed green.
      */
+    /** The response body with the server-generated requestId removed. See the note at its use. */
+    private String withoutRequestId(MvcTestResult result) {
+        String body = body(result);
+        String requestId = result.getResponse().getHeader(RequestIdFilter.HEADER);
+        assertThat(requestId).as("the response carries a request id to exclude").isNotBlank();
+        return body.replace(requestId, "");
+    }
+
     private void assertNoCanaryInAnyLogLine() {
         assertThat(everyLogLine.list)
                 .as("no log line may carry a header, cookie, query value or body, in its message or"
