@@ -94,6 +94,41 @@ describe('FE-201-T2 the feed renders each of its states', () => {
     expect(screen.getByRole('button', { name: copy['feed.retry'] })).toBeInTheDocument();
   });
 
+  it('does not hang on loading when the trip list fails', async () => {
+    // The feed query is gated on trips.isSuccess, because the cursor the
+    // server mints is bound to the trip selection. Nothing read trips.isError,
+    // so when /trips failed the feed query stayed disabled, feed.isPending
+    // stayed true, and the screen showed 불러오는 중 for ever — no error, no
+    // retry. Confirmed by rendering it: the body read "Browse Loading".
+    server.use(http.get(`${API_BASE}/trips`, () => HttpResponse.error()));
+    renderFeed();
+    expect(await screen.findByText(copy['feed.error'])).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: copy['feed.retry'] })).toBeInTheDocument();
+    expect(screen.queryByText(copy['feed.loading'])).toBeNull();
+  });
+
+  it('recovers the whole screen when the trip list retry succeeds', async () => {
+    let attempt = 0;
+    server.use(
+      http.get(`${API_BASE}/trips`, () => {
+        attempt += 1;
+        if (attempt === 1) return HttpResponse.error();
+        return HttpResponse.json(tripFixtures.page);
+      }),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await user.click(await screen.findByRole('button', { name: copy['feed.retry'] }));
+    expect(await screen.findByText(firstTitle)).toBeInTheDocument();
+    // And the error goes with it. Retrying only the feed leaves the trip query
+    // in error, so the cards come back UNDER a banner still saying the feed
+    // could not be loaded — verified by removing the trips.refetch and
+    // watching this assertion fail while the one above still passed.
+    await waitFor(() => {
+      expect(screen.queryByText(copy['feed.error'])).toBeNull();
+    });
+  });
+
   it('shows the trip prompt only when there is no trip (S03-F0)', async () => {
     server.use(
       http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.pageEmpty)),

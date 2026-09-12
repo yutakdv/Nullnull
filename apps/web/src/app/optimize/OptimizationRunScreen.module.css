@@ -1,0 +1,112 @@
+/* S09-1 `415:2413`. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-6);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-md);
+  font-weight: 700;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  line-height: 20px;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
+
+/* The dot carries no meaning on its own; the step's text is the label. */
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-track);
+}
+
+.step[data-active] {
+  color: var(--color-text-primary);
+}
+
+.step[data-active] .dot {
+  background: var(--color-action-strong);
+}
+
+/* Reduced motion: the pulse is decoration, and the text already says the
+   run is working. */
+@media (prefers-reduced-motion: no-preference) {
+  .step[data-active] .dot {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.note,
+.state {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
+}
+
+.status {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.primary,
+.secondary {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+}
+
+.primary {
+  border: 0;
+  background: var(--color-action-strong);
+  color: var(--color-action-onPrimary);
+}
+
+.secondary {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+}

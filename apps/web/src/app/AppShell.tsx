@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
-import { useCsrfToken } from '../shared/api/index.js';
+import { isProblem, useCsrfToken } from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
 
@@ -47,7 +47,47 @@ export function AppShell({ tabs = false }: AppShellProps) {
   // missing, and only for the session the cookie already names — it never
   // bootstraps a replacement, because doing that on an expired session creates
   // a different anonymous owner and strands the user's trips.
-  useCsrfToken();
+  //
+  // The result is READ, not discarded. PROBLEM_POLICY marks UNAUTHORIZED
+  // severity `screen` with recovery `restart-session`, and dropping the error
+  // meant an expired session rendered the ordinary screen: the reissue 401'd
+  // with retry:false, the screen's own fetches 401'd too, and a screen that
+  // gates on isSuccess — the feed does — sat on its loading state for ever
+  // with no error, no retry and no way back. Reproduced in a browser.
+  const csrf = useCsrfToken();
+  const sessionGone = isProblem(csrf.error) && csrf.error.code === 'UNAUTHORIZED';
+
+  if (sessionGone) {
+    // Only 401. A network failure is not an ended session, and replacing the
+    // whole screen for one would hide a recoverable error behind a restart.
+    return (
+      <div className={styles.shell}>
+        <main className={styles.content} id="main">
+          <section aria-labelledby="session-heading" className={styles.session}>
+            {/* role="alert" on the heading itself: two elements carrying the
+                same sentence would have a screen reader read it twice. */}
+            <h1 className={styles.sessionTitle} id="session-heading" role="alert">
+              {t('session.expired')}
+            </h1>
+            <p className={styles.sessionNote}>{t('session.expiredNote')}</p>
+            {/* The restart is the user's deliberate act. Bootstrapping here on
+                their behalf would mint a different anonymous owner and strand
+                the trips this message just promised (SessionSafetyIT). Sending
+                them to the splash screen makes it a choice. */}
+            <button
+              className={styles.sessionRestart}
+              onClick={() => {
+                void navigate('/');
+              }}
+              type="button"
+            >
+              {t('session.restart')}
+            </button>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.shell}>

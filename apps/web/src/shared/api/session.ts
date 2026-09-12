@@ -16,7 +16,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { createApiClient, type components } from '@nullnull/api-client';
-import { toProblem, type Problem } from './problem.js';
+import { isProblem, toProblem, type Problem } from './problem.js';
 
 type SessionBootstrap = components['schemas']['SessionBootstrap'];
 type OwnerProfile = components['schemas']['OwnerProfile'];
@@ -224,6 +224,229 @@ export function useOptimizationHistory(): UseQueryResult<
   });
 }
 
+type OptimizationStatus = components['schemas']['OptimizationStatus'];
+
+/** The two statuses the server is still working on. Everything else is settled. */
+const RUNNING_STATUSES: OptimizationStatus[] = ['QUEUED', 'RUNNING'];
+
+export function isRunning(status: OptimizationStatus): boolean {
+  return RUNNING_STATUSES.includes(status);
+}
+
+/** Seconds the server asked us to wait, clamped to something sane. */
+function retryAfterMs(header: string | null): number {
+  const seconds = Number(header);
+  if (!Number.isFinite(seconds) || seconds <= 0) return 2000;
+  return Math.min(Math.max(seconds, 1), 30) * 1000;
+}
+
+export const optimizationQueryKey = (runId: string) => ['optimizations', runId];
+
+/**
+ * One optimization run, polled while the server is still computing it (FE-502,
+ * FR-OPT-03).
+ *
+ * Polling stops the moment the run reaches a terminal status. QUEUED and
+ * RUNNING are the only two the server is still working on; READY, APPLIED,
+ * KEPT, REVERTED, FAILED and EXPIRED are settled, and continuing to ask would
+ * be a request per interval forever on a screen the user may leave open.
+ *
+ * The interval comes from the response's own Retry-After, which the contract
+ * sends "for QUEUED/RUNNING responses", rather than from a number invented
+ * here. It is clamped because the value is server-controlled and a zero would
+ * spin.
+ *
+ * A 410 PREVIEW_EXPIRED is not retried: the contract is explicit that an
+ * undecided preview expires and that this "does not apply to an already
+ * recorded decision", so there is nothing to wait for. It surfaces as a
+ * Problem the screen renders as its own state.
+ *
+ * Nothing here writes to the trip cache. A run is a preview until the user
+ * applies it, and reading one must not move an itinerary (invariants 3 and 4).
+ *
+ * MOCK DATA today; replaced when BA-050 lands.
+ *
+ * The return type is inferred rather than annotated, for the same reason
+ * useCreateOptimization gives below: naming OptimizationRun in the signature
+ * fails to compile with "two different types with this name exist", because
+ * the run nests the OptimizationChange union.
+ */
+export function useOptimization(runId: string | null) {
+  return useQuery({
+    queryKey: optimizationQueryKey(runId ?? ''),
+    enabled: runId !== null,
+    queryFn: async () => {
+      if (runId === null) throw new Error('No run selected');
+      const { data, error, response } = await getApiClient().GET(
+        '/optimizations/{runId}',
+        { params: { path: { runId } } },
+      );
+      if (!data) fail(error, response);
+      return { run: data, retryAfter: response.headers.get('Retry-After') };
+    },
+    select: (result) => result.run,
+    refetchInterval: (query) => {
+      const result = query.state.data;
+      if (!result || !isRunning(result.run.status)) return false;
+      return retryAfterMs(result.retryAfter);
+    },
+    // A run that is still queued is not an error and not stale data; the
+    // screen shows it as working. Refetching it on focus is what the poll
+    // already does.
+    refetchOnWindowFocus: false,
+    retry: (count, error) => {
+      // An expired preview is terminal. Asking again cannot un-expire it.
+      if (isProblem(error) && error.code === 'PREVIEW_EXPIRED') return false;
+      if (isProblem(error) && error.code === 'NOT_FOUND') return false;
+      return count < 2;
+    },
+  });
+}
+
+type CreateOptimizationRequest = components['schemas']['CreateOptimizationRequest'];
+
+/**
+ * Queues a preview-only optimization run (FE-501, FR-OPT-01).
+ *
+ * "Preview-only" is the contract's own word: the run freezes an input revision
+ * and reports asynchronously, and a failure "never mutates the trip". Nothing
+ * here writes to the trip cache for the same reason — an itinerary changes on
+ * APPLY and nowhere else (invariants 3 and 4).
+ *
+ * The Idempotency-Key is minted by the CALLER, not in here. A key created
+ * inside mutationFn would be a fresh one on every attempt, so a retry would
+ * queue a second run rather than replaying the first — which is the exact
+ * failure invariant 6 exists to prevent.
+ *
+ * If-Match carries the trip's ETag and the body repeats the version as
+ * `inputTripVersion`: the header guards the request, the field records what
+ * the run was computed against.
+ *
+ * The return type is inferred rather than annotated. Writing
+ * `useMutation<OptimizationRun, …>` fails to compile with "two different types
+ * with this name exist": OptimizationRun nests the OptimizationChange union,
+ * and naming it explicitly produces an identity the client's own return type
+ * does not match. Letting it infer keeps one identity and the same safety.
+ */
+export function useCreateOptimization(tripId: string | null) {
+  return useMutation({
+    mutationFn: async ({
+      request,
+      etag,
+      idempotencyKey,
+    }: {
+      request: CreateOptimizationRequest;
+      etag: string | null;
+      idempotencyKey: string;
+    }) => {
+      if (tripId === null) throw new Error('No trip selected');
+      if (etag === null) throw new Error('Cannot optimize without the trip ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/trips/{tripId}/optimizations',
+        {
+          params: {
+            path: { tripId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+          body: request,
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+type PostDetail = components['schemas']['PostDetail'];
+type SavedPostState = components['schemas']['SavedPostState'];
+
+export function postQueryKey(postId: string) {
+  return ['post', postId] as const;
+}
+
+/**
+ * One post and the places it links to (FE-202, FR-PST-01).
+ *
+ * MOCK DATA today; replaced when BA-032 lands.
+ */
+export function usePost(
+  postId: string | null,
+): UseQueryResult<PostDetail, Problem | Error> {
+  return useQuery({
+    queryKey: postQueryKey(postId ?? ''),
+    enabled: postId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET('/posts/{postId}', {
+        params: { path: { postId: postId ?? '' } },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+/**
+ * Bookmarks a post (FR-PST-02).
+ *
+ * A SavedPost and nothing else. It creates no TripCandidate, no TripItem, and
+ * touches no trip — the resource is /posts/{postId}/saved, with no trip in the
+ * path and no ETag, so there is no trip for it to change (invariant 1).
+ *
+ * No Idempotency-Key: the contract puts idempotency in the resource instead,
+ * answering 201 when the save is new and 200 when it already existed, and
+ * saying which through `duplicate`. A repeat save is a success, not an error.
+ */
+export function useSavePost(postId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<SavedPostState, Problem | Error, void>({
+    mutationFn: async () => {
+      const { data, error, response } = await getApiClient().PUT(
+        '/posts/{postId}/saved',
+        { params: { path: { postId } } },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    // A GET for this post may already be in flight — TanStack refetches on
+    // window focus by default — and it would resolve with the pre-save body
+    // and overwrite the flag we are about to set, silently flipping the
+    // button back. Cancelling first is what keeps the toggle honest.
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: postQueryKey(postId) });
+    },
+    onSuccess: (state) => {
+      // Only the post's own saved flag moves. Nothing here writes to a trip
+      // cache, which is what keeps the three resources apart.
+      queryClient.setQueryData(postQueryKey(postId), (current: PostDetail | undefined) =>
+        current === undefined ? current : { ...current, saved: state.saved },
+      );
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
+}
+
+/** Removes the bookmark. 204 whether or not it was there, so this is safe to repeat. */
+export function useUnsavePost(postId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Problem | Error, void>({
+    mutationFn: async () => {
+      const { error, response } = await getApiClient().DELETE('/posts/{postId}/saved', {
+        params: { path: { postId } },
+      });
+      if (response.status !== 204) fail(error, response);
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: postQueryKey(postId) });
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(postQueryKey(postId), (current: PostDetail | undefined) =>
+        current === undefined ? current : { ...current, saved: false },
+      );
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
+}
+
 type FeedPage = components['schemas']['FeedPage'];
 
 /**
@@ -310,17 +533,27 @@ type TripDetail = components['schemas']['TripDetail'];
  *
  * Carries an Idempotency-Key because the contract declares one and invariant 6
  * requires it for retryable commands: a repeated submit — a double tap, a retry
- * after a timeout that actually succeeded — must not create a second trip. The
- * key is generated per attempt and reused for that attempt only.
+ * after a timeout that actually succeeded — must not create a second trip.
+ *
+ * The key comes from the CALLER, for the same reason it does in
+ * useCreateOptimization above. Minting it in here produced a fresh one on
+ * every attempt, so the retry after a lost response looked to the server like
+ * an unrelated command with an identical body and created a second trip —
+ * exactly what the key exists to prevent. The wizard holds one key across
+ * retries of the same draft and rotates it when the draft changes.
  *
  * MOCK DATA today; replaced when BA-030 lands.
  */
 export function useCreateTrip() {
-  return useMutation<TripDetail, Problem | Error, CreateTripRequest>({
-    mutationFn: async (request) => {
+  return useMutation<
+    TripDetail,
+    Problem | Error,
+    { request: CreateTripRequest; idempotencyKey: string }
+  >({
+    mutationFn: async ({ request, idempotencyKey }) => {
       const { data, error, response } = await getApiClient().POST('/trips', {
         body: request,
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
       });
       if (!data) fail(error, response);
       return data;
@@ -586,7 +819,10 @@ export function useCandidateMatches(
  * item beside an ACTIVE candidate if the second call failed.
  *
  * Carries If-Match because it changes the schedule, and an Idempotency-Key
- * because a repeated submit must not add the place twice (invariant 6).
+ * because a repeated submit must not add the place twice (invariant 6). The
+ * key comes from the CALLER for the reason useCreateOptimization spells out:
+ * one minted in here is new on every attempt, so the retry after a lost
+ * response reads as a fresh command and the place lands on the day twice.
  */
 export interface TripMutationWithETag {
   result: TripMutationResult;
@@ -598,9 +834,9 @@ export function useAddTripItem(tripId: string | null) {
   return useMutation<
     TripMutationWithETag,
     Problem | Error,
-    { item: AddTripItemRequest; etag: string | null }
+    { item: AddTripItemRequest; etag: string | null; idempotencyKey: string }
   >({
-    mutationFn: async ({ item, etag }) => {
+    mutationFn: async ({ item, etag, idempotencyKey }) => {
       if (tripId === null) throw new Error('No trip selected');
       if (etag === null) throw new Error('Cannot add an item without the trip ETag');
       const { data, error, response } = await getApiClient().POST(
@@ -611,7 +847,7 @@ export function useAddTripItem(tripId: string | null) {
             path: { tripId },
             header: {
               'If-Match': etag,
-              'Idempotency-Key': crypto.randomUUID(),
+              'Idempotency-Key': idempotencyKey,
             },
           },
         },
@@ -701,32 +937,7 @@ export function useRemoveItemConstraint(tripId: string | null) {
   });
 }
 
-/**
- * The body of a set-constraint request, typed the way the CONTRACT defines it.
- *
- * Not `components['schemas']['SetConstraintInput']`, and that is deliberate.
- * openapi-typescript rewrites a discriminated union's property to the schema
- * NAME unless the spec supplies a `discriminator.mapping`, so the generated
- * type demands `type: 'SetDateConstraintInput'` while openapi.yaml says
- * `const: DATE`. SetConstraintInput is the only union in the spec without a
- * mapping — every other one, including the read-side TripConstraint, has it
- * and generates correctly.
- *
- * Sending the generated spelling would be sending something the contract does
- * not describe, so the wire shape is written out here. Reported to Backend/AI;
- * when the mapping lands this alias becomes the generated type again.
- */
-type SetConstraintInput =
-  | { type: 'MUST_VISIT'; locked: true }
-  | { type: 'DATE'; locked: true; date: string }
-  | { type: 'TIME'; locked: true; startTime: string; toleranceMinutes: number }
-  | {
-      type: 'RESERVATION';
-      locked: true;
-      date: string;
-      startTime: string;
-      endTime?: string | null;
-    };
+type SetConstraintInput = components['schemas']['SetConstraintInput'];
 
 /**
  * Sets one item lock (FE-307, FR-CON-01/FR-CON-03).
@@ -758,9 +969,7 @@ export function useSetItemConstraint(tripId: string | null) {
             path: { tripId, itemId, constraintType: constraint.type },
             header: { 'If-Match': etag },
           },
-          // The generated body type carries openapi-typescript's schema-name
-          // spelling, so this asserts the contract's shape at the boundary.
-          body: constraint as never,
+          body: constraint,
         },
       );
       if (!data) fail(error, response);

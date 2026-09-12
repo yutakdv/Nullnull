@@ -18,22 +18,28 @@ function renderAt(path: string) {
 }
 
 describe('P0 route table', () => {
-  // Routes whose screens have not been built yet still resolve to a labelled
-  // placeholder rather than a blank page. Rows leave this list as their slice
-  // lands: /, /language and /intro in FE-101, /profile in FE-105,
-  // /about-data in FE-404.
-  it.each([['/live', 'live']])(
-    'resolves %s to its placeholder',
-    async (path, routeId) => {
-      renderAt(path);
-      expect(await screen.findByTestId('placeholder-route')).toHaveTextContent(routeId);
-    },
-  );
+  // Every P0 route now resolves to a real screen. The last placeholder row
+  // was /live, which became its own 준비 중 screen rather than the debug
+  // output of PlaceholderScreen — a persistent tab that printed the literal
+  // string "live" read as a broken build. The others left as their slices
+  // landed: /, /language and /intro in FE-101, /profile in FE-105,
+  // /about-data in FE-404, the optimization run in FE-502.
+  it('resolves /live to the live screen, not a debug placeholder', async () => {
+    renderAt('/live');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /라이브|Live/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('placeholder-route')).toBeNull();
+  });
 
-  it('resolves deep-linked detail routes', async () => {
+  it('resolves a deep-linked post to its screen, not a blank page', async () => {
+    // A post detail is a real screen since FE-202. An id the mock does not
+    // serve still resolves to the screen, which says the post is missing —
+    // that is FR-PST-01's deep-link/404 requirement.
     renderAt('/posts/018f3f8e-9b67-7a21-8d31-31d315b93911');
-    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent(
-      'post-detail',
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'post-heading',
     );
   });
 

@@ -242,6 +242,42 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
     expect(sent[0]?.idempotency).toBeTruthy();
   });
 
+  it('replays the same key when the user retries the same date', async () => {
+    // A present key is not the property that matters; a key held ACROSS a
+    // retry is. The dangerous case is a request that commits server-side and
+    // loses its response: the screen says 추가하지 못했어요 and re-enables the
+    // date, the user presses it again, and a fresh key makes the server treat
+    // that as a new command — scheduling the same place on the day twice.
+    server.use(http.post(`${API_BASE}/trips/:tripId/items`, () => HttpResponse.error()));
+    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
+    const first = within(dates).getAllByRole('button')[0] as HTMLElement;
+    await user.click(first);
+    await screen.findByText(copy['candidates.addFailed']);
+    await user.click(first);
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    expect(sent[0]?.idempotency).toBe(sent[1]?.idempotency);
+  });
+
+  it('mints a new key for a different date, which is a different command', async () => {
+    // The other direction, so the fix cannot be "hold one key forever".
+    server.use(http.post(`${API_BASE}/trips/:tripId/items`, () => HttpResponse.error()));
+    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
+    const buttons = within(dates).getAllByRole('button');
+    await user.click(buttons[0] as HTMLElement);
+    await screen.findByText(copy['candidates.addFailed']);
+    await user.click(buttons[1] as HTMLElement);
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    expect(sent[0]?.idempotency).not.toBe(sent[1]?.idempotency);
+  });
+
   it('appends to the end of the chosen day', async () => {
     const { user } = await openDates(page.items[1]?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
