@@ -131,6 +131,45 @@ class BackendPlanTests(unittest.TestCase):
         validate_plan(copy.deepcopy(self.plan), self.ops, self.features, moved, ROOT, errors)
         self.assertTrue(any('card header declares' in e for e in errors), errors)
 
+    def test_the_fcr_registry_status_column_is_actually_checked(self):
+        """PM-021's precondition: the column had no guard at all.
+
+        What was checked was a PROSE bullet near the top of the document ("- 상태: Open — ..."),
+        which survives every row's status being emptied. The registry's own column - the thing the
+        FCR process runs on - was unguarded.
+        """
+        from validate_backend_plan import check_fcr_registry
+        header = '| ID | Pri | 현재 Figma 증거 | 목표 상태 | 소유/검토 | 상태 |'
+        rule = '| --- | --- | --- | --- | --- | --- |'
+        row = '| FCR-001 | P0 | evidence | goal | FE / BE | Open |'
+
+        problems: list[str] = []
+        check_fcr_registry('\n'.join([header, rule, row]), problems)
+        self.assertEqual([], problems)
+
+        # A row that lost its status.
+        problems = []
+        check_fcr_registry('\n'.join([header, rule, '| FCR-001 | P0 | e | g | FE |  |']), problems)
+        self.assertTrue(any('empty status cell' in p for p in problems), problems)
+
+        # A renamed or removed header: the column can no longer be located, so silence would mean
+        # the check quietly stopped checking.
+        problems = []
+        check_fcr_registry('\n'.join(['| ID | Pri | x | y | z | 진행 |', rule, row]), problems)
+        self.assertTrue(any('header is missing or changed' in p for p in problems), problems)
+
+        # A table with no rows is not a passing registry either.
+        problems = []
+        check_fcr_registry('\n'.join([header, rule]), problems)
+        self.assertTrue(any('no rows' in p for p in problems), problems)
+
+    def test_the_real_registry_has_rows_so_the_check_is_not_vacuous(self):
+        # Guards the case above: against an empty registry every assertion there would pass while
+        # the repository's own table went unchecked.
+        text = (ROOT / 'docs/design/FIGMA_CHANGE_REQUESTS.md').read_text(encoding='utf-8')
+        self.assertIn('| ID | Pri | 현재 Figma 증거 | 목표 상태 | 소유/검토 | 상태 |', text)
+        self.assertGreaterEqual(len(re.findall(r'^\| (FCR-\d{3}) \|', text, re.M)), 30)
+
     def test_missing_operation(self):
         self.check_mutation(lambda p: next(t for t in p['tasks'] if 'getPlace' in t['operations'])['operations'].clear(), 'operation coverage mismatch')
 
