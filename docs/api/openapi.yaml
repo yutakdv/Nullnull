@@ -2606,6 +2606,11 @@ paths:
         operation takes no parameter to choose otherwise: replacing a place is not saying to forget
         it, and a candidate carries no date, so restoring one changes no schedule (invariant 2).
         Dropping it afterwards is `removeTripCandidate`, one explicit call.
+
+        A consequence for clients that cache: this response carries the trip, not the candidate
+        list, so a successful replace leaves any cached candidate list stale - the same refetch
+        `removeTripItem` needs for `RESTORE_CANDIDATE` is needed here, and here there is no
+        parameter to key it off.
       security:
         - sessionCookie: []
           csrfToken: []
