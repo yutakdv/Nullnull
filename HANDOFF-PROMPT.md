@@ -413,6 +413,23 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 - **#118 429 범위**, **#119 `infra:check`** — 자율 판단으로 진행 승인됨. 근거를 PR 본문과 이슈 코멘트에 남긴다.
   - **#119 설계 전제**: `infra/`는 계획상 마지막에 생긴다. 따라서 "부재하면 통과"도 틀렸지만 **"부재하면 즉시 hard fail"도 지금은 틀리다.** 부재를 명시적으로 `blocked`/`not-yet`으로 기록하고 **통과로 집계하지 않는** 형태가 맞다. 조용한 `exit 0`만 없애면 된다.
 
+### 현재 대기 지도 (BA-030~033 구간 종료 시점)
+
+**FE/PM 답을 기다리는 것.** 넷 다 내가 제안이나 질문을 냈고 답이 오면 바로 구현으로 들어간다.
+
+| 이슈 | 기다리는 답 | 오면 고칠 곳 |
+| --- | --- | --- |
+| [#162](https://github.com/yutakdv/Nullnull/issues/162) | `getTrip`의 item 투영: A(503) / B(degraded 상태) | `TripController.TripDayResponse` — 지금 `List.of()` 고정. `TripCreationIT.theDetailProjectionDoesNotYetCarryItems`가 그 사실을 고정하고 있으므로 **투영을 켜면 그 test가 RED가 되고 진짜 단언으로 교체된다** |
+| [#165](https://github.com/yutakdv/Nullnull/issues/165) | PM-009 후보 전이 matrix 결정 1·2 | `removeTripItem` disposition 분기. DB가 이미 강제하는 부분은 `CandidateSchedulingInvariantsIT`가 고정 |
+| [#166](https://github.com/yutakdv/Nullnull/issues/166) | PM-007: FE-305 편집 buffer가 한 item이냐 여러 item이냐 | 한 item이면 `updateTripItem`/`replaceTripItem`을 넓히고, 여러 item이면 batch commit endpoint |
+| [#163](https://github.com/yutakdv/Nullnull/issues/163) | PM-011 표시값·반응 행동 | `recordFeedFeedback`. BA-033의 나머지 절반 |
+
+**#162가 가장 무겁다** — BA-040이 막히면 BA-041·042·050~053·060 일곱 카드가 함께 막힌다.
+
+**FE 답을 기다리는 이슈에 코멘트를 추가할 때는 첫 줄에 BE/AI 것임을 밝힌다.** 두 세션이 같은 계정으로 쓰므로 작성자로는 구분되지 않고, 옆 세션이 내 코멘트를 FE 답으로 오독해 "답이 왔다"고 전달한 적이 있다.
+
+**BA-022 label 절반은 게이트가 아니라 근거가 막고 있다.** 자세한 것은 BA-022 카드에 적었다. 요지는 공식 포털이 "법정동코드정보"·"분류체계코드정보" 기능의 **존재만 적고 operation 이름도 응답 필드도 주지 않으며**, 활용가이드 사이트는 SPA라 fetch로 읽히지 않는다는 것이다. 서드파티가 하드코딩한 `lclsSystm1` 표는 우리 example과 값이 맞지만 license·provenance가 없어 출처로 쓸 수 없다. **#109가 정한 "공식 활용가이드 전까지 정본으로 적지 않는다"를 그대로 따른다.** 허용 목록 밖 operation을 실호출해 보는 것도, 새 source를 등록하는 것도 오너 결정이다.
+
 ### 자율 진행에서 제외 (오너 권한·비용)
 
 U-9 AWS 계정·도메인·비용 집행, staging 프로비저닝 · U-1/U-4 공모전 제출 행위 · production deploy · 유료 리소스 생성 · 파괴적 작업.

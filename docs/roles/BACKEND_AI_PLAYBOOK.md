@@ -617,6 +617,20 @@ FE 계약 제안 (승인 대기):
   표시하지 않는다"이지 "분류 미상"이 아니다.
 - `CatalogPlaceApiIT`가 credit 투영과 credit 없는 place의 null을 확인한다. `sourceAttribution`을 항상 null로
   만드는 변이는 두 단언을 RED로 만들었고 복원 SHA가 일치한다.
+- **코드→문구 매핑이 왜 아직 없는지.** 이 절반은 catalog 공개 게이트와 무관하다 — 게이트는
+  *서빙*을 막지 코드표 *수집·저장*을 막지 않는다. 막고 있는 것은 **근거**다. `regionName`은 법정동 코드표,
+  `categoryName`은 `lclsSystm*` 분류체계 코드표가 있어야 하는데, 공식 [공공데이터포털
+  상세](https://www.data.go.kr/data/15101578/openapi.do)는 두 기능("법정동코드정보"·"분류체계코드정보")의
+  **존재만 적고 operation 이름도 응답 필드도 주지 않는다.** `api.visitkorea.or.kr` 활용가이드는 SPA라
+  fetch로 읽히지 않는다. 즉 registry에 등록할 operation 이름조차 확인되지 않았다.
+- 서드파티 저장소가 하드코딩한 `lclsSystm1` 표(`NA` 자연관광, `HS` 역사관광 …)가 우리 example의 경복궁
+  `HS`와 일치하기는 한다. **그래도 출처로 쓰지 않는다** — license·attribution·snapshot provenance가 없어
+  「Contract and data rules」의 외부 record 보존 요건과 불변식 12(승인된 텍스트 출처)를 만족하지 못한다.
+  교차 검증용으로만 쓸 수 있고, 그러려면 먼저 정본이 있어야 한다.
+- 따라서 이 항목은 **[#109](https://github.com/yutakdv/Nullnull/issues/109)가 정한 기준을 그대로 따른다**:
+  "공식 활용가이드로 고정하기 전까지 어느 쪽도 정본으로 적지 않는다." 필요한 것은 구현이 아니라 **공식
+  operation 목록과 응답 스펙**이고, 그것을 얻는 경로(허용 목록 밖 operation 실호출 또는 새 source 등록)는
+  둘 다 오너 결정이다.
 - **FE 승인 전까지 이 shape를 동결하지 않는다.** 승인 결과는 #34에서 받는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
