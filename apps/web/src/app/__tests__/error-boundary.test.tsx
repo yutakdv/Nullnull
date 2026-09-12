@@ -144,6 +144,8 @@ describe('the shell survives a crashed screen', () => {
         </I18nProvider>
       </QueryClientProvider>,
     );
-    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent('live');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /라이브|Live/ }),
+    ).toBeInTheDocument();
   });
 });

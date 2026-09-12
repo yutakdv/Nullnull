@@ -17,6 +17,7 @@ import {
   candidateFixtures,
   feedFixtures,
   optimizationFixtures,
+  postFixtures,
   placeFixtures,
   relatedFixtures,
   problemFixtures,
@@ -61,6 +62,9 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     // operations yet, so the schema is the only thing holding them honest.
     ['TripPage', tripFixtures.page],
     ['TripPage', tripFixtures.pageEmpty],
+    ['PostDetail', postFixtures.detail],
+    ['PostDetail', postFixtures.detailSaved],
+    ['SavedPostState', postFixtures.savedState],
     ['FeedPage', feedFixtures.page],
     ['FeedPage', feedFixtures.pageTwo],
     ['FeedPage', feedFixtures.pageEmpty],

@@ -1,11 +1,15 @@
 /* Figma `Form / Chip`: radius 999. md is 16px/11px padding at 13px text,
    sm one step tighter. Figma paints 35px tall; min-height lifts the hit area
-   to the 44px minimum the catalog requires without redrawing the box. */
+   to the 44px minimum the catalog requires without redrawing the box.
+   min-width does the same on the other axis: a short label — "전체" / "All"
+   on the trip day row — left the sm chip 40px wide, under the same floor the
+   height was already respecting. */
 .chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 44px;
+  min-width: 44px;
   border-radius: var(--radius-pill);
   /* A chip is as wide as its label; rows that overflow scroll. */
   white-space: nowrap;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
@@ -155,6 +155,12 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
   const add = useAddTripItem(tripId);
   const remove = useRemoveTripCandidate(tripId);
   const [failed, setFailed] = useState<string | null>(null);
+  // The key for the date this card is scheduling, held across retries of that
+  // date. Pressing the same date again after a failure replays the first
+  // attempt; picking a different date is a different command and gets its own
+  // key. One minted per press would let a retry after a lost response put the
+  // place on the day twice (invariant 6).
+  const scheduleKey = useRef<{ for: string; key: string } | null>(null);
 
   const place = candidate.place;
   const meta = [place.categoryName, place.regionName, place.address]
@@ -166,8 +172,12 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
 
   function schedule(date: string, suggestedTime: string | null | undefined) {
     setFailed(null);
+    if (scheduleKey.current?.for !== date) {
+      scheduleKey.current = { for: date, key: crypto.randomUUID() };
+    }
     add.mutate(
       {
+        idempotencyKey: scheduleKey.current.key,
         item: {
           placeId: candidate.place.id,
           // Named so the server performs the candidate transition in the same
@@ -181,6 +191,7 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
       },
       {
         onSuccess: () => {
+          scheduleKey.current = null;
           onToggle();
         },
         onError: (error) => {

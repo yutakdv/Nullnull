@@ -6,6 +6,7 @@
 import {
   candidateFixtures,
   feedFixtures,
+  postFixtures,
   relatedFixtures,
   optimizationFixtures,
   placeFixtures,
@@ -14,7 +15,10 @@ import {
   tripFixtures,
 } from '@nullnull/contracts';
 import { http, HttpResponse } from 'msw';
+import type { components } from '@nullnull/api-client';
 import type { ProblemCode } from '../../api/index.js';
+
+type PostDetail = components['schemas']['PostDetail'];
 
 /**
  * The dev proxy and the deployed app both serve the API under /api/v1.
@@ -61,10 +65,60 @@ function currentCandidates() {
   return candidateState;
 }
 
+/**
+ * Which posts are bookmarked. A SavedPost is its own resource with no trip in
+ * its path, so this state is deliberately separate from the trip's — mixing
+ * them is what invariant 1 forbids.
+ */
+const savedPosts = new Set<string>();
+
+/**
+ * A PostDetail for any post the feed lists.
+ *
+ * The single approved-shape fixture covers one of the five feed posts, so the
+ * other four answered NOT_FOUND: in `npm run dev` four of the five cards
+ * opened onto 없는 게시물이에요, which reads as a broken app rather than as
+ * missing mock data. The detail is built from the feed's own entry — same id,
+ * title, excerpt, cover and place — so the card and the screen it opens agree.
+ *
+ * An id the feed does not list still answers NOT_FOUND, which is what the
+ * deep-link-to-a-missing-post case needs.
+ */
+function postDetailFor(postId: string): PostDetail | null {
+  if (postId === postFixtures.detail.id) return postFixtures.detail;
+  const entry = [...feedFixtures.page.items, ...feedFixtures.pageTwo.items].find(
+    (item) => item.post.id === postId,
+  );
+  if (!entry) return null;
+  return {
+    ...postFixtures.detail,
+    id: entry.post.id,
+    title: entry.post.title,
+    excerpt: entry.post.excerpt,
+    coverUrl: entry.post.coverUrl,
+    publishedAt: entry.post.publishedAt,
+    places: [entry.primaryPlace],
+  };
+}
+
+/**
+ * How many times each run has been polled, so the mock can progress.
+ *
+ * A handler that answered the same status forever would let a screen that
+ * never polls, or one that polls a settled run for ever, pass identically.
+ * This one moves QUEUED → RUNNING → READY as it is asked.
+ */
+const runPolls = new Map<string, number>();
+
+/** Runs the mock should answer for. Seeded by createOptimization. */
+const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
+
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
   tripState = null;
   candidateState = null;
+  savedPosts.clear();
+  runPolls.clear();
 }
 
 /**
@@ -94,6 +148,108 @@ export const handlers = [
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
+  // MOCK DATA (FE-501). createOptimization has an approved example, so the
+  // request shape is the contract's own; the run it answers with is invented
+  // until BA-050 lands. 202 with a Location header, per the contract.
+  http.post(`${API_BASE}/trips/:tripId/optimizations`, async ({ request, params }) => {
+    const trip = currentTrip();
+    if (request.headers.get('If-Match') !== `"${String(trip.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    const body = (await request.json()) as { scope: string; targetItemId?: string };
+    // The mock refuses anything but ITEM. P0 ships one scope (FCR-010), and
+    // a handler that accepted DAY would let a regression through silently.
+    if (body.scope !== 'ITEM') return problemResponse('VALIDATION_FAILED');
+    const runId = '018f6a00-0000-7000-8000-000000000001';
+    const tripId = String(params.tripId);
+    return HttpResponse.json(
+      {
+        id: runId,
+        tripId,
+        scope: 'ITEM',
+        status: 'QUEUED',
+        inputTripVersion: trip.version,
+        includeCandidates: false,
+        queuedAt: '2026-09-11T06:00:00Z',
+        proposals: [],
+        snapshotSetIds: [],
+        decisions: [],
+      },
+      {
+        status: 202,
+        headers: { Location: `/trip/${tripId}/optimizations/${runId}` },
+      },
+    );
+  }),
+
+  // MOCK DATA (FE-502). getOptimization has no approved example (BA-050), so
+  // the run below is a schema-valid invention. It PROGRESSES: the first poll
+  // answers QUEUED, the second RUNNING, the third READY, and Retry-After
+  // carries the interval the contract says to send "for QUEUED/RUNNING
+  // responses". A handler pinned to one status would let a screen that never
+  // polls and a screen that polls a settled run for ever both pass.
+  //
+  // proposals stays empty because BA-051 computes them and nothing here may
+  // invent a metric or a change list — an unsourced comparison is what
+  // invariant 8 forbids. The READY state a user reaches is therefore the
+  // "result arrived, the preview screen is FE-503" state, not a fake preview.
+  http.get(`${API_BASE}/optimizations/:runId`, ({ params }) => {
+    const runId = String(params.runId);
+    if (runId !== MOCK_RUN_ID) return problemResponse('NOT_FOUND');
+    const seen = (runPolls.get(runId) ?? 0) + 1;
+    runPolls.set(runId, seen);
+    const status = seen === 1 ? 'QUEUED' : seen === 2 ? 'RUNNING' : 'READY';
+    const trip = currentTrip();
+    return HttpResponse.json(
+      {
+        id: runId,
+        tripId: trip.id,
+        scope: 'ITEM',
+        status,
+        inputTripVersion: trip.version,
+        includeCandidates: false,
+        queuedAt: '2026-09-11T06:00:00Z',
+        completedAt: status === 'READY' ? '2026-09-11T06:00:12Z' : null,
+        proposals: [],
+        snapshotSetIds: [],
+        decisions: [],
+      },
+      // Seconds, per the contract's integer schema. Only while working.
+      status === 'READY' ? undefined : { headers: { 'Retry-After': '1' } },
+    );
+  }),
+
+  // MOCK DATA (FE-202). getPost, savePost and unsavePost have no approved
+  // example (BA-032). Stateful so a save actually round-trips: a handler that
+  // always answered `saved: false` would let a broken toggle pass.
+  http.get(`${API_BASE}/posts/:postId`, ({ params }) => {
+    const postId = String(params.postId);
+    const detail = postDetailFor(postId);
+    if (!detail) return problemResponse('NOT_FOUND');
+    return HttpResponse.json({ ...detail, saved: savedPosts.has(postId) });
+  }),
+  http.put(`${API_BASE}/posts/:postId/saved`, ({ params }) => {
+    const postId = String(params.postId);
+    // The contract makes this idempotent in the resource: 201 when the save is
+    // new, 200 when it already existed, and `duplicate` says which.
+    const duplicate = savedPosts.has(postId);
+    savedPosts.add(postId);
+    return HttpResponse.json(
+      {
+        postId,
+        saved: true,
+        duplicate,
+        savedAt: postFixtures.savedState.savedAt,
+      },
+      { status: duplicate ? 200 : 201 },
+    );
+  }),
+  http.delete(`${API_BASE}/posts/:postId/saved`, ({ params }) => {
+    // 204 "removed or already absent", so this is safe to repeat.
+    savedPosts.delete(String(params.postId));
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   // MOCK DATA (FE-201). listFeed has no approved example either. This handler
   // reads the cursor rather than always answering page one, so pagination is
   // exercised for real: a handler that ignored it would let a broken "load

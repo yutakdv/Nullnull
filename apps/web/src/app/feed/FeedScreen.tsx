@@ -11,9 +11,10 @@ import styles from './FeedScreen.module.css';
 // difference is whether a trip is selected, which the contract expresses as
 // `tripId` on the request and `candidateState` on each card.
 //
-// Scope: listing, card states and pagination. Saving a post is savePost on
-// its own resource and belongs to FE-202, so the card's actions stay unbound
-// here — a `+` that silently did nothing would be worse than none.
+// Scope: listing, card states and pagination. The cover opens the post detail
+// (FE-202). The `+` stays unbound: adding a place as a trip candidate is
+// FE-303's surface, and a control that silently did nothing would be worse
+// than none.
 //
 // MOCK DATA: listFeed has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
@@ -43,6 +44,7 @@ export function FeedScreen() {
   const expired =
     isProblem(error) &&
     (error.code === 'CURSOR_EXPIRED' || error.code === 'CURSOR_INVALID');
+  const failed = feed.isError;
 
   useEffect(() => {
     if (!expired || resetting.current) return;
@@ -103,20 +105,30 @@ export function FeedScreen() {
         </p>
       ) : null}
 
-      {feed.isPending ? (
+      {feed.isPending && !trips.isError ? (
         <p className={styles.state} role="status">
           {t('feed.loading')}
         </p>
       ) : null}
 
       {/* An expired cursor is recovered from, not reported as a failure: the
-          refetch above already started. Any other error is a real one. */}
-      {feed.isError && !expired ? (
+          refetch above already started. Any other error is a real one.
+
+          trips.isError counts as one. The feed query is gated on
+          trips.isSuccess — the cursor the server mints is bound to the trip
+          selection — so a failed trip list leaves the feed query disabled and
+          permanently pending. Reading only feed.isError meant the screen sat
+          on 불러오는 중 for ever with no error and no retry. */}
+      {(failed || trips.isError) && !expired ? (
         <p className={styles.state} role="alert">
           {t('feed.error')}
           <button
             className={styles.retry}
             onClick={() => {
+              // Both, in the order that repairs the gate: refetching only the
+              // feed would leave it disabled behind a trip list that is still
+              // in error, and the screen would go straight back to stuck.
+              if (trips.isError) void trips.refetch();
               void feed.refetch();
             }}
             type="button"
@@ -142,6 +154,12 @@ export function FeedScreen() {
             <li key={card.post.id}>
               <FeedPostCard
                 card={card}
+                // Live since FE-202: the cover button opens the post. Before
+                // that this callback was unbound and pressing the cover did
+                // nothing at all.
+                onOpenPost={(postId) => {
+                  void navigate(`/posts/${postId}`);
+                }}
                 labels={{
                   ...cardLabels,
                   // Interpolated per card: the level is part of the sentence.

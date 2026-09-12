@@ -2,12 +2,15 @@ import { type RouteObject } from 'react-router';
 import { AppShell } from './AppShell.js';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { FeedScreen } from './feed/FeedScreen.js';
-import { PlaceholderScreen } from './PlaceholderScreen.js';
+import { PostScreen } from './post/PostScreen.js';
+import { OptimizeSetupScreen } from './optimize/OptimizeSetupScreen.js';
+import { OptimizationRunScreen } from './optimize/OptimizationRunScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
 import { LanguageScreen } from './onboarding/LanguageScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
+import { LiveScreen } from './live/LiveScreen.js';
 import { AddPlaceScreen } from './trip/AddPlaceScreen.js';
 import { CandidatesScreen } from './trip/CandidatesScreen.js';
 import { TripScreen } from './trip/TripScreen.js';
@@ -45,12 +48,18 @@ export const routes: RouteObject[] = [
       { path: 'start', element: <TripWizardScreen /> },
       { path: 'start/must-visit', element: <MustVisitScreen /> },
       // Sub-pages reached by a back control, so they carry a NavBar instead.
-      { path: 'posts/:postId', element: <PlaceholderScreen routeId="post-detail" /> },
+      { path: 'posts/:postId', element: <PostScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
       { path: 'trip/:tripId/add-place', element: <AddPlaceScreen /> },
       {
+        // S09-0 setup, before a run exists (FE-501).
+        path: 'trip/:tripId/optimize',
+        element: <OptimizeSetupScreen />,
+      },
+      {
+        // S09-1 run state, after submit and before a decision (FE-502).
         path: 'trip/:tripId/optimizations/:runId',
-        element: <PlaceholderScreen routeId="optimization" />,
+        element: <OptimizationRunScreen />,
       },
       { path: 'about-data', element: <DataGuideScreen /> },
       { path: '*', element: <NotFoundScreen /> },
@@ -68,7 +77,8 @@ export const routes: RouteObject[] = [
     children: [
       { path: 'feed', element: <FeedScreen /> },
       { path: 'trip/:tripId', element: <TripScreen /> },
-      { path: 'live', element: <PlaceholderScreen routeId="live" /> },
+      // S11 live, a 준비 중 screen until BA-091 opens the data (FE-401).
+      { path: 'live', element: <LiveScreen /> },
       { path: 'profile', element: <ProfileScreen /> },
     ],
   },

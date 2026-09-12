@@ -72,6 +72,17 @@
   list-style: none;
 }
 
+/* These chips wrap; they do not sit in a row that scrolls sideways like the
+   trip day selector, so a label wider than the screen has nowhere to go. The
+   shared Chip keeps `white-space: nowrap` for the scrolling case, and at 200%
+   zoom (a 180px viewport) the longer English interests — "Landmarks are a
+   must", "Somewhere that feels like a trip" — then pushed the section past
+   the viewport edge. Here the label wraps inside the pill instead. */
+.chips button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .state {
   display: flex;
   flex-wrap: wrap;

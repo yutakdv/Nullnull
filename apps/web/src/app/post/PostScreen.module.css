@@ -1,0 +1,122 @@
+/* S03-D `398:611`. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-6);
+}
+
+.cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.title,
+.excerpt,
+.body,
+.sectionHead {
+  margin: 0;
+  padding-inline: var(--space-4);
+}
+
+.title {
+  color: var(--color-text-primary);
+  font-size: var(--font-title-md);
+  font-weight: 700;
+}
+
+.excerpt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.body {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  line-height: 22px;
+  white-space: pre-wrap;
+}
+
+.saveRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-4);
+}
+
+.save {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-action-strong);
+  color: var(--color-action-onPrimary);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.saveNote,
+.state,
+.placeMeta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
+}
+
+.state {
+  margin: 0;
+  padding-inline: var(--space-4);
+}
+
+.retry {
+  align-self: flex-start;
+  min-height: 44px;
+  margin-inline: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.places {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionHead {
+  color: var(--color-text-primary);
+  font-size: var(--font-label);
+  font-weight: 700;
+}
+
+.placeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-4);
+  list-style: none;
+}
+
+.place {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+}
+
+.placeName {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+}

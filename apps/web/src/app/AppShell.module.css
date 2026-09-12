@@ -39,3 +39,39 @@
   /* Opaque: content scrolls behind it. */
   background: var(--color-bg-default);
 }
+
+/* Session ended (FR-SES-02). A full-screen state, per PROBLEM_POLICY's
+   severity `screen` for UNAUTHORIZED. */
+.session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+}
+
+.sessionTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-md);
+  font-weight: 700;
+}
+
+.sessionNote {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 20px;
+}
+
+.sessionRestart {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-action-strong);
+  color: var(--color-action-onPrimary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+}

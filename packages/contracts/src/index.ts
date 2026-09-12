@@ -36,6 +36,9 @@ import tripPageEmpty from "../fixtures/trips/trip-page-empty.json" with { type: 
 import feedPage from "../fixtures/feed/page.json" with { type: "json" };
 import feedPage2 from "../fixtures/feed/page-2.json" with { type: "json" };
 import feedPageEmpty from "../fixtures/feed/page-empty.json" with { type: "json" };
+import postDetail from "../fixtures/posts/post-detail.json" with { type: "json" };
+import postDetailSaved from "../fixtures/posts/post-detail-saved.json" with { type: "json" };
+import savedPostState from "../fixtures/posts/saved-post-state.json" with { type: "json" };
 import historyPage from "../fixtures/optimizations/history-page.json" with { type: "json" };
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
@@ -162,6 +165,22 @@ export const feedFixtures = {
   page: feedPage as components["schemas"]["FeedPage"],
   pageTwo: feedPage2 as components["schemas"]["FeedPage"],
   pageEmpty: feedPageEmpty as components["schemas"]["FeedPage"],
+};
+
+// PROVISIONAL MOCK DATA — replace when BA-032 serves getPost for real.
+//
+// getPost has no example in docs/api/openapi.yaml. The post id matches the
+// feed's first card so a card can actually open its own detail, and the
+// places carry the same sourceAttribution the feed does, because a KTO-sourced
+// place needs its credit wherever it appears (CMP-ATT-001).
+//
+// PostDetail.places is a plain PlaceSummary[]: unlike FeedCard it carries no
+// candidateState and no per-place saved flag, so this screen cannot and must
+// not imply a place is in a trip (invariant 1).
+export const postFixtures = {
+  detail: postDetail as components["schemas"]["PostDetail"],
+  detailSaved: postDetailSaved as components["schemas"]["PostDetail"],
+  savedState: savedPostState as components["schemas"]["SavedPostState"],
 };
 
 export const optimizationFixtures = {

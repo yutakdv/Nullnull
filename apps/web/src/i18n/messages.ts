@@ -62,6 +62,13 @@ export const messages = {
     'splash.tagline2': '취향으로 이어지는 여행 SNS',
     'splash.retry': '다시 시도',
     'splash.failed': '시작하지 못했어요. 다시 시도해주세요.',
+    // 세션 만료 (FR-SES-02). PROBLEM_POLICY의 UNAUTHORIZED는 severity `screen`,
+    // recovery `restart-session`이다. 다시 시작은 사용자가 직접 눌러야 한다 —
+    // 만료된 세션에 자동으로 bootstrap하면 다른 익명 owner가 생겨 그동안의
+    // 여행이 전부 끊긴다(SessionSafetyIT.expiration).
+    'session.expired': '세션이 만료됐어요. 다시 시작해주세요',
+    'session.expiredNote': '이 기기에 저장된 여행은 다시 시작하면 볼 수 있어요',
+    'session.restart': '다시 시작하기',
 
     // A-2 language (388:277). The heading is bilingual in both locales by
     // design: the screen has to be readable before a language is chosen.
@@ -94,6 +101,27 @@ export const messages = {
     'intro.noLogin': '로그인 없이 바로 둘러볼 수 있어요',
 
     // S14 profile (422:2925).
+    // FE-202 게시물 상세 (S03-D `398:611`).
+    'post.back': '뒤로',
+    'post.loading': '불러오는 중이에요',
+    'post.error': '게시물을 불러오지 못했어요',
+    'post.notFound': '없는 게시물이에요',
+    'post.retry': '다시 시도',
+    'post.places': '이 글에 나온 장소',
+    // 저장은 게시물만 저장한다. 일정에 담는 것과 다른 동작이라 문구도 다르다.
+    'post.save': '이 글 저장',
+    'post.unsave': '저장 해제',
+    'post.saving': '저장하는 중이에요',
+    'post.saveFailed': '저장하지 못했어요',
+    'post.saveNote': '글만 저장해요. 여행 일정은 그대로예요',
+    // FE-401~403 라이브 (S11 `418:2523`). BA-091이 열리기 전까지는 화면이
+    // 없으므로, 탭이 무엇을 준비 중인지 말한다. 없는 혼잡도를 만들지 않는다.
+    'live.title': '라이브',
+    'live.comingSoon': '준비 중이에요',
+    'live.description':
+      '지금 붐비는 정도를 지도와 목록으로 보여드릴 예정이에요. 실제 관측·예측 데이터가 연결되면 열려요',
+    'live.meanwhile': '그동안 혼잡도 데이터가 무엇을 뜻하는지 먼저 살펴보세요',
+    'live.dataGuide': '혼잡도 데이터 안내',
     'profile.title': '내 정보',
     'profile.guest.name': '게스트',
     'profile.guest.note':
@@ -285,6 +313,58 @@ export const messages = {
     'trip.duration': '예상 {hours}시간',
     'trip.durationMinutes': '예상 {minutes}분',
     'trip.durationHoursMinutes': '예상 {hours}시간 {minutes}분',
+    // FE-501 최적화 설정 (S09-0 `415:2268`).
+    'optimize.title': '무엇을 최적화할까요?',
+    'optimize.back': '뒤로',
+    'optimize.scope': '범위',
+    // FCR-010: P0는 ITEM만 활성화하고 DAY/TRIP은 disabled `준비 중`이다.
+    'optimize.scope.ITEM': '장소 하나',
+    'optimize.scope.DAY': '하루 전체',
+    'optimize.scope.TRIP': '여행 전체',
+    'optimize.scope.comingSoon': '준비 중이에요. P0에서는 장소 하나만 바꿔볼 수 있어요',
+    'optimize.target': '바꿔볼 장소',
+    'optimize.targetEmpty': '일정에 장소가 없어요. 먼저 장소를 담아주세요',
+    'optimize.includeCandidates': '후보로 담아둔 장소도 후보에 넣기',
+    'optimize.submit': '대안 찾아보기',
+    'optimize.submitting': '찾는 중이에요',
+    // 불변식 3: 승인 전에는 일정이 바뀌지 않는다.
+    'optimize.previewNote': '제안만 만들어요. 직접 적용하기 전까지 일정은 그대로예요',
+    'optimize.needTarget': '바꿔볼 장소를 먼저 골라주세요',
+    'optimize.failed': '최적화를 시작하지 못했어요',
+    'optimize.conflict': '일정이 그 사이에 바뀌었어요. 새로 불러온 뒤 다시 시도해주세요',
+    'optimize.locked': '고정된 조건 때문에 바꿀 수 없어요',
+    'optimize.retry': '다시 시도',
+    // FE-502 계산 중과 결과 대기 (S09-1 `415:2413`).
+    // FCR-005: route provider가 없는 P0에서는 `경로 계산`·이동시간 문구를 쓰지
+    // 않는다. 아래 문구는 FCR-005 증거의 승인 문구를 그대로 쓴다.
+    'run.title': '대안을 찾고 있어요',
+    'run.working': '혼잡 정보와 고정한 조건을 확인하고 있어요',
+    'run.step.crowd': '혼잡 정보 확인',
+    'run.step.locks': '고정 조건 재확인',
+    // FCR-014: 이탈은 navigation일 뿐 server run 취소가 아니다.
+    'run.leave': '내 여행으로 돌아가기',
+    'run.keepsRunning': '돌아가도 계산은 계속돼요. 이 주소로 다시 볼 수 있어요',
+    'run.queued': '차례를 기다리고 있어요',
+    'run.running': '계산하고 있어요',
+    'run.ready': '대안이 준비됐어요',
+    // BA-051이 제안을 만들기 전까지는 결과 본문을 보여줄 수 없다. 없는 수치를
+    // 만들지 않는다(불변식 8).
+    'run.readyPending': '결과 화면은 준비 중이에요',
+    'run.loading': '불러오는 중이에요',
+    'run.error': '상태를 불러오지 못했어요',
+    'run.notFound': '없는 최적화예요',
+    'run.expired': '제안이 만료됐어요. 일정은 그대로예요',
+    'run.recompute': '다시 계산하기',
+    'run.failed': '계산하지 못했어요. 일정은 그대로예요',
+    // 실패 6종. 계약의 OptimizationFailure.code를 그대로 구분한다.
+    'run.failure.TRIP_CHANGED': '계산하는 동안 일정이 바뀌었어요',
+    'run.failure.DATA_CHANGED': '기준 데이터가 바뀌었어요',
+    'run.failure.LOCK_CONFLICT': '고정한 조건과 맞지 않아요',
+    'run.failure.ROUTE_UNAVAILABLE': '경로 정보를 확인할 수 없어요',
+    'run.failure.NO_IMPROVEMENT': '지금 일정보다 나은 대안을 찾지 못했어요',
+    'run.failure.APPLY_FAILED': '적용하지 못했어요',
+    // 불변식 3·4: 실패·만료·KEEP 어느 쪽도 일정을 바꾸지 않는다.
+    'run.unchanged': '일정은 그대로예요',
     'trip.optimize': 'AI로 일정 최적화',
     'trip.edit': '일정 편집',
     // P1 until FE-501 wires the run; announced rather than silently inert.
@@ -568,6 +648,9 @@ export const messages = {
     'splash.tagline2': 'a travel feed that follows your taste',
     'splash.retry': 'Try again',
     'splash.failed': "We couldn't start. Please try again.",
+    'session.expired': 'Your session ended. Please start again',
+    'session.expiredNote': 'Trips saved on this device come back when you start again',
+    'session.restart': 'Start again',
 
     // A-2 language (643:4088, the EN-selected variant). The heading stays
     // bilingual in both locales: the screen must be readable before choosing.
@@ -601,6 +684,23 @@ export const messages = {
     'intro.noLogin': 'Browse right away, no sign-in needed',
 
     // S14 profile (422:2925). Figma has no EN frame; these are translations.
+    'post.back': 'Back',
+    'post.loading': 'Loading',
+    'post.error': "We couldn't load this post",
+    'post.notFound': 'That post does not exist',
+    'post.retry': 'Try again',
+    'post.places': 'Places in this post',
+    'post.save': 'Save this post',
+    'post.unsave': 'Remove from saved',
+    'post.saving': 'Saving',
+    'post.saveFailed': "We couldn't save it",
+    'post.saveNote': 'Saves the post only. Your trip is unchanged',
+    'live.title': 'Live',
+    'live.comingSoon': 'Coming soon',
+    'live.description':
+      "We'll show how busy places are right now, on a map and as a list. It opens once real observed and forecast data is connected",
+    'live.meanwhile': 'Meanwhile, see what the crowd figures actually mean',
+    'live.dataGuide': 'About crowd data',
     'profile.title': 'My info',
     'profile.guest.name': 'Guest',
     'profile.guest.note':
@@ -778,6 +878,49 @@ export const messages = {
     'trip.duration': 'About {hours}h',
     'trip.durationMinutes': 'About {minutes}m',
     'trip.durationHoursMinutes': 'About {hours}h {minutes}m',
+    'optimize.title': 'What should we optimize?',
+    'optimize.back': 'Back',
+    'optimize.scope': 'Scope',
+    'optimize.scope.ITEM': 'One stop',
+    'optimize.scope.DAY': 'A whole day',
+    'optimize.scope.TRIP': 'The whole trip',
+    'optimize.scope.comingSoon': 'Coming soon. For now you can change one stop',
+    'optimize.target': 'Which stop',
+    'optimize.targetEmpty': 'This trip has no stops yet. Add one first',
+    'optimize.includeCandidates': 'Also consider places saved to this trip',
+    'optimize.submit': 'Find alternatives',
+    'optimize.submitting': 'Looking',
+    'optimize.previewNote':
+      'Only makes suggestions. Your itinerary stays as it is until you apply one',
+    'optimize.needTarget': 'Choose a stop first',
+    'optimize.failed': "We couldn't start the optimization",
+    'optimize.conflict': 'The itinerary changed meanwhile. Reload and try again',
+    'optimize.locked': 'A lock on this stop prevents the change',
+    'optimize.retry': 'Try again',
+    'run.title': 'Looking for alternatives',
+    'run.working': 'Checking crowd levels and the conditions you locked',
+    'run.step.crowd': 'Checking crowd levels',
+    'run.step.locks': 'Rechecking locked conditions',
+    'run.leave': 'Back to my trip',
+    'run.keepsRunning':
+      'This keeps running if you leave. Return to this address to see it',
+    'run.queued': 'Waiting its turn',
+    'run.running': 'Working on it',
+    'run.ready': 'Your alternatives are ready',
+    'run.readyPending': 'The result screen is still being built',
+    'run.loading': 'Loading',
+    'run.error': "We couldn't load the status",
+    'run.notFound': 'No such optimization',
+    'run.expired': 'The suggestion expired. Your itinerary is unchanged',
+    'run.recompute': 'Calculate again',
+    'run.failed': "We couldn't finish. Your itinerary is unchanged",
+    'run.failure.TRIP_CHANGED': 'The itinerary changed while we were calculating',
+    'run.failure.DATA_CHANGED': 'The underlying data changed',
+    'run.failure.LOCK_CONFLICT': 'It conflicts with a condition you locked',
+    'run.failure.ROUTE_UNAVAILABLE': "We can't check route information",
+    'run.failure.NO_IMPROVEMENT': 'We found nothing better than your current plan',
+    'run.failure.APPLY_FAILED': "We couldn't apply it",
+    'run.unchanged': 'Your itinerary is unchanged',
     'trip.optimize': 'Optimize with AI',
     'trip.edit': 'Edit itinerary',
     'trip.comingSoon': 'Coming soon',

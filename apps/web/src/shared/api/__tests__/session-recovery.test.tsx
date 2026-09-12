@@ -18,6 +18,7 @@ import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
+import { messages } from '../../../i18n/messages.js';
 import {
   clearCsrfTokenForTest,
   createQueryClient,
@@ -228,5 +229,87 @@ describe('FR-SES-02 recovery does not multiply requests or owners', () => {
     );
     await expect(reissueCsrfToken()).rejects.toBeDefined();
     expect(paths.filter((p) => p === '/api/v1/session/csrf')).toHaveLength(1);
+  });
+});
+
+describe('FR-SES-03 an expired session is a screen state, not silence', () => {
+  // PROBLEM_POLICY marks UNAUTHORIZED severity 'screen' with recovery
+  // 'restart-session'. AppShell called useCsrfToken() and discarded the
+  // result, so a deep link or refresh onto /feed with an expired cookie
+  // rendered the normal screen: the reissue 401'd with retry:false, the feed's
+  // own /trips 401'd too, and FeedScreen gates the feed on trips.isSuccess —
+  // so the user watched "불러오는 중" for ever with no error, no retry and no
+  // way back. Reproduced in a browser before this test existed.
+  function expiredSession() {
+    server.use(
+      http.post(`${API_BASE}/session/csrf`, () => problemResponse('UNAUTHORIZED')),
+      http.get(`${API_BASE}/trips`, () => problemResponse('UNAUTHORIZED')),
+    );
+  }
+
+  it('tells the user the session ended instead of loading for ever', async () => {
+    expiredSession();
+    renderAt('/feed');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      messages['en-US']['session.expired'],
+    );
+  });
+
+  it('offers the restart the contract names as the recovery', async () => {
+    expiredSession();
+    renderAt('/feed');
+    expect(
+      await screen.findByRole('button', {
+        name: messages['en-US']['session.restart'],
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not mint a replacement session behind the user', async () => {
+    // A fresh bootstrap on an expired session creates a DIFFERENT anonymous
+    // owner (SessionSafetyIT.expiration), stranding every trip the user had.
+    // The recovery has to be the user's deliberate act, not an automatic one.
+    expiredSession();
+    renderAt('/feed');
+    await screen.findByRole('alert');
+    expect(paths.filter((p) => p === '/api/v1/demo/sessions')).toHaveLength(0);
+  });
+
+  it('does not call a network failure an ended session', async () => {
+    // A dropped connection is recoverable and the trips are still there.
+    // Showing "세션이 만료됐어요" for one would tell the user their session is
+    // gone when it is not, and push them at a restart they do not need. Only
+    // the contract's UNAUTHORIZED means the session ended.
+    server.use(
+      http.post(`${API_BASE}/session/csrf`, () => HttpResponse.error()),
+      http.get(`${API_BASE}/trips`, () => HttpResponse.error()),
+    );
+    renderAt('/feed');
+    // Wait until the reissue has actually failed, or the assertion below is
+    // just observing the moment before the error arrives and passes for the
+    // wrong reason — checked by making AppShell treat every error as an ended
+    // session and watching this fail.
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/session/csrf');
+    });
+    // Let the failure settle, so this is not observing the moment before the
+    // error arrives — without the wait it passes even when AppShell treats
+    // every error as an ended session.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(
+      screen.queryByRole('button', { name: messages['en-US']['session.restart'] }),
+    ).toBeNull();
+    expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
+  });
+
+  it('leaves a working session alone', async () => {
+    renderAt('/feed');
+    // The ordinary case still renders the feed, not the session screen.
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+    expect(
+      screen.queryByRole('button', { name: messages['en-US']['session.restart'] }),
+    ).toBeNull();
   });
 });

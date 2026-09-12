@@ -591,16 +591,19 @@
       "phase": "B04",
       "priority": "P0",
       "title": "S03-D 게시물 상세/SavedPost",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-201",
         "BA-032"
       ],
       "operations": [
-        "getPost"
+        "getPost",
+        "savePost",
+        "unsavePost"
       ],
       "featureIds": [
-        "FR-PST-01"
+        "FR-PST-01",
+        "FR-PST-02"
       ],
       "figmaNodes": [
         "398:611"
@@ -1032,7 +1035,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "S09-0 scope/item setup, 미지원 P1 state",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-301",
         "BA-050"
@@ -1046,7 +1049,9 @@
       "figmaNodes": [
         "415:2268"
       ],
-      "designRequests": [],
+      "designRequests": [
+        "FCR-010"
+      ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -1076,7 +1081,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "S09-1 loading/polling/background resume",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-501",
         "BA-050"
@@ -1250,7 +1255,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "S14 최적화 이력 상태/scope/시각/decision과 상세 진입",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-105",
         "BA-053"
