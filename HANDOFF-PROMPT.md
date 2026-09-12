@@ -314,6 +314,69 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
 
+### provider validator 관문 — 실응답을 본 적이 있는가 (2026-09-13 조사)
+
+**"실응답을 본 적 없는 관문"이 남은 결함의 목록이다.** 이번 세션에 나온 세 결함(detailCommon2 legacy field, `signguCd` 5자리 결합, 예보 창 하한)이 **전부** 이 칸에 있었다. 그래서 `crowd`·`catalog`의 두 validator가 거는 조건을 전부 열거하고 증거 등급을 매겼다.
+
+증거 등급:
+
+- **A — 실응답이 이 술어를 통과한 기록이 있다.** `actualKtoSmoke`의 `KtoActualSmokeIT` 1건(2026-09-11T05:19:18Z, `api_ingest_logs.outcome=OK`·`records_accepted=1`).
+- **B — shape는 실측했지만(#109) 이 코드가 실응답을 처리한 적은 없다.** 측정에서 유도한 코드일 뿐, 실행된 적이 없다. **세 결함이 전부 여기 있었다.**
+- **C — 정상 응답으로는 탈 수 없는 분기다.** drift·오류 tripwire이므로 합성 fixture가 유일한 증거인 것이 맞다. 다만 "실응답으로 확인됐다"고 쓰면 안 된다.
+
+#### 먼저, 그 A 한 건이 덮는 범위가 생각보다 좁다
+
+녹색 smoke는 `7551fb2`(registry revision **3**)에서 났고, 지금 코드인 `1f341f6`(revision 4)는 그 **55분 뒤**에 커밋됐다(smoke 14:19:18 KST, 커밋 15:14:14 KST). `git diff 7551fb2 1f341f6`로 확인하면 **envelope·identity·coordinate 관문은 한 바이트도 안 바뀌었고**, 바뀐 것은 정확히 `legacyCodesOnly`와 세 field 이름뿐이다. 그래서 A는 앞쪽에만 유효하고, 바뀐 자리는 전부 B다.
+
+그리고 **그 smoke는 녹색인 채로 파이프라인이 끊겨 있었다.** validator는 `cat1`/`areacode`를 *optional*로 읽었으므로 빈 문자열을 받고도 snapshot을 accept했고, 거절은 한 단계 뒤 `KtoSnapshotCatalogIngest:40`의 `requiredSnapshotValue("categoryCode", …)`에서 났다. **smoke가 snapshot과 audit row까지만 단언하고 canonical ingest를 부르지 않았기 때문에** 그 거절이 보이지 않았다. 이번에 `KtoActualSmokeIT`가 실응답 snapshot을 `CatalogIngest.ingest`에 통과시키고 `places`·`place_external_refs` 행까지 단언하도록 고쳤다. **검증을 어디서 멈추는지가 곧 결함이 숨는 자리다.**
+
+#### `KtoDetailResponseValidator` (C2 `detailCommon2`)
+
+| 관문 | 위치 | 등급 | 근거 / 남은 위험 |
+| --- | --- | --- | --- |
+| JSON parse 실패 → `SCHEMA_DRIFT` | `:34-37` | A | 실응답이 파싱됐다 |
+| top-level `resultCode` ≠ `0000` → `PROVIDER_ERROR` | `:38-40`, `:102-108` | C | 정상 응답은 이 분기를 타지 않는다 |
+| `response`/`header` object | `:41-45` | A | |
+| `header.resultCode == "0000"` | `:46-48` | A | |
+| `body`/`items` object · `totalCount == 1` · 단건 | `:49-54` | A | 단, `item`이 배열인지 object인지는 **기록이 없다** — `singleItem`(`:110-115`)의 어느 분기가 탔는지 미상 |
+| `contentid`/`contenttypeid` 일치 | `:55-58` | A | |
+| 좌표 pairing `(lat==null)!=(lon==null)` | `:60-65` | A(거절 안 됨) | **어느 분기를 탔는지는 미상.** 경복궁 `mapx`/`mapy`가 실제로 왔는지는 측정 기록에 없다 |
+| 좌표 범위·`NumberFormat` → `RANGE` | `:137-154` | C | |
+| **`legacyCodesOnly` quarantine** | `:66-71` | **B** | 실행된 적 없다. 게다가 **실측 shape에서는 구조상 발화하지 않는다** — `cat1`/`areacode`/`sigungucode`가 빈 문자열이라 `optional()`이 `null`을 주고 `legacy`가 `false`다. KTO가 되돌릴 때만 발화하는 순수 tripwire다 |
+| **`lclsSystm1`/`lDongRegnCd`/`lDongSignguCd` 읽기** | `:72-75` | **B** | 이름은 실측(#109)이지만 이 코드가 실응답을 처리한 적 없다. **셋 다 optional이라 전부 비면 snapshot은 accept되고 거절은 다시 canonical ingest에서 난다** — revision 3의 실패 모양 그대로다. 의도된 설계지만(분류 없는 장소를 지어내지 않는다) 유일한 안전망이 다음 단계라는 뜻이다 |
+| `required(item,"title")` | `:72-75` | A | |
+| `optional` 비-scalar → `SCHEMA_DRIFT` | `:125-135` | C | |
+
+#### `KtoForecastResponseValidator` (C4 `tatsCnctrRatedList`)
+
+이 validator는 **A가 하나도 없다.** 유일한 harness 실행(`KtoForecastActualSmokeIT`, 2026-09-11T05:19:13Z)은 HTTP 호출 **전에** `areaCode is not a KTO area identifier`로 실패했다. #109의 측정은 직접 probe였지 이 validator를 통과한 것이 아니다.
+
+| 관문 | 위치 | 등급 | 근거 / 남은 위험 |
+| --- | --- | --- | --- |
+| JSON parse | `:48-52` | B | |
+| top-level `resultCode` | `:53-55`, `:133-138` | C | probe에서 `resultCode 11`을 봤지만 그건 이 코드가 아니다 |
+| `response`/`header` object | `:56-60` | B | |
+| `header.resultCode == "0000"` | `:61-63` | B | |
+| `totalCount ≥ 0` · `== items.size()` · `≤ 31` | `:64-69` | **B, 발화 가능** | 아래 별도 항목 |
+| `items` 비었으면 `acceptedNoCoverage` | `:70-72`, `:125-127` | C | `areaCd=11&signguCd=110`이 `totalCount 0`을 준 것이 #109의 무증상 결함이었다 |
+| `areaCd` echo 일치 | `:91` | B | echo 확인됨(#109) |
+| **`signguCd == signguRequestCode`(5자리 결합)** | `:95` | **B** | #109에서 결함 발견·수정. `KtoCrowdForecastGatewayIT`가 나간 요청을 단언해 회귀를 막지만, **응답 쪽 이 비교는 여전히 실행된 적 없다** |
+| `tAtsNm` 정확 일치 | `:96` | B | `경복궁`이 그대로 echo됐다 |
+| **`baseYmd` 창 `[fetch-1, fetch+30]`** | `:97-100` | **B** | **이미 한 번 틀렸다**(PR #174). 하한이 조회일이면 실응답 전체가 첫 행에서 `RANGE`. 고쳤지만 **고친 코드도 아직 실응답을 본 적 없다** |
+| 중복 target 거부 | `:102-104` | C | |
+| `cnctrRate` 0~100 · scale ≤ 4 | `:106`, `:185-196` | B | 문자열로 오고 실측 소수 1~2자리 |
+| `scalar` 길이 ≤ 300 · control char 없음 | `:160-170` | C | |
+| `baseYmd` 8자리 정규식 | `:178-183` | B | |
+| `items()` object 단건 허용 / 비-object 배열 거부 | `:140-158` | B | 30행이면 배열 분기 |
+
+#### 이 표에서 나온 새 발견 하나
+
+`totalCount == items.size()`와 `total > MAX_RECORDS(31)`는 **provider drift가 아닌 우리 쪽 원인으로 발화할 수 있다.** 요청은 `numOfRows=100` 고정이고(`KtoKorServiceProperties:111`) `tAtsNm`은 **필터**다. 실측에서 `tAtsNm` 없이 한 시군구 전체는 **3390행**이었다. canonical mapping의 `touristSiteName`이 여러 관광지에 걸리는 값이면 `totalCount`는 100을 넘고 `items.size()`는 100에서 잘리므로, 두 조건이 모두 걸려 `SCHEMA_DRIFT`로 기록된다 — **원인은 우리 mapping인데 라벨은 "provider가 변했다"가 된다.** 30행 대 상한 31이라 여유도 한 행뿐이다. 판정 라벨을 나누거나 mapping 유일성을 수집 시점에 고정해야 하고, 둘 다 아직 안 돼 있다.
+
+#### 규칙
+
+**validator에 관문을 추가할 때 등급을 함께 적는다.** B를 A로 바꾸는 방법은 하나뿐이다 — 승인된 harness를 실제로 돌려 그 코드가 실응답을 처리하게 하는 것. 그때까지 B는 "검증됐다"가 아니라 **"아직 안 본 곳"**이다.
+
 ## 9. 사용자 확정 결정 (재논의 불필요)
 
 - KTO 키 사용 가능 → 제출(production) 빌드에서 **`DEV_APPROVED` 개발 키(1,000/일) 실호출 허용**.
