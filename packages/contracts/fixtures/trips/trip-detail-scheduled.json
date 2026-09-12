@@ -31,8 +31,8 @@
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
             "name": "경복궁",
-            "categoryCode": "ATTRACTION",
-            "regionCode": "KR-11-110",
+            "categoryCode": "HS",
+            "regionCode": "11",
             "thumbnailUrl": null,
             "address": null
           },
@@ -61,8 +61,8 @@
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
             "name": "인사동",
-            "categoryCode": "STREET",
-            "regionCode": "KR-11-110",
+            "categoryCode": "HS",
+            "regionCode": "11",
             "thumbnailUrl": null,
             "address": null
           },
@@ -92,8 +92,8 @@
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
             "name": "명동",
-            "categoryCode": "STREET",
-            "regionCode": "KR-11-140",
+            "categoryCode": "HS",
+            "regionCode": "11",
             "thumbnailUrl": null,
             "address": null
           },
