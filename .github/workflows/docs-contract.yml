@@ -73,3 +73,16 @@ jobs:
           ajv validate --spec=draft2020 -c ajv-formats
           -s docs/contracts/events.schema.json
           -d docs/contracts/events.example.json
+      - name: Reject the analytics-event negative batches
+        # A tightened bound is only a bound if something proves it refuses. `ajv test --invalid`
+        # reports a REJECTED file as "passed test" - and exits 0 on a glob matching nothing, so
+        # deleting the fixtures would turn this green. check_event_negatives.py judges the output
+        # against the directory listing instead of trusting that exit code.
+        run: |
+          npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1 \
+            ajv test --spec=draft2020 -c ajv-formats \
+            -s docs/contracts/events.schema.json \
+            -d "docs/contracts/events-negative/*.json" --invalid \
+            > "$RUNNER_TEMP/event-negatives.txt" 2>&1 || true
+          python3 scripts/check_event_negatives.py "$RUNNER_TEMP/event-negatives.txt" \
+            docs/contracts/events-negative

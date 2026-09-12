@@ -850,6 +850,16 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: client event는 실제 일정 변경·노출 인증·방문 증명이 아니다. impression lineage가 없는 P0 데이터로 개인화 모델을 학습시키지 않는다.
 
+선행 PM 항목 상태(`planned`이 뜻하는 것): 두 operation은 아직 구현하지 않았다. 다만 **PM-016이 지목한 계약 결함 중 셋은 닫았다.**
+
+- `runLink`의 `/trips/` → `/trip/`: [#118](https://github.com/yutakdv/Nullnull/issues/118), PR #122로 이미 반영됐고 `context.route` allowlist의 `/trip/:tripId/optimizations/:runId`와 맞는다.
+- `trip_created.dayCount` 상한 90 → **30**, `itemCount` 1000 → **100**. 제품 상한은 `TripDateRange.MAX_DAYS`와 계약의 `seedItems` `maxItems: 100`이다. 넓은 쪽 bound는 도달할 수 없는 값을 허용할 뿐이어서, 위조되거나 drift한 client를 구분하지 못하게 했다.
+- `data_guide_opened.entryRoute`가 자유 문자열이라 `context.route`의 template allowlist를 우회했다. 둘이 같은 `$defs/routeTemplate`을 가리키게 바꿨다 — 같은 개념의 사본이 둘이었고 그중 하나만 allowlist였던 것이 원인이다. **이것은 개인정보 경계다**: 구체 경로에는 여행 id가, query에는 사용자가 입력한 문자열이 실린다.
+
+조임이 실제로 거절하는지는 `docs/contracts/events-negative/`의 5건과 `scripts/check_event_negatives.py`가 고정한다. `ajv test --invalid`는 **glob이 0건이면 exit 0**이므로 exit code를 믿지 않고 디렉터리 목록과 대조한다.
+
+**남은 것 둘.** `recordFeedFeedback`은 PM-011이 막는다 — 어떤 표시값과 행동을 P0에 남길지가 FE 범위이고, 그것이 정해지기 전에는 재조회할 반응 상태·수·LIKE 취소·HIDE 복구 진입점을 계약으로 고정할 수 없다. 그리고 PM-016이 함께 요구한 **오류 enum 정렬은 하지 않았다**: event schema의 `errorCode`가 `OPTIMIZATION_FAILED`를 담고 있는데 이 값은 `ProblemCode`가 아니라 `Notification.type`이고, optimization run-failure plane 자체가 아직 없다(BA-050~053). 무엇에 맞출지가 없으므로 맞추지 않는다.
+
 필수 검증:
 
 - `BA-033-T1`: unknown property·위조 owner/session·좌표·원문 canary를 거부한다
