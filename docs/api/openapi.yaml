@@ -326,6 +326,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OwnerProfile"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1002,6 +1004,8 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -1409,6 +1413,8 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -2107,6 +2113,18 @@ components:
             $ref: "#/components/schemas/Problem"
     Unprocessable:
       description: Syntactically valid request violates a domain constraint
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UnsupportedMediaType:
+      description: |
+        Request body media type is not the one the operation declares. The merge-patch operations
+        accept application/merge-patch+json only, because absent-means-keep and null-means-clear are
+        semantics of that media type rather than of the schema.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"

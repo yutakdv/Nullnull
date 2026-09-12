@@ -2361,6 +2361,20 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description Request body media type is not the one the operation declares. The merge-patch operations
+         *     accept application/merge-patch+json only, because absent-means-keep and null-means-clear are
+         *     semantics of that media type rather than of the schema.
+         */
+        UnsupportedMediaType: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description A required capability is temporarily unavailable */
         ServiceUnavailable: {
             headers: {
@@ -2652,6 +2666,7 @@ export interface operations {
                     "application/json": components["schemas"]["OwnerProfile"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3026,6 +3041,7 @@ export interface operations {
                 };
             };
             409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
         };
@@ -3419,6 +3435,7 @@ export interface operations {
                 };
             };
             409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
         };
