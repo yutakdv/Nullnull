@@ -294,7 +294,11 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
 
-**계약 파일이 Gradle task 입력이 아니어서 로컬에서 stale PASS가 났다.** `openapiContractTest`는 `docs/api/openapi.yaml` 경로를 **system property로만** 받았다. property는 up-to-date 검사에 보이지 않으므로, 계약만 고치고 suite를 다시 돌리면 **직전 실행 결과가 그대로 보고된다**. 실측: `listFeed`의 503을 틀린 응답으로 바꾸는 변이가 `--rerun-tasks` 없이는 GREEN이었고, 붙이면 RED였다. CI는 매번 새 checkout이라 항상 돌기 때문에 **게이트가 아니라 개발자의 loop에만 숨어 있었다** — 그래서 "가드가 변이를 못 잡네"로 오진하기 쉽다. `inputs.file(...)`/`inputs.dir(...)`로 openapi·fixtures·events schema를 선언해 고쳤다. **경로를 property로 넘기면 입력으로도 선언한다.**
+**계약 파일이 Gradle task 입력이 아니어서 로컬에서 stale PASS가 났다.** `openapiContractTest`는 `docs/api/openapi.yaml` 경로를 **system property로만** 받았다. property는 up-to-date 검사에 보이지 않으므로, 계약만 고치고 suite를 다시 돌리면 **직전 실행 결과가 그대로 보고된다**. 실측: `listFeed`의 503을 틀린 응답으로 바꾸는 변이가 `--rerun-tasks` 없이는 GREEN이었고, 붙이면 RED였다. CI는 매번 새 checkout이라 항상 돌기 때문에 **게이트가 아니라 개발자의 loop에만 숨어 있었다** — 그래서 "가드가 변이를 못 잡네"로 오진하기 쉽다. `inputs.file(...)`/`inputs.dir(...)`로 선언해 고쳤다. **경로를 property로 넘기면 입력으로도 선언한다.**
+
+그리고 **`openapiContractTest`만 고치고 끝낸 것이 이 세션의 두 번째 "같은 루프의 나머지를 안 본" 사례였다**(첫 번째는 `validate_backend_plan.py`의 `status`만 고친 것). 같은 결함이 네 곳 더 있었고 그중 `recommendationTest`가 가장 위험했다 — **ADR-0006 경계의 parity 가드**이자 policy pin을 보는 유일한 장치인데, `apps/ai` 계약 JSON을 `uv run python -m nullnull_ai.contracts export`로 갱신한 **뒤의 parity 확인이 직전 실행 결과를 보고**했다. 실측으로 확인했다: `policy-v1.yaml`의 `scale: 6 → 7`이 `--rerun-tasks` 없이는 GREEN, 붙이면 RED, 입력 선언 뒤에는 없이도 RED. 내부 계약의 `SlotOut.suggestedTime` type 변경도 같다. 선언한 것은 `nullnull.ai.fixtures.path`(`test`), `nullnull.ai.contract.path`·`nullnull.ai.policy.path`·`nullnull.ai.manifest.path`(`recommendationTest`)다.
+
+변이를 고를 때도 배운 게 있다. 내부 계약에 무관한 top-level key를 넣는 변이는 GREEN이었는데 그건 stale이 아니라 **parity가 보지 않는 것을 건드린 것**이었다. 변이는 **그 가드가 실제로 단언하는 대상**을 건드려야 한다.
 
 **변이가 살아남았을 때 먼저 의심할 것은 가드가 아니라 실행 여부다.** 위 건과 `SendMessage` 이전에 겪은 "BUILD FAILED인데 exit 0"(파이프로 인한) 둘 다, 결과를 읽기 전에 **그 명령이 실제로 무엇을 실행했는지**를 확인했어야 했다.
 

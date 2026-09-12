@@ -707,6 +707,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: catalog.place_relations · relation evidence · RelatedPlaceRanker(apps/ai related/rank)
 
+착수 불가 사유(조사 결과): `RelatedPlace.place`가 **required `PlaceSummary`**다. 그 값은 `CatalogPlaceProjectionService.embeddedSummaries`를 지나고 그 첫 줄이 `requirePublicProjection()`이므로, catalog 공개 게이트가 닫혀 있는 동안 `listRelatedPlaces`는 **응답을 만들 수 없다**. 게이트는 BA-021-T3(staging 실호출 증거)까지 열리지 않고 그건 [BA-006](#ba-006)에 달려 있다. 즉 이 카드는 계약이 아니라 **증거**를 기다린다.
+
 구현 순서:
 
 1. 공식 direct relation과 canonical mapping을 검증하고 category 기반 약한 관계는 SIMILAR로 분리한다
@@ -1137,6 +1139,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - API: `parseTripImport`, `remapTripImport`, `confirmTripImport` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `401:1221`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: itinerary_import_drafts structured only · version · import constraints
+
+착수 범위 조사 결과: **`parseTripImport`만은 catalog 게이트와 무관하다.** `ImportDraftItem.place`가 nullable(`PlaceSummary | null`)이라, 붙여넣기 원문을 토큰으로 쪼개 `place: null`과 `unresolved`로 채운 draft는 catalog를 읽지 않고 만들 수 있다. 반면 `remapTripImport`는 토큰을 실제 장소로 해결하므로 게이트를 지나고, `confirmTripImport`는 item을 만들므로 [BA-040](#ba-040)·[BA-041](#ba-041)을 기다린다.
+
+그래도 **parse만 먼저 내지는 않는다**: 확정할 수 없는 draft는 FE가 화면으로 완결할 수 없고, `itinerary_import_drafts`의 저장·TTL·삭제는 그 draft가 쓰일 때 의미가 생긴다. 선행이 풀린 뒤 한 slice로 낸다.
 
 구현 순서:
 
