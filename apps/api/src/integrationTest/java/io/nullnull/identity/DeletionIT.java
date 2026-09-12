@@ -103,6 +103,8 @@ class DeletionIT {
                         .header("X-Deletion-Status-Token", token))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "private, no-store"))
+                // Still moving, so the caller is told when to look again rather than guessing.
+                .andExpect(header().exists("Retry-After"))
                 .andExpect(jsonPath("$.requestId").value(requestId));
         var wrongToken = mvc.perform(get("/api/v1/deletion-requests/{id}", requestId)
                         .header("X-Deletion-Status-Token", token.substring(1) + "A"))

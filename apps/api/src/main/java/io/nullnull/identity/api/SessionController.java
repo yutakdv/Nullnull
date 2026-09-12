@@ -62,8 +62,12 @@ public class SessionController {
     public ResponseEntity<io.nullnull.identity.application.DeletionService.DeletionStatus> deletionStatus(
             @PathVariable UUID deletionRequestId,
             @RequestHeader("X-Deletion-Status-Token") String token) {
-        return ResponseEntity.ok().header("Cache-Control", "private, no-store")
-                .body(deletions.status(deletionRequestId, token));
+        var view = deletions.status(deletionRequestId, token);
+        var response = ResponseEntity.ok().header("Cache-Control", "private, no-store");
+        if (view.retryAfter() != null) {
+            response.header("Retry-After", String.valueOf(view.retryAfter().toSeconds()));
+        }
+        return response.body(view.status());
     }
     public record CreateRequest(String locale, String timezone) { }
     public record OwnerProfile(UUID id, String kind, String locale, String timezone,
