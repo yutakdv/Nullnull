@@ -9,6 +9,11 @@ COPY apps/api/gradle ./gradle
 RUN ./gradlew --no-daemon --version
 COPY apps/api/src ./src
 COPY docs/api/openapi.yaml /workspace/docs/api/openapi.yaml
+# ProblemFixtureContractTest pins packages/contracts/fixtures/problems to ProblemCode, so the
+# fixtures have to be inside the image: the test reads them and fails loudly when they are
+# absent rather than skipping, which is how the native api-quality run passed while this one
+# could not even find the directory.
+COPY packages/contracts/fixtures /workspace/packages/contracts/fixtures
 COPY apps/ai/contracts /workspace/apps/ai/contracts
 COPY apps/ai/tests/recommendation/fixtures /workspace/apps/ai/tests/recommendation/fixtures
 # The ITEM fixture corpus is read through its manifest (checksums, kinds), and PolicyPinsParityTest
