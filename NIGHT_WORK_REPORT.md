@@ -1,6 +1,6 @@
 # 밤 작업 보고서 — 2026-09-12
 
-프론트엔드 완성도 작업. `frontend` 브랜치에 커밋 8개, **push 안 함**.
+프론트엔드 완성도 작업. `frontend` 브랜치에 커밋 10개, **push 안 함**.
 
 ---
 
@@ -102,12 +102,39 @@ KTO 출처 링크(84×12, 문장 속 inline 링크 — WCAG 2.5.5/2.5.8 면제 �
 
 FE-506이 구현 완료인데 `planned`이었습니다.
 
+### 🔴 9. 세션이 만료되면 아무 말 없이 영원히 로딩 → 고침 (`62c586d`)
+
+`AppShell`이 `useCsrfToken()`을 호출하고 **반환값을 버리고 있었습니다.**
+`PROBLEM_POLICY`는 `UNAUTHORIZED`를 `severity: screen`·`recovery: restart-session`으로
+선언하는데 둘 다 렌더되지 않았습니다.
+
+만료된 쿠키로 `/feed`를 열면: CSRF 재발급이 401(재시도 안 함 — 만료된 세션에 다시
+bootstrap하면 **다른 익명 owner**가 생겨 여행이 전부 끊깁니다), 화면의 요청도 401,
+그리고 피드는 `trips.isSuccess`로 게이팅돼 있어 영원히 로딩. 직접 렌더해서 확인한
+body 전체가 `"Browse Loading"`이었습니다.
+
+이제 세션 종료 화면과 "다시 시작하기"를 보여줍니다. 재시작은 splash로 보내서
+**사용자의 의도적 행동**으로 만듭니다 — 여기서 자동 bootstrap하면 방금 "여행은 다시
+볼 수 있다"고 약속한 그 여행을 끊게 됩니다.
+
+401만 이 화면을 띄웁니다. 네트워크 끊김은 복구 가능하고 데이터도 그대로인데 "세션이
+만료됐다"고 말하면 거짓말입니다.
+
+### 🔴 10. 여행 목록이 실패하면 피드가 영원히 로딩 → 고침 (`94e30f8`)
+
+위 9번 테스트를 쓰다가 발견했습니다. 피드 쿼리는 `trips.isSuccess`로 게이팅되는데
+(cursor가 여행 선택에 묶여 있어서) **`trips.isError`를 읽는 코드가 없어서**, 여행
+목록이 실패하면 피드 쿼리가 비활성 상태로 남고 `isPending`이 영원히 true였습니다.
+
+재시도는 둘 다 refetch합니다. 피드만 재시도하면 카드는 돌아오지만 **"피드를 불러오지
+못했어요" 배너가 그대로 남은 채**입니다 — `trips.refetch()`를 빼고 돌려서 확인했습니다.
+
 ## 4. 검증 결과
 
 | 검사 | 결과 |
 |---|---|
-| `verify:ci` | ✅ **825 tests / 55 files**, lint·format·tsc·build·budget 통과 (시작 시 793) |
-| Playwright E2E | ✅ **48 passed**, 29.4s |
+| `verify:ci` | ✅ **832 tests / 55 files**, lint·format·tsc·build·budget 통과 (시작 시 793) |
+| Playwright E2E | ✅ **48 passed**, 31.0s |
 | `validate_docs.py` | ✅ 통과 |
 | markdownlint | ✅ 0 issues |
 | 번들 budget | ⚠️ JS 95%, **CSS 96%** — 상한에 근접 |
@@ -126,7 +153,6 @@ E2E 실패 3건(`session.spec`)은 **`apps/api`(:8080)를 직접 호출**하는 
 
 | 문제 | 왜 안 고쳤나 |
 |---|---|
-| `AppShell`이 `useCsrfToken()` 반환값을 버림 — 세션 만료 시 피드가 영구 로딩 | **다음 순위 1번.** 시간이 부족했습니다. 계약상 `severity: screen`·`recovery: restart-session`인데 화면이 없습니다 |
 | `FeedScreen` cursor reset 이펙트가 재실패 시 무한 루프 가능 | 재현 조건이 좁고, 수정이 피드 페이지네이션 전체를 건드립니다 |
 | `LockRow`의 `TRIP_CHANGED`가 trip을 refetch하지 않음 | FE-307 범위. 재시도가 같은 stale ETag를 보냅니다 |
 | `TripAddButton` 36×36 (44px 미만) — 주석은 44px라고 주장 | 피드 카드가 E2E `SCREENS` 목록에 없어 측정되지 않습니다. 목록 추가 + 수정이 한 세트라 분리했습니다 |
@@ -157,11 +183,13 @@ E2E 실패 3건(`session.spec`)은 **`apps/api`(:8080)를 직접 호출**하는 
 
 ## 7. 다음에 하면 좋은 작업 (우선순위 순)
 
-1. **`AppShell`의 세션 만료 처리** — 위 5번 1행. 사용자가 빠져나올 방법이 없습니다.
-2. **FE-203 후보 담기** — 피드의 `+` 버튼이 현재 죽어 있습니다. 피드→여행 연결이 끊긴 상태.
-3. **FE-503** — BA-051이 열리면 최적화 결과의 before/after. 지금은 "준비 중"에서 멈춥니다.
-4. `TripAddButton` 44px + E2E `SCREENS`에 `/feed` 추가 (한 세트).
-5. 나머지 접근성 항목(포커스 복귀, 중복 버튼 이름).
+1. **FE-203 후보 담기** — 피드의 `+` 버튼이 현재 죽어 있습니다(접근성 이름은 있는데
+   눌러도 아무 일도 안 납니다). 피드→여행 연결이 끊긴 상태라 체감이 큽니다.
+2. **FE-503** — BA-051이 열리면 최적화 결과의 before/after. 지금은 "준비 중"에서 멈춥니다.
+3. `TripAddButton` 44px + E2E `SCREENS`에 `/feed` 추가 (한 세트 — 피드 카드가 측정
+   대상에 없어서 36×36이 지금까지 안 잡혔습니다).
+4. 나머지 접근성 항목(후보 일정화 후 포커스 복귀, MustVisit 중복 버튼 이름).
+5. `FeedScreen` cursor reset 무한 루프 가능성.
 
 ## 8. 로컬 E2E 주의사항 (시간 낭비 방지)
 
@@ -177,6 +205,9 @@ E2E 실패 3건(`session.spec`)은 **`apps/api`(:8080)를 직접 호출**하는 
 ## 9. 커밋
 
 ```
+94e30f8 fix(frontend): FE-201 stop the feed hanging when the trip list fails
+62c586d fix(frontend): FE-101 show an ended session instead of loading for ever
+5d4ccc1 docs: night work report for 2026-09-12
 700cdde fix(frontend): FE-102 let the wizard go back a step instead of trapping the draft
 b529428 feat(frontend): FE-401 give the live tab a screen that says what it is
 fccc242 docs(frontend): FE-502 FE-506 record the two tasks that are actually built
