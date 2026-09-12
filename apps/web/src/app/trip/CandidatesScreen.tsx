@@ -380,7 +380,14 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
 
       {remove.isError ? (
         <p className={styles.state} role="alert">
-          {t('candidates.removeFailed')}
+          {/* The server refuses to dismiss a candidate that is already on the
+              itinerary (BA-034: "A scheduled candidate is removed through its
+              trip item, not dismissed"), so a generic failure here would leave
+              the user pressing a button that can never succeed. This names the
+              place to remove it from instead. */}
+          {isProblem(remove.error) && remove.error.code === 'LOCK_CONFLICT'
+            ? t('candidates.removeScheduled')
+            : t('candidates.removeFailed')}
         </p>
       ) : null}
     </article>

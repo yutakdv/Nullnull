@@ -323,6 +323,15 @@ export const handlers = [
   }),
   http.delete(`${API_BASE}/trips/:tripId/candidates/:candidateId`, ({ params }) => {
     const candidates = currentCandidates();
+    const target = candidates.items.find((c) => c.id === String(params.candidateId));
+    // Only an ACTIVE candidate can be dismissed. BA-034's CandidateService
+    // throws LOCK_CONFLICT for a SCHEDULED one — "A scheduled candidate is
+    // removed through its trip item, not dismissed" — and a mock that
+    // accepted every id let the screen offer a button the server always
+    // refuses.
+    if (target && target.status !== 'ACTIVE') {
+      return problemResponse('LOCK_CONFLICT');
+    }
     // DISMISSED rather than deleted: the contract keeps the row so the place is
     // not re-suggested. The panel filters it out.
     candidateState = {

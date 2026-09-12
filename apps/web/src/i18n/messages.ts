@@ -557,6 +557,10 @@ export const messages = {
     'candidates.remove': '담아둔 장소에서 제거',
     'candidates.removeNamed': '{name} 담아둔 장소에서 제거',
     'candidates.removeFailed': '제거하지 못했어요',
+    // 서버는 일정에 올라간 후보의 dismiss를 409로 거절한다("A scheduled
+    // candidate is removed through its trip item, not dismissed"). 일반 실패로
+    // 보여주면 다시 눌러도 똑같이 실패하므로, 어디서 빼야 하는지 말한다.
+    'candidates.removeScheduled': '이미 일정에 올라간 곳이에요. 일정에서 빼주세요',
     'wizard.interests.later': '나중에 고를래요',
     'wizard.planning.title1': '어디까지',
     'wizard.planning.title2': '정하셨나요?',
@@ -1091,6 +1095,8 @@ export const messages = {
     'candidates.remove': 'Remove from saved',
     'candidates.removeNamed': 'Remove {name} from saved',
     'candidates.removeFailed': "We couldn't remove it",
+    'candidates.removeScheduled':
+      'This place is already on your itinerary. Remove it from there',
     'wizard.interests.later': "I'll choose later",
     'wizard.planning.title1': 'How much have you',
     'wizard.planning.title2': 'planned already?',
