@@ -942,7 +942,15 @@ export interface components {
             statusTokenExpiresAt: string;
             /** Format: date-time */
             requestedAt: string;
-            /** Format: uri-reference */
+            /**
+             * Format: uri-reference
+             * @description Absolute API path of the status resource, including the `/api/v1` server base - unlike
+             *     `runLink`, which is a client router path and carries no base. A client using the generated
+             *     client should call getDeletionRequest with `requestId` rather than reusing this string,
+             *     because that client already applies the base and would double it. Treat this as
+             *     informational, or as the target for a raw request that applies no base of its own.
+             * @example /api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666
+             */
             statusUrl: string;
         };
         DeletionRequestStatus: {

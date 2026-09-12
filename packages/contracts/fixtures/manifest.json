@@ -21,7 +21,7 @@
         "DeletionRequestStatus"
       ],
       "count": 5,
-      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies.",
+      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies. deletion-receipt.statusUrl now carries the /api/v1 server base, matching what DeletionService actually emits; it previously omitted it and the contract constrained neither, so both spellings passed. The contract now describes statusUrl as an API path and DeletionIT pins its prefix to spring.mvc.servlet.path so the literal and the configured path cannot drift.",
       "serverVerified": false
     },
     "trips": {
