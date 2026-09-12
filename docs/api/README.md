@@ -224,13 +224,13 @@ Backend는 stack trace, SQL, 외부 API body, secret을 detail에 넣지 않는�
 
 같은 owner의 command가 겹쳐 생기는 직렬화 대기는 server가 bounded retry로 흡수하므로 별도 code가 없고, 재시도 예산까지 소진되면 `INTERNAL_ERROR`다.
 
-모든 응답은 `X-Request-ID`를 제공한다. `requestId`는 server가 만든 UUIDv7이며, client가 보낸 `X-Request-ID`가 `^[A-Za-z0-9._-]{8,64}$`를 만족하면 그 값을 그대로 돌려준다. frontend는 이 값을 parsing하지 않고 표시와 지원 문의에만 쓴다. session 보호 operation은 명시되지 않아도 401, 모든 operation은 429 `RATE_LIMITED`를 반환할 수 있으며 429/503의 `Retry-After`는 초 단위다. CI는 이 공통 규칙과 operation별 response가 어긋나지 않는지 검사한다.
+모든 응답은 `X-Request-ID`를 제공한다. `requestId`는 server가 만든 UUIDv7이며, client가 보낸 `X-Request-ID`가 `^[A-Za-z0-9._-]{8,64}$`를 만족하면 그 값을 그대로 돌려준다. frontend는 이 값을 parsing하지 않고 표시와 지원 문의에만 쓴다. session 보호 operation은 명시되지 않아도 401을 낼 수 있고, 429/503의 `Retry-After`는 초 단위다. 429 `RATE_LIMITED`도 모든 operation에서 도달 가능하지만 **`apps/api`는 429를 만들지 않는다** — code가 선언된 이유는 client가 **edge 계층이 돌려주는 거절**을 처리할 수 있게 하기 위해서이고 그 계층은 이 저장소 밖에 있다. 429가 선언돼 있다는 것을 이 서비스가 rate limit한다는 증거로 쓰지 않는다(A-025, D-033). CI는 이 공통 규칙과 operation별 response가 어긋나지 않는지 검사한다.
 
 ### Optimization 단계별 오류
 
 | 단계 | 오류 code | trip 변경 여부 | FE 처리 |
 | --- | --- | --- | --- |
-| create preflight | `TRIP_CHANGED`, `LOCK_CONFLICT`, `RATE_LIMITED` | 없음 | 최신 trip/잠금 표시 |
+| create preflight | `TRIP_CHANGED`, `LOCK_CONFLICT` | 없음 | 최신 trip/잠금 표시 |
 | async run | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `ROUTE_UNAVAILABLE`, `NO_IMPROVEMENT` | 없음 | run failure 화면과 허용 CTA |
 | APPLY | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `NO_IMPROVEMENT`, `ROUTE_UNAVAILABLE`, `APPLY_FAILED` | 실패 시 없음 | 동일 action 결과 조회 후 재시도/재계산 |
 | REVERT | `TRIP_CHANGED`, `REVERT_WINDOW_EXPIRED`, `APPLY_FAILED` | 실패 시 없음 | 현재 trip 유지·만료 상태 고정 |

@@ -97,7 +97,7 @@ BA 카드와 별개로 두 역할이 공유하는 개발환경·거버넌스·�
 | `CON-003` | FCR-010/011/015 Frontend 인계 계약 확정 | BE/AI |
 | `CON-004` | FCR-010/011/015 fixture용 additive 계약 보강(`attributionShort`, `revertAvailability`, KTO example, link host) | BE/AI |
 | `CON-005` | FE mock 근거 제공 — `Problem` 등 response example과 contract fixture, 오류 계약 문구 정정 | BE/AI |
-| `CON-006` | PM-019 operation별 오류 선언 보강 — 50개 operation 중 401은 4개, 429는 4개만 선언돼 있고 403은 0개, `default`는 6개가 없다. BA-003이 caller에게 보이게 만든 `413 INVALID_REQUEST`(body 상한)도 여기서 operation별로 선언한다. 누락 선언과 재사용 response를 채우고 생성 client를 재생성한다. 재생성이 빠지면 `api-client-diff` gate가 실패한다. 착수는 Frontend PR #17 병합 다음 PR | BE/AI |
+| `CON-006` | PM-019 operation별 오류 선언 보강. **채우는 대상은 401·403·`default`이고 429는 아니다**(#170 — A-025로 `apps/api`에 producer가 없으므로 새로 열거하지 않는다. 기존 선언 둘은 edge가 낼 수 있고 응답 삭제가 breaking이라 남긴다). BA-003이 caller에게 보이게 만든 `413 INVALID_REQUEST`(body 상한)도 여기서 operation별로 선언한다. 누락 선언과 재사용 response를 채우고 생성 client를 재생성한다. 재생성이 빠지면 `api-client-diff` gate가 실패한다 | BE/AI |
 | `DX-001` | Node/npm/Java/Gradle wrapper/Docker의 exact version lock과 검증 script | 공동 |
 | `DX-002` | local compose, deterministic seed, local-only reset guard, generated client 명령 | 공동 |
 | `DX-003` | `docs-contract` CI와 `docker-integration` baseline/full 전환, `verify_target_stack.py`의 marker/task/stage/digest/internal-network fail-closed gate, npm audit 보고서의 build-time 생성과 host offline 판정(`security-scan`은 내보내기만 한다). 보고서 신선도는 캐시 없는 CI 빌드가 보장하며 게이트는 보고서를 나이로 거부하지 않는다 — 로컬 실행은 캐시된 레이어의 보고서를 판정할 수 있다 | BE/AI |
