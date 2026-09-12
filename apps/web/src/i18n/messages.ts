@@ -62,6 +62,13 @@ export const messages = {
     'splash.tagline2': '취향으로 이어지는 여행 SNS',
     'splash.retry': '다시 시도',
     'splash.failed': '시작하지 못했어요. 다시 시도해주세요.',
+    // 세션 만료 (FR-SES-02). PROBLEM_POLICY의 UNAUTHORIZED는 severity `screen`,
+    // recovery `restart-session`이다. 다시 시작은 사용자가 직접 눌러야 한다 —
+    // 만료된 세션에 자동으로 bootstrap하면 다른 익명 owner가 생겨 그동안의
+    // 여행이 전부 끊긴다(SessionSafetyIT.expiration).
+    'session.expired': '세션이 만료됐어요. 다시 시작해주세요',
+    'session.expiredNote': '이 기기에 저장된 여행은 다시 시작하면 볼 수 있어요',
+    'session.restart': '다시 시작하기',
 
     // A-2 language (388:277). The heading is bilingual in both locales by
     // design: the screen has to be readable before a language is chosen.
@@ -641,6 +648,9 @@ export const messages = {
     'splash.tagline2': 'a travel feed that follows your taste',
     'splash.retry': 'Try again',
     'splash.failed': "We couldn't start. Please try again.",
+    'session.expired': 'Your session ended. Please start again',
+    'session.expiredNote': 'Trips saved on this device come back when you start again',
+    'session.restart': 'Start again',
 
     // A-2 language (643:4088, the EN-selected variant). The heading stays
     // bilingual in both locales: the screen must be readable before choosing.
