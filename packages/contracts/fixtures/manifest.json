@@ -67,10 +67,10 @@
       "serverVerified": false
     },
     "system": {
-      "schema": "DemoReadiness",
-      "count": 1,
-      "basis": "BE/AI authored from DemoCapabilityQuery and PROVEN against it: apps/api's DemoReadinessContractTest builds the real query with every flag OFF and asserts it produces exactly this document, so the detail strings are the server's own and not a transcription. NOT_READY with three UNAVAILABLE capabilities is the correct P0 answer - no capability has a server-side source yet, and a FEATURE_* flag turned ON without one fails startup rather than advertising it. There is no READY or DEGRADED fixture because producing one would be a claim about behaviour that does not exist.",
-      "serverVerified": true
+      "schema": "DemoReadiness, HealthStatus, ReadinessStatus",
+      "count": 3,
+      "basis": "BE/AI authored from the operations controllers. Mixed evidence, stated per file rather than collapsed into one flag. demo-readiness-not-ready.json is PROVEN: apps/api's DemoReadinessContractTest builds the real DemoCapabilityQuery with every flag OFF and asserts it produces exactly that document, so its detail strings are the server's own. NOT_READY with three UNAVAILABLE capabilities is the correct P0 answer - no capability has a server-side source yet, and a FEATURE_* flag turned ON without one fails startup rather than advertising it; there is no READY or DEGRADED fixture because producing one would be a claim about behaviour that does not exist. health-live.json and readiness-ready.json are DERIVED, not proven: the values come from HealthController (status UP; checks named database, jobs and recommendation with detail null, because every probe returns null detail when READY) but no test regenerates them, so a probe renaming itself would not be caught here. NOT_READY is absent from readiness-ready.json on purpose - HealthController throws 503 SOURCE_UNAVAILABLE instead of answering 200 in that state. serverVerified stays false for the set because two of the three are not captured or proven.",
+      "serverVerified": false
     }
   }
 }

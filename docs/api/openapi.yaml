@@ -89,6 +89,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+              examples:
+                alive:
+                  summary: "The process answers"
+                  description: |
+                    Liveness says only that this process is running; it makes no claim about the database, the job
+                    runner or the recommendation service. Those belong to getReadiness, and a load balancer that
+                    reads this one as readiness will keep sending traffic to a task that cannot serve it.
+                  value:
+                    status: "UP"
+                    time: "2026-09-10T00:00:00Z"
   /health/ready:
     get:
       tags: [System]
@@ -102,6 +112,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReadinessStatus"
+              examples:
+                everyCheckReady:
+                  summary: "Every infrastructure check answers"
+                  description: |
+                    `checks` is the INFRASTRUCTURE namespace - database, jobs, recommendation - and is what decides
+                    whether this task stays in the load balancer. Product capabilities are a different list on
+                    getDemoReadiness, so a READY here says nothing about whether anything is demonstrable.
+                    `detail` is null on a passing check because it carries operator-safe text only when something
+                    is wrong; it never carries a hostname, a credential or an exception message. NOT_READY never
+                    reaches this response at all - it is answered as 503 SOURCE_UNAVAILABLE with Retry-After.
+                  value:
+                    status: "READY"
+                    checks:
+                      - name: "database"
+                        status: "READY"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: null
+                      - name: "jobs"
+                        status: "READY"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: null
+                      - name: "recommendation"
+                        status: "READY"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: null
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 

@@ -64,6 +64,8 @@ import deletionStatusCompleted from "../fixtures/session/deletion-status-complet
 import deletionStatusPartialFailed from "../fixtures/session/deletion-status-partial-failed.json" with { type: "json" };
 import deletionStatusFailed from "../fixtures/session/deletion-status-failed.json" with { type: "json" };
 import demoReadinessNotReady from "../fixtures/system/demo-readiness-not-ready.json" with { type: "json" };
+import healthLive from "../fixtures/system/health-live.json" with { type: "json" };
+import readinessReady from "../fixtures/system/readiness-ready.json" with { type: "json" };
 
 type Problem = components["schemas"]["Problem"];
 export type ProblemCode = Problem["code"];
@@ -103,6 +105,12 @@ export const systemFixtures = {
   // one would be a claim about behaviour that does not exist.
   demoReadinessNotReady:
     demoReadinessNotReady as components["schemas"]["DemoReadiness"],
+  // Liveness says only that the process runs. It makes no claim about the database, the jobs
+  // runner or the recommendation service, so it must not be read as readiness.
+  healthLive: healthLive as components["schemas"]["HealthStatus"],
+  // The INFRASTRUCTURE checks, which is a different list from the product capabilities above.
+  // detail is null on a passing check; NOT_READY never reaches a 200 at all (it is a 503).
+  readinessReady: readinessReady as components["schemas"]["ReadinessStatus"],
 };
 
 export const sessionFixtures = {

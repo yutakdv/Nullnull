@@ -43,6 +43,8 @@ const FIXTURE_OF = {
   accepted: 'session/deletion-receipt.json',
   running: 'session/deletion-status.json',
   noCapabilityHasASource: 'system/demo-readiness-not-ready.json',
+  alive: 'system/health-live.json',
+  everyCheckReady: 'system/readiness-ready.json',
   completed: 'session/deletion-status-completed.json',
   partialFailed: 'session/deletion-status-partial-failed.json',
   failed: 'session/deletion-status-failed.json',
