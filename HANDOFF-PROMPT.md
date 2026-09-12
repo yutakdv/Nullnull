@@ -398,6 +398,16 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **이것이 저장소에 없던 장치다.** 이 세션 내내 모은 것은 "통과하지만 아무것도 증명하지 않는 검사"인데, 그 **짝**은 "완전히 구현됐지만 발화할 수 없는 가드"다. 앞의 것은 변이로 잡히지만 뒤의 것은 변이로도 안 잡힌다 — 가드가 옳고 다만 도달 불가능하기 때문이다. **도달 가능성을 따로 단언해야 한다.**
 
+#### 그리고 C4 smoke는 애초에 돌 수 없는 상태였다
+
+승인을 기다리는 동안 실행 경로를 코드로 따라갔더니 **`ktoForecastSmoke`가 성공할 수 없었다.** 그 main은 `KtoForecastSnapshotStore.findFreshRequest`를 요구하고, 그 query는 **`place_external_refs`를 join**한다. 그 행을 만드는 것은 `KtoSnapshotCatalogIngest` 하나뿐인데 — **production 호출자가 없다.** `grep -rn "CatalogIngest" apps/api/src` 결과가 interface·구현·**integration test 둘**뿐이다.
+
+C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 분리다(그 javadoc: *"Calling this service is explicit"*). 그런데 **명시적으로 부를 방법이 test 밖에 없었다.** 그래서 `ktoSmoke` → `ktoForecastSmoke` 순서는 언제 돌려도 `NoVerifiedKtoMappingException`으로 끝난다 — **불변식 12의 C4 절반에 실행 가능한 경로가 없었다.**
+
+`ktoCanonicalIngest`(`KtoCanonicalIngestMain`)를 추가해 그 명시적 호출을 만들었다. 외부 호출을 하지 않으므로 provider 승인 flag가 없다 — **승인은 snapshot을 만든 호출에 이미 붙어 있었다.** 출력은 `placeId` 한 줄이고, 그게 3단계가 `NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID`로 받는 값이다. canonical 행을 쓰는 것은 **공개하는 것이 아니다** — 공개 projection은 `nullnull.catalog.public-enabled`(`CatalogPublicationProperties`)가 따로 막고, 이건 거기를 건드리지 않는다. 세 단계 명령은 `ENVIRONMENT.md` §7에 있다.
+
+**이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
+
 #### 규칙
 
 **validator에 관문을 추가할 때 등급을 함께 적는다.** B를 A로 바꾸는 방법은 하나뿐이다 — 승인된 harness를 실제로 돌려 그 코드가 실응답을 처리하게 하는 것. 그때까지 B는 "검증됐다"가 아니라 **"아직 안 본 곳"**이다.
