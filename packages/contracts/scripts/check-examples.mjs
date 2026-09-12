@@ -42,6 +42,7 @@ const FIXTURE_OF = {
   anonymous: 'session/owner-profile-anonymous.json',
   accepted: 'session/deletion-receipt.json',
   running: 'session/deletion-status.json',
+  noCapabilityHasASource: 'system/demo-readiness-not-ready.json',
   completed: 'session/deletion-status-completed.json',
   partialFailed: 'session/deletion-status-partial-failed.json',
   failed: 'session/deletion-status-failed.json',

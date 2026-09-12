@@ -253,6 +253,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DemoReadiness"
+              examples:
+                noCapabilityHasASource:
+                  summary: "The P0 answer: nothing is demonstrable yet"
+                  description: |
+                    This is the CORRECT answer today, not a failure. BA-003 draws the line at "a capability with
+                    nothing behind it is never advertised as ready", and in P0 no capability has a server-side
+                    source - no live provider, no replay dataset, no optimizer - so all three report UNAVAILABLE
+                    and overall is NOT_READY. A FEATURE_* flag can only turn a capability OFF; turning one ON with
+                    no source behind it fails startup rather than publishing a claim the server cannot keep.
+                    Every checkedAt is the same instant because one readiness pass stamps them all. The slice that
+                    adds a source is the slice that changes this response.
+                  value:
+                    overall: "NOT_READY"
+                    capabilities:
+                      - name: "live"
+                        status: "UNAVAILABLE"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: "FEATURE_LIVE_DATA is OFF and no server-side source answers this capability yet"
+                      - name: "replay"
+                        status: "UNAVAILABLE"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: "FEATURE_REPLAY_MODE is OFF and no server-side source answers this capability yet"
+                      - name: "optimization"
+                        status: "UNAVAILABLE"
+                        checkedAt: "2026-09-10T00:00:00Z"
+                        detail: "FEATURE_OPTIMIZATION_ITEM is OFF and no server-side source answers this capability yet"
+                    checkedAt: "2026-09-10T00:00:00Z"
         default:
           $ref: "#/components/responses/Problem"
   /session:

@@ -65,6 +65,12 @@
       "count": 4,
       "basis": "getPost has no OpenAPI example. The post id matches the feed's first card so a card can open its own detail, and the places carry the same sourceAttribution the feed does (CMP-ATT-001). Includes a saved variant and a SavedPostState. savePost's 200 and 201 now have openapi.yaml examples pinned to saved-post-state-duplicate.json and saved-post-state.json; the two differ only in `duplicate`, and savedAt is identical on purpose because saving again must not move the timestamp. getPost still has no example: its places carry categoryName \"고궁\" while the server returns null (#129). Place codes use the HS/11 pair: categoryCode and regionCode are opaque and provider-derived per the contract, so an invented taxonomy does not satisfy it. Only 경복궁's HS/11 came from an actual detailCommon2 call - the others share its SHAPE and are not themselves verified provider values. categoryName and regionName are null because JdbcCatalogPlaceQuery returns null for both until a reviewed code-to-label mapping exists; a fixture that fills them promises a label the server cannot produce.",
       "serverVerified": false
+    },
+    "system": {
+      "schema": "DemoReadiness",
+      "count": 1,
+      "basis": "BE/AI authored from DemoCapabilityQuery and PROVEN against it: apps/api's DemoReadinessContractTest builds the real query with every flag OFF and asserts it produces exactly this document, so the detail strings are the server's own and not a transcription. NOT_READY with three UNAVAILABLE capabilities is the correct P0 answer - no capability has a server-side source yet, and a FEATURE_* flag turned ON without one fails startup rather than advertising it. There is no READY or DEGRADED fixture because producing one would be a claim about behaviour that does not exist.",
+      "serverVerified": true
     }
   }
 }
