@@ -67,11 +67,15 @@ class AccessLogFilterTest {
     @Test
     @DisplayName("BA-003-T2 the access log carries no header value, whatever the request sent")
     void theLogLineNeverCarriesAHeader() throws Exception {
-        // The filter's own javadoc says "never a header", and until now that was prose. Every
-        // credential this product has travels in one - the session cookie, the CSRF token, and the
-        // deletion status token (PM-018, whose receipt is otherwise kept out of the database and
-        // the job payload by name). A line added to the log statement would leak all three and no
-        // test would notice.
+        // What this adds is the FIELD SET, not canary absence. HttpPolicyIT already attaches a
+        // ListAppender to the ROOT logger and asserts its canary reaches no log line, which covers
+        // this filter's line too - so "a header value does not leak" was already held.
+        //
+        // What it did not hold is a field arriving that HttpPolicyIT's canary does not travel in.
+        // Measured: adding `auth={}` fed by request.getHeader("X-Deletion-Status-Token") logs
+        // `auth=null` there, because that test sends X-Canary, and it stays green. The filter's
+        // javadoc says "never a header" and the deletion status token, the CSRF token and the
+        // session cookie all arrive as one, so the line's shape is pinned here instead.
         ch.qos.logback.classic.Logger logger =
                 (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AccessLogFilter.class);
         ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =

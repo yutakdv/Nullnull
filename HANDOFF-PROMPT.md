@@ -439,7 +439,11 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 | **오너/정책** | PM-017(세션 만료·GC 값), PM-022 배포 절반, PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
 | **키·게이트 대기** | PM-014(KTO 키), PM-010(데이터가 먼저), PM-005(BA-060 미구현) | 아니오 |
 
-**PM-018을 따라가다 실제 공백을 하나 찾았다**: token은 header로 오는데 `AccessLogFilter`의 "never a header"가 주석에만 있었다. `AccessLogFilterTest`가 이제 cookie·CSRF·삭제 token·Authorization을 실은 요청의 log 줄에 그 값이 없음과 문서화된 다섯 필드뿐임을 단언한다. **문서에만 있는 안전 속성은 PM 항목을 따라갈 때 함께 찾는다.**
+**PM-018을 따라가다 access log의 필드 집합을 고정했다 — 다만 처음 주장한 만큼 큰 공백은 아니었다.** "log 쪽에 단언이 없다"고 적었다가 `HttpPolicyIT`를 읽고 정정했다: 그 test는 **root logger**에 appender를 붙여 canary가 어떤 log 줄에도 없음을 이미 단언하고 있었고, 그 범위에 이 filter의 줄도 들어간다.
+
+실제로 비어 있던 것은 **필드가 늘어나는 경우**다. canary 검사는 *그 canary 값이* 없음을 보므로, 그 test가 보내지 않는 header는 통과한다 — 실측: log 문에 `auth={}`를 `X-Deletion-Status-Token`으로 채우는 변이는 `HttpPolicyIT`에서 `auth=null`로 찍히고 초록이다. `AccessLogFilterTest`가 이제 줄이 문서화된 다섯 필드뿐임을 단언해 그 변이를 RED로 만든다.
+
+**교훈 둘.** 하나, 문서에만 있는 안전 속성은 PM 항목을 따라갈 때 함께 찾는다. 둘, **"단언이 없다"고 쓰기 전에 반대편 test를 읽는다** — 이 세션에서 겹치는 가드를 못 보고 새 공백이라고 주장한 것이 이 한 번이다.
 
 **BA-022 label 절반은 게이트가 아니라 근거가 막고 있다.** 자세한 것은 BA-022 카드에 적었다. 요지는 공식 포털이 "법정동코드정보"·"분류체계코드정보" 기능의 **존재만 적고 operation 이름도 응답 필드도 주지 않으며**, 활용가이드 사이트는 SPA라 fetch로 읽히지 않는다는 것이다. 서드파티가 하드코딩한 `lclsSystm1` 표는 우리 example과 값이 맞지만 license·provenance가 없어 출처로 쓸 수 없다. **#109가 정한 "공식 활용가이드 전까지 정본으로 적지 않는다"를 그대로 따른다.** 허용 목록 밖 operation을 실호출해 보는 것도, 새 source를 등록하는 것도 오너 결정이다.
 
