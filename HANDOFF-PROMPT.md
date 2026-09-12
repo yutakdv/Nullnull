@@ -418,6 +418,25 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 
 **이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
 
+#### PM-023 — **개발 키로 제출한다(2026-09-13 오너 결정). 문서 두 줄을 그에 맞췄다**
+
+제출 자격 결정 자체는 오너의 것이지만, **결정과 무관하게 참이어야 하는 사실**은 지금 확인할 수 있다.
+
+**코드에는 운영키 전제가 없다.** `ApprovalState.permitsCollection()`이 `DEV_APPROVED || PROD_APPROVED`이고 `JdbcSourceQuotaStore`의 SQL도 `approval_state IN ('DEV_APPROVED','PROD_APPROVED')`다. 등록부의 두 KTO 행이 `DEV_APPROVED`로 **이미 수집을 허용**하며, 오늘 실호출이 그 상태로 성공했다. contest profile의 startup invariant도 키의 **승인 등급**이 아니라 base URL allowlist와 feature flag만 본다.
+
+**그런데 문서 두 줄은 다르게 적는다.**
+
+- `COMPETITION_COMPLIANCE_MATRIX.md:54` (CMP-KTO-001): *"browser가 아닌 Backend gateway가 **운영키로** 호출"*
+- `SUBMISSION_RUNBOOK.md:245`: 차단 조건으로 *"KTO **운영키**의 실제 호출 또는 서비스 화면 사용 증거가 없음"*
+
+나머지 줄들은 운영계정을 **요건이 아니라 기록 대상**으로 다룬다(*"운영계정 상태"*, *"신청 여부"*). 즉 **같은 문서 안에서 두 줄만 전제가 달랐다.**
+
+**오너가 결정했다: API 운영계정을 신청하지 않고 제출은 개발 키로 간다.** 그래서 두 줄을 고쳤다 — CMP-KTO-001은 *"server-side로 호출하며 **키 등급은 요건이 아니다**"* 로, RUNBOOK의 차단 조건은 *"실제 server-side 호출 증거가 없음(키 등급과 무관)"* 으로. 이는 PM-023 본문의 분석과도 일치한다: *"필수는 실제 KTO OpenAPI 활용과 호출/서비스 사용 내역이다. 승인된 운영키·추가 quota를 요구하는 팀 기준을 공식 자격요건으로 확대하지 않는다."* **PM-023은 닫힌다.**
+
+그리고 그 요건은 **이미 충족돼 있다** — 오늘 `DEV_APPROVED` 상태로 실제 server-side 호출이 성공했고(`coverage=30`, `rejected=0`) 감사 행이 남았다. 남은 것은 그 증거를 **staging에서** 다시 만드는 것뿐이다(`BA-021-T3`·`EV-KTO-02`).
+
+**quota는 데모 규모에서 문제가 아니다(별도 발견은 아래).** `KTO_KOR_SERVICE_2`가 P7D, `KTO_CONCENTRATION_FORECAST`가 PT24H stale이므로 장소 N개에 하루 약 `1.14N`회이고, 1,000회로 **약 870개 장소**를 덮는다. 다만 **회계 단위가 틀렸다** — 자세한 것은 `SOURCE_CATALOG`에 적었다: 키는 하나인데 counter가 source마다 하나라 우리 guard가 **하루 2,000회까지 허용**한다. 초과분은 provider가 `resultCode 22`로 막아 데이터는 안전하지만, 우리 정지선이 먼저 걸리지 않고 `thresholds [60,80,90]` 경고가 **실제 소진율의 절반**에서 울린다.
+
 #### PM-004 — 절반은 이미 FE에 구현돼 있었고, 남은 절반은 범위 질문이다(#180)
 
 **"승인된 브라우저 초안 규칙"은 제안할 것이 없다.** `apps/web/.../trip-create/wizard.ts`가 이미 그 규칙이다 — *"Steps 1-3 are a local draft … the only server call in this flow is `createTrip` at the end"*, 그리고 `toCreateRequest`가 불완전하면 `null`을 반환해 반쯤 채운 여행을 제출할 수 없게 한다. **PM-017·FCR-020에 이어 세 번째로 "결정이 필요하다"고 분류된 것이 이미 상대 코드에 있었다** — 상대 역할의 코드를 먼저 읽는 것이 규칙이다.
@@ -645,7 +664,7 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 | **이미 끝나 있었다(확인함)** | PM-018(삭제 receipt 예외 projection — `DeletionIT`가 token 부재를 단언), PM-022 쿠키 절반(`cookieName()`이 `secure`일 때만 `__Host-`, `SessionPropertiesTest`가 양쪽 분기 고정), PM-024 `slotDates`(policy-v1.yaml이 30), PM-020 문서 정정(`SOURCE_CATALOG` §123의 UNKNOWN/NONE 구분, `FIGMA_HANDOFF` §230 문구), PM-023 문구(개인화 ranking은 P2·범위 밖) | — |
 | **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
 | **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
-| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 **배포 절반**(local 절반은 위에서 실측·해소), PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+| **오너/정책** | ~~PM-017~~·~~PM-023~~ **둘 다 2026-09-13 오너 결정으로 닫힘**, PM-022 **배포 절반**(local 절반은 위에서 실측·해소), BA-004 acceptance 집계 규칙 | 아니오 |
 
 **PM-017은 조사해 보니 만들 것이 없다 — 세 항목 다 구현·고정돼 있고 남은 건 숫자 확정뿐이다.** 다시 열어보지 않도록 근거를 적는다.
 
@@ -654,7 +673,9 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 - **cookie 유실 뒤**: 새 익명 owner가 생기고 이전 owner는 orphan이 되어 위 경로로 지워진다. 서버 동작은 정의돼 있고 **안내 문구는 FE 소유**다.
 - **다중 탭 CSRF**: FE `problem-schema` 쪽에서 이미 해소됐다(`problem-policy.ts`의 `reissue-csrf-once`는 silent retry가 아니라 *"token 1회 재발급 후 사용자 재확인"* 이라 PM-017의 *"401 뒤 mutation 자동 재실행 없음"* 을 그대로 만족한다). **FE 이슈를 올리지 않았다.**
 
-남은 것은 `ENVIRONMENT.md`가 **`(제안값)`으로 표시한 세 숫자**(`APP_SESSION_ABSOLUTE_TTL`·`APP_CSRF_TOKEN_TTL`·`nullnull.session.touch-interval`) 확정이고, 그것은 오너 결정이다. **`(제안값)` 표기 자체가 "임의 기입 금지"를 지키고 있는 것이므로 지우지 말 것.**
+**2026-09-13 오너가 세 숫자를 확정했다 — `APP_SESSION_ABSOLUTE_TTL=P90D`, `APP_CSRF_TOKEN_TTL=PT2H`, `nullnull.session.touch-interval=PT1M`.** `ENVIRONMENT.md`에서 그 세 행의 `(제안값)`을 지우고 승인 사실을 적었다. **PM-017은 닫힌다.**
+
+**나머지 `제안값` 20곳은 그대로 두었다**(`APP_IDEMPOTENCY_LOCK_TIMEOUT`, job 값들, provider executor 값들 — 표기 형태가 괄호 없는 ` 제안값`이라 이번 편집과 겹치지 않았고, 실제로 3줄만 바뀐 것을 diff로 확인했다). 그 표기는 **"임의 기입 금지"를 지키는 장치**이므로 각자의 카드 소유자가 확정하기 전에는 지우지 않는다.
 | **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
 
 **PM-013도 절반은 이미 지켜지고 있었고, 지키는 것이 아무것도 없었다.** "혼잡 단계 과장 위험"인데 — KTO 상대 집중률은 **날짜 단위**이고 서울4단계도 공통5단계도 아니다. 확인해 보니 registry의 `metric_definition`이 *"가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님"* 이라고 **정확히** 적고 그게 `metricDefinition`으로 client까지 간다. `ordinal_level`도 NULL로 저장된다.

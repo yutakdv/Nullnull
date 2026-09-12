@@ -64,9 +64,9 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_COOKIE_DOMAIN` | 아니오 | 모든 환경에서 비움 | `__Host-` cookie에 Domain attribute 금지 |
 | `APP_COOKIE_SECURE` | 아니오 | 기본 `true`, `false`는 local 단독 profile만 | test/integration/cloud는 `true`; Domain 금지 |
 | `APP_SESSION_TTL` | 아니오 | `P30D` | idle sliding expiry |
-| `APP_SESSION_ABSOLUTE_TTL` | 아니오 | `P90D` (제안값) | 생성부터 absolute 상한; idle 30일의 3배 |
-| `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` (제안값) | tab token 갱신 주기; session 만료보다 길지 않음 |
-| `nullnull.session.touch-interval` | 아니오 | `PT1M` (제안값) | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록 |
+| `APP_SESSION_ABSOLUTE_TTL` | 아니오 | `P90D` | 생성부터 absolute 상한; idle 30일의 3배. **확정(2026-09-13 오너 승인, PM-017)** |
+| `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` | tab token 갱신 주기; session 만료보다 길지 않음. **확정(2026-09-13 오너 승인, PM-017)** |
+| `nullnull.session.touch-interval` | 아니오 | `PT1M` | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록. **확정(2026-09-13 오너 승인, PM-017)** |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
 | `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
