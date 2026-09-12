@@ -314,6 +314,7 @@ Frontend 담당은 `eligible=false`에서 delta/ranking 문구를 숨기고 reas
 - attribution required: API `MediaAsset`과 Figma 상세/데이터 안내에서 문구 표시.
 - license 불명/만료: placeholder로 degrade하며 다운로드·캐시하지 않는다.
 - provider record별 license가 다르면 source 기본값보다 record license가 우선한다.
+- post 표지는 1st-party 자산만 쓴다(A-024). place 썸네일과 달리 `coverUrl`이 required·non-null이라 권리를 못 대도 null로 접을 수 없고, `PostSummary`에는 credit을 실을 자리가 없기 때문이다. 실제 장소를 사진처럼 묘사하지 않으며 `alt`와 `license.name`에 합성 자산임을 적는다.
 
 ## 12. 외부 데이터 착수 체크리스트
 

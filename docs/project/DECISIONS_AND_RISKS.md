@@ -42,6 +42,7 @@ tags:
 | A-021 | 총괄 PM은 scope·문구·공모전 claim·최종 go/no-go를 승인하되 두 기술 DRI의 safety veto와 필수 review를 대신하지 않음 | [현재 상태와 검수 gate](DECISIONS_AND_RISKS.md) |
 | A-022 | 추천 계산 전체(feed 순서·관련 장소·slot·ITEM·설명 template)는 Python 서비스 `apps/ai`가 담당하고 Spring은 hydration·gateway·재검증·저장을 담당. 공개 OpenAPI는 변경 없음 | [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006), 2026-09-07 결정 |
 | A-023 | D-015 stale threshold는 KTO forecast `PT24H`, KTO place detail 및 내부 catalog rule `P7D`로 고정한다. threshold가 없는 source는 collection하지 않는다 | 2026-09-07 팀 결정; C1 source registry v1 |
+| A-024 | post 표지는 팀이 직접 만든 1st-party 자산만 쓰고 provider 사진을 재배포하지 않는다. `MediaAsset`은 `attributionRequired=false`·`redistributionAllowed=true`로 채우며, 실제 장소를 사진처럼 묘사하지 않는 명시적 일러스트로 제한한다 | 2026-09-13 오너 결정, D-007의 post 절반. provider 사진은 record별 공공누리 유형 심사가 필요하고 `PostSummary`에 credit 경로가 없어 계약 breaking이 된다. 실사풍 합성은 불변식 6의 합성·관측 구분을 깬다 |
 
 ## 2. 열린 결정
 
@@ -55,7 +56,7 @@ tags:
 | D-004 | 장기 계정 로그인 provider가 필요한가? | 공동 | P1 또는 공개 출시 | 익명 session만 | 사용자 요구/계정 복구 정책 ADR |
 | D-005 | production RDS Multi-AZ/ECS 2 task 비용을 승인할 수 있는가? | 공동 | B08/최종 검수 | staging Single-AZ; 실제 사용자 출시 전 go/no-go | AWS calculator + downtime 기준 |
 | D-006 | 오류 추적 SaaS를 추가할 것인가? | FE | B08/최종 검수 | CloudWatch와 client-safe event만 | 개인정보/DPA/비용 검토 |
-| D-007 | 피드/POI seed 이미지·문구의 사용 권리가 확인됐는가? | 공동 | B04 완료 | 직접 제작/공공누리 허용 자산만 | asset ledger와 license link |
+| D-007 | POI/place 이미지·문구의 사용 권리가 확인됐는가? post 표지 절반은 A-024로 닫혔고 provider 사진 쪽만 남았다 | 공동 | B04 완료 | 직접 제작/공공누리 허용 자산만 | asset ledger와 license link |
 | D-008 | P1 게시물 moderation 정책/도구는 무엇인가? | 공동 | P1-CreatePost | 작성 기능 OFF | 신고/삭제/금지 콘텐츠 정책 |
 | D-009 | 개인정보 처리방침상 최종 보존 기간은? | 공동 | B08/최종 검수 | 문서의 짧은 기술 기본값 | 공개 정책/삭제 test |
 | D-010 | 두 팀원의 GitHub handle과 CODEOWNERS 경로는? | 공동 | B01 | CODEOWNERS 생성 보류 | branch protection reviewer 동작 |
