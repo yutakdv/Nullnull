@@ -617,6 +617,29 @@ FE 계약 제안 (승인 대기):
   표시하지 않는다"이지 "분류 미상"이 아니다.
 - `CatalogPlaceApiIT`가 credit 투영과 credit 없는 place의 null을 확인한다. `sourceAttribution`을 항상 null로
   만드는 변이는 두 단언을 RED로 만들었고 복원 SHA가 일치한다.
+- **코드→문구 매핑이 왜 아직 없는지.** 이 절반은 catalog 공개 게이트와 무관하다 — 게이트는
+  *서빙*을 막지 코드표 *수집·저장*을 막지 않는다. 막고 있는 것은 **근거**다. `regionName`은 법정동 코드표,
+  `categoryName`은 `lclsSystm*` 분류체계 코드표가 있어야 하는데, 공식 [공공데이터포털
+  상세](https://www.data.go.kr/data/15101578/openapi.do)는 두 기능("법정동코드정보"·"분류체계코드정보")의
+  **존재만 적고 operation 이름도 응답 필드도 주지 않는다.** `api.visitkorea.or.kr` 활용가이드는 SPA라
+  fetch로 읽히지 않는다. 즉 registry에 등록할 operation 이름조차 확인되지 않았다.
+- 서드파티 저장소가 하드코딩한 `lclsSystm1` 표(`NA` 자연관광, `HS` 역사관광 …)가 우리 example의 경복궁
+  `HS`와 일치하기는 한다. **그래도 출처로 쓰지 않는다** — license·attribution·snapshot provenance가 없어
+  「Contract and data rules」의 외부 record 보존 요건과 불변식 12(승인된 텍스트 출처)를 만족하지 못한다.
+  교차 검증용으로만 쓸 수 있고, 그러려면 먼저 정본이 있어야 한다.
+- 따라서 이 항목은 **[#109](https://github.com/yutakdv/Nullnull/issues/109)가 정한 기준을 그대로 따른다**:
+  "공식 활용가이드로 고정하기 전까지 어느 쪽도 정본으로 적지 않는다." 필요한 것은 구현이 아니라 **공식
+  operation 목록과 응답 스펙**이고, 그것을 얻는 경로(허용 목록 밖 operation 실호출 또는 새 source 등록)는
+  둘 다 오너 결정이다.
+- **`regionName`에는 KTO가 아닌 후보 출처가 있다(진행하지 않음, 결정 대기).** `lDongRegnCd`/`lDongSignguCd`는
+  KTO 고유 코드가 아니라 **법정동 표준 코드**이므로 그 label의 정본은 KTO가 아니라 행정안전부 행정표준코드다.
+  식별된 후보 둘: 공공데이터포털 [15077871 `행정안전부_행정표준코드_법정동코드`](https://www.data.go.kr/data/15077871/openapi.do),
+  그리고 [행정표준코드관리시스템 법정동코드목록조회](https://www.code.go.kr/stdcode/regCodeL.do). 둘 다 공개·문서화된
+  정부 데이터셋이라 operation 이름을 추측할 필요가 없고 license·attribution도 명확하다. **다만 새 provider
+  추가는 오너 결정이므로 등록하지 않았다** — 여기 적는 이유는, 결정할 때 "출처를 찾아야 한다"와 "이 둘 중
+  고르면 된다"가 전혀 다른 질문이기 때문이다.
+- **`categoryName`에는 대안이 없다.** `lclsSystm*`은 KTO 고유 분류체계라 KTO 자체 코드표가 유일한 정본이고,
+  그건 키와 operation 승인이 둘 다 필요하다.
 - **FE 승인 전까지 이 shape를 동결하지 않는다.** 승인 결과는 #34에서 받는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010.
@@ -706,6 +729,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - API: `listRelatedPlaces` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: catalog.place_relations · relation evidence · RelatedPlaceRanker(apps/ai related/rank)
+
+착수 불가 사유(조사 결과): `RelatedPlace.place`가 **required `PlaceSummary`**다. 그 값은 `CatalogPlaceProjectionService.embeddedSummaries`를 지나고 그 첫 줄이 `requirePublicProjection()`이므로, catalog 공개 게이트가 닫혀 있는 동안 `listRelatedPlaces`는 **응답을 만들 수 없다**. 게이트는 BA-021-T3(staging 실호출 증거)까지 열리지 않고 그건 [BA-006](#ba-006)에 달려 있다. 즉 이 카드는 계약이 아니라 **증거**를 기다린다.
 
 구현 순서:
 
@@ -1137,6 +1162,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - API: `parseTripImport`, `remapTripImport`, `confirmTripImport` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `401:1221`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: itinerary_import_drafts structured only · version · import constraints
+
+착수 범위 조사 결과: **`parseTripImport`만은 catalog 게이트와 무관하다.** `ImportDraftItem.place`가 nullable(`PlaceSummary | null`)이라, 붙여넣기 원문을 토큰으로 쪼개 `place: null`과 `unresolved`로 채운 draft는 catalog를 읽지 않고 만들 수 있다. 반면 `remapTripImport`는 토큰을 실제 장소로 해결하므로 게이트를 지나고, `confirmTripImport`는 item을 만들므로 [BA-040](#ba-040)·[BA-041](#ba-041)을 기다린다.
+
+그래도 **parse만 먼저 내지는 않는다**: 확정할 수 없는 draft는 FE가 화면으로 완결할 수 없고, `itinerary_import_drafts`의 저장·TTL·삭제는 그 draft가 쓰일 때 의미가 생긴다. 선행이 풀린 뒤 한 slice로 낸다.
 
 구현 순서:
 

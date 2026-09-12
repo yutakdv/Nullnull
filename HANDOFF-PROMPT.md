@@ -294,7 +294,11 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
 
-**계약 파일이 Gradle task 입력이 아니어서 로컬에서 stale PASS가 났다.** `openapiContractTest`는 `docs/api/openapi.yaml` 경로를 **system property로만** 받았다. property는 up-to-date 검사에 보이지 않으므로, 계약만 고치고 suite를 다시 돌리면 **직전 실행 결과가 그대로 보고된다**. 실측: `listFeed`의 503을 틀린 응답으로 바꾸는 변이가 `--rerun-tasks` 없이는 GREEN이었고, 붙이면 RED였다. CI는 매번 새 checkout이라 항상 돌기 때문에 **게이트가 아니라 개발자의 loop에만 숨어 있었다** — 그래서 "가드가 변이를 못 잡네"로 오진하기 쉽다. `inputs.file(...)`/`inputs.dir(...)`로 openapi·fixtures·events schema를 선언해 고쳤다. **경로를 property로 넘기면 입력으로도 선언한다.**
+**계약 파일이 Gradle task 입력이 아니어서 로컬에서 stale PASS가 났다.** `openapiContractTest`는 `docs/api/openapi.yaml` 경로를 **system property로만** 받았다. property는 up-to-date 검사에 보이지 않으므로, 계약만 고치고 suite를 다시 돌리면 **직전 실행 결과가 그대로 보고된다**. 실측: `listFeed`의 503을 틀린 응답으로 바꾸는 변이가 `--rerun-tasks` 없이는 GREEN이었고, 붙이면 RED였다. CI는 매번 새 checkout이라 항상 돌기 때문에 **게이트가 아니라 개발자의 loop에만 숨어 있었다** — 그래서 "가드가 변이를 못 잡네"로 오진하기 쉽다. `inputs.file(...)`/`inputs.dir(...)`로 선언해 고쳤다. **경로를 property로 넘기면 입력으로도 선언한다.**
+
+그리고 **`openapiContractTest`만 고치고 끝낸 것이 이 세션의 두 번째 "같은 루프의 나머지를 안 본" 사례였다**(첫 번째는 `validate_backend_plan.py`의 `status`만 고친 것). 같은 결함이 네 곳 더 있었고 그중 `recommendationTest`가 가장 위험했다 — **ADR-0006 경계의 parity 가드**이자 policy pin을 보는 유일한 장치인데, `apps/ai` 계약 JSON을 `uv run python -m nullnull_ai.contracts export`로 갱신한 **뒤의 parity 확인이 직전 실행 결과를 보고**했다. 실측으로 확인했다: `policy-v1.yaml`의 `scale: 6 → 7`이 `--rerun-tasks` 없이는 GREEN, 붙이면 RED, 입력 선언 뒤에는 없이도 RED. 내부 계약의 `SlotOut.suggestedTime` type 변경도 같다. 선언한 것은 `nullnull.ai.fixtures.path`(`test`), `nullnull.ai.contract.path`·`nullnull.ai.policy.path`·`nullnull.ai.manifest.path`(`recommendationTest`)다.
+
+변이를 고를 때도 배운 게 있다. 내부 계약에 무관한 top-level key를 넣는 변이는 GREEN이었는데 그건 stale이 아니라 **parity가 보지 않는 것을 건드린 것**이었다. 변이는 **그 가드가 실제로 단언하는 대상**을 건드려야 한다.
 
 **변이가 살아남았을 때 먼저 의심할 것은 가드가 아니라 실행 여부다.** 위 건과 `SendMessage` 이전에 겪은 "BUILD FAILED인데 exit 0"(파이프로 인한) 둘 다, 결과를 읽기 전에 **그 명령이 실제로 무엇을 실행했는지**를 확인했어야 했다.
 
@@ -408,6 +412,23 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
   - 일정 위험: **불변식 12**(제출 서비스가 KTO를 실제 server-side 호출하고 증거를 보존)가 배포 단계에 묶여 있는데, forecast 실호출이 배포 직전에 처음 시도되면 위험하다. 그래서 #109를 미리 푸는 것이 순서상 중요하다.
 - **#118 429 범위**, **#119 `infra:check`** — 자율 판단으로 진행 승인됨. 근거를 PR 본문과 이슈 코멘트에 남긴다.
   - **#119 설계 전제**: `infra/`는 계획상 마지막에 생긴다. 따라서 "부재하면 통과"도 틀렸지만 **"부재하면 즉시 hard fail"도 지금은 틀리다.** 부재를 명시적으로 `blocked`/`not-yet`으로 기록하고 **통과로 집계하지 않는** 형태가 맞다. 조용한 `exit 0`만 없애면 된다.
+
+### 현재 대기 지도 (BA-030~033 구간 종료 시점)
+
+**FE/PM 답을 기다리는 것.** 넷 다 내가 제안이나 질문을 냈고 답이 오면 바로 구현으로 들어간다.
+
+| 이슈 | 기다리는 답 | 오면 고칠 곳 |
+| --- | --- | --- |
+| [#162](https://github.com/yutakdv/Nullnull/issues/162) | `getTrip`의 item 투영: A(503) / B(degraded 상태) | `TripController.TripDayResponse` — 지금 `List.of()` 고정. `TripCreationIT.theDetailProjectionDoesNotYetCarryItems`가 그 사실을 고정하고 있으므로 **투영을 켜면 그 test가 RED가 되고 진짜 단언으로 교체된다** |
+| [#165](https://github.com/yutakdv/Nullnull/issues/165) | PM-009 후보 전이 matrix 결정 1·2 | `removeTripItem` disposition 분기. DB가 이미 강제하는 부분은 `CandidateSchedulingInvariantsIT`가 고정 |
+| [#166](https://github.com/yutakdv/Nullnull/issues/166) | PM-007: FE-305 편집 buffer가 한 item이냐 여러 item이냐 | 한 item이면 `updateTripItem`/`replaceTripItem`을 넓히고, 여러 item이면 batch commit endpoint |
+| [#163](https://github.com/yutakdv/Nullnull/issues/163) | PM-011 표시값·반응 행동 | `recordFeedFeedback`. BA-033의 나머지 절반 |
+
+**#162가 가장 무겁다** — BA-040이 막히면 BA-041·042·050~053·060 일곱 카드가 함께 막힌다.
+
+**FE 답을 기다리는 이슈에 코멘트를 추가할 때는 첫 줄에 BE/AI 것임을 밝힌다.** 두 세션이 같은 계정으로 쓰므로 작성자로는 구분되지 않고, 옆 세션이 내 코멘트를 FE 답으로 오독해 "답이 왔다"고 전달한 적이 있다.
+
+**BA-022 label 절반은 게이트가 아니라 근거가 막고 있다.** 자세한 것은 BA-022 카드에 적었다. 요지는 공식 포털이 "법정동코드정보"·"분류체계코드정보" 기능의 **존재만 적고 operation 이름도 응답 필드도 주지 않으며**, 활용가이드 사이트는 SPA라 fetch로 읽히지 않는다는 것이다. 서드파티가 하드코딩한 `lclsSystm1` 표는 우리 example과 값이 맞지만 license·provenance가 없어 출처로 쓸 수 없다. **#109가 정한 "공식 활용가이드 전까지 정본으로 적지 않는다"를 그대로 따른다.** 허용 목록 밖 operation을 실호출해 보는 것도, 새 source를 등록하는 것도 오너 결정이다.
 
 ### 자율 진행에서 제외 (오너 권한·비용)
 

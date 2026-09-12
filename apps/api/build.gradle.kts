@@ -67,6 +67,11 @@ testing {
             }
             targets.all {
                 testTask.configure {
+                    // Declared as an INPUT as well as a property: see the openapiContractTest block
+                    // below for what a path handed over only as a property costs.
+                    inputs.dir(layout.projectDirectory.dir("../ai/tests/recommendation/fixtures"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiOrderParityFixtures")
                     // Order parity fixtures are owned by apps/ai and read by both languages.
                     systemProperty(
                         "nullnull.ai.fixtures.path",
@@ -170,6 +175,23 @@ testing {
                 testTask.configure {
                     description = "Checks parity between Spring DTOs and the apps/ai internal contract"
                     shouldRunAfter(test)
+                    // This suite is the ADR-0006 boundary guard - the only thing that catches a
+                    // Spring DTO drifting from the apps/ai internal contract, and the policy pin
+                    // that keeps both sides on the same numbers. Handing those paths over as
+                    // properties alone made it the WORST case of the stale-pass defect: the
+                    // documented procedure is to regenerate the contract JSON with
+                    // `uv run python -m nullnull_ai.contracts export` and then check parity, and
+                    // the check step reported the previous run. Measured: changing a pinned policy
+                    // number left this suite green until --rerun-tasks.
+                    inputs.file(layout.projectDirectory.file("../ai/contracts/recommendation-internal-v1.json"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiInternalContract")
+                    inputs.file(layout.projectDirectory.file("../ai/src/nullnull_ai/policy/policy-v1.yaml"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiPolicy")
+                    inputs.file(layout.projectDirectory.file("../ai/tests/recommendation/manifest.json"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiRecommendationManifest")
                     systemProperty(
                         "nullnull.ai.contract.path",
                         providers.gradleProperty("nullnull.ai.contract.path")
