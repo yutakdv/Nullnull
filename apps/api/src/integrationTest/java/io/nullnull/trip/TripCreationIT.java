@@ -271,4 +271,85 @@ class TripCreationIT {
         return problem.replaceAll("\"requestId\":\"[^\"]+\"", "")
                 .replaceAll("\"instance\":\"[^\"]+\"", "");
     }
+    @Test
+    @DisplayName("BA-030-T2 a RESERVATION and a DATE lock coexist on one item (#144, invariant 7)")
+    void reservationAndDateLockCoexistOnOneItem() throws Exception {
+        // The fixture trips/trip-detail-reservation.json teaches Frontend this pair, and invariant
+        // 7's "independent" only means something where two locks sit on the SAME item - no fixture
+        // had that. A hand-written fixture is not evidence the server accepts it, so this creates
+        // the pair through the real create path.
+        var owner = owner();
+        UUID place = UUID.randomUUID();
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+        jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)",
+                place, "테스트 장소", now, now);
+        String body = "{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\",\"timezone\":\"Asia/Seoul\","
+                + "\"planningLevel\":\"NOTHING\",\"interests\":[],\"seedItems\":["
+                + "{\"placeId\":\"" + place + "\",\"date\":\"2026-10-05\",\"position\":0,"
+                + "\"startTime\":\"18:30:00\",\"constraints\":["
+                + "{\"type\":\"DATE\",\"locked\":true,\"source\":\"USER\",\"date\":\"2026-10-05\"},"
+                + "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\","
+                + "\"date\":\"2026-10-05\",\"startTime\":\"18:30:00\",\"endTime\":\"20:00:00\"}]}]}";
+        String created = mvc.perform(post("/api/v1/trips")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "reservation-" + UUID.randomUUID())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID id = UUID.fromString(created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1"));
+
+        // Both are stored, and neither released the other: two rows, each with its own values.
+        // Rendered as one string per row so a missing value is visible rather than absent.
+        assertThat(jdbc.queryForList(
+                "SELECT c.type || ' ' || coalesce(c.date_value::text, '-')"
+                        + " || ' ' || coalesce(c.start_time_value::text, '-')"
+                        + " || ' ' || coalesce(c.end_time_value::text, '-') AS row"
+                        + " FROM trip_constraints c JOIN trip_items i ON i.id = c.trip_item_id"
+                        + " WHERE i.trip_id = ? ORDER BY c.type", String.class, id))
+                .containsExactly("DATE 2026-10-05 - -", "RESERVATION 2026-10-05 18:30:00 20:00:00");
+        // The item sits inside its own reservation window rather than beside it.
+        assertThat(jdbc.queryForObject("SELECT start_time::text FROM trip_items WHERE trip_id = ?",
+                String.class, id)).isEqualTo("18:30:00");
+    }
+
+    @Test
+    @DisplayName("BA-030-T3 getTrip still returns empty days, so the item fixture is not server-verified")
+    void theDetailProjectionDoesNotYetCarryItems() throws Exception {
+        // TripController.TripDayResponse returns List.of() for every day on purpose - projecting
+        // items is BA-040. Recording it as a test rather than only a comment does two things: it
+        // stops "the fixture has items, so the server must send them" from being assumed, and it
+        // turns RED the moment BA-040 starts projecting, which is when the fixtures below become
+        // server-verifiable and this test must be replaced by the real assertion.
+        var owner = owner();
+        UUID place = UUID.randomUUID();
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+        jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)",
+                place, "테스트 장소", now, now);
+        String created = mvc.perform(post("/api/v1/trips")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "projection-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-05\","
+                                + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\","
+                                + "\"interests\":[],\"seedItems\":[{\"placeId\":\"" + place
+                                + "\",\"date\":\"2026-10-04\",\"position\":0}]}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID id = UUID.fromString(created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1"));
+        // Stored...
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_items WHERE trip_id = ?",
+                Integer.class, id)).isOne();
+        // ...but not projected.
+        mvc.perform(get("/api/v1/trips/" + id)
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].items").isEmpty());
+    }
+
 }

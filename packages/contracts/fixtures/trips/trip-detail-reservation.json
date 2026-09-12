@@ -99,10 +99,16 @@
           },
           "date": "2026-10-05",
           "position": 0,
-          "startTime": "14:00:00",
-          "durationMinutes": 120,
+          "startTime": "18:30:00",
+          "durationMinutes": 90,
           "note": null,
           "constraints": [
+            {
+              "type": "DATE",
+              "locked": true,
+              "source": "USER",
+              "date": "2026-10-05"
+            },
             {
               "type": "RESERVATION",
               "locked": true,
