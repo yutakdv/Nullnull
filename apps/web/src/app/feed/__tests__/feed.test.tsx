@@ -19,7 +19,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { feedFixtures, tripFixtures } from '@nullnull/contracts';
+import { candidateFixtures, feedFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -358,5 +358,191 @@ describe('FE-201-T3 keyboard and accessible names', () => {
     await waitFor(() => {
       expect(screen.getByText(copy['feed.loadingMore'])).toBeInTheDocument();
     });
+  });
+});
+
+describe('FE-203 the add button actually saves a candidate', () => {
+  // The card has taken an onAddCandidate prop since it was built, and the
+  // screen never passed one. Pressing 내 여행에 담기 sent nothing, changed
+  // nothing and said nothing — confirmed in a browser by wrapping fetch:
+  // zero requests, the aria-label unchanged. A screen-reader user heard a
+  // button that promised to add the place and had no way to learn it had not.
+  //
+  // Saving a candidate is not scheduling. It writes /trips/:id/candidates and
+  // creates no TripItem, so the itinerary's version cannot move (invariant 1
+  // and 2) — asserted at the wire below.
+  let posted: { path: string; body: unknown; key: string | null }[] = [];
+
+  /**
+   * A CandidateSaveResult built from the approved candidate fixture.
+   *
+   * `tripScheduleChanged` is `const: false` in the contract — the schema
+   * itself encodes invariant 2 — so it is written out rather than left to a
+   * guess.
+   */
+  const saveResult = (duplicate: boolean) => ({
+    candidate: candidateFixtures.page.items[0],
+    duplicate,
+    tripScheduleChanged: false,
+  });
+
+  beforeEach(() => {
+    posted = [];
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request }) => {
+        posted.push({
+          path: new URL(request.url).pathname,
+          body: await request.json(),
+          key: request.headers.get('Idempotency-Key'),
+        });
+        return HttpResponse.json(saveResult(false), { status: 201 });
+      }),
+    );
+  });
+
+  it('sends the place the card is about', async () => {
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+
+    await waitFor(() => {
+      expect(posted).toHaveLength(1);
+    });
+    const first = feedFixtures.page.items[0];
+    expect((posted[0]?.body as Record<string, unknown>).placeId).toBe(
+      first?.primaryPlace.id,
+    );
+    expect(posted[0]?.path).toBe(
+      `/api/v1/trips/${tripFixtures.page.items[0]?.id ?? ''}/candidates`,
+    );
+  });
+
+  it('creates no trip item and touches no itinerary', async () => {
+    const writes: string[] = [];
+    const record = ({ request }: { request: Request }) => {
+      if (request.method === 'GET') return;
+      const path = new URL(request.url).pathname;
+      if (path.startsWith('/api/v1/session') || path.startsWith('/api/v1/demo')) return;
+      writes.push(`${request.method} ${path}`);
+    };
+    server.events.on('request:start', record);
+    try {
+      const user = userEvent.setup();
+      renderFeed();
+      await screen.findByText(firstTitle);
+      await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+      await waitFor(() => {
+        expect(posted).toHaveLength(1);
+      });
+      // Exactly one write, to the candidates resource. /items would be a
+      // TripItem, which invariant 2 says a candidate save must never create.
+      expect(writes).toHaveLength(1);
+      expect(writes[0]).toMatch(/\/candidates$/);
+      expect(writes.some((w) => w.includes('/items'))).toBe(false);
+    } finally {
+      server.events.removeListener('request:start', record);
+    }
+  });
+
+  it('carries an Idempotency-Key, and the same one on a retry', async () => {
+    // invariant 6. A fresh key per press would let the retry after a lost
+    // response save the place twice.
+    let attempt = 0;
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request }) => {
+        posted.push({
+          path: new URL(request.url).pathname,
+          body: await request.json(),
+          key: request.headers.get('Idempotency-Key'),
+        });
+        attempt += 1;
+        if (attempt === 1) return HttpResponse.error();
+        return HttpResponse.json(saveResult(false), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+    await screen.findByRole('button', { name: copy['tripAdd.error'] });
+    await user.click(screen.getByRole('button', { name: copy['tripAdd.error'] }));
+
+    await waitFor(() => {
+      expect(posted).toHaveLength(2);
+    });
+    expect(posted[0]?.key).toBeTruthy();
+    expect(posted[0]?.key).toBe(posted[1]?.key);
+  });
+
+  it('says it worked, on the button the user pressed', async () => {
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    // Scoped to the card that was pressed: two other fixture cards are
+    // already saved, so a document-wide query matches them too and would pass
+    // without this card changing at all.
+    const card = screen.getByText(firstTitle).closest('article') as HTMLElement;
+    await user.click(within(card).getByRole('button', { name: copy['tripAdd.idle'] }));
+    expect(
+      await within(card).findByRole('button', { name: copy['tripAdd.saved'] }),
+    ).toBeInTheDocument();
+  });
+
+  it('distinguishes an already-saved place from a new one', async () => {
+    // The contract answers 200 with duplicate:true when the candidate already
+    // existed and 201 when it is new. Both mean saved, and the user is told
+    // which rather than being shown a plain success for a no-op.
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, () =>
+        HttpResponse.json(saveResult(true), { status: 200 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+    expect(
+      await screen.findByRole('button', { name: copy['tripAdd.duplicate'] }),
+    ).toBeInTheDocument();
+  });
+
+  it('reports a failure instead of claiming the place was saved', async () => {
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, () =>
+        problemResponse('RATE_LIMITED'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(screen.getByRole('button', { name: copy['tripAdd.idle'] }));
+    expect(
+      await screen.findByRole('button', { name: copy['tripAdd.error'] }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not send anything for a card with no trip selected', async () => {
+    // NO_TRIP_SELECTED has nowhere to save to. The button says so and the
+    // press must not reach the server with a guessed trip id.
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await user.click(screen.getByRole('button', { name: copy['tripAdd.no-trip'] }));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(posted).toHaveLength(0);
+  });
+
+  it('leaves a place already in the trip alone', async () => {
+    // SAVED_TO_SELECTED_TRIP and SCHEDULED_IN_SELECTED_TRIP are both already
+    // there; pressing again would be a duplicate request for no gain.
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    const saved = screen.getAllByRole('button', { name: copy['tripAdd.saved'] });
+    expect(saved.length).toBeGreaterThan(0);
+    await user.click(saved[0] as HTMLElement);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(posted).toHaveLength(0);
   });
 });

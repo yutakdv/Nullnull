@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import { isProblem, useFeed, useTrips } from '../../shared/api/index.js';
-import { FeedPostCard } from '../../shared/ui/index.js';
+import {
+  isProblem,
+  useAddTripCandidate,
+  useFeed,
+  useTrips,
+} from '../../shared/api/index.js';
+import { FeedPostCard, type TripAddState } from '../../shared/ui/index.js';
 import styles from './FeedScreen.module.css';
 
 // Figma: S03-F0 `391:310` (no trip) and S03-F1 `396:2926` (active trip).
@@ -12,9 +17,20 @@ import styles from './FeedScreen.module.css';
 // `tripId` on the request and `candidateState` on each card.
 //
 // Scope: listing, card states and pagination. The cover opens the post detail
-// (FE-202). The `+` stays unbound: adding a place as a trip candidate is
-// FE-303's surface, and a control that silently did nothing would be worse
-// than none.
+// (FE-202), and the `+` saves the place as a trip candidate (FE-203).
+//
+// The `+` used to be rendered with no handler, which is the thing the comment
+// here warned against: pressing 내 여행에 담기 sent nothing, changed nothing
+// and said nothing — verified in a browser by wrapping fetch, zero requests
+// and an unchanged aria-label. A screen-reader user had no way to learn the
+// promise was empty.
+//
+// Saving a candidate is NOT scheduling. It writes /trips/:id/candidates,
+// creates no TripItem and cannot move the itinerary's version — the contract
+// makes `tripScheduleChanged` a `const: false`, which is invariant 2 written
+// into the schema. Choosing WHICH trip is still FE-203's sheet (S06) and
+// needs BA-034; until then the selected trip is the first one, as the rest of
+// this screen already assumes.
 //
 // MOCK DATA: listFeed has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
@@ -34,6 +50,48 @@ export function FeedScreen() {
   // selection, so asking before it is known spends a request on a selection
   // that is about to change.
   const feed = useFeed(selectedTripId, trips.isSuccess);
+  const addCandidate = useAddTripCandidate(selectedTripId);
+
+  // Which card is mid-save, and how each one ended. Per place rather than one
+  // flag for the screen: the buttons are one per card, and a single flag would
+  // put every card into the state of whichever was pressed last.
+  const [addStates, setAddStates] = useState<Record<string, TripAddState>>({});
+  // One key per place, held across retries of that same save so a retry after
+  // a lost response replays it instead of saving twice (invariant 6).
+  const addKeys = useRef<Record<string, string>>({});
+
+  function saveCandidate(placeId: string, postId: string) {
+    if (selectedTripId === null) return;
+    addKeys.current[placeId] ??= crypto.randomUUID();
+    setAddStates((current) => ({ ...current, [placeId]: 'loading' }));
+    addCandidate.mutate(
+      {
+        // POST with the post it came from: the contract's source records
+        // where a candidate was found, and the feed knows the answer
+        // exactly. Inventing a FEED type would not compile — the enum is
+        // POST/SEARCH/LIVE/IMPORT — and dropping postId would throw away
+        // provenance the screen already has.
+        request: { placeId, source: { type: 'POST', postId } },
+        idempotencyKey: addKeys.current[placeId],
+      },
+      {
+        onSuccess: (result) => {
+          // The contract answers 200 with duplicate:true when the candidate
+          // already existed and 201 when it is new. Both mean saved, and the
+          // user is told which rather than shown a plain success for a no-op.
+          delete addKeys.current[placeId];
+          setAddStates((current) => ({
+            ...current,
+            [placeId]: result.duplicate ? 'duplicate' : 'saved',
+          }));
+        },
+        onError: () => {
+          // The key is kept, so pressing again replays this same save.
+          setAddStates((current) => ({ ...current, [placeId]: 'error' }));
+        },
+      },
+    );
+  }
 
   // A cursor lives 15 minutes. When one expires the contract's policy is to
   // start again from page one rather than retry (problem-policy.ts:103), so
@@ -160,6 +218,19 @@ export function FeedScreen() {
                 onOpenPost={(postId) => {
                   void navigate(`/posts/${postId}`);
                 }}
+                // Bound only where there is something to do. A card already in
+                // the trip has nothing to add, and NO_TRIP_SELECTED has
+                // nowhere to add it to — pressing either must not reach the
+                // server with a guessed trip id. The button keeps saying which
+                // state it is in either way.
+                onAddCandidate={
+                  card.candidateState === 'NOT_SAVED' && selectedTripId !== null
+                    ? (placeId) => {
+                        saveCandidate(placeId, card.post.id);
+                      }
+                    : undefined
+                }
+                addState={addStates[card.primaryPlace.id]}
                 labels={{
                   ...cardLabels,
                   // Interpolated per card: the level is part of the sentence.
