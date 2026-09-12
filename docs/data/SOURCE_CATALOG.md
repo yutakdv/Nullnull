@@ -379,3 +379,42 @@ DataProvenance.attributionShort는 선택 nullable, 유효한 문구는 1~160자
 브라우저용 officialUrl/licenseUrl은 [source-link-policy.json](../contracts/review-2026-09-06/source-link-policy.json)의 exact host만 허용한다: `data.seoul.go.kr`, `www.kogl.or.kr`, `data.go.kr`, `www.data.go.kr`, `api.visitkorea.or.kr`. https만 허용하며 상대 URL, userinfo, 비기본 port, wildcard/subdomain 추정은 거부한다. 표에 있는 공개 query parameter는 유지한다. 외부 링크는 안전한 새 창 속성을 적용한다. source registry 등록/갱신 때 redirect chain과 최종 URL도 같은 host 정책으로 확인한다. 브라우저 anchor만으로 이후 모든 redirect를 통제할 수 있다고 가정하지 않는다. provider 서버 호출의 SSRF allowlist와는 별개의 표시 링크 정책이다.
 
 이 필드·host 정책은 #11의 FE 검토 대상이다. `freshness=UNKNOWN`인 합성 예시는 실제 호출이나 비교 적격 판정 증거가 아니며 KTO 예측을 인원·5단계·시간대 그래프로 변환하는 근거로 쓰지 않는다.
+
+## 16. 법정동 코드표 준비 (미신청·미등록, 오너 결정 대기)
+
+`places.region_code`는 `NOT NULL`이라 모든 canonical place가 코드를 갖는데 `regionName`은 여전히 null이다. 막고 있는 것은 구현이 아니라 **코드→문구의 검토된 정본**이다. 이 절은 신청·호출·등록을 하지 않은 상태에서 **결정에 필요한 것만** 모아 둔다.
+
+### 왜 KTO가 아니라 행안부인가
+
+`detailCommon2`가 주는 `lDongRegnCd`(시도 2자리)·`lDongSignguCd`(시군구 3자리)는 KTO 고유 코드가 아니라 **법정동 표준 코드**다. 그 label의 정본은 행정안전부 행정표준코드이고, KTO의 "법정동코드정보" 기능은 같은 표를 다시 실어 주는 것이다. 게다가 KTO 쪽은 **operation 이름도 응답 필드도 공식 문서에서 확인되지 않았다**(§2). 즉 KTO 경로는 추측이 필요하고 행안부 경로는 필요 없다.
+
+같은 5자리 접두사가 `tatsCnctrRatedList`의 `signguCd`이기도 하다. 그래서 이 표는 **표시 문구만이 아니라 요청 파라미터의 검증 근거**이기도 하다 — 지금은 `signguRequestCode()`가 만든 값이 실재하는 시군구인지 확인할 방법이 우리에게 없다.
+
+### 후보 둘 (공식 페이지에서 확인한 것만)
+
+| | [15077871 행정안전부_행정표준코드_법정동코드](https://www.data.go.kr/data/15077871/openapi.do) | [행정표준코드관리시스템 법정동코드목록조회](https://www.code.go.kr/stdcode/regCodeL.do) |
+| --- | --- | --- |
+| 형식 | OpenAPI REST, JSON+XML | 웹 조회 + `법정동 코드 전체자료` 다운로드 |
+| operation | `getStanReginCdList` | 해당 없음(파일) |
+| 주요 응답 field | `region_cd`, `sido_cd`, `sgg_cd`, `umd_cd`, `locatadd_nm` | 파일 형식 미확인 |
+| 신청 | 활용신청 필요, 개발계정 **10,000/일** | 페이지에 인증서 로그인 요소가 있고 신청 요건은 **미확인** |
+| 이용허락범위 | `이용허락범위 제한 없음` | 페이지에서 **확인하지 못함** |
+| 표시 링크 allowlist | `www.data.go.kr` **이미 허용** | `www.code.go.kr` **미등록 — 추가가 필요하고 그건 FE 검토 대상이다** |
+
+두 행의 "미확인"은 추정하지 않은 것이다. 확인 없이 등록하면 §7의 필수 field(license·attribution)를 지어내게 된다.
+
+### 권고: provider가 아니라 **버전이 박힌 참조 자료**로 다룬다
+
+법정동 코드표는 관측값이 아니라 **행정 개편 때만 바뀌는 코드표**다. runtime provider로 등록하면 quota·collector run·stale 정책·egress·ingest audit이 전부 따라오는데 우리가 필요한 것은 표 하나다. 그래서 수집은 1회(개편 시 갱신)이고, 저장은 코드표 + 그것을 만든 source revision 참조다.
+
+**중요한 제약 하나:** 화면에 나가는 `regionName`은 **그 snapshot이 수집된 revision의 표**로 해석해야 한다. 개편으로 코드 의미가 바뀌었을 때 과거 snapshot의 표기가 조용히 따라 바뀌면, 그건 §8이 금지하는 "수집 당시 의미의 소실"이다.
+
+### 아직 맞지 않는 자리 (등록 전에 결정해야 한다)
+
+- **`source_state` 어휘에 코드표가 없다.** CHECK는 `LIVE`·`FORECAST`·`REPLAY`·`QUALITATIVE`·`STALE`·`UNAVAILABLE`뿐이다. `QUALITATIVE`로 접을지 값을 넓힐지(migration)는 결정 사항이고, 어느 쪽이든 **값을 지어내서 INSERT하지 않는다.**
+- **quota 회계 단위**(§2의 열린 질문)가 data.go.kr 경로에서 다시 걸린다 — 같은 계정 인증키를 쓰기 때문이다. 다만 **이 데이터셋이 개발계정 10,000을 적는다는 사실 자체가 per-API 읽기를 강하게 뒷받침한다**: 한도가 계정 단위라면 한 계정이 동시에 1,000이면서 10,000일 수 없다. 파일 경로를 고르면 quota 질문이 사라진다.
+- **`categoryName`은 이 절로 해결되지 않는다.** `lclsSystm*`은 KTO 고유 분류체계라 KTO 자체 코드표가 유일한 정본이고, 그건 operation 승인이 따로 필요하다.
+
+### 하지 않은 것
+
+활용신청, 실호출, registry INSERT, migration, allowlist 수정. **새 external provider를 여는 것은 오너 결정**이고 이 절은 그 결정을 한 번에 내릴 수 있게 모아 둔 것이다. 오너가 정할 것은 셋이다 — (1) 두 경로 중 하나, (2) 그 경로가 요구하는 신청 또는 파일 수령, (3) 코드표를 저장소에 고정하는 것(크기·라이선스 표기)에 대한 승인.
