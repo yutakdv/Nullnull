@@ -50,7 +50,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-017 | P0 blocker | 527:4085는 날짜 이동 결과, 527:4695는 후보 신규 일정화 날짜 선택 | node 의미 정정·별도 시간 편집·선택 Day 일치·삽입 위치 정책; PM-003/008 | FE / BE·AI·PM | Open |
 | FCR-018 | P0 blocker | 438:3158 untimed 필수 장소→384:5673 초안, 수동 시작/확인 단계 불일치 | 확인 전 초안 계약·세 분기·수정/만료·확정 경계; PM-004 | FE / BE·AI·PM | Open |
 | FCR-019 | P0 blocker | 401:1221 원문·438:3259 confirm에서 연도/제목/제거 수정 부족 | 날짜 기준·기본 제목·item 제거/remap·전송 안내·IMPORT 잠금; PM-005 | FE / BE·AI·PM | Open |
-| FCR-020 | P0 blocker | 438:3108 동행인/스타일 chip에 canonical code/weight 없음 | 지원 dictionary·선택 규칙·KOEN label·중복/빈 선택; PM-006 | FE / BE·AI·PM | Open |
+| FCR-020 | P0 blocker | 438:3108 동행인/스타일 chip에 canonical code/weight 없음 | 지원 dictionary·선택 규칙·KOEN label·중복/빈 선택; PM-006 | FE / BE·AI·PM | 확정 (2026-09-12, [증거](#fcr-020-증거)) · [#154](https://github.com/yutakdv/Nullnull/issues/154) |
 | FCR-021 | P0 blocker | 411:1837/413:2020 buffer 저장/취소, 해제하고 이동·교체 | 복합 commit 또는 승인된 저장 UX·원자 해제+변경·실패0변경; PM-007 | FE / BE·AI·PM | Open |
 | FCR-022 | P0 blocker | 412:1912 SCHEDULED 제거 action, 저장 결과는 toast 중심 | 후보 전이·교체 linkage·독립 후보 보존·지속 success/duplicate/error; PM-009 | FE / BE·AI·PM | Open |
 | FCR-023 | P0 blocker | 검색/feed/trip의 KTO 콘텐츠·이미지 출처 전달 공백 | list/detail content provenance·media license·권리 철회/placeholder; PM-010 | FE / BE·AI·PM | Open |
@@ -205,6 +205,35 @@ top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 53개다. [Figma �
 6. 구현 acceptance: `OptimizationRun.status=READY`일 때 `proposals[0]`의 `changes[]`(before/after `TripItemState`), `metrics`(`comparisonEligible`/`crowdComparison`), `validation`(`allConstraintsPreserved`/`checks[]`), `dataProvenance[]`를 이 frame의 각 영역에 매핑한다. `적용`은 `OptimizationDecisionRequest{decision: APPLY}`, `현재 일정 유지`는 `KEEP`을 호출하며 승인 전에는 trip을 변경하지 않는다.
 
 top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 54개다(FCR-001 이후 53 → 54). [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.
+
+## FCR-020 증거
+
+- 확정일: 2026-09-12, 확정자: Frontend
+- 상태: 어휘·규칙 확정. `apps/web/src/app/trip-create/wizard.ts`의 `INTEREST_GROUPS`가
+  정본이고 KO/EN label은 `apps/web/src/i18n/messages.ts`의 `interest.*`다. BA-030의
+  어휘 검증과 BA-031 `replaceTripInterests`가 이 목록을 쓴다([#154](https://github.com/yutakdv/Nullnull/issues/154)).
+
+이 행이 `Open`으로 남아 있는 동안 BA-030·BA-031 두 카드가 막혀 있었다. 어휘는 FE
+코드에 이미 있었으나 등록부가 미결정으로 남아 있어 BE 쪽에서는 결정되지 않은 것으로
+보였다. 코드가 먼저 가고 등록부가 따라오지 않으면 상대 역할에게는 존재하지 않는 것과
+같다.
+
+| 항목 | 확정 값 | 근거 |
+| --- | --- | --- |
+| 동행인 code | `ALONE` `FRIENDS` `PARTNER` `SPOUSE` `KIDS` `PARENTS` | `438:3108` chip |
+| 스타일 code | `LANDMARKS` `RELAXED` `CULTURE` `NATURE` `FOOD` `LOCAL_VIBE` `ACTIVITY` | `438:3108` chip |
+| 선택 축 | 평면 목록 하나. `who`/`style`은 화면 grouping이며 전송 시 구분 없음 | 계약 `TripInterest[]` |
+| 선택 수 | 둘 다 복수. 그룹별 상한 없음, 전체 20 | 계약 `maxItems: 20` |
+| weight | 전부 `3` 고정. 사용자가 조절하지 않는다 | 계약 `1..5`의 중앙값 |
+| 빈 선택 | 허용 (`나중에 고를래요`) | 계약 `minItems: 0` |
+| 중복 code | 금지. 같은 chip을 다시 누르면 해제 | ERD PK `(trip_id, interest_code)` |
+
+chip 하나가 code 하나와 weight 하나를 갖는다. 한 code에 weight를 여러 번 주는 UI는
+없으며, 계약의 `uniqueItems`가 객체 전체를 비교해 `[{food,1},{food,5}]`를 통과시키는
+것과 달리 ERD는 이를 거절한다 — 화면이 그런 입력을 만들지 않으므로 서버는 ERD 쪽을
+따르면 된다.
+
+label은 FE가 렌더하므로 서버는 code만 저장한다.
 
 ## FCR-005 증거
 
