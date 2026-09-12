@@ -622,6 +622,15 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 | **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
 | **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
 | **오너/정책** | PM-017(세션 만료·GC 값), PM-022 **배포 절반**(local 절반은 위에서 실측·해소), PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+
+**PM-017은 조사해 보니 만들 것이 없다 — 세 항목 다 구현·고정돼 있고 남은 건 숫자 확정뿐이다.** 다시 열어보지 않도록 근거를 적는다.
+
+- **absolute 경계**: `SessionProperties`가 `APP_SESSION_ABSOLUTE_TTL:P90D`를 읽고, `SessionTimeIT`가 *"absolute TTL caps sliding"* 과 *"idle and orphan cutoff reject at equality"* 로 **경계를 이미 고정**한다(등호에서 거절하는 것까지).
+- **owner 자동 삭제 시점**: `SessionTtlEraser:59`가 orphan owner(`kind='ANONYMOUS'`, 남은 session 없음, `deleted_at IS NULL`)를 **TTL sweep 안에서** 지운다. 별도 GC 값이 아니라 session TTL에서 파생된다.
+- **cookie 유실 뒤**: 새 익명 owner가 생기고 이전 owner는 orphan이 되어 위 경로로 지워진다. 서버 동작은 정의돼 있고 **안내 문구는 FE 소유**다.
+- **다중 탭 CSRF**: FE `problem-schema` 쪽에서 이미 해소됐다(`problem-policy.ts`의 `reissue-csrf-once`는 silent retry가 아니라 *"token 1회 재발급 후 사용자 재확인"* 이라 PM-017의 *"401 뒤 mutation 자동 재실행 없음"* 을 그대로 만족한다). **FE 이슈를 올리지 않았다.**
+
+남은 것은 `ENVIRONMENT.md`가 **`(제안값)`으로 표시한 세 숫자**(`APP_SESSION_ABSOLUTE_TTL`·`APP_CSRF_TOKEN_TTL`·`nullnull.session.touch-interval`) 확정이고, 그것은 오너 결정이다. **`(제안값)` 표기 자체가 "임의 기입 금지"를 지키고 있는 것이므로 지우지 말 것.**
 | **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
 
 **PM-013도 절반은 이미 지켜지고 있었고, 지키는 것이 아무것도 없었다.** "혼잡 단계 과장 위험"인데 — KTO 상대 집중률은 **날짜 단위**이고 서울4단계도 공통5단계도 아니다. 확인해 보니 registry의 `metric_definition`이 *"가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님"* 이라고 **정확히** 적고 그게 `metricDefinition`으로 client까지 간다. `ordinal_level`도 NULL로 저장된다.
