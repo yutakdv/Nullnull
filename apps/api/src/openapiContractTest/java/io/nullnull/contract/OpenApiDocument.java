@@ -151,6 +151,45 @@ public final class OpenApiDocument {
         throw new IllegalArgumentException("unknown operationId: " + operationId);
     }
 
+    /** Request body media types an operation declares, empty when it takes no body. */
+    @SuppressWarnings("unchecked")
+    public Set<String> requestMediaTypes(String operationId) {
+        Map<String, Object> paths = section(document.get("paths"), "paths");
+        for (Object item : paths.values()) {
+            for (Map.Entry<String, Object> entry : section(item, "paths.*").entrySet()) {
+                if (!HTTP_METHODS.contains(entry.getKey()) || !(entry.getValue() instanceof Map<?, ?> op)
+                        || !operationId.equals(op.get("operationId"))) {
+                    continue;
+                }
+                if (!(op.get("requestBody") instanceof Map<?, ?> body)
+                        || !(body.get("content") instanceof Map<?, ?> content)) {
+                    return Set.of();
+                }
+                return new java.util.HashSet<>((Set<String>) (Set<?>) content.keySet());
+            }
+        }
+        throw new IllegalArgumentException("unknown operationId: " + operationId);
+    }
+
+    /** Status codes an operation declares, as written in the document. */
+    @SuppressWarnings("unchecked")
+    public Set<String> responseCodes(String operationId) {
+        Map<String, Object> paths = section(document.get("paths"), "paths");
+        for (Object item : paths.values()) {
+            for (Map.Entry<String, Object> entry : section(item, "paths.*").entrySet()) {
+                if (!HTTP_METHODS.contains(entry.getKey()) || !(entry.getValue() instanceof Map<?, ?> op)
+                        || !operationId.equals(op.get("operationId"))) {
+                    continue;
+                }
+                if (!(op.get("responses") instanceof Map<?, ?> responses)) {
+                    return Set.of();
+                }
+                return new java.util.HashSet<>((Set<String>) (Set<?>) responses.keySet());
+            }
+        }
+        throw new IllegalArgumentException("unknown operationId: " + operationId);
+    }
+
     /** {@code servers[0].url}, the prefix every path item key is served under. */
     private String basePath() {
         if (!(document.get("servers") instanceof List<?> servers) || servers.isEmpty()

@@ -55,6 +55,24 @@ class SessionContractTest {
                 .isEmpty();
     }
 
+    /**
+     * A merge-patch operation refuses any other media type with 415, because absent-means-keep and
+     * null-means-clear are semantics of {@code application/merge-patch+json} rather than of the schema.
+     * A client generated from a spec that omits 415 cannot type that refusal.
+     */
+    @Test @DisplayName("every merge-patch operation declares the 415 it answers a wrong media type with")
+    void mergePatchDeclaresUnsupportedMediaType() {
+        var api = OpenApiDocument.load();
+        var missing = new java.util.TreeSet<String>();
+        for (String id : api.operationIds()) {
+            if (!api.requestMediaTypes(id).contains("application/merge-patch+json")) { continue; }
+            if (!api.responseCodes(id).contains("415")) { missing.add(id); }
+        }
+        assertThat(missing)
+                .as("merge-patch operations answer a wrong media type with 415 but do not declare it")
+                .isEmpty();
+    }
+
     @Test @DisplayName("BA-010-T1 every implemented handler declares matching OpenAPI operation security")
     void securityParity() {
         var api=OpenApiDocument.load();
