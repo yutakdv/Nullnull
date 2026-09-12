@@ -119,7 +119,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | FR-OPT-11 | P0 | data stale 재계산 | error ref | `DATA_CHANGED` | 기존 preview 적용 금지 |
 | FR-OPT-12 | P0 | lock 충돌 처리 | `417:2567` | `LOCK_CONFLICT` | 조건 확인 CTA, 자동 unlock 금지 |
 | FR-OPT-13 | P0 | 경로 불가 처리 | `417:2567` | `ROUTE_UNAVAILABLE` | retry/keep, 일정 미변경 |
-| FR-OPT-14 | P0 | 개선안 없음 처리 | `417:2567` | `NO_IMPROVEMENT` | 현재 일정이 조건 내 적합함을 안내 |
+| FR-OPT-14 | P0 | 개선안 없음 처리 | `417:2567` | `NO_IMPROVEMENT` | 확인한 후보 범위로 한정해 안내, 전역 최적성 주장 금지 |
 | FR-OPT-15 | P0 | apply 실패 처리 | `417:2567` | `APPLY_FAILED` | 부분 반영 0, same-key 재시도 |
 | FR-OPT-16 | P0 | run expiry/failure | 공통 | `FAILED`/`EXPIRED` | preview를 적용 가능하게 표시하지 않음 |
 
