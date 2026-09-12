@@ -54,7 +54,7 @@ B01에서 root script 또는 동등한 task runner로 다음 명령을 제공한
 | 목적 | 목표 명령 | 보장 사항 |
 | --- | --- | --- |
 | 의존성 설치 | `npm ci` | root lockfile만 사용, postinstall에서 외부 secret 호출 금지 |
-| local dependency 시작 | `docker compose up -d postgres` | named volume·health check·`127.0.0.1:5433` 구성 확인함. **실제 기동은 실패할 수 있고, 실패해도 앱은 붙는다** — PM-022 항목 참고. `up -d` 뒤에 `docker compose ps --status running --quiet postgres`가 비어 있지 않은지 반드시 확인한다 |
+| local dependency 시작 | `docker compose up -d postgres` | named volume·health check·`127.0.0.1:5434` 구성 확인함. **실제 기동은 실패할 수 있고, 실패해도 앱은 붙는다** — PM-022 항목 참고. `up -d` 뒤에 container가 **`.env.local`이 가리키는 포트를 publish하는지** 확인한다. `ps --status running`은 liveness만 보므로 부족하다(`ENVIRONMENT.md` §7 0단계) |
 | DB migration | `cd apps/api && ./gradlew flywayMigrate` | local profile만, production URL 거부 |
 | API 실행 | `cd apps/api && ./gradlew bootRun` | local config와 mock source 기본; `nullnull.ai.base-url`은 `http://127.0.0.1:8090` |
 | 추천 서비스 실행 | `cd apps/ai && uv run python -m nullnull_ai.main` | `127.0.0.1:8090`, DB·외부 API 접근 없음 |
@@ -86,19 +86,21 @@ Compose JSON을 다시 검사해 필수 service와 internal network를 확인한
 | Web dev server | `5173` | 해당 없음 | browser entry |
 | Storybook | `6006` | 해당 없음 | 개발 전용 |
 | API | `8080` | `8080` | `/api/v1` |
-| PostgreSQL | `5433` | `5432` | 기기 기본 PostgreSQL과 충돌 완화 |
+| PostgreSQL | `5434` | `5432` | 기기 기본 PostgreSQL과 충돌 완화. 5433은 같은 이유로 골랐다가 이 기기에서 점유돼 있어 오너 결정으로 옮겼다(2026-09-13) |
 
-**PM-022 실측(2026-09-13): 이 충돌 완화가 이 기기에서는 성립하지 않았다.** `docker compose up -d postgres`가
-`bind: address already in use`로 실패한다 — **Docker가 아닌 host PostgreSQL이 이미 `127.0.0.1:5433`을 잡고 있고**,
-`nullnull-local-postgres-1`은 지금까지 `Created` 상태로 한 번도 뜬 적이 없다. 5433을 고른 이유가 바로 그 충돌 회피였는데
-그 자리가 점유돼 있었다.
+**PM-022 실측(2026-09-13): 처음 고른 5433이 이 기기에서 이미 점유돼 있었다.** `docker compose up -d postgres`가
+`bind: address already in use`로 실패했다 — **Docker가 아닌 host PostgreSQL이 `127.0.0.1:5433`을 잡고 있었고**,
+`nullnull-local-postgres-1`은 그때까지 `Created` 상태로 한 번도 뜬 적이 없었다. 5433을 고른 이유가 바로 그 충돌 회피였는데
+그 자리가 점유돼 있었다. **오너 결정(2026-09-13)으로 host port를 5434로 옮겼고, 저장소 기본값이 5434다.**
 
-위험한 것은 실패 자체가 아니라 **실패한 뒤에도 앱이 동작한다는 점**이다. `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라
-연결은 성공하고 상대는 **host 서버**다. 그러면 `flywayMigrate`가 프로젝트와 무관한 서버에 migration을 걸고, 이는
+위험했던 것은 실패 자체가 아니라 **실패한 뒤에도 앱이 동작한다는 점**이다. `SPRING_DATASOURCE_URL`이 점유된 포트를
+가리키면 연결은 성공하고 상대는 **host 서버**다. 그러면 `flywayMigrate`가 프로젝트와 무관한 서버에 migration을 걸고, 이는
 `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. `docker compose ... | tail`처럼
 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
 
-`docker compose up -d postgres`를 **돌렸다는 것**과 **container가 5433을 갖는다는 것**은 다르다. 후자를 확인한다.
+**포트를 옮겨도 이 함정은 그대로 남는다.** `docker compose up -d postgres`를 **돌렸다는 것**과 **앱이 붙을 포트를 그
+container가 publish한다는 것**은 다르다 — compose와 `.env.local` 중 한쪽만 고치면 container는 running인 채로 앱은 host
+서버에 붙는다. 그래서 포트 숫자를 문서에 박아 비교하지 않고 두 값을 **묶어서** 확인한다(`ENVIRONMENT.md` §7 0단계).
 | API debug | `5005` | `5005` | opt-in, loopback only |
 | 추천 서비스 `apps/ai` | `8090` | `8090` | `/internal/v1`, loopback only; 공개 proxy 대상 아님 |
 

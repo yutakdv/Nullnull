@@ -507,9 +507,11 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 
 이제 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 비교한다. 양방향 확인: 현재 5434 구성에서 PASS, 5433에 대해서는 *"어떤 container도 publish하지 않음"* 으로 **정확히 잡는다**.
 
+**확정(2026-09-13, 오너): 저장소 기본 host port는 5434다.** `compose.yml`, `apps/api/.env.example`, `application-local.yaml`, `LOCAL_DEVELOPMENT.md` §3, `ENVIRONMENT.md` §7을 함께 옮겼다. host PostgreSQL은 건드리지 않는다.
+
 **우리를 구한 것은 우연이었다.** host 서버의 `nullnull` 역할 비밀번호가 달라서 `28P01`로 죽었을 뿐, 맞았다면 migration 18개가 남의 DB에 **오류 없이** 걸렸을 것이다.
 
-**"명령을 돌렸다"와 "그 명령이 의도한 것을 했다"는 다르다.** §6의 "검증 명령은 성공 여부를 확인하고 출력을 버리지 않는다"의 한 단계 아래 — **성공해도 의도한 대상이 아닐 수 있다.** 그래서 smoke runbook의 0단계는 `up -d`가 아니라 *"그 container가 5433을 갖는지"* 를 확인한다(`ENVIRONMENT.md` §7, `LOCAL_DEVELOPMENT.md`).
+**"명령을 돌렸다"와 "그 명령이 의도한 것을 했다"는 다르다.** §6의 "검증 명령은 성공 여부를 확인하고 출력을 버리지 않는다"의 한 단계 아래 — **성공해도 의도한 대상이 아닐 수 있다.** 그래서 smoke runbook의 0단계는 `up -d`가 아니라 *"`.env.local`이 가리키는 포트를 그 container가 publish하는지"* 를 확인한다 — 포트 숫자를 문서에 박으면 옮길 때 또 갈라진다(`ENVIRONMENT.md` §7, `LOCAL_DEVELOPMENT.md`).
 
 **내가 쓴 runbook에 그대로 있던 함정이다.** 앞 커밋에서 `docker compose up -d postgres`를 0단계로 적어 두고 다음 단계로 넘어갔었다 — 승인이 왔다면 host DB에 migration이 걸렸을 것이다.
 

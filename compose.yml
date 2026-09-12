@@ -1,6 +1,7 @@
 # Local development dependencies (docs/engineering/LOCAL_DEVELOPMENT.md §2-3).
 # Start with: docker compose up -d postgres
-# PostgreSQL is bound to loopback on host port 5433 to avoid clashing with a machine-local PostgreSQL.
+# PostgreSQL is bound to loopback on host port 5434. 5433 was the original choice for the same reason
+# and turned out to be taken by a machine-local PostgreSQL (measured 2026-09-13, PM-022).
 # The password is local-only and is not a secret; PR integration uses compose.integration.yml instead.
 name: nullnull-local
 
@@ -12,7 +13,7 @@ services:
       POSTGRES_USER: nullnull
       POSTGRES_PASSWORD: local-only
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - nullnull-postgres-local:/var/lib/postgresql/data
     healthcheck:

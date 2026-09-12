@@ -114,7 +114,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - 세 검증 중 Gradle suite에 있는 것은 T2 하나다. T1·T3의 증거는 `scripts/verify_target_stack.py`이고 JUnit XML을 만들지 않으므로, `api-quality` 하나가 BA-001 전체를 덮는다고 읽으면 안 된다.
 - 검사되지 않음: T1의 "새 clone에서" 부분. 현재 검사는 이 작업 트리의 고정값을 확인하며 빈 디렉터리 clone부터의 재현을 돌리지 않는다.
 - `integration-ready` 이상으로 올리지 않는다: BA-000과 같은 이유로 `check_test_reports.py`가 T1·T3를 JUnit testcase 이름에서 찾지 못해 두 required check가 실패한다.
-- PM-022의 쿠키 절반은 **이미 해결돼 있다(확인함)**. PM-022는 `APP_COOKIE_SECURE=false`와 `__Host-` 쿠키를 함께 쓰는 개발 설정을 문제로 들었는데, `SessionProperties.cookieName()`이 `secure`일 때만 `__Host-` 접두사를 붙이고 insecure 쿠키는 local profile 단독에서만 허용된다. `SessionPropertiesTest`가 양쪽 분기를 고정하므로 되돌아가면 빨개진다. 남은 절반(local compose wrapper의 `localhost:5433` 실제 확인, staging→production `VITE_APP_ENV` 승격 정책)은 [BA-006](#ba-006)이고 배포 단계다.
+- PM-022의 쿠키 절반은 **이미 해결돼 있다(확인함)**. PM-022는 `APP_COOKIE_SECURE=false`와 `__Host-` 쿠키를 함께 쓰는 개발 설정을 문제로 들었는데, `SessionProperties.cookieName()`이 `secure`일 때만 `__Host-` 접두사를 붙이고 insecure 쿠키는 local profile 단독에서만 허용된다. `SessionPropertiesTest`가 양쪽 분기를 고정하므로 되돌아가면 빨개진다. 남은 절반 중 **local compose wrapper 확인은 끝났다** — 실제로 확인했더니 5433은 이 기기의 host PostgreSQL이 잡고 있었고, 오너 결정으로 저장소 기본 host port를 **5434**로 옮겼다(`compose.yml`·`.env.example`·`application-local.yaml`). 0단계 검사는 포트 숫자를 박지 않고 `.env.local`과 실제 publish 포트를 묶어서 본다(`ENVIRONMENT.md` §7). 진짜 남은 것은 staging→production `VITE_APP_ENV` 승격 정책뿐이고 [BA-006](#ba-006)의 배포 단계다.
 
 FE 인계·완료 증거: API 실행/health 주소, 버전 manifest, FE scaffold와 필요한 generation command. 실제 FE scaffold는 FE 인계물이다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

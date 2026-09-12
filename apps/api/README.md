@@ -16,7 +16,7 @@ Installed Gradle distributions are not used; always run `./gradlew`.
 ## Run locally
 
 ```bash
-docker compose up -d postgres                 # repo root, 127.0.0.1:5433
+docker compose up -d postgres                 # repo root, 127.0.0.1:5434
 cd apps/api
 ./gradlew bootRun                             # profile local, http://localhost:8080/api/v1
 curl -s http://localhost:8080/api/v1/health/ready
