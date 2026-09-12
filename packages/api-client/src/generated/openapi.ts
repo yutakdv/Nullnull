@@ -575,7 +575,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Replace an item's place after server validation */
+        /**
+         * Replace an item's place after server validation
+         * @description The item keeps its validated schedule fields - date, position, start time, duration and
+         *     constraints - and only the place changes. The outgoing place comes back to the trip as an
+         *     ACTIVE candidate, the same disposition `removeTripItem` names `RESTORE_CANDIDATE`, and this
+         *     operation takes no parameter to choose otherwise: replacing a place is not saying to forget
+         *     it, and a candidate carries no date, so restoring one changes no schedule (invariant 2).
+         *     Dropping it afterwards is `removeTripCandidate`, one explicit call.
+         */
         post: operations["replaceTripItem"];
         delete?: never;
         options?: never;
@@ -1648,7 +1656,13 @@ export interface components {
             tripId: string;
             place: components["schemas"]["PlaceSummary"];
             status: components["schemas"]["CandidateStatus"];
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Set exactly while `status` is SCHEDULED. The same place may sit on more than one date -
+             *     the client refuses a duplicate only on the date being added to - and this field then
+             *     names the FIRST of those items in (date, position) order rather than the most recent, so
+             *     the value does not move when a later day is edited.
+             */
             scheduledTripItemId?: string | null;
             note?: string | null;
             sources: components["schemas"]["CandidateSource"][];
@@ -2369,6 +2383,21 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description The session is valid but the request is not allowed to proceed. In this API that is a CSRF
+         *     failure (`CSRF_INVALID`): a state-changing request whose token is missing, stale, or from a
+         *     different origin. A resource owned by another session answers `404`, not `403`, so ownership
+         *     never leaks through the status.
+         */
+        Forbidden: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Resource is absent or not owned by this session */
         NotFound: {
             headers: {
@@ -2615,6 +2644,7 @@ export interface operations {
                     "application/json": components["schemas"]["DemoReadiness"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2642,6 +2672,8 @@ export interface operations {
                     "application/json": components["schemas"]["DeletionReceipt"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2735,6 +2767,8 @@ export interface operations {
                     "application/json": components["schemas"]["OwnerProfile"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Problem"];
         };
@@ -2764,6 +2798,7 @@ export interface operations {
                     "application/json": components["schemas"]["FeedPage"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
@@ -2815,6 +2850,7 @@ export interface operations {
                     "application/json": components["schemas"]["PostDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
@@ -2851,6 +2887,8 @@ export interface operations {
                     "application/json": components["schemas"]["SavedPostState"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2873,6 +2911,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2900,6 +2940,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2924,6 +2965,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlaceDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             default: components["responses"]["Problem"];
         };
@@ -2952,6 +2994,7 @@ export interface operations {
                     "application/json": components["schemas"]["CrowdSeries"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3005,6 +3048,7 @@ export interface operations {
                     "application/json": components["schemas"]["TripPage"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3036,6 +3080,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
@@ -3063,6 +3109,7 @@ export interface operations {
                     "application/json": components["schemas"]["TripDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             default: components["responses"]["Problem"];
         };
@@ -3091,6 +3138,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             default: components["responses"]["Problem"];
         };
@@ -3124,6 +3173,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["Unprocessable"];
@@ -3159,6 +3210,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             default: components["responses"]["Problem"];
         };
@@ -3298,6 +3351,7 @@ export interface operations {
                     "application/json": components["schemas"]["CandidatePage"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3339,6 +3393,8 @@ export interface operations {
                     "application/json": components["schemas"]["CandidateSaveResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             default: components["responses"]["Problem"];
@@ -3364,6 +3420,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             default: components["responses"]["Problem"];
         };
@@ -3971,6 +4029,8 @@ export interface operations {
                     "application/json": components["schemas"]["EventBatchReceipt"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
         };

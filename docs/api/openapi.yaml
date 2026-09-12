@@ -319,6 +319,8 @@ paths:
                         checkedAt: "2026-09-10T00:00:00Z"
                         detail: "FEATURE_OPTIMIZATION_ITEM is OFF and no server-side source answers this capability yet"
                     checkedAt: "2026-09-10T00:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /session:
@@ -367,6 +369,10 @@ paths:
                     statusTokenExpiresAt: "2026-09-17T00:00:00Z"
                     requestedAt: "2026-09-10T00:00:00Z"
                     statusUrl: "/api/v1/deletion-requests/018f4d00-1111-7222-8333-444455556666"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /deletion-requests/{deletionRequestId}:
@@ -562,6 +568,10 @@ paths:
                 $ref: "#/components/schemas/OwnerProfile"
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -799,6 +809,8 @@ paths:
                       hasMore: false
         "503":
           $ref: "#/components/responses/SourceUnavailable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /feed/feedback:
@@ -948,6 +960,8 @@ paths:
           $ref: "#/components/responses/SourceUnavailable"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /posts/{postId}/saved:
@@ -1008,6 +1022,10 @@ paths:
                     saved: true
                     duplicate: false
                     savedAt: "2026-09-11T05:40:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -1025,6 +1043,10 @@ paths:
               schema:
                 type: string
                 const: private, no-store
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1132,6 +1154,8 @@ paths:
                       hasMore: false
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /places/{placeId}:
@@ -1192,6 +1216,8 @@ paths:
                       license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /places/{placeId}/crowd-forecast:
@@ -1228,6 +1254,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CrowdSeries"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /places/{placeId}/related:
@@ -1477,6 +1505,8 @@ paths:
                     page:
                       nextCursor: null
                       hasMore: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -1546,6 +1576,10 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}:
@@ -1679,6 +1713,8 @@ paths:
                     candidates: []
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
     patch:
@@ -1822,6 +1858,10 @@ paths:
           $ref: "#/components/responses/Unprocessable"
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -1844,6 +1884,10 @@ paths:
                 const: private, no-store
         "409":
           $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}/interests:
@@ -1920,6 +1964,10 @@ paths:
                     candidates: []
         "409":
           $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2167,6 +2215,8 @@ paths:
                     page:
                       nextCursor: null
                       hasMore: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -2291,6 +2341,10 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}/candidates/{candidateId}:
@@ -2314,6 +2368,10 @@ paths:
                 const: private, no-store
         "409":
           $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}/candidates/{candidateId}/matches:
@@ -2541,6 +2599,13 @@ paths:
       tags: [Trip items]
       operationId: replaceTripItem
       summary: Replace an item's place after server validation
+      description: |
+        The item keeps its validated schedule fields - date, position, start time, duration and
+        constraints - and only the place changes. The outgoing place comes back to the trip as an
+        ACTIVE candidate, the same disposition `removeTripItem` names `RESTORE_CANDIDATE`, and this
+        operation takes no parameter to choose otherwise: replacing a place is not saying to forget
+        it, and a candidate carries no date, so restoring one changes no schedule (invariant 2).
+        Dropping it afterwards is `removeTripCandidate`, one explicit call.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -3071,6 +3136,10 @@ paths:
                 $ref: "#/components/schemas/EventBatchReceipt"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3244,6 +3313,19 @@ components:
             $ref: "#/components/schemas/Problem"
     Unauthorized:
       description: Session is absent, expired, or revoked
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: |
+        The session is valid but the request is not allowed to proceed. In this API that is a CSRF
+        failure (`CSRF_INVALID`): a state-changing request whose token is missing, stale, or from a
+        different origin. A resource owned by another session answers `404`, not `403`, so ownership
+        never leaks through the status.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"
@@ -4837,6 +4919,11 @@ components:
         scheduledTripItemId:
           type: [string, "null"]
           format: uuid
+          description: |
+            Set exactly while `status` is SCHEDULED. The same place may sit on more than one date -
+            the client refuses a duplicate only on the date being added to - and this field then
+            names the FIRST of those items in (date, position) order rather than the most recent, so
+            the value does not move when a later day is edited.
         note:
           type: [string, "null"]
           maxLength: 500
