@@ -3,9 +3,11 @@ package io.nullnull.catalog.infrastructure.kto;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+import io.nullnull.catalog.application.CatalogIngest;
 import io.nullnull.catalog.application.KtoPlaceDetailFetcher;
 import io.nullnull.catalog.application.KtoPlaceDetailGateway;
 import io.nullnull.catalog.application.KtoPlaceRequest;
+import io.nullnull.catalog.domain.CatalogPlace;
 import io.nullnull.catalog.domain.KtoPlaceSnapshot;
 import io.nullnull.shared.provider.ProviderHttpClient.ProviderResponse;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -50,6 +52,7 @@ class KtoActualSmokeIT {
     @Autowired KtoPlaceDetailGateway gateway;
     @Autowired KtoPlaceDetailFetcher fetcher;
     @Autowired KtoKorServiceProperties properties;
+    @Autowired CatalogIngest catalogIngest;
     @Autowired JdbcTemplate jdbc;
 
     @Test
@@ -102,6 +105,27 @@ class KtoActualSmokeIT {
                 .containsEntry("records_rejected", 0)
                 .containsEntry("error_code", null);
         assertThat(forbiddenColumns).isZero();
+
+        // A validated snapshot is not yet a usable place. Under registry revision 3 this smoke was
+        // green while every real KTO place was rejected one stage later, because the validator read
+        // cat1/areacode - which detailCommon2 returns as empty strings - and KtoSnapshotCatalogIngest
+        // requires categoryCode and areaCode to be present. The green half hid the broken half, so
+        // the smoke now carries the actual response through the canonical mapping as well.
+        CatalogPlace place = catalogIngest.ingest(snapshot);
+        assertThat(place.categoryCode()).isNotBlank();
+        assertThat(place.regionCode()).isNotBlank();
+        assertThat(place.canonicalName()).isEqualTo(snapshot.title());
+
+        Map<String, Object> canonical = jdbc.queryForMap("""
+                SELECT p.category_code, p.region_code, p.status, r.source_registry_version
+                  FROM places p
+                  JOIN place_external_refs r ON r.place_id = p.id
+                 WHERE p.id = ?
+                """, place.id());
+        assertThat(canonical).containsEntry("status", "ACTIVE")
+                .containsEntry("source_registry_version", 4L);
+        assertThat((String) canonical.get("category_code")).isNotBlank();
+        assertThat((String) canonical.get("region_code")).isNotBlank();
     }
 
     private String compactAuditEvidence() {

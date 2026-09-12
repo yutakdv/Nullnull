@@ -251,7 +251,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **셋째가 남았고, 그 이유가 처음 생각과 다르다.** 이 카드의 acceptance인 `BA-004-T1`~`T3`는 Python `scripts/tests`에만 있고 Gradle JUnit 이름에는 없다. `check_test_reports.required_plan_ids`는 `integration-ready`·`verified` 카드의 test ID를 **JUnit 이름에서** 찾으므로, 지금 카드를 올리면 집계기가 자기 카드의 증거를 찾지 못해 실패한다.
 
-**그렇다고 `scripts/tests`에서 JUnit을 뽑아 채널을 만드는 것은 답이 아니다.** `BA-004-T3`("외부 egress가 차단된 실제 Compose에서 fixture만으로 재현한다")의 증거는 **실제 full-docker 실행**인데, Python wrapper test는 `docker compose`를 stub한다. emitter를 만들면 stub된 실행이 T3의 증거로 집계되고, 그것은 이 카드의 안전 경계가 금지한 "missing suite를 green placeholder로 대체"에 정확히 해당한다. 실제로 T3을 증거하는 것은 `docker-integration`이 매 PR에서 돌리는 full-docker 실행이다.
+**Gradle 쪽 acceptance로 옮기는 것도 답이 아니다(조사 결과).** T3의 조건은 이미 두 겹으로 지켜지고 있다 — `scripts/verify_target_stack.py`가 `integration-internal`에 `internal: true`를 요구하고 모든 필수 service에 명시적 network를 요구하며(`:189-205`), `compose.integration.yml`에서 `api-quality`·`ai-quality`·`postgres`가 전부 그 network에 붙어 있다. 즉 **Gradle suite는 이미 egress가 차단된 실제 Compose 안에서 돈다.** 이걸 Gradle test로 다시 단언하면 (a) 이미 있는 검사를 더 약한 자리에서 복제하고 (b) *설정*을 확인할 뿐 T3이 요구한 *재현*을 확인하지 못한다. 집계기에 ID를 보이게 하려고 증거의 의미를 바꾸는 셈이다.
+
+**그렇다고 `scripts/tests`에서 JUnit을 뽑아 채널을 만드는 것도 답이 아니다.** `BA-004-T3`("외부 egress가 차단된 실제 Compose에서 fixture만으로 재현한다")의 증거는 **실제 full-docker 실행**인데, Python wrapper test는 `docker compose`를 stub한다. emitter를 만들면 stub된 실행이 T3의 증거로 집계되고, 그것은 이 카드의 안전 경계가 금지한 "missing suite를 green placeholder로 대체"에 정확히 해당한다. 실제로 T3을 증거하는 것은 `docker-integration`이 매 PR에서 돌리는 full-docker 실행이다.
 
 그래서 이 카드는 **집계 채널이 없어서가 아니라, acceptance의 성격이 JUnit 집계와 맞지 않아서** `in-progress`에 머문다. 올리려면 Gradle 쪽 acceptance를 따로 두거나 집계 규칙 자체를 바꿔야 하고, 둘 다 계획 소유자의 판단이다. 예외 목록으로 우회하지 않는다.
 
