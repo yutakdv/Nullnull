@@ -16,6 +16,7 @@
         "categoryName": null,
         "regionName": null,
         "thumbnailUrl": null,
+        "thumbnailAttribution": null,
         "address": "서울 종로구 자하문로",
         "sourceAttribution": {
           "source": "KTO_KOR_SERVICE_2",

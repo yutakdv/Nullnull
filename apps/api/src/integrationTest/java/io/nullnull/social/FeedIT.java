@@ -154,6 +154,48 @@ class FeedIT {
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
+    /**
+     * PM-010, the half that is a data gap rather than a projection gap. A place image can only reach
+     * a response through place_media_assets -> media_assets -> asset_licenses, and the query requires
+     * license.redistribution_allowed; V010 deliberately left no URL column on places or
+     * place_localizations that could bypass that review. posts.cover_url is a bare NOT NULL text
+     * column with no licence at all, so every post is REQUIRED to carry a cover image that has passed
+     * no review, and coverAsset is therefore always null.
+     *
+     * <p>That is not something the server can fix on its own: where P0 cover images come from is an
+     * owner decision, and if the answer is KTO imagery those carry per-image terms
+     * (docs/data/SOURCE_CATALOG.md). Until it is answered, the emptiness is pinned here rather than
+     * left to a fixture to imply - post-detail.json carries coverAsset null, but a fixture agreeing
+     * with the server today is not a guard. This turns RED the moment a reviewed cover exists, which
+     * is exactly when it must be replaced by a real assertion.
+     */
+    @Test
+    @DisplayName("BA-032-T1 a post cover carries no rights yet, and nothing claims otherwise")
+    void aPostCoverHasNoReviewedLicenceYet() throws Exception {
+        var reader = owner();
+        UUID postId = post("표지 권리", place("경복궁"), "2026-09-09T02:00:00Z");
+
+        mvc.perform(get("/api/v1/posts/" + postId).cookie(cookie(reader)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.coverUrl").value("https://example.test/cover.jpg"))
+                .andExpect(jsonPath("$.coverAsset").isEmpty());
+        // The feed card does not even have a coverAsset field to be null, so the list projection
+        // cannot express the rights of the image it shows. Adding the field before there is a
+        // reviewed asset to put in it would only move the silence.
+        mvc.perform(get("/api/v1/feed").cookie(cookie(reader)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].post.coverUrl").value("https://example.test/cover.jpg"))
+                .andExpect(jsonPath("$.items[0].post.coverAsset").doesNotExist());
+        // posts has no column that could hold one, which is why this is a data decision.
+        Integer licenceColumns = jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM information_schema.columns
+                 WHERE table_schema = 'public' AND table_name = 'posts'
+                   AND column_name IN ('cover_media_asset_id', 'cover_asset_license_id')
+                """, Integer.class);
+        assertThat(licenceColumns).isZero();
+    }
+
     @Test
     @DisplayName("BA-032-T2 one owner's saved state never appears in another owner's feed")
     void savedStateIsPerOwner() throws Exception {

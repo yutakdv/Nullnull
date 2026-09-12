@@ -241,6 +241,37 @@ class CatalogPlaceApiIT {
                 .doesNotContain(wildcardOnly.toString());
     }
 
+    /**
+     * PM-010: a list card shows the image but the summary projection did not carry its credit, so a
+     * client had no way to satisfy an attribution-required licence without an N+1 detail call.
+     * Redistributable and creditless are different permissions - the summary already filtered on the
+     * first and said nothing about the second.
+     */
+    @Test
+    @DisplayName("BA-022-T1 a search summary carries the credit for the image it serves")
+    void aSummaryCarriesTheCreditForItsThumbnail() throws Exception {
+        SessionService.Bootstrap owner = owner("ko-KR");
+        UUID credited = activePlace("가 크레딧 장소", true);
+        UUID creditless = activePlace("나 크레딧 장소", true);
+        localization(credited, "ko-KR", "가 크레딧 장소", null, null);
+        localization(creditless, "ko-KR", "나 크레딧 장소", null, null);
+        reference(credited);
+        reference(creditless);
+        media(credited, true, "https://cdn.example.test/credited.jpg", "credited.jpg", "사진: ⓒ촬영자");
+        media(creditless, true, "https://cdn.example.test/creditless.jpg", "creditless.jpg", null);
+
+        MvcResult result = search(owner, "{\"query\":\"크레딧\",\"limit\":10}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].thumbnailUrl").value("https://cdn.example.test/credited.jpg"))
+                .andExpect(jsonPath("$.items[0].thumbnailAttribution").value("사진: ⓒ촬영자"))
+                // A licence that requires no credit projects null, not an empty string and not the
+                // place's sourceAttribution: crediting the record is not crediting the photograph.
+                .andExpect(jsonPath("$.items[1].thumbnailUrl").value("https://cdn.example.test/creditless.jpg"))
+                .andExpect(jsonPath("$.items[1].thumbnailAttribution").isEmpty())
+                .andReturn();
+        assertThat(result.getResponse().getContentAsString()).contains("\"thumbnailAttribution\":null");
+    }
+
     private org.springframework.test.web.servlet.ResultActions search(SessionService.Bootstrap owner, String body)
             throws Exception {
         return mvc.perform(post("/api/v1/places/search").cookie(cookie(owner))
@@ -300,14 +331,19 @@ class CatalogPlaceApiIT {
     }
 
     private UUID media(UUID placeId, boolean redistributable, String servedUrl, String externalId) {
+        return media(placeId, redistributable, servedUrl, externalId, "출처: fixture");
+    }
+
+    private UUID media(UUID placeId, boolean redistributable, String servedUrl, String externalId,
+            String attributionTemplate) {
         UUID license = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO asset_licenses
                     (id, source_code, source_registry_version, external_license_code, license_name, license_url,
                      attribution_template, redistribution_allowed, derivative_allowed, reviewed_at)
                 VALUES (?, ?, 3, ?, 'fixture license', 'https://license.example.test/policy',
-                        '출처: fixture', ?, false, ?)
-                """, license, SOURCE, "fixture-" + license, redistributable, timestamp());
+                        ?, ?, false, ?)
+                """, license, SOURCE, "fixture-" + license, attributionTemplate, redistributable, timestamp());
         UUID asset = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO media_assets

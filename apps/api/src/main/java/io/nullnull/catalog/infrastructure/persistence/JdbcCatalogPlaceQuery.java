@@ -48,7 +48,8 @@ SELECT p.id,
                        source_credit.official_url AS credit_official_url,
                        source_credit.license_url AS credit_license_url,
                        source_credit.license_name AS credit_license_name,
-                       thumbnail.served_url AS thumbnail_url
+                       thumbnail.served_url AS thumbnail_url,
+                       thumbnail.attribution_template AS thumbnail_attribution
                   FROM places p
                   LEFT JOIN LATERAL (
                     SELECT name, address
@@ -88,7 +89,7 @@ SELECT p.id,
                      LIMIT 1
                   ) source_credit ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT asset.served_url
+                    SELECT asset.served_url, license.attribution_template
                       FROM place_media_assets assignment
                       JOIN media_assets asset ON asset.id = assignment.media_asset_id
                       JOIN asset_licenses license ON license.id = asset.asset_license_id
@@ -105,69 +106,7 @@ SELECT p.id,
     public List<CatalogPlaceSummary> search(CatalogPlaceSearchRequest request, long offset, int fetchLimit,
             Instant observedAt) {
         String pattern = "%" + escapeLike(request.query().toLowerCase(java.util.Locale.ROOT)) + "%";
-        return jdbc.query("""
-                SELECT p.id,
-                       COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name) AS name,
-                       p.category_code, p.region_code,
-                       COALESCE(exact_locale.address, language_locale.address, ko_locale.address) AS address,
-                       source_credit.source_code AS credit_source_code,
-                       source_credit.source_registry_version AS credit_source_version,
-                       source_credit.source_display_name AS credit_display_name,
-                       source_credit.attribution AS credit_attribution,
-                       source_credit.official_url AS credit_official_url,
-                       source_credit.license_url AS credit_license_url,
-                       source_credit.license_name AS credit_license_name,
-                       thumbnail.served_url AS thumbnail_url
-                  FROM places p
-                  LEFT JOIN LATERAL (
-                    SELECT name, address
-                      FROM place_localizations
-                     WHERE place_id = p.id AND lower(locale) = ?
-                     ORDER BY id
-                     LIMIT 1
-                  ) exact_locale ON TRUE
-                  LEFT JOIN LATERAL (
-                    SELECT name, address
-                      FROM place_localizations
-                     WHERE place_id = p.id AND split_part(lower(locale), '-', 1) = ?
-                     ORDER BY lower(locale), id
-                     LIMIT 1
-                  ) language_locale ON TRUE
-                  LEFT JOIN LATERAL (
-                    SELECT name, address
-                      FROM place_localizations
-                     WHERE place_id = p.id AND lower(locale) = 'ko-kr'
-                     ORDER BY id
-                     LIMIT 1
-                  ) ko_locale ON TRUE
-                  LEFT JOIN LATERAL (
-                    SELECT ref.source_code,
-                           ref.source_registry_version,
-                           revision.canonical_contract->>'displayName' AS source_display_name,
-                           revision.canonical_contract->>'attributionTemplate' AS attribution,
-                           revision.canonical_contract->>'officialUrl' AS official_url,
-                           revision.canonical_contract->'license'->>'url' AS license_url,
-                           revision.canonical_contract->'license'->>'name' AS license_name
-                      FROM place_external_refs ref
-                      JOIN source_registry_revisions revision
-                        ON revision.source_code = ref.source_code
-                       AND revision.version = ref.source_registry_version
-                     WHERE ref.place_id = p.id
-                     ORDER BY ref.verified_at, ref.id
-                     LIMIT 1
-                  ) source_credit ON TRUE
-                  LEFT JOIN LATERAL (
-                    SELECT asset.served_url
-                      FROM place_media_assets assignment
-                      JOIN media_assets asset ON asset.id = assignment.media_asset_id
-                      JOIN asset_licenses license ON license.id = asset.asset_license_id
-                     WHERE assignment.place_id = p.id
-                       AND asset.served_url IS NOT NULL
-                       AND license.redistribution_allowed
-                       AND (asset.expires_at IS NULL OR asset.expires_at > ?)
-                     ORDER BY assignment.position, asset.id
-                     LIMIT 1
-                  ) thumbnail ON TRUE
+        return jdbc.query(SUMMARY_PROJECTION + """
                  WHERE p.status = 'ACTIVE'
                    AND p.latitude IS NOT NULL
                    AND p.longitude IS NOT NULL
@@ -326,7 +265,8 @@ SELECT p.id,
     private static CatalogPlaceSummary summary(ResultSet result, int row) throws SQLException {
         return new CatalogPlaceSummary(result.getObject("id", UUID.class), result.getString("name"),
                 result.getString("category_code"), result.getString("region_code"), categoryName(result),
-                regionName(result), result.getString("thumbnail_url"), result.getString("address"),
+                regionName(result), result.getString("thumbnail_url"),
+                result.getString("thumbnail_attribution"), result.getString("address"),
                 sourceAttribution(result));
     }
 

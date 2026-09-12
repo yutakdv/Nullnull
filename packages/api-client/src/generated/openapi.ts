@@ -1101,8 +1101,19 @@ export interface components {
             regionName?: string | null;
             /** @description Null only for records with no external source, such as a user-created place. */
             sourceAttribution?: components["schemas"]["SourceAttribution"] | null;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description A thumbnail whose reviewed licence allows redistribution, or null. Never render it
+             *     without `thumbnailAttribution` when that field is non-null.
+             */
             thumbnailUrl?: string | null;
+            /**
+             * @description Ready-to-render credit for `thumbnailUrl`, or null when the reviewed licence requires
+             *     none. Redistributable is not the same as creditless, and a card that cannot name the
+             *     image's source must not show the image. Displayed verbatim; it is not `sourceAttribution`,
+             *     which credits the place record rather than the photograph.
+             */
+            thumbnailAttribution?: string | null;
             address?: string | null;
         };
         PlaceDetail: {
