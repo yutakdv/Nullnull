@@ -71,8 +71,10 @@ class OwnerPreferencesIT {
     }
     @Test @DisplayName("BA-011-T3 omitted fields preserve state null clears active trip and repeated onboarding is inert")
     void mergePatchAndRepeat() throws Exception {
-        var a=owner();UUID trip=UUID.randomUUID();
-        // BA-030 has no table yet; seed only the preference column to exercise absent versus clear.
+        var a=owner();
+        // A real trip: V013 added the foreign key and the same-owner trigger V002 deferred, so a
+        // made-up id no longer reaches the column at all.
+        UUID trip=io.nullnull.testsupport.TripRows.insert(jdbc,a.owner.id(),java.time.Instant.now());
         jdbc.update("UPDATE owners SET active_trip_id = ? WHERE id = ?",trip,a.owner.id());
         change(a,"{\"onboardingCompleted\":true}").andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeTripId").value(trip.toString()));

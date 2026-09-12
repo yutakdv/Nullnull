@@ -22,12 +22,17 @@ class OwnerPreferencesConcurrencyIT {
     @Autowired SessionService sessions;
     @Autowired OwnerPreferencesService preferences;
     @Autowired DataSource dataSource;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockitoBean TripLookup trips;
     @Test @DisplayName("BA-011-T2 trip port receives the authenticated owner and rejects foreign or deleted references")
     void ownerBoundTripPort() {
         var a=sessions.bootstrap(null,null,null);var b=sessions.bootstrap(null,null,null);
         var ac=sessions.resolve(a.cookie,false);var bc=sessions.resolve(b.cookie,false);
-        UUID trip=UUID.randomUUID();when(trips.isActiveOwnedTrip(ac.ownerId(),trip)).thenReturn(true);
+        // A real row: the port decides POLICY (is this trip this owner's and active), while the
+        // database enforces REFERENCE (the id exists and belongs to this owner). Mocking the
+        // port does not exempt the write from the second one.
+        UUID trip=io.nullnull.testsupport.TripRows.insert(jdbc,ac.ownerId(),java.time.Instant.now());
+        when(trips.isActiveOwnedTrip(ac.ownerId(),trip)).thenReturn(true);
         var patch=new PreferencesPatch(null,null,null,true,trip);
         assertThat(preferences.patch(ac,patch).activeTripId()).isEqualTo(trip);
         assertThatThrownBy(() -> preferences.patch(bc,patch)).isInstanceOf(ApiException.class);
