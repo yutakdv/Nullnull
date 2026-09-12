@@ -90,3 +90,6 @@ __pycache__/
 
 # Browser-tool debugging snapshots. Never source.
 .playwright-mcp/
+
+# npm run security:scan writes its report here; the gate judges it, it is not source.
+.audit/

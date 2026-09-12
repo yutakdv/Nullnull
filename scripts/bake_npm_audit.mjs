@@ -21,7 +21,10 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const DEFAULT_REPORT_PATH = '/workspace/.audit/npm-audit.json';
+// Relative to the working directory so `npm run security:scan` writes the same report whether it
+// runs in the tooling image (WORKDIR /workspace) or on a developer's checkout. The gate and the
+// script a person types are then literally the same command.
+const DEFAULT_REPORT_PATH = '.audit/npm-audit.json';
 // --audit-level is not passed: it only changes npm's exit code, which this script ignores.
 // The blocking threshold belongs to check_npm_audit_report.py, in one place.
 const AUDIT_ARGS = ['audit', '--omit=dev', '--json'];
