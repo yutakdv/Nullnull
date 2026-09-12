@@ -260,6 +260,9 @@ export const messages = {
     'mustVisit.noResults': '검색 결과가 없어요',
     'mustVisit.searchError': '검색하지 못했어요',
     'mustVisit.add': '담기',
+    // 검색 결과의 버튼은 전부 `담기`라 스크린리더로는 구분되지 않는다. 보이는
+    // 라벨은 그대로 두고 접근성 이름에만 장소를 넣는다.
+    'mustVisit.addNamed': '{place} 담기',
     'mustVisit.remove': '빼기',
     'mustVisit.next': '이대로 채우기',
     'mustVisit.skip': '건너뛰기',
@@ -833,6 +836,7 @@ export const messages = {
     'mustVisit.noResults': 'No matches',
     'mustVisit.searchError': "We couldn't search",
     'mustVisit.add': 'Keep',
+    'mustVisit.addNamed': 'Keep {place}',
     'mustVisit.remove': 'Remove',
     'mustVisit.next': 'Fill the rest',
     'mustVisit.skip': 'Skip',

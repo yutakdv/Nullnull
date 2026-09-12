@@ -88,6 +88,19 @@ describe('searching for a place keeps the query out of every URL', () => {
   });
 });
 
+/**
+ * The add button for one result, by the place it adds.
+ *
+ * Every button's visible label is 담기, so a name query matched all of them
+ * and the first one happened to be right. The accessible name carries the
+ * place — the same shape the remove button already used — so these now say
+ * which result they pressed.
+ */
+const addButton = (name: string) =>
+  screen.findByRole('button', {
+    name: copy['mustVisit.addNamed'].replace('{place}', name),
+  });
+
 describe('results and the kept list', () => {
   it('lists what the search returned', async () => {
     await searchFor('서울');
@@ -96,8 +109,7 @@ describe('results and the kept list', () => {
 
   it('keeps a place and marks it as a must-visit', async () => {
     const user = await searchFor('서울');
-    const add = await screen.findAllByRole('button', { name: copy['mustVisit.add'] });
-    await user.click(add[0] as HTMLElement);
+    await user.click(await addButton(first?.name ?? ''));
 
     const kept = await screen.findByRole('list', { name: copy['mustVisit.picked'] });
     expect(kept).toHaveTextContent(first?.name ?? '');
@@ -110,8 +122,7 @@ describe('results and the kept list', () => {
     // the badge ignores the locale entirely — this file runs in en-US, so the
     // default and the correct answer differ and the assertion is meaningful.
     const user = await searchFor('서울');
-    const add = await screen.findAllByRole('button', { name: copy['mustVisit.add'] });
-    await user.click(add[0] as HTMLElement);
+    await user.click(await addButton(first?.name ?? ''));
     const kept = await screen.findByRole('list', { name: copy['mustVisit.picked'] });
     expect(kept).toHaveTextContent(copy['mustVisit.badge']);
     expect(kept).not.toHaveTextContent('꼭 가요');
@@ -119,11 +130,7 @@ describe('results and the kept list', () => {
 
   it('removes a kept place again', async () => {
     const user = await searchFor('서울');
-    await user.click(
-      (
-        await screen.findAllByRole('button', { name: copy['mustVisit.add'] })
-      )[0] as HTMLElement,
-    );
+    await user.click(await addButton(first?.name ?? ''));
     await user.click(
       await screen.findByRole('button', {
         name: `${first?.name ?? ''} ${copy['mustVisit.remove']}`,
@@ -132,14 +139,26 @@ describe('results and the kept list', () => {
     expect(await screen.findByText(copy['mustVisit.pickedEmpty'])).toBeInTheDocument();
   });
 
+  it('names each add button for the place it adds', async () => {
+    // A screen reader listing the controls used to hear 담기, 담기, 담기 with
+    // no way to tell which place each one kept; the name was only recoverable
+    // by arrowing back out of the button and re-reading the list item.
+    await searchFor('서울');
+    const buttons = await screen.findAllByRole('button', {
+      name: new RegExp(copy['mustVisit.add']),
+    });
+    const names = buttons.map((b) => b.getAttribute('aria-label'));
+    expect(names.length).toBeGreaterThan(1);
+    // Every one distinct, and each carrying its own place.
+    expect(new Set(names).size).toBe(names.length);
+    expect(names[0]).toContain(first?.name ?? '');
+  });
+
   it('will not keep the same place twice', async () => {
     const user = await searchFor('서울');
-    const add = await screen.findAllByRole('button', { name: copy['mustVisit.add'] });
-    await user.click(add[0] as HTMLElement);
-    await waitFor(() => {
-      expect(
-        screen.getAllByRole('button', { name: copy['mustVisit.add'] })[0],
-      ).toBeDisabled();
+    await user.click(await addButton(first?.name ?? ''));
+    await waitFor(async () => {
+      expect(await addButton(first?.name ?? '')).toBeDisabled();
     });
   });
 
@@ -230,11 +249,7 @@ describe('the card shows only what the contract supplies', () => {
 describe('keyboard and continuation', () => {
   it('gives the remove control an accessible name that says which place', async () => {
     const user = await searchFor('서울');
-    await user.click(
-      (
-        await screen.findAllByRole('button', { name: copy['mustVisit.add'] })
-      )[0] as HTMLElement,
-    );
+    await user.click(await addButton(first?.name ?? ''));
     expect(
       await screen.findByRole('button', {
         name: `${first?.name ?? ''} ${copy['mustVisit.remove']}`,

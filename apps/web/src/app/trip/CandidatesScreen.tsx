@@ -161,6 +161,15 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
   // key. One minted per press would let a retry after a lost response put the
   // place on the day twice (invariant 6).
   const scheduleKey = useRef<{ for: string; key: string } | null>(null);
+  // Where focus goes once a date is chosen.
+  //
+  // Scheduling removes the date button the user was standing on AND the
+  // 담기 toggle beside it — the card becomes `scheduled`, and that branch
+  // renders neither. Focus fell to document.body, so the next Tab restarted
+  // from the top of a list that can run to twenty cards. The remove control
+  // is the one button this card keeps in every state, and it already names
+  // the place it acts on.
+  const afterScheduleRef = useRef<HTMLButtonElement>(null);
 
   const place = candidate.place;
   const meta = [place.categoryName, place.regionName, place.address]
@@ -193,6 +202,10 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
         onSuccess: () => {
           scheduleKey.current = null;
           onToggle();
+          // Queued so it runs after React has re-rendered the scheduled
+          // state; focusing during the same tick would target the node that
+          // is about to be replaced.
+          setTimeout(() => afterScheduleRef.current?.focus(), 0);
         },
         onError: (error) => {
           if (isProblem(error) && error.code === 'TRIP_CHANGED') {
@@ -355,6 +368,7 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
           aria-label={t('candidates.removeNamed', { name: candidate.place.name })}
           className={styles.remove}
           disabled={remove.isPending}
+          ref={afterScheduleRef}
           onClick={() => {
             remove.mutate({ candidateId: candidate.id });
           }}

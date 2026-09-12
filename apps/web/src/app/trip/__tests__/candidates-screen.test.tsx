@@ -497,3 +497,24 @@ describe('FE-303 credits each source the way the server named it', () => {
     }
   });
 });
+
+describe('FE-303-T3 focus survives the panel closing', () => {
+  it('moves focus to the card rather than dropping it to the body', async () => {
+    // Scheduling succeeds, the panel collapses, and the date button the user
+    // was standing on is removed from the DOM. Focus then resets to
+    // document.body, so the next Tab restarts from the top of the page and a
+    // keyboard user loses their place in a list that can run to twenty cards.
+    const { user, card } = await openDates(page.items[1]?.place.name ?? '');
+    const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
+    await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('list', { name: copy['candidates.pickDate'] }),
+      ).not.toBeInTheDocument();
+    });
+    // Somewhere inside the card the user was working in, not nowhere.
+    expect(document.activeElement).not.toBe(document.body);
+    expect(card.contains(document.activeElement)).toBe(true);
+  });
+});

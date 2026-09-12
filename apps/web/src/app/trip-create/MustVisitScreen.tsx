@@ -123,6 +123,12 @@ export function MustVisitScreen() {
                   </span>
                   <button
                     type="button"
+                    // Every result's button reads 담기, so a screen reader
+                    // hears the same name down the whole list and cannot tell
+                    // which place each one adds. The visible label stays short
+                    // — the place is right beside it on screen — and only the
+                    // accessible name carries it.
+                    aria-label={t('mustVisit.addNamed', { place: place.name })}
                     className={styles.action}
                     disabled={pickedIds.has(place.id)}
                     onClick={() => {
