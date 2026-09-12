@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import io.nullnull.shared.http.NullnullOperation;
+import io.nullnull.shared.http.NullnullOperation.Security;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -25,6 +26,35 @@ class SessionContractTest {
     @Autowired MockMvc mvc;
     @Autowired java.time.Clock clock;
     @Autowired @Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping mapping;
+    /**
+     * A session-scoped response always carries {@code Cache-Control: private, no-store}, set by
+     * {@code SessionHttpConfiguration}'s interceptor for every SESSION operation. A header the server
+     * always sends but the contract never names is invisible to a generated client, so the two must agree.
+     */
+    @Test @DisplayName("every session-scoped operation declares the Cache-Control it always sends")
+    void cacheControlParity() {
+        var api = OpenApiDocument.load();
+        var missing = new java.util.TreeSet<String>();
+        mapping.getHandlerMethods().forEach((route, method) -> {
+            if (!method.getBeanType().getPackageName().startsWith("io.nullnull.")
+                    || method.getBeanType().getPackageName().startsWith("io.nullnull.shared.problem")) { return; }
+            var op = method.getMethodAnnotation(NullnullOperation.class);
+            if (op == null || !List.of(op.security()).contains(Security.SESSION)) { return; }
+            boolean declaredSomewhere = false;
+            for (String code : List.of("200", "201", "202")) {
+                try {
+                    if (api.responseHeaders(op.id(), code).contains("Cache-Control")) { declaredSomewhere = true; }
+                } catch (IllegalArgumentException unknown) {
+                    return;
+                }
+            }
+            if (!declaredSomewhere) { missing.add(op.id()); }
+        });
+        assertThat(missing)
+                .as("these operations always send Cache-Control: private, no-store but never declare it")
+                .isEmpty();
+    }
+
     @Test @DisplayName("BA-010-T1 every implemented handler declares matching OpenAPI operation security")
     void securityParity() {
         var api=OpenApiDocument.load();

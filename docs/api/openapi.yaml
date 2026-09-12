@@ -119,6 +119,10 @@ paths:
         "200":
           description: Existing valid anonymous session resumed
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             X-Request-ID:
               $ref: "#/components/headers/RequestId"
           content:
@@ -128,6 +132,10 @@ paths:
         "201":
           description: Anonymous session created
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             Set-Cookie:
               description: Secure HttpOnly session cookie
               schema:
@@ -158,6 +166,11 @@ paths:
       responses:
         "200":
           description: A new independently valid CSRF token
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -178,6 +191,11 @@ paths:
       responses:
         "200":
           description: Per-capability readiness
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -266,6 +284,11 @@ paths:
       responses:
         "200":
           description: Current anonymous or account owner
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -294,6 +317,11 @@ paths:
       responses:
         "200":
           description: Preferences updated
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -472,6 +500,11 @@ paths:
       responses:
         "200":
           description: Canonical place detail
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -538,6 +571,11 @@ paths:
       responses:
         "200":
           description: Forecast series; may explicitly be unavailable
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:

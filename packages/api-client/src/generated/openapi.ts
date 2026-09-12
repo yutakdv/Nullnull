@@ -2466,6 +2466,7 @@ export interface operations {
             /** @description Existing valid anonymous session resumed */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     "X-Request-ID": components["headers"]["RequestId"];
                     [name: string]: unknown;
                 };
@@ -2476,6 +2477,7 @@ export interface operations {
             /** @description Anonymous session created */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     /** @description Secure HttpOnly session cookie */
                     "Set-Cookie"?: string;
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -2501,6 +2503,7 @@ export interface operations {
             /** @description A new independently valid CSRF token */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2524,6 +2527,7 @@ export interface operations {
             /** @description Per-capability readiness */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2607,6 +2611,7 @@ export interface operations {
             /** @description Current anonymous or account owner */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2632,6 +2637,7 @@ export interface operations {
             /** @description Preferences updated */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2811,6 +2817,7 @@ export interface operations {
             /** @description Canonical place detail */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2837,6 +2844,7 @@ export interface operations {
             /** @description Forecast series; may explicitly be unavailable */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
