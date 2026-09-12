@@ -294,6 +294,10 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
 
+**계약 파일이 Gradle task 입력이 아니어서 로컬에서 stale PASS가 났다.** `openapiContractTest`는 `docs/api/openapi.yaml` 경로를 **system property로만** 받았다. property는 up-to-date 검사에 보이지 않으므로, 계약만 고치고 suite를 다시 돌리면 **직전 실행 결과가 그대로 보고된다**. 실측: `listFeed`의 503을 틀린 응답으로 바꾸는 변이가 `--rerun-tasks` 없이는 GREEN이었고, 붙이면 RED였다. CI는 매번 새 checkout이라 항상 돌기 때문에 **게이트가 아니라 개발자의 loop에만 숨어 있었다** — 그래서 "가드가 변이를 못 잡네"로 오진하기 쉽다. `inputs.file(...)`/`inputs.dir(...)`로 openapi·fixtures·events schema를 선언해 고쳤다. **경로를 property로 넘기면 입력으로도 선언한다.**
+
+**변이가 살아남았을 때 먼저 의심할 것은 가드가 아니라 실행 여부다.** 위 건과 `SendMessage` 이전에 겪은 "BUILD FAILED인데 exit 0"(파이프로 인한) 둘 다, 결과를 읽기 전에 **그 명령이 실제로 무엇을 실행했는지**를 확인했어야 했다.
+
 **변이 테스트가 카드의 현재 값에 의존하면 그 카드를 올리는 날 죽는다.** `test_backend_plan.py`의 status 검사 세 건이 BA-030의 status를 `in-progress`로 하드코딩하고 `integration-ready`로 바꾸는 것을 변이로 썼다. 카드를 `integration-ready`로 올린 순간 그 변이는 **카드가 이미 선언한 값을 다시 넣는 것**이 되어 아무것도 비교하지 않았다 — validator는 멀쩡한데 test가 조용히 죽었다. 로컬에서 수정 전에 돌렸을 때는 통과했고 CI가 잡았다. 이제 카드 헤더에서 현재 status를 **읽고** 카드가 선언하지 않은 다른 값을 변이로 쓴다. 산문 시나리오도 카드의 현재 문장을 빌리지 않고 test가 직접 써 넣는다. **fixture나 정본의 특정 값을 변이의 재료로 쓰면 그 값이 바뀌는 날 함께 죽는다.**
 
 **계약을 좁히는 것과 계약을 적는 것은 다르다.** FCR-020의 13개 관심사 code를 `enum`으로 선언하려 했더니 oasdiff가 `response-property-enum-value-added` **156건**을 냈다. 이전이 `type: string`이라 oasdiff는 "빈 enum에 13개 추가"로 읽지만 응답 소비자에게는 좁아진 변경이라 오탐이다 — 다만 예외 등록부는 **한 줄 = 한 메시지**를 요구하므로 159행을 넣어야 하고, 그러면 게이트가 의미를 잃는다. 더 중요한 이유는 **어휘의 정본이 FE 소유 Figma chip 목록**이라는 점이다. 닫힌 enum은 chip 추가마다 breaking 절차를 강요한다. `x-nullnull-interest-codes` extension으로 적고, extension은 아무것도 강제하지 못하므로 계약↔서버 parity를 **test로** 고정했다(양방향 변이 확인). **소유자가 상대 역할인 목록은 계약에서 닫지 않는다.**

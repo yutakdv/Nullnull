@@ -2402,8 +2402,27 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description A required capability is temporarily unavailable */
+        /**
+         * @description A required capability is temporarily unavailable, WITHOUT saying which code arrives.
+         *
+         *     503 carries two codes - `SOURCE_UNAVAILABLE` for a data source that is not published, and
+         *     `ROUTE_UNAVAILABLE` for a travel route that could not be confirmed - so this response cannot
+         *     name one. An operation that knows which of them it sends uses `SourceUnavailable` instead;
+         *     this generic form is for operations whose 503 does not exist yet and whose code is therefore
+         *     not decided. `EventContractTest` keeps that true: an implemented operation may not use it.
+         */
         ServiceUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description A canonical data source this operation reads is not published yet */
+        SourceUnavailable: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
                 "Retry-After"?: number;
@@ -2496,7 +2515,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReadinessStatus"];
                 };
             };
-            503: components["responses"]["ServiceUnavailable"];
+            503: components["responses"]["SourceUnavailable"];
         };
     };
     createDemoSession: {
@@ -2731,7 +2750,7 @@ export interface operations {
                     "application/json": components["schemas"]["FeedPage"];
                 };
             };
-            503: components["responses"]["ServiceUnavailable"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -2783,7 +2802,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            503: components["responses"]["ServiceUnavailable"];
+            503: components["responses"]["SourceUnavailable"];
         };
     };
     savePost: {

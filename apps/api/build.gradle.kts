@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.PathSensitivity
 plugins {
     java
     `java-test-fixtures`
@@ -120,6 +121,22 @@ testing {
             targets.all {
                 testTask.configure {
                     shouldRunAfter(test)
+                    // Declared as INPUTS, not only as system properties. A path handed over as a
+                    // property is invisible to the up-to-date check, so editing the contract and
+                    // re-running this suite reported the previous run's result - a stale PASS,
+                    // exactly where a contract test is supposed to be the thing that notices.
+                    // Measured: a mutation that pointed listFeed at the wrong 503 response stayed
+                    // green until --rerun-tasks. CI is a fresh checkout and always runs, which is
+                    // why this hid in the local loop rather than in the gate.
+                    inputs.file(layout.projectDirectory.file("../../docs/api/openapi.yaml"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("openapiContract")
+                    inputs.dir(layout.projectDirectory.dir("../../packages/contracts/fixtures"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("contractFixtures")
+                    inputs.file(layout.projectDirectory.file("../../docs/contracts/events.schema.json"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("eventSchema")
                     systemProperty(
                         "nullnull.openapi.path",
                         providers.gradleProperty("nullnull.openapi.path")
