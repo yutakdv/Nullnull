@@ -357,7 +357,7 @@ utility = wSave × P(candidate save | valid impression, context)
 | score contribution | 기본 request memory, synthetic eval report | 요청 종료; 실제 raw feature 로그 금지 | 영속 필요 시 별도 검토 |
 | 모델 학습 export | P0 생성 안 함 | P2 동의·TTL·삭제 lineage 먼저 | 미승인 |
 
-feed table 초안: `feed_snapshots(id, owner_id, selected_trip_id nullable, sort_version, created_at, expires_at)`, `feed_snapshot_entries(snapshot_id, ordinal, post_id)`. `(snapshot_id, ordinal)`과 `(snapshot_id, post_id)` unique, owner/expiresAt index, selected trip owner 일치, post 삭제 시 skip/cascade를 검증한다. snapshot당 300개, owner당 동시 5개를 초기 상한으로 제안하며 한도 도달은 429로 처리하고 기존 tab의 snapshot을 임의 폐기하지 않는다. 이는 외부 콘텐츠 전체 mirror가 아니다.
+feed table 초안: `feed_snapshots(id, owner_id, selected_trip_id nullable, sort_version, created_at, expires_at)`, `feed_snapshot_entries(snapshot_id, ordinal, post_id)`. `(snapshot_id, ordinal)`과 `(snapshot_id, post_id)` unique, owner/expiresAt index, selected trip owner 일치, post 삭제 시 skip/cascade를 검증한다. snapshot당 300개, owner당 동시 5개를 초기 상한으로 제안한다. **한도 도달 시의 동작은 이 문서가 정하지 않는다** — 429는 쓸 수 없고(A-025로 application은 429를 발행하지 않는다) 무엇으로 거절할지는 이 기능을 구현하는 카드가 정한다. 어느 쪽이든 기존 tab의 snapshot을 임의 폐기하지 않는다. 이는 외부 콘텐츠 전체 mirror가 아니다.
 
 공유 cache에는 공개 catalog/source fact만 넣는다. owner별 HIDE/SavedPost/candidateState가 들어간 feed response는 공유하지 않는다. 캐시 key는 필요한 owner·selected trip·policy·snapshot scope에 결합한다. 권한/삭제/incident 확인을 cache hit로 생략하지 않는다.
 

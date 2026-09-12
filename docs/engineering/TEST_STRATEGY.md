@@ -438,7 +438,7 @@ bash scripts/integration-test.sh
 | REC-REL-02 | source 성공 빈 집합/장애/실제 처리 중 | NONE/UNKNOWN/CHECKING 구분, 가짜 후보 0 | contract |
 | REC-REL-03 | 관계는 유효하지만 mixed crowd source | 관련성 순위 유지, 더 한적함 수치 주장 없음 | property |
 | REC-FBK-01 | 같은 key·body 반복, 같은 key·다른 body | 효과 1회 / IDEMPOTENCY_KEY_REUSED | PostgreSQL |
-| REC-FBK-02 | minute bucket 중복·시각 변조·폭주 | 중복 수렴, 검토된 시각 한도와 429 적용 | integration |
+| REC-FBK-02 | minute bucket 중복·시각 변조·폭주 | 중복 수렴과 검토된 시각 한도 적용. **폭주 거절은 429가 아니다** — A-025로 application은 429를 발행하지 않으므로 거절 형태는 구현 카드가 정한다 | integration |
 | REC-FBK-03 | owner B가 A의 ID/세션 상태를 조작, CSRF 없음 | owner 격리, 거절, 다른 owner 숨김 상태 변화 0 | security |
 | REC-FBK-04 | LIKE/DISLIKE 순서 역전 도착·HIDE 뒤 LIKE | 서버 수신 순서 준수, HIDE 유지, 일정/저장 변화 0 | integration |
 

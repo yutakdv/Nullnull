@@ -42,6 +42,7 @@ tags:
 | A-021 | 총괄 PM은 scope·문구·공모전 claim·최종 go/no-go를 승인하되 두 기술 DRI의 safety veto와 필수 review를 대신하지 않음 | [현재 상태와 검수 gate](DECISIONS_AND_RISKS.md) |
 | A-022 | 추천 계산 전체(feed 순서·관련 장소·slot·ITEM·설명 template)는 Python 서비스 `apps/ai`가 담당하고 Spring은 hydration·gateway·재검증·저장을 담당. 공개 OpenAPI는 변경 없음 | [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006), 2026-09-07 결정 |
 | A-023 | D-015 stale threshold는 KTO forecast `PT24H`, KTO place detail 및 내부 catalog rule `P7D`로 고정한다. threshold가 없는 source는 collection하지 않는다 | 2026-09-07 팀 결정; C1 source registry v1 |
+| A-026 | `main` branch protection이 문서의 규칙과 일치함을 API로 확인했다 — required check는 `docs-contract`·`docker-integration` 둘뿐, strict(최신 base 요구) on, PR 필수이나 승인 0건 요구, admin 포함 direct push 금지, force push·삭제 금지, linear history off(merge commit 허용) | 2026-09-13 `repos/.../branches/main/protection` 실측. D-022를 닫는다. 승인 0건 + PR 필수가 *"auto-merge하되 상대 승인을 대기 조건으로 두지 않는다"*, linear history off가 *"merge commit을 사용한다"* 에 각각 대응한다 |
 | A-025 | inbound rate limiting은 edge에만 두고 application은 429를 발행하지 않는다. P0 제출 범위에 포함하지 않는다 | 2026-09-13 결정, #148과 D-033. 익명 전용 P0에서 owner 축 제한은 cookie를 버리면 우회되고, IP 축은 심사 환경의 공유 NAT에서 오탐이 크다. 심사위원을 막는 것이 데모의 최악 실패다 |
 | A-024 | post 표지는 팀이 직접 만든 1st-party 자산만 쓰고 provider 사진을 재배포하지 않는다. `MediaAsset`은 `attributionRequired=false`·`redistributionAllowed=true`로 채우며, 실제 장소를 사진처럼 묘사하지 않는 명시적 일러스트로 제한한다 | 2026-09-13 오너 결정, D-007의 post 절반. provider 사진은 record별 공공누리 유형 심사가 필요하고 `PostSummary`에 credit 경로가 없어 계약 breaking이 된다. 실사풍 합성은 불변식 6의 합성·관측 구분을 깬다 |
 
@@ -53,7 +54,7 @@ tags:
 | --- | --- | --- | --- | --- | --- |
 | D-001 | 실제 서비스 domain은 무엇인가? | 공동 | B01 staging | placeholder, production deploy 금지 | Route53/ACM validation |
 | D-002 | 지도·경로 provider는 무엇인가? | BE/AI | P1-Route | P0 route matrix 없음, 목록 UI | 가격/쿼터/약관/SDK 비교 ADR |
-| D-003 | KTO/서울 API production key·쿼터·재배포 조건이 승인됐는가? | BE/AI | B03 KTO slice 활성화 전 | mock/replay, 제출 go 금지 | 계정/쿼터/출처·실제 호출 체크 |
+| D-003 | 개발 계정 쿼터의 단위(인증키별인가 활용신청별인가)와 KTO 이미지 재배포 조건은 무엇인가? production key는 **신청하지 않기로 확정**(2026-09-13 오너, PM-023)했고 제출은 개발 계정으로 간다 | BE/AI | 법정동코드 등 새 operation을 같은 키에 추가하기 전 | 쿼터 guard를 미리 조이지 않는다 — per-API가 맞을 때 용량 절반을 버린다. 이미지는 재배포하지 않고 post 표지는 1st-party만 쓴다(A-024) | 포털 마이페이지 활용신청 상세가 API별 트래픽을 따로 보이는지 확인. 실호출 증거는 확보됨(KTO smoke, `api_ingest_logs`·`collector_runs` COMPLETED) |
 | D-004 | 장기 계정 로그인 provider가 필요한가? | 공동 | P1 또는 공개 출시 | 익명 session만 | 사용자 요구/계정 복구 정책 ADR |
 | D-005 | production RDS Multi-AZ/ECS 2 task 비용을 승인할 수 있는가? | 공동 | B08/최종 검수 | staging Single-AZ; 실제 사용자 출시 전 go/no-go | AWS calculator + downtime 기준 |
 | D-006 | 오류 추적 SaaS를 추가할 것인가? | FE | B08/최종 검수 | CloudWatch와 client-safe event만 | 개인정보/DPA/비용 검토 |
@@ -61,7 +62,7 @@ tags:
 | D-008 | P1 게시물 moderation 정책/도구는 무엇인가? | 공동 | P1-CreatePost | 작성 기능 OFF | 신고/삭제/금지 콘텐츠 정책 |
 | D-009 | 개인정보 처리방침상 최종 보존 기간은? | 공동 | B08/최종 검수 | 문서의 짧은 기술 기본값 | 공개 정책/삭제 test |
 | D-010 | 두 팀원의 GitHub handle과 CODEOWNERS 경로는? | 공동 | B01 | CODEOWNERS 생성 보류 | branch protection reviewer 동작 |
-| D-011 | Figma variable/token과 icon export 방식은? | FE | FE-002 | 수동 수치 복제 금지 | token pipeline + visual diff |
+| D-011 | icon export 방식과 visual diff는 무엇인가? **variable/token 쪽은 닫혔다** — `tokens.json`이 Figma local variables export(6 collection)이고 `tokens:check`가 `verify:ci` 첫 단계로 drift를 실패시킨다 | FE | FE-002 | 수동 수치 복제 금지 — 이제 기계가 강제한다 | icon export 경로(현재 `src/design/`에 icon 자산 0건)와 visual diff |
 | D-014 | 사용자 삭제 시 최적화 감사 record를 얼마나 보존할 수 있는가? | BE/AI | B06 | trip 삭제와 함께 제거 | 개인정보/운영 합의 |
 | D-016 | repository와 서비스 코드의 license는 무엇인가? | 공동 | 외부 기여/공개 배포 전 | 명시 license 없음, 재사용 허용을 가정하지 않음 | LICENSE 파일과 의존성 호환 검토 |
 | D-017 | staging/production AWS account를 분리할 수 있는가? | BE/AI | B01 staging/B08/최종 검수 | 별도 account 권장; 불가 시 role/VPC/KMS/secret/stack 완전 분리 | account/stack manifest 또는 예외 ADR |
@@ -69,12 +70,11 @@ tags:
 | D-019 | alarm/incident 실제 수신자·부재 escalation은? | 공동 | staging/B08/최종 검수 | role key만 문서화, contact 없으면 production 금지 | 두 사람 test alarm/tabletop |
 | D-020 | release/artifact/log의 최종 보존 기간은? | BE/AI | B01 CI/B08/최종 검수 | 운영 문서의 초기 보존값, active/rollback 보호 | lifecycle dry-run과 release manifest |
 | D-021 | exact Node/npm/Java patch, Gradle/Spring/PostgreSQL/generator version은? | 공동 | B01 종료 | Node LTS/npm, Java 21, wrapper; floating 금지 | lock 파일+local/CI/container version test |
-| D-022 | GitHub ruleset/required check/environment 설정은? | 공동 | 첫 code PR | direct push 금지, 문서의 stable check 이름 사용 | settings export/screenshot+review test |
 | D-023 | production security/privacy external escalation 책임자는? | 공동 | B08/최종 검수 | contact 없으면 production 금지 | 보호된 contact registry와 tabletop |
 | D-025 | 삭제 receipt와 tombstone/backup 재적용 보존은? | BE/AI | B02 삭제 구현 / B08 복원 검수 | revoke 즉시, 완료 전 완료 표시 금지 | 정책·ERD·job/recovery test |
 | D-026 | P1 알림 type/deep-link/read-all/보존 정책은? | 공동 | P1-Notifications | capability OFF, 내부 allowlist만 | OpenAPI/ERD/security/E2E |
 | D-027 | 최종 지정과제·팀명·서비스명이 제출처와 일치하는가? | 공동 | 기능설명서 동결 전 | 제출 금지 | 콘텐츠랩 화면·PDF·서비스 대조 |
-| D-028 | KTO 데이터를 장기/전체 로컬 저장할 필요가 있는가? | BE/AI | persistence 구현 전 | 최소 TTL/read-through만, 전체 mirror 금지 | 공식 문의 답변·별도 신청 승인 |
+| D-028 | KTO 데이터를 장기/전체 로컬 저장할 필요가 있는가? persistence는 **안전한 기본값 안에서 이미 구현**됐다(V007~V012, TTL read-through, A-023의 `PT24H`/`P7D`). 전체 mirror가 필요해지면 이 결정을 다시 연다 | BE/AI | 전체 mirror가 필요해지는 시점 | 최소 TTL/read-through만, 전체 mirror 금지 | 공식 문의 답변·별도 신청 승인 |
 | D-029 | 공식 기능설명서 최신 양식/필수 field가 그대로 유지됐는가? | 공동 | 기능설명서 동결·제출 직전 | 양식 변경·제출 금지 | 원본 checksum·PDF render·2인 대조 |
 | D-030 | Figma `FCR-001~015`가 실제 디자인 파일에 반영됐는가? | FE, PM 승인 | 영향 slice 착수 전 | 기존 충돌 화면 구현 금지 | 수정 node URL·전후 screenshot·계약 검토 |
 | D-031 | `apps/ai` ECS 배포 경로(ECR·service·내부 DNS·SG·`NULLNULL_AI_BASE_URL`)를 제출 빌드 전에 만들 것인가? | BE/AI | B08/제출 빌드 전 | 미배포 시 feed는 Spring 고정 순서, related/slot은 `UNKNOWN`, ITEM run은 `FAILED`(fallback-only); ITEM 최적화 제출 제외는 별도 범위 결정 | staging `getReadiness`의 recommendation `READY`, release manifest `aiImageDigest` |

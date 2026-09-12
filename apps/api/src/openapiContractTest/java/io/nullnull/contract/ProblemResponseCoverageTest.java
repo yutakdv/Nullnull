@@ -34,6 +34,9 @@ class ProblemResponseCoverageTest {
     private static final Pattern OPERATION = Pattern.compile("^\\s+operationId: (\\w+)\\s*$");
     private static final Pattern STATUS = Pattern.compile("^\\s+\"(\\d{3})\":\\s*$");
     private static final Pattern DEFAULT = Pattern.compile("^\\s+default:\\s*$");
+    private static final Pattern SECURITY_BLOCK = Pattern.compile("^ {6}security:\\s*$");
+    private static final Pattern OPERATION_FIELD = Pattern.compile("^ {6}\\w+:.*$");
+    private static final Pattern SECURITY_SCHEME = Pattern.compile("^\\s+-?\\s*(\\w+): \\[\\]\\s*$");
 
     private static List<String> contractLines() {
         String property = System.getProperty("nullnull.openapi.path");
@@ -95,19 +98,81 @@ class ProblemResponseCoverageTest {
                 .isEmpty();
     }
 
-    @Test
-    @DisplayName("BA-003-T1 a session-protected operation can answer 401, so it may not stop at 404")
-    void sessionProtectedOperationsCoverTheUnauthorisedAnswer() {
-        Map<String, List<String>> declared = declaredResponses();
-        // The narrow version of PM-019's complaint, kept as its own case because it is the one
-        // Frontend actually hit: a read that needs a cookie, declaring only success and not-found.
-        for (String operation : List.of("getTrip", "getPlace", "getPost", "listTrips")) {
-            List<String> responses = declared.get(operation);
-            assertThat(responses).as("%s", operation).isNotNull();
-            assertThat(responses.contains("401") || responses.contains("default"))
-                    .as("%s needs a session, so 401 is reachable and must have a declared shape",
-                            operation)
-                    .isTrue();
+    /** operationId -> the security schemes it requires, in document order. */
+    private static Map<String, List<String>> declaredSecurity() {
+        Map<String, List<String>> declared = new LinkedHashMap<>();
+        String operation = null;
+        boolean inSecurity = false;
+        for (String line : contractLines()) {
+            Matcher header = OPERATION.matcher(line);
+            if (header.matches()) {
+                operation = header.group(1);
+                declared.put(operation, new ArrayList<>());
+                inSecurity = false;
+                continue;
+            }
+            if (operation == null) {
+                continue;
+            }
+            if (SECURITY_BLOCK.matcher(line).matches()) {
+                inSecurity = true;
+                continue;
+            }
+            if (OPERATION_FIELD.matcher(line).matches()) {
+                inSecurity = false;
+            }
+            Matcher scheme = SECURITY_SCHEME.matcher(line);
+            if (inSecurity && scheme.matches()) {
+                declared.get(operation).add(scheme.group(1));
+            }
         }
+        return declared;
+    }
+
+    @Test
+    @DisplayName("BA-003-T1 every implemented operation declares the statuses its own security makes reachable")
+    void securityRequirementsAndDeclaredStatusesAgree() {
+        // PM-019 answered: Frontend branches on `code`, never on `status` (PROBLEM_POLICY is keyed by
+        // code and problem.ts only type-checks status as a number), so this is not about giving the
+        // screen a number to switch on. It is about the generated client having a type at all for an
+        // answer the server really produces. `default` alone is true but says nothing about WHICH
+        // statuses are reachable, so the previous version of this case - 401 OR default - passed on
+        // every operation in the contract without proving anything.
+        //
+        // The rule is derived, not curated: the session filter answers 401 wherever a session is
+        // required, and the CSRF filter answers 403 (CSRF_INVALID) wherever a token is required.
+        // SessionContractTest pins the contract's security against the @NullnullOperation annotations,
+        // so reading security here is the same as reading the code. A resource owned by someone else
+        // answers 404, so 403 has exactly one producer and no operation outside CSRF declares it.
+        //
+        // Both directions matter. Missing means the client has no type for an answer it will get;
+        // extra means the contract advertises a failure nothing can produce, which is the shape this
+        // repository refuses elsewhere (429 has no in-application producer and is not enumerated).
+        Map<String, List<String>> responses = declaredResponses();
+        Map<String, List<String>> security = declaredSecurity();
+        List<String> wrong = new ArrayList<>();
+        int checked = 0;
+        for (String operation : ImplementedOperationsRegistry.IMPLEMENTED) {
+            List<String> declared = responses.get(operation);
+            List<String> schemes = security.get(operation);
+            assertThat(declared).as("%s is declared in the contract", operation).isNotNull();
+            assertThat(schemes).as("%s security is parsed", operation).isNotNull();
+            checked++;
+            if (schemes.contains("sessionCookie") != declared.contains("401")) {
+                wrong.add(operation + ": sessionCookie=" + schemes.contains("sessionCookie")
+                        + " but 401 declared=" + declared.contains("401"));
+            }
+            if (schemes.contains("csrfToken") != declared.contains("403")) {
+                wrong.add(operation + ": csrfToken=" + schemes.contains("csrfToken")
+                        + " but 403 declared=" + declared.contains("403"));
+            }
+        }
+        // Non-vacuous twice over: an empty registry, or a parser that found no security at all,
+        // would otherwise let this pass while comparing nothing.
+        assertThat(checked).isGreaterThan(20);
+        assertThat(security.values().stream().filter(list -> !list.isEmpty()).count())
+                .as("the security parser found requirements to compare")
+                .isGreaterThan(20);
+        assertThat(wrong).isEmpty();
     }
 }

@@ -51,10 +51,10 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-018 | P0 blocker | 438:3158 untimed 필수 장소→384:5673 초안, 수동 시작/확인 단계 불일치 | 확인 전 초안 계약·세 분기·수정/만료·확정 경계; PM-004 | FE / BE·AI·PM | Open |
 | FCR-019 | P0 blocker | 401:1221 원문·438:3259 confirm에서 연도/제목/제거 수정 부족 | 날짜 기준·기본 제목·item 제거/remap·전송 안내·IMPORT 잠금; PM-005 | FE / BE·AI·PM | Open |
 | FCR-020 | P0 blocker | 438:3108 동행인/스타일 chip에 canonical code/weight 없음 | 지원 dictionary·선택 규칙·KOEN label·중복/빈 선택; PM-006 | FE / BE·AI·PM | 확정 (2026-09-12, [증거](#fcr-020-증거)) · [#154](https://github.com/yutakdv/Nullnull/issues/154) |
-| FCR-021 | P0 blocker | 411:1837/413:2020 buffer 저장/취소, 해제하고 이동·교체 | 복합 commit 또는 승인된 저장 UX·원자 해제+변경·실패0변경; PM-007 | FE / BE·AI·PM | Open |
-| FCR-022 | P0 blocker | 412:1912 SCHEDULED 제거 action, 저장 결과는 toast 중심 | 후보 전이·교체 linkage·독립 후보 보존·지속 success/duplicate/error; PM-009 | FE / BE·AI·PM | Open |
-| FCR-023 | P0 blocker | 검색/feed/trip의 KTO 콘텐츠·이미지 출처 전달 공백 | list/detail content provenance·media license·권리 철회/placeholder; PM-010 | FE / BE·AI·PM | Open |
-| FCR-024 | P0 major | feed/post 작성자·하트 수·반응 상태와 read schema 불일치 | P0 field-by-field 범위·피드백 토글/재조회/숨김 복구; PM-011 | FE / BE·AI·PM | Open |
+| FCR-021 | P0 blocker | 411:1837/413:2020 buffer 저장/취소, 해제하고 이동·교체 | **원자 해제+변경은 확정**(#166 — 해제를 요청에 담고 이름 대지 않은 잠금은 계속 거부). 남은 것은 buffer 저장/취소 variant의 Figma 정의; PM-007 | FE / BE·AI·PM | Open (buffer variant만) |
+| FCR-022 | P0 blocker | 412:1912 SCHEDULED 제거 action, 저장 결과는 toast 중심 | **후보 전이·교체 linkage는 확정**(#165 Q1·Q2). 남은 것은 독립 후보 보존 — APPLY→REVERT 복원 범위이고 BA-053 소유; PM-009 | FE / BE·AI·PM | Open (REVERT 복원 범위만) |
+| FCR-023 | P0 blocker | 검색/feed/trip의 KTO 콘텐츠·이미지 출처 전달 공백 | **post 표지 권리는 확정**(A-024 — 1st-party 자산만), **장소 provenance는 출하됨**(`sourceAttribution`을 FE가 다섯 화면에서 소비). 남은 것은 `PostSummary`의 provenance 자리; PM-010 | FE / BE·AI·PM | Open (PostSummary만) |
+| FCR-024 | P0 major | feed/post 작성자·하트 수·반응 상태와 read schema 불일치 | **화면 범위는 확정**(#163 — 작성자·하트·반응을 P0 화면에서 제거). 다만 `FR-FED-04`는 정본에서 P0이므로 operation이 닫히지 않는다: 계측(`IMPRESSION`/`OPEN`)은 P0, `LIKE`/`DISLIKE`는 P1, `HIDE`는 복구 진입점 유무에 달림; PM-011 | FE / BE·AI·PM | Open (HIDE 복구 진입점만) |
 | FCR-025 | P0 blocker | 418:2523 현재 여행지·우회 시간·정렬·날씨·map에 미지원 기능 | P0 제거 또는 입력/근거/provider 계약, map OFF 목록; PM-012 | FE / BE·AI·PM | Open |
 | FCR-026 | P0 blocker | Live/stale/replay 공통 단계·시간별 그래프, KTO는 상대 날짜 예측 | source별 단위/범례/시간 해상도·6-state·비교불가 표시; PM-013 | FE / BE·AI·PM | Open |
 | FCR-027 | P0 blocker | ITEM 대상 선택·취소 copy·refresh/만료/이력/undo 상태 불완전 | read 복구·back≠cancel·실패 복귀≠KEEP·서버 undo 가능성; PM-015 | FE / BE·AI·PM | Open |
