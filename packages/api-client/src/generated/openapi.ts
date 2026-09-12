@@ -3223,6 +3223,7 @@ export interface operations {
             /** @description Candidate page */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -3253,6 +3254,7 @@ export interface operations {
             /** @description Same active candidate already existed */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -3262,6 +3264,7 @@ export interface operations {
             /** @description Candidate created */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -3288,6 +3291,7 @@ export interface operations {
             /** @description Active candidate dismissed */
             204: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content?: never;

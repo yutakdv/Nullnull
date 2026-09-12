@@ -978,7 +978,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "여행 후보 저장·중복·dismiss",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-030",
         "BA-032"

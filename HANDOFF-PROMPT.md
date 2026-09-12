@@ -286,6 +286,12 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **presence-only를 고칠 때는 같은 루프의 다른 필드도 함께 본다.** 위 status 구멍을 고치면서 `status` 하나만 바꾸고 넘어갔는데, 같은 루프의 `priority`·`figmaNodes`·`designRequests`·test ID가 그대로 presence-only였고 **BA-030 카드가 이미 그 조건을 만족시키고 있었다**(산문에 `FCR-020`이 있어 manifest가 `designRequests: ["FCR-020"]`를 주장해도 통과했다 — 실측 확인). 이제 여섯 필드 전부 그것을 선언하는 **한 줄**과 정확히 비교한다. 결함 하나를 고칠 때 같은 모양이 옆에 몇 개 더 있는지 세는 것이 규칙이다.
 
+**스키마 sweep은 전이적 소유를 보지 못한다.** `DeletionIT` BA-012-T2는 `owners`를 향한 FK로 table을 훑는데, owner 데이터의 대부분은 그런 table에 없다 — trip의 item·constraint·interest·revision·candidate·source는 owner 식별자를 아예 갖지 않고 **trip을 통해** 소유된다. sweep이 조용한 게 맞고, 그래서 **그것들이 실제로 지워지는지는 행동 단언으로만 보장된다**(`OwnerDataErasureIT`).
+
+그리고 단계마다 보장 주체가 다르다. **soft delete(`markDeleted`)는 owner row를 남기므로 `owners→trips` cascade가 발화하지 않는다** — 그 단계에서 trip을 없애는 건 **`TripOwnerDataEraser` 하나뿐**이고, 그 아래는 trip→하위 cascade가 따라간다. 변이로 확인했다: eraser의 DELETE를 빼면 7개 table이 전부 그대로 남는다. scrub(`scrubDeleted`) 단계에서야 owner row가 사라지고 cascade가 같은 일을 한다.
+
+이 발견은 **틀린 예측을 실험으로 확인해서** 나왔다. "새 table이니 가드가 잡을 것"이라 보고 eraser 없이 먼저 돌렸는데 안 잡혔고, 그 이유를 따라가다 진짜 공백이 나왔다. eraser를 먼저 넣었으면 가드의 범위도, 그 뒤의 공백도 못 봤다.
+
 **새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
 
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
