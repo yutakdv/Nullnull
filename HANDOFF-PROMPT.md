@@ -357,7 +357,8 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 | top-level `resultCode` | `:53-55`, `:133-138` | C | probe에서 `resultCode 11`을 봤지만 그건 이 코드가 아니다 |
 | `response`/`header` object | `:56-60` | B | |
 | `header.resultCode == "0000"` | `:61-63` | B | |
-| `totalCount ≥ 0` · `== items.size()` · `≤ 31` | `:64-69` | **B, 발화 가능** | 아래 별도 항목 |
+| `totalCount ≥ 0` · body object · items 배열 | `:64-69` | B | 진짜 envelope 결함만 `SCHEMA_DRIFT` |
+| **`total == items.size()` · `total ≤ 31`** | `:70-78` | **B, 발화 가능** | 이제 `MAPPING_UNCERTAIN`. 아래 별도 항목 |
 | `items` 비었으면 `acceptedNoCoverage` | `:70-72`, `:125-127` | C | `areaCd=11&signguCd=110`이 `totalCount 0`을 준 것이 #109의 무증상 결함이었다 |
 | `areaCd` echo 일치 | `:91` | B | echo 확인됨(#109) |
 | **`signguCd == signguRequestCode`(5자리 결합)** | `:95` | **B** | #109에서 결함 발견·수정. `KtoCrowdForecastGatewayIT`가 나간 요청을 단언해 회귀를 막지만, **응답 쪽 이 비교는 여전히 실행된 적 없다** |
@@ -369,9 +370,17 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 | `baseYmd` 8자리 정규식 | `:178-183` | B | |
 | `items()` object 단건 허용 / 비-object 배열 거부 | `:140-158` | B | 30행이면 배열 분기 |
 
-#### 이 표에서 나온 새 발견 하나
+#### 이 표에서 나온 발견 둘 (둘 다 고쳤거나 기록했다)
 
-`totalCount == items.size()`와 `total > MAX_RECORDS(31)`는 **provider drift가 아닌 우리 쪽 원인으로 발화할 수 있다.** 요청은 `numOfRows=100` 고정이고(`KtoKorServiceProperties:111`) `tAtsNm`은 **필터**다. 실측에서 `tAtsNm` 없이 한 시군구 전체는 **3390행**이었다. canonical mapping의 `touristSiteName`이 여러 관광지에 걸리는 값이면 `totalCount`는 100을 넘고 `items.size()`는 100에서 잘리므로, 두 조건이 모두 걸려 `SCHEMA_DRIFT`로 기록된다 — **원인은 우리 mapping인데 라벨은 "provider가 변했다"가 된다.** 30행 대 상한 31이라 여유도 한 행뿐이다. 판정 라벨을 나누거나 mapping 유일성을 수집 시점에 고정해야 하고, 둘 다 아직 안 돼 있다.
+**(1) `SCHEMA_DRIFT`가 우리 잘못을 provider 탓으로 기록하고 있었다 — 고쳤다.** `totalCount == items.size()`와 `total > MAX_RECORDS(31)`는 **provider drift가 아닌 우리 쪽 원인으로 발화할 수 있다.** 요청은 `numOfRows=100` 고정이고(`KtoKorServiceProperties:111`) `tAtsNm`은 **key가 아니라 필터**다 — 실측에서 `tAtsNm` 없이 한 시군구 전체는 **3390행**이었다. canonical mapping의 `touristSiteName`이 여러 관광지에 걸리면 응답은 한 관광지의 창보다 길거나, 자기 `totalCount`보다 작은 page로 온다. **envelope은 멀쩡하고 provider는 아무것도 바꾸지 않았다.** 그걸 drift로 적으면 다음 사람이 provider 문서를 뒤진다 — 원인은 우리 데이터에 있는데.
+
+`Outcome`·`ValidationResult`에 **`MAPPING_UNCERTAIN`**을 더하고(V018이 CHECK를 넓힌다) 그 두 분기를 갈랐다. 여전히 **거절**이다 — 귀속할 수 없는 행이 snapshot이 되면 안 된다 — 다만 우리 것으로 기록된다. 이름은 crowd module이 이미 같은 조건에 쓰는 말을 그대로 썼다(V011 `quality_flags`, `ComparisonReasonCode.MAPPING_UNCERTAIN`). 변이 확인: 라벨을 `SCHEMA_DRIFT`로 되돌리면 그 test만 RED.
+
+**그 과정에서 어휘가 세 곳에 따로 선언돼 있다는 걸 알았다.** `ProviderResponseValidator.Outcome`, `IngestAudit.ValidationResult`, 그리고 SQL CHECK. `CollectorRunRecorder:33`이 `valueOf(verdict.outcome().name())`으로 둘을 잇는다 — **한 곳에만 값을 더하면 컴파일되고, 그 outcome을 실제로 내는 분기에서만 런타임에 터진다.** 즉 실제 provider 응답 앞에서. `ProviderOutcomeVocabularyIT`가 세 집합을 양방향으로 대조한다. 변이 확인: migration만 빠뜨리면 RED.
+
+**(2) `quality_flags`는 다섯 값 중 하나만 실제로 도달할 수 있다 — 기록만 한다.** `crowd_snapshots.quality_flags`의 어휘는 `PROVIDER_INCIDENT`·`SCHEMA_DRIFT`·`MAPPING_UNCERTAIN`·`OBSERVED_AT_SKEW`·`PARTIAL_PAYLOAD` 다섯이고, `TemporalComparisonPolicy`가 그중 `MAPPING_UNCERTAIN`을 **비교 부적격**으로 판정한다(불변식 8). 그런데 **`crowd_snapshots`의 유일한 writer인 `JdbcKtoForecastSnapshotStore:61`이 `'[]'::jsonb`를 하드코딩한다.** 그리고 `CrowdProvenanceProjection.flags()`는 저장된 집합에 incident 여부로 `PROVIDER_INCIDENT`만 더한다.
+
+즉 **`PROVIDER_INCIDENT` 하나만 실데이터에서 나올 수 있고, 나머지 넷은 test가 손으로 만들 때만 존재한다.** 정책·계약·CHECK·enum이 전부 갖춰져 있는데 **생산자가 없다.** 이 세션이 모아 온 "통과하지만 아무것도 증명하지 않는 검사"의 짝 — **완전히 구현됐지만 발화할 수 없는 가드**다. 어떤 조건에서 어떤 flag를 세울지는 수집기 설계 결정이라 여기서 정하지 않는다(예: `MAPPING_UNCERTAIN`을 거절 대신 부적격 기록으로 바꿀 것인지). **결정 전까지 "quality flag가 비어 있다"를 "품질 문제가 없다"로 읽지 않는다.**
 
 #### 규칙
 

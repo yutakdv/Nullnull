@@ -14,7 +14,14 @@ import tools.jackson.databind.json.JsonMapper;
 /** Validates transport-success bodies before any canonical row or snapshot can be written. */
 public final class ProviderResponseValidator {
 
-    public enum Outcome { OK, SCHEMA_DRIFT, ENUM_DRIFT, RANGE, TIME_SKEW, PROVIDER_ERROR }
+    /**
+     * {@code MAPPING_UNCERTAIN} means the response was well formed and the provider changed nothing:
+     * our own canonical mapping failed to identify a single subject, so the rows cannot be attributed.
+     * It is a rejection like the drift outcomes, but naming it drift would point the next reader at
+     * the provider for a defect in our data. The crowd module already uses this word for the same
+     * condition (V011 quality_flags, {@code ComparisonReasonCode.MAPPING_UNCERTAIN}).
+     */
+    public enum Outcome { OK, SCHEMA_DRIFT, ENUM_DRIFT, RANGE, TIME_SKEW, PROVIDER_ERROR, MAPPING_UNCERTAIN }
 
     @FunctionalInterface
     public interface SemanticRule {

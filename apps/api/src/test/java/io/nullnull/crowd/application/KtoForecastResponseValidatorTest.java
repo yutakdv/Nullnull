@@ -125,6 +125,73 @@ class KtoForecastResponseValidatorTest {
         assertThat(validation.responseCount()).isZero();
     }
 
+    /**
+     * tAtsNm is a filter on tatsCnctrRatedList, not a key, and the request pins numOfRows=100. A
+     * canonical touristSiteName that matches more than one site therefore answers with more than one
+     * site's window, and past 100 rows with a page smaller than its own totalCount. Neither is the
+     * provider changing shape - the envelope is intact - so calling it SCHEMA_DRIFT sends the reader
+     * to the provider's documentation for a defect in our own mapping.
+     */
+    @Test
+    void namesOurAmbiguousMappingRatherThanBlamingTheProviderForIt() {
+        // 32 well-formed rows: one row past MAX_RECORDS, so two sites' windows are in one batch.
+        // totalCount agrees with the row count, which is exactly why this is not an envelope defect.
+        KtoForecastResponseValidator.Validation pastTheWindow = validate(batch(32, 32));
+        // The measured whole-sigungu answer: 3390 rows declared, 100 delivered by the fixed page size.
+        KtoForecastResponseValidator.Validation pagedAway = validate(batch(100, 3390));
+
+        assertThat(pastTheWindow.verdict().outcome())
+                .isEqualTo(ProviderResponseValidator.Outcome.MAPPING_UNCERTAIN);
+        assertThat(pagedAway.verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.MAPPING_UNCERTAIN);
+        assertThat(pastTheWindow.accepted()).isFalse();
+        assertThat(pagedAway.accepted()).isFalse();
+        assertThat(pastTheWindow.snapshotSet()).isNull();
+        assertThat(pagedAway.snapshotSet()).isNull();
+        // One row inside the window is still accepted, so the new branch did not simply swallow the
+        // happy path: the boundary is where it is claimed to be.
+        assertThat(validate(batch(31, 31)).verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.OK);
+    }
+
+    /**
+     * The split must not weaken the drift check: a body that is genuinely malformed still has to be
+     * the provider's fault, or the new outcome would just absorb real drift.
+     */
+    @Test
+    void stillBlamesTheProviderWhenTheEnvelopeItselfIsWrong() {
+        KtoForecastResponseValidator.Validation noCount = validate("""
+                {"response":{"header":{"resultCode":"0000"},"body":{"items":{"item":[]}}}}
+                """);
+        KtoForecastResponseValidator.Validation notObjects = validate("""
+                {"response":{"header":{"resultCode":"0000"},"body":{
+                  "items":{"item":["not an object"]},"totalCount":1}}}
+                """);
+
+        assertThat(noCount.verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+        assertThat(notObjects.verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+    }
+
+    /**
+     * {@code rows} well-formed rows on consecutive days from the fetch date, with {@code totalCount}
+     * declared independently so the paging case can be modelled as the provider actually sends it.
+     */
+    private static String batch(int rows, int totalCount) {
+        StringBuilder items = new StringBuilder();
+        for (int day = 0; day < rows; day++) {
+            if (day > 0) {
+                items.append(',');
+            }
+            items.append("""
+                    {"areaCd":"11","signguCd":"11110","tAtsNm":"테스트 관광지",
+                     "baseYmd":"%s","cnctrRate":"12.3"}"""
+                    .formatted(java.time.LocalDate.ofInstant(FETCHED_AT, java.time.ZoneId.of("Asia/Seoul"))
+                            .plusDays(day).format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)));
+        }
+        return """
+                {"response":{"header":{"resultCode":"0000"},"body":{
+                  "items":{"item":[%s]},"totalCount":%d}}}
+                """.formatted(items, totalCount);
+    }
+
     private KtoForecastResponseValidator.Validation validate(String response) {
         return validator.validate(response.getBytes(java.nio.charset.StandardCharsets.UTF_8), request, 2,
                 UUID.randomUUID(), FETCHED_AT, Duration.ofHours(24));

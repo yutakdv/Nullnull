@@ -23,7 +23,14 @@ public interface IngestAudit {
         STARTED, OK, HTTP_ERROR, TIMEOUT, IO_ERROR, QUOTA_EXHAUSTED, CIRCUIT_OPEN, VALIDATION_FAILED
     }
 
-    enum ValidationResult { PENDING, OK, SCHEMA_DRIFT, ENUM_DRIFT, RANGE, TIME_SKEW, PROVIDER_ERROR }
+    /**
+     * Mirrors {@link io.nullnull.shared.provider.ProviderResponseValidator.Outcome} by NAME:
+     * CollectorRunRecorder bridges the two with {@code valueOf(verdict.outcome().name())}, so a value
+     * added to one and not the other fails at runtime on the branch that produces it, and nowhere
+     * else. ProviderOutcomeVocabularyTest pins the two enums and the V018 CHECK together.
+     */
+    enum ValidationResult { PENDING, OK, SCHEMA_DRIFT, ENUM_DRIFT, RANGE, TIME_SKEW, PROVIDER_ERROR,
+        MAPPING_UNCERTAIN }
 
     record StartRun(UUID runId, String sourceCode, TriggerType triggerType, String schemaVersion,
             Instant startedAt) {
