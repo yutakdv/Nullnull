@@ -157,8 +157,11 @@ describe('FE-301-T2 the screen renders each state', () => {
   it('shows a time as a time, not the raw contract value', async () => {
     renderTrip();
     await loaded();
-    // The contract's `time` format carries an offset ("09:30:00+09:00").
-    expect(screen.queryByText(/\+09:00/)).not.toBeInTheDocument();
+    // The contract dropped the UTC offset from wall-clock times (#145), so
+    // the fixture carries "09:30:00" and an offset can no longer appear in it.
+    // Asserting its absence checked nothing and read as though it did; what is
+    // still worth checking is that the raw contract value — seconds and all —
+    // does not reach the screen.
     expect(screen.queryByText(/09:30:00/)).not.toBeInTheDocument();
   });
 

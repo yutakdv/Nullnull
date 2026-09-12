@@ -60,6 +60,8 @@ import matchSimilar from "../fixtures/candidates/match-similar.json" with { type
 import matchNone from "../fixtures/candidates/match-none.json" with { type: "json" };
 import matchChecking from "../fixtures/candidates/match-checking.json" with { type: "json" };
 import matchUnknown from "../fixtures/candidates/match-unknown.json" with { type: "json" };
+import saveResultCreated from "../fixtures/candidates/save-result-created.json" with { type: "json" };
+import saveResultDuplicate from "../fixtures/candidates/save-result-duplicate.json" with { type: "json" };
 import deletionReceipt from "../fixtures/session/deletion-receipt.json" with { type: "json" };
 import deletionStatus from "../fixtures/session/deletion-status.json" with { type: "json" };
 import deletionStatusCompleted from "../fixtures/session/deletion-status-completed.json" with { type: "json" };
@@ -182,6 +184,15 @@ export const candidateFixtures = {
   matchNone: matchNone as components["schemas"]["CandidateMatchResult"],
   matchChecking: matchChecking as components["schemas"]["CandidateMatchResult"],
   matchUnknown: matchUnknown as components["schemas"]["CandidateMatchResult"],
+  // addTripCandidate answers 201 for a new candidate and 200 with
+  // duplicate:true when it already existed. Both carry the same shape, and
+  // `tripScheduleChanged` is a `const: false` in the contract — invariant 2
+  // written into the schema — so the pair is what a screen needs to tell the
+  // two apart without inventing either.
+  saveResultCreated:
+    saveResultCreated as components["schemas"]["CandidateSaveResult"],
+  saveResultDuplicate:
+    saveResultDuplicate as components["schemas"]["CandidateSaveResult"],
 };
 
 export const relatedFixtures = {

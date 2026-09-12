@@ -358,6 +358,50 @@ describe('FE-303 removing a saved place (FR-CAN-06)', () => {
     });
   });
 
+  it('says where to remove a scheduled place rather than failing generically', async () => {
+    // The server refuses this one: BA-034's CandidateService throws
+    // LOCK_CONFLICT for a candidate that is no longer ACTIVE. The test beside
+    // this one checks the button EXISTS and never presses it, so nothing
+    // noticed that pressing it produced the same 제거하지 못했어요 a network
+    // error produces — a button that can never succeed, with no hint why.
+    const user = userEvent.setup();
+    renderPanel();
+    await loaded();
+    await user.click(
+      screen.getByRole('button', {
+        name: copy['candidates.removeNamed'].replace(
+          '{name}',
+          scheduled?.place.name ?? '',
+        ),
+      }),
+    );
+
+    expect(
+      await screen.findByText(copy['candidates.removeScheduled']),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(copy['candidates.removeFailed'])).toBeNull();
+  });
+
+  it('still reports an ordinary removal failure as a failure', async () => {
+    // Only LOCK_CONFLICT means "remove it from the itinerary instead".
+    server.use(
+      http.delete(`${API_BASE}/trips/:tripId/candidates/:candidateId`, () =>
+        problemResponse('RATE_LIMITED'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+    await loaded();
+    await user.click(
+      screen.getByRole('button', {
+        name: copy['candidates.removeNamed'].replace('{name}', active?.place.name ?? ''),
+      }),
+    );
+
+    expect(await screen.findByText(copy['candidates.removeFailed'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['candidates.removeScheduled'])).toBeNull();
+  });
+
   it('offers removal for a scheduled candidate too, without touching the item', async () => {
     renderPanel();
     await loaded();
@@ -495,5 +539,26 @@ describe('FE-303 credits each source the way the server named it', () => {
     for (const node of screen.queryAllByText(/한국관광공사/)) {
       expect(served).toContain(node.textContent?.trim());
     }
+  });
+});
+
+describe('FE-303-T3 focus survives the panel closing', () => {
+  it('moves focus to the card rather than dropping it to the body', async () => {
+    // Scheduling succeeds, the panel collapses, and the date button the user
+    // was standing on is removed from the DOM. Focus then resets to
+    // document.body, so the next Tab restarts from the top of the page and a
+    // keyboard user loses their place in a list that can run to twenty cards.
+    const { user, card } = await openDates(page.items[1]?.place.name ?? '');
+    const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
+    await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('list', { name: copy['candidates.pickDate'] }),
+      ).not.toBeInTheDocument();
+    });
+    // Somewhere inside the card the user was working in, not nowhere.
+    expect(document.activeElement).not.toBe(document.body);
+    expect(card.contains(document.activeElement)).toBe(true);
   });
 });

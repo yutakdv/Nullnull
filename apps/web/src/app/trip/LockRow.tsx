@@ -5,6 +5,7 @@ import type { MessageKey } from '../../i18n/messages.js';
 import {
   isProblem,
   useRemoveItemConstraint,
+  useTrip,
   useSetItemConstraint,
 } from '../../shared/api/index.js';
 import { ConfirmDialog } from '../../shared/ui/components/index.js';
@@ -54,7 +55,12 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState<ConstraintType | null>(null);
   // Which action failed, so the message names the right one.
-  const [failed, setFailed] = useState<'set' | 'release' | null>(null);
+  // 'conflict' is its own outcome: the trip moved on rather than the request
+  // going wrong, and the two need different words and different next steps.
+  const [failed, setFailed] = useState<'set' | 'release' | 'conflict' | null>(null);
+  // Same query key as the screen's, so this is the one cached trip rather than
+  // a second copy of it.
+  const trip = useTrip(tripId);
   const remove = useRemoveItemConstraint(tripId);
   const set = useSetItemConstraint(tripId);
   const locks = activeLocks(item);
@@ -73,8 +79,18 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
         onError: (error) => {
           // A conflict means the trip moved on; the lock is unchanged either
           // way, so this reports rather than retrying behind the user's back.
+          //
+          // It does refetch, though. The cached ETag is stale the moment the
+          // server says TRIP_CHANGED, so pressing again would send the SAME
+          // If-Match and fail identically — this branch used to be a bare
+          // `return` that did nothing, leaving the user on a control that
+          // could not work until they reloaded the page themselves.
+          if (isProblem(error) && error.code === 'TRIP_CHANGED') {
+            setFailed('conflict');
+            void trip.refetch();
+            return;
+          }
           setFailed('release');
-          if (isProblem(error) && error.code === 'TRIP_CHANGED') return;
         },
       },
     );
@@ -100,7 +116,13 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
     set.mutate(
       { itemId: item.id, constraint, etag },
       {
-        onError: () => {
+        onError: (error) => {
+          // Same as release: a stale ETag makes the retry fail the same way.
+          if (isProblem(error) && error.code === 'TRIP_CHANGED') {
+            setFailed('conflict');
+            void trip.refetch();
+            return;
+          }
           setFailed('set');
         },
       },
@@ -194,7 +216,13 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
 
       {failed === null ? null : (
         <p className={styles.state} role="alert">
-          {t(failed === 'set' ? 'trip.lock.applyFailed' : 'trip.lock.releaseFailed')}
+          {t(
+            failed === 'conflict'
+              ? 'trip.lock.conflict'
+              : failed === 'set'
+                ? 'trip.lock.applyFailed'
+                : 'trip.lock.releaseFailed',
+          )}
         </p>
       )}
 

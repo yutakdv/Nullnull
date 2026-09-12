@@ -25,7 +25,16 @@ type DeletionStatus = components['schemas']['DeletionRequestStatus']['status'];
 //   - The request is 202, not 200. Accepted is not deleted, so the screen shows
 //     job progress rather than declaring success on the response.
 
-const TERMINAL: DeletionStatus[] = ['COMPLETED', 'FAILED', 'PARTIAL_FAILED'];
+// Where a client may stop polling. The contract names exactly two and says so
+// in the schema: "COMPLETED and FAILED are the states a client may stop polling
+// on. PARTIAL_FAILED is NOT one of them: it means an attempt failed while the
+// server still has attempts left, so the server retries on its own and the
+// status changes again without any client action."
+//
+// useDeletionStatus already had this right and kept polling; this list did not,
+// so the screen stopped showing progress and offered a retry for work the
+// server was still doing.
+const TERMINAL: DeletionStatus[] = ['COMPLETED', 'FAILED'];
 
 export function DeletionSection() {
   const { t } = useI18n();
@@ -97,7 +106,9 @@ export function DeletionSection() {
   }
 
   const current = status.data?.status ?? 'ACCEPTED';
-  const isTerminalProblem = current === 'FAILED' || current === 'PARTIAL_FAILED';
+  // PARTIAL_FAILED is not a problem the user can act on — it is the server
+  // still working. Only FAILED is final and bad.
+  const isTerminalProblem = current === 'FAILED';
 
   return (
     <section className={styles.section} aria-labelledby="deletion-heading">

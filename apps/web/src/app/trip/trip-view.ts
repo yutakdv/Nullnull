@@ -97,9 +97,10 @@ export function visibleDays(
 /**
  * A contract `time` as the row shows it: "09:30".
  *
- * The contract's format is RFC 3339 full-time, so the value carries an offset
- * ("09:30:00+09:00"). Rendering it raw puts the seconds and the offset on
- * screen, which is what happens if this is treated as display-ready text.
+ * The contract's format is a wall clock with seconds and no offset
+ * ("09:30:00") since #145 removed the UTC offset requirement. Rendering it raw
+ * puts the seconds on screen, which is what happens if this is treated as
+ * display-ready text.
  *
  * Returns null for anything unparseable rather than a guess: a malformed time
  * shown as "00:00" is a wrong schedule, while an absent one is visibly absent.

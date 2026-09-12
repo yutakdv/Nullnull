@@ -21,7 +21,12 @@ CMD ["npm", "run", "verify:ci"]
 # so the report is baked here where the network still exists and
 # scripts/check_npm_audit_report.py judges it offline (DX-003).
 FROM source AS tooling
-RUN node scripts/bake_npm_audit.mjs
+# Through the declared script name, not the file path: `security:scan` is what
+# scripts/verify_target_stack.py requires to exist, and calling the file
+# directly left the declaration pointing at nothing anybody ran (#119, #146).
+# Both now resolve to the same script, and scripts/tests/test_infra_check.py
+# fails if they ever drift apart.
+RUN npm run security:scan
 CMD ["npm", "run", "api:check"]
 
 FROM source AS build

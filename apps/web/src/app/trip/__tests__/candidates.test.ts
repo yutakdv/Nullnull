@@ -85,7 +85,7 @@ describe('slots are split into what can and cannot be picked', () => {
     {
       date: '2026-10-05',
       eligible: true,
-      suggestedTime: '14:00:00+09:00',
+      suggestedTime: '14:00:00',
       reasonCode: null,
     },
   ]);
