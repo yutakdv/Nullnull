@@ -147,12 +147,23 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
                 problems.append(f'{tid}: missing assertion for {ident}')
         card = card_sections.get(tid, '')
         # Keep machine metadata and human task cards synchronized.
-        values = ([task.get('title', ''), task.get('priority', ''), task.get('status', '')] +
+        values = ([task.get('title', ''), task.get('priority', '')] +
                   task['operations'] + task['featureIds'] + task['figmaNodes'] +
                   task['designRequests'] + task['dependsOn'] + [t.get('id', '') for t in required])
         for value in values:
             if isinstance(value, str) and value and value not in card:
                 problems.append(f'{tid}: task card missing manifest value {value}')
+        # status is checked against the card's HEADER line, not "somewhere in the card".
+        # Presence anywhere is not a synchronisation check: a card that merely MENTIONS a status
+        # in prose satisfies it. Writing "integration-ready로 올리지 않는다" in a note silently
+        # accepted integration-ready in the manifest from then on, for that card, forever - and
+        # this loop is the only thing holding the two in step.
+        header = next((line for line in card.splitlines()
+                       if line.startswith('**') and ' — ' in line), '')
+        declared = re.findall(r'`([a-z][a-z-]*)`', header)
+        if task.get('status') not in declared:
+            problems.append(f'{tid}: card header declares {declared or "no status"}, '
+                            f'manifest says {task.get("status")}')
         for prefix, expected, pattern in (
             ('- 기능 ID:', task['featureIds'], r'(?:FR|NFR)-[A-Z0-9]+-\d+'),
             ('- API:', task['operations'], r'`([a-z][A-Za-z0-9]+)`'),

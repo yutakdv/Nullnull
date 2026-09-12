@@ -43,6 +43,36 @@ class BackendPlanTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertTrue(has_calendar_estimate(text))
 
+    def test_status_must_match_the_card_header_not_prose(self):
+        """A card that merely MENTIONS a status must not satisfy the status check.
+
+        This is how the check failed silently: BA-030's card gained the sentence
+        "integration-ready로 올리지 않는다", and the old presence-anywhere comparison then
+        accepted integration-ready in the manifest for that card indefinitely. Prose about a
+        status is the most natural thing to write in a card, so the hole opens by accident.
+        """
+        prose_card = self.cards.replace(
+            '**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress`',
+            '**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress`', 1)
+        self.assertIn('integration-ready', prose_card,
+                      'the card really does mention the status in prose')
+        self.check_mutation(
+            lambda p: next(t for t in p['tasks'] if t['id'] == 'BA-030').update(
+                {'status': 'integration-ready'}),
+            'card header declares', cards=prose_card)
+
+    def test_status_drift_in_either_direction_is_caught(self):
+        # The manifest moving without the card...
+        self.check_mutation(
+            lambda p: next(t for t in p['tasks'] if t['id'] == 'BA-030').update({'status': 'planned'}),
+            'card header declares')
+        # ...and the card moving without the manifest.
+        moved = self.cards.replace('**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress`',
+                                   '**여행 생성·목록·결정적 초기 일정** — P0 / `verified`', 1)
+        errors = []
+        validate_plan(copy.deepcopy(self.plan), self.ops, self.features, moved, ROOT, errors)
+        self.assertTrue(any('card header declares' in e for e in errors), errors)
+
     def test_missing_operation(self):
         self.check_mutation(lambda p: next(t for t in p['tasks'] if 'getPlace' in t['operations'])['operations'].clear(), 'operation coverage mismatch')
 

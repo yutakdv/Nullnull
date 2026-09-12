@@ -277,6 +277,13 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **"증거처럼 보이지만 아닌 것"** 이 압도적으로 많았다. 새 가드를 넣을 때마다 *결함을 되살렸을 때 실제로 빨개지는지* 확인하는 게 이 저장소의 합격선이다.
 
+추가 사례(이번 세션): **presence-only 비교가 검사를 통째로 무력화한 두 건.**
+
+- `validate_backend_plan.py`가 카드 status를 `value not in card`로 검사했다. 카드 본문에 "`integration-ready`로 올리지 않는다"라고 **적는 순간** 그 문자열이 존재하므로, 그 카드는 manifest가 어떤 status를 주장해도 통과한다. status에 대한 **산문을 쓰는 것이 가장 자연스러운 일**이라 구멍이 사고로 열린다. 이제 카드 **헤더 줄**과 정확히 비교한다.
+- `check-examples.mjs`의 `FIXTURE_OF`가 example 이름만으로 키를 잡아, 두 operation이 같은 이름을 쓰면 엉뚱한 fixture에 고정된다. 값이 달라 드러났을 뿐 같았다면 조용히 통과했다.
+
+**새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
+
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
 
 ## 9. 사용자 확정 결정 (재논의 불필요)
