@@ -408,6 +408,26 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 
 **이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
 
+#### 네 번째: **실패한 뒤에도 동작해서 실패가 안 보이는 명령**(PM-022, 실측)
+
+PM-022의 열린 항목이 *"localhost:5433 연결을 실제 wrapper에서 확인해야 한다"* 였고, 확인했더니 **성립하지 않았다.**
+
+```
+$ docker compose up -d postgres
+Error response from daemon: ports are not available: exposing port TCP 127.0.0.1:5433
+  -> listen tcp4 127.0.0.1:5433: bind: address already in use
+$ docker ps -a --filter name=nullnull-local-postgres
+nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
+```
+
+**Docker가 아닌 host PostgreSQL이 5433을 잡고 있다.** SCRAM 응답으로 확인했고 `postgres` 사용자로 7월부터 떠 있다. `compose.yml`의 주석이 5433을 고른 이유가 *"기기 기본 PostgreSQL과 충돌 완화"* 인데, **그 자리가 이미 그것에 점유돼 있었다.**
+
+**위험한 쪽은 실패가 아니라 그 뒤다.** `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 **연결은 성공한다** — 상대가 host 서버일 뿐이다. 그대로 두면 `flywayMigrate`가 프로젝트와 무관한 서버에 migration을 건다. `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 그리고 `docker compose … | tail`처럼 파이프를 쓰면 **exit code가 사라져** 실패조차 안 보인다(이 세션에서 두 번째로 당한 모양이다).
+
+**"명령을 돌렸다"와 "그 명령이 의도한 것을 했다"는 다르다.** §6의 "검증 명령은 성공 여부를 확인하고 출력을 버리지 않는다"의 한 단계 아래 — **성공해도 의도한 대상이 아닐 수 있다.** 그래서 smoke runbook의 0단계는 `up -d`가 아니라 *"그 container가 5433을 갖는지"* 를 확인한다(`ENVIRONMENT.md` §7, `LOCAL_DEVELOPMENT.md`).
+
+**내가 쓴 runbook에 그대로 있던 함정이다.** 앞 커밋에서 `docker compose up -d postgres`를 0단계로 적어 두고 다음 단계로 넘어갔었다 — 승인이 왔다면 host DB에 migration이 걸렸을 것이다.
+
 #### 세 가지 결함 부류와 **각각을 찾는 질문이 다르다**
 
 이 세션이 모은 것을 정리하면 세 가지이고, **탐지 방법이 서로 대체되지 않는다.** 한 줄로 합치지 말 것.
@@ -559,7 +579,7 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 | **이미 끝나 있었다(확인함)** | PM-018(삭제 receipt 예외 projection — `DeletionIT`가 token 부재를 단언), PM-022 쿠키 절반(`cookieName()`이 `secure`일 때만 `__Host-`, `SessionPropertiesTest`가 양쪽 분기 고정), PM-024 `slotDates`(policy-v1.yaml이 30), PM-020 문서 정정(`SOURCE_CATALOG` §123의 UNKNOWN/NONE 구분, `FIGMA_HANDOFF` §230 문구), PM-023 문구(개인화 ranking은 P2·범위 밖) | — |
 | **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
 | **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
-| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 배포 절반, PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 **배포 절반**(local 절반은 위에서 실측·해소), PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
 | **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
 
 **PM-013도 절반은 이미 지켜지고 있었고, 지키는 것이 아무것도 없었다.** "혼잡 단계 과장 위험"인데 — KTO 상대 집중률은 **날짜 단위**이고 서울4단계도 공통5단계도 아니다. 확인해 보니 registry의 `metric_definition`이 *"가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님"* 이라고 **정확히** 적고 그게 `metricDefinition`으로 client까지 간다. `ordinal_level`도 NULL로 저장된다.

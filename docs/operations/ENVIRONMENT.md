@@ -278,7 +278,10 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 ```bash
 cd apps/api
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-docker compose -f ../../compose.yml up -d postgres   # SPRING_DATASOURCE_* 가 가리키는 DB
+# 0. local DB. "떴다"가 아니라 "그 container가 5433을 갖는다"를 확인한다 — 아래 PM-022 참고.
+(cd ../.. && docker compose up -d postgres) \
+  && docker compose -f ../../compose.yml ps --status running --quiet postgres | grep -q . \
+  || { echo "postgres container is not running; 5433 belongs to something else"; exit 1; }
 
 # 1. C2 — 실제 detailCommon2 호출 1회. 승인은 이 줄을 타이핑하는 행위다.
 NULLNULL_KTO_SMOKE_APPROVED=true \
@@ -296,6 +299,12 @@ NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true \
 NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
   ./gradlew ktoForecastSmoke --console=plain
 ```
+
+  **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패한다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 지금까지 `Created` 상태로 **한 번도 뜬 적이 없다.**
+
+  위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
+
+  해결은 host PostgreSQL을 멈추거나 `compose.yml`의 publish 포트를 이 기기에서만 바꾸는 것이고, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다.
 
   `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
 
