@@ -435,17 +435,18 @@ describe('FE-203 the add button actually saves a candidate', () => {
   let posted: { path: string; body: unknown; key: string | null }[] = [];
 
   /**
-   * A CandidateSaveResult built from the approved candidate fixture.
+   * The contract's own save results, not a hand-built one.
    *
-   * `tripScheduleChanged` is `const: false` in the contract — the schema
-   * itself encodes invariant 2 — so it is written out rather than left to a
-   * guess.
+   * These arrived with BA-032 and replace the object this test used to
+   * assemble from the candidate page: 201 for a new candidate, 200 with
+   * duplicate:true when it already existed. Both carry
+   * `tripScheduleChanged: false`, which is a `const` in the schema — invariant
+   * 2 written into the contract rather than asserted by this file's guess.
    */
-  const saveResult = (duplicate: boolean) => ({
-    candidate: candidateFixtures.page.items[0],
-    duplicate,
-    tripScheduleChanged: false,
-  });
+  const saveResult = (duplicate: boolean) =>
+    duplicate
+      ? candidateFixtures.saveResultDuplicate
+      : candidateFixtures.saveResultCreated;
 
   beforeEach(() => {
     posted = [];
