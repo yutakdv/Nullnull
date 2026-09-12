@@ -15,7 +15,10 @@ tags:
 - base path: `/api/v1`
 - media type: JSON, 오류는 `application/problem+json`
 - casing: JSON `camelCase`, DB `snake_case`
-- 시간: RFC 3339 UTC offset 포함, 날짜는 ISO 8601 `YYYY-MM-DD`
+- 시간: 절대 시각(`format: date-time`)은 RFC 3339 UTC offset 포함, 날짜는 ISO 8601 `YYYY-MM-DD`,
+  **벽시계 시각(`startTime`·`endTime`·`suggestedTime`)은 offset 없는 `HH:mm:ss`** 이며 trip timezone과
+  함께 해석한다(§12). 둘은 schema에서도 갈린다 — 전자는 `format: date-time`, 후자는
+  `pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$`다.
 
 ## 1. 계약 우선 흐름
 
@@ -282,7 +285,11 @@ client에서 다시 만들지 않는다.
 ## 12. 날짜·시간·locale
 
 - trip date는 trip timezone의 calendar date다.
-- `startTime`은 offset 없는 local time이며 항상 trip timezone과 함께 해석한다.
+- `startTime`은 offset 없는 local time이며 항상 trip timezone과 함께 해석한다. 초는 항상 붙는다
+  (`09:30`이 아니라 `09:30:00`): 같은 시각이 두 가지로 적히면 비교·중복·정렬이 조용히 어긋난다.
+  계약은 한때 이 필드들을 `format: time`으로 선언했는데 그건 RFC 3339 full-time이라 offset을
+  **요구한다**. 그래서 `09:30:00Z`가 통과했고, `trip_items.start_time`이 PostgreSQL `time`이라
+  offset을 버리므로 Seoul 여행에 9시간 오차가 조용히 생길 수 있었다. 지금은 pattern이 막는다.
 - 외부 snapshot은 RFC 3339 timestamp로 offset을 포함한다.
 - 날짜 boundary 계산은 backend가 trip timezone 기준으로 수행한다.
 - UI message translation key는 frontend가 소유하고 API `code`에 매핑한다. API `detail`은 fallback이다.

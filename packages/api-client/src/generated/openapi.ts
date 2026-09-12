@@ -1421,7 +1421,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             durationMinutes?: number | null;
             note?: string | null;
@@ -1465,7 +1464,6 @@ export interface components {
             locked: true;
             /** @enum {string} */
             source: "USER" | "IMPORT";
-            /** Format: time */
             startTime: string;
             toleranceMinutes: number;
         };
@@ -1481,9 +1479,7 @@ export interface components {
             source: "USER" | "IMPORT";
             /** Format: date */
             date: string;
-            /** Format: time */
             startTime: string;
-            /** Format: time */
             endTime?: string | null;
         };
         CreateTripRequest: {
@@ -1508,7 +1504,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             constraints?: components["schemas"]["SetConstraintInput"][];
         };
@@ -1562,7 +1557,6 @@ export interface components {
             originalLabel?: string;
             /** Format: date */
             date: string | null;
-            /** Format: time */
             startTime?: string | null;
             position: number;
             confidence: number;
@@ -1583,7 +1577,6 @@ export interface components {
                 placeId?: string | null;
                 /** Format: date */
                 date?: string | null;
-                /** Format: time */
                 startTime?: string | null;
                 position?: number | null;
                 constraints?: components["schemas"]["SetConstraintInput"][] | null;
@@ -1648,7 +1641,6 @@ export interface components {
             slots: {
                 /** Format: date */
                 date: string;
-                /** Format: time */
                 suggestedTime?: string | null;
                 eligible: boolean;
                 reasonCode?: string | null;
@@ -1662,7 +1654,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             durationMinutes?: number | null;
             note?: string | null;
@@ -1672,7 +1663,6 @@ export interface components {
             /** Format: date */
             date?: string;
             position?: number;
-            /** Format: time */
             startTime?: string | null;
             durationMinutes?: number | null;
             note?: string | null;
@@ -1723,7 +1713,6 @@ export interface components {
             type: "TIME";
             /** @constant */
             locked: true;
-            /** Format: time */
             startTime: string;
             toleranceMinutes: number;
         };
@@ -1737,9 +1726,7 @@ export interface components {
             locked: true;
             /** Format: date */
             date: string;
-            /** Format: time */
             startTime: string;
-            /** Format: time */
             endTime?: string | null;
         };
         SetConstraintRequest: components["schemas"]["SetConstraintInput"];
@@ -1919,7 +1906,6 @@ export interface components {
             /** Format: date */
             date: string;
             position: number;
-            /** Format: time */
             startTime?: string | null;
             crowd?: components["schemas"]["CrowdMetric"] | null;
         };
@@ -2929,6 +2915,7 @@ export interface operations {
             /** @description Trips owned by the current owner only */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -2957,6 +2944,7 @@ export interface operations {
             /** @description Trip created */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     Location?: string;
                     [name: string]: unknown;
@@ -2984,6 +2972,7 @@ export interface operations {
             /** @description Complete trip view */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };

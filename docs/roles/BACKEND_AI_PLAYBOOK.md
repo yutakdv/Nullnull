@@ -732,7 +732,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-030
 
-**여행 생성·목록·결정적 초기 일정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**여행 생성·목록·결정적 초기 일정** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-010](#ba-010), [BA-011](#ba-011), [BA-022](#ba-022)
 - 기능 ID: `FR-PRO-03`, `FR-TRC-01`, `FR-TRC-02`, `FR-TRC-03`, `FR-TRC-05`, `FR-TRC-08`, `FR-TRC-09`, `FR-TRC-10`, `FR-TRC-12`, `FR-TRP-01`
@@ -748,6 +748,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-004, PM-005, PM-006, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: 빈 관심사 허용·30일/총100개/하루20개 상한을 지킨다. FR-TRC-10 추천 draft preview/read 공백은 REC-CON-04에서 계약 해결 후 제공하고 묵시적 일정을 생성하지 않는다.
+
+착수 범위(`in-progress`가 뜻하는 것): Phase A만 끝났다. `listTrips`·`createTrip`·`getTrip`, trips/trip_interests/trip_revisions migration, create 멱등성, ETag, owner 범위 cursor, `JdbcTripLookup`이 `main`에 있다. **남은 Phase B는 `seedItems.startTime`(PM-008 미해결, 계약의 `format: time`이 offset을 요구하는데 ERD의 `time` column은 저장할 수 없다)과 관심사 code 어휘 검증(FCR-020 `Open`)이다.** 둘 다 위 4항이 금지한 "경계 확정"에 해당하므로 해결 전에는 구현하지 않는다. `integration-ready`로 올리지 않는다.
 
 필수 검증:
 

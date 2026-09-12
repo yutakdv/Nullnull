@@ -38,7 +38,7 @@
           },
           "date": "2026-10-04",
           "position": 0,
-          "startTime": "09:30:00+09:00",
+          "startTime": "09:30:00",
           "durationMinutes": 120,
           "note": null,
           "constraints": [
@@ -68,7 +68,7 @@
           },
           "date": "2026-10-04",
           "position": 1,
-          "startTime": "13:00:00+09:00",
+          "startTime": "13:00:00",
           "durationMinutes": 90,
           "note": null,
           "constraints": [
@@ -76,7 +76,7 @@
               "type": "TIME",
               "locked": true,
               "source": "USER",
-              "startTime": "13:00:00+09:00",
+              "startTime": "13:00:00",
               "toleranceMinutes": 30
             }
           ],
@@ -99,7 +99,7 @@
           },
           "date": "2026-10-05",
           "position": 0,
-          "startTime": "14:00:00+09:00",
+          "startTime": "14:00:00",
           "durationMinutes": 120,
           "note": null,
           "constraints": [],

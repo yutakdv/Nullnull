@@ -277,6 +277,17 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **"증거처럼 보이지만 아닌 것"** 이 압도적으로 많았다. 새 가드를 넣을 때마다 *결함을 되살렸을 때 실제로 빨개지는지* 확인하는 게 이 저장소의 합격선이다.
 
+추가 사례(이번 세션): **presence-only 비교가 검사를 통째로 무력화한 두 건.**
+
+- `validate_backend_plan.py`가 카드 status를 `value not in card`로 검사했다. 카드 본문에 "`integration-ready`로 올리지 않는다"라고 **적는 순간** 그 문자열이 존재하므로, 그 카드는 manifest가 어떤 status를 주장해도 통과한다. status에 대한 **산문을 쓰는 것이 가장 자연스러운 일**이라 구멍이 사고로 열린다. 이제 카드 **헤더 줄**과 정확히 비교한다.
+- `check-examples.mjs`의 `FIXTURE_OF`가 example 이름만으로 키를 잡아, 두 operation이 같은 이름을 쓰면 엉뚱한 fixture에 고정된다. 값이 달라 드러났을 뿐 같았다면 조용히 통과했다.
+
+**검증 명령이 실제로 존재하는지 확인한다.** 이 세션에서 생성 client 무변화를 여러 번 `npm run generate`로 확인했다고 보고했는데, **root에는 그런 script가 없다**(`api:generate`다). 명령이 실패하고 파일은 그대로 남으니 diff는 항상 "무변화"였다 — 파일을 자기 자신과 비교한 것이다. `2>/dev/null`이 실패를 가렸다. 실제 게이트는 `docker-integration`의 `api:check`이고, 그게 `format: time` 제거로 client가 바뀐 것을 잡았다(`/** Format: time */` 주석 14줄). **검증 명령은 성공 여부를 확인하고, 출력을 버리지 않는다.**
+
+**presence-only를 고칠 때는 같은 루프의 다른 필드도 함께 본다.** 위 status 구멍을 고치면서 `status` 하나만 바꾸고 넘어갔는데, 같은 루프의 `priority`·`figmaNodes`·`designRequests`·test ID가 그대로 presence-only였고 **BA-030 카드가 이미 그 조건을 만족시키고 있었다**(산문에 `FCR-020`이 있어 manifest가 `designRequests: ["FCR-020"]`를 주장해도 통과했다 — 실측 확인). 이제 여섯 필드 전부 그것을 선언하는 **한 줄**과 정확히 비교한다. 결함 하나를 고칠 때 같은 모양이 옆에 몇 개 더 있는지 세는 것이 규칙이다.
+
+**새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
+
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
 
 ## 9. 사용자 확정 결정 (재논의 불필요)
@@ -336,13 +347,13 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 ### 되돌리지 말 것
 
 - **`runLink`는 API path가 아니라 client router path이고, pattern은 `/trip/`(단수)다.** 앱 라우터가 `trip/:tripId/optimizations/:runId`인데 계약의 옛 `/trips/`(복수)는 **앱 라우터와도 API와도 일치하지 않아** `ProfileScreen`의 `to={run.runLink}`가 404였다. 복수로 되돌리지 마라. `packages/contracts/fixtures/optimizations/history-page.json`의 3줄이 같이 움직인다 — **ajv가 pattern을 강제하므로 한쪽만 고치면 `apps/web` vitest가 깨진다.**
-- **이 정정은 oasdiff 승인 예외로 통과시켰다. 예외 경로를 함부로 넓히지 마라.** oasdiff는 response property의 pattern 변경을 방향과 무관하게 잡는다 — 축소는 `response-property-pattern-changed`(warning, `fail-on: WARN`이라 실패), 삭제는 `response-property-pattern-removed`(error)로 더 나쁘다. 그래서 `docs/api/oasdiff-warn-ignore.txt`에 **정확한 메시지 한 줄**만 넣고 [등록부](docs/api/BREAKING_CHANGE_EXCEPTIONS.md)에 이유·승인자·추적 이슈를 적었다.
+- **이 정정은 oasdiff 승인 예외로 통과시켰다. 예외 경로를 함부로 넓히지 마라.** oasdiff는 response property의 pattern 변경을 방향과 무관하게 잡는다 — 축소는 `response-property-pattern-changed`(warning, `fail-on: WARN`이라 실패), 삭제는 `response-property-pattern-removed`(error)로 더 나쁘다. 그래서 `docs/api/oasdiff-ignore.txt`에 **정확한 메시지 한 줄**만 넣고 [등록부](docs/api/BREAKING_CHANGE_EXCEPTIONS.md)에 이유·승인자·추적 이슈를 적었다.
   - **이것은 검사를 끄는 것이 아니다.** 실측으로 확인했다 — 같은 spec에 `runLink` 외의 breaking 변경(required 응답 property를 optional로)을 넣으면 ignore 파일이 있어도 **error로 실패한다.**
   - `scripts/tests/test_oasdiff_exceptions.py`가 강제한다. 변이 4종이 전부 RED다: 등록부 행 삭제, 승인자 공백, 추적 이슈 제거, ignore 줄만 삭제(stale 행). SHA 복원 일치를 확인했다.
   - **예외는 스스로 만료된다. 그걸 강제하는 것은 unit test가 아니라 `scripts/check_oasdiff_exceptions.py`다.** 정정이 `main`에 들어가면 base가 새 값이 되어 그 메시지가 더 이상 보고되지 않는데, `test_oasdiff_exceptions.py`는 ignore↔등록부 **대응만** 검사하므로 이 상황을 잡지 못한다(한 번 잘못 주장했다가 실측으로 확인했다). 그래서 `docs-contract`에 별도 step을 두어 **ignore 줄이 실제 oasdiff 출력에 없으면 실패**시킨다. 매칭되지 않는 줄은 지워야만 green이 된다.
   - 만료된 예외는 등록부의 `## 만료된 예외 (기록)` 절로 옮긴다. parser는 `##`를 만나면 멈추므로 기록이 활성 표를 오염시키지 않는다.
   - `runLink` 예외는 PR #122 병합으로 **이미 만료됐고 정리했다.** 현재 활성 예외는 0건이며 그것이 정상 상태다.
-  - 로컬 재현(push 없이): `git show origin/main:docs/api/openapi.yaml > /tmp/base-openapi.yaml && docker run --rm -v /tmp:/spec -v "$PWD/docs/api:/rev" tufin/oasdiff breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN --warn-ignore /rev/oasdiff-warn-ignore.txt`. **계약 PR 전에 이걸 먼저 돌려라.**
+  - 로컬 재현(push 없이): `git show origin/main:docs/api/openapi.yaml > /tmp/base-openapi.yaml && docker run --rm -v /tmp:/spec -v "$PWD/docs/api:/rev" tufin/oasdiff breaking /spec/base-openapi.yaml /rev/openapi.yaml --fail-on WARN --err-ignore /rev/oasdiff-ignore.txt`. **`--warn-ignore`만으로는 안 된다** — breaking 변경은 거의 전부 oasdiff가 `error`로 보고하고 `warn-ignore`는 warning만 억제한다. 처음에는 workflow가 `warn-ignore`만 넘겨서 예외 경로가 error를 하나도 덮지 못했다(#145에서 드러남). **계약 PR 전에 이걸 먼저 돌려라.**
 - **`getPlace` example의 `description`·`thumbnailUrl`·`thumbnailAsset`은 null이 정답이다.** collector가 `overviewYN=N`·`firstImageYN=N`으로 요청해 overview 텍스트와 이미지를 **저장하지 않는다.** 여기에 풍부한 텍스트를 넣은 example은 실제 연동 첫날 깨지는 허구다.
 - **`place-detail.json`의 `externalId`(`KTO-PENDING-CAPTURE`)와 `location` 좌표는 captured provider 증거가 아니다.** `categoryCode`/`regionCode`의 `HS`/`11`만 실제 `detailCommon2` 호출에서 온 값이다(#109). manifest `placeDetail.basis`에 이 구분을 적어 뒀다. 실응답을 잡으면 교체한다.
 - **`NULLNULL_CATALOG_PUBLIC_ENABLED=false`를 FE 편의를 위해 켜지 마라.** fail-closed는 BA-021-T3 staging 증거 전까지 유지되는 설계된 안전 gate다. FE가 막힌 문제는 flag가 아니라 **승인된 example이 없던 것**이었고, 그건 위 fixture로 풀었다.
