@@ -6,8 +6,8 @@
       "place": {
         "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b11",
         "name": "연희동 카페거리",
-        "categoryCode": "CAFE",
-        "regionCode": "KR-11-130",
+        "categoryCode": "HS",
+        "regionCode": "11",
         "thumbnailUrl": null,
         "address": null,
         "categoryName": null,
@@ -40,8 +40,8 @@
       "place": {
         "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b12",
         "name": "서울숲",
-        "categoryCode": "PARK",
-        "regionCode": "KR-11-120",
+        "categoryCode": "HS",
+        "regionCode": "11",
         "thumbnailUrl": null,
         "address": null,
         "categoryName": null,
@@ -74,8 +74,8 @@
       "place": {
         "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
         "name": "명동",
-        "categoryCode": "STREET",
-        "regionCode": "KR-11-140",
+        "categoryCode": "HS",
+        "regionCode": "11",
         "thumbnailUrl": null,
         "address": null,
         "categoryName": null,
