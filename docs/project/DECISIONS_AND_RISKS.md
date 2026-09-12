@@ -62,7 +62,7 @@ tags:
 | D-008 | P1 게시물 moderation 정책/도구는 무엇인가? | 공동 | P1-CreatePost | 작성 기능 OFF | 신고/삭제/금지 콘텐츠 정책 |
 | D-009 | 개인정보 처리방침상 최종 보존 기간은? | 공동 | B08/최종 검수 | 문서의 짧은 기술 기본값 | 공개 정책/삭제 test |
 | D-010 | 두 팀원의 GitHub handle과 CODEOWNERS 경로는? | 공동 | B01 | CODEOWNERS 생성 보류 | branch protection reviewer 동작 |
-| D-011 | Figma variable/token과 icon export 방식은? | FE | FE-002 | 수동 수치 복제 금지 | token pipeline + visual diff |
+| D-011 | icon export 방식과 visual diff는 무엇인가? **variable/token 쪽은 닫혔다** — `tokens.json`이 Figma local variables export(6 collection)이고 `tokens:check`가 `verify:ci` 첫 단계로 drift를 실패시킨다 | FE | FE-002 | 수동 수치 복제 금지 — 이제 기계가 강제한다 | icon export 경로(현재 `src/design/`에 icon 자산 0건)와 visual diff |
 | D-014 | 사용자 삭제 시 최적화 감사 record를 얼마나 보존할 수 있는가? | BE/AI | B06 | trip 삭제와 함께 제거 | 개인정보/운영 합의 |
 | D-016 | repository와 서비스 코드의 license는 무엇인가? | 공동 | 외부 기여/공개 배포 전 | 명시 license 없음, 재사용 허용을 가정하지 않음 | LICENSE 파일과 의존성 호환 검토 |
 | D-017 | staging/production AWS account를 분리할 수 있는가? | BE/AI | B01 staging/B08/최종 검수 | 별도 account 권장; 불가 시 role/VPC/KMS/secret/stack 완전 분리 | account/stack manifest 또는 예외 ADR |

@@ -65,7 +65,7 @@ B01 이후 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest
 
 - `BA-000-T1`: OpenAPI operation 전체와 기능 ID 전체에 담당 task가 존재한다 — `scripts/validate_backend_plan.py`의 operation·feature coverage 검사가 매 PR `docs-contract`에서 강제하고, 음성 검사는 `scripts/tests/test_backend_plan.py`에 있다
 - `BA-000-T2`: 순서 DAG에 cycle이 없고 P0 Live 작업이 마지막 기능 단계다 — 같은 script의 DAG·B10 순서 검사가 강제하며 음성 검사도 같은 파일에 있다
-- `BA-000-T3`: scope별 target 및 decision별 revision union의 잘못된 example을 거부한다 — **이 형태로는 아직 강제되지 않는다.** `scripts/validate_docs.py`의 `validate_product_contract_alignment`가 discriminator(`propertyName`)와 variant별 `const`·`required`를 고정해 "거부할 수 있는 구조"까지는 지키지만, 잘못된 example을 실제 JSON Schema evaluator에 넣어 거부를 확인하는 negative fixture는 없다
+- `BA-000-T3`: scope별 target 및 decision별 revision union의 잘못된 example을 거부한다 — 거부 증명은 `packages/contracts/fixtures/negative/README.json`의 **6건**이 맡고, `check-examples.mjs`가 각 payload를 해당 schema로 컴파일한 ajv에 먹여 **통과하면 실패**시킨다(`negative_rejected=6`, `docker-integration` 안의 `api:check`). `validate_product_contract_alignment`는 discriminator(`propertyName`)와 variant별 `const`·`required`를 고정할 뿐이라 **구조 고정과 거부 증명은 다르다**. 남은 공백은 범위다 — 6건이 `CreateOptimizationRequest`·`OptimizationDecision` 두 schema뿐이라 scope별 target·decision별 revision union 전체를 덮지는 않는다
 
 `BA-000`에서 실제로 검사되는 것과 아닌 것:
 
@@ -192,8 +192,8 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 
 - 검증함: 결함을 되돌리면 test가 빨개진다. unknown field 거부 해제, 선언 `Content-Length` 검사 제거, stream byte counter 제거, log correlation pattern 제거, route template 대신 raw URI 기록, `CursorException`·`ConstraintViolationException`·`CommandLockTimeoutException` 매핑 제거, source 없는 flag 허용, 필수 probe를 선택으로 취급, production query logging 허용, query string 상시 기록, lock 경합 재시도 제거, 빈 capability 목록을 READY로 집계 — 14개를 하나씩 넣어 해당 test가 실패하는 것을 확인하고 원본을 sha256으로 복원했다.
 - 검증하지 않음: HTTP 정책을 실제 계약 endpoint로 확인하는 것. B01에는 request body를 받는 operation이 없어서 unknown field·body 상한·`ConstraintViolationException`은 integration suite 전용 route(`nullnull.testsupport.http`, scan root 밖)로 검증했다. 첫 실제 command endpoint를 만드는 slice가 같은 정책을 그 route에서 다시 확인한다.
-- 검증하지 않음: `getDemoReadiness`의 `sessionCookie` 강제. session/auth layer가 아직 없으므로 지금은 누구나 호출할 수 있고, 노출 정보는 `/health/ready`가 이미 공개하는 것과 같은 종류다. [BA-010](#ba-010)이 session filter 뒤로 넣는다.
-- 검증하지 않음: `APP_IDEMPOTENCY_LOCK_TIMEOUT`의 값. `PT3S`는 확정값이 아니라 **제안값**이고, 확인 가능한 근거는 측정이 아니라 구조 하나다 — `IdempotencyGuard`가 transaction 전체를 상한 2회 재시도하므로 caller가 겪는 최악은 `2 x PT3S = 6초`이고 그 뒤가 `INTERNAL_ERROR`다. `IdempotencyGuard.execute`를 부르는 production code가 아직 없어 "가장 느린 command"라고 부를 대상이 없다. 첫 실제 command endpoint를 만드는 slice가 그 command의 최악 소요를 **suite에 남는 test**로 재고 `PT3S`가 그것을 덮는 것을 확인하면 그때 확정값이 된다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)).
+- 해결됨: `getDemoReadiness`의 `sessionCookie` 강제. [BA-010](#ba-010)의 operation interceptor가 `@NullnullOperation(id = "getDemoReadiness", security = Security.SESSION)`으로 강제한다(`DemoReadinessController.java`). 이 카드를 쓸 당시에는 session layer가 없어 미검증으로 뒀는데 그 예고가 실현됐다.
+- 검증하지 않음: `APP_IDEMPOTENCY_LOCK_TIMEOUT`의 값. `PT3S`는 확정값이 아니라 **제안값**이고, 확인 가능한 근거는 측정이 아니라 구조 하나다 — `IdempotencyGuard`가 transaction 전체를 상한 2회 재시도하므로 caller가 겪는 최악은 `2 x PT3S = 6초`이고 그 뒤가 `INTERNAL_ERROR`다. `IdempotencyGuard.execute`의 production 호출자는 이제 있다 — `DeletionService`의 `requestOwnerDeletion`([BA-012](#ba-012))이다. 따라서 남은 조건은 "첫 command가 생기는 것"이 아니라 **그 command의 최악 소요를 재는 test가 suite에 있는가**이고, 그 test가 `PT3S`가 덮는 것을 보이면 확정값이 된다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)).
 
 확정한 계약 결정:
 
@@ -328,7 +328,7 @@ A4 Backend/AI 구현 증거:
 - 남은 위험, handler slice가 책임진다: `JobUnitOfWorkGuard`는 handler thread에서 시작된 transaction만 본다. 짝이 되는 `ArchitectureRulesTest.jobHandlersNeverTouchTheDatabaseDirectly`는 **직접 참조만** 금지하므로, handler가 `@Transactional`이 전혀 없는 평범한 협력 class를 통해 `jdbc.sql("INSERT ...").update()`를 실행하면 rule도 guard도 통과하고 lease 밖에서 commit된다(측정함). 한 단계 건너뛴 협력자까지 막는 검사는 아직 없으므로, 첫 handler를 붙이는 [BA-012](#ba-012)가 handler의 모든 쓰기를 `JobContext.transactional` 안의 application service로 보내는 것을 slice 자체의 acceptance로 잡는다.
 - test로 지킬 수 없어 수치만 남기는 것: claim을 두 statement로 나눈 결정. 다시 OR 하나로 합쳐도 동작이 같아서 실패하는 기능 test가 없고, plan assertion은 PostgreSQL version과 data에 취약하다. 손으로 잰 근거는 — 완료 row 200,000개에서 V001의 OR 형태 Seq Scan 10.24ms, 분할한 첫 statement Index Scan 0.021ms, V004 이후 OR 형태 BitmapOr 0.022ms. 합치는 변경은 이 수치를 다시 재는 것을 조건으로 한다.
 - backlog에서 성능이 달라지는 두 statement: `CLAIM_EXPIRED_LEASE`와 `FAIL_ABANDONED`는 `status = 'RUNNING'`을 부분 index로 좁힐 수 없어 미완료 row 전체를 읽는다. 같은 PostgreSQL에 READY row 100,000개를 더한 뒤 측정: 둘 다 `background_jobs_outstanding_key_idx` Bitmap Index Scan으로 미완료 약 100,009건을 읽고 약 100,006건을 filter로 버리며 9.6ms, claim마다가 아니라 poll tick마다다. 지금은 index를 추가하지 않는다([ERD](../architecture/ERD.md)의 초기 index 목록은 실제 plan을 근거로만 유지한다). 미완료 job이 이 규모로 쌓이는 것이 관측되면 `(type, lease_until) WHERE status = 'RUNNING'`을 추가할 근거가 된다.
-- 미구현: handler는 아직 하나도 없다. 삭제 job은 B02/BA-012, collector는 B03, optimization은 B06에서 이 SPI로 붙는다. 그때까지 worker는 보존 sweep만 돌린다.
+- handler는 하나다 — `DeleteOwnerDataHandler`([BA-012](#ba-012)). collector는 B03, optimization은 B06에서 이 SPI로 붙는다. 바로 아래 pool 크기 계산이 이미 이 handler의 존재를 전제하고 있다.
 - handler를 붙이는 slice가 함께 정해야 하는 값: worker의 최악 동시 connection 수요 `2 x slots + types + 1`에 readiness 여유분 2를 더한 값이 `NULLNULL_DB_POOL_MAX` 이하가 아니면 startup이 실패한다([ENVIRONMENT](../operations/ENVIRONMENT.md#3-backend-일반-설정)). BA-012의 실제 type 하나와 기본 concurrency 2는 pool 8이 필요해 기본 10에 들어가며, 이후 type 추가 때 다시 계산한다.
 - V004는 dedup unique를 미완료 row 부분 index로 바꾼다. `ON CONFLICT (deduplication_key)`를 쓰는 이전 binary의 enqueue는 이 migration 뒤 실패하므로, handler를 추가하는 첫 slice는 이 migration 이후에 배포한다.
 
@@ -897,7 +897,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **남은 것은 그 게이트 하나다.** 네 operation은 전부 `main`에 있고 `candidateState`도 완성됐지만, feed가 실제로 응답을 내려면 catalog가 열려야 하고 그것은 BA-021-T3의 staging 호출 증거에 달려 있다. 선행 카드 [BA-022](#ba-022)가 같은 이유로 `in-progress`이므로 이 카드도 `integration-ready`로 올리지 않는다.
 
-PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSummary.sourceAttribution`으로 제안돼 FE 승인(#34)을 기다린다. post 쪽은 이렇다.
+PM-010의 **장소 쪽은 닫혔다**. `PlaceSummary.sourceAttribution`을 FE가 다섯 화면에서 소비 중이고(`PostScreen`·`MustVisitScreen`·`AddPlaceScreen`·`ReplaceSheet`, 전용 컴포넌트 `DataAttribution.tsx`), 소속 FE task는 전부 `integration-ready`다. 승인을 기다리는 것이 아니라 **승인되어 출하됐다**. 남은 절반은 post 쪽이고 이렇다.
 
 - `PostDetail`에는 **이미 `coverAsset` 필드가 있고 항상 `null`이다**(`FeedController` 주석이 그 이유를 적고 있다: 검토된 media licence가 없다).
 - `PostSummary`에는 그 필드조차 없다. PM-010이 말하는 "list 응답에서 끊김"이 이것이다.
@@ -937,7 +937,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: client event는 실제 일정 변경·노출 인증·방문 증명이 아니다. impression lineage가 없는 P0 데이터로 개인화 모델을 학습시키지 않는다.
 
-착수 범위(`in-progress`가 뜻하는 것): `ingestEventBatch`가 `main`에 있다. V017의 `analytics_events`, 정본 schema 검증, eventId dedup, batch 50, 90일 retention, owner 삭제, cookie에서 유도한 owner까지다. **`recordFeedFeedback`은 구현하지 않았다** — PM-011이 열려 있다. 그리고 **PM-016이 지목한 계약 결함 중 셋은 닫았다.**
+착수 범위(`in-progress`가 뜻하는 것): `ingestEventBatch`가 `main`에 있다. V017의 `analytics_events`, 정본 schema 검증, eventId dedup, batch 50, 90일 retention, owner 삭제, cookie에서 유도한 owner까지다. **`recordFeedFeedback`은 구현하지 않았고, 이제 구현하지 않는 것이 결정이다** — PM-011은 P0에서 반응·하트·작성자를 전부 제외하는 것으로 닫혔다(#163). 그리고 **PM-016이 지목한 계약 결함 중 셋은 닫았다.**
 
 - `runLink`의 `/trips/` → `/trip/`: [#118](https://github.com/yutakdv/Nullnull/issues/118), PR #122로 이미 반영됐고 `context.route` allowlist의 `/trip/:tripId/optimizations/:runId`와 맞는다.
 - `trip_created.dayCount` 상한 90 → **30**, `itemCount` 1000 → **100**. 제품 상한은 `TripDateRange.MAX_DAYS`와 계약의 `seedItems` `maxItems: 100`이다. 넓은 쪽 bound는 도달할 수 없는 값을 허용할 뿐이어서, 위조되거나 drift한 client를 구분하지 못하게 했다.
@@ -945,7 +945,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 조임이 실제로 거절하는지는 `docs/contracts/events-negative/`의 5건과 `scripts/check_event_negatives.py`가 고정한다. `ajv test --invalid`는 **glob이 0건이면 exit 0**이므로 exit code를 믿지 않고 디렉터리 목록과 대조한다.
 
-**남은 것 둘.** `recordFeedFeedback`은 PM-011이 막는다 — 어떤 표시값과 행동을 P0에 남길지가 FE 범위이고, 그것이 정해지기 전에는 재조회할 반응 상태·수·LIKE 취소·HIDE 복구 진입점을 계약으로 고정할 수 없다. 그리고 PM-016이 함께 요구한 **오류 enum 정렬은 하지 않았다**: event schema의 `errorCode`가 `OPTIMIZATION_FAILED`를 담고 있는데 이 값은 `ProblemCode`가 아니라 `Notification.type`이고, optimization run-failure plane 자체가 아직 없다(BA-050~053). 무엇에 맞출지가 없으므로 맞추지 않는다.
+**남은 것 둘.** `recordFeedFeedback`은 더 이상 PM-011이 막는 것이 아니다 — P0 범위에서 제외하기로 결정됐다(#163). 근거는 FE 범위가 미정이어서가 아니라 **계약 shape가 이미 불가능을 말하고 있어서**다: `FeedFeedbackRequest`는 쓰기 전용(읽는 operation 없음)이고 enum에 취소가 없으며 응답이 204라, 구현하면 결과를 화면이 영영 알 수 없는 버튼이 된다. 남은 것은 계약에서 어떻게 처리할지다 — A-025와 같은 원칙(계약이 서버가 만들지 않는 것을 약속하지 않는다)을 따르되 제거·P1 표시·명시적 미구현 기록 중 무엇을 고를지는 oasdiff breaking 여부로 정한다. 그리고 PM-016이 함께 요구한 **오류 enum 정렬은 하지 않았다**: event schema의 `errorCode`가 `OPTIMIZATION_FAILED`를 담고 있는데 이 값은 `ProblemCode`가 아니라 `Notification.type`이고, optimization run-failure plane 자체가 아직 없다(BA-050~053). 무엇에 맞출지가 없으므로 맞추지 않는다.
 
 필수 검증:
 
