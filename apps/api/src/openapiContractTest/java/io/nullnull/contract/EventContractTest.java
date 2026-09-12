@@ -100,7 +100,11 @@ class EventContractTest {
     @DisplayName("BA-033-T1 every declared event name has a property allowlist in the canon")
     void everyEventNameIsBranchedInTheCanon() {
         List<String> contractNames = yamlEnumAfter(openapi(), "    ClientEvent:");
-        assertThat(contractNames).hasSize(17);
+        // A floor, not a pinned count. Pinning 17 here made an eighteenth event fail on the NUMBER
+        // first, and "expected 17 but was 18" reads as "update the number" - which a reader would
+        // do, re-run, and only then meet the real problem. The failure that matters has to be the
+        // one that surfaces.
+        assertThat(contractNames).as("the parser found the event enum at all").hasSizeGreaterThan(10);
 
         JsonNode canon = JsonMapper.builder().build().readTree(eventSchema());
         JsonNode event = canon.get("$defs").get("event");
@@ -127,8 +131,10 @@ class EventContractTest {
             }
         }
         assertThat(branched).as("the walk found branches at all").isNotEmpty();
-        assertThat(branched).as("every contract event name has a property allowlist")
-                .containsAll(contractNames);
+        assertThat(contractNames).as(
+                "every contract event name has a property allowlist branch in the canon; without "
+                        + "one its payload is validated by nothing at all")
+                .allSatisfy(name -> assertThat(branched).contains(name));
         assertThat(contractNames).as("the canon branches no event the contract does not declare")
                 .containsAll(branched);
 
