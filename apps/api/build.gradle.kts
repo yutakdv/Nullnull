@@ -19,6 +19,18 @@ repositories {
     mavenCentral()
 }
 
+// docs/contracts/events.schema.json is the event canon (AGENTS.md). The runtime validates
+// batches against it directly, so it is packaged rather than re-declared: a copy checked into
+// src/main/resources would be a second definition, and the route allowlist has already been split
+// in two once (PM-016) with only one half enforcing anything.
+val canonicalEventSchema = layout.projectDirectory.file("../../docs/contracts/events.schema.json")
+
+tasks.named<ProcessResources>("processResources") {
+    from(canonicalEventSchema) {
+        into("contracts")
+    }
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-restclient")

@@ -3928,6 +3928,7 @@ export interface operations {
             /** @description Valid events accepted; duplicate eventIds ignored */
             202: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
