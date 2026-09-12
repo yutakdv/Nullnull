@@ -99,6 +99,8 @@ paths:
                   value:
                     status: "UP"
                     time: "2026-09-10T00:00:00Z"
+        default:
+          $ref: "#/components/responses/Problem"
   /health/ready:
     get:
       tags: [System]
@@ -140,6 +142,8 @@ paths:
         "503":
           $ref: "#/components/responses/SourceUnavailable"
 
+        default:
+          $ref: "#/components/responses/Problem"
   /demo/sessions:
     post:
       tags: [Session]
@@ -523,6 +527,8 @@ paths:
                     activeTripId: null
         "401":
           $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/Problem"
     patch:
       tags: [Session]
       operationId: updatePreferences
@@ -934,6 +940,8 @@ paths:
           $ref: "#/components/responses/SourceUnavailable"
         "404":
           $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Problem"
   /posts/{postId}/saved:
     parameters:
       - $ref: "#/components/parameters/PostId"
@@ -1173,6 +1181,8 @@ paths:
                       license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
         "404":
           $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Problem"
   /places/{placeId}/crowd-forecast:
     parameters:
       - $ref: "#/components/parameters/PlaceId"
@@ -1653,6 +1663,8 @@ paths:
                     candidates: []
         "404":
           $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Problem"
     patch:
       tags: [Trips]
       operationId: updateTrip
