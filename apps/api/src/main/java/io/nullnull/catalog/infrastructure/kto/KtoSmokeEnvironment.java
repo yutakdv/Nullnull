@@ -3,7 +3,9 @@ package io.nullnull.catalog.infrastructure.kto;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +29,31 @@ final class KtoSmokeEnvironment {
             "SPRING_DATASOURCE_PASSWORD");
 
     private KtoSmokeEnvironment() {}
+
+    /**
+     * Which source each allowed setting came from, names only.
+     *
+     * <p>{@link #load} lets a process environment variable beat the dotenv file, which is the right
+     * precedence and an invisible one: editing .env.local then watching the run fail with the old
+     * value gives no hint that the file was read and then overridden. This reports the origin so the
+     * question "why is my edit not taking effect" is answerable in one line.
+     *
+     * <p>Values are never included. KTO_SERVICE_KEY and SPRING_DATASOURCE_PASSWORD are in this list,
+     * and the whole point of the smoke harness is that secrets do not reach stdout.
+     */
+    static List<String> sources(Map<String, String> processEnvironment, Path dotenv) {
+        Objects.requireNonNull(processEnvironment, "processEnvironment");
+        Map<String, String> fromFile = readDotenv(dotenv);
+        List<String> report = new ArrayList<>();
+        for (String name : ALLOWED_NAMES.stream().sorted().toList()) {
+            boolean inProcess = !normalized(processEnvironment.get(name)).isEmpty();
+            boolean inFile = fromFile.containsKey(name);
+            String origin = inProcess ? (inFile ? "process env (overrides .env.local)" : "process env")
+                    : inFile ? ".env.local" : "absent";
+            report.add(name + " <- " + origin);
+        }
+        return List.copyOf(report);
+    }
 
     static Map<String, String> load(Map<String, String> processEnvironment, Path dotenv) {
         Objects.requireNonNull(processEnvironment, "processEnvironment");

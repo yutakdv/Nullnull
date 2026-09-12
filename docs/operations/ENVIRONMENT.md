@@ -275,26 +275,39 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 - **승인 변수는 `.env.local`에서 읽히지 않는다.** `KtoSmokeEnvironment.ALLOWED_NAMES`에 없고 두 main이 `System.getenv()`로만 읽으므로, **승인은 명령을 실행하는 사람의 shell이 갖는다.** 파일에 적어도 승인이 되지 않는 것이 설계다 — 감사 기록의 출처가 사람이어야 하기 때문이다.
 - **세 단계이며 순서가 있다.** `ktoForecastSmoke`는 `place_external_refs`를 join하는데 그 행은 canonical ingest만 만든다. C2 gateway는 자기 snapshot을 스스로 매핑하지 않으므로(의도된 분리), 가운데 단계 없이 C4를 돌리면 `NoVerifiedKtoMappingException`으로 끝난다.
 
-```bash
-cd apps/api
-export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-# 0. local DB. "떴다"가 아니라 "그 container가 5433을 갖는다"를 확인한다 — 아래 PM-022 참고.
-(cd ../.. && docker compose up -d postgres) \
-  && docker compose -f ../../compose.yml ps --status running --quiet postgres | grep -q . \
-  || { echo "postgres container is not running; 5433 belongs to something else"; exit 1; }
+**선행 조건 넷.** 하나라도 빠지면 실패 메시지가 원인을 가리키지 않는다.
 
-# 1. C2 — 실제 detailCommon2 호출 1회. 승인은 이 줄을 타이핑하는 행위다.
+1. **DB가 떠 있고 그 container가 포트를 갖는다.** `up -d`가 성공했는지가 아니라 **running인지**를 본다.
+2. **`SPRING_DATASOURCE_*` 세 값이 그 DB와 맞는다.** 비밀번호는 `compose.yml`의 `local-only`다. 포트는 기기마다 다를 수 있으니 `.env.local`을 정본으로 본다.
+3. **shell에 `SPRING_DATASOURCE_*`가 export돼 있지 않다.** 있으면 `.env.local`을 **덮는다**(아래).
+4. **`JAVA_HOME`이 Temurin 21**이고, Gradle daemon이 예전 환경을 들고 있지 않다(`./gradlew --stop`).
+
+명령은 저장소 root에서 시작한다. 대화형 zsh는 `interactive_comments`가 기본 off라 **`#` 주석을 붙여 붙여넣으면 `command not found: #`**가 나므로 블록 안에 주석을 두지 않는다.
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+env | grep '^SPRING_DATASOURCE_' && echo 'WARNING: these override .env.local'
+docker compose up -d postgres
+docker compose ps --status running --quiet postgres | grep -q . || echo 'FAIL: container not running'
+```
+
+```bash
+cd "$(git rev-parse --show-toplevel)/apps/api"
+./gradlew --stop
 NULLNULL_KTO_SMOKE_APPROVED=true \
 NULLNULL_KTO_SMOKE_CONTENT_ID=126508 \
 NULLNULL_KTO_SMOKE_CONTENT_TYPE_ID=12 \
   ./gradlew ktoSmoke --console=plain
+```
 
-# 2. snapshot을 canonical catalog로 매핑한다. 외부 호출 없음. placeId를 출력한다.
+```bash
 NULLNULL_KTO_INGEST_CONTENT_ID=126508 \
 NULLNULL_KTO_INGEST_CONTENT_TYPE_ID=12 \
   ./gradlew ktoCanonicalIngest --console=plain
+```
 
-# 3. C4 — 2단계가 출력한 placeId를 그대로 넣는다.
+```bash
 NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true \
 NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
   ./gradlew ktoForecastSmoke --console=plain
@@ -304,7 +317,17 @@ NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
 
   위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
 
-  해결은 host PostgreSQL을 멈추거나 `compose.yml`의 publish 포트를 이 기기에서만 바꾸는 것이고, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다.
+  해결은 host PostgreSQL을 멈추거나 publish 포트를 이 기기에서만 바꾸는 것이고, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다. 포트를 옮겼다면 `.env.local`의 `SPRING_DATASOURCE_URL`도 함께 옮긴다 — 한쪽만 바꾸면 다시 엉뚱한 서버에 붙는다.
+
+  **그리고 `.env.local`을 고쳤는데 반영이 안 될 수 있다.** `KtoSmokeEnvironment.load`는 파일을 먼저 읽은 뒤 **process 환경변수로 덮는다** — 그게 올바른 우선순위지만 **증상이 없다.** 파일은 맞는데 예전 값으로 계속 실패하고, 파일이 읽히긴 했는지조차 알 수 없다(실제로 운영자가 여기서 30분을 썼다). 그래서 세 main이 부팅 전에 **각 설정이 어디서 왔는지**를 출력한다.
+
+```text
+KTO_SMOKE_SETTINGS SPRING_DATASOURCE_URL <- process env (overrides .env.local)
+KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- .env.local
+KTO_SMOKE_SETTINGS KTO_FORECAST_BASE_URL <- absent
+```
+
+  **이름과 출처만 찍고 값은 절대 찍지 않는다** — 이 목록에는 `KTO_SERVICE_KEY`와 `SPRING_DATASOURCE_PASSWORD`가 들어 있고, 값이 새면 진단이 제거하는 혼란보다 나쁘다. `KtoSmokeEnvironmentTest`가 그 부재를 변이로 고정한다.
 
   `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
 

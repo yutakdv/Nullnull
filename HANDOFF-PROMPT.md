@@ -408,6 +408,27 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 
 **이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
 
+#### PM-014 — 제품 성립성 위험을 실측했다. **위험이 아니라 현재 상태다**
+
+PM-014가 *"P0 route provider는 없고 slot/optimizer는 영업·체류·이웃 이동 증거가 없으면 거절한다 → 사용자에게 계속 UNKNOWN만 나올 수 있다"* 고 적었다. 확인했고, **"수 있다"가 아니라 "그렇다"다.**
+
+ITEM 평가기가 요구하는 증거와 지금 그것을 댈 수 있는 곳:
+
+| 요구 증거 | 오늘의 출처 | 결과 |
+| --- | --- | --- |
+| **`OpenWindow`(검증된 영업시간)** | **없다.** migration 전체에 `opening`이라는 문자열이 **0건**이고, C2 승인 operation인 `detailCommon2`는 이용시간을 주지 않는다 | 항상 `UnknownHours` |
+| target `durationMinutes` | `trip_items.duration_minutes` — nullable, 사용자 입력 | 사용자가 넣어야만 known |
+| 이웃 `durationMinutes` | 같음 | 같음 |
+| `RouteEvidence.VERIFIED` | P0 route provider 없음 | leg이 바뀌면 `ROUTE_EVIDENCE_MISSING` |
+
+**결정적인 것은 영업시간이고, 그게 날짜만 있는 제안까지 막는다.** `filters.opening_hours`는 `UnknownHours()`를 **가장 먼저** 보고 UNKNOWN을 돌려준다 — `start is None`(날짜만) 분기는 **window가 `OpenWindow`일 때만** 도달한다. 즉 시간을 안 정한 제안도 UNKNOWN이다. `neighbour_overlap`은 날짜만이면 통과하지만 순서상 의미가 없다.
+
+**그러므로 어떤 planningLevel에서도 ITEM 제안이 `ELIGIBLE`이 될 수 없다.** 지금 증상이 없는 이유는 단 하나 — **recommendation slice에 호출자가 없어서**(위 호출자 추적) 아무도 `ItemProposeRequest`를 만들지 않기 때문이다. BA-051이 배선되는 날 전부 UNKNOWN으로 나온다.
+
+**필요한 것은 추천 모델이 아니라 영업시간 source다.** KTO에는 `detailIntro2`의 `usetime`·`restdate`가 있지만 **새 operation이라 C2 승인이 필요하고, 그건 오너 결정이다**(새 external provider를 동료 승인으로 열지 않는다는 이 세션의 선). `SOURCE_CATALOG`의 승인 범위는 `detailCommon2` 하나뿐이다.
+
+**PM-014가 요구한 "최소 성공 사례"는 지금 만들 수 없다.** 만들려면 영업시간이 먼저 있어야 하고, 그전에 만든 어떤 사례도 사용자가 직접 duration을 넣은 것뿐이며 그래도 영업시간 UNKNOWN에서 멈춘다. **안전 조건을 낮춰서 사례를 만드는 것은 금지다** — 그게 PM-014가 경고한 바로 그 일이다.
+
 #### 네 번째: **실패한 뒤에도 동작해서 실패가 안 보이는 명령**(PM-022, 실측)
 
 PM-022의 열린 항목이 *"localhost:5433 연결을 실제 wrapper에서 확인해야 한다"* 였고, 확인했더니 **성립하지 않았다.**
