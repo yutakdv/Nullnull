@@ -418,6 +418,14 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 
 **이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
 
+#### PM-004 — 절반은 이미 FE에 구현돼 있었고, 남은 절반은 범위 질문이다(#180)
+
+**"승인된 브라우저 초안 규칙"은 제안할 것이 없다.** `apps/web/.../trip-create/wizard.ts`가 이미 그 규칙이다 — *"Steps 1-3 are a local draft … the only server call in this flow is `createTrip` at the end"*, 그리고 `toCreateRequest`가 불완전하면 `null`을 반환해 반쯤 채운 여행을 제출할 수 없게 한다. **PM-017·FCR-020에 이어 세 번째로 "결정이 필요하다"고 분류된 것이 이미 상대 코드에 있었다** — 상대 역할의 코드를 먼저 읽는 것이 규칙이다.
+
+남은 갭은 **날짜 없는 필수 장소**이고 진짜다. `FIGMA_HANDOFF:150`의 `438:3158`은 날짜가 없는데 `SeedTripItem.required`가 `[placeId, date, position]`이고, `WizardDraft`에는 장소가 아예 없고, `TripCandidate`는 확인 전에 존재할 수 없는 `tripId`를 요구한다(`:362` *"부분 trip 0건"*). **갈 길이 없다.**
+
+**그런데 계약 제안을 먼저 올리지 않았다.** 더 싼 질문이 앞에 있다 — *"S02-4B가 P0 제출 범위인가"*. 범위 밖이면 계약 작업 자체가 필요 없고, FE 큐가 5건이라 여섯 번째는 **답하는 비용이 가장 싼 형태**여야 한다. #180이 그 질문이고, 근거 네 줄을 함께 넣어 FE가 재조사하지 않게 했다. FE-103은 `operations: [searchPlaces]`뿐이라 이 갭의 소유가 아니라는 것도 적었다.
+
 #### PM-014 — 제품 성립성 위험을 실측했다. **위험이 아니라 현재 상태다**
 
 PM-014가 *"P0 route provider는 없고 slot/optimizer는 영업·체류·이웃 이동 증거가 없으면 거절한다 → 사용자에게 계속 UNKNOWN만 나올 수 있다"* 고 적었다. 확인했고, **"수 있다"가 아니라 "그렇다"다.**

@@ -337,6 +337,26 @@ class ProposalRevalidatorTest {
         assertThat(codes(REVALIDATOR.check(locked, goldenResponse(fixture)))).contains(LockChecks.TIME_LOCKED);
     }
 
+    /**
+     * The production case, which the explicit-unknown test above does not reach: nothing hydrates
+     * openingHours today, so the map is EMPTY rather than holding OpeningWindowIn.unknown(). An
+     * absent entry has to mean unverified, never open - that is the branch a real request takes, and
+     * the one a future hydration could quietly weaken by filling the map with a guessed window.
+     * PM-014: a high UNKNOWN rate is the correct answer to missing evidence, not a defect to relax.
+     */
+    @Test
+    void anAbsentOpeningWindowIsUnverifiedRatherThanOpen() {
+        ItemFixture fixture = fixture("temporal-same-issue");
+        ItemProposeRequest noHoursAtAll = rebuild(fixture.request(), fixture.request().tripEnd(),
+                fixture.request().target().durationMinutes(), fixture.request().locks(),
+                fixture.request().neighbours(), Map.of(), fixture.request().routeEvidence(),
+                fixture.request().candidates());
+
+        assertThat(noHoursAtAll.openingHours()).isEmpty();
+        assertThat(codes(REVALIDATOR.check(noHoursAtAll, goldenResponse(fixture))))
+                .contains(ProposalRevalidator.OPENING_HOURS_UNKNOWN);
+    }
+
     @Test
     void unverifiedOrViolatedOpeningHoursAreRejected() {
         ItemFixture fixture = fixture("temporal-same-issue");
