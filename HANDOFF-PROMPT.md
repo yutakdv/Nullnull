@@ -282,6 +282,8 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 - `validate_backend_plan.py`가 카드 status를 `value not in card`로 검사했다. 카드 본문에 "`integration-ready`로 올리지 않는다"라고 **적는 순간** 그 문자열이 존재하므로, 그 카드는 manifest가 어떤 status를 주장해도 통과한다. status에 대한 **산문을 쓰는 것이 가장 자연스러운 일**이라 구멍이 사고로 열린다. 이제 카드 **헤더 줄**과 정확히 비교한다.
 - `check-examples.mjs`의 `FIXTURE_OF`가 example 이름만으로 키를 잡아, 두 operation이 같은 이름을 쓰면 엉뚱한 fixture에 고정된다. 값이 달라 드러났을 뿐 같았다면 조용히 통과했다.
 
+**검증 명령이 실제로 존재하는지 확인한다.** 이 세션에서 생성 client 무변화를 여러 번 `npm run generate`로 확인했다고 보고했는데, **root에는 그런 script가 없다**(`api:generate`다). 명령이 실패하고 파일은 그대로 남으니 diff는 항상 "무변화"였다 — 파일을 자기 자신과 비교한 것이다. `2>/dev/null`이 실패를 가렸다. 실제 게이트는 `docker-integration`의 `api:check`이고, 그게 `format: time` 제거로 client가 바뀐 것을 잡았다(`/** Format: time */` 주석 14줄). **검증 명령은 성공 여부를 확인하고, 출력을 버리지 않는다.**
+
 **presence-only를 고칠 때는 같은 루프의 다른 필드도 함께 본다.** 위 status 구멍을 고치면서 `status` 하나만 바꾸고 넘어갔는데, 같은 루프의 `priority`·`figmaNodes`·`designRequests`·test ID가 그대로 presence-only였고 **BA-030 카드가 이미 그 조건을 만족시키고 있었다**(산문에 `FCR-020`이 있어 manifest가 `designRequests: ["FCR-020"]`를 주장해도 통과했다 — 실측 확인). 이제 여섯 필드 전부 그것을 선언하는 **한 줄**과 정확히 비교한다. 결함 하나를 고칠 때 같은 모양이 옆에 몇 개 더 있는지 세는 것이 규칙이다.
 
 **새 테이블을 추가하면 owner 삭제 경로를 함께 본다.** `DeletionIT` BA-012-T2가 `information_schema`에서 `owner_id` column을 가진 **모든** table을 훑어 "소유 모듈이 지우거나 명시적 이유로 보존"을 요구한다. BA-030의 `trips`가 이걸 어겨서 `TripOwnerDataEraser`를 추가했다 — owner를 삭제해도 trip이 남는 개인정보 결함이었다. **BA-032(posts·saved_posts)와 BA-034(trip_candidates)도 owner 소유 테이블을 추가하므로 같은 자리다.** 그 검사가 잡아 주지만, 잡히고 나서 붙이는 것보다 migration과 같은 PR에서 eraser를 쓰는 게 맞다.
