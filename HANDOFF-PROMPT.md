@@ -314,6 +314,16 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 실제 사례: `evaluation.json` 게이트가 존재만 검사 / wrapper 호출 단언이 **주석 처리된 줄**에 매칭 / `PURE_PACKAGES` 자기비교가 자신의 축소를 못 잡음 / `APP_IDEMPOTENCY_TTL=24`가 **24밀리초**로 부팅 / `@Lock(PESSIMISTIC_WRITE)`를 지워도 전부 green / lease보다 긴 작업이 만료된 lease로 커밋하고 handler를 두 번 실행 / `deduplication_key` UNIQUE가 종료 행까지 덮어 예약 collector가 조용히 영영 안 도는 시나리오 / canary 테스트가 `getFormattedMessage()`만 봐서 throwable로 새는 걸 못 봄.
 
+### 2026-09-13: 실호출이 성공했고 **B 등급 여럿이 A가 됐다**
+
+세 단계가 end-to-end로 통과했다(`coverage=30`, `records_rejected=0`). DB에서 직접 확인했고 집계는 `SOURCE_CATALOG`에 있다.
+
+**특히 `baseYmd` 창.** 저장된 창이 `2026-09-12`~`2026-10-11`(KST)이고 조회일은 09-13이라 **첫 행이 조회일보다 하루 앞섰다.** 하한이 조회일이었다면 첫 행에서 30행 전체가 `RANGE`였을 것이고, `records_rejected=0`이 그렇지 않았음을 말한다. **#174의 수정이 추론이 아니라 값으로 증명됐다.**
+
+`KtoActualSmokeIT`를 canonical ingest까지 늘린 것도 값을 했다 — `places`·`place_external_refs`가 실제로 채워졌고, 그 확장이 없었으면 이 실행은 `kto_place_snapshots`에서 멈춘 **반쪽 증거**였을 것이다.
+
+**다만 local 증거다.** `BA-021-T3`(staging 성공 이력 + 공개 응답 provenance)과 `EV-KTO-02`(매 staging release)는 **그대로 열려 있다.** local 실행으로 그 행을 채우지 않는다 — 이 세션 내내 지킨 "증거의 범위를 넘겨 쓰지 않는다"가 여기서도 같다. 아래 표의 등급도 그래서 **local 기준**으로 읽는다.
+
 ### provider validator 관문 — 실응답을 본 적이 있는가 (2026-09-13 조사)
 
 **"실응답을 본 적 없는 관문"이 남은 결함의 목록이다.** 이번 세션에 나온 세 결함(detailCommon2 legacy field, `signguCd` 5자리 결합, 예보 창 하한)이 **전부** 이 칸에 있었다. 그래서 `crowd`·`catalog`의 두 validator가 거는 조건을 전부 열거하고 증거 등급을 매겼다.
