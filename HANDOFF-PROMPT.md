@@ -445,6 +445,8 @@ docker compose -f compose.integration.yml --profile quality run --rm api-quality
 
 **교훈 둘.** 하나, 문서에만 있는 안전 속성은 PM 항목을 따라갈 때 함께 찾는다. 둘, **"단언이 없다"고 쓰기 전에 반대편 test를 읽는다** — 이 세션에서 겹치는 가드를 못 보고 새 공백이라고 주장한 것이 이 한 번이다.
 
+**두 훑기는 공백 0건이었다(다시 돌리지 마라).** ERD가 이름을 대는 table 중 migration이 만들지 않는 것은 `feed_feedback`·`notifications`·`optimization_runs` 셋뿐이고 전부 미구현 카드(BA-033 나머지·P1·BA-050)라 정상이다. ERD가 `table.column` 형태로 지목한 13쌍도 전부 실재한다. `analytics_events.session_id` 누락은 backtick이 아니라 **산문 문장**에서 나왔으므로, 다음에 같은 대조를 할 때는 산문까지 읽어야 한다.
+
 **BA-022 label 절반은 게이트가 아니라 근거가 막고 있다.** 자세한 것은 BA-022 카드에 적었다. 요지는 공식 포털이 "법정동코드정보"·"분류체계코드정보" 기능의 **존재만 적고 operation 이름도 응답 필드도 주지 않으며**, 활용가이드 사이트는 SPA라 fetch로 읽히지 않는다는 것이다. 서드파티가 하드코딩한 `lclsSystm1` 표는 우리 example과 값이 맞지만 license·provenance가 없어 출처로 쓸 수 없다. **#109가 정한 "공식 활용가이드 전까지 정본으로 적지 않는다"를 그대로 따른다.** 허용 목록 밖 operation을 실호출해 보는 것도, 새 source를 등록하는 것도 오너 결정이다.
 
 ### 자율 진행에서 제외 (오너 권한·비용)
