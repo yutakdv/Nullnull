@@ -72,6 +72,16 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 
 - exact base는 `https://apis.data.go.kr/B551011/KorService2`, operation은 `GET /detailCommon2`뿐이다. runtime에는 공공데이터포털 **decoding key**를 `KTO_SERVICE_KEY`로 주입하며 key·full URL/query는 log, audit, artifact, browser에 남기지 않는다.
 - 2026-09-10 현재 request는 이미 검증된 숫자 `contentId`와 baseline `MobileOS=ETC`, `MobileApp=Nullnull`, `_type=json`만 사용한다.
+- **quota 회계 단위가 아직 정해지지 않았다 — 결함인지 아닌지가 거기에 달려 있다(2026-09-13 정정).** `JdbcSourceQuotaStore.reserveInTransaction`은 사용량을 `WHERE r.source_code = ?`로 세고 `source_registry`의 두 KTO 행이 **각각** `perDay: 1000`을 갖는데, `KtoKorServiceProperties`의 **`serviceKey` 한 필드**가 detail URI(`:84`)와 forecast URI(`:109`) 양쪽에 쓰인다. 그래서 처음에는 *"자격증명은 하나인데 카운터는 둘이니 guard가 하루 2,000회를 허용한다"* 고 **결함으로 적었는데, 그 결론은 공공데이터포털의 일일 트래픽이 인증키 단위일 때만 성립한다.**
+
+  **위 두 공식 화면이 오히려 반대를 가리킨다.** 국문 관광정보 상세는 *"개발 계정 신청 가능 트래픽 1,000"*, 집중률 예측 상세는 *"개발 계정 1,000"* 을 **각자 자기 화면에** 적는다 — 활용신청이 API마다 따로이고 한도도 그 신청에 붙는다는 읽기다. 이 읽기가 맞으면 source별 카운트가 **정확하고 고칠 것이 없다.**
+
+  **확인하지 못했다.** 포털 이용가이드 두 곳을 실제로 열어 트래픽 단위를 찾았으나 그 문장이 없었다(검사를 못 돌린 것이 아니라 **문서에 없다**). 이걸 정하는 것은 **오너의 마이페이지**다 — 활용신청 상세가 API별 일일 트래픽을 따로 보여주면 per-API, 계정 전체에 하나만 보이면 per-key다.
+
+  **정해지기 전까지 guard를 건드리지 않는다.** 안전한 쪽으로 미리 조이면(가령 500/500) per-API가 맞을 때 멀쩡한 용량을 절반 버린다. per-key로 밝혀지면 고칠 곳은 둘이다 — 카운트를 자격증명 단위로 모으는 것과, `thresholds [60,80,90]` 경고가 실제 소진율에서 울리게 하는 것. 어느 쪽이든 초과분은 provider가 `resultCode 22`로 막아 `PROVIDER_ERROR`로 기록되므로 **틀린 데이터가 저장되지는 않는다.** 그리고 **새 source를 같은 키로 추가할 때마다 이 질문이 다시 걸린다**(법정동코드가 그렇다).
+
+  **소진 속도 자체는 어느 읽기에서도 데모에 문제가 아니다.** `KTO_KOR_SERVICE_2`는 `stale_after_seconds` 604800(P7D)이라 장소당 7일에 1회, `KTO_CONCENTRATION_FORECAST`는 86400(PT24H)이라 장소당 하루 1회다. 장소 N개면 forecast가 `N`, detail이 `N/7`이므로 per-API 읽기에서는 forecast가 병목이라 **약 1,000개 장소**, per-key 읽기에서는 합이 `1.14N`이라 **약 870개 장소**를 덮는다. P0 제출 데모 규모에서는 둘 다 여유가 있다.
+
 - **2026-09-13 실제 호출 성공(local profile).** 세 단계(`ktoSmoke` → `ktoCanonicalIngest` → `ktoForecastSmoke`)가 end-to-end로 통과했다. fetch는 `2026-09-12T18:56:08Z`(= 09-13 03:56 KST)이고, DB에서 직접 확인한 결과는 아래와 같다. 값이 아니라 **집계와 content 유래 식별자만** 기록한다.
 
   | 확인 항목 | 값 |
@@ -308,6 +318,7 @@ Frontend 담당은 `eligible=false`에서 delta/ranking 문구를 숨기고 reas
 - attribution required: API `MediaAsset`과 Figma 상세/데이터 안내에서 문구 표시.
 - license 불명/만료: placeholder로 degrade하며 다운로드·캐시하지 않는다.
 - provider record별 license가 다르면 source 기본값보다 record license가 우선한다.
+- post 표지는 1st-party 자산만 쓴다(A-024). place 썸네일과 달리 `coverUrl`이 required·non-null이라 권리를 못 대도 null로 접을 수 없고, `PostSummary`에는 credit을 실을 자리가 없기 때문이다. 실제 장소를 사진처럼 묘사하지 않으며 `alt`와 `license.name`에 합성 자산임을 적는다.
 
 ## 12. 외부 데이터 착수 체크리스트
 
@@ -368,3 +379,42 @@ DataProvenance.attributionShort는 선택 nullable, 유효한 문구는 1~160자
 브라우저용 officialUrl/licenseUrl은 [source-link-policy.json](../contracts/review-2026-09-06/source-link-policy.json)의 exact host만 허용한다: `data.seoul.go.kr`, `www.kogl.or.kr`, `data.go.kr`, `www.data.go.kr`, `api.visitkorea.or.kr`. https만 허용하며 상대 URL, userinfo, 비기본 port, wildcard/subdomain 추정은 거부한다. 표에 있는 공개 query parameter는 유지한다. 외부 링크는 안전한 새 창 속성을 적용한다. source registry 등록/갱신 때 redirect chain과 최종 URL도 같은 host 정책으로 확인한다. 브라우저 anchor만으로 이후 모든 redirect를 통제할 수 있다고 가정하지 않는다. provider 서버 호출의 SSRF allowlist와는 별개의 표시 링크 정책이다.
 
 이 필드·host 정책은 #11의 FE 검토 대상이다. `freshness=UNKNOWN`인 합성 예시는 실제 호출이나 비교 적격 판정 증거가 아니며 KTO 예측을 인원·5단계·시간대 그래프로 변환하는 근거로 쓰지 않는다.
+
+## 16. 법정동 코드표 준비 (미신청·미등록, 오너 결정 대기)
+
+`places.region_code`는 `NOT NULL`이라 모든 canonical place가 코드를 갖는데 `regionName`은 여전히 null이다. 막고 있는 것은 구현이 아니라 **코드→문구의 검토된 정본**이다. 이 절은 신청·호출·등록을 하지 않은 상태에서 **결정에 필요한 것만** 모아 둔다.
+
+### 왜 KTO가 아니라 행안부인가
+
+`detailCommon2`가 주는 `lDongRegnCd`(시도 2자리)·`lDongSignguCd`(시군구 3자리)는 KTO 고유 코드가 아니라 **법정동 표준 코드**다. 그 label의 정본은 행정안전부 행정표준코드이고, KTO의 "법정동코드정보" 기능은 같은 표를 다시 실어 주는 것이다. 게다가 KTO 쪽은 **operation 이름도 응답 필드도 공식 문서에서 확인되지 않았다**(§2). 즉 KTO 경로는 추측이 필요하고 행안부 경로는 필요 없다.
+
+같은 5자리 접두사가 `tatsCnctrRatedList`의 `signguCd`이기도 하다. 그래서 이 표는 **표시 문구만이 아니라 요청 파라미터의 검증 근거**이기도 하다 — 지금은 `signguRequestCode()`가 만든 값이 실재하는 시군구인지 확인할 방법이 우리에게 없다.
+
+### 후보 둘 (공식 페이지에서 확인한 것만)
+
+| | [15077871 행정안전부_행정표준코드_법정동코드](https://www.data.go.kr/data/15077871/openapi.do) | [행정표준코드관리시스템 법정동코드목록조회](https://www.code.go.kr/stdcode/regCodeL.do) |
+| --- | --- | --- |
+| 형식 | OpenAPI REST, JSON+XML | 웹 조회 + `법정동 코드 전체자료` 다운로드 |
+| operation | `getStanReginCdList` | 해당 없음(파일) |
+| 주요 응답 field | `region_cd`, `sido_cd`, `sgg_cd`, `umd_cd`, `locatadd_nm` | 파일 형식 미확인 |
+| 신청 | 활용신청 필요, 개발계정 **10,000/일** | 페이지에 인증서 로그인 요소가 있고 신청 요건은 **미확인** |
+| 이용허락범위 | `이용허락범위 제한 없음` | 페이지에서 **확인하지 못함** |
+| 표시 링크 allowlist | `www.data.go.kr` **이미 허용** | `www.code.go.kr` **미등록 — 추가가 필요하고 그건 FE 검토 대상이다** |
+
+두 행의 "미확인"은 추정하지 않은 것이다. 확인 없이 등록하면 §7의 필수 field(license·attribution)를 지어내게 된다.
+
+### 권고: provider가 아니라 **버전이 박힌 참조 자료**로 다룬다
+
+법정동 코드표는 관측값이 아니라 **행정 개편 때만 바뀌는 코드표**다. runtime provider로 등록하면 quota·collector run·stale 정책·egress·ingest audit이 전부 따라오는데 우리가 필요한 것은 표 하나다. 그래서 수집은 1회(개편 시 갱신)이고, 저장은 코드표 + 그것을 만든 source revision 참조다.
+
+**중요한 제약 하나:** 화면에 나가는 `regionName`은 **그 snapshot이 수집된 revision의 표**로 해석해야 한다. 개편으로 코드 의미가 바뀌었을 때 과거 snapshot의 표기가 조용히 따라 바뀌면, 그건 §8이 금지하는 "수집 당시 의미의 소실"이다.
+
+### 아직 맞지 않는 자리 (등록 전에 결정해야 한다)
+
+- **`source_state` 어휘에 코드표가 없다.** CHECK는 `LIVE`·`FORECAST`·`REPLAY`·`QUALITATIVE`·`STALE`·`UNAVAILABLE`뿐이다. `QUALITATIVE`로 접을지 값을 넓힐지(migration)는 결정 사항이고, 어느 쪽이든 **값을 지어내서 INSERT하지 않는다.**
+- **quota 회계 단위**(§2의 열린 질문)가 data.go.kr 경로에서 다시 걸린다 — 같은 계정 인증키를 쓰기 때문이다. 다만 **이 데이터셋이 개발계정 10,000을 적는다는 사실 자체가 per-API 읽기를 강하게 뒷받침한다**: 한도가 계정 단위라면 한 계정이 동시에 1,000이면서 10,000일 수 없다. 파일 경로를 고르면 quota 질문이 사라진다.
+- **`categoryName`은 이 절로 해결되지 않는다.** `lclsSystm*`은 KTO 고유 분류체계라 KTO 자체 코드표가 유일한 정본이고, 그건 operation 승인이 따로 필요하다.
+
+### 하지 않은 것
+
+활용신청, 실호출, registry INSERT, migration, allowlist 수정. **새 external provider를 여는 것은 오너 결정**이고 이 절은 그 결정을 한 번에 내릴 수 있게 모아 둔 것이다. 오너가 정할 것은 셋이다 — (1) 두 경로 중 하나, (2) 그 경로가 요구하는 신청 또는 파일 수령, (3) 코드표를 저장소에 고정하는 것(크기·라이선스 표기)에 대한 승인.

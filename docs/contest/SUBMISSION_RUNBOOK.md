@@ -242,7 +242,7 @@ independentChecker:
 
 - 공식 양식/필수 field/PDF render가 검증되지 않음
 - 외부망·새 anonymous session에서 핵심 흐름이 끊김
-- KTO 운영키의 실제 호출 또는 서비스 화면 사용 증거가 없음
+- KTO OpenAPI의 실제 server-side 호출 또는 서비스 화면 사용 증거가 없음(키 등급과 무관하다 — 제출은 개발 키로 간다, PM-023)
 - 기능설명서의 API/기능이 최종 release와 다름
 - 출처 누락, 무허가 CI·BI, secret 노출 가능성
 - 위치 capability/geolocation/좌표 전송이 켜짐

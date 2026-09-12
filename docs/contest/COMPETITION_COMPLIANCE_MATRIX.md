@@ -51,7 +51,7 @@ tags:
 
 | ID | 성격/수준 | 요구사항 | Nullnull 구현 결정 | 완료 증거 | DRI / 검토 |
 | --- | --- | --- | --- | --- | --- |
-| CMP-KTO-001 | 공식/REQUIRED | 한국관광공사 OpenAPI를 실제 서비스에서 사용 | browser가 아닌 Backend gateway가 운영키로 호출 | staging/submission actual-call smoke | BE/AI / FE |
+| CMP-KTO-001 | 공식/REQUIRED | 한국관광공사 OpenAPI를 실제 서비스에서 사용 | browser가 아닌 Backend gateway가 server-side로 호출한다. **키 등급은 요건이 아니다** — 제출은 `DEV_APPROVED` 개발 키로 가며(2026-09-13 오너 결정, PM-023), 공식 요건은 실제 사용과 호출 내역이지 승인된 운영키가 아니다 | staging/submission actual-call smoke | BE/AI / FE |
 | CMP-KTO-002 | 공식/REQUIRED | 제출 인증키의 API별 호출 이력을 확인할 수 있음 | operation·시각·outcome·count·release/provenance를 redacted audit로 연결 | provider 이력과 내부 call-audit 대조 | BE/AI / FE |
 | CMP-KTO-003 | 공식/EXCLUSION | 파일 데이터만 사용한 것은 필수 OpenAPI 활용으로 불인정 | file/replay/mock은 test/fallback 전용 | actual-call 없는 release를 배포/제출 차단하는 test | BE/AI / FE |
 | CMP-KTO-004 | 공식/RECOMMENDED | 동기화 문제를 줄이기 위해 실시간 호출 권고 | quota-aware read-through/refresh 사용 | TTL/refresh 설정, 실제 call과 기준시각 | BE/AI / FE |

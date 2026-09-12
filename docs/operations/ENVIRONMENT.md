@@ -64,9 +64,9 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_COOKIE_DOMAIN` | 아니오 | 모든 환경에서 비움 | `__Host-` cookie에 Domain attribute 금지 |
 | `APP_COOKIE_SECURE` | 아니오 | 기본 `true`, `false`는 local 단독 profile만 | test/integration/cloud는 `true`; Domain 금지 |
 | `APP_SESSION_TTL` | 아니오 | `P30D` | idle sliding expiry |
-| `APP_SESSION_ABSOLUTE_TTL` | 아니오 | `P90D` (제안값) | 생성부터 absolute 상한; idle 30일의 3배 |
-| `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` (제안값) | tab token 갱신 주기; session 만료보다 길지 않음 |
-| `nullnull.session.touch-interval` | 아니오 | `PT1M` (제안값) | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록 |
+| `APP_SESSION_ABSOLUTE_TTL` | 아니오 | `P90D` | 생성부터 absolute 상한; idle 30일의 3배. **확정(2026-09-13 오너 승인, PM-017)** |
+| `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` | tab token 갱신 주기; session 만료보다 길지 않음. **확정(2026-09-13 오너 승인, PM-017)** |
+| `nullnull.session.touch-interval` | 아니오 | `PT1M` | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록. **확정(2026-09-13 오너 승인, PM-017)** |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
 | `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
@@ -277,8 +277,8 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 
 **선행 조건 넷.** 하나라도 빠지면 실패 메시지가 원인을 가리키지 않는다.
 
-1. **앱이 붙을 포트를 우리가 띄운 container가 publish한다.** container가 떴는지만 보면 부족하다 — container는 5434에 떠 있고 `.env.local`은 5433(host postgres)을 가리키는 상태가 **그 검사를 통과한다.** 그래서 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 본다.
-2. **`SPRING_DATASOURCE_*` 세 값이 그 DB와 맞는다.** 비밀번호는 `compose.yml`의 `local-only`다. 포트는 기기마다 다를 수 있으니 `.env.local`을 정본으로 본다.
+1. **앱이 붙을 포트를 우리가 띄운 container가 publish한다.** container가 떴는지만 보면 부족하다 — container가 한 포트에 떠 있고 `.env.local`이 다른 포트(가령 host postgres가 잡고 있는 자리)를 가리키는 상태가 **그 검사를 통과한다.** 그래서 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 본다. 아래 명령이 포트 숫자를 박아 두지 않는 이유이기도 하다.
+2. **`SPRING_DATASOURCE_*` 세 값이 그 DB와 맞는다.** 비밀번호는 `compose.yml`의 `local-only`다. 포트의 저장소 기본값은 **5434**이고, 기기마다 다를 수 있으니 `.env.local`을 정본으로 본다.
 3. **shell에 `SPRING_DATASOURCE_*`가 export돼 있지 않다.** 있으면 `.env.local`을 **덮는다**(아래).
 4. **`JAVA_HOME`이 Temurin 21**이고, Gradle daemon이 예전 환경을 들고 있지 않다(`./gradlew --stop`).
 
@@ -316,11 +316,11 @@ NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
   ./gradlew ktoForecastSmoke --console=plain
 ```
 
-  **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패한다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 지금까지 `Created` 상태로 **한 번도 뜬 적이 없다.**
+  **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패했다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있었고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 그때까지 `Created` 상태로 **한 번도 뜬 적이 없었다.** 오너 결정으로 host port를 **5434**로 옮겼다.
 
-  위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 `127.0.0.1:5433`이라 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
+  위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 점유된 포트를 가리키면 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
 
-  해결은 host PostgreSQL을 멈추거나 publish 포트를 이 기기에서만 바꾸는 것이고, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다.
+  **결정(2026-09-13, 오너):** host PostgreSQL은 그대로 두고 저장소의 publish 포트를 **5434**로 옮긴다(`compose.yml`, `.env.example`, `application-local.yaml`). 기기별 예외가 필요하면 gitignored override를 쓰되, 어느 쪽이든 **0단계의 확인이 통과해야** 1단계로 간다.
 
   **그리고 그 확인이 liveness가 아니라 신원을 봐야 한다.** "container가 떴다"와 "앱이 붙을 곳이 그 container다"는 다르다 — 포트를 옮기면서 `.env.local`만, 혹은 compose만 고치면 **container는 멀쩡히 running인 채로 앱은 host 서버에 붙는다.** 이번에 우리를 구한 것은 그 host 서버의 비밀번호가 달랐다는 우연뿐이고, 맞았다면 migration 18개가 남의 DB에 **오류 없이** 걸렸을 것이다. 그래서 0단계는 두 값을 **묶어서** 비교한다.
 

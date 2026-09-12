@@ -15,12 +15,27 @@ Installed Gradle distributions are not used; always run `./gradlew`.
 
 ## Run locally
 
+저장소 root에서 시작한다. `up -d`가 실패해도 `bootRun`은 **다른 PostgreSQL에 붙을 수 있으므로**(그 자리를 기기의 host
+서버가 잡고 있는 경우) 그 사이에 포트의 신원을 확인한다 — 포트 숫자는 `application-local.yaml`에서 읽어 박아 두지
+않는다. 배경과 smoke용 4단계 선행 조건은 [ENVIRONMENT.md](../../docs/operations/ENVIRONMENT.md) §7에 있다.
+대화형 zsh는 `#` 주석을 붙여넣으면 `command not found: #`가 나므로 블록 안에 주석을 두지 않는다.
+
 ```bash
-docker compose up -d postgres                 # repo root, 127.0.0.1:5433
+docker compose up -d postgres
+port=$(sed -n 's#.*url: jdbc:postgresql://[^:]*:\([0-9]\{1,5\}\)/.*#\1#p' apps/api/src/main/resources/application-local.yaml)
+docker ps --format '{{.Ports}}' | grep -q ":${port}->" \
+  && echo "OK: a running container publishes ${port}" \
+  || echo "FAIL: the local profile points at ${port} and no container publishes it"
+```
+
+```bash
 cd apps/api
-./gradlew bootRun                             # profile local, http://localhost:8080/api/v1
+./gradlew bootRun
 curl -s http://localhost:8080/api/v1/health/ready
 ```
+
+`bootRun`은 profile `local`로 `http://localhost:8080/api/v1`에 뜬다. shell에 `SPRING_DATASOURCE_*`가 export돼 있으면
+`application-local.yaml`을 덮으므로 위 확인이 통과해도 앱은 다른 곳에 붙는다(`env | grep '^SPRING_DATASOURCE_'`).
 
 ## Verify
 

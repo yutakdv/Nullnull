@@ -2,7 +2,7 @@
 # The password below is local-only and matches compose.yml; it is not a secret.
 spring:
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5433/nullnull_local
+    url: jdbc:postgresql://127.0.0.1:5434/nullnull_local
     username: nullnull
     password: local-only
 

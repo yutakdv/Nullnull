@@ -418,6 +418,27 @@ C2 gateway가 자기 snapshot을 스스로 매핑하지 않는 것은 의도된 
 
 **이것도 같은 부류다.** `KtoSnapshotCatalogIngest`는 완전히 구현돼 있고 test로 검증돼 있는데 **아무도 부르지 않았다.** "구현됐지만 발화할 수 없는 가드"의 바로 옆 칸 — **구현됐지만 아무도 부르지 않는 서비스**다. test가 직접 부르면 그 사실이 보이지 않는다.
 
+#### PM-023 — **개발 키로 제출한다(2026-09-13 오너 결정). 문서 두 줄을 그에 맞췄다**
+
+제출 자격 결정 자체는 오너의 것이지만, **결정과 무관하게 참이어야 하는 사실**은 지금 확인할 수 있다.
+
+**코드에는 운영키 전제가 없다.** `ApprovalState.permitsCollection()`이 `DEV_APPROVED || PROD_APPROVED`이고 `JdbcSourceQuotaStore`의 SQL도 `approval_state IN ('DEV_APPROVED','PROD_APPROVED')`다. 등록부의 두 KTO 행이 `DEV_APPROVED`로 **이미 수집을 허용**하며, 오늘 실호출이 그 상태로 성공했다. contest profile의 startup invariant도 키의 **승인 등급**이 아니라 base URL allowlist와 feature flag만 본다.
+
+**그런데 문서 두 줄은 다르게 적는다.**
+
+- `COMPETITION_COMPLIANCE_MATRIX.md:54` (CMP-KTO-001): *"browser가 아닌 Backend gateway가 **운영키로** 호출"*
+- `SUBMISSION_RUNBOOK.md:245`: 차단 조건으로 *"KTO **운영키**의 실제 호출 또는 서비스 화면 사용 증거가 없음"*
+
+나머지 줄들은 운영계정을 **요건이 아니라 기록 대상**으로 다룬다(*"운영계정 상태"*, *"신청 여부"*). 즉 **같은 문서 안에서 두 줄만 전제가 달랐다.**
+
+**오너가 결정했다: API 운영계정을 신청하지 않고 제출은 개발 키로 간다.** 그래서 두 줄을 고쳤다 — CMP-KTO-001은 *"server-side로 호출하며 **키 등급은 요건이 아니다**"* 로, RUNBOOK의 차단 조건은 *"실제 server-side 호출 증거가 없음(키 등급과 무관)"* 으로. 이는 PM-023 본문의 분석과도 일치한다: *"필수는 실제 KTO OpenAPI 활용과 호출/서비스 사용 내역이다. 승인된 운영키·추가 quota를 요구하는 팀 기준을 공식 자격요건으로 확대하지 않는다."* **PM-023은 닫힌다.**
+
+그리고 그 요건은 **이미 충족돼 있다** — 오늘 `DEV_APPROVED` 상태로 실제 server-side 호출이 성공했고(`coverage=30`, `rejected=0`) 감사 행이 남았다. 남은 것은 그 증거를 **staging에서** 다시 만드는 것뿐이다(`BA-021-T3`·`EV-KTO-02`).
+
+**quota는 데모 규모에서 문제가 아니다.** `KTO_KOR_SERVICE_2`가 P7D, `KTO_CONCENTRATION_FORECAST`가 PT24H stale이므로 장소 N개에 forecast `N`·detail `N/7`이고, 어느 회계 읽기에서도 870~1,000개 장소를 덮는다.
+
+**그리고 "회계 단위가 틀렸다"고 적었던 것을 정정한다 — 아직 모른다.** 내가 *"키는 하나인데 counter가 source마다 하나라 guard가 하루 2,000회를 허용한다"* 고 결함으로 적었는데, **그 결론은 공공데이터포털의 일일 트래픽이 인증키 단위일 때만 성립한다.** `SOURCE_CATALOG`에 이미 잡아 둔 공식 화면 두 개가 오히려 반대를 가리킨다 — 두 API가 **각자 자기 상세 화면에** "개발 계정 1,000"을 적는다. 포털 이용가이드 두 곳을 실제로 열어봤지만 트래픽 단위를 서술한 문장이 없었다. **정하는 것은 오너의 마이페이지**(활용신청 상세가 API별 트래픽을 따로 보이는가)이고, 그전에는 guard를 건드리지 않는다 — 안전한 쪽으로 미리 조이면 per-API가 맞을 때 용량 절반을 버린다. 자세한 것은 `SOURCE_CATALOG` C2 절에 적었다.
+
 #### PM-004 — 절반은 이미 FE에 구현돼 있었고, 남은 절반은 범위 질문이다(#180)
 
 **"승인된 브라우저 초안 규칙"은 제안할 것이 없다.** `apps/web/.../trip-create/wizard.ts`가 이미 그 규칙이다 — *"Steps 1-3 are a local draft … the only server call in this flow is `createTrip` at the end"*, 그리고 `toCreateRequest`가 불완전하면 `null`을 반환해 반쯤 채운 여행을 제출할 수 없게 한다. **PM-017·FCR-020에 이어 세 번째로 "결정이 필요하다"고 분류된 것이 이미 상대 코드에 있었다** — 상대 역할의 코드를 먼저 읽는 것이 규칙이다.
@@ -460,6 +481,36 @@ ITEM 평가기가 요구하는 증거와 지금 그것을 댈 수 있는 곳:
 
 **PM-014가 요구한 "최소 성공 사례"는 지금 만들 수 없다.** 만들려면 영업시간이 먼저 있어야 하고, 그전에 만든 어떤 사례도 사용자가 직접 duration을 넣은 것뿐이며 그래도 영업시간 UNKNOWN에서 멈춘다. **안전 조건을 낮춰서 사례를 만드는 것은 금지다** — 그게 PM-014가 경고한 바로 그 일이다.
 
+#### 표를 네 계산 표면 전부로 넓혔다 — **ITEM만의 문제가 아니었다**
+
+ITEM 평가기에만 돌렸던 질문(*"이 표면이 성공 상태를 내려면 어떤 입력이 필요하고, 그것을 만드는 production source가 있나"*)을 `apps/ai`의 계산 표면 **넷 전부**에 돌렸다.
+
+| 계산 표면 | 성공 상태 | 그 상태에 필요한 입력 | production source | 판정 |
+| --- | --- | --- | --- | --- |
+| **SLOT**(BA-042 · `FR-CAN-07`) | `EXACT` | 날짜별 `OpenWindow` | **없다** | **항상 `UNKNOWN`** (실측) |
+| **ITEM**(BA-051) | `ELIGIBLE` | `OpenWindow` + duration + route 증거 | 없음 / 사용자 / 없음 | 항상 UNKNOWN (위 표) |
+| **RELATED**(C5) | `EXACT`·`SIMILAR` | `place_relations` 행 | **writer 0건** | 항상 `NONE`/`UNKNOWN` — **이미 결정된 것** |
+| **FEED**(BA-032) | 비어 있지 않은 page | `posts`의 `PUBLISHED` 행 | **writer 0건** | **항상 빈 feed** |
+
+**SLOT은 추론이 아니라 실측이다.** `SlotEvaluator`를 실제로 돌렸다 — 빈 여행(이웃 0건), 사용자가 넣은 `durationMinutes=90`, `routeEvidence=VERIFIED`, 그리고 production이 유일하게 못 주는 것 하나(`openingHours={}`):
+
+```text
+state = UNKNOWN
+  2026-10-01 eligible=False reason=OPENING_HOURS_UNKNOWN
+  2026-10-02 eligible=False reason=OPENING_HOURS_UNKNOWN
+  2026-10-03 eligible=False reason=OPENING_HOURS_UNKNOWN
+```
+
+**판별 방향도 같이 봤다** — 같은 입력에 검증된 창 하나(`09:00~18:00`)를 넣으면 `state = EXACT`가 된다. UNKNOWN과 EXACT 사이에 있는 것은 알고리즘이 아니라 **그 창 하나**다.
+
+**그리고 ITEM보다 SLOT이 먼저 아프다.** ITEM은 최적화(B06 이후) 화면이지만 SLOT은 **후보를 일정에 올리는 P0 기본 동작**(`FR-CAN-07`)이다. `SlotEvaluator._evaluate_date`가 `filters.opening_hours`를 그대로 호출하므로 **source 하나가 두 화면을 동시에 막는다.** 날짜만 고르는 SLOT은 `start=None`이라 창의 시각을 쓰지도 않는데, 그래도 창이 `UnknownHours`면 첫 줄에서 UNKNOWN이다.
+
+**RELATED는 셋과 다르다 — 이미 결정된 것이다.** `KTO_RELATED_PLACES`가 미신청이라 `DISABLED`이고 C5는 `UNKNOWN(reason SOURCE_DISABLED)`만 낸다는 것이 §9의 확정 결정이다. 표에 넣은 이유는 **같은 모양이 "결정된 것"과 "잊힌 것" 두 가지로 나타난다**는 것을 보이기 위해서다. 결정된 것은 결함이 아니다.
+
+**FEED는 새로 나온 것이고, 제출 데모의 첫 화면이다.** `posts`에 행을 만드는 production 경로가 **없다** — `INSERT INTO posts`는 integration test 5개 파일에만 있고, OpenAPI에는 post를 만드는 operation이 없으며(`listFeed`·`getPost`·`savePost`·`unsavePost`·`recordFeedFeedback`뿐), BA-032 구현 순서 1번은 *"게시 가능한 curated post … 를 **조회**하고"* 라 읽기만 서술한다. 사용자 작성은 BA-082인데 **P1**이다. `curated`라는 말은 저장소 전체에서 그 한 줄과 그 JSON 복제본에만 있다. 즉 **큐레이션된 게시물을 만드는 일을 어느 카드도 갖고 있지 않다.** catalog 게이트가 열려도 feed는 빈 page를 낸다.
+
+**셋 다 "구현이 끝났는데 아무도 그 입력을 만들지 않는다"이지만 움직일 사람이 다르다** — 영업시간은 오너(승인 operation 확대), 게시물은 오너·제품(P0 콘텐츠를 어디서 가져오는가), related는 아무도(이미 결정됨). **부류 4를 찾으면 "누가 그 source를 만드는가"까지 적어야 다음 사람이 움직일 수 있다.** 그래서 앞의 둘은 이슈로 냈다.
+
 #### 부류 목록 갱신 — **성공 경로가 도달 불가능한 것**이 가장 위험하다
 
 2번은 *실패를 알리는 길*이 막힌 것이고, PM-014는 ***성공하는 길*이 막힌 것**이다. 후자가 더 위험하다 — 2번은 조용하지만 이건 **배선되는 날 전부 UNKNOWN으로 한꺼번에** 터지고, 그때는 이미 그 위에 화면이 얹혀 있다.
@@ -488,9 +539,11 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 
 이제 `.env.local`이 가리키는 포트와 **실제로 publish된 포트를 묶어서** 비교한다. 양방향 확인: 현재 5434 구성에서 PASS, 5433에 대해서는 *"어떤 container도 publish하지 않음"* 으로 **정확히 잡는다**.
 
+**확정(2026-09-13, 오너): 저장소 기본 host port는 5434다.** `compose.yml`, `apps/api/.env.example`, `application-local.yaml`, `LOCAL_DEVELOPMENT.md` §3, `ENVIRONMENT.md` §7을 함께 옮겼다. host PostgreSQL은 건드리지 않는다.
+
 **우리를 구한 것은 우연이었다.** host 서버의 `nullnull` 역할 비밀번호가 달라서 `28P01`로 죽었을 뿐, 맞았다면 migration 18개가 남의 DB에 **오류 없이** 걸렸을 것이다.
 
-**"명령을 돌렸다"와 "그 명령이 의도한 것을 했다"는 다르다.** §6의 "검증 명령은 성공 여부를 확인하고 출력을 버리지 않는다"의 한 단계 아래 — **성공해도 의도한 대상이 아닐 수 있다.** 그래서 smoke runbook의 0단계는 `up -d`가 아니라 *"그 container가 5433을 갖는지"* 를 확인한다(`ENVIRONMENT.md` §7, `LOCAL_DEVELOPMENT.md`).
+**"명령을 돌렸다"와 "그 명령이 의도한 것을 했다"는 다르다.** §6의 "검증 명령은 성공 여부를 확인하고 출력을 버리지 않는다"의 한 단계 아래 — **성공해도 의도한 대상이 아닐 수 있다.** 그래서 smoke runbook의 0단계는 `up -d`가 아니라 *"`.env.local`이 가리키는 포트를 그 container가 publish하는지"* 를 확인한다 — 포트 숫자를 문서에 박으면 옮길 때 또 갈라진다(`ENVIRONMENT.md` §7, `LOCAL_DEVELOPMENT.md`).
 
 **내가 쓴 runbook에 그대로 있던 함정이다.** 앞 커밋에서 `docker compose up -d postgres`를 0단계로 적어 두고 다음 단계로 넘어갔었다 — 승인이 왔다면 host DB에 migration이 걸렸을 것이다.
 
@@ -645,7 +698,7 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 | **이미 끝나 있었다(확인함)** | PM-018(삭제 receipt 예외 projection — `DeletionIT`가 token 부재를 단언), PM-022 쿠키 절반(`cookieName()`이 `secure`일 때만 `__Host-`, `SessionPropertiesTest`가 양쪽 분기 고정), PM-024 `slotDates`(policy-v1.yaml이 30), PM-020 문서 정정(`SOURCE_CATALOG` §123의 UNKNOWN/NONE 구분, `FIGMA_HANDOFF` §230 문구), PM-023 문구(개인화 ranking은 P2·범위 밖) | — |
 | **FE 답 대기(내가 제안함)** | PM-007(#166), PM-009(#165), PM-011(#163), PM-019 나머지(#170) | 답 오면 즉시 |
 | **FE 화면 소유** | PM-001, PM-003, PM-012·013·015·020의 화면 절반, PM-021 | 아니오 |
-| **오너/정책** | PM-017(세션 만료·GC 값), PM-022 **배포 절반**(local 절반은 위에서 실측·해소), PM-023, BA-004 acceptance 집계 규칙 | 아니오 |
+| **오너/정책** | ~~PM-017~~·~~PM-023~~ **둘 다 2026-09-13 오너 결정으로 닫힘**, PM-022 **배포 절반**(local 절반은 위에서 실측·해소), BA-004 acceptance 집계 규칙 | 아니오 |
 
 **PM-017은 조사해 보니 만들 것이 없다 — 세 항목 다 구현·고정돼 있고 남은 건 숫자 확정뿐이다.** 다시 열어보지 않도록 근거를 적는다.
 
@@ -654,8 +707,10 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 - **cookie 유실 뒤**: 새 익명 owner가 생기고 이전 owner는 orphan이 되어 위 경로로 지워진다. 서버 동작은 정의돼 있고 **안내 문구는 FE 소유**다.
 - **다중 탭 CSRF**: FE `problem-schema` 쪽에서 이미 해소됐다(`problem-policy.ts`의 `reissue-csrf-once`는 silent retry가 아니라 *"token 1회 재발급 후 사용자 재확인"* 이라 PM-017의 *"401 뒤 mutation 자동 재실행 없음"* 을 그대로 만족한다). **FE 이슈를 올리지 않았다.**
 
-남은 것은 `ENVIRONMENT.md`가 **`(제안값)`으로 표시한 세 숫자**(`APP_SESSION_ABSOLUTE_TTL`·`APP_CSRF_TOKEN_TTL`·`nullnull.session.touch-interval`) 확정이고, 그것은 오너 결정이다. **`(제안값)` 표기 자체가 "임의 기입 금지"를 지키고 있는 것이므로 지우지 말 것.**
-| **키·게이트 대기** | PM-014(KTO 키), PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
+**2026-09-13 오너가 세 숫자를 확정했다 — `APP_SESSION_ABSOLUTE_TTL=P90D`, `APP_CSRF_TOKEN_TTL=PT2H`, `nullnull.session.touch-interval=PT1M`.** `ENVIRONMENT.md`에서 그 세 행의 `(제안값)`을 지우고 승인 사실을 적었다. **PM-017은 닫힌다.**
+
+**나머지 `제안값` 20곳은 그대로 두었다**(`APP_IDEMPOTENCY_LOCK_TIMEOUT`, job 값들, provider executor 값들 — 표기 형태가 괄호 없는 ` 제안값`이라 이번 편집과 겹치지 않았고, 실제로 3줄만 바뀐 것을 diff로 확인했다). 그 표기는 **"임의 기입 금지"를 지키는 장치**이므로 각자의 카드 소유자가 확정하기 전에는 지우지 않는다.
+| **source 부재 대기** | PM-014 — **KTO 키가 아니라 영업시간 source다**(키는 오늘 실호출로 성립했다). PM-005(BA-060 미구현), PM-010 **나머지 절반**(posts 표지 이미지의 출처 — 데이터가 먼저) | 아니오 |
 
 **PM-013도 절반은 이미 지켜지고 있었고, 지키는 것이 아무것도 없었다.** "혼잡 단계 과장 위험"인데 — KTO 상대 집중률은 **날짜 단위**이고 서울4단계도 공통5단계도 아니다. 확인해 보니 registry의 `metric_definition`이 *"가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님"* 이라고 **정확히** 적고 그게 `metricDefinition`으로 client까지 간다. `ordinal_level`도 NULL로 저장된다.
 
@@ -687,6 +742,10 @@ PM-013의 나머지(**기계 판독 가능한 target granularity**와 단계 어
 같은 부류를 세어 봤다: 짧은 literal을 body 전체에 대고 `doesNotContain` 하는 곳은 그 한 군데뿐이다. `seoul`·`save`·`장소` 등은 UUID hex(0-9a-f)에 나타날 수 없는 글자를 포함해 안전하고, 시각 기반 정확 일치 단언은 없다.
 
 **두 훑기는 공백 0건이었다(다시 돌리지 마라).** ERD가 이름을 대는 table 중 migration이 만들지 않는 것은 `feed_feedback`·`notifications`·`optimization_runs` 셋뿐이고 전부 미구현 카드(BA-033 나머지·P1·BA-050)라 정상이다. ERD가 `table.column` 형태로 지목한 13쌍도 전부 실재한다. `analytics_events.session_id` 누락은 backtick이 아니라 **산문 문장**에서 나왔으므로, 다음에 같은 대조를 할 때는 산문까지 읽어야 한다.
+
+**법정동 코드표는 결정 직전까지 준비해 뒀다(`SOURCE_CATALOG` §16).** 후보 둘의 공식 페이지를 실제로 열어 제공 형식·operation 이름(`getStanReginCdList`)·응답 field·신청 요건·개발계정 한도·이용허락범위를 확인했고, 확인 못 한 칸은 "미확인"으로 남겼다. 두 가지가 새로 드러났다 — `www.code.go.kr`은 표시 링크 allowlist에 **없어서** 그 경로를 고르면 FE 검토가 따라오고, `source_state` CHECK 어휘에는 **코드표에 해당하는 값이 없다.** 그리고 권고는 **provider가 아니라 버전이 박힌 참조 자료**다: 개편 때만 바뀌는 표에 quota·collector·stale 기계를 달 이유가 없다. **신청·호출·등록은 하지 않았다.**
+
+**그 조사가 quota 질문에 증거를 하나 더 줬다.** 같은 포털의 15077871이 **개발계정 10,000**을 적는다 — 한도가 계정·키 단위라면 한 계정이 동시에 1,000이면서 10,000일 수 없다. per-API 읽기를 강하게 뒷받침하지만, 확정은 여전히 오너 마이페이지다.
 
 **BA-022 label 절반은 게이트가 아니라 근거가 막고 있다.** 자세한 것은 BA-022 카드에 적었다. 요지는 공식 포털이 "법정동코드정보"·"분류체계코드정보" 기능의 **존재만 적고 operation 이름도 응답 필드도 주지 않으며**, 활용가이드 사이트는 SPA라 fetch로 읽히지 않는다는 것이다. 서드파티가 하드코딩한 `lclsSystm1` 표는 우리 example과 값이 맞지만 license·provenance가 없어 출처로 쓸 수 없다. **#109가 정한 "공식 활용가이드 전까지 정본으로 적지 않는다"를 그대로 따른다.** 허용 목록 밖 operation을 실호출해 보는 것도, 새 source를 등록하는 것도 오너 결정이다.
 

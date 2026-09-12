@@ -91,6 +91,21 @@ def test_open_days_without_legs_are_exact_and_never_carry_an_invented_time() -> 
     assert result.reasons == ()
 
 
+def test_an_empty_opening_map_is_unverified_rather_than_open() -> None:
+    """The production shape: nothing hydrates opening hours at all, so the map arrives empty.
+
+    The case below supplies `UnknownHours` explicitly, which never exercises the default in
+    `_evaluate_date`. Replace that default with an open window - the change someone reaches for when
+    every candidate comes back UNKNOWN - and that case still passes while every real candidate
+    silently turns EXACT. This one fails instead. Until a source exists (#181) UNKNOWN is the honest
+    answer here, not a gap to fill in.
+    """
+    result = evaluate(opening={}, route=RouteEvidence.VERIFIED)
+    assert result.state is SlotState.UNKNOWN
+    assert [slot.eligible for slot in result.slots] == [False, False, False]
+    assert {slot.reason_code for slot in result.slots} == {"OPENING_HOURS_UNKNOWN"}
+
+
 def test_unknown_hours_or_missing_route_evidence_is_unknown_not_eligible() -> None:
     unknown = evaluate(opening=hours(UnknownHours(), UnknownHours(), Closed()))
     assert unknown.state is SlotState.UNKNOWN

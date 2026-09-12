@@ -114,7 +114,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - 세 검증 중 Gradle suite에 있는 것은 T2 하나다. T1·T3의 증거는 `scripts/verify_target_stack.py`이고 JUnit XML을 만들지 않으므로, `api-quality` 하나가 BA-001 전체를 덮는다고 읽으면 안 된다.
 - 검사되지 않음: T1의 "새 clone에서" 부분. 현재 검사는 이 작업 트리의 고정값을 확인하며 빈 디렉터리 clone부터의 재현을 돌리지 않는다.
 - `integration-ready` 이상으로 올리지 않는다: BA-000과 같은 이유로 `check_test_reports.py`가 T1·T3를 JUnit testcase 이름에서 찾지 못해 두 required check가 실패한다.
-- PM-022의 쿠키 절반은 **이미 해결돼 있다(확인함)**. PM-022는 `APP_COOKIE_SECURE=false`와 `__Host-` 쿠키를 함께 쓰는 개발 설정을 문제로 들었는데, `SessionProperties.cookieName()`이 `secure`일 때만 `__Host-` 접두사를 붙이고 insecure 쿠키는 local profile 단독에서만 허용된다. `SessionPropertiesTest`가 양쪽 분기를 고정하므로 되돌아가면 빨개진다. 남은 절반(local compose wrapper의 `localhost:5433` 실제 확인, staging→production `VITE_APP_ENV` 승격 정책)은 [BA-006](#ba-006)이고 배포 단계다.
+- PM-022의 쿠키 절반은 **이미 해결돼 있다(확인함)**. PM-022는 `APP_COOKIE_SECURE=false`와 `__Host-` 쿠키를 함께 쓰는 개발 설정을 문제로 들었는데, `SessionProperties.cookieName()`이 `secure`일 때만 `__Host-` 접두사를 붙이고 insecure 쿠키는 local profile 단독에서만 허용된다. `SessionPropertiesTest`가 양쪽 분기를 고정하므로 되돌아가면 빨개진다. 남은 절반 중 **local compose wrapper 확인은 끝났다** — 실제로 확인했더니 5433은 이 기기의 host PostgreSQL이 잡고 있었고, 오너 결정으로 저장소 기본 host port를 **5434**로 옮겼다(`compose.yml`·`.env.example`·`application-local.yaml`). 0단계 검사는 포트 숫자를 박지 않고 `.env.local`과 실제 publish 포트를 묶어서 본다(`ENVIRONMENT.md` §7). 진짜 남은 것은 staging→production `VITE_APP_ENV` 승격 정책뿐이고 [BA-006](#ba-006)의 배포 단계다.
 
 FE 인계·완료 증거: API 실행/health 주소, 버전 manifest, FE scaffold와 필요한 generation command. 실제 FE scaffold는 FE 인계물이다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -576,6 +576,8 @@ FE 인계·완료 증거: 승인된 출처 텍스트·공식 URL·license URL·n
 - C2 mutation은 single-flight 경로를 제거했을 때 `BA-021-T2`가 concurrent response 불일치로 RED가 되는 것과, content/type ID 비교의 `||`를 `&&`로 약화했을 때 `BA-021-T1`이 `SCHEMA_DRIFT` 대신 `OK`로 RED가 되는 것을 실제로 확인했다. current request mutation으로 `contentTypeId`를 다시 추가했을 때도 exact parameter-contract test가 RED였고 원본 복구 후 focused test는 GREEN이다.
 - v2 request-contract 뒤 current backend Gradle suite는 Java `300/136/13/19`가 GREEN이다. 직전 full Docker gate는 Java `299/136/13/19`, AI pytest `410`, web unit `224`, Playwright `36`, generated client, npm audit, egress-denied를 통과했다 (`INF-001` 미생성으로 `infra:check`는 skip이며 passing check로 세지 않는다). fixture/integration evidence는 actual KTO success를 뜻하지 않는다.
 - local `KTO_SERVICE_KEY`/`KTO_BASE_URL`로 opt-in actual smoke는 통과했으나 T3의 staging actual-success→public provenance chain은 아직 없다. local disposable-DB 성공은 staging 공개 증거로 대체할 수 없다. AWS 배포를 마지막 release gate로 두므로 C3 코드는 local/test에서만 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값의 fail-closed 상태로 구현·검증할 수 있고, T3 증거와 최종 배포 전에는 flag를 켜거나 외부 공개하지 않는다. 따라서 BA-021을 `integration-ready` 또는 완료로 올리지 않는다.
+- **그리고 status만 올리는 것은 gate가 막는다(실측).** `scripts/check_test_reports.py:193-196`은 `integration-ready`·`verified` 카드의 **모든** `tests[].id`가 JUnit testcase 이름에 있기를 요구하는데, `BA-021-T3`은 staging 실호출 증거라 JUnit에 나타날 수 없다. 현재 plan으로 돌리면 exit 0이고, status만 바꾼 사본으로 돌리면 `backend plan: BA-021-T3 missing from JUnit testcase names`와 함께 exit 1이다. **즉 이 카드의 상태는 선택이 아니라 T3 증거의 함수다.**
+- **승격해도 후속 카드가 열리지는 않는다.** 선행 카드의 status를 읽는 gate는 없다 — [BA-022](#ba-022)·[BA-032](#ba-032)를 실제로 막는 것은 status 문자열이 아니라 `NULLNULL_CATALOG_PUBLIC_ENABLED` fail-closed이고, 그것도 같은 staging 증거를 기다린다. 그러므로 "연쇄를 풀기 위해 상태를 올린다"는 두 번 성립하지 않는다: gate가 깨지고, 풀리지도 않는다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-014, PM-023.
 
@@ -673,6 +675,12 @@ FE 계약 제안 (승인 대기):
   정부 데이터셋이라 operation 이름을 추측할 필요가 없고 license·attribution도 명확하다. **다만 새 provider
   추가는 오너 결정이므로 등록하지 않았다** — 여기 적는 이유는, 결정할 때 "출처를 찾아야 한다"와 "이 둘 중
   고르면 된다"가 전혀 다른 질문이기 때문이다.
+- **그 선택에 필요한 것은 준비해 두었다.** 두 후보의 제공 형식·operation 이름·응답 field·신청 요건과 개발계정
+  한도·이용허락범위, 표시 링크 allowlist 등록 여부, 그리고 `source_state` 어휘에 코드표가 없다는 충돌까지
+  [source catalog §16](../data/SOURCE_CATALOG.md#16-법정동-코드표-준비-미신청미등록-오너-결정-대기)에 모았다.
+  권고도 함께 적었다 — 이 표는 관측이 아니라 개편 때만 바뀌는 코드표이므로 **runtime provider가 아니라 버전이
+  박힌 참조 자료**로 다루는 것이 맞고, 그러면 quota·collector·stale 기계가 따라오지 않는다. 신청·호출·등록은
+  하지 않았다.
 - **`categoryName`에는 대안이 없다.** `lclsSystm*`은 KTO 고유 분류체계라 KTO 자체 코드표가 유일한 정본이고,
   그건 키와 operation 승인이 둘 다 필요하다.
 - **FE 승인 전까지 이 shape를 동결하지 않는다.** 승인 결과는 #34에서 받는다.
@@ -898,6 +906,8 @@ PM-010의 절반은 아직 열려 있다(조사 결과). 장소 쪽은 `PlaceSum
 
 그래서 순서는 **(1) 큐레이션된 cover와 검토된 licence를 잇는 데이터 → (2) detail의 `coverAsset` 채우기 → (3) list 투영**이고, (3)의 화면 표시 방법은 `FCR-023`(`Open`)이 정한다. 지금 fixture의 cover는 전부 `cdn.example.test` placeholder라 잘못 표기된 실제 이미지는 없다. **BE 단독으로 끝낼 수 있는 항목이 아니다.**
 
+**그보다 앞에 있는 공백: feed에 넣을 게시물을 만드는 경로가 없다(조사 결과).** `INSERT INTO posts`는 integration test 5개 파일에만 있고, OpenAPI에는 post를 만드는 operation이 없으며, main에서 `posts`를 만지는 코드는 읽기(`JdbcFeedStore`)와 삭제(`SocialOwnerDataEraser`)뿐이다. 위 구현 순서 1번의 `curated post`는 **조회만** 서술하고, 사용자 작성·업로드는 [BA-082](#ba-082)이며 P1이다. 그래서 catalog 게이트가 열리는 날 feed는 오류가 아니라 **빈 page**를 내고, 그 빈 page는 `FR-FED-01`이 말하는 "여행이 없을 때"와 화면에서 구분되지 않는다. 표지 **권리**는 A-024로 닫혔지만(1st-party 일러스트만, [DECISIONS_AND_RISKS](../project/DECISIONS_AND_RISKS.md)) 그 결정은 자산의 조건을 정한 것이지 게시물을 만들지는 않는다 — 어떤 게시물을 몇 개 어떻게 넣을지는 여전히 열려 있고 [#183](https://github.com/yutakdv/Nullnull/issues/183)이 단독 추적한다.
+
 필수 검증:
 
 - `BA-032-T1`: 페이지 사이 새 글·삭제·숨김·같은 정렬 시각에서 중복/누락 정책을 검증한다
@@ -1064,6 +1074,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 4. 09-06 PM 검토 PM-007, PM-009, PM-014, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: query는 일정을 바꾸지 않는다. 관계 추천과 일정 실행 가능성은 별도이며 suggestedTime을 추정 사실로 만들어 넣지 않는다.
+
+**1번 단계는 지금 입력을 댈 수 없다(실측).** `SlotEvaluator`에 빈 여행·사용자가 넣은 `durationMinutes`·`routeEvidence=VERIFIED`를 주고 `openingHours`만 비우면 모든 날짜가 `OPENING_HOURS_UNKNOWN`이고 집계는 `UNKNOWN`이다. 같은 입력에 검증된 창 하나를 넣으면 `EXACT`가 된다 — **`EXACT`와 `UNKNOWN` 사이에 있는 것은 알고리즘이 아니라 창 하나**이고, 그 창을 만드는 production source가 저장소에 없다(migration 전체에 `opening` 문자열 0건이고 승인 operation `detailCommon2`는 이용시간을 주지 않는다). 그래서 2번의 `UNKNOWN`이 정상 경로가 아니라 **유일한 경로**다. source 확대는 오너 결정이라 [#181](https://github.com/yutakdv/Nullnull/issues/181)이 단독 추적한다. 이 카드를 진행할 때 `UnknownHours`를 열린 것으로 바꾸거나 기본 창을 지어내어 `EXACT`를 만들지 않는다 — 같은 source가 [BA-051](#ba-051)의 `ELIGIBLE`도 막고 있으므로 한쪽에서 완화하면 두 화면이 함께 틀어진다.
 
 필수 검증:
 

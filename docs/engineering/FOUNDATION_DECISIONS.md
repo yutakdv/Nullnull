@@ -118,6 +118,8 @@ B01 seed는 owner/session·locale·disabled capability와 이 hello에 필요한
 
 검토 중 별도 compose.yml에 local DB의 127.0.0.1:5433 mapping이 추가된 것을 확인했다. local 명령은 docker compose up -d postgres이며 integration Compose와 분리돼 있다. 실제 기동/DB 연결은 해당 B01 작업에서 검증한다. local HTTP의 cookie 이름/Secure 정책은 PM-022 승인·브라우저 검증과 함께 닫는다. 이 두 항목을 결정하지 않고 문서에 있는 개발 명령이 실행 가능하다고 안내하지 않는다.
 
+**그 검증을 실제로 했고 결과는 이렇다(PM-022).** 위에 적힌 `127.0.0.1:5433` mapping은 이 기기에서 **한 번도 뜬 적이 없었다** — Docker가 아닌 host PostgreSQL이 그 자리를 잡고 있어 `up -d`가 `bind: address already in use`로 실패했다. 위험한 쪽은 실패가 아니라 그 뒤다: 같은 포트를 가리키는 앱은 **연결에 성공하고** 상대가 host 서버였다. 오너 결정으로 저장소 publish 포트를 **5434**로 옮겼고, 확인은 포트 숫자를 문서에 박는 대신 **설정이 가리키는 포트와 실제 publish된 포트를 묶어서** 본다([ENVIRONMENT.md](../operations/ENVIRONMENT.md) §7 0단계, [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md), `apps/api/README.md`). "container가 떴다"는 이 상태를 통과시키므로 liveness 검사로는 부족하다.
+
 ## 승인과 종료 기록
 
 | 항목 | 현재 | 다음 증거 |
