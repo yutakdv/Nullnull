@@ -11,7 +11,11 @@ import {
   useTrip,
   useTripCandidates,
 } from '../../shared/api/index.js';
-import { DataAttribution, NavBar } from '../../shared/ui/components/index.js';
+import {
+  DataAttribution,
+  NavBar,
+  PlaceThumbnail,
+} from '../../shared/ui/components/index.js';
 import styles from './CandidatesScreen.module.css';
 import {
   blockedSlots,
@@ -227,14 +231,8 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
         {/* thumbnailUrl is a real contract field, unlike the source text the
             frame also shows (FCR-031). Decorative: the place name beside it is
             the accessible name, so an empty alt avoids announcing it twice. */}
-        {candidate.place.thumbnailUrl ? (
-          <img
-            alt=""
-            className={styles.thumb}
-            height={56}
-            src={candidate.place.thumbnailUrl}
-            width={56}
-          />
+        {candidate.place.thumbnailUrl && candidate.place.thumbnailAttribution ? (
+          <PlaceThumbnail place={candidate.place} size={56} />
         ) : (
           <span aria-hidden="true" className={styles.thumbEmpty} />
         )}

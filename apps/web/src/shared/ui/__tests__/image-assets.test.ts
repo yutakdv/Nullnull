@@ -123,6 +123,11 @@ describe('CMP-ATT-003 the app ships only images it may ship', () => {
     for (const file of walk(SRC)) {
       if (!/\.(ts|tsx|css)$/.test(file)) continue;
       if (file.includes('__tests__')) continue;
+      // Stories are review material, not shipped bytes: `build` excludes them,
+      // and a story needs a plausible URL to show what a credited thumbnail
+      // looks like. Scanning them would make the guard reject its own
+      // documentation.
+      if (file.endsWith('.stories.tsx')) continue;
       const source = readFileSync(file, 'utf8');
       for (const match of source.matchAll(/https?:\/\/[^\s"'`)]+/g)) {
         const url = match[0];
