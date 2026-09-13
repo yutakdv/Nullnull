@@ -77,7 +77,7 @@ scripts/                    계약 생성·검증·로컬 bootstrap
 | Module | 책임 | 소유 table |
 | --- | --- | --- |
 | `identity` | 익명 session, multi-tab CSRF, owner preference, 삭제 receipt | `owners`, `demo_sessions`, `demo_session_csrf_tokens`, `deletion_*` |
-| `catalog` | canonical/localized POI, 검색, 외부 ID, 검증된 relation | `places`, `place_localizations`, `place_external_refs`, `place_relations` |
+| `catalog` | canonical/localized POI, 검색, 외부 ID, 검증된 relation, 영업 확인 근거 | `places`, `place_localizations`, `place_external_refs`, `place_relations`, `place_hours_*` |
 | `social` | post, saved post, feed/feedback, P1 notification | `posts`, `post_places`, `saved_posts`, `feed_feedback`, `notifications` |
 | `trip` | 여행, 관심사, 후보, 일정, 제약, revision | `trips`, `trip_*` |
 | `optimization` | run, proposal, decision, revert | `optimization_*`, `route_matrix_snapshots` |

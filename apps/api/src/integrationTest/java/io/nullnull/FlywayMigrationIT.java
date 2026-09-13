@@ -96,13 +96,17 @@ class FlywayMigrationIT {
             // it is pure DDL, the trips aggregate's tables plus the owners.active_trip_id foreign key
             // V002 deferred until the trips table existed.
             //
-            // The number is rows seeded by the migrations THIS upgrade applies, so it moves as the
-            // previous version moves. V021 seeds three - A-024's source, its first registry revision
-            // and the 1st-party asset licence - and those are now part of the previous schema, inside
-            // rowsBefore. V022 is pure DDL: two constraint triggers requiring a published post to
-            // name a primary place. Hence zero, and hence this line changing again the next time a
-            // migration seeds anything, which is the point of the count being exact.
-            long seededAfterPreviousSchema = 0;
+            // The number is rows seeded by the migrations THIS upgrade applies - the last one alone,
+            // since everything up to the previous version is already inside rowsBefore. So it moves
+            // as the last migration moves. V021 seeded three (A-024's source, its first registry
+            // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
+            // V025 is the last one today and seeds two: the NULLNULL_CURATED_HOURS source and its
+            // first registry revision. A source with no staleness threshold is not collected at all
+            // (A-023) and the owner set that threshold at P30D (A-032), so the source row belongs to
+            // the schema. The readings do not - which places get curated is an operations script
+            // (A-031) - so the count is two and not more. Hence this line changing again the next
+            // time a migration seeds anything, which is the point of the count being exact.
+            long seededAfterPreviousSchema = 2;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -326,6 +330,7 @@ class FlywayMigrationIT {
                     v_item uuid := gen_random_uuid();
                     v_post uuid := gen_random_uuid();
                     v_candidate uuid := gen_random_uuid();
+                    v_run uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -430,10 +435,26 @@ class FlywayMigrationIT {
                     VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), NULL, 'trip_created',
                             v_at, v_at, '/trip/:tripId', 'ko-KR', 'Asia/Seoul', '0.0.0-test',
                             '{}'::jsonb);
+                    -- V024's optimization run, which V025 turns into part of the previous schema.
+                    -- QUEUED because that is the state a row sits in before a worker touches it, and
+                    -- so the one a later schema change is most likely to meet. The scope/status CHECK
+                    -- pair fixes the rest of the row: ITEM requires a target item and no target date,
+                    -- QUEUED requires started_at and completed_at to stay null.
+                    INSERT INTO optimization_runs (id, trip_id, requested_by_owner_id, scope,
+                                                   target_item_id, include_candidates, status,
+                                                   input_trip_version, queued_at)
+                    VALUES (v_run, v_trip, (SELECT id FROM owners LIMIT 1), 'ITEM', v_item, false,
+                            'QUEUED', 1, v_at);
+                    INSERT INTO optimization_run_snapshot_sets (run_id, snapshot_set_id, purpose,
+                                                                sequence)
+                    VALUES (v_run, v_set, 'BEFORE', 0);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
+        // "Previous" is always the migration before the last one, so a table arrives in this list one
+        // migration after it is created: optimization_runs is here because V025 exists, and V025's own
+        // place_hours_* tables belong here only once a V026 lands.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -442,7 +463,8 @@ class FlywayMigrationIT {
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
                         "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
                         "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
-                        "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources");
+                        "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
+                        "optimization_runs", "optimization_run_snapshot_sets");
         return key;
     }
 
