@@ -36,6 +36,13 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * ignored: {@code preserveDateTime} and {@code relationId} are both components of
  * {@code ReplaceTripItemBody}, so this check passes them and the registry is what records why they
  * are refused. Reading is not something a signature can prove.
+ *
+ * <p>"Find the components whose accessor is never called" was considered for that second half and
+ * does not work, for a reason that needs no experiment: refusing a field requires reading it.
+ * {@code TripController} calls {@code body.relationId()} and {@code body.preserveDateTime()} to hand
+ * them to the command that rejects them, so a never-called rule reports nothing for exactly the two
+ * fields it would exist to catch. It could only see a component bound and then passed nowhere at
+ * all, which is a different defect and one no current operation has.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
