@@ -357,6 +357,20 @@ else:
 
 
 class WorkflowWiringTests(unittest.TestCase):
+    def test_the_required_gate_reads_the_python_evidence_it_produces(self):
+        """The sandbox cannot see this: removing the flag leaves every wrapper test green.
+
+        Evidence for the Python-proven acceptance IDs used to be produced in two places and read in
+        one - api-quality fed it to the checker and integration-test.sh did not - so a card resting
+        on it went green on the path-filtered workflow and red on the required gate. The wiring that
+        fixed it is asserted here because nothing else fails when it goes away.
+        """
+        wrapper = (ROOT / 'scripts/integration-test.sh').read_text()
+        self.assertIn('run_script_tests.py', wrapper,
+                      'the required gate must run the Python suite, not only api-quality')
+        self.assertIn('--script-junit-dir', wrapper,
+                      'producing the report is not reading it')
+
     def test_BA_004_T2_shipping_wrapper_does_not_suppress_quality_commands(self):
         """BA-004-T2 출고되는 wrapper가 quality command의 실패를 은폐하지 않는다"""
         lines = [line.strip() for line in (ROOT / 'scripts/integration-test.sh').read_text().splitlines()
