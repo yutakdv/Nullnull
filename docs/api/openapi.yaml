@@ -2084,6 +2084,10 @@ paths:
         "200":
           description: Updated structured draft
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               description: Quoted updated import draft version.
               schema:
@@ -2130,6 +2134,10 @@ paths:
         "201":
           description: Trip and mapped items created atomically
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               $ref: "#/components/headers/ETag"
           content:

@@ -44,6 +44,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
@@ -120,6 +121,35 @@ public class TripService {
         Trip trip = rehydrate(context.ownerId(), projection);
         // The stored idempotency body carries the trip, not the day structure: a replay reads the
         // items back rather than keeping a second copy that could disagree with the table.
+        return new TripView(trip, projection.candidateCount(), itemViews(context, trip.id()));
+    }
+
+    /**
+     * The create path for a caller that is already inside its own command's idempotency guard.
+     *
+     * <p>{@link #create} is the whole command: it takes the Idempotency-Key, opens the guard, and the
+     * guard opens the transaction. A caller whose command is <em>not</em> createTrip - confirming an
+     * import draft, which has to mark the draft and create the trip as one act - cannot reach that
+     * method, because doing so would open a second guard under a second key inside the first one's
+     * transaction, and the inner guard's retry would be gone (it detects the active transaction and
+     * drops to a single attempt) without anything saying so.
+     *
+     * <p>So this is the persist half on its own, and {@code Propagation.MANDATORY} is what keeps it
+     * that way: called outside a transaction it throws rather than quietly creating a trip with no
+     * guard around it. The name says the same thing to a reader; the annotation says it to the
+     * runtime, which is the half that still holds when somebody adds a caller in a hurry.
+     *
+     * <p>The gate is checked here for the same reason {@link #create} checks it: a trip with seeded
+     * items cannot be answered while the catalog is closed, and finding that out after the write
+     * would leave the trip created and the caller holding a 503.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TripView createWithinCallersGuard(OwnerContext context, CreateTripCommand command) {
+        if (!command.seedItems().isEmpty()) {
+            places.requirePublicProjection();
+        }
+        Projection projection = persist(context.ownerId(), command);
+        Trip trip = rehydrate(context.ownerId(), projection);
         return new TripView(trip, projection.candidateCount(), itemViews(context, trip.id()));
     }
 
