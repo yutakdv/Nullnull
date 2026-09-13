@@ -1146,11 +1146,15 @@
         },
         {
           "id": "BA-041-T2",
-          "assertion": "date/time/예약 위반 command와 stale If-Match를 거부한다"
+          "assertion": "잠금을 위반하는 date/time/예약 command를 거부한다"
         },
         {
           "id": "BA-041-T3",
-          "assertion": "unlock 동시성·transaction rollback에서 다른 lock row/version이 보존된다"
+          "assertion": "unlock 동시성과 transaction rollback에서 다른 lock row가 보존된다"
+        },
+        {
+          "id": "BA-041-T4",
+          "assertion": "stale If-Match를 거부하고 trip version을 올리지 않는다"
         }
       ],
       "handoff": "잠금 영향·해제 확인·LOCK_CONFLICT examples와 Figma state 연결.",

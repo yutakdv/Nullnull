@@ -29,6 +29,22 @@ class FirstPartyCoverIT {
 
     @Autowired JdbcTemplate jdbc;
 
+    /**
+     * This class publishes posts that have no place, which no screen would ever create and the feed
+     * cannot render: FeedService throws SOURCE_UNAVAILABLE when a card's primaryPlace is missing, and
+     * that is deliberate (#162). Left behind, such a row breaks every later feed read.
+     *
+     * <p>It only breaks them where the database is shared. Testcontainers builds one per application
+     * context, so each class with its own properties gets a fresh database locally and nothing leaks;
+     * the Compose gate runs with NULLNULL_TEST_DATABASE=external and one database for the whole
+     * suite, which is why this passed here and failed there. The rows are this class's to remove.
+     */
+    @org.junit.jupiter.api.AfterEach
+    void removeOnlyTheRowsThisClassWrote() {
+        jdbc.update("DELETE FROM posts WHERE cover_url LIKE 'https://x.test/%'");
+        jdbc.update("DELETE FROM media_assets WHERE origin_url LIKE 'https://assets.nullnull.test/%'");
+    }
+
     @Test
     @DisplayName("A-024 publishing without a cover asset is refused, and with one is accepted")
     void aPublishedCoverHasToNameALicensedAsset() {

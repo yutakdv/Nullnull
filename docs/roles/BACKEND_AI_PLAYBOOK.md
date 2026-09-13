@@ -1051,8 +1051,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 필수 검증:
 
 - `BA-041-T1`: 네 타입 조합 property test에서 독립 잠금이 보존된다
-- `BA-041-T2`: date/time/예약 위반 command와 stale If-Match를 거부한다
-- `BA-041-T3`: unlock 동시성·transaction rollback에서 다른 lock row/version이 보존된다
+- `BA-041-T2`: 잠금을 위반하는 date/time/예약 command를 거부한다
+- `BA-041-T3`: unlock 동시성과 transaction rollback에서 다른 lock row가 보존된다
+- `BA-041-T4`: stale If-Match를 거부하고 trip version을 올리지 않는다
 
 FE 인계·완료 증거: 잠금 영향·해제 확인·LOCK_CONFLICT examples와 Figma state 연결. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
