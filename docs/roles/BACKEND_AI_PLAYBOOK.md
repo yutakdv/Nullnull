@@ -1018,7 +1018,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - `BA-040-T1`: cross-day reorder·position unique 경쟁·부분 실패에서 원자성이 유지된다
 - `BA-040-T2`: candidate schedule/RESTORE_CANDIDATE 전이가 item과 동시에 반영된다
-- `BA-040-T3`: 날짜·시간·duration·item 상한 경계와 keyboard E2E를 통과한다
+- `BA-040-T3`: 날짜·시간·duration·item 상한 경계를 검증한다
+- `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
 
 FE 인계·완료 증거: 편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
