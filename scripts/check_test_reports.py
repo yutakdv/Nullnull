@@ -17,6 +17,9 @@ import xml.etree.ElementTree as ET
 from check_evaluation_report import check_evaluation_report
 
 GRADLE_SUITES = ("test", "integrationTest", "openapiContractTest", "recommendationTest")
+# Written by run_script_tests.py. Separate from GRADLE_SUITES so a caller that passes only
+# --junit-dir keeps failing on a missing Gradle suite rather than gaining an optional one.
+SCRIPT_SUITES = ("scriptTests",)
 TEST_ID = re.compile(r"(?<![A-Za-z0-9_-])(?:BA-\d{3}-T\d+|REC-[A-Z]+-\d+)(?![A-Za-z0-9_-])")
 
 
@@ -33,14 +36,15 @@ def fresh(path: Path, run_start: Path | None) -> None:
 
 
 def read_junit(directory: Path, run_start: Path | None, errors: list[str],
-               names: set[str] | None = None) -> dict[str, set[str]]:
+               names: set[str] | None = None,
+               suites: tuple[str, ...] = GRADLE_SUITES) -> dict[str, set[str]]:
     """Acceptance IDs per suite, and - when `names` is given - every testcase name seen.
 
     The names are what a `verified` card's `provenBy` is checked against. Extracted IDs cannot
     serve: they answer "is this ID somewhere", and the second pass is about WHICH testcase.
     """
     ids: dict[str, set[str]] = {}
-    for suite in GRADLE_SUITES:
+    for suite in suites:
         found: set[str] = set()
         count = 0
         files = sorted((directory / suite).glob("*.xml"))
@@ -208,6 +212,11 @@ def check_manifest(manifest: dict, ids: dict[str, set[str]],
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--junit-dir", type=Path, help="Root containing the four Gradle suite directories")
+    parser.add_argument("--script-junit-dir", type=Path,
+                        help="Root containing scriptTests/, written by run_script_tests.py. Python "
+                             "evidence counts the same as Java: an acceptance ID the build toolchain "
+                             "or the CI wrapper proves is proven, and AGENTS.md's \u0027답은 아직 없다\u0027 "
+                             "for that class was a gap in this reader, not in the tests.")
     parser.add_argument("--evaluation", type=Path)
     parser.add_argument("--backend-plan", type=Path)
     parser.add_argument("--manifest", type=Path)
@@ -223,6 +232,9 @@ def main() -> int:
         names: set[str] = set()
         if args.junit_dir is not None:
             ids = read_junit(args.junit_dir, args.run_start, errors, names)
+        if args.script_junit_dir is not None:
+            ids.update(read_junit(args.script_junit_dir, args.run_start, errors, names,
+                                  suites=SCRIPT_SUITES))
         if args.backend_plan is not None:
             plan = read_object(args.backend_plan)
             required = required_plan_ids(plan)

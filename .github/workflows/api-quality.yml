@@ -96,11 +96,21 @@ jobs:
           mkdir -p ../../.artifacts
           touch ../../.artifacts/api-quality-start
           ./gradlew --no-daemon test --rerun integrationTest --rerun openapiContractTest --rerun recommendationTest --rerun
+      - name: Run the Python-side tests as collectable evidence
+        # Acceptance criteria for the build toolchain, the target-stack marker and the CI wrapper
+        # itself are provable only here, not in Java. Until this ran as JUnit the aggregator could
+        # not see them, so their cards could never be promoted - AGENTS.md recorded that as an open
+        # gap. Same tests docs-contract runs; this run is the one that leaves evidence behind.
+        if: always()
+        run: >-
+          python3 ../../scripts/run_script_tests.py
+          --out ../../.artifacts/script-test-results
       - name: Validate executed JUnit evidence and ready-card IDs
         if: always()
         run: >-
           python3 ../../scripts/check_test_reports.py
           --junit-dir build/test-results
+          --script-junit-dir ../../.artifacts/script-test-results
           --backend-plan ../../docs/engineering/backend-plan.json
           --run-start ../../.artifacts/api-quality-start
       - name: Upload JUnit reports
