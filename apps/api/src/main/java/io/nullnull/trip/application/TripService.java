@@ -88,8 +88,11 @@ public class TripService {
      * repeated key, so a double submit yields ONE trip - which is the whole point of the header on a
      * command that is not otherwise safe to repeat.
      *
-     * <p>The fingerprint covers the command, so the same key with a different body is a reused key
-     * (409) rather than a silent second answer to the first request.
+     * <p>The fingerprint covers the command INCLUDING its seeded items, so the same key with a
+     * different body is a reused key (409) rather than a silent second answer to the first request.
+     * seedItems was missing from it, which made exactly that silent second answer reachable: the same
+     * key with a different set of seeded places replayed the first trip and dropped the second set
+     * without saying so.
      */
     public TripView create(OwnerContext context, String idempotencyKey, CreateTripCommand command) {
         if (!command.seedItems().isEmpty()) {
@@ -241,7 +244,51 @@ public class TripService {
                 + ",\"endDate\":\"" + command.range().endDate() + "\""
                 + ",\"timezone\":" + json.writeValueAsString(command.range().timezone().getId())
                 + ",\"planningLevel\":\"" + command.planningLevel() + "\""
-                + ",\"interests\":" + sortedInterests(command.interests()) + "}";
+                + ",\"interests\":" + sortedInterests(command.interests())
+                + ",\"seedItems\":" + canonicalSeedItems(command.seedItems()) + "}";
+    }
+
+    /**
+     * The seeded items as the REQUEST expressed them, for the fingerprint only.
+     *
+     * <p>Separate from {@link #canonicalItems}, which serialises the stored aggregate and therefore
+     * carries each item's id. Ids are minted per request, so hashing them would make two byte-identical
+     * submissions look like two different commands and turn every retry into a reused key - the exact
+     * opposite of what Idempotency-Key is for. What is hashed here is what the client actually sent.
+     *
+     * <p>Sorted by date and position because those are explicit in the request: the same seed set in a
+     * different array order is the same trip, and treating it as a different one would reject a retry
+     * whose client rebuilt the array.
+     */
+    private String canonicalSeedItems(List<TripItem> items) {
+        if (items == null || items.isEmpty()) {
+            return "[]";
+        }
+        List<TripItem> sorted = new ArrayList<>(items);
+        sorted.sort(Comparator.comparing(TripItem::date).thenComparing(TripItem::position));
+        StringBuilder out = new StringBuilder("[");
+        for (int index = 0; index < sorted.size(); index++) {
+            TripItem item = sorted.get(index);
+            if (index > 0) {
+                out.append(',');
+            }
+            List<TripConstraint> constraints = new ArrayList<>(item.constraints());
+            constraints.sort(Comparator.comparing(constraint -> constraint.type().name()));
+            out.append("{\"placeId\":\"").append(item.placeId()).append('"')
+                    .append(",\"date\":\"").append(item.date()).append('"')
+                    .append(",\"position\":").append(item.position())
+                    .append(",\"startTime\":").append(item.startTime() == null ? "null"
+                            : '"' + item.startTime().toString() + '"')
+                    .append(",\"constraints\":[");
+            for (int at = 0; at < constraints.size(); at++) {
+                if (at > 0) {
+                    out.append(',');
+                }
+                out.append("{\"type\":\"").append(constraints.get(at).type()).append("\"}");
+            }
+            out.append("]}");
+        }
+        return out.append(']').toString();
     }
 
     private Trip rehydrate(UUID ownerId, Projection projection) {

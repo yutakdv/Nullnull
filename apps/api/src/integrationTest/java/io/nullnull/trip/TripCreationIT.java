@@ -365,4 +365,42 @@ class TripCreationIT {
         assertThat(created).contains("\"place\"");
     }
 
+    @Test
+    @DisplayName("BA-030 the same key with different seed items is a reused key, not a silent replay")
+    void theFingerprintCoversTheSeededItems() throws Exception {
+        var owner = owner();
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+        for (UUID place : java.util.List.of(first, second)) {
+            jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                    + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)",
+                    place, "시드 장소 " + place, now, now);
+        }
+        String key = "seed-fingerprint-" + UUID.randomUUID();
+        String withPlace = "{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-05\","
+                + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\",\"interests\":[],"
+                + "\"seedItems\":[{\"placeId\":\"%s\",\"date\":\"2026-10-04\",\"position\":0}]}";
+
+        String created = create(owner, key, withPlace.formatted(first))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID tripId = UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+
+        // Byte-identical body, same key: a retry, which must replay rather than create a second trip.
+        String replayed = create(owner, key, withPlace.formatted(first))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(replayed).isEqualTo(created);
+
+        // A DIFFERENT seed set under the same key. Everything else about the two requests is equal,
+        // so this is the case the fingerprint has to separate - and it did not: seedItems was absent
+        // from what was hashed, so this replayed the first trip and discarded the second place with
+        // no error. The caller would have been told 201 for a trip that does not contain what it sent.
+        create(owner, key, withPlace.formatted(second))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_items WHERE trip_id = ? AND"
+                        + " place_id = ?", Integer.class, tripId, second)).isZero();
+    }
 }
