@@ -2,6 +2,7 @@ package io.nullnull.social.infrastructure.persistence;
 
 import io.nullnull.social.application.FeedStore;
 import io.nullnull.social.application.SavedPostState;
+import io.nullnull.social.domain.FeedFeedbackAction;
 import io.nullnull.social.domain.Post;
 import io.nullnull.social.domain.PostStatus;
 import java.sql.ResultSet;
@@ -140,6 +141,23 @@ public class JdbcFeedStore implements FeedStore {
                     byPost.getOrDefault(post.id(), List.of())));
         }
         return List.copyOf(hydrated);
+    }
+
+    @Override
+    public boolean recordFeedback(UUID id, UUID ownerId, UUID postId, FeedFeedbackAction action,
+            Instant occurredAt, long occurredMinute, Instant receivedAt) {
+        // ON CONFLICT DO NOTHING on the minute key, so a repeat inside the same minute is one row
+        // and not a caught exception. The distinction matters to the caller only as "was this new";
+        // either way the contract answers 204, because the reader did what they did.
+        return jdbc.sql("""
+                INSERT INTO feed_feedback (id, owner_id, post_id, action, occurred_at, occurred_minute,
+                                           received_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (owner_id, post_id, action, occurred_minute) DO NOTHING
+                """)
+                .params(id, ownerId, postId, action.name(), Timestamp.from(occurredAt), occurredMinute,
+                        Timestamp.from(receivedAt))
+                .update() == 1;
     }
 
     private static Post map(ResultSet row, List<UUID> placeIds) throws SQLException {

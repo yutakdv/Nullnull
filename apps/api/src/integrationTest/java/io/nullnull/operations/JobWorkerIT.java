@@ -63,9 +63,11 @@ import org.springframework.transaction.support.TransactionTemplate;
         "nullnull.jobs.enabled=true",
         "nullnull.jobs.poll-interval=PT0.05S",
         "nullnull.jobs.default-concurrency=1",
-        // Four synthetic types run beside the production deletion type: 5 slots, heartbeats and
-        // claims plus the sweep require 16 connections, with two reserved for readiness.
-        "spring.datasource.hikari.maximum-pool-size=18",
+        // Four synthetic types run beside the PRODUCTION types, which is now two - BA-050 added
+        // optimize-item beside the deletion job. Six types at one slot each: 2 x 6 + 6 claims + 1
+        // sweep = 19, with two more reserved for readiness. This number moves every time production
+        // gains a job type, and JobConnectionBudget names the new minimum when it does.
+        "spring.datasource.hikari.maximum-pool-size=21",
         // Out of reach on purpose, so the optional recommendation probe cannot add latency or noise.
         "nullnull.ai.base-url=http://127.0.0.1:1"})
 @AutoConfigureMockMvc

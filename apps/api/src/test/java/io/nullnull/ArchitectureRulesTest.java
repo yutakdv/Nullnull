@@ -60,8 +60,15 @@ class ArchitectureRulesTest {
      * wired FeedFallback without it would be a silent hole.
      */
     private static final java.util.Map<String, String> AWAITING_THEIR_SLICE = java.util.Map.of(
-            "FeedFallback", "BA-050 feed slice",
-            "RunFingerprint", "BA-050 feed slice",
+            // Both labels said "BA-050 feed slice" and both were wrong, in different ways. BA-050 has
+            // no feed in it at all - it is the optimization run - and the P0 feed is fixed order by
+            // its own card's title, so the slice that first calls rankFeed is BA-080, which is P1.
+            "FeedFallback", "BA-080 ranked feed slice",
+            // BA-050 does not call this either, and could not: RunFingerprint needs the policy hash
+            // and pipeline version that come back from apps/ai, and its Inputs refuse an empty
+            // snapshot set. The slice that makes the call is the slice that can fingerprint its
+            // answer.
+            "RunFingerprint", "BA-051 ITEM proposal slice",
             "ProposalRevalidator", "BA-051 ITEM proposal slice");
 
     @Test
@@ -131,6 +138,39 @@ class ArchitectureRulesTest {
                 .should().dependOnClassesThat().resideInAPackage("io.nullnull.recommendation..")
                 .because("trip locks are not a recommendation concept")
                 .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    /**
+     * BA-033-T3's first clause, which nothing else covers.
+     *
+     * <p>The card asks that "analytics 장애가 제품 command를 실패시키지 않는다". Three tests carry that
+     * ID and all three are about its second half - owner deletion and the retention TTL - so the
+     * first half was a sentence with no test under it. It is true today, and it is true for a
+     * structural reason rather than by care: no product command can reach analytics at all, so an
+     * analytics failure has no path by which to fail one.
+     *
+     * <p>Pinning the structure is the honest way to prove it. The alternative - making the ingest
+     * path fail and watching a command succeed - would prove it for one command on one day, while
+     * this fails the moment any code outside the module names it, which is exactly when someone has
+     * to decide whether a product command may now depend on analytics and what happens when it
+     * breaks. A future slice that wants server-side emission should expect to see this test and
+     * answer that question rather than delete it.
+     */
+    @Test
+    @DisplayName("BA-033-T3 no product command can reach analytics, so an analytics failure cannot fail one")
+    void analyticsIsNeverOnAProductCommandsPath() {
+        // Not vacuous in either direction: the module has classes to depend on, and there is code
+        // outside it that could have.
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName().startsWith("io.nullnull.analytics"))
+                        .count())
+                .as("the rule is about a module that exists")
+                .isGreaterThan(3);
+
+        noClasses().that().resideOutsideOfPackage("io.nullnull.analytics..")
+                .should().dependOnClassesThat().resideInAPackage("io.nullnull.analytics..")
+                .because("a command that cannot call analytics cannot be failed by it (BA-033-T3)")
                 .check(classes);
     }
 

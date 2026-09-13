@@ -38,6 +38,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -127,6 +128,55 @@ public class TripService {
         Trip trip = trips.find(context.ownerId(), tripId).orElseThrow(TripService::notFound);
         return new TripView(trip, trips.candidateCounts(List.of(trip.id())).getOrDefault(trip.id(), 0),
                 itemViews(context, trip.id()));
+    }
+
+    /**
+     * The trip row itself, owner-checked, with no place hydration.
+     *
+     * <p>{@link #get} is the detail projection: it reads every item and asks the catalog for each
+     * place, which a caller that only needs the trip's identity and version pays for and - because
+     * that hydration is behind the publication gate - can be refused by. The optimization preflight is
+     * such a caller, so it gets the row.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Trip> findForOwner(OwnerContext context, UUID tripId) {
+        return findForOwner(context.ownerId(), tripId);
+    }
+
+    /** The same read for a caller that holds an owner id rather than a request's context. */
+    @Transactional(readOnly = true)
+    public Optional<Trip> findForOwner(UUID ownerId, UUID tripId) {
+        return trips.find(ownerId, tripId);
+    }
+
+    /**
+     * A trip's items with their locks, for a caller that has already established the owner.
+     *
+     * <p>There is no owner check here, and that is why the parameter list makes it impossible to
+     * call without having read the trip first: the only callers pass an id they just received from
+     * {@link #findForOwner} or {@link #get}. It returns the trip's own rows, never another module's
+     * projection, so it cannot leak a place a closed catalog would have withheld.
+     */
+    @Transactional(readOnly = true)
+    public List<TripItem> itemsOf(UUID tripId) {
+        return trips.items(tripId);
+    }
+
+    /**
+     * The current version of a trip, for background work deciding whether its frozen input still
+     * holds.
+     *
+     * <p>It takes the owner rather than trusting the caller to have checked one, even though the
+     * caller is a worker rather than a request: the worker holds a run row that recorded the owner at
+     * preflight, so it has the id, and a method that did not ask for it would be the one place in
+     * this service where a trip can be read without naming whose it is. Empty means the trip is gone,
+     * which is the answer the worker needs, not an error.
+     */
+    @Transactional(readOnly = true)
+    public java.util.OptionalLong versionFor(UUID ownerId, UUID tripId) {
+        return findForOwner(ownerId, tripId)
+                .map(trip -> java.util.OptionalLong.of(trip.version()))
+                .orElseGet(java.util.OptionalLong::empty);
     }
 
     @Transactional(readOnly = true)

@@ -250,7 +250,39 @@ def validate_openapi(problems: list[str]) -> set[str]:
             "OpenAPI baseline contains allOf; closed schema extension is forbidden—flatten or use an explicitly reviewed 2020-12 composition"
         )
 
+    validate_protected_error_declarations(text, problems)
     return set(operation_ids)
+
+
+def validate_protected_error_declarations(text: str, problems: list[str]) -> None:
+    """The contract says every protected operation may return 401/403; check that it does.
+
+    `protectedErrors` and `csrfErrors` at the top of the document state this for the whole API, and
+    stating it once is the right place - repeating "401: [UNAUTHORIZED]" on forty-six operations
+    would be noise. What was missing is that nothing compared the sentence to the operations, so an
+    operation could be added without the response and the document would still promise it.
+
+    That gap was not hypothetical. Issue #170 asked FE whether screens distinguish error statuses;
+    by the time FE answered, the contract had moved and their reply argued from the counts in the
+    issue body rather than the file. A sentence nothing checks is a sentence that goes stale between
+    being written and being read.
+    """
+    operations = re.findall(
+        r"\n      operationId: (\w+)\n(.*?)(?=\n      operationId: |\n  /|\Z)", text, re.S)
+    for declared, security, status, label in (
+            ("protectedErrors", "sessionCookie", "401", "session-protected"),
+            ("csrfErrors", "csrfToken", "403", "CSRF-protected")):
+        if declared not in text:
+            problems.append(f"OpenAPI must keep the {declared} statement")
+            continue
+        for name, body in operations:
+            block = re.search(r"^      security:\n(.*?)(?=^      [a-z])", body, re.S | re.M)
+            if block is None or security not in block.group(1):
+                continue
+            if not re.search(rf'^\s+"{status}":', body, re.M):
+                problems.append(
+                    f"{name} is {label} but declares no {status} response; "
+                    f"{declared} promises one for every such operation")
 
 
 def validate_inventory(operation_ids: set[str], problems: list[str]) -> None:

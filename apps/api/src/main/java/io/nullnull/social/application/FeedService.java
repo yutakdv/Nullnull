@@ -7,11 +7,15 @@ import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.cursor.CursorClaims;
 import io.nullnull.shared.problem.ApiException;
+import io.nullnull.shared.ids.UuidV7;
 import io.nullnull.shared.problem.ProblemCode;
 import io.nullnull.social.domain.CandidateState;
+import io.nullnull.social.domain.FeedFeedbackAction;
 import io.nullnull.social.domain.FeedOrdering;
 import io.nullnull.social.domain.Post;
+import io.nullnull.trip.domain.TripValidationException;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -198,6 +202,48 @@ public class FeedService {
     @Transactional
     public void unsave(OwnerContext context, UUID postId) {
         feed.unsave(context.ownerId(), postId);
+    }
+
+    /**
+     * recordFeedFeedback. Two of the five actions are recorded and three are refused.
+     *
+     * <p>The refusal is the contract's own vocabulary meeting a release decision (#163): HIDE, LIKE
+     * and DISLIKE have no projection to read them back from, no undo and, for HIDE, no recovery
+     * entry point, all of which PM-011 is still open on. Accepting and dropping them would be worse
+     * than refusing - the client would believe a state exists that nothing can show.
+     *
+     * <p>There is no idempotency record behind this operation, deliberately. The natural key is
+     * stronger for this shape: a retry of the same event carries the same occurredAt, so it lands in
+     * the same minute bucket and converges whatever key it was sent with, while a genuinely later
+     * impression is a different bucket and must be its own row. An idempotency record would add a
+     * row and a lock per impression to answer a question the unique index already answers.
+     *
+     * <p>The post is checked first, so feedback cannot be recorded about something the reader could
+     * not have seen - including a DRAFT, which publishedPost does not return.
+     */
+    @Transactional
+    public void recordFeedback(OwnerContext context, UUID postId, FeedFeedbackAction action,
+            Instant occurredAt) {
+        if (!action.recordedInP0()) {
+            throw new TripValidationException("action", "Unsupported",
+                    action + " feedback is not recorded in this release");
+        }
+        feed.publishedPost(postId).orElseThrow(FeedService::notFound);
+        Instant now = clock.instant();
+        feed.recordFeedback(UuidV7.create(clock), context.ownerId(), postId, action, occurredAt,
+                minuteBucket(occurredAt), now);
+    }
+
+    /**
+     * Whole minutes since the epoch, floored towards the past for instants before 1970 as well.
+     *
+     * <p>{@code Math.floorDiv} rather than {@code /}: integer division truncates towards zero, so a
+     * negative epoch second would round the bucket the wrong way and put two events either side of
+     * the epoch in one. No device sends such a timestamp today, which is exactly why the version
+     * that only works for positive values would never be noticed.
+     */
+    static long minuteBucket(Instant occurredAt) {
+        return Math.floorDiv(occurredAt.getEpochSecond(), 60L);
     }
 
     private static int pageSize(Integer limit) {

@@ -20,6 +20,10 @@ GRADLE_SUITES = ("test", "integrationTest", "openapiContractTest", "recommendati
 # Written by run_script_tests.py. Separate from GRADLE_SUITES so a caller that passes only
 # --junit-dir keeps failing on a missing Gradle suite rather than gaining an optional one.
 SCRIPT_SUITES = ("scriptTests",)
+# Written by record_gate_evidence.py, and only when the gate stated its verdict. Separate
+# again: this evidence exists only inside the full Compose run, so a caller without it must
+# not be told a suite is missing.
+GATE_SUITES = ("gateChecks",)
 TEST_ID = re.compile(r"(?<![A-Za-z0-9_-])(?:BA-\d{3}-T\d+|REC-[A-Z]+-\d+)(?![A-Za-z0-9_-])")
 
 
@@ -212,6 +216,9 @@ def check_manifest(manifest: dict, ids: dict[str, set[str]],
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--junit-dir", type=Path, help="Root containing the four Gradle suite directories")
+    parser.add_argument("--gate-junit-dir", type=Path,
+                        help="Root containing gateChecks/, written by record_gate_evidence.py. Only "
+                             "the full Compose gate produces it.")
     parser.add_argument("--script-junit-dir", type=Path,
                         help="Root containing scriptTests/, written by run_script_tests.py. Python "
                              "evidence counts the same as Java: an acceptance ID the build toolchain "
@@ -235,6 +242,9 @@ def main() -> int:
         if args.script_junit_dir is not None:
             ids.update(read_junit(args.script_junit_dir, args.run_start, errors, names,
                                   suites=SCRIPT_SUITES))
+        if args.gate_junit_dir is not None:
+            ids.update(read_junit(args.gate_junit_dir, args.run_start, errors, names,
+                                  suites=GATE_SUITES))
         if args.backend_plan is not None:
             plan = read_object(args.backend_plan)
             required = required_plan_ids(plan)

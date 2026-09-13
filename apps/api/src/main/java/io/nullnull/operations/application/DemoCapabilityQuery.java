@@ -15,10 +15,18 @@ import org.springframework.stereotype.Service;
  * ({@code FR-OPS-02}).
  *
  * <p>The BA-003 safety line is "readiness가 없는 기능은 준비 완료로 광고하지 않는다": a capability with
- * nothing behind it reports {@code UNAVAILABLE}, never {@code READY}. In P0 that is every capability -
- * there is no live provider, no replay dataset and no optimizer yet - so this endpoint currently
- * answers {@code NOT_READY} with three {@code UNAVAILABLE} entries. That is the correct answer and not
- * a failure; the slice that adds a source is the slice that changes it.
+ * nothing behind it reports {@code UNAVAILABLE}, never {@code READY}. That was every capability until
+ * BA-050, which builds the optimization run pipeline - so {@code optimization} is now a capability
+ * whose flag may legitimately be turned on, and it reports {@code READY} when it is. {@code live} and
+ * {@code replay} still have no source: their flags remain refused at startup, because turning one on
+ * would advertise something nothing can answer.
+ *
+ * <p>A flag that may be turned on is not a flag that should be. ENVIRONMENT.md §6 says the
+ * optimization flag may be enabled only by a slice that passes the B06 safety gate, and BA-050 is not
+ * the whole of that gate: it queues runs, freezes their evidence and refuses the ones whose input
+ * moved, but the slice that writes a preview is BA-051. Enabling it before then gives a visitor an
+ * optimization that never answers, which is why the default is OFF in every environment and the
+ * contest profile leaves it there.
  *
  * <p>The flags are wired in the only direction that is safe. A {@code FEATURE_*} flag may turn a
  * feature OFF; it may never turn ON something the server cannot do, because that would advertise a
@@ -38,6 +46,16 @@ public class DemoCapabilityQuery {
             Instant checkedAt) {
     }
 
+    /**
+     * Capabilities whose flag cannot be turned on yet, because nothing would answer it.
+     *
+     * <p>A list rather than "all of them": each entry leaves when its own source arrives, and the set
+     * shrinking is the visible record of which ones have one. B03 removes {@code replay} and B10
+     * removes {@code live}.
+     */
+    private static final List<String> WITHOUT_A_SOURCE =
+            List.of(DemoCapabilities.LIVE, DemoCapabilities.REPLAY);
+
     private final Map<String, Boolean> flags;
     private final Clock clock;
 
@@ -47,10 +65,11 @@ public class DemoCapabilityQuery {
         this.flags = Map.of(DemoCapabilities.LIVE, live, DemoCapabilities.REPLAY, replay,
                 DemoCapabilities.OPTIMIZATION, optimization);
         this.clock = Objects.requireNonNull(clock, "clock");
-        // No capability has a server-side source in P0, so any ON flag is a misconfiguration in every
-        // environment. The slice that adds a source removes its capability from this check and from
-        // report() in the same change; until then an ON flag would publish a lie.
-        for (String name : DemoCapabilities.NAMES) {
+        // A capability with no server-side source is a misconfiguration when its flag is ON, in every
+        // environment. The slice that adds the source is the one that takes its capability out of
+        // this check and teaches report() to answer for it; BA-050 did that for optimization, so the
+        // two left are the two that still have nothing behind them.
+        for (String name : WITHOUT_A_SOURCE) {
             if (Boolean.TRUE.equals(this.flags.get(name))) {
                 throw new IllegalStateException(DemoCapabilities.FLAG_VARIABLES.get(name)
                         + " is ON but no server-side source answers the '" + name + "' capability yet;"
@@ -61,11 +80,27 @@ public class DemoCapabilityQuery {
 
     public DemoReadinessReport readiness() {
         List<CapabilityReport> capabilities = DemoCapabilities.NAMES.stream()
-                .map(name -> new CapabilityReport(name, ProbeStatus.UNAVAILABLE,
-                        DemoCapabilities.FLAG_VARIABLES.get(name)
-                                + " is OFF and no server-side source answers this capability yet"))
+                .map(this::report)
                 .toList();
         return new DemoReadinessReport(overall(capabilities), capabilities, clock.instant());
+    }
+
+    /**
+     * One capability's answer, which says which of the two reasons it is unavailable for.
+     *
+     * <p>"The flag is off" and "nothing answers this yet" are different states for an operator: the
+     * first is a decision they can change, the second is not. Reporting both as one sentence would
+     * have them looking for a flag to turn on for a feature that has no implementation behind it.
+     */
+    private CapabilityReport report(String name) {
+        String flagVariable = DemoCapabilities.FLAG_VARIABLES.get(name);
+        if (WITHOUT_A_SOURCE.contains(name)) {
+            return new CapabilityReport(name, ProbeStatus.UNAVAILABLE,
+                    flagVariable + " is OFF and no server-side source answers this capability yet");
+        }
+        return Boolean.TRUE.equals(flags.get(name))
+                ? new CapabilityReport(name, ProbeStatus.READY, flagVariable + " is ON")
+                : new CapabilityReport(name, ProbeStatus.UNAVAILABLE, flagVariable + " is OFF");
     }
 
     /**

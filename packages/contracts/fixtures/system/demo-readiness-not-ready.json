@@ -17,7 +17,7 @@
       "name": "optimization",
       "status": "UNAVAILABLE",
       "checkedAt": "2026-09-10T00:00:00Z",
-      "detail": "FEATURE_OPTIMIZATION_ITEM is OFF and no server-side source answers this capability yet"
+      "detail": "FEATURE_OPTIMIZATION_ITEM is OFF"
     }
   ],
   "checkedAt": "2026-09-10T00:00:00Z"
