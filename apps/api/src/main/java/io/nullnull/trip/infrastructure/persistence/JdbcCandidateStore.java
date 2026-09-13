@@ -87,6 +87,43 @@ public class JdbcCandidateStore implements CandidateStore {
     }
 
     @Override
+    public boolean schedule(UUID candidateId, UUID tripItemId, Instant now) {
+        // Status and pointer move together because the table refuses any other combination:
+        // trip_candidates_scheduled_shape_check makes SCHEDULED and a non-null item id one fact.
+        return jdbc.sql("UPDATE trip_candidates SET status = 'SCHEDULED',"
+                        + " scheduled_trip_item_id = ?, updated_at = ?"
+                        + " WHERE id = ? AND status = 'ACTIVE'")
+                .params(tripItemId, Timestamp.from(now), candidateId)
+                .update() == 1;
+    }
+
+    @Override
+    public Optional<UUID> restoreScheduledFor(UUID tripItemId, Instant now) {
+        return moveScheduled(tripItemId, "ACTIVE", now);
+    }
+
+    @Override
+    public Optional<UUID> dismissScheduledFor(UUID tripItemId, Instant now) {
+        return moveScheduled(tripItemId, "DISMISSED", now);
+    }
+
+    /**
+     * The two directions a scheduled candidate can leave the schedule, keyed by the item it points at.
+     *
+     * <p>RETURNING makes "did it move" and "which row" one statement: reading first and updating
+     * after would let the row change in between, and the caller has no id to work with until the
+     * update has actually happened.
+     */
+    private Optional<UUID> moveScheduled(UUID tripItemId, String status, Instant now) {
+        return jdbc.sql("UPDATE trip_candidates SET status = ?, scheduled_trip_item_id = NULL,"
+                        + " updated_at = ? WHERE scheduled_trip_item_id = ? AND status = 'SCHEDULED'"
+                        + " RETURNING id")
+                .params(status, Timestamp.from(now), tripItemId)
+                .query(UUID.class)
+                .optional();
+    }
+
+    @Override
     public List<TripCandidate> page(UUID tripId, CandidateStatus status, long offset, int limit) {
         StringBuilder sql = new StringBuilder("""
                 SELECT id, trip_id, place_id, status, scheduled_trip_item_id, note, created_at, updated_at

@@ -1675,8 +1675,24 @@ export interface components {
             createdAt: string;
         };
         CandidateSource: {
-            /** @enum {string} */
-            type: "POST" | "SEARCH" | "LIVE" | "IMPORT";
+            /**
+             * @description Declared as `x-extensible-enum` rather than `enum` for the reason
+             *     `x-nullnull-interest-codes` is: this vocabulary is expected to grow, and a closed
+             *     response enum makes every new word a breaking change - adding `TRIP_SEED` as an enum
+             *     value reports fifteen `response-property-enum-value-added` findings on its own. `LIVE`
+             *     already belongs to a tab that does not exist yet.
+             *
+             *     The server still rejects anything outside the list. What the extension costs is the
+             *     generated client's union type, which means nothing else keeps the published list and the
+             *     enforced one together - `CandidateSourceVocabularyIT` compares this list, the
+             *     `CandidateSourceType` enum and the `candidate_sources_type_check` constraint in both
+             *     directions.
+             *
+             *     `TRIP_SEED` is the one nobody chooses: it marks a place that arrived with the trip
+             *     itself through `createTrip`'s `seedItems`, and it exists so that restoring such an item
+             *     as a candidate can say something true about where the place came from.
+             */
+            type: string;
             /** Format: uuid */
             postId?: string | null;
             /** Format: date-time */
@@ -3507,6 +3523,7 @@ export interface operations {
             /** @description Item added and candidate marked scheduled when supplied */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
@@ -3579,6 +3596,7 @@ export interface operations {
             /** @description Item removed and trip version incremented */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };

@@ -2,6 +2,7 @@ package io.nullnull.trip.application;
 
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripItem;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,6 +27,23 @@ public interface TripStore {
 
     /** The trip's scheduled items, with their constraints. */
     List<TripItem> items(UUID tripId);
+
+    /**
+     * Adds one item and its constraints. Every rule about whether it MAY be added - the range, the
+     * caps, the positions - is the caller's, checked against the items it read under the same lock.
+     */
+    void insertItem(UUID tripId, TripItem item, Instant at);
+
+    /**
+     * Removes one item. False when this trip did not hold it.
+     *
+     * <p>Whatever pointed at the item must have stopped pointing at it first. The database says so
+     * rather than a convention: {@code trip_candidates.scheduled_trip_item_id} is ON DELETE SET NULL
+     * while {@code trip_candidates_scheduled_shape_check} requires a SCHEDULED candidate to name an
+     * item, so deleting the item out from under one turns the referential action into a constraint
+     * violation instead of a candidate that quietly forgot where it was scheduled.
+     */
+    boolean deleteItem(UUID tripId, UUID itemId);
 
     /** Applies new metadata at {@code trip.version()}, which the caller has already incremented. */
     void updateMetadata(Trip trip, String snapshotSchemaVersion, String snapshotHash, String snapshot);

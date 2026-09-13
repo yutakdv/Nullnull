@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.identity.domain.RequestFingerprint;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -227,6 +228,47 @@ class TripMutationIT {
         assertThat(jdbc.queryForObject("SELECT active_trip_id FROM owners WHERE id = ?", UUID.class,
                 owner.owner.id())).isNull();
         mvc.perform(get("/api/v1/trips/" + id).cookie(cookie(owner))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("BA-031-T3 the stored request hash proves deleteTrip put the version in the precondition")
+    void theDeleteFingerprintKeepsTheVersionOutOfTheBodySlot() throws Exception {
+        var owner = owner();
+        String created = mvc.perform(post("/api/v1/trips").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "hash-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-05\","
+                                + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\","
+                                + "\"interests\":[]}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID id = UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+
+        mvc.perform(delete("/api/v1/trips/" + id).cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .header("Idempotency-Key", "hash-delete-" + UUID.randomUUID()))
+                .andExpect(status().isNoContent());
+
+        // Which of the four canonical components the version lands in is a CALLER's choice, and no
+        // status code can see it: folding it into the body slot hashes the same information and
+        // behaves identically over HTTP. The stored hash is where the decomposition becomes visible.
+        //
+        // deleteTrip is the one command that can be pinned this way without duplicating anything
+        // private - it has no request body, so the expected fingerprint is written out in full here.
+        // addTripItem makes the same choice; its body canonicalisation is internal to TripService, so
+        // rebuilding it in a test would only assert that a copy matches its original.
+        String stored = jdbc.queryForObject("SELECT request_hash FROM idempotency_records"
+                        + " WHERE owner_id = ? AND route_key = 'DELETE /trips/{tripId}'",
+                String.class, owner.owner.id());
+        assertThat(stored).isEqualTo(RequestFingerprint
+                .of("deleteTrip", java.util.Map.of("tripId", id.toString()), "", "1").sha256Hex());
+        // And it is genuinely a different hash from the encoding this replaced, so the assertion
+        // above is not satisfied by both.
+        assertThat(stored).isNotEqualTo(RequestFingerprint
+                .of("deleteTrip", java.util.Map.of("tripId", id.toString()), "1").sha256Hex());
     }
 
     @Test

@@ -51,6 +51,25 @@ public record RequestFingerprint(String operation, Map<String, String> pathParam
         return new RequestFingerprint(operation, pathParameters, body, null);
     }
 
+    /**
+     * Fingerprint of a command whose caller stated the state it meant to act on - an If-Match version.
+     *
+     * <p>docs/api/README.md section 5 names four things the canonical hash covers: the operation, the
+     * real path parameters, the semantic body and the command precondition. Only three of them had a
+     * way in. Every production caller reached the three-argument factory above, so {@code precondition}
+     * was always null and the presence component below was always "0" - the distinction its javadoc
+     * describes existed only in unit tests.
+     *
+     * <p>Callers that needed a precondition therefore folded it into the body, which works while the
+     * version is digits and a separator is chosen carefully, and stops working the moment a body can
+     * contain that separator. Passing it here keeps the fourth component a component.
+     */
+    public static RequestFingerprint of(String operation, Map<String, String> pathParameters, String body,
+            String precondition) {
+        return new RequestFingerprint(operation, pathParameters, body,
+                Objects.requireNonNull(precondition, "precondition"));
+    }
+
     /** The exact text that is hashed. Exposed so tests and debugging never have to guess it. */
     public String canonicalForm() {
         StringBuilder parameters = new StringBuilder();

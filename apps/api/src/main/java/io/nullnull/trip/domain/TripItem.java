@@ -21,6 +21,13 @@ public record TripItem(UUID id, UUID placeId, LocalDate date, int position, Loca
     public static final int MAX_PER_TRIP = 100;
     public static final int MAX_NOTE_LENGTH = 500;
 
+    /**
+     * The contract's {@code maximum: 1440} on durationMinutes - one day. Only the lower bound was
+     * enforced here, which no request could reach while SeedTripItem was the sole way in: it carries
+     * no duration at all. addTripItem does, so the upper bound has a caller for the first time.
+     */
+    public static final int MAX_DURATION_MINUTES = 1440;
+
     public TripItem {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(placeId, "placeId");
@@ -29,9 +36,10 @@ public record TripItem(UUID id, UUID placeId, LocalDate date, int position, Loca
             throw new TripValidationException("seedItems[].position", "Range",
                     "position must not be negative");
         }
-        if (durationMinutes != null && durationMinutes < 1) {
+        if (durationMinutes != null
+                && (durationMinutes < 1 || durationMinutes > MAX_DURATION_MINUTES)) {
             throw new TripValidationException("seedItems[].durationMinutes", "Range",
-                    "durationMinutes must be at least 1");
+                    "durationMinutes must be between 1 and " + MAX_DURATION_MINUTES);
         }
         if (note != null && note.length() > MAX_NOTE_LENGTH) {
             throw new TripValidationException("seedItems[].note", "Size",
