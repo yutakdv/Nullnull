@@ -336,6 +336,7 @@ export const messages = {
     'optimize.failed': '최적화를 시작하지 못했어요',
     'optimize.conflict': '일정이 그 사이에 바뀌었어요. 새로 불러온 뒤 다시 시도해주세요',
     'optimize.locked': '고정된 조건 때문에 바꿀 수 없어요',
+    'optimize.unavailable': '이 서버에서는 최적화가 아직 켜져 있지 않아요',
     'optimize.retry': '다시 시도',
     // FE-502 계산 중과 결과 대기 (S09-1 `415:2413`).
     // FCR-005: route provider가 없는 P0에서는 `경로 계산`·이동시간 문구를 쓰지
@@ -928,6 +929,7 @@ export const messages = {
     'optimize.failed': "We couldn't start the optimization",
     'optimize.conflict': 'The itinerary changed meanwhile. Reload and try again',
     'optimize.locked': 'A lock on this stop prevents the change',
+    'optimize.unavailable': 'Optimization is not switched on for this server yet',
     'optimize.retry': 'Try again',
     'run.title': 'Looking for alternatives',
     'run.working': 'Checking crowd levels and the conditions you locked',

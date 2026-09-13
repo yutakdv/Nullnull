@@ -140,9 +140,16 @@ export function OptimizeSetupScreen() {
       ? t('optimize.conflict')
       : problem?.code === 'LOCK_CONFLICT'
         ? t('optimize.locked')
-        : create.isError
-          ? t('optimize.failed')
-          : null;
+        : // The capability is off on this server (BA-050). It is a permanent
+          // answer, not a hiccup, and the server chose 403 over 503 precisely
+          // so a client would stop asking. `optimize.failed` reads as "try
+          // again", which would send the user back to a button that can never
+          // work, so this case says what is actually true instead.
+          problem?.code === 'FORBIDDEN'
+          ? t('optimize.unavailable')
+          : create.isError
+            ? t('optimize.failed')
+            : null;
 
   return (
     <section aria-labelledby="optimize-heading" className={styles.screen}>
