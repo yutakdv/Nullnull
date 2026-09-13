@@ -82,24 +82,34 @@ trip 생성이 **한 unit of work**여야 하는데(불변식 5), guard의 trans
 24시간. 만료된 draft의 remap/confirm은 `IMPORT_DRAFT_EXPIRED`(410). 물리 삭제는 기존 sweep 방식
 (`ExpiredIdempotencyRecordEraser` 선례)을 따르고 job payload에는 **id만** 넣는다.
 
-## 4. acceptance 쪼개기 제안 (현 `T1`~`T3` → 11개)
+## 4. acceptance 쪼개기 제안 (현 `T1`~`T3` → 19개)
 
 한 ID에 한 절, 그리고 **절을 증명하는 기제가 서로 다를 때만** 나눈다.
 
-| 새 ID | 절 | 왜 따로인가 |
+| 새 ID | 절 | 기제 |
 | --- | --- | --- |
-| `T1` | 원문 canary가 **저장된 draft의 어느 column에도** 없다 | column 부재가 기제 |
-| `T2` | 원문 canary가 **세 operation의 응답 본문**에 없다 | closed schema가 기제 |
-| `T3` | 원문 canary가 **log·exception message**에 없다 | wrapper/`toString`이 기제 |
-| `T4` | 원문이 **module 밖으로 나가는 경로가 없다** | ArchUnit 구조 고정 |
-| `T5` | **stale** remap/confirm(If-Match 불일치)은 draft도 trip도 바꾸지 않는다 | version/ETag |
-| `T6` | **만료** draft의 remap/confirm은 410이고 trip을 만들지 않는다 | TTL |
-| `T7` | **미해결 매핑**이 남은 draft의 confirm은 거절되고 trip을 만들지 않는다 | READY 판정 |
-| `T8` | **같은 Idempotency-Key 재시도**는 trip을 하나만 만든다 | 응용 guard(멱등 replay) |
-| `T8b` | **다른 key의 동시 confirm**은 trip을 하나만 만든다 | DB `confirmed_trip_id` UNIQUE |
-| `T9` | 연도 없는 날짜·모호한 시각을 **확정하지 않고** unresolved token으로 낸다 | parser 정책(= `FCR-019` 비확정) |
-| `T10` | 한국어/영어 장소 토큰이 canonical place로 해결된다 | catalog 조회 |
-| `T11` | 20000자·100 item·10 suggestion 상한 경계 | 상한 |
+| `T1` | 원문 canary가 **저장된 draft의 어느 column에도** 없다 | 열 부재 + jsonb 전수 스캔 |
+| `T2` | 원문 canary가 **세 operation의 응답 본문**에 없다 | closed schema |
+| `T3` | 원문 canary가 **log·exception message**에 없다 | wrapper/`toString` |
+| `T4` | importer가 **프로세스 밖으로 나갈 수 있는 타입을 참조하지 않는다** | ArchUnit 구조 고정 (**완료**) |
+| `T5` | 원문 canary가 **`idempotency_records.response_body`** 에 없다 | replay projection이 `{draftId}`만 |
+| `T6` | **stale** remap/confirm은 draft도 trip도 바꾸지 않는다 | version/ETag |
+| `T7` | **만료** draft의 remap/confirm은 410이고 trip을 만들지 않는다 | TTL |
+| `T8` | **미해결 token이 남은** draft의 confirm은 거절되고 trip을 만들지 않는다 | READY 판정 |
+| `T9` | **같은 key 재시도**는 trip을 하나만 만든다 | 응용 guard(멱등 replay) |
+| `T10` | **다른 key의 동시 confirm**은 trip을 하나만 만든다 | DB `confirmed_trip_id` UNIQUE |
+| `T11` | **만료 뒤 같은 key replay**는 저장된 201이 아니라 410을 낸다 | id만 저장 + 재조회 |
+| `T12` | **CONFIRMED draft의 remap**은 거절된다 | 상태기계(ERD:767) |
+| `T13` | **다른 owner의 draftId**는 404다 | owner 범위(불변식 11) |
+| `T14` | 연도 없는 날짜·모호한 시각을 **확정하지 않고** unresolved token으로 낸다 | parser 정책 |
+| `T15` | 한국어/영어 장소 토큰이 canonical place로 해결된다 | catalog 조회 |
+| `T16` | 20000자·10 suggestion 상한을 경계에서 거절한다 | 요청 검증 |
+| `T17` | 하루 item 상한 초과를 **조용히 자르지 않고** 그 날짜를 지목해 거절한다 | parse 시 정책 — **결정 필요** |
+| `T18` | catalog 게이트가 닫히면 remap·confirm은 503이고 아무것도 쓰지 않는다 | 제출 profile 기본값 — **parse 동작 결정 필요** |
+| `T19` | parse 응답이 `Cache-Control: no-store`를 **실제로 보낸다** | 선언과 전송의 대조 |
+
+**접미 문자를 쓰지 않는다.** 집계기의 `TEST_ID`가 `BA-\d{3}-T\d+` 뒤에 negative lookahead를 두므로
+`T8b`는 **매칭 자체가 안 된다**(실측: `findall("BA-060-T8b …") == []`). 절이 늘면 다음 번호를 쓴다.
 
 기존 `T1`은 6개 sink를 한 절에 묶고 있었다. `T2`는 **기제가 넷**(ETag·TTL·READY·idempotency)이라
 하나를 증명하는 test가 나머지를 증명하지 않는다 — `BA-034-T1`이 걸린 것과 같은 모양이다.
