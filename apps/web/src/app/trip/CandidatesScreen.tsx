@@ -230,9 +230,15 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
       <div className={styles.cardHead}>
         {/* thumbnailUrl is a real contract field, unlike the source text the
             frame also shows (FCR-031). Decorative: the place name beside it is
-            the accessible name, so an empty alt avoids announcing it twice. */}
+            the accessible name, so an empty alt avoids announcing it twice.
+
+            48 matches .thumbEmpty beside it. The old markup passed 56 as an
+            attribute while .thumb forced 48px in CSS, and CSS wins, so 48 is
+            the size this row has always rendered. PlaceThumbnail sizes inline
+            with no CSS rule to override it, which makes the attribute value the
+            real one — passing 56 here would silently grow the row. */}
         {candidate.place.thumbnailUrl && candidate.place.thumbnailAttribution ? (
-          <PlaceThumbnail place={candidate.place} size={56} />
+          <PlaceThumbnail place={candidate.place} size={48} />
         ) : (
           <span aria-hidden="true" className={styles.thumbEmpty} />
         )}
