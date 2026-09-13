@@ -193,6 +193,38 @@ class TripItemMutationIT {
     }
 
     @Test
+    @DisplayName("BA-040 the same key with a different body or a different If-Match is a reused key")
+    void theKeyCoversBothTheBodyAndThePrecondition() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        Cookie cookie = cookie(owner);
+        UUID place = place("첫 요청의 장소");
+        UUID other = place("두 번째 요청의 장소");
+        UUID tripId = createTrip(owner, "2026-10-04", "2026-10-05");
+        String key = "reuse-" + UUID.randomUUID();
+        String body = "{\"placeId\":\"" + place + "\",\"date\":\"2026-10-04\",\"position\":0}";
+
+        addItem(tripId, owner, cookie, key, "\"1\"", body).andExpect(status().isCreated());
+
+        // Clause two of the idempotency contract, which only createTrip was testing: the same key
+        // with a different body is a reused key, never a silent second answer to the first request.
+        addItem(tripId, owner, cookie, key, "\"1\"",
+                "{\"placeId\":\"" + other + "\",\"date\":\"2026-10-04\",\"position\":1}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+
+        // And the precondition counts too. Same body, same key, a different If-Match: the caller is
+        // acting on a different trip state, which is a different command. This is what keeps the
+        // fourth component of the canonical hash (docs/api/README.md section 5) a real component -
+        // while the version was folded into the body slot, nothing reached the presence branch.
+        addItem(tripId, owner, cookie, key, "\"2\"", body)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_items WHERE trip_id = ?",
+                Integer.class, tripId)).isOne();
+    }
+
+    @Test
     @DisplayName("BA-040 the stored idempotent response does not grow with the trip")
     void whatTheGuardStoresIsTheItemIdAndNotTheResponse() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
