@@ -5328,9 +5328,6 @@ components:
         replacementPlaceId:
           type: string
           format: uuid
-        relationId:
-          type: [string, "null"]
-          format: uuid
         preserveDateTime:
           type: boolean
           default: true

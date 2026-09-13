@@ -1832,8 +1832,6 @@ export interface components {
         ReplaceTripItemRequest: {
             /** Format: uuid */
             replacementPlaceId: string;
-            /** Format: uuid */
-            relationId?: string | null;
             /**
              * @description Only `true` is supported, and it is the default. `false` is REFUSED with 422 rather than
              *     honoured or ignored: this field was published with no description and no implementation,

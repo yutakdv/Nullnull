@@ -25,9 +25,11 @@ import org.springframework.test.web.servlet.ResultActions;
 /**
  * BA-040 replaceTripItem: the schedule stays, the place changes, and the outgoing place comes back.
  *
- * <p>Three of the request's four fields are refused rather than honoured, and those refusals are
+ * <p>Two of the request's three fields are refused rather than honoured, and those refusals are
  * tested as carefully as the success: they are the difference between "the server does not support
- * this yet" and "the server quietly ignored what you sent".
+ * this yet" and "the server quietly ignored what you sent". A fourth field, relationId, was removed
+ * from the contract instead (#204) - the others could one day mean something, and no operation was
+ * ever going to issue a relation id.
  */
 @SpringBootTest(properties = "nullnull.catalog.public-enabled=true")
 @AutoConfigureMockMvc
@@ -133,22 +135,18 @@ class TripItemReplaceIT {
     }
 
     @Test
-    @DisplayName("BA-040 relationId and preserveDateTime=false are refused, not accepted and ignored")
-    void theFieldsWithNoMeaningBehindThemAreRefused() throws Exception {
+    @DisplayName("BA-040 preserveDateTime=false is refused, not accepted and ignored")
+    void theFieldWithNoMeaningBehindItIsRefused() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
         UUID tripId = createTrip(owner);
         UUID itemId = insertItem(tripId, place("원래 장소"), DAY_ONE, 0, null);
         UUID incoming = place("새 장소");
 
-        // No operation issues a relation id and no table stores one, so a caller cannot hold a value
-        // this could check. Accepting it would let a client believe its chosen relation was verified.
-        replace(owner, tripId, itemId, "\"1\"", "{\"replacementPlaceId\":\"" + incoming
-                + "\",\"relationId\":\"" + UUID.randomUUID() + "\"}")
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("relationId"));
-
         // What false should do has never been decided (#203). Ignoring it would tell the caller the
-        // schedule had been released when it had not.
+        // schedule had been released when it had not. relationId used to be refused here for a
+        // different reason - no operation issues one - and that field is gone from the contract
+        // instead (#204), because unlike this one there was no future in which a caller could send a
+        // meaningful value.
         replace(owner, tripId, itemId, "\"1\"", "{\"replacementPlaceId\":\"" + incoming
                 + "\",\"preserveDateTime\":false}")
                 .andExpect(status().isUnprocessableContent())
