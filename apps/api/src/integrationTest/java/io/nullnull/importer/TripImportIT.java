@@ -271,6 +271,38 @@ class TripImportIT {
         assertThat(confirmedTrip(draft)).isNull();
     }
 
+    @Test
+    @DisplayName("BA-060-T17 a day with too many entries is refused by name, not quietly trimmed")
+    void anOverfullDayIsNamedRatherThanTruncated() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID place = place("장소");
+        StringBuilder entries = new StringBuilder();
+        for (int at = 0; at <= 20; at++) {
+            entries.append(at == 0 ? "" : ",").append(item("e" + at, place, at));
+        }
+        UUID draft = draft(ownerId(owner), 1L, entries.toString(), NOW.plus(Duration.ofHours(24)));
+
+        // The named date lives in fieldErrors rather than in `detail`, which stays the generic
+        // sentence for every validation failure.
+        confirm(owner, draft, "\"1\"", "key-overfull-day-001")
+                .andExpect(status().isUnprocessableContent())
+                // The date, not just the rule. A paste can fill a fortnight, and a refusal that says
+                // only "a day is too full" leaves the person counting entries by hand to find which.
+                .andExpect(jsonPath("$.fieldErrors[*].message")
+                        .value(org.hamcrest.Matchers.hasItem(
+                                org.hamcrest.Matchers.containsString(DAY))))
+                .andExpect(jsonPath("$.fieldErrors[*].message")
+                        .value(org.hamcrest.Matchers.hasItem(
+                                org.hamcrest.Matchers.containsString("at most 20"))));
+
+        // And nothing was trimmed to make it fit: no trip, and the draft still holds all 21.
+        assertThat(trips(ownerId(owner))).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT jsonb_array_length(structured_draft -> 'items')
+                  FROM itinerary_import_drafts WHERE id = ?
+                """, Integer.class, draft)).isEqualTo(21);
+    }
+
     /** A draft whose every item resolved but which still holds one question, so it is NEEDS_REVIEW. */
     private UUID draftWithQuestion(UUID ownerId, String itemJson) {
         UUID id = UUID.randomUUID();
@@ -312,8 +344,13 @@ class TripImportIT {
     }
 
     private static String item(String clientKey, UUID placeId) {
+        return item(clientKey, placeId, 0);
+    }
+
+    private static String item(String clientKey, UUID placeId, int position) {
         return "{\"clientKey\":\"" + clientKey + "\",\"placeId\":\"" + placeId + "\",\"originalLabel\":\"경복궁\""
-                + ",\"date\":\"" + DAY + "\",\"startTime\":null,\"position\":0,\"confidence\":0.9}";
+                + ",\"date\":\"" + DAY + "\",\"startTime\":null,\"position\":" + position
+                + ",\"confidence\":0.9}";
     }
 
     private static String tripId(String body) {
