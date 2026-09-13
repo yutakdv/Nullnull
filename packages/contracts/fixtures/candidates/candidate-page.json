@@ -26,6 +26,7 @@
       "status": "ACTIVE",
       "scheduledTripItemId": null,
       "note": null,
+      "mustVisit": false,
       "sources": [
         {
           "type": "POST",
@@ -61,6 +62,7 @@
       "status": "ACTIVE",
       "scheduledTripItemId": null,
       "note": null,
+      "mustVisit": false,
       "sources": [
         {
           "type": "SEARCH",
@@ -88,6 +90,7 @@
       "status": "SCHEDULED",
       "scheduledTripItemId": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03",
       "note": null,
+      "mustVisit": false,
       "sources": [
         {
           "type": "LIVE",

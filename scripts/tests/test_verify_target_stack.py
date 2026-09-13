@@ -11,7 +11,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import verify_target_stack
-from verify_target_stack import check_compose_contract, check_dockerfile
+from verify_target_stack import check_compose_contract, check_dockerfile, check_package_scripts
 
 PINNED_BASE = (
     'python:3.13-slim@sha256:'
@@ -32,6 +32,39 @@ REQUIRED_COMPOSE_SERVICES = {
     'e2e',
     'egress-denied',
 }
+
+
+class PackageScriptContractTests(unittest.TestCase):
+    """BA-001-T3's `task` half: the verifier refuses a package.json missing a required script.
+
+    check_package_scripts shipped with its failure branch never exercised - the Docker `stage` and
+    image `digest` halves of the same assertion each had a negative test and this one did not. A
+    guard nobody has seen fire is the pattern this repository keeps finding; the assertion named
+    three things and only two of them were proven.
+    """
+
+    def check(self, package: object, required: set[str]) -> list[str]:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'package.json'
+            path.write_text(json.dumps(package), encoding='utf-8')
+            with mock.patch.object(verify_target_stack, 'ROOT', Path(directory)):
+                check_package_scripts(path, required, errors)
+        return errors
+
+    def test_BA_001_T3_a_missing_required_npm_script_fails(self):
+        """BA-001-T3 필수 npm script가 없으면 target-stack 검증이 hard fail한다"""
+        errors = self.check({'scripts': {'build': 'vite build'}}, {'build', 'typecheck'})
+        self.assertTrue(any('Missing npm scripts' in e and 'typecheck' in e for e in errors), errors)
+
+    def test_every_required_script_present_is_accepted(self):
+        """Without this the assertion above is satisfied by a checker that always complains."""
+        self.assertEqual([], self.check(
+            {'scripts': {'build': 'vite build', 'typecheck': 'tsc -b'}}, {'build', 'typecheck'}))
+
+    def test_a_package_without_a_scripts_object_is_refused_rather_than_read_as_empty(self):
+        """An absent scripts object would otherwise subtract to "nothing missing" and pass."""
+        self.assertTrue(any('Missing scripts object' in e for e in self.check({}, {'build'})))
 
 
 class DockerfileContractTests(unittest.TestCase):

@@ -1042,7 +1042,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. 수동 edit·교체·reorder·optimizer가 같은 constraint validator를 재사용한다(#166으로 reorderTripItems도 잠금을 푼다)
 4. 09-06 PM 검토 PM-002, PM-003, PM-005, PM-007, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
-실패·안전 경계: 예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다.
+실패·안전 경계: 예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다. 잠금 판정이 아직 두 곳이다 — BA-041의 setTripItemConstraint가 LockChecks로 설정 시점을 판정하고, BA-040의 reorder·updateTripItem·replaceTripItem이 releaseConstraints를 각자 판정한다. step 3의 '같은 validator 재사용'은 그 둘이 한 곳이 되는 것이고, 그 전에는 integration-ready로 올리지 않는다.
 
 **이미 고정된 것(BA-030/031이 넣음, 다시 정하지 않는다):** `trip_constraints` table과 그 typed check가 `V014__trip_items.sql`에 있다. 네 type의 필수/null 조합, `tolerance_minutes` 0..180, `(trip_item_id, type)` 유일성, `locked=true` row만 저장하고 해제는 row 삭제라는 표현까지 ERD §11 그대로다. domain 쪽은 `ItemLock`(네 type의 tagged shape)·`TripConstraint`(lock + `source`)·`ConstraintSource`이고, `createTrip`의 `seedItems[].constraints`로 쓰기와 `getTrip`의 `constraints`로 읽기가 동작한다. **이건 계약이 이미 고정한 모양을 이행한 것이지 설계 결정이 아니다** — `SetConstraintInput`·`TripConstraint`의 discriminator와 네 variant가 `openapi.yaml`에 있었다.
 
