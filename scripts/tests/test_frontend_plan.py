@@ -149,6 +149,60 @@ class FrontendPlanTests(unittest.TestCase):
                                 'reviewer': 'BE_AI_DRI', 'testIds': ['FE-101-T1']}
         self.check_mutation(mutate, 'evidence does not cover all required tests')
 
+    def _verified_with_report(self, report):
+        """A card claiming `verified` with every other evidence field in order."""
+        def mutate(plan):
+            task = plan['tasks'][5]
+            task['status'] = 'verified'
+            task['evidence'] = {
+                'report': report,
+                'contractSha': 'abc',
+                'reviewer': 'FE_DRI',
+                # Copied from the card itself, which is exactly how this used to
+                # slip through: evidence.testIds is compared against the card's
+                # own required list and both live in the same file.
+                'testIds': [t['id'] for t in task['tests'] if t.get('required', True)],
+            }
+        return mutate
+
+    def test_verified_report_must_name_a_file_that_exists(self):
+        # #208: this passed the whole gate with a report that was never written.
+        # The three evidence fields were only checked for being non-empty.
+        self.check_mutation(
+            self._verified_with_report('완전히 지어낸 경로.xml'),
+            'missing vault target')
+
+    def test_verified_report_url_must_be_a_run_of_this_gate(self):
+        # resolve_link returns early for http(s) because it exists to check vault
+        # paths, so any URL would otherwise read as proof.
+        self.check_mutation(
+            self._verified_with_report('https://example.com'),
+            'must be a GitHub Actions run URL')
+
+    def test_a_real_run_url_is_accepted(self):
+        # The positive half, and it asserts rather than skipping: the two negatives
+        # above would both pass against a checker that refused every report, so
+        # without this the pair proves nothing.
+        plan = copy.deepcopy(self.plan)
+        self._verified_with_report(
+            'https://github.com/yutakdv/Nullnull/actions/runs/34755521603')(plan)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for relative in (
+                'docs/product/FUNCTIONAL_INVENTORY.md',
+                'docs/design/FIGMA_HANDOFF.md',
+                'docs/api/openapi.yaml',
+                'docs/engineering/backend-plan.json',
+            ):
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, destination)
+            (root / PLAN).write_text(json.dumps(plan, ensure_ascii=False), encoding='utf-8')
+            errors: list[str] = []
+            validate(root, errors)
+        self.assertEqual(
+            [], [e for e in errors if 'evidence.report' in e or 'vault target' in e], errors)
+
     def test_duplicate_task_ids_are_rejected(self):
         self.check_mutation(
             lambda plan: plan['tasks'].append(copy.deepcopy(plan['tasks'][5])),
