@@ -38,7 +38,7 @@ public class SocialOwnerDataEraser implements OwnerDataEraser {
 
     @Override
     public Set<String> ownerIdTables() {
-        return Set.of("saved_posts", "posts");
+        return Set.of("saved_posts", "posts", "feed_feedback");
     }
 
     @Override
@@ -47,6 +47,9 @@ public class SocialOwnerDataEraser implements OwnerDataEraser {
         // What the owner saved is their own record of interest, not an audit trail, so it goes
         // immediately and entirely; deleteBefore is for erasers that retain.
         jdbc.sql("DELETE FROM saved_posts WHERE owner_id = ?").param(ownerId).update();
+        // Feed feedback is the reader's own behaviour, not an audit record, so erasure is immediate
+        // and total rather than waiting for the 90-day retention sweep (ERD §6).
+        jdbc.sql("DELETE FROM feed_feedback WHERE owner_id = ?").param(ownerId).update();
         // Curated posts survive. This clears the authorship pointer for any row that ever gains one
         // so the table can never hold a deleted owner's identifier, which is what ownerIdTables
         // above is claiming coverage of.

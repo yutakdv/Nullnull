@@ -832,6 +832,11 @@ paths:
       responses:
         "204":
           description: Feedback accepted
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

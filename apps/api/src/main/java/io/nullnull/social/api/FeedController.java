@@ -10,6 +10,8 @@ import io.nullnull.social.application.FeedService.FeedCardView;
 import io.nullnull.social.application.FeedService.FeedPageView;
 import io.nullnull.social.application.FeedService.PostDetailView;
 import io.nullnull.social.application.SavedPostState;
+import io.nullnull.social.domain.FeedFeedbackAction;
+import io.nullnull.trip.domain.TripValidationException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +20,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -120,6 +125,46 @@ public class FeedController {
                     view.post().publishedAt(), view.post().body(),
                     view.places().stream().map(PlaceSummaryResponse::from).toList(), view.saved());
         }
+    }
+
+    @PostMapping(value = "/feed/feedback", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "recordFeedFeedback", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<Void> recordFeedback(OwnerContext owner,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody FeedFeedbackBody body) {
+        // The header is required by the contract and required here, so a client that omits it is
+        // told rather than silently treated as sending a one-off. It is not looked up: convergence
+        // comes from the minute key, which FeedService.recordFeedback explains.
+        if (body == null) {
+            throw new TripValidationException("action", "NotNull", "a request body is required");
+        }
+        feed.recordFeedback(owner, body.postId(), action(body.action()), occurredAt(body.occurredAt()));
+        return ResponseEntity.noContent().header("Cache-Control", "private, no-store").build();
+    }
+
+    private static FeedFeedbackAction action(String value) {
+        try {
+            return FeedFeedbackAction.of(value);
+        } catch (IllegalArgumentException unknown) {
+            throw new TripValidationException("action", "Unsupported",
+                    "action must be one of the published feed interactions");
+        }
+    }
+
+    private static Instant occurredAt(String value) {
+        if (value == null) {
+            throw new TripValidationException("occurredAt", "NotNull", "occurredAt is required");
+        }
+        try {
+            return java.time.OffsetDateTime.parse(value).toInstant();
+        } catch (java.time.format.DateTimeParseException malformed) {
+            throw new TripValidationException("occurredAt", "Format",
+                    "occurredAt must be an RFC 3339 date-time");
+        }
+    }
+
+    /** The three fields FeedFeedbackRequest declares. The owner is never one of them. */
+    public record FeedFeedbackBody(UUID postId, String action, String occurredAt) {
     }
 
     public record SavedPostStateResponse(UUID postId, boolean saved, boolean duplicate, Instant savedAt) {

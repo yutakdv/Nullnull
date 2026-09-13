@@ -27,6 +27,15 @@ public interface FeedStore {
     void unsave(UUID ownerId, UUID postId);
 
     /**
+     * Records one feed interaction, or converges on the one already recorded for that minute.
+     *
+     * @param occurredMinute whole minutes since the epoch for {@code occurredAt}; the dedup key
+     * @return true when this call created the row, false when the minute already had one
+     */
+    boolean recordFeedback(UUID id, UUID ownerId, UUID postId, io.nullnull.social.domain.FeedFeedbackAction action,
+            Instant occurredAt, long occurredMinute, Instant receivedAt);
+
+    /**
      * Which of these places the trip already holds, split by whether they are scheduled.
      * An empty map is the honest answer when no trip was selected.
      */
