@@ -1,0 +1,1442 @@
+{
+  "places": [
+    {
+      "placeId": "01a096f8-73f8-736c-8cd4-ea8b65e92386",
+      "evidenceUrl": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+      "observedAt": "2026-09-13T18:40:00Z",
+      "outcome": "OBSERVED",
+      "windows": [
+        {
+          "date": "2026-09-14",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-15",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-16",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-17",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-18",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-19",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-20",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-21",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-22",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-23",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-24",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-25",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-26",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-27",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-28",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-29",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-30",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-01",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-02",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-03",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-04",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-05",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-06",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-07",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-08",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-09",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-10",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-11",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-12",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-13",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-14",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-15",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-16",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-17",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-18",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-19",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-20",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-21",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-22",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-23",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-24",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-25",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-26",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-27",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-28",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-29",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-30",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-31",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        }
+      ]
+    },
+    {
+      "placeId": "01a09c23-4489-7d12-9318-948a9778e84a",
+      "evidenceUrl": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+      "observedAt": "2026-09-13T18:40:00Z",
+      "outcome": "OBSERVED",
+      "windows": [
+        {
+          "date": "2026-09-14",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-15",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-16",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-17",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-18",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-19",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-20",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-21",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-22",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-23",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-24",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-25",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-26",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-27",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-28",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-29",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-09-30",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-01",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-02",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-03",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-04",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-05",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-06",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-07",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-08",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-09",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-10",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-11",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-12",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-13",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-14",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-15",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-16",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-17",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-18",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-19",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-20",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-21",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-22",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-23",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-24",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-25",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-26",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-27",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-28",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-29",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-30",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        },
+        {
+          "date": "2026-10-31",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "18:00:00"
+        }
+      ]
+    },
+    {
+      "placeId": "01a09c23-6d5b-77dc-8eb2-ce3d2fa034fb",
+      "evidenceUrl": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+      "observedAt": "2026-09-13T18:40:00Z",
+      "outcome": "OBSERVED",
+      "windows": [
+        {
+          "date": "2026-09-14",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-15",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-16",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-17",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-18",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-19",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-20",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-21",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-22",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-23",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-24",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-25",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-26",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-27",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-28",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-09-29",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-09-30",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-01",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-02",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-03",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-04",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-05",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-06",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-07",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-08",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-09",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-10",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-11",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-12",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-13",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-14",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-15",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-16",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-17",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-18",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-19",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-20",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-21",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-22",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-23",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-24",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-25",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-26",
+          "state": "CLOSED"
+        },
+        {
+          "date": "2026-10-27",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-28",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-29",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-30",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        },
+        {
+          "date": "2026-10-31",
+          "state": "OPEN",
+          "opensAt": "09:00:00",
+          "closesAt": "21:00:00"
+        }
+      ]
+    },
+    {
+      "placeId": "01a09c23-5a03-78c8-a245-f3235a05c7c9",
+      "evidenceUrl": "https://mediahub.seoul.go.kr/archives/2012688",
+      "observedAt": "2026-09-13T18:40:00Z",
+      "outcome": "OBSERVED",
+      "windows": [
+        {
+          "date": "2026-09-14",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-15",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-16",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-17",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-18",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-19",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-20",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-21",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-22",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-23",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-24",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-25",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-26",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-27",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-28",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-29",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-09-30",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-01",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-02",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-03",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-04",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-05",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-06",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-07",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-08",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-09",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-10",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-11",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-12",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-13",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-14",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-15",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-16",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-17",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-18",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-19",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-20",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-21",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-22",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-23",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-24",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-25",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-26",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-27",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-28",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-29",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-30",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        },
+        {
+          "date": "2026-10-31",
+          "state": "OPEN",
+          "opensAt": "10:00:00",
+          "closesAt": "17:00:00"
+        }
+      ]
+    },
+    {
+      "placeId": "01a09c23-80a5-7f73-9d12-293c38c1c3ec",
+      "evidenceUrl": "https://parks.seoul.go.kr/template/seoulforest/facilityHours.do",
+      "observedAt": "2026-09-13T18:40:00Z",
+      "outcome": "OBSERVED",
+      "windows": [
+        {
+          "date": "2026-09-14",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-15",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-16",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-17",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-18",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-19",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-20",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-21",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-22",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-23",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-24",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-25",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-26",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-27",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-28",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-29",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-09-30",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-01",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-02",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-03",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-04",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-05",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-06",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-07",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-08",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-09",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-10",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-11",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-12",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-13",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-14",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-15",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-16",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-17",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-18",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-19",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-20",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-21",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-22",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-23",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-24",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-25",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-26",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-27",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-28",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-29",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-30",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        },
+        {
+          "date": "2026-10-31",
+          "state": "OPEN",
+          "opensAt": "00:00:00",
+          "closesAt": "23:59:59"
+        }
+      ]
+    }
+  ]
+}
