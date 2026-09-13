@@ -60,6 +60,13 @@ jobs:
         run: |
           python scripts/validate_docs.py
           python -m unittest discover -s scripts/tests -p "test_*.py"
+      - name: State whether this release has an actual provider call (CMP-KTO-003)
+        # An EXCLUSION row whose evidence the matrix describes as "a test that blocks a release
+        # with no actual call". There was no such test. Staging does not exist yet (BA-006), so
+        # this states `actual_call=blocked` instead of reddening the branch - and blocked is never
+        # counted as a pass. The deploy/submission path runs the same script with
+        # --require-verified, where absent evidence stops the release instead of being recorded.
+        run: python3 scripts/check_actual_call_evidence.py build/reports/contest/actual-call.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"

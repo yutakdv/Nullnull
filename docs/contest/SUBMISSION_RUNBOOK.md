@@ -13,6 +13,7 @@ tags:
 
 - 상태: Accepted operational checklist
 - 공식 마감: 2026-09-21 16:00(KST)
+- 배포·제출 전 차단 검사: `python3 scripts/check_actual_call_evidence.py <report> --require-verified`. `CMP-KTO-003`이 EXCLUSION이므로 **actual-call 증거가 없으면 release를 진행하지 않는다.** local 실행 증거는 통과하지 않는다(BA-021-T3은 staging을 요구한다).
 - 제출 방식: 외부 HTTPS 웹 URL, `로그인 불필요`, 공식 기능설명서 PDF
 
 이 문서는 제출을 실제로 수행할 때 순서대로 체크하는 운영 절차다. 공식 제출 화면과 최신 매뉴얼이 바뀌면 공식 자료를 우선하고 [준수 매트릭스](./COMPETITION_COMPLIANCE_MATRIX.md)를 즉시 갱신한다. 체크하지 않은 항목을 완료로 간주하지 않는다.
