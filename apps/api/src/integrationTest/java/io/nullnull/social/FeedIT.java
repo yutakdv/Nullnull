@@ -161,45 +161,71 @@ class FeedIT {
     }
 
     /**
-     * PM-010, the half that is a data gap rather than a projection gap. A place image can only reach
-     * a response through place_media_assets -> media_assets -> asset_licenses, and the query requires
-     * license.redistribution_allowed; V010 deliberately left no URL column on places or
-     * place_localizations that could bypass that review. posts.cover_url is a bare NOT NULL text
-     * column with no licence at all, so every post is REQUIRED to carry a cover image that has passed
-     * no review, and coverAsset is therefore always null.
+     * PM-010's projection half, and the assertion that replaced the one pinning its absence.
      *
-     * <p>That is not something the server can fix on its own: where P0 cover images come from is an
-     * owner decision, and if the answer is KTO imagery those carry per-image terms
-     * (docs/data/SOURCE_CATALOG.md). Until it is answered, the emptiness is pinned here rather than
-     * left to a fixture to imply - post-detail.json carries coverAsset null, but a fixture agreeing
-     * with the server today is not a guard. This turns RED the moment a reviewed cover exists, which
-     * is exactly when it must be replaced by a real assertion.
+     * <p>What stood here said a post cover carried no reviewed rights and that {@code coverAsset}
+     * was therefore always null, and it was written to turn red the moment that stopped being true.
+     * It has: A-024 answered where a P0 cover comes from - 1st-party, made by the team, never a
+     * provider photograph - and V021 seeded that licence and made naming a licensed asset a
+     * condition of publishing. So a published cover now always has a licence behind it, and what was
+     * left was reading the column into the response.
+     *
+     * <p>The old test also counted {@code cover_media_asset_id} and {@code cover_asset_license_id}
+     * columns and asserted there were none. There never would be under those names - the column
+     * V021 added is {@code cover_asset_id} - so that half could not have failed whatever happened,
+     * which is why it is not carried over.
      */
     @Test
-    @DisplayName("BA-032-T1 a post cover carries no rights yet, and nothing claims otherwise")
-    void aPostCoverHasNoReviewedLicenceYet() throws Exception {
+    @DisplayName("PM-010 a published post projects the licence its cover is guaranteed to have")
+    void theCoverAssetIsProjectedWithItsLicence() throws Exception {
         var reader = owner();
         UUID postId = post("표지 권리", place("경복궁"), "2026-09-09T02:00:00Z");
+        UUID assetId = jdbc.queryForObject("SELECT cover_asset_id FROM posts WHERE id = ?",
+                UUID.class, postId);
+        String servedUrl = jdbc.queryForObject("SELECT served_url FROM media_assets WHERE id = ?",
+                String.class, assetId);
 
         mvc.perform(get("/api/v1/posts/" + postId).cookie(cookie(reader)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.coverUrl").value("https://example.test/cover.jpg"))
-                .andExpect(jsonPath("$.coverAsset").isEmpty());
-        // The feed card does not even have a coverAsset field to be null, so the list projection
-        // cannot express the rights of the image it shows. Adding the field before there is a
-        // reviewed asset to put in it would only move the silence.
+                .andExpect(jsonPath("$.coverAsset.id").value(assetId.toString()))
+                .andExpect(jsonPath("$.coverAsset.url").value(servedUrl))
+                .andExpect(jsonPath("$.coverAsset.mediaType").value("IMAGE"))
+                .andExpect(jsonPath("$.coverAsset.license.source").value("NULLNULL_FIRST_PARTY"))
+                .andExpect(jsonPath("$.coverAsset.license.reviewedAt").isNotEmpty())
+                // A-024's two flags are carried, not applied: the response states what the reader
+                // may do with the image rather than deciding on their behalf by withholding it.
+                .andExpect(jsonPath("$.coverAsset.attributionRequired").value(false))
+                .andExpect(jsonPath("$.coverAsset.attributionText").isEmpty())
+                .andExpect(jsonPath("$.coverAsset.redistributionAllowed").value(true))
+                .andExpect(jsonPath("$.coverAsset.expiresAt").isEmpty());
+
+        // The card still has no coverAsset to carry: PostSummary has no such property in the
+        // contract, so a list shows an image whose rights only the detail can state.
         mvc.perform(get("/api/v1/feed").cookie(cookie(reader)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].post.coverUrl").value("https://example.test/cover.jpg"))
                 .andExpect(jsonPath("$.items[0].post.coverAsset").doesNotExist());
-        // posts has no column that could hold one, which is why this is a data decision.
-        Integer licenceColumns = jdbc.queryForObject("""
-                SELECT count(*)
-                  FROM information_schema.columns
-                 WHERE table_schema = 'public' AND table_name = 'posts'
-                   AND column_name IN ('cover_media_asset_id', 'cover_asset_license_id')
-                """, Integer.class);
-        assertThat(licenceColumns).isZero();
+    }
+
+    /**
+     * The other direction, and the reason the projection does not simply fall back to null: a null
+     * {@code coverAsset} means "this post names no asset", which after V021 can only be a post
+     * published before that migration. A post that names one the catalog cannot serve is a data
+     * defect, and answering null would hide it while still showing the reader the image through
+     * {@code coverUrl} - the licence claim would go missing, not the picture.
+     */
+    @Test
+    @DisplayName("PM-010 a cover asset with no servable URL fails the read rather than reading as absent")
+    void anUnservableCoverIsNotProjectedAsNull() throws Exception {
+        var reader = owner();
+        UUID postId = post("표지 URL 없음", place("창덕궁"), "2026-09-09T02:00:00Z");
+        jdbc.update("UPDATE media_assets SET served_url = NULL"
+                + " WHERE id = (SELECT cover_asset_id FROM posts WHERE id = ?)", postId);
+
+        mvc.perform(get("/api/v1/posts/" + postId).cookie(cookie(reader)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SOURCE_UNAVAILABLE"));
     }
 
     @Test

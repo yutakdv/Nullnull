@@ -11,9 +11,15 @@ import java.util.UUID;
  * <p>{@code publishedAt} is nullable in storage but never null on a PUBLISHED post - the feed sorts
  * by it, so a published row without one would have no position in that order at all. The database
  * enforces the pairing; this records why.
+ *
+ * <p>{@code coverAssetId} is the licensed asset behind {@code coverUrl} (A-024, V021). It is the id
+ * only: the asset itself is a catalog row, so this module carries the reference and asks catalog for
+ * the record rather than reading another module's table. Nullable here because a DRAFT is written
+ * before its cover exists, and because {@code posts_published_cover_asset_check} is NOT VALID - a
+ * post published before V021 keeps its free-text cover and names no asset.
  */
 public record Post(UUID id, PostStatus status, String title, String excerpt, String body,
-        String coverUrl, Instant publishedAt, List<UUID> placeIds) {
+        String coverUrl, UUID coverAssetId, Instant publishedAt, List<UUID> placeIds) {
 
     public Post {
         Objects.requireNonNull(id, "id");

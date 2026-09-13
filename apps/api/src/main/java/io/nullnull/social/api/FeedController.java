@@ -1,5 +1,6 @@
 package io.nullnull.social.api;
 
+import io.nullnull.catalog.api.PlaceController.MediaAssetResponse;
 import io.nullnull.catalog.api.PlaceController.PlaceSummaryResponse;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.http.NullnullOperation;
@@ -104,19 +105,19 @@ public class FeedController {
     }
 
     public record PostDetailResponse(UUID id, String title, String excerpt, String coverUrl,
-            Object coverAsset, Instant publishedAt, String body, List<PlaceSummaryResponse> places,
-            boolean saved) {
+            MediaAssetResponse coverAsset, Instant publishedAt, String body,
+            List<PlaceSummaryResponse> places, boolean saved) {
 
         static PostDetailResponse from(PostDetailView view) {
-            // Still null, and the reason has changed. It used to be that no reviewed media licence
-            // existed for a cover; V021 created one (NULLNULL_FIRST_PARTY, A-024) and posts.cover_asset_id
-            // now REQUIRES one to publish. What is missing is the projection: nothing reads that column
-            // into a response, so the licence a published cover is guaranteed to have cannot be shown.
-            //
-            // coverUrl alone still carries no redistribution right, which is what PM-010 tracks - but the
-            // gap is now serving what is stored rather than having nothing to serve.
+            // coverUrl is the rendered image; coverAsset is the right to render it. A-024 made the
+            // cover a 1st-party asset and V021 made naming one a condition of publishing, so a post
+            // published since then always has a licence behind it - this projects it. Null here now
+            // means one thing only: a post published before V021, whose CHECK is NOT VALID and whose
+            // free-text cover was never given an asset. An asset that exists but cannot be served
+            // fails the read in FeedService instead of arriving here as a null.
             return new PostDetailResponse(view.post().id(), view.post().title(), view.post().excerpt(),
-                    view.post().coverUrl(), null, view.post().publishedAt(), view.post().body(),
+                    view.post().coverUrl(), MediaAssetResponse.from(view.coverAsset()),
+                    view.post().publishedAt(), view.post().body(),
                     view.places().stream().map(PlaceSummaryResponse::from).toList(), view.saved());
         }
     }

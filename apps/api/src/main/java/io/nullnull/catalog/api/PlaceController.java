@@ -114,7 +114,14 @@ public class PlaceController {
 
     public record MediaAssetResponse(UUID id, String url, String mediaType, String alt, AssetLicenseResponse license,
             boolean attributionRequired, String attributionText, boolean redistributionAllowed, Instant expiresAt) {
-        static MediaAssetResponse from(CatalogMediaAsset source) {
+        /**
+         * Public for the same reason {@link PlaceSummaryResponse#from} is: MediaAsset is ONE contract
+         * schema that several resources embed - a place's thumbnailAsset and a post's coverAsset are
+         * the same shape. A second mapping in the embedding module would drift, and the field most
+         * likely to be dropped in the copy is the licence, which is the whole point of carrying the
+         * asset rather than a bare URL.
+         */
+        public static MediaAssetResponse from(CatalogMediaAsset source) {
             if (source == null) {
                 return null;
             }
