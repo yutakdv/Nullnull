@@ -607,6 +607,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-022-T1`: 동일 외부 ID 중복과 잘못된 canonical 참조를 차단한다
 - `BA-022-T2`: cursor 변조·다른 owner/filter·15분 만료를 거부한다
 - `BA-022-T3`: 검색 canary 비로그와 미승인 media 비노출을 검증한다
+- `BA-022-T4`: 영업 확인 근거 없이 영업 창을 저장할 수 없다
+- `BA-022-T5`: 창이 0건인 관측도 근거로 저장된다
+- `BA-022-T6`: 종료가 시작보다 빠르거나 같은 영업 창을 거부한다
+- `BA-022-T7`: 관측이 붙은 place는 폐기할 수 없다
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -27,6 +27,7 @@ tags:
 | `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | `DISABLED` (B10 전) | area scope, 장소 목록/field 변경, 품질 사고 |
 | `DEMO_REPLAY` | 검증된 내부 fixture | 시연/외부 장애 fallback | `DISABLED` (B10 전) | 현재 실시간처럼 표시 금지 |
 | `NULLNULL_CATALOG_RULE` | 내부 taxonomy·region 규칙 | C5 `SIMILAR` 대체 후보 | C1 registry v1 `PROD_APPROVED`, `P7D` | 외부 relation 사실·혼잡 근거로 표시 금지 |
+| `NULLNULL_FIRST_PARTY` | 팀이 직접 제작한 일러스트와 편집 자산 | 게시물 표지(A-024) | registry v1 `PROD_APPROVED`, `P7D`; `V021`이 심는다 | 사진이 아닌 명시적 일러스트만. 실재 장소를 사진처럼 렌더한 합성 이미지는 불변식 6을 깨므로 금지 |
 | `ROUTE_PROVIDER` | 미정 | 이동 시간/route matrix | P1 | provider/가격/쿼터/약관 미결정 |
 
 registry v1은 공모전 제출 빌드에서 KTO `DEV_APPROVED` 개발 키(1,000/일)를 실제 호출에 쓸 수 있다는 팀 결정을 기록했다. C2 registry v2는 `KorService2/detailCommon2` 하나만 reviewed operation으로 고정하지만, fixture 검증은 actual KTO gateway·서비스 내 사용 증거 또는 source capability ON을 대신하지 않는다. 서울/Replay/live flag와 D-003의 production 운영 key·재배포 조건은 여전히 별도 결정이다. 공모전 제출 서비스는 한국관광공사 OpenAPI를 실제로 사용해야 하므로 KTO 실제 호출·서비스 내 사용 증거가 없으면 제출 자체를 차단한다.
