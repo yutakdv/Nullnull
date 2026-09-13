@@ -122,6 +122,19 @@ class RequestFingerprintTest {
     }
 
     @Test
+    void aPreconditionInItsOwnSlotIsNotTheSameAsOneFoldedIntoTheBody() {
+        // The two encodings a caller can choose between. They are different commands to this record,
+        // which is the reason the fourth slot exists at all - and neither an integration test nor a
+        // status code can tell them apart, because both make the version part of the hash. Only the
+        // canonical form can, so this is where the distinction is pinned.
+        assertThat(RequestFingerprint.of(ROUTE, Map.of(), "3|{\"a\":1}").sha256Hex())
+                .isNotEqualTo(RequestFingerprint.of(ROUTE, Map.of(), "{\"a\":1}", "3").sha256Hex());
+        // And the presence component really is what separates them, rather than the text moving.
+        assertThat(RequestFingerprint.of(ROUTE, Map.of(), "{}", "").canonicalForm())
+                .isNotEqualTo(RequestFingerprint.of(ROUTE, Map.of(), "{}").canonicalForm());
+    }
+
+    @Test
     void componentBoundariesCannotBeForgedFromContent() {
         // Without length prefixing these two would canonicalise to the same text.
         assertThat(RequestFingerprint.of(ROUTE, Map.of("tripId", "t-1\n3:x"), "{}").sha256Hex())

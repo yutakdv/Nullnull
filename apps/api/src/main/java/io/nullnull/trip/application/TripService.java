@@ -418,9 +418,12 @@ public class TripService {
         // would leave the item written, the caller holding a 503, and the stored response replaying
         // that 503 for the life of the key - the same trap createTrip's seedItems check avoids.
         places.requirePublicProjection();
+        // The expected version travels as the precondition, not folded into the body: it is what
+        // docs/api/README.md section 5 calls the command precondition, and a caller that retries the
+        // same key against a DIFFERENT version is reusing the key rather than retrying.
         String fingerprint = RequestFingerprint.of("addTripItem",
-                        Map.of("tripId", tripId.toString()),
-                        expected + "|" + canonicalAddition(command))
+                        Map.of("tripId", tripId.toString()), canonicalAddition(command),
+                        Long.toString(expected))
                 .sha256Hex();
         IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(),
                 ADD_ITEM_ROUTE, idempotencyKey, fingerprint,
@@ -593,8 +596,10 @@ public class TripService {
      */
     public void delete(OwnerContext context, UUID tripId, String ifMatch, String idempotencyKey) {
         long expected = parseIfMatch(ifMatch);
+        // deleteTrip has no request body at all, so the version was standing in as one. It is the
+        // precondition; the body is empty because that is the truth about this request.
         String fingerprint = RequestFingerprint
-                .of("deleteTrip", Map.of("tripId", tripId.toString()), Long.toString(expected))
+                .of("deleteTrip", Map.of("tripId", tripId.toString()), "", Long.toString(expected))
                 .sha256Hex();
         idempotency.execute(context.ownerId(), DELETE_ROUTE, idempotencyKey, fingerprint, () -> {
             Trip current = trips.findForUpdate(context.ownerId(), tripId).orElseThrow(TripService::notFound);
