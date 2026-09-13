@@ -40,6 +40,14 @@ public final class ItineraryParser {
     /** A leading {@code 09:00} or {@code 9:00}, followed by the rest of the line. */
     private static final Pattern LEADING_TIME = Pattern.compile("^\\s*(\\d{1,2}):(\\d{2})\\s+(.+)$");
 
+    /**
+     * A leading bare hour in Korean - {@code 3시}, optionally with a meridiem - and the rest of the
+     * line. Without a meridiem an hour of 12 or less names two moments of the day and this parser
+     * picks neither; with one it names a single moment and is read.
+     */
+    private static final Pattern LEADING_HOUR = Pattern.compile(
+            "^\\s*(오전|오후)?\\s*(\\d{1,2})\\s*시\\s*(.*)$");
+
     /** The catalog's own search bound. A longer line is not a place name, so it is never looked up. */
     public static final int MAX_LOOKUP = 100;
 
@@ -55,6 +63,8 @@ public final class ItineraryParser {
             DATE_HEADER,
             /** A date with no year. Nobody completes it, so it becomes a DATE token. */
             AMBIGUOUS_DATE,
+            /** An hour that names two moments of the day. Nobody picks one, so it becomes a TIME token. */
+            AMBIGUOUS_TIME,
             /** Everything else: a candidate the catalog is asked about. */
             PLACE
         }
@@ -107,6 +117,24 @@ public final class ItineraryParser {
             if (time != null) {
                 return new ParsedLine(number, ParsedLine.Kind.PLACE, null, null, time,
                         lookup(timed.group(3).strip()));
+            }
+        }
+        Matcher hour = LEADING_HOUR.matcher(line);
+        if (hour.matches()) {
+            String meridiem = hour.group(1);
+            int value = Integer.parseInt(hour.group(2));
+            String rest = hour.group(3).strip();
+            if (meridiem == null && value <= 12) {
+                // Two moments, and the paste does not say which. The fragment echoed here is digits
+                // and the character 시 by construction, so it cannot be carrying anything else.
+                return new ParsedLine(number, ParsedLine.Kind.AMBIGUOUS_TIME, value + "시", null, null,
+                        rest.isEmpty() ? null : lookup(rest));
+            }
+            LocalTime read = time(meridiem == null || value == 12
+                    ? value
+                    : "오후".equals(meridiem) ? value + 12 : value, 0);
+            if (read != null && !rest.isEmpty()) {
+                return new ParsedLine(number, ParsedLine.Kind.PLACE, null, null, read, lookup(rest));
             }
         }
         return new ParsedLine(number, ParsedLine.Kind.PLACE, null, null, null, lookup(line));

@@ -188,6 +188,8 @@ public class TripImportService {
                 }
                 case AMBIGUOUS_DATE -> add(unresolved, new UnresolvedToken(key("t", line.line()),
                         UnresolvedToken.Kind.DATE, line.line(), line.label(), List.of()));
+                case AMBIGUOUS_TIME -> add(unresolved, new UnresolvedToken(key("t", line.line()),
+                        UnresolvedToken.Kind.TIME, line.line(), line.label(), List.of()));
                 case PLACE -> {
                     List<CatalogPlaceSummary> matches = resolve(owner, line, command.locale());
                     if (matches.size() == 1 && items.size() < ImportDraftContent.MAX_ITEMS) {

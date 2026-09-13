@@ -256,6 +256,38 @@ class TripImportIT {
         assertThat(trips(ownerId(owner))).isEqualTo(1L);
     }
 
+    @Test
+    @DisplayName("BA-060-T8 a draft still holding a question cannot be confirmed, and makes no trip")
+    void anUnansweredDraftIsNotConfirmed() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID place = place("장소");
+        UUID draft = draftWithQuestion(ownerId(owner), item("e1", place));
+
+        confirm(owner, draft, "\"1\"", "key-still-unanswered-1")
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        assertThat(trips(ownerId(owner))).isZero();
+        assertThat(confirmedTrip(draft)).isNull();
+    }
+
+    /** A draft whose every item resolved but which still holds one question, so it is NEEDS_REVIEW. */
+    private UUID draftWithQuestion(UUID ownerId, String itemJson) {
+        UUID id = UUID.randomUUID();
+        String content = "{\"title\":null,\"startDate\":\"" + DAY + "\",\"endDate\":\"" + DAY + "\""
+                + ",\"timezone\":\"Asia/Seoul\",\"items\":[" + itemJson + "]}";
+        String tokens = "[{\"clientKey\":\"t2\",\"kind\":\"DATE\",\"line\":2,\"label\":\"3/15\""
+                + ",\"suggestionPlaceIds\":[]}]";
+        jdbc.update("""
+                INSERT INTO itinerary_import_drafts
+                    (id, owner_id, status, version, structured_draft, unresolved_tokens,
+                     confirmed_trip_id, confirmed_at, expires_at, created_at)
+                VALUES (?, ?, 'NEEDS_REVIEW', 1, ?::jsonb, ?::jsonb, NULL, NULL, ?, ?)
+                """, id, ownerId, content, tokens,
+                Timestamp.from(NOW.plus(Duration.ofHours(24))), Timestamp.from(NOW));
+        return id;
+    }
+
     private ResultActions remap(SessionService.Bootstrap owner, UUID draftId, String ifMatch, String body)
             throws Exception {
         return mvc.perform(patch("/api/v1/trip-imports/{id}", draftId)

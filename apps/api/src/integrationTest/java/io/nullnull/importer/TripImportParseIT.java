@@ -126,6 +126,30 @@ class TripImportParseIT {
                 .andExpect(jsonPath("$.dates.startDate").doesNotExist());
     }
 
+    @Test
+    @DisplayName("BA-060-T14 a year-less date and a bare hour are handed back as questions, not answers")
+    void whatThePasteDidNotSayIsNotDecided() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        place("경복궁", null);
+
+        parse(owner, "key-parse-ambiguous-1", "3/15\n3시 경복궁\n")
+                .andExpect(status().isOk())
+                // Neither is completed. "3/15" is not given this year, and "3시" names two moments of
+                // the day, so the parser picks neither - each comes back as its own kind of question.
+                .andExpect(jsonPath("$.unresolved[?(@.kind == 'DATE')].label")
+                        .value(org.hamcrest.Matchers.contains("3/15")))
+                .andExpect(jsonPath("$.unresolved[?(@.kind == 'TIME')].label")
+                        .value(org.hamcrest.Matchers.contains("3시")))
+                .andExpect(jsonPath("$.dates.startDate").doesNotExist());
+
+        // And the case that must NOT become a question, beside it: an hour that names one moment is
+        // read. Without this the clause is satisfied by a parser that answers nothing at all.
+        parse(owner, "key-parse-unambiguous1", "2026-10-05\n오후 3시 경복궁\n")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unresolved.length()").value(0))
+                .andExpect(jsonPath("$.items[0].startTime").value("15:00:00"));
+    }
+
     private ResultActions parse(SessionService.Bootstrap owner, String key, String rawText)
             throws Exception {
         return mvc.perform(post("/api/v1/trip-imports/parse")
