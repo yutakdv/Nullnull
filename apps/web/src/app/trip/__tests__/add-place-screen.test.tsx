@@ -136,6 +136,72 @@ describe('FE-305-T2 the screen renders each state', () => {
   });
 });
 
+// CMP-ATT-001 at the screen boundary, not at the component.
+//
+// place-thumbnail.test.tsx already proves PlaceThumbnail itself refuses to show
+// an uncredited image, and it fails when that guard is removed. What nothing
+// asserted is that this screen actually ROUTES through it — and the suite could
+// not have caught the difference, because every place in the shared contract
+// fixtures carries `thumbnailUrl: null`. A null URL short-circuits
+// `place.thumbnailUrl && place.thumbnailAttribution` on the first operand, so
+// the attribution half was never evaluated in any test and the <img> branch was
+// never taken. Reverting this screen to the old uncredited <img> left all 873
+// tests green.
+//
+// The fixtures are the shared BE/FE contract and are not ours to edit, so the
+// states they cannot express are supplied here per test.
+describe('FE-305 a search result shows an image only when it can be credited', () => {
+  const IMAGE = 'https://cdn.example.test/places/gyeongbokgung.jpg';
+  // Deliberately NOT the fixture's sourceAttribution text. The row already
+  // renders "출처: ⓒ한국관광공사" as a source link, so asserting on that string
+  // would pass whether or not the thumbnail credit rendered at all — which is
+  // how three earlier attempts at this test silently proved nothing. An image
+  // credit distinct from the text credit is what makes the two separable.
+  const CREDIT = '사진 출처: ⓒ한국관광공사 (이미지 심사 완료)';
+
+  /** The fixture page with its first result's thumbnail fields overridden. */
+  function searchReturning(
+    thumbnailUrl: string | null,
+    thumbnailAttribution: string | null,
+  ) {
+    const [first, ...rest] = placeFixtures.searchPage.items;
+    server.use(
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json({
+          ...placeFixtures.searchPage,
+          items: [{ ...first, thumbnailUrl, thumbnailAttribution }, ...rest],
+        }),
+      ),
+    );
+  }
+
+  it('renders the image and the server credit when both are present', async () => {
+    searchReturning(IMAGE, CREDIT);
+    const user = userEvent.setup();
+    renderScreen();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await screen.findByText(firstResult?.name ?? '');
+    const image = await screen.findByRole('presentation', { hidden: true });
+    expect(image).toHaveAttribute('src', IMAGE);
+    // Verbatim, never composed by the client (CMP-ATT-003).
+    expect(screen.getByText(CREDIT)).toBeInTheDocument();
+  });
+
+  it('shows no image when the server sent one it could not credit', async () => {
+    // The contract permits this pair: thumbnailAttribution is null "when the
+    // reviewed licence requires none", so an uncreditable image is a real
+    // server response rather than an impossible one. Showing it bare is the
+    // compliance failure, so the row renders the placeholder instead.
+    searchReturning(IMAGE, null);
+    const user = userEvent.setup();
+    renderScreen();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await screen.findByText(firstResult?.name ?? '');
+    expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+    expect(screen.queryByText(CREDIT)).toBeNull();
+  });
+});
+
 describe('FE-305-T1 the day choice picks the resource', () => {
   it('creates a scheduled item when a day is chosen', async () => {
     const user = await searchFor('서울');

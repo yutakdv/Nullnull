@@ -271,3 +271,86 @@ describe('keyboard and continuation', () => {
     });
   });
 });
+
+// CMP-ATT-001 at the screen boundary, for BOTH lists.
+//
+// This screen renders a place thumbnail twice — once per search result and
+// once per kept pick — and each has its own guard. PlaceThumbnail's own test
+// proves the component refuses an uncredited image; what nothing asserted is
+// that these two lists route through it. Every place in the shared contract
+// fixtures carries `thumbnailUrl: null`, so
+// `place.thumbnailUrl && place.thumbnailAttribution` short-circuits on the
+// first operand and the attribution half is never evaluated.
+//
+// The kept list is covered separately from the results list on purpose: they
+// are two independent guards, and a test that only searched would leave the
+// second one exactly as unprotected as before.
+describe('FE-103 a place shows an image only when it can be credited', () => {
+  const IMAGE = 'https://cdn.example.test/places/gyeongbokgung.jpg';
+  // Distinct from the row's sourceAttribution text on purpose: the row renders
+  // "출처: ⓒ한국관광공사" as a source line regardless, so asserting on that
+  // shared string would pass whether or not the thumbnail credit rendered.
+  const CREDIT = '사진 출처: ⓒ한국관광공사 (이미지 심사 완료)';
+
+  /** The search page with its first result's thumbnail fields overridden. */
+  function searchReturning(
+    thumbnailUrl: string | null,
+    thumbnailAttribution: string | null,
+  ) {
+    const [head, ...rest] = placeFixtures.searchPage.items;
+    server.use(
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json({
+          ...placeFixtures.searchPage,
+          items: [{ ...head, thumbnailUrl, thumbnailAttribution }, ...rest],
+        }),
+      ),
+    );
+  }
+
+  it('renders a credited search result with its image and credit', async () => {
+    searchReturning(IMAGE, CREDIT);
+    await searchFor('경복궁');
+    await screen.findByText(first?.name ?? '');
+    const image = await screen.findByRole('presentation', { hidden: true });
+    expect(image).toHaveAttribute('src', IMAGE);
+    // Verbatim, never composed by the client (CMP-ATT-003).
+    expect(screen.getByText(CREDIT)).toBeInTheDocument();
+  });
+
+  it('shows no image in the results when it could not be credited', async () => {
+    searchReturning(IMAGE, null);
+    await searchFor('경복궁');
+    await screen.findByText(first?.name ?? '');
+    expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+    expect(screen.queryByText(CREDIT)).toBeNull();
+  });
+
+  it('keeps the credit when the place moves into the kept list', async () => {
+    searchReturning(IMAGE, CREDIT);
+    const user = await searchFor('경복궁');
+    await user.click(await addButton(first?.name ?? ''));
+    // Now rendered twice — once as a result, once as a pick — and both must
+    // carry the credit.
+    await waitFor(() => {
+      expect(screen.getAllByRole('presentation', { hidden: true })).toHaveLength(2);
+    });
+    expect(screen.getAllByText(CREDIT)).toHaveLength(2);
+  });
+
+  it('shows no image in the kept list when it could not be credited', async () => {
+    // The second guard, which a results-only test would never reach.
+    searchReturning(IMAGE, null);
+    const user = await searchFor('경복궁');
+    await user.click(await addButton(first?.name ?? ''));
+    // The pick is kept — only its uncreditable image is withheld.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: `${first?.name ?? ''} ${copy['mustVisit.remove']}`,
+        }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+  });
+});

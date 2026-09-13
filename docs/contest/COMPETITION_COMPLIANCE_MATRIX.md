@@ -38,10 +38,10 @@ tags:
 | CMP-SUB-001 | 공식/EXCLUSION | 1차 자료 제출은 2026-09-21 16:00 정각까지이며 이후 수정 불가 | 공식 마감 전 검수·동결·접수 증거 확보 | 접수 완료 화면·시각, 제출 PDF checksum | 공동 / 공동 |
 | CMP-SUB-002 | 공식/EXCLUSION | 참가 신청 계정, 이메일 인증, 팀/서비스 선택으로 제출 | 제출 입력 전에 대표 계정과 팀원 계정을 확인 | 콘텐츠랩 팀원 화면·인증 상태의 비공개 확인 기록 | 공동 / 공동 |
 | CMP-SUB-003 | 공식/EXCLUSION | 최종 팀원, 팀명·서비스명·개요·부문/유형·지정과제 1개를 정확히 입력 | 부문을 포함한 exact label과 값을 서비스/PDF/제출처의 한 표에서 대조 | 3개 위치의 값과 2인 확인 시각 | 공동 / 공동 |
-| CMP-SUB-004 | 공식/REQUIRED | 외부에서 접속 가능한 웹 URL 또는 승인된 앱스토어 링크 | 웹 URL만 제출하고 PWA를 앱스토어 앱으로 주장하지 않음 | 외부망·새 browser profile HTTPS smoke | FE / BE·AI |
+| CMP-SUB-004 | 공식/REQUIRED | 외부에서 접속 가능한 웹 URL 또는 승인된 앱스토어 링크 | 웹 URL만 제출하고 PWA를 앱스토어 앱으로 주장하지 않음 | 외부망·새 browser profile HTTPS smoke | BE·AI / FE |
 | CMP-SUB-005 | 공식/REQUIRED | 로그인 방식은 로그인 불필요/SNS/테스트 계정 중 선택 | `로그인 불필요`; anonymous session에서 저장 포함 핵심 흐름 완결 | 신규 session E2E, 제출 화면 선택값 | FE / BE·AI |
 | CMP-SUB-006 | 공식/EXCLUSION | 공식 기능설명서 양식과 필수 항목을 유지해 PDF 제출 | 양식의 표·순서·필수 field를 임의 변경하지 않음 | 원본 version/checksum, PDF render, field checklist | 공동 / 공동 |
-| CMP-SUB-007 | 공식/REQUIRED | 대표 이미지 1장, 상세 이미지 3~5장 등 공식 구성 준수 | 실제 배포 화면만 사용하고 mock/P1 screenshot 제외 | image ledger, URL/release ID, alt/caption, PDF 확인 | FE / BE·AI |
+| CMP-SUB-007 | 공식/REQUIRED | 대표 이미지 1장, 상세 이미지 3~5장 등 공식 구성 준수 | 실제 배포 화면만 사용하고 mock/P1 screenshot 제외. 촬영은 FE지만 선행 조건(배포 URL·catalog 게이트 개방·실데이터)은 BE·AI와 오너가 쥐고 있다 | image ledger, URL/release ID, alt/caption, PDF 확인 | FE / BE·AI |
 | CMP-SUB-008 | 공식/REQUIRED | 기능설명서에는 최종 서비스에서 실제 구현·사용한 내용만 기재 | disabled·준비 중·mock-only·계획 기능 제외 | PDF 기능 목록 ↔ release journey/test 대조 | 공동 / 공동 |
 | CMP-SUB-009 | 공식/EXCLUSION | 지정과제 문제 해결 기능과 KTO OpenAPI 활용 모두 완성 | 현재 내부 가정은 `지정과제 2`; exact 과제명은 제출처 선택값과 대조한 뒤에만 확정 | 과제 선택 화면, 핵심 journey, KTO 증거 | 공동 / 공동 |
 | CMP-SUB-010 | 공식/EXCLUSION | 동일 서비스를 타 부문 중복 출품하지 않으며 제외 이력 조건 확인 | 대표가 팀 이력을 서면 확인 | private eligibility checklist | 공동 / 공동 |

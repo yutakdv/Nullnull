@@ -8,7 +8,13 @@ import {
   usePlaceSearch,
   useTrip,
 } from '../../shared/api/index.js';
-import { Chip, DataAttribution, NavBar, SearchField } from '../../shared/ui/index.js';
+import {
+  Chip,
+  DataAttribution,
+  NavBar,
+  PlaceThumbnail,
+  SearchField,
+} from '../../shared/ui/index.js';
 import styles from './AddPlaceScreen.module.css';
 import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.js';
 
@@ -188,14 +194,8 @@ export function AddPlaceScreen() {
               .join(' · ');
             return (
               <li className={styles.result} key={place.id}>
-                {place.thumbnailUrl ? (
-                  <img
-                    alt=""
-                    className={styles.thumb}
-                    height={44}
-                    src={place.thumbnailUrl}
-                    width={44}
-                  />
+                {place.thumbnailUrl && place.thumbnailAttribution ? (
+                  <PlaceThumbnail place={place} size={44} />
                 ) : (
                   <span aria-hidden="true" className={styles.thumb} />
                 )}

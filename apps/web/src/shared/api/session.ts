@@ -990,14 +990,25 @@ type RemoveDisposition = 'RESTORE_CANDIDATE' | 'REMOVE';
 /**
  * Applies a trip mutation result to the cache.
  *
- * Only the removal path touches the candidate list, and only when it restores
- * one: `trip.candidates` is a page rather than the whole set (TripScreen reads
- * `candidateCount` for the total), so the list has to be refetched rather than
- * read out of this response.
+ * `trip.candidates` is a page rather than the whole set (TripScreen reads
+ * `candidateCount` for the total), so a mutation that changes the candidate
+ * list has to invalidate it rather than read the new one out of this response.
+ *
+ * `touchedCandidates` is REQUIRED, with no default. It used to default to
+ * false, which made "this mutation does not affect candidates" the silent
+ * answer for any caller that did not think about it — and three of the four
+ * callers had not. The answer differs per operation and only the call site
+ * knows it, so the type now asks every one of them. Defaulting it again would
+ * reintroduce the same class of bug the next time an operation starts touching
+ * candidates.
  */
 function useApplyTripMutation(tripId: string | null) {
   const queryClient = useQueryClient();
-  return (result: TripMutationResult, etag: string | null, touchedCandidates = false) => {
+  return (
+    result: TripMutationResult,
+    etag: string | null,
+    touchedCandidates: boolean,
+  ) => {
     if (tripId === null) return;
     queryClient.setQueryData(tripQueryKey(tripId), { trip: result.trip, etag });
     if (touchedCandidates) {
@@ -1047,7 +1058,9 @@ export function useUpdateTripItem(tripId: string | null) {
       return { result: data, etag: response.headers.get('ETag') };
     },
     onSuccess: ({ result, etag }) => {
-      apply(result, etag);
+      // A field edit on an existing item. The place does not change, so no
+      // candidate is created or consumed.
+      apply(result, etag, false);
     },
   });
 }
@@ -1092,7 +1105,9 @@ export function useReorderTripItems(tripId: string | null) {
       return { result: data, etag: response.headers.get('ETag') };
     },
     onSuccess: ({ result, etag }) => {
-      apply(result, etag);
+      // Reorder moves items between days and positions; candidates are not
+      // items and none is created or consumed.
+      apply(result, etag, false);
     },
   });
 }
@@ -1136,7 +1151,11 @@ export function useReplaceTripItem(tripId: string | null) {
       return { result: data, etag: response.headers.get('ETag') };
     },
     onSuccess: ({ result, etag }) => {
-      apply(result, etag);
+      // The outgoing place comes back as an ACTIVE candidate — the contract
+      // says so on this operation ("the same disposition removeTripItem names
+      // RESTORE_CANDIDATE") and takes no parameter to opt out, so a replace
+      // always changes the candidate list.
+      apply(result, etag, true);
     },
   });
 }
@@ -1149,8 +1168,12 @@ export function useReplaceTripItem(tripId: string | null) {
  * caller to say which. Defaulting it here would decide on the user's behalf
  * whether their saved place survives.
  *
- * Restoring a candidate is the one item mutation that changes the candidate
- * list, so it is the only one that invalidates it.
+ * Two item mutations change the candidate list, not one: this operation when
+ * the disposition is RESTORE_CANDIDATE, and replaceTripItem always — the
+ * contract says the outgoing place "comes back to the trip as an ACTIVE
+ * candidate" and gives no parameter to opt out (#165 Q2). This comment used to
+ * claim removal was the only one, which is the reasoning that left replace
+ * showing a stale list.
  */
 export function useRemoveTripItem(tripId: string | null) {
   const apply = useApplyTripMutation(tripId);

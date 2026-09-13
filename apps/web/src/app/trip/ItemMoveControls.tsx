@@ -42,6 +42,16 @@ import {
 type TripDetail = components['schemas']['TripDetail'];
 type TripItem = TripDetail['days'][number]['items'][number];
 
+/**
+ * A lock the user agreed to release as part of this edit.
+ *
+ * Derived from the contract rather than written out: ReleasedTemporalLocks
+ * lists the temporal locks only (MUST_VISIT is excluded there because a
+ * temporal edit keeps the place), so naming a lock this union does not hold
+ * fails to compile instead of failing at the server.
+ */
+type ReleasedLock = components['schemas']['ReleasedTemporalLocks'][number];
+
 export interface ItemMoveControlsProps {
   item: TripItem;
   days: readonly TripDetail['days'][number][];
@@ -78,11 +88,26 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
    * The key is minted per user action rather than inside the mutation, so a
    * retry of this press reuses it instead of counting as a second move.
    */
-  function send(order: ReturnType<typeof reorderWithinDay>, announce: string) {
+  function send(
+    order: ReturnType<typeof reorderWithinDay>,
+    announce: string,
+    released: ReleasedLock[] = [],
+  ) {
     if (!order) return;
     setStatus(null);
+    // The consent the user just gave, carried to the server on the entry it
+    // applies to. The contract is explicit that naming a lock here is the ONLY
+    // way it is released and that an unnamed lock still refuses the edit, so
+    // the dialog's answer has to travel with the request — until now it did
+    // not, and the move arrived looking like nobody had been asked.
+    const items =
+      released.length === 0
+        ? order
+        : order.map((entry) =>
+            entry.itemId === item.id ? { ...entry, releaseConstraints: released } : entry,
+          );
     reorder.mutate(
-      { order, etag, idempotencyKey: crypto.randomUUID() },
+      { order: items, etag, idempotencyKey: crypto.randomUUID() },
       {
         onSuccess: () => {
           setStatus(announce);
@@ -105,7 +130,7 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
     send(order, t('trip.reorder.moved', { name: item.place.name, position }));
   }
 
-  function commitMove(date: string) {
+  function commitMove(date: string, released: ReleasedLock[] = []) {
     const order = moveToDay(days, item.id, date);
     if (!order) return;
     const index = days.findIndex((day) => day.date === date);
@@ -115,6 +140,7 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
         name: item.place.name,
         day: t('trip.day', { n: index + 1 }),
       }),
+      released,
     );
   }
 
@@ -248,7 +274,9 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
         onConfirm={() => {
           const date = pendingDate;
           setPendingDate(null);
-          if (date !== null) commitMove(date);
+          // The dialog asked to release the DATE lock; this is where that
+          // answer becomes part of the request.
+          if (date !== null) commitMove(date, ['DATE']);
         }}
         open={pendingDate !== null}
         title={t('trip.move.dateLock.title')}

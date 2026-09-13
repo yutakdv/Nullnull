@@ -177,6 +177,60 @@ describe('FE-305-T1 the replace request preserves the schedule', () => {
     });
   });
 
+  it('marks the candidate list stale, because the replaced place returns to it', async () => {
+    // The contract: "The outgoing place comes back to the trip as an ACTIVE
+    // candidate, the same disposition removeTripItem names RESTORE_CANDIDATE,
+    // and this operation takes no parameter to choose otherwise" (#165 Q2).
+    // Without the invalidation the saved-places list keeps the pre-replace set
+    // while the trip header counts the restored one, so the user cannot find
+    // the place they just swapped out.
+    //
+    // Observed on the query client rather than by counting requests: the panel
+    // is a separate route, so nothing is subscribed to that key while the trip
+    // screen is open — invalidation is the whole mechanism, and a refetch is
+    // what it produces later when the panel mounts.
+    const client = createQueryClient();
+    const invalidated: string[] = [];
+    const realInvalidate = client.invalidateQueries.bind(client);
+    client.invalidateQueries = ((filters?: { queryKey?: unknown }) => {
+      invalidated.push(JSON.stringify(filters?.queryKey ?? null));
+      return realInvalidate(filters as never);
+    }) as typeof client.invalidateQueries;
+
+    const router = createMemoryRouter(routes, { initialEntries: [`/trip/${trip.id}`] });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+    const heading = await screen.findByRole('heading', { level: 3, name: '경복궁' });
+    const card = heading.closest('article') as HTMLElement;
+    await user.click(
+      within(card).getByRole('button', {
+        name: new RegExp(copy['replace.open'].replace('{name}', '경복궁')),
+      }),
+    );
+    const sheet = await screen.findByRole('dialog');
+    await user.click(
+      await within(sheet).findByRole('button', {
+        name: new RegExp(firstAlternative?.place.name ?? ''),
+      }),
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: copy['replace.confirm'] }),
+    );
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(invalidated.some((key) => key.includes('candidates'))).toBe(true);
+    });
+  });
+
   it('omits preserveDateTime rather than sending false', async () => {
     const { user, sheet } = await openReplace('경복궁');
     await user.click(
