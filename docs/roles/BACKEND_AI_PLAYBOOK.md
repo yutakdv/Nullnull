@@ -1105,7 +1105,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-042-T3`: 교체된 옛 장소는 ACTIVE 후보로 돌아온다
 - `BA-042-T4`: 날짜 경계를 여행 timezone에서 계산한다
 - `BA-042-T5`: 영업 근거가 없으면 eligible을 참으로 만들지 않고 그 사유를 낸다
-- `BA-042-T6`: 이동 근거가 없으면 영업 부재와 다른 사유 코드를 낸다
+- `BA-042-T6`: 평가기가 낸 사유 코드를 Spring이 뭉개지 않고 그대로 낸다
 - `BA-042-T7`: state 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
 - `BA-042-T8`: replace는 MUST_VISIT과 RESERVATION을 releaseConstraints에 이름 대야 진행한다
 - `BA-042-T9`: stale If-Match는 replace를 거부한다
