@@ -190,6 +190,46 @@ public final class OpenApiDocument {
         throw new IllegalArgumentException("unknown operationId: " + operationId);
     }
 
+    /**
+     * The component schema name an operation's {@code application/json} request body refers to, or
+     * empty when it has no JSON body or declares one inline.
+     */
+    public java.util.Optional<String> requestBodySchema(String operationId) {
+        Map<String, Object> paths = section(document.get("paths"), "paths");
+        for (Object item : paths.values()) {
+            for (Map.Entry<String, Object> entry : section(item, "paths.*").entrySet()) {
+                if (!HTTP_METHODS.contains(entry.getKey()) || !(entry.getValue() instanceof Map<?, ?> op)
+                        || !operationId.equals(op.get("operationId"))) {
+                    continue;
+                }
+                if (!(op.get("requestBody") instanceof Map<?, ?> body)
+                        || !(body.get("content") instanceof Map<?, ?> content)
+                        || !(content.get("application/json") instanceof Map<?, ?> json)
+                        || !(json.get("schema") instanceof Map<?, ?> schema)
+                        || !(schema.get("$ref") instanceof String ref)) {
+                    return java.util.Optional.empty();
+                }
+                return java.util.Optional.of(ref.substring(ref.lastIndexOf('/') + 1));
+            }
+        }
+        throw new IllegalArgumentException("unknown operationId: " + operationId);
+    }
+
+    /** Top-level property names of one component schema, in declaration order. */
+    public java.util.LinkedHashSet<String> propertyNames(String componentSchema) {
+        Map<String, Object> components = section(document.get("components"), "components");
+        Map<String, Object> schemas = section(components.get("schemas"), "components.schemas");
+        if (!(schemas.get(componentSchema) instanceof Map<?, ?> schema)) {
+            throw new IllegalArgumentException("unknown component schema: " + componentSchema);
+        }
+        if (!(schema.get("properties") instanceof Map<?, ?> properties)) {
+            return new java.util.LinkedHashSet<>();
+        }
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        properties.keySet().forEach(name -> names.add(String.valueOf(name)));
+        return names;
+    }
+
     /** {@code servers[0].url}, the prefix every path item key is served under. */
     private String basePath() {
         if (!(document.get("servers") instanceof List<?> servers) || servers.isEmpty()

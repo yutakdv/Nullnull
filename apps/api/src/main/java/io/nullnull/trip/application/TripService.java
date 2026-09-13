@@ -58,6 +58,7 @@ public class TripService {
     private static final String DELETE_ROUTE = "DELETE /trips/{tripId}";
     private static final String ADD_ITEM_ROUTE = "POST /trips/{tripId}/items";
     private static final String REORDER_ROUTE = "POST /trips/{tripId}/items/reorder";
+    private static final String REPLACE_ROUTE = "POST /trips/{tripId}/items/{itemId}/replace";
     private static final java.util.regex.Pattern IF_MATCH =
             java.util.regex.Pattern.compile("^\"[1-9][0-9]*\"$");
     private static final int DEFAULT_LIMIT = 20;
@@ -624,6 +625,185 @@ public class TripService {
             out.append("]}");
         }
         return out.append(']').toString();
+    }
+
+    /**
+     * replaceTripItem. The schedule stays, the place changes, and the outgoing place becomes a
+     * candidate again.
+     *
+     * <p>Locks are why this is not simply a place swap. MUST_VISIT pins the place and RESERVATION
+     * pins a booking made for it, so a replacement breaks both; either refuses the request unless
+     * {@code releaseConstraints} names it. DATE and TIME pin the schedule, which is kept, so they
+     * travel across to nothing - the item keeps its own rows and they are never consulted.
+     *
+     * <p>The outgoing place returns as an ACTIVE candidate with no parameter to choose otherwise
+     * (contract): replacing a place is not saying to forget it. A candidate carries no date, so
+     * restoring one changes no schedule, which is why this stays inside invariant 2.
+     */
+    public TripMutationView replaceItem(OwnerContext context, UUID tripId, UUID itemId, String ifMatch,
+            String idempotencyKey, ReplaceTripItemCommand command) {
+        long expected = parseIfMatch(ifMatch);
+        places.requirePublicProjection();
+        String fingerprint = RequestFingerprint.of("replaceTripItem",
+                        Map.of("tripId", tripId.toString(), "itemId", itemId.toString()),
+                        canonicalReplacement(command), Long.toString(expected))
+                .sha256Hex();
+        IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(),
+                REPLACE_ROUTE, idempotencyKey, fingerprint,
+                () -> new CommandOutcome<>(200,
+                        applyReplacement(context.ownerId(), tripId, itemId, expected, command)),
+                value -> value);
+        ItemProjection projection = json.readValue(guarded.body(), ItemProjection.class);
+        return mutationView(context, tripId, List.of(projection.itemId()));
+    }
+
+    private ItemProjection applyReplacement(UUID ownerId, UUID tripId, UUID itemId, long expected,
+            ReplaceTripItemCommand command) {
+        Trip current = trips.findForUpdate(ownerId, tripId).orElseThrow(TripService::notFound);
+        if (current.version() != expected) {
+            throw tripChanged(current.version());
+        }
+        List<TripItem> existing = trips.items(tripId);
+        TripItem item = existing.stream().filter(each -> each.id().equals(itemId)).findFirst()
+                .orElseThrow(TripService::itemNotFound);
+        if (item.placeId().equals(command.replacementPlaceId())) {
+            throw new TripValidationException("replacementPlaceId", "NoChange",
+                    "the item already holds this place");
+        }
+        Instant now = clock.instant();
+        requirePlaceLocksReleased(item, command);
+        // The outgoing place first, while the item still names it: after the update this row would
+        // say nothing about where the candidate came from.
+        UUID outgoing = item.placeId();
+        // Whatever candidate was scheduled onto this item goes back to ACTIVE; an item that never
+        // came from one still leaves a candidate behind, because the contract promises the outgoing
+        // place comes back either way, and TRIP_SEED is the only true thing to say about its origin.
+        if (candidates.restoreScheduledFor(itemId, now).isEmpty()) {
+            candidates.saveActive(tripId, outgoing, item.note(),
+                    new CandidateSource(CandidateSourceType.TRIP_SEED, null, now), now);
+        }
+        trips.replaceItemPlace(tripId, itemId, command.replacementPlaceId(), now);
+        List<TripItem> after = existing.stream()
+                .map(each -> each.id().equals(itemId)
+                        ? new TripItem(each.id(), command.replacementPlaceId(), each.date(),
+                                each.position(), each.startTime(), each.durationMinutes(), each.note(),
+                                each.constraints().stream()
+                                        .filter(constraint -> !command.releaseConstraints()
+                                                .contains(constraint.type()))
+                                        .toList())
+                        : each)
+                .toList();
+        Trip bumped = raiseVersion(current, now);
+        String snapshot = snapshot(bumped, after);
+        trips.updateMetadata(bumped, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+        return new ItemProjection(itemId);
+    }
+
+    /**
+     * Refuses the replacement when a lock it breaks is not named, and deletes the ones that are.
+     *
+     * <p>Only MUST_VISIT and RESERVATION can be broken by it, so only those are looked at. The list
+     * is not {@code LockChecks}' because that evaluates a TEMPORAL move: it passes MUST_VISIT by
+     * definition ("a temporal move keeps the place") and judges RESERVATION against a proposed date
+     * and time, neither of which changes here.
+     */
+    private void requirePlaceLocksReleased(TripItem item, ReplaceTripItemCommand command) {
+        List<String> unreleased = new ArrayList<>();
+        for (TripConstraint constraint : item.constraints()) {
+            LockType type = constraint.type();
+            if (type != LockType.MUST_VISIT && type != LockType.RESERVATION) {
+                continue;
+            }
+            if (command.releaseConstraints().contains(type)) {
+                trips.deleteConstraint(item.id(), type);
+            } else {
+                unreleased.add(type.name());
+            }
+        }
+        if (!unreleased.isEmpty()) {
+            throw new ApiException(ProblemCode.LOCK_CONFLICT,
+                    "The replacement is refused by locks this request did not release: "
+                            + String.join(", ", unreleased) + ".");
+        }
+    }
+
+    /** What replaceTripItem hashes. The refused fields are absent because they cannot be sent. */
+    private String canonicalReplacement(ReplaceTripItemCommand command) {
+        List<String> released = command.releaseConstraints().stream().map(Enum::name).sorted().toList();
+        return "{\"replacementPlaceId\":\"" + command.replacementPlaceId() + "\""
+                + ",\"releaseConstraints\":[" + String.join(",",
+                        released.stream().map(name -> '"' + name + '"').toList()) + "]}";
+    }
+
+    /**
+     * updateTripItem. If-Match only, like removeTripItem and for the same reason: the contract gives
+     * it no Idempotency-Key, and a repeat of the same patch against the same version is refused by
+     * the ETag rather than needing a key to absorb it.
+     *
+     * <p>Locks are evaluated against the item the patch WOULD produce, not against the fields it
+     * happens to mention. Changing only the start time can break a TIME lock, and changing only the
+     * duration can push a stay past the end of a RESERVATION window - neither touches the date, so a
+     * check that looked at what the caller sent would miss both.
+     */
+    public TripMutationView updateItem(OwnerContext context, UUID tripId, UUID itemId, String ifMatch,
+            UpdateTripItemCommand patch) {
+        long expected = parseIfMatch(ifMatch);
+        if (patch.touchesNothing()) {
+            // minProperties: 1 in the contract. An empty patch that still raised the version would
+            // make "my If-Match succeeded" mean two different things.
+            throw new TripValidationException("body", "Size", "the patch changes nothing");
+        }
+        return transactions.execute(status -> {
+            Trip current = trips.findForUpdate(context.ownerId(), tripId)
+                    .orElseThrow(TripService::notFound);
+            if (current.version() != expected) {
+                throw tripChanged(current.version());
+            }
+            List<TripItem> existing = trips.items(tripId);
+            TripItem stored = existing.stream().filter(each -> each.id().equals(itemId)).findFirst()
+                    .orElseThrow(TripService::itemNotFound);
+            TripItem patched = patch.applyTo(stored);
+            requireLocksAllowUpdate(stored, patched, patch);
+            List<TripItem> after = existing.stream()
+                    .map(each -> each.id().equals(itemId) ? patched : each).toList();
+            TripScheduleRules.requireInsideRange(current.range(), List.of(patched));
+            TripScheduleRules.requireWithinCaps(after);
+            TripScheduleRules.requireDistinctPositions(after);
+            Instant now = clock.instant();
+            trips.updateItem(tripId, patched, now);
+            Trip bumped = raiseVersion(current, now);
+            String snapshot = snapshot(bumped, after);
+            trips.updateMetadata(bumped, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+            return mutationView(context, tripId, List.of(itemId));
+        });
+    }
+
+    /**
+     * The same rule reorder follows, judged on the patched item: a lock the request does not name
+     * refuses the edit, and a lock it names is released.
+     *
+     * <p>The locks read are the STORED ones. Reading the patched item's would ask whether the edit
+     * is allowed by the locks it already dropped, which is every edit.
+     */
+    private void requireLocksAllowUpdate(TripItem stored, TripItem patched,
+            UpdateTripItemCommand patch) {
+        LockChecks.Result verdict = LockChecks.evaluate(
+                stored.constraints().stream().map(TripConstraint::lock).toList(),
+                patched.date(), patched.startTime(), patched.durationMinutes());
+        List<String> unreleased = new ArrayList<>();
+        verdict.passed().forEach((type, satisfied) -> {
+            if (!satisfied && !patch.releaseConstraints().contains(type)) {
+                unreleased.add(LockChecks.reasonCodeOf(type));
+            }
+        });
+        if (!unreleased.isEmpty()) {
+            throw new ApiException(ProblemCode.LOCK_CONFLICT,
+                    "The edit is refused by locks this request did not release: "
+                            + String.join(", ", unreleased) + ".");
+        }
+        for (LockType type : patch.releaseConstraints()) {
+            trips.deleteConstraint(stored.id(), type);
+        }
     }
 
     /**

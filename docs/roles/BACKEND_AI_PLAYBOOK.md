@@ -1012,13 +1012,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. reorder의 전체 대상·중복·날짜별 position을 검증하고 삭제 disposition별 후보 복원을 명시한다
 4. 09-06 PM 검토 PM-002, PM-003, PM-007, PM-008, PM-009의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
-실패·안전 경계: 사용자 edit buffer는 서버 상태가 아니다. 실패·취소·dirty-exit가 domain mutation을 만들지 않는다. lock 관련 기능은 BA-041 통합 전 활성화하지 않는다.
+실패·안전 경계: 사용자 edit buffer는 서버 상태가 아니다. 실패·취소·dirty-exit가 domain mutation을 만들지 않는다. 잠금을 **설정·해제하는 command**(`setTripItemConstraint`·`removeTripItemConstraint`)는 BA-041이 소유하며 여기서 만들지 않는다. 반면 **기존 잠금을 존중하는 것은 활성화가 아니라 불변식 7**이다 — reorder·replace가 잠금을 보지 않으면 BA-041이 만들 잠금이 이 경로로 무력화된다. 요청이 `releaseConstraints`로 이름 댄 잠금만 풀리고 나머지는 `LOCK_CONFLICT`다(#166·#199).
 
 필수 검증:
 
 - `BA-040-T1`: cross-day reorder·position unique 경쟁·부분 실패에서 원자성이 유지된다
 - `BA-040-T2`: candidate schedule/RESTORE_CANDIDATE 전이가 item과 동시에 반영된다
-- `BA-040-T3`: 날짜·시간·duration·item 상한 경계와 keyboard E2E를 통과한다
+- `BA-040-T3`: 날짜·시간·duration·item 상한 경계를 검증한다
+- `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
 
 FE 인계·완료 증거: 편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

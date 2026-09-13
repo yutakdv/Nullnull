@@ -577,8 +577,15 @@ export interface paths {
         put?: never;
         /**
          * Replace an item's place after server validation
-         * @description The item keeps its validated schedule fields - date, position, start time, duration and
-         *     constraints - and only the place changes. The outgoing place comes back to the trip as an
+         * @description The item keeps its validated schedule fields - date, position, start time and duration - and
+         *     only the place changes. Its LOCKS are not all kept: `MUST_VISIT` pins the place, and
+         *     `RESERVATION` pins a booking made for that place, so a replacement breaks both. Either one
+         *     refuses the request unless `releaseConstraints` names it, which is the same rule every other
+         *     edit follows - the server never releases a lock on its own (invariant 7), and naming it is how
+         *     the screen's question reaches the server. `DATE` and `TIME` pin the schedule, which a
+         *     replacement keeps, so they are carried across untouched.
+         *
+         *     The outgoing place comes back to the trip as an
          *     ACTIVE candidate, the same disposition `removeTripItem` names `RESTORE_CANDIDATE`, and this
          *     operation takes no parameter to choose otherwise: replacing a place is not saying to forget
          *     it, and a candidate carries no date, so restoring one changes no schedule (invariant 2).
@@ -1766,6 +1773,32 @@ export interface components {
             }[];
         };
         /**
+         * @description The `releaseConstraints` of an edit that changes the PLACE rather than the schedule, and the
+         *     counterpart to `ReleasedTemporalLocks`. Naming a lock here is the only way it is released; a
+         *     lock this request does not name still refuses the edit, so nothing is auto-released and
+         *     invariant 7 holds.
+         *
+         *     The two lists differ because the two edits can be refused by different locks: a temporal edit
+         *     keeps the place, and a replacement keeps the schedule.
+         *
+         *     `MUST_VISIT` is the lock this list exists for. It pins the PLACE, which is exactly what a
+         *     replacement changes, and it is absent from `ReleasedTemporalLocks` for the mirror-image
+         *     reason. `RESERVATION` is here because it pins a booking made for that place; swapping the
+         *     place leaves the booking describing something the traveller is no longer scheduled to visit.
+         *
+         *     `DATE` and `TIME` are listed for a narrower reason and are not reachable today. A replacement
+         *     keeps the item's date, position and start time, so a schedule lock is never what refused one -
+         *     they could only matter if `preserveDateTime: false` moved the schedule, and that value is
+         *     refused (see its description, #203). They stay because this list replaced one that already
+         *     published them: dropping a value from a request enum is a breaking change, and taking one for
+         *     a field whose meaning was never decided would be paying in the wrong order. When #203 settles,
+         *     this list narrows to `MUST_VISIT` and `RESERVATION` on the evidence of a decision.
+         *
+         *     Releasing a lock deletes its row (ERD: only `locked=true` rows are stored), which the same
+         *     request cannot undo.
+         */
+        ReleasedPlaceLocks: ("MUST_VISIT" | "DATE" | "TIME" | "RESERVATION")[];
+        /**
          * @description Locks the user explicitly chose to release as part of this edit. Naming one here is the only
          *     way it is released: a lock this request does not name still refuses the edit, so nothing is
          *     auto-released and invariant 7 holds. The screen already asks before sending - what was
@@ -1782,9 +1815,22 @@ export interface components {
             replacementPlaceId: string;
             /** Format: uuid */
             relationId?: string | null;
-            /** @default true */
+            /**
+             * @description Only `true` is supported, and it is the default. `false` is REFUSED with 422 rather than
+             *     honoured or ignored: this field was published with no description and no implementation,
+             *     so what `false` should do has never been decided - the operation's own summary says the
+             *     item keeps its date, position, start time and duration unconditionally, which leaves
+             *     `false` meaning nothing. Accepting and ignoring it would tell a caller their schedule was
+             *     released when it was not; implementing a guess would settle a question nobody asked.
+             *
+             *     It is still published because removing it is not free: with `additionalProperties: false`
+             *     a client that sent it would start being rejected, and the breaking-change gate reports
+             *     the removal. #203 asks whether the field is wanted at all, which is the cheaper question
+             *     than designing a behaviour for it.
+             * @default true
+             */
             preserveDateTime?: boolean;
-            releaseConstraints?: components["schemas"]["ReleasedTemporalLocks"];
+            releaseConstraints?: components["schemas"]["ReleasedPlaceLocks"];
         };
         SetConstraintInput: components["schemas"]["SetMustVisitConstraintInput"] | components["schemas"]["SetDateConstraintInput"] | components["schemas"]["SetTimeConstraintInput"] | components["schemas"]["SetReservationConstraintInput"];
         SetMustVisitConstraintInput: {
@@ -3633,6 +3679,7 @@ export interface operations {
             /** @description Item changed */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
@@ -3672,6 +3719,7 @@ export interface operations {
             /** @description Place replaced while preserving validated schedule fields */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };

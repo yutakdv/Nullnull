@@ -123,6 +123,38 @@ class CandidateIT {
     }
 
     @Test
+    @DisplayName("BA-034-T1 two taps with one key save once, and a changed body is a reused key")
+    void oneKeyTwiceIsOneSaveAndTwoBodiesIsAConflict() throws Exception {
+        var owner = owner();
+        String tripId = trip(owner);
+        UUID placeId = place("두 번 눌린 장소");
+        String key = "tap-" + UUID.randomUUID();
+
+        // "두 tap" is the card's first clause and the one the concurrency case does not cover: that
+        // one gives every call its own key on purpose, so the partial unique index is what converges
+        // them. Here the KEY is what has to, and the two mechanisms fail differently - a missing
+        // index still yields one row here, and a missing guard still yields one row there.
+        String first = add(owner, tripId, placeId, null, key)
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String replayed = add(owner, tripId, placeId, null, key)
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(replayed).isEqualTo(first);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_candidates WHERE trip_id = ?",
+                Integer.class, UUID.fromString(tripId))).isOne();
+
+        // Clause two of the idempotency contract: the same key with a different body is a reused key,
+        // never a second answer to the first request. Without it a client whose retry carried a
+        // different place would be told 201 for a candidate it did not ask for.
+        add(owner, tripId, place("다른 장소"), null, key)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_candidates WHERE trip_id = ?",
+                Integer.class, UUID.fromString(tripId))).isOne();
+    }
+
+    @Test
     @DisplayName("BA-034-T1 concurrent saves with different keys still produce one row")
     void concurrentSavesConverge() throws Exception {
         var owner = owner();

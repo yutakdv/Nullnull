@@ -64,6 +64,12 @@ public interface TripStore {
      */
     void deferSlotUniqueness();
 
+    /** Writes an item's patchable fields. Its id, trip and place are not among them. */
+    void updateItem(UUID tripId, TripItem item, Instant at);
+
+    /** Points one item at a different place, keeping every schedule field it already holds. */
+    void replaceItemPlace(UUID tripId, UUID itemId, UUID placeId, Instant at);
+
     /** Removes one lock from an item. False when the item did not carry that type. */
     boolean deleteConstraint(UUID tripItemId, LockType type);
 
