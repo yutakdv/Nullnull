@@ -30,6 +30,27 @@ tags:
 
 생성 client는 `packages/api-client/`에 두며 수동 수정하지 않는다. CI는 spec hash와 생성 결과가 일치하는지 확인한다. generator/runtime exact 제안과 첫 scaffold의 반영 위치는 [#10 기반 결정안](../engineering/FOUNDATION_DECISIONS.md#d2--type-생성과-http-runtime-분리)을 따른다. Frontend 검토 후 root lockfile과 함께 확정한다.
 
+### request 필드는 한쪽 방향으로만 움직인다
+
+**요청 필드를 올리기 전에 그 필드의 의미를 `description`에 적고, 읽는 코드를 같은 PR에 넣는다.**
+추가는 additive여도 **제거는 breaking**이기 때문이다. 요청 schema는 `additionalProperties: false`이므로
+필드를 지우면 그것을 보내던 client가 거절되기 시작하고, breaking gate가 `request-property-removed`로
+보고한다(`fail-on: WARN`이라 warning도 막는다). 즉 **한 번 published된 요청 필드는 오너 승인 없이는
+지울 수 없다.**
+
+실제로 이 래칫에 걸린 것이 `ReplaceTripItemRequest` 하나에 셋 있다. 셋 다 "읽는 코드 없이 먼저 올린"
+결과다.
+
+| 필드 | 상태 | 결과 |
+| --- | --- | --- |
+| `releaseConstraints` | published 후 서버 읽기 0건 | `reorderTripItems`에서 구현. replace는 잠금 의미 결정 대기 |
+| `preserveDateTime` | `description` 없음, 구현 없음 | `false`가 무엇인지 정한 적이 없는데 **지울 수도 없다** |
+| `relationId` | 어떤 응답도 발급하지 않는 id | client가 유효한 값을 얻을 수 없는데 **지울 수도 없다** |
+
+읽는 코드가 아직 없다면 **명시적으로 거부**한다. 받고 무시하는 것은 사용자가 보낸 것이 조용히 사라지는
+것이고, 추측으로 구현하는 것은 아무도 정하지 않은 의미를 정하는 것이다. 거부는 나중에 열 수 있지만
+임의 구현은 되돌리기 어렵다.
+
 ### 2인 역할 경계
 
 | 단계 | Frontend 담당 | Backend/AI 담당 | 공동 완료 조건 |
