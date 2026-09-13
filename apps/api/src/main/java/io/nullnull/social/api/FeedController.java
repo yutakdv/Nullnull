@@ -108,8 +108,13 @@ public class FeedController {
             boolean saved) {
 
         static PostDetailResponse from(PostDetailView view) {
-            // coverAsset is null until a reviewed media licence exists for the cover; coverUrl alone
-            // carries no redistribution right, which is the gap PM-010 tracks.
+            // Still null, and the reason has changed. It used to be that no reviewed media licence
+            // existed for a cover; V021 created one (NULLNULL_FIRST_PARTY, A-024) and posts.cover_asset_id
+            // now REQUIRES one to publish. What is missing is the projection: nothing reads that column
+            // into a response, so the licence a published cover is guaranteed to have cannot be shown.
+            //
+            // coverUrl alone still carries no redistribution right, which is what PM-010 tracks - but the
+            // gap is now serving what is stored rather than having nothing to serve.
             return new PostDetailResponse(view.post().id(), view.post().title(), view.post().excerpt(),
                     view.post().coverUrl(), null, view.post().publishedAt(), view.post().body(),
                     view.places().stream().map(PlaceSummaryResponse::from).toList(), view.saved());
