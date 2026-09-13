@@ -1493,7 +1493,7 @@
         },
         {
           "id": "BA-051-T3",
-          "assertion": "수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다"
+          "assertion": "설명이 수치·장소·영업·route 사실을 추가하지 않는다"
         },
         {
           "id": "BA-051-T4",
@@ -1518,6 +1518,10 @@
         {
           "id": "BA-051-T9",
           "assertion": "저장된 제안과 change는 사후 수정되지 않는다"
+        },
+        {
+          "id": "BA-051-T10",
+          "assertion": "preview 동안 일정 쓰기가 0이다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",

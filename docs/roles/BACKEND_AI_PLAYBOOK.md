@@ -1207,6 +1207,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 영업/이동 증거가 필요한데 없으면 ROUTE_UNAVAILABLE 또는 계약상 데이터 실패이며 NO_IMPROVEMENT로 숨기지 않는다. apps/ai 응답은 Spring ProposalRevalidator를 통과한 뒤에만 저장하고 위반은 run FAILED와 alert다. 점수와 후보 개수/예산은 초안이고 성능 주장이 아니다.
 
+**`T3`을 `T3`·`T10`으로 나눴다.** 원래 한 절이 *"설명이 사실을 추가하지 않고 preview 중 일정 쓰기가 0"* 이었는데 기제가 다르다 — 앞은 설명 출력을 proposal의 값과 대조하는 것(불변식 9)이고 뒤는 transaction 경계(불변식 3)다. **둘 중 하나만 깨지는 실패가 실제로 있다**: 설명 template이 proposal에 없는 영업시간을 문장에 넣어도 일정은 안 바뀌고, 반대로 revalidator가 통과 전에 item을 쓰면 설명은 멀쩡하다. 한 ID로 묶으면 아무 쪽이나 증명하는 test 하나로 충족된다.
+
 **`T6`~`T9`는 `V029`의 제약이 실제로 발화하는지 묻는다.** schema는 이 카드 것이고(`V024`가 *"optimization_proposals/changes/decisions belong to the slices that produce them"* 이라 적었다), 그 안에 **불변식 8이 CHECK로 들어가 있다** — 비교 자격이 없으면 `crowd_delta`가 NULL이고 자격이 없으면 사유 코드가 필수다. 제약이 도메인 규칙을 들고 있으면 그것이 발화하는지는 카드가 물어야 할 질문이고, [BA-022](#ba-022)의 `T4`~`T7`이 `place_hours`에 대해 같은 일을 한 선례다(넷 다 `verified`).
 
 넷으로 나눈 이유는 **실패 방식이 넷이기 때문**이다. CHECK가 자격 쪽 절반만 남게 편집되면 delta를 재는 test는 그대로 통과하고, 양방향 before/after를 증명하는 test는 사후 수정에 대해 아무 말도 하지 않는다. `T8`이 막는 것은 사용자에게 보이는 해다 — MOVE change가 한쪽만 들고 저장되면 **왼쪽 없는 diff를 사용자가 승인하게 된다.** `T9`의 UPDATE 금지 트리거는 `V011`의 `crowd_snapshots`와 같은 이유로, 제안의 근거가 나중에 조용히 바뀌면 사용자가 승인한 것과 기록된 것이 달라진다.
@@ -1215,13 +1217,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - `BA-051-T1`: REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다
 - `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다
-- `BA-051-T3`: 수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다
+- `BA-051-T3`: 설명이 수치·장소·영업·route 사실을 추가하지 않는다
 - `BA-051-T4`: items/propose 호출 시점에 활성 transaction이 없다
 - `BA-051-T5`: 만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다
 - `BA-051-T6`: 비교 자격이 없는 제안은 crowd delta를 담은 채로 저장되지 않는다
 - `BA-051-T7`: 비교 자격이 없는 제안은 사유 코드 없이 저장되지 않는다
 - `BA-051-T8`: 한쪽만 있는 before/after change는 저장되지 않는다
 - `BA-051-T9`: 저장된 제안과 change는 사후 수정되지 않는다
+- `BA-051-T10`: preview 동안 일정 쓰기가 0이다
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
