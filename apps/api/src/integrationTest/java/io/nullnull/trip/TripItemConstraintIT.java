@@ -44,6 +44,7 @@ class TripItemConstraintIT {
     private static final LocalDate DAY_TWO = LocalDate.parse("2026-10-05");
 
     @Autowired SessionService sessions;
+    @Autowired io.nullnull.trip.application.TripService trips;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
 
@@ -63,18 +64,28 @@ class TripItemConstraintIT {
                 "{\"type\":\"TIME\",\"locked\":true,\"startTime\":\"09:00:00\","
                         + "\"toleranceMinutes\":30}")
                 .andExpect(status().isOk());
-        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "TIME");
+        // The fourth type, which this case used to stop short of. Three types coexisting does not
+        // say four do - RESERVATION is the only lock that pins a date and a time together, so it is
+        // the one most likely to collide with the two that pin them separately.
+        set(owner, tripId, itemId, "RESERVATION", "\"4\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_ONE + "\",\"startTime\":\"09:00:00\"}")
+                .andExpect(status().isOk());
+        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "RESERVATION", "TIME");
 
         // Re-setting DATE replaces DATE and nothing else. The unique index is what makes that a
         // storage fact: a second DATE row cannot exist, and TIME is a different row entirely.
-        set(owner, tripId, itemId, "DATE", "\"4\"",
+        set(owner, tripId, itemId, "DATE", "\"5\"",
                 "{\"type\":\"DATE\",\"locked\":true,\"date\":\"" + DAY_ONE + "\"}")
                 .andExpect(status().isOk());
-        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "TIME");
+        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "RESERVATION", "TIME");
 
         // And removing one removes one. A release that took its neighbours with it would be the
         // auto-release invariant 7 forbids, arriving as an implementation detail.
-        remove(owner, tripId, itemId, "TIME", "\"5\"").andExpect(status().isOk());
+        remove(owner, tripId, itemId, "TIME", "\"6\"").andExpect(status().isOk());
+        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "RESERVATION");
+        // Removing the one that pins two values leaves both of the locks that pin them singly.
+        remove(owner, tripId, itemId, "RESERVATION", "\"7\"").andExpect(status().isOk());
         assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT");
     }
 
@@ -96,6 +107,20 @@ class TripItemConstraintIT {
                 "{\"type\":\"TIME\",\"locked\":true,\"startTime\":\"13:00:00\","
                         + "\"toleranceMinutes\":30}")
                 .andExpect(status().isConflict());
+        // And a RESERVATION, which the assertion names and this case used to leave out. It is the
+        // one that matters most: the other three are the user's own intentions, while a reservation
+        // is a promise made to someone else. Storing one the item already breaks would record a
+        // booking the itinerary cannot keep - and the user never had a chance to satisfy it.
+        set(owner, tripId, itemId, "RESERVATION", "\"1\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_TWO + "\",\"startTime\":\"09:00:00\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LOCK_CONFLICT"));
+        // The date matches but the time does not: RESERVATION pins both, so half-right is refused.
+        set(owner, tripId, itemId, "RESERVATION", "\"1\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_ONE + "\",\"startTime\":\"13:00:00\"}")
+                .andExpect(status().isConflict());
 
         assertThat(types(itemId)).isEmpty();
         assertThat(version(tripId)).isEqualTo(1);
@@ -106,6 +131,86 @@ class TripItemConstraintIT {
                 "{\"type\":\"DATE\",\"locked\":true,\"date\":\"" + DAY_ONE + "\"}")
                 .andExpect(status().isOk());
         assertThat(types(itemId)).containsExactly("DATE");
+        // Same for the reservation: the item's own date and time are accepted, so the two refusals
+        // above are the rule working rather than the operation declining every RESERVATION.
+        set(owner, tripId, itemId, "RESERVATION", "\"2\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_ONE + "\",\"startTime\":\"09:00:00\"}")
+                .andExpect(status().isOk());
+        assertThat(types(itemId)).containsExactly("DATE", "RESERVATION");
+    }
+
+    /**
+     * BA-041-T3's other clause: two unlocks racing each other.
+     *
+     * <p>"Releasing one lock must not release its neighbour" is easy to believe when one caller does
+     * it and the rows are keyed {@code (trip_item_id, type)}. Under two callers it is a different
+     * question, and the one invariant 7 is actually about: if both are allowed to proceed on the
+     * version they read, each deletes its own row and the pair vanishes together - which is an
+     * automatic release arriving as a race rather than as a line of code.
+     *
+     * <p>What makes that impossible is that an unlock is a trip mutation: it takes the trip row FOR
+     * UPDATE and raises the version, so the loser's If-Match is stale by the time it is read. The
+     * assertion is therefore symmetric about which thread wins - exactly one release, exactly one
+     * refusal, and the loser's lock still there.
+     *
+     * <p>The version check alone is not enough, and that is measured rather than assumed: replacing
+     * {@code findForUpdate} with {@code find} turns this case red. Both threads then read the same
+     * version, both pass the precondition, and both delete - two locks gone from one request each,
+     * which is the automatic release invariant 7 forbids. So this test is about the lock, not about
+     * the ETag.
+     */
+    @Test
+    @DisplayName("BA-041-T3 two unlocks racing on one item release exactly one lock, not both")
+    void concurrentUnlocksReleaseOnlyTheWinners() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        var context = sessions.resolve(owner.cookie, false);
+        UUID tripId = createTrip(owner);
+        UUID itemId = insertItem(tripId, DAY_ONE, "09:00:00");
+        set(owner, tripId, itemId, "MUST_VISIT", "\"1\"",
+                "{\"type\":\"MUST_VISIT\",\"locked\":true}").andExpect(status().isOk());
+        set(owner, tripId, itemId, "DATE", "\"2\"",
+                "{\"type\":\"DATE\",\"locked\":true,\"date\":\"" + DAY_ONE + "\"}")
+                .andExpect(status().isOk());
+        set(owner, tripId, itemId, "TIME", "\"3\"",
+                "{\"type\":\"TIME\",\"locked\":true,\"startTime\":\"09:00:00\","
+                        + "\"toleranceMinutes\":30}")
+                .andExpect(status().isOk());
+        String sharedVersion = "\"" + version(tripId) + "\"";
+
+        // Both threads hold the same If-Match, which is what two tabs that read the trip together
+        // would send. They are released at the same instant so the two transactions genuinely
+        // overlap rather than running in sequence.
+        var barrier = new java.util.concurrent.CyclicBarrier(2);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var date = executor.submit(() -> release(context, tripId, itemId, "DATE", sharedVersion,
+                    barrier));
+            var time = executor.submit(() -> release(context, tripId, itemId, "TIME", sharedVersion,
+                    barrier));
+            List<String> outcomes = List.of(date.get(20, java.util.concurrent.TimeUnit.SECONDS),
+                    time.get(20, java.util.concurrent.TimeUnit.SECONDS));
+
+            assertThat(outcomes).as("one release wins and the other is refused as stale")
+                    .containsExactlyInAnyOrder("released", "TRIP_CHANGED");
+        }
+
+        // Three locks, one released: the loser's lock is still there. MUST_VISIT, which neither
+        // thread touched, is the control - a release that took its neighbours would take it too.
+        assertThat(types(itemId)).hasSize(2).contains("MUST_VISIT");
+        assertThat(version(tripId)).isEqualTo(5);
+    }
+
+    /** Removes one lock at the barrier and reports what happened, never what was thrown. */
+    private String release(io.nullnull.identity.application.OwnerContext context, UUID tripId,
+            UUID itemId, String type, String ifMatch,
+            java.util.concurrent.CyclicBarrier barrier) throws Exception {
+        barrier.await(20, java.util.concurrent.TimeUnit.SECONDS);
+        try {
+            trips.removeConstraint(context, tripId, itemId, type, ifMatch);
+            return "released";
+        } catch (io.nullnull.shared.problem.ApiException refused) {
+            return refused.code().name();
+        }
     }
 
     @Test

@@ -264,6 +264,16 @@ tasks.register<JavaExec>("ktoCanonicalIngest") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("curatePosts") {
+    group = "verification"
+    description = "Publishes the curated feed posts named in NULLNULL_CURATION_PLAN (A-031); no external calls"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.social.infrastructure.curation.CuratedPostImportMain")
+    environment("NULLNULL_CURATION_PLAN", providers.environmentVariable("NULLNULL_CURATION_PLAN").getOrElse(""))
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("ktoForecastSmoke") {
     group = "verification"
     description = "Runs one approved KTO forecast call from a verified canonical KTO mapping and prints redacted evidence only"

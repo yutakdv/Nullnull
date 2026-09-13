@@ -144,6 +144,67 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
+    public boolean postExists(UUID postId) {
+        return jdbc.sql("SELECT count(*) FROM posts WHERE id = ?").param(postId)
+                .query(Integer.class).single() > 0;
+    }
+
+    @Override
+    public UUID insertFirstPartyCover(UUID assetId, String url, String alt, String checksum,
+            Instant now) {
+        UUID licenceId = jdbc.sql(
+                        "SELECT id FROM asset_licenses WHERE source_code = 'NULLNULL_FIRST_PARTY'")
+                .query(UUID.class)
+                .optional()
+                // Named rather than left as an empty Optional: the cause is never visible from the
+                // query, and a run that reached this line has a plan file that looked fine.
+                .orElseThrow(() -> new IllegalStateException(
+                        "the seeded NULLNULL_FIRST_PARTY licence (V021) is missing"));
+        jdbc.sql("""
+                INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url,
+                                          served_url, checksum, media_type, alt_text, license_checked_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'IMAGE', ?, ?)
+                """)
+                .params(assetId, licenceId, "curated-" + assetId, url, url, checksum, alt,
+                        Timestamp.from(now))
+                .update();
+        return assetId;
+    }
+
+    @Override
+    public void insertDraftPost(UUID postId, String title, String body, String coverUrl,
+            UUID coverAssetId, Instant now) {
+        jdbc.sql("""
+                INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id, created_at,
+                                   updated_at)
+                VALUES (?, 'DRAFT', ?, ?, ?, ?, ?, ?)
+                """)
+                .params(postId, title, body, coverUrl, coverAssetId, Timestamp.from(now),
+                        Timestamp.from(now))
+                .update();
+    }
+
+    @Override
+    public void linkPostPlace(UUID postId, UUID placeId, int position, String mentionType) {
+        jdbc.sql("""
+                INSERT INTO post_places (post_id, place_id, position, mention_type)
+                VALUES (?, ?, ?, ?)
+                """)
+                .params(postId, placeId, position, mentionType)
+                .update();
+    }
+
+    @Override
+    public void publishPost(UUID postId, Instant publishedAt, Instant now) {
+        jdbc.sql("""
+                UPDATE posts SET status = 'PUBLISHED', published_at = ?, updated_at = ?
+                 WHERE id = ? AND status = 'DRAFT'
+                """)
+                .params(Timestamp.from(publishedAt), Timestamp.from(now), postId)
+                .update();
+    }
+
+    @Override
     public boolean recordFeedback(UUID id, UUID ownerId, UUID postId, FeedFeedbackAction action,
             Instant occurredAt, long occurredMinute, Instant receivedAt) {
         // ON CONFLICT DO NOTHING on the minute key, so a repeat inside the same minute is one row
