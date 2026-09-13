@@ -27,6 +27,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @DisplayName("A-024 post covers are 1st-party assets")
 class FirstPartyCoverIT {
 
+    /** The one asset URL this class writes, so its cleanup can name exactly its own rows. */
+    private static final String COVER_URL = "https://assets.nullnull.test/covers/first-party-cover-it.png";
+
     @Autowired JdbcTemplate jdbc;
 
     /**
@@ -42,7 +45,11 @@ class FirstPartyCoverIT {
     @org.junit.jupiter.api.AfterEach
     void removeOnlyTheRowsThisClassWrote() {
         jdbc.update("DELETE FROM posts WHERE cover_url LIKE 'https://x.test/%'");
-        jdbc.update("DELETE FROM media_assets WHERE origin_url LIKE 'https://assets.nullnull.test/%'");
+        // The exact URL this class writes, not the prefix PostCovers shares with every other class.
+        // The prefix form deleted assets other classes' posts still pointed at and failed on
+        // posts_cover_asset_id_fkey - a cleanup removing rows it did not create, which is the same
+        // mistake the catalog @AfterEach methods make and the one this file was written after.
+        jdbc.update("DELETE FROM media_assets WHERE origin_url = ?", COVER_URL);
         jdbc.update("DELETE FROM places WHERE canonical_name = '표지 test 장소'");
     }
 
@@ -151,9 +158,8 @@ class FirstPartyCoverIT {
         UUID assetId = UUID.randomUUID();
         jdbc.update("INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url,"
                 + " served_url, checksum, media_type, alt_text, license_checked_at)"
-                + " VALUES (?, ?, ?, 'https://assets.nullnull.test/covers/x.png',"
-                + " 'https://assets.nullnull.test/covers/x.png', ?, 'IMAGE', '표지 일러스트', ?)",
-                assetId, licenceId, "cover-" + assetId, "a".repeat(64), now);
+                + " VALUES (?, ?, ?, ?, ?, ?, 'IMAGE', '표지 일러스트', ?)",
+                assetId, licenceId, "cover-" + assetId, COVER_URL, COVER_URL, "a".repeat(64), now);
         return assetId;
     }
 }
