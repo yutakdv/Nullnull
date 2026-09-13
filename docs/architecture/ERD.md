@@ -338,7 +338,7 @@ erDiagram
     OPTIMIZATION_CHANGES {
       uuid id PK
       uuid proposal_id FK
-      uuid trip_item_id FK
+      uuid trip_item_id "no FK; ADD reserves an id no item has yet"
       string operation "MOVE|REORDER|REPLACE|ADD|REMOVE"
       jsonb before_value "null only for ADD"
       jsonb after_value "null only for REMOVE"
