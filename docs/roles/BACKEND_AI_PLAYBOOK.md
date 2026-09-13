@@ -1386,6 +1386,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. confirm은 READY·TTL·If-Match·owner·POI/날짜/lock을 재검증해 trip과 items를 한 transaction으로 만든다
 4. 09-06 PM 검토 PM-005, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+**`T15`·`T16`·`T18`·`T19`는 커밋 `f96cd6f`에 있고 그 메시지는 `BA-052`라고 적혀 있다.** 세 세션이 한 checkout의 git index를 공유해서 staging 중이던 파일이 남의 커밋에 실렸다(`AGENTS.md` 규칙 6). **내용은 온전하고 history는 되돌리지 않는다** — 붙어 있는 branch를 다시 쓰는 것이 잘못된 메시지 하나보다 나쁘다. 여기 적는 이유는 다음 사람이 `BA-060-T19`를 찾다가 `BA-052` 커밋에서 발견하고 두 번 혼란스러워하지 않게 하기 위해서다.
+
 **절을 셋에서 열아홉으로 나눴다.** 원래 `T1`이 sink **여섯**(DB·cache·log·trace·event·response)을, `T2`가 기제 **넷**(ETag·TTL·READY·멱등)을 한 절에 묶고 있었다 — 하나를 증명하는 test가 나머지를 증명하지 않는 그 모양이다. 다만 **입력 case로는 나누지 않았다**: `T16`의 두 상한은 요청 검증 한 기제이고, `T14`의 날짜와 시각도 parser 정책 하나다. analytics sink는 절로 만들지 않았다 — `events.schema.json`에 import event가 0건이라 생산자가 없고, 만들면 영원히 초록인 단언이 된다. 그 자리는 `T4`의 구조 고정이 대신한다.
 
 **`T18`이 parse까지 포함하는 이유 — 이 카드의 착수 조사가 이 지점에서 정정됐다.** 조사는 *"`parseTripImport`만은 catalog 게이트와 무관하다"* 로 적혔고 근거는 `ImportDraftItem.place`가 nullable이라는 **구조적 가능성**이었다. 그러나 이 카드의 구현 순서 2가 parse에게 *"canonical suggestions"* 를 만들라고 하고, `UnresolvedImportToken.suggestions`는 `PlaceSummary` 배열이며, 그 값을 만드는 `CatalogPlaceProjectionService.search`의 **첫 줄이 `requirePublicProjection()`** 이다. **parse는 catalog를 읽는다.**
