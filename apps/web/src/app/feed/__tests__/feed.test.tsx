@@ -347,6 +347,34 @@ describe('FE-201 the card shows only what the contract supplies', () => {
     expect(screen.getAllByText(credit).length).toBeGreaterThan(0);
   });
 
+  it('credits the PLACE on a card that has no crowd reading', async () => {
+    // CMP-ATT-001, the half the test above cannot see. That one reads
+    // items[0], which HAS a crowd reading, so it exercises the crowd credit
+    // and never the place credit. The card's only DataAttribution used to be
+    // gated on `crowd`, so a KTO place on a card with no crowd figure rendered
+    // with no credit anywhere — and half the default feed is that shape.
+    //
+    // /feed is submission screenshot #1, so this is the screen a judge opens
+    // first.
+    const withoutCrowd = feedFixtures.page.items.filter((card) => !card.crowd);
+    // Without this the filter could silently go empty and the loop below would
+    // assert nothing at all.
+    expect(withoutCrowd.length).toBeGreaterThan(0);
+
+    renderFeed();
+    await screen.findByText(firstTitle);
+
+    for (const card of withoutCrowd) {
+      const credit = card.primaryPlace.sourceAttribution?.attribution ?? '';
+      expect(credit).not.toBe('');
+      const article = screen.getByText(card.post.title).closest('article');
+      expect(article).not.toBeNull();
+      // Scoped to this card: the same credit string appears on other cards, so
+      // a document-wide query would pass while this card stayed bare.
+      expect(within(article as HTMLElement).getByText(credit)).toBeInTheDocument();
+    }
+  });
+
   it('renders a card whose crowd reading is unavailable without inventing one', async () => {
     renderFeed();
     const unavailable = feedFixtures.page.items.find(
