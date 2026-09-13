@@ -832,6 +832,10 @@ paths:
       responses:
         "204":
           description: Feedback accepted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /posts/{postId}:
@@ -1421,6 +1425,8 @@ paths:
                     state: "CHECKING"
                     reason: null
                     items: []
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2006,6 +2012,10 @@ paths:
                 $ref: "#/components/schemas/ImportDraft"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trip-imports/{draftId}:
@@ -2047,6 +2057,10 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trip-imports/{draftId}/confirm:
@@ -2082,6 +2096,10 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2451,6 +2469,8 @@ paths:
                     candidateId: "018f4d40-1122-7a33-9b44-000000000001"
                     state: "UNKNOWN"
                     slots: []
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2487,6 +2507,10 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}/items/reorder:
@@ -2522,6 +2546,10 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}/items/{itemId}:
@@ -2559,6 +2587,10 @@ paths:
           $ref: "#/components/responses/Unprocessable"
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -2589,6 +2621,10 @@ paths:
                 $ref: "#/components/schemas/TripMutationResult"
         "409":
           $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}/items/{itemId}/replace:
@@ -2637,6 +2673,10 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}/items/{itemId}/constraints/{constraintType}:
@@ -2677,6 +2717,10 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -2700,6 +2744,10 @@ paths:
                 $ref: "#/components/schemas/TripMutationResult"
         "409":
           $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2746,6 +2794,10 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/Unprocessable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /optimizations:
@@ -2886,6 +2938,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /optimizations/{runId}/decisions:
@@ -2935,6 +2989,10 @@ paths:
           $ref: "#/components/responses/Unprocessable"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /optimization-decisions/{decisionId}/revert:
@@ -2976,6 +3034,10 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3008,6 +3070,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LiveAreaResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /live/areas/{areaId}/places:
@@ -3028,6 +3092,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/LivePlace"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /live/places/{placeId}:
@@ -3048,6 +3114,8 @@ paths:
                 $ref: "#/components/schemas/LivePlaceDetail"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3069,6 +3137,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
   /notifications/read-all:
@@ -3094,6 +3164,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /notifications/{notificationId}/read:
@@ -3110,6 +3182,10 @@ paths:
       responses:
         "204":
           description: Notification marked read
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -5084,6 +5160,8 @@ components:
         note:
           type: [string, "null"]
           maxLength: 500
+        releaseConstraints:
+          $ref: "#/components/schemas/ReleasedTemporalLocks"
       minProperties: 1
     ReorderTripItemsRequest:
       type: object
@@ -5108,6 +5186,25 @@ components:
               position:
                 type: integer
                 minimum: 0
+              releaseConstraints:
+                $ref: "#/components/schemas/ReleasedTemporalLocks"
+    ReleasedTemporalLocks:
+      type: array
+      maxItems: 3
+      uniqueItems: true
+      description: |
+        Locks the user explicitly chose to release as part of this edit. Naming one here is the only
+        way it is released: a lock this request does not name still refuses the edit, so nothing is
+        auto-released and invariant 7 holds. The screen already asks before sending - what was
+        missing was a way to carry that answer to the server, so the edit arrived and was refused.
+
+        `MUST_VISIT` is not listed because a temporal edit keeps the place, so it can never be the
+        lock that refused the move; releasing it would be a separate intent on a separate call.
+        Releasing a lock deletes its row (ERD: only `locked=true` rows are stored), which is not
+        reversible by the same request.
+      items:
+        type: string
+        enum: [DATE, TIME, RESERVATION]
     ReplaceTripItemRequest:
       type: object
       additionalProperties: false
@@ -5122,6 +5219,8 @@ components:
         preserveDateTime:
           type: boolean
           default: true
+        releaseConstraints:
+          $ref: "#/components/schemas/ReleasedTemporalLocks"
     SetConstraintInput:
       oneOf:
         - $ref: "#/components/schemas/SetMustVisitConstraintInput"

@@ -1737,6 +1737,7 @@ export interface components {
             startTime?: string | null;
             durationMinutes?: number | null;
             note?: string | null;
+            releaseConstraints?: components["schemas"]["ReleasedTemporalLocks"];
         };
         ReorderTripItemsRequest: {
             items: {
@@ -1745,8 +1746,21 @@ export interface components {
                 /** Format: date */
                 date: string;
                 position: number;
+                releaseConstraints?: components["schemas"]["ReleasedTemporalLocks"];
             }[];
         };
+        /**
+         * @description Locks the user explicitly chose to release as part of this edit. Naming one here is the only
+         *     way it is released: a lock this request does not name still refuses the edit, so nothing is
+         *     auto-released and invariant 7 holds. The screen already asks before sending - what was
+         *     missing was a way to carry that answer to the server, so the edit arrived and was refused.
+         *
+         *     `MUST_VISIT` is not listed because a temporal edit keeps the place, so it can never be the
+         *     lock that refused the move; releasing it would be a separate intent on a separate call.
+         *     Releasing a lock deletes its row (ERD: only `locked=true` rows are stored), which is not
+         *     reversible by the same request.
+         */
+        ReleasedTemporalLocks: ("DATE" | "TIME" | "RESERVATION")[];
         ReplaceTripItemRequest: {
             /** Format: uuid */
             replacementPlaceId: string;
@@ -1754,6 +1768,7 @@ export interface components {
             relationId?: string | null;
             /** @default true */
             preserveDateTime?: boolean;
+            releaseConstraints?: components["schemas"]["ReleasedTemporalLocks"];
         };
         SetConstraintInput: components["schemas"]["SetMustVisitConstraintInput"] | components["schemas"]["SetDateConstraintInput"] | components["schemas"]["SetTimeConstraintInput"] | components["schemas"]["SetReservationConstraintInput"];
         SetMustVisitConstraintInput: {
@@ -2831,6 +2846,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3026,6 +3043,7 @@ export interface operations {
                     "application/json": components["schemas"]["RelatedPlaceResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3249,6 +3267,8 @@ export interface operations {
                     "application/json": components["schemas"]["ImportDraft"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
         };
@@ -3282,6 +3302,8 @@ export interface operations {
                     "application/json": components["schemas"]["ImportDraft"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description Import draft expired */
             410: {
@@ -3325,6 +3347,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
@@ -3452,6 +3476,7 @@ export interface operations {
                     "application/json": components["schemas"]["CandidateMatchResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3485,6 +3510,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripMutationResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
@@ -3520,6 +3547,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripMutationResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
@@ -3553,6 +3582,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripMutationResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             default: components["responses"]["Problem"];
         };
@@ -3586,6 +3617,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripMutationResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["Unprocessable"];
@@ -3623,6 +3656,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripMutationResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
@@ -3658,6 +3693,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripMutationResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
@@ -3689,6 +3726,8 @@ export interface operations {
                     "application/json": components["schemas"]["TripMutationResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             default: components["responses"]["Problem"];
         };
@@ -3723,6 +3762,8 @@ export interface operations {
                     "application/json": components["schemas"]["OptimizationRun"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
@@ -3778,6 +3819,7 @@ export interface operations {
                     "application/json": components["schemas"]["OptimizationRun"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             /** @description Undecided preview expired; does not apply to an already recorded decision */
             410: {
@@ -3821,6 +3863,8 @@ export interface operations {
                     "application/json": components["schemas"]["InitialOptimizationDecision"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
             503: components["responses"]["ServiceUnavailable"];
@@ -3853,6 +3897,8 @@ export interface operations {
                     "application/json": components["schemas"]["RevertOptimizationDecision"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             /** @description The applied decision's 24-hour revert window expired */
             410: {
@@ -3889,6 +3935,7 @@ export interface operations {
                     "application/json": components["schemas"]["LiveAreaResult"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3912,6 +3959,7 @@ export interface operations {
                     "application/json": components["schemas"]["LivePlace"][];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3935,6 +3983,7 @@ export interface operations {
                     "application/json": components["schemas"]["LivePlaceDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             default: components["responses"]["Problem"];
         };
@@ -3961,6 +4010,7 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationPage"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3986,6 +4036,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             default: components["responses"]["Problem"];
         };
@@ -4008,6 +4059,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             default: components["responses"]["Problem"];
         };
     };

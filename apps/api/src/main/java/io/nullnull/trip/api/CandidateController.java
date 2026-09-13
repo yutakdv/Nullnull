@@ -6,6 +6,8 @@ import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.shared.http.NullnullOperation.Security;
+import io.nullnull.shared.problem.ApiException;
+import io.nullnull.shared.problem.ProblemCode;
 import io.nullnull.trip.application.CandidateService;
 import io.nullnull.trip.application.CandidateService.CandidatePageView;
 import io.nullnull.trip.application.CandidateService.SaveResult;
@@ -112,8 +114,19 @@ public class CandidateController {
             Instant createdAt) {
 
         static TripCandidateResponse from(TripCandidate candidate, CatalogPlaceSummary place) {
+            if (place == null) {
+                // TripCandidate.required includes `place`, so emitting null here would answer a
+                // schema-invalid body - and the client would see a candidate with no place rather
+                // than an error it can act on. FeedService already refuses the same situation for
+                // the same reason. The case is unreachable today (V010's trigger keeps a DEPRECATED
+                // row pointing at an ACTIVE canonical one, and the summary query resolves through
+                // COALESCE before filtering), which is exactly why the branch must fail loudly
+                // instead of quietly: nothing else would tell us the invariant broke.
+                throw new ApiException(ProblemCode.SOURCE_UNAVAILABLE,
+                        "A saved candidate references a place that is not available.");
+            }
             return new TripCandidateResponse(candidate.id(), candidate.tripId(),
-                    place == null ? null : PlaceSummaryResponse.from(place), candidate.status().name(),
+                    PlaceSummaryResponse.from(place), candidate.status().name(),
                     candidate.scheduledTripItemId(), candidate.note(),
                     candidate.sources().stream().map(CandidateSourceResponse::from).toList(),
                     candidate.createdAt());
