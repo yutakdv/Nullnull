@@ -30,9 +30,7 @@ public class CrowdProvenanceProjection {
         Set<QualityFlag> flags = flags(snapshot);
         UUID provenanceId = responseState == SourceState.UNAVAILABLE ? null : snapshot.id();
         boolean complete = provenanceComplete(snapshot, responseState, provenanceId);
-        CrowdPoint point = new CrowdPoint(provenanceId, snapshot.placeId(), snapshot.scope(), snapshot.source().code(),
-                responseState, snapshot.metricCode(), snapshot.forecastIssueId(), snapshot.targetAt(), snapshot.value(),
-                flags, complete, Math.toIntExact(snapshot.source().registryVersion()), snapshot.normalizationVersion());
+        CrowdPoint point = point(snapshot, now);
         ComparisonVerdict verdict = comparison.eligibility(point);
         String axis = temporalAxis(snapshot, responseState) ? "TEMPORAL" : null;
         DataProvenance provenance = new DataProvenance(snapshot.source().code(), snapshot.source().displayName(),
@@ -47,6 +45,37 @@ public class CrowdProvenanceProjection {
                 snapshot.fallbackUsed() || staleFallback, provenanceId);
         return new CrowdMetric(responseState, snapshot.value(), snapshot.unit(), snapshot.ordinalLevel(),
                 label(snapshot, responseState), provenance);
+    }
+
+    /**
+     * Whether two points of the same series may be compared, and why not when they may not.
+     *
+     * <p>Here rather than in the caller because the conversion from a stored snapshot to a
+     * comparable point is this class's, and a second copy of it elsewhere would be a second
+     * definition of what "the same series" means. A caller that wants a pair verdict gets one; it
+     * does not get to assemble the points itself.
+     */
+    public PairVerdict compare(CrowdForecastQuery.Snapshot before, CrowdForecastQuery.Snapshot after,
+            Instant now) {
+        Objects.requireNonNull(before, "before");
+        Objects.requireNonNull(after, "after");
+        Objects.requireNonNull(now, "now");
+        ComparisonVerdict verdict = comparison.evaluate(point(before, now), point(after, now));
+        return new PairVerdict(verdict.eligible(), verdict.reasonCode());
+    }
+
+    /** The eligibility of one pair, with the published reason code when it is not eligible. */
+    public record PairVerdict(boolean eligible, String reasonCode) {
+    }
+
+    private CrowdPoint point(CrowdForecastQuery.Snapshot snapshot, Instant now) {
+        SourceState responseState = responseState(snapshot.sourceState(), freshness(snapshot, now));
+        Set<QualityFlag> flags = flags(snapshot);
+        UUID provenanceId = responseState == SourceState.UNAVAILABLE ? null : snapshot.id();
+        return new CrowdPoint(provenanceId, snapshot.placeId(), snapshot.scope(), snapshot.source().code(),
+                responseState, snapshot.metricCode(), snapshot.forecastIssueId(), snapshot.targetAt(),
+                snapshot.value(), flags, provenanceComplete(snapshot, responseState, provenanceId),
+                Math.toIntExact(snapshot.source().registryVersion()), snapshot.normalizationVersion());
     }
 
     private static Freshness freshness(CrowdForecastQuery.Snapshot snapshot, Instant now) {
