@@ -585,7 +585,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-022
 
-**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `verified` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-021](#ba-021)
 - 기능 ID: `FR-PLC-01`, `FR-TRC-04`
