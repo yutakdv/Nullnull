@@ -2,6 +2,7 @@ package io.nullnull.testsupport;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -24,9 +25,18 @@ public final class PostCovers {
 
     /** A media asset on the seeded 1st-party licence, ready to be a published post's cover. */
     public static UUID firstPartyAsset(JdbcTemplate jdbc, Instant at) {
-        UUID licenceId = jdbc.queryForObject(
+        List<UUID> licences = jdbc.queryForList(
                 "SELECT id FROM asset_licenses WHERE source_code = 'NULLNULL_FIRST_PARTY'",
                 UUID.class);
+        // Named rather than left as "Incorrect result size: expected 1, actual 0", which is what this
+        // said when a catalog test's @AfterEach deleted every asset_licenses row including the one
+        // V021 seeds. The cause is never visible from the query; it is visible from this sentence.
+        if (licences.size() != 1) {
+            throw new IllegalStateException("expected exactly one seeded NULLNULL_FIRST_PARTY licence "
+                    + "(V021) but found " + licences.size()
+                    + "; a test that clears asset_licenses must exclude the seeded product rows");
+        }
+        UUID licenceId = licences.getFirst();
         UUID assetId = UUID.randomUUID();
         jdbc.update("INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url,"
                         + " served_url, checksum, media_type, alt_text, license_checked_at)"

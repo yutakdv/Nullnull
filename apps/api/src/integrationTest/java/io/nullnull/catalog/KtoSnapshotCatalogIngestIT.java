@@ -37,7 +37,12 @@ class KtoSnapshotCatalogIngestIT {
     void removeOnlyC3CatalogFixtures() {
         jdbc.update("DELETE FROM place_media_assets");
         jdbc.update("DELETE FROM media_assets");
-        jdbc.update("DELETE FROM asset_licenses");
+        // Only the fixtures, which is what this method is named for. V021 seeds one licence as
+        // product data - the 1st-party one A-024 requires - and an unscoped delete removed it,
+        // leaving every later test that publishes a post with no licence to point at. That is
+        // invisible locally, where class order happened to put those tests first, and failed in
+        // CI where the database is shared and the order differs.
+        jdbc.update("DELETE FROM asset_licenses WHERE source_code <> 'NULLNULL_FIRST_PARTY'");
         jdbc.update("DELETE FROM place_external_refs");
         jdbc.update("DELETE FROM place_localizations");
         jdbc.update("DELETE FROM places");
