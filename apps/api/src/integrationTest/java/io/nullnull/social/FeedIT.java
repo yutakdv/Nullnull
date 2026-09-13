@@ -73,12 +73,18 @@ class FeedIT {
     private UUID post(String title, UUID placeId, String publishedAt) {
         UUID id = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
-        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, published_at, created_at,"
-                        + " updated_at) VALUES (?, 'PUBLISHED', ?, ?, 'https://example.test/cover.jpg',"
-                        + " ?::timestamptz, ?, ?)",
-                id, title, "본문 " + title, publishedAt, now, now);
+        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,"
+                        + " created_at, updated_at)"
+                        + " VALUES (?, 'DRAFT', ?, ?, 'https://example.test/cover.jpg', ?, ?, ?)",
+                id, title, "본문 " + title,
+                io.nullnull.testsupport.PostCovers.firstPartyAsset(jdbc, java.time.Instant.now()),
+                now, now);
         jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
                 + " VALUES (?, ?, 0, 'PRIMARY')", id, placeId);
+        // Published last, which is the order the trigger requires and the order a curator works in:
+        // the post exists, then its place, then it is visible.
+        jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ?::timestamptz"
+                + " WHERE id = ?", publishedAt, id);
         return id;
     }
 

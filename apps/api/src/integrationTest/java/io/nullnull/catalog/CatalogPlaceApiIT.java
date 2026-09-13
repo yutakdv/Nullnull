@@ -88,8 +88,18 @@ class CatalogPlaceApiIT {
         rootLogger().detachAppender(logs);
         logs.stop();
         jdbc.update("DELETE FROM place_media_assets");
-        jdbc.update("DELETE FROM media_assets");
-        jdbc.update("DELETE FROM asset_licenses");
+        // Place media only. A post cover is a media asset too now (V021), and an unscoped
+        // delete here takes assets another class's posts still reference - which the foreign
+        // key refuses, failing this cleanup rather than the test that owns the rows. Same
+        // class of mistake as the asset_licenses line below: removing rows it did not create.
+        jdbc.update("DELETE FROM media_assets WHERE NOT EXISTS"
+                + " (SELECT 1 FROM posts WHERE posts.cover_asset_id = media_assets.id)");
+        // Only the fixtures, which is what this method is named for. V021 seeds one licence as
+        // product data - the 1st-party one A-024 requires - and an unscoped delete removed it,
+        // leaving every later test that publishes a post with no licence to point at. That is
+        // invisible locally, where class order happened to put those tests first, and failed in
+        // CI where the database is shared and the order differs.
+        jdbc.update("DELETE FROM asset_licenses WHERE source_code <> 'NULLNULL_FIRST_PARTY'");
         jdbc.update("DELETE FROM place_external_refs");
         jdbc.update("DELETE FROM place_localizations");
         jdbc.update("DELETE FROM places");
