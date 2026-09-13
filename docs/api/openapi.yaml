@@ -2449,6 +2449,11 @@ paths:
       responses:
         "200":
           description: Valid dates/slots and constraints for scheduling this candidate
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
