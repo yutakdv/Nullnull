@@ -100,12 +100,12 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V026 is the last one today and seeds nothing: it creates feed_feedback and its indexes
-            // and leaves the table empty, because a feed interaction is something a reader does and
-            // not something a schema can know. V025's two rows - the NULLNULL_CURATED_HOURS source
-            // and its first registry revision - were this number until V026 landed, and are now
-            // inside rowsBefore. Hence this line changing again the next time a migration seeds
-            // anything, which is the point of the count being exact.
+            // V027 is the last one today and seeds nothing: it creates place_relations and its
+            // guards, and a relation is evidence someone has to establish rather than something a
+            // schema can assert. V026 was the same, and V025's two rows - the NULLNULL_CURATED_HOURS
+            // source and its first registry revision - are long inside rowsBefore now. Hence this
+            // line changing again the next time a migration seeds anything, which is the point of
+            // the count being exact.
             long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
@@ -462,13 +462,22 @@ class FlywayMigrationIT {
                     INSERT INTO place_hours_windows (id, observation_id, effective_on, state,
                                                      opens_at, closes_at)
                     VALUES (gen_random_uuid(), v_observation, v_at::date, 'OPEN', '09:00', '18:00');
+                    -- V026's feed interaction, which V027 turns into part of the previous schema.
+                    -- occurred_minute is written rather than derived because date_trunc on a
+                    -- timestamptz is STABLE, not IMMUTABLE; whole minutes since the epoch is the
+                    -- same bucket the application computes.
+                    INSERT INTO feed_feedback (id, owner_id, post_id, action, occurred_at,
+                                               received_at, occurred_minute)
+                    VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), v_post, 'IMPRESSION',
+                            v_at, v_at, floor(extract(epoch FROM v_at) / 60)::bigint);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         // "Previous" is always the migration before the last one, so a table arrives in this list one
         // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
-        // arrive now that V026 has, and V026's own feed_feedback belongs here only once a V027 does.
+        // when V026 did, feed_feedback arrives now that V027 has, and V027's own place_relations
+        // belongs here only once a V028 does.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -479,7 +488,7 @@ class FlywayMigrationIT {
                         "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
                         "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
                         "optimization_runs", "optimization_run_snapshot_sets",
-                        "place_hours_observations", "place_hours_windows");
+                        "place_hours_observations", "place_hours_windows", "feed_feedback");
         return key;
     }
 
