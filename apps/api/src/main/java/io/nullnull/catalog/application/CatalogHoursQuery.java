@@ -18,6 +18,18 @@ import java.util.UUID;
  * AWAITING_THEIR_SLICE register cannot hold this - it scans only
  * {@code io.nullnull.recommendation.application} and skips interfaces - so this sentence is the
  * register.
+ *
+ * <p><b>The place id is taken as canonical, and nothing resolves an alias for you.</b> That split is
+ * safe only while no production path can produce a deprecated place, which is today's measured
+ * state: the one writer of {@code places} passes a null {@code canonical_place_id}, and the only
+ * DEPRECATED rows in this repository are written by tests. Resolving here now would be a guard no
+ * test could fire, which is the same reason the outcome filter is absent below.
+ *
+ * <p>So the day a merge path lands, this call site owes canonicalisation - and it is not the only
+ * one. BA-042's {@code CandidateMatchService.datesAlreadyHolding} compares place ids directly, and
+ * an item holding a canonical id against a candidate holding an alias would report a day as free
+ * when it is taken. That one is worse than an unverified hour, because it is silent. A merge slice
+ * has to fix both call sites together, not whichever one it happens to touch.
  */
 public interface CatalogHoursQuery {
 
