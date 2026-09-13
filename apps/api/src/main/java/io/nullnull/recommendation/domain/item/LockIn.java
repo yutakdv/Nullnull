@@ -37,6 +37,23 @@ public record LockIn(LockType type, LocalDate date, LocalTime startTime, LocalTi
     }
 
     /**
+     * The wire row for a lock the trip already holds.
+     *
+     * <p>The inverse of {@link #toItemLock()}, kept beside it so the pair can be read together: a
+     * conversion written at the call site would be a second opinion about which fields belong to
+     * which type, and the two would drift in the direction nobody tests.
+     */
+    public static LockIn from(ItemLock lock) {
+        Objects.requireNonNull(lock, "lock");
+        return switch (lock) {
+            case ItemLock.MustVisit ignored -> mustVisit();
+            case ItemLock.Date held -> date(held.date());
+            case ItemLock.Time held -> time(held.startTime(), held.toleranceMinutes());
+            case ItemLock.Reservation held -> reservation(held.date(), held.startTime(), held.endTime());
+        };
+    }
+
+    /**
      * The trip-module lock this row stands for. A lock that carries a field belonging to another type
      * is rejected here exactly as the service rejects it, so a malformed lock can never be silently
      * evaluated as a weaker one.
