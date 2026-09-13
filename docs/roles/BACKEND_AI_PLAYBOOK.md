@@ -929,6 +929,7 @@ PM-010의 **장소 쪽은 닫혔다**. `PlaceSummary.sourceAttribution`을 FE가
 - `BA-032-T1`: 페이지 사이 새 글·삭제·숨김·같은 정렬 시각에서 중복/누락 정책을 검증한다
 - `BA-032-T2`: 다른 owner의 저장 상태가 shared cache로 새지 않는다
 - `BA-032-T3`: save/unsave가 후보·item·trip version에 영향을 주지 않는다
+- `BA-032-T4`: curation plan은 전부 적용되거나 전부 거절된다
 
 FE 인계·완료 증거: 여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1065,7 +1066,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-041-T1`: 네 타입 조합 property test에서 독립 잠금이 보존된다
+- `BA-041-T1`: 네 타입이 함께 있을 때 한 type의 설정·교체·해제가 다른 셋을 바꾸지 않는다
 - `BA-041-T2`: 잠금을 위반하는 date/time/예약 command를 거부한다
 - `BA-041-T3`: unlock 동시성과 transaction rollback에서 다른 lock row가 보존된다
 - `BA-041-T4`: stale If-Match를 거부하고 trip version을 올리지 않는다

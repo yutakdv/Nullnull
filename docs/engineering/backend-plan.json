@@ -955,6 +955,10 @@
         {
           "id": "BA-032-T3",
           "assertion": "save/unsave가 후보·item·trip version에 영향을 주지 않는다"
+        },
+        {
+          "id": "BA-032-T4",
+          "assertion": "curation plan은 전부 적용되거나 전부 거절된다"
         }
       ],
       "handoff": "여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls.",
@@ -1174,7 +1178,7 @@
       "tests": [
         {
           "id": "BA-041-T1",
-          "assertion": "네 타입 조합 property test에서 독립 잠금이 보존된다"
+          "assertion": "네 타입이 함께 있을 때 한 type의 설정·교체·해제가 다른 셋을 바꾸지 않는다"
         },
         {
           "id": "BA-041-T2",
