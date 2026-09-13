@@ -100,13 +100,13 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V025 is the last one today and seeds two: the NULLNULL_CURATED_HOURS source and its
-            // first registry revision. A source with no staleness threshold is not collected at all
-            // (A-023) and the owner set that threshold at P30D (A-032), so the source row belongs to
-            // the schema. The readings do not - which places get curated is an operations script
-            // (A-031) - so the count is two and not more. Hence this line changing again the next
-            // time a migration seeds anything, which is the point of the count being exact.
-            long seededAfterPreviousSchema = 2;
+            // V026 is the last one today and seeds nothing: it creates feed_feedback and its indexes
+            // and leaves the table empty, because a feed interaction is something a reader does and
+            // not something a schema can know. V025's two rows - the NULLNULL_CURATED_HOURS source
+            // and its first registry revision - were this number until V026 landed, and are now
+            // inside rowsBefore. Hence this line changing again the next time a migration seeds
+            // anything, which is the point of the count being exact.
+            long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -331,6 +331,7 @@ class FlywayMigrationIT {
                     v_post uuid := gen_random_uuid();
                     v_candidate uuid := gen_random_uuid();
                     v_run uuid := gen_random_uuid();
+                    v_observation uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -448,13 +449,26 @@ class FlywayMigrationIT {
                     INSERT INTO optimization_run_snapshot_sets (run_id, snapshot_set_id, purpose,
                                                                 sequence)
                     VALUES (v_run, v_set, 'BEFORE', 0);
+                    -- V025's curated opening hours, seeded now that V026 has made V025 the previous
+                    -- schema. OBSERVED with a window under it, because that is the pair the trigger
+                    -- V025 adds exists to police: a window with no observed evidence is refused, so
+                    -- an upgrade meeting only the unconstrained shape would not meet the rule.
+                    INSERT INTO place_hours_observations (id, place_id, source_code,
+                                                          source_registry_version, outcome,
+                                                          observed_at, evidence_url, stale_at,
+                                                          created_at)
+                    VALUES (v_observation, v_place, 'KTO_KOR_SERVICE_2', 2, 'OBSERVED', v_at,
+                            'https://example.test/hours', v_at + interval '30 days', v_at);
+                    INSERT INTO place_hours_windows (id, observation_id, effective_on, state,
+                                                     opens_at, closes_at)
+                    VALUES (gen_random_uuid(), v_observation, v_at::date, 'OPEN', '09:00', '18:00');
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         // "Previous" is always the migration before the last one, so a table arrives in this list one
-        // migration after it is created: optimization_runs is here because V025 exists, and V025's own
-        // place_hours_* tables belong here only once a V026 lands.
+        // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
+        // arrive now that V026 has, and V026's own feed_feedback belongs here only once a V027 does.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -464,7 +478,8 @@ class FlywayMigrationIT {
                         "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
                         "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
                         "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
-                        "optimization_runs", "optimization_run_snapshot_sets");
+                        "optimization_runs", "optimization_run_snapshot_sets",
+                        "place_hours_observations", "place_hours_windows");
         return key;
     }
 
