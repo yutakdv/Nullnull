@@ -71,6 +71,7 @@ class ReportTests(unittest.TestCase):
         self.rejected(self.run_check("--manifest", self.root / "manifest.json"), "REC-DATA-02 missing")
 
     def test_BA_004_T1_failure_error_skip_counts_and_children(self):
+        """BA-004-T1 실패·오류·skip이 든 report를 evidence checker가 거부한다"""
         for tag, counter in (("failure", "failures"), ("error", "errors"), ("skipped", "skipped")):
             with self.subTest(tag=tag, plane="summary"):
                 self.target.write_text(xml(**{counter: 1}))
@@ -83,6 +84,7 @@ class ReportTests(unittest.TestCase):
             self.rejected(self.check(), f"testcase {tag}")
 
     def test_BA_004_T2_each_suite_is_required_even_without_acceptance_ids(self):
+        """BA-004-T2 acceptance ID가 없는 suite라도 0건 실행이면 거부한다"""
         for suite in SUITES:
             with self.subTest(suite=suite):
                 path = self.root / suite / "TEST-fixture.xml"
@@ -324,11 +326,13 @@ else:
         self.assertIn('integration_mode=full-docker', result.stdout)
 
     def test_BA_004_T1_actual_wrapper_propagates_command_failure(self):
+        """BA-004-T1 하위 command가 실패하면 실제 wrapper가 그 exit code를 전파한다"""
         result, status = self.run_wrapper('command')
         self.assertEqual(42, result.returncode, result.stderr)
         self.assertEqual('failed', status)
 
     def test_BA_004_T2_actual_wrapper_rejects_bad_evidence_and_suppression(self):
+        """BA-004-T2 실패·skip·report 삭제·stale·command 실패를 실제 wrapper가 거부한다"""
         for mode, message in (('failure', 'testcase failure'), ('skip', 'testcase skipped'),
                               ('missing', 'missing JUnit XML'), ('stale', 'stale report'),
                               ('command', 'missing JUnit XML')):
@@ -342,6 +346,7 @@ else:
 
 class WorkflowWiringTests(unittest.TestCase):
     def test_BA_004_T2_shipping_wrapper_does_not_suppress_quality_commands(self):
+        """BA-004-T2 출고되는 wrapper가 quality command의 실패를 은폐하지 않는다"""
         lines = [line.strip() for line in (ROOT / 'scripts/integration-test.sh').read_text().splitlines()
                  if line.strip() and not line.lstrip().startswith('#')]
         for service in ('api-quality', 'ai-quality'):

@@ -108,7 +108,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "Spring 모듈 구조와 실행 도구 고정",
-      "status": "contract-ready",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-000"
       ],
@@ -128,7 +128,7 @@
       "tests": [
         {
           "id": "BA-001-T1",
-          "assertion": "새 clone에서 고정 도구로 build하고 checksum 불일치는 실패한다"
+          "assertion": "고정되지 않았거나 검증이 꺼진 Gradle toolchain을 검사가 거부한다"
         },
         {
           "id": "BA-001-T2",

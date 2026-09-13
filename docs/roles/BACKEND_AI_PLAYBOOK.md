@@ -85,7 +85,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-001
 
-**Spring 모듈 구조와 실행 도구 고정** — P0 / `contract-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**Spring 모듈 구조와 실행 도구 고정** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-000](#ba-000)
 - 기능 ID: 해당 없음
@@ -105,7 +105,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-001-T1`: 새 clone에서 고정 도구로 build하고 checksum 불일치는 실패한다 — 증거는 `scripts/verify_target_stack.py`(Gradle wrapper SHA·toolchain·marker·root script·필수 Compose service 검사)다. JUnit test가 아니다
+- `BA-001-T1`: 고정되지 않았거나 검증이 꺼진 Gradle toolchain을 검사가 거부한다 — `check_gradle_wrapper_pin`이 `distributionSha256Sum` 64자리와 `validateDistributionUrl=true`를 함께 요구하며 `test_BA_001_T1_an_unpinned_gradle_distribution_is_refused`가 두 분기를 각각 RED로 만든다. **한 절만 적는다**: *checksum이 불일치할 때 build가 실패하는 것*은 Gradle 자신의 동작이고 우리 회귀 위험이 아니다. 우리 위험은 고정이나 검증이 빠지는 것이며 그것만 여기서 증명한다. `scripts/tests`는 `run_script_tests.py`가 JUnit으로 내보내 집계된다
 - `BA-001-T2`: 다른 모듈 repository 직접 참조가 architecture test에서 실패한다 — `ArchitectureRulesTest.modulesNeverReachIntoAnotherModulesInfrastructure`(Gradle `test`)가 강제하며, `@DisplayName`으로 testcase 이름에 이 ID를 노출한다
 - `BA-001-T3`: marker 뒤 필수 stage·task·digest 누락은 hard fail한다 — 증거는 같은 `scripts/verify_target_stack.py`다
 
