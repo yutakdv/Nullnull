@@ -832,6 +832,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-030-T1`: 날짜 역전·초과·timezone/DST 경계와 기본 title/빈 관심사를 검증한다
 - `BA-030-T2`: 중복 create가 한 trip만 만들고 실패 시 부분 item/revision이 없다
 - `BA-030-T3`: owner 목록·complete view·wizard client-only 복구가 같은 계약을 따른다
+- `BA-030-T4`: catalog 공개 게이트가 닫히면 item 없는 trip은 답하고 item 있는 trip과 seedItems create는 503 SOURCE_UNAVAILABLE로 거절한다
 
 FE 인계·완료 증거: 수동 wizard·최종 확인·empty trip·generated draft 구분 예시. 새 draft API 필요 시 BA-000 계약 검토를 선행한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -930,8 +931,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 구현 순서:
 
-1. IMPRESSION/OPEN/HIDE/LIKE/DISLIKE와 JSON Schema event allowlist를 각각 검증한다
-2. feedback minute dedup·receivedAt 기반 유효 상태와 HIDE 보존 의미를 계약 example으로 확정한다
+1. P0가 받는 IMPRESSION·OPEN을 검증하고 HIDE/LIKE/DISLIKE는 거절한다(#163). JSON Schema event allowlist는 그대로 검증한다
+2. feedback minute dedup·receivedAt 기반 유효 상태를 계약 example으로 확정한다. HIDE 보존 의미는 복구 진입점과 함께 P1이다
 3. eventId dedup·batch50·90일 TTL·owner 삭제·품질 계측을 구현한다
 4. 09-06 PM 검토 PM-011, PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
@@ -950,7 +951,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 필수 검증:
 
 - `BA-033-T1`: unknown property·위조 owner/session·좌표·원문 canary를 거부한다
-- `BA-033-T2`: 재전송·동시 LIKE/DISLIKE/HIDE가 정해진 상태로 수렴한다
+- `BA-033-T2`: 재전송이 정해진 상태로 수렴하고 P1 action 셋은 P0에서 거절된다
 - `BA-033-T3`: analytics 장애가 제품 command를 실패시키지 않고 owner 삭제/TTL이 반영된다
 
 FE 인계·완료 증거: event emission 순간과 server transaction 진실의 차이, HIDE 갱신·금지 필드·오류 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
@@ -1037,7 +1038,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 1. MUST_VISIT/DATE/TIME/RESERVATION의 type별 필수/null/tolerance를 DB와 domain에 고정한다
 2. path type=body type과 source USER/IMPORT를 검증하고 잠금 해제는 해당 row 삭제로 표현한다
-3. 수동 edit·교체·optimizer가 같은 constraint validator를 재사용한다
+3. 수동 edit·교체·reorder·optimizer가 같은 constraint validator를 재사용한다(#166으로 reorderTripItems도 잠금을 푼다)
 4. 09-06 PM 검토 PM-002, PM-003, PM-005, PM-007, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: 예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다.
