@@ -3554,6 +3554,7 @@ export interface operations {
             /** @description Valid dates/slots and constraints for scheduling this candidate */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
