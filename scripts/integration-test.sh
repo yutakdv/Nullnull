@@ -145,13 +145,17 @@ rm -f "${egress_report}"
 cat "${egress_report}"
 python3 "${egress_report_checker}" "${egress_report}"
 # BA-004-T3 asks for reproduction in the real Compose run, which no testcase can assert.
+# BA-006-T1 rides the same verdict rather than a second one: its two clauses are the
+# internal network and the outbound-deny probe, and the probe IS the network's proof -
+# it runs attached to integration-internal and curl has to fail. Were that network not
+# internal the curl would succeed and the probe would exit 1, so one token answers both.
 # The line above already refused a probe that stated nothing; this turns the verdict it
 # accepted into evidence the aggregator can read, and refuses if the token is absent.
 python3 "${gate_evidence_recorder}" \
   --out "${artifact_dir}/gate-evidence" \
   --report "${egress_report}" \
   --require "outbound_network=denied" \
-  --name "BA-004-T3 egress denial reproduced in the real Compose run"
+  --name "BA-004-T3 BA-006-T1 egress denial reproduced on the internal Compose network"
 # The Python-proven acceptance IDs. Evidence for them is produced in two places and, until this
 # ran here, read in only one: api-quality wrote scriptTests and fed it to the same checker, while
 # this - the required gate - passed only --junit-dir. BA-001-T1/T3 are provable in Python alone, so

@@ -819,6 +819,41 @@ FE 인계·완료 증거: 일정 교체와 나중 Live가 재사용할 공통 re
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-020.
 
+### BA-025
+
+**큐레이션 영업시간 판독 적재** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-022](#ba-022)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: place_hours_observations · place_hours_windows · NULLNULL_CURATED_HOURS · 운영 스크립트
+
+착수 사유: `V025`가 table과 source를 세웠고 [BA-022](#ba-022)의 `T4`~`T7`이 그 스키마를 고정했는데 **행을 만드는 production 경로가 없다.** `JdbcCatalogHoursQuery`는 읽고, `CandidateMatchService`는 그것을 `SlotEvaluateRequest.openingHours`로 넘기며, `apps/ai`의 `filters.opening_hours`는 창이 없으면 첫 줄에서 `UnknownHours`를 돌려준다. 그래서 **이미 구현·등록된 `getCandidateTripMatches`가 운영에서 항상 `UNKNOWN`을 낸다** — `FR-CAN-07`이 그 화면이고, 같은 공백이 [BA-051](#ba-051)의 ITEM 제안도 영구 `UNKNOWN`으로 둔다. `#183`이 게시물에 대해 드러낸 것과 같은 모양이며, 이번에는 마일스톤 하나가 걸려 있다.
+
+범위 밖: KTO `detailIntro2`. `A-027`은 **1회 탐색 호출 승인이지 채택이 아니고** 후속 채택 결정이 없다. `SOURCE_CATALOG`의 승인 범위는 `detailCommon2` 그대로다. 이 카드가 쓰는 source는 `V025`가 seed한 `NULLNULL_CURATED_HOURS`(`A-032`의 P30D)이고, 판독 근거는 큐레이터가 실제로 읽은 그 장소의 공식 안내 페이지다.
+
+**이 카드의 중심은 모르는 것을 모른다고 남기는 것이다.** `V025`가 table을 둘로 나눈 이유가 그것이고 주석이 직접 경고한다 — 큐레이터가 비운 날을 hydrator가 *"열려 있음"* 으로 읽으면 관측하지 않은 영업시간을 사실로 만든다(불변식 9). 날짜별 행이므로 *"안 읽었다"* 와 *"닫혀 있다"* 는 구조적으로 다른 사실이어야 하고, 그 구분을 만들어내는 쪽이 이 스크립트다. 확정하지 못한 판독을 표현할 수단이 plan에 없으면 큐레이터는 모르는 날을 지어내거나 그 장소를 통째로 빼게 된다.
+
+구현 순서:
+
+1. plan 파일을 전량 검증한 뒤에만 transaction 하나로 적재한다([A-031](../project/DECISIONS_AND_RISKS.md)의 `CuratedPostImporter` 선례: migration에도 넣지 않고 쓰기 operation도 만들지 않는다)
+2. 판독을 append-only로 쌓고 이전 관측은 supersede로 물러나게 한다
+3. plan이 말하지 않은 날짜에는 창을 만들지 않고, 확정하지 못한 판독은 창 0건의 근거 행으로 남긴다
+4. Gradle task와 운영 실행 경로를 연결하고 대상 장소 선정은 오너 결정으로 남긴다
+
+실패·안전 경계: 근거 URL 없는 판독을 만들지 않는다. 비어 있는 날짜를 영업 중으로 해석하지 않고 `UnknownHours`로 남긴다. 외부 provider 응답을 이 경로로 적재하지 않는다.
+
+필수 검증:
+
+- `BA-025-T1`: 거절된 plan은 한 행도 쓰지 않는다
+- `BA-025-T2`: 같은 plan을 다시 적용해도 그 장소의 현재 관측은 하나다
+- `BA-025-T3`: 새 판독은 이전 관측을 supersede하고 지우지 않는다
+- `BA-025-T4`: plan이 말하지 않은 날짜에는 창이 생기지 않는다
+- `BA-025-T5`: 확정하지 못한 판독은 창 0건의 근거 행으로 기록된다
+
+FE 인계·완료 증거: 영업시간이 있는 장소와 없는 장소의 `getCandidateTripMatches` 응답 차이. 창이 없는 날은 `UNKNOWN`으로 남는 것이 정상 동작임을 함께 넘긴다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
 ## B04 · 여행·피드·피드백·후보
 
 발견→저장을 일정 변경 없이 완결한다.

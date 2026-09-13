@@ -815,6 +815,54 @@
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-024"
     },
     {
+      "id": "BA-025",
+      "phase": "B03",
+      "priority": "P0",
+      "title": "큐레이션 영업시간 판독 적재",
+      "status": "planned",
+      "dependsOn": [
+        "BA-022"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "entities": "place_hours_observations · place_hours_windows · NULLNULL_CURATED_HOURS · 운영 스크립트",
+      "steps": [
+        "plan 파일을 전량 검증한 뒤에만 transaction 하나로 적재한다",
+        "판독을 append-only로 쌓고 이전 관측은 supersede로 물러나게 한다",
+        "plan이 말하지 않은 날짜에는 창을 만들지 않고, 확정하지 못한 판독은 창 0건의 근거 행으로 남긴다",
+        "Gradle task와 운영 실행 경로를 연결하고 대상 장소 선정은 오너 결정으로 남긴다"
+      ],
+      "safety": "근거 URL 없는 판독을 만들지 않는다. 비어 있는 날짜를 영업 중으로 해석하지 않고 UnknownHours로 남긴다. 외부 provider 응답을 이 경로로 적재하지 않는다.",
+      "tests": [
+        {
+          "id": "BA-025-T1",
+          "assertion": "거절된 plan은 한 행도 쓰지 않는다"
+        },
+        {
+          "id": "BA-025-T2",
+          "assertion": "같은 plan을 다시 적용해도 그 장소의 현재 관측은 하나다"
+        },
+        {
+          "id": "BA-025-T3",
+          "assertion": "새 판독은 이전 관측을 supersede하고 지우지 않는다"
+        },
+        {
+          "id": "BA-025-T4",
+          "assertion": "plan이 말하지 않은 날짜에는 창이 생기지 않는다"
+        },
+        {
+          "id": "BA-025-T5",
+          "assertion": "확정하지 못한 판독은 창 0건의 근거 행으로 기록된다"
+        }
+      ],
+      "handoff": "영업시간이 있는 장소와 없는 장소의 getCandidateTripMatches 응답 차이. 창이 없는 날은 UNKNOWN으로 남는 것이 정상 동작임을 함께 넘긴다.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-025"
+    },
+    {
       "id": "BA-030",
       "phase": "B04",
       "priority": "P0",
