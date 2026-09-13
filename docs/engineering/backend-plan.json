@@ -751,15 +751,31 @@
       "tests": [
         {
           "id": "BA-024-T1",
-          "assertion": "중복 canonical 후보·만료 evidence·불확실 mapping을 구분한다"
+          "assertion": "중복 canonical 후보가 한 행으로 수렴한다"
         },
         {
           "id": "BA-024-T2",
-          "assertion": "입력 순서와 source 응답 순서가 바뀌어도 같은 결과다"
+          "assertion": "입력 순서와 source 응답 순서가 바뀌어도 같은 결과를 낸다"
         },
         {
           "id": "BA-024-T3",
-          "assertion": "CHECKING은 실제 처리 상태에만 사용하고 가짜 대안을 채우지 않는다"
+          "assertion": "CHECKING은 실제로 진행 중인 검증이 있을 때만 쓴다"
+        },
+        {
+          "id": "BA-024-T4",
+          "assertion": "유효기간이 지난 relation evidence는 후보가 되지 않는다"
+        },
+        {
+          "id": "BA-024-T5",
+          "assertion": "불확실한 mapping은 EXACT가 되지 않는다"
+        },
+        {
+          "id": "BA-024-T6",
+          "assertion": "적격 후보가 0이면 NONE이고 목록을 채우지 않는다"
+        },
+        {
+          "id": "BA-024-T7",
+          "assertion": "RelationState 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다"
         }
       ],
       "handoff": "일정 교체와 나중 Live가 재사용할 공통 relation 예시. Live tab 모듈에 이 공통 테이블을 묶지 않는다.",

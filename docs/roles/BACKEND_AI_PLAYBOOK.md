@@ -801,9 +801,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-024-T1`: 중복 canonical 후보·만료 evidence·불확실 mapping을 구분한다
-- `BA-024-T2`: 입력 순서와 source 응답 순서가 바뀌어도 같은 결과다
-- `BA-024-T3`: CHECKING은 실제 처리 상태에만 사용하고 가짜 대안을 채우지 않는다
+- `BA-024-T1`: 중복 canonical 후보가 한 행으로 수렴한다
+- `BA-024-T2`: 입력 순서와 source 응답 순서가 바뀌어도 같은 결과를 낸다
+- `BA-024-T3`: CHECKING은 실제로 진행 중인 검증이 있을 때만 쓴다
+- `BA-024-T4`: 유효기간이 지난 relation evidence는 후보가 되지 않는다
+- `BA-024-T5`: 불확실한 mapping은 EXACT가 되지 않는다
+- `BA-024-T6`: 적격 후보가 0이면 NONE이고 목록을 채우지 않는다
+- `BA-024-T7`: RelationState 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
 
 FE 인계·완료 증거: 일정 교체와 나중 Live가 재사용할 공통 relation 예시. Live tab 모듈에 이 공통 테이블을 묶지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
