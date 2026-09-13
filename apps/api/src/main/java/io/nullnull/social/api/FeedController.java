@@ -1,5 +1,6 @@
 package io.nullnull.social.api;
 
+import io.nullnull.catalog.api.PlaceController.MediaAssetResponse;
 import io.nullnull.catalog.api.PlaceController.PlaceSummaryResponse;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.http.NullnullOperation;
@@ -104,14 +105,19 @@ public class FeedController {
     }
 
     public record PostDetailResponse(UUID id, String title, String excerpt, String coverUrl,
-            Object coverAsset, Instant publishedAt, String body, List<PlaceSummaryResponse> places,
-            boolean saved) {
+            MediaAssetResponse coverAsset, Instant publishedAt, String body,
+            List<PlaceSummaryResponse> places, boolean saved) {
 
         static PostDetailResponse from(PostDetailView view) {
-            // coverAsset is null until a reviewed media licence exists for the cover; coverUrl alone
-            // carries no redistribution right, which is the gap PM-010 tracks.
+            // coverUrl is the rendered image; coverAsset is the right to render it. A-024 made the
+            // cover a 1st-party asset and V021 made naming one a condition of publishing, so a post
+            // published since then always has a licence behind it - this projects it. Null here now
+            // means one thing only: a post published before V021, whose CHECK is NOT VALID and whose
+            // free-text cover was never given an asset. An asset that exists but cannot be served
+            // fails the read in FeedService instead of arriving here as a null.
             return new PostDetailResponse(view.post().id(), view.post().title(), view.post().excerpt(),
-                    view.post().coverUrl(), null, view.post().publishedAt(), view.post().body(),
+                    view.post().coverUrl(), MediaAssetResponse.from(view.coverAsset()),
+                    view.post().publishedAt(), view.post().body(),
                     view.places().stream().map(PlaceSummaryResponse::from).toList(), view.saved());
         }
     }

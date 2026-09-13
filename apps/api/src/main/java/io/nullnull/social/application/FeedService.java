@@ -1,6 +1,8 @@
 package io.nullnull.social.application;
 
 import io.nullnull.catalog.application.CatalogPlaceProjectionService;
+import io.nullnull.catalog.application.CatalogPlaceQuery;
+import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogMediaAsset;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.cursor.CursorClaims;
@@ -37,15 +39,17 @@ public class FeedService {
     private final FeedStore feed;
     private final FeedCursorProperties cursors;
     private final CatalogPlaceProjectionService places;
+    private final CatalogPlaceQuery catalog;
     private final io.nullnull.trip.application.CandidateService candidates;
     private final Clock clock;
 
     public FeedService(FeedStore feed, FeedCursorProperties cursors,
-            CatalogPlaceProjectionService places,
+            CatalogPlaceProjectionService places, CatalogPlaceQuery catalog,
             io.nullnull.trip.application.CandidateService candidates, Clock clock) {
         this.feed = feed;
         this.cursors = cursors;
         this.places = places;
+        this.catalog = catalog;
         this.candidates = candidates;
         this.clock = clock;
     }
@@ -150,7 +154,31 @@ public class FeedService {
         Post post = feed.publishedPost(postId).orElseThrow(FeedService::notFound);
         boolean saved = feed.savedPostIds(context.ownerId(), List.of(postId)).contains(postId);
         // Same gate as the feed: a post's linked places are the same KTO-derived catalog rows.
-        return new PostDetailView(post, places.embeddedSummaries(context, post.placeIds()), saved);
+        return new PostDetailView(post, places.embeddedSummaries(context, post.placeIds()), saved,
+                coverAsset(post));
+    }
+
+    /**
+     * The licence behind the cover, read through catalog because media assets are its rows.
+     *
+     * <p>Not behind {@link CatalogPlaceProjectionService}'s publication gate, and that is the
+     * distinction rather than an omission: the gate governs the C3 projection of provider-derived
+     * place data, while a cover is a 1st-party asset the team made (A-024). Gating ours on their
+     * approval would say something untrue about where it came from.
+     *
+     * <p>A post that names an asset the catalog cannot serve fails the read instead of projecting
+     * null. Null is the honest answer for a post published before V021, which names no asset at all;
+     * using it for a named-but-unservable one would hide exactly the defect
+     * {@code posts_published_cover_asset_check} was added to make impossible, and the reader would
+     * still be shown the image through {@code coverUrl}.
+     */
+    private CatalogMediaAsset coverAsset(Post post) {
+        if (post.coverAssetId() == null) {
+            return null;
+        }
+        return catalog.mediaAsset(post.coverAssetId())
+                .orElseThrow(() -> new ApiException(ProblemCode.SOURCE_UNAVAILABLE,
+                        "A published post references a cover asset that is not available."));
     }
 
     /**
@@ -200,5 +228,6 @@ public class FeedService {
         }
     }
 
-    public record PostDetailView(Post post, List<CatalogPlaceSummary> places, boolean saved) { }
+    public record PostDetailView(Post post, List<CatalogPlaceSummary> places, boolean saved,
+            CatalogMediaAsset coverAsset) { }
 }

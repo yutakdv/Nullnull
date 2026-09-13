@@ -240,6 +240,19 @@ SELECT p.id,
                 result.getString("external_id"), result.getTimestamp("verified_at").toInstant()), placeId);
     }
 
+    @Override
+    public Optional<CatalogMediaAsset> mediaAsset(UUID assetId) {
+        return jdbc.query("""
+                SELECT asset.id, asset.served_url, asset.media_type, asset.alt_text, asset.expires_at,
+                       license.source_code, license.license_name, license.license_url, license.reviewed_at,
+                       license.attribution_template, license.redistribution_allowed
+                  FROM media_assets asset
+                  JOIN asset_licenses license ON license.id = asset.asset_license_id
+                 WHERE asset.id = ?
+                   AND asset.served_url IS NOT NULL
+                """, JdbcCatalogPlaceQuery::mediaAssetRow, assetId).stream().findFirst();
+    }
+
     private Optional<CatalogMediaAsset> media(UUID placeId, Instant observedAt) {
         return jdbc.query("""
                 SELECT asset.id, asset.served_url, asset.media_type, asset.alt_text, asset.expires_at,
@@ -254,12 +267,22 @@ SELECT p.id,
                    AND (asset.expires_at IS NULL OR asset.expires_at > ?)
                  ORDER BY assignment.position, asset.id
                  LIMIT 1
-                """, (result, row) -> new CatalogMediaAsset(result.getObject("id", UUID.class),
-                result.getString("served_url"), result.getString("media_type"), result.getString("alt_text"),
-                result.getString("source_code"), result.getString("license_name"), result.getString("license_url"),
+                """, JdbcCatalogPlaceQuery::mediaAssetRow, placeId, Timestamp.from(observedAt))
+                .stream().findFirst();
+    }
+
+    /**
+     * The same eleven columns either way. {@code attributionRequired} is not a column: a reviewed
+     * licence that needs a credit is one that carries the template to render, so the two cannot
+     * disagree.
+     */
+    private static CatalogMediaAsset mediaAssetRow(ResultSet result, int row) throws SQLException {
+        return new CatalogMediaAsset(result.getObject("id", UUID.class), result.getString("served_url"),
+                result.getString("media_type"), result.getString("alt_text"), result.getString("source_code"),
+                result.getString("license_name"), result.getString("license_url"),
                 result.getTimestamp("reviewed_at").toInstant(), result.getString("attribution_template") != null,
                 result.getString("attribution_template"), result.getBoolean("redistribution_allowed"),
-                timestamp(result, "expires_at")), placeId, Timestamp.from(observedAt)).stream().findFirst();
+                timestamp(result, "expires_at"));
     }
 
     private static CatalogPlaceSummary summary(ResultSet result, int row) throws SQLException {

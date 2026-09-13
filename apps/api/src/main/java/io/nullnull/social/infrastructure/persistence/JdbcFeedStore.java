@@ -34,7 +34,7 @@ public class JdbcFeedStore implements FeedStore {
         // published_at DESC, id ASC - the order FeedOrdering defines. Fixed for everyone: no owner
         // state appears in this query, so a saved post cannot move up someone's feed.
         List<Post> posts = jdbc.sql("""
-                SELECT id, status, title, body, cover_url, published_at
+                SELECT id, status, title, body, cover_url, cover_asset_id, published_at
                   FROM posts
                  WHERE status = 'PUBLISHED'
                  ORDER BY published_at DESC, id ASC
@@ -49,7 +49,7 @@ public class JdbcFeedStore implements FeedStore {
     @Override
     public Optional<Post> publishedPost(UUID postId) {
         Optional<Post> post = jdbc.sql("""
-                SELECT id, status, title, body, cover_url, published_at
+                SELECT id, status, title, body, cover_url, cover_asset_id, published_at
                   FROM posts
                  WHERE id = ? AND status = 'PUBLISHED'
                 """)
@@ -136,7 +136,8 @@ public class JdbcFeedStore implements FeedStore {
         List<Post> hydrated = new ArrayList<>(posts.size());
         for (Post post : posts) {
             hydrated.add(new Post(post.id(), post.status(), post.title(), post.excerpt(), post.body(),
-                    post.coverUrl(), post.publishedAt(), byPost.getOrDefault(post.id(), List.of())));
+                    post.coverUrl(), post.coverAssetId(), post.publishedAt(),
+                    byPost.getOrDefault(post.id(), List.of())));
         }
         return List.copyOf(hydrated);
     }
@@ -146,6 +147,7 @@ public class JdbcFeedStore implements FeedStore {
         String body = row.getString("body");
         return new Post(row.getObject("id", UUID.class), PostStatus.of(row.getString("status")),
                 row.getString("title"), excerpt(body), body, row.getString("cover_url"),
+                row.getObject("cover_asset_id", UUID.class),
                 published == null ? null : published.toInstant(), placeIds);
     }
 
