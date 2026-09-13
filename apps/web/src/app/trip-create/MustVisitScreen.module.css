@@ -134,5 +134,10 @@
   font-family: inherit;
   font-size: var(--font-body-sm);
   min-height: 44px;
+  /* Height alone was set, so the label's own width decided the target: "Skip"
+     in English renders 38px wide and misses the floor, while the Korean
+     "건너뛰기" happens to clear it. A touch target that depends on which
+     language is loaded is not a target. */
+  min-width: 44px;
   cursor: pointer;
 }
