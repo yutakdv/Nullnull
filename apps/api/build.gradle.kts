@@ -264,6 +264,16 @@ tasks.register<JavaExec>("ktoCanonicalIngest") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("curateHours") {
+    group = "verification"
+    description = "Records the curated opening hours named in NULLNULL_HOURS_PLAN (A-031/A-032); no external calls"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain")
+    environment("NULLNULL_HOURS_PLAN", providers.environmentVariable("NULLNULL_HOURS_PLAN").getOrElse(""))
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("curatePosts") {
     group = "verification"
     description = "Publishes the curated feed posts named in NULLNULL_CURATION_PLAN (A-031); no external calls"
