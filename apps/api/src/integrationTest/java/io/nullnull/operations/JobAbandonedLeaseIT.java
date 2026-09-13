@@ -62,15 +62,15 @@ import org.springframework.transaction.support.TransactionTemplate;
  * one of the attempts - lock contention alone could dead-letter a healthy job. It must be treated as
  * what it is instead: nothing was written, no attempt spent by the handler.
  *
- * <p>One slot per type on purpose. The two synthetic types run beside the production deletion type,
- * so three units of work, three heartbeats, three claims and the retention sweep require ten
- * connections plus the two-connection readiness reserve.
+ * <p>One slot per type on purpose. The two synthetic types run beside the two production types -
+ * deletion and, since BA-050, optimize-item - so four units of work, four heartbeats, four claims and
+ * the retention sweep require thirteen connections plus the two-connection readiness reserve.
  */
 @SpringBootTest(properties = {
         "nullnull.jobs.enabled=true",
         "nullnull.jobs.poll-interval=PT0.05S",
         "nullnull.jobs.default-concurrency=1",
-        "spring.datasource.hikari.maximum-pool-size=12",
+        "spring.datasource.hikari.maximum-pool-size=15",
         "nullnull.ai.base-url=http://127.0.0.1:1"})
 @Import({TestcontainersConfiguration.class, JobAbandonedLeaseIT.TestJobs.class})
 @DisplayName("BA-005 abandoned lease and contention")

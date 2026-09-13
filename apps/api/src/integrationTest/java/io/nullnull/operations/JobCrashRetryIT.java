@@ -53,10 +53,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 @SpringBootTest(properties = {
         "nullnull.jobs.enabled=true",
         "nullnull.jobs.poll-interval=PT0.05S",
-        // Two slots for this type and two for the production deletion type: 2 x 4 slots + 2 claims
-        // + 1 sweep = 11, with two more connections reserved for readiness.
+        // Two slots for this type, two for the production deletion type and one for optimize-item,
+        // which pins its own concurrency: 2 x 5 slots + 3 claims + 1 sweep = 14, with two more
+        // connections reserved for readiness.
         "nullnull.jobs.default-concurrency=2",
-        "spring.datasource.hikari.maximum-pool-size=13",
+        "spring.datasource.hikari.maximum-pool-size=16",
         // Out of reach on purpose, so the optional recommendation probe cannot add latency or noise.
         "nullnull.ai.base-url=http://127.0.0.1:1"})
 @Import({TestcontainersConfiguration.class, JobCrashRetryIT.TestJobs.class})
