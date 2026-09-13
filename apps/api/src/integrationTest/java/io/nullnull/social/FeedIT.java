@@ -73,10 +73,13 @@ class FeedIT {
     private UUID post(String title, UUID placeId, String publishedAt) {
         UUID id = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
-        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, published_at, created_at,"
-                        + " updated_at) VALUES (?, 'PUBLISHED', ?, ?, 'https://example.test/cover.jpg',"
+        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,"
+                        + " published_at, created_at, updated_at)"
+                        + " VALUES (?, 'PUBLISHED', ?, ?, 'https://example.test/cover.jpg', ?,"
                         + " ?::timestamptz, ?, ?)",
-                id, title, "본문 " + title, publishedAt, now, now);
+                id, title, "본문 " + title,
+                io.nullnull.testsupport.PostCovers.firstPartyAsset(jdbc, java.time.Instant.now()),
+                publishedAt, now, now);
         jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
                 + " VALUES (?, ?, 0, 'PRIMARY')", id, placeId);
         return id;

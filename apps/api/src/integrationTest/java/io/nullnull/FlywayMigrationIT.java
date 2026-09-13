@@ -90,11 +90,18 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V013 adds no rows of its own: it is pure DDL - the trips
-            // aggregate's tables, plus the owners.active_trip_id foreign key V002 deferred until the
-            // trips table existed. This count is deliberately exact rather than "at least", so a
-            // migration that quietly seeds data has to say so here.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
+            // Every existing row survived, and every row a migration added is declared. This count is
+            // deliberately exact rather than "at least", so a migration that quietly seeds data has
+            // to say so here - which is how V021 came to be named below. V013 adds none of its own:
+            // it is pure DDL, the trips aggregate's tables plus the owners.active_trip_id foreign key
+            // V002 deferred until the trips table existed.
+            //
+            // V021 seeds three, all of them A-024's: the NULLNULL_FIRST_PARTY source, its first
+            // registry revision, and the asset licence that says a 1st-party cover needs no
+            // attribution and may be redistributed. A post cover cannot reference a licence that does
+            // not exist, so the rows ship with the column that requires one.
+            long seededAfterPreviousSchema = 3;
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))

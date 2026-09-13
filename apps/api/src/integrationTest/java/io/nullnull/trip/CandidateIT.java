@@ -60,9 +60,11 @@ class CandidateIT {
     private UUID curatedPost(String title, UUID placeId) {
         UUID id = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
-        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, published_at, created_at,"
-                        + " updated_at) VALUES (?, 'PUBLISHED', ?, '본문',"
-                        + " 'https://example.test/c.jpg', ?, ?, ?)", id, title, now, now, now);
+        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,"
+                        + " published_at, created_at, updated_at) VALUES (?, 'PUBLISHED', ?, '본문',"
+                        + " 'https://example.test/c.jpg', ?, ?, ?, ?)", id, title,
+                io.nullnull.testsupport.PostCovers.firstPartyAsset(jdbc, java.time.Instant.now()),
+                now, now, now);
         jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
                 + " VALUES (?, ?, 0, 'PRIMARY')", id, placeId);
         return id;

@@ -97,9 +97,11 @@ class OwnerDataErasureIT {
                 + " created_at, updated_at) VALUES (?, '경복궁', 'HS', '11', 'ACTIVE', ?, ?)",
                 placeId, now, now);
         UUID postId = UUID.randomUUID();
-        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, published_at, created_at,"
-                        + " updated_at) VALUES (?, 'PUBLISHED', '글', '본문',"
-                        + " 'https://example.test/c.jpg', ?, ?, ?)", postId, now, now, now);
+        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,"
+                        + " published_at, created_at, updated_at) VALUES (?, 'PUBLISHED', '글', '본문',"
+                        + " 'https://example.test/c.jpg', ?, ?, ?, ?)", postId,
+                io.nullnull.testsupport.PostCovers.firstPartyAsset(jdbc, java.time.Instant.now()),
+                now, now, now);
         jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
                 + " VALUES (?, ?, 0, 'PRIMARY')", postId, placeId);
 
