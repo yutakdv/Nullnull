@@ -31,12 +31,14 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -593,26 +595,8 @@ public class TripService {
      * part of an explicit instruction to honour.
      */
     private void requireLocksAllow(TripItem item, ReorderTripItemsCommand.Entry entry, Instant now) {
-        if (item.constraints().isEmpty() && entry.releaseConstraints().isEmpty()) {
-            return;
-        }
-        LockChecks.Result verdict = LockChecks.evaluate(
-                item.constraints().stream().map(TripConstraint::lock).toList(),
-                entry.date(), item.startTime(), item.durationMinutes());
-        List<String> unreleased = new ArrayList<>();
-        verdict.passed().forEach((type, satisfied) -> {
-            if (!satisfied && !entry.releaseConstraints().contains(type)) {
-                unreleased.add(LockChecks.reasonCodeOf(type));
-            }
-        });
-        if (!unreleased.isEmpty()) {
-            throw new ApiException(ProblemCode.LOCK_CONFLICT,
-                    "The move is refused by locks this request did not release: "
-                            + String.join(", ", unreleased) + ".");
-        }
-        for (LockType type : entry.releaseConstraints()) {
-            trips.deleteConstraint(item.id(), type);
-        }
+        applyTemporalLockRules(item, entry.date(), item.startTime(), item.durationMinutes(),
+                entry.releaseConstraints(), "The move is refused by locks this request did not release: ");
     }
 
     /** What reorderTripItems hashes: the moves it asked for, in a fixed order. */
@@ -807,21 +791,48 @@ public class TripService {
      */
     private void requireLocksAllowUpdate(TripItem stored, TripItem patched,
             UpdateTripItemCommand patch) {
+        applyTemporalLockRules(stored, patched.date(), patched.startTime(), patched.durationMinutes(),
+                patch.releaseConstraints(), "The edit is refused by locks this request did not release: ");
+    }
+
+    /**
+     * The one place a temporal edit decides what its locks permit, for every command that makes one.
+     *
+     * <p>{@code LockChecks} was already shared - reorder, updateTripItem, setTripItemConstraint and
+     * the optimizer's re-validation all call the same evaluator. What was not shared is this: read
+     * the verdict, refuse the types the request did not name, delete the ones it did. Two copies of
+     * that were a rule with two spellings, and #199 is only true where both agree.
+     *
+     * <p>The locks judged are the item's STORED ones, and the proposal is passed separately. Judging
+     * the patched item's locks would ask whether an edit is allowed by the locks it has already
+     * dropped, which is every edit.
+     *
+     * <p>replaceTripItem does NOT come through here, and that is not an omission. This evaluator
+     * answers a question about a temporal move: it passes MUST_VISIT by definition, because such a
+     * move keeps the place, and judges RESERVATION against a proposed date and time that a
+     * replacement does not change. Routing replace through it would pass the exact lock #199 requires
+     * it to refuse.
+     */
+    private void applyTemporalLockRules(TripItem stored, LocalDate date,
+            LocalTime startTime, Integer durationMinutes, Set<LockType> released,
+            String refusal) {
+        if (stored.constraints().isEmpty() && released.isEmpty()) {
+            return;
+        }
         LockChecks.Result verdict = LockChecks.evaluate(
                 stored.constraints().stream().map(TripConstraint::lock).toList(),
-                patched.date(), patched.startTime(), patched.durationMinutes());
+                date, startTime, durationMinutes);
         List<String> unreleased = new ArrayList<>();
         verdict.passed().forEach((type, satisfied) -> {
-            if (!satisfied && !patch.releaseConstraints().contains(type)) {
+            if (!satisfied && !released.contains(type)) {
                 unreleased.add(LockChecks.reasonCodeOf(type));
             }
         });
         if (!unreleased.isEmpty()) {
             throw new ApiException(ProblemCode.LOCK_CONFLICT,
-                    "The edit is refused by locks this request did not release: "
-                            + String.join(", ", unreleased) + ".");
+                    refusal + String.join(", ", unreleased) + ".");
         }
-        for (LockType type : patch.releaseConstraints()) {
+        for (LockType type : released) {
             trips.deleteConstraint(stored.id(), type);
         }
     }
