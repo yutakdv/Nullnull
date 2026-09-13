@@ -226,7 +226,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-004
 
-**계약 생성·중요 기능 상시 CI 구성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**계약 생성·중요 기능 상시 CI 구성** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003)
 - 기능 ID: 해당 없음

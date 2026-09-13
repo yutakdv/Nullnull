@@ -10,6 +10,7 @@ readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
 readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
 readonly test_report_checker="${project_root}/scripts/check_test_reports.py"
 readonly script_tests_runner="${project_root}/scripts/run_script_tests.py"
+readonly gate_evidence_recorder="${project_root}/scripts/record_gate_evidence.py"
 readonly egress_report_checker="${project_root}/scripts/check_egress_report.py"
 readonly npm_audit_report_checker="${project_root}/scripts/check_npm_audit_report.py"
 readonly infra_report_checker="${project_root}/scripts/check_infra_report.py"
@@ -126,6 +127,31 @@ if [[ ! -f "${recommendation_report}" ]]; then
   exit 1
 fi
 python3 "${evaluation_report_checker}" "${recommendation_report}"
+# Evidence is produced before it is aggregated. This probe moved above the report checker
+# when its verdict became collectable: run afterwards, it wrote gateChecks into a directory
+# the checker had already read, so BA-004-T3 would have been missing on every run while the
+# file sat there looking like evidence.
+# BA-004-T3: the probe's exit code is only evidence while the probe is intact. It prints a verdict
+# token for exactly that reason, and nothing was reading it - so a command changed to something
+# that does not probe would exit 0 and pass. Capture the output and judge the token, the same way
+# infra-plan and the npm audit report are judged.
+readonly egress_report="${artifact_dir}/egress-denied.txt"
+rm -f "${egress_report}"
+"${compose[@]}" run --rm egress-denied >"${egress_report}" 2>&1 || {
+  cat "${egress_report}" >&2
+  echo "egress-denied exited non-zero" >&2
+  exit 1
+}
+cat "${egress_report}"
+python3 "${egress_report_checker}" "${egress_report}"
+# BA-004-T3 asks for reproduction in the real Compose run, which no testcase can assert.
+# The line above already refused a probe that stated nothing; this turns the verdict it
+# accepted into evidence the aggregator can read, and refuses if the token is absent.
+python3 "${gate_evidence_recorder}" \
+  --out "${artifact_dir}/gate-evidence" \
+  --report "${egress_report}" \
+  --require "outbound_network=denied" \
+  --name "BA-004-T3 egress denial reproduced in the real Compose run"
 # The Python-proven acceptance IDs. Evidence for them is produced in two places and, until this
 # ran here, read in only one: api-quality wrote scriptTests and fed it to the same checker, while
 # this - the required gate - passed only --junit-dir. BA-001-T1/T3 are provable in Python alone, so
@@ -135,6 +161,7 @@ python3 "${script_tests_runner}" --out "${artifact_dir}/script-test-results"
 python3 "${test_report_checker}" \
   --junit-dir "${artifact_dir}/api-test-results" \
   --script-junit-dir "${artifact_dir}/script-test-results" \
+  --gate-junit-dir "${artifact_dir}/gate-evidence" \
   --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
   --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
   --evaluation "${recommendation_report}" \
@@ -170,19 +197,6 @@ rm -f "${infra_report}"
 }
 cat "${infra_report}"
 python3 "${infra_report_checker}" "${infra_report}"
-# BA-004-T3: the probe's exit code is only evidence while the probe is intact. It prints a verdict
-# token for exactly that reason, and nothing was reading it - so a command changed to something
-# that does not probe would exit 0 and pass. Capture the output and judge the token, the same way
-# infra-plan and the npm audit report are judged.
-readonly egress_report="${artifact_dir}/egress-denied.txt"
-rm -f "${egress_report}"
-"${compose[@]}" run --rm egress-denied >"${egress_report}" 2>&1 || {
-  cat "${egress_report}" >&2
-  echo "egress-denied exited non-zero" >&2
-  exit 1
-}
-cat "${egress_report}"
-python3 "${egress_report_checker}" "${egress_report}"
 "${compose[@]}" up --detach ai api web
 
 # integration-internal is internal: true, so a published port never reaches the host. Both

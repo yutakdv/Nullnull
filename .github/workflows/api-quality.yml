@@ -105,13 +105,19 @@ jobs:
         run: >-
           python3 ../../scripts/run_script_tests.py
           --out ../../.artifacts/script-test-results
-      - name: Validate executed JUnit evidence and ready-card IDs
+      - name: Validate executed JUnit evidence
+        # Deliberately without --backend-plan. Card completeness is the required gate's question
+        # because only it can see every kind of evidence: BA-004-T3 is proven by the egress-denied
+        # service inside the full Compose run, which this workflow does not start, so asking here
+        # would report a card as incomplete on evidence this job structurally cannot produce. This
+        # is early feedback (AGENTS.md 등록 규칙 4), and a check that cannot see the answer is worse
+        # than no check - it teaches people to ignore it. What stays is what this job CAN judge:
+        # that the reports it produced are fresh, complete and free of failures.
         if: always()
         run: >-
           python3 ../../scripts/check_test_reports.py
           --junit-dir build/test-results
           --script-junit-dir ../../.artifacts/script-test-results
-          --backend-plan ../../docs/engineering/backend-plan.json
           --run-start ../../.artifacts/api-quality-start
       - name: Upload JUnit reports
         if: always()
