@@ -115,7 +115,7 @@ class OwnerDataErasureIT {
                                 + "\"constraints\":[{\"type\":\"MUST_VISIT\",\"locked\":true,"
                                 + "\"source\":\"USER\"}]}]}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String tripId = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String tripId = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         UUID otherPlace = UUID.randomUUID();
         jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"

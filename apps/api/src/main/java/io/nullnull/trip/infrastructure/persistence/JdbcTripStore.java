@@ -121,10 +121,34 @@ public class JdbcTripStore implements TripStore {
 
     @Override
     public Map<UUID, Integer> candidateCounts(List<UUID> tripIds) {
-        // trip_candidates belongs to BA-034 and does not exist yet. Returning an empty map means
-        // every count is 0, which is true today: nothing can have created a candidate. It is NOT a
-        // silent fallback - when the table lands, this method changes with it.
-        return Map.of();
+        // This used to return an empty map, with a comment saying trip_candidates did not exist yet.
+        // V016 created it and the comment stayed, so every trip reported zero candidates however many
+        // it held - and BA-040 makes that visible, because a trip whose candidate was just scheduled
+        // would answer "0 candidates" in the same response that scheduled it.
+        //
+        // Every status counts, matching CandidateStore.count: which statuses a DISPLAYED count
+        // includes is the candidate slice's decision and the contract deliberately leaves it open, so
+        // this reports the whole set rather than inventing a filter here as well.
+        if (tripIds == null || tripIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Integer> counts = new java.util.HashMap<>();
+        for (UUID tripId : tripIds) {
+            counts.put(tripId, 0);
+        }
+        jdbc.sql("""
+                SELECT trip_id, count(*) AS candidate_count
+                  FROM trip_candidates
+                 WHERE trip_id = ANY (?)
+                 GROUP BY trip_id
+                """)
+                .param(tripIds.toArray(UUID[]::new))
+                .query((ResultSet row, int index) -> {
+                    counts.put(row.getObject("trip_id", UUID.class), row.getInt("candidate_count"));
+                    return null;
+                })
+                .list();
+        return Map.copyOf(counts);
     }
 
     @Override

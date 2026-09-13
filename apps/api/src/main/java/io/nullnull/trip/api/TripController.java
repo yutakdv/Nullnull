@@ -6,6 +6,12 @@ import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.shared.http.NullnullOperation.Security;
 import io.nullnull.trip.application.CreateTripCommand;
 import io.nullnull.trip.application.TripPageView;
+import io.nullnull.catalog.api.PlaceController.PlaceSummaryResponse;
+import java.util.Map;
+import io.nullnull.trip.application.TripItemView;
+import io.nullnull.trip.domain.ItemLock;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import io.nullnull.trip.application.TripService;
 import io.nullnull.trip.application.TripView;
 import io.nullnull.trip.domain.Trip;
@@ -211,7 +217,7 @@ public class TripController {
                     trip.version(), view.candidateCount(), trip.planningLevel().name(),
                     trip.interests().stream()
                             .map(i -> new TripInterestResponse(i.code(), i.weight())).toList(),
-                    trip.days().stream().map(date -> new TripDayResponse(date, List.of())).toList(),
+                    renderDays(trip, view.items()),
                     // Empty, and the contract says an empty array here does NOT mean the trip has no
                     // candidates: candidateCount is the number to display and listTripCandidates is
                     // the paginated source.
@@ -221,6 +227,73 @@ public class TripController {
 
     public record TripInterestResponse(String code, int weight) { }
 
-    /** Items are always empty until BA-040 - and until PM-008 settles what a start time looks like. */
     public record TripDayResponse(LocalDate date, List<Object> items) { }
+
+    /**
+     * Every trip date, in order, each carrying the items stored for it.
+     *
+     * <p>A date with nothing on it still appears: the contract's day array is the trip's calendar,
+     * not a list of the days that happen to be busy, and a client rendering a week needs the gaps.
+     */
+    static List<TripDayResponse> renderDays(Trip trip, List<TripItemView> items) {
+        Map<LocalDate, List<Object>> byDate = new LinkedHashMap<>();
+        for (TripItemView view : items) {
+            byDate.computeIfAbsent(view.item().date(), date -> new ArrayList<>())
+                    .add(TripItemResponse.from(view));
+        }
+        return trip.days().stream()
+                .map(date -> new TripDayResponse(date, byDate.getOrDefault(date, List.of())))
+                .toList();
+    }
+
+    public record TripItemResponse(UUID id, PlaceSummaryResponse place, LocalDate date, int position,
+            String startTime, Integer durationMinutes, String note, List<Object> constraints) {
+
+        static TripItemResponse from(TripItemView view) {
+            TripItem item = view.item();
+            return new TripItemResponse(item.id(), PlaceSummaryResponse.from(view.place()),
+                    item.date(), item.position(), wallClock(item.startTime()), item.durationMinutes(),
+                    item.note(), item.constraints().stream().map(TripItemResponse::constraint).toList());
+        }
+
+        /**
+         * The four lock shapes are a tagged union with {@code additionalProperties: false}, so each
+         * one is rendered as exactly its own fields. A single flat record with nulls would be a
+         * different document: {@code date: null} on a MUST_VISIT is a property that variant does not
+         * declare, and the contract rejects it rather than ignoring it.
+         */
+        static Object constraint(TripConstraint stored) {
+            String source = stored.source().name();
+            return switch (stored.lock()) {
+                case ItemLock.MustVisit ignored -> new MustVisitConstraintResponse("MUST_VISIT", true, source);
+                case ItemLock.Date date -> new DateConstraintResponse("DATE", true, source, date.date());
+                case ItemLock.Time time -> new TimeConstraintResponse("TIME", true, source,
+                        wallClock(time.startTime()), time.toleranceMinutes());
+                case ItemLock.Reservation reservation -> new ReservationConstraintResponse("RESERVATION",
+                        true, source, reservation.date(), wallClock(reservation.startTime()),
+                        wallClock(reservation.endTime()));
+            };
+        }
+
+        /**
+         * Seconds are always present. The contract's pattern requires them (#145) and Jackson's
+         * default rendering drops them on the minute, so {@code 09:00} would leave the schema.
+         */
+        static String wallClock(java.time.LocalTime value) {
+            return value == null ? null : WALL_CLOCK.format(value);
+        }
+    }
+
+    private static final java.time.format.DateTimeFormatter WALL_CLOCK =
+            java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    public record MustVisitConstraintResponse(String type, boolean locked, String source) { }
+
+    public record DateConstraintResponse(String type, boolean locked, String source, LocalDate date) { }
+
+    public record TimeConstraintResponse(String type, boolean locked, String source, String startTime,
+            int toleranceMinutes) { }
+
+    public record ReservationConstraintResponse(String type, boolean locked, String source,
+            LocalDate date, String startTime, String endTime) { }
 }

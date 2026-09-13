@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.ResultActions;
  *
  * <p>seedItems is not exercised because the command cannot express it while PM-008 is open (#145).
  */
-@SpringBootTest
+@SpringBootTest(properties = "nullnull.catalog.public-enabled=true")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 class TripCreationIT {
@@ -168,7 +168,7 @@ class TripCreationIT {
                         + "\"planningLevel\":\"MUST_VISIT_ONLY\",\"interests\":"
                         + "[{\"code\":\"FOOD\",\"weight\":3}]}")
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String id = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         mvc.perform(get("/api/v1/trips/" + id)
                         .cookie(new Cookie("__Host-nullnull_session", owner.cookie)))
@@ -187,7 +187,7 @@ class TripCreationIT {
         var theirs = owner();
         String created = create(mine, "mine-" + UUID.randomUUID(), body("2026-10-04", "2026-10-07"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String id = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         // 404, not 403: telling the two apart would let a caller probe which trip ids exist. The
         // body must be identical to the one an unknown id produces.
@@ -253,7 +253,7 @@ class TripCreationIT {
         var owner = owner();
         String created = create(owner, "active-" + UUID.randomUUID(), body("2026-10-04", "2026-10-07"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String id = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .patch("/api/v1/me")
@@ -299,7 +299,7 @@ class TripCreationIT {
                         .contentType("application/json").content(body))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        UUID id = UUID.fromString(created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1"));
+        UUID id = UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
 
         // Both are stored, and neither released the other: two rows, each with its own values.
         // Rendered as one string per row so a missing value is visible rather than absent.
@@ -316,13 +316,11 @@ class TripCreationIT {
     }
 
     @Test
-    @DisplayName("BA-030-T3 getTrip still returns empty days, so the item fixture is not server-verified")
-    void theDetailProjectionDoesNotYetCarryItems() throws Exception {
-        // TripController.TripDayResponse returns List.of() for every day on purpose - projecting
-        // items is BA-040. Recording it as a test rather than only a comment does two things: it
-        // stops "the fixture has items, so the server must send them" from being assumed, and it
-        // turns RED the moment BA-040 starts projecting, which is when the fixtures below become
-        // server-verifiable and this test must be replaced by the real assertion.
+    @DisplayName("BA-040-T1 getTrip projects the stored item onto its day with the place it names")
+    void theDetailProjectionCarriesItems() throws Exception {
+        // This case used to assert the opposite - that days came back empty - and said it would turn
+        // RED the moment BA-040 projected items, which is when the fixtures become server-verifiable
+        // and the real assertion replaces it. That happened; this is the real assertion.
         var owner = owner();
         UUID place = UUID.randomUUID();
         java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
@@ -341,15 +339,29 @@ class TripCreationIT {
                                 + "\",\"date\":\"2026-10-04\",\"position\":0}]}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        UUID id = UUID.fromString(created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1"));
-        // Stored...
+        UUID id = UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_items WHERE trip_id = ?",
                 Integer.class, id)).isOne();
-        // ...but not projected.
         mvc.perform(get("/api/v1/trips/" + id)
                         .cookie(new Cookie("__Host-nullnull_session", owner.cookie)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.days[0].items").isEmpty());
+                // The day the item sits on carries it, with the place resolved through the catalog's
+                // gated projection - TripItem.place is required, so an id alone is not an answer.
+                .andExpect(jsonPath("$.days[0].date").value("2026-10-04"))
+                .andExpect(jsonPath("$.days[0].items.length()").value(1))
+                .andExpect(jsonPath("$.days[0].items[0].place.id").value(place.toString()))
+                .andExpect(jsonPath("$.days[0].items[0].place.name").value("테스트 장소"))
+                .andExpect(jsonPath("$.days[0].items[0].position").value(0))
+                .andExpect(jsonPath("$.days[0].items[0].startTime").doesNotExist())
+                // The other day of the range is still present and empty: the array is the trip's
+                // calendar, not the list of days that happen to be busy.
+                .andExpect(jsonPath("$.days[1].date").value("2026-10-05"))
+                .andExpect(jsonPath("$.days[1].items").isEmpty());
+
+        // createTrip answers from the same projection. It rebuilds its response from the stored
+        // idempotency record, so fixing getTrip alone would have left the create response carrying
+        // items: [] - the silent-empty shape #162 ruled out.
+        assertThat(created).contains("\"place\"");
     }
 
 }
