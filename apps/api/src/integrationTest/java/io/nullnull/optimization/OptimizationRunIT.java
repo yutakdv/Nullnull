@@ -211,6 +211,44 @@ class OptimizationRunIT {
         poll(owner, runId).andExpect(jsonPath("$.status").value("EXPIRED"));
     }
 
+    /**
+     * BA-052-T4, which BA-050 can prove even though BA-052 has not been built.
+     *
+     * <p>The claim is about precedence in the READ, and the read exists now: getOptimization says
+     * "Preview expiry prevents a new APPLY/KEEP, but must not turn an already APPLIED or REVERTED
+     * run into PREVIEW_EXPIRED". A decision is a fact that happened; an expiry is a deadline that
+     * passed, and a deadline cannot un-happen a fact.
+     *
+     * <p>The APPLIED row is written directly because the operation that would create it is BA-052's
+     * and does not exist. That is the one thing this test takes on credit, and it is a state the
+     * schema already accepts rather than an invented one. What is under test is not how the row got
+     * there but what the projection does with it, and that code is in front of us.
+     */
+    @Test
+    @DisplayName("BA-052-T4 a run with a decision stays decided after its preview deadline passes")
+    void anExpiredDeadlineDoesNotUndoADecision() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID itemId = insertItem(tripId, DAY_ONE);
+        UUID runId = runId(create(owner, tripId, "\"1\"", itemRequest(itemId, 1))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
+
+        jdbc.update("UPDATE optimization_runs SET status = 'APPLIED', started_at = now(),"
+                + " completed_at = now(), data_fingerprint = ?, expires_at = now() - interval '1 hour'"
+                + " WHERE id = ?", "a".repeat(64), runId);
+
+        poll(owner, runId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andExpect(header().doesNotExist("Retry-After"));
+
+        // The same row with the decision taken away DOES expire, so the assertion above is about the
+        // decision and not about terminal statuses in general.
+        jdbc.update("UPDATE optimization_runs SET status = 'RUNNING', completed_at = NULL WHERE id = ?",
+                runId);
+        poll(owner, runId).andExpect(jsonPath("$.status").value("EXPIRED"));
+    }
+
     @Test
     @DisplayName("BA-050 another owner's run is not readable and not distinguishable from one that is gone")
     void aForeignRunIsNotFound() throws Exception {
