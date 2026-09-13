@@ -99,8 +99,14 @@ public class JdbcCandidateStore implements CandidateStore {
     }
 
     @Override
-    public Optional<UUID> restoreScheduledFor(UUID tripItemId, Instant now) {
-        return moveScheduled(tripItemId, "ACTIVE", now);
+    public Optional<UUID> restoreScheduledFor(UUID tripItemId, boolean mustVisit, Instant now) {
+        return jdbc.sql("UPDATE trip_candidates SET status = 'ACTIVE', scheduled_trip_item_id = NULL,"
+                        + " must_visit = ?, updated_at = ?"
+                        + " WHERE scheduled_trip_item_id = ? AND status = 'SCHEDULED'"
+                        + " RETURNING id")
+                .params(mustVisit, Timestamp.from(now), tripItemId)
+                .query(UUID.class)
+                .optional();
     }
 
     @Override

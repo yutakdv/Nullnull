@@ -692,10 +692,13 @@ public class TripService {
         // Whatever candidate was scheduled onto this item goes back to ACTIVE; an item that never
         // came from one still leaves a candidate behind, because the contract promises the outgoing
         // place comes back either way, and TRIP_SEED is the only true thing to say about its origin.
-        if (candidates.restoreScheduledFor(itemId, now).isEmpty()) {
-            // false, and not by omission. A replacement cannot proceed while a MUST_VISIT lock is
-            // unreleased (#199), so by here the traveller has named it and chosen to let the place
-            // go. Carrying the intention back would restore what they just released.
+        // false whichever branch runs, and not by omission. A replacement cannot proceed while a
+        // MUST_VISIT lock is unreleased (#199), so by here the traveller has named it and chosen to
+        // let the place go; carrying the intention back would restore what they just released. This
+        // was written on the fallback branch alone at first, which is the branch that almost never
+        // runs - a candidate-backed item always takes the restore above, and that one was returning
+        // the flag the candidate was saved with.
+        if (candidates.restoreScheduledFor(itemId, false, now).isEmpty()) {
             candidates.saveActive(tripId, outgoing, item.note(), false,
                     new CandidateSource(CandidateSourceType.TRIP_SEED, null, now), now);
         }
@@ -1001,12 +1004,14 @@ public class TripService {
             candidates.dismissScheduledFor(removed.id(), now);
             return;
         }
-        if (candidates.restoreScheduledFor(removed.id(), now).isEmpty()) {
-            // A MUST_VISIT lock on the item is the same thing the candidate flag records, so it
-            // travels back rather than being dropped: the traveller said this place has to be in the
-            // trip, and taking it off the schedule is not them changing their mind about that.
-            boolean mustVisit = removed.constraints().stream()
-                    .anyMatch(constraint -> constraint.type() == LockType.MUST_VISIT);
+        // The item's lock is the same thing the candidate flag records, so it travels back on both
+        // branches: taking a place off the schedule is not changing your mind about whether it
+        // belongs in the trip. Reading the ITEM rather than leaving the candidate's old value is what
+        // makes a lock added after scheduling survive - the restore used to return whatever the
+        // candidate was saved with, so exactly that lock was the one being dropped.
+        boolean mustVisit = removed.constraints().stream()
+                .anyMatch(constraint -> constraint.type() == LockType.MUST_VISIT);
+        if (candidates.restoreScheduledFor(removed.id(), mustVisit, now).isEmpty()) {
             candidates.saveActive(tripId, removed.placeId(), removed.note(), mustVisit,
                     new CandidateSource(CandidateSourceType.TRIP_SEED, null, now), now);
         }

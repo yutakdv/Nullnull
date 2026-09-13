@@ -42,8 +42,15 @@ public interface CandidateStore {
      * <p>Empty when no candidate points at it, which is not a failure: an item can reach the schedule
      * without ever having been a candidate (createTrip's seedItems, or addTripItem with no
      * candidateId). The caller decides what that means; the store only reports it.
+     *
+     * <p>{@code mustVisit} is written in the same statement rather than left as it was saved. What
+     * the flag should be on the way back is the caller's question and the two callers answer it
+     * differently, so carrying the old value would be the store deciding it by omission - which is
+     * what happened when this took no such argument: a candidate restored through here kept whatever
+     * it was saved with, while the fallback path that creates a new candidate was already deciding
+     * properly. Two branches of one operation disagreed.
      */
-    Optional<UUID> restoreScheduledFor(UUID tripItemId, Instant now);
+    Optional<UUID> restoreScheduledFor(UUID tripItemId, boolean mustVisit, Instant now);
 
     /**
      * SCHEDULED to DISMISSED for the candidate that points at this item, clearing the pointer.
