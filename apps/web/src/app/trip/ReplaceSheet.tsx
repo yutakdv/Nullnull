@@ -26,8 +26,10 @@ import {
 //
 // The lock consequence is computed from the item, not written into copy:
 // swapping the place releases MUST_VISIT (it pins the place) and keeps DATE,
-// TIME and RESERVATION (they pin the schedule, and preserveDateTime defaults to
-// true). That is the frame's own warning, kept true as lock types change.
+// TIME and RESERVATION, which replaceTripItem says the item keeps
+// unconditionally. That is the frame's own warning, kept true as lock types
+// change. See replaceLockEffect for why this rests on the operation
+// description rather than on preserveDateTime (#203).
 
 type TripDetail = components['schemas']['TripDetail'];
 type TripItem = TripDetail['days'][number]['items'][number];
@@ -41,7 +43,19 @@ export interface ReplaceSheetProps {
   loading: boolean;
   failed: boolean;
   busy: boolean;
-  onConfirm: (choice: RelatedPlace) => void;
+  /**
+   * The chosen replacement, and the locks the sheet told the user it releases.
+   *
+   * Typed as `ReleasedPlaceLocks` rather than `ConstraintType[]`: the two hold
+   * the same four values today, but the contract says this list narrows to
+   * `[MUST_VISIT, RESERVATION]` once #203 settles. Binding to the request
+   * schema makes that narrowing a typecheck failure here instead of a 422 at
+   * runtime.
+   */
+  onConfirm: (
+    choice: RelatedPlace,
+    released: components['schemas']['ReleasedPlaceLocks'],
+  ) => void;
   onCancel: () => void;
 }
 
@@ -221,7 +235,12 @@ export function ReplaceSheet({
               className={styles.confirm}
               disabled={selected === null || busy}
               onClick={() => {
-                if (selected) onConfirm(selected);
+                // effect.released is what lockLine() just told the user this
+                // swap would release, so it is their answer — not a defensive
+                // list of every lock present. The server deletes every lock
+                // named here, so sending more than was asked about would
+                // release locks the user was never shown.
+                if (selected) onConfirm(selected, effect.released);
               }}
               type="button"
             >
