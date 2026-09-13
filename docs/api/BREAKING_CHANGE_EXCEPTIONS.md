@@ -46,6 +46,8 @@ tags:
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
+| in API GET /optimizations/{runId} added the new `DATA_INSUFFICIENT` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `200` | `apps/ai`가 이 결과를 **네 자리에서** 낸다(`item/evaluator.py` 157·171·194·200). 공개 실패 평면에 담을 칸이 없어 다른 코드로 접으면 불변식 6(*데이터 부재를 API와 화면에서 명확히 구분한다*)을 깬다. `BA-051` 카드가 *ROUTE_UNAVAILABLE 또는 계약상 데이터 실패*라고 그 칸을 이름으로 지목했는데 계약에 생기지 않았던 것이다. `x-extensible-enum`으로 바꾸면 oasdiff는 조용해지지만 generated client가 union을 잃어 FE가 실패 코드별 CTA를 분기할 때 컴파일러 도움이 사라진다 — 사용자에게 아무것도 안 보이는 실패가 그 자리다. | 오너(2026-09-14, 이 세션에서 계약 확정 위임) | #225 |
+| in API POST /trips/{tripId}/optimizations added the new `DATA_INSUFFICIENT` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `202` | `apps/ai`가 이 결과를 **네 자리에서** 낸다(`item/evaluator.py` 157·171·194·200). 공개 실패 평면에 담을 칸이 없어 다른 코드로 접으면 불변식 6(*데이터 부재를 API와 화면에서 명확히 구분한다*)을 깬다. `BA-051` 카드가 *ROUTE_UNAVAILABLE 또는 계약상 데이터 실패*라고 그 칸을 이름으로 지목했는데 계약에 생기지 않았던 것이다. `x-extensible-enum`으로 바꾸면 oasdiff는 조용해지지만 generated client가 union을 잃어 FE가 실패 코드별 CTA를 분기할 때 컴파일러 도움이 사라진다 — 사용자에게 아무것도 안 보이는 실패가 그 자리다. | 오너(2026-09-14, 이 세션에서 계약 확정 위임) | #225 |
 
 ## 만료된 예외 (기록)
 

@@ -863,6 +863,58 @@
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-025"
     },
     {
+      "id": "BA-026",
+      "phase": "B03",
+      "priority": "P0",
+      "title": "내부 규칙 관계 재평가 적재",
+      "status": "planned",
+      "dependsOn": [
+        "BA-024"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "entities": "catalog.place_relations · NULLNULL_CATALOG_RULE · 재평가 스크립트",
+      "steps": [
+        "같은 category_code·region_code 쌍을 모아 NULLNULL_CATALOG_RULE 출처의 SIMILAR 증거로 적재한다",
+        "재실행이 한 쌍에 한 행으로 수렴하고 기존 증거를 잃지 않게 한다",
+        "registry의 stale_after(P7D)에 맞춰 expires_at을 쓰고 재평가가 갱신하게 한다",
+        "Gradle task와 운영 실행 경로를 연결한다"
+      ],
+      "safety": "EXACT를 만들지 않는다. 비활성·폐기된 장소를 양 끝 어디에도 넣지 않는다. 규칙을 더는 만족하지 않는 쌍은 삭제가 아니라 만료다.",
+      "tests": [
+        {
+          "id": "BA-026-T1",
+          "assertion": "같은 category_code·region_code 쌍에만 SIMILAR를 만들고 다르면 만들지 않는다"
+        },
+        {
+          "id": "BA-026-T2",
+          "assertion": "규칙 적재는 EXACT를 만들지 않는다"
+        },
+        {
+          "id": "BA-026-T3",
+          "assertion": "두 번 돌려도 한 쌍에 한 행으로 수렴하고 재실행이 기존 행을 잃지 않는다"
+        },
+        {
+          "id": "BA-026-T4",
+          "assertion": "비활성·폐기된 장소는 양쪽 끝 어디에도 들어가지 않는다"
+        },
+        {
+          "id": "BA-026-T5",
+          "assertion": "규칙을 더는 만족하지 않는 쌍은 만료되고 되살아나지 않는다"
+        },
+        {
+          "id": "BA-026-T6",
+          "assertion": "source 장소당 후보 상한을 넘으면 조용히 자르지 않고 보고한다"
+        }
+      ],
+      "handoff": "규칙 후보가 있는 장소와 없는 장소의 listRelatedPlaces 응답 차이. 후자가 UNKNOWN(SOURCE_DISABLED)로 남는 것이 정상 동작임을 함께 넘긴다.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-026"
+    },
+    {
       "id": "BA-030",
       "phase": "B04",
       "priority": "P0",

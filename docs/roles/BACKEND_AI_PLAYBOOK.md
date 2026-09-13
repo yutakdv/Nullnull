@@ -854,6 +854,46 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 FE 인계·완료 증거: 영업시간이 있는 장소와 없는 장소의 `getCandidateTripMatches` 응답 차이. 창이 없는 날은 `UNKNOWN`으로 남는 것이 정상 동작임을 함께 넘긴다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
+### BA-026
+
+**내부 규칙 관계 재평가 적재** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-024](#ba-024)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: catalog.place_relations · NULLNULL_CATALOG_RULE · 재평가 스크립트
+
+착수 사유: [BA-025](#ba-025)와 **같은 모양이다.** `V027`이 table을, `CatalogRelationQuery`가 reader를, [BA-024](#ba-024)의 일곱 절이 응답 경로를 세웠는데 **행을 만드는 production 경로가 없다** — main에 `INSERT INTO place_relations`가 0건이고 쓰는 곳은 전부 test다. 그래서 `listRelatedPlaces`는 일곱 절이 초록인 채로 사용자에게 영원히 `UNKNOWN(SOURCE_DISABLED)`만 낸다.
+
+규칙의 출처는 지어낸 것이 아니라 registry다. `V007`의 `NULLNULL_CATALOG_RULE` 행이 `metric_definition`에 **`동일 taxonomy·region 기반 SIMILAR 규칙`** 이라고 적어 뒀고, `places`가 가진 것이 정확히 그 둘이다(`category_code`·`region_code`, 둘 다 NOT NULL에 non-blank CHECK). **두 코드가 opaque provider 값인 것은 문제가 되지 않는다** — 규칙이 주장하는 것은 *"두 장소가 같은 분류·지역에 속한다"* 이지 그 코드의 의미가 아니다. 의미를 주장하려면 검토된 label 매핑이 필요한데 그것이 없어서 `JdbcCatalogPlaceQuery.categoryName()`이 null을 낸다.
+
+**승인이 필요 없다.** 이 source는 `approval_state=PROD_APPROVED`·`enabled=true`·`stale_after=P7D`다 — `SEOUL_CITYDATA`와 정반대다.
+
+**계산은 Spring이다(ADR-0006 위반이 아니다).** `AGENTS.md` 16이 *"관련 장소 계산은 `apps/ai`"* 라고 하지만, `RelationCandidateIn`의 javadoc이 자기 입력을 *"one relation evidence row from `catalog.place_relations` after canonical mapping"* 으로 정의한다 — **ranker는 이미 저장된 행을 받아 정렬한다.** ADR-0006이 가르는 것은 *점수·순서*이고, *두 장소가 같은 분류·지역에 있다*는 것은 점수가 아니라 catalog의 사실이다. `place_hours_observations`가 catalog의 사실인 것과 같다.
+
+**plan 파일을 만들지 않는다 — [A-031](../project/DECISIONS_AND_RISKS.md)·A-032와 다른 이유가 있다.** 게시물과 영업시간은 **사람이 읽어야만 알 수 있는 것**이라 plan이 검토 산출물이었다. 관계는 입력이 이미 우리 DB에 있어서 **운영자가 읽을 것이 없다** — plan을 만들면 우리 DB를 베껴 적는 꼴이 된다. `CuratedHoursImporter`의 *모양*(재실행 안전한 transaction + Gradle task)은 맞고 *plan 파일*은 아니다. 요청마다 계산하는 것도 아니다: 행이 `effective_at`·`expires_at`과 pin된 `source_registry_version`을 가진 **증거**이고, 매 요청 scan은 그 증거를 없앤다.
+
+구현 순서:
+
+1. 같은 `category_code`·`region_code` 쌍을 모아 `NULLNULL_CATALOG_RULE` 출처의 `SIMILAR` 증거로 적재한다
+2. 재실행이 한 쌍에 한 행으로 수렴하고 기존 증거를 잃지 않게 한다
+3. registry의 `stale_after`(P7D)에 맞춰 `expires_at`을 쓰고 재평가가 갱신하게 한다
+4. Gradle task와 운영 실행 경로를 연결한다
+
+실패·안전 경계: `EXACT`를 만들지 않는다 — 그것은 공식 direct relation + canonical ID 검증이 요구되고 `KTO_RELATED_PLACES`는 미신청이다. 비활성·폐기된 장소를 양 끝 어디에도 넣지 않는다. 규칙을 더는 만족하지 않는 쌍은 **삭제가 아니라 만료**다.
+
+필수 검증:
+
+- `BA-026-T1`: 같은 category_code·region_code 쌍에만 SIMILAR를 만들고 다르면 만들지 않는다
+- `BA-026-T2`: 규칙 적재는 EXACT를 만들지 않는다
+- `BA-026-T3`: 두 번 돌려도 한 쌍에 한 행으로 수렴하고 재실행이 기존 행을 잃지 않는다
+- `BA-026-T4`: 비활성·폐기된 장소는 양쪽 끝 어디에도 들어가지 않는다
+- `BA-026-T5`: 규칙을 더는 만족하지 않는 쌍은 만료되고 되살아나지 않는다
+- `BA-026-T6`: source 장소당 후보 상한을 넘으면 조용히 자르지 않고 보고한다
+
+FE 인계·완료 증거: 규칙 후보가 있는 장소와 없는 장소의 `listRelatedPlaces` 응답 차이. 후자가 `UNKNOWN(SOURCE_DISABLED)`로 남는 것이 정상 동작임을 함께 넘긴다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
 ## B04 · 여행·피드·피드백·후보
 
 발견→저장을 일정 변경 없이 완결한다.
