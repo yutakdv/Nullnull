@@ -105,8 +105,11 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
 1. 새 REC ID는 `apps/ai/tests/recommendation/manifest.json`의 `implementedTestIds`와 fixture sha256에 추가하고, Spring 쪽 검증(REC-INT/SEC/JOB/FEED-04)은 해당 Gradle suite 이름을 `docs/engineering/TEST_STRATEGY.md#12`에 연결한다.
 2. BA-xxx-Tn acceptance는 구현 PR에서 실제 test class/함수 이름과 report 경로를 카드에 적고 `backend-plan.json` status를 올린다. report 없는 `verified`는 validator가 거부한다.
-3. 새 app 디렉터리나 suite가 생기면 workflow path filter, `compose.integration.yml` service, `scripts/integration-test.sh` 실행 단계, 이 표를 같은 PR에서 바꾼다.
-4. skip·0건 실행·report 누락·`continue-on-error`·`ignoreFailures`는 금지다. path filter workflow는 조기 피드백일 뿐 required status로 승격하지 않는다.
+3. **acceptance assertion은 한 절만 쓴다.** `check_test_reports.py`는 `tests[].id`가 JUnit 이름에 **나타나는지**만 보므로, 한 ID에 여러 절을 묶으면 그중 **아무 절이나** 증명하는 test 하나로 그 ID가 충족된다 — 집계기가 나머지를 볼 방법이 없다. "A하고 B한다"가 필요하면 `T3`(A)·`T4`(B)로 나눈다. 그러면 B를 증명하는 test가 없을 때 `integration-ready` 승격이 **그 자리에서** 막힌다.
+
+   실제로 걸린 둘: `BA-002-T3`(*"transaction 중간 장애는 전체 rollback하며 **구버전 app 호환성이 유지된다**"*)은 `integration-ready`인데 ID를 단 test 열 개가 전부 첫 절이고 둘째 절을 다루는 것이 없다. `BA-034-T1`(*"**두 tap**·서로 다른 key 동시 요청·다른 post 같은 POI"*)은 세 절 중 첫 절이 비어 있었다 — 동시성 case는 일부러 key를 다르게 주므로 대체가 되지 않는다(index가 없어도 두 tap은 한 행, guard가 없어도 동시성은 한 행이다). 기존 카드를 일괄로 쪼개지는 않고 status를 올릴 때 절이 다 덮였는지 본다.
+4. 새 app 디렉터리나 suite가 생기면 workflow path filter, `compose.integration.yml` service, `scripts/integration-test.sh` 실행 단계, 이 표를 같은 PR에서 바꾼다.
+5. skip·0건 실행·report 누락·`continue-on-error`·`ignoreFailures`는 금지다. path filter workflow는 조기 피드백일 뿐 required status로 승격하지 않는다.
 
 ## 문서 지도
 

@@ -159,6 +159,22 @@ public class TripController {
                 .body(TripMutationResponse.from(result));
     }
 
+    @org.springframework.web.bind.annotation.PatchMapping(
+            value = "/trips/{tripId}/items/{itemId}", consumes = "application/merge-patch+json",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "updateTripItem", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripMutationResponse> updateItem(OwnerContext owner,
+            @PathVariable UUID tripId, @PathVariable UUID itemId,
+            @RequestHeader("If-Match") String ifMatch,
+            @RequestBody Map<String, Object> patch) {
+        TripMutationView result = trips.updateItem(owner, tripId, itemId, ifMatch,
+                UpdateTripBodies.item(patch));
+        return ResponseEntity.ok()
+                .eTag(result.trip().trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripMutationResponse.from(result));
+    }
+
     @PostMapping(value = "/trips/{tripId}/items/{itemId}/replace",
             consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @NullnullOperation(id = "replaceTripItem", security = {Security.SESSION, Security.CSRF})

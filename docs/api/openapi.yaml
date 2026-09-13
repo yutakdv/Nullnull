@@ -2591,6 +2591,10 @@ paths:
         "200":
           description: Item changed
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               $ref: "#/components/headers/ETag"
           content:

@@ -736,6 +736,77 @@ public class TripService {
     }
 
     /**
+     * updateTripItem. If-Match only, like removeTripItem and for the same reason: the contract gives
+     * it no Idempotency-Key, and a repeat of the same patch against the same version is refused by
+     * the ETag rather than needing a key to absorb it.
+     *
+     * <p>Locks are evaluated against the item the patch WOULD produce, not against the fields it
+     * happens to mention. Changing only the start time can break a TIME lock, and changing only the
+     * duration can push a stay past the end of a RESERVATION window - neither touches the date, so a
+     * check that looked at what the caller sent would miss both.
+     */
+    public TripMutationView updateItem(OwnerContext context, UUID tripId, UUID itemId, String ifMatch,
+            UpdateTripItemCommand patch) {
+        long expected = parseIfMatch(ifMatch);
+        if (patch.touchesNothing()) {
+            // minProperties: 1 in the contract. An empty patch that still raised the version would
+            // make "my If-Match succeeded" mean two different things.
+            throw new TripValidationException("body", "Size", "the patch changes nothing");
+        }
+        return transactions.execute(status -> {
+            Trip current = trips.findForUpdate(context.ownerId(), tripId)
+                    .orElseThrow(TripService::notFound);
+            if (current.version() != expected) {
+                throw tripChanged(current.version());
+            }
+            List<TripItem> existing = trips.items(tripId);
+            TripItem stored = existing.stream().filter(each -> each.id().equals(itemId)).findFirst()
+                    .orElseThrow(TripService::itemNotFound);
+            TripItem patched = patch.applyTo(stored);
+            requireLocksAllowUpdate(stored, patched, patch);
+            List<TripItem> after = existing.stream()
+                    .map(each -> each.id().equals(itemId) ? patched : each).toList();
+            TripScheduleRules.requireInsideRange(current.range(), List.of(patched));
+            TripScheduleRules.requireWithinCaps(after);
+            TripScheduleRules.requireDistinctPositions(after);
+            Instant now = clock.instant();
+            trips.updateItem(tripId, patched, now);
+            Trip bumped = raiseVersion(current, now);
+            String snapshot = snapshot(bumped, after);
+            trips.updateMetadata(bumped, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+            return mutationView(context, tripId, List.of(itemId));
+        });
+    }
+
+    /**
+     * The same rule reorder follows, judged on the patched item: a lock the request does not name
+     * refuses the edit, and a lock it names is released.
+     *
+     * <p>The locks read are the STORED ones. Reading the patched item's would ask whether the edit
+     * is allowed by the locks it already dropped, which is every edit.
+     */
+    private void requireLocksAllowUpdate(TripItem stored, TripItem patched,
+            UpdateTripItemCommand patch) {
+        LockChecks.Result verdict = LockChecks.evaluate(
+                stored.constraints().stream().map(TripConstraint::lock).toList(),
+                patched.date(), patched.startTime(), patched.durationMinutes());
+        List<String> unreleased = new ArrayList<>();
+        verdict.passed().forEach((type, satisfied) -> {
+            if (!satisfied && !patch.releaseConstraints().contains(type)) {
+                unreleased.add(LockChecks.reasonCodeOf(type));
+            }
+        });
+        if (!unreleased.isEmpty()) {
+            throw new ApiException(ProblemCode.LOCK_CONFLICT,
+                    "The edit is refused by locks this request did not release: "
+                            + String.join(", ", unreleased) + ".");
+        }
+        for (LockType type : patch.releaseConstraints()) {
+            trips.deleteConstraint(stored.id(), type);
+        }
+    }
+
+    /**
      * removeTripItem. If-Match only - the contract gives this no Idempotency-Key, and it does not
      * need one: removing an item that is already gone is a 404, not a second removal.
      *

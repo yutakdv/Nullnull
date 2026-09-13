@@ -67,8 +67,8 @@ class RequestPropertyReaderTest {
     /**
      * Operations whose body is not a record, so there are no components to compare against.
      *
-     * <p>updateTrip binds a raw map because merge-patch has to tell "absent" from "null", which a
-     * record cannot express - a null component means both. UpdateTripBodies does the reading and
+     * <p>updateTrip and updateTripItem bind a raw map because merge-patch has to tell "absent"
+     * from "null", which a record cannot express - a null component means both. UpdateTripBodies does the reading and
      * rejects unknown fields itself, which is the part this check would otherwise provide.
      *
      * <p>ingestEventBatch binds the raw text on purpose: docs/contracts/events.schema.json is the
@@ -78,7 +78,7 @@ class RequestPropertyReaderTest {
      * deliberate - which is why they are named here with their reason instead of being skipped as a
      * class.
      */
-    private static final Set<String> NOT_RECORD_BOUND = Set.of("updateTrip", "ingestEventBatch");
+    private static final Set<String> NOT_RECORD_BOUND = Set.of("updateTrip", "updateTripItem", "ingestEventBatch");
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
