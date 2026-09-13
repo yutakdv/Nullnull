@@ -333,12 +333,18 @@ class CandidateIT {
         UUID placeId = place("피드 연동");
         curatedPost("피드 글", placeId);
 
+        // The status is asserted first so a Problem body fails as a status, not as an opaque
+        // "Missing property in path $['items']". listFeed answers 503 when any published post's
+        // primary place cannot be projected - including a post that has no place at all - so when
+        // this breaks, the useful fact is the code, not the absent key.
         mvc.perform(get("/api/v1/feed").param("tripId", tripId).cookie(cookie(owner)))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].candidateState").value("NOT_SAVED"));
         add(owner, tripId, placeId, null, "f-" + UUID.randomUUID()).andExpect(status().isCreated());
         // The value BA-032 could not produce until this slice existed. It was left unimplemented
         // rather than guessed at, and it is now observable.
         mvc.perform(get("/api/v1/feed").param("tripId", tripId).cookie(cookie(owner)))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].candidateState").value("SAVED_TO_SELECTED_TRIP"));
     }
 
