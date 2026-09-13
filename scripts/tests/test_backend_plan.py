@@ -249,6 +249,27 @@ class BackendPlanTests(unittest.TestCase):
                 'provenBy':{x['id']: [x['id']+' case'] for x in t['tests']}})
         self.check_mutation(mutate, 'missing vault target')
 
+    def test_verified_report_must_be_a_run_of_this_repository(self):
+        """resolve_link waves http(s) through, so without this any URL would read as evidence."""
+        def mutate(p):
+            t=p['tasks'][0]
+            t.update(status='verified', evidence={'report':'https://example.com/green',
+                'contractSha':'example', 'secondPass':'대조함',
+                'provenBy':{x['id']: [x['id']+' case'] for x in t['tests']}})
+        self.check_mutation(mutate, 'must be a GitHub Actions run URL')
+
+    def test_verified_accepts_a_real_actions_run_url(self):
+        """The negative above proves nothing if every URL is refused."""
+        plan = copy.deepcopy(self.plan)
+        task = plan['tasks'][0]
+        task.update(status='verified',
+                    evidence={'report': 'https://github.com/yutakdv/Nullnull/actions/runs/123',
+                              'contractSha': 'example', 'secondPass': '대조함',
+                              'provenBy': {x['id']: [x['id'] + ' case'] for x in task['tests']}})
+        errors = []
+        validate_plan(plan, self.ops, self.features, self.cards, ROOT, errors)
+        self.assertEqual([], [e for e in errors if 'evidence.report' in e], errors)
+
     def test_verified_provenby_must_cover_every_acceptance_id(self):
         """An ID with nothing to point at is what stops the promotion - see BA-002-T3's second clause."""
         def mutate(p):
