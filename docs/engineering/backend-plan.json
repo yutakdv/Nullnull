@@ -1196,7 +1196,7 @@
         },
         {
           "id": "BA-042-T3",
-          "assertion": "MUST_VISIT/예약 잠금과 기존 candidate linkage가 일관되게 보존된다"
+          "assertion": "후보 linkage는 보존이 아니라 #165 Q2의 전이를 따르고(옛 장소는 ACTIVE 후보), 잠금 처리는 #199 결정에 따른다"
         }
       ],
       "handoff": "comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture.",

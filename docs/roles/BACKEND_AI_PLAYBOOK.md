@@ -1081,7 +1081,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - `BA-042-T1`: 날짜만 있는 slot/null time·DST·영업/route 결측을 구분한다
 - `BA-042-T2`: replace 중간 실패와 stale relation/version은 일정 미변경이다
-- `BA-042-T3`: MUST_VISIT/예약 잠금과 기존 candidate linkage가 일관되게 보존된다
+- `BA-042-T3`: 후보 linkage는 보존이 아니라 #165 Q2의 전이를 따르고(옛 장소는 ACTIVE 후보), 잠금 처리는 #199 결정에 따른다
 
 FE 인계·완료 증거: comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
