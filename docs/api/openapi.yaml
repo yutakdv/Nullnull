@@ -317,7 +317,7 @@ paths:
                       - name: "optimization"
                         status: "UNAVAILABLE"
                         checkedAt: "2026-09-10T00:00:00Z"
-                        detail: "FEATURE_OPTIMIZATION_ITEM is OFF and no server-side source answers this capability yet"
+                        detail: "FEATURE_OPTIMIZATION_ITEM is OFF"
                     checkedAt: "2026-09-10T00:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
@@ -2860,6 +2860,10 @@ paths:
             Location:
               schema:
                 type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -3000,6 +3004,10 @@ paths:
               description: Present for QUEUED/RUNNING responses
               schema:
                 type: integer
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:

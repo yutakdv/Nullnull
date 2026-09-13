@@ -618,6 +618,55 @@ class HttpRecommendationGatewayTest {
     static final String SENTENCE = "Moving Gyeongbokgung from Sep 12 10:00 to Sep 12 12:00 lowers relative "
             + "concentration index from 80 to 60 (20 points). " + ATTRIBUTION;
 
+    /**
+     * The exact set of top-level keys the request body carries.
+     *
+     * <p>Equality rather than containment, so both directions fail: a field that disappears breaks
+     * the service's contract, and a field that appears is how an owner id would get onto the wire.
+     */
+    private static org.springframework.test.web.client.RequestMatcher bodyKeysAre(String... expected) {
+        return request -> {
+            String body = ((org.springframework.mock.http.client.MockClientHttpRequest) request)
+                    .getBodyAsString();
+            java.util.Set<String> keys = new java.util.TreeSet<>();
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("\"([A-Za-z0-9_]+)\"\\s*:").matcher(topLevel(body));
+            while (matcher.find()) {
+                keys.add(matcher.group(1));
+            }
+            assertThat(keys).containsExactlyInAnyOrder(expected);
+        };
+    }
+
+    /** The body with every nested object and array removed, so only its own keys remain. */
+    private static String topLevel(String body) {
+        StringBuilder out = new StringBuilder();
+        int depth = 0;
+        boolean inString = false;
+        for (int index = 0; index < body.length(); index++) {
+            char character = body.charAt(index);
+            if (character == '"' && (index == 0 || body.charAt(index - 1) != '\\')) {
+                inString = !inString;
+            }
+            if (!inString && (character == '{' || character == '[')) {
+                depth++;
+                if (depth > 1) {
+                    continue;
+                }
+            }
+            if (!inString && (character == '}' || character == ']')) {
+                depth--;
+                if (depth >= 1) {
+                    continue;
+                }
+            }
+            if (depth <= 1) {
+                out.append(character);
+            }
+        }
+        return out.toString();
+    }
+
     static String explanationBody(String summary, String source) {
         return EXPLANATION_BODY.formatted("a".repeat(64), summary, source);
     }
@@ -643,7 +692,16 @@ class HttpRecommendationGatewayTest {
                 .andExpect(jsonPath("$.attribution").value(ATTRIBUTION))
                 .andExpect(jsonPath("$.forecastIssueId").value("issue-1"))
                 // No owner, session, coordinate or itinerary text belongs in an explanation (§9.1).
-                .andExpect(jsonPath("$.ownerId").doesNotExist())
+                //
+                // Asserted as the WHOLE key set, not as the absence of one name. The previous form
+                // was jsonPath("$.ownerId").doesNotExist(), which could not fail: the request record
+                // has no such component, so no serialiser could have written it, and the rule read as
+                // covered while nothing checked it. This form turns red when a field is ADDED, which
+                // is the direction the violation would actually arrive from. The type-level rule for
+                // every request lives in RecommendationRequestShapeTest (BA-050-T8).
+                .andExpect(bodyKeysAre("locale", "placeName", "beforeDate", "beforeTime", "afterDate",
+                        "afterTime", "beforeValue", "afterValue", "metricLabel", "attribution",
+                        "forecastIssueId"))
                 .andRespond(withSuccess(explanationBody(SENTENCE, "TEMPLATE"), MediaType.APPLICATION_JSON));
         ExplanationRenderResponse response = gateway.renderExplanation(explanationRequest());
         assertThat(response.summary()).isEqualTo(SENTENCE);

@@ -1,6 +1,7 @@
 package io.nullnull.operations.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.operations.application.DemoCapabilityQuery.CapabilityReport;
@@ -46,7 +47,7 @@ class DemoCapabilityQueryTest {
     }
 
     @Test
-    @DisplayName("every P0 capability is UNAVAILABLE, because no source answers it yet")
+    @DisplayName("every capability is UNAVAILABLE with its flags at the default")
     void everyCapabilityIsUnavailableWithAnOperatorSafeDetail() {
         DemoReadinessReport report = new DemoCapabilityQuery(false, false, false, CLOCK).readiness();
 
@@ -57,9 +58,43 @@ class DemoCapabilityQueryTest {
         assertThat(report.capabilities()).allSatisfy(capability -> {
             assertThat(capability.status()).isEqualTo(ProbeStatus.UNAVAILABLE);
             assertThat(capability.detail())
-                    .contains(DemoCapabilities.FLAG_VARIABLES.get(capability.name()))
-                    .contains("no server-side source");
+                    .contains(DemoCapabilities.FLAG_VARIABLES.get(capability.name()));
         });
+    }
+
+    @Test
+    @DisplayName("an unavailable capability says WHICH of the two reasons it is unavailable for")
+    void theDetailDistinguishesAnOffFlagFromAMissingSource() {
+        List<CapabilityReport> capabilities =
+                new DemoCapabilityQuery(false, false, false, CLOCK).readiness().capabilities();
+
+        // Two states an operator must be able to tell apart: one they can change by setting a flag,
+        // one they cannot. Before BA-050 every capability reported the second, so the sentence was
+        // the same for all three and said nothing about any of them.
+        assertThat(detail(capabilities, "live")).contains("no server-side source");
+        assertThat(detail(capabilities, "replay")).contains("no server-side source");
+        assertThat(detail(capabilities, "optimization"))
+                .as("BA-050 built the run pipeline, so this one is off by decision, not by absence")
+                .doesNotContain("no server-side source")
+                .isEqualTo("FEATURE_OPTIMIZATION_ITEM is OFF");
+    }
+
+    @Test
+    @DisplayName("BA-050 optimization reports READY when its flag is on, and only that one may be")
+    void theOptimizationFlagCanNowBeTurnedOn() {
+        DemoReadinessReport report = new DemoCapabilityQuery(false, false, true, CLOCK).readiness();
+
+        assertThat(report.capabilities()).filteredOn(capability -> capability.name().equals("optimization"))
+                .singleElement()
+                .satisfies(capability -> assertThat(capability.status()).isEqualTo(ProbeStatus.READY));
+        // Not READY overall: the other two still have nothing behind them, and DEGRADED is what a
+        // partial demo is. A capability turning on must not make the whole report claim more.
+        assertThat(report.overall()).isEqualTo(ReadinessState.DEGRADED);
+    }
+
+    private static String detail(List<CapabilityReport> capabilities, String name) {
+        return capabilities.stream().filter(capability -> capability.name().equals(name))
+                .map(CapabilityReport::detail).findFirst().orElseThrow();
     }
 
     @Test
@@ -67,7 +102,7 @@ class DemoCapabilityQueryTest {
     void aFlagTurnedOnWithoutASourceIsRefused() {
         // The combination is real: docs/operations/ENVIRONMENT.md §9 requires a LIVE feature that is ON
         // to have its source registry, key and readiness present, and §6 makes this response the
-        // authority on what is enabled. Nothing backs any of the three in P0, so ON is a lie in every
+        // authority on what is enabled. Nothing backs live or replay, so ON is a lie for them in every
         // environment - and a flag that could turn a capability ON without a source would be exactly
         // the safety-invariant OFF switch the BA-003 card forbids.
         assertThatThrownBy(() -> new DemoCapabilityQuery(true, false, false, CLOCK))
@@ -77,9 +112,12 @@ class DemoCapabilityQueryTest {
         assertThatThrownBy(() -> new DemoCapabilityQuery(false, true, false, CLOCK))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("FEATURE_REPLAY_MODE");
-        assertThatThrownBy(() -> new DemoCapabilityQuery(false, false, true, CLOCK))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("FEATURE_OPTIMIZATION_ITEM");
+        // optimization is deliberately NOT here any more. BA-050 built what answers it, so the
+        // premise of the refusal - that nothing could - is gone for that one capability. The refusal
+        // is not weakened: the two without a source keep it, and the list shrinking is the record of
+        // which slices have delivered.
+        assertThatCode(() -> new DemoCapabilityQuery(false, false, true, CLOCK))
+                .doesNotThrowAnyException();
     }
 
     @Test

@@ -25,7 +25,12 @@ spring:
     validate-on-migrate: true
   datasource:
     hikari:
-      maximum-pool-size: ${NULLNULL_DB_POOL_MAX:10}
+      # 10 was sized for one job type. BA-050 adds a second, and JobConnectionBudget's worst case
+      # (2 * slots + types + 1, plus 2 reserved for readiness) makes the demand 9 for the two types
+      # at their configured concurrency - so the default rises with the work rather than the guard
+      # being loosened to fit it. Raising it again is how a third type is admitted; lowering a type's
+      # nullnull.jobs.concurrency.<type> is the other lever, and both are named in the failure.
+      maximum-pool-size: ${NULLNULL_DB_POOL_MAX:12}
       connection-timeout: 5000
 
 server:
@@ -126,6 +131,11 @@ nullnull:
     finished-retention: ${NULLNULL_JOB_FINISHED_RETENTION:P7D}
     retention-sweep-interval: ${NULLNULL_JOB_RETENTION_SWEEP_INTERVAL:PT1M}
     default-concurrency: ${NULLNULL_JOB_DEFAULT_CONCURRENCY:2}
+    concurrency:
+      # One optimization run at a time per task. A run is one visitor waiting for one preview, so a
+      # second slot would buy throughput nobody is asking for while taking two more connections out
+      # of the pool the readiness probe shares.
+      optimize-item: ${NULLNULL_JOB_CONCURRENCY_OPTIMIZE_ITEM:1}
   # Recommendation service (apps/ai). No default host: a missing base URL fails startup.
   ai:
     base-url: ${NULLNULL_AI_BASE_URL}

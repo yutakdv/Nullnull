@@ -17,7 +17,8 @@ public final class ImplementedOperationsRegistry {
                     "ingestEventBatch",
                     "listTripCandidates", "addTripCandidate", "removeTripCandidate",
                     "replaceTripInterests", "addTripItem", "removeTripItem", "reorderTripItems", "replaceTripItem", "updateTripItem",
-                    "setTripItemConstraint", "removeTripItemConstraint");
+                    "setTripItemConstraint", "removeTripItemConstraint",
+                    "createOptimization", "getOptimization");
 
     private ImplementedOperationsRegistry() {
     }
