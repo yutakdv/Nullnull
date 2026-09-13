@@ -13,11 +13,12 @@ public final class ImplementedOperationsRegistry {
                     "getCurrentOwner", "updatePreferences", "deleteCurrentSession", "getDeletionRequest",
                     "searchPlaces", "getPlace", "getPlaceCrowdForecast",
                     "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip",
-                    "listFeed", "getPost", "savePost", "unsavePost",
+                    "listFeed", "getPost", "savePost", "unsavePost", "recordFeedFeedback",
                     "ingestEventBatch",
                     "listTripCandidates", "addTripCandidate", "removeTripCandidate",
                     "replaceTripInterests", "addTripItem", "removeTripItem", "reorderTripItems", "replaceTripItem", "updateTripItem",
-                    "setTripItemConstraint", "removeTripItemConstraint");
+                    "setTripItemConstraint", "removeTripItemConstraint",
+                    "createOptimization", "getOptimization");
 
     private ImplementedOperationsRegistry() {
     }

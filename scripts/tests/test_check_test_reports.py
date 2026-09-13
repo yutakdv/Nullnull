@@ -257,7 +257,11 @@ class WrapperExecutionTests(unittest.TestCase):
                                         '"${compose[@]}" run --rm api-quality || true')
             (root / 'scripts/integration-test.sh').write_text(script)
             for filename in ('check_test_reports.py', 'check_evaluation_report.py', 'check_npm_audit_report.py',
-                             'check_infra_report.py', 'check_egress_report.py'):
+                             'check_infra_report.py', 'check_egress_report.py',
+                             # Copied, not stubbed: it reads the fake probe's real output and
+                             # must refuse when the verdict is absent, which is the property
+                             # that keeps it from being a rubber stamp.
+                             'record_gate_evidence.py'):
                 shutil.copy2(ROOT / 'scripts' / filename, root / 'scripts' / filename)
             (root / 'scripts/verify_target_stack.py').write_text('')
             # Stubbed, not copied: the real runner discovers scripts/tests, and running it from
@@ -402,9 +406,16 @@ class WorkflowWiringTests(unittest.TestCase):
         check = next(s for s in steps if 'python3 ../../scripts/check_test_reports.py' in s)
         for line in ('if: always()', 'python3 ../../scripts/check_test_reports.py',
                      '--junit-dir build/test-results',
-                     '--backend-plan ../../docs/engineering/backend-plan.json',
                      '--run-start ../../.artifacts/api-quality-start'):
             self.assertIn(line, [s.strip() for s in check.splitlines()])
+        # --backend-plan is deliberately absent here and asserted on the required gate below.
+        # This job does not start the full Compose run, so it cannot produce the evidence for
+        # BA-004-T3; asking it about card completeness would report a card as incomplete on
+        # evidence this job structurally cannot make. The question did not disappear - it moved
+        # to the gate that can answer it, and the next assertion is what keeps it from vanishing.
+        command = [line.strip() for line in check.splitlines()
+                   if not line.strip().startswith('#')]
+        self.assertNotIn('--backend-plan ../../docs/engineering/backend-plan.json', command)
         self.assertNotIn('||', check)
         self.assertNotIn('continue-on-error', check)
         run = next(s for s in steps if './gradlew --no-daemon test' in s)
@@ -414,6 +425,22 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertLess(steps.index(run), steps.index(check))
         for path in ('scripts/check_test_reports.py', 'docs/engineering/backend-plan.json'):
             self.assertEqual(2, content.count(f'      - "{path}"'))
+
+    def test_the_required_gate_is_the_one_that_asks_about_card_completeness(self):
+        """Dropping --backend-plan from api-quality must not drop the question from the repository.
+
+        It asks a question only the full Compose run can answer, and every kind of evidence reaches
+        the wrapper: Gradle JUnit, the Python suite, and the gate verdicts recorded from the probes.
+        """
+        wrapper = (ROOT / 'scripts/integration-test.sh').read_text()
+        for flag in ('--backend-plan', '--junit-dir', '--script-junit-dir', '--gate-junit-dir'):
+            self.assertIn(flag, wrapper, f'the required gate must pass {flag}')
+        self.assertIn('record_gate_evidence.py', wrapper)
+        # Evidence before aggregation: recording a verdict after the checker read the directory
+        # leaves a file that looks like evidence and is never counted.
+        self.assertLess(wrapper.index('record_gate_evidence.py'),
+                        wrapper.index('--gate-junit-dir'),
+                        'the gate verdict must be recorded before the checker reads it')
 
 
 if __name__ == '__main__':

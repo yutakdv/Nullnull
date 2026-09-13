@@ -2921,6 +2921,7 @@ export interface operations {
             /** @description Feedback accepted */
             204: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -3846,6 +3847,7 @@ export interface operations {
             202: {
                 headers: {
                     Location?: string;
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -3903,6 +3905,7 @@ export interface operations {
                 headers: {
                     /** @description Present for QUEUED/RUNNING responses */
                     "Retry-After"?: number;
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {

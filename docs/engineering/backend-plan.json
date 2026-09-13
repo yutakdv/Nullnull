@@ -239,7 +239,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "계약 생성·중요 기능 상시 CI 구성",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-001",
         "BA-002",
@@ -323,7 +323,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "로컬 Docker와 최소 staging 기반",
-      "status": "blocked",
+      "status": "deferred",
       "dependsOn": [
         "BA-001",
         "BA-002",
@@ -339,13 +339,12 @@
       "entities": "compose.integration.yml · ai service · infra/CDK · OIDC · immutable images",
       "steps": [
         "로컬 web→API→apps/ai→PostgreSQL hello와 seed를 단일 wrapper에 연결한다",
-        "승인된 계정·비용·domain이 준비되면 CDK network/data/API/web edge의 최소 staging을 만든다",
+        "승인된 계정·비용·domain(A-028·A-029·A-030)에 맞춰 CDK network/data/API/web edge의 최소 staging을 만든다. 계정은 하나이고 role 분리를 두지 않으므로 그 선택을 stack manifest에 근거와 함께 적는다",
         "OIDC exact subject와 runtime secret 주입을 검증하고 deployment 역할과 관찰 역할을 나눈다",
         "09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
         "#10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다"
       ],
       "safety": "계정·비용·secret 미확정은 외부 배포 blocker이며 로컬 구현까지 막지 않는다. 실제 설정·배포 완료를 문서만으로 표시하지 않는다.",
-      "reason": "D-001 도메인, D-017 AWS 계정 분리, D-018 staging 비용 상한이 미확정이라 staging 절반(CDK network/data/API/web edge, OIDC exact subject, runtime secret 주입)을 시작하지 않는다. 안전한 기본값은 로컬 Docker와 full-docker wrapper만 사용하고 외부 배포 capability를 OFF로 두는 것이다.",
       "tests": [
         {
           "id": "BA-006-T1",
@@ -363,7 +362,8 @@
       "handoff": "로컬 URL·seed·staging environment 준비 상태와 안전한 public config 목록.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006",
+      "reason": "staging 절반(step 2·3)은 오너가 기능 개발 완료 뒤로 미뤘다(2026-09-13). 결정 3건은 A-028·A-029·A-030으로 닫혔으므로 더는 결정 대기가 아니다. step 1(로컬 Docker·full-docker wrapper)은 이미 서 있고, 그 위 카드들이 기다리는 것은 staging 실호출 증거뿐이다."
     },
     {
       "id": "BA-010",
@@ -612,7 +612,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "Canonical 장소·검색·상세·콘텐츠 권리",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-021"
       ],
@@ -648,6 +648,22 @@
         {
           "id": "BA-022-T3",
           "assertion": "검색 canary 비로그와 미승인 media 비노출을 검증한다"
+        },
+        {
+          "id": "BA-022-T4",
+          "assertion": "영업 확인 근거 없이 영업 창을 저장할 수 없다"
+        },
+        {
+          "id": "BA-022-T5",
+          "assertion": "창이 0건인 관측도 근거로 저장된다"
+        },
+        {
+          "id": "BA-022-T6",
+          "assertion": "종료가 시작보다 빠르거나 같은 영업 창을 거부한다"
+        },
+        {
+          "id": "BA-022-T7",
+          "assertion": "관측이 붙은 place는 폐기할 수 없다"
         }
       ],
       "handoff": "V010은 canonical places/localizations/external refs와 reviewed asset license/media 경계를 만든 internal foundation이다. normalized KTO snapshot은 source registry revision 3을 같이 고정하며 동일 external ID는 하나의 active canonical POI로 수렴하고 missing category/area는 추측하지 않고 거부한다. PostgreSQL fixture에서 duplicate/invalid canonical target/source revision/partial coordinate/unapproved media가 차단되고, longitude required 조건을 제거한 좌표 쌍 mutation과 rights guard를 OR→AND로 약화한 mutation은 BA-022-T1/T3를 RED로 만든 뒤 복구했다. `searchPlaces`/`getPlace` local projection은 active coordinate-complete canonical rows, locale fallback, approved media, signed owner/filter cursor만 읽으며 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값으로 fail-closed다. CatalogPlaceApiIT, CatalogPublicationPropertiesTest, CatalogPlaceProjectionServiceTest가 cursor tamper/owner/filter/expiry, canary 비로그, approved media, disabled production, enabled-secret gate와 gate-before-read를 확인한다. C3 gate의 `!publicEnabled`→`false` mutation은 fail-closed test를 RED로 만든 뒤 복구했다. backend Gradle Java 305/145/13/19와 full Docker gate(Java·AI pytest 410·web unit 224·Playwright 36·generated client·npm audit·egress-denied)는 GREEN이다. C2 T3 staging actual-success→public provenance와 최종 AWS release 전에는 flag를 켜거나 외부 공개하지 않으며 BA-022는 완료가 아니다. 이후 FE에는 검색 loading/empty/404/coverage 부족·KO/EN fallback fixture와 canonical ID만 전달한다. **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`의 지역 코드 체계는 실호출로 확정됐다 — `areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리이며, `11`+`110`의 `totalCount 0`은 형식 오류가 아니라 `signguCd` 자릿수 문제였다(`11`+`11110`은 한 장소에 30건). `KtoForecastRequest.signguRequestCode()`가 그 값을 만들고 `KtoCrowdForecastGatewayIT`가 나간 요청의 두 코드를 단언한다. #109는 닫혔다. **2026-09-11 후속:** `V012`가 KTO_KOR_SERVICE_2를 revision 4(`kto-kor-service2-detailcommon2-v3`)로 올리고 validator가 `lclsSystm1`·`lDongRegnCd`·`lDongSignguCd`를 읽는다. retired 식별자만 담긴 응답은 remap하지 않고 SCHEMA_DRIFT로 quarantine한다(`KtoDetailResponseValidatorTest.rejectsLegacyOnlyIdentifiers`). 같은 PR에서 `PlaceSummary`/`PlaceDetail`에 additive로 `sourceAttribution`·`categoryName`·`regionName`을 제안했다. `sourceAttribution`은 place의 `place_external_refs`가 가리키는 검토된 revision에서 읽으며, source나 승인 문구가 없으면 부분 credit 대신 null이다(`CatalogPlaceApiIT.aPlaceWithoutAnExternalReferenceHasNoAttribution`, 변이로 RED 확인). `categoryName`/`regionName`은 검토된 코드→문구 매핑이 생길 때까지 null이며 `categoryCode`/`regionCode`는 표시용이 아닌 불투명 값으로 명시했다. FE 승인 전까지 이 shape를 동결하지 않는다(#34).",
@@ -935,7 +951,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "피드백·분석 이벤트 무결성",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-010",
         "BA-032"
@@ -1221,7 +1237,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "최적화 run·snapshot·polling",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-005",
         "BA-023",
@@ -1244,23 +1260,43 @@
       "entities": "optimization_runs · background_jobs · run_snapshot_sets · route junctions",
       "steps": [
         "ITEM target/inputTripVersion/includeCandidates=false를 검증하고 run+job을 원자 생성한다",
-        "worker는 일관된 trip snapshot과 모든 근거 snapshot/policy hash를 고정하고 apps/ai items/propose를 DB transaction 밖에서 호출한다",
-        "QUEUED→RUNNING→READY 또는 FAILED/EXPIRED와 Retry-After를 제공한다",
+        "worker는 일관된 trip snapshot과 모든 근거 snapshot/policy hash를 고정하고, 외부 호출이 DB transaction 밖에서 일어나야 한다는 경계를 만든다. items/propose 호출 자체와 응답 저장은 BA-051이다",
+        "QUEUED→RUNNING과 FAILED/EXPIRED, Retry-After를 제공하고 READY로 넘어가기 전 owner/lease/trip version 재검증 gate를 닫는다. READY 쓰기는 저장할 proposal을 만드는 BA-051이 한다",
         "09-06 PM 검토 PM-013, PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
       ],
       "safety": "DAY/TRIP union은 schema에 있어도 P0 capability OFF다. READY 저장 전에 owner/run lease/trip version을 재검증하고 TripItem 쓰기는 하지 않는다.",
       "tests": [
         {
           "id": "BA-050-T1",
-          "assertion": "잘못된 scope target 조합과 P1 capability 요청을 거부한다"
+          "assertion": "ITEM 요청의 target·inputTripVersion·includeCandidates 조합이 계약과 다르면 거부한다"
         },
         {
           "id": "BA-050-T2",
-          "assertion": "job 유실·중복 worker·trip 삭제/편집 경합을 재현한다"
+          "assertion": "DAY·TRIP scope 요청은 shape가 유효해도 P0에서 거부한다"
         },
         {
           "id": "BA-050-T3",
-          "assertion": "refresh/polling 복구·만료·timeout에서 run 상태가 역행하지 않는다"
+          "assertion": "수락된 run은 run row와 job row를 한 transaction에서 만든다"
+        },
+        {
+          "id": "BA-050-T4",
+          "assertion": "lease가 만료된 job은 다른 worker가 이어받고 attempt가 증가한다"
+        },
+        {
+          "id": "BA-050-T5",
+          "assertion": "같은 run을 두 worker가 잡아도 진행은 한 번뿐이다"
+        },
+        {
+          "id": "BA-050-T6",
+          "assertion": "freeze 이후 trip이 바뀌거나 사라지면 READY로 넘어가지 않고 실패로 끝낸다"
+        },
+        {
+          "id": "BA-050-T7",
+          "assertion": "polling 간 run status는 역행하지 않는다"
+        },
+        {
+          "id": "BA-050-T8",
+          "assertion": "items/propose 요청의 직렬화 key 집합이 선언된 component 집합과 같다"
         }
       ],
       "handoff": "run URL·Retry-After·각 상태·expiry fixtures; client timeout이 cancellation이 아니라는 설명.",
@@ -1296,7 +1332,7 @@
       ],
       "entities": "recommendation policy-v1(apps/ai) · ProposalRevalidator · immutable proposals/changes/comparisons · validation summary",
       "steps": [
-        "X 단계 분리 원칙으로 같은 POI의 지원되는 날짜/시각 후보만 생성한다",
+        "X 단계 분리 원칙으로 같은 POI의 지원되는 날짜/시각 후보만 생성한다. items/propose 호출과 ProposalRevalidator 통과 뒤의 저장, READY 전이가 여기 있다",
         "hard constraints와 comparison을 먼저 통과시킨 뒤 relief/changeCost 점수와 고정 tie-break로 최대3개를 선택한다",
         "전체 resulting trip을 재검증하고 KO/EN 근거 template와 before/after를 저장한다",
         "09-06 PM 검토 PM-013, PM-014, PM-015, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
@@ -1315,6 +1351,14 @@
         {
           "id": "BA-051-T3",
           "assertion": "수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다"
+        },
+        {
+          "id": "BA-051-T4",
+          "assertion": "items/propose 호출 시점에 활성 transaction이 없다"
+        },
+        {
+          "id": "BA-051-T5",
+          "assertion": "만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",
@@ -1367,6 +1411,10 @@
         {
           "id": "BA-052-T3",
           "assertion": "TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다"
+        },
+        {
+          "id": "BA-052-T4",
+          "assertion": "결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다"
         }
       ],
       "handoff": "APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures.",

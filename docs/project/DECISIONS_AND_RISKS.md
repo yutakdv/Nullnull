@@ -43,6 +43,11 @@ tags:
 | A-022 | 추천 계산 전체(feed 순서·관련 장소·slot·ITEM·설명 template)는 Python 서비스 `apps/ai`가 담당하고 Spring은 hydration·gateway·재검증·저장을 담당. 공개 OpenAPI는 변경 없음 | [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006), 2026-09-07 결정 |
 | A-023 | D-015 stale threshold는 KTO forecast `PT24H`, KTO place detail 및 내부 catalog rule `P7D`로 고정한다. threshold가 없는 source는 collection하지 않는다 | 2026-09-07 팀 결정; C1 source registry v1 |
 | A-026 | `main` branch protection이 문서의 규칙과 일치함을 API로 확인했다 — required check는 `docs-contract`·`docker-integration` 둘뿐, strict(최신 base 요구) on, PR 필수이나 승인 0건 요구, admin 포함 direct push 금지, force push·삭제 금지, linear history off(merge commit 허용) | 2026-09-13 `repos/.../branches/main/protection` 실측. D-022를 닫는다. 승인 0건 + PR 필수가 *"auto-merge하되 상대 승인을 대기 조건으로 두지 않는다"*, linear history off가 *"merge commit을 사용한다"* 에 각각 대응한다 |
+| A-028 | staging은 **오너 개인 AWS 계정 하나**로 운영하고 별도 account도 role 분리도 두지 않는다 | 2026-09-13 오너 결정, D-017. 안전한 기본값(별도 account 권장)에서 의도적으로 벗어난 선택이다. **production이 존재하지 않으므로 폭발 반경이 그 계정 안으로 닫혀 있고**, 1인 운영에서 계정 둘의 관리 비용이 실익보다 크다. production을 만들 때 계정 분리 비용이 발생하며 그 비용은 제출 이후로 미뤄진 것이다 |
+| A-029 | staging 월 비용 상한은 **$150**이고, 제출 전 기동해 평가 완료까지 **약 1개월 연속 운영**한다 | 2026-09-13 오너 결정, D-018. 안전한 기본값의 "무제한 상시 운영 금지"를 깨지 않는다 — 기간과 금액이 모두 유계다. Budget 알림 50/80/100% 수신 test가 완료 증거다 |
+| A-030 | 실제 서비스 domain은 정하지 않고 placeholder로 두며 production deploy를 하지 않는다 | 2026-09-13 오너 결정, D-001. 제출은 staging URL로 완결되고, 실제 domain은 Route53/ACM 검증을 요구해 지금 잡으면 제출과 무관한 비용만 만든다 |
+| A-031 | P0 feed의 큐레이션 게시물은 **운영 스크립트**로 만든다. migration에도 넣지 않고 내부 작성 operation도 만들지 않는다 | 2026-09-13 오너 결정, #183. migration에 넣으면 스키마 변경마다 콘텐츠가 따라다니고, 작성 operation은 P1인 `BA-082`를 P0로 당기는 것이 된다. 표지의 권리 경로는 A-024·`V021`이 이미 만들었다 |
+| A-032 | 사람이 검토한 영업시간의 `stale_after_seconds`는 **P30D**로 둔다 | 2026-09-13 오너 결정, `BA-022`. 측정이 아니라 판단이며, 평가 기간이 한 달이라 사실상 만료가 걸리지 않는 값이다. 값을 늘릴 근거가 생기면 다시 정한다 |
 | A-027 | KTO `detailIntro2`를 **1회 탐색 호출**하여 응답 shape를 관찰하는 것을 승인한다. **채택이 아니다** — `SOURCE_CATALOG`의 승인 범위는 `detailCommon2` 그대로이고, 채택은 응답을 본 뒤의 별도 결정이다 | 2026-09-13 오너 승인, #181. `usetime`·`restdate`가 자유 텍스트인지가 지금 **추측**이고, 그 추측이 SLOT·ITEM을 영구 `UNKNOWN`으로 둘지를 가른다. 개발 쿼터 1,000 중 1건이면 측정이 된다. 자유 텍스트로 판명되면 파싱하지 않고 큐레이션 영업시간으로 간다(불변식 9) |
 | A-025 | inbound rate limiting은 edge에만 두고 application은 429를 발행하지 않는다. P0 제출 범위에 포함하지 않는다 | 2026-09-13 결정, #148과 D-033. 익명 전용 P0에서 owner 축 제한은 cookie를 버리면 우회되고, IP 축은 심사 환경의 공유 NAT에서 오탐이 크다. 심사위원을 막는 것이 데모의 최악 실패다 |
 | A-024 | post 표지는 팀이 직접 만든 1st-party 자산만 쓰고 provider 사진을 재배포하지 않는다. `MediaAsset`은 `attributionRequired=false`·`redistributionAllowed=true`로 채우며, 실제 장소를 사진처럼 묘사하지 않는 명시적 일러스트로 제한한다 | 2026-09-13 오너 결정, D-007의 post 절반. provider 사진은 record별 공공누리 유형 심사가 필요하고 `PostSummary`에 credit 경로가 없어 계약 breaking이 된다. 실사풍 합성은 불변식 6의 합성·관측 구분을 깬다 |
@@ -53,7 +58,6 @@ tags:
 
 | ID | 질문 | DRI | 필요 시점 | 안전한 기본값 | 완료 증거 |
 | --- | --- | --- | --- | --- | --- |
-| D-001 | 실제 서비스 domain은 무엇인가? | 공동 | B01 staging | placeholder, production deploy 금지 | Route53/ACM validation |
 | D-002 | 지도·경로 provider는 무엇인가? | BE/AI | P1-Route | P0 route matrix 없음, 목록 UI | 가격/쿼터/약관/SDK 비교 ADR |
 | D-003 | 개발 계정 쿼터의 단위(인증키별인가 활용신청별인가)와 KTO 이미지 재배포 조건은 무엇인가? production key는 **신청하지 않기로 확정**(2026-09-13 오너, PM-023)했고 제출은 개발 계정으로 간다 | BE/AI | 법정동코드 등 새 operation을 같은 키에 추가하기 전 | 쿼터 guard를 미리 조이지 않는다 — per-API가 맞을 때 용량 절반을 버린다. 이미지는 재배포하지 않고 post 표지는 1st-party만 쓴다(A-024) | 포털 마이페이지 활용신청 상세가 API별 트래픽을 따로 보이는지 확인. 실호출 증거는 확보됨(KTO smoke, `api_ingest_logs`·`collector_runs` COMPLETED) |
 | D-004 | 장기 계정 로그인 provider가 필요한가? | 공동 | P1 또는 공개 출시 | 익명 session만 | 사용자 요구/계정 복구 정책 ADR |
@@ -66,8 +70,6 @@ tags:
 | D-011 | icon export 방식과 visual diff는 무엇인가? **variable/token 쪽은 닫혔다** — `tokens.json`이 Figma local variables export(6 collection)이고 `tokens:check`가 `verify:ci` 첫 단계로 drift를 실패시킨다 | FE | FE-002 | 수동 수치 복제 금지 — 이제 기계가 강제한다 | icon export 경로(현재 `src/design/`에 icon 자산 0건)와 visual diff |
 | D-014 | 사용자 삭제 시 최적화 감사 record를 얼마나 보존할 수 있는가? | BE/AI | B06 | trip 삭제와 함께 제거 | 개인정보/운영 합의 |
 | D-016 | repository와 서비스 코드의 license는 무엇인가? | 공동 | 외부 기여/공개 배포 전 | 명시 license 없음, 재사용 허용을 가정하지 않음 | LICENSE 파일과 의존성 호환 검토 |
-| D-017 | staging/production AWS account를 분리할 수 있는가? | BE/AI | B01 staging/B08/최종 검수 | 별도 account 권장; 불가 시 role/VPC/KMS/secret/stack 완전 분리 | account/stack manifest 또는 예외 ADR |
-| D-018 | staging 월 비용 상한과 운영 시간은? | 공동 | INF-001 전 | 무제한 상시 운영 금지, replay/local 우선 | 승인 금액·Budget 50/80/100% 수신 test |
 | D-019 | alarm/incident 실제 수신자·부재 escalation은? | 공동 | staging/B08/최종 검수 | role key만 문서화, contact 없으면 production 금지 | 두 사람 test alarm/tabletop |
 | D-020 | release/artifact/log의 최종 보존 기간은? | BE/AI | B01 CI/B08/최종 검수 | 운영 문서의 초기 보존값, active/rollback 보호 | lifecycle dry-run과 release manifest |
 | D-021 | exact Node/npm/Java patch, Gradle/Spring/PostgreSQL/generator version은? | 공동 | B01 종료 | Node LTS/npm, Java 21, wrapper; floating 금지 | lock 파일+local/CI/container version test |

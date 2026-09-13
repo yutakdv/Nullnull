@@ -413,6 +413,9 @@ erDiagram
     OWNERS ||--o{ IDEMPOTENCY_RECORDS : owns
     SOURCE_REGISTRY ||--o{ ASSET_LICENSES : governs
     ASSET_LICENSES ||--o{ MEDIA_ASSETS : licenses
+    SOURCE_REGISTRY ||--o{ PLACE_HOURS_OBSERVATIONS : governs
+    PLACES ||--o{ PLACE_HOURS_OBSERVATIONS : checked_for
+    PLACE_HOURS_OBSERVATIONS ||--o{ PLACE_HOURS_WINDOWS : yields
     POSTS ||--o{ POST_MEDIA_ASSETS : displays
     MEDIA_ASSETS ||--o{ POST_MEDIA_ASSETS : attached_to
     PLACES ||--o{ PLACE_MEDIA_ASSETS : displays
@@ -714,12 +717,24 @@ erDiagram
 ### Catalog/Social
 
 - `places`의 ACTIVE row는 `canonical_place_id`가 null이고, DEPRECATED row는 직접 ACTIVE canonical row 하나만
-  가리킨다. duplicate merge 전에 localizations/external refs/media를 target으로 옮겨 old ID에서 stale content가
-  다시 투영되지 않게 한다.
+  가리킨다. duplicate merge 전에 localizations/external refs/media/영업 확인 근거를 target으로 옮겨 old ID에서
+  stale content가 다시 투영되지 않게 한다.
 - `place_localizations`: unique `(place_id, locale)`.
 - `place_external_refs`: unique `(source_code, external_id, external_type)`.
 - `place_external_refs`와 `asset_licenses`는 수집/검토 당시의 `(source_code, source_registry_version)`을
   참조한다. 현재 registry row만 보고 과거 canonical mapping 또는 asset 권리의 source policy를 재해석하지 않는다.
+- `place_hours_observations`는 **값이 아니라 확인 행위**를 보존한다. 한 row는 "언제, 어느 페이지에서 이 POI의
+  영업 상태를 확인했는가"이며 `evidence_url`은 POI별 주소다(`source_registry.official_url`은 `code`가 PK라
+  source당 하나뿐이라 이 역할을 못 한다). `superseded_at IS NULL`인 row는 place당 하나로 partial unique를 두고,
+  두 source가 같은 POI를 큐레이션할 때의 우선순위 규칙은 **없으므로 만들지 않고 거부한다**. `stale_at`은 A-023이
+  요구하는 재확인 시점이고 `NULLNULL_CURATED_HOURS`의 threshold는 P30D다(A-032).
+- `place_hours_windows`는 `(observation_id, effective_on)` unique이며 state는 `OPEN`/`CLOSED` **둘뿐이다**.
+  `UNKNOWN`은 저장할 수 없고 **행의 부재가 곧 미검증**이다 — 조건부 휴무처럼 그 날짜에 대해 해소되지 않은 것은
+  행을 만들지 않는다. `OPEN`은 `closes_at > opens_at`을 요구해 P0에 표현이 없는 심야 창을 거부한다(D-REC-18,
+  `OpeningWindowIn`과 같은 규칙). 창은 `outcome = 'OBSERVED'`인 근거에만 붙고, 창이 남아 있는 동안 outcome을
+  낮출 수 없다(권리 회수와 같은 2단계).
+- 근거가 0건의 창을 갖는 것은 정상이다. "확인했고 확정할 수 없었다"와 "아무도 확인하지 않았다"는 다른 사실이며
+  창만 저장하는 스키마는 둘을 같은 부재로 뭉갠다(불변식 6).
 - 위경도는 허용 범위를 check하고 PostGIS 도입 전에는 numeric(9,6)을 사용한다. P0 nearby를 브라우저에서 처리하면 PostGIS는 보류 가능하다.
 - `post_places`: unique `(post_id, place_id)` 및 `(post_id, position)`.
 - `saved_posts`: primary key `(owner_id, post_id)`로 중복 저장 방지.
@@ -859,6 +874,8 @@ CREATE INDEX ON optimization_runs (trip_id, queued_at DESC);
 CREATE INDEX ON optimization_runs (status, queued_at) WHERE status IN ('QUEUED', 'RUNNING');
 CREATE INDEX ON notifications (owner_id, read_at, created_at DESC);
 CREATE INDEX ON feed_feedback (owner_id, post_id, occurred_at DESC);
+CREATE UNIQUE INDEX ON place_hours_observations (place_id) WHERE superseded_at IS NULL;
+CREATE UNIQUE INDEX ON place_hours_windows (observation_id, effective_on);
 CREATE INDEX ON crowd_snapshots (place_id, target_at DESC, source_code);
 CREATE INDEX ON crowd_snapshots (live_area_id, observed_at DESC, source_code);
 CREATE INDEX ON analytics_events (received_at);

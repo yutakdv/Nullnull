@@ -226,7 +226,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-004
 
-**계약 생성·중요 기능 상시 CI 구성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**계약 생성·중요 기능 상시 CI 구성** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003)
 - 기능 ID: 해당 없음
@@ -336,7 +336,7 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 ### BA-006
 
-**로컬 Docker와 최소 staging 기반** — P0 / `blocked` / BE_AI_DRI 구현, FE_DRI 검토
+**로컬 Docker와 최소 staging 기반** — P0 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: `NFR-OPS-01`
@@ -347,7 +347,7 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 구현 순서:
 
 1. 로컬 web→API→apps/ai→PostgreSQL hello와 seed를 단일 wrapper에 연결한다
-2. 승인된 계정·비용·domain이 준비되면 CDK network/data/API/web edge의 최소 staging을 만든다
+2. 승인된 계정·비용·domain(A-028·A-029·A-030)에 맞춰 CDK network/data/API/web edge의 최소 staging을 만든다. 계정은 하나이고 role 분리를 두지 않으므로 그 선택을 stack manifest에 근거와 함께 적는다
 3. OIDC exact subject와 runtime secret 주입을 검증하고 deployment 역할과 관찰 역할을 나눈다
 4. 09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 5. #10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다
@@ -358,7 +358,7 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 - 완료: 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper. `scripts/integration-test.sh`가 `.nullnull-target-stack` marker를 확인한 뒤 `integration_mode=full-docker`로 실행되고 `compose.integration.yml`의 quality service와 `egress-denied` probe를 포함한다. T1의 internal network·outbound-deny probe는 이 경로에 있다.
 - 미착수: staging 절반. `infra/`가 없고 CDK app, OIDC exact subject, runtime secret 주입이 모두 없다. 따라서 T2(bundle·image layer·log의 secret 부재)와 T3(잘못된 repo/environment subject 거부)는 착수하지 않았다.
-- 상태 원인: [열린 결정 D-001·D-017·D-018](../project/DECISIONS_AND_RISKS.md#2-열린-결정)을 기다린다. 안전한 기본값은 로컬 Docker와 full-docker wrapper만 쓰고 외부 배포 capability를 OFF로 두는 것이며, 위 실패·안전 경계대로 이 대기가 로컬 구현까지 막지는 않는다.
+- 상태 원인: **결정이 아니라 순서다.** 막고 있던 D-001·D-017·D-018은 A-030·A-028·A-029로 닫혔다 — placeholder domain에 production deploy 없음, 오너 개인 계정 하나에 role 분리 없음, 월 $150 상한으로 평가 완료까지 약 1개월 운영. **staging 구축(step 2·3)은 오너가 기능 개발 완료 뒤에 직접 하거나 도움을 요청하기로 했다.** step 1은 이미 서 있다. 계정 분리를 두지 않는 것은 안전한 기본값에서 의도적으로 벗어난 선택이므로 stack manifest에 근거를 남긴다(A-028).
 
 필수 검증:
 
@@ -585,7 +585,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-022
 
-**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-021](#ba-021)
 - 기능 ID: `FR-PLC-01`, `FR-TRC-04`
@@ -607,6 +607,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-022-T1`: 동일 외부 ID 중복과 잘못된 canonical 참조를 차단한다
 - `BA-022-T2`: cursor 변조·다른 owner/filter·15분 만료를 거부한다
 - `BA-022-T3`: 검색 canary 비로그와 미승인 media 비노출을 검증한다
+- `BA-022-T4`: 영업 확인 근거 없이 영업 창을 저장할 수 없다
+- `BA-022-T5`: 창이 0건인 관측도 근거로 저장된다
+- `BA-022-T6`: 종료가 시작보다 빠르거나 같은 영업 창을 거부한다
+- `BA-022-T7`: 관측이 붙은 place는 폐기할 수 없다
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -627,8 +631,11 @@ FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallba
   확인하며, `CatalogPlaceProjectionServiceTest`는 gate가 catalog read보다 먼저 실행됨을 확인한다. C3 gate의
   `!publicEnabled`를 `false`로 바꾼 mutation은 fail-closed test를 RED로 만든 뒤 원본을 복구했다. 이 local
   evidence는 backend Gradle Java `305/145/13/19`와 full Docker gate(Java·AI pytest `410`·web unit `224`·
-  Playwright `36`·generated client·npm audit·egress-denied)가 GREEN인 것을 포함하지만, staging 공개
-  provenance나 BA-022 완료 증거는 아니다.
+  Playwright `36`·generated client·npm audit·egress-denied)가 GREEN인 것을 포함하지만, **staging 공개
+  provenance는 아니다.** 그 둘은 다른 질문이다 — 카드 status는 acceptance ID가 실제 testcase로 증명되는가를
+  말하고, 이 문장은 **flag를 켜도 되는가**를 말한다. `NULLNULL_CATALOG_PUBLIC_ENABLED`는 C2 T3 staging
+  actual-success→public provenance와 최종 AWS release 전에는 켜지 않으며, `integration-ready`가 그것을
+  허락하지 않는다.
 
 실제 호출이 드러낸 수정:
 
@@ -921,7 +928,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-033
 
-**피드백·분석 이벤트 무결성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**피드백·분석 이벤트 무결성** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-010](#ba-010), [BA-032](#ba-032)
 - 기능 ID: `FR-FED-04`, `FR-OPS-06`
@@ -1096,7 +1103,7 @@ ITEM preview→APPLY/KEEP→24시간 REVERT를 구현한다.
 
 ### BA-050
 
-**최적화 run·snapshot·polling** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**최적화 run·snapshot·polling** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-005](#ba-005), [BA-023](#ba-023), [BA-041](#ba-041)
 - 기능 ID: `FR-OPT-01`, `FR-OPT-03`, `FR-OPT-16`
@@ -1107,17 +1114,22 @@ ITEM preview→APPLY/KEEP→24시간 REVERT를 구현한다.
 구현 순서:
 
 1. ITEM target/inputTripVersion/includeCandidates=false를 검증하고 run+job을 원자 생성한다
-2. worker는 일관된 trip snapshot과 모든 근거 snapshot/policy hash를 고정하고 apps/ai items/propose를 DB transaction 밖에서 호출한다
-3. QUEUED→RUNNING→READY 또는 FAILED/EXPIRED와 Retry-After를 제공한다
+2. worker는 일관된 trip snapshot과 모든 근거 snapshot/policy hash를 고정하고, 외부 호출이 DB transaction 밖에서 일어나야 한다는 경계를 만든다. items/propose 호출 자체와 응답 저장은 BA-051이다
+3. QUEUED→RUNNING과 FAILED/EXPIRED, Retry-After를 제공하고 READY로 넘어가기 전 owner/lease/trip version 재검증 gate를 닫는다. READY 쓰기는 저장할 proposal을 만드는 BA-051이 한다
 4. 09-06 PM 검토 PM-013, PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: DAY/TRIP union은 schema에 있어도 P0 capability OFF다. READY 저장 전에 owner/run lease/trip version을 재검증하고 TripItem 쓰기는 하지 않는다.
 
 필수 검증:
 
-- `BA-050-T1`: 잘못된 scope target 조합과 P1 capability 요청을 거부한다
-- `BA-050-T2`: job 유실·중복 worker·trip 삭제/편집 경합을 재현한다
-- `BA-050-T3`: refresh/polling 복구·만료·timeout에서 run 상태가 역행하지 않는다
+- `BA-050-T1`: ITEM 요청의 target·inputTripVersion·includeCandidates 조합이 계약과 다르면 거부한다
+- `BA-050-T2`: DAY·TRIP scope 요청은 shape가 유효해도 P0에서 거부한다
+- `BA-050-T3`: 수락된 run은 run row와 job row를 한 transaction에서 만든다
+- `BA-050-T4`: lease가 만료된 job은 다른 worker가 이어받고 attempt가 증가한다
+- `BA-050-T5`: 같은 run을 두 worker가 잡아도 진행은 한 번뿐이다
+- `BA-050-T6`: freeze 이후 trip이 바뀌거나 사라지면 READY로 넘어가지 않고 실패로 끝낸다
+- `BA-050-T7`: polling 간 run status는 역행하지 않는다
+- `BA-050-T8`: items/propose 요청의 직렬화 key 집합이 선언된 component 집합과 같다
 
 FE 인계·완료 증거: run URL·Retry-After·각 상태·expiry fixtures; client timeout이 cancellation이 아니라는 설명. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1135,7 +1147,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 구현 순서:
 
-1. X 단계 분리 원칙으로 같은 POI의 지원되는 날짜/시각 후보만 생성한다
+1. X 단계 분리 원칙으로 같은 POI의 지원되는 날짜/시각 후보만 생성한다. items/propose 호출과 ProposalRevalidator 통과 뒤의 저장, READY 전이가 여기 있다
 2. hard constraints와 comparison을 먼저 통과시킨 뒤 relief/changeCost 점수와 고정 tie-break로 최대3개를 선택한다
 3. 전체 resulting trip을 재검증하고 KO/EN 근거 template와 before/after를 저장한다
 4. 09-06 PM 검토 PM-013, PM-014, PM-015, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
@@ -1148,6 +1160,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T1`: REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다
 - `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다
 - `BA-051-T3`: 수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다
+- `BA-051-T4`: items/propose 호출 시점에 활성 transaction이 없다
+- `BA-051-T5`: 만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1179,6 +1193,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T1`: 동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다
 - `BA-052-T2`: 각 쓰기 지점 fault injection으로 부분 적용0을 확인한다
 - `BA-052-T3`: TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다
+- `BA-052-T4`: 결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

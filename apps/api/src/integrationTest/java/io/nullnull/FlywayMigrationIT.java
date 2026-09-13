@@ -96,12 +96,16 @@ class FlywayMigrationIT {
             // it is pure DDL, the trips aggregate's tables plus the owners.active_trip_id foreign key
             // V002 deferred until the trips table existed.
             //
-            // The number is rows seeded by the migrations THIS upgrade applies, so it moves as the
-            // previous version moves. V021 seeds three - A-024's source, its first registry revision
-            // and the 1st-party asset licence - and those are now part of the previous schema, inside
-            // rowsBefore. V022 is pure DDL: two constraint triggers requiring a published post to
-            // name a primary place. Hence zero, and hence this line changing again the next time a
-            // migration seeds anything, which is the point of the count being exact.
+            // The number is rows seeded by the migrations THIS upgrade applies - the last one alone,
+            // since everything up to the previous version is already inside rowsBefore. So it moves
+            // as the last migration moves. V021 seeded three (A-024's source, its first registry
+            // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
+            // V026 is the last one today and seeds nothing: it creates feed_feedback and its indexes
+            // and leaves the table empty, because a feed interaction is something a reader does and
+            // not something a schema can know. V025's two rows - the NULLNULL_CURATED_HOURS source
+            // and its first registry revision - were this number until V026 landed, and are now
+            // inside rowsBefore. Hence this line changing again the next time a migration seeds
+            // anything, which is the point of the count being exact.
             long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
@@ -326,6 +330,8 @@ class FlywayMigrationIT {
                     v_item uuid := gen_random_uuid();
                     v_post uuid := gen_random_uuid();
                     v_candidate uuid := gen_random_uuid();
+                    v_run uuid := gen_random_uuid();
+                    v_observation uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -430,10 +436,39 @@ class FlywayMigrationIT {
                     VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), NULL, 'trip_created',
                             v_at, v_at, '/trip/:tripId', 'ko-KR', 'Asia/Seoul', '0.0.0-test',
                             '{}'::jsonb);
+                    -- V024's optimization run, which V025 turns into part of the previous schema.
+                    -- QUEUED because that is the state a row sits in before a worker touches it, and
+                    -- so the one a later schema change is most likely to meet. The scope/status CHECK
+                    -- pair fixes the rest of the row: ITEM requires a target item and no target date,
+                    -- QUEUED requires started_at and completed_at to stay null.
+                    INSERT INTO optimization_runs (id, trip_id, requested_by_owner_id, scope,
+                                                   target_item_id, include_candidates, status,
+                                                   input_trip_version, queued_at)
+                    VALUES (v_run, v_trip, (SELECT id FROM owners LIMIT 1), 'ITEM', v_item, false,
+                            'QUEUED', 1, v_at);
+                    INSERT INTO optimization_run_snapshot_sets (run_id, snapshot_set_id, purpose,
+                                                                sequence)
+                    VALUES (v_run, v_set, 'BEFORE', 0);
+                    -- V025's curated opening hours, seeded now that V026 has made V025 the previous
+                    -- schema. OBSERVED with a window under it, because that is the pair the trigger
+                    -- V025 adds exists to police: a window with no observed evidence is refused, so
+                    -- an upgrade meeting only the unconstrained shape would not meet the rule.
+                    INSERT INTO place_hours_observations (id, place_id, source_code,
+                                                          source_registry_version, outcome,
+                                                          observed_at, evidence_url, stale_at,
+                                                          created_at)
+                    VALUES (v_observation, v_place, 'KTO_KOR_SERVICE_2', 2, 'OBSERVED', v_at,
+                            'https://example.test/hours', v_at + interval '30 days', v_at);
+                    INSERT INTO place_hours_windows (id, observation_id, effective_on, state,
+                                                     opens_at, closes_at)
+                    VALUES (gen_random_uuid(), v_observation, v_at::date, 'OPEN', '09:00', '18:00');
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
+        // "Previous" is always the migration before the last one, so a table arrives in this list one
+        // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
+        // arrive now that V026 has, and V026's own feed_feedback belongs here only once a V027 does.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -442,7 +477,9 @@ class FlywayMigrationIT {
                         "places", "place_localizations", "place_external_refs", "asset_licenses",
                         "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
                         "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
-                        "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources");
+                        "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
+                        "optimization_runs", "optimization_run_snapshot_sets",
+                        "place_hours_observations", "place_hours_windows");
         return key;
     }
 
