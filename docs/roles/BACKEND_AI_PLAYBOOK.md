@@ -1238,14 +1238,36 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. APPLY는 item/revision/decision/response를 한 transaction에, KEEP은 decision만 기록한다
 4. 09-06 PM 검토 PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+**`T3`을 넷으로 나눈 이유.** 원래 한 절이 `TRIP_CHANGED`·`DATA_CHANGED`·expired·policy 철회를 묶고 있었는데 **기제가 넷 다 다르다** — 차례로 run의 `inputTripVersion`과 현재 trip version의 **버전 비교**, proposal이 선 근거(snapshot·hours)의 **지문 비교**, preview TTL의 **시계**, 결정 시점에 policy/incident를 다시 묻는 **재질의**다. 하나를 증명하는 test가 나머지를 증명하지 않으므로 `T3`·`T5`·`T6`·`T7`로 나눈다. 반대로 `T1`과 `T2`는 나누지 않는다 — `T1`의 APPLY/APPLY와 APPLY/KEEP은 조건부 쓰기 **한 기제**를 때리는 입력 둘이고 `T2`의 주입 지점 여럿도 transaction **하나**다. 절은 입력 case가 아니라 기제로 센다.
+
+**`T2`가 말하는 "각 쓰기 지점"은 다섯이다.** `TripStore`의 write method를 전수로 세어 APPLY가 한 transaction에 쓰는 것을 정리했다:
+
+| 지점 | 무엇이 쓰이는가 |
+| --- | --- |
+| `P1` | `trip_items`의 change **사이** — proposal의 change N개마다 `insertItem`·`deleteItem`·`moveItem`·`updateItem`·`replaceItemPlace`·`putConstraint` 중 하나가 돈다 |
+| `P2` | 마지막 change ~ `updateMetadata` 사이 |
+| `P3` | `updateMetadata`(version bump + `trip_revisions` snapshot) ~ 결정 행 사이 |
+| `P4` | `optimization_decisions` ~ idempotency 응답 저장 사이 |
+| `P5` | idempotency 응답 저장 **안**(`requireStorable` 실패 포함) |
+
+`P1`을 따로 세는 이유: 하루에 change가 여럿인 proposal이 중간에 터지면 **그 날짜만 반쯤 적용된 상태**가 남는다. `P2`~`P5`가 전부 green이어도 `P1`이 비면 그 결함은 안 잡히고, *"부분 적용 0"* 이 정확히 그것을 말한다. `P5`는 `requireStorable`이 **command 뒤에** 돌기 때문에 필요하다 — 여기서 터지면 이미 적용된 요청이 500을 받고 그 key의 모든 재시도가 500이다([BA-040](#ba-040)의 `addItem`이 `{itemId}`만 저장하는 이유와 같다). 그래서 이 결정도 `{decisionId}`만 저장한다.
+
+**KEEP은 `P3` 하나뿐이고, `P1`·`P2`가 일어나지 않는 것을 같은 절이 단언한다** — 불변식 4(KEEP·failed·expired·stale preview는 trip을 수정하지 않는다)가 거기 산다.
+
+**`T8`을 `T2`에서 떼어낸 이유.** `deleteConstraint`는 `TripStore`의 write method이지만 **APPLY 경로에 있으면 안 된다** — 불변식 7이 네 잠금을 자동 해제하지 않는다고 못박는다. 이것을 `T2`의 부분 적용 단언에 섞으면 *"transaction이 온전한가"* 와 *"애초에 그 쓰기를 하는가"* 가 한 절이 되고, 전자를 증명하는 test가 후자에 아무 말도 하지 않는다. 최적화가 사용자가 고정한 잠금을 조용히 푸는 것은 제품에서 제일 나쁜 실패라 별도 절로 둔다.
+
 실패·안전 경계: 한 run 최초 결정은 최대 하나다. owner 삭제·source incident 갱신과 경쟁을 DB에서 순서화한다. 이후 편집 후 같은 key replay는 원래 응답을 반환하고 다시 적용하지 않는다.
 
 필수 검증:
 
 - `BA-052-T1`: 동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다
 - `BA-052-T2`: 각 쓰기 지점 fault injection으로 부분 적용0을 확인한다
-- `BA-052-T3`: TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다
+- `BA-052-T3`: TRIP_CHANGED가 apply를 차단한다
 - `BA-052-T4`: 결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다
+- `BA-052-T5`: DATA_CHANGED가 apply를 차단한다
+- `BA-052-T6`: 만료된 preview의 apply가 차단된다
+- `BA-052-T7`: policy 철회가 apply를 차단한다
+- `BA-052-T8`: APPLY는 어떤 잠금도 해제하지 않는다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -1553,11 +1553,27 @@
         },
         {
           "id": "BA-052-T3",
-          "assertion": "TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다"
+          "assertion": "TRIP_CHANGED가 apply를 차단한다"
         },
         {
           "id": "BA-052-T4",
           "assertion": "결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다"
+        },
+        {
+          "id": "BA-052-T5",
+          "assertion": "DATA_CHANGED가 apply를 차단한다"
+        },
+        {
+          "id": "BA-052-T6",
+          "assertion": "만료된 preview의 apply가 차단된다"
+        },
+        {
+          "id": "BA-052-T7",
+          "assertion": "policy 철회가 apply를 차단한다"
+        },
+        {
+          "id": "BA-052-T8",
+          "assertion": "APPLY는 어떤 잠금도 해제하지 않는다"
         }
       ],
       "handoff": "APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures.",
