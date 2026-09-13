@@ -192,6 +192,43 @@ class ComposeContractTests(unittest.TestCase):
             name: {'networks': {'integration-internal': None}} for name in names
         }
 
+    def test_a_secret_handed_to_the_browser_build_is_refused(self):
+        """BA-006-T2 browser-facing build에 credential을 주면 거부된다"""
+        services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+        # An image layer keeps what the build was given, so the leak is the handing over, not a later
+        # mistake. This is the realistic shape: someone forwards the runtime env into the web build.
+        services['web'] = {'networks': {'integration-internal': None},
+                           'environment': {'KTO_SERVICE_KEY': 'whatever'}}
+        errors = self.check(self.config(services))
+        self.assertTrue(any('web receives KTO_SERVICE_KEY' in e for e in errors), errors)
+
+    def test_a_secret_under_the_vite_prefix_is_refused_on_any_service(self):
+        """BA-006-T2 VITE_ 접두 credential은 어느 service에서든 거부된다"""
+        services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+        # Not a browser-facing service on purpose: the prefix is what leaks, because Vite inlines the
+        # value into the bundle wherever code reads it, whichever service exported it.
+        services['api'] = {'networks': {'integration-internal': None},
+                           'environment': {'VITE_ANALYTICS_TOKEN': 'whatever'}}
+        errors = self.check(self.config(services))
+        self.assertTrue(any('VITE_ANALYTICS_TOKEN' in e for e in errors), errors)
+
+    def test_a_secret_passed_as_a_build_arg_is_refused(self):
+        """BA-006-T2 build arg로 넘긴 credential도 거부된다 — layer가 그것을 간직한다"""
+        services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+        services['e2e'] = {'networks': {'integration-internal': None},
+                           'build': {'args': {'SEOUL_API_KEY': 'whatever'}}}
+        errors = self.check(self.config(services))
+        self.assertTrue(any('e2e receives SEOUL_API_KEY' in e for e in errors), errors)
+
+    def test_the_api_service_may_hold_its_own_database_password(self):
+        """BA-006-T2 browser로 가지 않는 service의 credential은 막지 않는다"""
+        services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+        # The rule has to be scoped or it forbids the api from having a datasource password, which
+        # would make it a rule nobody can satisfy and therefore a rule someone switches off.
+        services['api'] = {'networks': {'integration-internal': None},
+                           'environment': {'SPRING_DATASOURCE_PASSWORD': 'whatever'}}
+        self.assertEqual([], self.check(self.config(services)))
+
     def test_required_services_on_the_internal_network_pass(self):
         errors = self.check(
             self.config(self.internal_services(REQUIRED_COMPOSE_SERVICES))
