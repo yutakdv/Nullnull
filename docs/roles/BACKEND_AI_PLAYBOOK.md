@@ -1043,7 +1043,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-041
 
-**네 종류 독립 잠금과 동시 편집 충돌** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**네 종류 독립 잠금과 동시 편집 충돌** — P0 / `verified` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-040](#ba-040)
 - 기능 ID: `FR-CON-01`, `FR-CON-02`, `FR-CON-03`, `FR-CON-04`, `FR-CON-05`, `FR-CON-06`, `NFR-DATA-02`
