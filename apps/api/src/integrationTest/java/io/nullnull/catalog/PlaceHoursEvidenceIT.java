@@ -173,6 +173,13 @@ class PlaceHoursEvidenceIT {
         // cover: the trigger watches windows arriving, the foreign key watches evidence leaving.
         // Without this case the foreign key is unprovable - removing it turns no test red, and then
         // the fact every comment about this pair rests on is guarded by nothing anyone can check.
+        //
+        // V025's comment on observation_id was written before this case existed, and exactly one of
+        // its three claims stopped being true: "neither guard is proven on its own". The other two
+        // still hold - removing either guard alone does still leave BA-022-T4 green, and a passing
+        // T4 does still say nothing about the foreign key, because what proves the key is this test
+        // and not that one. The migration has run, so the correction lives next to the case that
+        // caused it rather than in the file it corrects.
         assertThatThrownBy(() -> jdbc.update(
                 "DELETE FROM place_hours_observations WHERE id = ?", observation))
                 .isInstanceOf(DataAccessException.class);
