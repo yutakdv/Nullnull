@@ -562,3 +562,63 @@ describe('FE-303-T3 focus survives the panel closing', () => {
     expect(card.contains(document.activeElement)).toBe(true);
   });
 });
+
+// CMP-ATT-001 at the screen boundary.
+//
+// PlaceThumbnail's own test proves the component refuses an uncredited image.
+// What this asserts is that the card actually ROUTES through it. Nothing did:
+// every place in the shared contract fixtures carries `thumbnailUrl: null`, so
+// `place.thumbnailUrl && place.thumbnailAttribution` short-circuits on the
+// first operand and the attribution half is never evaluated. Reverting this
+// card to a bare <img> left the whole suite green.
+//
+// The fixtures are the shared BE/FE contract and are not edited here; the two
+// states they cannot express are supplied per test.
+describe('FE-303 a candidate card shows an image only when it can be credited', () => {
+  const IMAGE = 'https://cdn.example.test/places/candidate.jpg';
+  // Distinct from the row's sourceAttribution text on purpose: the card renders
+  // "출처: ⓒ한국관광공사" as a source link regardless, so asserting on that
+  // shared string would pass whether or not the thumbnail credit rendered.
+  const CREDIT = '사진 출처: ⓒ한국관광공사 (이미지 심사 완료)';
+
+  /** The candidate page with its first card's thumbnail fields overridden. */
+  function candidatesReturning(
+    thumbnailUrl: string | null,
+    thumbnailAttribution: string | null,
+  ) {
+    const [first, ...rest] = page.items;
+    if (!first) throw new Error('fixture has no candidates');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates`, () =>
+        HttpResponse.json({
+          ...page,
+          items: [
+            { ...first, place: { ...first.place, thumbnailUrl, thumbnailAttribution } },
+            ...rest,
+          ],
+        }),
+      ),
+    );
+  }
+
+  it('renders the image and the server credit when both are present', async () => {
+    candidatesReturning(IMAGE, CREDIT);
+    renderPanel();
+    await loaded();
+    const image = await screen.findByRole('presentation', { hidden: true });
+    expect(image).toHaveAttribute('src', IMAGE);
+    // Verbatim, never composed by the client (CMP-ATT-003).
+    expect(screen.getByText(CREDIT)).toBeInTheDocument();
+  });
+
+  it('shows no image when the server sent one it could not credit', async () => {
+    // A contract-valid pair: thumbnailAttribution is null "when the reviewed
+    // licence requires none", so an uncreditable image is a real response.
+    // Showing it bare is the compliance failure, so the placeholder renders.
+    candidatesReturning(IMAGE, null);
+    renderPanel();
+    await loaded();
+    expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+    expect(screen.queryByText(CREDIT)).toBeNull();
+  });
+});

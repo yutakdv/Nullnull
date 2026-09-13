@@ -1,0 +1,22 @@
+/* The image and the credit it belongs to, kept together. */
+.wrap {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.image {
+  display: block;
+  border-radius: var(--radius-card-sm, 8px);
+  object-fit: cover;
+}
+
+/* Small, but never hidden: the credit is a licence condition, not decoration,
+   so it wraps rather than truncating and keeps its own contrast. */
+.credit {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption-sm);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}

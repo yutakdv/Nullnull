@@ -250,7 +250,56 @@ describe('FE-305-T1 a date move asks before releasing a lock', () => {
       itemId: gyeongbok.id,
       date: '2026-10-05',
       position: 1,
+      // The dialog asked to release the DATE lock and the user said yes; the
+      // contract makes naming it here the only way it is released.
+      releaseConstraints: ['DATE'],
     });
+  });
+
+  it('carries the released lock on the moved item only', async () => {
+    // The consent is about one stop. Naming the lock on every entry would ask
+    // the server to release locks the user was never asked about, which is the
+    // auto-release invariant 7 forbids.
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('경복궁');
+    await user.click(within(card).getByRole('button', { name: moveName('경복궁') }));
+    const sheet = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
+    await user.click(within(sheet).getByRole('button', { name: /Day 2/ }));
+    await user.click(
+      within(
+        await screen.findByRole('dialog', { name: copy['trip.move.dateLock.title'] }),
+      ).getByRole('button', { name: copy['trip.move.dateLock.confirm'] }),
+    );
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    const items = sent[0]?.body?.items ?? [];
+    const named = items.filter(
+      (entry: Record<string, unknown>) => entry.releaseConstraints !== undefined,
+    );
+    expect(named).toHaveLength(1);
+    expect((named[0] as Record<string, unknown>).itemId).toBe(gyeongbok.id);
+  });
+
+  it('releases nothing when no lock stood in the way', async () => {
+    // 명동 carries no locks, so its move needs no consent and must not claim
+    // any: a releaseConstraints on an unlocked entry is a request to delete
+    // rows the user never saw.
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('명동');
+    await user.click(within(card).getByRole('button', { name: moveName('명동') }));
+    const sheet = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
+    await user.click(within(sheet).getByRole('button', { name: /Day 1/ }));
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    for (const entry of sent[0]?.body?.items ?? []) {
+      expect((entry as Record<string, unknown>).releaseConstraints).toBeUndefined();
+    }
   });
 
   it('sends nothing when the confirm is cancelled', async () => {

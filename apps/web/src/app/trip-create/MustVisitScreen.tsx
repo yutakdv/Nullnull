@@ -7,6 +7,7 @@ import {
   BottomCta,
   DataAttribution,
   MustVisitBadge,
+  PlaceThumbnail,
   SearchField,
 } from '../../shared/ui/index.js';
 import styles from './MustVisitScreen.module.css';
@@ -98,14 +99,8 @@ export function MustVisitScreen() {
                 <li className={styles.card} key={place.id}>
                   {/* 438:3171: a 66px thumbnail. Decorative — the name beside
                       it is the accessible content. */}
-                  {place.thumbnailUrl ? (
-                    <img
-                      alt=""
-                      className={styles.thumb}
-                      height={66}
-                      src={place.thumbnailUrl}
-                      width={66}
-                    />
+                  {place.thumbnailUrl && place.thumbnailAttribution ? (
+                    <PlaceThumbnail place={place} size={66} />
                   ) : (
                     <span aria-hidden="true" className={styles.thumb} />
                   )}
@@ -164,14 +159,8 @@ export function MustVisitScreen() {
               <li className={`${styles.card} ${styles.picked}`} key={place.id}>
                 {/* 438:3171: a 66px thumbnail. Decorative — the name beside
                     it is the accessible content. */}
-                {place.thumbnailUrl ? (
-                  <img
-                    alt=""
-                    className={styles.thumb}
-                    height={66}
-                    src={place.thumbnailUrl}
-                    width={66}
-                  />
+                {place.thumbnailUrl && place.thumbnailAttribution ? (
+                  <PlaceThumbnail place={place} size={66} />
                 ) : (
                   <span aria-hidden="true" className={styles.thumb} />
                 )}
