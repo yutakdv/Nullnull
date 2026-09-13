@@ -1100,9 +1100,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-042-T1`: 날짜만 있는 slot/null time·DST·영업/route 결측을 구분한다
-- `BA-042-T2`: replace 중간 실패와 stale relation/version은 일정 미변경이다
-- `BA-042-T3`: 후보 linkage는 보존이 아니라 #165 Q2의 전이를 따르고(옛 장소는 ACTIVE 후보), 잠금 처리는 #199 결정에 따른다
+- `BA-042-T1`: suggestedTime이 있는 slot과 없는 slot을 구분한다
+- `BA-042-T2`: 거절된 replace는 일정을 바꾸지 않는다
+- `BA-042-T3`: 교체된 옛 장소는 ACTIVE 후보로 돌아온다
+- `BA-042-T4`: 날짜 경계를 여행 timezone에서 계산한다
+- `BA-042-T5`: 영업 근거가 없으면 eligible을 참으로 만들지 않고 그 사유를 낸다
+- `BA-042-T6`: 이동 근거가 없으면 영업 부재와 다른 사유 코드를 낸다
+- `BA-042-T7`: state 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
+- `BA-042-T8`: replace는 MUST_VISIT과 RESERVATION을 releaseConstraints에 이름 대야 진행한다
+- `BA-042-T9`: stale If-Match는 replace를 거부한다
 
 FE 인계·완료 증거: comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
