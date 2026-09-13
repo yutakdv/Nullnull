@@ -25,9 +25,16 @@ public interface CatalogRelationQuery {
      * does not depend on the order they were written.
      *
      * <p>{@code expires_at} is the moment the evidence stops standing, so a window is open while
-     * {@code effective_at <= at < expires_at}. An open-ended relation - what an internal rule
-     * produces, since a taxonomy similarity does not lapse on a date - has no {@code expires_at} and
-     * is always inside its window.
+     * {@code effective_at <= at < expires_at}. An open-ended relation has no {@code expires_at} and is
+     * always inside its window.
+     *
+     * <p>This javadoc used to add "which is what an internal rule produces, since a taxonomy
+     * similarity does not lapse on a date". That was an assumption and the registry contradicts it:
+     * {@code NULLNULL_CATALOG_RULE} carries {@code stale_after_seconds = 604800} and a refresh
+     * expectation of "카탈로그 변경 시 재평가" (V007). A rule-derived relation is a statement about the
+     * catalog as it stood, and the catalog moves - so those rows expire after seven days and are
+     * re-evaluated, rather than standing forever. The open-ended case is still reachable and still
+     * handled; it is simply not what the internal rule produces.
      */
     List<CatalogRelationCandidate> candidatesFor(UUID sourcePlaceId, Instant at);
 
