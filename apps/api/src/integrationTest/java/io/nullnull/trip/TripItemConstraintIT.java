@@ -44,6 +44,7 @@ class TripItemConstraintIT {
     private static final LocalDate DAY_TWO = LocalDate.parse("2026-10-05");
 
     @Autowired SessionService sessions;
+    @Autowired io.nullnull.trip.application.TripService trips;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
 
@@ -137,6 +138,79 @@ class TripItemConstraintIT {
                         + DAY_ONE + "\",\"startTime\":\"09:00:00\"}")
                 .andExpect(status().isOk());
         assertThat(types(itemId)).containsExactly("DATE", "RESERVATION");
+    }
+
+    /**
+     * BA-041-T3's other clause: two unlocks racing each other.
+     *
+     * <p>"Releasing one lock must not release its neighbour" is easy to believe when one caller does
+     * it and the rows are keyed {@code (trip_item_id, type)}. Under two callers it is a different
+     * question, and the one invariant 7 is actually about: if both are allowed to proceed on the
+     * version they read, each deletes its own row and the pair vanishes together - which is an
+     * automatic release arriving as a race rather than as a line of code.
+     *
+     * <p>What makes that impossible is that an unlock is a trip mutation: it takes the trip row FOR
+     * UPDATE and raises the version, so the loser's If-Match is stale by the time it is read. The
+     * assertion is therefore symmetric about which thread wins - exactly one release, exactly one
+     * refusal, and the loser's lock still there.
+     *
+     * <p>The version check alone is not enough, and that is measured rather than assumed: replacing
+     * {@code findForUpdate} with {@code find} turns this case red. Both threads then read the same
+     * version, both pass the precondition, and both delete - two locks gone from one request each,
+     * which is the automatic release invariant 7 forbids. So this test is about the lock, not about
+     * the ETag.
+     */
+    @Test
+    @DisplayName("BA-041-T3 two unlocks racing on one item release exactly one lock, not both")
+    void concurrentUnlocksReleaseOnlyTheWinners() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        var context = sessions.resolve(owner.cookie, false);
+        UUID tripId = createTrip(owner);
+        UUID itemId = insertItem(tripId, DAY_ONE, "09:00:00");
+        set(owner, tripId, itemId, "MUST_VISIT", "\"1\"",
+                "{\"type\":\"MUST_VISIT\",\"locked\":true}").andExpect(status().isOk());
+        set(owner, tripId, itemId, "DATE", "\"2\"",
+                "{\"type\":\"DATE\",\"locked\":true,\"date\":\"" + DAY_ONE + "\"}")
+                .andExpect(status().isOk());
+        set(owner, tripId, itemId, "TIME", "\"3\"",
+                "{\"type\":\"TIME\",\"locked\":true,\"startTime\":\"09:00:00\","
+                        + "\"toleranceMinutes\":30}")
+                .andExpect(status().isOk());
+        String sharedVersion = "\"" + version(tripId) + "\"";
+
+        // Both threads hold the same If-Match, which is what two tabs that read the trip together
+        // would send. They are released at the same instant so the two transactions genuinely
+        // overlap rather than running in sequence.
+        var barrier = new java.util.concurrent.CyclicBarrier(2);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var date = executor.submit(() -> release(context, tripId, itemId, "DATE", sharedVersion,
+                    barrier));
+            var time = executor.submit(() -> release(context, tripId, itemId, "TIME", sharedVersion,
+                    barrier));
+            List<String> outcomes = List.of(date.get(20, java.util.concurrent.TimeUnit.SECONDS),
+                    time.get(20, java.util.concurrent.TimeUnit.SECONDS));
+
+            assertThat(outcomes).as("one release wins and the other is refused as stale")
+                    .containsExactlyInAnyOrder("released", "TRIP_CHANGED");
+        }
+
+        // Three locks, one released: the loser's lock is still there. MUST_VISIT, which neither
+        // thread touched, is the control - a release that took its neighbours would take it too.
+        assertThat(types(itemId)).hasSize(2).contains("MUST_VISIT");
+        assertThat(version(tripId)).isEqualTo(5);
+    }
+
+    /** Removes one lock at the barrier and reports what happened, never what was thrown. */
+    private String release(io.nullnull.identity.application.OwnerContext context, UUID tripId,
+            UUID itemId, String type, String ifMatch,
+            java.util.concurrent.CyclicBarrier barrier) throws Exception {
+        barrier.await(20, java.util.concurrent.TimeUnit.SECONDS);
+        try {
+            trips.removeConstraint(context, tripId, itemId, type, ifMatch);
+            return "released";
+        } catch (io.nullnull.shared.problem.ApiException refused) {
+            return refused.code().name();
+        }
     }
 
     @Test

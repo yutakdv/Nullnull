@@ -45,7 +45,7 @@ class CuratedPostImportIT {
     @Autowired JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("A-031 a plan publishes posts with a licensed cover and a primary place")
+    @DisplayName("BA-032-T4 A-031 a plan publishes posts with a licensed cover and a primary place")
     void aPlanBecomesAPublishedFeed() {
         UUID primary = place("큐레이션 장소 하나");
         UUID secondary = place("큐레이션 장소 둘");
@@ -74,7 +74,7 @@ class CuratedPostImportIT {
     }
 
     @Test
-    @DisplayName("A-031 running the same plan again changes nothing")
+    @DisplayName("BA-032-T4 A-031 running the same plan again changes nothing")
     void aSecondRunIsANoOp() {
         UUID primary = place("큐레이션 반복 장소");
         UUID postId = UUID.randomUUID();
@@ -97,7 +97,7 @@ class CuratedPostImportIT {
     }
 
     @Test
-    @DisplayName("A-031 a place the catalog does not have is refused, and the whole plan is refused with it")
+    @DisplayName("BA-032-T4 A-031 a place the catalog does not have is refused, and the whole plan with it")
     void aMissingPlaceRefusesTheWholePlan() {
         UUID real = place("큐레이션 실재 장소");
         UUID good = UUID.randomUUID();
@@ -116,7 +116,7 @@ class CuratedPostImportIT {
     }
 
     @Test
-    @DisplayName("A-031 a plan with no primary place, or two, is refused before it reaches the database")
+    @DisplayName("BA-032-T4 A-031 no primary place, or two, is refused before it reaches the database")
     void thePrimaryPlaceRuleIsCheckedInThePlan() {
         UUID one = place("큐레이션 주 장소");
         UUID two = place("큐레이션 부 장소");
@@ -137,7 +137,7 @@ class CuratedPostImportIT {
     }
 
     @Test
-    @DisplayName("A-031 the sample plan parses and is accepted by the same rules the script uses")
+    @DisplayName("BA-032-T4 A-031 the sample plan parses and is accepted by the same rules the script uses")
     void theSamplePlanIsValid() throws Exception {
         // The file operators copy. It is parsed by the script's own reader, so a sample that drifts
         // from the schema is caught here rather than by the first person who tries to use it.
