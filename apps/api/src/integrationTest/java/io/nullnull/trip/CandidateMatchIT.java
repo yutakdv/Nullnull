@@ -118,6 +118,41 @@ class CandidateMatchIT {
         assertThat(sent.openingHours()).doesNotContainKey(DAY_TWO);
     }
 
+    /**
+     * T5 and T6 on this side: the verdict is the evaluator's, and Spring must not improve it.
+     *
+     * <p>Spring decides no eligibility - ADR-0006 puts that in {@code apps/ai} - so what can go wrong
+     * here is flattening: turning an ineligible slot into an eligible one, dropping the reason, or
+     * giving two slots the same reason because one variable was reused. Each would leave the client
+     * showing a date as bookable, or as refused for something that did not happen.
+     */
+    @Test
+    @DisplayName("BA-042-T5 an ineligible slot keeps its verdict, and BA-042-T6 its own reason code")
+    void verdictsAndReasonsArePassedThroughUnflattened() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID candidateId = candidate(owner, tripId, place("사유 두 가지 장소"));
+        when(hours.windowsFor(any(), any(), any(), any())).thenReturn(Map.of());
+        // Two refusals for two different reasons, which is the case a single shared variable or a
+        // collapsed mapping would quietly turn into one.
+        when(recommendations.evaluateSlots(any())).thenReturn(response(SlotEvaluateResponse.State.NONE,
+                List.of(new SlotOut(DAY_ONE, null, false, "OPENING_HOURS_UNKNOWN"),
+                        new SlotOut(DAY_TWO, null, false, "DAY_FULL"))));
+
+        mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + candidateId + "/matches")
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("NONE"))
+                // Not eligible, and not quietly promoted: a date with no opening evidence behind it
+                // must not arrive at the client as bookable.
+                .andExpect(jsonPath("$.slots[0].eligible").value(false))
+                .andExpect(jsonPath("$.slots[1].eligible").value(false))
+                // Each slot keeps ITS OWN reason. Two refusals for one reason would tell the reader
+                // the day is full when the truth is that nobody checked the hours.
+                .andExpect(jsonPath("$.slots[0].reasonCode").value("OPENING_HOURS_UNKNOWN"))
+                .andExpect(jsonPath("$.slots[1].reasonCode").value("DAY_FULL"));
+    }
+
     @Test
     @DisplayName("BA-042-T7 the outgoing request never asks for CHECKING, because nothing verifies a candidate")
     void theRequestNeverClaimsAVerificationIsRunning() throws Exception {
