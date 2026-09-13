@@ -26,8 +26,10 @@ import {
 //
 // The lock consequence is computed from the item, not written into copy:
 // swapping the place releases MUST_VISIT (it pins the place) and keeps DATE,
-// TIME and RESERVATION (they pin the schedule, and preserveDateTime defaults to
-// true). That is the frame's own warning, kept true as lock types change.
+// TIME and RESERVATION, which replaceTripItem says the item keeps
+// unconditionally. That is the frame's own warning, kept true as lock types
+// change. See replaceLockEffect for why this rests on the operation
+// description rather than on preserveDateTime (#203).
 
 type TripDetail = components['schemas']['TripDetail'];
 type TripItem = TripDetail['days'][number]['items'][number];

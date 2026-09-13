@@ -235,8 +235,15 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
               itemId: item.id,
               replacement: {
                 replacementPlaceId: choice.place.id,
-                // preserveDateTime is omitted: the contract defaults it true,
-                // and false would move the schedule without being asked.
+                // preserveDateTime is omitted, and stays omitted until #203
+                // settles what it means. The contract gives it `default: true`
+                // and no description, and replaceTripItem's own description
+                // says the item keeps its schedule unconditionally — so what
+                // `false` would do is undefined, not merely unused. Omitting
+                // is the only value here that asks for nothing: sending the
+                // default explicitly would still be sending a field whose
+                // meaning nobody has fixed. BE rejects `false` with 422 in the
+                // meantime (#203).
               },
               etag,
               idempotencyKey: crypto.randomUUID(),
