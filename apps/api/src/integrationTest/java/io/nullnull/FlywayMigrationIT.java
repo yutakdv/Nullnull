@@ -90,11 +90,20 @@ class FlywayMigrationIT {
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
-            // Every existing row survived. V013 adds no rows of its own: it is pure DDL - the trips
-            // aggregate's tables, plus the owners.active_trip_id foreign key V002 deferred until the
-            // trips table existed. This count is deliberately exact rather than "at least", so a
-            // migration that quietly seeds data has to say so here.
-            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore);
+            // Every existing row survived, and every row a migration added is declared. This count is
+            // deliberately exact rather than "at least", so a migration that quietly seeds data has
+            // to say so here - which is how V021 came to be named below. V013 adds none of its own:
+            // it is pure DDL, the trips aggregate's tables plus the owners.active_trip_id foreign key
+            // V002 deferred until the trips table existed.
+            //
+            // The number is rows seeded by the migrations THIS upgrade applies, so it moves as the
+            // previous version moves. V021 seeds three - A-024's source, its first registry revision
+            // and the 1st-party asset licence - and those are now part of the previous schema, inside
+            // rowsBefore. V022 is pure DDL: two constraint triggers requiring a published post to
+            // name a primary place. Hence zero, and hence this line changing again the next time a
+            // migration seeds anything, which is the point of the count being exact.
+            long seededAfterPreviousSchema = 0;
+            assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
             assertThatCode(() -> insertRecordInto(UPGRADE_SCHEMA, ownerId))
@@ -393,10 +402,10 @@ class FlywayMigrationIT {
                                                   created_at, updated_at)
                     VALUES (gen_random_uuid(), v_trip, v_item, 'MUST_VISIT', 'USER', v_at, v_at);
                     -- V015's curated feed.
-                    INSERT INTO posts (id, status, title, body, cover_url, published_at,
-                                       created_at, updated_at)
+                    INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,
+                                       published_at, created_at, updated_at)
                     VALUES (v_post, 'PUBLISHED', '업그레이드 글', '본문',
-                            'https://example.test/cover.jpg', v_at, v_at, v_at);
+                            'https://example.test/cover.jpg', v_asset, v_at, v_at, v_at);
                     INSERT INTO post_places (post_id, place_id, position, mention_type)
                     VALUES (v_post, v_place, 0, 'PRIMARY');
                     INSERT INTO saved_posts (owner_id, post_id, created_at)
