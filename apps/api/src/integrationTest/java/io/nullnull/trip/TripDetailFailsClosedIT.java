@@ -33,6 +33,10 @@ import org.springframework.test.web.servlet.MockMvc;
  * arbitrary rule and the next reader is free to make it uniformly 503 (which refuses answers that
  * could be built) or to drop the items and return 200 (the silent-empty shape the decision ruled
  * out). Holding the three states in one case puts the condition in the code.
+ *
+ * <p>The name carries the work ID but no acceptance ID. BA-040-T1 is reorder atomicity and
+ * BA-040-T2 is the candidate transition landing with the item; neither is what this proves, and
+ * an acceptance ID in a @DisplayName is counted as covered by check_test_reports.py on sight.
  */
 @SpringBootTest(properties = "NULLNULL_CURSOR_SECRET=test-trip-closed-secret-that-is-long-enough")
 @AutoConfigureMockMvc
@@ -45,7 +49,7 @@ class TripDetailFailsClosedIT {
     @Autowired JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("BA-040-T1 an empty trip is answered, a scheduled one is 503, and creating one fails before it writes")
+    @DisplayName("BA-040 an empty trip is answered, a scheduled one is 503, and creating one fails before it writes")
     void theTripDetailDoesNotRouteAroundTheCatalogGate() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
         Cookie cookie = new Cookie("__Host-nullnull_session", owner.cookie);

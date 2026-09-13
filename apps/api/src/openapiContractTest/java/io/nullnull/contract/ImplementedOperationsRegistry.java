@@ -16,7 +16,7 @@ public final class ImplementedOperationsRegistry {
                     "listFeed", "getPost", "savePost", "unsavePost",
                     "ingestEventBatch",
                     "listTripCandidates", "addTripCandidate", "removeTripCandidate",
-                    "replaceTripInterests");
+                    "replaceTripInterests", "addTripItem", "removeTripItem");
 
     private ImplementedOperationsRegistry() {
     }

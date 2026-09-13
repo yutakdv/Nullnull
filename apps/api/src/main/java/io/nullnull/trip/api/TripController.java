@@ -4,6 +4,7 @@ import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.identity.application.OwnerPreferencesService;
 import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.shared.http.NullnullOperation.Security;
+import io.nullnull.trip.application.AddTripItemCommand;
 import io.nullnull.trip.application.CreateTripCommand;
 import io.nullnull.trip.application.TripPageView;
 import io.nullnull.catalog.api.PlaceController.PlaceSummaryResponse;
@@ -13,6 +14,7 @@ import io.nullnull.trip.domain.ItemLock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import io.nullnull.trip.application.TripService;
+import io.nullnull.trip.application.TripService.TripMutationView;
 import io.nullnull.trip.application.TripView;
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripConstraint;
@@ -124,6 +126,37 @@ public class TripController {
                 .body(TripDetailResponse.from(updated));
     }
 
+    @PostMapping(value = "/trips/{tripId}/items", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "addTripItem", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripMutationResponse> addItem(OwnerContext owner, @PathVariable UUID tripId,
+            @RequestHeader("If-Match") String ifMatch,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody AddTripItemBody body) {
+        TripMutationView result = trips.addItem(owner, tripId, ifMatch, idempotencyKey,
+                addition(body));
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .eTag(result.trip().trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripMutationResponse.from(result));
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping(value = "/trips/{tripId}/items/{itemId}",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "removeTripItem", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripMutationResponse> removeItem(OwnerContext owner,
+            @PathVariable UUID tripId, @PathVariable UUID itemId,
+            @RequestHeader("If-Match") String ifMatch,
+            // Not Spring-required: an absent value must reach ItemDisposition, which answers with
+            // the two words that would have worked rather than a framework message naming none.
+            @RequestParam(required = false) String disposition) {
+        TripMutationView result = trips.removeItem(owner, tripId, itemId, ifMatch, disposition);
+        return ResponseEntity.ok()
+                .eTag(result.trip().trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripMutationResponse.from(result));
+    }
+
     @org.springframework.web.bind.annotation.DeleteMapping("/trips/{tripId}")
     @NullnullOperation(id = "deleteTrip", security = {Security.SESSION, Security.CSRF})
     public ResponseEntity<Void> delete(OwnerContext owner, @PathVariable UUID tripId,
@@ -148,6 +181,20 @@ public class TripController {
                     body.startTime(), null, null, constraints(body.constraints())));
         }
         return List.copyOf(items);
+    }
+
+    /**
+     * {@code position} is required by the contract and has no sensible stand-in, so an absent one is
+     * reported as missing rather than defaulted - a body that forgot it would otherwise silently
+     * claim the first slot of the day.
+     */
+    private static AddTripItemCommand addition(AddTripItemBody body) {
+        if (body == null || body.position() == null) {
+            throw new io.nullnull.trip.domain.TripValidationException("position", "NotNull",
+                    "position is required");
+        }
+        return new AddTripItemCommand(body.placeId(), body.candidateId(), body.date(), body.position(),
+                body.startTime(), body.durationMinutes(), body.note(), constraints(body.constraints()));
     }
 
     private static List<TripConstraint> constraints(List<SetConstraintBody> submitted) {
@@ -186,6 +233,11 @@ public class TripController {
     public record SetConstraintBody(String type, Boolean locked, String source, LocalDate date,
             LocalTime startTime, LocalTime endTime, Integer toleranceMinutes) { }
 
+    /** {@code AddTripItemRequest}. startTime is offset-less local time in the trip's timezone (#145). */
+    public record AddTripItemBody(UUID placeId, UUID candidateId, LocalDate date, Integer position,
+            LocalTime startTime, Integer durationMinutes, String note,
+            List<SetConstraintBody> constraints) { }
+
     public record TripInterestBody(String code, Integer weight) { }
 
     public record ReplaceInterestsBody(List<TripInterestBody> interests) { }
@@ -222,6 +274,15 @@ public class TripController {
                     // candidates: candidateCount is the number to display and listTripCandidates is
                     // the paginated source.
                     List.of());
+        }
+    }
+
+    /** {@code TripMutationResult}: the trip after the change, and which items moved. */
+    public record TripMutationResponse(TripDetailResponse trip, List<UUID> changedItemIds) {
+
+        static TripMutationResponse from(TripMutationView view) {
+            return new TripMutationResponse(TripDetailResponse.from(view.trip()),
+                    view.changedItemIds());
         }
     }
 

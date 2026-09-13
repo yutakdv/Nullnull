@@ -732,7 +732,7 @@ erDiagram
 - `trips.owner_id`를 포함하는 index를 모든 owner query에 둔다.
 - `trip_candidates`: partial unique `(trip_id, place_id) WHERE status <> 'DISMISSED'`.
 - `trip_candidates.scheduled_trip_item_id`는 status가 `SCHEDULED`일 때만 존재.
-- 후보 전이는 `ACTIVE→SCHEDULED`, `SCHEDULED→ACTIVE`, `ACTIVE→DISMISSED`만 허용한다. DISMISSED는 terminal이고 재저장은 새 row다. SCHEDULED 후보 직접 삭제는 거부한다.
+- 후보 전이는 `ACTIVE→SCHEDULED`, `SCHEDULED→ACTIVE`, `ACTIVE→DISMISSED`, `SCHEDULED→DISMISSED`만 허용한다. DISMISSED는 terminal이고 재저장은 새 row다. **`SCHEDULED→DISMISSED`는 `removeTripItem` + `disposition=REMOVE`로만 도달한다** — 사용자가 일정에서 지우면서 후보로도 남기지 않겠다고 명시한 경우다. 이것은 아래 규칙과 다른 경로다: `removeTripCandidate`로 **SCHEDULED 후보를 직접 삭제하는 것은 여전히 거부한다**(일정에 오른 장소를 후보 쪽에서 지우면 item이 출처 없이 남는다). 경로가 다르면 규칙도 다르다.
 - `trip_items`: unique `(trip_id, trip_date, position)`; 날짜는 trip 범위 안이어야 한다. **구현 방식은 정해졌다** — `V014`의 `trip_items_require_date_in_range` trigger가 DB에서 강제하므로 application validation이 빠져도 범위 밖 날짜는 저장되지 않는다.
 - `trip_constraints`: unique `(trip_item_id, type)`; `trip_id`는 같은 item의 trip과 일치해야 한다.
 - `trip_constraints` typed check: `MUST_VISIT`는 값 column 모두 null, `DATE`는 `date_value`만 필수, `TIME`은 `start_time_value`와 `tolerance_minutes(0..180)` 필수, `RESERVATION`은 `date_value/start_time_value` 필수다. `locked=true` row만 저장하고 해제는 row 삭제로 표현한다.
