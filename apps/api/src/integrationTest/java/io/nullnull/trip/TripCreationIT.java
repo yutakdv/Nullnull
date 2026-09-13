@@ -316,7 +316,8 @@ class TripCreationIT {
     }
 
     @Test
-    @DisplayName("BA-040-T1 getTrip projects the stored item onto its day with the place it names")
+    // Work ID only: BA-040-T1 is reorder atomicity, which this does not exercise.
+    @DisplayName("BA-040 getTrip projects the stored item onto its day with the place it names")
     void theDetailProjectionCarriesItems() throws Exception {
         // This case used to assert the opposite - that days came back empty - and said it would turn
         // RED the moment BA-040 projected items, which is when the fixtures become server-verifiable
