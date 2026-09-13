@@ -792,6 +792,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **막히는 것은 절반이다.** `RelatedPlaceResult.items`는 **빈 배열이 허용**되므로 `NONE`·`UNKNOWN` 응답은 `PlaceSummary`를 전혀 거치지 않는다 — 게이트가 막는 것은 **후보가 있는 응답**뿐이다. `place_relations` 저장·가드와 그 위의 IT(`T1`·`T4`·`T5`)는 지금 만들 수 있고, `V010`이 `BA-022`에서 projection이 fail-closed인 채로 C3 foundation을 먼저 세운 것과 같은 모양이다.
 
+**남은 절반이 기다리는 것.** 응답에 후보가 실리려면 catalog 공개 게이트가 열려야 한다 — `RelatedPlace.place`가 required `PlaceSummary`이고 그 경로의 첫 줄이 `requirePublicProjection()`이며, 닫힌 동안 이 route는 형제 route들과 같이 **503 `SOURCE_UNAVAILABLE`(retryable)** 로 답한다. **게이트가 닫힌 채로 `NONE`을 내지 않는다** — `SOURCE_CATALOG` §4가 `NONE`을 *"필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때"* 로 정의하므로, 완료하지 못한 조회 위에서 그 상태를 주장하는 것이 된다. `200 UNKNOWN`도 아니다 — `UNKNOWN`은 *"시도가 끝났지만 답이 없다"* 이고 polling으로 풀리지 않는데 **닫힌 게이트는 풀린다.** 정렬은 게이트와 무관하고 계약도 이미 있다 — `/internal/v1/related/rank`와 `RelatedRankRequest`/`RelatedRankResponse`가 내부 계약에 있고 `HttpRecommendationGateway`가 호출한다. 없는 것은 `place_relations`에서 후보를 모아 넘기는 caller다. 게이트가 열리면 `T7`의 다섯 중 `SIMILAR`·`NONE`·`UNKNOWN`이 생산 가능해지고, `EXACT`는 `KTO_RELATED_PLACES` 승인까지, `CHECKING`은 relation 검증 job이 생길 때까지 생산자가 없다(P0 job type은 `delete-owner-data`·`optimize-item` 둘뿐).
+
 **`T7`은 이 slice에 쓰지 않는다.** 응답 경로가 없으면 다섯 값 중 어느 것도 *"생산 가능"* 을 보일 수 없고, 그 상태에서 coverage test를 쓰면 **전부 "생산자 없음"으로 등록하는 표**가 된다 — `CrowdQualityFlagCoverageIT`가 잡으려던 것의 정반대다. `T7`은 응답 경로를 만드는 slice에 붙는다.
 
 구현 순서:
@@ -1043,7 +1045,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-041
 
-**네 종류 독립 잠금과 동시 편집 충돌** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**네 종류 독립 잠금과 동시 편집 충돌** — P0 / `verified` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-040](#ba-040)
 - 기능 ID: `FR-CON-01`, `FR-CON-02`, `FR-CON-03`, `FR-CON-04`, `FR-CON-05`, `FR-CON-06`, `NFR-DATA-02`
@@ -1077,7 +1079,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-042
 
-**후보 slot 판정·비교 후 장소 교체** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**후보 slot 판정·비교 후 장소 교체** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-024](#ba-024), [BA-040](#ba-040), [BA-041](#ba-041)
 - 기능 ID: `FR-CAN-07`, `FR-ITM-07`, `FR-ITM-08`
@@ -1098,9 +1100,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-042-T1`: 날짜만 있는 slot/null time·DST·영업/route 결측을 구분한다
-- `BA-042-T2`: replace 중간 실패와 stale relation/version은 일정 미변경이다
-- `BA-042-T3`: 후보 linkage는 보존이 아니라 #165 Q2의 전이를 따르고(옛 장소는 ACTIVE 후보), 잠금 처리는 #199 결정에 따른다
+- `BA-042-T1`: suggestedTime이 있는 slot과 없는 slot을 구분한다
+- `BA-042-T2`: 거절된 replace는 일정을 바꾸지 않는다
+- `BA-042-T3`: 교체된 옛 장소는 ACTIVE 후보로 돌아온다
+- `BA-042-T4`: 요청은 여행의 timezone과 여행의 날짜 범위를 그대로 싣는다
+- `BA-042-T5`: 영업 근거가 없으면 eligible을 참으로 만들지 않고 그 사유를 낸다
+- `BA-042-T6`: 평가기가 낸 사유 코드를 Spring이 뭉개지 않고 그대로 낸다
+- `BA-042-T7`: state 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
+- `BA-042-T8`: replace는 MUST_VISIT과 RESERVATION을 releaseConstraints에 이름 대야 진행한다
+- `BA-042-T9`: stale If-Match는 replace를 거부한다
 
 FE 인계·완료 증거: comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

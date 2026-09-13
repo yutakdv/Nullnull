@@ -44,7 +44,7 @@ class TripItemReplaceIT {
     @Autowired JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("BA-040 the place changes, the schedule does not, and the outgoing place returns as a candidate")
+    @DisplayName("BA-040 BA-042-T3 the place changes, the schedule does not, and the outgoing place returns as a candidate")
     void replacingKeepsTheSlotAndGivesThePlaceBack() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
         UUID tripId = createTrip(owner);
@@ -72,7 +72,7 @@ class TripItemReplaceIT {
     }
 
     @Test
-    @DisplayName("BA-040 a MUST_VISIT lock refuses the replacement until the request names it")
+    @DisplayName("BA-040 BA-042-T8 BA-042-T2 a MUST_VISIT lock refuses the replacement until the request names it")
     void thePlaceLockHasToBeNamed() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
         UUID tripId = createTrip(owner);
@@ -159,7 +159,7 @@ class TripItemReplaceIT {
     }
 
     @Test
-    @DisplayName("BA-040 a candidate-backed item gives its own candidate back instead of a new one")
+    @DisplayName("BA-040 BA-042-T3 a candidate-backed item gives its own candidate back instead of a new one")
     void anItemThatCameFromACandidateRestoresThatCandidate() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
         UUID tripId = createTrip(owner);
@@ -186,6 +186,40 @@ class TripItemReplaceIT {
                         + " FROM trip_candidates c JOIN candidate_sources s ON s.candidate_id = c.id"
                         + " WHERE c.id = ?", String.class, candidateId))
                 .isEqualTo("ACTIVE 원래 메모 SEARCH");
+    }
+
+    /**
+     * BA-042-T9, the one clause of the replace half that had no test.
+     *
+     * <p>Every other replace rule is about what the request asks for. This one is about what the
+     * caller last saw: two tabs open the same trip, one replaces a place, and the other's If-Match
+     * now names a version that no longer exists. Refusing it is what stops the second tab from
+     * replacing a place based on a screen that is already wrong.
+     */
+    @Test
+    @DisplayName("BA-042-T9 a stale If-Match refuses the replacement and changes nothing")
+    void aStaleIfMatchIsRefused() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID outgoing = place("먼저 잡힌 장소");
+        UUID incoming = place("나중에 넣을 장소");
+        UUID other = place("세 번째 장소");
+        UUID itemId = insertItem(tripId, outgoing, DAY_ONE, 0, null);
+
+        // The first tab wins and the version moves.
+        replace(owner, tripId, itemId, "\"1\"", "{\"replacementPlaceId\":\"" + incoming + "\"}")
+                .andExpect(status().isOk());
+        assertThat(version(tripId)).isEqualTo(2);
+
+        // The second tab still holds version 1 and asks for a different place.
+        replace(owner, tripId, itemId, "\"1\"", "{\"replacementPlaceId\":\"" + other + "\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRIP_CHANGED"));
+
+        // The item still holds what the winner put there, and nothing moved a second time.
+        assertThat(jdbc.queryForObject("SELECT place_id FROM trip_items WHERE id = ?", UUID.class,
+                itemId)).isEqualTo(incoming);
+        assertThat(version(tripId)).isEqualTo(2);
     }
 
     private ResultActions replace(SessionService.Bootstrap owner, UUID tripId, UUID itemId,

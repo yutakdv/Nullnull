@@ -15,7 +15,7 @@ public final class ImplementedOperationsRegistry {
                     "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip",
                     "listFeed", "getPost", "savePost", "unsavePost", "recordFeedFeedback",
                     "ingestEventBatch",
-                    "listTripCandidates", "addTripCandidate", "removeTripCandidate",
+                    "listTripCandidates", "addTripCandidate", "removeTripCandidate", "getCandidateTripMatches",
                     "replaceTripInterests", "addTripItem", "removeTripItem", "reorderTripItems", "replaceTripItem", "updateTripItem",
                     "setTripItemConstraint", "removeTripItemConstraint",
                     "createOptimization", "getOptimization");
