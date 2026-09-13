@@ -802,7 +802,7 @@
         },
         {
           "id": "BA-024-T6",
-          "assertion": "적격 후보가 0이면 NONE이고 목록을 채우지 않는다"
+          "assertion": "적격 후보가 0이면 목록을 채우지 않고 UNKNOWN(reason SOURCE_DISABLED)으로 답한다"
         },
         {
           "id": "BA-024-T7",

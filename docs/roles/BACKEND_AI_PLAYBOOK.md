@@ -792,7 +792,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **막히는 것은 절반이다.** `RelatedPlaceResult.items`는 **빈 배열이 허용**되므로 `NONE`·`UNKNOWN` 응답은 `PlaceSummary`를 전혀 거치지 않는다 — 게이트가 막는 것은 **후보가 있는 응답**뿐이다. `place_relations` 저장·가드와 그 위의 IT(`T1`·`T4`·`T5`)는 지금 만들 수 있고, `V010`이 `BA-022`에서 projection이 fail-closed인 채로 C3 foundation을 먼저 세운 것과 같은 모양이다.
 
-**남은 절반이 기다리는 것.** 응답에 후보가 실리려면 catalog 공개 게이트가 열려야 한다 — `RelatedPlace.place`가 required `PlaceSummary`이고 그 경로의 첫 줄이 `requirePublicProjection()`이며, 닫힌 동안 이 route는 형제 route들과 같이 **503 `SOURCE_UNAVAILABLE`(retryable)** 로 답한다. **게이트가 닫힌 채로 `NONE`을 내지 않는다** — `SOURCE_CATALOG` §4가 `NONE`을 *"필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때"* 로 정의하므로, 완료하지 못한 조회 위에서 그 상태를 주장하는 것이 된다. `200 UNKNOWN`도 아니다 — `UNKNOWN`은 *"시도가 끝났지만 답이 없다"* 이고 polling으로 풀리지 않는데 **닫힌 게이트는 풀린다.** 정렬은 게이트와 무관하고 계약도 이미 있다 — `/internal/v1/related/rank`와 `RelatedRankRequest`/`RelatedRankResponse`가 내부 계약에 있고 `HttpRecommendationGateway`가 호출한다. 없는 것은 `place_relations`에서 후보를 모아 넘기는 caller다. 게이트가 열리면 `T7`의 다섯 중 `SIMILAR`·`NONE`·`UNKNOWN`이 생산 가능해지고, `EXACT`는 `KTO_RELATED_PLACES` 승인까지, `CHECKING`은 relation 검증 job이 생길 때까지 생산자가 없다(P0 job type은 `delete-owner-data`·`optimize-item` 둘뿐).
+**남은 절반이 기다리는 것.** 응답에 후보가 실리려면 catalog 공개 게이트가 열려야 한다 — `RelatedPlace.place`가 required `PlaceSummary`이고 그 경로의 첫 줄이 `requirePublicProjection()`이며, 닫힌 동안 이 route는 형제 route들과 같이 **503 `SOURCE_UNAVAILABLE`(retryable)** 로 답한다. **게이트가 닫힌 채로 `NONE`을 내지 않는다** — `SOURCE_CATALOG` §4가 `NONE`을 *"필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때"* 로 정의하므로, 완료하지 못한 조회 위에서 그 상태를 주장하는 것이 된다. `200 UNKNOWN`도 아니다 — `UNKNOWN`은 *"시도가 끝났지만 답이 없다"* 이고 polling으로 풀리지 않는데 **닫힌 게이트는 풀린다.** 정렬은 게이트와 무관하고 계약도 이미 있다 — `/internal/v1/related/rank`와 `RelatedRankRequest`/`RelatedRankResponse`가 내부 계약에 있고 `HttpRecommendationGateway`가 호출한다. 없는 것은 `place_relations`에서 후보를 모아 넘기는 caller다. 게이트가 열리면 `T7`의 다섯 중 `SIMILAR`·`UNKNOWN` **둘**이 생산 가능해진다. **`NONE`은 생산하지 않는다** — `KTO_RELATED_PLACES` 미신청에 대한 사용자 확정 결정이 C5의 상태를 `NULLNULL_CATALOG_RULE` `SIMILAR`와 `UNKNOWN(reason SOURCE_DISABLED)` **둘로** 못박았다. `SIMILAR`는 우리 규칙이 검증한 후보가 여기 있다는 **긍정** 주장이라 우리 근거만으로 서지만, `NONE`은 관련 장소가 없다는 **부정** 주장이라 "다 찾아봤다"가 있어야 서고 공식 relation source가 꺼져 있는 한 그것이 없다 — §4의 *"필요한 조회와 검증을 완료한 뒤"* 가 그 뜻이고 *"확인 실패·근거 부족은 `UNKNOWN`"* 이 그 자리를 받는다. `NONE`을 enum에서 빼지는 않는다(FE가 렌더할 수 있고 제거는 breaking이다). `EXACT`는 `KTO_RELATED_PLACES` 승인까지, `CHECKING`은 relation 검증 job이 생길 때까지 생산자가 없다(P0 job type은 `delete-owner-data`·`optimize-item` 둘뿐).
 
 **`T7`은 이 slice에 쓰지 않는다.** 응답 경로가 없으면 다섯 값 중 어느 것도 *"생산 가능"* 을 보일 수 없고, 그 상태에서 coverage test를 쓰면 **전부 "생산자 없음"으로 등록하는 표**가 된다 — `CrowdQualityFlagCoverageIT`가 잡으려던 것의 정반대다. `T7`은 응답 경로를 만드는 slice에 붙는다.
 
@@ -812,7 +812,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-024-T3`: CHECKING은 실제로 진행 중인 검증이 있을 때만 쓴다
 - `BA-024-T4`: 유효기간이 지난 relation evidence는 후보가 되지 않는다
 - `BA-024-T5`: 불확실한 mapping은 EXACT가 되지 않는다
-- `BA-024-T6`: 적격 후보가 0이면 NONE이고 목록을 채우지 않는다
+- `BA-024-T6`: 적격 후보가 0이면 목록을 채우지 않고 UNKNOWN(reason SOURCE_DISABLED)으로 답한다
 - `BA-024-T7`: RelationState 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
 
 FE 인계·완료 증거: 일정 교체와 나중 Live가 재사용할 공통 relation 예시. Live tab 모듈에 이 공통 테이블을 묶지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
