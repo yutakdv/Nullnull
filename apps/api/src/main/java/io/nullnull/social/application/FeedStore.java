@@ -26,6 +26,32 @@ public interface FeedStore {
     /** Removes the relation. Absent is success: unsave is idempotent by the contract's own 204. */
     void unsave(UUID ownerId, UUID postId);
 
+    /** Whether a post id is already taken, so a curation run can leave it alone (A-031). */
+    boolean postExists(UUID postId);
+
+    /**
+     * Stores a 1st-party cover image against the licence V021 seeded, and returns its id.
+     *
+     * <p>The licence is looked up, never created: a run that made its own would be publishing under
+     * a grant nobody reviewed, which is the thing A-024 and the asset_licenses chain exist to stop.
+     */
+    UUID insertFirstPartyCover(UUID assetId, String url, String alt, String checksum, Instant now);
+
+    /** Writes the post as a DRAFT. It is not visible until {@link #publishPost} runs. */
+    void insertDraftPost(UUID postId, String title, String body, String coverUrl, UUID coverAssetId,
+            Instant now);
+
+    /** Links one place to a post at a position; position 0 is the primary place. */
+    void linkPostPlace(UUID postId, UUID placeId, int position, String mentionType);
+
+    /**
+     * Publishes a draft.
+     *
+     * <p>Separate from the insert because V022's trigger requires the primary place to exist first:
+     * a post is written, given its place, and only then made visible.
+     */
+    void publishPost(UUID postId, Instant publishedAt, Instant now);
+
     /**
      * Records one feed interaction, or converges on the one already recorded for that minute.
      *

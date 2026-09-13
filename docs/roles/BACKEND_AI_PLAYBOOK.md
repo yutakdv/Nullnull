@@ -790,6 +790,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 착수 불가 사유(조사 결과): `RelatedPlace.place`가 **required `PlaceSummary`**다. 그 값은 `CatalogPlaceProjectionService.embeddedSummaries`를 지나고 그 첫 줄이 `requirePublicProjection()`이므로, catalog 공개 게이트가 닫혀 있는 동안 `listRelatedPlaces`는 **응답을 만들 수 없다**. 게이트는 BA-021-T3(staging 실호출 증거)까지 열리지 않고 그건 [BA-006](#ba-006)에 달려 있다. 즉 이 카드는 계약이 아니라 **증거**를 기다린다.
 
+**막히는 것은 절반이다.** `RelatedPlaceResult.items`는 **빈 배열이 허용**되므로 `NONE`·`UNKNOWN` 응답은 `PlaceSummary`를 전혀 거치지 않는다 — 게이트가 막는 것은 **후보가 있는 응답**뿐이다. `place_relations` 저장·가드와 그 위의 IT(`T1`·`T4`·`T5`)는 지금 만들 수 있고, `V010`이 `BA-022`에서 projection이 fail-closed인 채로 C3 foundation을 먼저 세운 것과 같은 모양이다.
+
+**`T7`은 이 slice에 쓰지 않는다.** 응답 경로가 없으면 다섯 값 중 어느 것도 *"생산 가능"* 을 보일 수 없고, 그 상태에서 coverage test를 쓰면 **전부 "생산자 없음"으로 등록하는 표**가 된다 — `CrowdQualityFlagCoverageIT`가 잡으려던 것의 정반대다. `T7`은 응답 경로를 만드는 slice에 붙는다.
+
 구현 순서:
 
 1. 공식 direct relation과 canonical mapping을 검증하고 category 기반 약한 관계는 SIMILAR로 분리한다
@@ -801,9 +805,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-024-T1`: 중복 canonical 후보·만료 evidence·불확실 mapping을 구분한다
-- `BA-024-T2`: 입력 순서와 source 응답 순서가 바뀌어도 같은 결과다
-- `BA-024-T3`: CHECKING은 실제 처리 상태에만 사용하고 가짜 대안을 채우지 않는다
+- `BA-024-T1`: 중복 canonical 후보가 한 행으로 수렴한다
+- `BA-024-T2`: 입력 순서와 source 응답 순서가 바뀌어도 같은 결과를 낸다
+- `BA-024-T3`: CHECKING은 실제로 진행 중인 검증이 있을 때만 쓴다
+- `BA-024-T4`: 유효기간이 지난 relation evidence는 후보가 되지 않는다
+- `BA-024-T5`: 불확실한 mapping은 EXACT가 되지 않는다
+- `BA-024-T6`: 적격 후보가 0이면 NONE이고 목록을 채우지 않는다
+- `BA-024-T7`: RelationState 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
 
 FE 인계·완료 증거: 일정 교체와 나중 Live가 재사용할 공통 relation 예시. Live tab 모듈에 이 공통 테이블을 묶지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -921,6 +929,7 @@ PM-010의 **장소 쪽은 닫혔다**. `PlaceSummary.sourceAttribution`을 FE가
 - `BA-032-T1`: 페이지 사이 새 글·삭제·숨김·같은 정렬 시각에서 중복/누락 정책을 검증한다
 - `BA-032-T2`: 다른 owner의 저장 상태가 shared cache로 새지 않는다
 - `BA-032-T3`: save/unsave가 후보·item·trip version에 영향을 주지 않는다
+- `BA-032-T4`: curation plan은 전부 적용되거나 전부 거절된다
 
 FE 인계·완료 증거: 여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1057,7 +1066,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-041-T1`: 네 타입 조합 property test에서 독립 잠금이 보존된다
+- `BA-041-T1`: 네 타입이 함께 있을 때 한 type의 설정·교체·해제가 다른 셋을 바꾸지 않는다
 - `BA-041-T2`: 잠금을 위반하는 date/time/예약 command를 거부한다
 - `BA-041-T3`: unlock 동시성과 transaction rollback에서 다른 lock row가 보존된다
 - `BA-041-T4`: stale If-Match를 거부하고 trip version을 올리지 않는다

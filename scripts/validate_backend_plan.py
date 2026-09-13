@@ -225,7 +225,18 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
                                 isinstance(name, str) and ident in name for name in names):
                             problems.append(f'{tid}: provenBy[{ident}] must be a non-empty list of '
                                             f'testcase names containing {ident}')
-                resolve_link(root, root, evidence['report'], problems, tid)
+                report = evidence['report']
+                # A run of this repository's required gate, not any URL. resolve_link returns early
+                # for http(s) - it exists to check vault paths - so without this the field would
+                # accept "https://example.com" and read as evidence. The report that matters is the
+                # run that executed the testcases provenBy names, and that run has one shape.
+                if isinstance(report, str) and report.startswith(('http://', 'https://')):
+                    if not re.fullmatch(r'https://github\.com/[^/]+/[^/]+/actions/runs/\d+',
+                                        report.rstrip('/')):
+                        problems.append(f'{tid}: evidence.report must be a GitHub Actions run URL '
+                                        f'for this repository, not {report!r}')
+                else:
+                    resolve_link(root, root, report, problems, tid)
         if task.get('status') in {'blocked', 'deferred'} and not task.get('reason'):
             problems.append(f'{tid}: blocked/deferred requires reason and safe default')
     if set(owners) != operations:
