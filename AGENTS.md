@@ -115,6 +115,8 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
    `evidence.reviewer`는 **요구하지 않는다.** 이 저장소는 두 required check가 green이면 사람 승인 없이 auto-merge한다(원칙 15). 채우면 일어나지 않은 검토를 기록하게 되는 칸이므로 없앴다. task 수준의 `reviewer`(RACI 역할)는 그대로 남는다.
 3. **acceptance assertion은 한 절만 쓴다.** `check_test_reports.py`는 `tests[].id`가 JUnit 이름에 **나타나는지**만 보므로, 한 ID에 여러 절을 묶으면 그중 **아무 절이나** 증명하는 test 하나로 그 ID가 충족된다 — 집계기가 나머지를 볼 방법이 없다. "A하고 B한다"가 필요하면 `T3`(A)·`T4`(B)로 나눈다. 그러면 B를 증명하는 test가 없을 때 `integration-ready` 승격이 **그 자리에서** 막힌다.
 
+   **`backend` push의 초록은 required가 아니다.** trigger를 실제로 읽으면 `docs-contract`와 `docker-integration`은 **`main` 대상 PR/push에서만** 돌고, `api-quality`만 `push: [main, backend]`라 브랜치 push에도 돈다. 그래서 **밀면 초록이 하나 켜지는데 required 둘은 아무것도 돌지 않은 상태**다 — *"밀었더니 초록"* 으로 읽히기 가장 쉬운 자리다. **게이트는 PR이 있어야 돈다.**
+
    **고칠 수 없는 파일에 규칙을 적지 마라.** Flyway migration은 적용되면 checksum이 고정돼 **주석을 정정할 수 없다.** 그래서 migration 주석은 *그 순간의 의도 기록*이지 살아 있는 명세가 아니다. 같은 규칙이 두 곳에 있으면 **둘 중 하나가 반드시 먼저 상하고**, 고칠 수 없는 쪽이 남는다. 오늘 이 모양을 셋 만났다 — `V025` 주석의 hydration 규칙, `BA-005`의 pool 상수 넷(전역 합계가 파일 넷에 흩어짐), `AWAITING_THEIR_SLICE`의 `"BA-050 feed slice"` 라벨(BA-050에 feed가 없다). 규칙은 **고칠 수 있는 곳 한 군데**에 두고 migration 주석은 그곳을 가리킨다.
 
    **생산자 없음에도 두 종류가 있다.** `BA-042-T7`을 쓰며 `SIMILAR`과 `CHECKING`을 같이 "생산자 없음"으로 등록했는데 coverage test가 거절했다 — **`CHECKING`은 `SlotEvaluateResponse.State`에 있다.** 둘은 다르게 부재한다: `SIMILAR`은 **서비스 어휘에 아예 없어** enum 교차검증으로 증명되고, `CHECKING`은 **어휘엔 있고 입력이 없을 뿐**이라 enum이 아무 말도 못 한다. 그래서 후자는 **그것을 증명하는 test를 지목해야 한다**(나가는 요청의 `checking`이 항상 false임을 단언). 규칙: **enum이 검사할 수 없는 주장은 주석이 아니라 test를 가리킨다.**
