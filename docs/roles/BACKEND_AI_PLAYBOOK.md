@@ -1249,6 +1249,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. APPLY는 item/revision/decision/response를 한 transaction에, KEEP은 decision만 기록한다
 4. 09-06 PM 검토 PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+**`T9`·`T10`은 `V030`의 제약이 발화하는지 묻는다.** `T1`이 *"동시 APPLY/APPLY에서 최초 결정 하나만"* 을 **응용 층**에서 단언한다면 `T10`은 같은 사실을 **DB 층**에서 묻는다 — partial unique index가 REVERT를 제외하고 run당 최초 결정 하나를 강제하는지다. [BA-034](#ba-034)의 멱등 key(응용 guard)와 partial unique index(DB)가 따로 선 것과 같은 짝이고, **하나가 다른 하나를 증명하지 않는다**: guard가 없어도 index가 한 행을 남기고, index가 없어도 guard가 한 번만 쓴다. `T9`은 결정 종류별 shape CHECK로, `KEEP`이 revision을 갖지 않고 `APPLY`/`REVERT`가 갖는다는 것이 세 종류를 한 table에 두는 조건이다.
+
 **`T3`을 넷으로 나눈 이유.** 원래 한 절이 `TRIP_CHANGED`·`DATA_CHANGED`·expired·policy 철회를 묶고 있었는데 **기제가 넷 다 다르다** — 차례로 run의 `inputTripVersion`과 현재 trip version의 **버전 비교**, proposal이 선 근거(snapshot·hours)의 **지문 비교**, preview TTL의 **시계**, 결정 시점에 policy/incident를 다시 묻는 **재질의**다. 하나를 증명하는 test가 나머지를 증명하지 않으므로 `T3`·`T5`·`T6`·`T7`로 나눈다. 반대로 `T1`과 `T2`는 나누지 않는다 — `T1`의 APPLY/APPLY와 APPLY/KEEP은 조건부 쓰기 **한 기제**를 때리는 입력 둘이고 `T2`의 주입 지점 여럿도 transaction **하나**다. 절은 입력 case가 아니라 기제로 센다.
 
 **`T2`가 말하는 "각 쓰기 지점"은 다섯이다.** `TripStore`의 write method를 전수로 세어 APPLY가 한 transaction에 쓰는 것을 정리했다:
@@ -1279,6 +1281,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T6`: 만료된 preview의 apply가 차단된다
 - `BA-052-T7`: policy 철회가 apply를 차단한다
 - `BA-052-T8`: APPLY는 어떤 잠금도 해제하지 않는다
+- `BA-052-T9`: 결정은 자기 종류가 가진 필드만 정확히 담는다
+- `BA-052-T10`: run의 최초 결정은 하나이고 REVERT는 그것이 아니다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
