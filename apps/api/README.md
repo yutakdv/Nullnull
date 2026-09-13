@@ -16,16 +16,23 @@ Installed Gradle distributions are not used; always run `./gradlew`.
 ## Run locally
 
 저장소 root에서 시작한다. `up -d`가 실패해도 `bootRun`은 **다른 PostgreSQL에 붙을 수 있으므로**(그 자리를 기기의 host
-서버가 잡고 있는 경우) 그 사이에 포트의 신원을 확인한다 — 포트 숫자는 `application-local.yaml`에서 읽어 박아 두지
-않는다. 배경과 smoke용 4단계 선행 조건은 [ENVIRONMENT.md](../../docs/operations/ENVIRONMENT.md) §7에 있다.
+서버가 잡고 있는 경우) 그 사이에 포트의 신원을 확인한다 — 포트 숫자는 박아 두지 않고 **앱이 실제로 쓸 파일에서**
+읽는다. `apps/api/.env.local`이 정본이고(`ENVIRONMENT.md` §7, 기기마다 다를 수 있다) 그것이 없는 새 clone에서만
+`application-local.yaml`의 기본값으로 내려간다. 어느 쪽을 읽었는지 출력에 적는 이유는, 검사가 앱과 **다른 포트**를
+보고 통과하는 것이 정확히 이 절이 막으려는 상태이기 때문이다. 배경과 smoke용 4단계 선행 조건은 [ENVIRONMENT.md](../../docs/operations/ENVIRONMENT.md) §7에 있다.
 대화형 zsh는 `#` 주석을 붙여넣으면 `command not found: #`가 나므로 블록 안에 주석을 두지 않는다.
 
 ```bash
 docker compose up -d postgres
-port=$(sed -n 's#.*url: jdbc:postgresql://[^:]*:\([0-9]\{1,5\}\)/.*#\1#p' apps/api/src/main/resources/application-local.yaml)
+source=apps/api/.env.local
+port=$(sed -n 's#^SPRING_DATASOURCE_URL=jdbc:postgresql://[^:]*:\([0-9]\{1,5\}\)/.*#\1#p' "$source" 2>/dev/null)
+if [ -z "$port" ]; then
+  source=apps/api/src/main/resources/application-local.yaml
+  port=$(sed -n 's#.*url: jdbc:postgresql://[^:]*:\([0-9]\{1,5\}\)/.*#\1#p' "$source")
+fi
 docker ps --format '{{.Ports}}' | grep -q ":${port}->" \
-  && echo "OK: a running container publishes ${port}" \
-  || echo "FAIL: the local profile points at ${port} and no container publishes it"
+  && echo "OK: a running container publishes ${port} (from ${source})" \
+  || echo "FAIL: ${source} points at ${port} and no container publishes it"
 ```
 
 ```bash
