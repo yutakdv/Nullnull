@@ -152,7 +152,11 @@ class ProblemResponseCoverageTest {
         Map<String, List<String>> security = declaredSecurity();
         List<String> wrong = new ArrayList<>();
         int checked = 0;
-        for (String operation : ImplementedOperationsRegistry.IMPLEMENTED) {
+        // Every operation in the contract, not only the implemented ones. The rule is derived from
+        // the operation's own security, which is true whether or not a controller exists yet, and
+        // checking only the implemented set would let each new slice land a route with no declared
+        // failures and fix it afterwards.
+        for (String operation : responses.keySet()) {
             List<String> declared = responses.get(operation);
             List<String> schemes = security.get(operation);
             assertThat(declared).as("%s is declared in the contract", operation).isNotNull();
@@ -169,7 +173,7 @@ class ProblemResponseCoverageTest {
         }
         // Non-vacuous twice over: an empty registry, or a parser that found no security at all,
         // would otherwise let this pass while comparing nothing.
-        assertThat(checked).isGreaterThan(20);
+        assertThat(checked).isGreaterThan(40);
         assertThat(security.values().stream().filter(list -> !list.isEmpty()).count())
                 .as("the security parser found requirements to compare")
                 .isGreaterThan(20);
