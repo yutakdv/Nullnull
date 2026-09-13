@@ -43,6 +43,7 @@ class FirstPartyCoverIT {
     void removeOnlyTheRowsThisClassWrote() {
         jdbc.update("DELETE FROM posts WHERE cover_url LIKE 'https://x.test/%'");
         jdbc.update("DELETE FROM media_assets WHERE origin_url LIKE 'https://assets.nullnull.test/%'");
+        jdbc.update("DELETE FROM places WHERE canonical_name = '표지 test 장소'");
     }
 
     @Test
@@ -52,6 +53,7 @@ class FirstPartyCoverIT {
 
         // A DRAFT may have no asset yet: the text is written before the illustration exists.
         UUID draft = UUID.randomUUID();
+        UUID placeId = UUID.randomUUID();
         assertThatCode(() -> jdbc.update("INSERT INTO posts (id, status, title, body, cover_url,"
                 + " created_at, updated_at) VALUES (?, 'DRAFT', '초안', '본문', 'https://x.test/c.png',"
                 + " ?, ?)", draft, now, now)).doesNotThrowAnyException();
@@ -60,6 +62,16 @@ class FirstPartyCoverIT {
         assertThatThrownBy(() -> jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ?"
                 + " WHERE id = ?", now, draft))
                 .hasMessageContaining("posts_published_cover_asset_check");
+
+        // A place too, because V022 requires a published post to name one. This test is about the
+        // cover, and it had been publishing posts with no place at all - a row no screen creates and
+        // one that made every later feed read a 503 wherever the database is shared. The schema
+        // refuses it now, which is why this line exists rather than a comment asking for care.
+        jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                + " created_at, updated_at) VALUES (?, '표지 test 장소', 'HS', '11', 'ACTIVE', ?, ?)",
+                placeId, now, now);
+        jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
+                + " VALUES (?, ?, 0, 'PRIMARY')", draft, placeId);
 
         // With an asset whose licence is the 1st-party one, the same publish is accepted.
         UUID assetId = insertFirstPartyAsset(now);
@@ -98,6 +110,39 @@ class FirstPartyCoverIT {
                 + " VALUES (?, ?, 'x', 'https://x.test/a.png', ?, 'IMAGE', ?)",
                 UUID.randomUUID(), UUID.randomUUID(), "0".repeat(64), now))
                 .hasMessageContaining("asset_license_id");
+    }
+
+    @Test
+    @DisplayName("BA-032 a published post must name a primary place, from either direction")
+    void aPublishedPostCannotLoseItsPrimaryPlace() {
+        OffsetDateTime now = OffsetDateTime.now();
+        UUID postId = UUID.randomUUID();
+        UUID placeId = UUID.randomUUID();
+        jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                + " created_at, updated_at) VALUES (?, '표지 test 장소', 'HS', '11', 'ACTIVE', ?, ?)",
+                placeId, now, now);
+        jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, created_at, updated_at)"
+                + " VALUES (?, 'DRAFT', '장소 없는 글', '본문', 'https://x.test/p.png', ?, ?)",
+                postId, now, now);
+        UUID assetId = insertFirstPartyAsset(now);
+
+        // Publishing with no place. FeedService cannot build a card without one and answers 503 for
+        // the WHOLE feed, so this row would take every reader's feed down, not just its own card.
+        assertThatThrownBy(() -> jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ?,"
+                + " cover_asset_id = ? WHERE id = ?", now, assetId, postId))
+                .hasMessageContaining("primary place");
+
+        jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
+                + " VALUES (?, ?, 0, 'PRIMARY')", postId, placeId);
+        jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ?, cover_asset_id = ?"
+                + " WHERE id = ?", now, assetId, postId);
+
+        // The same broken state reached from the other side: take the place away afterwards. A rule
+        // that watched only the publish would have a door next to it.
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM post_places WHERE post_id = ?", postId))
+                .hasMessageContaining("primary place");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM post_places WHERE post_id = ?",
+                Integer.class, postId)).isOne();
     }
 
     private UUID insertFirstPartyAsset(OffsetDateTime now) {

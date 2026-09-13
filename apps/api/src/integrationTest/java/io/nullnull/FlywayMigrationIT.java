@@ -96,11 +96,13 @@ class FlywayMigrationIT {
             // it is pure DDL, the trips aggregate's tables plus the owners.active_trip_id foreign key
             // V002 deferred until the trips table existed.
             //
-            // V021 seeds three, all of them A-024's: the NULLNULL_FIRST_PARTY source, its first
-            // registry revision, and the asset licence that says a 1st-party cover needs no
-            // attribution and may be redistributed. A post cover cannot reference a licence that does
-            // not exist, so the rows ship with the column that requires one.
-            long seededAfterPreviousSchema = 3;
+            // The number is rows seeded by the migrations THIS upgrade applies, so it moves as the
+            // previous version moves. V021 seeds three - A-024's source, its first registry revision
+            // and the 1st-party asset licence - and those are now part of the previous schema, inside
+            // rowsBefore. V022 is pure DDL: two constraint triggers requiring a published post to
+            // name a primary place. Hence zero, and hence this line changing again the next time a
+            // migration seeds anything, which is the point of the count being exact.
+            long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -400,10 +402,10 @@ class FlywayMigrationIT {
                                                   created_at, updated_at)
                     VALUES (gen_random_uuid(), v_trip, v_item, 'MUST_VISIT', 'USER', v_at, v_at);
                     -- V015's curated feed.
-                    INSERT INTO posts (id, status, title, body, cover_url, published_at,
-                                       created_at, updated_at)
+                    INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,
+                                       published_at, created_at, updated_at)
                     VALUES (v_post, 'PUBLISHED', '업그레이드 글', '본문',
-                            'https://example.test/cover.jpg', v_at, v_at, v_at);
+                            'https://example.test/cover.jpg', v_asset, v_at, v_at, v_at);
                     INSERT INTO post_places (post_id, place_id, position, mention_type)
                     VALUES (v_post, v_place, 0, 'PRIMARY');
                     INSERT INTO saved_posts (owner_id, post_id, created_at)

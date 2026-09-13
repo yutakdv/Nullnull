@@ -61,12 +61,13 @@ class CandidateIT {
         UUID id = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
         jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,"
-                        + " published_at, created_at, updated_at) VALUES (?, 'PUBLISHED', ?, '본문',"
-                        + " 'https://example.test/c.jpg', ?, ?, ?, ?)", id, title,
+                        + " created_at, updated_at) VALUES (?, 'DRAFT', ?, '본문',"
+                        + " 'https://example.test/c.jpg', ?, ?, ?)", id, title,
                 io.nullnull.testsupport.PostCovers.firstPartyAsset(jdbc, java.time.Instant.now()),
-                now, now, now);
+                now, now);
         jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
                 + " VALUES (?, ?, 0, 'PRIMARY')", id, placeId);
+        jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ? WHERE id = ?", now, id);
         return id;
     }
 
