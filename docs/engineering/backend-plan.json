@@ -1502,6 +1502,22 @@
         {
           "id": "BA-051-T5",
           "assertion": "만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다"
+        },
+        {
+          "id": "BA-051-T6",
+          "assertion": "비교 자격이 없는 제안은 crowd delta를 담은 채로 저장되지 않는다"
+        },
+        {
+          "id": "BA-051-T7",
+          "assertion": "비교 자격이 없는 제안은 사유 코드 없이 저장되지 않는다"
+        },
+        {
+          "id": "BA-051-T8",
+          "assertion": "한쪽만 있는 before/after change는 저장되지 않는다"
+        },
+        {
+          "id": "BA-051-T9",
+          "assertion": "저장된 제안과 change는 사후 수정되지 않는다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",

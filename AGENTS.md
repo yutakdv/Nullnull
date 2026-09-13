@@ -119,6 +119,8 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
    **고칠 수 없는 파일에 규칙을 적지 마라.** Flyway migration은 적용되면 checksum이 고정돼 **주석을 정정할 수 없다.** 그래서 migration 주석은 *그 순간의 의도 기록*이지 살아 있는 명세가 아니다. 같은 규칙이 두 곳에 있으면 **둘 중 하나가 반드시 먼저 상하고**, 고칠 수 없는 쪽이 남는다. 오늘 이 모양을 셋 만났다 — `V025` 주석의 hydration 규칙, `BA-005`의 pool 상수 넷(전역 합계가 파일 넷에 흩어짐), `AWAITING_THEIR_SLICE`의 `"BA-050 feed slice"` 라벨(BA-050에 feed가 없다). 규칙은 **고칠 수 있는 곳 한 군데**에 두고 migration 주석은 그곳을 가리킨다.
 
+   **계약이 범위를 안 정한 열은 "자유"가 아니라 "출처를 찾아라"다.** `optimization_proposals.crowd_delta`가 `numeric(5, 4)`로 들어갈 뻔했다 — 최대 ±9.9999인데 그 델타의 출처인 `V011 crowd_snapshots.value`는 `numeric(14, 4)`다. **아무도 재지 않은 숫자를 지키려고 실제 측정을 거부하는 열**이 될 뻔했고, 이유는 계약의 `crowdDelta`에 범위가 없어 *"안 정했으니 적당히"* 로 읽은 것이다. 같은 편집에서 `comparison_reason_code varchar(40)`도 지어냈다가 계약의 `maxLength 100`으로 맞췄다. 범위가 비어 있으면 **그 값이 어디서 오는지를 찾아 거기에 맞추고 출처를 주석에 적는다.** migration은 적용되면 고칠 수 없으므로 이 자리의 임의 기입은 되돌릴 수 없다.
+
    **생산자 없음에도 두 종류가 있다.** `BA-042-T7`을 쓰며 `SIMILAR`과 `CHECKING`을 같이 "생산자 없음"으로 등록했는데 coverage test가 거절했다 — **`CHECKING`은 `SlotEvaluateResponse.State`에 있다.** 둘은 다르게 부재한다: `SIMILAR`은 **서비스 어휘에 아예 없어** enum 교차검증으로 증명되고, `CHECKING`은 **어휘엔 있고 입력이 없을 뿐**이라 enum이 아무 말도 못 한다. 그래서 후자는 **그것을 증명하는 test를 지목해야 한다**(나가는 요청의 `checking`이 항상 false임을 단언). 규칙: **enum이 검사할 수 없는 주장은 주석이 아니라 test를 가리킨다.**
 
    **거울상도 있다: 절은 증명됐는데 ID가 없는 경우.** `BA-042-T3`(#165 Q2 전이 + #199 잠금)은 `TripItemReplaceIT`의 네 case가 이미 증명하는데 그 이름들이 `BA-040` ID만 달고 있어 **집계기가 아무것도 못 본다.** 카드가 약속한 것을 코드가 지키는데 기계가 볼 방법이 없는 상태다. **한 test가 두 카드의 절을 증명하는 것은 정상이고**, `@DisplayName`에 두 ID를 같이 달고 각 카드의 `provenBy`가 그 이름을 지목하면 된다 — 다만 **이름만 옮겨 적지 말고 본문과 대조한 뒤** 단다.
@@ -141,6 +143,8 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
    **`.git`도 공유다.** `git push origin backend`는 브랜치 전체를 밀므로, 한 세션의 push가 **다른 세션이 방금 만든 미검증 커밋까지 공개한다**(실제로 일어났다 — amend하려던 커밋이 먼저 나갔다). push 전에 `git log --oneline origin/backend..HEAD`로 **밀 커밋 목록을 먼저 보고**, 남의 것이 섞였으면 그 세션에 알린다.
 
    **그리고 컴파일 불가 상태의 파일은 그 자체로 공유 자원을 잠근다.** `compileIntegrationTestJava`는 source set **전체**를 컴파일하므로, 한 세션이 record를 넓히고 기존 호출부를 안 고친 채 **저장만 해도** 다른 세션의 test 실행이 `cannot find symbol`로 죽는다. Gradle을 안 돌려도, commit을 안 해도 그렇다 — *"나는 실행을 피했으니 안전하다"* 가 틀리는 자리다. **막는 것은 실행이 아니라 저장이다.** 기존 test가 쓰는 record·시그니처를 넓힐 때는 **호출부를 같은 편집에서 고치고**, 저장 뒤 격리 worktree에서 `compileIntegrationTestJava`를 한 번 돌린다(4초다).
+
+   **조율자의 말은 가장 빠르게 퍼지므로 가장 싸게 확인돼야 한다.** 세 세션에서 조율자가 낸 표기·상수·ID 형식은 검증 없이 양쪽으로 간다 — 실제로 조율자가 지어낸 `T8b` 형식이 메시지 **두 번**만에 두 카드로 번졌고(집계기 regex `BA-\d{3}-T\d+`에 매칭조차 안 되는 형식이다), 조율자가 **동료의 미확인 문장을 근거로** 내린 게이트 동작 결정이 카드에 실렸다가 그 동료의 반증으로 뒤집혔다. 그래서 규격은 쓰는 자리에서 대조하고, **조율자가 인용한 근거도 인용된 쪽이 다시 확인한다.** "네가 그렇게 말했다"는 가장 싸게 확인할 수 있는 주장이다.
 
    그리고 **전역 합계는 각자의 파일에 없지만 각자의 변경에 반응한다.** `JobConnectionBudget`은 job type 수의 **합**에 걸리고, `FlywayMigrationIT`의 "previous schema"는 **마지막 migration이 무엇인가**에 걸린다. 그래서 두 PR이 **각자 green인데 merge하면 red**가 될 수 있다. 이런 값은 **한 사람이 마지막에 정한다** — "나중에 들어가는 쪽이 다시 계산한다"는 규칙은 누가 마지막인지 아무도 모를 때 깨진다.
 
