@@ -272,6 +272,51 @@ class TripMutationIT {
     }
 
     @Test
+    @DisplayName("BA-031-T3 deleting twice with one key replays, and a different If-Match is a reused key")
+    void theDeleteKeyReplaysAndSeparatesPreconditions() throws Exception {
+        var owner = owner();
+        String created = mvc.perform(post("/api/v1/trips").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "twice-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-05\","
+                                + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\","
+                                + "\"interests\":[]}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID id = UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+        String key = "del-twice-" + UUID.randomUUID();
+
+        mvc.perform(delete("/api/v1/trips/" + id).cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .header("Idempotency-Key", key))
+                .andExpect(status().isNoContent());
+
+        // The retry a client makes when it never saw the first answer: same key, same If-Match. It
+        // replays the stored 204 rather than looking for a trip that is already gone, which is the
+        // difference between "your delete succeeded" and a 404 for a delete that did succeed.
+        mvc.perform(delete("/api/v1/trips/" + id).cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .header("Idempotency-Key", key))
+                .andExpect(status().isNoContent());
+
+        // deleteTrip has no body, so its precondition is the only thing a second request can vary.
+        // A different If-Match under the same key is a different command, and saying so is what
+        // keeps the fourth component of the canonical hash doing work.
+        mvc.perform(delete("/api/v1/trips/" + id).cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"2\"")
+                        .header("Idempotency-Key", key))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+    }
+
+    @Test
     @DisplayName("BA-031-T3 a stale If-Match refuses the delete and the trip survives")
     void aStaleIfMatchRefusesTheDelete() throws Exception {
         var owner = owner();
