@@ -340,3 +340,68 @@ describe('FE-501-T3 keyboard and names', () => {
     });
   });
 });
+
+// CMP-ATT-001 on /trip/{id}/optimize, submission screenshot #5.
+//
+// This screen lists the trip's stops so the user can pick one to optimize.
+// Those rows are KTO place records and the screen rendered their names with no
+// credit at all — DataAttribution was not even imported. There was no test to
+// mutate, because the behaviour had never been written.
+//
+// The trip fixtures carry no sourceAttribution, so the state is supplied by an
+// override rather than by editing the shared BE/FE fixture.
+describe('FE-501 the stop list credits the places it lists', () => {
+  const CREDIT = '출처: ⓒ한국관광공사 (최적화 화면 검증용)';
+
+  function tripWithCredit() {
+    const [firstDay, ...restDays] = trip.days;
+    if (!firstDay) throw new Error('fixture has no days');
+    const [firstItem, ...restItems] = firstDay.items;
+    if (!firstItem) throw new Error('fixture day has no items');
+    return {
+      ...trip,
+      days: [
+        {
+          ...firstDay,
+          items: [
+            {
+              ...firstItem,
+              place: {
+                ...firstItem.place,
+                sourceAttribution: {
+                  source: 'KTO_KOR_SERVICE_2',
+                  sourceDisplayName: '한국관광공사 국문 관광정보',
+                  sourceRegistryVersion: 4,
+                  attribution: CREDIT,
+                  officialUrl: 'https://www.data.go.kr/data/15101578/openapi.do',
+                  licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do',
+                  license: '이용허락범위 제한 없음',
+                },
+              },
+            },
+            ...restItems,
+          ],
+        },
+        ...restDays,
+      ],
+    };
+  }
+
+  it('shows the server credit on the stop it belongs to', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(tripWithCredit(), { headers: { ETag: '"3"' } }),
+      ),
+    );
+    renderSetup();
+    const name = trip.days[0]?.items[0]?.place.name ?? '';
+    const row = (await screen.findByText(name)).closest('li');
+    expect(row).not.toBeNull();
+    // Scoped to the row and to the link role: DataAttribution renders its text
+    // inside the source link, so getByText matches both the wrapper and the
+    // anchor, and a document-wide query would not prove it landed on this row.
+    expect(
+      within(row as HTMLElement).getByRole('link', { name: CREDIT }),
+    ).toBeInTheDocument();
+  });
+});

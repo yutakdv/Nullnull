@@ -74,6 +74,16 @@ export function FeedPostCard({
         />
         <h3 className={styles.title}>{post.title}</h3>
         <p className={styles.region}>{primaryPlace.name}</p>
+        {/* The PLACE record's own credit, independent of the crowd reading
+            beside it (CMP-ATT-001). These are two different sources licensing
+            two different things, which is why FCR-011 says they are not merged
+            into one line — and why this one cannot be rendered off the back of
+            `crowd`. It was: the only DataAttribution here was gated on crowd,
+            so a card with a KTO place and no crowd figure carried no credit at
+            all. Half the default feed is that shape. */}
+        {primaryPlace.sourceAttribution ? (
+          <DataAttribution compact provenance={primaryPlace.sourceAttribution} />
+        ) : null}
         {crowd ? (
           <DataAttribution
             compact
