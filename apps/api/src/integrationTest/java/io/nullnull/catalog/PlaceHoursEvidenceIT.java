@@ -164,6 +164,26 @@ class PlaceHoursEvidenceIT {
     }
 
     @Test
+    @DisplayName("evidence cannot be deleted while its windows still stand")
+    void evidenceCannotBeDeletedUnderItsWindows() {
+        UUID observation = observation(activePlace(), "OBSERVED");
+        window(observation, DATE, "OPEN", LocalTime.of(9, 0), LocalTime.of(17, 0));
+
+        // This is the half of "a value cannot exist without its evidence" that the trigger does not
+        // cover: the trigger watches windows arriving, the foreign key watches evidence leaving.
+        // Without this case the foreign key is unprovable - removing it turns no test red, and then
+        // the fact every comment about this pair rests on is guarded by nothing anyone can check.
+        assertThatThrownBy(() -> jdbc.update(
+                "DELETE FROM place_hours_observations WHERE id = ?", observation))
+                .isInstanceOf(DataAccessException.class);
+
+        jdbc.update("DELETE FROM place_hours_windows WHERE observation_id = ?", observation);
+        assertThatCode(() -> jdbc.update(
+                "DELETE FROM place_hours_observations WHERE id = ?", observation))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     @DisplayName("evidence attaches to an active canonical place, never to a deprecated one")
     void evidenceAttachesToActivePlacesOnly() {
         UUID canonical = activePlace();
