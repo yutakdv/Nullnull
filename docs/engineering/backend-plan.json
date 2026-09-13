@@ -951,7 +951,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "피드백·분석 이벤트 무결성",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-010",
         "BA-032"
@@ -1355,6 +1355,10 @@
         {
           "id": "BA-051-T4",
           "assertion": "items/propose 호출 시점에 활성 transaction이 없다"
+        },
+        {
+          "id": "BA-051-T5",
+          "assertion": "만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",

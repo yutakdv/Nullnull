@@ -928,7 +928,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-033
 
-**피드백·분석 이벤트 무결성** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**피드백·분석 이벤트 무결성** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-010](#ba-010), [BA-032](#ba-032)
 - 기능 ID: `FR-FED-04`, `FR-OPS-06`
@@ -1161,6 +1161,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다
 - `BA-051-T3`: 수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다
 - `BA-051-T4`: items/propose 호출 시점에 활성 transaction이 없다
+- `BA-051-T5`: 만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
