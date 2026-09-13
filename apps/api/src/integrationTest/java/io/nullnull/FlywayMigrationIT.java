@@ -100,10 +100,9 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V028 is the last one today and seeds nothing: it creates itinerary_import_drafts, and
-            // a draft is something a traveller pastes rather than something a schema can assert.
-            // V027 was the same before it - a relation is evidence someone has to establish - and so
-            // was V026. V025's two rows - the NULLNULL_CURATED_HOURS
+            // V029 is the last one today and seeds nothing: it creates optimization_proposals and
+            // optimization_changes, and a proposal is something a run computes rather than
+            // something a schema can assert. V028 was the same before it, and V027, and V026. V025's two rows - the NULLNULL_CURATED_HOURS
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
@@ -491,14 +490,26 @@ class FlywayMigrationIT {
                     VALUES (gen_random_uuid(), v_place, v_related_place, 'SIMILAR', 'INTERNAL_RULE',
                             'UNCERTAIN', 'upgrade rule reason', 'NULLNULL_CATALOG_RULE', 1,
                             v_at, NULL, v_at);
+                    -- V028's draft, which V029 turns into part of the previous schema. NEEDS_REVIEW
+                    -- with no trip is the state the confirmed_check demands of anything that is not
+                    -- CONFIRMED, and it is also the state a draft spends its whole life in unless
+                    -- somebody confirms it.
+                    INSERT INTO itinerary_import_drafts (id, owner_id, status, version,
+                                                         structured_draft, unresolved_tokens,
+                                                         confirmed_trip_id, confirmed_at,
+                                                         expires_at, created_at)
+                    VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), 'NEEDS_REVIEW', 1,
+                            '{"items":[]}'::jsonb, '[]'::jsonb, NULL, NULL,
+                            v_at + interval '24 hours', v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         // "Previous" is always the migration before the last one, so a table arrives in this list one
         // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
-        // when V026 did, feed_feedback arrived when V027 did, and place_relations arrives now that
-        // V028 has. V028's own itinerary_import_drafts belongs here only once a V029 does.
+        // when V026 did, feed_feedback arrived when V027 did, place_relations when V028 did, and
+        // itinerary_import_drafts arrives now that V029 has. V029's own optimization_proposals and
+        // optimization_changes belong here only once a V030 does.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -510,7 +521,7 @@ class FlywayMigrationIT {
                         "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
                         "optimization_runs", "optimization_run_snapshot_sets",
                         "place_hours_observations", "place_hours_windows", "feed_feedback",
-                        "place_relations");
+                        "place_relations", "itinerary_import_drafts");
         return key;
     }
 
