@@ -40,6 +40,16 @@ import org.springframework.test.web.servlet.ResultActions;
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 @DisplayName("BA-050 optimization run, snapshot and polling")
+/**
+ * Times these tests write are derived from the row's own {@code queued_at}, never from SQL
+ * {@code now()}.
+ *
+ * <p>{@code queued_at} is written by the application's clock and {@code now()} is the transaction's
+ * start time, so the two are different clocks read at different moments: {@code now()} came out
+ * 11ms EARLIER in one CI run and {@code optimization_runs_time_order_check} refused the update. The
+ * failure is intermittent by construction and gets likelier under load, which is the worst shape a
+ * gate check can have - it fails somebody else's PR, on a line they did not touch.
+ */
 class OptimizationRunIT {
 
     private static final LocalDate DAY_ONE = LocalDate.parse("2026-10-04");
@@ -182,8 +192,8 @@ class OptimizationRunIT {
 
         // Ended by hand, because what this asserts is the header rule rather than the worker.
         jdbc.update("UPDATE optimization_runs SET status = 'FAILED', failure_code = 'TRIP_CHANGED',"
-                + " failure_message = 'ended by the test', started_at = now(), completed_at = now()"
-                + " WHERE id = ?", runId);
+                + " failure_message = 'ended by the test', started_at = queued_at,"
+                + " completed_at = queued_at WHERE id = ?", runId);
         poll(owner, runId)
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.failure.code").value("TRIP_CHANGED"))
@@ -200,8 +210,8 @@ class OptimizationRunIT {
         UUID runId = runId(create(owner, tripId, "\"1\"", itemRequest(itemId, 1))
                 .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
 
-        jdbc.update("UPDATE optimization_runs SET status = 'RUNNING', started_at = now(),"
-                + " expires_at = now() - interval '1 minute' WHERE id = ?", runId);
+        jdbc.update("UPDATE optimization_runs SET status = 'RUNNING', started_at = queued_at,"
+                + " expires_at = queued_at - interval '1 minute' WHERE id = ?", runId);
 
         poll(owner, runId)
                 .andExpect(status().isOk())
@@ -233,9 +243,9 @@ class OptimizationRunIT {
         UUID runId = runId(create(owner, tripId, "\"1\"", itemRequest(itemId, 1))
                 .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
 
-        jdbc.update("UPDATE optimization_runs SET status = 'APPLIED', started_at = now(),"
-                + " completed_at = now(), data_fingerprint = ?, expires_at = now() - interval '1 hour'"
-                + " WHERE id = ?", "a".repeat(64), runId);
+        jdbc.update("UPDATE optimization_runs SET status = 'APPLIED', started_at = queued_at,"
+                + " completed_at = queued_at, data_fingerprint = ?,"
+                + " expires_at = queued_at - interval '1 hour' WHERE id = ?", "a".repeat(64), runId);
 
         poll(owner, runId)
                 .andExpect(status().isOk())
