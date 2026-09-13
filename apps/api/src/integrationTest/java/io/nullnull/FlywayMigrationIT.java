@@ -100,9 +100,8 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V030 is the last one today and seeds nothing: it creates optimization_decisions, and a
-            // decision is something a person makes rather than something a schema can assert. V029
-            // was the same before it, and V028, and V027, and V026. V025's two rows - the NULLNULL_CURATED_HOURS
+            // V031 is the last one today and seeds nothing: it replaces a CHECK constraint and
+            // creates no row and no table. V030 was the same before it, and V029, V028, V027, V026. V025's two rows - the NULLNULL_CURATED_HOURS
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
@@ -515,6 +514,15 @@ class FlywayMigrationIT {
                                                       before_value, after_value, sequence)
                     VALUES (gen_random_uuid(), v_proposal, v_item, 'MOVE',
                             '{"position":0}'::jsonb, '{"position":1}'::jsonb, 0);
+                    -- V030's decision, which V031 turns into part of the previous schema. KEEP is the
+                    -- only one of the three shapes that needs neither a revision pair nor a revert
+                    -- window, so it is the representative row that drags nothing else in with it.
+                    INSERT INTO optimization_decisions (id, run_id, proposal_id, owner_id, decision,
+                                                        expected_trip_version, resulting_trip_version,
+                                                        before_revision_id, after_revision_id,
+                                                        reverted_decision_id, revert_until, decided_at)
+                    VALUES (gen_random_uuid(), v_run, v_proposal, (SELECT id FROM owners LIMIT 1),
+                            'KEEP', 1, NULL, NULL, NULL, NULL, NULL, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -523,8 +531,9 @@ class FlywayMigrationIT {
         // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
         // when V026 did, feed_feedback arrived when V027 did, place_relations when V028 did, and
         // itinerary_import_drafts arrived when V029 did, and V029's optimization_proposals and
-        // optimization_changes arrive now that V030 has. V030's own optimization_decisions belongs
-        // here only once a V031 does.
+        // optimization_changes arrived when V030 did, and optimization_decisions arrives now that
+        // V031 has. V031 creates no table of its own - it replaces a CHECK - so the next migration
+        // that does will find this list already complete.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -537,7 +546,8 @@ class FlywayMigrationIT {
                         "optimization_runs", "optimization_run_snapshot_sets",
                         "place_hours_observations", "place_hours_windows", "feed_feedback",
                         "place_relations", "itinerary_import_drafts",
-                        "optimization_proposals", "optimization_changes");
+                        "optimization_proposals", "optimization_changes",
+                        "optimization_decisions");
         return key;
     }
 
