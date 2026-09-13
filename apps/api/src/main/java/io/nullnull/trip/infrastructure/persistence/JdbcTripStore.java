@@ -260,6 +260,17 @@ public class JdbcTripStore implements TripStore {
     }
 
     @Override
+    public void replaceItemPlace(UUID tripId, UUID itemId, UUID placeId, Instant at) {
+        int replaced = jdbc.sql("UPDATE trip_items SET place_id = ?, updated_at = ?"
+                        + " WHERE id = ? AND trip_id = ?")
+                .params(placeId, Timestamp.from(at), itemId, tripId)
+                .update();
+        if (replaced != 1) {
+            throw new IllegalStateException("trip item vanished under a replacement that held its lock");
+        }
+    }
+
+    @Override
     public void deferSlotUniqueness() {
         jdbc.sql("SET CONSTRAINTS trip_items_slot_unique DEFERRED").update();
     }

@@ -7,6 +7,7 @@ import io.nullnull.shared.http.NullnullOperation.Security;
 import io.nullnull.trip.application.AddTripItemCommand;
 import io.nullnull.trip.application.CreateTripCommand;
 import io.nullnull.trip.application.ReorderTripItemsCommand;
+import io.nullnull.trip.application.ReplaceTripItemCommand;
 import io.nullnull.trip.application.TripPageView;
 import io.nullnull.catalog.api.PlaceController.PlaceSummaryResponse;
 import java.util.Map;
@@ -158,6 +159,32 @@ public class TripController {
                 .body(TripMutationResponse.from(result));
     }
 
+    @PostMapping(value = "/trips/{tripId}/items/{itemId}/replace",
+            consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "replaceTripItem", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripMutationResponse> replaceItem(OwnerContext owner,
+            @PathVariable UUID tripId, @PathVariable UUID itemId,
+            @RequestHeader("If-Match") String ifMatch,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody ReplaceTripItemBody body) {
+        if (body == null) {
+            throw new io.nullnull.trip.domain.TripValidationException("replacementPlaceId", "NotNull",
+                    "replacementPlaceId is required");
+        }
+        java.util.Set<LockType> released = new java.util.LinkedHashSet<>();
+        for (String name : body.releaseConstraints() == null ? List.<String>of()
+                : body.releaseConstraints()) {
+            released.add(replaceLockType(name));
+        }
+        TripMutationView result = trips.replaceItem(owner, tripId, itemId, ifMatch, idempotencyKey,
+                new ReplaceTripItemCommand(body.replacementPlaceId(), body.relationId(),
+                        body.preserveDateTime(), released));
+        return ResponseEntity.ok()
+                .eTag(result.trip().trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripMutationResponse.from(result));
+    }
+
     @org.springframework.web.bind.annotation.DeleteMapping(value = "/trips/{tripId}/items/{itemId}",
             produces = MediaType.APPLICATION_JSON_VALUE)
     @NullnullOperation(id = "removeTripItem", security = {Security.SESSION, Security.CSRF})
@@ -256,6 +283,15 @@ public class TripController {
         }
     }
 
+    private static LockType replaceLockType(String name) {
+        try {
+            return LockType.valueOf(name);
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            throw new io.nullnull.trip.domain.TripValidationException("releaseConstraints", "Enum",
+                    "releaseConstraints must name a lock type");
+        }
+    }
+
     private static List<TripConstraint> constraints(List<SetConstraintBody> submitted) {
         if (submitted == null) {
             return List.of();
@@ -291,6 +327,10 @@ public class TripController {
      */
     public record SetConstraintBody(String type, Boolean locked, String source, LocalDate date,
             LocalTime startTime, LocalTime endTime, Integer toleranceMinutes) { }
+
+    /** {@code ReplaceTripItemRequest}. relationId and preserveDateTime=false are refused (#203, #204). */
+    public record ReplaceTripItemBody(UUID replacementPlaceId, UUID relationId,
+            Boolean preserveDateTime, List<String> releaseConstraints) { }
 
     public record ReorderTripItemsBody(List<ReorderEntryBody> items) { }
 
