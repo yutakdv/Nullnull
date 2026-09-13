@@ -811,6 +811,10 @@
         {
           "id": "BA-030-T3",
           "assertion": "owner 목록·complete view·wizard client-only 복구가 같은 계약을 따른다"
+        },
+        {
+          "id": "BA-030-T4",
+          "assertion": "catalog 공개 게이트가 닫히면 item 없는 trip은 답하고 item 있는 trip과 seedItems create는 503 SOURCE_UNAVAILABLE로 거절한다"
         }
       ],
       "handoff": "수동 wizard·최종 확인·empty trip·generated draft 구분 예시. 새 draft API 필요 시 BA-000 계약 검토를 선행한다.",
@@ -948,8 +952,8 @@
       "designRequests": [],
       "entities": "feed_feedback · analytics_events · idempotency · server-bound owner/session",
       "steps": [
-        "IMPRESSION/OPEN/HIDE/LIKE/DISLIKE와 JSON Schema event allowlist를 각각 검증한다",
-        "feedback minute dedup·receivedAt 기반 유효 상태와 HIDE 보존 의미를 계약 example으로 확정한다",
+        "P0가 받는 IMPRESSION·OPEN을 검증하고 HIDE/LIKE/DISLIKE는 거절한다(#163). JSON Schema event allowlist는 그대로 검증한다",
+        "feedback minute dedup·receivedAt 기반 유효 상태를 계약 example으로 확정한다. HIDE 보존 의미는 복구 진입점과 함께 P1이다",
         "eventId dedup·batch50·90일 TTL·owner 삭제·품질 계측을 구현한다",
         "09-06 PM 검토 PM-011, PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
       ],
@@ -961,7 +965,7 @@
         },
         {
           "id": "BA-033-T2",
-          "assertion": "재전송·동시 LIKE/DISLIKE/HIDE가 정해진 상태로 수렴한다"
+          "assertion": "재전송이 정해진 상태로 수렴하고 P1 action 셋은 P0에서 거절된다"
         },
         {
           "id": "BA-033-T3",
@@ -1127,7 +1131,7 @@
       "steps": [
         "MUST_VISIT/DATE/TIME/RESERVATION의 type별 필수/null/tolerance를 DB와 domain에 고정한다",
         "path type=body type과 source USER/IMPORT를 검증하고 잠금 해제는 해당 row 삭제로 표현한다",
-        "수동 edit·교체·optimizer가 같은 constraint validator를 재사용한다",
+        "수동 edit·교체·reorder·optimizer가 같은 constraint validator를 재사용한다(#166으로 reorderTripItems도 잠금을 푼다)",
         "09-06 PM 검토 PM-002, PM-003, PM-005, PM-007, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
       ],
       "safety": "예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다.",
@@ -1196,7 +1200,7 @@
         },
         {
           "id": "BA-042-T3",
-          "assertion": "MUST_VISIT/예약 잠금과 기존 candidate linkage가 일관되게 보존된다"
+          "assertion": "후보 linkage는 보존이 아니라 #165 Q2의 전이를 따르고(옛 장소는 ACTIVE 후보), 잠금 처리는 #199 결정에 따른다"
         }
       ],
       "handoff": "comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture.",
