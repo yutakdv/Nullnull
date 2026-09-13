@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { SCREENS } from './screens.js';
 
 // FE-601: every built P0 screen must survive 360px, 200% zoom and long copy.
 //
@@ -10,26 +11,6 @@ import { expect, test } from '@playwright/test';
 // size does to the space available, and it is the condition that found the
 // `body { min-width: 360px }` floor -- which forced a horizontal scrollbar at
 // exactly the zoom level the accessibility rule requires us to support.
-
-const SCREENS = [
-  { path: '/', name: 'splash' },
-  // The first screen a user sees, and the one with the most content per card.
-  // It was absent from this list, so the feed card's controls were never
-  // measured at 360px, at 200% zoom, or against the 44px touch floor.
-  { path: '/feed', name: 'feed' },
-  { path: '/language', name: 'language' },
-  { path: '/intro', name: 'intro' },
-  { path: '/profile', name: 'profile' },
-  // A real trip id shape, though the built app has no API behind it yet: what
-  // this measures is the reflow of whichever state the screen reaches, and the
-  // error state has to survive 360px and 200% zoom too.
-  { path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01', name: 'trip' },
-  {
-    path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/candidates',
-    name: 'saved places',
-  },
-  { path: '/about-data', name: 'data guide' },
-];
 
 /** Elements wider than the viewport, and text clipped by its own box. */
 async function overflow(page: import('@playwright/test').Page) {
