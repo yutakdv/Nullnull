@@ -143,6 +143,40 @@ class CandidateMatchIT {
                 .isEqualTo(io.nullnull.recommendation.domain.item.ItemProposeRequest.RouteEvidence.NONE);
     }
 
+    /**
+     * BA-042-T4's half that lives on this side.
+     *
+     * <p>The clause is about day boundaries under DST, and none of that arithmetic happens here:
+     * this server passes local dates and a zone id, catalog compares {@code effective_on} (a DATE)
+     * against date bounds, and neither converts a date to an instant. Turning dates, a zone and
+     * times into a verdict is the evaluator's job, so the 23- and 25-hour days belong to its corpus.
+     *
+     * <p>What Spring can get wrong is which zone and which range it sends - the server's default
+     * instead of the trip's, or a range that is not the trip's own. That is what this pins.
+     */
+    @Test
+    @DisplayName("BA-042-T4 the request carries the trip's own zone and date range, not the server's")
+    void theTripsZoneAndRangeAreSentAsTheTripHoldsThem() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID candidateId = candidate(owner, tripId, place("시간대 장소"));
+        when(hours.windowsFor(any(), any(), any(), any())).thenReturn(Map.of());
+        when(recommendations.evaluateSlots(any())).thenReturn(response(SlotEvaluateResponse.State.NONE,
+                List.of()));
+
+        mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + candidateId + "/matches")
+                .cookie(cookie(owner))).andExpect(status().isOk());
+
+        SlotEvaluateRequest sent = captureRequest();
+        assertThat(sent.tripZone()).isEqualTo("Asia/Seoul");
+        assertThat(sent.tripStart()).isEqualTo(DAY_ONE);
+        assertThat(sent.tripEnd()).isEqualTo(DAY_TWO);
+        // And catalog is asked about the same range, so a window can never be fetched for a date the
+        // evaluator was not told about.
+        verify(hours).windowsFor(any(), org.mockito.ArgumentMatchers.eq(DAY_ONE),
+                org.mockito.ArgumentMatchers.eq(DAY_TWO), any());
+    }
+
     @Test
     @DisplayName("BA-042-T7 an evaluator that does not answer is UNKNOWN, not NONE")
     void anUnavailableEvaluatorIsUnknown() throws Exception {
