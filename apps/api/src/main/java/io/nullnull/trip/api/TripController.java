@@ -175,6 +175,43 @@ public class TripController {
                 .body(TripMutationResponse.from(result));
     }
 
+    @org.springframework.web.bind.annotation.PutMapping(
+            value = "/trips/{tripId}/items/{itemId}/constraints/{constraintType}",
+            consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "setTripItemConstraint", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripMutationResponse> setConstraint(OwnerContext owner,
+            @PathVariable UUID tripId, @PathVariable UUID itemId,
+            @PathVariable String constraintType, @RequestHeader("If-Match") String ifMatch,
+            @RequestBody SetConstraintBody body) {
+        // The contract says this endpoint always records source USER, so the body's source is not
+        // read: an IMPORT-sourced lock arrives with an import, not through a call a person makes.
+        TripMutationView result = trips.setConstraint(owner, tripId, itemId, constraintType, ifMatch,
+                UpdateTripBodies.constraint(new SetConstraintBody(body == null ? null : body.type(),
+                        body == null ? null : body.locked(), "USER",
+                        body == null ? null : body.date(), body == null ? null : body.startTime(),
+                        body == null ? null : body.endTime(),
+                        body == null ? null : body.toleranceMinutes())));
+        return ResponseEntity.ok()
+                .eTag(result.trip().trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripMutationResponse.from(result));
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping(
+            value = "/trips/{tripId}/items/{itemId}/constraints/{constraintType}",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "removeTripItemConstraint", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripMutationResponse> removeConstraint(OwnerContext owner,
+            @PathVariable UUID tripId, @PathVariable UUID itemId,
+            @PathVariable String constraintType, @RequestHeader("If-Match") String ifMatch) {
+        TripMutationView result = trips.removeConstraint(owner, tripId, itemId, constraintType,
+                ifMatch);
+        return ResponseEntity.ok()
+                .eTag(result.trip().trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripMutationResponse.from(result));
+    }
+
     @PostMapping(value = "/trips/{tripId}/items/{itemId}/replace",
             consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @NullnullOperation(id = "replaceTripItem", security = {Security.SESSION, Security.CSRF})

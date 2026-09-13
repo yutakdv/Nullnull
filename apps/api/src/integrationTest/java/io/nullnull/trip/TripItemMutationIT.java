@@ -225,6 +225,63 @@ class TripItemMutationIT {
     }
 
     @Test
+    @DisplayName("BA-040 reorder and replace separate a retry from a different command too")
+    void theOtherTwoGuardedCommandsCoverBothClauses() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        Cookie cookie = cookie(owner);
+        UUID first = place("먼저 있던 장소");
+        UUID second = place("나중에 있던 장소");
+        UUID tripId = createTrip(owner, "2026-10-04", "2026-10-05");
+        UUID itemOne = insertItem(tripId, first, LocalDate.parse("2026-10-04"), 0);
+        UUID itemTwo = insertItem(tripId, second, LocalDate.parse("2026-10-04"), 1);
+
+        // Clause one passes for free on any command - an identical request is the same hash however
+        // the hash is built - so only clause two can show that the canonical form covers the body.
+        // addTripItem had it and these two did not, which is the state createTrip was in when its
+        // fingerprint was silently dropping seedItems.
+        String reorderKey = "reorder-clause-" + UUID.randomUUID();
+        String swap = "{\"items\":[{\"itemId\":\"" + itemOne + "\",\"date\":\"2026-10-04\","
+                + "\"position\":1},{\"itemId\":\"" + itemTwo + "\",\"date\":\"2026-10-04\","
+                + "\"position\":0}]}";
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items/reorder").cookie(cookie)
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"").header("Idempotency-Key", reorderKey)
+                        .contentType("application/json").content(swap))
+                .andExpect(status().isOk());
+        // The same key with the order reversed is a different command, not a retry of this one.
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items/reorder").cookie(cookie)
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"").header("Idempotency-Key", reorderKey)
+                        .contentType("application/json")
+                        .content("{\"items\":[{\"itemId\":\"" + itemOne + "\","
+                                + "\"date\":\"2026-10-04\",\"position\":0},{\"itemId\":\""
+                                + itemTwo + "\",\"date\":\"2026-10-04\",\"position\":1}]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+
+        String replaceKey = "replace-clause-" + UUID.randomUUID();
+        UUID incoming = place("들어오는 장소");
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items/" + itemOne + "/replace").cookie(cookie)
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"2\"").header("Idempotency-Key", replaceKey)
+                        .contentType("application/json")
+                        .content("{\"replacementPlaceId\":\"" + incoming + "\"}"))
+                .andExpect(status().isOk());
+        // Same key, a different replacement place. The body is the only thing that differs.
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items/" + itemOne + "/replace").cookie(cookie)
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"2\"").header("Idempotency-Key", replaceKey)
+                        .contentType("application/json")
+                        .content("{\"replacementPlaceId\":\"" + place("또 다른 장소") + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+    }
+
+    @Test
     @DisplayName("BA-040 the stored idempotent response does not grow with the trip")
     void whatTheGuardStoresIsTheItemIdAndNotTheResponse() throws Exception {
         var owner = sessions.bootstrap(null, null, null);

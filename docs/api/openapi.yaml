@@ -2742,6 +2742,10 @@ paths:
         "200":
           description: Constraint set and trip version incremented
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               $ref: "#/components/headers/ETag"
           content:
@@ -2771,6 +2775,10 @@ paths:
         "200":
           description: Constraint removed and trip version incremented
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               $ref: "#/components/headers/ETag"
           content:

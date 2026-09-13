@@ -3757,6 +3757,7 @@ export interface operations {
             /** @description Constraint set and trip version incremented */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
@@ -3790,6 +3791,7 @@ export interface operations {
             /** @description Constraint removed and trip version incremented */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
