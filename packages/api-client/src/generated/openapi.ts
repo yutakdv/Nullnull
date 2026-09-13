@@ -3679,6 +3679,7 @@ export interface operations {
             /** @description Item changed */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
