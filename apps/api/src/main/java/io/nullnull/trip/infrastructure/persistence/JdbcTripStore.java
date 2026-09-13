@@ -290,6 +290,16 @@ public class JdbcTripStore implements TripStore {
     }
 
     @Override
+    public void putConstraint(UUID tripId, UUID itemId, TripConstraint constraint, Instant at) {
+        // Replace this type and nothing else. A blanket delete would be the auto-release invariant 7
+        // forbids, dressed as an implementation detail.
+        jdbc.sql("DELETE FROM trip_constraints WHERE trip_item_id = ? AND type = ?")
+                .params(itemId, constraint.type().name())
+                .update();
+        writeConstraint(tripId, itemId, constraint, at);
+    }
+
+    @Override
     public boolean deleteConstraint(UUID tripItemId, LockType type) {
         // A released lock is a deleted row, not a flag: the ERD stores only locked=true rows, so
         // there is no "unlocked" state to write.

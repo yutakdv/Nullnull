@@ -13,6 +13,8 @@ import io.nullnull.trip.domain.PlanningLevel;
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripDateRange;
 import io.nullnull.trip.domain.CandidateSourceType;
+import io.nullnull.trip.domain.ConstraintSource;
+import io.nullnull.trip.domain.ItemLock;
 import io.nullnull.trip.domain.LockChecks;
 import io.nullnull.trip.domain.LockType;
 import io.nullnull.trip.domain.TripCandidate;
@@ -804,6 +806,132 @@ public class TripService {
         for (LockType type : patch.releaseConstraints()) {
             trips.deleteConstraint(stored.id(), type);
         }
+    }
+
+    /**
+     * setTripItemConstraint. One lock, written without touching the other three.
+     *
+     * <p>Independence is invariant 7 and it is storage's, not this method's care: the locks are
+     * separate rows under a unique {@code (trip_item_id, type)} index, so writing DATE cannot
+     * disturb TIME. What this adds is the other half - the lock must be TRUE of the item as it
+     * stands. Setting a DATE lock for a day the item is not on would store a lock that is already
+     * broken, and every later edit would be refused by a constraint the user could not have met.
+     *
+     * <p>The source is always USER (contract). An IMPORT-sourced lock arrives with an import, not
+     * through an endpoint a person calls.
+     */
+    public TripMutationView setConstraint(OwnerContext context, UUID tripId, UUID itemId,
+            String constraintType, String ifMatch, TripConstraint constraint) {
+        long expected = parseIfMatch(ifMatch);
+        LockType path = lockTypeOf(constraintType);
+        if (constraint.type() != path) {
+            // Two names for the thing being set, and no rule about which wins. Refused rather than
+            // resolved: the caller meant one of them and the server cannot know which.
+            throw new TripValidationException("type", "Mismatch",
+                    "the body's type must equal the constraintType in the path");
+        }
+        return transactions.execute(status -> {
+            Trip current = trips.findForUpdate(context.ownerId(), tripId)
+                    .orElseThrow(TripService::notFound);
+            if (current.version() != expected) {
+                throw tripChanged(current.version());
+            }
+            List<TripItem> existing = trips.items(tripId);
+            TripItem item = existing.stream().filter(each -> each.id().equals(itemId)).findFirst()
+                    .orElseThrow(TripService::itemNotFound);
+            requireLockHoldsNow(item, constraint);
+            Instant now = clock.instant();
+            trips.putConstraint(tripId, itemId, constraint, now);
+            return commitConstraintChange(context, current, existing, itemId, constraint, true, now);
+        });
+    }
+
+    /**
+     * removeTripItemConstraint. Releasing a lock is deleting its row - the ERD stores only
+     * {@code locked=true} rows, so there is no released state to write.
+     */
+    public TripMutationView removeConstraint(OwnerContext context, UUID tripId, UUID itemId,
+            String constraintType, String ifMatch) {
+        long expected = parseIfMatch(ifMatch);
+        LockType type = lockTypeOf(constraintType);
+        return transactions.execute(status -> {
+            Trip current = trips.findForUpdate(context.ownerId(), tripId)
+                    .orElseThrow(TripService::notFound);
+            if (current.version() != expected) {
+                throw tripChanged(current.version());
+            }
+            List<TripItem> existing = trips.items(tripId);
+            TripItem item = existing.stream().filter(each -> each.id().equals(itemId)).findFirst()
+                    .orElseThrow(TripService::itemNotFound);
+            if (item.constraints().stream().noneMatch(each -> each.type() == type)) {
+                // Absent is not "already released": a lock that was never set is a path parameter
+                // naming nothing, and answering 200 would tell the caller a release happened.
+                throw notFoundConstraint();
+            }
+            Instant now = clock.instant();
+            trips.deleteConstraint(itemId, type);
+            return commitConstraintChange(context, current, existing, itemId,
+                    new TripConstraint(new ItemLock.MustVisit(), ConstraintSource.USER), false, now);
+        });
+    }
+
+    /**
+     * Raises the version once and writes the revision, with the item list the change produced.
+     *
+     * <p>{@code added} distinguishes the two callers only in how the item is rebuilt; both raise the
+     * version exactly once, because a lock is part of the trip a client holds an ETag for.
+     */
+    private TripMutationView commitConstraintChange(OwnerContext context, Trip current,
+            List<TripItem> existing, UUID itemId, TripConstraint constraint, boolean added,
+            Instant now) {
+        List<TripItem> after = existing.stream()
+                .map(each -> each.id().equals(itemId) ? withConstraint(each, constraint, added) : each)
+                .toList();
+        Trip bumped = raiseVersion(current, now);
+        String snapshot = snapshot(bumped, after);
+        trips.updateMetadata(bumped, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+        return mutationView(context, current.id(), List.of(itemId));
+    }
+
+    private static TripItem withConstraint(TripItem item, TripConstraint constraint, boolean added) {
+        List<TripConstraint> kept = item.constraints().stream()
+                .filter(each -> each.type() != constraint.type()).toList();
+        List<TripConstraint> next = new ArrayList<>(kept);
+        if (added) {
+            next.add(constraint);
+        }
+        return new TripItem(item.id(), item.placeId(), item.date(), item.position(), item.startTime(),
+                item.durationMinutes(), item.note(), next);
+    }
+
+    /**
+     * Refuses a lock the item already breaks.
+     *
+     * <p>MUST_VISIT is never broken by the item's own schedule - it pins the place - so LockChecks
+     * passes it by definition and this only ever judges the three temporal ones.
+     */
+    private static void requireLockHoldsNow(TripItem item, TripConstraint constraint) {
+        LockChecks.Result verdict = LockChecks.evaluate(List.of(constraint.lock()), item.date(),
+                item.startTime(), item.durationMinutes());
+        if (!verdict.satisfied()) {
+            throw new ApiException(ProblemCode.LOCK_CONFLICT,
+                    "The item does not satisfy this lock: " + String.join(", ", verdict.reasonCodes())
+                            + ". Move the item first, or set a lock it already meets.");
+        }
+    }
+
+    private static LockType lockTypeOf(String value) {
+        for (LockType type : LockType.values()) {
+            if (type.name().equals(value)) {
+                return type;
+            }
+        }
+        throw new TripValidationException("constraintType", "Enum",
+                "constraintType must name a lock type");
+    }
+
+    private static ApiException notFoundConstraint() {
+        return new ApiException(ProblemCode.NOT_FOUND, "The item does not carry that constraint.");
     }
 
     /**
