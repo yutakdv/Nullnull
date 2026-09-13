@@ -2,6 +2,7 @@ package io.nullnull.importer.application;
 
 import io.nullnull.importer.domain.ImportDraftContent;
 import io.nullnull.importer.domain.ImportDraftItem;
+import io.nullnull.importer.domain.UnresolvedToken;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import java.time.LocalDate;
@@ -34,7 +35,7 @@ public record RemapImportCommand(List<Update> updates) {
     public static final int MAX_UPDATES = 100;
 
     public record Update(String clientKey, UUID placeId, LocalDate date, LocalTime startTime,
-            Integer position) {
+            Integer position, boolean dismissed) {
     }
 
     public RemapImportCommand {
@@ -64,25 +65,55 @@ public record RemapImportCommand(List<Update> updates) {
      * inconsistent halfway through a correction; {@code CreateTripCommand} is what refuses an
      * inconsistent one, at confirm, where it would otherwise become a trip.
      */
-    public ImportDraftContent applyTo(ImportDraftContent content) {
+    public Result applyTo(ImportDraftContent content, List<UnresolvedToken> tokens) {
         List<ImportDraftItem> items = new ArrayList<>(content.items());
+        List<UnresolvedToken> remaining = new ArrayList<>(tokens);
         for (Update update : updates) {
-            int at = indexOf(items, update.clientKey());
-            if (at < 0) {
+            int item = indexOf(items, update.clientKey());
+            int token = indexOfToken(remaining, update.clientKey());
+            if (item < 0 && token < 0) {
                 throw new ApiException(ProblemCode.VALIDATION_FAILED,
                         "An update names an entry this draft does not have.");
             }
-            ImportDraftItem item = items.get(at);
-            items.set(at, new ImportDraftItem(item.clientKey(),
-                    update.placeId() == null ? item.placeId() : update.placeId(),
-                    item.originalLabel(),
-                    update.date() == null ? item.date() : update.date(),
-                    update.startTime() == null ? item.startTime() : update.startTime(),
-                    update.position() == null ? item.position() : update.position(),
-                    item.confidence()));
+            if (token >= 0) {
+                if (!update.dismissed()) {
+                    // A token has nothing else to set: resolving one is picking a place, which makes
+                    // it an item, and that path is not contracted. Saying so beats answering 200 with
+                    // the token still there.
+                    throw new ApiException(ProblemCode.VALIDATION_FAILED,
+                            "An unresolved entry can only be dismissed.");
+                }
+                remaining.remove(token);
+                continue;
+            }
+            if (update.dismissed()) {
+                items.remove(item);
+                continue;
+            }
+            ImportDraftItem current = items.get(item);
+            items.set(item, new ImportDraftItem(current.clientKey(),
+                    update.placeId() == null ? current.placeId() : update.placeId(),
+                    current.originalLabel(),
+                    update.date() == null ? current.date() : update.date(),
+                    update.startTime() == null ? current.startTime() : update.startTime(),
+                    update.position() == null ? current.position() : update.position(),
+                    current.confidence()));
         }
-        return new ImportDraftContent(content.title(), content.startDate(), content.endDate(),
-                content.timezone(), List.copyOf(items));
+        return new Result(new ImportDraftContent(content.title(), content.startDate(), content.endDate(),
+                content.timezone(), List.copyOf(items)), List.copyOf(remaining));
+    }
+
+    /** The draft's two halves after a remap; both can change, because dismissing touches either. */
+    public record Result(ImportDraftContent content, List<UnresolvedToken> unresolved) {
+    }
+
+    private static int indexOfToken(List<UnresolvedToken> tokens, String clientKey) {
+        for (int at = 0; at < tokens.size(); at++) {
+            if (tokens.get(at).clientKey().equals(clientKey)) {
+                return at;
+            }
+        }
+        return -1;
     }
 
     private static int indexOf(List<ImportDraftItem> items, String clientKey) {

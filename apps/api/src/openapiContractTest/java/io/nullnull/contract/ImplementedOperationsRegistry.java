@@ -19,9 +19,7 @@ public final class ImplementedOperationsRegistry {
                     "replaceTripInterests", "addTripItem", "removeTripItem", "reorderTripItems", "replaceTripItem", "updateTripItem",
                     "setTripItemConstraint", "removeTripItemConstraint",
                     "createOptimization", "getOptimization",
-                    // parseTripImport is deliberately absent: what an unresolved token may carry is
-                    // open in #223, and this card's safety boundary is what that issue is about.
-                    "remapTripImport", "confirmTripImport");
+                    "parseTripImport", "remapTripImport", "confirmTripImport");
 
     private ImplementedOperationsRegistry() {
     }

@@ -1,6 +1,8 @@
 package io.nullnull.importer.application;
 
 import io.nullnull.catalog.application.CatalogPlaceProjectionService;
+import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
+import io.nullnull.catalog.application.CatalogPlaceSearchRequest;
 import io.nullnull.identity.application.IdempotencyGuard;
 import io.nullnull.identity.application.IdempotencyGuard.CommandOutcome;
 import io.nullnull.identity.application.IdempotencyGuard.GuardedResponse;
@@ -9,13 +11,21 @@ import io.nullnull.identity.application.OwnerPreferencesService;
 import io.nullnull.identity.domain.RequestFingerprint;
 import io.nullnull.importer.domain.ImportDraft;
 import io.nullnull.importer.domain.ImportDraftContent;
+import io.nullnull.importer.domain.ImportDraftItem;
+import io.nullnull.importer.domain.ItineraryParser;
+import io.nullnull.importer.domain.UnresolvedToken;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import io.nullnull.trip.application.CreateTripCommand;
 import io.nullnull.trip.application.TripService;
 import io.nullnull.trip.application.TripView;
+import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -54,7 +64,18 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class TripImportService {
 
+    private static final String PARSE_ROUTE = "POST /trip-imports/parse";
     private static final String CONFIRM_ROUTE = "POST /trip-imports/{draftId}/confirm";
+
+    /** ERD §6: a draft lives 24 hours. The sweep reads the column; every operation compares against it. */
+    private static final Duration DRAFT_TTL = Duration.ofHours(24);
+
+    /**
+     * The confidence an exactly-one match carries. One, because the catalog matched the line and
+     * nothing was guessed - it is not a score the parser produced, and a lower number would be one
+     * nobody measured. Anything less certain than this is not an item at all; it is a token.
+     */
+    private static final BigDecimal RESOLVED = BigDecimal.ONE;
     private static final Pattern IF_MATCH = Pattern.compile("^\"[1-9][0-9]*\"$");
 
     private final ImportDraftStore drafts;
@@ -96,10 +117,11 @@ public class TripImportService {
                     .orElseThrow(TripImportService::notFound);
             requireUsable(current, expected);
 
-            ImportDraftContent content = command.applyTo(current.content());
+            RemapImportCommand.Result applied = command.applyTo(current.content(), current.unresolved());
             ImportDraft next = new ImportDraft(current.id(), current.ownerId(),
-                    ImportDraft.statusFor(content, current.unresolved()), current.version() + 1, content,
-                    current.unresolved(), null, null, current.expiresAt(), current.createdAt());
+                    ImportDraft.statusFor(applied.content(), applied.unresolved()), current.version() + 1,
+                    applied.content(), applied.unresolved(), null, null, current.expiresAt(),
+                    current.createdAt());
             if (!drafts.saveRemap(next, current.version())) {
                 // The row was locked for this transaction, so this cannot be a lost race; it would
                 // mean the version this transaction read is not the one it is writing over.
@@ -107,6 +129,120 @@ public class TripImportService {
             }
             return view(owner, next);
         });
+    }
+
+    /**
+     * Parses a pasted itinerary into a structured draft, keeping nothing of the paste.
+     *
+     * <p>The gate is applied first, before a line is read and long before a row is written: the answer
+     * embeds a PlaceSummary for every resolved entry, so a closed catalog cannot answer this at all,
+     * and a draft written before finding that out would be a row nobody asked for (BA-060-T18).
+     *
+     * <p>What survives the parse is a line number, a fragment that matched a strict pattern, and ids
+     * read back from the catalog. The text itself reaches exactly one place - the catalog's LIKE
+     * parameter - and is neither stored nor logged. A line that resolves to one active place becomes
+     * an item; one that resolves to several becomes a token carrying those places as suggestions; one
+     * that resolves to none becomes a token with an empty label, which is #223's answer for a
+     * free-memo line.
+     *
+     * <p>Nothing is completed on the traveller's behalf. A date with no year stays a token rather than
+     * being given this year, and a place that matched nothing stays unresolved rather than being given
+     * the nearest name - which is the same rule {@code CuratedHoursPlan} follows one card over.
+     */
+    public ImportDraftView parse(OwnerContext owner, String idempotencyKey, ParseImportCommand command) {
+        places.requirePublicProjection();
+        // The contract makes Idempotency-Key required here, and the reason is that parse WRITES: a
+        // client that retries a timed-out parse would otherwise hold two drafts of one paste and no
+        // way to tell which is which. The fingerprint covers the paste, so the same text retried
+        // replays and different text is a reused key rather than a silent second draft - and only the
+        // hash is stored, never the text.
+        String fingerprint = RequestFingerprint.of("parseTripImport", Map.of(),
+                json.writeValueAsString(command)).sha256Hex();
+        GuardedResponse guarded = idempotency.execute(owner.ownerId(), PARSE_ROUTE, idempotencyKey,
+                fingerprint, () -> new CommandOutcome<>(200, parseOnce(owner, command)), value -> value);
+        return get(owner, json.readValue(guarded.body(), ParsedDraft.class).draftId());
+    }
+
+    /** What the guard stores for a replay: the draft's identity, never a line of the paste. */
+    public record ParsedDraft(UUID draftId) {
+    }
+
+    private ParsedDraft parseOnce(OwnerContext owner, ParseImportCommand command) {
+        List<ItineraryParser.ParsedLine> lines = ItineraryParser.parse(command.rawText());
+
+        List<ImportDraftItem> items = new ArrayList<>();
+        List<UnresolvedToken> unresolved = new ArrayList<>();
+        LocalDate current = null;
+        LocalDate earliest = null;
+        LocalDate latest = null;
+        for (ItineraryParser.ParsedLine line : lines) {
+            if (items.size() >= ImportDraftContent.MAX_ITEMS
+                    && unresolved.size() >= ImportDraftContent.MAX_ITEMS) {
+                break;
+            }
+            switch (line.kind()) {
+                case DATE_HEADER -> {
+                    current = line.date();
+                    earliest = earliest == null || current.isBefore(earliest) ? current : earliest;
+                    latest = latest == null || current.isAfter(latest) ? current : latest;
+                }
+                case AMBIGUOUS_DATE -> add(unresolved, new UnresolvedToken(key("t", line.line()),
+                        UnresolvedToken.Kind.DATE, line.line(), line.label(), List.of()));
+                case PLACE -> {
+                    List<CatalogPlaceSummary> matches = resolve(owner, line, command.locale());
+                    if (matches.size() == 1 && items.size() < ImportDraftContent.MAX_ITEMS) {
+                        items.add(new ImportDraftItem(key("i", line.line()), matches.getFirst().id(),
+                                // No originalLabel. The only two things it could hold are the person's
+                                // own words, which must not be stored, and the catalog's name, which
+                                // the embedded place already carries.
+                                null, current, line.startTime(), items.size(), RESOLVED));
+                    } else {
+                        add(unresolved, new UnresolvedToken(key("t", line.line()),
+                                UnresolvedToken.Kind.PLACE, line.line(), "",
+                                matches.stream().map(CatalogPlaceSummary::id).toList()));
+                    }
+                }
+                default -> throw new IllegalStateException("unhandled parsed line kind");
+            }
+        }
+
+        Instant now = clock.instant();
+        ImportDraftContent content = new ImportDraftContent(null, earliest, latest, command.timezone(),
+                List.copyOf(items));
+        ImportDraft draft = new ImportDraft(UUID.randomUUID(), owner.ownerId(),
+                ImportDraft.statusFor(content, unresolved), 1L, content, List.copyOf(unresolved), null,
+                null, now.plus(DRAFT_TTL), now);
+        drafts.insert(draft);
+        return new ParsedDraft(draft.id());
+    }
+
+    /**
+     * The catalog's answer for one line, capped at the contract's suggestion limit.
+     *
+     * <p>Eleven are asked for so that "more than ten matched" is distinguishable from "ten matched";
+     * either way the person is choosing, and a line that matches eleven places is not resolved.
+     */
+    private List<CatalogPlaceSummary> resolve(OwnerContext owner, ItineraryParser.ParsedLine line,
+            String locale) {
+        if (line.lookup() == null) {
+            return List.of();
+        }
+        List<CatalogPlaceSummary> found = places.search(owner, CatalogPlaceSearchRequest.of(line.lookup(),
+                locale, null, null, UnresolvedToken.MAX_SUGGESTIONS + 1)).items();
+        return found.size() > UnresolvedToken.MAX_SUGGESTIONS
+                ? found.subList(0, UnresolvedToken.MAX_SUGGESTIONS)
+                : found;
+    }
+
+    private static void add(List<UnresolvedToken> tokens, UnresolvedToken token) {
+        if (tokens.size() < ImportDraftContent.MAX_ITEMS) {
+            tokens.add(token);
+        }
+    }
+
+    /** Derived from the line number alone, so no part of the paste reaches a client key. */
+    private static String key(String prefix, int line) {
+        return prefix + line;
     }
 
     /** The draft as it stands, for a caller that only wants to look at it. */

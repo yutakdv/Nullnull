@@ -5,6 +5,7 @@ import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.importer.application.ConfirmImportCommand;
 import io.nullnull.importer.application.ImportDraftView;
+import io.nullnull.importer.application.ParseImportCommand;
 import io.nullnull.importer.application.RemapImportCommand;
 import io.nullnull.importer.application.TripImportService;
 import io.nullnull.importer.domain.ImportDraft;
@@ -35,14 +36,11 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * remapTripImport and confirmTripImport.
  *
- * <p>{@code parseTripImport} is not here. It is the operation that turns a paste into tokens, and
- * what a token may carry is open in #223: the contract makes {@code UnresolvedImportToken.label} a
- * required free string, which is precisely where a pasted free-text line would land, and this card's
- * safety boundary names free notes and contact details as things that must not survive parsing.
- * Shipping a parser against the shape that is under revision would write those into a jsonb column
- * and a response before the revision lands, and BA-060-T1 is the check that would then be failing
- * against stored rows rather than against a design. The two operations that act on a draft do not
- * depend on that answer, so they are here.
+ * <p>{@code parseTripImport} arrived once #223 settled what an unresolved token may carry: a line
+ * number, and allowlist-extracted content only, with a free-memo line yielding an empty label. That
+ * was the blocking question - the contract had made {@code label} a required free string, which is
+ * precisely where a pasted memo would have landed, and this card's safety boundary names exactly
+ * that.
  *
  * <p>The owner comes from {@link OwnerContext}. No route takes a draft id without it: an id alone
  * never identifies a row the caller may see (invariant 11), which is why another owner's draft is a
@@ -59,6 +57,30 @@ public class TripImportController {
     public TripImportController(TripImportService imports) {
         this.imports = imports;
     }
+
+    /**
+     * {@code Cache-Control: no-store} exactly, not the {@code private, no-store} every other
+     * owner-scoped route sends. The contract pins this one with {@code const: no-store}, and
+     * SessionContractTest only checks that a route DECLARES the header - never that it sends the value
+     * it declared - so BA-060-T19 is a real response being read.
+     */
+    @PostMapping(value = "/trip-imports/parse", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "parseTripImport", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<ImportDraftResponse> parse(OwnerContext owner,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody ParseImportBody body) {
+        ImportDraftView view = imports.parse(owner, idempotencyKey, new ParseImportCommand(
+                body == null ? null : body.rawText(), body == null ? null : body.locale(),
+                body == null ? null : body.timezone()));
+        return ResponseEntity.ok()
+                .eTag("\"" + view.draft().version() + "\"")
+                .header("Cache-Control", "no-store")
+                .body(ImportDraftResponse.from(view));
+    }
+
+    /** {@code ParseImportRequest}. rawText is read once and never stored, logged or echoed. */
+    public record ParseImportBody(String rawText, String locale, String timezone) { }
 
     @PatchMapping(value = "/trip-imports/{draftId}", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
@@ -106,7 +128,8 @@ public class TripImportController {
                             "This operation does not read constraints yet.");
                 }
                 updates.add(new RemapImportCommand.Update(update.clientKey(), update.placeId(),
-                        update.date(), update.startTime(), update.position()));
+                        update.date(), update.startTime(), update.position(),
+                        Boolean.TRUE.equals(update.dismissed())));
             }
         }
         return new RemapImportCommand(updates);
@@ -125,7 +148,7 @@ public class TripImportController {
     public record RemapImportBody(List<RemapUpdateBody> updates) { }
 
     public record RemapUpdateBody(String clientKey, UUID placeId, LocalDate date, LocalTime startTime,
-            Integer position, List<Object> constraints) { }
+            Integer position, List<Object> constraints, Boolean dismissed) { }
 
     /** {@code ConfirmImportRequest}. */
     public record ConfirmImportBody(String title, String planningLevel,
@@ -157,7 +180,7 @@ public class TripImportController {
                     }
                 }
                 unresolved.add(new UnresolvedImportTokenResponse(token.clientKey(), token.kind().name(),
-                        token.label(), List.copyOf(suggestions)));
+                        token.line(), token.label(), List.copyOf(suggestions)));
             }
             return new ImportDraftResponse(draft.id(), draft.version(), draft.status().name(),
                     draft.content().title(),
@@ -176,7 +199,7 @@ public class TripImportController {
             String originalLabel, LocalDate date, String startTime, int position,
             BigDecimal confidence) { }
 
-    public record UnresolvedImportTokenResponse(String clientKey, String kind, String label,
+    public record UnresolvedImportTokenResponse(String clientKey, String kind, int line, String label,
             List<PlaceSummaryResponse> suggestions) { }
 
     private static String wallClock(LocalTime value) {

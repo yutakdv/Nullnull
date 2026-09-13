@@ -17,19 +17,24 @@ import java.util.UUID;
  * bound below is the one thing that can be stated without the answer: whatever a label ends up
  * holding, it is a token and not a paste.
  */
-public record UnresolvedToken(String clientKey, Kind kind, String label, List<UUID> suggestionPlaceIds) {
+public record UnresolvedToken(String clientKey, Kind kind, int line, String label,
+        List<UUID> suggestionPlaceIds) {
 
     public enum Kind { PLACE, DATE, TIME }
 
     /** The contract's UnresolvedImportToken.suggestions cap. */
     public static final int MAX_SUGGESTIONS = 10;
-    public static final int MAX_LABEL = 120;
+    /** The contract's UnresolvedImportToken.label bound, as #223 settled it. */
+    public static final int MAX_LABEL = 40;
 
     public UnresolvedToken {
         Objects.requireNonNull(clientKey, "clientKey");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(label, "label");
         suggestionPlaceIds = List.copyOf(Objects.requireNonNull(suggestionPlaceIds, "suggestionPlaceIds"));
+        if (line < 1) {
+            throw new IllegalArgumentException("lines are 1-based");
+        }
         if (label.length() > MAX_LABEL) {
             throw new IllegalArgumentException("a token label is a token, not a paste");
         }
