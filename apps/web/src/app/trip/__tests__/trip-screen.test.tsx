@@ -7,7 +7,7 @@
 // FE-301-T2: default/loading/empty/error/offline/stale each render.
 // FE-301-T3: keyboard reach, focus, accessible names.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -318,5 +318,82 @@ describe('FE-301-T3 the screen is reachable and named', () => {
       if (active instanceof HTMLElement && wanted.includes(active)) seen.push(active);
     }
     expect(seen).toEqual(wanted);
+  });
+});
+
+// CMP-ATT-001 on the trip screen, which is submission screenshot #2.
+//
+// The screen already renders the credit. What was missing is any test that
+// enters that branch: all six trip fixtures carry no sourceAttribution at all,
+// so `item.place.sourceAttribution ? ... : null` short-circuits on the first
+// operand in every run and the render could be deleted with the suite green.
+// That is the same shape as the thumbnailUrl:null trap — the guard's own
+// comment says the real server populates the field, which is exactly why the
+// fixture's silence is not evidence of anything.
+//
+// The fixtures are the shared BE/FE contract and are not edited here; the
+// state they cannot express is supplied by an override.
+describe('FE-301 the trip screen credits the places it shows', () => {
+  const CREDIT = '출처: ⓒ한국관광공사 (여행 화면 검증용)';
+
+  function tripWithCredit() {
+    const [firstDay, ...restDays] = trip.days;
+    if (!firstDay) throw new Error('fixture has no days');
+    const [firstItem, ...restItems] = firstDay.items;
+    if (!firstItem) throw new Error('fixture day has no items');
+    return {
+      ...trip,
+      days: [
+        {
+          ...firstDay,
+          items: [
+            {
+              ...firstItem,
+              place: {
+                ...firstItem.place,
+                sourceAttribution: {
+                  ...(firstItem.place.sourceAttribution ?? {}),
+                  source: 'KTO_KOR_SERVICE_2',
+                  sourceDisplayName: '한국관광공사 국문 관광정보',
+                  sourceRegistryVersion: 4,
+                  attribution: CREDIT,
+                  officialUrl: 'https://www.data.go.kr/data/15101578/openapi.do',
+                  licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do',
+                  license: '이용허락범위 제한 없음',
+                },
+              },
+            },
+            ...restItems,
+          ],
+        },
+        ...restDays,
+      ],
+    };
+  }
+
+  it('shows the server credit verbatim on the sourced stop itself', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(tripWithCredit(), { headers: { ETag: '"3"' } }),
+      ),
+    );
+    renderTrip();
+    await loaded();
+
+    // Scoped to the item row rather than the document: the credit also appears
+    // in the day's own summary, so a document-wide query passes even when the
+    // per-item render is deleted. That ambiguity is what made three earlier
+    // attempts at this assertion prove nothing.
+    const name = trip.days[0]?.items[0]?.place.name ?? '';
+    const row = (await screen.findByRole('heading', { level: 3, name })).closest(
+      'article',
+    );
+    expect(row).not.toBeNull();
+    // Verbatim, never composed by the client (CMP-ATT-003).
+    // The credit renders inside its officialUrl link, so the link role names
+    // it exactly once; getByText matches both the wrapper span and the anchor.
+    expect(
+      within(row as HTMLElement).getByRole('link', { name: CREDIT }),
+    ).toBeInTheDocument();
   });
 });

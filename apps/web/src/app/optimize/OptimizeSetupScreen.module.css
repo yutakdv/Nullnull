@@ -92,6 +92,18 @@
   font-size: var(--font-body-sm);
 }
 
+/* The box itself, not just the label around it.
+   The <label> is 44px tall and every point in it toggles the checkbox, so the
+   HIT area was already compliant — but the rendered box was the browser
+   default 13x13, which is what a user aims at and what the audit measures.
+   Sizing the control makes the thing you can see match the thing you can
+   press. */
+.toggle input[type='checkbox'] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
 .submit {
   min-height: 48px;
   padding: var(--space-2) var(--space-4);

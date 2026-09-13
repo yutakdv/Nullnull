@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useCreateOptimization, useTrip } from '../../shared/api/index.js';
-import { Chip, NavBar } from '../../shared/ui/index.js';
+import { Chip, DataAttribution, NavBar } from '../../shared/ui/index.js';
 import { formatTime } from '../trip/trip-view.js';
 import styles from './OptimizeSetupScreen.module.css';
 
@@ -198,6 +198,14 @@ export function OptimizeSetupScreen() {
                     {formatTime(item.startTime, locale) ?? t('trip.timeUnset')}
                   </span>
                 </button>
+                {/* CMP-ATT-001: these rows are KTO place records, and this
+                    route is submission screenshot #5. The credit sits outside
+                    the button rather than inside it — DataAttribution renders
+                    the text as a link to the source, and a link nested in a
+                    button is neither valid nor operable. */}
+                {item.place.sourceAttribution ? (
+                  <DataAttribution compact provenance={item.place.sourceAttribution} />
+                ) : null}
               </li>
             ))}
           </ul>

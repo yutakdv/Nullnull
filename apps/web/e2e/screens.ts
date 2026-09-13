@@ -21,4 +21,26 @@ export const SCREENS = [
     name: 'saved places',
   },
   { path: '/about-data', name: 'data guide' },
+  // The remaining routes. routes.tsx defines 17 paths and this list held 8, so
+  // half the app had never been measured at 360px, at 200% zoom, or against the
+  // 44px touch floor — and, through location-off.spec.ts, had never been
+  // checked for a geolocation call either. Every entry below is an implemented
+  // screen, not a placeholder, and two of them are submission screenshots.
+  { path: '/start', name: 'trip start' },
+  { path: '/start/must-visit', name: 'must-visit picks' },
+  { path: '/posts/018f4c30-3d52-7f63-8b66-7c2e1d4f9b02', name: 'post detail' },
+  {
+    path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/add-place',
+    name: 'add place',
+  },
+  // Submission screenshot #5.
+  {
+    path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimize',
+    name: 'optimize setup',
+  },
+  {
+    path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4d40-4e63-7a74-9c77-8d3f2e5a0c03',
+    name: 'optimization run',
+  },
+  { path: '/live', name: 'live' },
 ];

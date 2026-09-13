@@ -273,3 +273,95 @@ describe('FE-202-T3 keyboard and names', () => {
     });
   });
 });
+
+// CMP-ATT-001 for the post cover image.
+//
+// `coverAsset` carries the reviewed licence for the cover, and it was null for
+// every post until BA-032/A-024 populated it — which is why PostScreen rendered
+// `coverUrl` unconditionally and read none of it. Now that the server sends the
+// licence, two of its fields are obligations: `attributionRequired` says a
+// credit is demanded, and `attributionText` is the approved wording.
+//
+// The fixture is the first-party case (attributionRequired: false), so the
+// states that carry the rule are supplied per test by an override.
+describe('FE-202 the cover is shown only on terms its licence allows', () => {
+  const CREDIT = '사진 출처: ⓒ한국관광공사 (이미지 심사 완료)';
+
+  function detailWithAsset(asset: Record<string, unknown> | null) {
+    server.use(
+      http.get(`${API_BASE}/posts/:postId`, () =>
+        HttpResponse.json({ ...post, coverAsset: asset }),
+      ),
+    );
+  }
+
+  const base = {
+    id: '019321a4-0000-7000-8000-0000000001ff',
+    url: post.coverUrl,
+    mediaType: 'IMAGE',
+    alt: null,
+    license: {
+      source: 'KTO_KOR_SERVICE_2',
+      name: '한국관광공사 국문 관광정보',
+      url: null,
+      reviewedAt: '2026-09-13T00:00:00Z',
+    },
+    redistributionAllowed: true,
+    expiresAt: null,
+  };
+
+  it('shows the cover bare when the licence requires no credit', async () => {
+    // The first-party case, and what every published cover is today. This is
+    // the behaviour that must NOT change.
+    detailWithAsset({ ...base, attributionRequired: false, attributionText: null });
+    renderPost();
+    await screen.findByRole('heading', { level: 1, name: post.title });
+    // alt="" makes the image presentational, so it is queried as such.
+    expect(screen.getByRole('presentation', { hidden: true })).toHaveAttribute(
+      'src',
+      post.coverUrl,
+    );
+    expect(screen.queryByText(CREDIT)).toBeNull();
+  });
+
+  it('shows the approved credit when the licence demands one', async () => {
+    detailWithAsset({
+      ...base,
+      attributionRequired: true,
+      attributionText: CREDIT,
+    });
+    renderPost();
+    await screen.findByRole('heading', { level: 1, name: post.title });
+    expect(screen.getByRole('presentation', { hidden: true })).toHaveAttribute(
+      'src',
+      post.coverUrl,
+    );
+    // Verbatim, never composed by the client (CMP-ATT-003).
+    expect(screen.getByText(CREDIT)).toBeInTheDocument();
+  });
+
+  it('withholds the cover when a credit is demanded but not supplied', async () => {
+    // The one combination that cannot be rendered compliantly: showing the
+    // picture bare breaches the licence, and composing a credit breaches
+    // CMP-ATT-003. So the image is not shown — the same choice PlaceThumbnail
+    // makes for an uncreditable place photo.
+    detailWithAsset({ ...base, attributionRequired: true, attributionText: null });
+    renderPost();
+    await screen.findByRole('heading', { level: 1, name: post.title });
+    expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('uses the alt text the server supplied', async () => {
+    const alt = '고궁 담장을 걷는 사람들 일러스트';
+    detailWithAsset({
+      ...base,
+      alt,
+      attributionRequired: false,
+      attributionText: null,
+    });
+    renderPost();
+    await screen.findByRole('heading', { level: 1, name: post.title });
+    expect(screen.getByRole('img', { name: alt })).toBeInTheDocument();
+  });
+});
