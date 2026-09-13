@@ -154,6 +154,202 @@ class TripItemConstraintIT {
         assertThat(version(tripId)).isEqualTo(2);
     }
 
+    @Test
+    @DisplayName("BA-034 a candidate saved with mustVisit becomes a MUST_VISIT lock when it is scheduled")
+    void theIntentionBecomesALockAtPromotion() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                + " created_at, updated_at) VALUES (?, '꼭 가는 장소', 'HS', '11', 'ACTIVE', ?, ?)",
+                placeId, now, now);
+
+        UUID candidateId = UUID.fromString(mvc.perform(post("/api/v1/trips/" + tripId + "/candidates")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "must-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"source\":{\"type\":\"SEARCH\"},"
+                                + "\"mustVisit\":true}"))
+                .andExpect(status().isCreated())
+                // Carried back, so the screen that asked the question can show the answer.
+                .andExpect(jsonPath("$.candidate.mustVisit").value(true))
+                .andReturn().getResponse().getContentAsString()
+                .replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+
+        // While it is a candidate it is an intention and nothing else: locks live on items, and
+        // there is no item yet. Nothing in trip_constraints can refer to a candidate at all.
+        assertThat(jdbc.queryForObject("SELECT must_visit FROM trip_candidates WHERE id = ?",
+                Boolean.class, candidateId)).isTrue();
+
+        String added = mvc.perform(post("/api/v1/trips/" + tripId + "/items")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .header("Idempotency-Key", "sched-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"candidateId\":\"" + candidateId
+                                + "\",\"date\":\"" + DAY_ONE + "\",\"position\":0}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID itemId = UUID.fromString(added.replaceFirst(
+                "(?s)^.*\"changedItemIds\":\\[\"([^\"]+)\".*$", "$1"));
+
+        // The lock the candidate asked for exists on the item, in the same transaction that created
+        // it. Without this the field would be something the server accepts and forgets.
+        assertThat(types(itemId)).containsExactly("MUST_VISIT");
+        assertThat(jdbc.queryForObject("SELECT source FROM trip_constraints WHERE trip_item_id = ?",
+                String.class, itemId)).isEqualTo("USER");
+    }
+
+    @Test
+    @DisplayName("BA-034 a candidate saved without mustVisit produces no lock")
+    void theAbsenceOfTheIntentionLocksNothing() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                + " created_at, updated_at) VALUES (?, '그냥 후보', 'HS', '11', 'ACTIVE', ?, ?)",
+                placeId, now, now);
+
+        // The field omitted entirely, which is what a client that has not adopted it sends.
+        UUID candidateId = UUID.fromString(mvc.perform(post("/api/v1/trips/" + tripId + "/candidates")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "plain-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"source\":{\"type\":\"SEARCH\"}}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.candidate.mustVisit").value(false))
+                .andReturn().getResponse().getContentAsString()
+                .replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+
+        String added = mvc.perform(post("/api/v1/trips/" + tripId + "/items")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .header("Idempotency-Key", "plain-sched-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"candidateId\":\"" + candidateId
+                                + "\",\"date\":\"" + DAY_ONE + "\",\"position\":0}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID itemId = UUID.fromString(added.replaceFirst(
+                "(?s)^.*\"changedItemIds\":\\[\"([^\"]+)\".*$", "$1"));
+
+        // The other half of the pair. Without it, a reader that locked unconditionally would pass
+        // the test above and nothing would say so.
+        assertThat(types(itemId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("BA-034 removing an item restores the candidate with the lock the ITEM carried")
+    void theRestoredCandidateAnswersFromTheItemNotFromMemory() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = place("나중에 꼭 가기로 한 장소");
+
+        // Saved WITHOUT the intention, so the candidate's stored flag is false.
+        UUID candidateId = saveCandidate(owner, tripId, placeId, false);
+        UUID itemId = schedule(owner, tripId, placeId, candidateId, "\"1\"");
+        assertThat(types(itemId)).isEmpty();
+
+        // The lock is placed after scheduling, which is the case the stored flag cannot know about.
+        set(owner, tripId, itemId, "MUST_VISIT", "\"2\"",
+                "{\"type\":\"MUST_VISIT\",\"locked\":true}").andExpect(status().isOk());
+
+        mvc.perform(delete("/api/v1/trips/" + tripId + "/items/" + itemId)
+                        .param("disposition", "RESTORE_CANDIDATE")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"3\""))
+                .andExpect(status().isOk());
+
+        // The SAME candidate row comes back - this is the restore path, not the fallback that
+        // creates a new one - and it carries what the item carried, not what it was saved with.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_candidates WHERE trip_id = ?",
+                Integer.class, tripId)).isOne();
+        assertThat(jdbc.queryForObject("SELECT status || ' ' || must_visit FROM trip_candidates"
+                + " WHERE id = ?", String.class, candidateId)).isEqualTo("ACTIVE true");
+    }
+
+    @Test
+    @DisplayName("BA-034 replacing a place returns its candidate without the intention the user released")
+    void theReplacedCandidateDoesNotGetBackWhatWasReleased() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = place("꼭 가려다 바꾼 장소");
+
+        // Saved WITH the intention, so the stored flag is true and scheduling makes it a lock.
+        UUID candidateId = saveCandidate(owner, tripId, placeId, true);
+        UUID itemId = schedule(owner, tripId, placeId, candidateId, "\"1\"");
+        assertThat(types(itemId)).containsExactly("MUST_VISIT");
+
+        // Replacing requires naming that lock (#199), which is the traveller letting the place go.
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items/" + itemId + "/replace")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"2\"")
+                        .header("Idempotency-Key", "rep-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"replacementPlaceId\":\"" + place("대신 넣는 장소") + "\","
+                                + "\"releaseConstraints\":[\"MUST_VISIT\"]}"))
+                .andExpect(status().isOk());
+
+        // Back as a candidate, without the intention. Returning it true would restore what the
+        // traveller had just named and released, which is the whole reason replace answers false.
+        assertThat(jdbc.queryForObject("SELECT status || ' ' || must_visit FROM trip_candidates"
+                + " WHERE id = ?", String.class, candidateId)).isEqualTo("ACTIVE false");
+    }
+
+    private UUID saveCandidate(SessionService.Bootstrap owner, UUID tripId, UUID placeId,
+            boolean mustVisit) throws Exception {
+        return UUID.fromString(mvc.perform(post("/api/v1/trips/" + tripId + "/candidates")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "cand-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"source\":{\"type\":\"SEARCH\"},"
+                                + "\"mustVisit\":" + mustVisit + "}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()
+                .replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+    }
+
+    private UUID schedule(SessionService.Bootstrap owner, UUID tripId, UUID placeId, UUID candidateId,
+            String ifMatch) throws Exception {
+        String added = mvc.perform(post("/api/v1/trips/" + tripId + "/items")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", ifMatch)
+                        .header("Idempotency-Key", "sch-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"candidateId\":\"" + candidateId
+                                + "\",\"date\":\"" + DAY_ONE + "\",\"position\":0}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(added.replaceFirst(
+                "(?s)^.*\"changedItemIds\":\\[\"([^\"]+)\".*$", "$1"));
+    }
+
+    private UUID place(String name) {
+        UUID id = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
+                + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)", id, name, now, now);
+        return id;
+    }
+
     private ResultActions set(SessionService.Bootstrap owner, UUID tripId, UUID itemId, String type,
             String ifMatch, String body) throws Exception {
         return mvc.perform(put("/api/v1/trips/" + tripId + "/items/" + itemId + "/constraints/" + type)

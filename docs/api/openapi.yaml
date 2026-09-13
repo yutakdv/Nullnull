@@ -2172,6 +2172,7 @@ paths:
                         status: "ACTIVE"
                         scheduledTripItemId: null
                         note: null
+                        mustVisit: false
                         sources:
                           -
                             type: "POST"
@@ -2202,6 +2203,7 @@ paths:
                         status: "ACTIVE"
                         scheduledTripItemId: null
                         note: null
+                        mustVisit: false
                         sources:
                           -
                             type: "SEARCH"
@@ -2225,6 +2227,7 @@ paths:
                         status: "SCHEDULED"
                         scheduledTripItemId: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03"
                         note: null
+                        mustVisit: false
                         sources:
                           -
                             type: "LIVE"
@@ -2305,6 +2308,7 @@ paths:
                       status: "ACTIVE"
                       scheduledTripItemId: null
                       note: null
+                      mustVisit: false
                       sources:
                         -
                           type: "POST"
@@ -2355,6 +2359,7 @@ paths:
                       status: "ACTIVE"
                       scheduledTripItemId: null
                       note: null
+                      mustVisit: false
                       sources:
                         -
                           type: "POST"
@@ -5040,6 +5045,12 @@ components:
           $ref: "#/components/schemas/PlaceSummary"
         status:
           $ref: "#/components/schemas/CandidateStatus"
+        mustVisit:
+          type: boolean
+          description: |
+            What the traveller asked for when they saved this place, carried so the screen can show
+            it back and so scheduling can act on it. Still an intention while this is a candidate; it
+            becomes a `MUST_VISIT` constraint on the item it is scheduled onto.
         scheduledTripItemId:
           type: [string, "null"]
           format: uuid
@@ -5103,6 +5114,19 @@ components:
         note:
           type: [string, "null"]
           maxLength: 500
+        mustVisit:
+          type: boolean
+          default: false
+          description: |
+            The traveller said this place has to be in the trip, on the screen where they saved it
+            (FR-TRC-04). It is an INTENTION, not a lock: locks live on items
+            (`trip_constraints.trip_item_id` is NOT NULL) and a candidate carries no date, so there
+            is nothing for one to pin yet.
+
+            It becomes a lock when the candidate is scheduled - the new item gets a `MUST_VISIT`
+            constraint in the same transaction - which is why nothing is lost between saving and
+            scheduling. `MUST_VISIT` is the only one of the four this can become, because the other
+            three require a date or a clock time and a candidate has neither.
     AddCandidateSource:
       type: object
       additionalProperties: false
@@ -5303,9 +5327,6 @@ components:
       properties:
         replacementPlaceId:
           type: string
-          format: uuid
-        relationId:
-          type: [string, "null"]
           format: uuid
         preserveDateTime:
           type: boolean

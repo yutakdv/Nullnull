@@ -230,8 +230,8 @@ public class TripController {
             released.add(replaceLockType(name));
         }
         TripMutationView result = trips.replaceItem(owner, tripId, itemId, ifMatch, idempotencyKey,
-                new ReplaceTripItemCommand(body.replacementPlaceId(), body.relationId(),
-                        body.preserveDateTime(), released));
+                new ReplaceTripItemCommand(body.replacementPlaceId(), body.preserveDateTime(),
+                        released));
         return ResponseEntity.ok()
                 .eTag(result.trip().trip().entityTag())
                 .header("Cache-Control", "private, no-store")
@@ -381,9 +381,9 @@ public class TripController {
     public record SetConstraintBody(String type, Boolean locked, String source, LocalDate date,
             LocalTime startTime, LocalTime endTime, Integer toleranceMinutes) { }
 
-    /** {@code ReplaceTripItemRequest}. relationId and preserveDateTime=false are refused (#203, #204). */
-    public record ReplaceTripItemBody(UUID replacementPlaceId, UUID relationId,
-            Boolean preserveDateTime, List<String> releaseConstraints) { }
+    /** {@code ReplaceTripItemRequest}. preserveDateTime=false is refused (#203). */
+    public record ReplaceTripItemBody(UUID replacementPlaceId, Boolean preserveDateTime,
+            List<String> releaseConstraints) { }
 
     public record ReorderTripItemsBody(List<ReorderEntryBody> items) { }
 

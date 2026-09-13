@@ -33,15 +33,14 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * <p>What this can and cannot see, stated plainly so it is not trusted for more than it does. It
  * sees a property the body type never mentions - the shape {@code releaseConstraints} had, published
  * on three operations with no Java field anywhere. It does NOT see a property that is bound and then
- * ignored: {@code preserveDateTime} and {@code relationId} are both components of
- * {@code ReplaceTripItemBody}, so this check passes them and the registry is what records why they
- * are refused. Reading is not something a signature can prove.
+ * ignored: {@code preserveDateTime} is a component of {@code ReplaceTripItemBody}, so this check
+ * passes it and the registry is what records why it is refused. Reading is not something a signature
+ * can prove.
  *
  * <p>"Find the components whose accessor is never called" was considered for that second half and
  * does not work, for a reason that needs no experiment: refusing a field requires reading it.
- * {@code TripController} calls {@code body.relationId()} and {@code body.preserveDateTime()} to hand
- * them to the command that rejects them, so a never-called rule reports nothing for exactly the two
- * fields it would exist to catch. It could only see a component bound and then passed nowhere at
+ * {@code TripController} calls {@code body.preserveDateTime()} to hand it to the command that
+ * rejects it, so a never-called rule reports nothing for exactly the field it would exist to catch. It could only see a component bound and then passed nowhere at
  * all, which is a different defect and one no current operation has.
  */
 @SpringBootTest
@@ -60,9 +59,7 @@ class RequestPropertyReaderTest {
      */
     private static final Map<String, String> REFUSED = Map.of(
             "ReplaceTripItemRequest.preserveDateTime",
-            "#203 - only true is supported; what false should do was never decided",
-            "ReplaceTripItemRequest.relationId",
-            "#204 - no operation issues a relation id, so no caller can hold a valid one");
+            "#203 - only true is supported; what false should do was never decided");
 
     /**
      * Operations whose body is not a record, so there are no components to compare against.

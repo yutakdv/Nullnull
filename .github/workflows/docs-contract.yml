@@ -59,7 +59,9 @@ jobs:
       - name: Validate contracts, backend plan, and Obsidian references
         run: |
           python scripts/validate_docs.py
-          python -m unittest discover -s scripts/tests -p "test_*.py"
+          # Same discovery, plus a JUnit report. api-quality collects that report so a
+          # Python-proven acceptance ID is visible to check_test_reports.py at all.
+          python scripts/run_script_tests.py --out "$RUNNER_TEMP/script-test-results"
       - name: State whether this release has an actual provider call (CMP-KTO-003)
         # An EXCLUSION row whose evidence the matrix describes as "a test that blocks a release
         # with no actual call". There was no such test. Staging does not exist yet (BA-006), so

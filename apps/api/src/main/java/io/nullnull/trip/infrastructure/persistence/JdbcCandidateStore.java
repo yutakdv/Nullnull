@@ -29,17 +29,18 @@ public class JdbcCandidateStore implements CandidateStore {
     }
 
     @Override
-    public Saved saveActive(UUID tripId, UUID placeId, String note, CandidateSource source,
-            Instant now) {
+    public Saved saveActive(UUID tripId, UUID placeId, String note, boolean mustVisit,
+            CandidateSource source, Instant now) {
         UUID id = UUID.randomUUID();
         // ON CONFLICT on the PARTIAL unique index: the same place saved twice converges on one
         // active row even when two requests race, because the database decides, not a prior read.
         int inserted = jdbc.sql("""
-                INSERT INTO trip_candidates (id, trip_id, place_id, status, note, created_at, updated_at)
-                VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?)
+                INSERT INTO trip_candidates (id, trip_id, place_id, status, note, must_visit, created_at, updated_at)
+                VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?, ?)
                 ON CONFLICT (trip_id, place_id) WHERE status <> 'DISMISSED' DO NOTHING
                 """)
-                .params(id, tripId, placeId, note, Timestamp.from(now), Timestamp.from(now))
+                .params(id, tripId, placeId, note, mustVisit, Timestamp.from(now),
+                        Timestamp.from(now))
                 .update();
         UUID candidateId = inserted == 1 ? id : jdbc.sql(
                 "SELECT id FROM trip_candidates WHERE trip_id = ? AND place_id = ? AND status <> 'DISMISSED'")
@@ -98,8 +99,14 @@ public class JdbcCandidateStore implements CandidateStore {
     }
 
     @Override
-    public Optional<UUID> restoreScheduledFor(UUID tripItemId, Instant now) {
-        return moveScheduled(tripItemId, "ACTIVE", now);
+    public Optional<UUID> restoreScheduledFor(UUID tripItemId, boolean mustVisit, Instant now) {
+        return jdbc.sql("UPDATE trip_candidates SET status = 'ACTIVE', scheduled_trip_item_id = NULL,"
+                        + " must_visit = ?, updated_at = ?"
+                        + " WHERE scheduled_trip_item_id = ? AND status = 'SCHEDULED'"
+                        + " RETURNING id")
+                .params(mustVisit, Timestamp.from(now), tripItemId)
+                .query(UUID.class)
+                .optional();
     }
 
     @Override
@@ -126,7 +133,7 @@ public class JdbcCandidateStore implements CandidateStore {
     @Override
     public List<TripCandidate> page(UUID tripId, CandidateStatus status, long offset, int limit) {
         StringBuilder sql = new StringBuilder("""
-                SELECT id, trip_id, place_id, status, scheduled_trip_item_id, note, created_at, updated_at
+                SELECT id, trip_id, place_id, status, scheduled_trip_item_id, note, must_visit, created_at, updated_at
                   FROM trip_candidates
                  WHERE trip_id = ?
                 """);
@@ -184,7 +191,7 @@ public class JdbcCandidateStore implements CandidateStore {
 
     private Optional<TripCandidate> load(UUID candidateId) {
         Optional<TripCandidate> found = jdbc.sql("""
-                SELECT id, trip_id, place_id, status, scheduled_trip_item_id, note, created_at, updated_at
+                SELECT id, trip_id, place_id, status, scheduled_trip_item_id, note, must_visit, created_at, updated_at
                   FROM trip_candidates WHERE id = ?
                 """)
                 .param(candidateId)
@@ -218,8 +225,8 @@ public class JdbcCandidateStore implements CandidateStore {
         for (TripCandidate candidate : candidates) {
             hydrated.add(new TripCandidate(candidate.id(), candidate.tripId(), candidate.placeId(),
                     candidate.status(), candidate.scheduledTripItemId(), candidate.note(),
-                    byCandidate.getOrDefault(candidate.id(), List.of()), candidate.createdAt(),
-                    candidate.updatedAt()));
+                    candidate.mustVisit(), byCandidate.getOrDefault(candidate.id(), List.of()),
+                    candidate.createdAt(), candidate.updatedAt()));
         }
         return List.copyOf(hydrated);
     }
@@ -227,7 +234,8 @@ public class JdbcCandidateStore implements CandidateStore {
     private static TripCandidate map(ResultSet row, List<CandidateSource> sources) throws SQLException {
         return new TripCandidate(row.getObject("id", UUID.class), row.getObject("trip_id", UUID.class),
                 row.getObject("place_id", UUID.class), CandidateStatus.of(row.getString("status")),
-                row.getObject("scheduled_trip_item_id", UUID.class), row.getString("note"), sources,
+                row.getObject("scheduled_trip_item_id", UUID.class), row.getString("note"),
+                row.getBoolean("must_visit"), sources,
                 row.getTimestamp("created_at").toInstant(), row.getTimestamp("updated_at").toInstant());
     }
 }

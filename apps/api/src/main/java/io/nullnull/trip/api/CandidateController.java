@@ -66,7 +66,8 @@ public class CandidateController {
                     "source type is required");
         }
         SaveResult result = candidates.add(owner, tripId, idempotencyKey, body.placeId(),
-                CandidateSourceType.of(body.source().type()), body.source().postId(), body.note());
+                CandidateSourceType.of(body.source().type()), body.source().postId(), body.note(),
+                Boolean.TRUE.equals(body.mustVisit()));
         // 200 when the trip already held a non-dismissed candidate for that place, 201 when it did
         // not. tripScheduleChanged is const false in the schema: this operation cannot change a
         // schedule, and saying so in the body is what makes invariant 2 checkable by the client.
@@ -98,7 +99,9 @@ public class CandidateController {
                 byId.get(candidate.placeId()))).toList();
     }
 
-    public record AddCandidateBody(UUID placeId, AddCandidateSourceBody source, String note) { }
+    /** {@code AddCandidateRequest}. mustVisit is absent for a client that has not adopted it yet. */
+    public record AddCandidateBody(UUID placeId, AddCandidateSourceBody source, String note,
+            Boolean mustVisit) { }
 
     public record AddCandidateSourceBody(String type, UUID postId) { }
 
@@ -110,8 +113,8 @@ public class CandidateController {
             boolean tripScheduleChanged) { }
 
     public record TripCandidateResponse(UUID id, UUID tripId, PlaceSummaryResponse place, String status,
-            UUID scheduledTripItemId, String note, List<CandidateSourceResponse> sources,
-            Instant createdAt) {
+            UUID scheduledTripItemId, String note, boolean mustVisit,
+            List<CandidateSourceResponse> sources, Instant createdAt) {
 
         static TripCandidateResponse from(TripCandidate candidate, CatalogPlaceSummary place) {
             if (place == null) {
@@ -127,7 +130,7 @@ public class CandidateController {
             }
             return new TripCandidateResponse(candidate.id(), candidate.tripId(),
                     PlaceSummaryResponse.from(place), candidate.status().name(),
-                    candidate.scheduledTripItemId(), candidate.note(),
+                    candidate.scheduledTripItemId(), candidate.note(), candidate.mustVisit(),
                     candidate.sources().stream().map(CandidateSourceResponse::from).toList(),
                     candidate.createdAt());
         }

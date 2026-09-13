@@ -26,7 +26,15 @@ tags:
    ```
 
 2. 출력된 메시지가 정말 면제해도 되는지 판단한다. **소비자가 실제로 깨질 수 있으면 면제 대상이 아니다.** 계약을 바꾸지 말고 additive 경로를 찾는다.
-3. 면제한다면 oasdiff가 출력한 메시지를 **한 글자도 바꾸지 말고** `oasdiff-ignore.txt`에 한 줄로 넣는다.
+3. 면제한다면 `oasdiff-ignore.txt`에 한 줄로 넣는다. **출력은 세 줄이고 그중 한 줄을 고르면 동작하지 않는다** — `in API …`로 시작하는 위치 줄과 바로 아래 메시지 줄을 **공백 하나로 이어** 한 줄로 만든다. 예:
+
+   ```text
+   warning [request-property-removed] at /rev/openapi.yaml     ← 쓰지 않는다
+     in API POST /trips/{tripId}/items/{itemId}/replace        ┐ 이 둘을
+       removed the request property `relationId`               ┘ 공백 하나로 잇는다
+   ```
+
+   넣은 뒤 `--warn-ignore`(와 `--err-ignore`)로 **실제로 억제되는지 실행해 확인한다.** `scripts/check_oasdiff_exceptions.py`는 공백 정규화 후 **부분 문자열**만 보므로, 짧은 형태를 넣어도 그 script는 통과시키고 게이트만 빨개진다. 두 검사가 다른 질문에 답한다 — 하나가 green인 것을 다른 하나의 답으로 쓰지 않는다.
 4. 같은 메시지를 아래 표에 등록한다. 이유·승인자·추적 이슈가 모두 있어야 한다.
 5. 정정이 `main`에 반영되고 base가 새 값이 되면 그 줄은 더 이상 매칭되지 않는다. **그때 두 곳에서 함께 지운다.**
 
@@ -34,10 +42,11 @@ tags:
 
 ## 승인된 예외
 
-현재 활성 예외는 없다. 표가 비어 있는 것이 정상 상태다.
+활성 예외 1건. 표가 비어 있는 것이 평상 상태이며, 행이 있는 동안은 그 정정이 `main`에 반영되기를 기다리는 중이다.
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
+| in API POST /trips/{tripId}/items/{itemId}/replace removed the request property `relationId` | client가 값을 만들 수 없는 필드다. 어떤 응답도 relation id를 발급하지 않고 `RelatedPlace`에 id가 없으며 저장하는 table도 없다. 계약 전체에 단 한 번 나타나고 서버는 값이 오면 거부한다 — 소비자가 보낼 수 있는 값이 없으므로 제거로 깨질 소비자가 없다 | yutak | #204 |
 
 ## 만료된 예외 (기록)
 
