@@ -128,6 +128,8 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 5. skip·0건 실행·report 누락·`continue-on-error`·`ignoreFailures`는 금지다. path filter workflow는 조기 피드백일 뿐 required status로 승격하지 않는다.
 6. **여러 세션이 한 checkout을 공유하면 `apps/api` 검증은 격리 worktree에서 한다.** 파일을 나누는 것으로는 부족하다 — 겹치는 것은 파일이 아니라 **빌드 산출물과 전역 합계**다. 동시 Gradle이 같은 resource jar를 다시 쓰면 test가 읽던 jar가 깨져 `Unable to calculate checksum`·`EOFException: ZLIB`로 **모든 Spring context가 기동 실패**하고, 자기 변경과 무관한 suite까지 전부 빨개진다(실측: 285개 중 131개).
 
+   **`.git`도 공유다.** `git push origin backend`는 브랜치 전체를 밀므로, 한 세션의 push가 **다른 세션이 방금 만든 미검증 커밋까지 공개한다**(실제로 일어났다 — amend하려던 커밋이 먼저 나갔다). push 전에 `git log --oneline origin/backend..HEAD`로 **밀 커밋 목록을 먼저 보고**, 남의 것이 섞였으면 그 세션에 알린다.
+
    그리고 **전역 합계는 각자의 파일에 없지만 각자의 변경에 반응한다.** `JobConnectionBudget`은 job type 수의 **합**에 걸리고, `FlywayMigrationIT`의 "previous schema"는 **마지막 migration이 무엇인가**에 걸린다. 그래서 두 PR이 **각자 green인데 merge하면 red**가 될 수 있다. 이런 값은 **한 사람이 마지막에 정한다** — "나중에 들어가는 쪽이 다시 계산한다"는 규칙은 누가 마지막인지 아무도 모를 때 깨진다.
 
 ## 문서 지도

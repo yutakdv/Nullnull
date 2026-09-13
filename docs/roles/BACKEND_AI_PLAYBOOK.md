@@ -1100,7 +1100,7 @@ ITEM preview→APPLY/KEEP→24시간 REVERT를 구현한다.
 
 ### BA-050
 
-**최적화 run·snapshot·polling** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**최적화 run·snapshot·polling** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-005](#ba-005), [BA-023](#ba-023), [BA-041](#ba-041)
 - 기능 ID: `FR-OPT-01`, `FR-OPT-03`, `FR-OPT-16`
