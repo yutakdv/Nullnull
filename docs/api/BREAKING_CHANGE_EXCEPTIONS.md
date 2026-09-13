@@ -42,15 +42,20 @@ tags:
 
 ## 승인된 예외
 
-활성 예외 1건. 표가 비어 있는 것이 평상 상태이며, 행이 있는 동안은 그 정정이 `main`에 반영되기를 기다리는 중이다.
+활성 예외 0건. 표가 비어 있는 것이 평상 상태이며, 행이 있는 동안은 그 정정이 `main`에 반영되기를 기다리는 중이다.
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| in API POST /trips/{tripId}/items/{itemId}/replace removed the request property `relationId` | client가 값을 만들 수 없는 필드다. 어떤 응답도 relation id를 발급하지 않고 `RelatedPlace`에 id가 없으며 저장하는 table도 없다. 계약 전체에 단 한 번 나타나고 서버는 값이 오면 거부한다 — 소비자가 보낼 수 있는 값이 없으므로 제거로 깨질 소비자가 없다 | yutak | #204 |
 
 ## 만료된 예외 (기록)
 
 정정이 `main`에 반영되면 base가 새 값이 되어 해당 메시지는 더 이상 보고되지 않는다. 그 시점에 ignore 줄을 지우고 행을 여기로 옮긴다. `scripts/check_oasdiff_exceptions.py`가 CI에서 이 정리를 강제한다 — 매칭되지 않는 ignore 줄이 남아 있으면 실패한다.
+
+- **`ReplaceTripItemRequest`에서 `relationId` 제거** (승인: 오너, 추적: #204). base가 따라 움직여
+  만료됐다. client가 값을 만들 수 없는 필드였다 — 어떤 응답도 relation id를 발급하지 않고
+  `RelatedPlace`에 id가 없으며 저장하는 table도 없어서, 보낼 수 있는 값이 `null`과 스스로 지어낸
+  UUID뿐이었고 후자는 서버가 검증할 방법이 없었다. 그래서 제거로 깨질 소비자가 없다. FE는 이 필드를
+  보낸 적이 없어(`replacementPlaceId`만 전송) `apps/web`은 한 줄도 바뀌지 않았다.
 
 - **`runLink` pattern `/trips/` → `/trip/`** (승인: 오너, 추적: #118). PR #122로 반영됐고 base가 따라 움직여 만료됐다. 정정 내용은 `openapi.yaml`의 `runLink` description에 남아 있다.
 

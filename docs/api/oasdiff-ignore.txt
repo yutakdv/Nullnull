@@ -1,1 +1,0 @@
-in API POST /trips/{tripId}/items/{itemId}/replace removed the request property `relationId`
