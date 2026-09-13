@@ -77,7 +77,7 @@ class CandidateIT {
                         .content("{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\","
                                 + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\",\"interests\":[]}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        return created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
     }
 
     private org.springframework.test.web.servlet.ResultActions add(SessionService.Bootstrap owner,

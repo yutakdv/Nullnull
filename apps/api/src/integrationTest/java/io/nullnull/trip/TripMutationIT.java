@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.ResultActions;
  * <p>replaceTripInterests is absent: the interest vocabulary is still open (FCR-020), so there is
  * nothing to validate a replacement against and the operation is not implemented.
  */
-@SpringBootTest
+@SpringBootTest(properties = "nullnull.catalog.public-enabled=true")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 class TripMutationIT {
@@ -57,7 +57,7 @@ class TripMutationIT {
                         .header("Idempotency-Key", "create-" + UUID.randomUUID())
                         .contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        return created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
     }
 
     private ResultActions patchTrip(SessionService.Bootstrap owner, String id, String etag, String body)
@@ -130,7 +130,7 @@ class TripMutationIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.days.length()").value(4))
                 .andReturn().getResponse().getContentAsString();
-        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String id = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         patchTrip(owner, id, "\"1\"", "{\"endDate\":\"2026-10-05\"}")
                 .andExpect(status().isUnprocessableEntity())
@@ -165,7 +165,7 @@ class TripMutationIT {
                         .header("Idempotency-Key", "res-" + UUID.randomUUID())
                         .contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String id = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         patchTrip(owner, id, "\"1\"", "{\"endDate\":\"2026-10-05\"}")
                 .andExpect(status().isUnprocessableEntity())
@@ -200,7 +200,7 @@ class TripMutationIT {
                         .header("Idempotency-Key", "del-" + UUID.randomUUID())
                         .contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String id = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         mvc.perform(patch("/api/v1/me").cookie(cookie(owner))
                         .header("Origin", "http://localhost:5173")
@@ -371,7 +371,7 @@ class TripMutationIT {
                         .header("Idempotency-Key", "tz-" + UUID.randomUUID())
                         .contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String id = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         patchTrip(owner, id, "\"1\"", "{\"timezone\":\"Asia/Tokyo\"}").andExpect(status().isOk());
 

@@ -263,7 +263,7 @@ class FeedIT {
                         .content("{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\","
                                 + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\",\"interests\":[]}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        UUID tripId = UUID.fromString(trip.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1"));
+        UUID tripId = UUID.fromString(trip.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
 
         mvc.perform(put("/api/v1/posts/" + postId + "/saved").cookie(cookie(owner))
                         .header("Origin", "http://localhost:5173")
@@ -324,7 +324,7 @@ class FeedIT {
                                 + "\"seedItems\":[{\"placeId\":\"" + first + "\",\"date\":\"2026-10-04\","
                                 + "\"position\":0}]}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String tripId = trip.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String tripId = trip.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         mvc.perform(get("/api/v1/feed").param("tripId", tripId).cookie(cookie(owner)))
                 // Order unchanged: the scheduled place's card did NOT move to the top.
@@ -352,7 +352,7 @@ class FeedIT {
                                 + "\"seedItems\":[{\"placeId\":\"" + placeId + "\",\"date\":\"2026-10-04\","
                                 + "\"position\":0}]}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String foreignTrip = trip.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        String foreignTrip = trip.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
 
         // The place IS scheduled - in someone else's trip. Answering SCHEDULED here would confirm
         // both that the trip exists and what is in it.

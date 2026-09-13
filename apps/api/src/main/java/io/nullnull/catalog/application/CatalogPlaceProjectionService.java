@@ -73,6 +73,18 @@ public class CatalogPlaceProjectionService {
      * serve exactly that data through a different operation and the fail-closed decision would mean
      * nothing - so embedding callers come through here.
      */
+    /**
+     * The gate on its own, for a caller that has to fail closed before it writes.
+     *
+     * <p>createTrip with seed items is the case: the items cannot be shown while the catalog is
+     * unpublished, and finding that out after persisting would leave the trip created and the stored
+     * idempotent response replaying a 503. Exposed here rather than letting another module read
+     * {@link CatalogPublicationProperties}, so the decision stays owned by this service.
+     */
+    public void requirePublicProjection() {
+        publication.requirePublicProjection();
+    }
+
     @Transactional(readOnly = true)
     public List<CatalogPlaceSummary> embeddedSummaries(OwnerContext owner, List<UUID> placeIds) {
         publication.requirePublicProjection();

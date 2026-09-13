@@ -1586,6 +1586,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
   /trips/{tripId}:
@@ -1721,6 +1723,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
     patch:
@@ -1868,6 +1872,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -1974,6 +1980,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
 

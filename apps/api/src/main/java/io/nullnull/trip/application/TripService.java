@@ -1,5 +1,7 @@
 package io.nullnull.trip.application;
 
+import io.nullnull.catalog.application.CatalogPlaceProjectionService;
+import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.identity.application.IdempotencyGuard;
 import io.nullnull.identity.application.IdempotencyGuard.CommandOutcome;
 import io.nullnull.identity.application.OwnerContext;
@@ -55,16 +57,19 @@ public class TripService {
     private static final int MAX_LIMIT = 50;
 
     private final TripStore trips;
+    private final CatalogPlaceProjectionService places;
     private final IdempotencyGuard idempotency;
     private final TripCursorProperties cursors;
     private final Clock clock;
     private final ObjectMapper json;
     private final TransactionTemplate transactions;
 
-    public TripService(TripStore trips, IdempotencyGuard idempotency, TripCursorProperties cursors,
+    public TripService(TripStore trips, CatalogPlaceProjectionService places,
+            IdempotencyGuard idempotency, TripCursorProperties cursors,
             Clock clock, ObjectMapper json, PlatformTransactionManager transactionManager) {
         this.transactions = new TransactionTemplate(transactionManager);
         this.trips = trips;
+        this.places = Objects.requireNonNull(places, "places");
         this.idempotency = idempotency;
         this.cursors = cursors;
         this.clock = clock;
@@ -80,19 +85,30 @@ public class TripService {
      * (409) rather than a silent second answer to the first request.
      */
     public TripView create(OwnerContext context, String idempotencyKey, CreateTripCommand command) {
+        if (!command.seedItems().isEmpty()) {
+            // Before the write, not after. A trip created with seed items cannot be answered while
+            // the catalog gate is closed - TripItem.place is required - and discovering that after
+            // persisting would leave the trip created, the caller holding a 503, and the stored
+            // idempotency response replaying that same 503 for as long as the key lives.
+            places.requirePublicProjection();
+        }
         String fingerprint = RequestFingerprint.of("createTrip", Map.of(), canonicalRequest(command))
                 .sha256Hex();
         IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), CREATE_ROUTE,
                 idempotencyKey, fingerprint,
                 () -> new CommandOutcome<>(201, persist(context.ownerId(), command)), value -> value);
         Projection projection = json.readValue(guarded.body(), Projection.class);
-        return new TripView(rehydrate(context.ownerId(), projection), projection.candidateCount());
+        Trip trip = rehydrate(context.ownerId(), projection);
+        // The stored idempotency body carries the trip, not the day structure: a replay reads the
+        // items back rather than keeping a second copy that could disagree with the table.
+        return new TripView(trip, projection.candidateCount(), itemViews(context, trip.id()));
     }
 
     @Transactional(readOnly = true)
     public TripView get(OwnerContext context, UUID tripId) {
         Trip trip = trips.find(context.ownerId(), tripId).orElseThrow(TripService::notFound);
-        return new TripView(trip, trips.candidateCounts(List.of(trip.id())).getOrDefault(trip.id(), 0));
+        return new TripView(trip, trips.candidateCounts(List.of(trip.id())).getOrDefault(trip.id(), 0),
+                itemViews(context, trip.id()));
     }
 
     @Transactional(readOnly = true)
@@ -123,6 +139,42 @@ public class TripService {
                         clock.instant().plus(cursors.cursorTtl()), cursors.keyId()))
                 : null;
         return new TripPageView(views, next, hasMore);
+    }
+
+    /**
+     * The day structure a detail response renders, or nothing when the trip has no items.
+     *
+     * <p>The empty case returns before the gate is consulted, and that is the whole boundary: a trip
+     * with no items needs no place from the catalog, so it can be answered honestly while the catalog
+     * is unpublished. One item changes what the response has to contain, not how strict we feel -
+     * {@code TripItem.place} is required, so a 503 there says "this answer cannot be built", which is
+     * the same thing listFeed says for the same reason.
+     *
+     * <p>A missing summary for an item that exists is a loud failure rather than a hole in the array.
+     * It is unreachable today - V010's trigger keeps a DEPRECATED place pointing at an ACTIVE
+     * canonical one and the summary query resolves through that before filtering - and a response
+     * that silently dropped the item would be a schedule the user cannot see, reported as success.
+     */
+    private List<TripItemView> itemViews(OwnerContext context, UUID tripId) {
+        List<TripItem> items = trips.items(tripId);
+        if (items.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, CatalogPlaceSummary> byId = new java.util.HashMap<>();
+        for (CatalogPlaceSummary summary : places.embeddedSummaries(context,
+                items.stream().map(TripItem::placeId).distinct().toList())) {
+            byId.put(summary.id(), summary);
+        }
+        List<TripItemView> views = new ArrayList<>(items.size());
+        for (TripItem item : items) {
+            CatalogPlaceSummary place = byId.get(item.placeId());
+            if (place == null) {
+                throw new ApiException(ProblemCode.SOURCE_UNAVAILABLE,
+                        "A scheduled place is not available.");
+            }
+            views.add(new TripItemView(item, place));
+        }
+        return List.copyOf(views);
     }
 
     private Projection persist(UUID ownerId, CreateTripCommand command) {
@@ -248,8 +300,11 @@ public class TripService {
             }
             String snapshot = snapshot(updated, items);
             trips.updateMetadata(updated, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+            // Inside the transaction: if the catalog gate refuses, the mutation rolls back with it,
+            // so the caller never holds a 503 for a change the database already accepted.
             return new TripView(updated,
-                    trips.candidateCounts(List.of(tripId)).getOrDefault(tripId, 0));
+                    trips.candidateCounts(List.of(tripId)).getOrDefault(tripId, 0),
+                    itemViews(context, tripId));
         });
     }
 
@@ -275,8 +330,11 @@ public class TripService {
                     current.createdAt(), now, current.archivedAt());
             String snapshot = snapshot(updated, trips.items(tripId));
             trips.updateMetadata(updated, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+            // Inside the transaction: if the catalog gate refuses, the mutation rolls back with it,
+            // so the caller never holds a 503 for a change the database already accepted.
             return new TripView(updated,
-                    trips.candidateCounts(List.of(tripId)).getOrDefault(tripId, 0));
+                    trips.candidateCounts(List.of(tripId)).getOrDefault(tripId, 0),
+                    itemViews(context, tripId));
         });
     }
 
