@@ -54,7 +54,7 @@ Frontend 담당자가 각 FCR을 닫을 때 제출한다.
 | FCR-021 | P0 blocker | 411:1837/413:2020 buffer 저장/취소, 해제하고 이동·교체 | **원자 해제+변경은 확정**(#166 — 해제를 요청에 담고 이름 대지 않은 잠금은 계속 거부). 남은 것은 buffer 저장/취소 variant의 Figma 정의; PM-007 | FE / BE·AI·PM | Open (buffer variant만) |
 | FCR-022 | P0 blocker | 412:1912 SCHEDULED 제거 action, 저장 결과는 toast 중심 | **후보 전이·교체 linkage는 확정**(#165 Q1·Q2). 남은 것은 독립 후보 보존 — APPLY→REVERT 복원 범위이고 BA-053 소유; PM-009 | FE / BE·AI·PM | Open (REVERT 복원 범위만) |
 | FCR-023 | P0 blocker | 검색/feed/trip의 KTO 콘텐츠·이미지 출처 전달 공백 | **post 표지 권리는 확정**(A-024 — 1st-party 자산만), **장소 provenance는 출하됨**(`sourceAttribution`을 FE가 다섯 화면에서 소비). 남은 것은 `PostSummary`의 provenance 자리; PM-010 | FE / BE·AI·PM | Open (PostSummary만) |
-| FCR-024 | P0 major | feed/post 작성자·하트 수·반응 상태와 read schema 불일치 | **화면 범위는 확정**(#163 — 작성자·하트·반응을 P0 화면에서 제거). 다만 `FR-FED-04`는 정본에서 P0이므로 operation이 닫히지 않는다: 계측(`IMPRESSION`/`OPEN`)은 P0, `LIKE`/`DISLIKE`는 P1, `HIDE`는 복구 진입점 유무에 달림; PM-011 | FE / BE·AI·PM | Open (HIDE 복구 진입점만) |
+| FCR-024 | P0 major | feed/post 작성자·하트 수·반응 상태와 read schema 불일치 | **화면 범위 확정**(#163 — 작성자·하트·반응을 P0 화면에서 제거). `FR-FED-04`는 계측(`IMPRESSION`/`OPEN`)만으로 닫는다 — 두 값은 버튼이 필요 없어 화면 변경 없이 기록된다. `LIKE`/`DISLIKE`는 누를 control이 없으므로 P1. **`HIDE`는 P0 미구현**: 복구 진입점이 저장소 전체에 0건이라([증거](#fcr-024-증거)) 지금 구현하면 숨긴 글이 돌아올 길이 없다; PM-011 | FE / BE·AI·PM | 화면 범위 확정 · 계약 반영 대기 (2026-09-13, [증거](#fcr-024-증거)) |
 | FCR-025 | P0 blocker | 418:2523 현재 여행지·우회 시간·정렬·날씨·map에 미지원 기능 | P0 제거 또는 입력/근거/provider 계약, map OFF 목록; PM-012 | FE / BE·AI·PM | Open |
 | FCR-026 | P0 blocker | Live/stale/replay 공통 단계·시간별 그래프, KTO는 상대 날짜 예측 | source별 단위/범례/시간 해상도·6-state·비교불가 표시; PM-013 | FE / BE·AI·PM | Open |
 | FCR-027 | P0 blocker | ITEM 대상 선택·취소 copy·refresh/만료/이력/undo 상태 불완전 | read 복구·back≠cancel·실패 복귀≠KEEP·서버 undo 가능성; PM-015 | FE / BE·AI·PM | Open |
@@ -234,6 +234,40 @@ chip 하나가 code 하나와 weight 하나를 갖는다. 한 code에 weight를 
 따르면 된다.
 
 label은 FE가 렌더하므로 서버는 code만 저장한다.
+
+## FCR-024 증거
+
+- 확정일: 2026-09-13, 확정자: Frontend
+- 상태: 화면 범위 확정. 계약 반영은 BE 쪽에 남아 있다([#163](https://github.com/yutakdv/Nullnull/issues/163)).
+
+BE가 물은 것은 *"서버가 만들 수 없는 값을 화면이 그리고 있지 않은가"* 였다. 측정한
+결과 **FE는 그 값들을 애초에 만들지 않았다** — Figma에는 보이지만 `FCR-002`가 P0에서
+작성자·팔로우를 제거했고 `FCR-003`이 정렬 chip을 숨겼기 때문이다.
+
+| 확인 | 결과 |
+| --- | --- |
+| `FeedPostCard`의 작성자·해시태그·하트 | 0건 |
+| `PostScreen`의 같은 값 | 0건 |
+| `recordFeedFeedback` 호출 | 0건 |
+| 프로필·설정·feed의 HIDE 복구 진입점 | **0건** |
+
+마지막 줄이 이 행을 열어 두고 있던 이유다. 복구 진입점이 없는 상태에서 `HIDE`를
+계정 차원으로 구현하면 **숨긴 글이 돌아올 길이 없다.** 되돌릴 수 없는 동작을 되돌릴
+방법 없이 내보내지 않는다는 규칙(삭제를 revoke·tombstone·복구까지 설계하는 것과 같은
+성격)이 여기에도 적용된다. 그래서 P0에서는 구현하지 않는다.
+
+`HIDE`를 enum에서 빼자는 뜻은 아니다 — `additionalProperties: false`라 제거가 breaking
+이고 P1에 쓸 값이다. 서버가 받으면 거절하거나, 생산자가 없다는 사실을 계약에 적는
+쪽이 맞다(`preserveDateTime`을 422로 거절한 것과 같은 판단, #203).
+
+| 값 | P0 | 이유 |
+| --- | --- | --- |
+| `IMPRESSION` `OPEN` | 예 | 버튼이 필요 없다. 카드가 보이고 열리는 것이 곧 신호라 화면 변경 없이 기록된다 |
+| `LIKE` `DISLIKE` | 아니오 | 누를 control이 화면에 없다. 도달할 수 없는 명령을 구현하면 서버에 영영 오지 않는 코드가 된다 |
+| `HIDE` | 아니오 | 복구 진입점 0건 |
+| 하트 수 | 아니오 | 집계 소스가 없고 표시할 자리도 없다 |
+
+`FR-FED-04`(P0)는 계측 두 값만으로 닫힌다.
 
 ## FCR-005 증거
 
