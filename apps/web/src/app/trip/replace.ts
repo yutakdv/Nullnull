@@ -90,8 +90,13 @@ export function comparisonBlock(
  *
  * MUST_VISIT pins the PLACE, so swapping the place releases it — which is what
  * the frame warns about ("고정된 장소가 해제될 수 있어요"). DATE, TIME and
- * RESERVATION pin the schedule, and `preserveDateTime` defaults to true, so
- * they survive.
+ * RESERVATION pin the schedule, which replaceTripItem's description says the
+ * item keeps unconditionally, so they survive.
+ *
+ * That rests on the operation description, not on `preserveDateTime`: the
+ * field has `default: true` and no description anywhere, so what a non-default
+ * value would do is unsettled (#203). This client never sends it, so the
+ * default is what applies either way.
  *
  * Computed from the item rather than written into copy: an "everything else
  * stays" sentence goes stale the moment a lock is added.

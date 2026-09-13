@@ -20,6 +20,26 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // A MUST_VISIT pick is a constraint on the trip, never a scheduled item — it
 // carries no date or time here (invariant 2).
 //
+// OUT OF P0 SCOPE, and not connected: there is nowhere to send these picks.
+// `CreateTripRequest` has seven properties — title, startDate, endDate,
+// timezone, planningLevel, interests, seedItems — and none of them carries a
+// must-visit place. `seedItems` cannot stand in because `SeedTripItem` makes
+// `date` and `position` required, so routing picks through it would mean
+// inventing a schedule the user never chose, which is exactly what invariant 2
+// forbids.
+//
+// So this screen is reachable only by typing its URL: nothing in the app links
+// to `/start/must-visit` (routes.tsx defines it, and that is the only
+// reference). That is why the loss it would otherwise cause does not happen in
+// the judged flow — the scenario cannot start. Scope confirmed with the owner
+// and Backend/AI on #180 and #185; do not re-investigate why picks are not
+// sent. Reopening this is P1 work and needs a contract field first, best shaped
+// as a TripCandidate carrying a MUST_VISIT lock (no date, no schedule change).
+//
+// Known rough edge while it stays disconnected: 다음 and 건너뛰기 both call
+// navigate('/feed'), so picks are dropped without a word. Raising the wording
+// and button shape as an FCR rather than guessing at the frame.
+//
 // MOCK DATA: searchPlaces has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
 // generated client, so BA-022 landing removes the fixture and handler only.
