@@ -3,31 +3,22 @@
     "MD013": false
   },
   "ignores": [
-    "**/node_modules/**"
+    "**/node_modules/**",
+    "HANDOFF-PROMPT.md",
+    "NIGHT_WORK_REPORT.md"
   ],
   "globs": [
     "README.md",
     "AGENTS.md",
     "CLAUDE.md",
     "apps/*/CLAUDE.md",
+    "apps/*/README.md",
+    "packages/*/README.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
     "docs/archive/PRODUCT_BRIEF.md",
     ".claude/**/*.md",
     ".github/**/*.md",
-    "docs/README.md",
-    "docs/api/**/*.md",
-    "docs/architecture/**/*.md",
-    "docs/contest/**/*.md",
-    "docs/contracts/**/*.md",
-    "docs/data/**/*.md",
-    "docs/decisions/**/*.md",
-    "docs/design/**/*.md",
-    "docs/engineering/**/*.md",
-    "docs/operations/**/*.md",
-    "docs/product/**/*.md",
-    "docs/project/**/*.md",
-    "docs/roles/**/*.md",
-    "docs/security/**/*.md"
+    "docs/**/*.md"
   ]
 }
