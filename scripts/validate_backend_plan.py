@@ -196,12 +196,35 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
         if task.get('note') != f'{CARD}#{tid.lower()}':
             problems.append(f'{tid}: note must link to its exact task card')
         if task.get('status') == 'verified':
+            # `verified` is the second pass, and what separates it from `integration-ready` is not a
+            # signature. check_test_reports.py already proves, for both statuses alike, that each
+            # acceptance ID APPEARS in some JUnit testcase name. Appearing is not proving: BA-002-T3
+            # carries its ID on twenty testcases and every one of them covers only the first of its
+            # two clauses. So `verified` asks the reviewer to NAME, per acceptance ID, the testcase
+            # that proves it - which cannot be done for a clause nothing tests, and that refusal is
+            # the whole point of the rung.
+            #
+            # `reviewer` used to be required here and is gone on purpose. This repository merges on
+            # two green checks with no human approval (AGENTS.md 15), so a name in that field would
+            # record a review that never happened; a field that can only be filled falsely is worse
+            # than no field. The task-level `reviewer` stays - that is a RACI role, not a signature.
             evidence = task.get('evidence', {})
-            if not isinstance(evidence, dict) or not all(evidence.get(x) for x in ('report', 'contractSha', 'reviewer', 'testIds')):
-                problems.append(f'{tid}: verified requires report, contract SHA, reviewer and test IDs')
+            if not isinstance(evidence, dict) or not all(
+                    evidence.get(x) for x in ('report', 'contractSha', 'secondPass', 'provenBy')):
+                problems.append(f'{tid}: verified requires report, contract SHA, secondPass and provenBy')
             else:
-                if set(evidence['testIds']) != {t['id'] for t in required}:
-                    problems.append(f'{tid}: evidence does not cover all required tests')
+                proven = evidence['provenBy']
+                if not isinstance(proven, dict) or set(proven) != required_tests:
+                    problems.append(f'{tid}: provenBy must name a testcase for exactly '
+                                    f'{sorted(required_tests)}')
+                else:
+                    for ident, names in sorted(proven.items()):
+                        # The named testcase must carry the ID it is claimed to prove. Without this a
+                        # card could point at any green test in the repository and read as verified.
+                        if not isinstance(names, list) or not names or not all(
+                                isinstance(name, str) and ident in name for name in names):
+                            problems.append(f'{tid}: provenBy[{ident}] must be a non-empty list of '
+                                            f'testcase names containing {ident}')
                 resolve_link(root, root, evidence['report'], problems, tid)
         if task.get('status') in {'blocked', 'deferred'} and not task.get('reason'):
             problems.append(f'{tid}: blocked/deferred requires reason and safe default')

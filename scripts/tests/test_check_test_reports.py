@@ -126,6 +126,22 @@ class ReportTests(unittest.TestCase):
                     (self.root / suite / 'TEST-fixture.xml').write_text(body)
                 self.rejected(self.check(), "BA-099-T1 missing")
 
+    def test_a_verified_card_cannot_name_a_testcase_no_report_contains(self):
+        """`provenBy` is what separates `verified` from `integration-ready`, so it has to be real."""
+        plan = json.loads(json.dumps(PLAN))
+        plan['tasks'][0].update(status='verified', evidence={'provenBy': {
+            'BA-099-T1': ['BA-099-T1 a testcase nobody ran']}})
+        (self.root / 'plan.json').write_text(json.dumps(plan))
+        self.rejected(self.check(), "names a testcase that no report contains")
+
+    def test_a_verified_card_naming_the_real_testcase_passes(self):
+        """The negative above proves nothing on its own - an always-failing check would pass it."""
+        plan = json.loads(json.dumps(PLAN))
+        plan['tasks'][0].update(status='verified', evidence={'provenBy': {
+            'BA-099-T1': ['BA-099-T1 REC-DATA-02 passes']}})
+        (self.root / 'plan.json').write_text(json.dumps(plan))
+        self.assertEqual(0, self.check().returncode, self.check().stderr)
+
     def test_planned_card_does_not_claim_execution(self):
         (self.root / 'plan.json').write_text(json.dumps({'tasks': [
             {'status': 'planned', 'tests': [{'id': 'BA-098-T1'}]}]}))

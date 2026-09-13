@@ -32,7 +32,13 @@ def fresh(path: Path, run_start: Path | None) -> None:
         raise ValueError(f"{path}: stale report predates run-start")
 
 
-def read_junit(directory: Path, run_start: Path | None, errors: list[str]) -> dict[str, set[str]]:
+def read_junit(directory: Path, run_start: Path | None, errors: list[str],
+               names: set[str] | None = None) -> dict[str, set[str]]:
+    """Acceptance IDs per suite, and - when `names` is given - every testcase name seen.
+
+    The names are what a `verified` card's `provenBy` is checked against. Extracted IDs cannot
+    serve: they answer "is this ID somewhere", and the second pass is about WHICH testcase.
+    """
     ids: dict[str, set[str]] = {}
     for suite in GRADLE_SUITES:
         found: set[str] = set()
@@ -78,6 +84,8 @@ def read_junit(directory: Path, run_start: Path | None, errors: list[str]) -> di
                         if case.find(tag) is not None:
                             raise ValueError(f"{path}: testcase {tag}: {name}")
                     found.update(TEST_ID.findall(name))
+                    if names is not None:
+                        names.add(name)
                 count += len(cases)
             except (OSError, ValueError, ET.ParseError) as error:
                 errors.append(str(error))
@@ -107,6 +115,31 @@ def required_plan_ids(plan: dict) -> set[str]:
                 raise ValueError("backend plan: invalid acceptance ID")
             result.add(ident)
     return result
+
+
+def check_proven_by(plan: dict, names: set[str], errors: list[str]) -> None:
+    """Every testcase a `verified` card names in `provenBy` must actually exist in the reports.
+
+    validate_backend_plan.py checks the SHAPE of provenBy - one entry per acceptance ID, each
+    naming testcases that carry that ID. It cannot check that those testcases were run, because it
+    never reads a JUnit report. This does, and the two together are what makes `verified` mean more
+    than `integration-ready`: the card points at a specific testcase, and the report says that
+    testcase ran and passed.
+
+    A name is matched exactly. Substring matching was rejected: "BA-030-T1" would match every one of
+    its twenty siblings, which is precisely the looseness the second pass exists to remove.
+    """
+    for task in plan.get("tasks", []):
+        if not isinstance(task, dict) or task.get("status") != "verified":
+            continue
+        proven = task.get("evidence", {}).get("provenBy")
+        if not isinstance(proven, dict):
+            continue  # Shape is validate_backend_plan.py's to report; do not double-report it.
+        for ident, claimed in sorted(proven.items()):
+            for name in claimed if isinstance(claimed, list) else []:
+                if name not in names:
+                    errors.append(f"{task.get('id')}: provenBy[{ident}] names a testcase that no "
+                                  f"report contains: {name!r}")
 
 
 def reported_implemented_ids(path: Path, errors: list[str]) -> set[str] | None:
@@ -187,13 +220,19 @@ def main() -> int:
     try:
         if args.run_start is not None:
             args.run_start.stat()  # A missing start marker must not disable freshness checks.
+        names: set[str] = set()
         if args.junit_dir is not None:
-            ids = read_junit(args.junit_dir, args.run_start, errors)
+            ids = read_junit(args.junit_dir, args.run_start, errors, names)
         if args.backend_plan is not None:
-            required = required_plan_ids(read_object(args.backend_plan))
+            plan = read_object(args.backend_plan)
+            required = required_plan_ids(plan)
             observed = set().union(*ids.values())
             for ident in sorted(required - observed):
                 errors.append(f"backend plan: {ident} missing from JUnit testcase names")
+            # Only with reports in hand: without them `names` is empty and every claim would be
+            # reported as missing, which would turn a plan-only run into noise.
+            if args.junit_dir is not None:
+                check_proven_by(plan, names, errors)
         reported: set[str] | None = None
         if args.evaluation is not None:
             fresh(args.evaluation, args.run_start)

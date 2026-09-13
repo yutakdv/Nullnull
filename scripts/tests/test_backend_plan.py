@@ -244,8 +244,30 @@ class BackendPlanTests(unittest.TestCase):
     def test_verified_missing_report_file(self):
         def mutate(p):
             t=p['tasks'][0]
-            t.update(status='verified',evidence={'report':'docs/missing-test-report.json','contractSha':'example','reviewer':'FE_DRI','testIds':[x['id'] for x in t['tests']]})
+            t.update(status='verified', evidence={'report':'docs/missing-test-report.json',
+                'contractSha':'example', 'secondPass':'대조함',
+                'provenBy':{x['id']: [x['id']+' case'] for x in t['tests']}})
         self.check_mutation(mutate, 'missing vault target')
+
+    def test_verified_provenby_must_cover_every_acceptance_id(self):
+        """An ID with nothing to point at is what stops the promotion - see BA-002-T3's second clause."""
+        def mutate(p):
+            t=p['tasks'][0]
+            proven={x['id']: [x['id']+' case'] for x in t['tests']}
+            proven.pop(sorted(proven)[-1])
+            t.update(status='verified', evidence={'report':'docs/engineering/backend-plan.json',
+                'contractSha':'example', 'secondPass':'대조함', 'provenBy':proven})
+        self.check_mutation(mutate, 'provenBy must name a testcase for exactly')
+
+    def test_verified_provenby_rejects_a_testcase_that_is_not_the_claimed_id(self):
+        """Without this a card could point at any green testcase in the repository."""
+        def mutate(p):
+            t=p['tasks'][0]
+            proven={x['id']: [x['id']+' case'] for x in t['tests']}
+            proven[sorted(proven)[0]]=['a testcase naming no acceptance id']
+            t.update(status='verified', evidence={'report':'docs/engineering/backend-plan.json',
+                'contractSha':'example', 'secondPass':'대조함', 'provenBy':proven})
+        self.check_mutation(mutate, 'must be a non-empty list of testcase names containing')
 
     def test_blocked_without_reason(self):
         self.check_mutation(lambda p: p['tasks'][0].update(status='blocked'), 'blocked/deferred requires reason')

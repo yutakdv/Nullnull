@@ -104,7 +104,15 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 등록 규칙:
 
 1. 새 REC ID는 `apps/ai/tests/recommendation/manifest.json`의 `implementedTestIds`와 fixture sha256에 추가하고, Spring 쪽 검증(REC-INT/SEC/JOB/FEED-04)은 해당 Gradle suite 이름을 `docs/engineering/TEST_STRATEGY.md#12`에 연결한다.
-2. BA-xxx-Tn acceptance는 구현 PR에서 실제 test class/함수 이름과 report 경로를 카드에 적고 `backend-plan.json` status를 올린다. report 없는 `verified`는 validator가 거부한다.
+2. BA-xxx-Tn acceptance는 구현 PR에서 실제 test class/함수 이름과 report 경로를 카드에 적고 `backend-plan.json` status를 올린다.
+
+   **`integration-ready`와 `verified`는 다른 것을 증명한다.** `check_test_reports.py`는 둘 모두에 대해 acceptance ID가 JUnit testcase 이름에 **나타나는지**만 본다. 나타나는 것은 증명하는 것이 아니다 — `BA-002-T3`은 ID를 단 testcase가 **20개**인데 전부 두 절 중 첫 절만 덮는다.
+
+   그래서 `verified`는 **acceptance ID마다 그것을 증명하는 testcase를 지목하도록** 요구한다(`evidence.provenBy`). 지목한 이름은 (a) 그 ID를 담고 있어야 하고 (b) 실제 report에 존재해야 한다. **test가 없는 절은 지목할 이름이 없으므로 승격이 그 자리에서 막힌다** — 이것이 이 칸의 존재 이유이고, 3의 한-절 규칙과 맞물린다.
+
+   **기계가 잡는 것은 "거짓말한 이름"뿐이다.** 지목한 testcase가 실재하는지, 그 ID를 담고 있는지는 validator가 본다. 그러나 *그 testcase가 그 절을 정말 증명하는가*는 볼 수 없다 — **강제력은 표를 채우는 행위 자체에서 나온다.** 채우는 사람이 각 절을 그 ID를 단 testcase 본문과 대조해야 하고, 대조할 것이 없으면 칸이 비고 승격이 막힌다. 이 절차를 생략하고 이름만 옮겨 적으면 `integration-ready`와 같은 강도로 되돌아간다.
+
+   `evidence.reviewer`는 **요구하지 않는다.** 이 저장소는 두 required check가 green이면 사람 승인 없이 auto-merge한다(원칙 15). 채우면 일어나지 않은 검토를 기록하게 되는 칸이므로 없앴다. task 수준의 `reviewer`(RACI 역할)는 그대로 남는다.
 3. **acceptance assertion은 한 절만 쓴다.** `check_test_reports.py`는 `tests[].id`가 JUnit 이름에 **나타나는지**만 보므로, 한 ID에 여러 절을 묶으면 그중 **아무 절이나** 증명하는 test 하나로 그 ID가 충족된다 — 집계기가 나머지를 볼 방법이 없다. "A하고 B한다"가 필요하면 `T3`(A)·`T4`(B)로 나눈다. 그러면 B를 증명하는 test가 없을 때 `integration-ready` 승격이 **그 자리에서** 막힌다.
 
    **쪼개면 미해결 하나가 드러난다(미해결임을 드러내는 것이 목적이다).** `check_test_reports.py`의 `read_junit`은 `GRADLE_SUITES`(`test`·`integrationTest`·`openapiContractTest`·`recommendationTest`) **네 디렉터리만** 읽는다. 그래서 **FE가 소유한 acceptance ID는 그가 실제로 구현해도 집계기에 나타나지 않는다** — `BA-040-T4`(keyboard/focus E2E)가 Playwright라 그렇고, 그 카드를 `integration-ready`로 올리려면 그 ID가 JUnit 이름에 있어야 하므로 **승격이 영원히 막힌다.** `BA-004`의 Python test가 `scripts/tests`에 있어 Java 집계기만 보면 0건이던 것과 같은 모양이고, 이번에는 소유자가 FE다. 답은 아직 없다. 다만 **"FE plan으로 옮기면 된다"는 답이 아니다**: `check_test_reports.py`는 backend plan의 ID를 **실제 JUnit testcase 이름**과 대조하는데, `validate_frontend_plan.py`는 `verified` 카드의 `evidence.testIds`가 **그 카드 자신의 `tests[].id`와 같은지**만 보고 `report`·`contractSha`·`reviewer`는 빈 문자열이 아닌지만 본다 — report를 열지도, test 실행과 대조하지도 않는다. 옮기면 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다.
