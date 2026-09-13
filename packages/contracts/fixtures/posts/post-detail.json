@@ -3,7 +3,22 @@
   "title": "가을 서울 산책 코스",
   "excerpt": "고궁과 골목을 하루에 걷는 길",
   "coverUrl": "https://cdn.example.test/posts/01.jpg",
-  "coverAsset": null,
+  "coverAsset": {
+    "id": "019321a4-0000-7000-8000-000000000101",
+    "url": "https://cdn.example.test/posts/01.jpg",
+    "mediaType": "IMAGE",
+    "alt": "고궁 담장을 걷는 사람들 일러스트",
+    "license": {
+      "source": "NULLNULL_FIRST_PARTY",
+      "name": "널널 1st-party 자산 (내부 제작)",
+      "url": null,
+      "reviewedAt": "2026-09-13T00:00:00Z"
+    },
+    "attributionRequired": false,
+    "attributionText": null,
+    "redistributionAllowed": true,
+    "expiresAt": null
+  },
   "publishedAt": "2026-09-09T02:00:00Z",
   "body": "고궁에서 시작해 골목으로 이어지는 하루 코스예요. 아침 일찍 경복궁을 보고, 점심 무렵 인사동으로 넘어가면 사람이 몰리는 시간을 피할 수 있어요. 저녁은 명동에서 마무리하면 이동이 짧습니다.",
   "places": [

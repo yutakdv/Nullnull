@@ -71,6 +71,7 @@ class ReportTests(unittest.TestCase):
         self.rejected(self.run_check("--manifest", self.root / "manifest.json"), "REC-DATA-02 missing")
 
     def test_BA_004_T1_failure_error_skip_counts_and_children(self):
+        """BA-004-T1 실패·오류·skip이 든 report를 evidence checker가 거부한다"""
         for tag, counter in (("failure", "failures"), ("error", "errors"), ("skipped", "skipped")):
             with self.subTest(tag=tag, plane="summary"):
                 self.target.write_text(xml(**{counter: 1}))
@@ -83,6 +84,7 @@ class ReportTests(unittest.TestCase):
             self.rejected(self.check(), f"testcase {tag}")
 
     def test_BA_004_T2_each_suite_is_required_even_without_acceptance_ids(self):
+        """BA-004-T2 acceptance ID가 없는 suite라도 0건 실행이면 거부한다"""
         for suite in SUITES:
             with self.subTest(suite=suite):
                 path = self.root / suite / "TEST-fixture.xml"
@@ -258,6 +260,18 @@ class WrapperExecutionTests(unittest.TestCase):
                              'check_infra_report.py', 'check_egress_report.py'):
                 shutil.copy2(ROOT / 'scripts' / filename, root / 'scripts' / filename)
             (root / 'scripts/verify_target_stack.py').write_text('')
+            # Stubbed, not copied: the real runner discovers scripts/tests, and running it from
+            # inside one of those tests would re-enter the suite. What it must do here is what the
+            # fake docker does for the Gradle suites - leave a report the checker can read. That the
+            # real runner produces a correct one is test_run_script_tests.py's job, not this file's.
+            (root / 'scripts/run_script_tests.py').write_text(f'''#!{sys.executable}
+import pathlib, sys
+out = pathlib.Path(sys.argv[sys.argv.index('--out') + 1]) / 'scriptTests'
+out.mkdir(parents=True, exist_ok=True)
+(out / 'TEST-scriptTests.xml').write_text(
+    '<testsuite name="scriptTests" tests="1" failures="0" errors="0" skipped="0">'
+    '<testcase name="scriptTests.stub"/></testsuite>')
+''')
             for relative in ('.nullnull-target-stack', 'apps/api/Dockerfile', 'apps/api/gradlew',
                              'apps/api/gradle/wrapper/gradle-wrapper.jar',
                              'apps/api/gradle/wrapper/gradle-wrapper.properties',
@@ -324,11 +338,13 @@ else:
         self.assertIn('integration_mode=full-docker', result.stdout)
 
     def test_BA_004_T1_actual_wrapper_propagates_command_failure(self):
+        """BA-004-T1 하위 command가 실패하면 실제 wrapper가 그 exit code를 전파한다"""
         result, status = self.run_wrapper('command')
         self.assertEqual(42, result.returncode, result.stderr)
         self.assertEqual('failed', status)
 
     def test_BA_004_T2_actual_wrapper_rejects_bad_evidence_and_suppression(self):
+        """BA-004-T2 실패·skip·report 삭제·stale·command 실패를 실제 wrapper가 거부한다"""
         for mode, message in (('failure', 'testcase failure'), ('skip', 'testcase skipped'),
                               ('missing', 'missing JUnit XML'), ('stale', 'stale report'),
                               ('command', 'missing JUnit XML')):
@@ -341,7 +357,22 @@ else:
 
 
 class WorkflowWiringTests(unittest.TestCase):
+    def test_the_required_gate_reads_the_python_evidence_it_produces(self):
+        """The sandbox cannot see this: removing the flag leaves every wrapper test green.
+
+        Evidence for the Python-proven acceptance IDs used to be produced in two places and read in
+        one - api-quality fed it to the checker and integration-test.sh did not - so a card resting
+        on it went green on the path-filtered workflow and red on the required gate. The wiring that
+        fixed it is asserted here because nothing else fails when it goes away.
+        """
+        wrapper = (ROOT / 'scripts/integration-test.sh').read_text()
+        self.assertIn('run_script_tests.py', wrapper,
+                      'the required gate must run the Python suite, not only api-quality')
+        self.assertIn('--script-junit-dir', wrapper,
+                      'producing the report is not reading it')
+
     def test_BA_004_T2_shipping_wrapper_does_not_suppress_quality_commands(self):
+        """BA-004-T2 출고되는 wrapper가 quality command의 실패를 은폐하지 않는다"""
         lines = [line.strip() for line in (ROOT / 'scripts/integration-test.sh').read_text().splitlines()
                  if line.strip() and not line.lstrip().startswith('#')]
         for service in ('api-quality', 'ai-quality'):

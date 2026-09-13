@@ -11,7 +11,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import verify_target_stack
-from verify_target_stack import check_compose_contract, check_dockerfile, check_package_scripts
+from verify_target_stack import (check_compose_contract, check_dockerfile,
+                                 check_gradle_wrapper_pin, check_package_scripts)
 
 PINNED_BASE = (
     'python:3.13-slim@sha256:'
@@ -32,6 +33,52 @@ REQUIRED_COMPOSE_SERVICES = {
     'e2e',
     'egress-denied',
 }
+
+
+PINNED_WRAPPER = (
+    'distributionBase=GRADLE_USER_HOME\n'
+    'distributionSha256Sum=' + 'a' * 64 + '\n'
+    'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.7.1-bin.zip\n'
+    'validateDistributionUrl=true\n'
+)
+
+
+class GradleWrapperPinTests(unittest.TestCase):
+    """BA-001-T1: the repository refuses a Gradle toolchain that is not pinned and verified."""
+
+    def check(self, body: str) -> list[str]:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'gradle-wrapper.properties'
+            path.write_text(body, encoding='utf-8')
+            with mock.patch.object(verify_target_stack, 'ROOT', Path(directory)):
+                check_gradle_wrapper_pin(path, errors)
+        return errors
+
+    def test_BA_001_T1_an_unpinned_gradle_distribution_is_refused(self):
+        """BA-001-T1 고정되지 않았거나 검증이 꺼진 Gradle toolchain을 검사가 거부한다"""
+        missing = self.check(PINNED_WRAPPER.replace('distributionSha256Sum=' + 'a' * 64 + '\n', ''))
+        self.assertTrue(any('distributionSha256Sum' in e for e in missing), missing)
+        unverified = self.check(PINNED_WRAPPER.replace('validateDistributionUrl=true',
+                                                       'validateDistributionUrl=false'))
+        self.assertTrue(any('validateDistributionUrl' in e for e in unverified), unverified)
+
+    def test_a_pinned_and_verified_wrapper_is_accepted(self):
+        """Without this the assertion above is satisfied by a checker that always complains."""
+        self.assertEqual([], self.check(PINNED_WRAPPER))
+
+    def test_a_checksum_that_is_not_64_hex_is_refused(self):
+        """A truncated or non-hex sum would otherwise read as a pin while matching nothing."""
+        for bad in ('a' * 63, 'z' * 64, ''):
+            with self.subTest(sum=bad):
+                body = PINNED_WRAPPER.replace('a' * 64, bad)
+                self.assertTrue(any('distributionSha256Sum' in e for e in self.check(body)))
+
+    def test_the_real_wrapper_this_repository_ships_satisfies_the_guard(self):
+        """A guard nobody points at the real file can drift away from it without anyone noticing."""
+        errors: list[str] = []
+        check_gradle_wrapper_pin(ROOT / 'apps/api/gradle/wrapper/gradle-wrapper.properties', errors)
+        self.assertEqual([], errors)
 
 
 class PackageScriptContractTests(unittest.TestCase):

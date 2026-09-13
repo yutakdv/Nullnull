@@ -25,6 +25,19 @@ public interface CatalogPlaceQuery {
     List<CatalogPlaceSummary> summaries(List<UUID> placeIds, String locale, Instant observedAt);
 
     /**
+     * One media asset by id, for a caller that already holds the reference - a post's cover
+     * (A-024, V021), which social stores as {@code posts.cover_asset_id} and cannot read itself.
+     *
+     * <p>Unlike the place thumbnail, this applies no redistribution or expiry filter: a full
+     * {@link CatalogMediaAsset} carries {@code redistributionAllowed} and {@code expiresAt} as
+     * fields, so the caller is told the truth instead of being handed a silent null. The one thing
+     * it does require is a servable URL - an asset with no {@code served_url} has no {@code url} to
+     * project, and the contract's MediaAsset requires one - so that row resolves to empty and the
+     * caller decides what an unservable reference means.
+     */
+    Optional<CatalogMediaAsset> mediaAsset(UUID assetId);
+
+    /**
      * {@code thumbnailAttribution} is the ready-to-render credit for {@code thumbnailUrl}, or null
      * when the reviewed licence requires none. A summary already only carries a thumbnail whose
      * licence allows redistribution, but redistributable is not the same as creditless: without this

@@ -9,6 +9,7 @@ readonly compose_file="${project_root}/compose.integration.yml"
 readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
 readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
 readonly test_report_checker="${project_root}/scripts/check_test_reports.py"
+readonly script_tests_runner="${project_root}/scripts/run_script_tests.py"
 readonly egress_report_checker="${project_root}/scripts/check_egress_report.py"
 readonly npm_audit_report_checker="${project_root}/scripts/check_npm_audit_report.py"
 readonly infra_report_checker="${project_root}/scripts/check_infra_report.py"
@@ -125,8 +126,15 @@ if [[ ! -f "${recommendation_report}" ]]; then
   exit 1
 fi
 python3 "${evaluation_report_checker}" "${recommendation_report}"
+# The Python-proven acceptance IDs. Evidence for them is produced in two places and, until this
+# ran here, read in only one: api-quality wrote scriptTests and fed it to the same checker, while
+# this - the required gate - passed only --junit-dir. BA-001-T1/T3 are provable in Python alone, so
+# api-quality went green and docker-integration failed on the same commit. A non-required workflow
+# agreeing is not this gate's answer.
+python3 "${script_tests_runner}" --out "${artifact_dir}/script-test-results"
 python3 "${test_report_checker}" \
   --junit-dir "${artifact_dir}/api-test-results" \
+  --script-junit-dir "${artifact_dir}/script-test-results" \
   --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
   --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
   --evaluation "${recommendation_report}" \

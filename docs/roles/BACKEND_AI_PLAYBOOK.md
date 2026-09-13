@@ -85,7 +85,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-001
 
-**Spring 모듈 구조와 실행 도구 고정** — P0 / `contract-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**Spring 모듈 구조와 실행 도구 고정** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-000](#ba-000)
 - 기능 ID: 해당 없음
@@ -105,7 +105,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-001-T1`: 새 clone에서 고정 도구로 build하고 checksum 불일치는 실패한다 — 증거는 `scripts/verify_target_stack.py`(Gradle wrapper SHA·toolchain·marker·root script·필수 Compose service 검사)다. JUnit test가 아니다
+- `BA-001-T1`: 고정되지 않았거나 검증이 꺼진 Gradle toolchain을 검사가 거부한다 — `check_gradle_wrapper_pin`이 `distributionSha256Sum` 64자리와 `validateDistributionUrl=true`를 함께 요구하며 `test_BA_001_T1_an_unpinned_gradle_distribution_is_refused`가 두 분기를 각각 RED로 만든다. **한 절만 적는다**: *checksum이 불일치할 때 build가 실패하는 것*은 Gradle 자신의 동작이고 우리 회귀 위험이 아니다. 우리 위험은 고정이나 검증이 빠지는 것이며 그것만 여기서 증명한다. `scripts/tests`는 `run_script_tests.py`가 JUnit으로 내보내 집계된다
 - `BA-001-T2`: 다른 모듈 repository 직접 참조가 architecture test에서 실패한다 — `ArchitectureRulesTest.modulesNeverReachIntoAnotherModulesInfrastructure`(Gradle `test`)가 강제하며, `@DisplayName`으로 testcase 이름에 이 ID를 노출한다
 - `BA-001-T3`: marker 뒤 필수 stage·task·digest 누락은 hard fail한다 — 증거는 같은 `scripts/verify_target_stack.py`다
 
@@ -871,7 +871,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-032
 
-**고정 feed·게시물·SavedPost** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**고정 feed·게시물·SavedPost** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-030](#ba-030)
 - 기능 ID: `FR-FED-01`, `FR-FED-02`, `FR-FED-03`, `FR-PST-01`, `FR-PST-02`
@@ -960,7 +960,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-034
 
-**여행 후보 저장·중복·dismiss** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**여행 후보 저장·중복·dismiss** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-030](#ba-030), [BA-032](#ba-032)
 - 기능 ID: `FR-CAN-01`, `FR-CAN-02`, `FR-CAN-03`, `FR-CAN-04`, `FR-CAN-05`, `FR-CAN-06`
@@ -1027,7 +1027,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-041
 
-**네 종류 독립 잠금과 동시 편집 충돌** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**네 종류 독립 잠금과 동시 편집 충돌** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-040](#ba-040)
 - 기능 ID: `FR-CON-01`, `FR-CON-02`, `FR-CON-03`, `FR-CON-04`, `FR-CON-05`, `FR-CON-06`, `NFR-DATA-02`
@@ -1039,14 +1039,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 1. MUST_VISIT/DATE/TIME/RESERVATION의 type별 필수/null/tolerance를 DB와 domain에 고정한다
 2. path type=body type과 source USER/IMPORT를 검증하고 잠금 해제는 해당 row 삭제로 표현한다
-3. 수동 edit·교체·reorder·optimizer가 같은 constraint validator를 재사용한다(#166으로 reorderTripItems도 잠금을 푼다)
+3. 시간 잠금 판정을 한 곳에 두고 수동 edit·reorder·optimizer·설정 시점이 모두 그것을 쓴다(#166으로 reorderTripItems도 잠금을 푼다). 교체는 장소 잠금을 따로 판정한다
 4. 09-06 PM 검토 PM-002, PM-003, PM-005, PM-007, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
-실패·안전 경계: 예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다. 잠금 판정이 아직 두 곳이다 — BA-041의 setTripItemConstraint가 LockChecks로 설정 시점을 판정하고, BA-040의 reorder·updateTripItem·replaceTripItem이 releaseConstraints를 각자 판정한다. step 3의 '같은 validator 재사용'은 그 둘이 한 곳이 되는 것이고, 그 전에는 integration-ready로 올리지 않는다.
+실패·안전 경계: 예약 잠금 자동 해제와 한 type 변경으로 다른 type 삭제를 금지한다. 명시적인 해제 command 없이 변경을 통과시키지 않는다. 시간 잠금 판정은 `applyTemporalLockRules` 한 곳이고 reorder·updateTripItem·설정 시점·optimizer가 모두 그것을 쓴다. `replaceTripItem`은 일부러 합치지 않는다 — 그 평가기는 시간 이동을 판정하므로 MUST_VISIT을 정의상 통과시키고, 교체를 거기 태우면 #199가 거절하라고 한 잠금이 그대로 통과한다. 다른 질문이라 다른 판정기다.
 
 **이미 고정된 것(BA-030/031이 넣음, 다시 정하지 않는다):** `trip_constraints` table과 그 typed check가 `V014__trip_items.sql`에 있다. 네 type의 필수/null 조합, `tolerance_minutes` 0..180, `(trip_item_id, type)` 유일성, `locked=true` row만 저장하고 해제는 row 삭제라는 표현까지 ERD §11 그대로다. domain 쪽은 `ItemLock`(네 type의 tagged shape)·`TripConstraint`(lock + `source`)·`ConstraintSource`이고, `createTrip`의 `seedItems[].constraints`로 쓰기와 `getTrip`의 `constraints`로 읽기가 동작한다. **이건 계약이 이미 고정한 모양을 이행한 것이지 설계 결정이 아니다** — `SetConstraintInput`·`TripConstraint`의 discriminator와 네 variant가 `openapi.yaml`에 있었다.
 
-**이 카드가 정할 것(위가 대신 정하지 않았다):** `setTripItemConstraint`·`removeTripItemConstraint`의 전이 규칙, path type과 body type의 일치 검증, 한 type의 변경이 다른 type을 건드리지 못한다는 독립성 검증, 수동 edit·교체·optimizer가 같은 validator를 재사용하는 구조, stale If-Match 거부. `TripScheduleRules`는 **기간 축소가 DATE/RESERVATION 잠금을 존중하는지**만 보고, 잠금을 설정·해제하는 의미는 전혀 다루지 않는다.
+**이 카드가 정할 것(위가 대신 정하지 않았다):** `setTripItemConstraint`·`removeTripItemConstraint`의 전이 규칙, path type과 body type의 일치 검증, 한 type의 변경이 다른 type을 건드리지 못한다는 독립성 검증, 시간 잠금 판정을 한 곳에 두는 구조(교체는 장소 잠금이라 별도), stale If-Match 거부. `TripScheduleRules`는 **기간 축소가 DATE/RESERVATION 잠금을 존중하는지**만 보고, 잠금을 설정·해제하는 의미는 전혀 다루지 않는다.
 
 필수 검증:
 

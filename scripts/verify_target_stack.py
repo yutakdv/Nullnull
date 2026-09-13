@@ -83,6 +83,34 @@ def check_dockerfile(
         )
 
 
+def check_gradle_wrapper_pin(path: Path, errors: list[str]) -> None:
+    """BA-001-T1: the toolchain is pinned AND the wrapper is told to verify it.
+
+    Lifted out of check_static_contract so it can be exercised. Inline, the checksum half had run
+    since it was written and had never been shown to fire - the guard's own negative case was
+    unreachable from any test, which is how the second half came to be missing without anyone
+    noticing: distributionSha256Sum was required and validateDistributionUrl was not, so the
+    properties file could keep the sum and switch the verification off and this would pass.
+
+    That a MISMATCHED checksum then fails the build is Gradle's behaviour, not ours to re-test.
+    What can regress here is the pin or the verification going away, and that is what this covers.
+    """
+    try:
+        properties = path.read_text(encoding="utf-8")
+    except OSError as error:
+        errors.append(f"Cannot read Gradle wrapper properties: {error}")
+        return
+    values = {
+        key.strip(): value.strip()
+        for key, _, value in (line.partition("=") for line in properties.splitlines())
+        if key and not key.lstrip().startswith("#")
+    }
+    if not SHA256.fullmatch(values.get("distributionSha256Sum", "")):
+        errors.append("Gradle wrapper must set a 64-character distributionSha256Sum")
+    if values.get("validateDistributionUrl") != "true":
+        errors.append("Gradle wrapper must set validateDistributionUrl=true")
+
+
 def check_static_contract(errors: list[str]) -> None:
     marker = ROOT / ".nullnull-target-stack"
     try:
@@ -115,24 +143,9 @@ def check_static_contract(errors: list[str]) -> None:
         errors,
     )
 
-    wrapper_properties = ROOT / "apps/api/gradle/wrapper/gradle-wrapper.properties"
-    try:
-        properties = wrapper_properties.read_text(encoding="utf-8")
-    except OSError as error:
-        errors.append(f"Cannot read Gradle wrapper properties: {error}")
-    else:
-        checksum = next(
-            (
-                line.split("=", 1)[1].strip()
-                for line in properties.splitlines()
-                if line.startswith("distributionSha256Sum=")
-            ),
-            "",
-        )
-        if not SHA256.fullmatch(checksum):
-            errors.append(
-                "Gradle wrapper must set a 64-character distributionSha256Sum"
-            )
+    check_gradle_wrapper_pin(
+        ROOT / "apps/api/gradle/wrapper/gradle-wrapper.properties", errors
+    )
 
     compose_path = ROOT / "compose.integration.yml"
     try:
