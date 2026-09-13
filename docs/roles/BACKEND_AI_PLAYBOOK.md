@@ -1079,7 +1079,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-042
 
-**후보 slot 판정·비교 후 장소 교체** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**후보 slot 판정·비교 후 장소 교체** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-024](#ba-024), [BA-040](#ba-040), [BA-041](#ba-041)
 - 기능 ID: `FR-CAN-07`, `FR-ITM-07`, `FR-ITM-08`

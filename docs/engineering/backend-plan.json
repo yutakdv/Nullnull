@@ -1223,7 +1223,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "후보 slot 판정·비교 후 장소 교체",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-024",
         "BA-040",
