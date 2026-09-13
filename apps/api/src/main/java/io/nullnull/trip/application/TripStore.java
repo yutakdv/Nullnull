@@ -2,6 +2,7 @@ package io.nullnull.trip.application;
 
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.LockType;
+import io.nullnull.trip.domain.TripConstraint;
 import io.nullnull.trip.domain.TripItem;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -69,6 +70,15 @@ public interface TripStore {
 
     /** Points one item at a different place, keeping every schedule field it already holds. */
     void replaceItemPlace(UUID tripId, UUID itemId, UUID placeId, Instant at);
+
+    /**
+     * Writes one lock, replacing only its own type.
+     *
+     * <p>The unique index on {@code (trip_item_id, type)} is what makes "only its own" true in
+     * storage rather than in this method's care: setting DATE cannot disturb TIME because they are
+     * different rows, and re-setting DATE cannot produce two because the index refuses it.
+     */
+    void putConstraint(UUID tripId, UUID itemId, TripConstraint constraint, Instant at);
 
     /** Removes one lock from an item. False when the item did not carry that type. */
     boolean deleteConstraint(UUID tripItemId, LockType type);
