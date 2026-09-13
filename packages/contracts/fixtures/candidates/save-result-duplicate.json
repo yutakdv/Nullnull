@@ -25,6 +25,7 @@
     "status": "ACTIVE",
     "scheduledTripItemId": null,
     "note": null,
+    "mustVisit": false,
     "sources": [
       {
         "type": "POST",

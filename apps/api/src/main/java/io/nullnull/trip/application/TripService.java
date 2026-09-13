@@ -484,6 +484,18 @@ public class TripService {
             throw new TripValidationException("candidateId", "PlaceMismatch",
                     "the candidate is for a different place than the item");
         }
+        if (candidate.mustVisit()) {
+            // Where the intention becomes a lock. The traveller said this place has to be in the
+            // trip on the screen where they saved it, and until now there was nothing on the item to
+            // carry that - the answer was collected and dropped (#185). Same transaction as the
+            // insert and the transition (invariant 5), so there is no moment where the item exists
+            // without the lock the candidate asked for.
+            //
+            // MUST_VISIT is the only lock a candidate can become: V014's typed check requires DATE,
+            // TIME and RESERVATION to carry a date or a clock time, and a candidate has neither.
+            trips.putConstraint(tripId, item.id(),
+                    new TripConstraint(new ItemLock.MustVisit(), ConstraintSource.USER), now);
+        }
         if (!candidates.schedule(candidate.id(), item.id(), now)) {
             // It stopped being ACTIVE between the read and the write: dismissed, or already put on
             // the schedule by the other tab that is racing this one.
@@ -681,7 +693,10 @@ public class TripService {
         // came from one still leaves a candidate behind, because the contract promises the outgoing
         // place comes back either way, and TRIP_SEED is the only true thing to say about its origin.
         if (candidates.restoreScheduledFor(itemId, now).isEmpty()) {
-            candidates.saveActive(tripId, outgoing, item.note(),
+            // false, and not by omission. A replacement cannot proceed while a MUST_VISIT lock is
+            // unreleased (#199), so by here the traveller has named it and chosen to let the place
+            // go. Carrying the intention back would restore what they just released.
+            candidates.saveActive(tripId, outgoing, item.note(), false,
                     new CandidateSource(CandidateSourceType.TRIP_SEED, null, now), now);
         }
         trips.replaceItemPlace(tripId, itemId, command.replacementPlaceId(), now);
@@ -987,7 +1002,12 @@ public class TripService {
             return;
         }
         if (candidates.restoreScheduledFor(removed.id(), now).isEmpty()) {
-            candidates.saveActive(tripId, removed.placeId(), removed.note(),
+            // A MUST_VISIT lock on the item is the same thing the candidate flag records, so it
+            // travels back rather than being dropped: the traveller said this place has to be in the
+            // trip, and taking it off the schedule is not them changing their mind about that.
+            boolean mustVisit = removed.constraints().stream()
+                    .anyMatch(constraint -> constraint.type() == LockType.MUST_VISIT);
+            candidates.saveActive(tripId, removed.placeId(), removed.note(), mustVisit,
                     new CandidateSource(CandidateSourceType.TRIP_SEED, null, now), now);
         }
     }

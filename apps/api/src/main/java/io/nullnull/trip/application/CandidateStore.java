@@ -19,7 +19,8 @@ public interface CandidateStore {
      * cannot both insert, so the loser reads the winner's row. A service-level "check then insert"
      * would let both through under concurrency, which is exactly BA-034-T1.
      */
-    Saved saveActive(UUID tripId, UUID placeId, String note, CandidateSource source, Instant now);
+    Saved saveActive(UUID tripId, UUID placeId, String note, boolean mustVisit,
+            CandidateSource source, Instant now);
 
     Optional<TripCandidate> find(UUID ownerId, UUID tripId, UUID candidateId);
 

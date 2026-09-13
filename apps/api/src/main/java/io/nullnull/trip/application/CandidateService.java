@@ -78,7 +78,7 @@ public class CandidateService {
      * same row rather than making a second (BA-034-T1).
      */
     public SaveResult add(OwnerContext context, UUID tripId, String idempotencyKey, UUID placeId,
-            CandidateSourceType sourceType, UUID postId, String note) {
+            CandidateSourceType sourceType, UUID postId, String note, boolean mustVisit) {
         requireOwnedTrip(context, tripId);
         if (placeId == null) {
             throw new io.nullnull.trip.domain.TripValidationException("placeId", "NotNull",
@@ -87,12 +87,13 @@ public class CandidateService {
         CandidateSource source = new CandidateSource(sourceType, postId, clock.instant());
         String fingerprint = RequestFingerprint.of("addTripCandidate",
                         Map.of("tripId", tripId.toString()),
-                        placeId + "|" + sourceType + "|" + postId + "|" + (note == null ? "" : note))
+                        placeId + "|" + sourceType + "|" + postId + "|" + mustVisit + "|"
+                                + (note == null ? "" : note))
                 .sha256Hex();
         IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), ADD_ROUTE,
                 idempotencyKey, fingerprint, () -> {
-                    CandidateStore.Saved saved = candidates.saveActive(tripId, placeId, note, source,
-                            clock.instant());
+                    CandidateStore.Saved saved = candidates.saveActive(tripId, placeId, note,
+                            mustVisit, source, clock.instant());
                     return new CommandOutcome<>(saved.duplicate() ? 200 : 201,
                             Projection.of(saved.candidate(), saved.duplicate()));
                 }, value -> value);

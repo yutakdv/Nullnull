@@ -1669,6 +1669,12 @@ export interface components {
             place: components["schemas"]["PlaceSummary"];
             status: components["schemas"]["CandidateStatus"];
             /**
+             * @description What the traveller asked for when they saved this place, carried so the screen can show
+             *     it back and so scheduling can act on it. Still an intention while this is a candidate; it
+             *     becomes a `MUST_VISIT` constraint on the item it is scheduled onto.
+             */
+            mustVisit?: boolean;
+            /**
              * Format: uuid
              * @description Set exactly while `status` is SCHEDULED. The same place may sit on more than one date -
              *     the client refuses a duplicate only on the date being added to - and this field then
@@ -1710,6 +1716,19 @@ export interface components {
             placeId: string;
             source: components["schemas"]["AddCandidateSource"];
             note?: string | null;
+            /**
+             * @description The traveller said this place has to be in the trip, on the screen where they saved it
+             *     (FR-TRC-04). It is an INTENTION, not a lock: locks live on items
+             *     (`trip_constraints.trip_item_id` is NOT NULL) and a candidate carries no date, so there
+             *     is nothing for one to pin yet.
+             *
+             *     It becomes a lock when the candidate is scheduled - the new item gets a `MUST_VISIT`
+             *     constraint in the same transaction - which is why nothing is lost between saving and
+             *     scheduling. `MUST_VISIT` is the only one of the four this can become, because the other
+             *     three require a date or a clock time and a candidate has neither.
+             * @default false
+             */
+            mustVisit?: boolean;
         };
         AddCandidateSource: {
             /** @enum {string} */

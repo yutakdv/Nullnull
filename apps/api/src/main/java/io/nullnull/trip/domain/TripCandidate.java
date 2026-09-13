@@ -13,8 +13,8 @@ import java.util.UUID;
  * touches a trip row.
  */
 public record TripCandidate(UUID id, UUID tripId, UUID placeId, CandidateStatus status,
-        UUID scheduledTripItemId, String note, List<CandidateSource> sources, Instant createdAt,
-        Instant updatedAt) {
+        UUID scheduledTripItemId, String note, boolean mustVisit, List<CandidateSource> sources,
+        Instant createdAt, Instant updatedAt) {
 
     public static final int MAX_NOTE_LENGTH = 500;
 
