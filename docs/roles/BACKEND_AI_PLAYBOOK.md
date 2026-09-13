@@ -43,7 +43,7 @@ B01 이후 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest
 
 ### BA-000
 
-**추천 설계와 전체 계약 기준선 확정** — P0 / `contract-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**추천 설계와 전체 계약 기준선 확정** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: 없음
 - 기능 ID: 해당 없음
@@ -821,7 +821,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-025
 
-**큐레이션 영업시간 판독 적재** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**큐레이션 영업시간 판독 적재** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022)
 - 기능 ID: 해당 없음

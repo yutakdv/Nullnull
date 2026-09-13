@@ -69,7 +69,7 @@
       "phase": "B00",
       "priority": "P0",
       "title": "추천 설계와 전체 계약 기준선 확정",
-      "status": "contract-ready",
+      "status": "integration-ready",
       "dependsOn": [],
       "operations": [],
       "featureIds": [],
@@ -819,7 +819,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "큐레이션 영업시간 판독 적재",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022"
       ],
