@@ -790,6 +790,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 착수 불가 사유(조사 결과): `RelatedPlace.place`가 **required `PlaceSummary`**다. 그 값은 `CatalogPlaceProjectionService.embeddedSummaries`를 지나고 그 첫 줄이 `requirePublicProjection()`이므로, catalog 공개 게이트가 닫혀 있는 동안 `listRelatedPlaces`는 **응답을 만들 수 없다**. 게이트는 BA-021-T3(staging 실호출 증거)까지 열리지 않고 그건 [BA-006](#ba-006)에 달려 있다. 즉 이 카드는 계약이 아니라 **증거**를 기다린다.
 
+**막히는 것은 절반이다.** `RelatedPlaceResult.items`는 **빈 배열이 허용**되므로 `NONE`·`UNKNOWN` 응답은 `PlaceSummary`를 전혀 거치지 않는다 — 게이트가 막는 것은 **후보가 있는 응답**뿐이다. `place_relations` 저장·가드와 그 위의 IT(`T1`·`T4`·`T5`)는 지금 만들 수 있고, `V010`이 `BA-022`에서 projection이 fail-closed인 채로 C3 foundation을 먼저 세운 것과 같은 모양이다.
+
+**`T7`은 이 slice에 쓰지 않는다.** 응답 경로가 없으면 다섯 값 중 어느 것도 *"생산 가능"* 을 보일 수 없고, 그 상태에서 coverage test를 쓰면 **전부 "생산자 없음"으로 등록하는 표**가 된다 — `CrowdQualityFlagCoverageIT`가 잡으려던 것의 정반대다. `T7`은 응답 경로를 만드는 slice에 붙는다.
+
 구현 순서:
 
 1. 공식 direct relation과 canonical mapping을 검증하고 category 기반 약한 관계는 SIMILAR로 분리한다
