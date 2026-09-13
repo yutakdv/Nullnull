@@ -336,7 +336,7 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 ### BA-006
 
-**로컬 Docker와 최소 staging 기반** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**로컬 Docker와 최소 staging 기반** — P0 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: `NFR-OPS-01`
@@ -358,7 +358,7 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 - 완료: 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper. `scripts/integration-test.sh`가 `.nullnull-target-stack` marker를 확인한 뒤 `integration_mode=full-docker`로 실행되고 `compose.integration.yml`의 quality service와 `egress-denied` probe를 포함한다. T1의 internal network·outbound-deny probe는 이 경로에 있다.
 - 미착수: staging 절반. `infra/`가 없고 CDK app, OIDC exact subject, runtime secret 주입이 모두 없다. 따라서 T2(bundle·image layer·log의 secret 부재)와 T3(잘못된 repo/environment subject 거부)는 착수하지 않았다.
-- 상태 원인: 없다. 막고 있던 [D-001·D-017·D-018](../project/DECISIONS_AND_RISKS.md#1-확정된-핵심-결정)이 **A-030·A-028·A-029로 닫혔다** — placeholder domain에 production deploy 없음, 오너 개인 계정 하나에 role 분리 없음, 월 $150 상한으로 평가 완료까지 약 1개월 운영. 계정 분리를 두지 않는 것은 안전한 기본값에서 의도적으로 벗어난 선택이므로 **stack manifest에 근거를 남긴다**(A-028).
+- 상태 원인: **결정이 아니라 순서다.** 막고 있던 D-001·D-017·D-018은 A-030·A-028·A-029로 닫혔다 — placeholder domain에 production deploy 없음, 오너 개인 계정 하나에 role 분리 없음, 월 $150 상한으로 평가 완료까지 약 1개월 운영. **staging 구축(step 2·3)은 오너가 기능 개발 완료 뒤에 직접 하거나 도움을 요청하기로 했다.** step 1은 이미 서 있다. 계정 분리를 두지 않는 것은 안전한 기본값에서 의도적으로 벗어난 선택이므로 stack manifest에 근거를 남긴다(A-028).
 
 필수 검증:
 

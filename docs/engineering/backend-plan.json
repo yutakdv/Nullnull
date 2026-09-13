@@ -323,7 +323,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "로컬 Docker와 최소 staging 기반",
-      "status": "planned",
+      "status": "deferred",
       "dependsOn": [
         "BA-001",
         "BA-002",
@@ -362,7 +362,8 @@
       "handoff": "로컬 URL·seed·staging environment 준비 상태와 안전한 public config 목록.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006",
+      "reason": "staging 절반(step 2·3)은 오너가 기능 개발 완료 뒤로 미뤘다(2026-09-13). 결정 3건은 A-028·A-029·A-030으로 닫혔으므로 더는 결정 대기가 아니다. step 1(로컬 Docker·full-docker wrapper)은 이미 서 있고, 그 위 카드들이 기다리는 것은 staging 실호출 증거뿐이다."
     },
     {
       "id": "BA-010",
