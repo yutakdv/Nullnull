@@ -9,7 +9,15 @@ export default defineConfig({
   testDir: './e2e',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? 'line' : 'list',
+  // JUnit alongside the readable one in CI. check_test_reports.py reads JUnit and nothing
+  // else, so an acceptance ID proven by a browser test was invisible to it - and moving such
+  // an ID into the frontend plan makes it weaker, not visible, because validate_frontend_plan
+  // compares a card's evidence to that card's own IDs and never opens a report (#208). The
+  // path ends in e2e/ because the reader looks for <dir>/<suite>/*.xml, and
+  // compose.integration.yml already binds playwright-report out of the container.
+  reporter: process.env.CI
+    ? [['line'], ['junit', { outputFile: 'playwright-report/e2e/results.xml' }]]
+    : 'list',
   use: {
     baseURL: integration ?? 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
