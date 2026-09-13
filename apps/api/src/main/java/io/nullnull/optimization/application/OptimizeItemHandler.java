@@ -37,12 +37,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class OptimizeItemHandler implements JobHandler {
 
-    /**
-     * The policy identity this run was judged under. A constant until a policy pin exists to read,
-     * and named here rather than left null so that a stored run says which optimizer produced it.
-     */
-    static final String ALGORITHM_VERSION = "optimization-run-v1";
-
     private final OptimizationRunStore runs;
     private final OptimizationEvidence evidence;
     private final TripService trips;
@@ -97,11 +91,8 @@ public class OptimizeItemHandler implements JobHandler {
         // transaction this lease does not control. The same rule is why the evidence the run stores
         // is the evidence this transaction saw.
         Instant frozenAt = clock.instant();
-        context.transactional(() -> {
-            List<UUID> snapshotSets = evidence.snapshotSetsFor(run);
-            return runs.recordFrozenEvidence(runId, evidence.fingerprint(run, snapshotSets),
-                    ALGORITHM_VERSION, frozenAt.plus(OptimizationService.PREVIEW_TTL), snapshotSets);
-        });
+        context.transactional(() -> runs.recordFrozenEvidence(runId,
+                frozenAt.plus(OptimizationService.PREVIEW_TTL), evidence.snapshotSetsFor(run)));
 
         requireInputStillHolds(context, run);
     }

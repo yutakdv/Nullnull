@@ -60,8 +60,15 @@ class ArchitectureRulesTest {
      * wired FeedFallback without it would be a silent hole.
      */
     private static final java.util.Map<String, String> AWAITING_THEIR_SLICE = java.util.Map.of(
-            "FeedFallback", "BA-050 feed slice",
-            "RunFingerprint", "BA-050 feed slice",
+            // Both labels said "BA-050 feed slice" and both were wrong, in different ways. BA-050 has
+            // no feed in it at all - it is the optimization run - and the P0 feed is fixed order by
+            // its own card's title, so the slice that first calls rankFeed is BA-080, which is P1.
+            "FeedFallback", "BA-080 ranked feed slice",
+            // BA-050 does not call this either, and could not: RunFingerprint needs the policy hash
+            // and pipeline version that come back from apps/ai, and its Inputs refuse an empty
+            // snapshot set. The slice that makes the call is the slice that can fingerprint its
+            // answer.
+            "RunFingerprint", "BA-051 ITEM proposal slice",
             "ProposalRevalidator", "BA-051 ITEM proposal slice");
 
     @Test

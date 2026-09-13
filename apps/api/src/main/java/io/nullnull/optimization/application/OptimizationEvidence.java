@@ -5,14 +5,10 @@ import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.trip.application.TripService;
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripItem;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,16 +17,23 @@ import org.springframework.stereotype.Component;
 /**
  * What a run judged its answer against, frozen so the answer can be re-checked later.
  *
- * <p>Two things are frozen and they do different jobs. The snapshot set ids say WHICH observations
- * were in force, and they are stored as rows so a reader can go and look at them. The fingerprint
- * says that nothing about that evidence has changed since, and it is what APPLY revalidates: a
- * preview built on a forecast that has since been superseded must not be applicable, and comparing
- * one hash is how that stays cheap enough to do inside the decision transaction.
+ * <p>What this slice can freeze is WHICH observations were in force, stored as rows so a reader can
+ * go and look at them. What it deliberately does not write is {@code data_fingerprint}.
+ *
+ * <p>That column means one specific thing - the §8 fingerprint {@link
+ * io.nullnull.recommendation.application.RunFingerprint} computes - and its inputs include the
+ * policy version, the policy hash and the pipeline version, which only the recommendation service's
+ * answer carries. BA-050 never calls it, so it cannot produce them. {@code RunFingerprint.Inputs}
+ * says the same thing in its own constructor: it refuses an empty snapshot set and a null revision,
+ * both of which a run in this slice can legitimately have. A hash computed from something else and
+ * stored in that column would be the wrong value under the right name - APPLY would later revalidate
+ * against a number that never described the evidence. The V024 CHECK that a READY run has a
+ * fingerprint is what makes BA-051 fill it in rather than leaving it out.
  *
  * <p>An empty evidence set is a real answer, not a failure to look. P0 has no live source and the
  * forecast provider covers only some places, so a run about an item with no forecast has nothing to
- * freeze - and the fingerprint of nothing is still a fingerprint: it pins "there was none", so a run
- * that later finds evidence where there was none is a run whose input changed.
+ * freeze, and zero rows is what that looks like - not an error, and not a reason to withhold the
+ * run.
  */
 @Component
 public class OptimizationEvidence {
@@ -71,25 +74,6 @@ public class OptimizationEvidence {
                 .toList();
     }
 
-    /**
-     * A hash over the question and the evidence, in a fixed order.
-     *
-     * <p>The run's own identity is in it as well as the snapshot ids, so two runs that froze the same
-     * evidence for different trips do not share a fingerprint - the value answers "is this preview
-     * still about the same thing", and the thing includes which trip at which version.
-     */
-    public String fingerprint(OptimizationRun run, List<UUID> snapshotSetIds) {
-        StringBuilder canonical = new StringBuilder()
-                .append(run.tripId()).append('|')
-                .append(run.inputTripVersion()).append('|')
-                .append(run.scope()).append('|')
-                .append(run.targetItemId()).append('|')
-                .append(run.targetDate()).append('|');
-        snapshotSetIds.stream().map(UUID::toString).sorted()
-                .forEach(id -> canonical.append(id).append(','));
-        return sha256Hex(canonical.toString());
-    }
-
     private static Instant startOfDay(TripItem item, ZoneId zone) {
         return item.date().atStartOfDay(zone).toInstant();
     }
@@ -97,14 +81,5 @@ public class OptimizationEvidence {
     private static Instant endOfDay(TripItem item, ZoneId zone) {
         LocalDate next = item.date().plusDays(1);
         return next.atStartOfDay(zone).toInstant();
-    }
-
-    private static String sha256Hex(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 is required by the platform", impossible);
-        }
     }
 }

@@ -87,14 +87,13 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
     }
 
     @Override
-    public boolean recordFrozenEvidence(UUID runId, String dataFingerprint, String algorithmVersion,
-            Instant expiresAt, List<UUID> snapshotSetIds) {
+    public boolean recordFrozenEvidence(UUID runId, Instant expiresAt, List<UUID> snapshotSetIds) {
         boolean updated = jdbc.sql("""
                 UPDATE optimization_runs
-                   SET data_fingerprint = ?, algorithm_version = ?, expires_at = ?
+                   SET expires_at = ?
                  WHERE id = ? AND status = 'RUNNING'
                 """)
-                .params(dataFingerprint, algorithmVersion, Timestamp.from(expiresAt), runId)
+                .params(Timestamp.from(expiresAt), runId)
                 .update() == 1;
         if (!updated) {
             return false;

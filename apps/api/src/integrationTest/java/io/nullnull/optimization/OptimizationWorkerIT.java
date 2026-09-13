@@ -78,8 +78,13 @@ class OptimizationWorkerIT {
         assertThat(run.get("failure_code")).isEqualTo("TRIP_CHANGED");
         assertThat(run.get("failure_message")).asString().contains("changed");
         // The evidence was frozen before the gate ran: the gate is a question ABOUT the frozen input,
-        // so a run that failed it must still say what it had been judging against.
-        assertThat(run.get("data_fingerprint")).asString().hasSize(64);
+        // so a run that failed it must still carry the deadline it had been working towards.
+        assertThat(run.get("expires_at")).isNotNull();
+        // And not a fingerprint. That column means the §8 value RunFingerprint computes, whose
+        // inputs include a policy hash only the recommendation service's answer carries; a run that
+        // never asked cannot have one, and filling it with something else would be the wrong value
+        // under the right name.
+        assertThat(run.get("data_fingerprint")).isNull();
     }
 
     @Test
@@ -177,7 +182,7 @@ class OptimizationWorkerIT {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
         while (System.nanoTime() < deadline) {
             Map<String, Object> run = jdbc.queryForMap("SELECT status, failure_code, failure_message,"
-                    + " data_fingerprint FROM optimization_runs WHERE id = ?", runId);
+                    + " data_fingerprint, expires_at FROM optimization_runs WHERE id = ?", runId);
             if (List.of("FAILED", "EXPIRED", "READY").contains(run.get("status"))) {
                 return run;
             }

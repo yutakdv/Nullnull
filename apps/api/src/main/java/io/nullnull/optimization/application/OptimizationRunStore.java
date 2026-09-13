@@ -31,13 +31,16 @@ public interface OptimizationRunStore {
     boolean transition(UUID runId, OptimizationStatus from, OptimizationStatus to, Instant at);
 
     /**
-     * Records what the run froze: the evidence hash, the policy version and the preview deadline.
+     * Records what the run froze: which snapshot sets were in force, and when the preview stops
+     * being offerable.
      *
-     * <p>Only while the run is still RUNNING, for the same reason as above - a worker whose lease
-     * lapsed must not overwrite the evidence of the worker that took over.
+     * <p>Only while the run is still RUNNING - a worker whose lease lapsed must not overwrite the
+     * evidence of the worker that took over.
+     *
+     * <p>Neither {@code data_fingerprint} nor {@code algorithm_version} is written here. Both are
+     * §8 values derived from the recommendation service's answer, and this slice never asks for one.
      */
-    boolean recordFrozenEvidence(UUID runId, String dataFingerprint, String algorithmVersion,
-            Instant expiresAt, List<UUID> snapshotSetIds);
+    boolean recordFrozenEvidence(UUID runId, Instant expiresAt, List<UUID> snapshotSetIds);
 
     /** Ends a run with a code and the sentence that goes with it. */
     boolean fail(UUID runId, OptimizationStatus from, OptimizationFailureCode code, String message,
