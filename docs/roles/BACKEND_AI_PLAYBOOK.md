@@ -780,7 +780,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-024
 
-**검증된 관련 장소와 추천 후보 검색** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**검증된 관련 장소와 추천 후보 검색** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-023](#ba-023)
 - 기능 ID: 해당 없음

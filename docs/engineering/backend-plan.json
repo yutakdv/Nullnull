@@ -760,7 +760,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "검증된 관련 장소와 추천 후보 검색",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022",
         "BA-023"
