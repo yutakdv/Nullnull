@@ -1268,7 +1268,7 @@
         },
         {
           "id": "BA-042-T4",
-          "assertion": "날짜 경계를 여행 timezone에서 계산한다"
+          "assertion": "요청은 여행의 timezone과 여행의 날짜 범위를 그대로 싣는다"
         },
         {
           "id": "BA-042-T5",
