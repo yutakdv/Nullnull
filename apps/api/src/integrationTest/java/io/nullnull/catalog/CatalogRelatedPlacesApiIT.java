@@ -45,6 +45,7 @@ class CatalogRelatedPlacesApiIT {
     private static final Instant NOW = Instant.parse("2032-01-01T00:00:00Z");
     private static final Instant BEFORE = Instant.parse("2031-01-01T00:00:00Z");
     private static final String RULE = "NULLNULL_CATALOG_RULE";
+    private static final String OFFICIAL = "KTO_RELATED_PLACES";
 
     @TestConfiguration
     static class Time {
@@ -196,6 +197,35 @@ class CatalogRelatedPlacesApiIT {
     }
 
     @Test
+    @DisplayName("BA-024-T1 two sources naming one place answer one related place, not two")
+    void twoSourcesForOneCanonicalPairConvergeOnOneItem() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID source = place("출처 장소");
+        UUID shared = place("두 출처가 함께 지목한 장소");
+        UUID once = place("한 출처만 지목한 장소");
+
+        // place_relations is unique per (source, target, source_code), so one pair holds one row per
+        // source and nothing below this layer collapses them. PlaceRelationFoundationIT's BA-024-T1
+        // covers the other way a duplicate arises - the same source writing the pair twice - which the
+        // table itself refuses. This is the half the table cannot refuse.
+        similar(source, shared);
+        official(source, shared);
+        similar(source, once);
+
+        related(owner, source)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[?(@.place.id == '%s')]".formatted(shared))
+                        .value(org.hamcrest.Matchers.hasSize(1)))
+                // Which of the two survives is settled by the registry code, and that is a tie-break
+                // rather than a preference: no reviewed ranking of relation sources exists, so the
+                // projection takes the one piece of content guaranteed to differ. What this pins is
+                // that it is the same row on every request, not that an official source outranks ours.
+                .andExpect(jsonPath("$.items[?(@.place.id == '%s')].provenance.source".formatted(shared))
+                        .value(org.hamcrest.Matchers.contains(OFFICIAL)));
+    }
+
+    @Test
     @DisplayName("a place that projects nothing is a 404, never an empty relation list")
     void anUnknownPlaceIsNotFound() throws Exception {
         related(owner(), UUID.randomUUID())
@@ -231,12 +261,26 @@ class CatalogRelatedPlacesApiIT {
     }
 
     private void similar(UUID source, UUID target) {
+        relation(source, target, "INTERNAL_RULE", RULE, "같은 분류·지역");
+    }
+
+    /**
+     * The same pair from the official relation source. V027 keeps the two halves apart - only
+     * NULLNULL_CATALOG_RULE may be filed as our own rule - so a second source is necessarily a
+     * provider-direct row. It stays SIMILAR because EXACT would also need a confirmed mapping.
+     */
+    private void official(UUID source, UUID target) {
+        relation(source, target, "PROVIDER_DIRECT", OFFICIAL, "공식 연계 장소");
+    }
+
+    private void relation(UUID source, UUID target, String derivation, String sourceCode, String reason) {
         jdbc.update("""
                 INSERT INTO place_relations
                     (id, source_place_id, target_place_id, relation_type, derivation, mapping_certainty,
                      relation_reason, source_code, source_registry_version, effective_at, expires_at, created_at)
-                VALUES (?, ?, ?, 'SIMILAR', 'INTERNAL_RULE', 'UNCERTAIN', '같은 분류·지역', ?, 1, ?, NULL, ?)
-                """, UUID.randomUUID(), source, target, RULE, timestamp(BEFORE), timestamp(BEFORE));
+                VALUES (?, ?, ?, 'SIMILAR', ?, 'UNCERTAIN', ?, ?, 1, ?, NULL, ?)
+                """, UUID.randomUUID(), source, target, derivation, reason, sourceCode,
+                timestamp(BEFORE), timestamp(BEFORE));
     }
 
     private static Timestamp timestamp(Instant at) {

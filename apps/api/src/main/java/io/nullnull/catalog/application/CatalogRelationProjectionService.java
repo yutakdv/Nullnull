@@ -9,6 +9,7 @@ import io.nullnull.shared.problem.ProblemCode;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +83,10 @@ public class CatalogRelationProjectionService {
     }
 
     /**
-     * A candidate whose target does not project is dropped rather than rendered without its place,
+     * Evidence in, related places out. {@link #converge} settles which row describes each canonical
+     * place before anything is looked up, so the list this hydrates has one entry per place.
+     *
+     * <p>A candidate whose target does not project is dropped rather than rendered without its place,
      * because {@code RelatedPlace.place} is required.
      *
      * <p>That branch is unreachable today and the claim is measured, not assumed: V027 refuses a
@@ -100,12 +104,13 @@ public class CatalogRelationProjectionService {
         if (candidates.isEmpty()) {
             return List.of();
         }
-        List<UUID> targets = candidates.stream().map(CatalogRelationCandidate::targetPlaceId).toList();
+        List<CatalogRelationCandidate> converged = converge(candidates);
+        List<UUID> targets = converged.stream().map(CatalogRelationCandidate::targetPlaceId).toList();
         Map<UUID, CatalogPlaceSummary> byId = new LinkedHashMap<>();
         places.embeddedSummaries(owner, targets).forEach(summary -> byId.put(summary.id(), summary));
 
-        List<CatalogRelatedPlace> items = new ArrayList<>(candidates.size());
-        for (CatalogRelationCandidate candidate : candidates) {
+        List<CatalogRelatedPlace> items = new ArrayList<>(converged.size());
+        for (CatalogRelationCandidate candidate : converged) {
             CatalogPlaceSummary place = byId.get(candidate.targetPlaceId());
             if (place != null) {
                 items.add(new CatalogRelatedPlace(place, candidate.relationType(), candidate.relationReason(),
@@ -149,6 +154,64 @@ public class CatalogRelationProjectionService {
                 source.metricDefinition(), source.normalizationVersion(), qualityFlags, null, null,
                 false, "QUALITATIVE_ONLY", null, null, null, null, source.scope(), null,
                 candidate.derivation(), false, candidate.id());
+    }
+
+    /**
+     * One row per canonical target, ordered so that the answer is a function of the evidence and not
+     * of the order it arrived in (BA-024-T2).
+     *
+     * <p>Two rows can name the same place because {@code place_relations} is unique per
+     * {@code (source, target, source_code)} - one source per pair, not one row per pair. So the day a
+     * second relation source is approved, our own rule and that provider both naming one place is the
+     * ordinary case, and {@code RelatedPlace} has a single {@code relation}, {@code relationReason}
+     * and {@code provenance}: the projection has to choose, and the internal contract's gateway
+     * refuses a repeated place outright ("related places must be merged, not repeated").
+     *
+     * <p>Both orders below are total and read only the row's own content, so every arrival order
+     * gives one answer. The merge keeps the stronger row by (tier, source code) and the list is
+     * ordered by (tier, target id) - the same {@code relatedOrdering} the pure ranker applies, minus
+     * the {@code categoryMatch} term it computes and this cannot, which sits between the two.
+     *
+     * <p>Ordering on {@code toString} rather than on {@link UUID#compareTo} is deliberate: UUID's
+     * natural order compares its halves as signed longs, so it disagrees with both PostgreSQL's
+     * byte-wise {@code uuid} order and the ranker's {@code str(place_id)} for any id with the high
+     * bit set. Three orderings of one list are worth keeping identical.
+     *
+     * <p>Which of the two parts each test can see, measured rather than assumed. Removing the merge
+     * turns both {@code CatalogRelationProjectionServiceTest} cases and
+     * {@code CatalogRelatedPlacesApiIT}'s BA-024-T1 red. Removing this sort turns the unit case red
+     * and leaves the whole IT green, because {@code JdbcCatalogRelationQuery} already hands rows over
+     * in (tier, target) order - so on the production path the sort is currently holding a guarantee
+     * that is being met twice. That is why the clause is proven by a unit test over permutations: an
+     * IT can only drive the orders this PostgreSQL happens to produce, and it produces the sorted one.
+     */
+    static List<CatalogRelationCandidate> converge(List<CatalogRelationCandidate> candidates) {
+        Map<UUID, CatalogRelationCandidate> byTarget = new LinkedHashMap<>();
+        for (CatalogRelationCandidate candidate : candidates) {
+            byTarget.merge(candidate.targetPlaceId(), candidate, CatalogRelationProjectionService::stronger);
+        }
+        List<CatalogRelationCandidate> converged = new ArrayList<>(byTarget.values());
+        converged.sort(BY_TIER.thenComparing(candidate -> candidate.targetPlaceId().toString()));
+        return List.copyOf(converged);
+    }
+
+    private static final Comparator<CatalogRelationCandidate> BY_TIER =
+            Comparator.comparingInt(candidate -> "EXACT".equals(candidate.relationType()) ? 0 : 1);
+
+    /**
+     * The row a merged place is described by. Stronger evidence first, and a tie is settled by the
+     * source's registry code because that is content - picking whichever row the query happened to
+     * hand over first would make the visible reason and provenance depend on a plan.
+     *
+     * <p>The tier arm cannot be reached through {@code listRelatedPlaces} today: EXACT needs a
+     * confirmed provider-direct relation and the only such provider is unapproved, which
+     * {@code RelationStateCoverageTest} registers. It is reached by the unit test directly, on a row
+     * V027 would accept.
+     */
+    private static CatalogRelationCandidate stronger(CatalogRelationCandidate kept, CatalogRelationCandidate other) {
+        Comparator<CatalogRelationCandidate> strength =
+                BY_TIER.thenComparing(candidate -> candidate.source().code());
+        return strength.compare(kept, other) <= 0 ? kept : other;
     }
 
     /** The contract's five, so the two nobody emits are visible here rather than merely absent. */
