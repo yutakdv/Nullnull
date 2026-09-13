@@ -260,6 +260,18 @@ class WrapperExecutionTests(unittest.TestCase):
                              'check_infra_report.py', 'check_egress_report.py'):
                 shutil.copy2(ROOT / 'scripts' / filename, root / 'scripts' / filename)
             (root / 'scripts/verify_target_stack.py').write_text('')
+            # Stubbed, not copied: the real runner discovers scripts/tests, and running it from
+            # inside one of those tests would re-enter the suite. What it must do here is what the
+            # fake docker does for the Gradle suites - leave a report the checker can read. That the
+            # real runner produces a correct one is test_run_script_tests.py's job, not this file's.
+            (root / 'scripts/run_script_tests.py').write_text(f'''#!{sys.executable}
+import pathlib, sys
+out = pathlib.Path(sys.argv[sys.argv.index('--out') + 1]) / 'scriptTests'
+out.mkdir(parents=True, exist_ok=True)
+(out / 'TEST-scriptTests.xml').write_text(
+    '<testsuite name="scriptTests" tests="1" failures="0" errors="0" skipped="0">'
+    '<testcase name="scriptTests.stub"/></testsuite>')
+''')
             for relative in ('.nullnull-target-stack', 'apps/api/Dockerfile', 'apps/api/gradlew',
                              'apps/api/gradle/wrapper/gradle-wrapper.jar',
                              'apps/api/gradle/wrapper/gradle-wrapper.properties',
