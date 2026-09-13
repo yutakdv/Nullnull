@@ -871,7 +871,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-032
 
-**고정 feed·게시물·SavedPost** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**고정 feed·게시물·SavedPost** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-030](#ba-030)
 - 기능 ID: `FR-FED-01`, `FR-FED-02`, `FR-FED-03`, `FR-PST-01`, `FR-PST-02`
@@ -960,7 +960,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-034
 
-**여행 후보 저장·중복·dismiss** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**여행 후보 저장·중복·dismiss** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-030](#ba-030), [BA-032](#ba-032)
 - 기능 ID: `FR-CAN-01`, `FR-CAN-02`, `FR-CAN-03`, `FR-CAN-04`, `FR-CAN-05`, `FR-CAN-06`

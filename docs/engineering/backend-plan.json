@@ -879,7 +879,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "고정 feed·게시물·SavedPost",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022",
         "BA-030"
@@ -982,7 +982,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "여행 후보 저장·중복·dismiss",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-030",
         "BA-032"
