@@ -6,11 +6,13 @@ import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.shared.http.NullnullOperation.Security;
 import io.nullnull.trip.application.AddTripItemCommand;
 import io.nullnull.trip.application.CreateTripCommand;
+import io.nullnull.trip.application.ReorderTripItemsCommand;
 import io.nullnull.trip.application.TripPageView;
 import io.nullnull.catalog.api.PlaceController.PlaceSummaryResponse;
 import java.util.Map;
 import io.nullnull.trip.application.TripItemView;
 import io.nullnull.trip.domain.ItemLock;
+import io.nullnull.trip.domain.LockType;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import io.nullnull.trip.application.TripService;
@@ -141,6 +143,21 @@ public class TripController {
                 .body(TripMutationResponse.from(result));
     }
 
+    @PostMapping(value = "/trips/{tripId}/items/reorder", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "reorderTripItems", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<TripMutationResponse> reorder(OwnerContext owner, @PathVariable UUID tripId,
+            @RequestHeader("If-Match") String ifMatch,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody ReorderTripItemsBody body) {
+        TripMutationView result = trips.reorder(owner, tripId, ifMatch, idempotencyKey,
+                reorder(body));
+        return ResponseEntity.ok()
+                .eTag(result.trip().trip().entityTag())
+                .header("Cache-Control", "private, no-store")
+                .body(TripMutationResponse.from(result));
+    }
+
     @org.springframework.web.bind.annotation.DeleteMapping(value = "/trips/{tripId}/items/{itemId}",
             produces = MediaType.APPLICATION_JSON_VALUE)
     @NullnullOperation(id = "removeTripItem", security = {Security.SESSION, Security.CSRF})
@@ -184,6 +201,34 @@ public class TripController {
     }
 
     /**
+     * {@code releaseConstraints} is mapped through LockType.of rather than accepted as text: an
+     * unknown word must be a rejected request, not a lock nobody releases. Dropping it silently is
+     * the shape this repository keeps closing - the caller would be told the edit succeeded while
+     * the lock it named stayed in place.
+     */
+    private static ReorderTripItemsCommand reorder(ReorderTripItemsBody body) {
+        if (body == null || body.items() == null) {
+            throw new io.nullnull.trip.domain.TripValidationException("items", "NotNull",
+                    "items is required");
+        }
+        List<ReorderTripItemsCommand.Entry> entries = new ArrayList<>(body.items().size());
+        for (ReorderEntryBody entry : body.items()) {
+            if (entry == null || entry.position() == null) {
+                throw new io.nullnull.trip.domain.TripValidationException("items[].position", "NotNull",
+                        "position is required");
+            }
+            java.util.Set<LockType> released = new java.util.LinkedHashSet<>();
+            for (String name : entry.releaseConstraints() == null ? List.<String>of()
+                    : entry.releaseConstraints()) {
+                released.add(lockType(name));
+            }
+            entries.add(new ReorderTripItemsCommand.Entry(entry.itemId(), entry.date(),
+                    entry.position(), released));
+        }
+        return new ReorderTripItemsCommand(entries);
+    }
+
+    /**
      * {@code position} is required by the contract and has no sensible stand-in, so an absent one is
      * reported as missing rather than defaulted - a body that forgot it would otherwise silently
      * claim the first slot of the day.
@@ -195,6 +240,20 @@ public class TripController {
         }
         return new AddTripItemCommand(body.placeId(), body.candidateId(), body.date(), body.position(),
                 body.startTime(), body.durationMinutes(), body.note(), constraints(body.constraints()));
+    }
+
+    /**
+     * Parsed here rather than in LockType so the field pointer names THIS request's shape. MUST_VISIT
+     * parses and is then refused by the command, which is the right division: the word exists, and
+     * what is wrong is asking a reorder to release it.
+     */
+    private static LockType lockType(String name) {
+        try {
+            return LockType.valueOf(name);
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            throw new io.nullnull.trip.domain.TripValidationException("items[].releaseConstraints",
+                    "Enum", "releaseConstraints must name a lock type");
+        }
     }
 
     private static List<TripConstraint> constraints(List<SetConstraintBody> submitted) {
@@ -232,6 +291,12 @@ public class TripController {
      */
     public record SetConstraintBody(String type, Boolean locked, String source, LocalDate date,
             LocalTime startTime, LocalTime endTime, Integer toleranceMinutes) { }
+
+    public record ReorderTripItemsBody(List<ReorderEntryBody> items) { }
+
+    /** One entry of {@code ReorderTripItemsRequest.items}. */
+    public record ReorderEntryBody(UUID itemId, LocalDate date, Integer position,
+            List<String> releaseConstraints) { }
 
     /** {@code AddTripItemRequest}. startTime is offset-less local time in the trip's timezone (#145). */
     public record AddTripItemBody(UUID placeId, UUID candidateId, LocalDate date, Integer position,

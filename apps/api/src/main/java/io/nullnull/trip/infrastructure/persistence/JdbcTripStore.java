@@ -248,6 +248,32 @@ public class JdbcTripStore implements TripStore {
     }
 
     @Override
+    public void moveItem(UUID tripId, UUID itemId, LocalDate date, int position, Instant at) {
+        int moved = jdbc.sql("UPDATE trip_items SET trip_date = ?, position = ?, updated_at = ?"
+                        + " WHERE id = ? AND trip_id = ?")
+                .params(java.sql.Date.valueOf(date), position, Timestamp.from(at), itemId, tripId)
+                .update();
+        if (moved != 1) {
+            // The caller read this item under the trip's row lock, so it cannot have vanished.
+            throw new IllegalStateException("trip item moved out from under a reorder");
+        }
+    }
+
+    @Override
+    public void deferSlotUniqueness() {
+        jdbc.sql("SET CONSTRAINTS trip_items_slot_unique DEFERRED").update();
+    }
+
+    @Override
+    public boolean deleteConstraint(UUID tripItemId, LockType type) {
+        // A released lock is a deleted row, not a flag: the ERD stores only locked=true rows, so
+        // there is no "unlocked" state to write.
+        return jdbc.sql("DELETE FROM trip_constraints WHERE trip_item_id = ? AND type = ?")
+                .params(tripItemId, type.name())
+                .update() == 1;
+    }
+
+    @Override
     public void delete(UUID ownerId, UUID tripId) {
         // owner_id in the WHERE clause, not a check beforehand: the row a caller may not see is the
         // row they may not delete, and both are decided by the same predicate.
