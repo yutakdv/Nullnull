@@ -134,6 +134,21 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
    행 수 단언(`seededAfterPreviousSchema`)도 같은 이유로 움직인다. **숫자가 움직이는 것이 그 장치가 작동하는 방식**이므로 왜 바뀌었는지 주석에 적고 지우지 않는다 — 그 단언이 "조용히 데이터를 심는 migration"을 드러내는 유일한 장치다.
 5. skip·0건 실행·report 누락·`continue-on-error`·`ignoreFailures`는 금지다. path filter workflow는 조기 피드백일 뿐 required status로 승격하지 않는다.
+7. **검사를 넣었다와 검사가 발화한다는 다른 확인이다. 새 검사를 넣는 PR에서 둘 다 한다.**
+
+   ① **돌았는가** — log에 step이 명령과 함께 찍혔는가. 초록은 *"돌고 통과했다"* 와 *"조용히 안 돌았다"* **둘 다와 양립한다**(`ajv test --invalid`의 glob 0건, egress probe의 exit code, `actual_call=blocked`가 전부 그 모양이었다).
+   ② **발화하는가** — 그 검사가 막으려는 것을 **실제로 만들어** 빨개지는지 본다. 가드를 지우거나, 값을 거부 대상으로 바꾸거나, 생성물을 어긋나게 한다. **되돌린 뒤 `git status`로 확인한다.**
+
+   ②가 없으면 **장치가 있다는 믿음만 생긴다.** 하루에 *"발화할 수 없는 단언"* 다섯 건이 나왔고 **넷이 검사를 쓰는 순간에 생겼다** — 없어서 못 잡은 것이 아니라 **잡으려고 쓴 것이 잡지 못하는 모양**이 됐다:
+
+   - `jsonPath("$.ownerId").doesNotExist()` — 그 record에 `ownerId` component가 **없어서** 어떤 회귀에서도 실패할 수 없다
+   - `cover_media_asset_id` column 개수 검사 — 그 이름의 column이 **생길 리 없었다**(V021이 만든 이름은 `cover_asset_id`)
+   - handler의 *"trip이 사라졌다"* 분기 — cascade라 **관측 불가능**
+   - hours query의 넷째 필터 — trigger가 이미 막아 **발화 불가**
+   - `assertRegex(version, r'\d+\.\d+\.\d+')` — **부분 일치**라 `^7.13.0`이 통과한다. 거부하려던 값에 통과했다
+
+   마지막 것은 *"발화할 수 없는 단언"* 을 지우는 규칙을 **쓰면서** 났다. 자기 검사에도 ②를 한다.
+
 6. **여러 세션이 한 checkout을 공유하면 `apps/api` 검증은 격리 worktree에서 한다.** 파일을 나누는 것으로는 부족하다 — 겹치는 것은 파일이 아니라 **빌드 산출물과 전역 합계**다. 동시 Gradle이 같은 resource jar를 다시 쓰면 test가 읽던 jar가 깨져 `Unable to calculate checksum`·`EOFException: ZLIB`로 **모든 Spring context가 기동 실패**하고, 자기 변경과 무관한 suite까지 전부 빨개진다(실측: 285개 중 131개).
 
    **worktree는 `HEAD` + 자기 파일만으로 만든다.** 공유 트리를 `rsync`로 통째로 동기화하면 격리되는 것은 `build/`뿐이고 **남의 미커밋 중간 상태가 함께 복사된다.** 실제로 한 세션이 그렇게 만든 트리에서 남의 편집 중인 파일 때문에 빨개진 것을 **자기 migration 탓으로 30분 좁혀 들어갔다.** 그걸 깬 측정은 *"내 변경을 통째로 지워도 같은 실패가 재현되는가"* 였다 — 재현되면 원인은 내 변경이 아니다. 그다음이 두 트리 `diff -rq`다.
