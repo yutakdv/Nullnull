@@ -164,9 +164,35 @@ test.describe('keyboard and motion', () => {
         const style = getComputedStyle(el);
         return {
           tag: el.tagName.toLowerCase(),
-          name: (el.getAttribute('aria-label') ?? el.textContent ?? '')
-            .trim()
-            .slice(0, 40),
+          // An <input> has no textContent, and its name usually comes from the
+          // <label> around it or from aria-labelledby. Reading only aria-label
+          // and textContent reported "no name" for a correctly labelled field
+          // — which flagged the product for a gap in this check. The order
+          // below follows the accessible-name computation as far as it matters
+          // here: aria-label, then aria-labelledby, then the associated label,
+          // then the element's own text.
+          name: (() => {
+            const aria = el.getAttribute('aria-label');
+            if (aria?.trim()) return aria.trim().slice(0, 40);
+            const labelledBy = el.getAttribute('aria-labelledby');
+            if (labelledBy) {
+              const text = labelledBy
+                .split(/\s+/)
+                .map((id) => document.getElementById(id)?.textContent ?? '')
+                .join(' ')
+                .trim();
+              if (text) return text.slice(0, 40);
+            }
+            const labels = (el as HTMLInputElement).labels;
+            if (labels?.length) {
+              const text = Array.from(labels)
+                .map((l) => l.textContent ?? '')
+                .join(' ')
+                .trim();
+              if (text) return text.slice(0, 40);
+            }
+            return (el.textContent ?? '').trim().slice(0, 40);
+          })(),
           onScreen: box.width > 0 && box.height > 0 && box.right <= window.innerWidth + 1,
           // A focus ring the browser removed with nothing put back is a trap
           // for keyboard users even though the element is technically focused.
@@ -227,7 +253,16 @@ test.describe('touch targets', () => {
           // from the words around it. `display: inline` is the test: a control
           // laid out as a block or flex item is a tap target and is measured.
           if (getComputedStyle(node).display === 'inline') continue;
-          const box = node.getBoundingClientRect();
+          // A checkbox or radio wrapped in its <label> is tapped by the label:
+          // every point in it toggles the control, so the label IS the target
+          // and WCAG measures the region that activates it. Inflating the box
+          // itself to 44px would draw a checkbox the size of a button. The
+          // label is measured in its place — and only when it genuinely wraps
+          // the input, so a detached <label for> still fails here.
+          const kind = (node as HTMLInputElement).type;
+          const wrapper =
+            kind === 'checkbox' || kind === 'radio' ? node.closest('label') : null;
+          const box = (wrapper ?? node).getBoundingClientRect();
           if (box.width === 0 || box.height === 0) continue;
           if (box.height < min || box.width < min) {
             found.push(

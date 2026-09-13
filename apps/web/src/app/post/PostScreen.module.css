@@ -12,6 +12,14 @@
   object-fit: cover;
 }
 
+/* Directly under the image it licenses, not in a page footer: the credit is for
+   this picture, and one further away reads as covering the whole post. */
+.coverCredit {
+  margin: var(--space-1) var(--space-4) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
 .title,
 .excerpt,
 .body,

@@ -53,6 +53,9 @@ tags:
 
 - **`relationId` request property 제거** (승인: 오너, 추적: #204). PR #213으로 반영됐고 base가 따라 움직여
   만료됐다 — `main`의 `openapi.yaml`에 `relationId`가 **0건**이므로 oasdiff가 더는 그 메시지를 내지 않는다.
+  client가 값을 만들 수 없는 필드였다: 어떤 응답도 relation id를 발급하지 않고 `RelatedPlace`에 id가 없으며
+  저장하는 table도 없어서, 보낼 수 있는 값이 `null`과 스스로 지어낸 UUID뿐이었고 후자는 서버가 검증할 방법이
+  없었다. FE는 이 필드를 보낸 적이 없어(`replacementPlaceId`만 전송) `apps/web`은 한 줄도 바뀌지 않았다.
   **이 건이 절차의 결함 하나를 더 드러냈다**: 처음 등록한 줄은 oasdiff 렌더링에서 잘라낸 메시지 한 줄이었는데,
   action이 인식하는 것은 `in API …` 위치 줄과 메시지 줄을 **이어붙인 한 줄**이다. `check_oasdiff_exceptions.py`는
   공백 정규화 후 **부분 문자열**만 보므로 짧은 형태도 `live`로 보고했고, **그 green을 억제의 증거로 읽어** 게이트만

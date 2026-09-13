@@ -85,11 +85,43 @@ export function PostScreen() {
 
   const detail = post.data;
 
+  // What the cover's licence permits, read from the asset rather than assumed.
+  //
+  // `attributionRequired` with no `attributionText` is the one combination that
+  // cannot be rendered compliantly: the licence demands a credit and the server
+  // has not supplied the words for it. Showing the picture bare would breach the
+  // licence and composing a credit would breach CMP-ATT-003, so the image is
+  // withheld — the same choice PlaceThumbnail makes for an uncreditable place
+  // photo. An asset that requires nothing (the first-party case, which is what
+  // every published cover is today) renders exactly as before.
+  const asset = detail.coverAsset ?? null;
+  const coverCredit =
+    asset?.attributionRequired === true ? (asset.attributionText ?? null) : null;
+  const coverBlocked = asset?.attributionRequired === true && coverCredit === null;
+
   return (
     <section aria-labelledby="post-heading" className={styles.screen}>
       <NavBar backLabel={t('post.back')} onBack={back} />
 
-      <img alt="" className={styles.cover} src={detail.coverUrl} />
+      {/* CMP-ATT-001 for the cover image.
+          `coverAsset` carries the reviewed licence for this picture, and it
+          became populated with BA-032/A-024 — it used to be null for every
+          post, which is why nothing here read it. Two of its fields are
+          obligations, not decoration: `attributionRequired` says the licence
+          demands a credit, and `attributionText` is the approved wording to
+          show (CMP-ATT-003 — the client never composes one).
+          So a cover whose licence requires a credit we do not have is not
+          rendered, the same rule PlaceThumbnail applies to place images.
+          `alt` comes from the asset when the server supplies one; the empty
+          fallback keeps it decorative rather than inventing a description. */}
+      {coverBlocked ? null : (
+        <img
+          alt={detail.coverAsset?.alt ?? ''}
+          className={styles.cover}
+          src={detail.coverUrl}
+        />
+      )}
+      {coverCredit === null ? null : <p className={styles.coverCredit}>{coverCredit}</p>}
 
       <h1 className={styles.title} id="post-heading">
         {detail.title}

@@ -13,6 +13,18 @@
 
 .input {
   flex: 1;
+  /* A flex item will not shrink below its intrinsic content width without
+     this, and an <input>'s intrinsic width comes from its `size` attribute
+     (20 characters by default), not from its value. At 200% zoom the field
+     stayed ~227px wide in a 180px viewport and pushed the page sideways. */
+  min-width: 0;
+  /* Fills the 48px pill rather than collapsing to its text height. The field
+     LOOKS 48px tall because the wrapper is, but the input itself was 20px, so
+     a tap landing in the pill's upper or lower band hit the wrapper and never
+     focused the input. Aligned with the wrapper's own minimum so the two
+     cannot drift apart. */
+  align-self: stretch;
+  min-height: 48px;
   border: none;
   background: none;
   color: var(--color-text-primary);
