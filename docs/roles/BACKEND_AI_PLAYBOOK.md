@@ -585,7 +585,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-022
 
-**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-021](#ba-021)
 - 기능 ID: `FR-PLC-01`, `FR-TRC-04`
@@ -631,8 +631,11 @@ FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallba
   확인하며, `CatalogPlaceProjectionServiceTest`는 gate가 catalog read보다 먼저 실행됨을 확인한다. C3 gate의
   `!publicEnabled`를 `false`로 바꾼 mutation은 fail-closed test를 RED로 만든 뒤 원본을 복구했다. 이 local
   evidence는 backend Gradle Java `305/145/13/19`와 full Docker gate(Java·AI pytest `410`·web unit `224`·
-  Playwright `36`·generated client·npm audit·egress-denied)가 GREEN인 것을 포함하지만, staging 공개
-  provenance나 BA-022 완료 증거는 아니다.
+  Playwright `36`·generated client·npm audit·egress-denied)가 GREEN인 것을 포함하지만, **staging 공개
+  provenance는 아니다.** 그 둘은 다른 질문이다 — 카드 status는 acceptance ID가 실제 testcase로 증명되는가를
+  말하고, 이 문장은 **flag를 켜도 되는가**를 말한다. `NULLNULL_CATALOG_PUBLIC_ENABLED`는 C2 T3 staging
+  actual-success→public provenance와 최종 AWS release 전에는 켜지 않으며, `integration-ready`가 그것을
+  허락하지 않는다.
 
 실제 호출이 드러낸 수정:
 

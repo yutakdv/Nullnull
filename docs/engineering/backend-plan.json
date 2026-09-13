@@ -612,7 +612,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "Canonical 장소·검색·상세·콘텐츠 권리",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-021"
       ],
