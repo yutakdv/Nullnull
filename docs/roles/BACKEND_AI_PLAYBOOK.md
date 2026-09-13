@@ -1111,17 +1111,22 @@ ITEM preview→APPLY/KEEP→24시간 REVERT를 구현한다.
 구현 순서:
 
 1. ITEM target/inputTripVersion/includeCandidates=false를 검증하고 run+job을 원자 생성한다
-2. worker는 일관된 trip snapshot과 모든 근거 snapshot/policy hash를 고정하고 apps/ai items/propose를 DB transaction 밖에서 호출한다
-3. QUEUED→RUNNING→READY 또는 FAILED/EXPIRED와 Retry-After를 제공한다
+2. worker는 일관된 trip snapshot과 모든 근거 snapshot/policy hash를 고정하고, 외부 호출이 DB transaction 밖에서 일어나야 한다는 경계를 만든다. items/propose 호출 자체와 응답 저장은 BA-051이다
+3. QUEUED→RUNNING과 FAILED/EXPIRED, Retry-After를 제공하고 READY로 넘어가기 전 owner/lease/trip version 재검증 gate를 닫는다. READY 쓰기는 저장할 proposal을 만드는 BA-051이 한다
 4. 09-06 PM 검토 PM-013, PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: DAY/TRIP union은 schema에 있어도 P0 capability OFF다. READY 저장 전에 owner/run lease/trip version을 재검증하고 TripItem 쓰기는 하지 않는다.
 
 필수 검증:
 
-- `BA-050-T1`: 잘못된 scope target 조합과 P1 capability 요청을 거부한다
-- `BA-050-T2`: job 유실·중복 worker·trip 삭제/편집 경합을 재현한다
-- `BA-050-T3`: refresh/polling 복구·만료·timeout에서 run 상태가 역행하지 않는다
+- `BA-050-T1`: ITEM 요청의 target·inputTripVersion·includeCandidates 조합이 계약과 다르면 거부한다
+- `BA-050-T2`: DAY·TRIP scope 요청은 shape가 유효해도 P0에서 거부한다
+- `BA-050-T3`: 수락된 run은 run row와 job row를 한 transaction에서 만든다
+- `BA-050-T4`: lease가 만료된 job은 다른 worker가 이어받고 attempt가 증가한다
+- `BA-050-T5`: 같은 run을 두 worker가 잡아도 진행은 한 번뿐이다
+- `BA-050-T6`: freeze 이후 trip이 바뀌거나 사라지면 READY로 넘어가지 않고 실패로 끝낸다
+- `BA-050-T7`: polling 간 run status는 역행하지 않는다
+- `BA-050-T8`: items/propose 요청의 직렬화 key 집합이 선언된 component 집합과 같다
 
 FE 인계·완료 증거: run URL·Retry-After·각 상태·expiry fixtures; client timeout이 cancellation이 아니라는 설명. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1139,7 +1144,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 구현 순서:
 
-1. X 단계 분리 원칙으로 같은 POI의 지원되는 날짜/시각 후보만 생성한다
+1. X 단계 분리 원칙으로 같은 POI의 지원되는 날짜/시각 후보만 생성한다. items/propose 호출과 ProposalRevalidator 통과 뒤의 저장, READY 전이가 여기 있다
 2. hard constraints와 comparison을 먼저 통과시킨 뒤 relief/changeCost 점수와 고정 tie-break로 최대3개를 선택한다
 3. 전체 resulting trip을 재검증하고 KO/EN 근거 template와 before/after를 저장한다
 4. 09-06 PM 검토 PM-013, PM-014, PM-015, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
@@ -1152,6 +1157,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T1`: REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다
 - `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다
 - `BA-051-T3`: 수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다
+- `BA-051-T4`: items/propose 호출 시점에 활성 transaction이 없다
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1183,6 +1189,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T1`: 동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다
 - `BA-052-T2`: 각 쓰기 지점 fault injection으로 부분 적용0을 확인한다
 - `BA-052-T3`: TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다
+- `BA-052-T4`: 결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
