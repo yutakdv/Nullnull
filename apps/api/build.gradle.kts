@@ -246,6 +246,15 @@ tasks.register<JavaExec>("ktoSmoke") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("ktoIntroProbe") {
+    group = "verification"
+    description = "Looks once at KTO detailIntro2 and prints a field-shape report only (A-027; no database, no snapshot)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoIntroProbeMain")
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("ktoCanonicalIngest") {
     group = "verification"
     description = "Maps one already-stored KTO snapshot into the canonical catalog and prints the place ID"

@@ -316,6 +316,19 @@ NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID=<2단계가 출력한 placeId> \
   ./gradlew ktoForecastSmoke --console=plain
 ```
 
+  **`detailIntro2` 탐색 probe는 이 3단계와 별개이고 0단계가 필요 없다(A-027).** DB를 쓰지 않기 때문이다 — snapshot도 collector run도 audit row도 만들지 않고 응답의 **field 모양만** 출력한다. 그래서 container가 떠 있든 아니든 결과가 같다. 승인 변수는 여기서도 **shell이 갖는다**(`.env.local`에서 읽히지 않는다). 1회만 돌린다.
+
+```bash
+cd "$(git rev-parse --show-toplevel)/apps/api"
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+NULLNULL_KTO_INTRO_PROBE_APPROVED=true \
+NULLNULL_KTO_INTRO_PROBE_CONTENT_ID=126508 \
+NULLNULL_KTO_INTRO_PROBE_CONTENT_TYPE_ID=12 \
+  ./gradlew ktoIntroProbe --console=plain
+```
+
+  출력은 `KTO_INTRO_PROBE_FIELD name=... type=... length=...` 한 줄씩이고, `usetime`·`restdate`만 앞 40자 미리보기와 줄 수·markup 여부가 붙는다. **원문 body는 찍지 않는다**(`CMP-KTO-008`). 이 probe는 `SOURCE_CATALOG`의 승인 범위를 넓히지 않는다 — 채택은 응답을 본 뒤의 별도 결정이고, 자유 텍스트로 판명되면 파싱하지 않는다(불변식 9).
+
   **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패했다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있었고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 그때까지 `Created` 상태로 **한 번도 뜬 적이 없었다.** 오너 결정으로 host port를 **5434**로 옮겼다.
 
   위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 점유된 포트를 가리키면 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.
