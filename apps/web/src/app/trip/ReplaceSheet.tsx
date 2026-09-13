@@ -43,7 +43,19 @@ export interface ReplaceSheetProps {
   loading: boolean;
   failed: boolean;
   busy: boolean;
-  onConfirm: (choice: RelatedPlace) => void;
+  /**
+   * The chosen replacement, and the locks the sheet told the user it releases.
+   *
+   * Typed as `ReleasedPlaceLocks` rather than `ConstraintType[]`: the two hold
+   * the same four values today, but the contract says this list narrows to
+   * `[MUST_VISIT, RESERVATION]` once #203 settles. Binding to the request
+   * schema makes that narrowing a typecheck failure here instead of a 422 at
+   * runtime.
+   */
+  onConfirm: (
+    choice: RelatedPlace,
+    released: components['schemas']['ReleasedPlaceLocks'],
+  ) => void;
   onCancel: () => void;
 }
 
@@ -223,7 +235,12 @@ export function ReplaceSheet({
               className={styles.confirm}
               disabled={selected === null || busy}
               onClick={() => {
-                if (selected) onConfirm(selected);
+                // effect.released is what lockLine() just told the user this
+                // swap would release, so it is their answer — not a defensive
+                // list of every lock present. The server deletes every lock
+                // named here, so sending more than was asked about would
+                // release locks the user was never shown.
+                if (selected) onConfirm(selected, effect.released);
               }}
               type="button"
             >

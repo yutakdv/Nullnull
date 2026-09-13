@@ -155,6 +155,76 @@ describe('FE-305-T1 the sheet names what the swap does to the locks', () => {
   });
 });
 
+// FE-305 the consent the sheet showed has to reach the server.
+//
+// The sheet has always NAMED the locks a swap releases, but the request
+// carried nothing that could cause it. The contract is explicit that naming a
+// lock is the only way it is released and that an unnamed one still refuses
+// the edit, so once replaceTripItem existed the screen's promise and the
+// request disagreed: the user was told MUST_VISIT would be released, and the
+// edit came back LOCK_CONFLICT with `recovery: 'none'` — an error with no way
+// out, for a swap the user had already approved (#166, #199).
+describe('FE-305-T1 the replace request carries the lock release it showed', () => {
+  it('names MUST_VISIT, the lock the sheet said this swap releases', async () => {
+    const { user, sheet } = await openReplace('경복궁');
+    await user.click(
+      await within(sheet).findByRole('button', {
+        name: new RegExp(firstAlternative?.place.name ?? ''),
+      }),
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: copy['replace.confirm'] }),
+    );
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]?.body).toMatchObject({ releaseConstraints: ['MUST_VISIT'] });
+  });
+
+  it('names only what it asked about, not every lock on the item', async () => {
+    // 경복궁 also carries DATE, and the sheet says that one STAYS. Sending it
+    // would delete it: the server removes every lock named here, so a
+    // defensive "release everything present" list silently destroys a lock the
+    // user was shown as kept.
+    const { user, sheet } = await openReplace('경복궁');
+    await user.click(
+      await within(sheet).findByRole('button', {
+        name: new RegExp(firstAlternative?.place.name ?? ''),
+      }),
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: copy['replace.confirm'] }),
+    );
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    const released = (sent[0]?.body as { releaseConstraints?: string[] })
+      .releaseConstraints;
+    expect(released).not.toContain('DATE');
+  });
+
+  it('omits the field entirely when the swap releases nothing', async () => {
+    // 인사동 carries TIME only, which a replacement cannot violate. Sending an
+    // empty array would still be naming a release that was never discussed.
+    const { user, sheet } = await openReplace('인사동');
+    await user.click(
+      await within(sheet).findByRole('button', {
+        name: new RegExp(firstAlternative?.place.name ?? ''),
+      }),
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: copy['replace.confirm'] }),
+    );
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]?.body).not.toHaveProperty('releaseConstraints');
+  });
+});
+
 describe('FE-305-T1 the replace request preserves the schedule', () => {
   it('sends the chosen place with If-Match and an Idempotency-Key', async () => {
     const { user, sheet } = await openReplace('경복궁');

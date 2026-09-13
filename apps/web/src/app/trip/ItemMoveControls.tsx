@@ -51,6 +51,11 @@ type TripItem = TripDetail['days'][number]['items'][number];
  * fails to compile instead of failing at the server.
  */
 type ReleasedLock = components['schemas']['ReleasedTemporalLocks'][number];
+// The replace counterpart is ReleasedPlaceLocks, a separate list because the
+// two edits are refused by different locks: a temporal edit keeps the place, a
+// replacement keeps the schedule, so only that one can name MUST_VISIT. It is
+// not aliased here — ReplaceSheet's onConfirm is typed to it directly, so the
+// value arrives already bound to the request schema.
 
 export interface ItemMoveControlsProps {
   item: TripItem;
@@ -228,13 +233,22 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
         onCancel={() => {
           setReplaceOpen(false);
         }}
-        onConfirm={(choice) => {
+        onConfirm={(choice, released) => {
           setStatus(null);
           replace.mutate(
             {
               itemId: item.id,
               replacement: {
                 replacementPlaceId: choice.place.id,
+                // The consequence the sheet just showed, carried to the server
+                // as consent. The sheet has always named the locks this swap
+                // releases ("고정된 장소가 해제될 수 있어요"), but the request
+                // carried nothing that could cause it — so the edit arrived
+                // looking like nobody had been asked, and now that
+                // replaceTripItem is implemented it comes back LOCK_CONFLICT.
+                // Naming a lock is the only way it is released, and an unnamed
+                // one still refuses the edit (#166, #199).
+                ...(released.length > 0 ? { releaseConstraints: released } : {}),
                 // preserveDateTime is omitted, and stays omitted until #203
                 // settles what it means. The contract gives it `default: true`
                 // and no description, and replaceTripItem's own description

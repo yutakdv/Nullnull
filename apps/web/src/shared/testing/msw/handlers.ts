@@ -460,8 +460,32 @@ export const handlers = [
       const body = (await request.json()) as {
         replacementPlaceId: string;
         preserveDateTime?: boolean;
+        releaseConstraints?: string[];
       };
       const itemId = String(params.itemId);
+      // `false` is refused with 422 rather than honoured or ignored: the field
+      // was published with no description and no implementation, so what it
+      // would mean was never decided (#203). The mock refuses it too, because a
+      // mock that accepts what the server rejects teaches the screen a
+      // behaviour it cannot have.
+      if (body.preserveDateTime === false) {
+        return problemResponse('VALIDATION_FAILED');
+      }
+      const target = currentTrip()
+        .days.flatMap((day) => day.items)
+        .find((item) => item.id === itemId);
+      // Naming a lock is the only way it is released, and one this request does
+      // not name still refuses the edit (invariant 7). A replacement changes
+      // the PLACE, so MUST_VISIT and RESERVATION are the locks it can violate;
+      // DATE and TIME pin the schedule, which a replacement keeps.
+      const named = body.releaseConstraints ?? [];
+      const violated = (target?.constraints ?? [])
+        .map((constraint) => constraint.type)
+        .filter((type) => type === 'MUST_VISIT' || type === 'RESERVATION')
+        .filter((type) => !named.includes(type));
+      if (violated.length > 0) {
+        return problemResponse('LOCK_CONFLICT');
+      }
       const replacement = placeFixtures.searchPage.items.find(
         (place) => place.id === body.replacementPlaceId,
       );
@@ -475,9 +499,11 @@ export const handlers = [
               ? {
                   ...item,
                   place: replacement,
-                  // preserveDateTime defaults to true in the contract, so the
-                  // schedule survives unless the caller opts out.
-                  startTime: body.preserveDateTime === false ? null : item.startTime,
+                  // Releasing a lock deletes its row, so a named lock is gone
+                  // afterwards rather than merely bypassed for this one edit.
+                  constraints: item.constraints.filter(
+                    (constraint) => !named.includes(constraint.type),
+                  ),
                 }
               : item,
           ),

@@ -197,7 +197,14 @@ describe('replaceTripItem keeps the schedule unless told otherwise', () => {
     const { result } = renderHook(() => useReplaceTripItem(trip.id), { wrapper });
     result.current.mutate({
       itemId: firstItem?.id ?? '',
-      replacement: { replacementPlaceId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02' },
+      replacement: {
+        replacementPlaceId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02',
+        // The fixture item carries MUST_VISIT, and a replacement changes the
+        // place that lock pins. Naming it is the only way it is released; an
+        // unnamed one refuses the edit, so without this the request is a
+        // LOCK_CONFLICT rather than the success this test is about.
+        releaseConstraints: ['MUST_VISIT'],
+      },
       etag: ETAG,
       idempotencyKey: 'key-replace-0001',
     });
