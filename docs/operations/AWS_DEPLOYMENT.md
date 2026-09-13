@@ -412,7 +412,7 @@ destroy/diff에 stateful replacement 또는 broad IAM change가 보이면 workfl
 
 ### Staging 비용 guardrail
 
-B01에서 월 staging 비용 상한과 예산 owner를 실제 금액으로 결정 대장에 기록한다. 값이 확정되기 전 staging을 무제한 상시 운영하지 않는다.
+B01에서 월 staging 비용 상한과 예산 owner를 실제 금액으로 결정 대장에 기록한다. 값이 확정되기 전 staging을 무제한 상시 운영하지 않는다. 그 승인을 받기 위한 최소 구성·소비 모형·닫아야 할 결정은 [최소 staging 착수 계획](STAGING_BRINGUP_PLAN.md)에 모았다.
 
 - Budget 50%: 추세 확인과 anomalous resource/tag 누락 점검.
 - Budget 80%: 신규 비용 resource 배포 중지, NAT/log/RDS/ECS 사용 검토.

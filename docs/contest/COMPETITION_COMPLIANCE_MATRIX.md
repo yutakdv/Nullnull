@@ -53,7 +53,7 @@ tags:
 | --- | --- | --- | --- | --- | --- |
 | CMP-KTO-001 | 공식/REQUIRED | 한국관광공사 OpenAPI를 실제 서비스에서 사용 | browser가 아닌 Backend gateway가 server-side로 호출한다. **키 등급은 요건이 아니다** — 제출은 `DEV_APPROVED` 개발 키로 가며(2026-09-13 오너 결정, PM-023), 공식 요건은 실제 사용과 호출 내역이지 승인된 운영키가 아니다 | staging/submission actual-call smoke | BE/AI / FE |
 | CMP-KTO-002 | 공식/REQUIRED | 제출 인증키의 API별 호출 이력을 확인할 수 있음 | operation·시각·outcome·count·release/provenance를 redacted audit로 연결 | provider 이력과 내부 call-audit 대조 | BE/AI / FE |
-| CMP-KTO-003 | 공식/EXCLUSION | 파일 데이터만 사용한 것은 필수 OpenAPI 활용으로 불인정 | file/replay/mock은 test/fallback 전용 | actual-call 없는 release를 배포/제출 차단하는 test | BE/AI / FE |
+| CMP-KTO-003 | 공식/EXCLUSION | 파일 데이터만 사용한 것은 필수 OpenAPI 활용으로 불인정 | file/replay/mock은 test/fallback 전용 | `scripts/check_actual_call_evidence.py` — staging smoke가 쓰는 report를 판정한다. 없으면 `actual_call=blocked`(통과로 세지 않는다), 배포·제출 경로는 `--require-verified`로 돌려 증거 없는 release를 막는다. local·`mock`/`replay`/`fixture`·거절된 호출·다른 release의 증거는 전부 실패다 | BE/AI / FE |
 | CMP-KTO-004 | 공식/RECOMMENDED | 동기화 문제를 줄이기 위해 실시간 호출 권고 | quota-aware read-through/refresh 사용 | TTL/refresh 설정, 실제 call과 기준시각 | BE/AI / FE |
 | CMP-KTO-005 | 공식/RECOMMENDED | 전체 로컬 저장으로 호출 이력이 없으면 불이익 가능; 불가피하면 별도 확인 | 최소 정규화 record/TTL만 저장, 전체 mirror 금지 | DB inventory와 retention test | BE/AI / FE |
 | CMP-KTO-006 | 공식/REQUIRED | 최종 서비스에서 실제 호출한 OpenAPI만 제출 | operation inventory를 release call-audit에서 생성해 사람 검토 | PDF API 목록 ↔ audit operation set diff 0 | BE/AI / FE |
