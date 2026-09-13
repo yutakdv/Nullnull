@@ -247,6 +247,16 @@ set -o pipefail; cmd | tail -5; echo "exit=$?"                   # 파이프라�
 cmd | grep -E "FAILED|BUILD"                                     # 출력에 판정이 들어 있을 때만
 ```
 
+**초록인 로컬 suite는 test 격리에 대해 아무것도 증명하지 않는다.** `TestcontainersConfiguration`이 컨테이너를
+`@Bean`으로 만들므로 **application context마다 DB가 갈린다** — properties가 다른 `@SpringBootTest` class는 context가
+다르고, 따라서 **class마다 새 database**를 받는다. 게이트는 `NULLNULL_TEST_DATABASE=external`로 **전 실행이 하나를
+공유**한다. 그래서 한 class가 남긴 행이 로컬에서는 아무에게도 안 보이고 게이트에서는 뒤따르는 모든 class에게 보인다.
+
+이 저장소에서 세 번 같은 방식으로 났다 — migration이 심은 licence 행을 지우는 cleanup, place 없이 발행된 post가
+뒤의 모든 feed 읽기를 503으로 만든 것, 그리고 다른 class의 post가 참조하는 media asset을 지운 cleanup. **셋 다
+로컬 green, 게이트 실패다.** test가 만든 행은 그 test가 지우고, 지울 때는 **자기가 만든 것만** 지운다(범위 없는
+`DELETE FROM <table>`은 migration이 심은 제품 데이터와 남의 fixture를 함께 가져간다).
+
 **판정·셈에 쓰는 명령은 출력을 자르지 않는다.** `head`/`tail`로 줄인 결과를 세면 그것은 셈이 아니다.
 이 세션에서 두 번 틀렸다 — *"`LockChecks`에 production 호출자가 0개"*(실제로는 `ProposalRevalidator`가
 부른다)와 *"`BA-002-T3`을 단 test가 10개"*(실제로는 20개). 줄여야 하면 `grep -c`나 `wc -l`로 **먼저 세고**
