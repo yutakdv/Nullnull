@@ -92,7 +92,7 @@ public class CandidateMatchService {
                 ItemProposeRequest.RouteEvidence.NONE, TripItem.MAX_PER_DAY,
                 // CHECKING means a verification job is running for this candidate. There is no such
                 // job in P0, so this is false on every request and the state is unreachable - which
-                // CandidateMatchStateCoverageIT records rather than leaving to be discovered.
+                // CandidateMatchStateCoverageTest records rather than leaving to be discovered.
                 false);
         try {
             return view(candidateId, recommendations.evaluateSlots(request));

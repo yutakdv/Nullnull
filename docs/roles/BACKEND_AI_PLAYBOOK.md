@@ -1265,6 +1265,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T8`: 한쪽만 있는 before/after change는 저장되지 않는다
 - `BA-051-T9`: 저장된 제안과 change는 사후 수정되지 않는다
 - `BA-051-T10`: preview 동안 일정 쓰기가 0이다
+- `BA-051-T11`: 실패 코드 어휘가 enum·CHECK·계약 세 곳에서 같다
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
