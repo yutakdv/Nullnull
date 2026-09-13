@@ -1669,15 +1669,79 @@
       "tests": [
         {
           "id": "BA-060-T1",
-          "assertion": "고유 원문 canary가 DB/cache/log/trace/event/response에 없다"
+          "assertion": "저장된 draft의 어느 column에도 고유 원문 canary가 없다"
         },
         {
           "id": "BA-060-T2",
-          "assertion": "stale remap/confirm·만료·미해결 매핑·중복 confirm은 부분 trip을 만들지 않는다"
+          "assertion": "세 operation의 응답 본문에 원문 canary가 없다"
         },
         {
           "id": "BA-060-T3",
-          "assertion": "parser 날짜·한영 장소·모호한 시간·100item/10suggestion 경계를 검증한다"
+          "assertion": "log와 exception message에 원문 canary가 없다"
+        },
+        {
+          "id": "BA-060-T4",
+          "assertion": "importer가 프로세스 밖으로 나갈 수 있는 타입을 참조하지 않는다"
+        },
+        {
+          "id": "BA-060-T5",
+          "assertion": "idempotency 응답 저장에 원문 canary가 없다"
+        },
+        {
+          "id": "BA-060-T6",
+          "assertion": "stale remap/confirm은 draft도 trip도 바꾸지 않는다"
+        },
+        {
+          "id": "BA-060-T7",
+          "assertion": "만료된 draft의 remap/confirm은 410이고 trip을 만들지 않는다"
+        },
+        {
+          "id": "BA-060-T8",
+          "assertion": "미해결 token이 남은 confirm은 거절되고 trip을 만들지 않는다"
+        },
+        {
+          "id": "BA-060-T9",
+          "assertion": "같은 Idempotency-Key 재시도는 trip을 하나만 만든다"
+        },
+        {
+          "id": "BA-060-T10",
+          "assertion": "다른 key의 동시 confirm도 trip을 하나만 만든다"
+        },
+        {
+          "id": "BA-060-T11",
+          "assertion": "만료 뒤의 같은 key replay는 저장된 201이 아니라 410을 낸다"
+        },
+        {
+          "id": "BA-060-T12",
+          "assertion": "CONFIRMED draft의 remap은 거절된다"
+        },
+        {
+          "id": "BA-060-T13",
+          "assertion": "다른 owner의 draftId는 404다"
+        },
+        {
+          "id": "BA-060-T14",
+          "assertion": "연도 없는 날짜와 모호한 시각을 확정하지 않고 token으로 낸다"
+        },
+        {
+          "id": "BA-060-T15",
+          "assertion": "한국어와 영어 장소 토큰이 canonical place로 해결된다"
+        },
+        {
+          "id": "BA-060-T16",
+          "assertion": "20000자와 10 suggestion 상한을 경계에서 거절한다"
+        },
+        {
+          "id": "BA-060-T17",
+          "assertion": "하루 상한을 넘긴 draft의 confirm은 그 날짜를 지목해 거절하고 조용히 자르지 않는다"
+        },
+        {
+          "id": "BA-060-T18",
+          "assertion": "catalog 게이트가 닫히면 세 operation 모두 503이고 쓰기가 0이다"
+        },
+        {
+          "id": "BA-060-T19",
+          "assertion": "parse 응답이 계약이 선언한 `Cache-Control: no-store`를 실제로 보낸다"
         }
       ],
       "handoff": "parse warning/review/remap/confirm·만료 fixtures와 원문 제외 refresh 복구. 수동 입력 fallback은 계속 유지한다.",

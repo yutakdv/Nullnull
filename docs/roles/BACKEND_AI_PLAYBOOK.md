@@ -1330,13 +1330,39 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. confirm은 READY·TTL·If-Match·owner·POI/날짜/lock을 재검증해 trip과 items를 한 transaction으로 만든다
 4. 09-06 PM 검토 PM-005, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+**절을 셋에서 열아홉으로 나눴다.** 원래 `T1`이 sink **여섯**(DB·cache·log·trace·event·response)을, `T2`가 기제 **넷**(ETag·TTL·READY·멱등)을 한 절에 묶고 있었다 — 하나를 증명하는 test가 나머지를 증명하지 않는 그 모양이다. 다만 **입력 case로는 나누지 않았다**: `T16`의 두 상한은 요청 검증 한 기제이고, `T14`의 날짜와 시각도 parser 정책 하나다. analytics sink는 절로 만들지 않았다 — `events.schema.json`에 import event가 0건이라 생산자가 없고, 만들면 영원히 초록인 단언이 된다. 그 자리는 `T4`의 구조 고정이 대신한다.
+
+**`T18`이 parse까지 포함하는 이유 — 이 카드의 착수 조사가 이 지점에서 정정됐다.** 조사는 *"`parseTripImport`만은 catalog 게이트와 무관하다"* 로 적혔고 근거는 `ImportDraftItem.place`가 nullable이라는 **구조적 가능성**이었다. 그러나 이 카드의 구현 순서 2가 parse에게 *"canonical suggestions"* 를 만들라고 하고, `UnresolvedImportToken.suggestions`는 `PlaceSummary` 배열이며, 그 값을 만드는 `CatalogPlaceProjectionService.search`의 **첫 줄이 `requirePublicProjection()`** 이다. **parse는 catalog를 읽는다.**
+
+그래서 닫힌 게이트 위의 200은 catalog에 대한 주장을 한다 — 모든 item이 `place: null`이고 모든 token이 `suggestions: []`인 draft는 *"장소를 하나도 알아보지 못했고 후보도 없다"* 라고 말하는데, 진실은 *"볼 수 없었다"* 다. [#162](https://github.com/yutakdv/Nullnull/issues/162)가 배제한 silent-empty이고 [BA-024](#ba-024)의 `NONE`과 같은 종류의 거짓이다. *"구조만 돌려주므로 게이트와 무관하게 참"* 이라는 반론은 **구조가 catalog 내용을 담지 않을 때만** 성립하고, 여기서는 담는다.
+
+`ImportDraft`에 *"조회 불가"* 를 말하는 필드를 더해 200을 유지하는 길도 있지만 계약 추가와 FE 승인이 필요하고, 얻는 것은 *"게이트가 닫힌 환경에서 parse만 동작"* 인데 그 환경의 사용자는 어차피 confirm까지 갈 수 없다. **비용이 값보다 크다.** 셋이 같은 규칙이면 다음 사람이 예외를 기억할 필요도 없다.
+
+**`T17`은 parser가 아니라 confirm의 절이다.** 하루·전체 상한은 `TripScheduleRules`가 이미 강제하는 trip 불변식이고, parser에 같은 규칙을 두면 상한값이 바뀌는 날 parser만 낡는다. 조용히 자르는 것은 금지이며(틀린 draft가 맞아 보인다), parse에서 통째로 거절하지도 않는다 — 사용자는 remap에서 넘치는 item을 물리면 된다. **실제 작업은 거절 message가 어느 날짜인지 말하게 하는 것이다**: 지금 message는 *"a day holds at most N items"* 로 날짜를 말하지 않아, 100개짜리 draft에서 사용자가 그 날을 찾을 수 없다.
+
 실패·안전 경계: 원문·자유 메모·연락처가 unresolved token/exception/job/response에 그대로 남지 않게 allowlist 추출한다. 외부 LLM에 원문을 보내지 않고 24시간 draft TTL을 둔다.
 
 필수 검증:
 
-- `BA-060-T1`: 고유 원문 canary가 DB/cache/log/trace/event/response에 없다
-- `BA-060-T2`: stale remap/confirm·만료·미해결 매핑·중복 confirm은 부분 trip을 만들지 않는다
-- `BA-060-T3`: parser 날짜·한영 장소·모호한 시간·100item/10suggestion 경계를 검증한다
+- `BA-060-T1`: 저장된 draft의 어느 column에도 고유 원문 canary가 없다
+- `BA-060-T2`: 세 operation의 응답 본문에 원문 canary가 없다
+- `BA-060-T3`: log와 exception message에 원문 canary가 없다
+- `BA-060-T4`: importer가 프로세스 밖으로 나갈 수 있는 타입을 참조하지 않는다
+- `BA-060-T5`: idempotency 응답 저장에 원문 canary가 없다
+- `BA-060-T6`: stale remap/confirm은 draft도 trip도 바꾸지 않는다
+- `BA-060-T7`: 만료된 draft의 remap/confirm은 410이고 trip을 만들지 않는다
+- `BA-060-T8`: 미해결 token이 남은 confirm은 거절되고 trip을 만들지 않는다
+- `BA-060-T9`: 같은 Idempotency-Key 재시도는 trip을 하나만 만든다
+- `BA-060-T10`: 다른 key의 동시 confirm도 trip을 하나만 만든다
+- `BA-060-T11`: 만료 뒤의 같은 key replay는 저장된 201이 아니라 410을 낸다
+- `BA-060-T12`: CONFIRMED draft의 remap은 거절된다
+- `BA-060-T13`: 다른 owner의 draftId는 404다
+- `BA-060-T14`: 연도 없는 날짜와 모호한 시각을 확정하지 않고 token으로 낸다
+- `BA-060-T15`: 한국어와 영어 장소 토큰이 canonical place로 해결된다
+- `BA-060-T16`: 20000자와 10 suggestion 상한을 경계에서 거절한다
+- `BA-060-T17`: 하루 상한을 넘긴 draft의 confirm은 그 날짜를 지목해 거절하고 조용히 자르지 않는다
+- `BA-060-T18`: catalog 게이트가 닫히면 세 operation 모두 503이고 쓰기가 0이다
+- `BA-060-T19`: parse 응답이 계약이 선언한 `Cache-Control: no-store`를 실제로 보낸다
 
 FE 인계·완료 증거: parse warning/review/remap/confirm·만료 fixtures와 원문 제외 refresh 복구. 수동 입력 fallback은 계속 유지한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
