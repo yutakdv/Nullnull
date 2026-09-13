@@ -1,0 +1,33 @@
+{
+  "posts": [
+    {
+      "id": "019321b0-0000-7000-8000-000000000001",
+      "title": "가을 서울 산책 코스",
+      "body": "고궁에서 시작해 골목으로 이어지는 하루 코스예요. 아침 일찍 경복궁을 보고, 점심 무렵 인사동으로 넘어가면 사람이 몰리는 시간을 피할 수 있어요.",
+      "publishedAt": "2026-09-09T02:00:00Z",
+      "cover": {
+        "url": "https://assets.nullnull.test/covers/autumn-seoul-walk.png",
+        "alt": "고궁 담장을 걷는 사람들 일러스트",
+        "checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "places": [
+        { "placeId": "PLACE_ONE", "primary": true },
+        { "placeId": "PLACE_TWO", "primary": false }
+      ]
+    },
+    {
+      "id": "019321b0-0000-7000-8000-000000000002",
+      "title": "비 오는 날의 실내 코스",
+      "body": "비가 와도 걷기 좋은 실내 위주의 하루입니다.",
+      "publishedAt": "2026-09-08T02:00:00Z",
+      "cover": {
+        "url": "https://assets.nullnull.test/covers/rainy-day-indoors.png",
+        "alt": "우산을 든 사람과 실내 전시장 일러스트",
+        "checksum": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "places": [
+        { "placeId": "PLACE_TWO", "primary": true }
+      ]
+    }
+  ]
+}
