@@ -100,9 +100,9 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V029 is the last one today and seeds nothing: it creates optimization_proposals and
-            // optimization_changes, and a proposal is something a run computes rather than
-            // something a schema can assert. V028 was the same before it, and V027, and V026. V025's two rows - the NULLNULL_CURATED_HOURS
+            // V030 is the last one today and seeds nothing: it creates optimization_decisions, and a
+            // decision is something a person makes rather than something a schema can assert. V029
+            // was the same before it, and V028, and V027, and V026. V025's two rows - the NULLNULL_CURATED_HOURS
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
@@ -323,6 +323,7 @@ class FlywayMigrationIT {
                 DECLARE
                     v_place uuid := gen_random_uuid();
                     v_related_place uuid := gen_random_uuid();
+                    v_proposal uuid := gen_random_uuid();
                     v_license uuid := gen_random_uuid();
                     v_asset uuid := gen_random_uuid();
                     v_set uuid := gen_random_uuid();
@@ -501,6 +502,19 @@ class FlywayMigrationIT {
                     VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), 'NEEDS_REVIEW', 1,
                             '{"items":[]}'::jsonb, '[]'::jsonb, NULL, NULL,
                             v_at + interval '24 hours', v_at);
+                    -- V029's proposal and its change, which V030 turns into part of the previous
+                    -- schema. Eligible with no reason code is the only shape that may carry a delta;
+                    -- a MOVE carries both halves of the diff because the CHECKs refuse half of one.
+                    INSERT INTO optimization_proposals (id, run_id, rank, summary, comparison_eligible,
+                                                        comparison_reason_code, crowd_delta,
+                                                        travel_minutes_delta, validation_summary,
+                                                        created_at)
+                    VALUES (v_proposal, v_run, 1, 'upgrade proposal', true, NULL, -12.5000, NULL,
+                            '{}'::jsonb, v_at);
+                    INSERT INTO optimization_changes (id, proposal_id, trip_item_id, operation,
+                                                      before_value, after_value, sequence)
+                    VALUES (gen_random_uuid(), v_proposal, v_item, 'MOVE',
+                            '{"position":0}'::jsonb, '{"position":1}'::jsonb, 0);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
@@ -508,8 +522,9 @@ class FlywayMigrationIT {
         // "Previous" is always the migration before the last one, so a table arrives in this list one
         // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
         // when V026 did, feed_feedback arrived when V027 did, place_relations when V028 did, and
-        // itinerary_import_drafts arrives now that V029 has. V029's own optimization_proposals and
-        // optimization_changes belong here only once a V030 does.
+        // itinerary_import_drafts arrived when V029 did, and V029's optimization_proposals and
+        // optimization_changes arrive now that V030 has. V030's own optimization_decisions belongs
+        // here only once a V031 does.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -521,7 +536,8 @@ class FlywayMigrationIT {
                         "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
                         "optimization_runs", "optimization_run_snapshot_sets",
                         "place_hours_observations", "place_hours_windows", "feed_feedback",
-                        "place_relations", "itinerary_import_drafts");
+                        "place_relations", "itinerary_import_drafts",
+                        "optimization_proposals", "optimization_changes");
         return key;
     }
 
