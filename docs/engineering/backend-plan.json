@@ -1092,7 +1092,11 @@
         },
         {
           "id": "BA-040-T3",
-          "assertion": "날짜·시간·duration·item 상한 경계와 keyboard E2E를 통과한다"
+          "assertion": "날짜·시간·duration·item 상한 경계를 검증한다"
+        },
+        {
+          "id": "BA-040-T4",
+          "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)"
         }
       ],
       "handoff": "편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현.",
