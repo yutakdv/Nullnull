@@ -234,6 +234,20 @@ public class JdbcTripStore implements TripStore {
     }
 
     @Override
+    public void insertItem(UUID tripId, TripItem item, Instant at) {
+        writeItems(tripId, List.of(item), at);
+    }
+
+    @Override
+    public boolean deleteItem(UUID tripId, UUID itemId) {
+        // trip_id is in the WHERE clause rather than checked beforehand: an item id belonging to a
+        // different trip must come back as "this trip does not hold it", decided by one predicate.
+        return jdbc.sql("DELETE FROM trip_items WHERE id = ? AND trip_id = ?")
+                .params(itemId, tripId)
+                .update() == 1;
+    }
+
+    @Override
     public void delete(UUID ownerId, UUID tripId) {
         // owner_id in the WHERE clause, not a check beforehand: the row a caller may not see is the
         // row they may not delete, and both are decided by the same predicate.
