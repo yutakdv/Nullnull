@@ -1315,6 +1315,11 @@ paths:
       responses:
         "200":
           description: Verified, similar, pending, unknown, or no candidate result
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:

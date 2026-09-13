@@ -125,10 +125,17 @@ class CatalogRelationQueryIT {
         assertThat(candidate.targetPlaceId()).isEqualTo(target);
         assertThat(candidate.relationType()).isEqualTo("SIMILAR");
         assertThat(candidate.relationReason()).isEqualTo("같은 분류·지역");
-        assertThat(candidate.sourceCode()).isEqualTo(RULE);
-        assertThat(candidate.sourceRegistryVersion()).isEqualTo(1L);
+        assertThat(candidate.source().code()).isEqualTo(RULE);
+        assertThat(candidate.source().registryVersion()).isEqualTo(1L);
         assertThat(candidate.effectiveAt()).isEqualTo(BEFORE);
         assertThat(candidate.expiresAt()).isEqualTo(AFTER);
+        // The registry values come from the pinned revision, not the live row: V007 seeds this
+        // source as our own taxonomy rule, and a relation recorded under it keeps being described
+        // by the terms of the revision it named.
+        assertThat(candidate.source().displayName()).isEqualTo("널널 카탈로그 규칙");
+        assertThat(candidate.source().sourceState()).isEqualTo("QUALITATIVE");
+        assertThat(candidate.source().normalizationVersion()).isEqualTo("rule-v1");
+        assertThat(candidate.recordedAt()).isEqualTo(NOW);
     }
 
     @Test
