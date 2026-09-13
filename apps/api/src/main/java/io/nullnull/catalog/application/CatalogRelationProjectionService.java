@@ -82,11 +82,19 @@ public class CatalogRelationProjectionService {
     }
 
     /**
-     * A candidate whose target does not project is dropped rather than rendered without its place:
-     * {@code RelatedPlace.place} is required, and a target can fail to project for reasons that have
-     * nothing to do with the relation (no coordinates, no localization in this locale). Dropping all
-     * of them lands on UNKNOWN, which is the same answer as having no candidates - in both cases we
-     * have nothing verified to offer.
+     * A candidate whose target does not project is dropped rather than rendered without its place,
+     * because {@code RelatedPlace.place} is required.
+     *
+     * <p>That branch is unreachable today and the claim is measured, not assumed: V027 refuses a
+     * relation naming a place that is not active and refuses to retire a place that still has one,
+     * and {@code summaries} filters on nothing but {@code status = 'ACTIVE'}. So every stored
+     * candidate projects. An earlier version of BA-024-T3 tried to reach this by removing a target's
+     * coordinates and got a populated answer back - that projection has no coordinate filter.
+     *
+     * <p>It stays because the alternative is worse: if those invariants ever move, rendering a
+     * related place with no place is not an option, and failing the whole response would take down
+     * every other candidate with it. What it must not become is a silent absorber of a broken
+     * invariant - so if it ever starts firing, that is a defect upstream and not a fallback here.
      */
     private List<CatalogRelatedPlace> hydrate(OwnerContext owner, List<CatalogRelationCandidate> candidates) {
         if (candidates.isEmpty()) {

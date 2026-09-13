@@ -12,6 +12,7 @@ import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -165,6 +166,33 @@ class CatalogRelatedPlacesApiIT {
                         .cookie(cookie(owner)))
                 .andExpect(status().isBadRequest());
         related(owner, place).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("BA-024-T3 no branch of this route answers CHECKING, because nothing is being checked")
+    void checkingIsNeverAnsweredWhileNoVerificationRuns() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        // Both branches that can actually answer: nothing stored, and something stored. CHECKING
+        // would mean a verification is in flight for this place, and P0 registers no such job - so
+        // the honest answer on either is a settled one.
+        UUID empty = place("후보 없는 장소");
+        UUID populated = place("후보 있는 장소");
+        similar(populated, place("대상 장소"));
+
+        for (UUID place : List.of(empty, populated)) {
+            related(owner, place)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.state").value(org.hamcrest.Matchers.not("CHECKING")));
+        }
+
+        // Two things this does not prove, both worth naming. It cannot show that a future branch
+        // could not emit CHECKING - it drives the branches that exist, and BA-024-T7 is where the
+        // value is registered as having no producer. And there is a third branch in the service, the
+        // one that drops a candidate whose target does not project, which no fixture here can reach:
+        // V027 refuses a relation to a place that is not active and refuses to retire one that has a
+        // relation, and summaries() filters on nothing but ACTIVE. The first version of this test
+        // tried to reach it by removing the target's coordinates and got SIMILAR back, because that
+        // projection has no coordinate filter.
     }
 
     @Test

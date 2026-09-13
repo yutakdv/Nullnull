@@ -163,6 +163,12 @@ class CuratedHoursImportIT {
         // "Someone looked and could not tell" is a different fact from "nobody looked", and the file
         // has to be able to say the first. Without this the curator's only options are inventing a
         // day or dropping the place, and both lose the distinction the two tables exist for.
+        //
+        // Not a duplicate of BA-022-T5, which asserts the same row shape one layer down. That one
+        // says the storage accepts and keeps an evidence row with no window; this one says the plan
+        // format can express it and the importer writes it. A capability with no producer is
+        // unreachable - the exact gap this whole card was opened to close - so the two clauses fail
+        // for different reasons and neither covers the other.
         assertThat(jdbc.queryForObject("""
                 SELECT outcome FROM place_hours_observations WHERE place_id = ? AND superseded_at IS NULL
                 """, String.class, place)).isEqualTo("AMBIGUOUS");
