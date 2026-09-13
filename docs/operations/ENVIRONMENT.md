@@ -92,7 +92,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_JOB_FINISHED_RETENTION` | 아니오 | `P7D` 제안값 | COMPLETED/FAILED job row 보존, 최소 `PT1H` |
 | `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1M` 제안값 | bootstrap 15분 만료 후 다음 sweep에서 정리, 최소 `PT1M` |
 | `NULLNULL_JOB_DEFAULT_CONCURRENCY` | 아니오 | `2` 제안값 | type별 동시 실행 기본값(1..64). 아래 connection budget에 걸리면 startup에서 실패한다 |
-| `NULLNULL_DB_POOL_MAX` | 아니오 | `10` | `spring.datasource.hikari.maximum-pool-size`. HTTP thread와 job worker가 같이 쓰는 pool이다 |
+| `NULLNULL_DB_POOL_MAX` | 아니오 | `12` | `spring.datasource.hikari.maximum-pool-size`. HTTP thread와 job worker가 같이 쓰는 pool이다. `10`이었다가 job type이 둘이 되면서 `JobConnectionBudget`이 startup에서 거절해 올렸다 — 그 가드는 test에서 우회하지 않고 값으로 푼다 |
 | `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
 | `NULLNULL_AI_CONNECT_TIMEOUT` | 아니오 | `PT2S` | gateway connect timeout |
 | `NULLNULL_AI_READ_TIMEOUT` | 아니오 | `PT5S` | gateway read timeout; readiness probe는 별도 1초 |

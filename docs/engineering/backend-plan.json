@@ -323,7 +323,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "로컬 Docker와 최소 staging 기반",
-      "status": "blocked",
+      "status": "planned",
       "dependsOn": [
         "BA-001",
         "BA-002",
@@ -339,13 +339,12 @@
       "entities": "compose.integration.yml · ai service · infra/CDK · OIDC · immutable images",
       "steps": [
         "로컬 web→API→apps/ai→PostgreSQL hello와 seed를 단일 wrapper에 연결한다",
-        "승인된 계정·비용·domain이 준비되면 CDK network/data/API/web edge의 최소 staging을 만든다",
+        "승인된 계정·비용·domain(A-028·A-029·A-030)에 맞춰 CDK network/data/API/web edge의 최소 staging을 만든다. 계정은 하나이고 role 분리를 두지 않으므로 그 선택을 stack manifest에 근거와 함께 적는다",
         "OIDC exact subject와 runtime secret 주입을 검증하고 deployment 역할과 관찰 역할을 나눈다",
         "09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
         "#10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다"
       ],
       "safety": "계정·비용·secret 미확정은 외부 배포 blocker이며 로컬 구현까지 막지 않는다. 실제 설정·배포 완료를 문서만으로 표시하지 않는다.",
-      "reason": "D-001 도메인, D-017 AWS 계정 분리, D-018 staging 비용 상한이 미확정이라 staging 절반(CDK network/data/API/web edge, OIDC exact subject, runtime secret 주입)을 시작하지 않는다. 안전한 기본값은 로컬 Docker와 full-docker wrapper만 사용하고 외부 배포 capability를 OFF로 두는 것이다.",
       "tests": [
         {
           "id": "BA-006-T1",

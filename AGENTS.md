@@ -121,6 +121,10 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
    실제로 걸린 둘: `BA-002-T3`(*"transaction 중간 장애는 전체 rollback하며 **구버전 app 호환성이 유지된다**"*)은 `integration-ready`인데 ID를 단 testcase **20개**가 전부 첫 절이고 둘째 절을 다루는 것이 없다. `BA-034-T1`(*"**두 tap**·서로 다른 key 동시 요청·다른 post 같은 POI"*)은 세 절 중 첫 절이 비어 있었다 — 동시성 case는 일부러 key를 다르게 주므로 대체가 되지 않는다(index가 없어도 두 tap은 한 행, guard가 없어도 동시성은 한 행이다). 기존 카드를 일괄로 쪼개지는 않고 status를 올릴 때 절이 다 덮였는지 본다.
 4. 새 app 디렉터리나 suite가 생기면 workflow path filter, `compose.integration.yml` service, `scripts/integration-test.sh` 실행 단계, 이 표를 같은 PR에서 바꾼다.
+
+   **새 migration을 넣으면 `FlywayMigrationIT`의 두 곳이 같이 움직인다.** `previousSchemaUpgradesToTheLatestVersion`은 *직전 버전까지 migrate → 모든 table에 행을 넣고 → 최신까지 migrate*한다. 그래서 `populateEveryTable`의 table 목록은 **항상 마지막 migration의 직전까지**를 담는다 — `V025`를 넣는 PR은 `V024`가 만든 table을 **그때** 채워야 하고, `V025` 자신의 table은 `V026`이 생길 때 들어간다. **이건 `V025`를 커밋하는 쪽의 몫이다**: 앞 migration의 주인이 미리 넣으면 그 PR의 CI에는 뒤 migration이 없어 존재하지 않는 table에 INSERT한다.
+
+   행 수 단언(`seededAfterPreviousSchema`)도 같은 이유로 움직인다. **숫자가 움직이는 것이 그 장치가 작동하는 방식**이므로 왜 바뀌었는지 주석에 적고 지우지 않는다 — 그 단언이 "조용히 데이터를 심는 migration"을 드러내는 유일한 장치다.
 5. skip·0건 실행·report 누락·`continue-on-error`·`ignoreFailures`는 금지다. path filter workflow는 조기 피드백일 뿐 required status로 승격하지 않는다.
 
 ## 문서 지도
