@@ -302,6 +302,25 @@ describe('FE-501-T2 the setup renders its states', () => {
 
     expect(await screen.findByText(copy['optimize.locked'])).toBeInTheDocument();
   });
+
+  it('says the capability is off rather than inviting a retry', async () => {
+    // BA-050 made FORBIDDEN reachable: the server refuses with 403 when the
+    // optimization capability is OFF, and it chose 403 over 503 precisely so a
+    // client would STOP asking. `optimize.failed` reads as "we couldn't start
+    // it" — a hiccup — which would send the user back to a button that can
+    // never work on this server.
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/optimizations`, () =>
+        problemResponse('FORBIDDEN'),
+      ),
+    );
+    const user = userEvent.setup();
+    await pickFirstStop(user);
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+
+    expect(await screen.findByText(copy['optimize.unavailable'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['optimize.failed'])).toBeNull();
+  });
 });
 
 describe('FE-501-T3 keyboard and names', () => {
