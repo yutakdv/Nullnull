@@ -1367,7 +1367,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-060
 
-**붙여넣기 parse·remap·confirm** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**붙여넣기 parse·remap·confirm** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-012](#ba-012), [BA-022](#ba-022), [BA-030](#ba-030), [BA-040](#ba-040), [BA-041](#ba-041)
 - 기능 ID: `FR-TRC-06`, `FR-TRC-07`, `NFR-PRV-01`
