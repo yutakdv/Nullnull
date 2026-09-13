@@ -3561,6 +3561,7 @@ export interface operations {
             /** @description Items reordered atomically */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };

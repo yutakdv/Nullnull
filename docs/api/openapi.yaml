@@ -2548,6 +2548,10 @@ paths:
         "200":
           description: Items reordered atomically
           headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
             ETag:
               $ref: "#/components/headers/ETag"
           content:

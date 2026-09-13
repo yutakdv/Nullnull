@@ -234,6 +234,23 @@ A2(BA-005)가 계획에 없던 `V004__background_jobs_outstanding_key.sql`을 �
 
 ## 6. 검증 — 이 기기에서 실제로 도는 형태
 
+**판정 명령에 파이프를 쓰지 않는다.** `cmd | tail -5; echo "exit=$?"`는 `cmd`가 아니라 `tail`의 종료 코드를
+읽는다. 파이프라인의 상태는 마지막 명령의 것이므로, 실패한 검사가 `exit=0`으로 보인다. 이 저장소에서
+같은 함정이 세 번 나왔다 — `docker compose port | grep`, `docker compose ... | tail`(`ENVIRONMENT.md` §334),
+그리고 `check_test_reports.py ... | tail`로 변이 검증이 통과한 것처럼 보인 것.
+
+출력을 줄이고 싶으면 셋 중 하나를 쓴다.
+
+```bash
+cmd > /tmp/out.log 2>&1; echo "exit=$?"; tail -5 /tmp/out.log   # 먼저 판정, 그다음 출력
+set -o pipefail; cmd | tail -5; echo "exit=$?"                   # 파이프라인이 첫 실패를 전한다
+cmd | grep -E "FAILED|BUILD"                                     # 출력에 판정이 들어 있을 때만
+```
+
+세 번째는 **출력이 판정을 담고 있을 때만** 쓴다. 아무것도 출력하지 않고 죽은 명령은 이 방식으로는 성공과
+구분되지 않는다 — `AGENTS.md`가 `check_egress_report.py`에 대해 적은 것과 같은 이유다.
+
+
 ```bash
 # Codex 실행 환경에 DEBUG=release가 있으면 먼저 unset DEBUG (아래 §7).
 # Java (Temurin 21 필수. 기기 기본 java는 26이라 JAVA_HOME 없이는 실패한다. wrapper만, 설치형 Gradle 금지)

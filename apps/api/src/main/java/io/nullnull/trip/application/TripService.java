@@ -13,6 +13,8 @@ import io.nullnull.trip.domain.PlanningLevel;
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripDateRange;
 import io.nullnull.trip.domain.CandidateSourceType;
+import io.nullnull.trip.domain.LockChecks;
+import io.nullnull.trip.domain.LockType;
 import io.nullnull.trip.domain.TripCandidate;
 import io.nullnull.trip.domain.TripCandidate.CandidateSource;
 import io.nullnull.trip.domain.TripConstraint;
@@ -55,6 +57,7 @@ public class TripService {
     private static final String CREATE_ROUTE = "POST /trips";
     private static final String DELETE_ROUTE = "DELETE /trips/{tripId}";
     private static final String ADD_ITEM_ROUTE = "POST /trips/{tripId}/items";
+    private static final String REORDER_ROUTE = "POST /trips/{tripId}/items/reorder";
     private static final java.util.regex.Pattern IF_MATCH =
             java.util.regex.Pattern.compile("^\"[1-9][0-9]*\"$");
     private static final int DEFAULT_LIMIT = 20;
@@ -487,6 +490,143 @@ public class TripService {
     }
 
     /**
+     * reorderTripItems. Every named item moves, or none does.
+     *
+     * <p>Atomic in the database's sense, not only the service's: the moves run in one transaction with
+     * {@code trip_items_slot_unique} deferred, so a swap - which necessarily passes through two items
+     * on one slot - is judged on the result rather than on each row as it goes by. V020 made the
+     * constraint deferrable for this; every other writer still fails on its own statement.
+     *
+     * <p>Locks are consulted here, and this is the first trip mutation that consults them - until now
+     * only the optimizer's re-validation did, through the same {@link LockChecks}. Leaving them out
+     * would make a reorder move a DATE-locked item without a word, which is what invariant 7 forbids.
+     * A lock the request does not name refuses the move; a lock it names is released, because that is
+     * the user's answer to the question the screen already asked.
+     */
+    public TripMutationView reorder(OwnerContext context, UUID tripId, String ifMatch,
+            String idempotencyKey, ReorderTripItemsCommand command) {
+        long expected = parseIfMatch(ifMatch);
+        // Before the guard reserves a slot: the response carries every item's place, so a closed
+        // catalog cannot answer this - the same order addTripItem uses, for the same reason.
+        places.requirePublicProjection();
+        String fingerprint = RequestFingerprint.of("reorderTripItems",
+                        Map.of("tripId", tripId.toString()), canonicalReorder(command),
+                        Long.toString(expected))
+                .sha256Hex();
+        IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), REORDER_ROUTE,
+                idempotencyKey, fingerprint,
+                () -> new CommandOutcome<>(200, applyReorder(context.ownerId(), tripId, expected, command)),
+                value -> value);
+        MovedProjection projection = json.readValue(guarded.body(), MovedProjection.class);
+        return mutationView(context, tripId, projection.itemIds());
+    }
+
+    private MovedProjection applyReorder(UUID ownerId, UUID tripId, long expected,
+            ReorderTripItemsCommand command) {
+        Trip current = trips.findForUpdate(ownerId, tripId).orElseThrow(TripService::notFound);
+        if (current.version() != expected) {
+            throw tripChanged(current.version());
+        }
+        Instant now = clock.instant();
+        Map<UUID, TripItem> byId = new java.util.LinkedHashMap<>();
+        for (TripItem item : trips.items(tripId)) {
+            byId.put(item.id(), item);
+        }
+        List<TripItem> after = new ArrayList<>();
+        List<UUID> moved = new ArrayList<>(command.entries().size());
+        for (ReorderTripItemsCommand.Entry entry : command.entries()) {
+            TripItem item = byId.get(entry.itemId());
+            if (item == null) {
+                // Not 404: the trip exists and the caller may read it, so this is a body that names
+                // something the trip does not hold - the same reading addTripItem gives a candidateId
+                // from another trip.
+                throw new TripValidationException("items[].itemId", "NotFound",
+                        "this trip has no such item");
+            }
+            requireLocksAllow(item, entry, now);
+            moved.add(item.id());
+            after.add(new TripItem(item.id(), item.placeId(), entry.date(), entry.position(),
+                    item.startTime(), item.durationMinutes(), item.note(), item.constraints()));
+        }
+        for (TripItem item : byId.values()) {
+            if (!moved.contains(item.id())) {
+                // Items the request did not name are still part of the day the rules judge.
+                after.add(item);
+            }
+        }
+        TripScheduleRules.requireInsideRange(current.range(), after);
+        TripScheduleRules.requireWithinCaps(after);
+        TripScheduleRules.requireDistinctPositions(after);
+        // After the rules, before the writes: deferring earlier would only widen the window in which
+        // a half-applied order is visible to this transaction's own later statements.
+        trips.deferSlotUniqueness();
+        for (ReorderTripItemsCommand.Entry entry : command.entries()) {
+            trips.moveItem(tripId, entry.itemId(), entry.date(), entry.position(), now);
+        }
+        Trip bumped = raiseVersion(current, now);
+        String snapshot = snapshot(bumped, after);
+        trips.updateMetadata(bumped, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+        return new MovedProjection(List.copyOf(moved));
+    }
+
+    /**
+     * Refuses the move when a lock the request did not name would be broken by it, and releases the
+     * locks it did name.
+     *
+     * <p>A named lock is deleted whether or not it was the one in the way. The field says the user
+     * chose to release it, and a server that released only the blocking ones would be deciding which
+     * part of an explicit instruction to honour.
+     */
+    private void requireLocksAllow(TripItem item, ReorderTripItemsCommand.Entry entry, Instant now) {
+        if (item.constraints().isEmpty() && entry.releaseConstraints().isEmpty()) {
+            return;
+        }
+        LockChecks.Result verdict = LockChecks.evaluate(
+                item.constraints().stream().map(TripConstraint::lock).toList(),
+                entry.date(), item.startTime(), item.durationMinutes());
+        List<String> unreleased = new ArrayList<>();
+        verdict.passed().forEach((type, satisfied) -> {
+            if (!satisfied && !entry.releaseConstraints().contains(type)) {
+                unreleased.add(LockChecks.reasonCodeOf(type));
+            }
+        });
+        if (!unreleased.isEmpty()) {
+            throw new ApiException(ProblemCode.LOCK_CONFLICT,
+                    "The move is refused by locks this request did not release: "
+                            + String.join(", ", unreleased) + ".");
+        }
+        for (LockType type : entry.releaseConstraints()) {
+            trips.deleteConstraint(item.id(), type);
+        }
+    }
+
+    /** What reorderTripItems hashes: the moves it asked for, in a fixed order. */
+    private String canonicalReorder(ReorderTripItemsCommand command) {
+        List<ReorderTripItemsCommand.Entry> sorted = new ArrayList<>(command.entries());
+        sorted.sort(Comparator.comparing(entry -> entry.itemId().toString()));
+        StringBuilder out = new StringBuilder("[");
+        for (int index = 0; index < sorted.size(); index++) {
+            ReorderTripItemsCommand.Entry entry = sorted.get(index);
+            if (index > 0) {
+                out.append(',');
+            }
+            List<String> released = entry.releaseConstraints().stream().map(Enum::name).sorted().toList();
+            out.append("{\"itemId\":\"").append(entry.itemId()).append('"')
+                    .append(",\"date\":\"").append(entry.date()).append('"')
+                    .append(",\"position\":").append(entry.position())
+                    .append(",\"releaseConstraints\":[");
+            for (int at = 0; at < released.size(); at++) {
+                if (at > 0) {
+                    out.append(',');
+                }
+                out.append('"').append(released.get(at)).append('"');
+            }
+            out.append("]}");
+        }
+        return out.append(']').toString();
+    }
+
+    /**
      * removeTripItem. If-Match only - the contract gives this no Idempotency-Key, and it does not
      * need one: removing an item that is already gone is a 404, not a second removal.
      *
@@ -691,6 +831,13 @@ public class TripService {
      * describe the trip as it is now.
      */
     public record ItemProjection(UUID itemId) { }
+
+    /** What the guard stores for reorderTripItems: which items moved, never the trip they moved in. */
+    public record MovedProjection(List<UUID> itemIds) {
+        public MovedProjection {
+            itemIds = List.copyOf(itemIds);
+        }
+    }
 
     /** A mutation's answer: the trip after it, and which items it changed. */
     public record TripMutationView(TripView trip, List<UUID> changedItemIds) {

@@ -1,8 +1,10 @@
 package io.nullnull.trip.application;
 
 import io.nullnull.trip.domain.Trip;
+import io.nullnull.trip.domain.LockType;
 import io.nullnull.trip.domain.TripItem;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +46,26 @@ public interface TripStore {
      * violation instead of a candidate that quietly forgot where it was scheduled.
      */
     boolean deleteItem(UUID tripId, UUID itemId);
+
+    /**
+     * Moves one item to a date and a position.
+     *
+     * <p>Callers moving several items must first {@link #deferSlotUniqueness()}: the obvious moves
+     * pass through a state where two rows share a slot, and the constraint refuses that per statement
+     * until it is deferred.
+     */
+    void moveItem(UUID tripId, UUID itemId, LocalDate date, int position, Instant at);
+
+    /**
+     * Defers {@code trip_items_slot_unique} to COMMIT for the current transaction.
+     *
+     * <p>Scoped to the transaction by PostgreSQL itself, so nothing outside it changes: a writer that
+     * never calls this still fails on its own statement.
+     */
+    void deferSlotUniqueness();
+
+    /** Removes one lock from an item. False when the item did not carry that type. */
+    boolean deleteConstraint(UUID tripItemId, LockType type);
 
     /** Applies new metadata at {@code trip.version()}, which the caller has already incremented. */
     void updateMetadata(Trip trip, String snapshotSchemaVersion, String snapshotHash, String snapshot);
