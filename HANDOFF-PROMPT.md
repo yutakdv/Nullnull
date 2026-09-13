@@ -586,6 +586,23 @@ nullnull-local-postgres-1   Created        (한 번도 뜬 적 없음)
 
 나머지 미확정값은 `plan.md` §15 표를 따르되 **제안값**으로 표기하고 근거를 적는다. 숫자를 지어내지 않는다.
 
+## 9.1 PR이 안 머지될 때 — `BLOCKED`와 `BEHIND`는 다른 문제다
+
+이 세션에서 세 번 당했다(#184·#186·#191). 둘을 같은 것으로 다루면 계속 당한다.
+
+| `mergeStateStatus` | 뜻 | 할 일 |
+| --- | --- | --- |
+| `BLOCKED` | 검사가 아직 안 끝났거나 실패했다 | **기다린다.** 이때 push하면 검사가 처음부터 다시 돈다 |
+| `BEHIND` | `main`이 앞서 있다 | **`gh pr update-branch <n>`.** 기다려도 영원히 안 머지된다 |
+
+**둘을 푸는 규칙이 서로 반대다.** *"머지될 때까지 push를 잡는다"* 는 검사가 두 번 도는 것을 막지 `BEHIND`를 풀지 않는다 — `BEHIND`는 **행동이 필요한 상태**이고, 저장소 규칙이 *"최신 `main` 기준 두 required check가 green"* 이라 그 전까지 도는 검사는 **세는 실행이 아니다.**
+
+**그리고 `BEHIND`는 우리가 아무것도 안 해도 생긴다.** #191은 Dependabot PR(#189, `actions/setup-java` 6.0.0→6.0.1)이 그 사이 main에 머지돼서 걸렸다. 그런 PR은 우리 일정과 무관하게 계속 들어온다. 그러므로 **PR을 연 뒤에는 "기다린다"가 아니라 `mergeStateStatus`를 한 번씩 본다.**
+
+머지된 직후에 `git pull --ff-only origin main && git push origin backend`로 `backend`를 올려 두면 다음 PR이 `BEHIND`로 시작하지 않는다.
+
+**`--force`나 admin merge는 쓰지 않는다.** `update-branch`가 이 상황을 위한 도구다.
+
 ## 10. 절대 규칙
 
 - slice 커밋과 `origin/backend` push는 승인된 범위다. **main 병합·PR 생성·deploy는 사용자가 지시할 때만 한다.**
