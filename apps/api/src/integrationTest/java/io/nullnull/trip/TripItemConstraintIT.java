@@ -63,18 +63,28 @@ class TripItemConstraintIT {
                 "{\"type\":\"TIME\",\"locked\":true,\"startTime\":\"09:00:00\","
                         + "\"toleranceMinutes\":30}")
                 .andExpect(status().isOk());
-        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "TIME");
+        // The fourth type, which this case used to stop short of. Three types coexisting does not
+        // say four do - RESERVATION is the only lock that pins a date and a time together, so it is
+        // the one most likely to collide with the two that pin them separately.
+        set(owner, tripId, itemId, "RESERVATION", "\"4\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_ONE + "\",\"startTime\":\"09:00:00\"}")
+                .andExpect(status().isOk());
+        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "RESERVATION", "TIME");
 
         // Re-setting DATE replaces DATE and nothing else. The unique index is what makes that a
         // storage fact: a second DATE row cannot exist, and TIME is a different row entirely.
-        set(owner, tripId, itemId, "DATE", "\"4\"",
+        set(owner, tripId, itemId, "DATE", "\"5\"",
                 "{\"type\":\"DATE\",\"locked\":true,\"date\":\"" + DAY_ONE + "\"}")
                 .andExpect(status().isOk());
-        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "TIME");
+        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "RESERVATION", "TIME");
 
         // And removing one removes one. A release that took its neighbours with it would be the
         // auto-release invariant 7 forbids, arriving as an implementation detail.
-        remove(owner, tripId, itemId, "TIME", "\"5\"").andExpect(status().isOk());
+        remove(owner, tripId, itemId, "TIME", "\"6\"").andExpect(status().isOk());
+        assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT", "RESERVATION");
+        // Removing the one that pins two values leaves both of the locks that pin them singly.
+        remove(owner, tripId, itemId, "RESERVATION", "\"7\"").andExpect(status().isOk());
         assertThat(types(itemId)).containsExactly("DATE", "MUST_VISIT");
     }
 
@@ -96,6 +106,20 @@ class TripItemConstraintIT {
                 "{\"type\":\"TIME\",\"locked\":true,\"startTime\":\"13:00:00\","
                         + "\"toleranceMinutes\":30}")
                 .andExpect(status().isConflict());
+        // And a RESERVATION, which the assertion names and this case used to leave out. It is the
+        // one that matters most: the other three are the user's own intentions, while a reservation
+        // is a promise made to someone else. Storing one the item already breaks would record a
+        // booking the itinerary cannot keep - and the user never had a chance to satisfy it.
+        set(owner, tripId, itemId, "RESERVATION", "\"1\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_TWO + "\",\"startTime\":\"09:00:00\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LOCK_CONFLICT"));
+        // The date matches but the time does not: RESERVATION pins both, so half-right is refused.
+        set(owner, tripId, itemId, "RESERVATION", "\"1\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_ONE + "\",\"startTime\":\"13:00:00\"}")
+                .andExpect(status().isConflict());
 
         assertThat(types(itemId)).isEmpty();
         assertThat(version(tripId)).isEqualTo(1);
@@ -106,6 +130,13 @@ class TripItemConstraintIT {
                 "{\"type\":\"DATE\",\"locked\":true,\"date\":\"" + DAY_ONE + "\"}")
                 .andExpect(status().isOk());
         assertThat(types(itemId)).containsExactly("DATE");
+        // Same for the reservation: the item's own date and time are accepted, so the two refusals
+        // above are the rule working rather than the operation declining every RESERVATION.
+        set(owner, tripId, itemId, "RESERVATION", "\"2\"",
+                "{\"type\":\"RESERVATION\",\"locked\":true,\"source\":\"USER\",\"date\":\""
+                        + DAY_ONE + "\",\"startTime\":\"09:00:00\"}")
+                .andExpect(status().isOk());
+        assertThat(types(itemId)).containsExactly("DATE", "RESERVATION");
     }
 
     @Test
