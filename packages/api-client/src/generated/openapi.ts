@@ -1639,6 +1639,20 @@ export interface components {
             clientKey: string;
             /** @enum {string} */
             kind: "PLACE" | "DATE" | "TIME";
+            /**
+             * @description The 1-based line of the pasted text this token came from. It is how a person finds what
+             *     the parser could not place without the server echoing their words back: after a refresh
+             *     the client no longer holds the paste, so a screen that could only quote the line would
+             *     have nothing to show.
+             */
+            line: number;
+            /**
+             * @description Allowlist-extracted content only - never the surrounding line. A free-memo line yields an
+             *     EMPTY label, and `line` is what locates it. The bound is a second fence rather than the
+             *     fence itself: the safety boundary this serves is that raw itinerary text, free memos and
+             *     contact details do not reach storage or a response (BA-060-T1), and a 40-character
+             *     fragment of a memo would still breach it. The check is the canary, not the length.
+             */
             label: string;
             suggestions: components["schemas"]["PlaceSummary"][];
         };
@@ -1652,6 +1666,16 @@ export interface components {
                 startTime?: string | null;
                 position?: number | null;
                 constraints?: components["schemas"]["SetConstraintInput"][] | null;
+                /**
+                 * @description Withdraw this clientKey instead of resolving it. On an unresolved token it is how a
+                 *     line the parser could not place stops blocking READY; on an item it removes that
+                 *     item from the draft. Both are the same dead end - the draft holds something the
+                 *     person cannot act on and cannot remove - so one field closes both. Every other
+                 *     field here is a partial update where null means "leave alone", which is why this
+                 *     is a separate boolean rather than a meaning overloaded onto placeId: null.
+                 * @default false
+                 */
+                dismissed?: boolean;
             }[];
         };
         ConfirmImportRequest: {
@@ -2111,7 +2135,7 @@ export interface components {
         };
         OptimizationFailure: {
             /** @enum {string} */
-            code: "TRIP_CHANGED" | "DATA_CHANGED" | "LOCK_CONFLICT" | "ROUTE_UNAVAILABLE" | "NO_IMPROVEMENT" | "APPLY_FAILED";
+            code: "TRIP_CHANGED" | "DATA_CHANGED" | "LOCK_CONFLICT" | "ROUTE_UNAVAILABLE" | "NO_IMPROVEMENT" | "APPLY_FAILED" | "DATA_INSUFFICIENT";
             message: string;
             retryable: boolean;
         };
@@ -3117,6 +3141,7 @@ export interface operations {
             /** @description Verified, similar, pending, unknown, or no candidate result */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -3378,6 +3403,7 @@ export interface operations {
             /** @description Updated structured draft */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     /** @description Quoted updated import draft version. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -3424,6 +3450,7 @@ export interface operations {
             /** @description Trip and mapped items created atomically */
             201: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
