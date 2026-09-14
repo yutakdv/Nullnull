@@ -10,6 +10,11 @@ RUN ./gradlew --no-daemon --version
 COPY apps/api/src ./src
 COPY docs/api/openapi.yaml /workspace/docs/api/openapi.yaml
 COPY docs/contracts/events.schema.json /workspace/docs/contracts/events.schema.json
+# CrowdMetricLabelTest quotes the traveller-facing metric name FROM this document rather than from
+# a literal, so shortening the name means changing the catalog too - which is where the reason not
+# to lives. That makes the document a test input. scripts/check_container_test_inputs.py keeps this
+# list and the paths the suites actually read from drifting apart again.
+COPY docs/data/SOURCE_CATALOG.md /workspace/docs/data/SOURCE_CATALOG.md
 # ProblemFixtureContractTest pins packages/contracts/fixtures/problems to ProblemCode, so the
 # fixtures have to be inside the image: the test reads them and fails loudly when they are
 # absent rather than skipping, which is how the native api-quality run passed while this one
