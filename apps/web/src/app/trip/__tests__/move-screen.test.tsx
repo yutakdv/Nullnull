@@ -114,6 +114,71 @@ describe('FE-305-T2 the controls reflect where the item sits', () => {
   });
 });
 
+// Invariant 6: a retry of the same press must replay one command, not queue a
+// second one.
+//
+// The key used to be minted inside the mutate() call, so every press produced a
+// fresh UUID while the comment above `send` claimed the opposite — "the key is
+// minted per user action ... so a retry of this press reuses it". Pressing the
+// same arrow again after a failure was therefore a SECOND move to the server.
+// The existing assertion could not see it: `expect(idempotency).toBeTruthy()`
+// is satisfied by any UUID, including a different one each time.
+describe('FE-305-T1 a retry replays the move rather than queueing another', () => {
+  it('reuses the key when the same press is retried after a failure', async () => {
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/items/reorder`, () =>
+        problemResponse('INTERNAL_ERROR'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('인사동');
+    const up = within(card).getByRole('button', { name: upName('인사동') });
+
+    await user.click(up);
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    await user.click(up);
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+
+    expect(sent[0]?.idempotency).toBeTruthy();
+    expect(sent[1]?.idempotency).toBe(sent[0]?.idempotency);
+  });
+
+  it('mints a new key when the user aims at a different day', async () => {
+    // A different destination is a different command. If it replayed the first
+    // key the server would treat the second move as a repeat of the first and
+    // the item would land on the wrong day — or nowhere.
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/items/reorder`, () =>
+        problemResponse('INTERNAL_ERROR'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('인사동');
+
+    await user.click(within(card).getByRole('button', { name: moveName('인사동') }));
+    const sheet = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
+    await user.click(within(sheet).getByRole('button', { name: /Day 3/ }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+
+    await user.click(within(card).getByRole('button', { name: moveName('인사동') }));
+    const again = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
+    await user.click(within(again).getByRole('button', { name: /Day 4/ }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+
+    expect(sent[1]?.idempotency).not.toBe(sent[0]?.idempotency);
+  });
+});
+
 describe('FE-305-T1 a reorder sends the whole day in one request', () => {
   it('carries If-Match, an Idempotency-Key, and every item of the day', async () => {
     const user = userEvent.setup();
