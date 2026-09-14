@@ -35,34 +35,61 @@ class TripImportParseIT {
     private static final Instant NOW = Instant.parse("2026-09-14T00:00:00Z");
     private static final String ORIGIN = "http://localhost:5173";
 
+    /**
+     * A suffix unique to this run, on every seeded name and on every line that has to resolve to it.
+     * Resolution is "exactly one match", so a place another class left behind under the same name
+     * turns a resolved item into an unresolved token - and the shared database the gate runs against
+     * is full of other classes' 경복궁.
+     */
+    private final String tag = UUID.randomUUID().toString().substring(0, 8);
+
     @Autowired MockMvc mvc;
     @Autowired SessionService sessions;
     @Autowired JdbcTemplate jdbc;
 
+    /** Ids this class created, so teardown touches nothing another class is still using. */
+    private final java.util.List<UUID> seededPlaces = new java.util.ArrayList<>();
+    private final java.util.List<UUID> seededOwners = new java.util.ArrayList<>();
+
     @AfterEach
     void removeOnlyOwnFixtures() {
-        jdbc.update("DELETE FROM itinerary_import_drafts");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        // Only what this class created. A blanket delete is the wrong shape under the gate,
+        // which shares ONE database across every context while TestcontainersConfiguration gives
+        // each distinct @SpringBootTest its own container locally - so the failure exists only
+        // where running the classes in order cannot show it. places is deliberately not
+        // cascaded and ten tables reference it, so the class that tries to clear the table is
+        // the one that dies on somebody else's rows, and when it succeeds it takes their
+        // fixtures with it. Owner-scoped first, because trip_items cascade from trips.
+        seededOwners.forEach(owner -> {
+            jdbc.update("DELETE FROM itinerary_import_drafts WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM trips WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM idempotency_records WHERE owner_id = ?", owner);
+        });
+        seededPlaces.forEach(place -> {
+            jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", place);
+            jdbc.update("DELETE FROM places WHERE id = ?", place);
+        });
+        seededOwners.clear();
+        seededPlaces.clear();
     }
 
     @Test
     @DisplayName("BA-060-T15 a Korean and an English name for one place both resolve to it")
     void koreanAndEnglishPlaceTokensResolveToTheSameCanonicalPlace() throws Exception {
         SessionService.Bootstrap owner = owner();
-        UUID palace = place("경복궁", "Gyeongbokgung Palace");
+        UUID palace = place("경복궁" + tag, "Gyeongbokgung Palace " + tag);
 
         // Two pastes, same place, different language. The catalog's search matches canonical_name or
         // ANY localization with no locale filter, which is the mechanism this rests on - a request in
         // ko-KR still matches the en-US row.
-        parse(owner, "key-parse-korean-0001", "2026-10-05\n경복궁\n")
+        parse(owner, "key-parse-korean-0001", "2026-10-05\n경복궁" + tag + "\n")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].place.id").value(palace.toString()))
                 .andExpect(jsonPath("$.items[0].date").value("2026-10-05"))
                 .andExpect(jsonPath("$.unresolved.length()").value(0));
 
-        parse(owner, "key-parse-english-001", "2026-10-05\nGyeongbokgung Palace\n")
+        parse(owner, "key-parse-english-001", "2026-10-05\nGyeongbokgung Palace " + tag + "\n")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].place.id").value(palace.toString()))
                 .andExpect(jsonPath("$.unresolved.length()").value(0));
@@ -82,9 +109,9 @@ class TripImportParseIT {
 
         // The other bound: eleven places answer one line, and the token carries ten.
         for (int index = 1; index <= 11; index++) {
-            place("테스트공원 " + index, null);
+            place("테스트공원" + tag + " " + index, null);
         }
-        parse(owner, "key-parse-suggestions-1", "테스트공원")
+        parse(owner, "key-parse-suggestions-1", "테스트공원" + tag)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(0))
                 .andExpect(jsonPath("$.unresolved.length()").value(1))
@@ -130,9 +157,9 @@ class TripImportParseIT {
     @DisplayName("BA-060-T14 a year-less date and a bare hour are handed back as questions, not answers")
     void whatThePasteDidNotSayIsNotDecided() throws Exception {
         SessionService.Bootstrap owner = owner();
-        place("경복궁", null);
+        place("경복궁" + tag, null);
 
-        parse(owner, "key-parse-ambiguous-1", "3/15\n3시 경복궁\n")
+        parse(owner, "key-parse-ambiguous-1", "3/15\n3시 경복궁" + tag + "\n")
                 .andExpect(status().isOk())
                 // Neither is completed. "3/15" is not given this year, and "3시" names two moments of
                 // the day, so the parser picks neither - each comes back as its own kind of question.
@@ -144,7 +171,7 @@ class TripImportParseIT {
 
         // And the case that must NOT become a question, beside it: an hour that names one moment is
         // read. Without this the clause is satisfied by a parser that answers nothing at all.
-        parse(owner, "key-parse-unambiguous1", "2026-10-05\n오후 3시 경복궁\n")
+        parse(owner, "key-parse-unambiguous1", "2026-10-05\n오후 3시 경복궁" + tag + "\n")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.unresolved.length()").value(0))
                 .andExpect(jsonPath("$.items[0].startTime").value("15:00:00"));
@@ -163,11 +190,12 @@ class TripImportParseIT {
     }
 
     private SessionService.Bootstrap owner() {
-        return sessions.bootstrap(null, "ko-KR", "Asia/Seoul");
+        return bootstrapped(null, "ko-KR", "Asia/Seoul");
     }
 
     private UUID place(String koreanName, String englishName) {
         UUID id = UUID.randomUUID();
+        seededPlaces.add(id);
         jdbc.update("""
                 INSERT INTO places
                     (id, canonical_name, category_code, latitude, longitude, region_code, status,
@@ -185,5 +213,12 @@ class TripImportParseIT {
                     """, UUID.randomUUID(), id, englishName, Timestamp.from(NOW));
         }
         return id;
+    }
+
+    /** Bootstraps a session and remembers whose rows this class is about to create. */
+    private SessionService.Bootstrap bootstrapped(String cookie, String locale, String zone) {
+        SessionService.Bootstrap owner = sessions.bootstrap(cookie, locale, zone);
+        seededOwners.add(sessions.resolve(owner.cookie, false).ownerId());
+        return owner;
     }
 }

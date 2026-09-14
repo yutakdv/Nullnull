@@ -43,22 +43,40 @@ class TripImportFailsClosedIT {
     @Autowired SessionService sessions;
     @Autowired JdbcTemplate jdbc;
 
+    /** Ids this class created, so teardown touches nothing another class is still using. */
+    private final java.util.List<UUID> seededPlaces = new java.util.ArrayList<>();
+    private final java.util.List<UUID> seededOwners = new java.util.ArrayList<>();
+
     @AfterEach
     void removeOnlyOwnFixtures() {
-        jdbc.update("DELETE FROM itinerary_import_drafts");
-        jdbc.update("DELETE FROM trips");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        // Only what this class created. A blanket delete is the wrong shape under the gate,
+        // which shares ONE database across every context while TestcontainersConfiguration gives
+        // each distinct @SpringBootTest its own container locally - so the failure exists only
+        // where running the classes in order cannot show it. places is deliberately not
+        // cascaded and ten tables reference it, so the class that tries to clear the table is
+        // the one that dies on somebody else's rows, and when it succeeds it takes their
+        // fixtures with it. Owner-scoped first, because trip_items cascade from trips.
+        seededOwners.forEach(owner -> {
+            jdbc.update("DELETE FROM itinerary_import_drafts WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM trips WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM idempotency_records WHERE owner_id = ?", owner);
+        });
+        seededPlaces.forEach(place -> {
+            jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", place);
+            jdbc.update("DELETE FROM places WHERE id = ?", place);
+        });
+        seededOwners.clear();
+        seededPlaces.clear();
     }
 
     @Test
     @DisplayName("BA-060-T18 all three operations answer 503 and write nothing")
     void everyImportOperationFailsClosedAndWritesNothing() throws Exception {
-        SessionService.Bootstrap owner = sessions.bootstrap(null, "ko-KR", "Asia/Seoul");
+        SessionService.Bootstrap owner = bootstrapped(null, "ko-KR", "Asia/Seoul");
         UUID ownerId = sessions.resolve(owner.cookie, false).ownerId();
         UUID place = place();
         UUID draft = draft(ownerId, place);
-        long draftsBefore = rows("itinerary_import_drafts");
+        long draftsBefore = ownedRows("itinerary_import_drafts", ownerId);
 
         mvc.perform(post("/api/v1/trip-imports/parse")
                         .cookie(cookie(owner)).header("Origin", ORIGIN)
@@ -104,23 +122,30 @@ class TripImportFailsClosedIT {
         // Zero writes, and each of the three could have left a different trace: parse a new draft,
         // remap a raised version, confirm a trip. A gate checked after the write would leave the row
         // and hand back the 503 anyway.
-        assertThat(rows("itinerary_import_drafts")).isEqualTo(draftsBefore);
-        assertThat(rows("trips")).isZero();
+        assertThat(ownedRows("itinerary_import_drafts", ownerId)).isEqualTo(draftsBefore);
+        assertThat(ownedRows("trips", ownerId)).isZero();
         assertThat(jdbc.queryForObject("SELECT version FROM itinerary_import_drafts WHERE id = ?",
                 Long.class, draft)).isEqualTo(1L);
-        assertThat(rows("idempotency_records")).isZero();
+        assertThat(ownedRows("idempotency_records", ownerId)).isZero();
     }
 
     private static Cookie cookie(SessionService.Bootstrap owner) {
         return new Cookie("__Host-nullnull_session", owner.cookie);
     }
 
-    private long rows(String table) {
-        return jdbc.queryForObject("SELECT count(*) FROM " + table, Long.class);
+    /**
+     * Scoped to this test's owner. A global count is order luck under the gate's shared database:
+     * every other class's trips and replay records are in the same table, and "zero" would only ever
+     * be true for whoever happened to run first.
+     */
+    private long ownedRows(String table, UUID ownerId) {
+        return jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE owner_id = ?", Long.class,
+                ownerId);
     }
 
     private UUID place() {
         UUID id = UUID.randomUUID();
+        seededPlaces.add(id);
         jdbc.update("""
                 INSERT INTO places
                     (id, canonical_name, category_code, latitude, longitude, region_code, status,
@@ -143,5 +168,12 @@ class TripImportFailsClosedIT {
                 VALUES (?, ?, 'READY', 1, ?::jsonb, '[]'::jsonb, NULL, NULL, ?, ?)
                 """, id, ownerId, content, Timestamp.from(NOW.plusSeconds(86400)), Timestamp.from(NOW));
         return id;
+    }
+
+    /** Bootstraps a session and remembers whose rows this class is about to create. */
+    private SessionService.Bootstrap bootstrapped(String cookie, String locale, String zone) {
+        SessionService.Bootstrap owner = sessions.bootstrap(cookie, locale, zone);
+        seededOwners.add(sessions.resolve(owner.cookie, false).ownerId());
+        return owner;
     }
 }

@@ -74,6 +74,10 @@ class TripImportIT {
     @Autowired MockMvc mvc;
     @Autowired SessionService sessions;
     @Autowired JdbcTemplate jdbc;
+
+    /** Ids this class created, so teardown touches nothing another class is still using. */
+    private final java.util.List<UUID> seededPlaces = new java.util.ArrayList<>();
+    private final java.util.List<UUID> seededOwners = new java.util.ArrayList<>();
     /**
      * Fixed, and never advanced. A draft's window closing is a property of the row, so these tests
      * close it by seeding an {@code expires_at} that has already passed rather than by moving time.
@@ -88,10 +92,24 @@ class TripImportIT {
         // Trips before places: a confirmed draft leaves trip_items pointing at the place it mapped,
         // and that foreign key has no cascade. Drafts go first because an unconfirmed one holds no
         // trip and would otherwise survive the trip delete that cascades the confirmed ones.
-        jdbc.update("DELETE FROM itinerary_import_drafts");
-        jdbc.update("DELETE FROM trips");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        // Only what this class created. A blanket delete is the wrong shape under the gate,
+        // which shares ONE database across every context while TestcontainersConfiguration gives
+        // each distinct @SpringBootTest its own container locally - so the failure exists only
+        // where running the classes in order cannot show it. places is deliberately not
+        // cascaded and ten tables reference it, so the class that tries to clear the table is
+        // the one that dies on somebody else's rows, and when it succeeds it takes their
+        // fixtures with it. Owner-scoped first, because trip_items cascade from trips.
+        seededOwners.forEach(owner -> {
+            jdbc.update("DELETE FROM itinerary_import_drafts WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM trips WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM idempotency_records WHERE owner_id = ?", owner);
+        });
+        seededPlaces.forEach(place -> {
+            jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", place);
+            jdbc.update("DELETE FROM places WHERE id = ?", place);
+        });
+        seededOwners.clear();
+        seededPlaces.clear();
     }
 
     @Test
@@ -359,7 +377,7 @@ class TripImportIT {
     }
 
     private SessionService.Bootstrap owner() {
-        return sessions.bootstrap(null, "ko-KR", "Asia/Seoul");
+        return bootstrapped(null, "ko-KR", "Asia/Seoul");
     }
 
     private UUID ownerId(SessionService.Bootstrap owner) {
@@ -406,6 +424,7 @@ class TripImportIT {
 
     private UUID place(String name) {
         UUID id = UUID.randomUUID();
+        seededPlaces.add(id);
         jdbc.update("""
                 INSERT INTO places
                     (id, canonical_name, category_code, latitude, longitude, region_code, status,
@@ -417,5 +436,12 @@ class TripImportIT {
                 VALUES (?, ?, 'ko-KR', ?, '서울시 어딘가', ?)
                 """, UUID.randomUUID(), id, name, Timestamp.from(NOW));
         return id;
+    }
+
+    /** Bootstraps a session and remembers whose rows this class is about to create. */
+    private SessionService.Bootstrap bootstrapped(String cookie, String locale, String zone) {
+        SessionService.Bootstrap owner = sessions.bootstrap(cookie, locale, zone);
+        seededOwners.add(sessions.resolve(owner.cookie, false).ownerId());
+        return owner;
     }
 }

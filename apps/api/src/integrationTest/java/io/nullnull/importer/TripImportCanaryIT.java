@@ -53,12 +53,19 @@ class TripImportCanaryIT {
     private static final Instant NOW = Instant.parse("2026-09-14T00:00:00Z");
     private static final String ORIGIN = "http://localhost:5173";
 
+    /** Unique per run: another class's 경복궁 would make this one ambiguous and never resolve. */
+    private final String tag = UUID.randomUUID().toString().substring(0, 8);
+
     private String canary;
     private ListAppender<ILoggingEvent> logs;
 
     @Autowired MockMvc mvc;
     @Autowired SessionService sessions;
     @Autowired JdbcTemplate jdbc;
+
+    /** Ids this class created, so teardown touches nothing another class is still using. */
+    private final java.util.List<UUID> seededPlaces = new java.util.ArrayList<>();
+    private final java.util.List<UUID> seededOwners = new java.util.ArrayList<>();
 
     @BeforeEach
     void planTheCanary() {
@@ -71,11 +78,24 @@ class TripImportCanaryIT {
     @AfterEach
     void removeOnlyOwnFixtures() {
         rootLogger().detachAppender(logs);
-        jdbc.update("DELETE FROM itinerary_import_drafts");
-        jdbc.update("DELETE FROM trips");
-        jdbc.update("DELETE FROM idempotency_records");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        // Only what this class created. A blanket delete is the wrong shape under the gate,
+        // which shares ONE database across every context while TestcontainersConfiguration gives
+        // each distinct @SpringBootTest its own container locally - so the failure exists only
+        // where running the classes in order cannot show it. places is deliberately not
+        // cascaded and ten tables reference it, so the class that tries to clear the table is
+        // the one that dies on somebody else's rows, and when it succeeds it takes their
+        // fixtures with it. Owner-scoped first, because trip_items cascade from trips.
+        seededOwners.forEach(owner -> {
+            jdbc.update("DELETE FROM itinerary_import_drafts WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM trips WHERE owner_id = ?", owner);
+            jdbc.update("DELETE FROM idempotency_records WHERE owner_id = ?", owner);
+        });
+        seededPlaces.forEach(place -> {
+            jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", place);
+            jdbc.update("DELETE FROM places WHERE id = ?", place);
+        });
+        seededOwners.clear();
+        seededPlaces.clear();
     }
 
     @Test
@@ -180,7 +200,7 @@ class TripImportCanaryIT {
                 .cookie(cookie(owner)).header("Origin", ORIGIN)
                 .header("X-CSRF-Token", owner.csrf.token).header("Idempotency-Key", key)
                 .contentType("application/json")
-                .content(json("rawText", "2026-10-05\n경복궁\n" + canary + " 엄마한테 전화\n",
+                .content(json("rawText", "2026-10-05\n경복궁" + tag + "\n" + canary + " 엄마한테 전화\n",
                         "locale", "ko-KR", "timezone", "Asia/Seoul")));
     }
 
@@ -212,20 +232,28 @@ class TripImportCanaryIT {
     }
 
     private SessionService.Bootstrap owner() {
-        return sessions.bootstrap(null, "ko-KR", "Asia/Seoul");
+        return bootstrapped(null, "ko-KR", "Asia/Seoul");
     }
 
     private void place() {
         UUID id = UUID.randomUUID();
+        seededPlaces.add(id);
         jdbc.update("""
                 INSERT INTO places
                     (id, canonical_name, category_code, latitude, longitude, region_code, status,
                      created_at, updated_at)
-                VALUES (?, '경복궁', 'A0201', 37.579617, 126.977041, '11', 'ACTIVE', ?, ?)
-                """, id, Timestamp.from(NOW), Timestamp.from(NOW));
+                VALUES (?, ?, 'A0201', 37.579617, 126.977041, '11', 'ACTIVE', ?, ?)
+                """, id, "경복궁" + tag, Timestamp.from(NOW), Timestamp.from(NOW));
         jdbc.update("""
                 INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)
-                VALUES (?, ?, 'ko-KR', '경복궁', '서울시 종로구', ?)
-                """, UUID.randomUUID(), id, Timestamp.from(NOW));
+                VALUES (?, ?, 'ko-KR', ?, '서울시 종로구', ?)
+                """, UUID.randomUUID(), id, "경복궁" + tag, Timestamp.from(NOW));
+    }
+
+    /** Bootstraps a session and remembers whose rows this class is about to create. */
+    private SessionService.Bootstrap bootstrapped(String cookie, String locale, String zone) {
+        SessionService.Bootstrap owner = sessions.bootstrap(cookie, locale, zone);
+        seededOwners.add(sessions.resolve(owner.cookie, false).ownerId());
+        return owner;
     }
 }
