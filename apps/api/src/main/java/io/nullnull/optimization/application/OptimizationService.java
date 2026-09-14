@@ -130,10 +130,21 @@ public class OptimizationService {
      */
     private OptimizationRun queue(OwnerContext context, Trip trip, CreateOptimizationCommand command) {
         Instant now = clock.instant();
+        // The revision this run freezes, beside the version it freezes. Both are read from the same
+        // trip, so they describe one moment rather than two.
+        //
+        // Written here and not left null, which is what it was: the column existed from V024 with no
+        // producer, so getOptimization answered inputRevisionId null on every run, and RunFingerprint
+        // - which requires it - could never be computed. A preview could therefore never reach READY,
+        // and the gap was invisible for as long as nothing tried to. The trip's first revision is
+        // written with the trip itself, so a trip that exists has one.
+        UUID inputRevisionId = trips.revisionAt(context.ownerId(), trip.id(), trip.version())
+                .orElseThrow(() -> new IllegalStateException(
+                        "trip " + trip.id() + " has no revision at version " + trip.version()));
         OptimizationRun run = new OptimizationRun(UUID.randomUUID(), trip.id(), context.ownerId(),
                 command.scope(), command.targetItemId(), command.targetDate(), command.includeCandidates(),
-                OptimizationStatus.QUEUED, trip.version(), null, null, null, null, null, now, null, null,
-                null);
+                OptimizationStatus.QUEUED, trip.version(), inputRevisionId, null, null, null, null, now,
+                null, null, null);
         runs.insert(run);
         jobs.enqueue(new JobRequest(UUID.randomUUID(), JOB_TYPE, "optimization:" + run.id(),
                 JobPayload.of(Map.of("runId", run.id().toString())), MAX_ATTEMPTS, now, now));
