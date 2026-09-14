@@ -1561,13 +1561,17 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. FE와 KO/EN·360/768/1280·200%zoom·keyboard·offline 핵심 흐름을 통합한다
 4. 09-06 PM 검토 PM-024의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
-실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다.
+실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다. 그래서 `T3`는 **시간을 재지 않는다** — 이 칸이 금지하는 것이 정확히 그것이다. CI가 정직하게 잴 수 있는 것은 구조이고(`JobConnectionBudget`이 선례다), p95는 staging의 질문이다.
+
+`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 `integration-test.sh`가 `--e2e-junit-dir`를 넘기지 않아 들어오지 않으므로, 이 ID는 FE가 실제로 구현해도 나타나지 않는다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰고 배선이 서면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
 
 필수 검증:
 
 - `BA-070-T1`: 다른 owner/expired session/source 장애 조합의 핵심 CRUD가 안전하다
 - `BA-070-T2`: redaction canary와 API 응답 PII·secret denylist가 0이다
-- `BA-070-T3`: 고정 부하 budget·핵심 keyboard/a11y E2E·P1 OFF variants를 통과한다
+- `BA-070-T3`: 고정 크기 입력의 쿼리 수와 connection 수에 상한이 있다
+- `BA-070-T4`: P1 capability가 꺼진 목록과 실제로 꺼진 동작이 같은 집합이다
+- `BA-070-T5`: 핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
 
 FE 인계·완료 증거: 오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

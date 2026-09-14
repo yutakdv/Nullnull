@@ -1941,7 +1941,15 @@
         },
         {
           "id": "BA-070-T3",
-          "assertion": "고정 부하 budget·핵심 keyboard/a11y E2E·P1 OFF variants를 통과한다"
+          "assertion": "고정 크기 입력의 쿼리 수와 connection 수에 상한이 있다"
+        },
+        {
+          "id": "BA-070-T4",
+          "assertion": "P1 capability가 꺼진 목록과 실제로 꺼진 동작이 같은 집합이다"
+        },
+        {
+          "id": "BA-070-T5",
+          "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)"
         }
       ],
       "handoff": "오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로.",
