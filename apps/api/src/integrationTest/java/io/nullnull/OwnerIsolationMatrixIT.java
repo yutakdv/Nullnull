@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,6 +99,39 @@ class OwnerIsolationMatrixIT {
             long version) {
     }
 
+    /**
+     * Every row this class created, so it can put the database back.
+     *
+     * <p>A fixture per operation is what keeps the three calls honest, and it is also what makes
+     * this the heaviest producer of rows in the suite: sixteen operations leave sixteen trips and
+     * thirty-two places behind. Leaving them is not a private untidiness. {@code places} is
+     * referenced by {@code trip_candidates} and {@code post_places} with NO cascade - deliberately,
+     * since a place must not vanish under a candidate - so another test's {@code DELETE FROM places}
+     * dies on rows this one abandoned, and the failure surfaces in THAT test's name. It did: a run
+     * of this suite in the Compose gate ended 79 tests red, and the first name in the list belonged
+     * to someone else. Each test was green on its own; the collision only exists in the order the
+     * two happen to run, which is why it survived two local runs and a merge.
+     *
+     * <p>Deleting the trips is enough for everything beneath them - {@code trip_items},
+     * {@code trip_candidates}, {@code candidate_sources}, {@code trip_constraints} all cascade, and
+     * {@code owners.active_trip_id} is ON DELETE SET NULL. The places need their own statement
+     * because they deliberately do not cascade.
+     */
+    private final List<String> createdTrips = new ArrayList<>();
+    private final List<UUID> createdPlaces = new ArrayList<>();
+
+    @AfterEach
+    void removeWhatThisTestCreated() {
+        for (String tripId : createdTrips) {
+            jdbc.update("DELETE FROM trips WHERE id = ?", UUID.fromString(tripId));
+        }
+        for (UUID placeId : createdPlaces) {
+            jdbc.update("DELETE FROM places WHERE id = ?", placeId);
+        }
+        createdTrips.clear();
+        createdPlaces.clear();
+    }
+
     // ---------------------------------------------------------------- spec
 
     /**
@@ -155,6 +189,7 @@ class OwnerIsolationMatrixIT {
         OffsetDateTime now = OffsetDateTime.now();
         jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
                 + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)", id, name, now, now);
+        createdPlaces.add(id);
         return id;
     }
 
@@ -174,7 +209,9 @@ class OwnerIsolationMatrixIT {
         String created = createJson(owner, "/trips",
                 "{\"startDate\":\"2026-10-04\",\"endDate\":\"2026-10-07\",\"timezone\":\"Asia/Seoul\","
                         + "\"planningLevel\":\"NOTHING\",\"interests\":[]}");
-        return created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
+        String tripId = created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1");
+        createdTrips.add(tripId);
+        return tripId;
     }
 
     private Fixture fixture() throws Exception {

@@ -148,6 +148,22 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
    **조율자의 말은 가장 빠르게 퍼지므로 가장 싸게 확인돼야 한다.** 세 세션에서 조율자가 낸 표기·상수·ID 형식은 검증 없이 양쪽으로 간다 — 실제로 조율자가 지어낸 `T8b` 형식이 메시지 **두 번**만에 두 카드로 번졌고(집계기 regex `BA-\d{3}-T\d+`에 매칭조차 안 되는 형식이다), 조율자가 **동료의 미확인 문장을 근거로** 내린 게이트 동작 결정이 카드에 실렸다가 그 동료의 반증으로 뒤집혔다. 그래서 규격은 쓰는 자리에서 대조하고, **조율자가 인용한 근거도 인용된 쪽이 다시 확인한다.** "네가 그렇게 말했다"는 가장 싸게 확인할 수 있는 주장이다.
 
+   **그리고 로컬 초록은 이 충돌에 대해 아무 말도 할 수 없다 — 아홉째다.** `TestcontainersConfiguration`은 `@SpringBootTest` 설정이 다른 context마다 **자기 PostgreSQL 컨테이너**를 띄운다. 필수 게이트는 `NULLNULL_TEST_DATABASE=external`로 **모든 context가 한 DB를 공유한다.** 그래서 *"다른 test가 남긴 행이 내 DELETE를 막는다"* 는 부류는 **로컬에서 재현될 수 없고**, 로컬 초록은 그 질문에 답한 적이 없다. 실측: `OwnerIsolationMatrixIT`가 trip·place를 정리하지 않아 `RedactionAndDenylistIT`의 `DELETE FROM places`가 `trip_candidates` FK에 걸렸고, Compose 게이트에서 **387 중 79가 빨갰다.** 목록의 첫 이름은 **남의 test**였다 — `places`는 일부러 cascade하지 않으므로(후보 밑에서 장소가 사라지면 안 된다) 행을 남긴 쪽이 아니라 지우려는 쪽이 죽는다. 로컬에서 두 class를 순서까지 맞춰 돌려도 초록이었고, **변이가 발화하지 않는 것을 "내 가설이 틀렸다"로 읽을 뻔했다.**
+
+   게이트 조건은 **로컬에서 만들 수 있다.** 이 한 번으로 CI와 같은 실패 두 건이 같은 이름으로 재현됐다:
+
+   ```bash
+   docker run -d --name nullnull-repro-db -e POSTGRES_DB=nullnull_repro \
+     -e POSTGRES_USER=nullnull -e POSTGRES_PASSWORD=repro-only -p 55432:5432 \
+     postgres@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+   NULLNULL_TEST_DATABASE=external \
+     SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:55432/nullnull_repro \
+     SPRING_DATASOURCE_USERNAME=nullnull SPRING_DATASOURCE_PASSWORD=repro-only \
+     ./gradlew --no-daemon integrationTest --rerun --tests '*AIT' --tests '*BIT'
+   ```
+
+   **행을 만드는 test는 그 행을 지운다.** trip 아래(`trip_items`·`trip_candidates`·`candidate_sources`·`trip_constraints`)는 cascade하고 `owners.active_trip_id`는 ON DELETE SET NULL이므로 `trips` 삭제 하나로 충분하지만, **`places`는 자기 문장이 필요하다.**
+
    **그래서 testcase 총계의 절대값을 남의 것과 비교하지 마라 — 여덟째다.** 두 세션이 같은 suite를 재고 `379`와 `381`을 보고했고, 조율자가 그 차이를 *"한쪽 실행이 자기 파일을 안 봤다"* 로 읽고 규칙까지 쓰려 했다. **둘 다 옳았다**: 한쪽 worktree는 `dd606f0`(377)에서, 다른 쪽은 `19a7da1`(379)에서 만들어졌고 그 사이 커밋이 testcase를 둘 늘렸다. `377+2=379`, `379+2=381`. **절대값은 잰 시각의 함수이지 변경의 함수가 아니다.** 비교해야 하는 것은 **같은 commit에서 잰 baseline과의 차이**다 — worktree가 어느 commit에서 만들어졌는지 적고 `baseline(그 commit) + 내가 더한 case 수 == 내 실행의 총계`인지 본다. 확인은 `git show <commit> -- 'apps/api/src/*Test*/*' | grep -c '^+\s*@Test'` 한 줄이었고, 조율자는 그것을 안 하고 추론을 보냈다 — **규칙이 될 주장일수록 가장 싸게 확인돼야 한다.** 카드 증거에 총계를 적을 때는 **어느 commit에서 잰 것인지 같이 적는다.**
 
    **worktree를 공유 트리에서 원복하지 마라 — 일곱째다.** 변이를 되돌릴 때 `cp $공유트리/파일`을 쓰면 가져오는 것은 `HEAD`가 아니라 **그 순간 남이 편집 중인 상태**다. 실제로 한 세션이 그렇게 원복했는데 옆 세션이 `CursorClaims`와 `SignedCursorCodec`을 **함께** 고치는 중이었고, 그중 한 파일만 복사해 와서 worktree가 컴파일 불가가 됐다 — 그것을 **변이 결과로 읽을 뻔했다.** **원복 방법은 파일이 누구 것이냐에 따라 갈린다** — 한 문장으로 적었더니 절반이 틀렸다: `git checkout -- <path>`는 **내가 고치지 않은 파일**에만 맞고, **내 미커밋 파일에 쓰면 내 작업이 날아간다**(같은 세션이 그날 그것도 당했다). 내가 고친 파일이면 **내 트리에서 그 파일만 이름으로** 복사한다. 그리고 애초에 **worktree를 만들 때도 `git status` 루프를 돌리지 마라** — 세션이 셋이면 그 목록은 내 것이 아니다. **`HEAD` + 내 파일을 이름으로 나열**한다. 둘을 섞으면 한쪽은 남의 작업을 끌어오고 다른 쪽은 내 작업을 지운다. `cp`는 *"worktree는 `HEAD` + 자기 파일만으로 만든다"* 를 뒷문으로 깨는 것이고, 앞의 `rsync` 사례와 같은 실패가 **되돌리는 순간에** 일어나는 판이다. 규칙 7②의 *"되돌린 뒤 `git status`로 확인한다"* 가 이것을 잡는 마지막 그물이다.
