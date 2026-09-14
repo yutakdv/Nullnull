@@ -7,6 +7,8 @@ import io.nullnull.identity.application.IdempotencyGuard.CommandOutcome;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.identity.domain.RequestFingerprint;
 import io.nullnull.shared.cursor.CursorClaims;
+import io.nullnull.shared.cursor.CursorException;
+import io.nullnull.shared.cursor.CursorSortKey;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import io.nullnull.trip.domain.PlanningLevel;
@@ -213,16 +215,21 @@ public class TripService {
     public TripPageView list(OwnerContext context, String status, String cursor, Integer limit) {
         int size = pageSize(limit);
         String binding = cursors.ownerBinding(context.ownerId());
-        long offset = 0;
+        TripStore.PageKey after = null;
         if (cursor != null && !cursor.isBlank()) {
             CursorClaims claims = cursors.cursorCodec().decode(cursor, clock.instant(), binding,
                     TripCursorProperties.CONTEXT);
-            offset = claims.nextOrdinal();
+            if (claims.sortVersion() != TripCursorProperties.SORT_VERSION) {
+                // A key minted under another order names a row this order would resume elsewhere.
+                throw new CursorException(ProblemCode.CURSOR_INVALID);
+            }
+            CursorSortKey key = CursorSortKey.decode(claims.sortKey());
+            after = new TripStore.PageKey(key.dateValue(), key.id());
         }
         String normalizedStatus = status == null || status.isBlank() ? null : TripStatus.of(status).name();
         // One extra row: a page that is exactly full is otherwise indistinguishable from the last
         // page, and a cursor handed out for an empty next page is a wasted round trip.
-        List<Trip> found = trips.page(context.ownerId(), normalizedStatus, offset, size + 1);
+        List<Trip> found = trips.page(context.ownerId(), normalizedStatus, after, size + 1);
         boolean hasMore = found.size() > size;
         List<Trip> page = hasMore ? found.subList(0, size) : found;
         Map<UUID, Integer> counts = trips.candidateCounts(page.stream().map(Trip::id).toList());
@@ -230,13 +237,17 @@ public class TripService {
         for (Trip trip : page) {
             views.add(new TripView(trip, counts.getOrDefault(trip.id(), 0)));
         }
-        String next = hasMore
-                ? cursors.cursorCodec().encode(new CursorClaims(TripCursorProperties.CONTEXT,
-                        offset + size, binding, TripCursorProperties.CONTEXT,
-                        TripCursorProperties.SORT_VERSION,
-                        clock.instant().plus(cursors.cursorTtl()), cursors.keyId()))
-                : null;
+        // The last trip of THIS page. Creating a trip that starts later inserts ahead of it, and
+        // the reader's place is that row rather than a count of the rows before it.
+        String next = hasMore ? nextCursor(page.get(page.size() - 1), binding) : null;
         return new TripPageView(views, next, hasMore);
+    }
+
+    private String nextCursor(Trip last, String binding) {
+        return cursors.cursorCodec().encode(new CursorClaims(TripCursorProperties.CONTEXT,
+                CursorSortKey.of(last.range().startDate(), last.id()).encode(), binding,
+                TripCursorProperties.CONTEXT, TripCursorProperties.SORT_VERSION,
+                clock.instant().plus(cursors.cursorTtl()), cursors.keyId()));
     }
 
     /**

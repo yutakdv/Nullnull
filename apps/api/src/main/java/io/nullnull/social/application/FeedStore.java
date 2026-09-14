@@ -11,8 +11,15 @@ import java.util.UUID;
 /** Persistence port for curated posts and an owner's saved posts. Owned by the social module. */
 public interface FeedStore {
 
-    /** One page of PUBLISHED posts in the fixed order, offset rows in. */
-    List<Post> publishedPage(long offset, int limit);
+    /**
+     * One page of PUBLISHED posts in the fixed order, resuming after {@code after}.
+     *
+     * @param after the last post of the previous page, or null for the first page
+     */
+    List<Post> publishedPage(PageKey after, int limit);
+
+    /** The row a feed page ended on, in the terms {@link io.nullnull.social.domain.FeedOrdering} sorts by. */
+    record PageKey(Instant publishedAt, UUID postId) { }
 
     /** A PUBLISHED post. DRAFT and HIDDEN are absent, not forbidden: readers have no claim on them. */
     Optional<Post> publishedPost(UUID postId);

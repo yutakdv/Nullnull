@@ -4,6 +4,7 @@ import io.nullnull.catalog.application.CatalogPlaceQuery;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogExternalReferenceView;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogMediaAsset;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceDetail;
+import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSearchHit;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.catalog.application.CatalogPlaceSearchRequest;
 import java.math.BigDecimal;
@@ -36,9 +37,18 @@ public class JdbcCatalogPlaceQuery implements CatalogPlaceQuery {
      * by-id read so an embedded place can never be projected differently from a searched one -
      * a second copy of this would drift and one of the two callers would lose its attribution.
      */
+    /**
+     * The expression the search ORDERs BY, and therefore the one its cursor key must be compared
+     * against. Named once because it appears three times - SELECT, WHERE and ORDER BY - and a WHERE
+     * that drifted from the ORDER BY would silently drop rows out of the middle of a listing.
+     */
+    private static final String SORT_NAME =
+            "lower(COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name))";
+
     private static final String SUMMARY_PROJECTION = """
 SELECT p.id,
                        COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name) AS name,
+                       lower(COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name)) AS sort_name,
                        p.category_code, p.region_code,
                        COALESCE(exact_locale.address, language_locale.address, ko_locale.address) AS address,
                        source_credit.source_code AS credit_source_code,
@@ -103,10 +113,12 @@ SELECT p.id,
                 """;
 
     @Override
-    public List<CatalogPlaceSummary> search(CatalogPlaceSearchRequest request, long offset, int fetchLimit,
+    public List<CatalogPlaceSearchHit> search(CatalogPlaceSearchRequest request, PageKey after, int fetchLimit,
             Instant observedAt) {
         String pattern = "%" + escapeLike(request.query().toLowerCase(java.util.Locale.ROOT)) + "%";
-        return jdbc.query(SUMMARY_PROJECTION + """
+        List<Object> parameters = new java.util.ArrayList<>(List.of(request.locale(), request.language(),
+                Timestamp.from(observedAt)));
+        StringBuilder sql = new StringBuilder(SUMMARY_PROJECTION + """
                  WHERE p.status = 'ACTIVE'
                    AND p.latitude IS NOT NULL
                    AND p.longitude IS NOT NULL
@@ -118,11 +130,28 @@ SELECT p.id,
                            WHERE searchable.place_id = p.id
                              AND lower(searchable.name) LIKE ? ESCAPE '\\'
                         ))
-                 ORDER BY lower(COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name)),
-                          p.id
-                 LIMIT ? OFFSET ?
-                """, JdbcCatalogPlaceQuery::summary, request.locale(), request.language(), Timestamp.from(observedAt),
-                request.regionCode(), pattern, pattern, fetchLimit, offset);
+                """);
+        parameters.add(request.regionCode());
+        parameters.add(pattern);
+        parameters.add(pattern);
+        if (after != null) {
+            // Resume after that place rather than skipping a count of rows: a place becoming
+            // publishable, or losing the coordinates this projection requires, must not move a
+            // reader who is already past it.
+            sql.append(" AND (").append(SORT_NAME).append(" > ? OR (").append(SORT_NAME)
+                    .append(" = ? AND p.id > ?))");
+            parameters.add(after.sortName());
+            parameters.add(after.sortName());
+            parameters.add(after.placeId());
+        }
+        sql.append(" ORDER BY ").append(SORT_NAME).append(", p.id LIMIT ?");
+        parameters.add(fetchLimit);
+        return jdbc.query(sql.toString(), JdbcCatalogPlaceQuery::searchHit, parameters.toArray());
+    }
+
+    /** The summary plus the sort value the database produced for it; see CatalogPlaceSearchHit. */
+    private static CatalogPlaceSearchHit searchHit(ResultSet result, int row) throws SQLException {
+        return new CatalogPlaceSearchHit(summary(result, row), result.getString("sort_name"));
     }
 
     @Override

@@ -1093,7 +1093,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-027
 
-**cursor를 위치가 아니라 정렬 키에 결합한다** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**cursor를 위치가 아니라 정렬 키에 결합한다** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-030](#ba-030), [BA-032](#ba-032), [BA-034](#ba-034)
 - 기능 ID: 해당 없음
@@ -1134,6 +1134,31 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 정렬 키에 owner ID·검색어·원문을 담지 않는다. 순번과 정렬 키 두 방식을 한 표면이 같이 받지 않는다 — 둘 다 받으면 어느 쪽이 쓰였는지 test가 말할 수 없다.
 
+**순번 field를 남기지 않고 교체했다.** 착수 조사는 *"payload에 한 칸이 는다"* 였는데, 그러면 카드의
+안전 경계(*"두 방식을 한 표면이 같이 받지 않는다"*)가 깨지고 `T3`의 *"위치를 담지 않는다"* 가 런타임
+관찰에만 기대게 된다. `CursorClaims.nextOrdinal`을 `sortKey`로 **바꿔서** 위치를 담을 자리 자체를
+없앴다 — [BA-033](#ba-033)의 ArchUnit이 *"닿을 경로 자체가 없음"* 을 고정한 것과 같은 모양이다.
+payload는 7칸 그대로라 **기존 cursor는 서명도 arity도 통과한다**. 그것을 막는 것은 `CursorSortKey`의
+파싱뿐이므로(순번 `"40"`에는 `:`가 없다) 그 자리를 `SignedCursorCodecTest`가 따로 고정한다.
+
+**표면은 넷이 아니라 여섯이고, 계약에서 끌어온다.** 착수 조사의 "넷"은 `nextOrdinal` 호출부를 센
+것이라 **아직 구현되지 않은 표면을 보지 못했다.** `CursorSurfaceMatrixIT`는 `CursorPage`를 담는
+schema를 찾고 그 schema를 내는 operation을 모은다 — `cursor` query parameter로 긁으면 read-only
+POST인 `searchPlaces`를 놓치기 때문이다. 그래서 `listOptimizationHistory`·`listNotifications`가
+같이 나오고, 둘은 아직 라우팅되지 않는다. **건너뛰지 않는다**: fixture 집합이 *실행 중인 context의
+handler가 실제로 서비스하는 집합*과 **양방향으로 같아야** 하므로, 둘 중 하나가 라우팅되는 날 `T4`가
+그 자리에서 빨개져 fixture를 강제한다. 손으로 적은 목록이 조용히 낡는 것이 이 카드가 막으려는 실패다.
+
+**정렬 키 값은 DB가 준 것을 그대로 쓴다.** 이름순 검색의 키는 `lower()`이고 그것은 서버 collation의
+함수다 — Java `toLowerCase`로 다시 계산하면 C locale DB에서 비ASCII가 어긋나 **cursor가 자기
+ORDER BY와 불일치**하고, 그게 이 카드가 없애려는 누락을 그대로 되살린다. 그래서 search는 정렬
+표현식을 column으로 같이 내보내고 `CatalogPlaceSearchHit`가 그 값을 나른다.
+
+**키에 owner ID·검색어·원문은 없다.** 검색어는 이미 `cursorContext()`의 digest이고, 키는 같은 응답이
+방금 돌려준 값(공개 시각·날짜·장소 이름)과 그 행의 id뿐이다. 값의 base64url은 **은닉이 아니라
+구분자 회피**다(장소 이름은 `:`도 `|`도 담을 수 있다) — cursor를 가진 사람은 그대로 읽을 수 있고,
+그것을 안전하게 만드는 것은 서명과 owner binding이지 인코딩이 아니다.
+
 필수 검증:
 
 - `BA-027-T1`: 페이지 사이에 앞선 행이 생겨도 이미 본 행을 다시 주지 않는다
@@ -1141,9 +1166,27 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-027-T3`: cursor는 정렬 키를 담고 위치를 담지 않는다
 - `BA-027-T4`: cursor를 쓰는 목록 표면 전부가 이 검사에 들어온다
 
+넷 모두 `CursorSurfaceMatrixIT`(`apps/api/src/integrationTest/java/io/nullnull/`)에 있고 report는
+`apps/api/build/test-results/integrationTest/`다. `T3`이 *두 절을 한 testcase로* 증명하는 방식은
+이렇다: **같은 마지막 행**에 대해 그 행이 넷 중 둘째일 때와 다섯 중 셋째일 때 cursor를 각각 발급하고
+두 cursor가 **같은 자리에서 재개하는지** 본다. 키를 담으면 둘은 구분되지 않고, 순번을 담으면 두 행
+어긋난다 — 한쪽 절만 도는 test가 다른 절을 놓칠 여지가 없다.
+
+**변이 검증(규칙 7②).** 네 store의 keyset 술어를 죽이자 `T1`·`T2`·`T3`이 빨개졌고 **실패 메시지가
+네 표면을 전부 이름으로 지목했다** — 표면마다 fixture가 실제로 그 경로를 도는지까지 그 목록이
+보여준다. 표면 하나를 matrix에서 빼자 `T4`가 빨개지며 미라우팅 둘을 이름으로 댔다.
+`CursorSortKey.decode`의 거절을 완화하자 legacy cursor test가 빨개졌다. **그 실행에서 matrix는
+`NO REPORT`였다** — `test`가 먼저 죽어 `integrationTest`가 아예 돌지 않았고, report 없음을 실패
+0건으로 읽지 않기 위해 집계 script가 그 둘을 다른 말로 출력한다. 되돌린 뒤 `test`(411)·
+`integrationTest`(381)·`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
+
 `T4`가 이 카드의 수명을 정한다. 네 표면을 손으로 적은 검사는 **다섯째가 생기는 날 조용히 낡고 그 다섯째가 같은 결함을 갖고 태어난다.** [BA-070](#ba-070)의 `T1`이 계약에서 trip-scoped operation을 읽어 matrix를 만드는 것과 같은 모양으로 표면 목록을 코드에서 끌어온다.
 
-FE 인계·완료 증거: 기존 cursor가 무효가 되는 배포 창과 그때 화면이 무엇을 하는지. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무효가 된다.** TTL이 15분이므로 창은
+배포 후 15분이고, 그 사이의 다음 page 요청은 `CURSOR_INVALID`(400)로 답한다 — 조용히 첫 page로
+되돌리지 않으므로 화면이 그 코드를 받아 목록을 처음부터 다시 읽는 동작이 필요하다. 출시 전이라
+받아들인 비용이다. `verified` 승격은 required gate가 한 바퀴 돌아 실제 run URL과 `contractSha`가
+생긴 뒤다 — 지금 채우면 일어나지 않은 실행을 기록하게 된다.
 
 ## B05 · 일정 편집·독립 잠금
 

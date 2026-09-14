@@ -6,6 +6,8 @@ import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogMediaAsset;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.cursor.CursorClaims;
+import io.nullnull.shared.cursor.CursorException;
+import io.nullnull.shared.cursor.CursorSortKey;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.ids.UuidV7;
 import io.nullnull.shared.problem.ProblemCode;
@@ -62,12 +64,17 @@ public class FeedService {
     public FeedPageView list(OwnerContext context, String cursor, Integer limit, UUID tripId) {
         int size = pageSize(limit);
         String binding = cursors.ownerBinding(context.ownerId());
-        long offset = 0;
+        FeedStore.PageKey after = null;
         if (cursor != null && !cursor.isBlank()) {
             CursorClaims claims = cursors.cursorCodec().decode(cursor, clock.instant(), binding, CONTEXT);
-            offset = claims.nextOrdinal();
+            if (claims.sortVersion() != FeedOrdering.SORT_VERSION) {
+                // A key minted under another order names a row this order would resume elsewhere.
+                throw new CursorException(ProblemCode.CURSOR_INVALID);
+            }
+            CursorSortKey key = CursorSortKey.decode(claims.sortKey());
+            after = new FeedStore.PageKey(key.instantValue(), key.id());
         }
-        List<Post> found = feed.publishedPage(offset, size + 1);
+        List<Post> found = feed.publishedPage(after, size + 1);
         boolean hasMore = found.size() > size;
         List<Post> page = hasMore ? found.subList(0, size) : found;
 
@@ -106,12 +113,17 @@ public class FeedService {
             cards.add(new FeedCardView(post, place, savedPosts.contains(post.id()),
                     candidateState(tripId, post.primaryPlaceId(), inTrip, saved)));
         }
-        String next = hasMore
-                ? cursors.cursorCodec().encode(new CursorClaims(CONTEXT, offset + size, binding, CONTEXT,
-                        FeedOrdering.SORT_VERSION, clock.instant().plus(cursors.cursorTtl()),
-                        cursors.keyId()))
-                : null;
+        // The last post of THIS page, not a count of what came before it: that row is the reader's
+        // place and stays their place whatever is published or hidden ahead of it. Read inside the
+        // branch because an empty page has no last row, and hasMore cannot be true when it is empty.
+        String next = hasMore ? nextCursor(page.get(page.size() - 1), binding) : null;
         return new FeedPageView(cards, next, hasMore);
+    }
+
+    private String nextCursor(Post last, String binding) {
+        return cursors.cursorCodec().encode(new CursorClaims(CONTEXT,
+                CursorSortKey.of(last.publishedAt(), last.id()).encode(), binding, CONTEXT,
+                FeedOrdering.SORT_VERSION, clock.instant().plus(cursors.cursorTtl()), cursors.keyId()));
     }
 
     /**

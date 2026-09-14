@@ -87,7 +87,7 @@ public class JdbcTripStore implements TripStore {
     }
 
     @Override
-    public List<Trip> page(UUID ownerId, String status, long offset, int limit) {
+    public List<Trip> page(UUID ownerId, String status, TripStore.PageKey after, int limit) {
         StringBuilder sql = new StringBuilder("""
                 SELECT id, owner_id, title, start_date, end_date, timezone, planning_level, status,
                        version, created_at, updated_at, archived_at
@@ -100,11 +100,20 @@ public class JdbcTripStore implements TripStore {
             sql.append(" AND status = ?");
             parameters.add(status);
         }
+        if (after != null) {
+            // Resume after that trip rather than skipping a count of rows: creating a trip inserts at
+            // the head of start_date DESC for any trip starting later, which under an offset would
+            // re-serve the one the reader just saw. id DESC in the tie branch, matching ORDER BY.
+            sql.append(" AND (start_date < ? OR (start_date = ? AND id < ?))");
+            java.sql.Date startDate = java.sql.Date.valueOf(after.startDate());
+            parameters.add(startDate);
+            parameters.add(startDate);
+            parameters.add(after.tripId());
+        }
         // The ordering the (owner_id, status, start_date DESC) index serves. id breaks ties so the
         // sort is total: two trips starting the same day must not swap places between pages.
-        sql.append(" ORDER BY start_date DESC, id DESC LIMIT ? OFFSET ?");
+        sql.append(" ORDER BY start_date DESC, id DESC LIMIT ?");
         parameters.add(limit);
-        parameters.add(offset);
         List<Trip> found = jdbc.sql(sql.toString()).params(parameters)
                 .query((ResultSet row, int index) -> map(row, List.of()))
                 .list();

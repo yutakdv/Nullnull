@@ -37,7 +37,7 @@ public final class SignedCursorCodec {
     }
 
     public String encode(CursorClaims claims) {
-        String payload = String.join("|", claims.snapshotId(), Long.toString(claims.nextOrdinal()),
+        String payload = String.join("|", claims.snapshotId(), claims.sortKey(),
                 claims.ownerBinding(), claims.context(), Integer.toString(claims.sortVersion()),
                 Long.toString(claims.expiresAt().getEpochSecond()), claims.keyId());
         String signature = Base64.getUrlEncoder().withoutPadding().encodeToString(sign(payload));
@@ -73,7 +73,7 @@ public final class SignedCursorCodec {
         }
         CursorClaims claims;
         try {
-            claims = new CursorClaims(parts[0], Long.parseLong(parts[1]), parts[2], parts[3],
+            claims = new CursorClaims(parts[0], parts[1], parts[2], parts[3],
                     Integer.parseInt(parts[4]), Instant.ofEpochSecond(Long.parseLong(parts[5])), parts[6]);
         } catch (IllegalArgumentException exception) {
             throw new CursorException(ProblemCode.CURSOR_INVALID);

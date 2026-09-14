@@ -1444,7 +1444,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "cursor를 위치가 아니라 정렬 키에 결합한다",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022",
         "BA-030",
