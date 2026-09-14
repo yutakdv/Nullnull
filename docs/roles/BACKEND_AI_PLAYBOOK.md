@@ -721,11 +721,18 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **측정과 증거의 층위를 섞지 않는다.** 위 표는 **실제 HTTP 성공 호출**이고 파라미터 계약을 확정한다. 반면 **승인된 harness(`actualKtoSmoke`)로 `api_ingest_logs`·`collector_runs`·snapshot row까지 남긴 forecast 성공 실행은 아직 없다** — 마지막 harness 실행은 HTTP 호출 전에 `areaCode is not a KTO area identifier`로 실패했고, `.env.local`에 `KTO_FORECAST_BASE_URL`이 없어 forecast endpoint 설정이 비어 있으며 `NULLNULL_KTO_SMOKE_CONTENT_ID`도 필요하다. 셋 중 어느 것도 BA-021-T3의 **staging** 공개 증거를 대신하지 않는다.
 
+**`T2`가 담고 있던 두 층을 갈랐다([#224](https://github.com/yutakdv/Nullnull/issues/224)).** 원래 문구는 *"…pair의 **delta가 null이다**"* 로 **정책 판정**과 **응답의 값**을 한 절에 묶고 있었다. 뒤쪽은 `CrowdComparison.delta`인데 그 schema의 생산자가 없었고, 지금은 [BA-051](#ba-051)의 `T6`(*"비교 자격이 없는 제안은 crowd delta를 담은 채로 저장되지 않는다"*)가 **그 층의 주인**이다. 여기 남는 것은 정책 판정이고, 네 조건은 `TemporalComparisonPolicy`의 **서로 다른 분기**라 하나를 증명하는 test가 나머지를 증명하지 않는다.
+
+**증명은 이미 있었고 ID만 없었다** — `TemporalComparisonPolicyTest`가 부적격 사유 일곱을 우선순위대로 돌고 인접 쌍까지 고정하며 property 기반 판별 방향도 넣는데, class `@DisplayName`이 `REC-DATA` 계열 셋을 달고 있고 method에는 `@DisplayName`이 아예 없어 집계기가 아무것도 못 봤다. 규칙 3의 **거울상**이고, 이름만 옮기지 않고 본문과 대조한 뒤 달았다.
+
 필수 검증:
 
 - `BA-023-T1`: 6-state와 null provenance matrix 전체를 contract/property로 검증한다
-- `BA-023-T2`: mixed source/scope/issue/set·stale·replay·incident pair의 delta가 null이다
+- `BA-023-T2`: 다른 source·scope·issue·set의 pair는 비교 자격이 없다
 - `BA-023-T3`: 최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다
+- `BA-023-T4`: stale pair는 비교 자격이 없다
+- `BA-023-T5`: replay pair는 비교 자격이 없다
+- `BA-023-T6`: incident pair는 비교 자격이 없다
 
 구현 결과:
 

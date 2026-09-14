@@ -53,6 +53,7 @@ class TemporalComparisonPolicyTest {
     }
 
     @Test
+    @DisplayName("BA-023-T2 같은 장소라도 다른 forecast issue의 두 값은 비교 자격이 없다")
     void differentIssueIsIneligible() {
         ComparisonVerdict verdict = policy.evaluate(
                 forecast(PLACE, "issue-1", "2026-09-12T01:00:00Z", 80, Set.of()),
@@ -61,6 +62,7 @@ class TemporalComparisonPolicyTest {
     }
 
     @Test
+    @DisplayName("BA-023-T2 다른 장소의 두 값은 scope가 달라 비교 자격이 없다")
     void differentPlaceIsDifferentScope() {
         ComparisonVerdict verdict = policy.evaluate(
                 forecast(PLACE, "issue-1", "2026-09-12T01:00:00Z", 80, Set.of()),
@@ -69,6 +71,7 @@ class TemporalComparisonPolicyTest {
     }
 
     @Test
+    @DisplayName("BA-023-T4 BA-023-T5 BA-023-T6 stale·replay·incident는 각각 비교 자격을 막고 그 순서가 고정이다")
     void staleReplayIncidentQualitativeAndMissingProvenanceBlockInPrecedenceOrder() {
         CrowdPoint before = forecast(PLACE, "issue-1", "2026-09-12T01:00:00Z", 80, Set.of());
         CrowdPoint after = forecast(PLACE, "issue-1", "2026-09-12T05:00:00Z", 60, Set.of());
@@ -156,6 +159,7 @@ class TemporalComparisonPolicyTest {
     }
 
     @Test
+    @DisplayName("BA-023-T2 registry나 normalization version이 다르면 다른 계열이라 비교 자격이 없다")
     void differentRegistryOrNormalizationVersionIsADifferentSeries() {
         CrowdPoint before = forecast(PLACE, "issue-1", "2026-09-12T01:00:00Z", 80, Set.of());
         CrowdPoint after = forecast(PLACE, "issue-1", "2026-09-12T05:00:00Z", 60, Set.of());
