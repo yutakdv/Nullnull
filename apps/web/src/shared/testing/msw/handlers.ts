@@ -58,6 +58,20 @@ function currentTrip() {
   return tripState;
 }
 
+/**
+ * FE-104's trip LIST state, separate from the detail state above.
+ *
+ * deleteTrip removes a row, so the list has to be able to lose one. Serving
+ * the fixture flat would make "the deleted trip is gone" true before the
+ * screen did anything.
+ */
+let tripPageState: (typeof tripFixtures)['page'] | null = null;
+
+function currentTripPage() {
+  tripPageState ??= tripFixtures.page;
+  return tripPageState;
+}
+
 let candidateState: (typeof candidateFixtures)['page'] | null = null;
 
 function currentCandidates() {
@@ -116,6 +130,7 @@ const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
   tripState = null;
+  tripPageState = null;
   candidateState = null;
   savedPosts.clear();
   runPolls.clear();
@@ -144,7 +159,34 @@ export const handlers = [
   // fixtures behind them are schema-valid guesses rather than real responses
   // (packages/contracts/src/index.ts). Delete these two handlers once BA-030
   // and BA-053 serve the real thing; the screens already call the real client.
-  http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.page)),
+  http.get(`${API_BASE}/trips`, () => HttpResponse.json(currentTripPage())),
+  // MOCK DATA (FE-104). deleteTrip has no approved example either.
+  //
+  // Stateful for the same reason the item handlers are: if this answered 204
+  // and left the list alone, "the deleted trip is gone from the list" would
+  // pass whether or not the screen ever removed it. The row has to actually
+  // leave, or the assertion measures nothing.
+  //
+  // If-Match is checked against THAT ROW's version, because the contract's
+  // ETag is the quoted trip version and the profile builds it from
+  // TripSummary.version. A stale validator has to be visible as a conflict.
+  http.delete(`${API_BASE}/trips/:tripId`, ({ request, params }) => {
+    const page = currentTripPage();
+    const tripId = String(params.tripId);
+    const target = page.items.find((trip) => trip.id === tripId);
+    if (!target) return problemResponse('NOT_FOUND');
+    if (request.headers.get('If-Match') !== `"${String(target.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    tripPageState = {
+      ...page,
+      items: page.items.filter((trip) => trip.id !== tripId),
+    };
+    return new HttpResponse(null, {
+      status: 204,
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }),
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),

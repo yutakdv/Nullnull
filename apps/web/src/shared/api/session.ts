@@ -753,6 +753,53 @@ export function useUpdateTrip(tripId: string | null) {
   });
 }
 
+/**
+ * Deletes a trip and everything it owns (FR-TRP-04).
+ *
+ * 204 with no body, so success is read from the status rather than from data —
+ * `if (!data) fail(...)`, the shape every other trip hook uses, would treat a
+ * successful delete as a failure. useUnsavePost is the precedent.
+ *
+ * The ETag comes from `TripSummary.version`, not from a prior getTrip. The
+ * contract defines the header as the quoted trip version (`"7"`,
+ * `^"[1-9][0-9]*"$`), so the list row already holds everything If-Match needs
+ * and the profile can delete without fetching each trip first. If that
+ * derivation ever stops holding, this sends a stale validator and the server
+ * answers 409 — it fails closed, which is the point of invariant 6.
+ *
+ * The Idempotency-Key is minted by the CALLER for the same reason it is on
+ * reorder: a retry of the same user action must reuse the key, and a key minted
+ * in here would be fresh on every attempt, turning one destructive command into
+ * two.
+ *
+ * On success the trip's own cache entry is REMOVED rather than invalidated.
+ * Invalidating asks for it again, and the next fetch is a 404 for a resource
+ * the user deliberately destroyed.
+ */
+export function useDeleteTrip() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Problem | Error,
+    { tripId: string; etag: string; idempotencyKey: string }
+  >({
+    mutationFn: async ({ tripId, etag, idempotencyKey }) => {
+      const { error, response } = await getApiClient().DELETE('/trips/{tripId}', {
+        params: {
+          path: { tripId },
+          header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+        },
+      });
+      if (response.status !== 204) fail(error, response);
+    },
+    onSuccess: (_result, { tripId }) => {
+      queryClient.removeQueries({ queryKey: tripQueryKey(tripId) });
+      queryClient.removeQueries({ queryKey: candidatesQueryKey(tripId) });
+      void queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+  });
+}
+
 type CandidatePage = components['schemas']['CandidatePage'];
 type CandidateMatchResult = components['schemas']['CandidateMatchResult'];
 type AddTripItemRequest = components['schemas']['AddTripItemRequest'];

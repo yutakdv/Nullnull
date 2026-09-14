@@ -126,6 +126,33 @@ button.row {
   cursor: pointer;
 }
 
+/* The link is width:100%, so the delete control beside it needs the row itself
+   to do the dividing. */
+.tripRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.rowDelete {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+  margin-inline-end: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-label);
+  cursor: pointer;
+}
+
+.rowDelete:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
 .rowText {
   display: flex;
   flex-direction: column;

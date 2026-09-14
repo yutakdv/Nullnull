@@ -133,6 +133,19 @@ export const messages = {
     'profile.trips.empty': '아직 만든 여행이 없어요',
     'profile.trips.loading': '여행 목록을 불러오는 중이에요',
     'profile.trips.error': '여행 목록을 불러오지 못했어요',
+    // FR-TRP-04 여행 삭제. `deletion.*`와 다른 동작이다 — 그쪽은 이 기기의
+    // 세션 전체를 지우고(FE-105), 이쪽은 여행 하나만 지운다. 문구를 재사용하면
+    // 한 여행을 지우려던 사용자가 전부 지운다고 읽는다.
+    'trip.delete.open': '{name} 삭제',
+    'trip.delete.title': '이 여행을 삭제할까요?',
+    'trip.delete.body':
+      '{name}과(와) 그 안의 일정·담아둔 곳이 모두 지워져요. 되돌릴 수 없어요.',
+    'trip.delete.confirm': '삭제할게요',
+    'trip.delete.cancel': '취소',
+    'trip.delete.deleted': '{name}을(를) 삭제했어요',
+    'trip.delete.failed': '삭제하지 못했어요',
+    // 409: 다른 곳에서 바뀐 여행을 지우려 한 것이므로 목록을 다시 불러온다.
+    'trip.delete.conflict': '이 여행이 다른 곳에서 바뀌었어요. 목록을 새로 불러왔어요.',
     'profile.history.title': 'AI 최적화 이력',
     'profile.history.empty': '아직 최적화 이력이 없어요',
     'profile.history.loading': '이력을 불러오는 중이에요',
@@ -768,6 +781,18 @@ export const messages = {
     'profile.trips.empty': 'No trips yet',
     'profile.trips.loading': 'Loading your trips',
     'profile.trips.error': "We couldn't load your trips",
+    // FR-TRP-04. Deliberately not the `deletion.*` wording: that one erases the
+    // whole session on this device (FE-105), this one removes a single trip.
+    'trip.delete.open': 'Delete {name}',
+    'trip.delete.title': 'Delete this trip?',
+    'trip.delete.body':
+      "{name} and everything in it — the itinerary and the places you saved — will be gone. This can't be undone.",
+    'trip.delete.confirm': 'Delete',
+    'trip.delete.cancel': 'Cancel',
+    'trip.delete.deleted': 'Deleted {name}',
+    'trip.delete.failed': "We couldn't delete it",
+    'trip.delete.conflict':
+      'This trip changed somewhere else. The list has been reloaded.',
     'profile.history.title': 'AI optimization history',
     'profile.history.empty': 'No optimization history yet',
     'profile.history.loading': 'Loading history',

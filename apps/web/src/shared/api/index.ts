@@ -52,6 +52,7 @@ export {
   useTrips,
   useReplaceTripInterests,
   useUpdateTrip,
+  useDeleteTrip,
   useTripCandidates,
   useCandidateMatches,
   useAddTripItem,
