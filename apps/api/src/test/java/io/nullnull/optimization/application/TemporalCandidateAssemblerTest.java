@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -96,6 +97,10 @@ class TemporalCandidateAssemblerTest {
     }
 
     private List<TemporalCandidateIn> assemble(CrowdForecastQuery.SnapshotSet set) {
+        return assembled(set).items();
+    }
+
+    private TemporalCandidateAssembler.Candidates assembled(CrowdForecastQuery.SnapshotSet set) {
         CrowdForecastQuery query = new CrowdForecastQuery() {
             @Override
             public Optional<SnapshotSet> latestFresh(UUID placeId, Instant from, Instant to, Instant now) {
@@ -109,6 +114,35 @@ class TemporalCandidateAssemblerTest {
         };
         return new TemporalCandidateAssembler(query, new CrowdProvenanceProjection())
                 .candidatesFor(PLACE, CURRENT, START, END, SEOUL, NOW);
+    }
+
+    @Test
+    @DisplayName("the set's own facts come back with it, read once rather than fetched again")
+    void theFrozenSetDescribesItself() {
+        TemporalCandidateAssembler.Candidates candidates = assembled(set(
+                snapshot(CURRENT, "80", ISSUE, "v1", Set.of()),
+                snapshot(END, "20", ISSUE, "v1", Set.of())));
+
+        // The fingerprint pins these, and the explanation names the metric and the source line. All
+        // describe ONE set, so a caller that went back for them would be reading a second moment.
+        assertThat(candidates.snapshotIds()).hasSize(2);
+        assertThat(candidates.sourceRegistryVersions()).isEqualTo(Map.of("KTO_TARRLTVL", 1));
+        assertThat(candidates.normalizationVersion()).isEqualTo("v1");
+        assertThat(candidates.forecastIssueId()).isEqualTo(ISSUE);
+        assertThat(candidates.metricCode()).isEqualTo("KTO_RELATIVE_CONCENTRATION_INDEX");
+        assertThat(candidates.attribution()).isEqualTo("한국관광공사");
+    }
+
+    @Test
+    @DisplayName("an empty answer carries no facts to mistake for evidence")
+    void nothingFoundMeansNothingDescribed() {
+        TemporalCandidateAssembler.Candidates none = assembled(null);
+
+        // Not a set with zero candidates: a run that pinned an empty snapshot set would claim to have
+        // frozen evidence it never saw, and RunFingerprint refuses an empty pin for that reason.
+        assertThat(none.isEmpty()).isTrue();
+        assertThat(none.snapshotIds()).isEmpty();
+        assertThat(none.normalizationVersion()).isNull();
     }
 
     private static CrowdForecastQuery.SnapshotSet set(CrowdForecastQuery.Snapshot... snapshots) {
