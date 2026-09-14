@@ -1224,12 +1224,57 @@ FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무�
 
 실패·안전 경계: 사용자 edit buffer는 서버 상태가 아니다. 실패·취소·dirty-exit가 domain mutation을 만들지 않는다. 잠금을 **설정·해제하는 command**(`setTripItemConstraint`·`removeTripItemConstraint`)는 BA-041이 소유하며 여기서 만들지 않는다. 반면 **기존 잠금을 존중하는 것은 활성화가 아니라 불변식 7**이다 — reorder·replace가 잠금을 보지 않으면 BA-041이 만들 잠금이 이 경로로 무력화된다. 요청이 `releaseConstraints`로 이름 댄 잠금만 풀리고 나머지는 `LOCK_CONFLICT`다(#166·#199).
 
+**절을 넷에서 아홉으로 쪼갰다 — 기제로 쪼갰지 입력 case로 쪼개지 않았다.** 원래 `T1`이 기제
+**셋**(cross-day 이동 · position unique 경쟁 · 부분 실패 원자성)을, `T3`이 기제 **넷**(날짜·시간·
+duration·상한)을 한 절에 묶고 있었다. 집계기는 ID가 testcase 이름에 **나타나는지**만 보므로 그중
+아무 기제나 증명하는 test 하나로 그 ID가 충족된다 — 실제로 그렇게 돼 있었다: `T1`은 **같은 날 안의**
+swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있었고 후자는 네 경계 중 아무것도
+건드리지 않는다. 반대로 `T2`는 대조해 보니 한 case가 양방향 전이를 실제로 둘 다 증명하고 있어
+그대로 뒀다 — **대칭을 위해 쪼개지 않는다.**
+
+**기능은 이미 있었다. 없던 것은 test다.** `requireInsideRange`·`requireWithinCaps`는
+`TripService`의 세 경로에서 전부 불리고 있었고, 부분 실패 원자성은
+`anItemThisTripDoesNotHoldIsRefused`가 *"유효한 절반도 착지하지 않았다"* 로 이미 증명하는데 **ID만
+없었다**(규칙 3의 거울상). 그 자리는 test를 새로 쓰지 않고 ID를 달았다 — 본문을 절과 대조한 뒤에.
+
+**경계 절은 기제당 한 case가 세 command를 전부 부른다.** 규칙은 한 덩어리지만 *불리는 것*은 규칙의
+성질이 아니라 **호출자마다의 성질**이다. `addTripItem`·`reorderTripItems`·`updateTripItem`이 각자
+자기 "after" 목록을 만들어 각자 규칙을 부르므로(`TripService:550`·`:665`·`:864`), 한 command에서
+증명한 경계는 나머지 둘에 대해 아무 말도 하지 않는다. 측정이 그것을 확인했다 — **세 경로 중 reorder
+하나에서만** 범위 검사를 지워도 `T7`이 빨개진다.
+
+**거기서 나온 것 둘.** ① 경계를 지우면 응답이 `200`이 아니라 대개 **`500`** 이다 — DB가 뒤에서
+막는다. 그래서 이 절들이 고정하는 것은 *"막힌다"* 가 아니라 **"애플리케이션이 422로 거절한다"** 이고,
+단언도 status를 그렇게 본다. 유일한 예외가 하루 상한이었다: 지우면 `201`로 **그냥 들어간다**(DB에
+그 CHECK가 없다). ② **duration 경계는 세 곳에 선언돼 있다** — `AddTripItemCommand`·
+`UpdateTripItemCommand`·`TripItem` 생성자. 그래서 **어느 하나도 단독으로는 필요하지 않고**, 한
+경로의 가드를 하나 지워도 `T8`은 초록이다(두 개를 같이 지워야 빨개진다). 지금은 field 이름이 셋 다
+맞아 증상이 없지만, `TripItem` 생성자의 것은 `seedItems[].durationMinutes`라고 말하므로 앞의 둘 중
+하나가 사라지는 날 **그 operation에 없는 field 경로**가 FE에 간다. 고치지 않고 적어 둔다 — 규칙이
+여러 곳에 있으면 둘 중 하나가 먼저 상한다는 그 모양이다.
+
 필수 검증:
 
-- `BA-040-T1`: cross-day reorder·position unique 경쟁·부분 실패에서 원자성이 유지된다
+- `BA-040-T1`: 한 요청 안의 자리 교환이 position unique 경쟁을 통과한다
 - `BA-040-T2`: candidate schedule/RESTORE_CANDIDATE 전이가 item과 동시에 반영된다
-- `BA-040-T3`: 날짜·시간·duration·item 상한 경계를 검증한다
+- `BA-040-T3`: merge-patch의 null과 absent를 구분한다
 - `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
+- `BA-040-T5`: reorder가 item을 다른 날로 옮긴다
+- `BA-040-T6`: 요청의 한 entry가 거절되면 어떤 item도 움직이지 않는다
+- `BA-040-T7`: 모든 command가 여행 기간 밖의 날짜를 거절한다
+- `BA-040-T8`: duration을 설정할 수 있는 모든 command가 경계 밖의 값을 거절한다
+- `BA-040-T9`: 모든 command가 하루 item 상한을 넘기는 변경을 거절한다
+
+`T1`·`T5`·`T6`은 `TripItemReorderIT`, `T2`는 `TripItemMutationIT`, `T3`은 `TripItemUpdateIT`,
+`T7`~`T9`는 `TripScheduleBoundaryIT`에 있다(`apps/api/src/integrationTest/java/io/nullnull/trip/`). `f3bd262` 위의 격리 worktree에서 `test`(417)·`integrationTest`(391)·
+`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
+
+**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기가 Playwright report를
+받지 않으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
+(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는
+ID"가 된다). FE가 E2E를 쓰고 `--e2e-junit-dir`가 배선되면 조건으로 복원한다. 그래서 **이 카드는
+`T4` 하나만 남기고 전부 증명된 상태이고, 그 하나 때문에 `planned`에 머문다** — 올릴 수 없는 것을
+올리지 않고, 왜 못 올리는지를 기계가 아니라 사람이 읽는 자리에 둔다.
 
 FE 인계·완료 증거: 편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

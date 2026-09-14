@@ -1263,7 +1263,7 @@
       "tests": [
         {
           "id": "BA-040-T1",
-          "assertion": "cross-day reorder·position unique 경쟁·부분 실패에서 원자성이 유지된다"
+          "assertion": "한 요청 안의 자리 교환이 position unique 경쟁을 통과한다"
         },
         {
           "id": "BA-040-T2",
@@ -1271,11 +1271,31 @@
         },
         {
           "id": "BA-040-T3",
-          "assertion": "날짜·시간·duration·item 상한 경계를 검증한다"
+          "assertion": "merge-patch의 null과 absent를 구분한다"
         },
         {
           "id": "BA-040-T4",
           "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)"
+        },
+        {
+          "id": "BA-040-T5",
+          "assertion": "reorder가 item을 다른 날로 옮긴다"
+        },
+        {
+          "id": "BA-040-T6",
+          "assertion": "요청의 한 entry가 거절되면 어떤 item도 움직이지 않는다"
+        },
+        {
+          "id": "BA-040-T7",
+          "assertion": "모든 command가 여행 기간 밖의 날짜를 거절한다"
+        },
+        {
+          "id": "BA-040-T8",
+          "assertion": "duration을 설정할 수 있는 모든 command가 경계 밖의 값을 거절한다"
+        },
+        {
+          "id": "BA-040-T9",
+          "assertion": "모든 command가 하루 item 상한을 넘기는 변경을 거절한다"
         }
       ],
       "handoff": "편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현.",
