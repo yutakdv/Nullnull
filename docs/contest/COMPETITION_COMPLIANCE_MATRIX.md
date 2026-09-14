@@ -41,7 +41,7 @@ tags:
 | CMP-SUB-004 | 공식/REQUIRED | 외부에서 접속 가능한 웹 URL 또는 승인된 앱스토어 링크 | 웹 URL만 제출하고 PWA를 앱스토어 앱으로 주장하지 않음 | 외부망·새 browser profile HTTPS smoke | BE·AI / FE |
 | CMP-SUB-005 | 공식/REQUIRED | 로그인 방식은 로그인 불필요/SNS/테스트 계정 중 선택 | `로그인 불필요`; anonymous session에서 저장 포함 핵심 흐름 완결 | 신규 session E2E, 제출 화면 선택값 | FE / BE·AI |
 | CMP-SUB-006 | 공식/EXCLUSION | 공식 기능설명서 양식과 필수 항목을 유지해 PDF 제출 | 양식의 표·순서·필수 field를 임의 변경하지 않음 | 원본 version/checksum, PDF render, field checklist | 공동 / 공동 |
-| CMP-SUB-007 | 공식/REQUIRED | 대표 이미지 1장, 상세 이미지 3~5장 등 공식 구성 준수 | 실제 배포 화면만 사용하고 mock/P1 screenshot 제외. 촬영은 FE지만 선행 조건(배포 URL·catalog 게이트 개방·실데이터)은 BE·AI와 오너가 쥐고 있다 | image ledger, URL/release ID, alt/caption, PDF 확인 | FE / BE·AI |
+| CMP-SUB-007 | 공식/REQUIRED | 대표 이미지 1장, 상세 이미지 3~5장 등 공식 구성 준수 | 실제 배포 화면만 사용하고 mock/P1 screenshot 제외. 촬영은 FE지만 선행 조건이 전부 FE 밖이다 — **BA-006(배포 URL) · BA-021-T3(catalog 게이트) · [#183](https://github.com/yutakdv/Nullnull/issues/183)(게시물 3~5건)**. 촬영 목록은 [runbook](SUBMISSION_RUNBOOK.md)에 사전 확정했고, 남은 것은 그 셋이 열리는 날 찍는 것뿐이다 | image ledger, URL/release ID, alt/caption, PDF 확인 | FE / BE·AI |
 | CMP-SUB-008 | 공식/REQUIRED | 기능설명서에는 최종 서비스에서 실제 구현·사용한 내용만 기재 | disabled·준비 중·mock-only·계획 기능 제외 | PDF 기능 목록 ↔ release journey/test 대조 | 공동 / 공동 |
 | CMP-SUB-009 | 공식/EXCLUSION | 지정과제 문제 해결 기능과 KTO OpenAPI 활용 모두 완성 | 현재 내부 가정은 `지정과제 2`; exact 과제명은 제출처 선택값과 대조한 뒤에만 확정 | 과제 선택 화면, 핵심 journey, KTO 증거 | 공동 / 공동 |
 | CMP-SUB-010 | 공식/EXCLUSION | 동일 서비스를 타 부문 중복 출품하지 않으며 제외 이력 조건 확인 | 대표가 팀 이력을 서면 확인 | private eligibility checklist | 공동 / 공동 |
