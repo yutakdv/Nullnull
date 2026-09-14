@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import type { MessageKey } from '../../i18n/messages.js';
+import { type MessageKey, messages } from '../../i18n/messages.js';
 import { isProblem, isRunning, useOptimization } from '../../shared/api/index.js';
 import { NavBar } from '../../shared/ui/index.js';
 import styles from './OptimizationRunScreen.module.css';
@@ -84,9 +84,24 @@ type OptimizationFailure = components['schemas']['OptimizationFailure'];
  * the run nests the OptimizationChange union — the same trap
  * useCreateOptimization documents in session.ts.
  */
+/**
+ * The message key for a failure, or the generic one for a code we do not know.
+ *
+ * The key is built from the code, so a code added to the contract after this
+ * build shipped would name a message that does not exist — and `t()` returns
+ * the missing value as-is, which rendered the literal string "undefined" into
+ * the error screen. Measured, not assumed: a probe render of an unknown key
+ * produced "[undefined]".
+ *
+ * Folding to the generic message instead means the server can add a failure
+ * code without waiting for a matching client deploy. The user sees "it failed"
+ * rather than a token, which is worse than the specific wording and much better
+ * than a bug. Each known code still gets its own line.
+ */
 function failureMessage(failure: OptimizationFailure | null | undefined) {
   if (!failure) return null;
-  return `run.failure.${failure.code}` as MessageKey;
+  const key = `run.failure.${failure.code}` as MessageKey;
+  return key in messages['ko-KR'] ? key : ('run.failure.unknown' as MessageKey);
 }
 
 export function OptimizationRunScreen() {
