@@ -879,7 +879,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "내부 규칙 관계 재평가 적재",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-024"
       ],

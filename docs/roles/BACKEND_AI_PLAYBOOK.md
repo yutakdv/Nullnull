@@ -863,7 +863,7 @@ FE 인계·완료 증거: 영업시간이 있는 장소와 없는 장소의 `get
 
 ### BA-026
 
-**내부 규칙 관계 재평가 적재** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**내부 규칙 관계 재평가 적재** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-024](#ba-024)
 - 기능 ID: 해당 없음
