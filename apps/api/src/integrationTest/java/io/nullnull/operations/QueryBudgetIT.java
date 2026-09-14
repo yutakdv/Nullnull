@@ -69,12 +69,24 @@ class QueryBudgetIT {
     @Autowired MockMvc mvc;
     @Autowired SessionService sessions;
     @Autowired JdbcTemplate jdbc;
+
+    /** Ids this class inserted, so teardown touches nothing else. */
+    private final java.util.List<UUID> seeded = new java.util.ArrayList<>();
     @Autowired DataSource dataSource;
 
     @AfterEach
     void removeOnlyOwnFixtures() {
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        // Only the rows this class created. A blanket DELETE FROM places is the wrong shape
+        // under the gate, which shares ONE database across every context: places is
+        // deliberately not cascaded, so the class that tries to clear the table is the one
+        // that dies on somebody else's trip_items - and a blanket delete would take their
+        // fixtures with it when it succeeds. Local runs cannot show this, because
+        // TestcontainersConfiguration gives each distinct @SpringBootTest its own container.
+        seeded.forEach(id -> {
+            jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", id);
+            jdbc.update("DELETE FROM places WHERE id = ?", id);
+        });
+        seeded.clear();
     }
 
     @Test
@@ -137,6 +149,7 @@ class QueryBudgetIT {
 
     private void place(String name) {
         UUID id = UUID.randomUUID();
+        seeded.add(id);
         jdbc.update("""
                 INSERT INTO places
                     (id, canonical_name, category_code, latitude, longitude, region_code, status,

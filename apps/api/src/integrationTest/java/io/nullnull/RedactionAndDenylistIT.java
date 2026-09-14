@@ -65,6 +65,9 @@ class RedactionAndDenylistIT {
     @Autowired ConfigurableEnvironment environment;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
+    /** Ids this class inserted, so teardown touches nothing else. */
+    private final java.util.List<UUID> seeded = new java.util.ArrayList<>();
+
     @BeforeEach
     void planTheCanary() {
         canary = "REDACT" + UUID.randomUUID().toString().replace("-", "");
@@ -76,8 +79,17 @@ class RedactionAndDenylistIT {
     @AfterEach
     void detach() {
         rootLogger().detachAppender(logs);
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        // Only the rows this class created. A blanket DELETE FROM places is the wrong shape under
+        // the gate, which shares ONE database across every context: places is deliberately not
+        // cascaded, so the class that tries to clear the table is the one that dies on somebody
+        // else's trip_items - and when it succeeds it takes their fixtures with it. Local runs
+        // cannot show this; TestcontainersConfiguration gives each distinct @SpringBootTest its
+        // own container.
+        seeded.forEach(id -> {
+            jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", id);
+            jdbc.update("DELETE FROM places WHERE id = ?", id);
+        });
+        seeded.clear();
     }
 
     @Test
@@ -221,6 +233,7 @@ class RedactionAndDenylistIT {
 
     private void seedPlace(String name) {
         UUID id = UUID.randomUUID();
+        seeded.add(id);
         java.sql.Timestamp at = java.sql.Timestamp.from(java.time.Instant.parse("2026-09-14T00:00:00Z"));
         jdbc.update("""
                 INSERT INTO places
