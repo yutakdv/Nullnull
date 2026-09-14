@@ -361,3 +361,27 @@ describe('creating the trip', () => {
     );
   });
 });
+
+// The calendar's weekday headers follow the active locale.
+//
+// They were the literal ['일','월','화','수','목','금','토'], so an English user
+// read a Korean calendar — the only part of the wizard that never went through
+// i18n, and the kind of thing no existing check looked at because
+// no-hardcoded-copy.test.ts scans shared/ui/components only and this screen is
+// not in that directory.
+describe('the calendar names its weekdays in the reader locale', () => {
+  it('shows English weekday headers to an English reader', async () => {
+    renderWizard();
+    await screen.findByRole('heading', { level: 1 });
+
+    // Intl is the source, so this asserts the same way the screen derives them
+    // rather than hardcoding a second copy that could drift.
+    const expected = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(
+      new Date(Date.UTC(2021, 0, 3)),
+    );
+    expect(screen.getAllByText(expected).length).toBeGreaterThan(0);
+    // And the Korean literal is gone rather than merely joined.
+    expect(screen.queryByText('일')).toBeNull();
+    expect(screen.queryByText('월')).toBeNull();
+  });
+});

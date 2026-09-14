@@ -3,8 +3,11 @@ import { render, screen } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../i18n/I18nProvider.js';
+import { messages } from '../../i18n/messages.js';
 import { createQueryClient } from '../../shared/api/index.js';
 import { routes } from '../routes.js';
+
+const copy = messages['en-US'];
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -60,7 +63,15 @@ describe('P0 route table', () => {
 
   it('renders an explicit not-found screen instead of blanking', async () => {
     renderAt('/does-not-exist');
-    expect(await screen.findByTestId('placeholder-route')).toHaveTextContent('not-found');
+    // The localised heading, not a debug token. This used to assert the literal
+    // string "not-found", which a dev-only placeholder had left in the screen —
+    // so the test required the very thing that should not ship.
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'not-found-heading',
+    );
+    expect(screen.getByText(copy['app.notFound.title'])).toBeInTheDocument();
+    expect(screen.queryByText('not-found')).toBeNull();
     expect(screen.getByRole('link')).toHaveAttribute('href', '/');
   });
 });

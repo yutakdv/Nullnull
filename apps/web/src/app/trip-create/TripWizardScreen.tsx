@@ -31,7 +31,22 @@ type PlanningLevel = components['schemas']['PlanningLevel'];
 // which .claude/rules/frontend.md keeps feature-local.
 
 const LEVELS: PlanningLevel[] = ['NOTHING', 'MUST_VISIT_ONLY', 'MOSTLY_PLANNED'];
-const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+/**
+ * The weekday headers, in the active locale.
+ *
+ * These were the literal ['일','월',…], so an English user read a Korean
+ * calendar — the one place in the wizard that never went through i18n. Derived
+ * from Intl rather than added as seven message keys: the names ARE the locale's
+ * data, and a hand-kept copy is a second source that can drift from it.
+ *
+ * 2021-01-03 is a Sunday, which is the column this grid starts on.
+ */
+function weekdayNames(locale: string): string[] {
+  const format = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+  return Array.from({ length: 7 }, (_, index) =>
+    format.format(new Date(Date.UTC(2021, 0, 3 + index))),
+  );
+}
 
 /** ISO date for a day in the given month grid, or null for a padding cell. */
 function isoDate(year: number, month: number, day: number): string {
@@ -147,7 +162,7 @@ export function TripWizardScreen() {
           </div>
 
           <div className={styles.grid} role="group" aria-labelledby="wizard-heading">
-            {DOW.map((day) => (
+            {weekdayNames(locale).map((day) => (
               <span className={styles.dow} key={day}>
                 {day}
               </span>
