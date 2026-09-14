@@ -48,7 +48,9 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     // The first item cannot move up, and the control says so by being disabled
     // rather than by vanishing — a control that disappears moves every other
     // control under the user's fingers.
-    await expect(page.getByRole('button', { name: `Move ${FIRST_ITEM} up` })).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: `Move ${FIRST_ITEM} up` }),
+    ).toBeDisabled();
 
     await down.focus();
     await expect(down).toBeFocused();

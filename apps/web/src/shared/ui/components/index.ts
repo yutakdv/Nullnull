@@ -18,6 +18,7 @@ export { MustVisitBadge } from './MustVisitBadge.js';
 export { SearchField, type SearchFieldProps } from './SearchField.js';
 export { Segment, type SegmentOption, type SegmentProps } from './Segment.js';
 export { SheetGrab } from './SheetGrab.js';
+export { TripPicker, type TripPickerLabels, type TripPickerProps } from './TripPicker.js';
 export { StateLabel, type SourceState, type StateLabelProps } from './StateLabel.js';
 export { NavBar, type NavBarProps } from './NavBar.js';
 export { PlaceThumbnail, type PlaceThumbnailProps } from './PlaceThumbnail.js';
