@@ -106,7 +106,7 @@ independentChecker:
 
 | # | 종류 | route | 무엇을 보여주는가 | 선행 조건 |
 | --- | --- | --- | --- | --- |
-| 1 | 대표 | `/feed` | 서비스 정체성. 카드에 KTO 장소·출처와 혼잡 상태 label이 함께 보인다 | catalog 게이트 개방(BA-021-T3), feed 200 |
+| 1 | 대표 | `/feed` | 서비스 정체성. 카드에 KTO 장소·출처와 혼잡 상태 label이 함께 보인다 | catalog 게이트 개방(BA-021-T3), feed 200, **게시물 3~5건**([서식](CURATED_POSTS_TEMPLATE.md), [#183](https://github.com/yutakdv/Nullnull/issues/183)) |
 | 2 | 상세 | `/trip/{id}` | 하루 일정과 잠금(필수/날짜/시간)이 독립적으로 표시된다 | 여행 1건과 item 2~3건 |
 | 3 | 상세 | `/trip/{id}/candidates` | 후보와 일정이 다른 자원임이 보인다(관계 badge·날짜 선택) | 후보 2건 이상 |
 | 4 | 상세 | `/about-data` | 실측·예측·재생·부재를 구분하는 데이터 안내와 출처 | 없음(정적) |
