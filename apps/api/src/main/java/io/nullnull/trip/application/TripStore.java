@@ -90,11 +90,16 @@ public interface TripStore {
     void delete(UUID ownerId, UUID tripId);
 
     /**
-     * One page of the owner's trips. {@code offset} comes from the decoded cursor and {@code limit}
-     * is the caller's page size; the implementation fetches one extra row so the caller can tell
-     * "there is more" from "this page happened to be full".
+     * One page of the owner's trips, resuming after {@code after}. {@code limit} is the caller's page
+     * size plus one extra row, so the caller can tell "there is more" from "this page happened to be
+     * full".
+     *
+     * @param after the last trip of the previous page, or null for the first page
      */
-    List<Trip> page(UUID ownerId, String status, long offset, int limit);
+    List<Trip> page(UUID ownerId, String status, PageKey after, int limit);
+
+    /** The row a trip page ended on, in the terms {@code start_date DESC, id DESC} sorts by. */
+    record PageKey(LocalDate startDate, UUID tripId) { }
 
     /** How many candidates each of these trips holds, for TripSummary.candidateCount. */
     Map<UUID, Integer> candidateCounts(List<UUID> tripIds);

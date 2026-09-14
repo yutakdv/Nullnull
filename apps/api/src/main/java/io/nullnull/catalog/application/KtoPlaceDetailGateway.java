@@ -86,7 +86,13 @@ public class KtoPlaceDetailGateway {
         } catch (KtoGatewayException failure) {
             return CompletableFuture.failedFuture(failure);
         } catch (RuntimeException failure) {
-            return CompletableFuture.failedFuture(new KtoGatewayException(KtoGatewayException.Code.KTO_NOT_CONFIGURED));
+            // Not KTO_NOT_CONFIGURED. Everything that reaches here is something this adapter did not
+            // anticipate - a quota store that threw, a registry read that failed, a bean that was not
+            // there - and calling all of it "not configured" sends whoever reads the code to check an
+            // environment that is fine. "Not configured" is a diagnosis, and requireConfigured() is
+            // the only thing entitled to make it (#227).
+            return CompletableFuture.failedFuture(new KtoGatewayException(
+                    KtoGatewayException.Code.KTO_INTERNAL_FAILURE, failure.getClass()));
         }
 
         UUID runId = collector.start(SOURCE_CODE, IngestAudit.TriggerType.READ_THROUGH,

@@ -31,18 +31,8 @@ public record AddTripItemCommand(UUID placeId, UUID candidateId, LocalDate date,
         if (date == null) {
             throw new TripValidationException("date", "NotNull", "date is required");
         }
-        if (position < 0) {
-            throw new TripValidationException("position", "Range", "position must not be negative");
-        }
-        if (durationMinutes != null
-                && (durationMinutes < 1 || durationMinutes > TripItem.MAX_DURATION_MINUTES)) {
-            throw new TripValidationException("durationMinutes", "Range",
-                    "durationMinutes must be between 1 and " + TripItem.MAX_DURATION_MINUTES);
-        }
-        if (note != null && note.length() > TripItem.MAX_NOTE_LENGTH) {
-            throw new TripValidationException("note", "Size",
-                    "note must be at most " + TripItem.MAX_NOTE_LENGTH + " characters");
-        }
+        // One rule, owned by TripItem; this caller names the fields as ITS request body spells them.
+        TripItem.requireFieldBounds("", position, durationMinutes, note);
         constraints = TripConstraint.validated(constraints);
     }
 

@@ -66,6 +66,30 @@ class TripItemReorderIT {
     }
 
     @Test
+    @DisplayName("BA-040-T5 an item moves to another day and the day it left closes up behind it")
+    void anItemMovesAcrossDays() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID staying = insertItem(tripId, place("첫날에 남는 장소"), DAY_ONE, 0);
+        UUID moving = insertItem(tripId, place("둘째 날로 가는 장소"), DAY_ONE, 1);
+
+        // Both entries are sent. The one that stays is named too, because a day's positions are only
+        // contiguous if the request says what the whole day looks like afterwards - moving one item
+        // out of the middle otherwise leaves a hole nothing closes.
+        reorder(owner, tripId, "\"1\"", "[{\"itemId\":\"" + moving + "\",\"date\":\"" + DAY_TWO
+                + "\",\"position\":0},{\"itemId\":\"" + staying + "\",\"date\":\"" + DAY_ONE
+                + "\",\"position\":0}]")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trip.version").value(2))
+                .andExpect(jsonPath("$.changedItemIds.length()").value(2));
+
+        // The date changed, not just the position: a reorder that could only shuffle within one day
+        // would pass every same-day test in this file and still leave the user unable to move an
+        // item to the next day at all.
+        assertThat(slots(tripId)).containsExactly(staying + "@2026-10-04#0", moving + "@2026-10-05#0");
+    }
+
+    @Test
     @DisplayName("BA-040 a DATE lock the request does not name refuses the move and changes nothing")
     void anUnnamedLockRefusesTheMove() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
@@ -130,7 +154,7 @@ class TripItemReorderIT {
     }
 
     @Test
-    @DisplayName("BA-040 an item of another trip is refused before anything moves")
+    @DisplayName("BA-040-T6 an item of another trip is refused before anything moves")
     void anItemThisTripDoesNotHoldIsRefused() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
         UUID tripId = createTrip(owner);

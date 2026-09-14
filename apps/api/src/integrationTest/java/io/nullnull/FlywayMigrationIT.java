@@ -100,9 +100,8 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V027 is the last one today and seeds nothing: it creates place_relations and its
-            // guards, and a relation is evidence someone has to establish rather than something a
-            // schema can assert. V026 was the same, and V025's two rows - the NULLNULL_CURATED_HOURS
+            // V031 is the last one today and seeds nothing: it replaces a CHECK constraint and
+            // creates no row and no table. V030 was the same before it, and V029, V028, V027, V026. V025's two rows - the NULLNULL_CURATED_HOURS
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
@@ -322,6 +321,8 @@ class FlywayMigrationIT {
                 DO $upgrade$
                 DECLARE
                     v_place uuid := gen_random_uuid();
+                    v_related_place uuid := gen_random_uuid();
+                    v_proposal uuid := gen_random_uuid();
                     v_license uuid := gen_random_uuid();
                     v_asset uuid := gen_random_uuid();
                     v_set uuid := gen_random_uuid();
@@ -470,14 +471,69 @@ class FlywayMigrationIT {
                                                received_at, occurred_minute)
                     VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), v_post, 'IMPRESSION',
                             v_at, v_at, floor(extract(epoch FROM v_at) / 60)::bigint);
+                    -- V027's relation, which V028 turns into part of the previous schema. It needs a
+                    -- SECOND active place: place_relations_self_check refuses a loop and
+                    -- place_relations_active_places_guard refuses an end that is not an active
+                    -- canonical row. The values are the only combination a rule-derived relation can
+                    -- take - derivation INTERNAL_RULE and source NULLNULL_CATALOG_RULE imply each
+                    -- other, and EXACT would demand PROVIDER_DIRECT, which no approved provider can
+                    -- produce today. A representative row that could not exist in production would
+                    -- teach the next reader that it could.
+                    INSERT INTO places (id, canonical_name, category_code, latitude, longitude,
+                                        region_code, status, created_at, updated_at)
+                    VALUES (v_related_place, 'upgrade related place', 'A01', 37.579617, 126.977041,
+                            'KR-11', 'ACTIVE', v_at, v_at);
+                    INSERT INTO place_relations (id, source_place_id, target_place_id, relation_type,
+                                                 derivation, mapping_certainty, relation_reason,
+                                                 source_code, source_registry_version, effective_at,
+                                                 expires_at, created_at)
+                    VALUES (gen_random_uuid(), v_place, v_related_place, 'SIMILAR', 'INTERNAL_RULE',
+                            'UNCERTAIN', 'upgrade rule reason', 'NULLNULL_CATALOG_RULE', 1,
+                            v_at, NULL, v_at);
+                    -- V028's draft, which V029 turns into part of the previous schema. NEEDS_REVIEW
+                    -- with no trip is the state the confirmed_check demands of anything that is not
+                    -- CONFIRMED, and it is also the state a draft spends its whole life in unless
+                    -- somebody confirms it.
+                    INSERT INTO itinerary_import_drafts (id, owner_id, status, version,
+                                                         structured_draft, unresolved_tokens,
+                                                         confirmed_trip_id, confirmed_at,
+                                                         expires_at, created_at)
+                    VALUES (gen_random_uuid(), (SELECT id FROM owners LIMIT 1), 'NEEDS_REVIEW', 1,
+                            '{"items":[]}'::jsonb, '[]'::jsonb, NULL, NULL,
+                            v_at + interval '24 hours', v_at);
+                    -- V029's proposal and its change, which V030 turns into part of the previous
+                    -- schema. Eligible with no reason code is the only shape that may carry a delta;
+                    -- a MOVE carries both halves of the diff because the CHECKs refuse half of one.
+                    INSERT INTO optimization_proposals (id, run_id, rank, summary, comparison_eligible,
+                                                        comparison_reason_code, crowd_delta,
+                                                        travel_minutes_delta, validation_summary,
+                                                        created_at)
+                    VALUES (v_proposal, v_run, 1, 'upgrade proposal', true, NULL, -12.5000, NULL,
+                            '{}'::jsonb, v_at);
+                    INSERT INTO optimization_changes (id, proposal_id, trip_item_id, operation,
+                                                      before_value, after_value, sequence)
+                    VALUES (gen_random_uuid(), v_proposal, v_item, 'MOVE',
+                            '{"position":0}'::jsonb, '{"position":1}'::jsonb, 0);
+                    -- V030's decision, which V031 turns into part of the previous schema. KEEP is the
+                    -- only one of the three shapes that needs neither a revision pair nor a revert
+                    -- window, so it is the representative row that drags nothing else in with it.
+                    INSERT INTO optimization_decisions (id, run_id, proposal_id, owner_id, decision,
+                                                        expected_trip_version, resulting_trip_version,
+                                                        before_revision_id, after_revision_id,
+                                                        reverted_decision_id, revert_until, decided_at)
+                    VALUES (gen_random_uuid(), v_run, v_proposal, (SELECT id FROM owners LIMIT 1),
+                            'KEEP', 1, NULL, NULL, NULL, NULL, NULL, v_at);
                 END
                 $upgrade$;
                 """.formatted(UPGRADE_SCHEMA));
         // Every table the previous schema owns must be covered; a new one has to be added here too.
         // "Previous" is always the migration before the last one, so a table arrives in this list one
         // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
-        // when V026 did, feed_feedback arrives now that V027 has, and V027's own place_relations
-        // belongs here only once a V028 does.
+        // when V026 did, feed_feedback arrived when V027 did, place_relations when V028 did, and
+        // itinerary_import_drafts arrived when V029 did, and V029's optimization_proposals and
+        // optimization_changes arrived when V030 did, and optimization_decisions arrives now that
+        // V031 has. V031 creates no table of its own - it replaces a CHECK - so the next migration
+        // that does will find this list already complete.
         assertThat(tablesInUpgradeSchema())
                 .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
                         "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -488,7 +544,10 @@ class FlywayMigrationIT {
                         "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
                         "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
                         "optimization_runs", "optimization_run_snapshot_sets",
-                        "place_hours_observations", "place_hours_windows", "feed_feedback");
+                        "place_hours_observations", "place_hours_windows", "feed_feedback",
+                        "place_relations", "itinerary_import_drafts",
+                        "optimization_proposals", "optimization_changes",
+                        "optimization_decisions");
         return key;
     }
 

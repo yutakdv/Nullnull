@@ -6,6 +6,7 @@ import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.identity.application.OwnerPreferencesService;
 import io.nullnull.shared.cursor.CursorClaims;
 import io.nullnull.shared.cursor.CursorException;
+import io.nullnull.shared.cursor.CursorSortKey;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import java.time.Clock;
@@ -46,12 +47,20 @@ public class CatalogPlaceProjectionService {
         Objects.requireNonNull(request, "request");
         Instant now = clock.instant();
         String ownerBinding = publication.ownerBinding(owner.ownerId());
-        long offset = offset(request, now, ownerBinding);
-        List<CatalogPlaceSummary> candidates = catalog.search(request, offset, request.limit() + 1, now);
+        CatalogPlaceQuery.PageKey after = after(request, now, ownerBinding);
+        List<CatalogPlaceQuery.CatalogPlaceSearchHit> candidates =
+                catalog.search(request, after, request.limit() + 1, now);
         boolean hasMore = candidates.size() > request.limit();
-        List<CatalogPlaceSummary> items = hasMore ? candidates.subList(0, request.limit()) : candidates;
-        String nextCursor = hasMore ? nextCursor(request, now, ownerBinding, offset + items.size()) : null;
-        return new CatalogPlaceSearchPage(List.copyOf(items), nextCursor, hasMore);
+        List<CatalogPlaceQuery.CatalogPlaceSearchHit> hits =
+                hasMore ? candidates.subList(0, request.limit()) : candidates;
+        // The last hit of THIS page, named by the value the database sorted it by. A place that
+        // becomes publishable ahead of the reader must not push what they have seen back at them.
+        String nextCursor = hasMore
+                ? nextCursor(request, now, ownerBinding, hits.get(hits.size() - 1))
+                : null;
+        return new CatalogPlaceSearchPage(
+                hits.stream().map(CatalogPlaceQuery.CatalogPlaceSearchHit::summary).toList(),
+                nextCursor, hasMore);
     }
 
     @Transactional(readOnly = true)
@@ -95,21 +104,23 @@ public class CatalogPlaceProjectionService {
         return catalog.summaries(List.copyOf(placeIds), preferences.get(owner).locale(), clock.instant());
     }
 
-    private long offset(CatalogPlaceSearchRequest request, Instant now, String ownerBinding) {
+    private CatalogPlaceQuery.PageKey after(CatalogPlaceSearchRequest request, Instant now, String ownerBinding) {
         if (request.cursor() == null) {
-            return 0;
+            return null;
         }
         CursorClaims claims = publication.cursorCodec().decode(request.cursor(), now, ownerBinding,
                 request.cursorContext());
-        if (!SNAPSHOT_ID.equals(claims.snapshotId()) || claims.sortVersion() != SORT_VERSION
-                || claims.nextOrdinal() < 0) {
+        if (!SNAPSHOT_ID.equals(claims.snapshotId()) || claims.sortVersion() != SORT_VERSION) {
             throw new CursorException(ProblemCode.CURSOR_INVALID);
         }
-        return claims.nextOrdinal();
+        CursorSortKey key = CursorSortKey.decode(claims.sortKey());
+        return new CatalogPlaceQuery.PageKey(key.value(), key.id());
     }
 
-    private String nextCursor(CatalogPlaceSearchRequest request, Instant now, String ownerBinding, long nextOffset) {
-        return publication.cursorCodec().encode(new CursorClaims(SNAPSHOT_ID, nextOffset, ownerBinding,
+    private String nextCursor(CatalogPlaceSearchRequest request, Instant now, String ownerBinding,
+            CatalogPlaceQuery.CatalogPlaceSearchHit last) {
+        return publication.cursorCodec().encode(new CursorClaims(SNAPSHOT_ID,
+                new CursorSortKey(last.sortName(), last.summary().id()).encode(), ownerBinding,
                 request.cursorContext(), SORT_VERSION, now.plus(publication.cursorTtl()), publication.keyId()));
     }
 

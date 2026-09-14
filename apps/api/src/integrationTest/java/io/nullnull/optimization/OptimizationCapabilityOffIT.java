@@ -65,8 +65,15 @@ class OptimizationCapabilityOffIT {
                 // waiting, so a retryable answer would have clients poll a feature that is not coming.
                 .andExpect(jsonPath("$.retryable").value(false));
 
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM optimization_runs", Integer.class))
-                .isZero();
+        // Named rows, not the table. The required gate runs every suite against one database, where
+        // "no run exists" is a sentence about every test that ran before this one rather than about
+        // this refusal. Scoped to the owner and not to strangerTrip: that trip id was never created
+        // and optimization_runs.trip_id is a foreign key to trips, so a count naming it is zero
+        // whether the gate holds or not. The owner was really bootstrapped, so a run that got past
+        // the gate would carry it and be counted here.
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM optimization_runs WHERE requested_by_owner_id = ?",
+                Integer.class, owner.owner.id())).isZero();
     }
 
     @Test

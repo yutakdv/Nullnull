@@ -42,7 +42,7 @@ erDiagram
     TRIPS ||--o{ TRIP_CANDIDATES : considers
     TRIPS ||--o{ TRIP_ITEMS : schedules
     TRIPS ||--o{ TRIP_REVISIONS : versions
-    TRIPS ||--o{ ITINERARY_IMPORT_DRAFTS : imports
+    TRIPS ||--o| ITINERARY_IMPORT_DRAFTS : imported_from
 
     PLACES ||--o{ TRIP_CANDIDATES : candidate
     POSTS ||--o{ CANDIDATE_SOURCES : source_post
@@ -259,13 +259,12 @@ erDiagram
 
     ITINERARY_IMPORT_DRAFTS {
       uuid id PK
-      uuid trip_id FK "nullable before create"
       uuid owner_id FK
       string status
       bigint version
       jsonb structured_draft
       jsonb unresolved_tokens
-      uuid confirmed_trip_id FK
+      uuid confirmed_trip_id FK "unique; set once at confirm"
       timestamptz confirmed_at
       timestamptz expires_at
       timestamptz created_at
@@ -339,7 +338,7 @@ erDiagram
     OPTIMIZATION_CHANGES {
       uuid id PK
       uuid proposal_id FK
-      uuid trip_item_id FK
+      uuid trip_item_id "no FK; ADD reserves an id no item has yet"
       string operation "MOVE|REORDER|REPLACE|ADD|REMOVE"
       jsonb before_value "null only for ADD"
       jsonb after_value "null only for REMOVE"
@@ -765,6 +764,7 @@ erDiagram
 - `trip_revisions`: unique `(trip_id, version)`; `aggregate_snapshot`은 metadata, interest, item, constraint, candidate linkage를 포함하는 canonical JSON이며 schema version/hash를 고정한다. 한 번 기록한 revision/item은 수정하지 않는다.
 - trip 기간 축소 시 범위 밖 item 또는 DATE/RESERVATION lock이 하나라도 있으면 전체 요청을 거부한다. 자동 이동/삭제는 하지 않는다.
 - `itinerary_import_drafts.version >= 1`; remap마다 증가하고 API ETag/If-Match와 일치해야 한다. 상태 전이는 `NEEDS_REVIEW ↔ READY → CONFIRMED`, 모든 비terminal 상태에서 `→ EXPIRED`만 허용한다. CONFIRMED/EXPIRED draft는 수정할 수 없다.
+- `itinerary_import_drafts.confirmed_trip_id`는 confirm에서 한 번만 채워지고 UNIQUE다. NULL은 여러 행이 가질 수 있으므로 이 제약은 *"trip 하나는 draft 하나 이하에서 나온다"* 를 정확히 표현한다 — 두 draft가 같은 trip을 자기 것이라고 주장하는 행을 DB가 거부한다. draft가 **가리키는 trip은 자기가 만든 trip뿐**이라 "기존 trip에 import"를 위한 별도 열은 두지 않는다(그 경로는 화면도 카드도 없다).
 - trip 상태는 `DRAFT→ACTIVE→ARCHIVED`를 기본으로 하고 명시적 복원에서만 `ARCHIVED→ACTIVE`를 허용한다. 삭제는 상태값이 아니라 owned aggregate hard-delete workflow다.
 - trip aggregate를 바꾸는 transaction은 `SELECT ... FOR UPDATE` 또는 JPA optimistic version 중 하나로 단일화한다. API version과 DB lock strategy를 혼합해 race를 만들지 않는다.
 

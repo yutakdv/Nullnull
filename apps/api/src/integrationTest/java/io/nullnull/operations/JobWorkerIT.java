@@ -206,16 +206,23 @@ class JobWorkerIT {
         ATTEMPTED_UNBOUND.clear();
         ATTEMPTED_INSIDE_UNIT_OF_WORK.clear();
         ATTEMPTED_REQUIRES_NEW.clear();
-        jdbc.update("DELETE FROM deletion_tombstones");
-        jdbc.update("DELETE FROM deletion_requests");
-        jdbc.update("DELETE FROM idempotency_records");
-        jdbc.update("DELETE FROM background_jobs");
-        // Shared Compose DB retains earlier identity fixtures; clear children before owners.
-        jdbc.update("DELETE FROM demo_sessions");
-        jdbc.update("DELETE FROM owners");
+        // Only this class's own job types. The gate runs every suite against one database, so an
+        // unscoped DELETE here took every other class's jobs, owners and sessions with it - and the
+        // five tables that used to be cleared alongside were only ever cleared so that a global
+        // count of owners would mean something. That count now names its own rows instead.
+        jdbc.update("DELETE FROM background_jobs WHERE type LIKE 'worker-%'");
         workerLog = new ListAppender<>();
         workerLog.start();
         workerLogger().addAppender(workerLog);
+    }
+
+    @AfterEach
+    void removeWhatThisClassEnqueued() {
+        // Also at the END, because one of these rows is read by a query that cannot be
+        // scoped: the jobs readiness probe reports DEGRADED for ANY dead letter in the
+        // table. A class that leaves one makes the next class's readiness test fail, and
+        // no WHERE in that test can help - the probe is global because production is.
+        jdbc.update("DELETE FROM background_jobs WHERE type LIKE 'worker-%'");
     }
 
     @AfterEach

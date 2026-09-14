@@ -420,7 +420,12 @@ public class TripController {
             List<TripInterestResponse> interests, List<TripDayResponse> days,
             List<Object> candidates) {
 
-        static TripDetailResponse from(TripView view) {
+        /**
+         * Public because TripDetail is the answer of more than one operation: confirmTripImport
+         * creates a trip and returns this same schema. A second mapping in the importer would drift,
+         * and renderDays is the part most likely to drift in a copy.
+         */
+        public static TripDetailResponse from(TripView view) {
             Trip trip = view.trip();
             return new TripDetailResponse(trip.id(), trip.title(), trip.range().startDate(),
                     trip.range().endDate(), trip.range().timezone().getId(), trip.status().name(),

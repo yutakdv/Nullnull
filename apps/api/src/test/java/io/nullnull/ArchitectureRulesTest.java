@@ -174,6 +174,49 @@ class ArchitectureRulesTest {
                 .check(classes);
     }
 
+    /**
+     * BA-060-T4: the pasted itinerary has no route out of the importer.
+     *
+     * <p>What this proves is narrower than "the raw text never leaves", and the narrower claim is the
+     * one worth making. ArchUnit reads types, not values: it cannot see a String travel, so a call
+     * like {@code catalog.search(wholeLine)} would pass this and still hand a whole pasted line to
+     * another module. What it does prove is that the importer holds no reference to anything that can
+     * speak to the network - the apps/ai gateway, a RestClient, a JDK HttpClient - so sending the
+     * paste somewhere requires first adding a dependency here, and that is the moment someone has to
+     * justify it. Invariant 10 and the card's safety line are what they would be justifying against.
+     *
+     * <p>The value half is the canary's job (BA-060-T1), not this test's. Naming them apart matters:
+     * a rule called "raw text cannot escape" would be believed to cover more than it does, and the
+     * gap it left would be invisible precisely because the name sounded complete.
+     */
+    @Test
+    @DisplayName("BA-060-T4 the importer holds no reference to anything that can leave the process")
+    void theImporterCannotReachTheNetworkOrTheRecommendationGateway() {
+        // Not vacuous in either direction. The module has to exist, or the rule is about nothing;
+        // and the packages it may not reach have to have classes in them, or there was never
+        // anything to forbid. The second half is the one that rots quietly - a gateway package that
+        // was emptied would leave this test green while proving strictly less than it claims.
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName().startsWith("io.nullnull.importer"))
+                        .count())
+                .as("the rule is about a module that exists")
+                .isPositive();
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName()
+                                .startsWith("io.nullnull.recommendation"))
+                        .count())
+                .as("the gateway it may not reach has classes to reach")
+                .isPositive();
+
+        noClasses().that().resideInAPackage("io.nullnull.importer..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.nullnull.recommendation..", "java.net.http..",
+                        "org.springframework.web.client..")
+                .because("the pasted itinerary is never sent anywhere, so the importer keeps no way"
+                        + " to send it (BA-060-T4, invariant 10)")
+                .check(classes);
+    }
+
     @Test
     void domainLayerDependsOnNothingAbove() {
         noClasses().that().resideInAPackage("io.nullnull..domain..")

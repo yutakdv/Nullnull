@@ -11,14 +11,15 @@ public final class ImplementedOperationsRegistry {
     public static final Set<String> IMPLEMENTED =
             Set.of("getLiveness", "getReadiness", "getDemoReadiness", "createDemoSession", "issueCsrfToken",
                     "getCurrentOwner", "updatePreferences", "deleteCurrentSession", "getDeletionRequest",
-                    "searchPlaces", "getPlace", "getPlaceCrowdForecast",
+                    "searchPlaces", "getPlace", "listRelatedPlaces", "getPlaceCrowdForecast",
                     "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip",
                     "listFeed", "getPost", "savePost", "unsavePost", "recordFeedFeedback",
                     "ingestEventBatch",
                     "listTripCandidates", "addTripCandidate", "removeTripCandidate", "getCandidateTripMatches",
                     "replaceTripInterests", "addTripItem", "removeTripItem", "reorderTripItems", "replaceTripItem", "updateTripItem",
                     "setTripItemConstraint", "removeTripItemConstraint",
-                    "createOptimization", "getOptimization");
+                    "createOptimization", "getOptimization",
+                    "parseTripImport", "remapTripImport", "confirmTripImport");
 
     private ImplementedOperationsRegistry() {
     }

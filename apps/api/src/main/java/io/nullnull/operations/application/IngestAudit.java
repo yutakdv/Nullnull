@@ -27,7 +27,7 @@ public interface IngestAudit {
      * Mirrors {@link io.nullnull.shared.provider.ProviderResponseValidator.Outcome} by NAME:
      * CollectorRunRecorder bridges the two with {@code valueOf(verdict.outcome().name())}, so a value
      * added to one and not the other fails at runtime on the branch that produces it, and nowhere
-     * else. ProviderOutcomeVocabularyTest pins the two enums and the V018 CHECK together.
+     * else. ProviderOutcomeVocabularyIT pins the two enums and the V018 CHECK together.
      */
     enum ValidationResult { PENDING, OK, SCHEMA_DRIFT, ENUM_DRIFT, RANGE, TIME_SKEW, PROVIDER_ERROR,
         MAPPING_UNCERTAIN }

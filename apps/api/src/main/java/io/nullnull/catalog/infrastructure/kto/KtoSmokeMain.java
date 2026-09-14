@@ -33,7 +33,7 @@ public final class KtoSmokeMain {
         request.requirePermittedEnvironment(requestedEnvironment);
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
                 .web(WebApplicationType.NONE)
-                .properties(KtoSmokeEnvironment.runtimeProperties(settings))
+                .initializers(KtoSmokeEnvironment.applying(settings))
                 .registerShutdownHook(false)
                 .run()) {
             String environment = context.getEnvironment().getProperty("nullnull.env", requestedEnvironment);
@@ -48,7 +48,7 @@ public final class KtoSmokeMain {
                     .join();
             System.out.println(redactedEvidence(snapshot));
         } catch (RuntimeException failure) {
-            throw new IllegalStateException("KTO smoke failed: " + safeFailureCode(failure));
+            throw new IllegalStateException("KTO smoke failed: " + KtoSmokeEnvironment.failureCode(failure));
         }
     }
 
@@ -64,16 +64,6 @@ public final class KtoSmokeMain {
                 + " fetchedAt=" + snapshot.fetchedAt();
     }
 
-    private static String safeFailureCode(Throwable failure) {
-        Throwable current = failure;
-        while (current != null) {
-            if (current instanceof KtoGatewayException gateway) {
-                return gateway.code().name();
-            }
-            current = current.getCause();
-        }
-        return "UNEXPECTED_FAILURE";
-    }
 
     static final class SmokeRequest {
         private static final String APPROVAL = "NULLNULL_KTO_SMOKE_APPROVED";

@@ -14,6 +14,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import io.nullnull.testsupport.OwnedRows;
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 
 /**
  * C3 schema safety only. No controller is registered here: BA-021-T3 still gates all public place
@@ -29,24 +33,45 @@ class CatalogFoundationIT {
     @Autowired
     JdbcTemplate jdbc;
 
+
+    /**
+     * The places that were already there when this test started. Everything that appears after it
+     * is this test's, and only that is removed - a blanket DELETE takes other classes' rows or, more
+     * often, fails on one of the foreign keys that deliberately do not cascade (AGENTS.md rule 6).
+     */
+    private List<UUID> placesBefore = List.of();
+    private List<UUID> mediaBefore = List.of();
+    private List<UUID> licensesBefore = List.of();
+
+
+    @BeforeEach
+    void notePlacesAlreadyPresent() {
+        placesBefore = jdbc.queryForList("SELECT id FROM places", UUID.class);
+        mediaBefore = OwnedRows.snapshot(jdbc, "media_assets");
+        licensesBefore = OwnedRows.snapshot(jdbc, "asset_licenses");
+    }
+
+
+    /** The places that appeared while this test ran - the only ones it may remove or count. */
+    private List<UUID> placesCreatedHere() {
+        return OwnedRows.appeared(jdbc, "places", placesBefore);
+    }
+
     @AfterEach
     void removeOnlyC3CatalogFixtures() {
-        jdbc.update("DELETE FROM place_media_assets");
-        // Place media only. A post cover is a media asset too now (V021), and an unscoped
-        // delete here takes assets another class's posts still reference - which the foreign
-        // key refuses, failing this cleanup rather than the test that owns the rows. Same
-        // class of mistake as the asset_licenses line below: removing rows it did not create.
-        jdbc.update("DELETE FROM media_assets WHERE NOT EXISTS"
-                + " (SELECT 1 FROM posts WHERE posts.cover_asset_id = media_assets.id)");
-        // Only the fixtures, which is what this method is named for. V021 seeds one licence as
-        // product data - the 1st-party one A-024 requires - and an unscoped delete removed it,
-        // leaving every later test that publishes a post with no licence to point at. That is
-        // invisible locally, where class order happened to put those tests first, and failed in
-        // CI where the database is shared and the order differs.
-        jdbc.update("DELETE FROM asset_licenses WHERE source_code <> 'NULLNULL_FIRST_PARTY'");
-        jdbc.update("DELETE FROM place_external_refs");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        OwnedRows.remove(jdbc, "places", placesCreatedHere());
+        // After the places, because their place_media_assets rows point at these. Assets and
+        // licences this test created, not "every asset no post is using": that WHERE reads like a
+        // scope and is not one - it matched every other class's place media too, and once those
+        // classes stopped clearing the join table for everyone it started failing outright.
+        OwnedRows.remove(jdbc, "media_assets", OwnedRows.appeared(jdbc, "media_assets", mediaBefore));
+        OwnedRows.remove(jdbc, "asset_licenses", OwnedRows.appeared(jdbc, "asset_licenses", licensesBefore));
+        // After the places, because their place_media_assets rows point at these. Assets and
+        // licences this test created, not "every asset no post is using": that WHERE reads like a
+        // scope and is not one - it matched every other class's place media too, and once those
+        // classes stopped clearing the join table for everyone it started failing outright.
+        OwnedRows.remove(jdbc, "media_assets", OwnedRows.appeared(jdbc, "media_assets", mediaBefore));
+        OwnedRows.remove(jdbc, "asset_licenses", OwnedRows.appeared(jdbc, "asset_licenses", licensesBefore));
     }
 
     @Test

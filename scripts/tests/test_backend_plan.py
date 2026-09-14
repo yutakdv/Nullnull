@@ -49,6 +49,25 @@ class BackendPlanTests(unittest.TestCase):
         validate(ROOT, errors)
         self.assertEqual([], errors)
 
+    def test_an_external_owner_marker_needs_a_reason_and_a_tracking_issue(self):
+        """The one place a card can be promoted while a clause is unproven here, so it is shaped
+        like the oasdiff exceptions: a role, a reason and a tracking issue, or it is not an
+        exception - it is a hole. A bare {"role": "FE"} would be a way to promote anything."""
+        def marked(value):
+            def mutate(plan):
+                clause = next(c for task in plan['tasks'] for c in task['tests']
+                              if c.get('externalOwner'))
+                clause['externalOwner'] = value
+            return mutate
+        for broken, expected in (
+                ({'role': 'FE', 'reason': 'x'}, 'needs a issue'),
+                ({'role': 'FE', 'issue': '#233'}, 'needs a reason'),
+                ({'role': 'BE', 'reason': 'x', 'issue': '#233'}, 'needs a known role'),
+                ({'role': 'FE', 'reason': 'x', 'issue': 'later'}, 'must be #<number>'),
+                ('FE', 'must be an object')):
+            with self.subTest(broken=broken):
+                self.check_mutation(marked(broken), expected)
+
     def test_dated_evidence_link_is_not_a_calendar_estimate(self):
         self.assertFalse(has_calendar_estimate('[PM 검토](../project/PM_REVIEW_2026-09-06.md)'))
 
@@ -171,6 +190,7 @@ class BackendPlanTests(unittest.TestCase):
         self.assertGreaterEqual(len(re.findall(r'^\| (FCR-\d{3}) \|', text, re.M)), 30)
 
     def test_missing_operation(self):
+        """BA-000-T1 담당 task가 없는 operation은 계획 검증에서 거부된다"""
         self.check_mutation(lambda p: next(t for t in p['tasks'] if 'getPlace' in t['operations'])['operations'].clear(), 'operation coverage mismatch')
 
     def test_duplicate_operation_owner(self):
@@ -180,6 +200,7 @@ class BackendPlanTests(unittest.TestCase):
         self.check_mutation(lambda p: p['tasks'][0]['operations'].append('inventedEndpoint'), 'unknown=')
 
     def test_missing_feature(self):
+        """BA-000-T1 담당 task가 없는 기능 ID는 계획 검증에서 거부된다"""
         def mutate(p):
             for t in p['tasks']:
                 t['featureIds'] = [f for f in t['featureIds'] if f != 'FR-LIV-07']
@@ -192,9 +213,11 @@ class BackendPlanTests(unittest.TestCase):
         self.check_mutation(lambda p: p['tasks'].append(copy.deepcopy(p['tasks'][0])), 'duplicate task IDs')
 
     def test_dependency_cycle(self):
+        """BA-000-T2 순서 DAG의 cycle은 계획 검증에서 거부된다"""
         self.check_mutation(lambda p: p['tasks'][0]['dependsOn'].append('BA-001'), 'dependency cycle')
 
     def test_same_phase_cycle(self):
+        """BA-000-T2 같은 phase 안의 cycle도 거부된다 — phase 경계가 순환을 가리지 않는다"""
         self.check_mutation(lambda p: p['tasks'][1]['dependsOn'].append('BA-002'), 'dependency cycle')
 
     def test_missing_dependency(self):
@@ -209,11 +232,13 @@ class BackendPlanTests(unittest.TestCase):
         self.check_mutation(mutate, 'optional expansion must not block P0')
 
     def test_live_phase_moved(self):
+        """BA-000-T2 Live 작업을 앞 phase로 옮기면 거부된다 — B10이 마지막 기능 단계다"""
         def mutate(p):
             next(t for t in p['tasks'] if t['id']=='BA-091')['phase']='B03'
         self.check_mutation(mutate, 'Live work must be in final')
 
     def test_phase_after_live(self):
+        """BA-000-T2 B10 뒤에 기능 phase를 더하면 거부된다 — 반대 방향의 같은 규칙"""
         self.check_mutation(lambda p: p['phases'].append({'id':'B11'}), 'last feature phase')
 
     def test_wrong_branch(self):

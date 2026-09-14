@@ -62,8 +62,14 @@ public final class TripScheduleRules {
         for (TripItem item : items) {
             int count = perDay.merge(item.date(), 1, Integer::sum);
             if (count > TripItem.MAX_PER_DAY) {
+                // The date is named, because the alternative is a refusal the person cannot act on.
+                // A pasted itinerary can carry a hundred entries across a fortnight; "a day holds at
+                // most 20" tells them a day is too full without telling them which, and the only way
+                // to find it is to count by hand. The date is their own and it is already in the
+                // draft they are looking at, so naming it echoes nothing the response did not hold.
                 throw new TripValidationException("seedItems", "Size",
-                        "a day holds at most " + TripItem.MAX_PER_DAY + " items");
+                        "a day holds at most " + TripItem.MAX_PER_DAY + " items, and " + item.date()
+                                + " has more");
             }
         }
     }

@@ -131,7 +131,8 @@ public class JdbcCandidateStore implements CandidateStore {
     }
 
     @Override
-    public List<TripCandidate> page(UUID tripId, CandidateStatus status, long offset, int limit) {
+    public List<TripCandidate> page(UUID tripId, CandidateStatus status, CandidateStore.PageKey after,
+            int limit) {
         StringBuilder sql = new StringBuilder("""
                 SELECT id, trip_id, place_id, status, scheduled_trip_item_id, note, must_visit, created_at, updated_at
                   FROM trip_candidates
@@ -143,10 +144,20 @@ public class JdbcCandidateStore implements CandidateStore {
             sql.append(" AND status = ?");
             parameters.add(status.name());
         }
+        if (after != null) {
+            // Resume after that candidate rather than skipping a count of rows. This list is the one
+            // that hurts most under an offset: the P0 path is "save while browsing the feed", and
+            // every save lands at the head of created_at DESC and pushes the rest of the reader's
+            // pages along by one.
+            sql.append(" AND (created_at < ? OR (created_at = ? AND id > ?))");
+            Timestamp at = Timestamp.from(after.createdAt());
+            parameters.add(at);
+            parameters.add(at);
+            parameters.add(after.candidateId());
+        }
         // Most recent first, id breaking ties so the sort is total across pages.
-        sql.append(" ORDER BY created_at DESC, id ASC LIMIT ? OFFSET ?");
+        sql.append(" ORDER BY created_at DESC, id ASC LIMIT ?");
         parameters.add(limit);
-        parameters.add(offset);
         List<TripCandidate> found = jdbc.sql(sql.toString()).params(parameters)
                 .query((ResultSet row, int index) -> map(row, List.of()))
                 .list();

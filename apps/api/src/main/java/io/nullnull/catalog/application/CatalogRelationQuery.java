@@ -7,21 +7,16 @@ import java.util.UUID;
 /**
  * Candidate selection for related places: which stored relations still stand at a given instant.
  *
- * <p>Written before the response stage on purpose. Selecting candidates needs canonical ids and the
- * evidence around them, not a {@code PlaceSummary}, so the catalog publication gate that stops
- * {@code listRelatedPlaces} from carrying items does not reach this far. That is also why it can be
- * proven now: BA-024-T4's clause is that expired evidence is not offered as a candidate, and
- * offering candidates is exactly what this does.
+ * <p>Selection needs canonical ids and the evidence around them, not place content, so it sits in
+ * front of the hydration the catalog publication gate guards. That is also why BA-024-T4 could be
+ * settled before the response existed: its clause is that expired evidence is not offered as a
+ * candidate, and offering candidates is what this does.
  *
- * <p>No production caller yet - the BA-024 response stage adds one, and the apps/ai
- * {@code related/rank} gateway is what it hands these to. {@code ArchitectureRulesTest}'s
- * AWAITING_THEIR_SLICE register does not cover this: it scans only
- * {@code io.nullnull.recommendation.application} and skips interfaces, and a read-model port is an
- * interface here by the pattern {@link CatalogPlaceQuery} sets.
- *
- * <p>The id is taken as canonical. Resolving a deprecated alias is the response stage's job, the
- * same split {@link CatalogPlaceQuery#find} uses, and the deprecation guard in V027 is what keeps a
- * stored relation from naming a retired place in the first place.
+ * <p><b>The place id is taken as canonical, and nothing resolves an alias for you.</b> Safe only
+ * while no production path can produce a deprecated place, which is today's measured state - the one
+ * writer of {@code places} passes a null {@code canonical_place_id} and every DEPRECATED row is
+ * written by a test. {@code CatalogRelationProjectionService} resolves before calling, so a merge
+ * path would find the resolution already in the caller rather than here.
  */
 public interface CatalogRelationQuery {
 
@@ -30,16 +25,36 @@ public interface CatalogRelationQuery {
      * does not depend on the order they were written.
      *
      * <p>{@code expires_at} is the moment the evidence stops standing, so a window is open while
-     * {@code effective_at <= at < expires_at}. An open-ended relation - what an internal rule
-     * produces, since a taxonomy similarity does not lapse on a date - has no {@code expires_at} and
-     * is always inside its window.
+     * {@code effective_at <= at < expires_at}. An open-ended relation has no {@code expires_at} and is
+     * always inside its window.
+     *
+     * <p>This javadoc used to add "which is what an internal rule produces, since a taxonomy
+     * similarity does not lapse on a date". That was an assumption and the registry contradicts it:
+     * {@code NULLNULL_CATALOG_RULE} carries {@code stale_after_seconds = 604800} and a refresh
+     * expectation of "카탈로그 변경 시 재평가" (V007). A rule-derived relation is a statement about the
+     * catalog as it stood, and the catalog moves - so those rows expire after seven days and are
+     * re-evaluated, rather than standing forever. The open-ended case is still reachable and still
+     * handled; it is simply not what the internal rule produces.
      */
     List<CatalogRelationCandidate> candidatesFor(UUID sourcePlaceId, Instant at);
 
     /**
-     * One stored relation, with the provenance the ranker scores and the response projects. There is
-     * no place content here: hydration happens after selection, behind the publication gate.
+     * One stored relation with the provenance the response projects. No place content: hydration
+     * happens after selection, behind the publication gate.
+     *
+     * <p>{@code id} is the row's own id, which the response publishes as {@code provenanceId} - the
+     * evidence has an identity of its own, separate from either place.
      */
-    record CatalogRelationCandidate(UUID targetPlaceId, String relationType, String relationReason,
-            String sourceCode, long sourceRegistryVersion, Instant effectiveAt, Instant expiresAt) {}
+    record CatalogRelationCandidate(UUID id, UUID targetPlaceId, String relationType,
+            String relationReason, String derivation, String mappingCertainty, Instant effectiveAt,
+            Instant expiresAt, Instant recordedAt, CatalogRelationSource source) {}
+
+    /**
+     * The registry values as they stood in the revision this relation pinned, never as they stand
+     * now. A source's licence or credit can change, and a relation recorded under the old terms must
+     * keep being described by them (ERD §4, the rule place_external_refs and asset_licenses follow).
+     */
+    record CatalogRelationSource(String code, long registryVersion, String displayName,
+            String sourceState, String license, String licenseUrl, String officialUrl,
+            String attribution, String metricDefinition, String normalizationVersion, String scope) {}
 }

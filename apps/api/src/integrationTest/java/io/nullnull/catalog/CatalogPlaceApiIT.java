@@ -36,6 +36,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
+import io.nullnull.testsupport.OwnedRows;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * BA-022's local route proof. The test enables the fail-closed projection flag only inside this
@@ -76,50 +79,74 @@ class CatalogPlaceApiIT {
     private final ObjectMapper json = new ObjectMapper();
     private ListAppender<ILoggingEvent> logs;
 
+    /**
+     * The places that were already there when this test started. Everything that appears after it
+     * is this test's, and only that is removed - a blanket DELETE takes other classes' rows or, more
+     * often, fails on one of the foreign keys that deliberately do not cascade (AGENTS.md rule 6).
+     */
+    /**
+     * Unique per run. Search reads the WHOLE catalog, so a fixture named "가 장소" competes with
+     * every other class's "…장소" in the gate's shared database - and this file's cursor case asserts
+     * WHICH row comes first, which a stranger's place had already taken. The token goes in the names
+     * and is the query, so the result set is this test's rows and the order is the one it set up.
+     */
+    private static final String RUN = "q" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+
+    private List<UUID> placesBefore = List.of();
+    private List<UUID> mediaBefore = List.of();
+    private List<UUID> licensesBefore = List.of();
+
+
     @BeforeEach
     void captureLogs() {
+        placesBefore = jdbc.queryForList("SELECT id FROM places", UUID.class);
+        mediaBefore = OwnedRows.snapshot(jdbc, "media_assets");
+        licensesBefore = OwnedRows.snapshot(jdbc, "asset_licenses");
         logs = new ListAppender<>();
         logs.start();
         rootLogger().addAppender(logs);
+    }
+
+
+    /** The places that appeared while this test ran - the only ones it may remove or count. */
+    private List<UUID> placesCreatedHere() {
+        return OwnedRows.appeared(jdbc, "places", placesBefore);
     }
 
     @AfterEach
     void removeOnlyC3CatalogFixtures() {
         rootLogger().detachAppender(logs);
         logs.stop();
-        jdbc.update("DELETE FROM place_media_assets");
-        // Place media only. A post cover is a media asset too now (V021), and an unscoped
-        // delete here takes assets another class's posts still reference - which the foreign
-        // key refuses, failing this cleanup rather than the test that owns the rows. Same
-        // class of mistake as the asset_licenses line below: removing rows it did not create.
-        jdbc.update("DELETE FROM media_assets WHERE NOT EXISTS"
-                + " (SELECT 1 FROM posts WHERE posts.cover_asset_id = media_assets.id)");
-        // Only the fixtures, which is what this method is named for. V021 seeds one licence as
-        // product data - the 1st-party one A-024 requires - and an unscoped delete removed it,
-        // leaving every later test that publishes a post with no licence to point at. That is
-        // invisible locally, where class order happened to put those tests first, and failed in
-        // CI where the database is shared and the order differs.
-        jdbc.update("DELETE FROM asset_licenses WHERE source_code <> 'NULLNULL_FIRST_PARTY'");
-        jdbc.update("DELETE FROM place_external_refs");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        OwnedRows.remove(jdbc, "places", placesCreatedHere());
+        // After the places, because their place_media_assets rows point at these. Assets and
+        // licences this test created, not "every asset no post is using": that WHERE reads like a
+        // scope and is not one - it matched every other class's place media too, and once those
+        // classes stopped clearing the join table for everyone it started failing outright.
+        OwnedRows.remove(jdbc, "media_assets", OwnedRows.appeared(jdbc, "media_assets", mediaBefore));
+        OwnedRows.remove(jdbc, "asset_licenses", OwnedRows.appeared(jdbc, "asset_licenses", licensesBefore));
+        // After the places, because their place_media_assets rows point at these. Assets and
+        // licences this test created, not "every asset no post is using": that WHERE reads like a
+        // scope and is not one - it matched every other class's place media too, and once those
+        // classes stopped clearing the join table for everyone it started failing outright.
+        OwnedRows.remove(jdbc, "media_assets", OwnedRows.appeared(jdbc, "media_assets", mediaBefore));
+        OwnedRows.remove(jdbc, "asset_licenses", OwnedRows.appeared(jdbc, "asset_licenses", licensesBefore));
     }
 
     @Test
     @DisplayName("BA-022-T2 a signed cursor rejects tampering, another owner or another filter, and expires")
     void searchCursorIsOwnerAndFilterBound() throws Exception {
         SessionService.Bootstrap owner = owner("ko-KR");
-        UUID first = activePlace("가 장소", true);
-        UUID second = activePlace("나 장소", true);
-        UUID hiddenWithoutCoordinates = activePlace("다 장소", false);
-        localization(first, "ko-KR", "가 장소", "첫 번째 설명", "서울시 1");
-        localization(second, "ko-KR", "나 장소", "두 번째 설명", "서울시 2");
-        localization(hiddenWithoutCoordinates, "ko-KR", "다 장소", null, null);
+        UUID first = activePlace(RUN + " 가 장소", true);
+        UUID second = activePlace(RUN + " 나 장소", true);
+        UUID hiddenWithoutCoordinates = activePlace(RUN + " 다 장소", false);
+        localization(first, "ko-KR", RUN + " 가 장소", "첫 번째 설명", "서울시 1");
+        localization(second, "ko-KR", RUN + " 나 장소", "두 번째 설명", "서울시 2");
+        localization(hiddenWithoutCoordinates, "ko-KR", RUN + " 다 장소", null, null);
         reference(first);
         reference(second);
         reference(hiddenWithoutCoordinates);
 
-        MvcResult firstPage = search(owner, "{\"query\":\"장소\",\"limit\":1}")
+        MvcResult firstPage = search(owner, "{\"query\":\"" + RUN + "\",\"limit\":1}")
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "private, no-store"))
                 .andExpect(jsonPath("$.items[0].id").value(first.toString()))
@@ -128,25 +155,25 @@ class CatalogPlaceApiIT {
         String cursor = cursor(firstPage);
         assertThat(cursor).hasSizeLessThan(501).doesNotContain("장소", owner.owner.id().toString());
 
-        search(owner, "{\"query\":\"장소\",\"limit\":1,\"cursor\":\"" + cursor + "\"}")
+        search(owner, "{\"query\":\"" + RUN + "\",\"limit\":1,\"cursor\":\"" + cursor + "\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(second.toString()))
                 .andExpect(jsonPath("$.page.hasMore").value(false));
 
         SessionService.Bootstrap anotherOwner = owner("ko-KR");
-        search(anotherOwner, "{\"query\":\"장소\",\"cursor\":\"" + cursor + "\"}")
+        search(anotherOwner, "{\"query\":\"" + RUN + "\",\"cursor\":\"" + cursor + "\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CURSOR_INVALID"));
         search(owner, "{\"query\":\"다른 검색어\",\"cursor\":\"" + cursor + "\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CURSOR_INVALID"));
         String tampered = cursor.substring(0, 8) + (cursor.charAt(8) == 'A' ? 'B' : 'A') + cursor.substring(9);
-        search(owner, "{\"query\":\"장소\",\"cursor\":\"" + tampered + "\"}")
+        search(owner, "{\"query\":\"" + RUN + "\",\"cursor\":\"" + tampered + "\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CURSOR_INVALID"));
 
         clock.advance(Duration.ofMinutes(15));
-        MvcResult expired = search(owner, "{\"query\":\"장소\",\"cursor\":\"" + cursor + "\"}")
+        MvcResult expired = search(owner, "{\"query\":\"" + RUN + "\",\"cursor\":\"" + cursor + "\"}")
                 .andExpect(status().isGone())
                 .andExpect(jsonPath("$.code").value("CURSOR_EXPIRED"))
                 .andReturn();

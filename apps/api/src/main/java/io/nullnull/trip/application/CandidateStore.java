@@ -62,7 +62,15 @@ public interface CandidateStore {
      */
     Optional<UUID> dismissScheduledFor(UUID tripItemId, Instant now);
 
-    List<TripCandidate> page(UUID tripId, CandidateStatus status, long offset, int limit);
+    /**
+     * One page of the trip's candidates, resuming after {@code after}.
+     *
+     * @param after the last candidate of the previous page, or null for the first page
+     */
+    List<TripCandidate> page(UUID tripId, CandidateStatus status, PageKey after, int limit);
+
+    /** The row a candidate page ended on, in the terms {@code created_at DESC, id ASC} sorts by. */
+    record PageKey(Instant createdAt, UUID candidateId) { }
 
     int count(UUID tripId);
 

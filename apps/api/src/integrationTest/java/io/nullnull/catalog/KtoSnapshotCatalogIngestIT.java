@@ -18,6 +18,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import io.nullnull.testsupport.OwnedRows;
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 
 /** Internal C3 mapping test; it uses normalized C2 evidence and performs no KTO HTTP call. */
 @SpringBootTest
@@ -33,24 +37,33 @@ class KtoSnapshotCatalogIngestIT {
     @Autowired
     JdbcTemplate jdbc;
 
+
+    /**
+     * The places that were already there when this test started. Everything that appears after it
+     * is this test's, and only that is removed - a blanket DELETE takes other classes' rows or, more
+     * often, fails on one of the foreign keys that deliberately do not cascade (AGENTS.md rule 6).
+     */
+    private List<UUID> placesBefore = List.of();
+    private List<UUID> mediaBefore = List.of();
+    private List<UUID> licensesBefore = List.of();
+
+
+    @BeforeEach
+    void notePlacesAlreadyPresent() {
+        placesBefore = jdbc.queryForList("SELECT id FROM places", UUID.class);
+        mediaBefore = OwnedRows.snapshot(jdbc, "media_assets");
+        licensesBefore = OwnedRows.snapshot(jdbc, "asset_licenses");
+    }
+
     @AfterEach
     void removeOnlyC3CatalogFixtures() {
-        jdbc.update("DELETE FROM place_media_assets");
-        // Place media only. A post cover is a media asset too now (V021), and an unscoped
-        // delete here takes assets another class's posts still reference - which the foreign
-        // key refuses, failing this cleanup rather than the test that owns the rows. Same
-        // class of mistake as the asset_licenses line below: removing rows it did not create.
-        jdbc.update("DELETE FROM media_assets WHERE NOT EXISTS"
-                + " (SELECT 1 FROM posts WHERE posts.cover_asset_id = media_assets.id)");
-        // Only the fixtures, which is what this method is named for. V021 seeds one licence as
-        // product data - the 1st-party one A-024 requires - and an unscoped delete removed it,
-        // leaving every later test that publishes a post with no licence to point at. That is
-        // invisible locally, where class order happened to put those tests first, and failed in
-        // CI where the database is shared and the order differs.
-        jdbc.update("DELETE FROM asset_licenses WHERE source_code <> 'NULLNULL_FIRST_PARTY'");
-        jdbc.update("DELETE FROM place_external_refs");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        OwnedRows.remove(jdbc, "places", placesCreatedHere());
+        // After the places, because their place_media_assets rows point at these. Assets and
+        // licences this test created, not "every asset no post is using": that WHERE reads like a
+        // scope and is not one - it matched every other class's place media too, and once those
+        // classes stopped clearing the join table for everyone it started failing outright.
+        OwnedRows.remove(jdbc, "media_assets", OwnedRows.appeared(jdbc, "media_assets", mediaBefore));
+        OwnedRows.remove(jdbc, "asset_licenses", OwnedRows.appeared(jdbc, "asset_licenses", licensesBefore));
     }
 
     @Test
@@ -61,9 +74,11 @@ class KtoSnapshotCatalogIngestIT {
 
         assertThat(repeated.id()).isEqualTo(first.id());
         assertThat(first.canonicalName()).isEqualTo("서울 테스트 관광지");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM places", Integer.class)).isOne();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM place_localizations", Integer.class)).isOne();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM place_external_refs", Integer.class)).isOne();
+        // Scoped to the rows this test made. "the table holds one" was measuring every class that
+        // ran before it in the gate's shared database, where the answer was 216.
+        assertThat(placesCreatedHere()).hasSize(1);
+        assertThat(rowsFor("place_localizations")).isOne();
+        assertThat(rowsFor("place_external_refs")).isOne();
         assertThat(jdbc.queryForObject("""
                 SELECT external_type FROM place_external_refs WHERE external_id = '264432'
                 """, String.class)).isEqualTo("KTO_CONTENT_TYPE:12");
@@ -78,8 +93,8 @@ class KtoSnapshotCatalogIngestIT {
         assertThatThrownBy(() -> catalog.ingest(snapshot("A0101", null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("areaCode");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM places", Integer.class)).isZero();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM place_external_refs", Integer.class)).isZero();
+        assertThat(placesCreatedHere()).isEmpty();
+        assertThat(rowsFor("place_external_refs")).isZero();
     }
 
     @Test
@@ -90,8 +105,26 @@ class KtoSnapshotCatalogIngestIT {
         assertThatThrownBy(() -> catalog.ingest(snapshot(null, "1")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("categoryCode");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM places", Integer.class)).isOne();
-        assertThat(jdbc.queryForObject("SELECT id FROM places", java.util.UUID.class)).isEqualTo(existing.id());
+        assertThat(placesCreatedHere()).containsExactly(existing.id());
+    }
+
+    /** The places that appeared while this test ran - the ones it is entitled to make claims about. */
+    private List<UUID> placesCreatedHere() {
+        List<UUID> mine = new ArrayList<>(jdbc.queryForList("SELECT id FROM places", UUID.class));
+        mine.removeAll(placesBefore);
+        return mine;
+    }
+
+    /** Rows of a place-owned table belonging to the places this test made. */
+    private int rowsFor(String table) {
+        List<UUID> mine = placesCreatedHere();
+        if (mine.isEmpty()) {
+            return 0;
+        }
+        String placeholders = mine.stream().map(id -> "?").collect(java.util.stream.Collectors.joining(", "));
+        Integer found = jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE place_id IN ("
+                + placeholders + ")", Integer.class, mine.toArray());
+        return found == null ? 0 : found;
     }
 
     private static KtoPlaceSnapshot snapshot(String category, String areaCode) {

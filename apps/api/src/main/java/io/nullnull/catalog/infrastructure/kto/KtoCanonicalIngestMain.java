@@ -50,7 +50,7 @@ public final class KtoCanonicalIngestMain {
         requirePermittedEnvironment(requestedEnvironment);
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
                 .web(WebApplicationType.NONE)
-                .properties(KtoSmokeEnvironment.runtimeProperties(settings))
+                .initializers(KtoSmokeEnvironment.applying(settings))
                 .registerShutdownHook(false)
                 .run()) {
             requirePermittedEnvironment(context.getEnvironment().getProperty("nullnull.env", requestedEnvironment));
@@ -59,7 +59,7 @@ public final class KtoCanonicalIngestMain {
                     .orElseThrow(NoStoredKtoSnapshotException::new);
             System.out.println(redactedEvidence(context.getBean(CatalogIngest.class).ingest(snapshot), snapshot));
         } catch (RuntimeException failure) {
-            throw new IllegalStateException("KTO canonical ingest failed: " + safeFailureCode(failure));
+            throw new IllegalStateException("KTO canonical ingest failed: " + KtoSmokeEnvironment.failureCode(failure));
         }
     }
 
@@ -94,16 +94,6 @@ public final class KtoCanonicalIngestMain {
         return normalized;
     }
 
-    private static String safeFailureCode(Throwable failure) {
-        Throwable current = failure;
-        while (current != null) {
-            if (current instanceof NoStoredKtoSnapshotException) {
-                return "NO_FRESH_KTO_SNAPSHOT_RUN_KTO_SMOKE_FIRST";
-            }
-            current = current.getCause();
-        }
-        return "UNEXPECTED_FAILURE";
-    }
 
     static final class NoStoredKtoSnapshotException extends RuntimeException {
         NoStoredKtoSnapshotException() {

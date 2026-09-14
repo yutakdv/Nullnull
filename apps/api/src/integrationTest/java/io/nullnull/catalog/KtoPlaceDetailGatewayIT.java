@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.catalog.application.KtoGatewayException;
+import io.nullnull.catalog.application.KtoPlaceDetailFetcher;
 import io.nullnull.catalog.application.KtoPlaceDetailGateway;
 import io.nullnull.catalog.application.KtoPlaceSnapshotStore;
 import io.nullnull.catalog.domain.KtoPlaceSnapshot;
@@ -53,7 +54,15 @@ class KtoPlaceDetailGatewayIT {
 
     @AfterEach
     void removeOnlyC2FixtureEvidence() {
-        jdbc.update("DELETE FROM kto_place_snapshots");
+        // The same scope the audit cleanup below already uses, rather than the whole table. A
+        // snapshot is reachable only through the run that wrote it, and every run this class makes
+        // carries the gateway's own request_id prefix - so this names its rows without needing an
+        // id list. It runs FIRST because the snapshot references the run.
+        jdbc.execute("""
+                DELETE FROM kto_place_snapshots WHERE collector_run_id IN (
+                    SELECT collector_run_id FROM api_ingest_logs
+                    WHERE request_id LIKE 'kto-detail-%')
+                """);
         jdbc.execute("""
                 WITH removed AS (
                     DELETE FROM api_ingest_logs WHERE request_id LIKE 'kto-detail-%'
@@ -110,7 +119,11 @@ class KtoPlaceDetailGatewayIT {
             clock.advance(Duration.ofDays(8));
             assertThat(gateway.detail("126509", "12").join().title()).isEqualTo("두 번째");
             assertThat(stub.calls()).isEqualTo(2);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM kto_place_snapshots", Integer.class)).isEqualTo(2);
+            // This content id, not the whole table: the gate shares one database, so an unscoped
+            // count answers for every snapshot any class ever ingested.
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM kto_place_snapshots WHERE content_id = ?", Integer.class, "126509"))
+                    .isEqualTo(2);
         }
     }
 
@@ -156,6 +169,48 @@ class KtoPlaceDetailGatewayIT {
         CollectorRunRecorder collector = new CollectorRunRecorder(audit, new SourceQuotaGuard(quotaStore, clock));
         return new KtoPlaceDetailGateway(snapshots, registry, registryStore, collector, client, clock,
                 transactionManager);
+    }
+
+    @Test
+    @DisplayName("#227 an unanticipated failure is not reported as a configuration problem")
+    void anUnanticipatedFailureKeepsItsOwnCode() {
+        CollectorRunRecorder collector =
+                new CollectorRunRecorder(audit, new SourceQuotaGuard(quotaStore, java.time.Clock.systemUTC()));
+        // A fetcher that is configured fine and throws for some other reason. The old catch-all
+        // answered KTO_NOT_CONFIGURED for anything that reached it, which sent whoever read the code
+        // to check an environment that was correct - twice, on the day #227 was written.
+        KtoPlaceDetailFetcher broken = new KtoPlaceDetailFetcher() {
+            @Override
+            public void requireConfigured() {
+                throw new IllegalStateException("a quota store that was not there");
+            }
+
+            @Override
+            public java.util.concurrent.CompletableFuture<io.nullnull.shared.provider.ProviderHttpClient.ProviderResponse> fetch(
+                    io.nullnull.catalog.application.KtoPlaceRequest request) {
+                throw new UnsupportedOperationException("never reached");
+            }
+
+            @Override
+            public String releaseVersion() {
+                return "test-release";
+            }
+        };
+        KtoPlaceDetailGateway gateway = new KtoPlaceDetailGateway(snapshots, registry, registryStore,
+                collector, broken, java.time.Clock.systemUTC(), transactionManager);
+
+        assertThatThrownBy(() -> gateway.detail("126511", "12").join())
+                .hasRootCauseInstanceOf(KtoGatewayException.class)
+                .rootCause()
+                .satisfies(cause -> {
+                    KtoGatewayException gatewayFailure = (KtoGatewayException) cause;
+                    assertThat(gatewayFailure.code())
+                            .isEqualTo(KtoGatewayException.Code.KTO_INTERNAL_FAILURE);
+                    // The type, so a reader can tell a provider refusal from a process that could not
+                    // start - and never the message, which here holds application detail.
+                    assertThat(gatewayFailure.failureType()).isEqualTo("IllegalStateException");
+                    assertThat(gatewayFailure.getMessage()).doesNotContain("quota store that was not there");
+                });
     }
 
     private static String response(String contentId, String title) {

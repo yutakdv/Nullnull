@@ -193,13 +193,25 @@ class CandidateIT {
         UUID placeId = place("일정 무관");
         add(owner, tripId, placeId, null, "s-" + UUID.randomUUID()).andExpect(status().isCreated());
 
+        assertScheduleUntouched(tripId);
+    }
+
+    /**
+     * The three ways a save could have moved the schedule, in one place.
+     *
+     * <p>BA-034-T2 names two paths - a rejected save and a retried one - and invariant 2 has to hold
+     * on both, not only on the success path this started out asserting. Version, items and revision
+     * count are three separate ways it could break: a write that bumped only the version would still
+     * have broken it, and so would one that added an item without a revision.
+     */
+    private void assertScheduleUntouched(String tripId) {
         UUID trip = UUID.fromString(tripId);
         assertThat(jdbc.queryForObject("SELECT version FROM trips WHERE id = ?", Long.class, trip))
-                .isEqualTo(1L);
+                .as("trip schedule version").isEqualTo(1L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_items WHERE trip_id = ?",
-                Integer.class, trip)).isZero();
+                Integer.class, trip)).as("trip items").isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_revisions WHERE trip_id = ?",
-                Integer.class, trip)).isOne();
+                Integer.class, trip)).as("trip revisions").isOne();
     }
 
     @Test
@@ -223,6 +235,39 @@ class CandidateIT {
                         + " JOIN trip_candidates candidate ON candidate.id = source.candidate_id"
                         + " WHERE candidate.trip_id = ?", Integer.class, UUID.fromString(tripId)))
                 .isZero();
+        // "실패에서 일정 미변경" is the half the clause names and this case was not measuring: an
+        // aborted save that rolled back the candidate but left a revision behind would have passed.
+        assertScheduleUntouched(tripId);
+    }
+
+    @Test
+    @DisplayName("BA-034-T2 a retry after a rejected save leaves the schedule where it was")
+    void aRetriedSaveTouchesNoSchedule() throws Exception {
+        var owner = owner();
+        String tripId = trip(owner);
+        UUID placeId = place("재시도");
+
+        // The realistic client sequence the clause describes: a save is refused, the client fixes
+        // the request and sends it again, then a flaky network makes it send the same thing twice.
+        mvc.perform(post("/api/v1/trips/" + tripId + "/candidates").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", "retry-bad-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"source\":{\"type\":\"POST\"}}"))
+                .andExpect(status().isUnprocessableEntity());
+        assertScheduleUntouched(tripId);
+
+        String key = "retry-" + UUID.randomUUID();
+        add(owner, tripId, placeId, null, key).andExpect(status().isCreated());
+        assertScheduleUntouched(tripId);
+
+        // The replay is the one that could actually move it - a second pass through the service
+        // would write again - so the schedule is read after the guard has had its chance.
+        add(owner, tripId, placeId, null, key).andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_candidates WHERE trip_id = ?",
+                Integer.class, UUID.fromString(tripId))).isOne();
+        assertScheduleUntouched(tripId);
     }
 
     @Test

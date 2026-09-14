@@ -4,15 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.OwnedRows;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,14 +47,30 @@ class FeedIT {
     @Autowired JdbcTemplate jdbc;
 
     /**
-     * The feed is GLOBAL, unlike a trip listing: every owner sees the same posts in the same order.
-     * So a test that asserts on that order needs the table to itself - otherwise another test's
-     * posts appear in this one's page and the assertions are about the suite's execution order.
-     * saved_posts and post_places follow through their foreign keys.
+     * The feed is GLOBAL, unlike a trip listing: every owner sees the same posts in the same order,
+     * so another class's post lands in this one's page and the assertions become about the order the
+     * suite ran in.
+     *
+     * <p>Emptying the table was the old answer and it is the wrong one. The required gate runs every
+     * context against ONE database ({@code NULLNULL_TEST_DATABASE=external}), where {@code DELETE
+     * FROM posts} takes rows this class never created - and posts carry places, which do not cascade
+     * (AGENTS.md rule 6). So these fixtures take the HEAD of the feed instead: they are published in
+     * 2099, later than any real fixture date, and each test removes its own rows afterwards so the
+     * next one starts at the head too.
      */
-    @org.junit.jupiter.api.BeforeEach
-    void clearTheSharedFeed() {
-        jdbc.update("DELETE FROM posts");
+    private final List<UUID> createdPosts = new ArrayList<>();
+    private final List<UUID> createdPlaces = new ArrayList<>();
+
+    @org.junit.jupiter.api.AfterEach
+    void removeOnlyThisTestsFeed() {
+        for (UUID postId : createdPosts) {
+            // post_places, saved_posts and feed_feedback cascade; candidate_sources.post_id is
+            // ON DELETE SET NULL.
+            jdbc.update("DELETE FROM posts WHERE id = ?", postId);
+        }
+        OwnedRows.remove(jdbc, "places", List.copyOf(createdPlaces));
+        createdPosts.clear();
+        createdPlaces.clear();
     }
 
     private SessionService.Bootstrap owner() {
@@ -66,6 +86,7 @@ class FeedIT {
         OffsetDateTime now = OffsetDateTime.now();
         jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
                 + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)", id, name, now, now);
+        createdPlaces.add(id);
         return id;
     }
 
@@ -85,6 +106,7 @@ class FeedIT {
         // the post exists, then its place, then it is visible.
         jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ?::timestamptz"
                 + " WHERE id = ?", publishedAt, id);
+        createdPosts.add(id);
         return id;
     }
 
@@ -93,9 +115,9 @@ class FeedIT {
     void theFeedOrderIsFixedAndPagesDoNotOverlap() throws Exception {
         var reader = owner();
         UUID place = place("경복궁");
-        post("셋째", place, "2026-09-03T00:00:00Z");
-        post("첫째", place, "2026-09-01T00:00:00Z");
-        post("둘째", place, "2026-09-02T00:00:00Z");
+        post("셋째", place, "2099-09-03T00:00:00Z");
+        post("첫째", place, "2099-09-01T00:00:00Z");
+        post("둘째", place, "2099-09-02T00:00:00Z");
 
         String first = mvc.perform(get("/api/v1/feed").param("limit", "2").cookie(cookie(reader)))
                 .andExpect(status().isOk())
@@ -107,13 +129,18 @@ class FeedIT {
                 .andReturn().getResponse().getContentAsString();
         String cursor = first.replaceAll(".*\"nextCursor\":\"([^\"]+)\".*", "$1");
 
+        // The next page resumes on THIS test's third post and does not repeat either of the two
+        // already read. What it cannot claim any more is "and then the feed ends": the table is
+        // shared, so whatever another class published follows. That the last page carries no cursor
+        // is FeedPageView's own invariant and FeedPageViewTest holds it where it can be true.
         mvc.perform(get("/api/v1/feed").param("limit", "2").param("cursor", cursor)
                         .cookie(cookie(reader)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].post.title").value("첫째"))
-                .andExpect(jsonPath("$.page.hasMore").value(false))
-                .andExpect(jsonPath("$.page.nextCursor").isEmpty());
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("\"title\":\"셋째\""))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("\"title\":\"둘째\""))));
     }
 
     @Test
@@ -123,8 +150,8 @@ class FeedIT {
         UUID place = place("인사동");
         // Same publishedAt: the id breaks the tie, ASC, which is what FeedOrdering defines. Without
         // a total order the two could swap between pages and one would be served twice.
-        UUID a = post("동시 A", place, "2026-09-05T00:00:00Z");
-        UUID b = post("동시 B", place, "2026-09-05T00:00:00Z");
+        UUID a = post("동시 A", place, "2099-09-05T00:00:00Z");
+        UUID b = post("동시 B", place, "2099-09-05T00:00:00Z");
         UUID firstExpected = a.toString().compareTo(b.toString()) < 0 ? a : b;
 
         String page = mvc.perform(get("/api/v1/feed").param("limit", "1").cookie(cookie(reader)))
@@ -151,9 +178,13 @@ class FeedIT {
         jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
                 + " VALUES (?, ?, 0, 'PRIMARY')", hidden, place);
 
+        // Named rather than counted. "the feed is empty" was a claim about every class that ran
+        // before this one; "this post is not in it" is the claim the test is actually making, and a
+        // HIDDEN post is absent from any page of a feed however long it is.
         mvc.perform(get("/api/v1/feed").cookie(cookie(reader)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(0));
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString(hidden.toString()))));
         // 404, not 403: a reader has no claim on an unpublished post and must not learn it exists.
         mvc.perform(get("/api/v1/posts/" + hidden).cookie(cookie(reader)))
                 .andExpect(status().isNotFound())
@@ -179,7 +210,7 @@ class FeedIT {
     @DisplayName("PM-010 a published post projects the licence its cover is guaranteed to have")
     void theCoverAssetIsProjectedWithItsLicence() throws Exception {
         var reader = owner();
-        UUID postId = post("표지 권리", place("경복궁"), "2026-09-09T02:00:00Z");
+        UUID postId = post("표지 권리", place("경복궁"), "2099-09-09T02:00:00Z");
         UUID assetId = jdbc.queryForObject("SELECT cover_asset_id FROM posts WHERE id = ?",
                 UUID.class, postId);
         String servedUrl = jdbc.queryForObject("SELECT served_url FROM media_assets WHERE id = ?",
@@ -219,7 +250,7 @@ class FeedIT {
     @DisplayName("PM-010 a cover asset with no servable URL fails the read rather than reading as absent")
     void anUnservableCoverIsNotProjectedAsNull() throws Exception {
         var reader = owner();
-        UUID postId = post("표지 URL 없음", place("창덕궁"), "2026-09-09T02:00:00Z");
+        UUID postId = post("표지 URL 없음", place("창덕궁"), "2099-09-09T02:00:00Z");
         jdbc.update("UPDATE media_assets SET served_url = NULL"
                 + " WHERE id = (SELECT cover_asset_id FROM posts WHERE id = ?)", postId);
 
@@ -234,7 +265,7 @@ class FeedIT {
         var mine = owner();
         var theirs = owner();
         UUID place = place("북촌");
-        UUID postId = post("저장 대상", place, "2026-09-04T00:00:00Z");
+        UUID postId = post("저장 대상", place, "2099-09-04T00:00:00Z");
 
         mvc.perform(put("/api/v1/posts/" + postId + "/saved").cookie(cookie(mine))
                         .header("Origin", "http://localhost:5173")
@@ -259,7 +290,7 @@ class FeedIT {
     void savingTwiceDoesNotMoveTheTimestamp() throws Exception {
         var owner = owner();
         UUID place = place("서촌");
-        UUID postId = post("중복 저장", place, "2026-09-04T00:00:00Z");
+        UUID postId = post("중복 저장", place, "2099-09-04T00:00:00Z");
 
         String first = mvc.perform(put("/api/v1/posts/" + postId + "/saved").cookie(cookie(owner))
                         .header("Origin", "http://localhost:5173")
@@ -285,7 +316,7 @@ class FeedIT {
     void savingDoesNotTouchATrip() throws Exception {
         var owner = owner();
         UUID place = place("삼청동");
-        UUID postId = post("여행 무관", place, "2026-09-04T00:00:00Z");
+        UUID postId = post("여행 무관", place, "2099-09-04T00:00:00Z");
         String trip = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .post("/api/v1/trips").cookie(cookie(owner))
                         .header("Origin", "http://localhost:5173")
@@ -322,7 +353,7 @@ class FeedIT {
     void unsaveIsIdempotent() throws Exception {
         var owner = owner();
         UUID place = place("연남동");
-        UUID postId = post("저장한 적 없음", place, "2026-09-04T00:00:00Z");
+        UUID postId = post("저장한 적 없음", place, "2099-09-04T00:00:00Z");
         for (int attempt = 0; attempt < 2; attempt++) {
             mvc.perform(delete("/api/v1/posts/" + postId + "/saved").cookie(cookie(owner))
                             .header("Origin", "http://localhost:5173")
@@ -337,8 +368,8 @@ class FeedIT {
         var owner = owner();
         UUID first = place("먼저");
         UUID second = place("나중");
-        post("나중 글", second, "2026-09-06T00:00:00Z");
-        post("먼저 글", first, "2026-09-05T00:00:00Z");
+        post("나중 글", second, "2099-09-06T00:00:00Z");
+        post("먼저 글", first, "2099-09-05T00:00:00Z");
 
         mvc.perform(get("/api/v1/feed").cookie(cookie(owner)))
                 .andExpect(jsonPath("$.items[0].post.title").value("나중 글"))
@@ -372,7 +403,7 @@ class FeedIT {
         var mine = owner();
         var theirs = owner();
         UUID placeId = place("남의 여행 장소");
-        post("글", placeId, "2026-09-07T00:00:00Z");
+        post("글", placeId, "2099-09-07T00:00:00Z");
         String trip = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .post("/api/v1/trips").cookie(cookie(theirs))
                         .header("Origin", "http://localhost:5173")

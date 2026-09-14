@@ -9,6 +9,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import io.nullnull.catalog.application.KtoGatewayException;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 import java.util.Set;
 
 /** Reads only the KTO smoke allowlist from a local dotenv file; unrelated blank settings never reach Spring. */
@@ -91,6 +95,49 @@ final class KtoSmokeEnvironment {
         put(properties, values, "SPRING_DATASOURCE_USERNAME", "spring.datasource.username");
         put(properties, values, "SPRING_DATASOURCE_PASSWORD", "spring.datasource.password");
         return Map.copyOf(properties);
+    }
+
+    /**
+     * Puts the loaded settings where they actually win.
+     *
+     * <p>{@code SpringApplicationBuilder.properties(Map)} writes into {@code defaultProperties}, the
+     * LOWEST precedence Spring Boot has - below {@code application.yaml}. Every key this class loads
+     * has a yaml line of the form {@code ${KTO_SERVICE_KEY:}}, which resolves to an empty string when
+     * the process environment has no such variable, and an empty string from a higher source beats a
+     * real value from a lower one. So the file was read, reported as read, and then overridden by a
+     * blank - which is how a correct .env.local produced KTO_NOT_CONFIGURED (#226).
+     *
+     * <p>{@code addFirst} puts it above every other source, so "read from .env.local" and "used" are
+     * the same statement again.
+     */
+    static ApplicationContextInitializer<ConfigurableApplicationContext> applying(
+            Map<String, String> settings) {
+        Map<String, Object> properties = runtimeProperties(settings);
+        return context -> context.getEnvironment().getPropertySources()
+                .addFirst(new MapPropertySource(APPLIED_SOURCE, properties));
+    }
+
+    /** The name this class's settings appear under in the environment, for anyone printing sources. */
+    static final String APPLIED_SOURCE = "kto-operations-settings";
+
+    /**
+     * The failure code an operations command may print.
+     *
+     * <p>It walks to the first KtoGatewayException, because that is the adapter's own stable
+     * vocabulary. When there is none the failure did not come from the provider at all, and the class
+     * name says so - a Spring startup failure reading as UNEXPECTED_FAILURE is what made a
+     * configuration problem look like a provider problem for two hours (#227). Types only: a message
+     * can carry provider text or a configuration value.
+     */
+    static String failureCode(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof KtoGatewayException gateway) {
+                return gateway.failureType() == null
+                        ? gateway.code().name()
+                        : gateway.code().name() + " (" + gateway.failureType() + ")";
+            }
+        }
+        return "UNEXPECTED_FAILURE (" + failure.getClass().getSimpleName() + ")";
     }
 
     static String environment(Map<String, String> values) {

@@ -69,7 +69,7 @@
       "phase": "B00",
       "priority": "P0",
       "title": "추천 설계와 전체 계약 기준선 확정",
-      "status": "contract-ready",
+      "status": "integration-ready",
       "dependsOn": [],
       "operations": [],
       "featureIds": [],
@@ -612,7 +612,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "Canonical 장소·검색·상세·콘텐츠 권리",
-      "status": "integration-ready",
+      "status": "verified",
       "dependsOn": [
         "BA-021"
       ],
@@ -669,7 +669,38 @@
       "handoff": "V010은 canonical places/localizations/external refs와 reviewed asset license/media 경계를 만든 internal foundation이다. normalized KTO snapshot은 source registry revision 3을 같이 고정하며 동일 external ID는 하나의 active canonical POI로 수렴하고 missing category/area는 추측하지 않고 거부한다. PostgreSQL fixture에서 duplicate/invalid canonical target/source revision/partial coordinate/unapproved media가 차단되고, longitude required 조건을 제거한 좌표 쌍 mutation과 rights guard를 OR→AND로 약화한 mutation은 BA-022-T1/T3를 RED로 만든 뒤 복구했다. `searchPlaces`/`getPlace` local projection은 active coordinate-complete canonical rows, locale fallback, approved media, signed owner/filter cursor만 읽으며 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값으로 fail-closed다. CatalogPlaceApiIT, CatalogPublicationPropertiesTest, CatalogPlaceProjectionServiceTest가 cursor tamper/owner/filter/expiry, canary 비로그, approved media, disabled production, enabled-secret gate와 gate-before-read를 확인한다. C3 gate의 `!publicEnabled`→`false` mutation은 fail-closed test를 RED로 만든 뒤 복구했다. backend Gradle Java 305/145/13/19와 full Docker gate(Java·AI pytest 410·web unit 224·Playwright 36·generated client·npm audit·egress-denied)는 GREEN이다. C2 T3 staging actual-success→public provenance와 최종 AWS release 전에는 flag를 켜거나 외부 공개하지 않으며 BA-022는 완료가 아니다. 이후 FE에는 검색 loading/empty/404/coverage 부족·KO/EN fallback fixture와 canonical ID만 전달한다. **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`의 지역 코드 체계는 실호출로 확정됐다 — `areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리이며, `11`+`110`의 `totalCount 0`은 형식 오류가 아니라 `signguCd` 자릿수 문제였다(`11`+`11110`은 한 장소에 30건). `KtoForecastRequest.signguRequestCode()`가 그 값을 만들고 `KtoCrowdForecastGatewayIT`가 나간 요청의 두 코드를 단언한다. #109는 닫혔다. **2026-09-11 후속:** `V012`가 KTO_KOR_SERVICE_2를 revision 4(`kto-kor-service2-detailcommon2-v3`)로 올리고 validator가 `lclsSystm1`·`lDongRegnCd`·`lDongSignguCd`를 읽는다. retired 식별자만 담긴 응답은 remap하지 않고 SCHEMA_DRIFT로 quarantine한다(`KtoDetailResponseValidatorTest.rejectsLegacyOnlyIdentifiers`). 같은 PR에서 `PlaceSummary`/`PlaceDetail`에 additive로 `sourceAttribution`·`categoryName`·`regionName`을 제안했다. `sourceAttribution`은 place의 `place_external_refs`가 가리키는 검토된 revision에서 읽으며, source나 승인 문구가 없으면 부분 credit 대신 null이다(`CatalogPlaceApiIT.aPlaceWithoutAnExternalReferenceHasNoAttribution`, 변이로 RED 확인). `categoryName`/`regionName`은 검토된 코드→문구 매핑이 생길 때까지 null이며 `categoryCode`/`regionCode`는 표시용이 아닌 불투명 값으로 명시했다. FE 승인 전까지 이 shape를 동결하지 않는다(#34).",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-022"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-022",
+      "evidence": {
+        "report": "https://github.com/yutakdv/Nullnull/actions/runs/34763727762",
+        "contractSha": "bb3b8defbc82e163784807dbafaa672a463794c8",
+        "secondPass": "일곱 절을 그 ID를 단 testcase 본문과 대조했다. 다절 단언 셋(T1·T2·T3)이 전부 기전별로 덮여 있었다 — 구멍이 나온 카드가 아니다. T2 하나가 변조·다른 owner·다른 filter·15분 만료 넷을 한 case로 덮고, cursor가 owner id와 검색어를 담지 않는 것과 오류가 cursor를 되돌리지 않는 것까지 단언한다. T3의 canary는 logs.list가 비어 있지 않은지 먼저 보고 allSatisfy를 건다 — 없으면 공허하게 통과하는 자리다.",
+        "provenBy": {
+          "BA-022-T1": [
+            "BA-022-T1 the same normalized KTO identity converges on one canonical POI",
+            "BA-022-T1 one provider identity maps to one active canonical POI and bad redirects are rejected",
+            "BA-022-T1 malformed canonical references and incomplete coordinates are refused before persistence"
+          ],
+          "BA-022-T2": [
+            "BA-022-T2 a signed cursor rejects tampering, another owner or another filter, and expires"
+          ],
+          "BA-022-T3": [
+            "BA-022-T3 a search canary stays out of responses and every captured application log",
+            "BA-022-T3 media cannot be served without a reviewed redistributable license"
+          ],
+          "BA-022-T4": [
+            "BA-022-T4 an opening-hours window cannot be stored without the evidence row it came from"
+          ],
+          "BA-022-T5": [
+            "BA-022-T5 an evidence row with no window at all is stored and kept"
+          ],
+          "BA-022-T6": [
+            "BA-022-T6 a window whose closesAt is not after its opensAt is rejected"
+          ],
+          "BA-022-T7": [
+            "BA-022-T7 a place that carries opening-hours evidence cannot be deprecated"
+          ]
+        }
+      }
     },
     {
       "id": "BA-023",
@@ -712,11 +743,23 @@
         },
         {
           "id": "BA-023-T2",
-          "assertion": "mixed source/scope/issue/set·stale·replay·incident pair의 delta가 null이다"
+          "assertion": "다른 source·scope·issue·set의 pair는 비교 자격이 없다"
         },
         {
           "id": "BA-023-T3",
           "assertion": "최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다"
+        },
+        {
+          "id": "BA-023-T4",
+          "assertion": "stale pair는 비교 자격이 없다"
+        },
+        {
+          "id": "BA-023-T5",
+          "assertion": "replay pair는 비교 자격이 없다"
+        },
+        {
+          "id": "BA-023-T6",
+          "assertion": "incident pair는 비교 자격이 없다"
         }
       ],
       "handoff": "V011은 immutable `snapshot_sets`/`crowd_snapshots`와 KTO_CONCENTRATION_FORECAST registry revision 2(`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw body·request URL·key column은 schema에 없고, set 대비 snapshot provenance 불일치와 모든 UPDATE는 trigger가 거부한다. `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하며 절대 provider를 호출하지 않는다. collector `KtoCrowdForecastGateway`는 operator/background 전용이고 source health·quota·collector run·ingest audit을 거친다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값에서 fail-closed다. observedAt은 provider 발표 시각이 없으면 null로 남고 fetchedAt으로 대체하지 않으며, FORECAST/LIVE가 stale 경계를 넘으면 응답 state가 STALE로 바뀌고 freshness가 분리된다. 비교는 저장하지 않는다(`crowd_comparisons` table 없음). 공개 응답은 `TemporalComparisonPolicy.eligibility(point)`만 쓰고 pair 판정 `evaluate`는 optimization preview용으로 domain에 남겨 둔다. 격리는 저장된 row가 가질 수 없는 flag이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(`QUARANTINE`)로 계산해 `PROVIDER_INCIDENT`를 붙이고 비교 자격을 false로 만든다. 검증: `CrowdProvenanceProjectionTest`(BA-023-T1 6-state·null provenance matrix), `CrowdForecastApiIT`(BA-023-T1 fresh/stale/invalid range, BA-023-T3 새 set이 저장된 snapshot을 덮지 않음), `KtoCrowdForecastGatewayIT`(BA-023-T1 normalized provenance·raw redaction·no-coverage·range quarantine), `CrowdProvenanceProjectionTest`·`CrowdForecastApiIT`(BA-023-T2 격리된 source는 값을 유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`; 수집 이후 선언된 QUARANTINE incident가 저장된 snapshot의 HTTP 응답에서도 같은 결과), `KtoForecastResponseValidatorTest`, `FlywayMigrationIT`(populated V010→V011 upgrade). report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}`이며 local Temurin 21 run과 full Docker gate(`integration_mode=full-docker`, exit 0)가 모두 `320/153/13/19`, failures/errors/skipped 0이다. AI pytest 410, web unit 224, Playwright 36, test_reports/evaluation_report valid, npm audit clean, egress-denied도 통과했다. `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 지우면 BA-023-T2 두 건이 RED이고 복원 SHA가 일치한다. 적대적 검토에서 production 호출자가 없는 `CrowdComparisonService`가 BA-023-T2 증거로 등록돼 있었다는 지적이 확정돼 service/test를 삭제하고 실제 경로 격리 가드 검증으로 교체했다. **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거는 이 저장소에서 아직 만들지 않았다. opt-in `actualKtoSmoke`/`ktoForecastSmoke`는 `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구하며, BA-021-T3의 staging actual-success→public provenance가 남아 있는 동안에는 BA-023도 `verified`가 아니고 flag를 켜거나 외부에 공개하지 않는다. fail-closed 응답 code를 `ROUTE_UNAVAILABLE`(최적화 run 실패용 문구)에서 `SOURCE_UNAVAILABLE`로 정정했으므로 catalog·crowd 경로를 쓰는 FE fixture는 기대 code를 바꿔야 한다. FE에는 `getPlaceCrowdForecast`만 제공하며 `PlaceSummary`/`PlaceDetail`에는 crowd field가 없다(FCR-029·#105). **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`의 지역 코드 체계는 실호출로 확정됐다 — `areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리이며, `11`+`110`의 `totalCount 0`은 형식 오류가 아니라 `signguCd` 자릿수 문제였다(`11`+`11110`은 한 장소에 30건). `KtoForecastRequest.signguRequestCode()`가 그 값을 만들고 `KtoCrowdForecastGatewayIT`가 나간 요청의 두 코드를 단언한다. #109는 닫혔다.",
@@ -729,7 +772,7 @@
       "phase": "B03",
       "priority": "P0",
       "title": "검증된 관련 장소와 추천 후보 검색",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022",
         "BA-023"
@@ -771,7 +814,7 @@
         },
         {
           "id": "BA-024-T6",
-          "assertion": "적격 후보가 0이면 NONE이고 목록을 채우지 않는다"
+          "assertion": "적격 후보가 0이면 목록을 채우지 않고 UNKNOWN(reason SOURCE_DISABLED)으로 답한다"
         },
         {
           "id": "BA-024-T7",
@@ -782,6 +825,106 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-024"
+    },
+    {
+      "id": "BA-025",
+      "phase": "B03",
+      "priority": "P0",
+      "title": "큐레이션 영업시간 판독 적재",
+      "status": "integration-ready",
+      "dependsOn": [
+        "BA-022"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "entities": "place_hours_observations · place_hours_windows · NULLNULL_CURATED_HOURS · 운영 스크립트",
+      "steps": [
+        "plan 파일을 전량 검증한 뒤에만 transaction 하나로 적재한다",
+        "판독을 append-only로 쌓고 이전 관측은 supersede로 물러나게 한다",
+        "plan이 말하지 않은 날짜에는 창을 만들지 않고, 확정하지 못한 판독은 창 0건의 근거 행으로 남긴다",
+        "Gradle task와 운영 실행 경로를 연결하고 대상 장소 선정은 오너 결정으로 남긴다"
+      ],
+      "safety": "근거 URL 없는 판독을 만들지 않는다. 비어 있는 날짜를 영업 중으로 해석하지 않고 UnknownHours로 남긴다. 외부 provider 응답을 이 경로로 적재하지 않는다.",
+      "tests": [
+        {
+          "id": "BA-025-T1",
+          "assertion": "거절된 plan은 한 행도 쓰지 않는다"
+        },
+        {
+          "id": "BA-025-T2",
+          "assertion": "같은 plan을 다시 적용해도 그 장소의 현재 관측은 하나다"
+        },
+        {
+          "id": "BA-025-T3",
+          "assertion": "새 판독은 이전 관측을 supersede하고 지우지 않는다"
+        },
+        {
+          "id": "BA-025-T4",
+          "assertion": "plan이 말하지 않은 날짜에는 창이 생기지 않는다"
+        },
+        {
+          "id": "BA-025-T5",
+          "assertion": "확정하지 못한 판독은 창 0건의 근거 행으로 기록된다"
+        }
+      ],
+      "handoff": "영업시간이 있는 장소와 없는 장소의 getCandidateTripMatches 응답 차이. 창이 없는 날은 UNKNOWN으로 남는 것이 정상 동작임을 함께 넘긴다.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-025"
+    },
+    {
+      "id": "BA-026",
+      "phase": "B03",
+      "priority": "P0",
+      "title": "내부 규칙 관계 재평가 적재",
+      "status": "integration-ready",
+      "dependsOn": [
+        "BA-024"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "entities": "catalog.place_relations · NULLNULL_CATALOG_RULE · 재평가 스크립트",
+      "steps": [
+        "같은 category_code·region_code 쌍을 모아 NULLNULL_CATALOG_RULE 출처의 SIMILAR 증거로 적재한다",
+        "재실행이 한 쌍에 한 행으로 수렴하고 기존 증거를 잃지 않게 한다",
+        "registry의 stale_after(P7D)에 맞춰 expires_at을 쓰고 재평가가 갱신하게 한다",
+        "Gradle task와 운영 실행 경로를 연결한다"
+      ],
+      "safety": "EXACT를 만들지 않는다. 비활성·폐기된 장소를 양 끝 어디에도 넣지 않는다. 규칙을 더는 만족하지 않는 쌍은 삭제가 아니라 만료다.",
+      "tests": [
+        {
+          "id": "BA-026-T1",
+          "assertion": "같은 category_code·region_code 쌍에만 SIMILAR를 만들고 다르면 만들지 않는다"
+        },
+        {
+          "id": "BA-026-T2",
+          "assertion": "규칙 적재는 EXACT를 만들지 않는다"
+        },
+        {
+          "id": "BA-026-T3",
+          "assertion": "두 번 돌려도 한 쌍에 한 행으로 수렴하고 재실행이 기존 행을 잃지 않는다"
+        },
+        {
+          "id": "BA-026-T4",
+          "assertion": "비활성·폐기된 장소는 양쪽 끝 어디에도 들어가지 않는다"
+        },
+        {
+          "id": "BA-026-T5",
+          "assertion": "규칙을 더는 만족하지 않는 쌍은 만료되고 되살아나지 않는다"
+        },
+        {
+          "id": "BA-026-T6",
+          "assertion": "source 장소당 후보 상한을 넘으면 조용히 자르지 않고 보고한다"
+        }
+      ],
+      "handoff": "규칙 후보가 있는 장소와 없는 장소의 listRelatedPlaces 응답 차이. 후자가 UNKNOWN(SOURCE_DISABLED)로 남는 것이 정상 동작임을 함께 넘긴다.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-026"
     },
     {
       "id": "BA-030",
@@ -1077,7 +1220,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "일정 item 추가·이동·수정·삭제·순서",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-031",
         "BA-034"
@@ -1109,7 +1252,7 @@
         "527:4695"
       ],
       "designRequests": [],
-      "entities": "trip_items · trip_candidates linkage · trip_revisions · ordered positions",
+      "entities": "trip_items · trip_candidates linkage · trip_revisions · ordered positions. per-day 상한은 DB CHECK가 없어 애플리케이션이 유일한 방벽이다 — 범위·duration은 지워도 DB가 500으로 막지만 상한은 201로 그냥 들어간다. item 필드 경계는 TripItem.requireFieldBounds 한 곳이 소유하고 field 경로는 호출자가 준다.",
       "steps": [
         "각 command에 owner·If-Match·기간·duration·상한·고정 조건을 검증한다",
         "candidate 일정화는 SCHEDULED linkage와 item/revision을 원자 반영한다",
@@ -1120,7 +1263,7 @@
       "tests": [
         {
           "id": "BA-040-T1",
-          "assertion": "cross-day reorder·position unique 경쟁·부분 실패에서 원자성이 유지된다"
+          "assertion": "한 요청 안의 자리 교환이 position unique 경쟁을 통과한다"
         },
         {
           "id": "BA-040-T2",
@@ -1128,11 +1271,36 @@
         },
         {
           "id": "BA-040-T3",
-          "assertion": "날짜·시간·duration·item 상한 경계를 검증한다"
+          "assertion": "merge-patch의 null과 absent를 구분한다"
         },
         {
           "id": "BA-040-T4",
-          "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)"
+          "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "issue": "#233"
+          }
+        },
+        {
+          "id": "BA-040-T5",
+          "assertion": "reorder가 item을 다른 날로 옮긴다"
+        },
+        {
+          "id": "BA-040-T6",
+          "assertion": "요청의 한 entry가 거절되면 어떤 item도 움직이지 않는다"
+        },
+        {
+          "id": "BA-040-T7",
+          "assertion": "모든 command가 여행 기간 밖의 날짜를 거절한다"
+        },
+        {
+          "id": "BA-040-T8",
+          "assertion": "duration을 설정할 수 있는 모든 command가 경계 밖의 값을 거절한다"
+        },
+        {
+          "id": "BA-040-T9",
+          "assertion": "모든 command가 하루 item 상한을 넘기는 변경을 거절한다"
         }
       ],
       "handoff": "편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현.",
@@ -1297,6 +1465,57 @@
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-042"
     },
     {
+      "id": "BA-027",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "cursor를 위치가 아니라 정렬 키에 결합한다",
+      "status": "integration-ready",
+      "dependsOn": [
+        "BA-022",
+        "BA-030",
+        "BA-032",
+        "BA-034"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "entities": "CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면. cursor가 응답 유래 값(공개 시각·여행 시작일·장소 이름)을 나르는 것은 access log가 query string을 남기지 않는다는 전제 위에 있고 앱 안쪽은 BA-070-T2가 고정한다. ALB 등 앱 밖의 log는 BA-071에서 같은 전제를 확인한다.",
+      "steps": [
+        "CursorClaims에 정렬 키를 담는 field를 더하고 codec payload와 서명에 포함한다",
+        "네 표면의 조회를 OFFSET에서 정렬 키 비교로 바꾼다",
+        "cursor를 쓰는 목록 표면 전부가 검사에 자동으로 들어오게 한다",
+        "기존 cursor 무효를 CURSOR_INVALID로 정직하게 답하고 조용히 첫 page로 되돌리지 않는다"
+      ],
+      "safety": "정렬 키에 owner ID·검색어·원문을 담지 않는다. 순번과 정렬 키 두 방식을 한 표면이 같이 받지 않는다.",
+      "tests": [
+        {
+          "id": "BA-027-T1",
+          "assertion": "페이지 사이에 앞선 행이 생겨도 이미 본 행을 다시 주지 않는다"
+        },
+        {
+          "id": "BA-027-T2",
+          "assertion": "페이지 사이에 행이 사라져도 안 본 행을 건너뛰지 않는다"
+        },
+        {
+          "id": "BA-027-T3",
+          "assertion": "cursor는 정렬 키를 담고 위치를 담지 않는다"
+        },
+        {
+          "id": "BA-027-T4",
+          "assertion": "cursor를 쓰는 목록 표면 전부가 이 검사에 들어온다"
+        },
+        {
+          "id": "BA-027-T5",
+          "assertion": "다른 정렬에서 발급된 cursor는 재개되지 않고 거절된다"
+        }
+      ],
+      "handoff": "기존 cursor가 무효가 되는 배포 창과 그때 화면이 무엇을 하는지.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-027"
+    },
+    {
       "id": "BA-050",
       "phase": "B06",
       "priority": "P0",
@@ -1414,7 +1633,7 @@
         },
         {
           "id": "BA-051-T3",
-          "assertion": "수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다"
+          "assertion": "설명이 수치·장소·영업·route 사실을 추가하지 않는다"
         },
         {
           "id": "BA-051-T4",
@@ -1423,6 +1642,30 @@
         {
           "id": "BA-051-T5",
           "assertion": "만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다"
+        },
+        {
+          "id": "BA-051-T6",
+          "assertion": "비교 자격이 없는 제안은 crowd delta를 담은 채로 저장되지 않는다"
+        },
+        {
+          "id": "BA-051-T7",
+          "assertion": "비교 자격이 없는 제안은 사유 코드 없이 저장되지 않는다"
+        },
+        {
+          "id": "BA-051-T8",
+          "assertion": "한쪽만 있는 before/after change는 저장되지 않는다"
+        },
+        {
+          "id": "BA-051-T9",
+          "assertion": "저장된 제안과 change는 사후 수정되지 않는다"
+        },
+        {
+          "id": "BA-051-T10",
+          "assertion": "preview 동안 일정 쓰기가 0이다"
+        },
+        {
+          "id": "BA-051-T11",
+          "assertion": "실패 코드 어휘가 enum·CHECK·계약 세 곳에서 같다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",
@@ -1474,11 +1717,35 @@
         },
         {
           "id": "BA-052-T3",
-          "assertion": "TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다"
+          "assertion": "TRIP_CHANGED가 apply를 차단한다"
         },
         {
           "id": "BA-052-T4",
           "assertion": "결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다"
+        },
+        {
+          "id": "BA-052-T5",
+          "assertion": "DATA_CHANGED가 apply를 차단한다"
+        },
+        {
+          "id": "BA-052-T6",
+          "assertion": "만료된 preview의 apply가 차단된다"
+        },
+        {
+          "id": "BA-052-T7",
+          "assertion": "policy 철회가 apply를 차단한다"
+        },
+        {
+          "id": "BA-052-T8",
+          "assertion": "APPLY는 어떤 잠금도 해제하지 않는다"
+        },
+        {
+          "id": "BA-052-T9",
+          "assertion": "결정은 자기 종류가 가진 필드만 정확히 담는다"
+        },
+        {
+          "id": "BA-052-T10",
+          "assertion": "run의 최초 결정은 하나이고 REVERT는 그것이 아니다"
         }
       ],
       "handoff": "APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures.",
@@ -1541,7 +1808,7 @@
       "phase": "B07",
       "priority": "P0",
       "title": "붙여넣기 parse·remap·confirm",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-012",
         "BA-022",
@@ -1574,15 +1841,79 @@
       "tests": [
         {
           "id": "BA-060-T1",
-          "assertion": "고유 원문 canary가 DB/cache/log/trace/event/response에 없다"
+          "assertion": "저장된 draft의 어느 column에도 고유 원문 canary가 없다"
         },
         {
           "id": "BA-060-T2",
-          "assertion": "stale remap/confirm·만료·미해결 매핑·중복 confirm은 부분 trip을 만들지 않는다"
+          "assertion": "세 operation의 응답 본문에 원문 canary가 없다"
         },
         {
           "id": "BA-060-T3",
-          "assertion": "parser 날짜·한영 장소·모호한 시간·100item/10suggestion 경계를 검증한다"
+          "assertion": "log와 exception message에 원문 canary가 없다"
+        },
+        {
+          "id": "BA-060-T4",
+          "assertion": "importer가 프로세스 밖으로 나갈 수 있는 타입을 참조하지 않는다"
+        },
+        {
+          "id": "BA-060-T5",
+          "assertion": "idempotency 응답 저장에 원문 canary가 없다"
+        },
+        {
+          "id": "BA-060-T6",
+          "assertion": "stale remap/confirm은 draft도 trip도 바꾸지 않는다"
+        },
+        {
+          "id": "BA-060-T7",
+          "assertion": "만료된 draft의 remap/confirm은 410이고 trip을 만들지 않는다"
+        },
+        {
+          "id": "BA-060-T8",
+          "assertion": "미해결 token이 남은 confirm은 거절되고 trip을 만들지 않는다"
+        },
+        {
+          "id": "BA-060-T9",
+          "assertion": "같은 Idempotency-Key 재시도는 trip을 하나만 만든다"
+        },
+        {
+          "id": "BA-060-T10",
+          "assertion": "다른 key의 동시 confirm도 trip을 하나만 만든다"
+        },
+        {
+          "id": "BA-060-T11",
+          "assertion": "만료 뒤의 같은 key replay는 저장된 201이 아니라 410을 낸다"
+        },
+        {
+          "id": "BA-060-T12",
+          "assertion": "CONFIRMED draft의 remap은 거절된다"
+        },
+        {
+          "id": "BA-060-T13",
+          "assertion": "다른 owner의 draftId는 404다"
+        },
+        {
+          "id": "BA-060-T14",
+          "assertion": "연도 없는 날짜와 모호한 시각을 확정하지 않고 token으로 낸다"
+        },
+        {
+          "id": "BA-060-T15",
+          "assertion": "한국어와 영어 장소 토큰이 canonical place로 해결된다"
+        },
+        {
+          "id": "BA-060-T16",
+          "assertion": "20000자와 10 suggestion 상한을 경계에서 거절한다"
+        },
+        {
+          "id": "BA-060-T17",
+          "assertion": "하루 상한을 넘긴 draft의 confirm은 그 날짜를 지목해 거절하고 조용히 자르지 않는다"
+        },
+        {
+          "id": "BA-060-T18",
+          "assertion": "catalog 게이트가 닫히면 세 operation 모두 503이고 쓰기가 0이다"
+        },
+        {
+          "id": "BA-060-T19",
+          "assertion": "parse 응답이 계약이 선언한 `Cache-Control: no-store`를 실제로 보낸다"
         }
       ],
       "handoff": "parse warning/review/remap/confirm·만료 fixtures와 원문 제외 refresh 복구. 수동 입력 fallback은 계속 유지한다.",
@@ -1595,7 +1926,7 @@
       "phase": "B08",
       "priority": "P0",
       "title": "전체 권한·privacy·부하·접근성 통합",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-006",
         "BA-012",
@@ -1635,7 +1966,20 @@
         },
         {
           "id": "BA-070-T3",
-          "assertion": "고정 부하 budget·핵심 keyboard/a11y E2E·P1 OFF variants를 통과한다"
+          "assertion": "고정 크기 입력의 쿼리 수와 connection 수에 상한이 있다"
+        },
+        {
+          "id": "BA-070-T4",
+          "assertion": "P1 capability가 꺼진 목록과 실제로 꺼진 동작이 같은 집합이다"
+        },
+        {
+          "id": "BA-070-T5",
+          "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "issue": "#233"
+          }
         }
       ],
       "handoff": "오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로.",

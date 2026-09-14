@@ -223,6 +223,69 @@ def check_compose_contract(path: Path, errors: list[str]) -> None:
                 f"{', '.join(non_internal)}"
             )
 
+    check_browser_bundle_inputs(services, errors)
+
+
+# BA-006-T2. A secret reaches a browser bundle or an image layer through the build's INPUTS, not
+# through a mistake made later: Vite inlines every VITE_-prefixed variable it is given, and an ARG or
+# ENV survives in layer metadata after the RUN that used it. The required gate has no secrets of its
+# own (integration.yml passes none), so it cannot scan for values - but it can prove the build was
+# never handed one, which is the stronger statement and the same doctrine as keeping analytics off a
+# product command's path: the route does not exist rather than being unused today.
+#
+# check_secret_exposure.py is the other half, for runs that DO hold secrets (local, staging): it reads
+# the real values and asks whether those bytes are in the bundle, the image metadata or the log.
+BROWSER_FACING_SERVICES = ("web", "e2e", "web-quality")
+
+# Suffixes that name a credential. Matched on the variable NAME, never on a value - this file must
+# work in a process that holds no secrets at all.
+SECRET_NAME_SUFFIXES = ("_KEY", "_SECRET", "_TOKEN", "_PASSWORD", "_CREDENTIALS", "_CREDENTIAL")
+
+# Vite inlines these into the bundle wherever code reads them, so a secret-shaped name under this
+# prefix is a leak on ANY service that builds the web app, not only the browser-facing ones.
+BUNDLE_INLINED_PREFIX = "VITE_"
+
+
+def looks_like_a_secret(name: str) -> bool:
+    upper = name.upper()
+    return any(upper.endswith(suffix) for suffix in SECRET_NAME_SUFFIXES)
+
+
+def build_inputs(service: dict) -> dict[str, object]:
+    """Every name the build and the runtime can read, as one mapping.
+
+    `docker compose config --format json` normalises `environment` to an object and leaves
+    `build.args` as one too. Both are inputs: args reach the Dockerfile, environment reaches the
+    process, and a bundler reads whichever the build step exports.
+    """
+    names: dict[str, object] = {}
+    environment = service.get("environment")
+    if isinstance(environment, dict):
+        names.update(environment)
+    build = service.get("build")
+    if isinstance(build, dict) and isinstance(build.get("args"), dict):
+        names.update(build["args"])
+    return names
+
+
+def check_browser_bundle_inputs(services: dict, errors: list[str]) -> None:
+    for name, service in sorted(services.items()):
+        if not isinstance(service, dict):
+            continue
+        inputs = build_inputs(service)
+        for variable in sorted(inputs):
+            if variable.upper().startswith(BUNDLE_INLINED_PREFIX) and looks_like_a_secret(variable):
+                # Any service: the prefix is the leak, not the service.
+                errors.append(
+                    f"Compose service {name} passes {variable}: a {BUNDLE_INLINED_PREFIX}* name that "
+                    "reads as a credential is inlined into the bundle wherever code reads it"
+                )
+            elif name in BROWSER_FACING_SERVICES and looks_like_a_secret(variable):
+                errors.append(
+                    f"Compose service {name} receives {variable}: a browser-facing build must not be "
+                    "handed a credential, because an image layer keeps what the build was given"
+                )
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

@@ -5,6 +5,8 @@ import io.nullnull.identity.application.IdempotencyGuard.CommandOutcome;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.identity.domain.RequestFingerprint;
 import io.nullnull.shared.cursor.CursorClaims;
+import io.nullnull.shared.cursor.CursorException;
+import io.nullnull.shared.cursor.CursorSortKey;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import io.nullnull.trip.domain.CandidateSourceType;
@@ -55,21 +57,31 @@ public class CandidateService {
         requireOwnedTrip(context, tripId);
         int size = pageSize(limit);
         String binding = cursors.ownerBinding(context.ownerId());
-        long offset = 0;
+        CandidateStore.PageKey after = null;
         if (cursor != null && !cursor.isBlank()) {
-            offset = cursors.cursorCodec().decode(cursor, clock.instant(), binding, CONTEXT)
-                    .nextOrdinal();
+            CursorClaims claims = cursors.cursorCodec().decode(cursor, clock.instant(), binding, CONTEXT);
+            if (claims.sortVersion() != TripCursorProperties.SORT_VERSION) {
+                // A key minted under another order names a row this order would resume elsewhere.
+                throw new CursorException(ProblemCode.CURSOR_INVALID);
+            }
+            CursorSortKey key = CursorSortKey.decode(claims.sortKey());
+            after = new CandidateStore.PageKey(key.instantValue(), key.id());
         }
         CandidateStatus filter = status == null || status.isBlank() ? null : CandidateStatus.of(status);
-        List<TripCandidate> found = candidates.page(tripId, filter, offset, size + 1);
+        List<TripCandidate> found = candidates.page(tripId, filter, after, size + 1);
         boolean hasMore = found.size() > size;
         List<TripCandidate> page = hasMore ? found.subList(0, size) : found;
-        String next = hasMore
-                ? cursors.cursorCodec().encode(new CursorClaims(CONTEXT, offset + size, binding, CONTEXT,
-                        TripCursorProperties.SORT_VERSION,
-                        clock.instant().plus(cursors.cursorTtl()), cursors.keyId()))
-                : null;
+        // The last candidate of THIS page. Saving another one puts a row at the head of
+        // created_at DESC, and this reader's place must not move when that happens.
+        String next = hasMore ? nextCursor(page.get(page.size() - 1), binding) : null;
         return new CandidatePageView(page, next, hasMore);
+    }
+
+    private String nextCursor(TripCandidate last, String binding) {
+        return cursors.cursorCodec().encode(new CursorClaims(CONTEXT,
+                CursorSortKey.of(last.createdAt(), last.id()).encode(), binding, CONTEXT,
+                TripCursorProperties.SORT_VERSION, clock.instant().plus(cursors.cursorTtl()),
+                cursors.keyId()));
     }
 
     /**

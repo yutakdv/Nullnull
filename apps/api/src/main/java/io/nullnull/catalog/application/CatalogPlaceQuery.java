@@ -9,8 +9,26 @@ import java.util.UUID;
 /** Read projection boundary for active, canonical places only. */
 public interface CatalogPlaceQuery {
 
-    List<CatalogPlaceSummary> search(CatalogPlaceSearchRequest request, long offset, int fetchLimit,
+    /**
+     * One page of matches, resuming after {@code after}.
+     *
+     * @param after the last hit of the previous page, or null for the first page
+     */
+    List<CatalogPlaceSearchHit> search(CatalogPlaceSearchRequest request, PageKey after, int fetchLimit,
             Instant observedAt);
+
+    /**
+     * One hit, carrying the value the DATABASE ordered it by.
+     *
+     * <p>The search orders by {@code lower(...)} of the localized name under the server's collation,
+     * which is not what {@link String#toLowerCase} produces under a Java locale. Recomputing the key
+     * here would let the cursor disagree with its own ORDER BY and skip rows - the defect BA-027
+     * exists to remove - so the sort value is read back rather than derived.
+     */
+    record CatalogPlaceSearchHit(CatalogPlaceSummary summary, String sortName) { }
+
+    /** The row a search page ended on, in the terms {@code lower(name) ASC, id ASC} sorts by. */
+    record PageKey(String sortName, UUID placeId) { }
 
     Optional<CatalogPlaceDetail> find(UUID requestedPlaceId, String locale, Instant observedAt);
 

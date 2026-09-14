@@ -42,6 +42,22 @@ public interface OptimizationRunStore {
      */
     boolean recordFrozenEvidence(UUID runId, Instant expiresAt, List<UUID> snapshotSetIds);
 
+    /**
+     * Publishes a preview: RUNNING to READY, with the evidence hash that APPLY will revalidate
+     * against and the algorithm that produced it.
+     *
+     * <p>Separate from {@link #transition} because READY is the one status that cannot be entered on
+     * its own. V024 refuses a READY row without a fingerprint and an expiry - a preview with no hash
+     * has nothing for APPLY to check, and one with no expiry never stops being offerable - so the
+     * status and the evidence are written together or not at all.
+     *
+     * <p>A run whose evidence was never frozen is refused here rather than by the constraint, so the
+     * caller gets a decision it can act on instead of an exception it has to interpret.
+     *
+     * @return true when this caller published the preview
+     */
+    boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion, Instant at);
+
     /** Ends a run with a code and the sentence that goes with it. */
     boolean fail(UUID runId, OptimizationStatus from, OptimizationFailureCode code, String message,
             Instant at);

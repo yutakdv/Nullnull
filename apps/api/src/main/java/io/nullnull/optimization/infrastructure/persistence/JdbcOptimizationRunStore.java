@@ -87,6 +87,20 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
     }
 
     @Override
+    public boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion, Instant at) {
+        // expires_at IS NOT NULL is part of the condition, not an assumption: recordFrozenEvidence
+        // sets it, and a run that skipped that step would otherwise reach the CHECK and throw. Asking
+        // here turns "this run is not ready to be READY" into a false the handler can read.
+        return jdbc.sql("""
+                UPDATE optimization_runs
+                   SET status = 'READY', completed_at = ?, data_fingerprint = ?, algorithm_version = ?
+                 WHERE id = ? AND status = 'RUNNING' AND expires_at IS NOT NULL
+                """)
+                .params(Timestamp.from(at), dataFingerprint, algorithmVersion, runId)
+                .update() == 1;
+    }
+
+    @Override
     public boolean recordFrozenEvidence(UUID runId, Instant expiresAt, List<UUID> snapshotSetIds) {
         boolean updated = jdbc.sql("""
                 UPDATE optimization_runs

@@ -33,19 +33,11 @@ public record UpdateTripItemCommand(Optional<LocalDate> date, Optional<Integer> 
         durationMinutes = durationMinutes == null ? Optional.empty() : durationMinutes;
         note = note == null ? Optional.empty() : note;
         releaseConstraints = releaseConstraints == null ? Set.of() : Set.copyOf(releaseConstraints);
-        if (position.isPresent() && position.get() < 0) {
-            throw new TripValidationException("position", "Range", "position must not be negative");
-        }
-        Integer duration = durationMinutes.flatMap(value -> value).orElse(null);
-        if (duration != null && (duration < 1 || duration > TripItem.MAX_DURATION_MINUTES)) {
-            throw new TripValidationException("durationMinutes", "Range",
-                    "durationMinutes must be between 1 and " + TripItem.MAX_DURATION_MINUTES);
-        }
-        String text = note.flatMap(value -> value).orElse(null);
-        if (text != null && text.length() > TripItem.MAX_NOTE_LENGTH) {
-            throw new TripValidationException("note", "Size",
-                    "note must be at most " + TripItem.MAX_NOTE_LENGTH + " characters");
-        }
+        // Absent stays absent: a field this patch does not mention is passed as null, so the rule
+        // judges what the request actually set rather than what the item already holds.
+        TripItem.requireFieldBounds("", position.orElse(null),
+                durationMinutes.flatMap(value -> value).orElse(null),
+                note.flatMap(value -> value).orElse(null));
         if (releaseConstraints.contains(LockType.MUST_VISIT)) {
             // ReleasedTemporalLocks cannot express it, so this is unreachable over HTTP. It is
             // checked because the type allows it: MUST_VISIT pins the PLACE, which this command

@@ -43,7 +43,7 @@ B01 이후 `test`, `integrationTest`, `openapiContractTest`, `recommendationTest
 
 ### BA-000
 
-**추천 설계와 전체 계약 기준선 확정** — P0 / `contract-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**추천 설계와 전체 계약 기준선 확정** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: 없음
 - 기능 ID: 해당 없음
@@ -585,7 +585,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-022
 
-**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**Canonical 장소·검색·상세·콘텐츠 권리** — P0 / `verified` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-021](#ba-021)
 - 기능 ID: `FR-PLC-01`, `FR-TRC-04`
@@ -721,11 +721,18 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **측정과 증거의 층위를 섞지 않는다.** 위 표는 **실제 HTTP 성공 호출**이고 파라미터 계약을 확정한다. 반면 **승인된 harness(`actualKtoSmoke`)로 `api_ingest_logs`·`collector_runs`·snapshot row까지 남긴 forecast 성공 실행은 아직 없다** — 마지막 harness 실행은 HTTP 호출 전에 `areaCode is not a KTO area identifier`로 실패했고, `.env.local`에 `KTO_FORECAST_BASE_URL`이 없어 forecast endpoint 설정이 비어 있으며 `NULLNULL_KTO_SMOKE_CONTENT_ID`도 필요하다. 셋 중 어느 것도 BA-021-T3의 **staging** 공개 증거를 대신하지 않는다.
 
+**`T2`가 담고 있던 두 층을 갈랐다([#224](https://github.com/yutakdv/Nullnull/issues/224)).** 원래 문구는 *"…pair의 **delta가 null이다**"* 로 **정책 판정**과 **응답의 값**을 한 절에 묶고 있었다. 뒤쪽은 `CrowdComparison.delta`인데 그 schema의 생산자가 없었고, 지금은 [BA-051](#ba-051)의 `T6`(*"비교 자격이 없는 제안은 crowd delta를 담은 채로 저장되지 않는다"*)가 **그 층의 주인**이다. 여기 남는 것은 정책 판정이고, 네 조건은 `TemporalComparisonPolicy`의 **서로 다른 분기**라 하나를 증명하는 test가 나머지를 증명하지 않는다.
+
+**증명은 이미 있었고 ID만 없었다** — `TemporalComparisonPolicyTest`가 부적격 사유 일곱을 우선순위대로 돌고 인접 쌍까지 고정하며 property 기반 판별 방향도 넣는데, class `@DisplayName`이 `REC-DATA` 계열 셋을 달고 있고 method에는 `@DisplayName`이 아예 없어 집계기가 아무것도 못 봤다. 규칙 3의 **거울상**이고, 이름만 옮기지 않고 본문과 대조한 뒤 달았다.
+
 필수 검증:
 
 - `BA-023-T1`: 6-state와 null provenance matrix 전체를 contract/property로 검증한다
-- `BA-023-T2`: mixed source/scope/issue/set·stale·replay·incident pair의 delta가 null이다
+- `BA-023-T2`: 다른 source·scope·issue·set의 pair는 비교 자격이 없다
 - `BA-023-T3`: 최신값 갱신이 저장된 preview snapshot과 비교 의미를 바꾸지 않는다
+- `BA-023-T4`: stale pair는 비교 자격이 없다
+- `BA-023-T5`: replay pair는 비교 자격이 없다
+- `BA-023-T6`: incident pair는 비교 자격이 없다
 
 구현 결과:
 
@@ -780,7 +787,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-024
 
-**검증된 관련 장소와 추천 후보 검색** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**검증된 관련 장소와 추천 후보 검색** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-023](#ba-023)
 - 기능 ID: 해당 없음
@@ -792,7 +799,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **막히는 것은 절반이다.** `RelatedPlaceResult.items`는 **빈 배열이 허용**되므로 `NONE`·`UNKNOWN` 응답은 `PlaceSummary`를 전혀 거치지 않는다 — 게이트가 막는 것은 **후보가 있는 응답**뿐이다. `place_relations` 저장·가드와 그 위의 IT(`T1`·`T4`·`T5`)는 지금 만들 수 있고, `V010`이 `BA-022`에서 projection이 fail-closed인 채로 C3 foundation을 먼저 세운 것과 같은 모양이다.
 
-**남은 절반이 기다리는 것.** 응답에 후보가 실리려면 catalog 공개 게이트가 열려야 한다 — `RelatedPlace.place`가 required `PlaceSummary`이고 그 경로의 첫 줄이 `requirePublicProjection()`이며, 닫힌 동안 이 route는 형제 route들과 같이 **503 `SOURCE_UNAVAILABLE`(retryable)** 로 답한다. **게이트가 닫힌 채로 `NONE`을 내지 않는다** — `SOURCE_CATALOG` §4가 `NONE`을 *"필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때"* 로 정의하므로, 완료하지 못한 조회 위에서 그 상태를 주장하는 것이 된다. `200 UNKNOWN`도 아니다 — `UNKNOWN`은 *"시도가 끝났지만 답이 없다"* 이고 polling으로 풀리지 않는데 **닫힌 게이트는 풀린다.** 정렬은 게이트와 무관하고 계약도 이미 있다 — `/internal/v1/related/rank`와 `RelatedRankRequest`/`RelatedRankResponse`가 내부 계약에 있고 `HttpRecommendationGateway`가 호출한다. 없는 것은 `place_relations`에서 후보를 모아 넘기는 caller다. 게이트가 열리면 `T7`의 다섯 중 `SIMILAR`·`NONE`·`UNKNOWN`이 생산 가능해지고, `EXACT`는 `KTO_RELATED_PLACES` 승인까지, `CHECKING`은 relation 검증 job이 생길 때까지 생산자가 없다(P0 job type은 `delete-owner-data`·`optimize-item` 둘뿐).
+**남은 절반이 기다리는 것.** 응답에 후보가 실리려면 catalog 공개 게이트가 열려야 한다 — `RelatedPlace.place`가 required `PlaceSummary`이고 그 경로의 첫 줄이 `requirePublicProjection()`이며, 닫힌 동안 이 route는 형제 route들과 같이 **503 `SOURCE_UNAVAILABLE`(retryable)** 로 답한다. **게이트가 닫힌 채로 `NONE`을 내지 않는다** — `SOURCE_CATALOG` §4가 `NONE`을 *"필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때"* 로 정의하므로, 완료하지 못한 조회 위에서 그 상태를 주장하는 것이 된다. `200 UNKNOWN`도 아니다 — `UNKNOWN`은 *"시도가 끝났지만 답이 없다"* 이고 polling으로 풀리지 않는데 **닫힌 게이트는 풀린다.** 정렬은 게이트와 무관하고 계약도 이미 있다 — `/internal/v1/related/rank`와 `RelatedRankRequest`/`RelatedRankResponse`가 내부 계약에 있고 `HttpRecommendationGateway`가 호출한다. 없는 것은 `place_relations`에서 후보를 모아 넘기는 caller다. 게이트가 열리면 `T7`의 다섯 중 `SIMILAR`·`UNKNOWN` **둘**이 생산 가능해진다. **`NONE`은 생산하지 않는다** — `KTO_RELATED_PLACES` 미신청에 대한 사용자 확정 결정이 C5의 상태를 `NULLNULL_CATALOG_RULE` `SIMILAR`와 `UNKNOWN(reason SOURCE_DISABLED)` **둘로** 못박았다. `SIMILAR`는 우리 규칙이 검증한 후보가 여기 있다는 **긍정** 주장이라 우리 근거만으로 서지만, `NONE`은 관련 장소가 없다는 **부정** 주장이라 "다 찾아봤다"가 있어야 서고 공식 relation source가 꺼져 있는 한 그것이 없다 — §4의 *"필요한 조회와 검증을 완료한 뒤"* 가 그 뜻이고 *"확인 실패·근거 부족은 `UNKNOWN`"* 이 그 자리를 받는다. `NONE`을 enum에서 빼지는 않는다(FE가 렌더할 수 있고 제거는 breaking이다). `EXACT`는 `KTO_RELATED_PLACES` 승인까지, `CHECKING`은 relation 검증 job이 생길 때까지 생산자가 없다(P0 job type은 `delete-owner-data`·`optimize-item` 둘뿐).
 
 **`T7`은 이 slice에 쓰지 않는다.** 응답 경로가 없으면 다섯 값 중 어느 것도 *"생산 가능"* 을 보일 수 없고, 그 상태에서 coverage test를 쓰면 **전부 "생산자 없음"으로 등록하는 표**가 된다 — `CrowdQualityFlagCoverageIT`가 잡으려던 것의 정반대다. `T7`은 응답 경로를 만드는 slice에 붙는다.
 
@@ -812,12 +819,87 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-024-T3`: CHECKING은 실제로 진행 중인 검증이 있을 때만 쓴다
 - `BA-024-T4`: 유효기간이 지난 relation evidence는 후보가 되지 않는다
 - `BA-024-T5`: 불확실한 mapping은 EXACT가 되지 않는다
-- `BA-024-T6`: 적격 후보가 0이면 NONE이고 목록을 채우지 않는다
+- `BA-024-T6`: 적격 후보가 0이면 목록을 채우지 않고 UNKNOWN(reason SOURCE_DISABLED)으로 답한다
 - `BA-024-T7`: RelationState 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
 
 FE 인계·완료 증거: 일정 교체와 나중 Live가 재사용할 공통 relation 예시. Live tab 모듈에 이 공통 테이블을 묶지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-020.
+
+### BA-025
+
+**큐레이션 영업시간 판독 적재** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-022](#ba-022)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: place_hours_observations · place_hours_windows · NULLNULL_CURATED_HOURS · 운영 스크립트
+
+착수 사유: `V025`가 table과 source를 세웠고 [BA-022](#ba-022)의 `T4`~`T7`이 그 스키마를 고정했는데 **행을 만드는 production 경로가 없다.** `JdbcCatalogHoursQuery`는 읽고, `CandidateMatchService`는 그것을 `SlotEvaluateRequest.openingHours`로 넘기며, `apps/ai`의 `filters.opening_hours`는 창이 없으면 첫 줄에서 `UnknownHours`를 돌려준다. 그래서 **이미 구현·등록된 `getCandidateTripMatches`가 운영에서 항상 `UNKNOWN`을 낸다** — `FR-CAN-07`이 그 화면이고, 같은 공백이 [BA-051](#ba-051)의 ITEM 제안도 영구 `UNKNOWN`으로 둔다. `#183`이 게시물에 대해 드러낸 것과 같은 모양이며, 이번에는 마일스톤 하나가 걸려 있다.
+
+범위 밖: KTO `detailIntro2`. `A-027`은 **1회 탐색 호출 승인이지 채택이 아니고** 후속 채택 결정이 없다. `SOURCE_CATALOG`의 승인 범위는 `detailCommon2` 그대로다. 이 카드가 쓰는 source는 `V025`가 seed한 `NULLNULL_CURATED_HOURS`(`A-032`의 P30D)이고, 판독 근거는 큐레이터가 실제로 읽은 그 장소의 공식 안내 페이지다.
+
+**이 카드의 중심은 모르는 것을 모른다고 남기는 것이다.** `V025`가 table을 둘로 나눈 이유가 그것이고 주석이 직접 경고한다 — 큐레이터가 비운 날을 hydrator가 *"열려 있음"* 으로 읽으면 관측하지 않은 영업시간을 사실로 만든다(불변식 9). 날짜별 행이므로 *"안 읽었다"* 와 *"닫혀 있다"* 는 구조적으로 다른 사실이어야 하고, 그 구분을 만들어내는 쪽이 이 스크립트다. 확정하지 못한 판독을 표현할 수단이 plan에 없으면 큐레이터는 모르는 날을 지어내거나 그 장소를 통째로 빼게 된다.
+
+구현 순서:
+
+1. plan 파일을 전량 검증한 뒤에만 transaction 하나로 적재한다([A-031](../project/DECISIONS_AND_RISKS.md)의 `CuratedPostImporter` 선례: migration에도 넣지 않고 쓰기 operation도 만들지 않는다)
+2. 판독을 append-only로 쌓고 이전 관측은 supersede로 물러나게 한다
+3. plan이 말하지 않은 날짜에는 창을 만들지 않고, 확정하지 못한 판독은 창 0건의 근거 행으로 남긴다
+4. Gradle task와 운영 실행 경로를 연결하고 대상 장소 선정은 오너 결정으로 남긴다
+
+실패·안전 경계: 근거 URL 없는 판독을 만들지 않는다. 비어 있는 날짜를 영업 중으로 해석하지 않고 `UnknownHours`로 남긴다. 외부 provider 응답을 이 경로로 적재하지 않는다.
+
+필수 검증:
+
+- `BA-025-T1`: 거절된 plan은 한 행도 쓰지 않는다
+- `BA-025-T2`: 같은 plan을 다시 적용해도 그 장소의 현재 관측은 하나다
+- `BA-025-T3`: 새 판독은 이전 관측을 supersede하고 지우지 않는다
+- `BA-025-T4`: plan이 말하지 않은 날짜에는 창이 생기지 않는다
+- `BA-025-T5`: 확정하지 못한 판독은 창 0건의 근거 행으로 기록된다
+
+FE 인계·완료 증거: 영업시간이 있는 장소와 없는 장소의 `getCandidateTripMatches` 응답 차이. 창이 없는 날은 `UNKNOWN`으로 남는 것이 정상 동작임을 함께 넘긴다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
+### BA-026
+
+**내부 규칙 관계 재평가 적재** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-024](#ba-024)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: catalog.place_relations · NULLNULL_CATALOG_RULE · 재평가 스크립트
+
+착수 사유: [BA-025](#ba-025)와 **같은 모양이다.** `V027`이 table을, `CatalogRelationQuery`가 reader를, [BA-024](#ba-024)의 일곱 절이 응답 경로를 세웠는데 **행을 만드는 production 경로가 없다** — main에 `INSERT INTO place_relations`가 0건이고 쓰는 곳은 전부 test다. 그래서 `listRelatedPlaces`는 일곱 절이 초록인 채로 사용자에게 영원히 `UNKNOWN(SOURCE_DISABLED)`만 낸다.
+
+규칙의 출처는 지어낸 것이 아니라 registry다. `V007`의 `NULLNULL_CATALOG_RULE` 행이 `metric_definition`에 **`동일 taxonomy·region 기반 SIMILAR 규칙`** 이라고 적어 뒀고, `places`가 가진 것이 정확히 그 둘이다(`category_code`·`region_code`, 둘 다 NOT NULL에 non-blank CHECK). **두 코드가 opaque provider 값인 것은 문제가 되지 않는다** — 규칙이 주장하는 것은 *"두 장소가 같은 분류·지역에 속한다"* 이지 그 코드의 의미가 아니다. 의미를 주장하려면 검토된 label 매핑이 필요한데 그것이 없어서 `JdbcCatalogPlaceQuery.categoryName()`이 null을 낸다.
+
+**승인이 필요 없다.** 이 source는 `approval_state=PROD_APPROVED`·`enabled=true`·`stale_after=P7D`다 — `SEOUL_CITYDATA`와 정반대다.
+
+**계산은 Spring이다(ADR-0006 위반이 아니다).** `AGENTS.md` 16이 *"관련 장소 계산은 `apps/ai`"* 라고 하지만, `RelationCandidateIn`의 javadoc이 자기 입력을 *"one relation evidence row from `catalog.place_relations` after canonical mapping"* 으로 정의한다 — **ranker는 이미 저장된 행을 받아 정렬한다.** ADR-0006이 가르는 것은 *점수·순서*이고, *두 장소가 같은 분류·지역에 있다*는 것은 점수가 아니라 catalog의 사실이다. `place_hours_observations`가 catalog의 사실인 것과 같다.
+
+**plan 파일을 만들지 않는다 — [A-031](../project/DECISIONS_AND_RISKS.md)·A-032와 다른 이유가 있다.** 게시물과 영업시간은 **사람이 읽어야만 알 수 있는 것**이라 plan이 검토 산출물이었다. 관계는 입력이 이미 우리 DB에 있어서 **운영자가 읽을 것이 없다** — plan을 만들면 우리 DB를 베껴 적는 꼴이 된다. `CuratedHoursImporter`의 *모양*(재실행 안전한 transaction + Gradle task)은 맞고 *plan 파일*은 아니다. 요청마다 계산하는 것도 아니다: 행이 `effective_at`·`expires_at`과 pin된 `source_registry_version`을 가진 **증거**이고, 매 요청 scan은 그 증거를 없앤다.
+
+구현 순서:
+
+1. 같은 `category_code`·`region_code` 쌍을 모아 `NULLNULL_CATALOG_RULE` 출처의 `SIMILAR` 증거로 적재한다
+2. 재실행이 한 쌍에 한 행으로 수렴하고 기존 증거를 잃지 않게 한다
+3. registry의 `stale_after`(P7D)에 맞춰 `expires_at`을 쓰고 재평가가 갱신하게 한다
+4. Gradle task와 운영 실행 경로를 연결한다
+
+실패·안전 경계: `EXACT`를 만들지 않는다 — 그것은 공식 direct relation + canonical ID 검증이 요구되고 `KTO_RELATED_PLACES`는 미신청이다. 비활성·폐기된 장소를 양 끝 어디에도 넣지 않는다. 규칙을 더는 만족하지 않는 쌍은 **삭제가 아니라 만료**다.
+
+필수 검증:
+
+- `BA-026-T1`: 같은 category_code·region_code 쌍에만 SIMILAR를 만들고 다르면 만들지 않는다
+- `BA-026-T2`: 규칙 적재는 EXACT를 만들지 않는다
+- `BA-026-T3`: 두 번 돌려도 한 쌍에 한 행으로 수렴하고 재실행이 기존 행을 잃지 않는다
+- `BA-026-T4`: 비활성·폐기된 장소는 양쪽 끝 어디에도 들어가지 않는다
+- `BA-026-T5`: 규칙을 더는 만족하지 않는 쌍은 만료되고 되살아나지 않는다
+- `BA-026-T6`: source 장소당 후보 상한을 넘으면 조용히 자르지 않고 보고한다
+
+FE 인계·완료 증거: 규칙 후보가 있는 장소와 없는 장소의 `listRelatedPlaces` 응답 차이. 후자가 `UNKNOWN(SOURCE_DISABLED)`로 남는 것이 정상 동작임을 함께 넘긴다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ## B04 · 여행·피드·피드백·후보
 
@@ -1009,19 +1091,129 @@ FE 인계·완료 증거: picker/201/duplicate/error/candidate count·status fix
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-009.
 
+### BA-027
+
+**cursor를 위치가 아니라 정렬 키에 결합한다** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-022](#ba-022), [BA-030](#ba-030), [BA-032](#ba-032), [BA-034](#ba-034)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면. cursor가 응답 유래 값(공개 시각·여행 시작일·장소 이름)을 나르는 것은 access log가 query string을 남기지 않는다는 전제 위에 있고 앱 안쪽은 BA-070-T2가 고정한다. ALB 등 앱 밖의 log는 BA-071에서 같은 전제를 확인한다.
+
+착수 사유([#222](https://github.com/yutakdv/Nullnull/issues/222)): `CursorClaims.nextOrdinal`은 **얼어붙은 snapshot 안의 순번**으로 설계됐는데(`RECOMMENDATION_ALGORITHM.md` §5.1) 구현은 순번만 가져오고 snapshot을 두고 왔다 — `feed_snapshots`·`feed_snapshot_entries` migration이 **0건**이다. live table에 붙은 순번은 그냥 `OFFSET`이고, 집합이 페이지 사이에 변하면 **중복과 누락**을 만든다.
+
+실측했다. 게시물 셋에 `limit=2`로 1page를 받은 뒤:
+
+```text
+새 글이 끼어들면   expected:<1> but was:<2>   독자가 같은 글을 두 번 본다
+숨김이 끼어들면    expected:<1> but was:<0>   그 글은 영영 안 보인다
+```
+
+**네 표면 전부가 같다** — `nextOrdinal`을 쓰는 곳이 넷이고 전부 live table `OFFSET`이다:
+
+| module | 표면 | 정렬 | 페이지 사이에 끼어드는 것 |
+| --- | --- | --- | --- |
+| `social` | feed | `published_at DESC, id ASC` | 큐레이터 공개·숨김 |
+| `trip` | 후보 목록 | `created_at DESC, id ASC` | **사용자 자신의 후보 저장** |
+| `trip` | 여행 목록 | `start_date DESC, id DESC` | 여행 생성 |
+| `catalog` | 장소 검색 | 이름순 | 공개(중복) · projection 자격 상실(누락) |
+
+**후보 목록이 제일 아프다.** P0 핵심 동선이 *"피드를 보다가 마음에 드는 곳을 후보로 저장"* 인데, 저장하면 새 행이 `created_at DESC`의 맨 위에 들어가 그 뒤 모든 페이지가 한 칸씩 밀린다 — **결함이 가장 잘 발현되는 조건이 우리가 사용자에게 기대하는 바로 그 행동이다.**
+
+`CLAUDE.md`의 *"cursor는 opaque/signed이고 sort·filter·expiry에 결합한다"* 도 순번은 만족하지 않는다. 순번은 **위치**에 결합한다.
+
+구조 조사 결과: **`snapshotId`를 재활용할 수 없다.** 네 표면이 전부 거기에 **상수**를 넣고 있고 `CatalogPlaceProjectionService`는 그 상수와 같은지를 **가드로 쓴다** — 그 자리는 이미 *표면 식별자*다. 정렬 키는 **새 field**여야 하고, payload가 `|` 연결이라 한 칸이 는다. 기존 cursor는 무효가 되는데 TTL이 15분이고 출시 전이라 받아들일 수 있다.
+
+구현 순서:
+
+1. `CursorClaims`에 정렬 키를 담는 field를 더하고 codec payload와 서명에 포함한다
+2. 네 표면의 조회를 `OFFSET`에서 정렬 키 비교로 바꾼다
+3. cursor를 쓰는 목록 표면 전부가 아래 검사에 자동으로 들어오게 한다
+4. 기존 cursor 무효를 `CURSOR_INVALID`로 정직하게 답하고 조용히 첫 page로 되돌리지 않는다
+
+실패·안전 경계: 정렬 키에 owner ID·검색어·원문을 담지 않는다. 순번과 정렬 키 두 방식을 한 표면이 같이 받지 않는다 — 둘 다 받으면 어느 쪽이 쓰였는지 test가 말할 수 없다.
+
+**순번 field를 남기지 않고 교체했다.** 착수 조사는 *"payload에 한 칸이 는다"* 였는데, 그러면 카드의
+안전 경계(*"두 방식을 한 표면이 같이 받지 않는다"*)가 깨지고 `T3`의 *"위치를 담지 않는다"* 가 런타임
+관찰에만 기대게 된다. `CursorClaims.nextOrdinal`을 `sortKey`로 **바꿔서** 위치를 담을 자리 자체를
+없앴다 — [BA-033](#ba-033)의 ArchUnit이 *"닿을 경로 자체가 없음"* 을 고정한 것과 같은 모양이다.
+payload는 7칸 그대로라 **기존 cursor는 서명도 arity도 통과한다**. 그것을 막는 것은 `CursorSortKey`의
+파싱뿐이므로(순번 `"40"`에는 `:`가 없다) 그 자리를 `SignedCursorCodecTest`가 따로 고정한다.
+
+**표면은 넷이 아니라 여섯이고, 계약에서 끌어온다.** 착수 조사의 "넷"은 `nextOrdinal` 호출부를 센
+것이라 **아직 구현되지 않은 표면을 보지 못했다.** `CursorSurfaceMatrixIT`는 `CursorPage`를 담는
+schema를 찾고 그 schema를 내는 operation을 모은다 — `cursor` query parameter로 긁으면 read-only
+POST인 `searchPlaces`를 놓치기 때문이다. 그래서 `listOptimizationHistory`·`listNotifications`가
+같이 나오고, 둘은 아직 라우팅되지 않는다. **건너뛰지 않는다**: fixture 집합이 *실행 중인 context의
+handler가 실제로 서비스하는 집합*과 **양방향으로 같아야** 하므로, 둘 중 하나가 라우팅되는 날 `T4`가
+그 자리에서 빨개져 fixture를 강제한다. 손으로 적은 목록이 조용히 낡는 것이 이 카드가 막으려는 실패다.
+
+**정렬 키 값은 DB가 준 것을 그대로 쓴다.** 이름순 검색의 키는 `lower()`이고 그것은 서버 collation의
+함수다 — Java `toLowerCase`로 다시 계산하면 C locale DB에서 비ASCII가 어긋나 **cursor가 자기
+ORDER BY와 불일치**하고, 그게 이 카드가 없애려는 누락을 그대로 되살린다. 그래서 search는 정렬
+표현식을 column으로 같이 내보내고 `CatalogPlaceSearchHit`가 그 값을 나른다.
+
+**키에 owner ID·검색어·원문은 없다.** 검색어는 이미 `cursorContext()`의 digest이고, 키는 같은 응답이
+방금 돌려준 값(공개 시각·날짜·장소 이름)과 그 행의 id뿐이다. 값의 base64url은 **은닉이 아니라
+구분자 회피**다(장소 이름은 `:`도 `|`도 담을 수 있다) — cursor를 가진 사람은 그대로 읽을 수 있고,
+그것을 안전하게 만드는 것은 서명과 owner binding이지 인코딩이 아니다.
+
+필수 검증:
+
+- `BA-027-T1`: 페이지 사이에 앞선 행이 생겨도 이미 본 행을 다시 주지 않는다
+- `BA-027-T2`: 페이지 사이에 행이 사라져도 안 본 행을 건너뛰지 않는다
+- `BA-027-T3`: cursor는 정렬 키를 담고 위치를 담지 않는다
+- `BA-027-T4`: cursor를 쓰는 목록 표면 전부가 이 검사에 들어온다
+- `BA-027-T5`: 다른 정렬에서 발급된 cursor는 재개되지 않고 거절된다
+
+다섯 모두 `CursorSurfaceMatrixIT`(`apps/api/src/integrationTest/java/io/nullnull/`)에 있고 report는
+`apps/api/build/test-results/integrationTest/`다. `T3`이 *두 절을 한 testcase로* 증명하는 방식은
+이렇다: **같은 마지막 행**에 대해 그 행이 넷 중 둘째일 때와 다섯 중 셋째일 때 cursor를 각각 발급하고
+두 cursor가 **같은 자리에서 재개하는지** 본다. 키를 담으면 둘은 구분되지 않고, 순번을 담으면 두 행
+어긋난다 — 한쪽 절만 도는 test가 다른 절을 놓칠 여지가 없다.
+
+**`T5`는 기제가 나머지와 다르다.** `T1`~`T4`는 *같은 정렬 안에서* 위치 대신 키를 쓰는 이야기이고,
+`T5`는 *정렬이 바뀌었을 때* 키가 이름을 잃는 이야기다. 순번은 어느 정렬에서도 같은 뜻이지만 키는
+**그 정렬이 행을 부르는 이름**이라, 다른 정렬의 키를 먹으면 서명·owner·만료가 전부 온전한 채로
+엉뚱한 자리에서 재개한다. `searchPlaces`에만 있던 검사를 나머지 셋에 맞춘 것이고, 정본은
+`CLAUDE.md`의 *"cursor는 sort·filter·expiry에 결합한다"* 다. 그 test의 **같은 claim 재서명이
+200이어야 한다는 단언**이 공허함을 막는다 — 없으면 재서명된 cursor를 전부 거절하는(또는 아무 cursor도
+받지 않는) 표면이 아무것도 재지 않은 채 통과한다.
+
+**변이 검증(규칙 7②).** 네 store의 keyset 술어를 죽이자 `T1`·`T2`·`T3`이 빨개졌고 **실패 메시지가
+네 표면을 전부 이름으로 지목했다** — 표면마다 fixture가 실제로 그 경로를 도는지까지 그 목록이
+보여준다. 표면 하나를 matrix에서 빼자 `T4`가 빨개지며 미라우팅 둘을 이름으로 댔다. 네 곳의 `sortVersion`
+검사를 지우자 `T5`가 빨개지며 **네 표면이 전부 200으로 재개한 것**을 보였다.
+`CursorSortKey.decode`의 거절을 완화하자 legacy cursor test가 빨개졌다. **그 실행에서 matrix는
+`NO REPORT`였다** — `test`가 먼저 죽어 `integrationTest`가 아예 돌지 않았고, report 없음을 실패
+0건으로 읽지 않기 위해 집계 script가 그 둘을 다른 말로 출력한다. 되돌린 뒤 `test`(411)·
+`integrationTest`(382)·`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다 —
+**`4aebbe8` 위의 격리 worktree에서 잰 값이다.** 총계의 절대값은 그것을 잰 commit이 있어야 뜻이 있다:
+서로 다른 commit에서 만든 두 worktree는 그 사이에 늘어난 testcase만큼 어긋나고, 그것을 *"한쪽이
+자기 파일을 안 봤다"* 로 읽으면 **둘 다 옳은데 한쪽을 틀렸다고 결론낸다**(`AGENTS.md` 규칙 6).
+
+`T4`가 이 카드의 수명을 정한다. 네 표면을 손으로 적은 검사는 **다섯째가 생기는 날 조용히 낡고 그 다섯째가 같은 결함을 갖고 태어난다.** [BA-070](#ba-070)의 `T1`이 계약에서 trip-scoped operation을 읽어 matrix를 만드는 것과 같은 모양으로 표면 목록을 코드에서 끌어온다.
+
+FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무효가 된다.** TTL이 15분이므로 창은
+배포 후 15분이고, 그 사이의 다음 page 요청은 `CURSOR_INVALID`(400)로 답한다 — 조용히 첫 page로
+되돌리지 않으므로 화면이 그 코드를 받아 목록을 처음부터 다시 읽는 동작이 필요하다. 출시 전이라
+받아들인 비용이다. `verified` 승격은 required gate가 한 바퀴 돌아 실제 run URL과 `contractSha`가
+생긴 뒤다 — 지금 채우면 일어나지 않은 실행을 기록하게 된다.
+
 ## B05 · 일정 편집·독립 잠금
 
 원자 command와 version 충돌을 먼저 검증한다.
 
 ### BA-040
 
-**일정 item 추가·이동·수정·삭제·순서** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**일정 item 추가·이동·수정·삭제·순서** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-031](#ba-031), [BA-034](#ba-034)
 - 기능 ID: `FR-ITM-01`, `FR-ITM-02`, `FR-ITM-03`, `FR-ITM-04`, `FR-ITM-05`, `FR-ITM-06`, `FR-TRP-02`, `FR-TRP-03`
 - API: `addTripItem`, `updateTripItem`, `removeTripItem`, `reorderTripItems` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `411:1837`, `412:1912`, `413:2020`, `476:3409`, `479:3816`, `521:3976`, `527:4085`, `527:4695`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: trip_items · trip_candidates linkage · trip_revisions · ordered positions
+- 데이터·정책: trip_items · trip_candidates linkage · trip_revisions · ordered positions. per-day 상한은 DB CHECK가 없어 애플리케이션이 유일한 방벽이다 — 범위·duration은 지워도 DB가 500으로 막지만 상한은 201로 그냥 들어간다. item 필드 경계는 TripItem.requireFieldBounds 한 곳이 소유하고 field 경로는 호출자가 준다.
 
 구현 순서:
 
@@ -1032,12 +1224,68 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 사용자 edit buffer는 서버 상태가 아니다. 실패·취소·dirty-exit가 domain mutation을 만들지 않는다. 잠금을 **설정·해제하는 command**(`setTripItemConstraint`·`removeTripItemConstraint`)는 BA-041이 소유하며 여기서 만들지 않는다. 반면 **기존 잠금을 존중하는 것은 활성화가 아니라 불변식 7**이다 — reorder·replace가 잠금을 보지 않으면 BA-041이 만들 잠금이 이 경로로 무력화된다. 요청이 `releaseConstraints`로 이름 댄 잠금만 풀리고 나머지는 `LOCK_CONFLICT`다(#166·#199).
 
+**절을 넷에서 아홉으로 쪼갰다 — 기제로 쪼갰지 입력 case로 쪼개지 않았다.** 원래 `T1`이 기제
+**셋**(cross-day 이동 · position unique 경쟁 · 부분 실패 원자성)을, `T3`이 기제 **넷**(날짜·시간·
+duration·상한)을 한 절에 묶고 있었다. 집계기는 ID가 testcase 이름에 **나타나는지**만 보므로 그중
+아무 기제나 증명하는 test 하나로 그 ID가 충족된다 — 실제로 그렇게 돼 있었다: `T1`은 **같은 날 안의**
+swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있었고 후자는 네 경계 중 아무것도
+건드리지 않는다. 반대로 `T2`는 대조해 보니 한 case가 양방향 전이를 실제로 둘 다 증명하고 있어
+그대로 뒀다 — **대칭을 위해 쪼개지 않는다.**
+
+**기능은 이미 있었다. 없던 것은 test다.** `requireInsideRange`·`requireWithinCaps`는
+`TripService`의 세 경로에서 전부 불리고 있었고, 부분 실패 원자성은
+`anItemThisTripDoesNotHoldIsRefused`가 *"유효한 절반도 착지하지 않았다"* 로 이미 증명하는데 **ID만
+없었다**(규칙 3의 거울상). 그 자리는 test를 새로 쓰지 않고 ID를 달았다 — 본문을 절과 대조한 뒤에.
+
+**경계 절은 기제당 한 case가 세 command를 전부 부른다.** 규칙은 한 덩어리지만 *불리는 것*은 규칙의
+성질이 아니라 **호출자마다의 성질**이다. `addTripItem`·`reorderTripItems`·`updateTripItem`이 각자
+자기 "after" 목록을 만들어 각자 규칙을 부르므로(`TripService:550`·`:665`·`:864`), 한 command에서
+증명한 경계는 나머지 둘에 대해 아무 말도 하지 않는다. 측정이 그것을 확인했다 — **세 경로 중 reorder
+하나에서만** 범위 검사를 지워도 `T7`이 빨개진다.
+
+**거기서 나온 것 둘.** ① 경계를 지우면 응답이 `200`이 아니라 대개 **`500`** 이다 — DB가 뒤에서
+막는다. 그래서 이 절들이 고정하는 것은 *"막힌다"* 가 아니라 **"애플리케이션이 422로 거절한다"** 이고,
+단언도 status를 그렇게 본다. 유일한 예외가 하루 상한이다: 지우면 `201`로 **그냥 들어간다**(DB에
+그 CHECK가 없다). **세 절을 같은 무게로 읽으면 안 되는 이유**이고 `데이터·정책` 칸에도 적었다 —
+나머지 둘은 애플리케이션이 사라져도 DB가 데이터를 지키지만 `T9`가 지키는 것은 `T9`뿐이다.
+
+② **duration·note·position 경계가 각각 세 곳에 선언돼 있었다** — `AddTripItemCommand`·
+`UpdateTripItemCommand`·`TripItem` 생성자. 그래서 **어느 하나도 단독으로는 필요하지 않았고**, 한
+경로의 가드를 하나 지워도 `T8`이 초록이었다(두 개를 같이 지워야 빨개졌다). `red: NOTHING`의 **네
+번째 얼굴**이다 — 변이는 적용됐고 실행도 됐는데 **지운 것이 일하는 사본이 아니었다.**
+
+**한 곳으로 모았다.** 값은 `TripItem`이 소유하고(`requireFieldBounds`), **field 경로는 호출자가
+준다** — 같은 규칙이 createTrip에서는 `seedItems[].durationMinutes`를, updateTripItem에서는
+`durationMinutes`를 거절해야 하고, `TripItem` 생성자에 박혀 있던 `seedItems[].`가 남는 쪽이 되는
+날 **그 operation에 없는 field 경로**가 FE에 갔을 것이다. 세 호출자는 **계속 각자 부른다** —
+`T8`이 요구하는 것은 *"설정할 수 있는 모든 command가 거절한다"* 이지 *"한 층이 거절한다"* 가 아니다.
+
+**그 편집이 무엇을 바꿨는지는 변이가 말한다**: 이제 **한 곳만 지워도** `T8`이 빨개진다. 그리고
+`T8`이 field 경로를 단언하므로, 호출자가 틀린 prefix를 주는 변이에서도 빨개진다 — 통합이 만든
+새 실패 모드를 그 자리에서 덮는다.
+
 필수 검증:
 
-- `BA-040-T1`: cross-day reorder·position unique 경쟁·부분 실패에서 원자성이 유지된다
+- `BA-040-T1`: 한 요청 안의 자리 교환이 position unique 경쟁을 통과한다
 - `BA-040-T2`: candidate schedule/RESTORE_CANDIDATE 전이가 item과 동시에 반영된다
-- `BA-040-T3`: 날짜·시간·duration·item 상한 경계를 검증한다
+- `BA-040-T3`: merge-patch의 null과 absent를 구분한다
 - `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
+- `BA-040-T5`: reorder가 item을 다른 날로 옮긴다
+- `BA-040-T6`: 요청의 한 entry가 거절되면 어떤 item도 움직이지 않는다
+- `BA-040-T7`: 모든 command가 여행 기간 밖의 날짜를 거절한다
+- `BA-040-T8`: duration을 설정할 수 있는 모든 command가 경계 밖의 값을 거절한다
+- `BA-040-T9`: 모든 command가 하루 item 상한을 넘기는 변경을 거절한다
+
+`T1`·`T5`·`T6`은 `TripItemReorderIT`, `T2`는 `TripItemMutationIT`, `T3`은 `TripItemUpdateIT`,
+`T7`~`T9`는 `TripScheduleBoundaryIT`에 있다(`apps/api/src/integrationTest/java/io/nullnull/trip/`). `f3bd262` 위의 격리 worktree에서 `test`(417)·`integrationTest`(391)·
+`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
+
+**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기가 Playwright report를
+받지 않으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
+(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는
+ID"가 된다). FE가 E2E를 쓰고 `--e2e-junit-dir`가 배선되면 조건으로 복원한다. 그래서 **이 카드는
+`T4` 하나만 남기고 전부 증명된 상태이고, 그 하나 때문에 `planned`에 머문다** — 올릴 수 없는 것을
+올리지 않고, 왜 못 올리는지를 기계가 아니라 사람이 읽는 자리에 둔다.
 
 FE 인계·완료 증거: 편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1172,13 +1420,25 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 영업/이동 증거가 필요한데 없으면 ROUTE_UNAVAILABLE 또는 계약상 데이터 실패이며 NO_IMPROVEMENT로 숨기지 않는다. apps/ai 응답은 Spring ProposalRevalidator를 통과한 뒤에만 저장하고 위반은 run FAILED와 alert다. 점수와 후보 개수/예산은 초안이고 성능 주장이 아니다.
 
+**`T3`을 `T3`·`T10`으로 나눴다.** 원래 한 절이 *"설명이 사실을 추가하지 않고 preview 중 일정 쓰기가 0"* 이었는데 기제가 다르다 — 앞은 설명 출력을 proposal의 값과 대조하는 것(불변식 9)이고 뒤는 transaction 경계(불변식 3)다. **둘 중 하나만 깨지는 실패가 실제로 있다**: 설명 template이 proposal에 없는 영업시간을 문장에 넣어도 일정은 안 바뀌고, 반대로 revalidator가 통과 전에 item을 쓰면 설명은 멀쩡하다. 한 ID로 묶으면 아무 쪽이나 증명하는 test 하나로 충족된다.
+
+**`T6`~`T9`는 `V029`의 제약이 실제로 발화하는지 묻는다.** schema는 이 카드 것이고(`V024`가 *"optimization_proposals/changes/decisions belong to the slices that produce them"* 이라 적었다), 그 안에 **불변식 8이 CHECK로 들어가 있다** — 비교 자격이 없으면 `crowd_delta`가 NULL이고 자격이 없으면 사유 코드가 필수다. 제약이 도메인 규칙을 들고 있으면 그것이 발화하는지는 카드가 물어야 할 질문이고, [BA-022](#ba-022)의 `T4`~`T7`이 `place_hours`에 대해 같은 일을 한 선례다(넷 다 `verified`).
+
+넷으로 나눈 이유는 **실패 방식이 넷이기 때문**이다. CHECK가 자격 쪽 절반만 남게 편집되면 delta를 재는 test는 그대로 통과하고, 양방향 before/after를 증명하는 test는 사후 수정에 대해 아무 말도 하지 않는다. `T8`이 막는 것은 사용자에게 보이는 해다 — MOVE change가 한쪽만 들고 저장되면 **왼쪽 없는 diff를 사용자가 승인하게 된다.** `T9`의 UPDATE 금지 트리거는 `V011`의 `crowd_snapshots`와 같은 이유로, 제안의 근거가 나중에 조용히 바뀌면 사용자가 승인한 것과 기록된 것이 달라진다.
+
 필수 검증:
 
 - `BA-051-T1`: REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다
 - `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다
-- `BA-051-T3`: 수치·장소·영업·route 사실을 설명이 추가하지 않고 preview 중 일정 쓰기가 0이다
+- `BA-051-T3`: 설명이 수치·장소·영업·route 사실을 추가하지 않는다
 - `BA-051-T4`: items/propose 호출 시점에 활성 transaction이 없다
 - `BA-051-T5`: 만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다
+- `BA-051-T6`: 비교 자격이 없는 제안은 crowd delta를 담은 채로 저장되지 않는다
+- `BA-051-T7`: 비교 자격이 없는 제안은 사유 코드 없이 저장되지 않는다
+- `BA-051-T8`: 한쪽만 있는 before/after change는 저장되지 않는다
+- `BA-051-T9`: 저장된 제안과 change는 사후 수정되지 않는다
+- `BA-051-T10`: preview 동안 일정 쓰기가 0이다
+- `BA-051-T11`: 실패 코드 어휘가 enum·CHECK·계약 세 곳에서 같다
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1203,14 +1463,40 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. APPLY는 item/revision/decision/response를 한 transaction에, KEEP은 decision만 기록한다
 4. 09-06 PM 검토 PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+**`T9`·`T10`은 `V030`의 제약이 발화하는지 묻는다.** `T1`이 *"동시 APPLY/APPLY에서 최초 결정 하나만"* 을 **응용 층**에서 단언한다면 `T10`은 같은 사실을 **DB 층**에서 묻는다 — partial unique index가 REVERT를 제외하고 run당 최초 결정 하나를 강제하는지다. [BA-034](#ba-034)의 멱등 key(응용 guard)와 partial unique index(DB)가 따로 선 것과 같은 짝이고, **하나가 다른 하나를 증명하지 않는다**: guard가 없어도 index가 한 행을 남기고, index가 없어도 guard가 한 번만 쓴다. `T9`은 결정 종류별 shape CHECK로, `KEEP`이 revision을 갖지 않고 `APPLY`/`REVERT`가 갖는다는 것이 세 종류를 한 table에 두는 조건이다.
+
+**`T3`을 넷으로 나눈 이유.** 원래 한 절이 `TRIP_CHANGED`·`DATA_CHANGED`·expired·policy 철회를 묶고 있었는데 **기제가 넷 다 다르다** — 차례로 run의 `inputTripVersion`과 현재 trip version의 **버전 비교**, proposal이 선 근거(snapshot·hours)의 **지문 비교**, preview TTL의 **시계**, 결정 시점에 policy/incident를 다시 묻는 **재질의**다. 하나를 증명하는 test가 나머지를 증명하지 않으므로 `T3`·`T5`·`T6`·`T7`로 나눈다. 반대로 `T1`과 `T2`는 나누지 않는다 — `T1`의 APPLY/APPLY와 APPLY/KEEP은 조건부 쓰기 **한 기제**를 때리는 입력 둘이고 `T2`의 주입 지점 여럿도 transaction **하나**다. 절은 입력 case가 아니라 기제로 센다.
+
+**`T2`가 말하는 "각 쓰기 지점"은 다섯이다.** `TripStore`의 write method를 전수로 세어 APPLY가 한 transaction에 쓰는 것을 정리했다:
+
+| 지점 | 무엇이 쓰이는가 |
+| --- | --- |
+| `P1` | `trip_items`의 change **사이** — proposal의 change N개마다 `insertItem`·`deleteItem`·`moveItem`·`updateItem`·`replaceItemPlace`·`putConstraint` 중 하나가 돈다 |
+| `P2` | 마지막 change ~ `updateMetadata` 사이 |
+| `P3` | `updateMetadata`(version bump + `trip_revisions` snapshot) ~ 결정 행 사이 |
+| `P4` | `optimization_decisions` ~ idempotency 응답 저장 사이 |
+| `P5` | idempotency 응답 저장 **안**(`requireStorable` 실패 포함) |
+
+`P1`을 따로 세는 이유: 하루에 change가 여럿인 proposal이 중간에 터지면 **그 날짜만 반쯤 적용된 상태**가 남는다. `P2`~`P5`가 전부 green이어도 `P1`이 비면 그 결함은 안 잡히고, *"부분 적용 0"* 이 정확히 그것을 말한다. `P5`는 `requireStorable`이 **command 뒤에** 돌기 때문에 필요하다 — 여기서 터지면 이미 적용된 요청이 500을 받고 그 key의 모든 재시도가 500이다([BA-040](#ba-040)의 `addItem`이 `{itemId}`만 저장하는 이유와 같다). 그래서 이 결정도 `{decisionId}`만 저장한다.
+
+**KEEP은 `P3` 하나뿐이고, `P1`·`P2`가 일어나지 않는 것을 같은 절이 단언한다** — 불변식 4(KEEP·failed·expired·stale preview는 trip을 수정하지 않는다)가 거기 산다.
+
+**`T8`을 `T2`에서 떼어낸 이유.** `deleteConstraint`는 `TripStore`의 write method이지만 **APPLY 경로에 있으면 안 된다** — 불변식 7이 네 잠금을 자동 해제하지 않는다고 못박는다. 이것을 `T2`의 부분 적용 단언에 섞으면 *"transaction이 온전한가"* 와 *"애초에 그 쓰기를 하는가"* 가 한 절이 되고, 전자를 증명하는 test가 후자에 아무 말도 하지 않는다. 최적화가 사용자가 고정한 잠금을 조용히 푸는 것은 제품에서 제일 나쁜 실패라 별도 절로 둔다.
+
 실패·안전 경계: 한 run 최초 결정은 최대 하나다. owner 삭제·source incident 갱신과 경쟁을 DB에서 순서화한다. 이후 편집 후 같은 key replay는 원래 응답을 반환하고 다시 적용하지 않는다.
 
 필수 검증:
 
 - `BA-052-T1`: 동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다
 - `BA-052-T2`: 각 쓰기 지점 fault injection으로 부분 적용0을 확인한다
-- `BA-052-T3`: TRIP_CHANGED·DATA_CHANGED·expired·policy 철회가 apply를 차단한다
+- `BA-052-T3`: TRIP_CHANGED가 apply를 차단한다
 - `BA-052-T4`: 결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다
+- `BA-052-T5`: DATA_CHANGED가 apply를 차단한다
+- `BA-052-T6`: 만료된 preview의 apply가 차단된다
+- `BA-052-T7`: policy 철회가 apply를 차단한다
+- `BA-052-T8`: APPLY는 어떤 잠금도 해제하지 않는다
+- `BA-052-T9`: 결정은 자기 종류가 가진 필드만 정확히 담는다
+- `BA-052-T10`: run의 최초 결정은 하나이고 REVERT는 그것이 아니다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1254,7 +1540,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-060
 
-**붙여넣기 parse·remap·confirm** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**붙여넣기 parse·remap·confirm** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-012](#ba-012), [BA-022](#ba-022), [BA-030](#ba-030), [BA-040](#ba-040), [BA-041](#ba-041)
 - 기능 ID: `FR-TRC-06`, `FR-TRC-07`, `NFR-PRV-01`
@@ -1273,13 +1559,41 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. confirm은 READY·TTL·If-Match·owner·POI/날짜/lock을 재검증해 trip과 items를 한 transaction으로 만든다
 4. 09-06 PM 검토 PM-005, PM-008의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+**`T15`·`T16`·`T18`·`T19`는 커밋 `f96cd6f`에 있고 그 메시지는 `BA-052`라고 적혀 있다.** 세 세션이 한 checkout의 git index를 공유해서 staging 중이던 파일이 남의 커밋에 실렸다(`AGENTS.md` 규칙 6). **내용은 온전하고 history는 되돌리지 않는다** — 붙어 있는 branch를 다시 쓰는 것이 잘못된 메시지 하나보다 나쁘다. 여기 적는 이유는 다음 사람이 `BA-060-T19`를 찾다가 `BA-052` 커밋에서 발견하고 두 번 혼란스러워하지 않게 하기 위해서다.
+
+**절을 셋에서 열아홉으로 나눴다.** 원래 `T1`이 sink **여섯**(DB·cache·log·trace·event·response)을, `T2`가 기제 **넷**(ETag·TTL·READY·멱등)을 한 절에 묶고 있었다 — 하나를 증명하는 test가 나머지를 증명하지 않는 그 모양이다. 다만 **입력 case로는 나누지 않았다**: `T16`의 두 상한은 요청 검증 한 기제이고, `T14`의 날짜와 시각도 parser 정책 하나다. analytics sink는 절로 만들지 않았다 — `events.schema.json`에 import event가 0건이라 생산자가 없고, 만들면 영원히 초록인 단언이 된다. 그 자리는 `T4`의 구조 고정이 대신한다.
+
+**`T18`이 parse까지 포함하는 이유 — 이 카드의 착수 조사가 이 지점에서 정정됐다.** 조사는 *"`parseTripImport`만은 catalog 게이트와 무관하다"* 로 적혔고 근거는 `ImportDraftItem.place`가 nullable이라는 **구조적 가능성**이었다. 그러나 이 카드의 구현 순서 2가 parse에게 *"canonical suggestions"* 를 만들라고 하고, `UnresolvedImportToken.suggestions`는 `PlaceSummary` 배열이며, 그 값을 만드는 `CatalogPlaceProjectionService.search`의 **첫 줄이 `requirePublicProjection()`** 이다. **parse는 catalog를 읽는다.**
+
+그래서 닫힌 게이트 위의 200은 catalog에 대한 주장을 한다 — 모든 item이 `place: null`이고 모든 token이 `suggestions: []`인 draft는 *"장소를 하나도 알아보지 못했고 후보도 없다"* 라고 말하는데, 진실은 *"볼 수 없었다"* 다. [#162](https://github.com/yutakdv/Nullnull/issues/162)가 배제한 silent-empty이고 [BA-024](#ba-024)의 `NONE`과 같은 종류의 거짓이다. *"구조만 돌려주므로 게이트와 무관하게 참"* 이라는 반론은 **구조가 catalog 내용을 담지 않을 때만** 성립하고, 여기서는 담는다.
+
+`ImportDraft`에 *"조회 불가"* 를 말하는 필드를 더해 200을 유지하는 길도 있지만 계약 추가와 FE 승인이 필요하고, 얻는 것은 *"게이트가 닫힌 환경에서 parse만 동작"* 인데 그 환경의 사용자는 어차피 confirm까지 갈 수 없다. **비용이 값보다 크다.** 셋이 같은 규칙이면 다음 사람이 예외를 기억할 필요도 없다.
+
+**`T17`은 parser가 아니라 confirm의 절이다.** 하루·전체 상한은 `TripScheduleRules`가 이미 강제하는 trip 불변식이고, parser에 같은 규칙을 두면 상한값이 바뀌는 날 parser만 낡는다. 조용히 자르는 것은 금지이며(틀린 draft가 맞아 보인다), parse에서 통째로 거절하지도 않는다 — 사용자는 remap에서 넘치는 item을 물리면 된다. **실제 작업은 거절 message가 어느 날짜인지 말하게 하는 것이다**: 지금 message는 *"a day holds at most N items"* 로 날짜를 말하지 않아, 100개짜리 draft에서 사용자가 그 날을 찾을 수 없다.
+
 실패·안전 경계: 원문·자유 메모·연락처가 unresolved token/exception/job/response에 그대로 남지 않게 allowlist 추출한다. 외부 LLM에 원문을 보내지 않고 24시간 draft TTL을 둔다.
 
 필수 검증:
 
-- `BA-060-T1`: 고유 원문 canary가 DB/cache/log/trace/event/response에 없다
-- `BA-060-T2`: stale remap/confirm·만료·미해결 매핑·중복 confirm은 부분 trip을 만들지 않는다
-- `BA-060-T3`: parser 날짜·한영 장소·모호한 시간·100item/10suggestion 경계를 검증한다
+- `BA-060-T1`: 저장된 draft의 어느 column에도 고유 원문 canary가 없다
+- `BA-060-T2`: 세 operation의 응답 본문에 원문 canary가 없다
+- `BA-060-T3`: log와 exception message에 원문 canary가 없다
+- `BA-060-T4`: importer가 프로세스 밖으로 나갈 수 있는 타입을 참조하지 않는다
+- `BA-060-T5`: idempotency 응답 저장에 원문 canary가 없다
+- `BA-060-T6`: stale remap/confirm은 draft도 trip도 바꾸지 않는다
+- `BA-060-T7`: 만료된 draft의 remap/confirm은 410이고 trip을 만들지 않는다
+- `BA-060-T8`: 미해결 token이 남은 confirm은 거절되고 trip을 만들지 않는다
+- `BA-060-T9`: 같은 Idempotency-Key 재시도는 trip을 하나만 만든다
+- `BA-060-T10`: 다른 key의 동시 confirm도 trip을 하나만 만든다
+- `BA-060-T11`: 만료 뒤의 같은 key replay는 저장된 201이 아니라 410을 낸다
+- `BA-060-T12`: CONFIRMED draft의 remap은 거절된다
+- `BA-060-T13`: 다른 owner의 draftId는 404다
+- `BA-060-T14`: 연도 없는 날짜와 모호한 시각을 확정하지 않고 token으로 낸다
+- `BA-060-T15`: 한국어와 영어 장소 토큰이 canonical place로 해결된다
+- `BA-060-T16`: 20000자와 10 suggestion 상한을 경계에서 거절한다
+- `BA-060-T17`: 하루 상한을 넘긴 draft의 confirm은 그 날짜를 지목해 거절하고 조용히 자르지 않는다
+- `BA-060-T18`: catalog 게이트가 닫히면 세 operation 모두 503이고 쓰기가 0이다
+- `BA-060-T19`: parse 응답이 계약이 선언한 `Cache-Control: no-store`를 실제로 보낸다
 
 FE 인계·완료 증거: parse warning/review/remap/confirm·만료 fixtures와 원문 제외 refresh 복구. 수동 입력 fallback은 계속 유지한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1291,7 +1605,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-070
 
-**전체 권한·privacy·부하·접근성 통합** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**전체 권한·privacy·부하·접근성 통합** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-006](#ba-006), [BA-012](#ba-012), [BA-033](#ba-033), [BA-034](#ba-034), [BA-042](#ba-042), [BA-053](#ba-053), [BA-060](#ba-060)
 - 기능 ID: `NFR-A11Y-01`, `NFR-A11Y-02`, `NFR-AVL-01`, `NFR-PERF-01`, `NFR-PERF-02`, `NFR-RESP-01`
@@ -1306,13 +1620,17 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. FE와 KO/EN·360/768/1280·200%zoom·keyboard·offline 핵심 흐름을 통합한다
 4. 09-06 PM 검토 PM-024의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
-실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다.
+실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다. 그래서 `T3`는 **시간을 재지 않는다** — 이 칸이 금지하는 것이 정확히 그것이다. CI가 정직하게 잴 수 있는 것은 구조이고(`JobConnectionBudget`이 선례다), p95는 staging의 질문이다.
+
+`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 `integration-test.sh`가 `--e2e-junit-dir`를 넘기지 않아 들어오지 않으므로, 이 ID는 FE가 실제로 구현해도 나타나지 않는다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰고 배선이 서면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
 
 필수 검증:
 
 - `BA-070-T1`: 다른 owner/expired session/source 장애 조합의 핵심 CRUD가 안전하다
 - `BA-070-T2`: redaction canary와 API 응답 PII·secret denylist가 0이다
-- `BA-070-T3`: 고정 부하 budget·핵심 keyboard/a11y E2E·P1 OFF variants를 통과한다
+- `BA-070-T3`: 고정 크기 입력의 쿼리 수와 connection 수에 상한이 있다
+- `BA-070-T4`: P1 capability가 꺼진 목록과 실제로 꺼진 동작이 같은 집합이다
+- `BA-070-T5`: 핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
 
 FE 인계·완료 증거: 오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

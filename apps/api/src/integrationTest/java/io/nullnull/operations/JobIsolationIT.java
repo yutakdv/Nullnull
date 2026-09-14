@@ -149,6 +149,10 @@ class JobIsolationIT {
     void releaseTheSlowHandler() {
         RELEASE.countDown();
         await(() -> count(SLOW, "RUNNING") == 0, "the slow jobs never finished");
+        // And take the rows with it. These jobs finish COMPLETED and stay, and the retention sweep in
+        // JobQueueIT counts what it deleted across the WHOLE table - so three jobs left here were read
+        // there as that test's own result. A class that enqueues jobs removes them.
+        jdbc.update("DELETE FROM background_jobs WHERE type LIKE 'isolation-%'");
     }
 
     @Test

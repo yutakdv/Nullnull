@@ -1,11 +1,13 @@
 package io.nullnull.catalog.infrastructure.kto;
 
+import io.nullnull.catalog.application.KtoGatewayException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -66,5 +68,49 @@ class KtoSmokeEnvironmentTest {
 
         assertThat(report).hasSize(12).allSatisfy(line -> assertThat(line).endsWith("<- absent"));
         assertThat(report).isSorted();
+    }
+
+    @Test
+    @DisplayName("#226 a loaded setting beats the yaml default that would otherwise blank it")
+    void loadedSettingsOutrankTheYamlDefault() {
+        // application.yaml:173 is `service-key: ${KTO_SERVICE_KEY:}`, so with no such process
+        // variable it resolves to an empty string - and SpringApplicationBuilder.properties() puts
+        // our loaded value in defaultProperties, the LOWEST precedence there is. The file was read,
+        // reported as read, and then overridden by a blank. This is that precedence, in miniature.
+        org.springframework.core.env.StandardEnvironment environment =
+                new org.springframework.core.env.StandardEnvironment();
+        environment.getPropertySources().addLast(new org.springframework.core.env.MapPropertySource(
+                "application.yaml", java.util.Map.of("nullnull.kto.service-key", "")));
+        org.springframework.context.support.GenericApplicationContext context =
+                new org.springframework.context.support.GenericApplicationContext();
+        context.setEnvironment(environment);
+
+        KtoSmokeEnvironment.applying(java.util.Map.of("KTO_SERVICE_KEY", "a-real-key"))
+                .initialize(context);
+
+        assertThat(environment.getProperty("nullnull.kto.service-key")).isEqualTo("a-real-key");
+    }
+
+    @Test
+    @DisplayName("#227 a failure that is not the provider's says so instead of naming a code it did not check")
+    void aNonProviderFailureIsNotReportedAsAProviderCode() {
+        // The adapter's own vocabulary is passed through untouched.
+        assertThat(KtoSmokeEnvironment.failureCode(new IllegalStateException("wrapped",
+                new KtoGatewayException(KtoGatewayException.Code.KTO_QUOTA_EXHAUSTED))))
+                .isEqualTo("KTO_QUOTA_EXHAUSTED");
+
+        // An unanticipated failure keeps its type, which is what separates "the provider refused us"
+        // from "this process could not start". The old code answered a bare UNEXPECTED_FAILURE and a
+        // Spring startup failure was indistinguishable from a provider one.
+        assertThat(KtoSmokeEnvironment.failureCode(
+                new IllegalArgumentException("Invalid boolean value []")))
+                .isEqualTo("UNEXPECTED_FAILURE (IllegalArgumentException)")
+                // and it never carries the message, which can hold a configuration value
+                .doesNotContain("Invalid boolean value");
+
+        // The catch-all's own code, carrying what it caught.
+        assertThat(KtoSmokeEnvironment.failureCode(new KtoGatewayException(
+                KtoGatewayException.Code.KTO_INTERNAL_FAILURE, NullPointerException.class)))
+                .isEqualTo("KTO_INTERNAL_FAILURE (NullPointerException)");
     }
 }

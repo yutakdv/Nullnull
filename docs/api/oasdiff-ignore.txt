@@ -1,0 +1,2 @@
+in API GET /optimizations/{runId} added the new `DATA_INSUFFICIENT` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `200`
+in API POST /trips/{tripId}/optimizations added the new `DATA_INSUFFICIENT` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `202`

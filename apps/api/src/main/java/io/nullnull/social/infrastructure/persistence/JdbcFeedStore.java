@@ -31,17 +31,28 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
-    public List<Post> publishedPage(long offset, int limit) {
+    public List<Post> publishedPage(PageKey after, int limit) {
         // published_at DESC, id ASC - the order FeedOrdering defines. Fixed for everyone: no owner
         // state appears in this query, so a saved post cannot move up someone's feed.
-        List<Post> posts = jdbc.sql("""
+        StringBuilder sql = new StringBuilder("""
                 SELECT id, status, title, body, cover_url, cover_asset_id, published_at
                   FROM posts
                  WHERE status = 'PUBLISHED'
-                 ORDER BY published_at DESC, id ASC
-                 LIMIT ? OFFSET ?
-                """)
-                .params(limit, offset)
+                """);
+        List<Object> parameters = new ArrayList<>();
+        if (after != null) {
+            // Resume after that post, rather than skipping a count of rows: a curator publishing
+            // something ahead of the reader must not push what they have already read back at them.
+            // The tie branch follows id ASC because published_at alone is not a total order.
+            sql.append(" AND (published_at < ? OR (published_at = ? AND id > ?))");
+            Timestamp at = Timestamp.from(after.publishedAt());
+            parameters.add(at);
+            parameters.add(at);
+            parameters.add(after.postId());
+        }
+        sql.append(" ORDER BY published_at DESC, id ASC LIMIT ?");
+        parameters.add(limit);
+        List<Post> posts = jdbc.sql(sql.toString()).params(parameters)
                 .query((ResultSet row, int index) -> map(row, List.of()))
                 .list();
         return hydratePlaces(posts);
