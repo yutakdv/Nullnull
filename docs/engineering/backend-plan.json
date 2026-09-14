@@ -1440,6 +1440,53 @@
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-042"
     },
     {
+      "id": "BA-027",
+      "phase": "B05",
+      "priority": "P0",
+      "title": "cursor를 위치가 아니라 정렬 키에 결합한다",
+      "status": "planned",
+      "dependsOn": [
+        "BA-022",
+        "BA-030",
+        "BA-032",
+        "BA-034"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "entities": "CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면",
+      "steps": [
+        "CursorClaims에 정렬 키를 담는 field를 더하고 codec payload와 서명에 포함한다",
+        "네 표면의 조회를 OFFSET에서 정렬 키 비교로 바꾼다",
+        "cursor를 쓰는 목록 표면 전부가 검사에 자동으로 들어오게 한다",
+        "기존 cursor 무효를 CURSOR_INVALID로 정직하게 답하고 조용히 첫 page로 되돌리지 않는다"
+      ],
+      "safety": "정렬 키에 owner ID·검색어·원문을 담지 않는다. 순번과 정렬 키 두 방식을 한 표면이 같이 받지 않는다.",
+      "tests": [
+        {
+          "id": "BA-027-T1",
+          "assertion": "페이지 사이에 앞선 행이 생겨도 이미 본 행을 다시 주지 않는다"
+        },
+        {
+          "id": "BA-027-T2",
+          "assertion": "페이지 사이에 행이 사라져도 안 본 행을 건너뛰지 않는다"
+        },
+        {
+          "id": "BA-027-T3",
+          "assertion": "cursor는 정렬 키를 담고 위치를 담지 않는다"
+        },
+        {
+          "id": "BA-027-T4",
+          "assertion": "cursor를 쓰는 목록 표면 전부가 이 검사에 들어온다"
+        }
+      ],
+      "handoff": "기존 cursor가 무효가 되는 배포 창과 그때 화면이 무엇을 하는지.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-027"
+    },
+    {
       "id": "BA-050",
       "phase": "B06",
       "priority": "P0",

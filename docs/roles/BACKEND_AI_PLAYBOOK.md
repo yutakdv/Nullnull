@@ -1091,6 +1091,60 @@ FE 인계·완료 증거: picker/201/duplicate/error/candidate count·status fix
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-009.
 
+### BA-027
+
+**cursor를 위치가 아니라 정렬 키에 결합한다** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-022](#ba-022), [BA-030](#ba-030), [BA-032](#ba-032), [BA-034](#ba-034)
+- 기능 ID: 해당 없음
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면
+
+착수 사유([#222](https://github.com/yutakdv/Nullnull/issues/222)): `CursorClaims.nextOrdinal`은 **얼어붙은 snapshot 안의 순번**으로 설계됐는데(`RECOMMENDATION_ALGORITHM.md` §5.1) 구현은 순번만 가져오고 snapshot을 두고 왔다 — `feed_snapshots`·`feed_snapshot_entries` migration이 **0건**이다. live table에 붙은 순번은 그냥 `OFFSET`이고, 집합이 페이지 사이에 변하면 **중복과 누락**을 만든다.
+
+실측했다. 게시물 셋에 `limit=2`로 1page를 받은 뒤:
+
+```text
+새 글이 끼어들면   expected:<1> but was:<2>   독자가 같은 글을 두 번 본다
+숨김이 끼어들면    expected:<1> but was:<0>   그 글은 영영 안 보인다
+```
+
+**네 표면 전부가 같다** — `nextOrdinal`을 쓰는 곳이 넷이고 전부 live table `OFFSET`이다:
+
+| module | 표면 | 정렬 | 페이지 사이에 끼어드는 것 |
+| --- | --- | --- | --- |
+| `social` | feed | `published_at DESC, id ASC` | 큐레이터 공개·숨김 |
+| `trip` | 후보 목록 | `created_at DESC, id ASC` | **사용자 자신의 후보 저장** |
+| `trip` | 여행 목록 | `start_date DESC, id DESC` | 여행 생성 |
+| `catalog` | 장소 검색 | 이름순 | 공개(중복) · projection 자격 상실(누락) |
+
+**후보 목록이 제일 아프다.** P0 핵심 동선이 *"피드를 보다가 마음에 드는 곳을 후보로 저장"* 인데, 저장하면 새 행이 `created_at DESC`의 맨 위에 들어가 그 뒤 모든 페이지가 한 칸씩 밀린다 — **결함이 가장 잘 발현되는 조건이 우리가 사용자에게 기대하는 바로 그 행동이다.**
+
+`CLAUDE.md`의 *"cursor는 opaque/signed이고 sort·filter·expiry에 결합한다"* 도 순번은 만족하지 않는다. 순번은 **위치**에 결합한다.
+
+구조 조사 결과: **`snapshotId`를 재활용할 수 없다.** 네 표면이 전부 거기에 **상수**를 넣고 있고 `CatalogPlaceProjectionService`는 그 상수와 같은지를 **가드로 쓴다** — 그 자리는 이미 *표면 식별자*다. 정렬 키는 **새 field**여야 하고, payload가 `|` 연결이라 한 칸이 는다. 기존 cursor는 무효가 되는데 TTL이 15분이고 출시 전이라 받아들일 수 있다.
+
+구현 순서:
+
+1. `CursorClaims`에 정렬 키를 담는 field를 더하고 codec payload와 서명에 포함한다
+2. 네 표면의 조회를 `OFFSET`에서 정렬 키 비교로 바꾼다
+3. cursor를 쓰는 목록 표면 전부가 아래 검사에 자동으로 들어오게 한다
+4. 기존 cursor 무효를 `CURSOR_INVALID`로 정직하게 답하고 조용히 첫 page로 되돌리지 않는다
+
+실패·안전 경계: 정렬 키에 owner ID·검색어·원문을 담지 않는다. 순번과 정렬 키 두 방식을 한 표면이 같이 받지 않는다 — 둘 다 받으면 어느 쪽이 쓰였는지 test가 말할 수 없다.
+
+필수 검증:
+
+- `BA-027-T1`: 페이지 사이에 앞선 행이 생겨도 이미 본 행을 다시 주지 않는다
+- `BA-027-T2`: 페이지 사이에 행이 사라져도 안 본 행을 건너뛰지 않는다
+- `BA-027-T3`: cursor는 정렬 키를 담고 위치를 담지 않는다
+- `BA-027-T4`: cursor를 쓰는 목록 표면 전부가 이 검사에 들어온다
+
+`T4`가 이 카드의 수명을 정한다. 네 표면을 손으로 적은 검사는 **다섯째가 생기는 날 조용히 낡고 그 다섯째가 같은 결함을 갖고 태어난다.** [BA-070](#ba-070)의 `T1`이 계약에서 trip-scoped operation을 읽어 matrix를 만드는 것과 같은 모양으로 표면 목록을 코드에서 끌어온다.
+
+FE 인계·완료 증거: 기존 cursor가 무효가 되는 배포 창과 그때 화면이 무엇을 하는지. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
 ## B05 · 일정 편집·독립 잠금
 
 원자 command와 version 충돌을 먼저 검증한다.
