@@ -76,6 +76,26 @@ jobs:
         run: npx --yes markdownlint-cli2@0.23.2
       - name: Lint OpenAPI 3.1
         run: npx --yes @redocly/cli@2.51.1 lint docs/api/openapi.yaml
+      - name: The generated client matches the contract
+        # Twice now a contract edit shipped without regenerating the TypeScript client, and both
+        # times three gates were green: Gradle reads openapi.yaml but not the generated file,
+        # api-quality the same, and docs-contract linted the contract it had just changed. Only
+        # docker-integration saw it - the slowest gate in the repository, reached after the whole
+        # Compose stack is up. "I changed the contract and three checks passed" reads as safe.
+        #
+        # The version is read from the workspace rather than pinned here on purpose: two pins would
+        # be the same rule in two files, and one of them goes stale first.
+        run: |
+          version=$(node -p "require('./packages/api-client/package.json').devDependencies['openapi-typescript']")
+          npx --yes "openapi-typescript@${version}" docs/api/openapi.yaml \
+            -o "$RUNNER_TEMP/openapi.ts" --default-non-nullable=false
+          if ! diff -q "$RUNNER_TEMP/openapi.ts" packages/api-client/src/generated/openapi.ts; then
+            echo "::error::packages/api-client/src/generated/openapi.ts is out of date." \
+                 "Run: npm --workspace @nullnull/api-client run generate"
+            diff -u packages/api-client/src/generated/openapi.ts "$RUNNER_TEMP/openapi.ts" | head -40
+            exit 1
+          fi
+          echo "generated_client=matches"
       - name: Validate event examples against JSON Schema
         run: >-
           npx --yes --package ajv-cli@5.0.0 --package ajv-formats@3.0.1

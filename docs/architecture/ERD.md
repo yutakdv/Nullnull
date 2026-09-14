@@ -735,6 +735,16 @@ erDiagram
   낮출 수 없다(권리 회수와 같은 2단계).
 - 근거가 0건의 창을 갖는 것은 정상이다. "확인했고 확정할 수 없었다"와 "아무도 확인하지 않았다"는 다른 사실이며
   창만 저장하는 스키마는 둘을 같은 부재로 뭉갠다(불변식 6).
+- `place_relations`: unique `(source_place_id, target_place_id, source_code)`로 같은 canonical 쌍의 중복 후보가
+  한 행으로 수렴한다. 양끝은 ACTIVE canonical place여야 하며(그래서 호출자가 먼저 canonical로 해소한다) 자기
+  자신과의 관계는 거부한다. `relation_type`은 `EXACT`/`SIMILAR` 둘뿐이고 `NONE`/`CHECKING`/`UNKNOWN`은 저장값이
+  아니라 **조회 결과 상태**다(§5 `RelationType`).
+- `EXACT`는 `derivation = 'PROVIDER_DIRECT'`이고 `mapping_certainty = 'CONFIRMED'`일 때만 허용한다. 내부 규칙이
+  만든 후보는 아무리 확실해도 `SIMILAR`이고, 공식 provider 관계라도 mapping이 미확정이면 `SIMILAR`다
+  (`SOURCE_CATALOG` §4). `derivation = 'INTERNAL_RULE'`과 `source_code = 'NULLNULL_CATALOG_RULE'`은 서로를
+  함의하므로 내부 파생이 provider 이름을 빌리거나 그 반대가 되지 않는다.
+- `relation_reason`은 비어 있을 수 없고, `expires_at`은 null(무기한)이거나 `effective_at`보다 뒤여야 한다.
+  관계가 있다는 사실은 혼잡·경로 가능성에 대한 주장이 아니다(불변식 8).
 - 위경도는 허용 범위를 check하고 PostGIS 도입 전에는 numeric(9,6)을 사용한다. P0 nearby를 브라우저에서 처리하면 PostGIS는 보류 가능하다.
 - `post_places`: unique `(post_id, place_id)` 및 `(post_id, position)`.
 - `saved_posts`: primary key `(owner_id, post_id)`로 중복 저장 방지.
@@ -876,6 +886,7 @@ CREATE INDEX ON notifications (owner_id, read_at, created_at DESC);
 CREATE INDEX ON feed_feedback (owner_id, post_id, occurred_at DESC);
 CREATE UNIQUE INDEX ON place_hours_observations (place_id) WHERE superseded_at IS NULL;
 CREATE UNIQUE INDEX ON place_hours_windows (observation_id, effective_on);
+CREATE UNIQUE INDEX ON place_relations (source_place_id, target_place_id, source_code);
 CREATE INDEX ON crowd_snapshots (place_id, target_at DESC, source_code);
 CREATE INDEX ON crowd_snapshots (live_area_id, observed_at DESC, source_code);
 CREATE INDEX ON analytics_events (received_at);

@@ -1145,7 +1145,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "네 종류 독립 잠금과 동시 편집 충돌",
-      "status": "integration-ready",
+      "status": "verified",
       "dependsOn": [
         "BA-040"
       ],
@@ -1196,14 +1196,34 @@
       "handoff": "잠금 영향·해제 확인·LOCK_CONFLICT examples와 Figma state 연결.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-041"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-041",
+      "evidence": {
+        "report": "https://github.com/yutakdv/Nullnull/actions/runs/34755923070",
+        "contractSha": "3c99c012cf04cbce7fb9009c7e677dc621cf6a43",
+        "secondPass": "네 절을 그 ID를 단 testcase 본문과 대조했다. T1은 세 타입만 공존시키고 T2는 RESERVATION을 빠뜨리고 T3은 unlock 동시성 절이 비어 있었다. 셋 다 메운 뒤 다시 대조했고, T3의 동시성은 findForUpdate를 find로 바꾸면 빨개지는 것까지 확인했다.",
+        "provenBy": {
+          "BA-041-T1": [
+            "BA-041-T1 setting one lock leaves the other three exactly as they were"
+          ],
+          "BA-041-T2": [
+            "BA-041-T2 a lock the item already breaks is refused rather than stored"
+          ],
+          "BA-041-T3": [
+            "BA-041-T3 two unlocks racing on one item release exactly one lock, not both",
+            "BA-041-T3 a failed set leaves no row and no version change"
+          ],
+          "BA-041-T4": [
+            "BA-041-T4 a stale If-Match is refused and the trip version does not move"
+          ]
+        }
+      }
     },
     {
       "id": "BA-042",
       "phase": "B05",
       "priority": "P0",
       "title": "후보 slot 판정·비교 후 장소 교체",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-024",
         "BA-040",
@@ -1236,15 +1256,39 @@
       "tests": [
         {
           "id": "BA-042-T1",
-          "assertion": "날짜만 있는 slot/null time·DST·영업/route 결측을 구분한다"
+          "assertion": "suggestedTime이 있는 slot과 없는 slot을 구분한다"
         },
         {
           "id": "BA-042-T2",
-          "assertion": "replace 중간 실패와 stale relation/version은 일정 미변경이다"
+          "assertion": "거절된 replace는 일정을 바꾸지 않는다"
         },
         {
           "id": "BA-042-T3",
-          "assertion": "후보 linkage는 보존이 아니라 #165 Q2의 전이를 따르고(옛 장소는 ACTIVE 후보), 잠금 처리는 #199 결정에 따른다"
+          "assertion": "교체된 옛 장소는 ACTIVE 후보로 돌아온다"
+        },
+        {
+          "id": "BA-042-T4",
+          "assertion": "요청은 여행의 timezone과 여행의 날짜 범위를 그대로 싣는다"
+        },
+        {
+          "id": "BA-042-T5",
+          "assertion": "영업 근거가 없으면 eligible을 참으로 만들지 않고 그 사유를 낸다"
+        },
+        {
+          "id": "BA-042-T6",
+          "assertion": "평가기가 낸 사유 코드를 Spring이 뭉개지 않고 그대로 낸다"
+        },
+        {
+          "id": "BA-042-T7",
+          "assertion": "state 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다"
+        },
+        {
+          "id": "BA-042-T8",
+          "assertion": "replace는 MUST_VISIT과 RESERVATION을 releaseConstraints에 이름 대야 진행한다"
+        },
+        {
+          "id": "BA-042-T9",
+          "assertion": "stale If-Match는 replace를 거부한다"
         }
       ],
       "handoff": "comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture.",

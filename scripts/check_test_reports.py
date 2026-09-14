@@ -24,6 +24,13 @@ SCRIPT_SUITES = ("scriptTests",)
 # again: this evidence exists only inside the full Compose run, so a caller without it must
 # not be told a suite is missing.
 GATE_SUITES = ("gateChecks",)
+# Playwright's JUnit reporter. An acceptance ID owned by FE - BA-040-T4 is the keyboard and
+# focus E2E - is proven by a real test that this reader could not see, because it reads JUnit
+# and Playwright was configured with the line reporter. Moving such an ID to the frontend plan
+# would make it weaker, not visible: validate_frontend_plan.py compares a card's evidence to
+# the card's own test IDs and never opens a report (#208). So the ID stays where it is and
+# this reads the report instead.
+E2E_SUITES = ("e2e",)
 TEST_ID = re.compile(r"(?<![A-Za-z0-9_-])(?:BA-\d{3}-T\d+|REC-[A-Z]+-\d+)(?![A-Za-z0-9_-])")
 
 
@@ -216,6 +223,9 @@ def check_manifest(manifest: dict, ids: dict[str, set[str]],
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--junit-dir", type=Path, help="Root containing the four Gradle suite directories")
+    parser.add_argument("--e2e-junit-dir", type=Path,
+                        help="Root containing e2e/, written by Playwright's JUnit reporter. Only the "
+                             "full Compose gate runs the browser suite.")
     parser.add_argument("--gate-junit-dir", type=Path,
                         help="Root containing gateChecks/, written by record_gate_evidence.py. Only "
                              "the full Compose gate produces it.")
@@ -245,6 +255,9 @@ def main() -> int:
         if args.gate_junit_dir is not None:
             ids.update(read_junit(args.gate_junit_dir, args.run_start, errors, names,
                                   suites=GATE_SUITES))
+        if args.e2e_junit_dir is not None:
+            ids.update(read_junit(args.e2e_junit_dir, args.run_start, errors, names,
+                                  suites=E2E_SUITES))
         if args.backend_plan is not None:
             plan = read_object(args.backend_plan)
             required = required_plan_ids(plan)

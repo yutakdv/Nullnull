@@ -8,6 +8,7 @@ import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.shared.http.NullnullOperation.Security;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
+import io.nullnull.trip.application.CandidateMatchService;
 import io.nullnull.trip.application.CandidateService;
 import io.nullnull.trip.application.CandidateService.CandidatePageView;
 import io.nullnull.trip.application.CandidateService.SaveResult;
@@ -35,8 +36,11 @@ public class CandidateController {
 
     private final CandidateService candidates;
     private final CatalogPlaceProjectionService places;
+    private final CandidateMatchService matches;
 
-    public CandidateController(CandidateService candidates, CatalogPlaceProjectionService places) {
+    public CandidateController(CandidateService candidates, CatalogPlaceProjectionService places,
+            CandidateMatchService matches) {
+        this.matches = matches;
         this.candidates = candidates;
         this.places = places;
     }
@@ -83,6 +87,34 @@ public class CandidateController {
             @PathVariable UUID candidateId) {
         candidates.dismiss(owner, tripId, candidateId);
         return ResponseEntity.noContent().header("Cache-Control", "private, no-store").build();
+    }
+
+    @GetMapping(value = "/trips/{tripId}/candidates/{candidateId}/matches",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "getCandidateTripMatches", security = Security.SESSION)
+    public ResponseEntity<CandidateMatchResponse> matches(OwnerContext owner, @PathVariable UUID tripId,
+            @PathVariable UUID candidateId) {
+        return ResponseEntity.ok()
+                .header("Cache-Control", "private, no-store")
+                .body(CandidateMatchResponse.from(matches.matches(owner, tripId, candidateId)));
+    }
+
+    /** CandidateMatchResult. Slots carry a date and a verdict - never the place's own content. */
+    public record CandidateMatchResponse(UUID candidateId, String state, List<SlotResponse> slots) {
+
+        static CandidateMatchResponse from(CandidateMatchService.CandidateMatchView view) {
+            return new CandidateMatchResponse(view.candidateId(), view.state(),
+                    view.slots().stream().map(SlotResponse::from).toList());
+        }
+    }
+
+    public record SlotResponse(java.time.LocalDate date, java.time.LocalTime suggestedTime,
+            boolean eligible, String reasonCode) {
+
+        static SlotResponse from(CandidateMatchService.SlotView slot) {
+            return new SlotResponse(slot.date(), slot.suggestedTime(), slot.eligible(),
+                    slot.reasonCode());
+        }
     }
 
     /** Places come through the catalog's gated projection, the same as every other embedding. */
