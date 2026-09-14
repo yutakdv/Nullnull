@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.catalog.application.KtoGatewayException;
+import io.nullnull.catalog.application.KtoPlaceDetailFetcher;
 import io.nullnull.catalog.application.KtoPlaceDetailGateway;
 import io.nullnull.catalog.application.KtoPlaceSnapshotStore;
 import io.nullnull.catalog.domain.KtoPlaceSnapshot;
@@ -156,6 +157,48 @@ class KtoPlaceDetailGatewayIT {
         CollectorRunRecorder collector = new CollectorRunRecorder(audit, new SourceQuotaGuard(quotaStore, clock));
         return new KtoPlaceDetailGateway(snapshots, registry, registryStore, collector, client, clock,
                 transactionManager);
+    }
+
+    @Test
+    @DisplayName("#227 an unanticipated failure is not reported as a configuration problem")
+    void anUnanticipatedFailureKeepsItsOwnCode() {
+        CollectorRunRecorder collector =
+                new CollectorRunRecorder(audit, new SourceQuotaGuard(quotaStore, java.time.Clock.systemUTC()));
+        // A fetcher that is configured fine and throws for some other reason. The old catch-all
+        // answered KTO_NOT_CONFIGURED for anything that reached it, which sent whoever read the code
+        // to check an environment that was correct - twice, on the day #227 was written.
+        KtoPlaceDetailFetcher broken = new KtoPlaceDetailFetcher() {
+            @Override
+            public void requireConfigured() {
+                throw new IllegalStateException("a quota store that was not there");
+            }
+
+            @Override
+            public java.util.concurrent.CompletableFuture<io.nullnull.shared.provider.ProviderHttpClient.ProviderResponse> fetch(
+                    io.nullnull.catalog.application.KtoPlaceRequest request) {
+                throw new UnsupportedOperationException("never reached");
+            }
+
+            @Override
+            public String releaseVersion() {
+                return "test-release";
+            }
+        };
+        KtoPlaceDetailGateway gateway = new KtoPlaceDetailGateway(snapshots, registry, registryStore,
+                collector, broken, java.time.Clock.systemUTC(), transactionManager);
+
+        assertThatThrownBy(() -> gateway.detail("126511", "12").join())
+                .hasRootCauseInstanceOf(KtoGatewayException.class)
+                .rootCause()
+                .satisfies(cause -> {
+                    KtoGatewayException gatewayFailure = (KtoGatewayException) cause;
+                    assertThat(gatewayFailure.code())
+                            .isEqualTo(KtoGatewayException.Code.KTO_INTERNAL_FAILURE);
+                    // The type, so a reader can tell a provider refusal from a process that could not
+                    // start - and never the message, which here holds application detail.
+                    assertThat(gatewayFailure.failureType()).isEqualTo("IllegalStateException");
+                    assertThat(gatewayFailure.getMessage()).doesNotContain("quota store that was not there");
+                });
     }
 
     private static String response(String contentId, String title) {
