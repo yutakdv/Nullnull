@@ -223,8 +223,9 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
             # `verified` is the second pass, and what separates it from `integration-ready` is not a
             # signature. check_test_reports.py already proves, for both statuses alike, that each
             # acceptance ID APPEARS in some JUnit testcase name. Appearing is not proving: BA-002-T3
-            # carries its ID on twenty testcases and every one of them covers only the first of its
-            # two clauses. So `verified` asks the reviewer to NAME, per acceptance ID, the testcase
+            # carried its ID on twenty testcases and every one of them covered only the first of its
+            # two clauses, until #194 split the second one out as T4 and proved it. So `verified`
+            # asks the reviewer to NAME, per acceptance ID, the testcase
             # that proves it - which cannot be done for a clause nothing tests, and that refusal is
             # the whole point of the rung.
             #
