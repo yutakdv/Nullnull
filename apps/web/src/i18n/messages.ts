@@ -373,6 +373,16 @@ export const messages = {
     'run.failure.ROUTE_UNAVAILABLE': '경로 정보를 확인할 수 없어요',
     'run.failure.NO_IMPROVEMENT': '지금 일정보다 나은 대안을 찾지 못했어요',
     'run.failure.APPLY_FAILED': '적용하지 못했어요',
+    // AHEAD OF THE CONTRACT ON PURPOSE (#225). OptimizationFailure.code does not
+    // list DATA_INSUFFICIENT yet — BA-051 is adding it, and apps/ai already
+    // returns it from four places, so it arrives the moment that lands. FE went
+    // first because the reverse order is the one that shows users a broken
+    // screen: with the server ahead, an unknown code rendered the literal
+    // "undefined". The fallback below makes either order safe, so this is a
+    // spare key rather than a dependency.
+    //
+    // "아직" / "yet" carries retryable:true — the answer changes once a forecast
+    // arrives, which is what separates this from ROUTE_UNAVAILABLE.
     'run.failure.DATA_INSUFFICIENT': '아직 판단할 만큼 정보가 모이지 않았어요',
     // Shown for a failure code this build does not know. The server may add one
     // before a matching client ships, and the alternative was rendering the
@@ -963,6 +973,7 @@ export const messages = {
     'run.failure.ROUTE_UNAVAILABLE': "We can't check route information",
     'run.failure.NO_IMPROVEMENT': 'We found nothing better than your current plan',
     'run.failure.APPLY_FAILED': "We couldn't apply it",
+    // Ahead of the contract on purpose; see the ko-KR entry and #225.
     'run.failure.DATA_INSUFFICIENT': "We don't have enough information yet",
     'run.failure.unknown': "The optimization didn't finish",
     'run.unchanged': 'Your itinerary is unchanged',
