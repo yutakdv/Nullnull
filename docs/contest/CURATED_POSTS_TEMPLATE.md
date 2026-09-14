@@ -62,8 +62,20 @@ tags:
 | `cover.alt` | 필수. 이미지를 못 보는 사람에게 무엇이 보이는지 쓴다 |
 | `places` | 최소 1건, **`primary: true`가 정확히 하나**, 같은 장소를 두 번 넣지 않는다 |
 
-**`placeId`는 이미 카탈로그에 있는 장소여야 한다.** importer는 외부 호출을 하지 않고 장소
-행을 만들지 않는다. 없는 장소를 쓰면 거절된다.
+**`placeId`는 이미 카탈로그에 있는 장소여야 한다.** `CuratedPostImporter:136`이
+`catalog.summaries(...)`로 조회하고, 없으면 *"the catalog does not have as an active canonical
+row; a curated post cannot create a place"* 로 거절한다. importer는 외부 호출을 하지 않고 장소
+행을 만들지 않는다.
+
+> **그래서 이 작업에는 선행 조건이 있다 — 카탈로그가 먼저 채워져야 한다.**
+>
+> `packages/contracts/fixtures`의 장소 UUID는 **FE mock 값이라 쓸 수 없다.** 실제 UUID는 KTO
+> 수집이 만든 canonical 행에서 나오고, 그것은 `BA-021`(KTO 실제 gateway) 소관이다. 지금
+> `backend-plan.json` 기준 `BA-021`은 `in-progress`이고, `SUBMISSION_RUNBOOK:124`도
+> *"catalog 게이트가 열린 뒤여야 실데이터가 나오므로 1·2·3·5번은 그 이후에 찍는다"* 고 적는다.
+>
+> 즉 **본문·제목·표지는 지금 쓸 수 있고, `placeId`만 게이트가 열린 뒤 채운다.** 먼저 쓰고
+> 나중에 id를 넣는 순서가 가능하므로, 이 문서는 그 전제로 읽으면 된다.
 
 ## 내용을 쓸 때 지켜야 하는 것
 

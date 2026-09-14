@@ -373,6 +373,11 @@ export const messages = {
     'run.failure.ROUTE_UNAVAILABLE': '경로 정보를 확인할 수 없어요',
     'run.failure.NO_IMPROVEMENT': '지금 일정보다 나은 대안을 찾지 못했어요',
     'run.failure.APPLY_FAILED': '적용하지 못했어요',
+    'run.failure.DATA_INSUFFICIENT': '아직 판단할 만큼 정보가 모이지 않았어요',
+    // Shown for a failure code this build does not know. The server may add one
+    // before a matching client ships, and the alternative was rendering the
+    // literal string "undefined" into the error screen.
+    'run.failure.unknown': '최적화를 마치지 못했어요',
     // 불변식 3·4: 실패·만료·KEEP 어느 쪽도 일정을 바꾸지 않는다.
     'run.unchanged': '일정은 그대로예요',
     'trip.optimize': 'AI로 일정 최적화',
@@ -958,6 +963,8 @@ export const messages = {
     'run.failure.ROUTE_UNAVAILABLE': "We can't check route information",
     'run.failure.NO_IMPROVEMENT': 'We found nothing better than your current plan',
     'run.failure.APPLY_FAILED': "We couldn't apply it",
+    'run.failure.DATA_INSUFFICIENT': "We don't have enough information yet",
+    'run.failure.unknown': "The optimization didn't finish",
     'run.unchanged': 'Your itinerary is unchanged',
     'trip.optimize': 'Optimize with AI',
     'trip.edit': 'Edit itinerary',
