@@ -54,7 +54,15 @@ class KtoPlaceDetailGatewayIT {
 
     @AfterEach
     void removeOnlyC2FixtureEvidence() {
-        jdbc.update("DELETE FROM kto_place_snapshots");
+        // The same scope the audit cleanup below already uses, rather than the whole table. A
+        // snapshot is reachable only through the run that wrote it, and every run this class makes
+        // carries the gateway's own request_id prefix - so this names its rows without needing an
+        // id list. It runs FIRST because the snapshot references the run.
+        jdbc.execute("""
+                DELETE FROM kto_place_snapshots WHERE collector_run_id IN (
+                    SELECT collector_run_id FROM api_ingest_logs
+                    WHERE request_id LIKE 'kto-detail-%')
+                """);
         jdbc.execute("""
                 WITH removed AS (
                     DELETE FROM api_ingest_logs WHERE request_id LIKE 'kto-detail-%'
