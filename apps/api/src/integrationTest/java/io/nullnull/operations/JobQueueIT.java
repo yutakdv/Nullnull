@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -168,13 +169,23 @@ class JobQueueIT {
      */
     @BeforeEach
     void clearTheQueue() {
-        jdbc.update("DELETE FROM deletion_tombstones");
-        jdbc.update("DELETE FROM deletion_requests");
-        jdbc.update("DELETE FROM idempotency_records");
-        jdbc.update("DELETE FROM background_jobs");
-        // Shared Compose DB retains earlier identity fixtures; clear children before owners.
-        jdbc.update("DELETE FROM demo_sessions");
-        jdbc.update("DELETE FROM owners");
+        // Only this class's own job types. The gate runs every suite against one database, so an
+        // unscoped DELETE here took every other class's jobs, owners and sessions with it - and the
+        // five tables that used to be cleared alongside were only ever cleared so that a global
+        // count of owners would mean something. That count now names its own rows instead.
+        jdbc.update("DELETE FROM background_jobs WHERE type LIKE 'queue-test%'");
+        // The prefix, not the constant: this class also enqueues queue-test-other to prove a claim
+        // never crosses types, and the retention sweep counts whatever is past retention in the
+        // whole table - so a leftover of either type is read as this test's result.
+    }
+
+    @AfterEach
+    void removeWhatThisClassEnqueued() {
+        // Also at the END, because one of these rows is read by a query that cannot be
+        // scoped: the jobs readiness probe reports DEGRADED for ANY dead letter in the
+        // table. A class that leaves one makes the next class's readiness test fail, and
+        // no WHERE in that test can help - the probe is global because production is.
+        jdbc.update("DELETE FROM background_jobs WHERE type LIKE 'queue-test%'");
     }
 
     @Test
@@ -360,7 +371,7 @@ class JobQueueIT {
         queue.complete(second.lease(), clock.instant());
 
         assertThat(owners.findById(bySecond.id())).isPresent();
-        assertThat(ownerCount()).as("the work committed exactly once").isOne();
+        assertThat(ownerCount(attempted.id(), bySecond.id())).as("the work committed exactly once").isOne();
     }
 
     @Test
@@ -471,8 +482,17 @@ class JobQueueIT {
         assertThat(recordExists(expired)).isFalse();
     }
 
-    private int ownerCount() {
-        return jdbc.queryForObject("SELECT count(*) FROM owners", Integer.class);
+    /**
+     * How many of the owners this test could have created actually exist.
+     *
+     * <p>It used to count the whole table, which was only true because the class emptied `owners`
+     * before every test - and that DELETE took every other class's owners with it. The property
+     * being asserted was never "the database holds one owner"; it was "the work committed once",
+     * and that is about the owners THIS test attempted.
+     */
+    private int ownerCount(UUID... attempted) {
+        return jdbc.queryForObject("SELECT count(*) FROM owners WHERE id = ANY (?)", Integer.class,
+                (Object) attempted);
     }
 
     private String errorCode(UUID jobId) {

@@ -143,8 +143,20 @@ class JobCrashRetryIT {
         firstAttemptEntered = new CountDownLatch(1);
         releaseTheHungAttempt = new CountDownLatch(1);
         invocations = new AtomicInteger();
-        jdbc.update("DELETE FROM idempotency_records");
-        jdbc.update("DELETE FROM background_jobs");
+        // Only this class's own job types. The gate runs every suite against one database, so an
+        // unscoped DELETE here took every other class's jobs, owners and sessions with it - and the
+        // five tables that used to be cleared alongside were only ever cleared so that a global
+        // count of owners would mean something. That count now names its own rows instead.
+        jdbc.update("DELETE FROM background_jobs WHERE type = ?", TYPE);
+    }
+
+    @AfterEach
+    void removeWhatThisClassEnqueued() {
+        // Also at the END, because one of these rows is read by a query that cannot be
+        // scoped: the jobs readiness probe reports DEGRADED for ANY dead letter in the
+        // table. A class that leaves one makes the next class's readiness test fail, and
+        // no WHERE in that test can help - the probe is global because production is.
+        jdbc.update("DELETE FROM background_jobs WHERE type = ?", TYPE);
     }
 
     @AfterEach
