@@ -1207,7 +1207,7 @@ FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무�
 
 ### BA-040
 
-**일정 item 추가·이동·수정·삭제·순서** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**일정 item 추가·이동·수정·삭제·순서** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-031](#ba-031), [BA-034](#ba-034)
 - 기능 ID: `FR-ITM-01`, `FR-ITM-02`, `FR-ITM-03`, `FR-ITM-04`, `FR-ITM-05`, `FR-ITM-06`, `FR-TRP-02`, `FR-TRP-03`
@@ -1605,7 +1605,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-070
 
-**전체 권한·privacy·부하·접근성 통합** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**전체 권한·privacy·부하·접근성 통합** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-006](#ba-006), [BA-012](#ba-012), [BA-033](#ba-033), [BA-034](#ba-034), [BA-042](#ba-042), [BA-053](#ba-053), [BA-060](#ba-060)
 - 기능 ID: `NFR-A11Y-01`, `NFR-A11Y-02`, `NFR-AVL-01`, `NFR-PERF-01`, `NFR-PERF-02`, `NFR-RESP-01`

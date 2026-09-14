@@ -145,6 +145,30 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
             test_ids.append(ident)
             if not isinstance(test.get('assertion'), str) or not test['assertion'].strip():
                 problems.append(f'{tid}: missing assertion for {ident}')
+            # A clause the OTHER role owns. check_test_reports.py stops requiring a JUnit testcase
+            # for it, so this is the one place where a card can be promoted while a clause is
+            # unproven here - and it is shaped like the oasdiff exceptions for that reason: a
+            # reason and a tracking issue, or it is not an exception, it is a hole.
+            #
+            # The case it exists for: BA-040-T4 and BA-070-T5 are keyboard/focus E2E in apps/web.
+            # The aggregator reads JUnit testcase names and integration-test.sh does not pass
+            # --e2e-junit-dir, so those IDs cannot appear however well FE implements them - and the
+            # two cards were unpromotable forever. Moving them to the frontend plan is not the
+            # answer either: validate_frontend_plan.py never opens a report, so the ID would go
+            # from "the aggregator cannot see it" to "nothing verifies it".
+            external = test.get('externalOwner')
+            if external is not None:
+                if not isinstance(external, dict):
+                    problems.append(f'{tid}: externalOwner for {ident} must be an object')
+                    continue
+                if external.get('role') not in ('FE',):
+                    problems.append(f'{tid}: externalOwner for {ident} needs a known role')
+                for field in ('reason', 'issue'):
+                    value = external.get(field)
+                    if not isinstance(value, str) or not value.strip():
+                        problems.append(f'{tid}: externalOwner for {ident} needs a {field}')
+                if not re.fullmatch(r'#\d+', str(external.get('issue', ''))):
+                    problems.append(f'{tid}: externalOwner issue for {ident} must be #<number>')
         card = card_sections.get(tid, '')
         # Keep machine metadata and human task cards synchronized.
         #

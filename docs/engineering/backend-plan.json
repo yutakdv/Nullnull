@@ -1220,7 +1220,7 @@
       "phase": "B05",
       "priority": "P0",
       "title": "일정 item 추가·이동·수정·삭제·순서",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-031",
         "BA-034"
@@ -1275,7 +1275,12 @@
         },
         {
           "id": "BA-040-T4",
-          "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)"
+          "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "issue": "#233"
+          }
         },
         {
           "id": "BA-040-T5",
@@ -1921,7 +1926,7 @@
       "phase": "B08",
       "priority": "P0",
       "title": "전체 권한·privacy·부하·접근성 통합",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-006",
         "BA-012",
@@ -1969,7 +1974,12 @@
         },
         {
           "id": "BA-070-T5",
-          "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)"
+          "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "issue": "#233"
+          }
         }
       ],
       "handoff": "오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로.",

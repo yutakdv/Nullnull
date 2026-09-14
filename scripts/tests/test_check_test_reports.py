@@ -70,6 +70,27 @@ class ReportTests(unittest.TestCase):
         self.rejected(self.run_check("--backend-plan", self.root / "plan.json"), "BA-099-T1 missing")
         self.rejected(self.run_check("--manifest", self.root / "manifest.json"), "REC-DATA-02 missing")
 
+    def test_a_clause_the_other_role_owns_is_not_required_but_is_announced(self):
+        """A clause marked externalOwner stops being required here - and is printed, because an
+        exemption nobody sees is how a gate quietly stops asking. The plan validator enforces the
+        marker's shape (role, reason, tracking issue); this only honours it."""
+        plan = {"tasks": [{"id": "BA-099", "status": "integration-ready", "tests": [
+            {"id": "BA-099-T1"},
+            {"id": "BA-099-T2", "externalOwner": {"role": "FE", "reason": "Playwright",
+                                                  "issue": "#233"}}]}]}
+        (self.root / "plan.json").write_text(json.dumps(plan))
+        result = self.check()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("acceptance_ids_owned_elsewhere=BA-099-T2(FE,#233)", result.stdout)
+
+    def test_an_unmarked_missing_clause_still_fails(self):
+        """The exemption must not become a way to stop asking about everything else."""
+        plan = {"tasks": [{"id": "BA-099", "status": "integration-ready", "tests": [
+            {"id": "BA-099-T1"},
+            {"id": "BA-099-T2"}]}]}
+        (self.root / "plan.json").write_text(json.dumps(plan))
+        self.rejected(self.check(), "BA-099-T2 missing")
+
     def test_BA_004_T1_failure_error_skip_counts_and_children(self):
         """BA-004-T1 실패·오류·skip이 든 report를 evidence checker가 거부한다"""
         for tag, counter in (("failure", "failures"), ("error", "errors"), ("skipped", "skipped")):

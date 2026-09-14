@@ -32,7 +32,13 @@ from pathlib import Path
 # A cited name: CamelCase ending in Test or IT, at least two segments so "IT" alone is not one.
 # The char before the suffix must be lower-case or a digit, or every SCREAMING_CASE word ending
 # in IT is a citation - COMMIT was the first false positive this produced.
-CITATION = re.compile(r"\b([A-Z][A-Za-z0-9]*[a-z0-9](?:Test|IT))\b")
+# An `@` in front means the name is an ANNOTATION, not a class this repository was supposed to
+# declare. `@SpringBootTest` is the one that actually broke the gate: seven files gained a comment
+# explaining that each distinct `@SpringBootTest` configuration gets its own container, and this
+# check reported all seven as citing a class nobody built. A check that cries wolf is worse than no
+# check, because the next real finding reads as another false one - and this was the SECOND such
+# false positive in one day from a check written to stop exactly that.
+CITATION = re.compile(r"(?<![@\w])([A-Z][A-Za-z0-9]*[a-z0-9](?:Test|IT))\b")
 
 # Comment bodies only. Code that REFERENCES a class cannot be wrong about it - the compiler already
 # refused. Only prose can name something that is not there.
@@ -42,6 +48,12 @@ LINE_COMMENT = re.compile(r"//[^\n]*")
 # Names that are shaped like a citation but are not classes this repository owns.
 ALLOWED_PROSE = {
     "IT",  # the bare word, filtered by the pattern already but kept explicit
+    # Spring's own test annotations. They are shaped exactly like a citation and this repository
+    # will never declare them, so a comment naming one is prose about the framework, not a claim
+    # that a device exists here. Listed rather than pattern-matched: the list is short, and a
+    # pattern wide enough to cover it would start swallowing real citations.
+    "SpringBootTest", "DataJpaTest", "WebMvcTest", "JsonTest", "JdbcTest", "RestClientTest",
+    "ParameterizedTest", "RepeatedTest", "TestcontainersTest",
 }
 
 

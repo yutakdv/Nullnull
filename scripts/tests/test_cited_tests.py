@@ -82,6 +82,26 @@ class CitedTestsCheck(unittest.TestCase):
             result = self.run_check(directory)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_an_annotation_is_not_a_citation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # What actually broke the gate: seven files gained a comment explaining that each
+            # distinct @SpringBootTest configuration gets its own container, and every one was
+            # reported as citing a class nobody built. The @ is the tell - it names an annotation.
+            self.tree(directory, {
+                "Thing.java": "/** Every {@code @SpringBootTest} configuration gets one. */\n"
+                              "class Thing {}\n"})
+            result = self.run_check(directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_spring_annotation_named_without_its_at_sign_is_not_a_citation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # Prose drops the @ as often as it keeps it, and this repository will never declare
+            # SpringBootTest, so naming it is a statement about the framework.
+            self.tree(directory, {
+                "Thing.java": "// A SpringBootTest context is expensive to build.\nclass Thing {}\n"})
+            result = self.run_check(directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_a_root_with_no_java_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_check(directory)

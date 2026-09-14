@@ -116,6 +116,7 @@ def required_plan_ids(plan: dict) -> set[str]:
     if not isinstance(tasks, list) or not tasks:
         raise ValueError("backend plan: non-empty tasks list required")
     result: set[str] = set()
+    excluded: list[str] = []
     for task in tasks:
         if not isinstance(task, dict) or not isinstance(task.get("status"), str):
             raise ValueError("backend plan: invalid task/status")
@@ -128,7 +129,19 @@ def required_plan_ids(plan: dict) -> set[str]:
             ident = test.get("id") if isinstance(test, dict) else None
             if not isinstance(ident, str) or not re.fullmatch(r"BA-\d{3}-T\d+", ident):
                 raise ValueError("backend plan: invalid acceptance ID")
+            # A clause the other role owns is not required to appear here - it cannot. FE-owned
+            # acceptance lives in Playwright, integration-test.sh does not pass --e2e-junit-dir,
+            # and the ID would never reach a JUnit name however well FE implemented it. The shape
+            # of the marker (role, reason, tracking issue) is validate_backend_plan.py's to
+            # enforce; this honours it and PRINTS it, because an exemption nobody sees is how a
+            # gate quietly stops asking.
+            external = test.get("externalOwner")
+            if isinstance(external, dict) and external.get("role"):
+                excluded.append(f'{ident}({external["role"]},{external.get("issue", "no-issue")})')
+                continue
             result.add(ident)
+    if excluded:
+        print("acceptance_ids_owned_elsewhere=" + " ".join(sorted(excluded)))
     return result
 
 

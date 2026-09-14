@@ -49,6 +49,25 @@ class BackendPlanTests(unittest.TestCase):
         validate(ROOT, errors)
         self.assertEqual([], errors)
 
+    def test_an_external_owner_marker_needs_a_reason_and_a_tracking_issue(self):
+        """The one place a card can be promoted while a clause is unproven here, so it is shaped
+        like the oasdiff exceptions: a role, a reason and a tracking issue, or it is not an
+        exception - it is a hole. A bare {"role": "FE"} would be a way to promote anything."""
+        def marked(value):
+            def mutate(plan):
+                clause = next(c for task in plan['tasks'] for c in task['tests']
+                              if c.get('externalOwner'))
+                clause['externalOwner'] = value
+            return mutate
+        for broken, expected in (
+                ({'role': 'FE', 'reason': 'x'}, 'needs a issue'),
+                ({'role': 'FE', 'issue': '#233'}, 'needs a reason'),
+                ({'role': 'BE', 'reason': 'x', 'issue': '#233'}, 'needs a known role'),
+                ({'role': 'FE', 'reason': 'x', 'issue': 'later'}, 'must be #<number>'),
+                ('FE', 'must be an object')):
+            with self.subTest(broken=broken):
+                self.check_mutation(marked(broken), expected)
+
     def test_dated_evidence_link_is_not_a_calendar_estimate(self):
         self.assertFalse(has_calendar_estimate('[PM 검토](../project/PM_REVIEW_2026-09-06.md)'))
 
