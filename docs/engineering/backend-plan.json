@@ -1455,7 +1455,7 @@
       "featureIds": [],
       "figmaNodes": [],
       "designRequests": [],
-      "entities": "CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면",
+      "entities": "CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면. cursor가 응답 유래 값(공개 시각·여행 시작일·장소 이름)을 나르는 것은 access log가 query string을 남기지 않는다는 전제 위에 있고 앱 안쪽은 BA-070-T2가 고정한다. ALB 등 앱 밖의 log는 BA-071에서 같은 전제를 확인한다.",
       "steps": [
         "CursorClaims에 정렬 키를 담는 field를 더하고 codec payload와 서명에 포함한다",
         "네 표면의 조회를 OFFSET에서 정렬 키 비교로 바꾼다",
@@ -1479,6 +1479,10 @@
         {
           "id": "BA-027-T4",
           "assertion": "cursor를 쓰는 목록 표면 전부가 이 검사에 들어온다"
+        },
+        {
+          "id": "BA-027-T5",
+          "assertion": "다른 정렬에서 발급된 cursor는 재개되지 않고 거절된다"
         }
       ],
       "handoff": "기존 cursor가 무효가 되는 배포 창과 그때 화면이 무엇을 하는지.",

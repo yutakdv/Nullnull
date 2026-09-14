@@ -1099,7 +1099,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - 기능 ID: 해당 없음
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면
+- 데이터·정책: CursorClaims · SignedCursorCodec · feed/후보/여행/검색 네 표면. cursor가 응답 유래 값(공개 시각·여행 시작일·장소 이름)을 나르는 것은 access log가 query string을 남기지 않는다는 전제 위에 있고 앱 안쪽은 BA-070-T2가 고정한다. ALB 등 앱 밖의 log는 BA-071에서 같은 전제를 확인한다.
 
 착수 사유([#222](https://github.com/yutakdv/Nullnull/issues/222)): `CursorClaims.nextOrdinal`은 **얼어붙은 snapshot 안의 순번**으로 설계됐는데(`RECOMMENDATION_ALGORITHM.md` §5.1) 구현은 순번만 가져오고 snapshot을 두고 왔다 — `feed_snapshots`·`feed_snapshot_entries` migration이 **0건**이다. live table에 붙은 순번은 그냥 `OFFSET`이고, 집합이 페이지 사이에 변하면 **중복과 누락**을 만든다.
 
@@ -1165,20 +1165,30 @@ ORDER BY와 불일치**하고, 그게 이 카드가 없애려는 누락을 그�
 - `BA-027-T2`: 페이지 사이에 행이 사라져도 안 본 행을 건너뛰지 않는다
 - `BA-027-T3`: cursor는 정렬 키를 담고 위치를 담지 않는다
 - `BA-027-T4`: cursor를 쓰는 목록 표면 전부가 이 검사에 들어온다
+- `BA-027-T5`: 다른 정렬에서 발급된 cursor는 재개되지 않고 거절된다
 
-넷 모두 `CursorSurfaceMatrixIT`(`apps/api/src/integrationTest/java/io/nullnull/`)에 있고 report는
+다섯 모두 `CursorSurfaceMatrixIT`(`apps/api/src/integrationTest/java/io/nullnull/`)에 있고 report는
 `apps/api/build/test-results/integrationTest/`다. `T3`이 *두 절을 한 testcase로* 증명하는 방식은
 이렇다: **같은 마지막 행**에 대해 그 행이 넷 중 둘째일 때와 다섯 중 셋째일 때 cursor를 각각 발급하고
 두 cursor가 **같은 자리에서 재개하는지** 본다. 키를 담으면 둘은 구분되지 않고, 순번을 담으면 두 행
 어긋난다 — 한쪽 절만 도는 test가 다른 절을 놓칠 여지가 없다.
 
+**`T5`는 기제가 나머지와 다르다.** `T1`~`T4`는 *같은 정렬 안에서* 위치 대신 키를 쓰는 이야기이고,
+`T5`는 *정렬이 바뀌었을 때* 키가 이름을 잃는 이야기다. 순번은 어느 정렬에서도 같은 뜻이지만 키는
+**그 정렬이 행을 부르는 이름**이라, 다른 정렬의 키를 먹으면 서명·owner·만료가 전부 온전한 채로
+엉뚱한 자리에서 재개한다. `searchPlaces`에만 있던 검사를 나머지 셋에 맞춘 것이고, 정본은
+`CLAUDE.md`의 *"cursor는 sort·filter·expiry에 결합한다"* 다. 그 test의 **같은 claim 재서명이
+200이어야 한다는 단언**이 공허함을 막는다 — 없으면 재서명된 cursor를 전부 거절하는(또는 아무 cursor도
+받지 않는) 표면이 아무것도 재지 않은 채 통과한다.
+
 **변이 검증(규칙 7②).** 네 store의 keyset 술어를 죽이자 `T1`·`T2`·`T3`이 빨개졌고 **실패 메시지가
 네 표면을 전부 이름으로 지목했다** — 표면마다 fixture가 실제로 그 경로를 도는지까지 그 목록이
-보여준다. 표면 하나를 matrix에서 빼자 `T4`가 빨개지며 미라우팅 둘을 이름으로 댔다.
+보여준다. 표면 하나를 matrix에서 빼자 `T4`가 빨개지며 미라우팅 둘을 이름으로 댔다. 네 곳의 `sortVersion`
+검사를 지우자 `T5`가 빨개지며 **네 표면이 전부 200으로 재개한 것**을 보였다.
 `CursorSortKey.decode`의 거절을 완화하자 legacy cursor test가 빨개졌다. **그 실행에서 matrix는
 `NO REPORT`였다** — `test`가 먼저 죽어 `integrationTest`가 아예 돌지 않았고, report 없음을 실패
 0건으로 읽지 않기 위해 집계 script가 그 둘을 다른 말로 출력한다. 되돌린 뒤 `test`(411)·
-`integrationTest`(381)·`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
+`integrationTest`(382)·`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
 
 `T4`가 이 카드의 수명을 정한다. 네 표면을 손으로 적은 검사는 **다섯째가 생기는 날 조용히 낡고 그 다섯째가 같은 결함을 갖고 태어난다.** [BA-070](#ba-070)의 `T1`이 계약에서 trip-scoped operation을 읽어 matrix를 만드는 것과 같은 모양으로 표면 목록을 코드에서 끌어온다.
 

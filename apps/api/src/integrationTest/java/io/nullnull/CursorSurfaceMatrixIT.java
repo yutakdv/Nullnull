@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.shared.cursor.CursorClaims;
+import io.nullnull.shared.cursor.SignedCursorCodec;
 import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -15,6 +17,7 @@ import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -33,6 +36,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -80,6 +84,9 @@ class CursorSurfaceMatrixIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
     @Autowired ApplicationContext context;
+    @Autowired io.nullnull.social.application.FeedCursorProperties feedCursors;
+    @Autowired io.nullnull.trip.application.TripCursorProperties tripCursors;
+    @Autowired io.nullnull.catalog.application.CatalogPublicationProperties catalogPublication;
 
     // ---------------------------------------------------------------- tests
 
@@ -184,6 +191,34 @@ class CursorSurfaceMatrixIT {
                 .containsExactlyInAnyOrderElementsOf(routed);
     }
 
+    @Test
+    @DisplayName("BA-027-T5 a cursor issued under another sort order is refused rather than resumed")
+    void aCursorFromAnotherSortOrderIsRefused() throws Exception {
+        Map<String, String> resumed = new LinkedHashMap<>();
+        for (Surface surface : surfaces().values()) {
+            SessionService.Bootstrap reader = surface.seed();
+            String issued = surface.page(reader, null, 2).nextCursor();
+            assertThat(issued).as(surface.operationId + " hands out a cursor").isNotNull();
+
+            // An offset was a number, and a number means the same thing under any ordering. A key is
+            // the name the ordering gives a row, so feeding one order's key to another resumes at a
+            // place nobody asked for - silently, because everything else about the cursor is intact.
+            //
+            // The identity re-issue is what keeps this honest: it changes nothing but the signature,
+            // and it must still be accepted. Without it a surface that rejected every re-signed
+            // cursor - or every cursor at all - would pass while measuring nothing.
+            assertThat(surface.call(reader, reissued(surface.codec(), issued, 0), 2).getResponse().getStatus())
+                    .as(surface.operationId + " the same claims re-signed are still accepted")
+                    .isEqualTo(200);
+
+            var response = surface.call(reader, reissued(surface.codec(), issued, 1), 2).getResponse();
+            if (response.getStatus() != 400 || !response.getContentAsString().contains("CURSOR_INVALID")) {
+                resumed.put(surface.operationId, response.getStatus() + " " + response.getContentAsString());
+            }
+        }
+        assertThat(resumed).as("surfaces that accepted a cursor minted under a different sort order").isEmpty();
+    }
+
     // ---------------------------------------------------------------- spec
 
     /**
@@ -273,9 +308,12 @@ class CursorSurfaceMatrixIT {
     private abstract class Surface {
 
         final String operationId;
+        /** {@code items[].<nested>.id} where the item wraps the row, or null for {@code items[].id}. */
+        private final String nested;
 
-        Surface(String operationId) {
+        Surface(String operationId, String nested) {
             this.operationId = operationId;
+            this.nested = nested;
         }
 
         /** Creates {@link #SEEDED} rows and returns the session that can read them. */
@@ -286,7 +324,14 @@ class CursorSurfaceMatrixIT {
 
         abstract void remove(UUID id);
 
-        abstract Page page(SessionService.Bootstrap reader, String cursor, int limit) throws Exception;
+        abstract MvcResult call(SessionService.Bootstrap reader, String cursor, int limit) throws Exception;
+
+        /** The codec that signs this surface's cursors, so a test can re-issue one it already holds. */
+        abstract SignedCursorCodec codec();
+
+        Page page(SessionService.Bootstrap reader, String cursor, int limit) throws Exception {
+            return read(call(reader, cursor, limit).getResponse().getContentAsString(), nested);
+        }
     }
 
     private final class FeedSurface extends Surface {
@@ -294,7 +339,12 @@ class CursorSurfaceMatrixIT {
         private UUID place;
 
         FeedSurface() {
-            super("listFeed");
+            super("listFeed", "post");
+        }
+
+        @Override
+        SignedCursorCodec codec() {
+            return feedCursors.cursorCodec();
         }
 
         @Override
@@ -322,12 +372,12 @@ class CursorSurfaceMatrixIT {
         }
 
         @Override
-        Page page(SessionService.Bootstrap reader, String cursor, int limit) throws Exception {
+        MvcResult call(SessionService.Bootstrap reader, String cursor, int limit) throws Exception {
             var request = get("/api/v1/feed").param("limit", Integer.toString(limit)).cookie(cookie(reader));
             if (cursor != null) {
                 request.param("cursor", cursor);
             }
-            return read(mvc.perform(request).andReturn().getResponse().getContentAsString(), "post");
+            return mvc.perform(request).andReturn();
         }
 
         private UUID post(String title, Instant publishedAt) {
@@ -353,7 +403,12 @@ class CursorSurfaceMatrixIT {
         private SessionService.Bootstrap reader;
 
         CandidateSurface() {
-            super("listTripCandidates");
+            super("listTripCandidates", null);
+        }
+
+        @Override
+        SignedCursorCodec codec() {
+            return tripCursors.cursorCodec();
         }
 
         @Override
@@ -386,13 +441,13 @@ class CursorSurfaceMatrixIT {
         }
 
         @Override
-        Page page(SessionService.Bootstrap owner, String cursor, int limit) throws Exception {
+        MvcResult call(SessionService.Bootstrap owner, String cursor, int limit) throws Exception {
             var request = get("/api/v1/trips/" + tripId + "/candidates")
                     .param("limit", Integer.toString(limit)).cookie(cookie(owner));
             if (cursor != null) {
                 request.param("cursor", cursor);
             }
-            return read(mvc.perform(request).andReturn().getResponse().getContentAsString(), null);
+            return mvc.perform(request).andReturn();
         }
 
         private UUID candidate() throws Exception {
@@ -416,7 +471,12 @@ class CursorSurfaceMatrixIT {
         private SessionService.Bootstrap reader;
 
         TripSurface() {
-            super("listTrips");
+            super("listTrips", null);
+        }
+
+        @Override
+        SignedCursorCodec codec() {
+            return tripCursors.cursorCodec();
         }
 
         @Override
@@ -441,12 +501,12 @@ class CursorSurfaceMatrixIT {
         }
 
         @Override
-        Page page(SessionService.Bootstrap owner, String cursor, int limit) throws Exception {
+        MvcResult call(SessionService.Bootstrap owner, String cursor, int limit) throws Exception {
             var request = get("/api/v1/trips").param("limit", Integer.toString(limit)).cookie(cookie(owner));
             if (cursor != null) {
                 request.param("cursor", cursor);
             }
-            return read(mvc.perform(request).andReturn().getResponse().getContentAsString(), null);
+            return mvc.perform(request).andReturn();
         }
     }
 
@@ -455,7 +515,12 @@ class CursorSurfaceMatrixIT {
         private String token;
 
         PlaceSearchSurface() {
-            super("searchPlaces");
+            super("searchPlaces", null);
+        }
+
+        @Override
+        SignedCursorCodec codec() {
+            return catalogPublication.cursorCodec();
         }
 
         @Override
@@ -484,12 +549,11 @@ class CursorSurfaceMatrixIT {
         }
 
         @Override
-        Page page(SessionService.Bootstrap reader, String cursor, int limit) throws Exception {
+        MvcResult call(SessionService.Bootstrap reader, String cursor, int limit) throws Exception {
             String body = "{\"query\":\"" + token + "\",\"limit\":" + limit
                     + (cursor == null ? "" : ",\"cursor\":\"" + cursor + "\"") + "}";
-            return read(mvc.perform(post("/api/v1/places/search").cookie(cookie(reader))
-                            .header("Origin", ORIGIN).contentType("application/json").content(body))
-                    .andReturn().getResponse().getContentAsString(), null);
+            return mvc.perform(post("/api/v1/places/search").cookie(cookie(reader))
+                    .header("Origin", ORIGIN).contentType("application/json").content(body)).andReturn();
         }
     }
 
@@ -530,6 +594,21 @@ class CursorSurfaceMatrixIT {
             throw new IllegalStateException("trip fixture failed: " + body);
         }
         return id.stringValue();
+    }
+
+    /**
+     * The same cursor re-signed, with {@code sortVersionDelta} added to its sort version.
+     *
+     * <p>The claims are read out of the payload rather than rebuilt from per-surface constants: the
+     * snapshot id, context and owner binding a surface uses are its own business, and a test that
+     * restated them here would drift from whichever surface changed one.
+     */
+    private static String reissued(SignedCursorCodec codec, String cursor, int sortVersionDelta) {
+        String[] parts = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8)
+                .split("\\|", -1);
+        return codec.encode(new CursorClaims(parts[0], parts[1], parts[2], parts[3],
+                Integer.parseInt(parts[4]) + sortVersionDelta,
+                Instant.ofEpochSecond(Long.parseLong(parts[5])), parts[6]));
     }
 
     /** {@code items[].id}, or {@code items[].<nested>.id} where the item wraps the row. */
