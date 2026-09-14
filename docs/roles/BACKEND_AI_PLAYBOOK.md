@@ -1188,7 +1188,10 @@ ORDER BY와 불일치**하고, 그게 이 카드가 없애려는 누락을 그�
 `CursorSortKey.decode`의 거절을 완화하자 legacy cursor test가 빨개졌다. **그 실행에서 matrix는
 `NO REPORT`였다** — `test`가 먼저 죽어 `integrationTest`가 아예 돌지 않았고, report 없음을 실패
 0건으로 읽지 않기 위해 집계 script가 그 둘을 다른 말로 출력한다. 되돌린 뒤 `test`(411)·
-`integrationTest`(382)·`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
+`integrationTest`(382)·`openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다 —
+**`4aebbe8` 위의 격리 worktree에서 잰 값이다.** 총계의 절대값은 그것을 잰 commit이 있어야 뜻이 있다:
+서로 다른 commit에서 만든 두 worktree는 그 사이에 늘어난 testcase만큼 어긋나고, 그것을 *"한쪽이
+자기 파일을 안 봤다"* 로 읽으면 **둘 다 옳은데 한쪽을 틀렸다고 결론낸다**(`AGENTS.md` 규칙 6).
 
 `T4`가 이 카드의 수명을 정한다. 네 표면을 손으로 적은 검사는 **다섯째가 생기는 날 조용히 낡고 그 다섯째가 같은 결함을 갖고 태어난다.** [BA-070](#ba-070)의 `T1`이 계약에서 trip-scoped operation을 읽어 matrix를 만드는 것과 같은 모양으로 표면 목록을 코드에서 끌어온다.
 
