@@ -59,10 +59,6 @@
 
 /* Which place is being filed, tinted the way the move sheet tints its item. */
 .context {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
   margin: 10px 0 0;
   padding: 10px var(--space-3);
   border-radius: var(--radius-md);
@@ -130,13 +126,13 @@
   outline-offset: -2px;
 }
 
+/* Lets a long title wrap instead of pushing the chevron off the sheet. */
 .tripText {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
-  /* Lets a long title wrap instead of pushing the chevron off the sheet. */
   min-width: 0;
-  flex: 1;
 }
 
 .tripName {
@@ -154,5 +150,4 @@
 .chevron {
   flex: none;
   color: var(--color-text-secondary);
-  font-size: var(--font-title-sm);
 }

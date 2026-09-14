@@ -212,6 +212,15 @@ export const messages = {
     'tripAdd.no-trip': '여행을 만들고 담기',
     'tripAdd.loading': '담는 중이에요',
     'tripAdd.error': '담지 못했어요. 다시 시도',
+    // Sheet/TripPicker (C02). The sheet takes its copy from the caller so the
+    // same component can serve the feed and the post detail without knowing
+    // which one opened it.
+    'tripPicker.title': '어느 여행에 담을까요?',
+    'tripPicker.cancel': '취소',
+    'tripPicker.loading': '여행을 불러오는 중이에요',
+    'tripPicker.empty': '아직 여행이 없어요',
+    'tripPicker.error': '여행 목록을 불러오지 못했어요',
+    'tripPicker.retry': '다시 시도',
     'crowd.level': '{steps}단계 중 {level}번째',
     'license.terms': '이용조건',
     'dataGuide.states.heading': '혼잡도 데이터 상태 6가지',
@@ -829,6 +838,12 @@ export const messages = {
     'tripAdd.no-trip': 'Make a trip and add it',
     'tripAdd.loading': 'Adding',
     'tripAdd.error': "Couldn't add it. Try again",
+    'tripPicker.title': 'Which trip should it go in?',
+    'tripPicker.cancel': 'Cancel',
+    'tripPicker.loading': 'Loading your trips',
+    'tripPicker.empty': 'No trips yet',
+    'tripPicker.error': "Couldn't load your trips",
+    'tripPicker.retry': 'Try again',
     'crowd.level': 'Level {level} of {steps}',
     'license.terms': 'Licence terms',
     'dataGuide.states.heading': 'The six crowd data states',

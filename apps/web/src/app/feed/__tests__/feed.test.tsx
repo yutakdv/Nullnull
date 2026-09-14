@@ -484,6 +484,23 @@ describe('FE-203 the add button actually saves a candidate', () => {
     return within(card).getByRole('button', { name: copy['tripAdd.idle'] });
   };
 
+  /**
+   * Presses `+` on a card and answers the trip picker.
+   *
+   * `+` no longer saves: FR-CAN-01 makes it open the sheet, and the save is
+   * what the user answers with. Defaults to the first trip so the assertions
+   * that predate the picker keep describing the same request.
+   */
+  const saveVia = async (
+    user: ReturnType<typeof userEvent.setup>,
+    title: string,
+    tripTitle = tripFixtures.page.items[0]?.title ?? '',
+  ) => {
+    await user.click(addButtonOn(title));
+    const sheet = await screen.findByRole('dialog', { name: copy['tripPicker.title'] });
+    await user.click(within(sheet).getByRole('button', { name: new RegExp(tripTitle) }));
+  };
+
   const saveResult = (duplicate: boolean) =>
     duplicate
       ? candidateFixtures.saveResultDuplicate
@@ -507,7 +524,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(addButtonOn(firstTitle));
+    await saveVia(user, firstTitle);
 
     await waitFor(() => {
       expect(posted).toHaveLength(1);
@@ -534,7 +551,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
       const user = userEvent.setup();
       renderFeed();
       await screen.findByText(firstTitle);
-      await user.click(addButtonOn(firstTitle));
+      await saveVia(user, firstTitle);
       await waitFor(() => {
         expect(posted).toHaveLength(1);
       });
@@ -567,15 +584,45 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(addButtonOn(firstTitle));
+    await saveVia(user, firstTitle);
     await screen.findByRole('button', { name: copy['tripAdd.error'] });
+    // The retry goes through the sheet too: the failed button is the same `+`
+    // control, and `+` opens the picker (FR-CAN-01). What matters for
+    // invariant 6 is that the SECOND request carries the first one's key, and
+    // it does — the key is held per place, not per press.
     await user.click(screen.getByRole('button', { name: copy['tripAdd.error'] }));
+    const retrySheet = await screen.findByRole('dialog', {
+      name: copy['tripPicker.title'],
+    });
+    await user.click(
+      within(retrySheet).getByRole('button', {
+        name: new RegExp(tripFixtures.page.items[0]?.title ?? ''),
+      }),
+    );
 
     await waitFor(() => {
       expect(posted).toHaveLength(2);
     });
     expect(posted[0]?.key).toBeTruthy();
     expect(posted[0]?.key).toBe(posted[1]?.key);
+  });
+
+  it('saves into the trip the user chose, not the first one', async () => {
+    // The point of FR-CAN-01. Every other assertion in this file answers the
+    // picker with the default trip, so none of them would fail if onPick
+    // ignored the choice — the request would still go to items[0] and look
+    // correct. This one picks the SECOND trip and reads the path.
+    const second = tripFixtures.page.items[1];
+    expect(second?.id).toBeTruthy();
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await saveVia(user, firstTitle, second?.title);
+
+    await waitFor(() => {
+      expect(posted).toHaveLength(1);
+    });
+    expect(posted[0]?.path).toBe(`/api/v1/trips/${second?.id ?? ''}/candidates`);
   });
 
   it('says it worked, on the button the user pressed', async () => {
@@ -586,7 +633,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
     // already saved, so a document-wide query matches them too and would pass
     // without this card changing at all.
     const card = screen.getByText(firstTitle).closest('article') as HTMLElement;
-    await user.click(within(card).getByRole('button', { name: copy['tripAdd.idle'] }));
+    await saveVia(user, firstTitle);
     expect(
       await within(card).findByRole('button', { name: copy['tripAdd.saved'] }),
     ).toBeInTheDocument();
@@ -604,7 +651,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(addButtonOn(firstTitle));
+    await saveVia(user, firstTitle);
     expect(
       await screen.findByRole('button', { name: copy['tripAdd.duplicate'] }),
     ).toBeInTheDocument();
@@ -619,7 +666,7 @@ describe('FE-203 the add button actually saves a candidate', () => {
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(addButtonOn(firstTitle));
+    await saveVia(user, firstTitle);
     expect(
       await screen.findByRole('button', { name: copy['tripAdd.error'] }),
     ).toBeInTheDocument();

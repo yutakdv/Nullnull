@@ -37,9 +37,24 @@ const assets = join(web, 'dist/assets');
 // is its own change with its own tests, not something to smuggle into a
 // feature slice. Measured before raising, and the check still fails when the
 // limit is passed (verified by lowering it).
+// Raised again for FE-203's trip picker (Sheet/TripPicker, C02). CSS measured
+// 8,533 against 8,400 — the third sheet in the app, and the overage is the
+// price of it existing rather than waste inside it.
+//
+// Measured before raising, and cutting was tried first: collapsing the picker's
+// own declarations recovered 11 gzip bytes of 133, because gzip already folds
+// the geometry this sheet shares with MoveDaySheet (.sheet/.panel/.head/.title/
+// .cancel are byte-identical across the two). Shaving declarations is not the
+// lever here; extracting one shared sheet module is, and that is a refactor
+// across three existing sheets with its own tests — the same call this file
+// already recorded for the repeated 44px button block, and for the same reason:
+// not something to smuggle into a feature slice.
+//
+// Headroom is deliberately small. The next sheet fails this check, which is
+// what should happen if a fourth one lands before the shared module does.
 const BUDGETS = {
-  js: 157_000, //  measured 142,812
-  css: 8_400, //   measured   7,263
+  js: 157_000, //  measured 151,383
+  css: 8_900, //   measured   8,533
 };
 
 if (!existsSync(assets)) {
