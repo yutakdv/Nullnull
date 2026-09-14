@@ -25,7 +25,14 @@ test.describe('app shell', () => {
 
   test('shows an explicit not-found screen with a way back', async ({ page }) => {
     await page.goto('/no-such-page');
-    await expect(page.getByTestId('placeholder-route')).toHaveText('not-found');
+    // The 404 shows its localised heading, not a debug token. This asserted the
+    // literal "not-found" — a dev placeholder's leftover — so the test held the
+    // string in place instead of catching it.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'not-found-heading',
+    );
+    await expect(page.getByText('not-found', { exact: true })).toHaveCount(0);
     await page.getByRole('link').click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveAttribute(
       'id',

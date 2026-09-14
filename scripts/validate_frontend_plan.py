@@ -20,6 +20,10 @@ import json
 import re
 from pathlib import Path
 
+# Imported rather than copied: the two plans must judge an evidence path the same
+# way, and a second implementation would drift the moment one side is tightened.
+from validate_backend_plan import resolve_link
+
 PLAN = 'docs/engineering/frontend-plan.json'
 BACKEND_PLAN = 'docs/engineering/backend-plan.json'
 INVENTORY = 'docs/product/FUNCTIONAL_INVENTORY.md'
@@ -148,6 +152,27 @@ def validate(root: Path, problems: list[str]) -> None:
                 problems.append(f'{tid}: verified requires report, contract SHA and reviewer')
             elif set(evidence.get('testIds', [])) != {t['id'] for t in required}:
                 problems.append(f'{tid}: evidence does not cover all required tests')
+            else:
+                # The report has to name something that ran. Until now these three
+                # fields were only checked for being non-empty strings, so a card
+                # could claim `verified` with a report path that does not exist -
+                # demonstrated on #208 with the literal '완전히 지어낸 경로.xml',
+                # which passed the whole gate. The testIds check above cannot catch
+                # it either: it compares evidence.testIds against the card's own
+                # required list, and both live in this same file, so copying the
+                # ids across always matches.
+                #
+                # Same rule as validate_backend_plan (f08ffa7): a URL must be a run
+                # of this repository's gate, and anything else must resolve to a
+                # file that is actually committed.
+                report = evidence['report']
+                if isinstance(report, str) and report.startswith(('http://', 'https://')):
+                    if not re.fullmatch(r'https://github\.com/[^/]+/[^/]+/actions/runs/\d+',
+                                        report.rstrip('/')):
+                        problems.append(f'{tid}: evidence.report must be a GitHub Actions run URL '
+                                        f'for this repository, not {report!r}')
+                else:
+                    resolve_link(root, root, report, problems, tid)
         if task.get('status') in {'blocked', 'deferred'} and not task.get('reason'):
             problems.append(f'{tid}: blocked/deferred requires reason and safe default')
 

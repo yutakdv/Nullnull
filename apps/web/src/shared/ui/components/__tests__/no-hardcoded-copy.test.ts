@@ -11,11 +11,12 @@
 // a Korean string that reaches the user with NO way for a caller to replace
 // it — the app passes the selected locale's words through props.
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // vitest runs with apps/web as the root, the same base the fixture test uses.
 const COMPONENTS = resolve(process.cwd(), 'src/shared/ui/components');
+const APP = resolve(process.cwd(), 'src/app');
 const HANGUL = /[가-힣]/;
 
 /** Strips comments and import lines so only real code is scanned. */
@@ -66,6 +67,39 @@ function componentFiles(): string[] {
   );
 }
 
+/**
+ * Every screen under src/app, walked recursively.
+ *
+ * The guard above reads ONE flat directory, so 23 shared components were
+ * checked while 28 screens were not — and that is how the trip wizard shipped
+ * `['일','월','화','수','목','금','토']` as its calendar headers, giving an
+ * English reader a Korean calendar. Screens are where user-visible copy
+ * actually lives, so scanning components alone checks the smaller half.
+ *
+ * Screens take no label props, so there is no override list here: a screen
+ * reads the active locale through useI18n. Any Korean literal in one is a
+ * string an English reader would be shown.
+ */
+function screenFiles(): { name: string; path: string }[] {
+  const found: { name: string; path: string }[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== '__tests__') walk(full);
+      } else if (
+        entry.name.endsWith('.tsx') &&
+        !entry.name.endsWith('.stories.tsx') &&
+        !entry.name.includes('.test.')
+      ) {
+        found.push({ name: relative(APP, full), path: full });
+      }
+    }
+  };
+  walk(APP);
+  return found;
+}
+
 describe('shared components do not lock the user into one language', () => {
   it.each(componentFiles().filter((name) => !KNOWN_UNFIXED.has(name)))(
     '%s has no unreachable Korean string',
@@ -107,5 +141,27 @@ describe('shared components do not lock the user into one language', () => {
         `${name} no longer has hardcoded Korean — remove it from KNOWN_UNFIXED.`,
       ).toBe(true);
     }
+  });
+});
+
+describe('screens do not lock the user into one language', () => {
+  const screens = screenFiles();
+
+  it('finds the screens to scan at all', () => {
+    // Without this the suite below would silently pass if the walk broke or the
+    // directory moved — zero cases is not zero violations. The repository has
+    // well over twenty screens; the floor only has to be high enough that an
+    // empty or one-file result fails.
+    expect(screens.length).toBeGreaterThan(20);
+  });
+
+  it.each(screens)('$name has no hardcoded Korean string', ({ path }) => {
+    const body = code(readFileSync(path, 'utf8'));
+    const literals = [...body.matchAll(/['"`]([^'"`\n]*[가-힣][^'"`\n]*)['"`]/g)].map(
+      (match) => match[1],
+    );
+    // A screen renders copy through useI18n, so a Korean literal here is text
+    // an English reader would be shown.
+    expect(literals, `${path} hardcodes Korean copy`).toEqual([]);
   });
 });

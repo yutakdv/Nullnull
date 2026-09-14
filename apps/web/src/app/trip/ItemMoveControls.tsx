@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import {
@@ -81,6 +81,17 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
   const related = useRelatedPlaces(replaceOpen ? item.place.id : null);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // The key for the reorder in flight, and for retries of that same press.
+  //
+  // Minted inside the mutate() call it used to be regenerated on every press,
+  // so pressing ↓ again after a failure was a SECOND move to the server, not a
+  // retry of the first — which is the duplicate command invariant 6 exists to
+  // prevent. Cleared on success and whenever the user aims at a different move,
+  // so a genuinely new command still gets a genuinely new key.
+  const moveKey = useRef<string | null>(null);
+  const moveIntent = useRef<string | null>(null);
+  const replaceKey = useRef<string | null>(null);
+  const replaceIntent = useRef<string | null>(null);
 
   const block = moveBlock(item);
   const first = isFirstInDay(days, item.id);
@@ -90,8 +101,10 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
   /**
    * Sends one reorder.
    *
-   * The key is minted per user action rather than inside the mutation, so a
-   * retry of this press reuses it instead of counting as a second move.
+   * The key is held in a ref rather than minted here, so a retry of this press
+   * replays the same command instead of counting as a second move. It said that
+   * before and did the opposite — `crypto.randomUUID()` sat inside the mutate
+   * call, giving every press a fresh key.
    */
   function send(
     order: ReturnType<typeof reorderWithinDay>,
@@ -112,9 +125,10 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
             entry.itemId === item.id ? { ...entry, releaseConstraints: released } : entry,
           );
     reorder.mutate(
-      { order: items, etag, idempotencyKey: crypto.randomUUID() },
+      { order: items, etag, idempotencyKey: (moveKey.current ??= crypto.randomUUID()) },
       {
         onSuccess: () => {
+          moveKey.current = null;
           setStatus(announce);
         },
         onError: (error) => {
@@ -128,10 +142,25 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
     );
   }
 
+  /**
+   * Starts a new command, so the next send mints a fresh key.
+   *
+   * "Same command" is the destination the user aimed at: pressing ↓ twice is two
+   * different moves and must not replay the first, while pressing ↓ again after
+   * a failure is the same move retried. Keyed by intent rather than by press.
+   */
+  function beginMove(intent: string) {
+    if (moveIntent.current !== intent) {
+      moveIntent.current = intent;
+      moveKey.current = null;
+    }
+  }
+
   function step(direction: -1 | 1) {
     const order = reorderWithinDay(days, item.id, direction);
     if (!order) return;
     const position = order.findIndex((entry) => entry.itemId === item.id) + 1;
+    beginMove(`step:${String(position)}`);
     send(order, t('trip.reorder.moved', { name: item.place.name, position }));
   }
 
@@ -139,6 +168,7 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
     const order = moveToDay(days, item.id, date);
     if (!order) return;
     const index = days.findIndex((day) => day.date === date);
+    beginMove(`day:${date}`);
     send(
       order,
       t('trip.move.moved', {
@@ -235,6 +265,12 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
         }}
         onConfirm={(choice, released) => {
           setStatus(null);
+          // A different replacement is a different command; the same one
+          // confirmed again after a failure is a retry of it.
+          if (replaceIntent.current !== choice.place.id) {
+            replaceIntent.current = choice.place.id;
+            replaceKey.current = null;
+          }
           replace.mutate(
             {
               itemId: item.id,
@@ -260,10 +296,11 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
                 // meantime (#203).
               },
               etag,
-              idempotencyKey: crypto.randomUUID(),
+              idempotencyKey: (replaceKey.current ??= crypto.randomUUID()),
             },
             {
               onSuccess: () => {
+                replaceKey.current = null;
                 setReplaceOpen(false);
                 setStatus(
                   t('replace.replaced', {

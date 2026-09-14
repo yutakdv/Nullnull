@@ -28,7 +28,6 @@ const COORDINATE_FIELD = /"(lat|lng|latitude|longitude|coords|geo)"\s*:/i;
 
 for (const screen of SCREENS) {
   test(`${screen.name} asks for no location`, async ({ page }) => {
-    const calls: string[] = [];
     const dialogs: string[] = [];
     const leaked: string[] = [];
 
@@ -68,11 +67,62 @@ for (const screen of SCREENS) {
     await page.goto(screen.path);
     await page.waitForLoadState('networkidle');
 
+    // Then USE the screen. Loading it only proves nothing asks for location
+    // during module evaluation, and the rule is about the whole visit: a call
+    // reached through a click handler, a sheet opening, or a mutation's
+    // onSuccess would have been invisible here, and so would a coordinate sent
+    // in the body of a POST that a tap triggered.
+    //
+    // Every enabled control is pressed rather than a chosen few, because the
+    // point is to be as wide as the app — the same reason this file exists
+    // instead of a per-screen unit test. Presses are best-effort: a control
+    // that navigates away, detaches, or opens a modal that swallows the next
+    // click is not a failure of THIS rule, so each one is attempted and skipped
+    // if it no longer exists.
+    const controls = page.locator(
+      'button:not([disabled]), [role="button"]:not([aria-disabled="true"]), a[href^="/"]',
+    );
+    const total = await controls.count();
+    for (let index = 0; index < Math.min(total, 12); index += 1) {
+      const control = controls.nth(index);
+      try {
+        if (!(await control.isVisible())) continue;
+        await control.click({ timeout: 1500, noWaitAfter: true });
+        await page.waitForTimeout(120);
+      } catch {
+        // Detached, covered, or it navigated. Either way nothing to press.
+      }
+      // A press that navigates away does not end the walk — it would end it on
+      // the FIRST control of most screens (a feed card is a link to a post), so
+      // everything below it would go untouched. Come back and carry on, which
+      // is also what a user does.
+      if (!page.url().includes(screen.path.split('?')[0] ?? screen.path)) {
+        await page.goBack().catch(() => undefined);
+        await page.waitForLoadState('networkidle').catch(() => undefined);
+        if (!page.url().includes(screen.path.split('?')[0] ?? screen.path)) {
+          await page.goto(screen.path).catch(() => undefined);
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+        }
+      }
+    }
+
+    // Typing reaches code that no click does — a search box fires a query per
+    // keystroke, and that is the shape most likely to carry a coordinate.
+    const box = page.locator('input[type="search"], input[type="text"]').first();
+    if (await box.count()) {
+      try {
+        await box.fill('서울', { timeout: 1500 });
+        await page.waitForTimeout(400);
+      } catch {
+        // Not editable on this screen.
+      }
+    }
+    await page.waitForLoadState('networkidle').catch(() => undefined);
+
     const asked = await page.evaluate(
-      () => (window as unknown as { __geo: string[] }).__geo,
+      () => (window as unknown as { __geo: string[] }).__geo ?? [],
     );
     expect(asked, `${screen.name} called the geolocation API`).toEqual([]);
-    expect(calls).toEqual([]);
     expect(dialogs, `${screen.name} opened a permission prompt`).toEqual([]);
     expect(leaked, `${screen.name} sent something shaped like a coordinate`).toEqual([]);
   });
