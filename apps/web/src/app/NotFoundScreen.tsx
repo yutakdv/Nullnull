@@ -6,7 +6,6 @@ export function NotFoundScreen() {
   return (
     <section aria-labelledby="not-found-heading">
       <h1 id="not-found-heading">{t('app.notFound.title')}</h1>
-      <p data-testid="placeholder-route">not-found</p>
       <Link to="/">{t('app.notFound.back')}</Link>
     </section>
   );
