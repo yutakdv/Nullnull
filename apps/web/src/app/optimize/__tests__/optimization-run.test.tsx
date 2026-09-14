@@ -336,3 +336,38 @@ describe('FE-502-T3 leaving is navigation, not cancellation', () => {
     expect(back).toHaveFocus();
   });
 });
+
+// A failure code this build does not know must not reach the user as a token.
+//
+// The key is built from the code (`run.failure.${code}`), and t() returns a
+// missing message as-is — a probe render of an unknown key produced the literal
+// "[undefined]". So a code the server adds before a matching client ships would
+// print "undefined" into the error screen.
+//
+// Folding to a generic line also decouples the deploys: BE can add a code
+// without this client being updated first (#225, DATA_INSUFFICIENT).
+describe('FE-502 an unknown failure code folds to the generic message', () => {
+  it('never renders the literal "undefined" for a code it does not know', async () => {
+    runIs('FAILED', {
+      failure: { code: 'SOMETHING_NEW', message: 'x', retryable: false },
+    });
+    const view = renderRun();
+    expect(await screen.findByText(copy['run.failure.unknown'])).toBeInTheDocument();
+    expect(screen.queryByText(/undefined/)).toBeNull();
+    view.unmount();
+  });
+
+  it('still shows the specific message for a code it knows', async () => {
+    // The fallback must not swallow the known codes — that would trade one
+    // wrong message for six.
+    runIs('FAILED', {
+      failure: { code: 'DATA_INSUFFICIENT', message: 'x', retryable: true },
+    });
+    const view = renderRun();
+    expect(
+      await screen.findByText(copy['run.failure.DATA_INSUFFICIENT']),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(copy['run.failure.unknown'])).toBeNull();
+    view.unmount();
+  });
+});
