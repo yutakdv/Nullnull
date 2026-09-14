@@ -1213,7 +1213,7 @@ FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무�
 - 기능 ID: `FR-ITM-01`, `FR-ITM-02`, `FR-ITM-03`, `FR-ITM-04`, `FR-ITM-05`, `FR-ITM-06`, `FR-TRP-02`, `FR-TRP-03`
 - API: `addTripItem`, `updateTripItem`, `removeTripItem`, `reorderTripItems` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `411:1837`, `412:1912`, `413:2020`, `476:3409`, `479:3816`, `521:3976`, `527:4085`, `527:4695`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: trip_items · trip_candidates linkage · trip_revisions · ordered positions
+- 데이터·정책: trip_items · trip_candidates linkage · trip_revisions · ordered positions. per-day 상한은 DB CHECK가 없어 애플리케이션이 유일한 방벽이다 — 범위·duration은 지워도 DB가 500으로 막지만 상한은 201로 그냥 들어간다. item 필드 경계는 TripItem.requireFieldBounds 한 곳이 소유하고 field 경로는 호출자가 준다.
 
 구현 순서:
 
@@ -1245,13 +1245,24 @@ swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있�
 
 **거기서 나온 것 둘.** ① 경계를 지우면 응답이 `200`이 아니라 대개 **`500`** 이다 — DB가 뒤에서
 막는다. 그래서 이 절들이 고정하는 것은 *"막힌다"* 가 아니라 **"애플리케이션이 422로 거절한다"** 이고,
-단언도 status를 그렇게 본다. 유일한 예외가 하루 상한이었다: 지우면 `201`로 **그냥 들어간다**(DB에
-그 CHECK가 없다). ② **duration 경계는 세 곳에 선언돼 있다** — `AddTripItemCommand`·
-`UpdateTripItemCommand`·`TripItem` 생성자. 그래서 **어느 하나도 단독으로는 필요하지 않고**, 한
-경로의 가드를 하나 지워도 `T8`은 초록이다(두 개를 같이 지워야 빨개진다). 지금은 field 이름이 셋 다
-맞아 증상이 없지만, `TripItem` 생성자의 것은 `seedItems[].durationMinutes`라고 말하므로 앞의 둘 중
-하나가 사라지는 날 **그 operation에 없는 field 경로**가 FE에 간다. 고치지 않고 적어 둔다 — 규칙이
-여러 곳에 있으면 둘 중 하나가 먼저 상한다는 그 모양이다.
+단언도 status를 그렇게 본다. 유일한 예외가 하루 상한이다: 지우면 `201`로 **그냥 들어간다**(DB에
+그 CHECK가 없다). **세 절을 같은 무게로 읽으면 안 되는 이유**이고 `데이터·정책` 칸에도 적었다 —
+나머지 둘은 애플리케이션이 사라져도 DB가 데이터를 지키지만 `T9`가 지키는 것은 `T9`뿐이다.
+
+② **duration·note·position 경계가 각각 세 곳에 선언돼 있었다** — `AddTripItemCommand`·
+`UpdateTripItemCommand`·`TripItem` 생성자. 그래서 **어느 하나도 단독으로는 필요하지 않았고**, 한
+경로의 가드를 하나 지워도 `T8`이 초록이었다(두 개를 같이 지워야 빨개졌다). `red: NOTHING`의 **네
+번째 얼굴**이다 — 변이는 적용됐고 실행도 됐는데 **지운 것이 일하는 사본이 아니었다.**
+
+**한 곳으로 모았다.** 값은 `TripItem`이 소유하고(`requireFieldBounds`), **field 경로는 호출자가
+준다** — 같은 규칙이 createTrip에서는 `seedItems[].durationMinutes`를, updateTripItem에서는
+`durationMinutes`를 거절해야 하고, `TripItem` 생성자에 박혀 있던 `seedItems[].`가 남는 쪽이 되는
+날 **그 operation에 없는 field 경로**가 FE에 갔을 것이다. 세 호출자는 **계속 각자 부른다** —
+`T8`이 요구하는 것은 *"설정할 수 있는 모든 command가 거절한다"* 이지 *"한 층이 거절한다"* 가 아니다.
+
+**그 편집이 무엇을 바꿨는지는 변이가 말한다**: 이제 **한 곳만 지워도** `T8`이 빨개진다. 그리고
+`T8`이 field 경로를 단언하므로, 호출자가 틀린 prefix를 주는 변이에서도 빨개진다 — 통합이 만든
+새 실패 모드를 그 자리에서 덮는다.
 
 필수 검증:
 

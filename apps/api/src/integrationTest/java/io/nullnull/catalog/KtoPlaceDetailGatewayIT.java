@@ -111,7 +111,11 @@ class KtoPlaceDetailGatewayIT {
             clock.advance(Duration.ofDays(8));
             assertThat(gateway.detail("126509", "12").join().title()).isEqualTo("두 번째");
             assertThat(stub.calls()).isEqualTo(2);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM kto_place_snapshots", Integer.class)).isEqualTo(2);
+            // This content id, not the whole table: the gate shares one database, so an unscoped
+            // count answers for every snapshot any class ever ingested.
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM kto_place_snapshots WHERE content_id = ?", Integer.class, "126509"))
+                    .isEqualTo(2);
         }
     }
 

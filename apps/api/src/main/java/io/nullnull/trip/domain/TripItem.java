@@ -32,20 +32,49 @@ public record TripItem(UUID id, UUID placeId, LocalDate date, int position, Loca
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(placeId, "placeId");
         Objects.requireNonNull(date, "date");
-        if (position < 0) {
-            throw new TripValidationException("seedItems[].position", "Range",
+        // seedItems[] is the right prefix here and only here: createTrip is the one caller that can
+        // reach this constructor with a value a request chose. The two item commands validate in
+        // their own compact constructors, where the field is plainly durationMinutes.
+        requireFieldBounds("seedItems[].", position, durationMinutes, note);
+        constraints = TripConstraint.validated(constraints);
+    }
+
+    /**
+     * The bounds of one item's own fields, in ONE place, with the field path supplied by the caller.
+     *
+     * <p>These three rules used to be written out three times - here, in AddTripItemCommand and in
+     * UpdateTripItemCommand - and that is the shape AGENTS.md rule 3 warns about: when a rule lives
+     * in several places, one of them goes stale first. The defect was already visible before it did
+     * any harm. A mutation that deleted the bound from AddTripItemCommand left BA-040-T8 GREEN,
+     * because this constructor was still refusing the value - so no copy was individually necessary,
+     * and the test could not see any one of them disappear. Worse, the copy that survived says
+     * {@code seedItems[].durationMinutes}, a field path that does not exist in an addTripItem body,
+     * so the day a command's own copy went the FE would be sent to a field its form does not have.
+     *
+     * <p>The value is owned by this type; the field path is not. The same rule rejects
+     * {@code seedItems[].durationMinutes} on createTrip and {@code durationMinutes} on
+     * updateTripItem, so the caller passes the prefix rather than this method guessing it.
+     *
+     * <p>Callers still each call it. Defence in depth is not duplication: BA-040-T8 asks that EVERY
+     * command that can set a duration refuses a bad one, not that one layer does.
+     *
+     * @param position null when the caller is not setting one
+     */
+    public static void requireFieldBounds(String fieldPrefix, Integer position, Integer durationMinutes,
+            String note) {
+        if (position != null && position < 0) {
+            throw new TripValidationException(fieldPrefix + "position", "Range",
                     "position must not be negative");
         }
         if (durationMinutes != null
                 && (durationMinutes < 1 || durationMinutes > MAX_DURATION_MINUTES)) {
-            throw new TripValidationException("seedItems[].durationMinutes", "Range",
+            throw new TripValidationException(fieldPrefix + "durationMinutes", "Range",
                     "durationMinutes must be between 1 and " + MAX_DURATION_MINUTES);
         }
         if (note != null && note.length() > MAX_NOTE_LENGTH) {
-            throw new TripValidationException("seedItems[].note", "Size",
+            throw new TripValidationException(fieldPrefix + "note", "Size",
                     "note must be at most " + MAX_NOTE_LENGTH + " characters");
         }
-        constraints = TripConstraint.validated(constraints);
     }
 
     /**

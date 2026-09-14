@@ -79,14 +79,56 @@ class CursorSurfaceMatrixIT {
     private static final String ORIGIN = "http://localhost:5173";
     private static final int SEEDED = 4;
 
+    /**
+     * Later than any fixture date in this repository, so the feed surface's seeded posts sit at the
+     * head of a table it shares with every other class.
+     */
+    private static final Instant HEAD_OF_FEED = Instant.parse("2099-01-01T00:00:00Z");
+
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
     @Autowired ApplicationContext context;
+
+    /**
+     * Every row this class creates that does not go away on its own.
+     *
+     * <p>Trips cascade to their items, candidates and constraints, and {@code owners.active_trip_id}
+     * is ON DELETE SET NULL, so one statement clears each trip. {@code places} deliberately does NOT
+     * cascade - a place must not vanish from under a candidate that points at it - so it needs its
+     * own statement, and posts must go first because {@code post_places} holds them together.
+     *
+     * <p>Leaving them is not harmless, and local green cannot tell: every {@code @SpringBootTest}
+     * configuration gets its own container here, while the required gate runs every context against
+     * ONE database ({@code NULLNULL_TEST_DATABASE=external}). A left-behind candidate row is what
+     * makes another class's {@code DELETE FROM places} fail, and the name in the failure list is
+     * THEIRS (AGENTS.md rule 6).
+     */
+    private final List<UUID> createdPlaces = new ArrayList<>();
+    private final List<UUID> createdTrips = new ArrayList<>();
+    private final List<UUID> createdPosts = new ArrayList<>();
     @Autowired io.nullnull.social.application.FeedCursorProperties feedCursors;
     @Autowired io.nullnull.trip.application.TripCursorProperties tripCursors;
     @Autowired io.nullnull.catalog.application.CatalogPublicationProperties catalogPublication;
+
+    @org.junit.jupiter.api.AfterEach
+    void removeTheRowsThisClassCreated() {
+        for (UUID tripId : createdTrips) {
+            jdbc.update("DELETE FROM trips WHERE id = ?", tripId);
+        }
+        for (UUID postId : createdPosts) {
+            // post_places, saved_posts and feed_feedback cascade, and candidate_sources.post_id is
+            // ON DELETE SET NULL, so one statement per post is enough.
+            jdbc.update("DELETE FROM posts WHERE id = ?", postId);
+        }
+        for (UUID placeId : createdPlaces) {
+            jdbc.update("DELETE FROM places WHERE id = ?", placeId);
+        }
+        createdTrips.clear();
+        createdPlaces.clear();
+        createdPosts.clear();
+    }
 
     // ---------------------------------------------------------------- tests
 
@@ -96,8 +138,7 @@ class CursorSurfaceMatrixIT {
         Map<String, String> repeated = new LinkedHashMap<>();
         for (Surface surface : surfaces().values()) {
             SessionService.Bootstrap reader = surface.seed();
-            assertThat(surface.page(reader, null, 50).ids())
-                    .as(surface.operationId + " seeded rows are all visible").hasSize(SEEDED);
+            seededHead(surface, reader);
 
             Page first = surface.page(reader, null, 2);
             assertThat(first.nextCursor()).as(surface.operationId + " hands out a cursor").isNotNull();
@@ -124,7 +165,7 @@ class CursorSurfaceMatrixIT {
         Map<String, String> skipped = new LinkedHashMap<>();
         for (Surface surface : surfaces().values()) {
             SessionService.Bootstrap reader = surface.seed();
-            List<UUID> all = surface.page(reader, null, 50).ids();
+            List<UUID> all = seededHead(surface, reader);
             Page first = surface.page(reader, null, 2);
             assertThat(first.ids()).as(surface.operationId + " first page").containsExactly(all.get(0), all.get(1));
 
@@ -146,7 +187,7 @@ class CursorSurfaceMatrixIT {
         Map<String, String> positional = new LinkedHashMap<>();
         for (Surface surface : surfaces().values()) {
             SessionService.Bootstrap reader = surface.seed();
-            List<UUID> all = surface.page(reader, null, 50).ids();
+            List<UUID> all = seededHead(surface, reader);
 
             // Two cursors for the SAME last row, minted when that row sat at different places in the
             // listing: second of four, then third of five. A cursor holding the sort key cannot tell
@@ -217,6 +258,23 @@ class CursorSurfaceMatrixIT {
             }
         }
         assertThat(resumed).as("surfaces that accepted a cursor minted under a different sort order").isEmpty();
+    }
+
+    /**
+     * The first {@link #SEEDED} rows of the listing - the ones this surface just seeded.
+     *
+     * <p>Three of the four listings are scoped to their own owner, trip or search term and hold
+     * nothing else, so this is the whole of them. The feed is global and may hold another class's
+     * posts, so its seed puts these rows at the head and this reads that head.
+     *
+     * <p>Read from the SERVER rather than remembered from the inserts: a test that asserted the
+     * order it assumed would pass against a server that sorted differently.
+     */
+    private List<UUID> seededHead(Surface surface, SessionService.Bootstrap reader) throws Exception {
+        List<UUID> ids = surface.page(reader, null, 50).ids();
+        assertThat(ids).as(surface.operationId + " seeded rows are visible")
+                .hasSizeGreaterThanOrEqualTo(SEEDED);
+        return List.copyOf(ids.subList(0, SEEDED));
     }
 
     // ---------------------------------------------------------------- spec
@@ -349,19 +407,23 @@ class CursorSurfaceMatrixIT {
 
         @Override
         SessionService.Bootstrap seed() {
-            // The feed is global: without this, another test class's posts are part of this listing
-            // and the assertions become about the order the suite ran in (FeedIT does the same).
-            jdbc.update("DELETE FROM posts");
+            // The feed is GLOBAL, unlike the other three listings, so this class cannot own the
+            // whole of it. Emptying the table is the easy way and it is the wrong one: the required
+            // gate runs every context against ONE database, where a blanket DELETE takes other
+            // classes' rows with it - and a post carries places, which do not cascade.
+            //
+            // These posts take the HEAD of the feed instead, at a publishedAt no other fixture uses.
+            // The listing then starts with exactly this class's rows whatever else the table holds.
             place = place("피드 " + UUID.randomUUID(), false);
             for (int index = 0; index < SEEDED; index++) {
-                post("커서 " + index, Instant.parse("2026-05-01T00:00:00Z").plusSeconds(index * 60L));
+                post("커서 " + index, HEAD_OF_FEED.minusSeconds(index * 60L));
             }
             return owner();
         }
 
         @Override
         UUID insertAhead() {
-            return post("먼저 공개된 글", Instant.parse("2026-06-01T00:00:00Z"));
+            return post("먼저 공개된 글", HEAD_OF_FEED.plusSeconds(60L));
         }
 
         @Override
@@ -393,6 +455,7 @@ class CursorSurfaceMatrixIT {
             // Published last: V022's trigger requires the primary place to exist first.
             jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ? WHERE id = ?",
                     Timestamp.from(publishedAt), id);
+            createdPosts.add(id);
             return id;
         }
     }
@@ -578,6 +641,7 @@ class CursorSurfaceMatrixIT {
             jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
                     + " created_at, updated_at) VALUES (?, ?, 'A0101', '1', 'ACTIVE', ?, ?)", id, name, now, now);
         }
+        createdPlaces.add(id);
         return id;
     }
 
@@ -593,6 +657,7 @@ class CursorSurfaceMatrixIT {
         if (id.isMissingNode()) {
             throw new IllegalStateException("trip fixture failed: " + body);
         }
+        createdTrips.add(UUID.fromString(id.stringValue()));
         return id.stringValue();
     }
 

@@ -12,6 +12,7 @@ import io.nullnull.trip.domain.TripItem;
 import jakarta.servlet.http.Cookie;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,26 @@ class TripScheduleBoundaryIT {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
 
+    /**
+     * Trips cascade to their items; {@code places} deliberately does not cascade, so it needs its own
+     * statement. The required gate runs every context against ONE database, where a row left here is
+     * what makes another class's {@code DELETE FROM places} fail (AGENTS.md rule 6).
+     */
+    private final List<UUID> createdPlaces = new ArrayList<>();
+    private final List<UUID> createdTrips = new ArrayList<>();
+
+    @org.junit.jupiter.api.AfterEach
+    void removeTheRowsThisClassCreated() {
+        for (UUID tripId : createdTrips) {
+            jdbc.update("DELETE FROM trips WHERE id = ?", tripId);
+        }
+        for (UUID placeId : createdPlaces) {
+            jdbc.update("DELETE FROM places WHERE id = ?", placeId);
+        }
+        createdTrips.clear();
+        createdPlaces.clear();
+    }
+
     @Test
     @DisplayName("BA-040-T7 every command refuses a date outside the trip's own range")
     void aDateOutsideTheTripIsRefusedByEveryCommand() throws Exception {
@@ -93,6 +114,16 @@ class TripScheduleBoundaryIT {
         assertThat(statusOf(update(owner, tripId, itemId, "\"1\"", "{\"durationMinutes\":0}"))).isEqualTo(422);
         assertThat(statusOf(update(owner, tripId, itemId, "\"1\"", "{\"durationMinutes\":" + tooLong + "}")))
                 .isEqualTo(422);
+
+        // The refusal names the field of the request that was actually sent. One rule serves all
+        // three callers (TripItem.requireFieldBounds) and each passes its own prefix, so the day
+        // that rule is the only copy left it still cannot answer addTripItem with a seedItems[]
+        // path - a field the FE's form does not have and cannot highlight.
+        assertThat(fieldsOf(add(owner, tripId, "\"1\"", "{\"placeId\":\"" + place("경로를 보려는 장소")
+                + "\",\"date\":\"" + DAY_ONE + "\",\"position\":1,\"durationMinutes\":0}")))
+                .containsExactly("durationMinutes");
+        assertThat(fieldsOf(update(owner, tripId, itemId, "\"1\"", "{\"durationMinutes\":0}")))
+                .containsExactly("durationMinutes");
 
         // The boundary itself is accepted. Without this the same test would pass against a server
         // that refused every duration, and "the bound is enforced" would mean "nothing gets through".
@@ -157,6 +188,17 @@ class TripScheduleBoundaryIT {
         return result.getResponse().getStatus();
     }
 
+    /** The field paths a refusal named, in order. */
+    private static List<String> fieldsOf(MvcResult result) throws Exception {
+        java.util.regex.Matcher field = java.util.regex.Pattern.compile("\"field\"\\s*:\\s*\"([^\"]+)\"")
+                .matcher(result.getResponse().getContentAsString());
+        List<String> found = new ArrayList<>();
+        while (field.find()) {
+            found.add(field.group(1));
+        }
+        return found;
+    }
+
     // ------------------------------------------------------------- fixtures
 
     private static Cookie cookie(SessionService.Bootstrap owner) {
@@ -173,7 +215,9 @@ class TripScheduleBoundaryIT {
                                 + "\"interests\":[]}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        return UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+        UUID tripId = UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
+        createdTrips.add(tripId);
+        return tripId;
     }
 
     private UUID place(String name) {
@@ -181,6 +225,7 @@ class TripScheduleBoundaryIT {
         OffsetDateTime now = OffsetDateTime.now();
         jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
                 + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)", id, name, now, now);
+        createdPlaces.add(id);
         return id;
     }
 

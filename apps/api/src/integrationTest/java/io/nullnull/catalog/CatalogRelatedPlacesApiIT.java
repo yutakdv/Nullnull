@@ -27,6 +27,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import io.nullnull.testsupport.OwnedRows;
+import java.util.ArrayList;
+import org.junit.jupiter.api.BeforeEach;
 
 /**
  * BA-024's HTTP shape. The publication flag is on inside this isolated PostgreSQL context only - the
@@ -65,11 +68,23 @@ class CatalogRelatedPlacesApiIT {
     @Autowired
     JdbcTemplate jdbc;
 
+
+    /**
+     * The places that were already there when this test started. Everything that appears after it
+     * is this test's, and only that is removed - a blanket DELETE takes other classes' rows or, more
+     * often, fails on one of the foreign keys that deliberately do not cascade (AGENTS.md rule 6).
+     */
+    private List<UUID> placesBefore = List.of();
+
+    @BeforeEach
+    void notePlacesAlreadyPresent() {
+        placesBefore = jdbc.queryForList("SELECT id FROM places", UUID.class);
+    }
+
     @AfterEach
     void removeOnlyOwnFixtures() {
-        jdbc.update("DELETE FROM place_relations");
-        jdbc.update("DELETE FROM place_localizations");
-        jdbc.update("DELETE FROM places");
+        List<UUID> mine = OwnedRows.appeared(jdbc, "places", placesBefore);
+        OwnedRows.remove(jdbc, "places", mine);
     }
 
     @Test

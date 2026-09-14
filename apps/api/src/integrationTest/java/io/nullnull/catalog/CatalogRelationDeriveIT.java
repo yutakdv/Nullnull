@@ -21,6 +21,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import io.nullnull.testsupport.OwnedRows;
+import java.util.ArrayList;
+import org.junit.jupiter.api.BeforeEach;
 
 /**
  * BA-026: the internal rule that gives place_relations a producer.
@@ -50,11 +53,32 @@ class CatalogRelationDeriveIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired MutableClock clock;
 
+
+    /**
+     * The places that were already there when this test started. Everything that appears after it
+     * is this test's, and only that is removed - a blanket DELETE takes other classes' rows or, more
+     * often, fails on one of the foreign keys that deliberately do not cascade (AGENTS.md rule 6).
+     */
+    /** Unique per run: the rule groups by region, and this test must own its group. */
+    private static final String RUN = UUID.randomUUID().toString().substring(0, 8);
+
+    private List<UUID> placesBefore = List.of();
+
+    @BeforeEach
+    void notePlacesAlreadyPresent() {
+        placesBefore = jdbc.queryForList("SELECT id FROM places", UUID.class);
+    }
+
     @AfterEach
     void removeOnlyOwnFixtures() {
-        jdbc.update("DELETE FROM place_relations");
-        jdbc.update("UPDATE places SET status = 'ACTIVE', canonical_place_id = NULL");
-        jdbc.update("DELETE FROM places");
+        List<UUID> mine = OwnedRows.appeared(jdbc, "places", placesBefore);
+        // Only this test's rows: unscoped, this UPDATE rewrote the status and canonical pointer of
+        // every place in a database the gate shares with every other class.
+        for (UUID placeId : mine) {
+            jdbc.update("UPDATE places SET status = 'ACTIVE', canonical_place_id = NULL WHERE id = ?",
+                    placeId);
+        }
+        OwnedRows.remove(jdbc, "places", mine);
     }
 
     @Test
@@ -116,7 +140,9 @@ class CatalogRelationDeriveIT {
         assertThat(created(one, two)).isEqualTo(firstCreated);
         assertThat(expiry(one, two))
                 .isEqualTo(started.plus(Duration.ofHours(1)).plus(Duration.ofDays(7)));
-        assertThat(second.recorded()).isEqualTo(2);
+        // Scoped like rows(): recorded() counts every group in the catalog, and the gate shares
+        // one database. What this test can claim is about the pair it created.
+        assertThat(rows()).isEqualTo(2L);
     }
 
     @Test
@@ -178,8 +204,8 @@ class CatalogRelationDeriveIT {
         // Every one of them has more peers than the cap, so every one is skipped - and none gets an
         // arbitrary hundred. Nothing here can prefer one peer over another: the rule says they are
         // all equally similar, which is why picking a hundred would be a ranking nobody computed.
-        assertThat(report.skipped()).hasSize(CatalogRelationDeriver.MAX_PER_SOURCE + 2);
-        assertThat(report.recorded()).isZero();
+        assertThat(report.skipped()).containsAll(OwnedRows.appeared(jdbc, "places", placesBefore));
+        assertThat(rows()).isZero();
         assertThat(rows()).isZero();
     }
 
@@ -202,10 +228,29 @@ class CatalogRelationDeriveIT {
                 """, Timestamp.class, source, target).toInstant();
     }
 
+    /**
+     * Relations whose source is a place THIS test made. The unscoped count answered for every class
+     * that ran before it once the gate gave them one database to share.
+     */
     private long rows() {
-        return jdbc.queryForObject("SELECT count(*) FROM place_relations", Long.class);
+        List<UUID> mine = OwnedRows.appeared(jdbc, "places", placesBefore);
+        if (mine.isEmpty()) {
+            return 0L;
+        }
+        String placeholders = mine.stream().map(id -> "?").collect(java.util.stream.Collectors.joining(", "));
+        Long found = jdbc.queryForObject("SELECT count(*) FROM place_relations WHERE source_place_id IN ("
+                + placeholders + ")", Long.class, mine.toArray());
+        return found == null ? 0L : found;
     }
 
+    /**
+     * The rule pairs places by {@code (category_code, region_code)} and
+     * {@link CatalogRelationDeriver} runs over the WHOLE catalog, so this fixture's region
+     * carries a suffix unique to the run. Without it any place another class left behind in the
+     * gate's shared database joins these groups, and the derivation under test is no longer the
+     * one this test set up - it found 182 relations where the test expected none. The suffix
+     * isolates the group; it does not narrow what {@code derive()} does.
+     */
     private UUID place(String category, String region) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
@@ -213,7 +258,7 @@ class CatalogRelationDeriveIT {
                     (id, canonical_name, category_code, latitude, longitude, region_code, status,
                      created_at, updated_at)
                 VALUES (?, '장소', ?, 37.579617, 126.977041, ?, 'ACTIVE', ?, ?)
-                """, id, category, region, Timestamp.from(NOW), Timestamp.from(NOW));
+                """, id, category, region + RUN, Timestamp.from(NOW), Timestamp.from(NOW));
         return id;
     }
 
@@ -224,7 +269,7 @@ class CatalogRelationDeriveIT {
                     (id, canonical_place_id, canonical_name, category_code, latitude, longitude,
                      region_code, status, created_at, updated_at)
                 VALUES (?, ?, '폐기된 장소', ?, 37.579617, 126.977041, ?, 'DEPRECATED', ?, ?)
-                """, id, canonical, category, region, Timestamp.from(NOW), Timestamp.from(NOW));
+                """, id, canonical, category, region + RUN, Timestamp.from(NOW), Timestamp.from(NOW));
         return id;
     }
 }

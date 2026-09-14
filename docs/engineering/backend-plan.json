@@ -1252,7 +1252,7 @@
         "527:4695"
       ],
       "designRequests": [],
-      "entities": "trip_items · trip_candidates linkage · trip_revisions · ordered positions",
+      "entities": "trip_items · trip_candidates linkage · trip_revisions · ordered positions. per-day 상한은 DB CHECK가 없어 애플리케이션이 유일한 방벽이다 — 범위·duration은 지워도 DB가 500으로 막지만 상한은 201로 그냥 들어간다. item 필드 경계는 TripItem.requireFieldBounds 한 곳이 소유하고 field 경로는 호출자가 준다.",
       "steps": [
         "각 command에 owner·If-Match·기간·duration·상한·고정 조건을 검증한다",
         "candidate 일정화는 SCHEDULED linkage와 item/revision을 원자 반영한다",
