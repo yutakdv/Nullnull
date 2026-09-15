@@ -331,6 +331,22 @@ export function TripWizardScreen() {
             // the user (.claude/rules/frontend.md on duplicate submits).
             disabled={draft.planningLevel === null || createTrip.isPending}
             onClick={submit}
+            secondary={
+              // The paste path (FE-104, `401:1221`). Offered here rather than
+              // as the `400:1201` branch screen, whose confirm boundary is
+              // still open in FCR-018 — and a route with no entry point is
+              // reachable only by typing its URL, which is how
+              // /start/must-visit ended up unreachable.
+              <button
+                type="button"
+                className={styles.later}
+                onClick={() => {
+                  void navigate('/start/import');
+                }}
+              >
+                {t('import.start')}
+              </button>
+            }
           />
         </>
       ) : null}

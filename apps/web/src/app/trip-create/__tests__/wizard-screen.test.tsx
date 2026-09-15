@@ -61,6 +61,27 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
   await user.click(numbered[3] as HTMLElement);
 }
 
+describe('the paste path is reachable from the wizard', () => {
+  // FE-104. The route existing is not the same as the route being reachable:
+  // /start/must-visit has been defined in routes.tsx the whole time and
+  // nothing links to it, so it can only be opened by typing its URL. This
+  // asserts the step 3 secondary actually lands on the paste screen.
+  it('reaches the paste screen from step 3', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await screen.findByText(`${copy['wizard.step']} 3`);
+
+    await user.click(screen.getByRole('button', { name: copy['import.start'] }));
+
+    expect(
+      await screen.findByRole('heading', { name: copy['import.title'] }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('the user can go back a step without losing the draft', () => {
   // Reproduced in a browser before this existed: pick 9/15-9/18, press the
   // CTA, and step 2 offers only 다음 and 나중에 고를래요. There is no back

@@ -1300,6 +1300,127 @@ export function useAddTripCandidate(tripId: string | null) {
   });
 }
 
+type ImportDraft = components['schemas']['ImportDraft'];
+type ParseImportRequest = components['schemas']['ParseImportRequest'];
+type RemapImportRequest = components['schemas']['RemapImportRequest'];
+type ConfirmImportRequest = components['schemas']['ConfirmImportRequest'];
+
+/** A draft and the ETag its next mutation has to send back. */
+export interface ImportDraftWithETag {
+  draft: ImportDraft;
+  etag: string | null;
+}
+
+/**
+ * Turns pasted itinerary text into a structured draft (FR-TRC-08, FE-104).
+ *
+ * The raw text is a request body and nothing else. It is never put in a query
+ * string, a cache key, a log line or an analytics event, and the contract says
+ * the response must not echo it back — invariant 10 is the reason this
+ * operation exists in this shape at all. That is also why the draft is NOT
+ * written into the query cache here: a cache entry is a copy that outlives the
+ * request, and the only thing the screen needs is the value this returns.
+ *
+ * Carries an Idempotency-Key minted by the caller, so a retry after a lost
+ * response re-reads the same parse instead of starting a second one.
+ */
+export function useParseTripImport() {
+  return useMutation<
+    ImportDraftWithETag,
+    Problem | Error,
+    { request: ParseImportRequest; idempotencyKey: string }
+  >({
+    mutationFn: async ({ request, idempotencyKey }) => {
+      const { data, error, response } = await getApiClient().POST('/trip-imports/parse', {
+        body: request,
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
+      });
+      if (!data) fail(error, response);
+      return { draft: data, etag: response.headers.get('ETag') };
+    },
+  });
+}
+
+/**
+ * Corrects what the parser could not place (FR-TRC-08).
+ *
+ * `updates` is a partial patch per clientKey where an absent field means
+ * "leave alone", so this sends only what the user actually changed. The one
+ * field that is not a value correction is `dismissed`: it withdraws a token or
+ * an item instead of resolving it (#223), which is how a line the parser could
+ * not place stops blocking READY. Without it a draft containing a free-memo
+ * line could never reach confirm — the dead end FCR-019 recorded.
+ *
+ * If-Match is required and required here: the draft version advances on every
+ * remap, and a blind PATCH would overwrite a correction made in another tab.
+ * A 410 means the draft expired, which is not retryable — the paste is gone
+ * and the user has to start again (problem-policy: `repaste`).
+ */
+export function useRemapTripImport(draftId: string | null) {
+  return useMutation<
+    ImportDraftWithETag,
+    Problem | Error,
+    { updates: RemapImportRequest['updates']; etag: string | null }
+  >({
+    mutationFn: async ({ updates, etag }) => {
+      if (draftId === null) throw new Error('No import draft');
+      if (etag === null) throw new Error('Cannot correct a draft without its ETag');
+      const { data, error, response } = await getApiClient().PATCH(
+        '/trip-imports/{draftId}',
+        {
+          body: { updates },
+          params: { path: { draftId }, header: { 'If-Match': etag } },
+        },
+      );
+      if (!data) fail(error, response);
+      return { draft: data, etag: response.headers.get('ETag') };
+    },
+  });
+}
+
+/**
+ * Turns a reviewed draft into a real trip (FR-TRC-09).
+ *
+ * One atomic transaction on the server (invariant 5): either the trip and all
+ * of its mapped items exist, or none of them do. The client's part is to send
+ * both guards the contract asks for — If-Match so a draft edited elsewhere
+ * cannot be confirmed from a stale view, and an Idempotency-Key so a retry
+ * after a lost response does not create a second trip.
+ *
+ * The trip list is invalidated rather than written: this returns the new trip,
+ * but `listTrips` is a separate cursor-paged resource and guessing where the
+ * new row belongs in it is how a list starts disagreeing with the server.
+ */
+export function useConfirmTripImport(draftId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripWithETag,
+    Problem | Error,
+    { request: ConfirmImportRequest; etag: string | null; idempotencyKey: string }
+  >({
+    mutationFn: async ({ request, etag, idempotencyKey }) => {
+      if (draftId === null) throw new Error('No import draft');
+      if (etag === null) throw new Error('Cannot confirm a draft without its ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/trip-imports/{draftId}/confirm',
+        {
+          body: request,
+          params: {
+            path: { draftId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return { trip: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(tripQueryKey(result.trip.id), result);
+      void queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+  });
+}
+
 type RelatedPlaceResult = components['schemas']['RelatedPlaceResult'];
 
 /**
