@@ -46,8 +46,6 @@ tags:
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| in API GET /optimizations/{runId} added the new `DATA_INSUFFICIENT` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `200` | `apps/ai`가 이 결과를 **네 자리에서** 낸다(`item/evaluator.py` 157·171·194·200). 공개 실패 평면에 담을 칸이 없어 다른 코드로 접으면 불변식 6(*데이터 부재를 API와 화면에서 명확히 구분한다*)을 깬다. `BA-051` 카드가 *ROUTE_UNAVAILABLE 또는 계약상 데이터 실패*라고 그 칸을 이름으로 지목했는데 계약에 생기지 않았던 것이다. `x-extensible-enum`으로 바꾸면 oasdiff는 조용해지지만 generated client가 union을 잃어 FE가 실패 코드별 CTA를 분기할 때 컴파일러 도움이 사라진다 — 사용자에게 아무것도 안 보이는 실패가 그 자리다. | 오너(2026-09-14, 이 세션에서 계약 확정 위임) | #225 |
-| in API POST /trips/{tripId}/optimizations added the new `DATA_INSUFFICIENT` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `202` | `apps/ai`가 이 결과를 **네 자리에서** 낸다(`item/evaluator.py` 157·171·194·200). 공개 실패 평면에 담을 칸이 없어 다른 코드로 접으면 불변식 6(*데이터 부재를 API와 화면에서 명확히 구분한다*)을 깬다. `BA-051` 카드가 *ROUTE_UNAVAILABLE 또는 계약상 데이터 실패*라고 그 칸을 이름으로 지목했는데 계약에 생기지 않았던 것이다. `x-extensible-enum`으로 바꾸면 oasdiff는 조용해지지만 generated client가 union을 잃어 FE가 실패 코드별 CTA를 분기할 때 컴파일러 도움이 사라진다 — 사용자에게 아무것도 안 보이는 실패가 그 자리다. | 오너(2026-09-14, 이 세션에서 계약 확정 위임) | #225 |
 
 ## 만료된 예외 (기록)
 
@@ -74,3 +72,16 @@ tags:
   breaking을 거의 전부 `error`로 보고하므로 **등록된 예외가 하나도 적용되지 않았다** — `err-ignore`를 함께
   연결했다. 둘, 이 표의 메시지 셀이 `|`를 담을 수 없어(pattern의 alternation) parser가 조용히 매칭에
   실패했다 — `\|` escape를 쓰고 parser가 복원한다. 예외를 실제로 써 보기 전에는 둘 다 드러나지 않았다.
+
+- **`DATA_INSUFFICIENT` 실패 코드 enum 추가, 2건** (승인: 오너 2026-09-14, 추적: #225).
+  PR #229(`65d35d1`)로 `main`에 반영됐고 base가 따라 움직여 만료됐다 — 양쪽 spec에 값이
+  있으므로 oasdiff가 더는 *added the new enum value* 를 보고하지 않는다. 근거는 그대로
+  유효하다: `apps/ai`가 이 결과를 네 자리에서 내고(`item/evaluator.py` 157·171·194·200),
+  공개 실패 평면에 칸이 없어 다른 코드로 접으면 *데이터 부재를 API와 화면에서 명확히
+  구분한다* 는 원칙을 깬다. `x-extensible-enum`으로 바꾸지 않은 이유도 같다 — generated
+  client가 union을 잃으면 FE가 실패 코드별 CTA를 분기할 때 컴파일러 도움이 사라진다.
+
+  **이 건은 만료 청소가 PR에서만 드러난다는 것을 보여줬다.** oasdiff diff는 `main` 대상
+  PR에서만 돌므로, 계약이 머지된 순간 면제는 만료됐지만 그 뒤 **처음 열린 PR**(#234, FE)
+  에서야 빨개졌다. 계약을 넣은 쪽과 실패를 본 쪽이 달라진다 — 계약 PR을 머지한 직후
+  같은 PR에서 ignore 줄을 비우는 것이 이 지연을 없애는 유일한 방법이다.
