@@ -20,6 +20,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sessionFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -61,6 +62,35 @@ describe('A-1 splash bootstraps the anonymous session', () => {
     expect(
       await screen.findByRole('heading', { name: /Choose your language/ }),
     ).toBeInTheDocument();
+  });
+
+  it('sends a returning visitor past the flow they already completed', async () => {
+    // FR-ONB-03: "완료 후 재방문 redirect". The shared fixture carries
+    // onboardingCompleted false — it is a BE/FE artifact, so the state it does
+    // not hold is supplied by an override here rather than by editing it.
+    server.use(
+      http.post(`${API_BASE}/demo/sessions`, () =>
+        HttpResponse.json(
+          {
+            ...sessionFixtures.bootstrap,
+            owner: { ...sessionFixtures.bootstrap.owner, onboardingCompleted: true },
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+    renderAt('/');
+
+    expect(
+      await screen.findByRole('heading', { name: copy['feed.title'] }),
+    ).toBeInTheDocument();
+    // And the language screen is not merely passed through: it is never shown.
+    expect(
+      screen.queryByRole('heading', { name: /Choose your language/ }),
+    ).not.toBeInTheDocument();
+    // The flag rides on the bootstrap, so recognising the visitor costs no
+    // second request. /me here would delay the redirect behind a round trip.
+    expect(requests.filter((r) => r.url.includes('/me'))).toHaveLength(0);
   });
 
   it('never sends an owner id: the server derives it from the session', async () => {
