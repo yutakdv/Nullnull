@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useRemoveTripItem, useTrip } from '../../shared/api/index.js';
@@ -54,33 +54,91 @@ export function RemoveItemControl({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  /**
+   * The day section this row sits in, captured while the row is still mounted.
+   *
+   * NOT "where focus was before the dialog opened": that is the opener itself,
+   * and the opener is inside the row that BOTH dispositions unmount — keeping
+   * a place as a candidate still takes the stop off the itinerary. A fallback
+   * to the element the user came from is therefore a fallback to the same
+   * doomed node, which is how focus reached document.body.
+   *
+   * The day section outlives the removal even when the stop was the day's
+   * last, because the day then renders its empty state rather than
+   * disappearing. It is owned by TripScreen, so it is reached by walking up
+   * from the opener rather than by a ref this component could hold.
+   */
+  const restoreTo = useRef<HTMLElement | null>(null);
 
-  // Opened and closed imperatively for the same reason MoveDaySheet does it:
-  // showModal() is what gives the platform focus trap and inert background,
-  // and React has no prop for it.
-  if (dialogRef.current) {
-    if (confirming && !dialogRef.current.open) {
-      dialogRef.current.showModal();
+  // Opened and closed in an EFFECT, not during render. showModal() is what
+  // gives the platform focus trap and inert background and React has no prop
+  // for it, but doing it in the component body means moving focus during a
+  // render pass — and main.tsx wraps the app in StrictMode, which invokes
+  // render twice and may discard the first. ConfirmDialog and TripPicker both
+  // already do this in an effect; this was the one dialog that did not.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (confirming) {
+      // Captured while the row is still mounted, because after the removal
+      // there is no way back up from a detached node. tabIndex is set here
+      // rather than in TripScreen so the section only becomes focusable for
+      // the exit that needs it, and -1 keeps it out of the tab order.
+      const day = openerRef.current?.closest<HTMLElement>(
+        'section[aria-labelledby^="day-"]',
+      );
+      if (day) day.tabIndex = -1;
+      restoreTo.current = day ?? null;
+      if (!dialog.open) dialog.showModal();
       // The safe choice takes focus, the way ConfirmDialog does it. NOT
       // autoFocus: this dialog is mounted (closed) on every row, and autoFocus
       // fires on mount, so it pulled focus out of the page and broke the
       // screen's tab order — caught by trip-screen's keyboard test.
       cancelRef.current?.focus();
+    } else if (dialog.open) {
+      dialog.close();
     }
-    if (!confirming && dialogRef.current.open) dialogRef.current.close();
-  }
+  }, [confirming]);
 
-  function close() {
+  /**
+   * Closes the dialog and puts focus somewhere the user can see.
+   *
+   * Every exit routes through here — cancel, Escape, backdrop AND both submit
+   * dispositions. `submit` used to call setConfirming(false) directly, so a
+   * successful removal left focus on nothing: the opener it would have
+   * returned to is inside the row the removal unmounts, and focus fell to
+   * document.body.
+   *
+   * Where focus goes is the CALLER's to say, not something read off the DOM.
+   * An earlier version preferred the trigger whenever it was still connected
+   * and fell back to the day otherwise — which never fired, because submit()
+   * closes before the request resolves: at that moment the row is still
+   * mounted, so the trigger looks alive, takes focus, and is then destroyed
+   * when the removal lands. Focus fell to document.body exactly as before.
+   *
+   * So the answers that leave the stop on screen (cancel, Escape, backdrop)
+   * ask for the trigger, and the submit paths ask for the day — the nearest
+   * thing that outlives the action and tells the user where they were.
+   */
+  function close(restore: 'trigger' | 'day' = 'trigger') {
     setConfirming(false);
-    // Focus goes back to the control that opened this, which is the only
-    // element that is certainly still on screen afterwards.
-    openerRef.current?.focus();
+    const target = restore === 'day' ? restoreTo.current : openerRef.current;
+    restoreTo.current = null;
+    // Deferred so focus lands after React has committed the close.
+    queueMicrotask(() => {
+      if (target?.isConnected) target.focus();
+    });
   }
 
   function submit(disposition: 'RESTORE_CANDIDATE' | 'REMOVE') {
     setFailed(null);
     setStatus(null);
-    setConfirming(false);
+    // 'day', not the trigger: this row is leaving whichever disposition was
+    // chosen — keeping the place as a candidate still takes the stop off the
+    // itinerary — so the trigger is about to be unmounted and cannot hold
+    // focus. Closing happens here rather than in onSuccess so the dialog does
+    // not sit open over a request the user has already answered.
+    close('day');
     remove.mutate(
       { itemId: item.id, disposition, etag },
       {
@@ -159,7 +217,11 @@ export function RemoveItemControl({
                 take a stop off the itinerary. */}
             <button
               className={styles.cancel}
-              onClick={close}
+              onClick={() => {
+                // Wrapped, not passed bare: close() now takes where focus
+                // should go, and React would hand it the MouseEvent.
+                close();
+              }}
               ref={cancelRef}
               type="button"
             >

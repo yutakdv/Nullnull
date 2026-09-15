@@ -28,7 +28,7 @@ const TRIPS = [
     startDate: '2026-10-04',
     endDate: '2026-10-07',
     timezone: 'Asia/Seoul',
-    status: 'SCHEDULED',
+    status: 'ACTIVE',
     version: 3,
     candidateCount: 5,
   },
@@ -42,7 +42,12 @@ const TRIPS = [
     version: 1,
     candidateCount: 0,
   },
-] as unknown as TripPickerProps['trips'];
+  // `satisfies`, not `as unknown as`: the cast laundered the fixture past
+  // typecheck, and it was hiding a status the contract does not have
+  // (SCHEDULED belongs to CandidateStatus, not TripStatus). A wrong value here
+  // must fail `npm run typecheck` rather than teach the next reader a state
+  // the server can never send.
+] satisfies TripPickerProps['trips'];
 
 function renderPicker(overrides: Partial<TripPickerProps> = {}) {
   const props: TripPickerProps = {

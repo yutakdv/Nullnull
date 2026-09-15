@@ -158,6 +158,41 @@ describe('FE-305 removing a stop asks what happens to the saved place', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(copy['trip.conflict']);
   });
 
+  it('moves focus to the day when the stop is gone', async () => {
+    // The success paths used to skip focus entirely: submit() called
+    // setConfirming(false) directly, so only cancel/Escape restored it and
+    // answering the question left focus on document.body. Nothing in this file
+    // could see that — it held no focus assertion at all, which is why the
+    // defect shipped.
+    //
+    // The trigger is NOT the answer here, and a first attempt at this test
+    // asserted that it was and failed against a correct fix. BOTH dispositions
+    // unmount the row: keeping the place as a candidate still takes the stop
+    // off the itinerary, which is the first line of this file. So the trigger
+    // is detached by the time focus is restored, and the day section — which
+    // outlives the removal even when the stop was the day's last — is what
+    // the user is left standing in.
+    const user = userEvent.setup();
+    const dialog = await openConfirm(user);
+    const day = document.querySelector<HTMLElement>(
+      `section[aria-labelledby="day-${trip.days[0]?.date ?? ''}"]`,
+    );
+    await user.click(
+      within(dialog).getByRole('button', { name: copy['trip.remove.keepCandidate'] }),
+    );
+
+    await waitFor(() => {
+      expect(day).toHaveFocus();
+    });
+    // The row really did go, so the assertion above is about a surviving
+    // landmark and not about a trigger that merely happened to keep focus.
+    expect(
+      screen.queryByRole('button', {
+        name: copy['trip.remove.open'].replace('{name}', itemName),
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it('reports a plain failure as a failure, not as a conflict', async () => {
     server.use(
       http.delete(`${API_BASE}/trips/:tripId/items/:itemId`, () => HttpResponse.error()),
