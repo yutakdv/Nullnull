@@ -58,11 +58,121 @@ function currentTrip() {
   return tripState;
 }
 
+/**
+ * FE-104's trip LIST state, separate from the detail state above.
+ *
+ * deleteTrip removes a row, so the list has to be able to lose one. Serving
+ * the fixture flat would make "the deleted trip is gone" true before the
+ * screen did anything.
+ */
+let tripPageState: (typeof tripFixtures)['page'] | null = null;
+
+function currentTripPage() {
+  tripPageState ??= tripFixtures.page;
+  return tripPageState;
+}
+
 let candidateState: (typeof candidateFixtures)['page'] | null = null;
 
 function currentCandidates() {
   candidateState ??= candidateFixtures.page;
   return candidateState;
+}
+
+type ImportDraft = components['schemas']['ImportDraft'];
+
+/**
+ * FE-104's import draft.
+ *
+ * Stateful for the same reason the trip is: a remap advances the version, so a
+ * stale If-Match has to come back as a conflict rather than pass silently. A
+ * handler that answered every correction with the same body would let a
+ * stale-ETag bug through, and would also make "the correction stuck" true
+ * before the screen did anything.
+ */
+let importDraftState: ImportDraft | null = null;
+
+/**
+ * Builds a draft from the place fixtures rather than from an import fixture.
+ *
+ * There is no approved example for parseTripImport (BA-060) and no
+ * packages/contracts fixture for it, so this models the contract the way the
+ * FE-305 item handlers do. The places are real fixture rows, which is what
+ * keeps the PlaceSummary shape honest; only the draft envelope is composed.
+ *
+ * The shape says what the screen has to handle: one item the parser placed,
+ * one it placed without a date, and two unresolved tokens — a PLACE with
+ * suggestions, and one with an EMPTY label, which is the free-memo line that
+ * #223's `dismissed` exists for. A draft where every token had suggestions
+ * would never exercise the dead end FCR-019 recorded.
+ */
+function buildImportDraft(): ImportDraft {
+  const [first, second, third] = placeFixtures.searchPage.items;
+  return {
+    id: '018f4c30-2b55-7f22-ad13-6e8f4a2b3c01',
+    version: 1,
+    status: 'NEEDS_REVIEW',
+    title: null,
+    dates: { startDate: '2026-10-04', endDate: '2026-10-05' },
+    items: [
+      {
+        clientKey: 'line-1',
+        place: first ?? null,
+        originalLabel: first?.name ?? '',
+        date: '2026-10-04',
+        startTime: '10:00:00',
+        position: 0,
+        confidence: 0.94,
+        constraints: [],
+      },
+      {
+        clientKey: 'line-2',
+        place: second ?? null,
+        originalLabel: second?.name ?? '',
+        // No date: the parser read the place but not the day, so this is an
+        // item the person still has to answer for before READY.
+        date: null,
+        startTime: null,
+        position: 1,
+        confidence: 0.61,
+        constraints: [],
+      },
+    ],
+    unresolved: [
+      {
+        clientKey: 'token-3',
+        kind: 'PLACE',
+        line: 4,
+        label: '한옥마을',
+        suggestions: third ? [third] : [],
+      },
+      {
+        // An empty label with no suggestions: a free-memo line. The contract
+        // says the label is allowlist-extracted and a memo yields an EMPTY
+        // one, so `line` is the only way a person finds it. Nothing here can
+        // be resolved, which is exactly why `dismissed` exists.
+        clientKey: 'token-4',
+        kind: 'PLACE',
+        line: 7,
+        label: '',
+        suggestions: [],
+      },
+    ],
+    expiresAt: '2026-09-16T04:00:00Z',
+  };
+}
+
+function currentImportDraft(): ImportDraft {
+  importDraftState ??= buildImportDraft();
+  return importDraftState;
+}
+
+/** READY once nothing is unresolved and every item has a place and a date. */
+function importDraftStatus(draft: ImportDraft): ImportDraft['status'] {
+  const settled =
+    draft.unresolved.length === 0 &&
+    draft.items.every((item) => item.place != null && item.date != null);
+  return settled ? 'READY' : 'NEEDS_REVIEW';
 }
 
 /**
@@ -116,7 +226,9 @@ const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
   tripState = null;
+  tripPageState = null;
   candidateState = null;
+  importDraftState = null;
   savedPosts.clear();
   runPolls.clear();
 }
@@ -144,7 +256,34 @@ export const handlers = [
   // fixtures behind them are schema-valid guesses rather than real responses
   // (packages/contracts/src/index.ts). Delete these two handlers once BA-030
   // and BA-053 serve the real thing; the screens already call the real client.
-  http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.page)),
+  http.get(`${API_BASE}/trips`, () => HttpResponse.json(currentTripPage())),
+  // MOCK DATA (FE-104). deleteTrip has no approved example either.
+  //
+  // Stateful for the same reason the item handlers are: if this answered 204
+  // and left the list alone, "the deleted trip is gone from the list" would
+  // pass whether or not the screen ever removed it. The row has to actually
+  // leave, or the assertion measures nothing.
+  //
+  // If-Match is checked against THAT ROW's version, because the contract's
+  // ETag is the quoted trip version and the profile builds it from
+  // TripSummary.version. A stale validator has to be visible as a conflict.
+  http.delete(`${API_BASE}/trips/:tripId`, ({ request, params }) => {
+    const page = currentTripPage();
+    const tripId = String(params.tripId);
+    const target = page.items.find((trip) => trip.id === tripId);
+    if (!target) return problemResponse('NOT_FOUND');
+    if (request.headers.get('If-Match') !== `"${String(target.version)}"`) {
+      return problemResponse('TRIP_CHANGED');
+    }
+    tripPageState = {
+      ...page,
+      items: page.items.filter((trip) => trip.id !== tripId),
+    };
+    return new HttpResponse(null, {
+      status: 204,
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }),
   http.get(`${API_BASE}/optimizations`, () =>
     HttpResponse.json(optimizationFixtures.historyPage),
   ),
@@ -740,6 +879,134 @@ export const handlers = [
     tripState = { ...trip, interests: body.interests, version: trip.version + 1 };
     return HttpResponse.json(tripState, {
       headers: { ETag: `"${String(tripState.version)}"` },
+    });
+  }),
+
+  // MOCK DATA (FE-104). parseTripImport, remapTripImport and confirmTripImport
+  // have no approved example (BA-060), so these model the contract rather than
+  // echo a fixture.
+  //
+  // The raw text is read to decide nothing is empty and is then DROPPED. It is
+  // never stored in module state, never put in a response, never logged — the
+  // handler is the one place a mock could quietly start retaining it, and
+  // invariant 10 is the whole reason this operation has the shape it has.
+  http.post(`${API_BASE}/trip-imports/parse`, async ({ request }) => {
+    const body = (await request.json()) as { rawText?: string };
+    if (!body.rawText) return problemResponse('VALIDATION_FAILED');
+    importDraftState = buildImportDraft();
+    return HttpResponse.json(importDraftState, {
+      headers: {
+        ETag: `"${String(importDraftState.version)}"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  }),
+
+  http.patch(`${API_BASE}/trip-imports/:draftId`, async ({ request }) => {
+    const draft = currentImportDraft();
+    if (request.headers.get('If-Match') !== `"${String(draft.version)}"`) {
+      return problemResponse('IMPORT_DRAFT_CHANGED');
+    }
+    const body = (await request.json()) as {
+      updates: {
+        clientKey: string;
+        placeId?: string | null;
+        date?: string | null;
+        startTime?: string | null;
+        dismissed?: boolean;
+      }[];
+    };
+
+    let items = draft.items;
+    let unresolved = draft.unresolved;
+
+    for (const update of body.updates) {
+      // `dismissed` withdraws rather than resolves (#223). It is the same
+      // field for a token and an item because they are the same dead end: the
+      // draft holds something the person cannot act on and cannot remove.
+      if (update.dismissed === true) {
+        items = items.filter((item) => item.clientKey !== update.clientKey);
+        unresolved = unresolved.filter((token) => token.clientKey !== update.clientKey);
+        continue;
+      }
+      const token = unresolved.find((t) => t.clientKey === update.clientKey);
+      if (token && update.placeId != null) {
+        // Resolving a token turns it into an item, which is what makes the
+        // unresolved list shrink and READY reachable.
+        const place =
+          token.suggestions.find((p) => p.id === update.placeId) ??
+          placeFixtures.searchPage.items.find((p) => p.id === update.placeId);
+        if (!place) return problemResponse('VALIDATION_FAILED');
+        unresolved = unresolved.filter((t) => t.clientKey !== update.clientKey);
+        items = [
+          ...items,
+          {
+            clientKey: token.clientKey,
+            place,
+            originalLabel: token.label,
+            date: update.date ?? null,
+            startTime: update.startTime ?? null,
+            position: items.length,
+            confidence: 1,
+            constraints: [],
+          },
+        ];
+        continue;
+      }
+      // Absent means "leave alone", so only the fields actually sent move.
+      items = items.map((item) =>
+        item.clientKey === update.clientKey
+          ? {
+              ...item,
+              date: update.date === undefined ? item.date : update.date,
+              startTime:
+                update.startTime === undefined ? item.startTime : update.startTime,
+            }
+          : item,
+      );
+    }
+
+    const next: ImportDraft = {
+      ...draft,
+      items,
+      unresolved,
+      version: draft.version + 1,
+    };
+    importDraftState = { ...next, status: importDraftStatus(next) };
+    return HttpResponse.json(importDraftState, {
+      headers: {
+        ETag: `"${String(importDraftState.version)}"`,
+        'Cache-Control': 'private, no-store',
+      },
+    });
+  }),
+
+  http.post(`${API_BASE}/trip-imports/:draftId/confirm`, async ({ request }) => {
+    const draft = currentImportDraft();
+    if (request.headers.get('If-Match') !== `"${String(draft.version)}"`) {
+      return problemResponse('IMPORT_DRAFT_CHANGED');
+    }
+    // The server refuses a draft that still holds something unanswered. Modelled
+    // here so the screen's gate is checked against a server that also gates,
+    // rather than against one that accepts anything the screen happens to send.
+    if (importDraftStatus(draft) !== 'READY') {
+      return problemResponse('VALIDATION_FAILED');
+    }
+    const body = (await request.json()) as { title: string };
+    const created = {
+      ...tripFixtures.detailCreated,
+      id: crypto.randomUUID(),
+      title: body.title,
+    };
+    tripState = null;
+    tripPageState = null;
+    importDraftState = { ...draft, status: 'CONFIRMED' };
+    return HttpResponse.json(created, {
+      status: 201,
+      headers: {
+        ETag: `"${String(created.version)}"`,
+        'Cache-Control': 'private, no-store',
+      },
     });
   }),
 ];

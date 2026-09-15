@@ -1,7 +1,14 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { useOptimizationHistory, useTrips } from '../../shared/api/index.js';
+import {
+  isProblem,
+  useDeleteTrip,
+  useOptimizationHistory,
+  useTrips,
+} from '../../shared/api/index.js';
+import { ConfirmDialog } from '../../shared/ui/components/index.js';
 import { DeletionSection } from './DeletionSection.js';
 import { hasResult, rowState, runHref } from './history.js';
 import { InterestsSection } from './InterestsSection.js';
@@ -33,10 +40,54 @@ function tripDates(start: string, end: string, locale: string): string {
   return `${format.format(new Date(start))} – ${format.format(new Date(end))}`;
 }
 
+/** The trip a confirm is open for, with the key that deletion will carry. */
+interface PendingDelete {
+  id: string;
+  title: string;
+  version: number;
+  idempotencyKey: string;
+}
+
 export function ProfileScreen() {
   const { locale, t } = useI18n();
   const trips = useTrips();
   const history = useOptimizationHistory();
+  const remove = useDeleteTrip();
+  const [pending, setPending] = useState<PendingDelete | null>(null);
+  // Announced at screen level, not in the row: a successful delete unmounts
+  // the row, which would destroy the message reporting it. RemoveItemControl
+  // learned the same thing.
+  const [announced, setAnnounced] = useState<string | null>(null);
+  const [failed, setFailed] = useState<'conflict' | 'failed' | null>(null);
+
+  function confirmDelete() {
+    if (!pending) return;
+    const { id, title, version, idempotencyKey } = pending;
+    setPending(null);
+    setFailed(null);
+    setAnnounced(null);
+    remove.mutate(
+      // The contract's ETag is the quoted trip version, so the list row
+      // already holds a valid If-Match and no extra getTrip is needed.
+      { tripId: id, etag: `"${String(version)}"`, idempotencyKey },
+      {
+        onSuccess: () => {
+          setAnnounced(t('trip.delete.deleted', { name: title }));
+        },
+        onError: (error) => {
+          // A conflict means this trip changed elsewhere, so the version the
+          // row was holding is stale. Nothing was deleted; refetching the list
+          // is what makes a second attempt able to succeed.
+          if (isProblem(error) && error.code === 'TRIP_CHANGED') {
+            setFailed('conflict');
+            void trips.refetch();
+            return;
+          }
+          setFailed('failed');
+        },
+      },
+    );
+  }
 
   return (
     <section className={styles.screen} aria-labelledby="profile-heading">
@@ -106,7 +157,7 @@ export function ProfileScreen() {
         {trips.isSuccess && trips.data.items.length > 0 ? (
           <ul className={styles.rows}>
             {trips.data.items.map((trip) => (
-              <li key={trip.id}>
+              <li className={styles.tripRow} key={trip.id}>
                 <Link className={styles.row} to={`/trip/${trip.id}`}>
                   <span className={styles.rowText}>
                     <span className={styles.rowTitle}>{trip.title}</span>
@@ -118,10 +169,68 @@ export function ProfileScreen() {
                     ›
                   </span>
                 </Link>
+                {/* After the link, never inside it: an interactive control
+                    cannot nest in an anchor, and the profile's keyboard test
+                    tabs once expecting the trip link to take focus first.
+                    Opening the trip is the ordinary action; deleting it is
+                    not, so it does not come first in the tab order either. */}
+                <button
+                  aria-label={t('trip.delete.open', { name: trip.title })}
+                  className={styles.rowDelete}
+                  disabled={remove.isPending}
+                  onClick={() => {
+                    // The key is minted HERE, when the user opens the confirm,
+                    // and held until that deletion ends. Minting it at send
+                    // time would give a retry of the same confirmed deletion a
+                    // fresh key, which is a second destructive command rather
+                    // than a retry of the first.
+                    setPending({
+                      id: trip.id,
+                      title: trip.title,
+                      version: trip.version,
+                      idempotencyKey: crypto.randomUUID(),
+                    });
+                  }}
+                  type="button"
+                >
+                  {/* A glyph, with the trip's name carried by aria-label
+                      above. The full label as visible text made the button
+                      205–226px wide, which forced the page to scroll
+                      sideways at 200% zoom (WCAG 1.4.10) — the reflow spec
+                      caught it. Eleven other row controls in this app take
+                      the same shape. */}
+                  <span aria-hidden="true">✕</span>
+                </button>
               </li>
             ))}
           </ul>
         ) : null}
+
+        {/* Outside the list, so it outlives the row a successful delete
+            removes. */}
+        {announced === null ? null : (
+          <p aria-live="polite" className={styles.state} role="status">
+            {announced}
+          </p>
+        )}
+        {failed === null ? null : (
+          <p className={styles.state} role="alert">
+            {t(failed === 'conflict' ? 'trip.delete.conflict' : 'trip.delete.failed')}
+          </p>
+        )}
+
+        <ConfirmDialog
+          open={pending !== null}
+          title={t('trip.delete.title')}
+          body={t('trip.delete.body', { name: pending?.title ?? '' })}
+          confirmLabel={t('trip.delete.confirm')}
+          cancelLabel={t('trip.delete.cancel')}
+          destructive
+          onConfirm={confirmDelete}
+          onCancel={() => {
+            setPending(null);
+          }}
+        />
       </section>
 
       <section aria-labelledby="profile-history-heading" className={styles.card}>

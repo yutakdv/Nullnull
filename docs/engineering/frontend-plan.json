@@ -1300,16 +1300,20 @@
       "phase": "B07",
       "priority": "P0",
       "title": "browser-first 한국어 parser와 correction UI",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "FE-102",
         "BA-060"
       ],
       "operations": [
-        "parseTripImport"
+        "parseTripImport",
+        "remapTripImport",
+        "confirmTripImport"
       ],
       "featureIds": [
-        "FR-TRC-06"
+        "FR-TRC-06",
+        "FR-TRC-07",
+        "FR-TRC-09"
       ],
       "figmaNodes": [
         "401:1221"

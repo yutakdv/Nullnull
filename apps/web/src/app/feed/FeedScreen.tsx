@@ -7,7 +7,7 @@ import {
   useFeed,
   useTrips,
 } from '../../shared/api/index.js';
-import { FeedPostCard, type TripAddState } from '../../shared/ui/index.js';
+import { FeedPostCard, TripPicker, type TripAddState } from '../../shared/ui/index.js';
 import styles from './FeedScreen.module.css';
 
 // Figma: S03-F0 `391:310` (no trip) and S03-F1 `396:2926` (active trip).
@@ -41,15 +41,35 @@ export function FeedScreen() {
   const navigate = useNavigate();
   const trips = useTrips();
 
-  // The first trip is the selected one until FE-203 introduces a real
-  // selector. Null while the list is still loading, which is the difference
-  // between "no trip" and "not known yet" — asking with a tripId we do not
-  // have yet would bind the cursor to the wrong selection.
-  const selectedTripId = trips.data?.items[0]?.id ?? null;
+  // Which trip the `+` collects into.
+  //
+  // `chosenTripId` is what the user picked in the sheet; until they pick, the
+  // first trip stands in. That default is deliberate: the feed needs a tripId
+  // to ask for `candidateState`, and having none would make every card read
+  // NO_TRIP_SELECTED for an owner who has trips. Null while the list is still
+  // loading, which is the difference between "no trip" and "not known yet" —
+  // asking with a tripId we do not have yet would bind the cursor to the wrong
+  // selection.
+  const [chosenTripId, setChosenTripId] = useState<string | null>(null);
+  const tripItems = trips.data?.items ?? [];
+  const chosenStillExists = tripItems.some((trip) => trip.id === chosenTripId);
+  // A choice only counts while that trip is still in the list. A background
+  // refetch can remove it — another device deletes the trip — and the id would
+  // otherwise stay selected and be sent for a trip that no longer exists.
+  const selectedTripId = chosenStillExists ? chosenTripId : (tripItems[0]?.id ?? null);
+  // The place the sheet is choosing a trip for, or null when it is closed.
+  const [pickerFor, setPickerFor] = useState<{
+    placeId: string;
+    postId: string;
+    name: string;
+  } | null>(null);
   // Waits for the trip list: the cursor the server mints is bound to the trip
   // selection, so asking before it is known spends a request on a selection
   // that is about to change.
   const feed = useFeed(selectedTripId, trips.isSuccess);
+  // Bound to the selection, and the sheet sets the selection before it saves —
+  // useAddTripCandidate takes its trip at hook level, so a save into a trip
+  // other than the selected one is not expressible without changing that hook.
   const addCandidate = useAddTripCandidate(selectedTripId);
 
   // Which card is mid-save, and how each one ended. Per place rather than one
@@ -60,12 +80,18 @@ export function FeedScreen() {
   // a lost response replays it instead of saving twice (invariant 6).
   const addKeys = useRef<Record<string, string>>({});
 
-  function saveCandidate(placeId: string, postId: string) {
-    if (selectedTripId === null) return;
+  function saveCandidate(placeId: string, postId: string, tripId: string) {
+    if (tripId === '') return;
     addKeys.current[placeId] ??= crypto.randomUUID();
     setAddStates((current) => ({ ...current, [placeId]: 'loading' }));
     addCandidate.mutate(
       {
+        // The trip the user answered the sheet with, sent explicitly. It used
+        // to ride on the hook's closure instead, which made this argument
+        // inert: the save reached the right trip only because the state update
+        // happened to re-render first, and the test written to prove the
+        // choice was honoured passed with the choice deleted.
+        tripId,
         // POST with the post it came from: the contract's source records
         // where a candidate was found, and the feed knows the answer
         // exactly. Inventing a FEED type would not compile — the enum is
@@ -237,7 +263,14 @@ export function FeedScreen() {
                 onAddCandidate={
                   card.candidateState === 'NOT_SAVED' && selectedTripId !== null
                     ? (placeId) => {
-                        saveCandidate(placeId, card.post.id);
+                        // Ask which trip rather than assuming the first one.
+                        // FR-CAN-01: the `+` opens the picker, and the save is
+                        // what the user answers with.
+                        setPickerFor({
+                          placeId,
+                          postId: card.post.id,
+                          name: card.primaryPlace.name,
+                        });
                       }
                     : undefined
                 }
@@ -255,6 +288,44 @@ export function FeedScreen() {
           ))}
         </ul>
       ) : null}
+
+      {/* FR-CAN-01: which trip the place goes in. Mounted once for the screen
+          rather than per card — twelve cards would otherwise mount twelve
+          dialogs, which is the shape that made an earlier E2E measure the
+          wrong one. */}
+      <TripPicker
+        failed={trips.isError}
+        labels={{
+          title: t('tripPicker.title'),
+          cancel: t('tripPicker.cancel'),
+          loading: t('tripPicker.loading'),
+          empty: t('tripPicker.empty'),
+          createTrip: t('feed.createTrip'),
+          error: t('tripPicker.error'),
+          retry: t('tripPicker.retry'),
+        }}
+        loading={trips.isPending}
+        onCancel={() => {
+          setPickerFor(null);
+        }}
+        onCreateTrip={() => {
+          setPickerFor(null);
+          void navigate('/start');
+        }}
+        onPick={(tripId) => {
+          const target = pickerFor;
+          setChosenTripId(tripId);
+          setPickerFor(null);
+          if (target) saveCandidate(target.placeId, target.postId, tripId);
+        }}
+        onRetry={() => {
+          void trips.refetch();
+        }}
+        open={pickerFor !== null}
+        placeName={pickerFor?.name ?? ''}
+        selectedTripId={selectedTripId}
+        trips={tripItems}
+      />
 
       {/* A button, not an infinite scroll: a scroll handler that loads more
           has no keyboard equivalent and no announced end, and the frontend

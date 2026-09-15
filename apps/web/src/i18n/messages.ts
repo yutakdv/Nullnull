@@ -133,6 +133,19 @@ export const messages = {
     'profile.trips.empty': '아직 만든 여행이 없어요',
     'profile.trips.loading': '여행 목록을 불러오는 중이에요',
     'profile.trips.error': '여행 목록을 불러오지 못했어요',
+    // FR-TRP-04 여행 삭제. `deletion.*`와 다른 동작이다 — 그쪽은 이 기기의
+    // 세션 전체를 지우고(FE-105), 이쪽은 여행 하나만 지운다. 문구를 재사용하면
+    // 한 여행을 지우려던 사용자가 전부 지운다고 읽는다.
+    'trip.delete.open': '{name} 삭제',
+    'trip.delete.title': '이 여행을 삭제할까요?',
+    'trip.delete.body':
+      '{name}과(와) 그 안의 일정·담아둔 곳이 모두 지워져요. 되돌릴 수 없어요.',
+    'trip.delete.confirm': '삭제할게요',
+    'trip.delete.cancel': '취소',
+    'trip.delete.deleted': '{name}을(를) 삭제했어요',
+    'trip.delete.failed': '삭제하지 못했어요',
+    // 409: 다른 곳에서 바뀐 여행을 지우려 한 것이므로 목록을 다시 불러온다.
+    'trip.delete.conflict': '이 여행이 다른 곳에서 바뀌었어요. 목록을 새로 불러왔어요.',
     'profile.history.title': 'AI 최적화 이력',
     'profile.history.empty': '아직 최적화 이력이 없어요',
     'profile.history.loading': '이력을 불러오는 중이에요',
@@ -212,6 +225,15 @@ export const messages = {
     'tripAdd.no-trip': '여행을 만들고 담기',
     'tripAdd.loading': '담는 중이에요',
     'tripAdd.error': '담지 못했어요. 다시 시도',
+    // Sheet/TripPicker (C02). The sheet takes its copy from the caller so the
+    // same component can serve the feed and the post detail without knowing
+    // which one opened it.
+    'tripPicker.title': '어느 여행에 담을까요?',
+    'tripPicker.cancel': '취소',
+    'tripPicker.loading': '여행을 불러오는 중이에요',
+    'tripPicker.empty': '아직 여행이 없어요',
+    'tripPicker.error': '여행 목록을 불러오지 못했어요',
+    'tripPicker.retry': '다시 시도',
     'crowd.level': '{steps}단계 중 {level}번째',
     'license.terms': '이용조건',
     'dataGuide.states.heading': '혼잡도 데이터 상태 6가지',
@@ -279,6 +301,39 @@ export const messages = {
     'wizard.interests.title1': '어떤 여행을',
     'wizard.interests.title2': '좋아하세요?',
     'wizard.interests.lead': '취향을 알려주시면 맞는 곳을 찾아드릴게요.',
+    // S02-4C 붙여넣기 `401:1221` (FE-104). 원문은 요청 본문으로만 나가고
+    // 저장·로그·analytics 어디에도 남지 않는다(불변식 10).
+    'import.start': '이미 짜둔 일정 붙여넣기',
+    'import.title': '일정 붙여넣기',
+    'import.lead': '메모장이나 메신저에 적어둔 일정을 그대로 붙여넣어 주세요',
+    'import.label': '일정 원문',
+    'import.placeholder': '10/4 경복궁 10시\n10/5 명동',
+    'import.privacy': '붙여넣은 원문은 저장하지 않아요. 장소와 날짜만 읽어요',
+    'import.parse': '읽어오기',
+    'import.parsing': '읽는 중이에요',
+    'import.parseFailed': '읽지 못했어요. 다시 시도해 주세요',
+    'import.empty': '붙여넣은 내용이 없어요',
+    // parse 결과 검토
+    'import.review.title': '이렇게 읽었어요',
+    'import.review.lead': '빠진 것만 채우면 여행으로 만들어 드릴게요',
+    'import.review.items': '읽은 일정 {count}개',
+    'import.review.unresolved': '확인이 필요한 줄 {count}개',
+    'import.review.ready': '모두 확인했어요',
+    'import.item.noDate': '날짜가 없어요',
+    'import.item.dismiss': '{name} 빼기',
+    // unresolved token
+    'import.token.line': '{line}번째 줄',
+    'import.token.noLabel': '읽을 수 없는 줄이에요',
+    'import.token.pick': '{name}(으)로 지정',
+    'import.token.dismiss': '이 줄 빼기',
+    'import.token.dismissed': '{line}번째 줄을 뺐어요',
+    // 확정
+    'import.confirm': '여행으로 만들기',
+    'import.confirming': '만드는 중이에요',
+    'import.confirmBlocked': '확인이 필요한 줄이 남아 있어요',
+    'import.confirmFailed': '여행을 만들지 못했어요',
+    'import.expired': '시간이 지나 다시 붙여넣어야 해요',
+    'import.changed': '이 초안이 다른 곳에서 바뀌었어요',
     'wizard.interests.who': '누구와',
     'wizard.interests.style': '여행 스타일',
 
@@ -759,6 +814,18 @@ export const messages = {
     'profile.trips.empty': 'No trips yet',
     'profile.trips.loading': 'Loading your trips',
     'profile.trips.error': "We couldn't load your trips",
+    // FR-TRP-04. Deliberately not the `deletion.*` wording: that one erases the
+    // whole session on this device (FE-105), this one removes a single trip.
+    'trip.delete.open': 'Delete {name}',
+    'trip.delete.title': 'Delete this trip?',
+    'trip.delete.body':
+      "{name} and everything in it — the itinerary and the places you saved — will be gone. This can't be undone.",
+    'trip.delete.confirm': 'Delete',
+    'trip.delete.cancel': 'Cancel',
+    'trip.delete.deleted': 'Deleted {name}',
+    'trip.delete.failed': "We couldn't delete it",
+    'trip.delete.conflict':
+      'This trip changed somewhere else. The list has been reloaded.',
     'profile.history.title': 'AI optimization history',
     'profile.history.empty': 'No optimization history yet',
     'profile.history.loading': 'Loading history',
@@ -829,6 +896,12 @@ export const messages = {
     'tripAdd.no-trip': 'Make a trip and add it',
     'tripAdd.loading': 'Adding',
     'tripAdd.error': "Couldn't add it. Try again",
+    'tripPicker.title': 'Which trip should it go in?',
+    'tripPicker.cancel': 'Cancel',
+    'tripPicker.loading': 'Loading your trips',
+    'tripPicker.empty': 'No trips yet',
+    'tripPicker.error': "Couldn't load your trips",
+    'tripPicker.retry': 'Try again',
     'crowd.level': 'Level {level} of {steps}',
     'license.terms': 'Licence terms',
     'dataGuide.states.heading': 'The six crowd data states',
@@ -892,6 +965,39 @@ export const messages = {
     'wizard.interests.title1': 'What kind of trip',
     'wizard.interests.title2': 'do you enjoy?',
     'wizard.interests.lead': "Tell us your taste and we'll find places to match.",
+    // S02-4C paste `401:1221` (FE-104). The raw text goes out as a request
+    // body and is never stored, logged or sent to analytics (invariant 10).
+    'import.start': 'Paste an itinerary you already have',
+    'import.title': 'Paste your itinerary',
+    'import.lead': 'Paste the plan you already wrote in notes or a chat',
+    'import.label': 'Itinerary text',
+    'import.placeholder': '10/4 Gyeongbokgung 10am\n10/5 Myeongdong',
+    'import.privacy': "We don't keep what you paste. We only read places and dates",
+    'import.parse': 'Read it',
+    'import.parsing': 'Reading',
+    'import.parseFailed': "We couldn't read that. Try again",
+    'import.empty': 'There is nothing pasted yet',
+    // Reviewing the parse
+    'import.review.title': 'Here is what we read',
+    'import.review.lead': 'Fill in what is missing and we will make the trip',
+    'import.review.items': '{count} stops read',
+    'import.review.unresolved': '{count} lines need a look',
+    'import.review.ready': 'All set',
+    'import.item.noDate': 'No date yet',
+    'import.item.dismiss': 'Drop {name}',
+    // Unresolved tokens
+    'import.token.line': 'Line {line}',
+    'import.token.noLabel': 'We could not read this line',
+    'import.token.pick': 'Use {name}',
+    'import.token.dismiss': 'Drop this line',
+    'import.token.dismissed': 'Dropped line {line}',
+    // Confirming
+    'import.confirm': 'Make it a trip',
+    'import.confirming': 'Making your trip',
+    'import.confirmBlocked': 'Some lines still need a look',
+    'import.confirmFailed': "We couldn't make the trip",
+    'import.expired': 'That took a while — please paste it again',
+    'import.changed': 'This draft changed somewhere else',
     'wizard.interests.who': 'Who with',
     'wizard.interests.style': 'Travel style',
 

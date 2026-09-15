@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useTrip } from '../../shared/api/index.js';
 import { Chip, DataAttribution } from '../../shared/ui/components/index.js';
 import { ItemMoveControls } from './ItemMoveControls.js';
+import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
 import styles from './TripScreen.module.css';
@@ -64,6 +65,10 @@ export function TripScreen() {
   const query = useTrip(tripId ?? null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  // The outcome of a removal, held HERE rather than in the control that sent
+  // it: a successful remove unmounts the row, so a message owned by the row
+  // would be destroyed by the action it reports.
+  const [removed, setRemoved] = useState<string | null>(null);
   // The button that opened edit mode, so focus can come back to it (FR-TRP-03).
   const editButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -198,6 +203,14 @@ export function TripScreen() {
           page, so its chips reach past the viewport edge on purpose. The
           reflow check in e2e/responsive.spec.ts reads the marker to tell that
           apart from a screen that genuinely overflows. */}
+      {/* The removal outcome. One region for the screen, outside every row, so
+          it survives the row that triggered it. */}
+      {removed === null ? null : (
+        <p aria-live="polite" className={styles.state} role="status">
+          {removed}
+        </p>
+      )}
+
       <nav aria-label={t('trip.allDays')} className={styles.dayNav} data-scrolls-x>
         <ul className={styles.dayChips}>
           <li>
@@ -263,6 +276,7 @@ export function TripScreen() {
                     days={days}
                     etag={query.data.etag}
                     item={item}
+                    onAnnounce={setRemoved}
                     tripId={tripId ?? null}
                   />
                 </li>
@@ -288,11 +302,13 @@ function TripItemRow({
   days,
   tripId,
   etag,
+  onAnnounce,
 }: {
   item: TripItem;
   days: readonly TripDetail['days'][number][];
   tripId: string | null;
   etag: string | null;
+  onAnnounce: (message: string) => void;
 }) {
   const { locale, t } = useI18n();
 
@@ -337,6 +353,16 @@ function TripItemRow({
       {/* FR-ITM-03 / FR-ITM-05: reorder within the day and move to another,
           each one atomic reorder request. */}
       <ItemMoveControls days={days} etag={etag} item={item} tripId={tripId} />
+
+      {/* FR-ITM-06: take the stop off the itinerary, asking whether the saved
+          place survives. Nothing rendered this until now, so a place added by
+          mistake could not be removed at all. */}
+      <RemoveItemControl
+        etag={etag}
+        item={item}
+        onAnnounce={onAnnounce}
+        tripId={tripId}
+      />
     </article>
   );
 }

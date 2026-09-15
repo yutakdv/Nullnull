@@ -15,6 +15,7 @@ import { AddPlaceScreen } from './trip/AddPlaceScreen.js';
 import { CandidatesScreen } from './trip/CandidatesScreen.js';
 import { TripScreen } from './trip/TripScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
+import { ImportPasteScreen } from './trip-create/ImportPasteScreen.js';
 import { MustVisitScreen } from './trip-create/MustVisitScreen.js';
 import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
 
@@ -47,6 +48,9 @@ export const routes: RouteObject[] = [
       // No tab bar either: the draft is unsaved, so a stray tap discards it.
       { path: 'start', element: <TripWizardScreen /> },
       { path: 'start/must-visit', element: <MustVisitScreen /> },
+      // S02-4C-A paste `401:1221` (FE-104). Reached from step 3, not by URL:
+      // the sibling above is the cautionary case of a route nothing links to.
+      { path: 'start/import', element: <ImportPasteScreen /> },
       // Sub-pages reached by a back control, so they carry a NavBar instead.
       { path: 'posts/:postId', element: <PostScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
