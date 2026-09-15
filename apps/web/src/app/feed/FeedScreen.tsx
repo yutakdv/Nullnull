@@ -86,6 +86,12 @@ export function FeedScreen() {
     setAddStates((current) => ({ ...current, [placeId]: 'loading' }));
     addCandidate.mutate(
       {
+        // The trip the user answered the sheet with, sent explicitly. It used
+        // to ride on the hook's closure instead, which made this argument
+        // inert: the save reached the right trip only because the state update
+        // happened to re-render first, and the test written to prove the
+        // choice was honoured passed with the choice deleted.
+        tripId,
         // POST with the post it came from: the contract's source records
         // where a candidate was found, and the feed knows the answer
         // exactly. Inventing a FEED type would not compile — the enum is

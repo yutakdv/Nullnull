@@ -1269,21 +1269,39 @@ type CandidateSaveResult = components['schemas']['CandidateSaveResult'];
  * Carries an Idempotency-Key because a repeated submit must not save the place
  * twice; the server answers 200 with `duplicate: true` when it already exists.
  */
+/**
+ * Saves a place as a candidate of a trip (FR-CAN-01).
+ *
+ * The trip can be given per call, not only at hook level. That is not a
+ * convenience: a screen where the user PICKS the trip binds this hook while
+ * the choice is still unmade, so a hook-level id is whatever was selected at
+ * render time. It worked only because the state update happened to re-render
+ * before the async mutationFn dereferenced the rebuilt closure — a race with
+ * a benign outcome today and no test able to see it, because the argument the
+ * caller passed was inert (#FR-CAN-01 audit).
+ *
+ * Passing `tripId` in the variables makes the caller's choice the thing that
+ * is actually sent, so a test that picks the second trip fails when the code
+ * sends the first.
+ */
 export function useAddTripCandidate(tripId: string | null) {
   const queryClient = useQueryClient();
   return useMutation<
     CandidateSaveResult,
     Problem | Error,
-    { request: AddCandidateRequest; idempotencyKey: string }
+    { request: AddCandidateRequest; idempotencyKey: string; tripId?: string }
   >({
-    mutationFn: async ({ request, idempotencyKey }) => {
-      if (tripId === null) throw new Error('No trip selected');
+    mutationFn: async ({ request, idempotencyKey, tripId: target }) => {
+      // The call's own trip wins; the hook-level one is the default for
+      // screens whose trip comes from the route and cannot change mid-flight.
+      const id = target ?? tripId;
+      if (id === null) throw new Error('No trip selected');
       const { data, error, response } = await getApiClient().POST(
         '/trips/{tripId}/candidates',
         {
           body: request,
           params: {
-            path: { tripId },
+            path: { tripId: id },
             header: { 'Idempotency-Key': idempotencyKey },
           },
         },
@@ -1291,11 +1309,15 @@ export function useAddTripCandidate(tripId: string | null) {
       if (!data) fail(error, response);
       return data;
     },
-    onSuccess: () => {
-      if (tripId === null) return;
+    onSuccess: (_result, variables) => {
+      // Invalidate the list of the trip that was actually written to. Using
+      // the hook-level id here would refresh the wrong trip's candidates
+      // whenever the caller saved into a different one.
+      const id = variables.tripId ?? tripId;
+      if (id === null) return;
       // The itinerary is untouched by construction, so only the candidate list
       // is refetched.
-      void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(tripId) });
+      void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(id) });
     },
   });
 }
