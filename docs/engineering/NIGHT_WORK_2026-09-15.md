@@ -11,9 +11,11 @@ tags:
 
 # 야간 FE 작업 보고 (2026-09-15)
 
-**푸시·PR 없음.** 브랜치 `frontend`에 커밋 7개, 작업 트리 clean.
+**푸시·PR 없음.** 브랜치 `frontend`에 커밋 9개, 작업 트리 clean.
 
 ```text
+8f3dd7c  feat(frontend): FE-101 send a returning visitor past the intro (FR-ONB-03)
+8414ed5  docs(engineering): FE-104 기록 + 잘못된 서술 정정
 12750f3  feat(frontend): FE-104 read a pasted itinerary into a trip (FR-TRC-06/07/09)
 2bb62d6  docs(engineering): FR-TRP-04 record the night's frontend work
 13e36b8  feat(frontend): FE-105 let a trip be deleted from the profile (FR-TRP-04)
@@ -27,7 +29,7 @@ f167f36  feat(frontend): FE-203 build the trip picker the feed has been doing wi
 > 갈라진 것이 아니라 `origin/frontend`가 `HEAD`의 조상이라 fast-forward 가능하고,
 > **`main` 기준으로는 7 앞 / 0 뒤**다.
 
-검증(마지막 커밋 기준): `verify:ci` **968 통과**(61 파일), Playwright **110 통과**,
+검증(마지막 커밋 기준): `verify:ci` **969 통과**(61 파일), Playwright **110 통과**,
 JS 154539/157000(98%), CSS 8896/8900(100%).
 Playwright `session.spec` 3건 실패는 로컬에 `apps/api`(:8080)가 없어서이고 `main`에서도 같다.
 
@@ -163,14 +165,39 @@ string·cache key·sessionStorage(핸드오프가 위자드 persistence에서 **
 featureId 셋을 선언에 맞췄다. `integration-ready`로 올리지 **않은** 이유는 `FE-104-T2`(offline/
 stale)와 `FE-104-T3`(200% zoom·reduced motion)을 증명하는 단언이 아직 없기 때문이다.
 
+### FE-101 — 재방문 redirect (`SplashScreen`, FR-ONB-03)
+
+`FR-ONB-03`은 절이 둘인데 **하나만 구현돼 있었다.** "intro 계속/건너뛰기"는 되는데
+**"완료 후 재방문 redirect"가 없어서**, intro를 이미 읽은 사람이 방문할 때마다 언어 선택과
+intro를 다시 걸어갔다. 핸드오프가 A-3에서 요구하는 **중복 전환 방지**의 빠진 절반이다.
+
+**추가 요청이 0건이다.** `SessionBootstrap.owner`가 `OwnerProfile`이고 그 안에
+`onboardingCompleted`가 **required**라, splash가 이미 수행하는 bootstrap에 flag가 실려 온다.
+`/me`로 읽으면 redirect가 두 번째 왕복 뒤로 밀리는데, 그게 splash에 빈 화면이 생기는 경로이고
+`FR-ONB-01`이 같은 문장에서 금지하는 것이다.
+
+도착지를 `/feed`로 한 것은 `IntroScreen`이 보내는 곳이기 때문이다. 다르게 고르면 한 질문에
+답이 둘이 된다.
+
+공유 fixture는 `onboardingCompleted=false`를 들고 있고 **건드리지 않았다**(`packages/contracts`는
+BE/FE 공용). 그래서 기존 splash 테스트 5건은 그대로 `/language`에 도착한다. 새 상태는 테스트
+안의 MSW override로 공급했다 — 공유 fixture가 갖고 있지 않은 상태를 대는 정규 방법이다.
+
+변이 검증: 분기를 떼면 **그 테스트 하나만** 빨개진다(`Unable to find role=heading and name
+Browse`).
+
+> **내 문서가 오늘 두 번 틀렸고 모양이 같다.** `FR-PLC-01`을 "FE 단독 가능"이라 쓴 것과
+> `FR-ONB-03 건너뛰기`를 공백이라 쓴 것 — 둘 다 **grep 결과로 공백을 주장하고 코드가 스스로
+> 밝힌 의도를 읽지 않았다.** 후자는 `IntroScreen:10-12`이 *"Both paths mark onboarding complete
+> and land on the same place"* 라고 적고 문구도 `intro.start` 하나뿐이다. 버튼을 하나 더 만들면
+> **시작하기와 똑같이 동작하는 버튼**이 된다. 공백이 아니라 의도된 설계였다.
+
 ## 2. 남은 일
 
 ### FE 단독으로 가능 (다음에 이어서)
 
 | 항목 | 상태 |
 | --- | --- |
-| **`FR-ONB-03` 건너뛰기** | `IntroScreen` 버튼 1개뿐, 주석은 "continue or skip"이라 적음 |
-| **`FR-ONB-03` 재방문 redirect** | `SplashScreen`이 무조건 `/language`. `OwnerProfile.onboardingCompleted`가 required라 **새 요청 없이** 분기 가능 |
 | **`PostScreen` 저장 컨트롤** | 장소 행에 저장 수단이 **없다**(출처 표기에서 끝남). S06 시트는 "피드/상세 공통"이라 `TripPicker`를 여기에도 붙이면 된다 |
 | **FE-203 중복 → 기존 후보로 이동** | `TripAddButton.tsx:52`에 *"a duplicate must stay navigable to the existing one"* 라고 적혀 있고 **그래서 중복 상태 버튼을 일부러 누를 수 있게 뒀는데, 배선한 호출자가 없다.** 피드에서 `/trip/:id/candidates`로 가는 링크가 0건이다(가는 곳은 `TripScreen:160`뿐). FR-ITM-06·FR-TRP-04와 같은 죽은 코드 모양 — 다만 **아래 주의 참조** |
 
@@ -223,3 +250,11 @@ stale)와 `FE-104-T3`(200% zoom·reduced motion)을 증명하는 단언이 아�
   아닌 이유는 `-T2`(offline/stale)·`-T3`(200% zoom·reduced motion)을 증명하는 단언이 없기
   때문이다. 반면 `FR-TRP-04`는 `frontend-plan.json`에 **카드가 아예 없다** — FE-\* 실행 ID를
   부여할지는 플랜 소유자 판단이 필요하다.
+- **`integration-ready`가 절을 보장하지 않는다 — 오늘 실증됐다.** `FE-101`은 이미
+  `integration-ready`이고 `featureIds`에 `FR-ONB-03`이 들어 있는데, 그 기능의 **두 절 중
+  하나("완료 후 재방문 redirect")가 구현돼 있지 않았다.** 카드 상태도 validator도 그것을 잡지
+  못한다 — `validate_frontend_plan.py`는 `verified` 카드의 `evidence.testIds`가 그 카드 자신의
+  `tests[].id`와 같은지만 보고 report를 열지 않기 때문이다. BE 쪽의 *"acceptance ID가 나타나지만
+  증명하지는 않는다"* 와 같은 구멍의 FE 거울상이다. 그래서 이번 redirect는 카드 상태를 바꾸지
+  않는다(이미 `integration-ready`였다). **다음 사람에게**: 카드가 기능 ID를 주장한다고 그
+  기능의 모든 절이 구현됐다고 읽지 마라. 기능표의 절을 코드와 직접 대조해야 한다.
