@@ -148,6 +148,13 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
    **조율자의 말은 가장 빠르게 퍼지므로 가장 싸게 확인돼야 한다.** 세 세션에서 조율자가 낸 표기·상수·ID 형식은 검증 없이 양쪽으로 간다 — 실제로 조율자가 지어낸 `T8b` 형식이 메시지 **두 번**만에 두 카드로 번졌고(집계기 regex `BA-\d{3}-T\d+`에 매칭조차 안 되는 형식이다), 조율자가 **동료의 미확인 문장을 근거로** 내린 게이트 동작 결정이 카드에 실렸다가 그 동료의 반증으로 뒤집혔다. 그래서 규격은 쓰는 자리에서 대조하고, **조율자가 인용한 근거도 인용된 쪽이 다시 확인한다.** "네가 그렇게 말했다"는 가장 싸게 확인할 수 있는 주장이다.
 
+   **하루에 두 번 더 났고 둘 다 동료가 잡았다. 두 번째는 모양이 다르다.**
+
+   - **찾아본 곳에 없는 것을 없다고 말했다.** `git`이 라이선스 게이트로 죽자 조율자가 `/opt/homebrew/bin`·`/usr/local/bin`·`/usr/bin` 셋을 보고 *"이 기계에 다른 git 바이너리가 없다"* 고 단정했고, 그 위에 *"오너만 `sudo`로 고칠 수 있다"* 를 얹어 **네 세션에게 커밋·push 금지를 뿌렸다.** 실제로는 `/Applications/Xcode.app/.../usr/bin/git`과 `/Library/Developer/CommandLineTools/usr/bin/git`이 있었고 `DEVELOPER_DIR` 한 줄이면 됐다 — **세 세션이 각각 독립적으로** 그것을 찾아 보냈다. 부재를 주장할 때는 **어디까지 찾았는지**를 같이 적는다.
+   - **다른 언어의 관용구를 확인 없이 옮겼다.** 빈 환경변수 문제의 해법으로 조율자가 `${VAR:-default}`를 제시했는데 그것은 **셸 문법**이다. Spring `PropertyPlaceholderHelper`의 `valueSeparator`는 `:` 하나라 `${VAR:-default}`는 *기본값이 `-default`인 문자열*로 읽힌다 — **고치는 대신 조용히 틀린 값을 넣는다.** 받은 세션이 *"미검증이니 퍼뜨리지 마라"* 로 멈춰서 다음 세션까지 가지 않았다.
+
+   **둘째가 앞의 것들과 다른 이유**: 미확인 *사실*이 아니라 **미확인 *문법***이다. 사실은 틀리면 대개 시끄럽게 실패하는데, 잘못된 placeholder는 **파싱되고 기동하고 틀린 값을 담는다.** 그래서 이 부류는 `&&`로도 exit code로도 잡히지 않는다 — **쓰는 자리에서 실제로 해석시켜 보는 것**이 유일한 확인이다.
+
    **그리고 로컬 초록은 이 충돌에 대해 아무 말도 할 수 없다 — 아홉째다.** `TestcontainersConfiguration`은 `@SpringBootTest` 설정이 다른 context마다 **자기 PostgreSQL 컨테이너**를 띄운다. 필수 게이트는 `NULLNULL_TEST_DATABASE=external`로 **모든 context가 한 DB를 공유한다.** 그래서 *"다른 test가 남긴 행이 내 DELETE를 막는다"* 는 부류는 **로컬에서 재현될 수 없고**, 로컬 초록은 그 질문에 답한 적이 없다. 실측: `OwnerIsolationMatrixIT`가 trip·place를 정리하지 않아 `RedactionAndDenylistIT`의 `DELETE FROM places`가 `trip_candidates` FK에 걸렸고, Compose 게이트에서 **387 중 79가 빨갰다.** 목록의 첫 이름은 **남의 test**였다 — `places`는 일부러 cascade하지 않으므로(후보 밑에서 장소가 사라지면 안 된다) 행을 남긴 쪽이 아니라 지우려는 쪽이 죽는다. 로컬에서 두 class를 순서까지 맞춰 돌려도 초록이었고, **변이가 발화하지 않는 것을 "내 가설이 틀렸다"로 읽을 뻔했다.**
 
    게이트 조건은 **로컬에서 만들 수 있다.** 이 한 번으로 CI와 같은 실패 두 건이 같은 이름으로 재현됐다:
@@ -163,6 +170,16 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
    ```
 
    **이 결함은 얼굴이 둘이고 뿌리는 하나다 — 행을 지목하지 않는 문장.** 실패 77건을 원인별로 가르면 **66건이 통짜 `DELETE`가 FK에 걸려 죽은 것**이고 **11건은 단언이 틀린 것**이다. 후자의 모양은 `assertThat(count("SELECT count(*) FROM places")).isOne()`이 `expected: 1 but was: 216`으로 죽는 것이다 — **공유 DB에서 전역 개수를 읽으면 그것은 내 test에 대한 단언이 아니라 앞서 돈 모든 test에 대한 단언이다.** *"내가 넣은 것이 하나다"* 가 재려던 것이고 *"표에 하나뿐이다"* 는 그것을 재는 척한 것이다. **기준은 `WHERE`의 존재가 아니라 *자기 행을 지목하는가*다.** `DELETE FROM media_assets WHERE NOT EXISTS (SELECT 1 FROM posts …)`는 `WHERE`가 있지만 *"post가 안 쓰는 모든 asset"* 이라 남의 place media를 전부 포함한다 — catalog가 통짜 삭제를 그만두자 그 자리가 바로 13건 중 8건이 됐다.
+
+   **그리고 값이 겹치는 것으로는 부족하다 — 같은 *열*에서 겹쳐야 위험이다.** `WHERE source_code = ?`가 위험한 것은 그 값을 **같은 열에** 쓰는 다른 class가 있기 때문이고, 값만 같고 열이 다르면 위험이 아니다. 실측: 전수 조사에서 `JobWorkerIT`의 `WHERE type LIKE 'worker-%'`가 위험 목록에 올랐다 — `JobLeaseIT`에 `"worker-a"`가 있어서다. **본문을 읽으니 그것은 job type이 아니라 worker 이름이었고**(`claim("worker-a")`), 그 class의 type은 `lease-test`다. grep은 이 둘을 구별하지 못한다. 190개 문장 중 실제 위험은 **1건**이었고, 이 단계가 없었으면 거짓 양성이 하나 섞인 목록이 나갔을 것이다 — 같은 날 조율자가 85/86을 거짓 양성으로 뿌린 뒤였다.
+
+   **읽기 쪽이 쓰기 쪽보다 나쁘고, 얼굴이 셋이다.** 쓰기만 고치면 절반이다 — 같은 값으로 범위를 잡는 **읽기**가 남아 있으면 검사는 여전히 남의 행을 본다.
+
+   1. **`count(*) … WHERE <공유 값>`을 수로 단언한다** — 남의 행을 센다. 앞의 *전역 개수* 와 같은 부류인데 `WHERE`가 있어 검사를 통과한다.
+   2. **단일 행 쿼리가 죽는다** — `SELECT status … WHERE source_code = ?`는 남의 run이 하나만 있어도 `IncorrectResultSizeDataAccessException`이다. 시끄럽게 실패하니 그나마 낫다.
+   3. **`ORDER BY … LIMIT 1`은 죽지 않는 대신 남의 행을 검사 대상으로 삼는다** — canary를 남의 run에서 찾고 **통과한다.** 셋 중 제일 나쁘다: *"검사 범위가 조용히 줄어든 경우"* 의 가장 완성된 형태이고, 초록이 아무것도 말하지 않는다.
+
+   **그리고 이 부류의 fix는 초록 두 개로 증명되지 않는다.** *"남의 행이 살아남았다"* 와 *"내 단언이 통과한다"* 는 **아무것도 안 지우게 만든 가짜 fix도 만족한다.** 세 번째 조건이 그것을 배제한다 — **"자기 행을 남기지 않았다(0)"**. 셋을 같이 재라.
 
    **행을 만드는 test는 그 행을 지운다.** trip 아래(`trip_items`·`trip_candidates`·`candidate_sources`·`trip_constraints`)는 cascade하고 `owners.active_trip_id`는 ON DELETE SET NULL이므로 `trips` 삭제 하나로 충분하지만, **`places`는 자기 문장이 필요하다.**
 
