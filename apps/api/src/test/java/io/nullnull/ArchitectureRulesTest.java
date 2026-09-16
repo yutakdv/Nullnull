@@ -63,13 +63,11 @@ class ArchitectureRulesTest {
             // Both labels said "BA-050 feed slice" and both were wrong, in different ways. BA-050 has
             // no feed in it at all - it is the optimization run - and the P0 feed is fixed order by
             // its own card's title, so the slice that first calls rankFeed is BA-080, which is P1.
-            "FeedFallback", "BA-080 ranked feed slice",
-            // BA-050 does not call this either, and could not: RunFingerprint needs the policy hash
-            // and pipeline version that come back from apps/ai, and its Inputs refuse an empty
-            // snapshot set. The slice that makes the call is the slice that can fingerprint its
-            // answer.
-            "RunFingerprint", "BA-051 ITEM proposal slice",
-            "ProposalRevalidator", "BA-051 ITEM proposal slice");
+            // RunFingerprint and ProposalRevalidator were listed here for BA-051, and BA-051 now calls
+            // both from OptimizeItemHandler - so their lines are gone rather than kept as paperwork.
+            // Deleting them is the point of the list: a name stays only while nothing in production
+            // calls the class, and this map shrinking is what "the slice arrived" looks like.
+            "FeedFallback", "BA-080 ranked feed slice");
 
     @Test
     @DisplayName("REC-ARCH-01 an uncalled recommendation service names the slice that will call it")

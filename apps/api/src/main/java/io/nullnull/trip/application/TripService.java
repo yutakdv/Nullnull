@@ -211,6 +211,18 @@ public class TripService {
                 .orElseGet(java.util.OptionalLong::empty);
     }
 
+    /**
+     * The revision a trip was at when it reached this version, for work that has to name what it
+     * froze rather than what the trip is now.
+     *
+     * <p>Owner-scoped for the same reason {@link #versionFor} is: a caller holding a run row already
+     * recorded whose trip it is, and a read that did not ask would be the one here that does not.
+     */
+    @Transactional(readOnly = true)
+    public Optional<UUID> revisionAt(UUID ownerId, UUID tripId, long version) {
+        return findForOwner(ownerId, tripId).flatMap(trip -> trips.revisionAt(trip.id(), version));
+    }
+
     @Transactional(readOnly = true)
     public TripPageView list(OwnerContext context, String status, String cursor, Integer limit) {
         int size = pageSize(limit);

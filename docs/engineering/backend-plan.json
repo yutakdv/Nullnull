@@ -175,7 +175,11 @@
         },
         {
           "id": "BA-002-T3",
-          "assertion": "transaction 중간 장애는 전체 rollback하며 구버전 app 호환성이 유지된다"
+          "assertion": "transaction 중간 장애는 전체 rollback한다"
+        },
+        {
+          "id": "BA-002-T4",
+          "assertion": "직전 schema 모양의 write가 최신 schema에서도 그대로 받아들여진다"
         }
       ],
       "handoff": "ERD diff, migration 적용 순서, rollback 호환 범위, local seed/reset 명령. 숫자 migration version은 실제 구현 때 충돌 없이 부여한다.",

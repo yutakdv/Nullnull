@@ -64,10 +64,20 @@ class OptimizationWorkerIT {
         // The first attempt is allowed to finish before anything is changed. Editing the trip while
         // the worker is mid-attempt would be a race this test cannot win at a 20ms poll, and a test
         // that sometimes changes the trip after the gate has already run is a test that sometimes
-        // asserts nothing. The run is still RUNNING after it, because passing the gate is not an end
-        // state in this slice.
+        // asserts nothing.
+        //
+        // It used to assert the run was still RUNNING here, and that assertion was correct until
+        // BA-051 arrived: in BA-050 passing the gate was not an end state, so the run waited. Now the
+        // first attempt goes on to ask for a preview and ends the run - with DATA_INSUFFICIENT, since
+        // this fixture stores no forecast. The clause under test is unchanged; what expired is the
+        // step that got the run into position for it.
+        //
+        // So the run is put back to undecided explicitly. That is stronger than the old wait, not
+        // weaker: the failure code this test reads afterwards cannot have come from the first
+        // attempt, because this statement cleared it.
         awaitJobSettled(runId);
-        assertThat(runStatus(runId)).isEqualTo("RUNNING");
+        jdbc.update("UPDATE optimization_runs SET status = 'QUEUED', started_at = NULL,"
+                + " completed_at = NULL, failure_code = NULL, failure_message = NULL WHERE id = ?", runId);
 
         // The edit a user makes while their preview is being computed. Version 1 is what the run froze.
         jdbc.update("UPDATE trips SET version = 2, updated_at = now() WHERE id = ?", tripId);
@@ -150,13 +160,19 @@ class OptimizationWorkerIT {
                 + " locked_by = 'worker-that-died', lease_until = now() - interval '1 minute',"
                 + " attempt_count = 1 WHERE deduplication_key = ?", "optimization:" + runId);
 
-        Map<String, Object> run = awaitTerminal(runId);
-        assertThat(run.get("status")).isEqualTo("FAILED");
-        // The attempt counter moved, which is what makes the re-take bounded: a job that was taken
-        // again without counting it would be re-taken forever by a handler that never returns.
-        assertThat(jdbc.queryForObject("SELECT attempt_count FROM background_jobs"
-                + " WHERE deduplication_key = ?", Integer.class, "optimization:" + runId))
-                .isEqualTo(2);
+        // Waits on the ATTEMPT COUNTER, not on the run reaching a terminal status.
+        //
+        // The run was already terminal when this test wrote the lapsed lease - BA-051's first attempt
+        // ends it - so a wait for "the run has settled" now returns before the reclaim has happened
+        // and the counter is read at 1. That is how this test failed, and the failure was real: the
+        // thing being waited for had stopped being downstream of the thing being tested.
+        //
+        // The counter reaching 2 IS the evidence that CLAIM_EXPIRED_LEASE found the job, which is the
+        // path this case exists for. Waiting on it also keeps the re-take from being skipped
+        // silently: if nothing ever reclaims the job, this fails here rather than passing on
+        // assertions about a state nothing produced.
+        awaitAttempt(runId, 2);
+        assertThat(runStatus(runId)).isEqualTo("FAILED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM optimization_runs WHERE trip_id = ?",
                 Integer.class, tripId))
                 .as("a re-taken job finishes the run it was given, and does not create a second one")
@@ -217,6 +233,27 @@ class OptimizationWorkerIT {
             Thread.sleep(25);
         }
         fail("the optimization job never settled; last status was " + status);
+    }
+
+    /**
+     * Waits for the job to have been taken {@code attempts} times.
+     *
+     * <p>Separate from {@link #awaitTerminal} because they answer different questions, and one of
+     * them stopped being a proxy for the other: a run can be terminal while the job that was handed
+     * out again has not been picked up yet.
+     */
+    private void awaitAttempt(UUID runId, int attempts) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+        Integer count = null;
+        while (System.nanoTime() < deadline) {
+            count = jdbc.queryForObject("SELECT attempt_count FROM background_jobs"
+                    + " WHERE deduplication_key = ?", Integer.class, "optimization:" + runId);
+            if (count != null && count >= attempts) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        fail("the job was never taken " + attempts + " times; attempt_count was " + count);
     }
 
     /** Hands the job back to the queue so the worker runs another attempt on the same run. */

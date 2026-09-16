@@ -130,10 +130,21 @@ public class OptimizationService {
      */
     private OptimizationRun queue(OwnerContext context, Trip trip, CreateOptimizationCommand command) {
         Instant now = clock.instant();
+        // The revision this run freezes, beside the version it freezes. Both are read from the same
+        // trip, so they describe one moment rather than two.
+        //
+        // Written here and not left null, which is what it was: the column existed from V024 with no
+        // producer, so getOptimization answered inputRevisionId null on every run, and RunFingerprint
+        // - which requires it - could never be computed. A preview could therefore never reach READY,
+        // and the gap was invisible for as long as nothing tried to. The trip's first revision is
+        // written with the trip itself, so a trip that exists has one.
+        UUID inputRevisionId = trips.revisionAt(context.ownerId(), trip.id(), trip.version())
+                .orElseThrow(() -> new IllegalStateException(
+                        "trip " + trip.id() + " has no revision at version " + trip.version()));
         OptimizationRun run = new OptimizationRun(UUID.randomUUID(), trip.id(), context.ownerId(),
                 command.scope(), command.targetItemId(), command.targetDate(), command.includeCandidates(),
-                OptimizationStatus.QUEUED, trip.version(), null, null, null, null, null, now, null, null,
-                null);
+                OptimizationStatus.QUEUED, trip.version(), inputRevisionId, null, null, null, null, now,
+                null, null, null);
         runs.insert(run);
         jobs.enqueue(new JobRequest(UUID.randomUUID(), JOB_TYPE, "optimization:" + run.id(),
                 JobPayload.of(Map.of("runId", run.id().toString())), MAX_ATTEMPTS, now, now));
@@ -148,12 +159,43 @@ public class OptimizationService {
      * rather than storing it is what ERD §2 does for revertAvailability, and it is safe in the same
      * way: every writer checks the same deadline, so a status this read has already reported as
      * EXPIRED can never be answered as something earlier afterwards.
+     *
+     * <p>One deadline, two answers. A run that HAD a preview answers 410 rather than reading as
+     * EXPIRED - see {@link #requirePreviewStillOffered}. The rewrite below is for the runs that
+     * never got one.
      */
     @Transactional(readOnly = true)
     public OptimizationRun get(OwnerContext context, UUID runId) {
         OptimizationRun stored = runs.findForOwner(context.ownerId(), runId)
                 .orElseThrow(OptimizationService::notFound);
-        return asReadNow(stored, clock.instant());
+        Instant now = clock.instant();
+        requirePreviewStillOffered(stored, now);
+        return asReadNow(stored, now);
+    }
+
+    /**
+     * BA-051-T5: a preview that existed and has since passed its deadline is gone, and 410 says so.
+     *
+     * <p>Only a stored READY run gets this, and the two exclusions are the whole of the rule. A run
+     * that never reached READY has no preview that could have expired - one was asked for and never
+     * arrived - so it keeps reading as EXPIRED with 200, which is what BA-050-T7 fixes. A terminal
+     * run is left alone because the contract says expiry "must not turn an already APPLIED or
+     * REVERTED run into PREVIEW_EXPIRED": a decision is a fact that happened, and a deadline cannot
+     * un-happen it.
+     *
+     * <p>The difference is the caller's, not ours. 200 with EXPIRED hands back a body holding
+     * proposals, and a client that renders them is offering changes nobody may apply; 410 says the
+     * thing being asked for is gone and the way forward is a new run - which is exactly the CTA this
+     * Problem code is mapped to in {@code docs/api/README.md}.
+     */
+    private static void requirePreviewStillOffered(OptimizationRun stored, Instant now) {
+        if (stored.status() == OptimizationStatus.READY && stored.previewExpired(now)) {
+            // The same sentence the published fixture carries
+            // (packages/contracts/fixtures/problems/preview-expired.json), so the example a client
+            // was built against and the string a client receives cannot drift apart.
+            throw new ApiException(ProblemCode.PREVIEW_EXPIRED,
+                    "The optimization preview has expired.");
+        }
     }
 
     static OptimizationRun asReadNow(OptimizationRun stored, Instant now) {
