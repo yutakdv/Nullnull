@@ -50,19 +50,30 @@ import re
 import sys
 from pathlib import Path
 
-# A DELETE or TRUNCATE inside a Java string literal, up to the closing quote or the end of the
-# text block line. What matters is whether a WHERE follows the table name in the same statement.
+# A DELETE, TRUNCATE or UPDATE in the SQL view below. The tail runs to the `;` that ends the Java
+# statement, because that is the only boundary that means anything: what matters is whether a WHERE
+# follows the table name in the same statement, no matter how many fragments the SQL was built from.
 STATEMENT = re.compile(
-    r"""(?P<verb>DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|UPDATE)\s+(?P<table>[a-z_][a-z0-9_]*)(?P<rest>(?:[^;"\\]|\\.)*)""",
+    r"""(?P<verb>DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|UPDATE)\s+(?P<table>[a-z_][a-z0-9_]*)(?P<rest>[^;]*)""",
     re.IGNORECASE)
 
 SCOPED = re.compile(r"\bWHERE\b", re.IGNORECASE)
 
-# The tail runs to the closing double quote of the Java literal or to a `;`, and single quotes are
-# ORDINARY inside it: they open SQL string literals. Stopping at one meant
-# `UPDATE t SET c = 'x' WHERE id = ?` was read as unscoped - a scoped statement reported as a
-# defect. A check that cries wolf is worse than no check, because the next real finding is read as
-# another false one; this was found by the person it was reported against, not by these controls.
+# "Where does this statement end" got four different answers here, each too simple, and each one
+# reported a correctly scoped statement as a defect:
+#
+#   1. a single quote - `UPDATE t SET c = 'x' WHERE id = ?` - single quotes open SQL string
+#      literals and are ORDINARY inside a Java one;
+#   2. the closing double quote of the first fragment, when the SQL continues in `" + "`;
+#   3. an escaped quote, when the SQL embeds jsonb: `'{\"perDay\":10}'::jsonb" + " WHERE code = ?"`;
+#   4. a spliced Java expression, when a value is concatenated INTO the SQL text:
+#      `policy_hash = '" + "b".repeat(64) + "'," + " ... WHERE id = ?"`. The joiner only bridged
+#      seams whose two sides were both literals, so the tail stopped before the WHERE.
+#
+# Each fix widened a regex, and the next shape arrived anyway. So the question is answered once, in
+# `sql_view`: everything outside a Java string literal stops being text. A check that cries wolf is
+# worse than no check - the next real finding is read as another false one - and three of these four
+# were found by the person they were reported against, not by these controls.
 
 # The read that makes the same mistake. `SELECT count(*) FROM places` in a shared database is not a
 # statement about this test - it is a statement about every test that ran before it. Measured in the
@@ -74,47 +85,77 @@ SCOPED = re.compile(r"\bWHERE\b", re.IGNORECASE)
 # what tells the two apart.
 AGGREGATE_READ = re.compile(
     r"""SELECT\s+(?:count|sum|min|max|bool_and|bool_or|array_agg|string_agg)\s*\("""
-    r"""[^)]*\)\s+FROM\s+(?P<table>[a-z_][a-z0-9_]*)(?P<rest>(?:[^;"\\]|\\.)*)""",
+    r"""[^)]*\)\s+FROM\s+(?P<table>[a-z_][a-z0-9_]*)(?P<rest>[^;]*)""",
     re.IGNORECASE)
 
-# Comments describe the statement; they do not execute it. Scanning them reports the prose that
-# explains why a blanket delete was removed, which is the opposite of useful.
-BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-LINE_COMMENT = re.compile(r"//[^\n]*")
+# Everything outside a Java string literal becomes this. It is deliberately NOT a space: a space
+# would let `DELETE FROM " + table + " WHERE ..."` read as a delete from a table called `where`,
+# and that line is `OwnedRows`, the helper every class uses to delete exactly its own rows. A
+# sentinel matches neither `\s` nor `[a-z_]`, so a statement whose TABLE NAME is computed stays
+# unjudged - which is the behaviour this check has always had, and the same property keeps the
+# schema sweep in `FlywayMigrationIT` (`FROM " + SCHEMA + "." + table`) out of the aggregate rule.
+OUTSIDE = "\0"
 
 
-# Java string concatenation, which is how this repository writes any SQL longer than a line:
-# `"UPDATE t SET c = 'x'"\n        + " WHERE id = ?"`. Without joining these the tail stops at the
-# first closing quote and a scoped statement reads as unscoped - the same false positive as the SQL
-# literal, reached by the other route. The join keeps the newlines so line numbers stay true.
-#
-# And the tail consumes a backslash escape, because SQL that embeds JSON writes `\"` inside the
-# Java literal: `SET quota_policy = '{\"perDay\":10}'::jsonb" + " WHERE code = ?"`. Stopping at
-# that escaped quote was the THIRD false-positive shape this one check produced in a day - each
-# one a different way of asking "where does this statement end", each one answered too simply.
-CONCATENATION = re.compile(r'"\s*\+\s*"')
+def sql_view(source: str) -> str:
+    """The SQL this file executes, with every Java construct between the fragments erased.
 
+    Four times a widened regex was the answer to "where does this statement end", and a fifth shape
+    arrived each time (see the note above `SCOPED`). The shapes are not related to each other; what
+    they have in common is that the scanner was reading JAVA and guessing at the SQL. So read the
+    Java once, properly: string literals - including text blocks - keep their contents, and
+    everything else becomes a sentinel. A `;` survives because it is the only real statement
+    boundary, and comments are handled HERE rather than by a regex pass, because a regex that
+    strips `//` without knowing about literals eats the rest of any line holding a `http://` URL.
 
-def join_literals(source: str) -> str:
-    return CONCATENATION.sub(lambda m: "\n" * m.group(0).count("\n"), source)
-
-
-def strip_comments(source: str) -> str:
-    """Blank the comments, keeping every newline so reported line numbers stay true.
-
-    Deleting a block comment outright shifts every line after it, and the number this check prints
-    is the only thing a reader uses to find the statement. It reported a line that held a closing
-    brace, and the person reading it concluded the check was wrong about the file - which it also
-    was, for the other reason below.
+    The view is the same LENGTH as the source with newlines at the same offsets, so the line number
+    this check reports is exact. That number is the only thing a reader uses to find the statement;
+    when it was off by the height of a block comment, it pointed at a closing brace and the reader
+    concluded the check was wrong about the file.
     """
-    def blank(match: re.Match) -> str:
-        return "\n" * match.group(0).count("\n")
-    return LINE_COMMENT.sub(blank, BLOCK_COMMENT.sub(blank, source))
+    out: list[str] = []
+    index, length = 0, len(source)
+    while index < length:
+        char = source[index]
+        if source.startswith('"""', index):                 # text block: contents are SQL, verbatim
+            out.append(OUTSIDE * 3)
+            index += 3
+            while index < length and not source.startswith('"""', index):
+                out.append(source[index])
+                index += 1
+            out.append(OUTSIDE * min(3, length - index))
+            index += 3
+        elif char == '"':
+            out.append(OUTSIDE)
+            index += 1
+            while index < length and source[index] != '"':
+                if source[index] == "\\" and index + 1 < length:
+                    out.append("  ")                        # `\"` in jsonb SQL is not a delimiter
+                    index += 2
+                    continue
+                out.append(source[index])
+                index += 1
+            if index < length:
+                out.append(OUTSIDE)
+                index += 1
+        elif source.startswith("//", index):
+            while index < length and source[index] != "\n":
+                out.append(OUTSIDE)
+                index += 1
+        elif source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            end = length if end < 0 else end + 2
+            out.append("".join("\n" if c == "\n" else OUTSIDE for c in source[index:end]))
+            index = end
+        else:
+            out.append(char if char in ";\n" else OUTSIDE)
+            index += 1
+    return "".join(out)
 
 
 def unscoped_statements(path: Path) -> list[tuple[int, str, str]]:
     """(line, what, table) for every statement in this file that names no rows."""
-    source = join_literals(strip_comments(path.read_text(encoding="utf-8")))
+    source = sql_view(path.read_text(encoding="utf-8"))
     found = []
     for match in STATEMENT.finditer(source):
         if SCOPED.search(match.group("rest")):
