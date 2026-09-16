@@ -1596,7 +1596,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "ITEM 후보 생성·검증·점수·설명",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-024",
         "BA-042",
@@ -1629,15 +1629,37 @@
       "tests": [
         {
           "id": "BA-051-T1",
-          "assertion": "REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다"
+          "assertion": "REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다",
+          "recCoverage": {
+            "ids": [
+              "REC-OPT-01",
+              "REC-ARCH-01",
+              "REC-SLOT-01",
+              "REC-DATA-02"
+            ],
+            "reason": "이 절은 apps/ai의 REC corpus를 가리키는 포인터다(절 스스로 'REC 핵심 suite 전부'라고 말한다). 결정성과 후보 cap은 REC-OPT-01, isolation은 REC-ARCH-01, lock은 REC-SLOT-01, null은 REC-DATA-02가 덮는다. mixed-source는 아직 어느 implemented REC도 덮지 않는다 — 증명은 TemporalComparisonPolicyTest의 DIFFERENT_SOURCE 단언에 있으나 그것을 부르는 REC-DATA-03이 manifest의 implementedTestIds에 없다. 그 공백이 닫히기 전에는 이 카드를 승격하지 않는다."
+          }
         },
         {
           "id": "BA-051-T2",
-          "assertion": "입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다"
+          "assertion": "입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다",
+          "recCoverage": {
+            "ids": [
+              "REC-OPT-01",
+              "REC-ARCH-01"
+            ],
+            "reason": "입력 순서 불변은 REC-OPT-01(1,000회 shuffle fingerprint, fixture당 25순열의 candidate·neighbour 재평가), clock 비의존은 REC-ARCH-01(decision package에 clock·난수·환경·I/O 부재)이 덮는다."
+          }
         },
         {
           "id": "BA-051-T3",
-          "assertion": "설명이 수치·장소·영업·route 사실을 추가하지 않는다"
+          "assertion": "설명이 수치·장소·영업·route 사실을 추가하지 않는다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-01"
+            ],
+            "reason": "설명이 근거 밖 사실을 더하지 않는지는 REC-LLM-01이 덮는다(template 복구와 출력측 validator)."
+          }
         },
         {
           "id": "BA-051-T4",

@@ -68,6 +68,45 @@ class BackendPlanTests(unittest.TestCase):
             with self.subTest(broken=broken):
                 self.check_mutation(marked(broken), expected)
 
+    def test_rec_coverage_must_cite_ids_apps_ai_actually_implements(self):
+        """The marker exempts a clause from needing a JUnit name, so a citation nobody can follow
+        would be a way to promote an unproven clause. requiredTestIds is the wish list; only
+        implementedTestIds has a test behind it."""
+        def mutate(plan):
+            clause = next(c for task in plan['tasks'] for c in task['tests'] if c.get('recCoverage'))
+            clause['recCoverage']['ids'] = ['REC-DATA-03']
+        self.check_mutation(mutate, 'which apps/ai does not implement')
+
+    def test_rec_coverage_rejects_an_id_that_is_not_shaped_like_one(self):
+        def mutate(plan):
+            clause = next(c for task in plan['tasks'] for c in task['tests'] if c.get('recCoverage'))
+            clause['recCoverage']['ids'] = ['BA-051-T1']
+        self.check_mutation(mutate, 'has an invalid REC ID')
+
+    def test_rec_coverage_needs_ids_and_a_reason(self):
+        for value, expected in (({'ids': [], 'reason': 'x'}, 'needs a non-empty ids list'),
+                                ({'ids': ['REC-LLM-01'], 'reason': '  '}, 'needs a reason'),
+                                ('REC-LLM-01', 'must be an object')):
+            def mutate(plan, value=value):
+                clause = next(c for task in plan['tasks'] for c in task['tests']
+                              if c.get('recCoverage'))
+                clause['recCoverage'] = value
+            self.check_mutation(mutate, expected)
+
+    def test_the_card_row_must_name_the_cited_rec_ids(self):
+        """Without this the citation lives only in JSON and the human card still reads as if a
+        JUnit test covered the clause - the distance between what a card says and what runs."""
+        clause = next(c for task in self.plan['tasks'] for c in task['tests']
+                      if c.get('recCoverage'))
+        rec = clause['recCoverage']['ids'][0]
+        row = next(line for line in self.cards.splitlines()
+                   if line.startswith(f"- `{clause['id']}`"))
+        self.assertIn(rec, row, 'the specimen row must name it, or this test proves nothing')
+        cards = self.cards.replace(row, row.replace(rec, 'REC-GONE-99'))
+        errors = []
+        validate_plan(copy.deepcopy(self.plan), self.ops, self.features, cards, ROOT, errors)
+        self.assertTrue(any(f'the card must name {rec}' in e for e in errors), errors)
+
     def test_dated_evidence_link_is_not_a_calendar_estimate(self):
         self.assertFalse(has_calendar_estimate('[PM 검토](../project/PM_REVIEW_2026-09-06.md)'))
 

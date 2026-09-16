@@ -117,6 +117,7 @@ def required_plan_ids(plan: dict) -> set[str]:
         raise ValueError("backend plan: non-empty tasks list required")
     result: set[str] = set()
     excluded: list[str] = []
+    rec_covered: list[str] = []
     for task in tasks:
         if not isinstance(task, dict) or not isinstance(task.get("status"), str):
             raise ValueError("backend plan: invalid task/status")
@@ -139,9 +140,27 @@ def required_plan_ids(plan: dict) -> set[str]:
             if isinstance(external, dict) and external.get("role"):
                 excluded.append(f'{ident}({external["role"]},{external.get("issue", "no-issue")})')
                 continue
+            # A clause whose proof is the REC corpus in apps/ai. Same reason as above and the
+            # opposite direction. externalOwner points at a debt - something not proven here that
+            # somebody must close - so it carries a tracking issue. This points at a proof that
+            # already exists somewhere else, so there is no debt to track; what it carries instead
+            # is a requirement externalOwner cannot have, that the cited IDs EXIST. The ID could
+            # never appear here anyway: this reads JUnit testcase names, pytest produces none, and
+            # the manifest vocabulary cannot hold a BA ID at all (`REC-[A-Z]+-\d+`, two functions
+            # down). validate_backend_plan.py is what makes the citation real - the IDs must be in
+            # the manifest's implementedTestIds AND named on the card's own row for that clause.
+            # Printed for the same reason as above: an exemption nobody sees is how a gate quietly
+            # stops asking.
+            covered = test.get("recCoverage")
+            if isinstance(covered, dict) and covered.get("ids"):
+                ids = ",".join(str(x) for x in covered["ids"])
+                rec_covered.append(f"{ident}({ids})")
+                continue
             result.add(ident)
     if excluded:
         print("acceptance_ids_owned_elsewhere=" + " ".join(sorted(excluded)))
+    if rec_covered:
+        print("acceptance_ids_covered_by_rec=" + " ".join(sorted(rec_covered)))
     return result
 
 
