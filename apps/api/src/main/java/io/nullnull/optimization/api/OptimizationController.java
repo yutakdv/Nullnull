@@ -2,7 +2,10 @@ package io.nullnull.optimization.api;
 
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.optimization.application.CreateOptimizationCommand;
+import io.nullnull.optimization.application.DecideOptimizationCommand;
 import io.nullnull.optimization.application.OptimizationService;
+import io.nullnull.optimization.domain.OptimizationDecision;
+import io.nullnull.optimization.domain.OptimizationDecisionKind;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.shared.http.NullnullOperation;
@@ -59,6 +62,44 @@ public class OptimizationController {
         OptimizationService.retryAfter(run)
                 .ifPresent(seconds -> response.header("Retry-After", Integer.toString(seconds)));
         return response.body(OptimizationRunResponse.from(run));
+    }
+
+    @PostMapping(value = "/optimizations/{runId}/decisions", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "decideOptimization", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<OptimizationDecisionResponse> decide(OwnerContext owner,
+            @PathVariable UUID runId,
+            @RequestHeader("If-Match") String ifMatch,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody OptimizationDecisionBody body) {
+        OptimizationDecision decision = optimizations.decide(owner, runId, ifMatch, idempotencyKey,
+                decision(body));
+        // The trip version the caller now holds. An APPLY moved it; a KEEP did not, so the tag is the
+        // version the decision was made against - which is what effectiveTripVersion() answers, and
+        // why that method exists rather than the caller branching here.
+        return ResponseEntity.ok()
+                .eTag("\"" + decision.effectiveTripVersion() + "\"")
+                .header("Cache-Control", "private, no-store")
+                .body(OptimizationDecisionResponse.from(decision));
+    }
+
+    private static DecideOptimizationCommand decision(OptimizationDecisionBody body) {
+        if (body == null) {
+            throw new TripValidationException("decision", "NotNull", "a request body is required");
+        }
+        return new DecideOptimizationCommand(body.proposalId(), kind(body.decision()));
+    }
+
+    private static OptimizationDecisionKind kind(String value) {
+        if (value == null) {
+            throw new TripValidationException("decision", "NotNull", "decision is required");
+        }
+        try {
+            return OptimizationDecisionKind.valueOf(value);
+        } catch (IllegalArgumentException unknown) {
+            // The discriminator, so an unknown value is a body that matches no variant at all.
+            throw new TripValidationException("decision", "Unsupported", "decision must be APPLY or KEEP");
+        }
     }
 
     private static CreateOptimizationCommand command(CreateOptimizationBody body) {
@@ -121,6 +162,41 @@ public class OptimizationController {
                     run.queuedAt(), run.completedAt(), run.expiresAt(), List.of(), run.snapshotSetIds(),
                     List.of(), OptimizationFailureResponse.from(run));
         }
+    }
+
+    public record OptimizationDecisionBody(UUID proposalId, String decision) {
+    }
+
+    /**
+     * The contract's {@code InitialOptimizationDecision}: a discriminated union, not one record with
+     * nullable halves.
+     *
+     * <p>Both variants are {@code additionalProperties: false}, so a single record carrying null
+     * apply fields would serialise them and answer a shape the schema refuses. Keeping them apart is
+     * also what lets a client branch on {@code decision} without reading four more fields to find out
+     * whether they mean anything.
+     */
+    public sealed interface OptimizationDecisionResponse {
+
+        static OptimizationDecisionResponse from(OptimizationDecision decision) {
+            if (decision.decision() == OptimizationDecisionKind.APPLY) {
+                return new ApplyDecisionResponse(decision.id(), decision.runId(), decision.proposalId(),
+                        decision.decision().name(), decision.resultingTripVersion(),
+                        decision.beforeRevisionId(), decision.afterRevisionId(), decision.revertUntil(),
+                        decision.decidedAt());
+            }
+            return new KeepDecisionResponse(decision.id(), decision.runId(), decision.proposalId(),
+                    decision.decision().name(), decision.decidedAt());
+        }
+    }
+
+    public record ApplyDecisionResponse(UUID id, UUID runId, UUID proposalId, String decision,
+            Long resultingTripVersion, UUID beforeRevisionId, UUID afterRevisionId, Instant revertUntil,
+            Instant decidedAt) implements OptimizationDecisionResponse {
+    }
+
+    public record KeepDecisionResponse(UUID id, UUID runId, UUID proposalId, String decision,
+            Instant decidedAt) implements OptimizationDecisionResponse {
     }
 
     public record OptimizationFailureResponse(String code, String message, boolean retryable) {

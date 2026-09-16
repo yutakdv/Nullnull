@@ -56,7 +56,8 @@ public interface OptimizationRunStore {
      *
      * @return true when this caller published the preview
      */
-    boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion, Instant at);
+    boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion,
+            String policyVersion, String policyHash, String catalogVersion, Instant at);
 
     /** Ends a run with a code and the sentence that goes with it. */
     boolean fail(UUID runId, OptimizationStatus from, OptimizationFailureCode code, String message,

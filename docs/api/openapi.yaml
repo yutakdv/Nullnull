@@ -3084,6 +3084,10 @@ paths:
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -3093,7 +3097,7 @@ paths:
         "422":
           $ref: "#/components/responses/Unprocessable"
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          $ref: "#/components/responses/ApplyUnavailable"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3577,9 +3581,10 @@ components:
       description: |
         A required capability is temporarily unavailable, WITHOUT saying which code arrives.
 
-        503 carries two codes - `SOURCE_UNAVAILABLE` for a data source that is not published, and
-        `ROUTE_UNAVAILABLE` for a travel route that could not be confirmed - so this response cannot
-        name one. An operation that knows which of them it sends uses `SourceUnavailable` instead;
+        503 carries three codes - `SOURCE_UNAVAILABLE` for a data source that is not published,
+        `ROUTE_UNAVAILABLE` for a travel route that could not be confirmed, and `APPLY_FAILED` for an
+        apply that could not be written - so this response cannot name one. An operation that knows
+        which of them it sends uses `SourceUnavailable` or `ApplyUnavailable` instead;
         this generic form is for operations whose 503 does not exist yet and whose code is therefore
         not decided. `EventContractTest` keeps that true: an implemented operation may not use it.
       headers:
@@ -3592,6 +3597,37 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+    ApplyUnavailable:
+      description: |
+        The apply could not be completed, and the trip was not changed.
+
+        Named rather than generic because the two codes ask for different things from a screen.
+        `ROUTE_UNAVAILABLE` means no route evidence confirmed the change is reachable, so recomputing
+        is the way forward. `APPLY_FAILED` means the write itself did not happen - the trip is exactly
+        as it was, and the same Idempotency-Key may be retried, which is the one 503 in this API where
+        retrying the identical request is correct rather than merely allowed.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            applyFailed:
+              summary: APPLY_FAILED - nothing was written, so the same key may replay
+              value:
+                type: /problems/apply-failed
+                title: Apply failed
+                status: 503
+                code: APPLY_FAILED
+                detail: The apply could not be completed and the trip was not changed.
+                instance: /api/v1/optimizations/018f3f8e-9b67-7a21-8d31-31d315b93911/decisions
+                requestId: 01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70
+                retryable: true
     SourceUnavailable:
       description: A canonical data source this operation reads is not published yet
       headers:

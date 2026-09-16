@@ -30,6 +30,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class OptimizationRunReadinessIT {
 
     private static final String FINGERPRINT = "b".repeat(64);
+    // V032: the inputs the fingerprint was computed from, frozen beside it. The hash has to be a
+    // SHA-256 digest or the CHECK refuses the row - which is the point of asserting it here too.
+    private static final String POLICY_HASH = "a".repeat(64);
+    private static final String CATALOG_VERSION = "KTO_KOR_SERVICE_2:7";
 
     @Autowired
     OptimizationRunStore runs;
@@ -55,11 +59,20 @@ class OptimizationRunReadinessIT {
         seedRunning();
         assertThat(runs.recordFrozenEvidence(runId, Instant.now().plusSeconds(600), List.of())).isTrue();
 
-        assertThat(runs.markReady(runId, FINGERPRINT, "policy-v1", Instant.now())).isTrue();
+        assertThat(runs.markReady(runId, FINGERPRINT, "pipeline-v1", "policy-v1", POLICY_HASH,
+                CATALOG_VERSION, Instant.now())).isTrue();
 
         assertThat(status()).isEqualTo("READY");
         assertThat(jdbc.queryForObject("SELECT data_fingerprint FROM optimization_runs WHERE id = ?",
                 String.class, runId)).isEqualTo(FINGERPRINT);
+        // The digest without its inputs is a value nobody can recompute. V032's CHECK refuses a row
+        // that has one and not the others, but a CHECK only judges rows it is shown - that markReady
+        // actually writes all three is this statement's to prove, and nothing else's.
+        assertThat(jdbc.queryForMap("SELECT policy_version, policy_hash, catalog_version"
+                + " FROM optimization_runs WHERE id = ?", runId))
+                .containsEntry("policy_version", "policy-v1")
+                .containsEntry("policy_hash", POLICY_HASH)
+                .containsEntry("catalog_version", CATALOG_VERSION);
         assertThat(jdbc.queryForObject("SELECT completed_at IS NOT NULL FROM optimization_runs"
                 + " WHERE id = ?", Boolean.class, runId)).isTrue();
     }
@@ -72,7 +85,8 @@ class OptimizationRunReadinessIT {
         // The CHECK would refuse this too, but as an exception in the middle of a job. Asking in the
         // WHERE turns it into an answer the handler can act on - and the run stays RUNNING, so the
         // next attempt can still freeze and publish.
-        assertThat(runs.markReady(runId, FINGERPRINT, "policy-v1", Instant.now())).isFalse();
+        assertThat(runs.markReady(runId, FINGERPRINT, "pipeline-v1", "policy-v1", POLICY_HASH,
+                CATALOG_VERSION, Instant.now())).isFalse();
         assertThat(status()).isEqualTo("RUNNING");
     }
 
@@ -81,13 +95,23 @@ class OptimizationRunReadinessIT {
     void aFinishedRunIsNotRepublished() {
         seedRunning();
         runs.recordFrozenEvidence(runId, Instant.now().plusSeconds(600), List.of());
-        assertThat(runs.markReady(runId, FINGERPRINT, "policy-v1", Instant.now())).isTrue();
+        assertThat(runs.markReady(runId, FINGERPRINT, "pipeline-v1", "policy-v1", POLICY_HASH,
+                CATALOG_VERSION, Instant.now())).isTrue();
 
         // At-least-once delivery makes the second call normal rather than exceptional. It must change
         // nothing: the preview was already published, with its own hash and its own deadline.
-        assertThat(runs.markReady(runId, "c".repeat(64), "policy-v2", Instant.now())).isFalse();
-        assertThat(jdbc.queryForObject("SELECT data_fingerprint FROM optimization_runs WHERE id = ?",
-                String.class, runId)).isEqualTo(FINGERPRINT);
+        //
+        // Every value differs from the first call's, including the three V032 added. Repeating them
+        // would let a statement that overwrites them pass - "unchanged" is only observable against
+        // something that would otherwise have changed.
+        assertThat(runs.markReady(runId, "c".repeat(64), "pipeline-v2", "policy-v2", "d".repeat(64),
+                "KTO_KOR_SERVICE_2:8", Instant.now())).isFalse();
+        assertThat(jdbc.queryForMap("SELECT data_fingerprint, policy_version, policy_hash,"
+                + " catalog_version FROM optimization_runs WHERE id = ?", runId))
+                .containsEntry("data_fingerprint", FINGERPRINT)
+                .containsEntry("policy_version", "policy-v1")
+                .containsEntry("policy_hash", POLICY_HASH)
+                .containsEntry("catalog_version", CATALOG_VERSION);
     }
 
     private String status() {

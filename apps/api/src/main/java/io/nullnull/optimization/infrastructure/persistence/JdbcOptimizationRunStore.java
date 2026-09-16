@@ -23,6 +23,7 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
     private static final String COLUMNS = """
             id, trip_id, requested_by_owner_id, scope, target_item_id, target_date, include_candidates,
             status, input_trip_version, input_revision_id, data_fingerprint, algorithm_version,
+            policy_version, policy_hash, catalog_version,
             failure_code, failure_message, queued_at, started_at, completed_at, expires_at
             """;
 
@@ -87,16 +88,19 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
     }
 
     @Override
-    public boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion, Instant at) {
+    public boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion,
+            String policyVersion, String policyHash, String catalogVersion, Instant at) {
         // expires_at IS NOT NULL is part of the condition, not an assumption: recordFrozenEvidence
         // sets it, and a run that skipped that step would otherwise reach the CHECK and throw. Asking
         // here turns "this run is not ready to be READY" into a false the handler can read.
         return jdbc.sql("""
                 UPDATE optimization_runs
-                   SET status = 'READY', completed_at = ?, data_fingerprint = ?, algorithm_version = ?
+                   SET status = 'READY', completed_at = ?, data_fingerprint = ?, algorithm_version = ?,
+                       policy_version = ?, policy_hash = ?, catalog_version = ?
                  WHERE id = ? AND status = 'RUNNING' AND expires_at IS NOT NULL
                 """)
-                .params(Timestamp.from(at), dataFingerprint, algorithmVersion, runId)
+                .params(Timestamp.from(at), dataFingerprint, algorithmVersion, policyVersion,
+                        policyHash, catalogVersion, runId)
                 .update() == 1;
     }
 
@@ -151,7 +155,8 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
                 .list();
         return new OptimizationRun(run.id(), run.tripId(), run.ownerId(), run.scope(), run.targetItemId(),
                 run.targetDate(), run.includeCandidates(), run.status(), run.inputTripVersion(),
-                run.inputRevisionId(), run.dataFingerprint(), run.algorithmVersion(), run.failureCode(),
+                run.inputRevisionId(), run.dataFingerprint(), run.algorithmVersion(),
+                run.policyVersion(), run.policyHash(), run.catalogVersion(), run.failureCode(),
                 run.failureMessage(), run.queuedAt(), run.startedAt(), run.completedAt(), run.expiresAt(),
                 sets);
     }
@@ -167,9 +172,11 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
                 row.getBoolean("include_candidates"), OptimizationStatus.of(row.getString("status")),
                 row.getLong("input_trip_version"), row.getObject("input_revision_id", UUID.class),
                 row.getString("data_fingerprint"), row.getString("algorithm_version"),
+                row.getString("policy_version"), row.getString("policy_hash"),
+                row.getString("catalog_version"),
                 failureCode == null ? null : OptimizationFailureCode.of(failureCode),
                 row.getString("failure_message"), instant(row, "queued_at"), instant(row, "started_at"),
-                instant(row, "completed_at"), instant(row, "expires_at"));
+                instant(row, "completed_at"), instant(row, "expires_at"), java.util.List.of());
     }
 
     private static Instant instant(ResultSet row, String column) throws SQLException {

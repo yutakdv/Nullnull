@@ -70,6 +70,11 @@ class ServiceUnavailableContractTest {
                 declarations.put(operation, "ServiceUnavailable");
             } else if (line.contains("responses/SourceUnavailable")) {
                 declarations.put(operation, "SourceUnavailable");
+            } else if (line.contains("responses/ApplyUnavailable")) {
+                // Recognised here or this parser stops seeing the operation at all - and an operation
+                // the scanner cannot see passes every assertion below by being absent, which is the
+                // shape of green this suite exists to refuse.
+                declarations.put(operation, "ApplyUnavailable");
             }
         }
         return declarations;

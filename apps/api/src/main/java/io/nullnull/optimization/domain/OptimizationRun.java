@@ -21,6 +21,7 @@ import java.util.UUID;
 public record OptimizationRun(UUID id, UUID tripId, UUID ownerId, OptimizationScope scope,
         UUID targetItemId, LocalDate targetDate, boolean includeCandidates, OptimizationStatus status,
         long inputTripVersion, UUID inputRevisionId, String dataFingerprint, String algorithmVersion,
+        String policyVersion, String policyHash, String catalogVersion,
         OptimizationFailureCode failureCode, String failureMessage, Instant queuedAt, Instant startedAt,
         Instant completedAt, Instant expiresAt, List<UUID> snapshotSetIds) {
 
@@ -53,15 +54,21 @@ public record OptimizationRun(UUID id, UUID tripId, UUID ownerId, OptimizationSc
         snapshotSetIds = snapshotSetIds == null ? List.of() : List.copyOf(snapshotSetIds);
     }
 
-    /** A run as it was read, before its frozen snapshot sets were looked up. */
+    /**
+     * A run as it was read, before its frozen snapshot sets were looked up.
+     *
+     * <p>Carries no fingerprint inputs (V032). Callers that have them use the canonical constructor;
+     * this one exists for the readers that never look at them, and null here means "not read" rather
+     * than "not stored" - which is why nothing branches on it.
+     */
     public OptimizationRun(UUID id, UUID tripId, UUID ownerId, OptimizationScope scope, UUID targetItemId,
             LocalDate targetDate, boolean includeCandidates, OptimizationStatus status,
             long inputTripVersion, UUID inputRevisionId, String dataFingerprint, String algorithmVersion,
             OptimizationFailureCode failureCode, String failureMessage, Instant queuedAt,
             Instant startedAt, Instant completedAt, Instant expiresAt) {
         this(id, tripId, ownerId, scope, targetItemId, targetDate, includeCandidates, status,
-                inputTripVersion, inputRevisionId, dataFingerprint, algorithmVersion, failureCode,
-                failureMessage, queuedAt, startedAt, completedAt, expiresAt, List.of());
+                inputTripVersion, inputRevisionId, dataFingerprint, algorithmVersion, null, null, null,
+                failureCode, failureMessage, queuedAt, startedAt, completedAt, expiresAt, List.of());
     }
 
     /** A preview whose deadline has passed, which is not the same as a run that is EXPIRED. */
