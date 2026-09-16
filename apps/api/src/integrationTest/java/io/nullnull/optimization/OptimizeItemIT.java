@@ -2,7 +2,9 @@ package io.nullnull.optimization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.catalog.application.CatalogHoursQuery;
@@ -44,6 +46,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
@@ -268,6 +271,36 @@ class OptimizeItemIT {
                 Integer.class, runId)).isZero();
     }
 
+    @Test
+    @DisplayName("BA-051-T5 a READY preview past its deadline answers 410 PREVIEW_EXPIRED")
+    void anExpiredPreviewIsGoneRatherThanReadable() throws Exception {
+        Fixture fixture = fixture();
+        answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
+
+        UUID runId = queue(fixture);
+        awaitTerminal(runId);
+
+        // The negative control, and it has to come first. Without it, "410 after the deadline" is
+        // also what a run that was never readable at all would produce - the assertion would be
+        // satisfied by a server that refuses this run for any reason whatsoever.
+        poll(fixture, runId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("READY"));
+
+        // The deadline passes, written as a past expires_at rather than by moving a clock. The
+        // window closing is a property of the row, not of time: pushing the test clock far enough
+        // to expire a preview also expires the caller's session, and it could no longer ask.
+        jdbc.update("UPDATE optimization_runs SET expires_at = queued_at - interval '1 minute'"
+                + " WHERE id = ?", runId);
+
+        poll(fixture, runId)
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("PREVIEW_EXPIRED"))
+                // Not retryable, and that is not a detail: asking again cannot bring the preview
+                // back, so a retryable answer would have clients poll for something that is gone.
+                .andExpect(jsonPath("$.retryable").value(false));
+    }
+
     /**
      * An answer built out of the request the handler actually assembled.
      *
@@ -460,6 +493,10 @@ class OptimizeItemIT {
                     String status = runColumn(runId, "status");
                     return List.of("READY", "FAILED", "APPLIED", "REVERTED").contains(status);
                 });
+    }
+
+    private ResultActions poll(Fixture fixture, UUID runId) throws Exception {
+        return mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())));
     }
 
     private String runColumn(UUID runId, String column) {
