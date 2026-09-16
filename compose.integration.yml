@@ -170,14 +170,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
       target: runtime
-    environment:
-      <<: *api-environment
-      # CsrfOriginInterceptor compares every non-GET's Origin against this. The anchor keeps
-      # http://localhost:5173 for api-quality, whose MockMvc tests write that literal in 124
-      # places; here the caller is a real browser served by `web` on 4173. The port differs
-      # from the anchor, so without this override the session bootstrap POST is CSRF_INVALID
-      # and no session is ever created.
-      APP_PUBLIC_ORIGIN: http://localhost:4173
+    environment: *api-environment
     depends_on:
       postgres:
         condition: service_healthy
@@ -203,7 +196,7 @@ services:
       dockerfile: apps/web/Dockerfile
       target: e2e
     environment:
-      PLAYWRIGHT_BASE_URL: http://localhost:4173
+      PLAYWRIGHT_BASE_URL: http://web:4173
       API_INTERNAL_BASE_URL: http://api:8080
       CI: "true"
     depends_on:
@@ -213,15 +206,8 @@ services:
       - ./.artifacts/integration/playwright:/workspace/apps/web/playwright-report
       - ./.artifacts/integration/test-results:/workspace/apps/web/test-results
     command: ["npm", "run", "test:e2e:integration"]
-    # The browser must load from an origin it considers trustworthy or it silently drops the
-    # Secure/__Host- session cookie, and every request after bootstrap is a 401 with no cookie
-    # (#233). Measured with a real Chromium against ONE server under three names:
-    #   http://localhost:<p>  kept   http://127.0.0.1:<p>  kept   http://web:<p>  dropped
-    # Sharing web's network namespace lets the browser use localhost without TLS and without
-    # lowering APP_COOKIE_SECURE - which SessionProperties:34, SessionPropertiesTest and
-    # ENVIRONMENT.md all pin, and which would also change the cookie NAME the gate exercises
-    # (SessionProperties:56), so the E2E would stop testing the cookie production ships.
-    network_mode: service:web
+    networks:
+      - integration-internal
 
   egress-denied:
     profiles: [quality]
