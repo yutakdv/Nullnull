@@ -162,7 +162,42 @@ def check_static_contract(errors: list[str]) -> None:
                 )
 
 
-def service_network_names(service: dict[str, Any]) -> set[str]:
+def service_network_names(
+    service: dict[str, Any],
+    services: dict[str, Any],
+    seen: set[str] | None = None,
+) -> set[str]:
+    """Which declared networks this service can actually reach.
+
+    `network_mode: service:<name>` puts the container in ANOTHER service's network namespace, so it
+    reaches exactly that service's networks and declares none of its own. Reading only the
+    `networks` key called that "no explicit network" and refused it, which is the wrong answer to
+    the question this check asks - the question is what the container can reach, and a shared
+    namespace narrows that to the host service's set rather than widening it.
+
+    The e2e service needs this: a browser only keeps a `Secure`/`__Host-` cookie from an origin it
+    considers trustworthy, and `http://web:4173` is not one while `http://localhost:4173` is.
+    Measured with a real Chromium against one server under three names - localhost and 127.0.0.1
+    kept the cookie, `web` dropped it. Sharing web's namespace lets the browser load from localhost
+    without TLS and without lowering `APP_COOKIE_SECURE`, which a policy, a test and ENVIRONMENT.md
+    all pin (#233).
+
+    Any other `network_mode` - host, bridge, none, container: - is still nothing: those bypass the
+    declared networks entirely, which is exactly what this check exists to refuse.
+    """
+    mode = service.get("network_mode")
+    if isinstance(mode, str) and mode.startswith("service:"):
+        target = mode.split(":", 1)[1]
+        seen = set() if seen is None else seen
+        if target in seen or target not in services:
+            # A cycle, or a namespace host that is not a service here: nothing is reachable through
+            # a name this file cannot resolve, and saying "none" makes the caller refuse it.
+            return set()
+        seen.add(target)
+        host = services[target]
+        return service_network_names(host, services, seen) if isinstance(host, dict) else set()
+    if isinstance(mode, str) and mode:
+        return set()
     networks = service.get("networks", {})
     if isinstance(networks, dict):
         return set(networks)
@@ -212,7 +247,7 @@ def check_compose_contract(path: Path, errors: list[str]) -> None:
         if not isinstance(service, dict):
             errors.append(f"Compose service {name} must be an object")
             continue
-        attached = service_network_names(service)
+        attached = service_network_names(service, services)
         if not attached:
             errors.append(f"Compose service {name} has no explicit network")
             continue
