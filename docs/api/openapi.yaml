@@ -3577,26 +3577,6 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-    ServiceUnavailable:
-      description: |
-        A required capability is temporarily unavailable, WITHOUT saying which code arrives.
-
-        503 carries three codes - `SOURCE_UNAVAILABLE` for a data source that is not published,
-        `ROUTE_UNAVAILABLE` for a travel route that could not be confirmed, and `APPLY_FAILED` for an
-        apply that could not be written - so this response cannot name one. An operation that knows
-        which of them it sends uses `SourceUnavailable` or `ApplyUnavailable` instead;
-        this generic form is for operations whose 503 does not exist yet and whose code is therefore
-        not decided. `EventContractTest` keeps that true: an implemented operation may not use it.
-      headers:
-        X-Request-ID:
-          $ref: "#/components/headers/RequestId"
-        Retry-After:
-          schema:
-            type: integer
-      content:
-        application/problem+json:
-          schema:
-            $ref: "#/components/schemas/Problem"
     ApplyUnavailable:
       description: |
         The apply could not be completed, and the trip was not changed.
