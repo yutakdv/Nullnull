@@ -68,8 +68,8 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` | tab token 갱신 주기; session 만료보다 길지 않음. **확정(2026-09-13 오너 승인, PM-017)** |
 | `nullnull.session.touch-interval` | 아니오 | `PT1M` | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록. **확정(2026-09-13 오너 승인, PM-017)** |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
-| `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
-| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
+| `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M`. **거절 message는 property 이름 `nullnull.idempotency.ttl`로 말한다** — 설정하는 이름과 보고되는 이름이 다르므로 둘을 함께 적는다. 이 줄이 없으면 운영자가 자기가 설정한 이름을 이 문서에서 grep해도 그 message를 찾지 못한다 |
+| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. **거절 message는 property 이름 `nullnull.idempotency.lock-timeout`으로 말한다.** 근거와 확정 조건은 아래 |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
 | `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`; BA-012가 enqueue 시 읽고 1~20을 강제한다 |
 | `APP_DELETION_STATUS_TOKEN_TTL` | 아니오 | `P7D` | 삭제 상태 bearer hash 보존 기간. 경계 시각부터 410이며 sweep은 hash를 null로 만든다 |
@@ -90,7 +90,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_JOB_MAX_RETRY_BACKOFF` | 아니오 | `PT5M` 제안값 | 재시도 지연 상한, `NULLNULL_JOB_RETRY_BACKOFF` 이상 |
 | `NULLNULL_JOB_DEAD_LETTER_WINDOW` | 아니오 | `PT15M` 제안값 | 이 구간에 FAILED job이 있으면 readiness `jobs`가 DEGRADED, 최소 `PT1M` |
 | `NULLNULL_JOB_FINISHED_RETENTION` | 아니오 | `P7D` 제안값 | COMPLETED/FAILED job row 보존, 최소 `PT1H` |
-| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1M` 제안값 | bootstrap 15분 만료 후 다음 sweep에서 정리, 최소 `PT1M` |
+| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1M` 제안값 | bootstrap 15분 만료 후 다음 sweep에서 정리, 최소 `PT1M`. **거절 message는 property 이름 `nullnull.jobs.retention-sweep-interval`로 말한다** — `NULLNULL_JOB_*` 전체가 같다(`JobProperties`의 `atLeast`·`inRange`가 property 경로를 넘긴다). 빈 값은 Boot binder가 null로 접은 뒤 `… is required`로 거절되므로 **기동은 이름을 말하며 실패한다**; 고칠 것은 message가 아니라 이 표가 두 이름을 같이 적는 것이다 |
 | `NULLNULL_JOB_DEFAULT_CONCURRENCY` | 아니오 | `2` 제안값 | type별 동시 실행 기본값(1..64). 아래 connection budget에 걸리면 startup에서 실패한다 |
 | `NULLNULL_DB_POOL_MAX` | 아니오 | `12` | `spring.datasource.hikari.maximum-pool-size`. HTTP thread와 job worker가 같이 쓰는 pool이다. `10`이었다가 job type이 둘이 되면서 `JobConnectionBudget`이 startup에서 거절해 올렸다 — 그 가드는 test에서 우회하지 않고 값으로 푼다 |
 | `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
