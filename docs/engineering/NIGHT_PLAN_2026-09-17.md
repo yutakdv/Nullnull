@@ -102,7 +102,36 @@ FE-503은 before/after 비교 UI 신규 제작이라 더 크고, STEP 2가 먼�
 
 핵심 제약: **`APPLY`를 유도하지 않는다**(불변식 3·4).
 
-### STEP 3 — FE-503 (before/after MetricDelta·근거·decision bar)
+### STEP 3 — FE-503 — **멈췄다. 예산 결정이 필요하다.**
+
+**STEP 0~2는 끝났고 STEP 3에서 escalation 조건(아래 "예산을 올려야만 통과하는
+상태")에 걸렸다.** 규칙 5대로 상수를 올리지 않고 측정치만 남긴다.
+
+| | gzip bytes |
+| --- | --- |
+| 현재 여유 (STEP 0 이후) | **90** |
+| `MetricDelta` + `DecisionBar` CSS를 더했을 때 증가분 | **약 462** (minify 전이라 과대추정) |
+| 화면 module 하나의 실측 비용 | `OptimizationRunScreen` 719 · `OptimizeSetupScreen` 920 |
+
+두 컴포넌트는 **만들어져 있지만 어느 화면도 쓰지 않아 번들에 없다**(번들 CSS에
+`.value`·`.unavailable` class가 없는 것으로 확인). 그래서 FE-503은 그 둘을
+들여오는 비용 + 자기 화면 CSS를 새로 낸다 — **90 bytes로는 어느 쪽도 안 된다.**
+
+**측정 과정에서 두 번 헛짚었고 둘 다 기록해 둔다**(규칙 7②의 얼굴들):
+
+1. `void __probe`로 참조만 만든 첫 probe는 **tree-shaking으로 사라져** 아무것도
+   재지 않았다. 번들에 class가 들어갔는지 세어서(`0`) 알았다.
+2. 실제로 render한 두 번째 probe는 **빌드가 type error로 죽어** 직전 `dist`를
+   읽었다. 숫자는 그럴듯했고 *"비용이 0이다"* 로 읽힐 뻔했다 — `npm run build`의
+   log를 열어서 알았다. **없는 report와 변화 없음은 다르다.**
+
+**사람이 정할 것**: 예산을 올릴 것인가, 아니면 44px 블록(35개 파일 중복)을
+공유 class로 접어 자리를 만들 것인가. 후자는 그 자체로 독립 작업이고 test가
+따로 필요하다 — `check-bundle-budget.mjs`가 두 번에 걸쳐 그렇게 적어 두었다.
+
+<!-- 아래는 결정이 난 뒤의 실행 지침이다. -->
+
+#### 결정이 난 뒤 (원래 계획)
 
 `MetricDelta`·`DecisionBar` 컴포넌트는 **이미 있다**. 화면 배선이 없을 뿐이다
 (`OptimizationRunScreen.tsx:30-32`가 `NOT BUILT HERE`라고 명시).
