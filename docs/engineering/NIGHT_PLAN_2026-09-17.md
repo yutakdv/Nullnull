@@ -54,10 +54,20 @@ MetricDelta, decision bar)이라 CSS가 반드시 늘고, 그러면 **19초짜�
 | --- | --- |
 | MoveDaySheet + ReplaceSheet + TripPicker (따로) | 1,003 + 1,225 + 1,102 = **3,330** |
 | 셋을 합쳐 gzip | **1,982** |
-| **회수 가능** | **약 1,348** |
+| 이 계산이 예측한 회수량 | ~1,348 |
+| **실제 회수량 (STEP 0 완료 후 실측)** | **86** (CSS 8,896 → 8,810) |
 
-여유 4 bytes → 약 1,352 bytes. **그래서 STEP 0이 공유 모듈 추출이고, 그것이
-끝나기 전에는 FE-503/504를 시작하지 않는다.**
+**예측이 15배 틀렸고, 그 틀린 이유가 이 계획에서 가장 중요한 교훈이다.**
+`cat A B C | gzip`은 *"세 파일을 한 stream으로 압축하면"* 을 재는데, Vite는
+이미 모든 module을 **한 CSS 파일로 합쳐서** 내보낸다. 즉 중복 바이트는
+**측정하기 전부터 이미 gzip이 접고 있었고**, 내가 잰 1,348은 *"따로 압축 →
+같이 압축"* 의 이득이지 *"중복 제거"* 의 이득이 아니었다. 같은 파일의
+주석이 이미 *"gzip already folds the geometry this sheet shares"* 라고
+적어 두었는데 그것을 읽고도 같은 함정에 빠졌다.
+
+그래도 **STEP 0은 여전히 옳았다** — 여유가 4 → **90 bytes**가 됐고(22배),
+`::backdrop` 중복이 셋에서 하나로 줄었다. 다만 **FE-503/504 한 벌을 담기에
+90 bytes는 여전히 부족할 수 있다.** 그 지점이 아래 escalation 조건이다.
 
 `.sheet`/`.panel`을 가진 module은 여섯이다(`MoveDaySheet`, `ReplaceSheet`,
 `TripPicker`, `RemoveItemControl`, `ConfirmDialog`, `MapUnavailable`).
