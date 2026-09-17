@@ -308,7 +308,8 @@
         "FR-PRO-01",
         "FR-PRO-02",
         "FR-PRO-03",
-        "FR-SES-04"
+        "FR-SES-04",
+        "FR-TRP-04"
       ],
       "figmaNodes": [
         "422:2925"
@@ -456,7 +457,8 @@
         "FR-TRC-02",
         "FR-TRC-03",
         "FR-TRC-09",
-        "FR-TRC-10"
+        "FR-TRC-10",
+        "FR-TRC-12"
       ],
       "figmaNodes": [
         "438:3012",
@@ -899,7 +901,9 @@
         "FR-ITM-03",
         "FR-ITM-05",
         "FR-ITM-07",
-        "FR-ITM-08"
+        "FR-ITM-08",
+        "FR-ITM-04",
+        "FR-ITM-06"
       ],
       "figmaNodes": [
         "527:4085",
@@ -1604,7 +1608,9 @@
         "BA-071"
       ],
       "operations": [],
-      "featureIds": [],
+      "featureIds": [
+        "FR-OPS-12"
+      ],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
