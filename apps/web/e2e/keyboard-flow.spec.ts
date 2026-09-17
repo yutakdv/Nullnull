@@ -27,10 +27,40 @@ const TRIP = '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01';
 /** The fixture trip's first day holds 경복궁 then 인사동. */
 const FIRST_ITEM = '경복궁';
 
+/**
+ * Opens a screen with a session already in hand.
+ *
+ * The app bootstraps exactly once, on the splash screen: `useSessionBootstrap`
+ * is called by SplashScreen and nowhere else, deliberately, because an
+ * unauthenticated POST that repeats itself creates duplicate anonymous owners.
+ * So a test that navigates straight to /trip or /feed never gets a session, and
+ * every request it makes comes back 401 with the screen showing "Your session
+ * ended" — which is what these tests were reading as a keyboard failure.
+ *
+ * Going through `/` is not a workaround; it is the route a person takes.
+ * shell.spec.ts already does the same thing. The other specs that visit these
+ * screens directly are fine because they measure what survives ANY state:
+ * responsive.spec checks reflow and screens.ts says so in as many words ("the
+ * error state has to survive 360px"), and location-off.spec checks that nothing
+ * asks for a location, which an error screen also satisfies.
+ */
+async function openWithSession(page: import('@playwright/test').Page, path: string) {
+  await page.goto('/');
+  // Splash redirects to /language (first visit) or /feed (returning) once
+  // bootstrap resolves, so either destination proves the session exists — the
+  // redirect is the success branch of that query.
+  //
+  // Named explicitly rather than "anything but `/`": that predicate is true the
+  // moment the URL is `/language`, which it already is before bootstrap has
+  // answered, so it waited for nothing and the tests failed exactly as before.
+  await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
+  await page.goto(path);
+  await page.waitForLoadState('networkidle');
+}
+
 test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(TRIP);
-    await page.waitForLoadState('networkidle');
+    await openWithSession(page, TRIP);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
@@ -131,8 +161,7 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
   test('BA-070-T5 the tab bar reaches every P0 destination by keyboard', async ({
     page,
   }) => {
-    await page.goto('/feed');
-    await page.waitForLoadState('networkidle');
+    await openWithSession(page, '/feed');
 
     // Four tabs, and every one has to be reachable without a pointer — this is
     // the only navigation between the judged steps.
@@ -148,8 +177,7 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     // A focused control with no visible indicator is a trap: the user is
     // somewhere but cannot see where. Checked on the feed because it is the
     // screenshot-1 screen and the densest.
-    await page.goto('/feed');
-    await page.waitForLoadState('networkidle');
+    await openWithSession(page, '/feed');
     await page.keyboard.press('Tab');
 
     const visible = await page.evaluate(() => {
@@ -173,8 +201,7 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     // Every sheet in the app must answer Escape (.claude/rules/frontend.md).
     // The itinerary editor is the densest surface, so it is where a missed
     // Escape handler would strand someone.
-    await page.goto(TRIP);
-    await page.waitForLoadState('networkidle');
+    await openWithSession(page, TRIP);
 
     const trigger = page.getByRole('button', {
       name: `Move ${FIRST_ITEM} to another day`,
