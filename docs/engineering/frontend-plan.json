@@ -75,7 +75,8 @@
         "createDemoSession"
       ],
       "featureIds": [
-        "FR-SES-01"
+        "FR-SES-01",
+        "FR-SES-02"
       ],
       "figmaNodes": [],
       "designRequests": [],
@@ -555,7 +556,8 @@
       ],
       "featureIds": [
         "FR-FED-01",
-        "FR-FED-02"
+        "FR-FED-02",
+        "FR-FED-03"
       ],
       "figmaNodes": [
         "391:310",
@@ -955,7 +957,8 @@
         "updateTrip"
       ],
       "featureIds": [
-        "FR-TRP-05"
+        "FR-TRP-05",
+        "FR-CON-06"
       ],
       "figmaNodes": [
         "411:1837"
