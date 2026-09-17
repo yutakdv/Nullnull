@@ -162,6 +162,33 @@ describe('FE-506-T1 optimization history shows status without itinerary content'
     ).toBeInTheDocument();
   });
 
+  it('carries no itinerary content, only status, time and a link', async () => {
+    // The second half of FE-506-T1, which had no assertion: the clause is
+    // "상태·시각·대상 링크만 보여주고 일정 본문을 복제하지 않는다", and the
+    // cases around it only separate decision from status.
+    //
+    // CLAUDE.md's P0 decision is that history must not keep a copy of the
+    // itinerary, so the row may name the TARGET TRIP but never its stops.
+    // Scoped to the history section because the trip list on the same screen
+    // legitimately names trips.
+    renderProfile();
+    // Waits for a row before measuring: the section renders its loading state
+    // first, and an empty section would satisfy "no itinerary content" without
+    // proving anything.
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    const history = screen.getByRole('region', {
+      name: new RegExp(copy['profile.history.title']),
+    });
+    // Every stop the trip fixtures hold. If a row ever rendered the itinerary
+    // these are the strings that would appear.
+    for (const stop of ['경복궁', '인사동']) {
+      expect(within(history).queryByText(new RegExp(stop))).toBeNull();
+    }
+    // And the row is not empty of everything - it still links its target trip,
+    // so the assertion above is about itinerary content, not a blank section.
+    expect(within(history).getAllByRole('link').length).toBeGreaterThan(0);
+  });
+
   it('shows the decision for a decided run and the status for an undecided one', async () => {
     renderProfile();
     await screen.findByText(new RegExp(copy['profile.history.scope.TRIP']));
