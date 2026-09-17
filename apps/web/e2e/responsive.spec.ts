@@ -13,7 +13,7 @@ import { SCREENS } from './screens.js';
 // `body { min-width: 360px }` floor -- which forced a horizontal scrollbar at
 // exactly the zoom level the accessibility rule requires us to support.
 
-test.describe('at 360px, the narrowest designed width', () => {
+test.describe('FE-601-T1 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} fits`, async ({ page }) => {
       await page.goto(screen.path);
@@ -57,7 +57,7 @@ test.describe('at 200% zoom, where the viewport halves', () => {
   }
 });
 
-test.describe('with English copy, which runs longer than the Korean', () => {
+test.describe('FE-601-T2 with English copy, which runs longer than the Korean', () => {
   test.use({ locale: 'en-US' });
   for (const screen of SCREENS) {
     test(`${screen.name} holds the longer strings`, async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe('with English copy, which runs longer than the Korean', () => {
   }
 });
 
-test.describe('keyboard and motion', () => {
+test.describe('FE-601-T3 FE-602-T2 keyboard and motion', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);

@@ -14,7 +14,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const web = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const assets = join(web, 'dist/assets');
+// The real build by default. Overridable so the guard itself can be tested:
+// FE-602-T1 asks that an overage is REPORTED as a failure, and the only way to
+// see that without shipping an over-budget bundle is to point the check at a
+// directory built for the purpose. The gate never sets this.
+const assets = process.env.NULLNULL_BUNDLE_DIR
+  ? resolve(process.env.NULLNULL_BUNDLE_DIR)
+  : join(web, 'dist/assets');
 
 // Budgets are gzip bytes, which is what a user actually downloads.
 //

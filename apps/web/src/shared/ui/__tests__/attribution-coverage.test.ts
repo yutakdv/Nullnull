@@ -74,7 +74,7 @@ function scan(): Scan {
   return { reads, renders };
 }
 
-describe('CMP-ATT-001 a sourced record is never rendered without its credit', () => {
+describe('FE-603-T4 CMP-ATT-001 a sourced record is never rendered without its credit', () => {
   const { reads, renders } = scan();
 
   it('has targets to measure at all', () => {
