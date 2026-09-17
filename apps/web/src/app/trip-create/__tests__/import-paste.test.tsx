@@ -87,7 +87,15 @@ async function paste(user: ReturnType<typeof userEvent.setup>, text = PASTE) {
   );
 }
 
-describe('the paste is read without being kept', () => {
+// FE-104-T1 is "붙여넣기 원문을 저장·로그·analytics에 남기지 않는다", and these
+// three cases are what prove it. The ID is in the name because that is the
+// string the aggregator reads; without it the clause was proven and invisible.
+//
+// Added after reading the bodies rather than copying the ID across: the first
+// case checks the raw text against every outgoing URL, header and non-parse
+// body, then against the response and the rendered DOM, and records the
+// mutation that showed the outgoing-only version was insufficient.
+describe('FE-104-T1 the paste is read without being kept', () => {
   it('sends the pasted text as a request body and nothing else', async () => {
     const user = userEvent.setup();
     renderImport();
