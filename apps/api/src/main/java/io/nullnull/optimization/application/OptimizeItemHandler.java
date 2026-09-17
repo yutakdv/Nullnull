@@ -297,7 +297,11 @@ public class OptimizeItemHandler implements JobHandler {
         // and one published without its proposals would be offered with nothing in it.
         context.transactional(() -> {
             proposals.insertAll(stored);
-            return runs.markReady(run.id(), fingerprint, policy.pipelineVersion(), at);
+            // The inputs beside the digest (V032). Stored together so a later revalidation reads
+            // what this run was judged against rather than what the server believes today - a
+            // fingerprint whose inputs are not frozen can only be recomputed against "now".
+            return runs.markReady(run.id(), fingerprint, policy.pipelineVersion(),
+                    policy.policyVersion(), policy.policyHash(), prepared.catalogVersion(), at);
         });
     }
 

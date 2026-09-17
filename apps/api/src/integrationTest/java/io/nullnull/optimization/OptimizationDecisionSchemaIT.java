@@ -125,11 +125,16 @@ class OptimizationDecisionSchemaIT {
         // the evidence fingerprint and an expiry - a READY preview with no hash has nothing for APPLY
         // to revalidate against, and one with no expiry never stops being offerable. Seeding a
         // half-filled run here would be testing decisions against a run the system cannot produce.
+        // V032: a row that carries a fingerprint carries the inputs it was computed from. This
+        // fixture wrote the digest alone and the CHECK refused it - correctly, because a digest
+        // nobody can recompute is the defect that migration exists to stop.
         jdbc.update("INSERT INTO optimization_runs (id, trip_id, requested_by_owner_id, scope,"
                 + " include_candidates, status, input_trip_version, data_fingerprint,"
-                + " algorithm_version, queued_at, started_at, completed_at, expires_at)"
-                + " VALUES (?, ?, ?, 'TRIP', false, 'READY', 1, ?, 'policy-v1', ?, ?, ?, ?)",
-                runId, tripId, ownerId, "a".repeat(64), at, at, at, at.plusHours(1));
+                + " algorithm_version, policy_version, policy_hash, catalog_version,"
+                + " queued_at, started_at, completed_at, expires_at)"
+                + " VALUES (?, ?, ?, 'TRIP', false, 'READY', 1, ?, 'pipeline-v1', 'policy-v1', ?,"
+                + " 'KTO_KOR_SERVICE_2:7', ?, ?, ?, ?)",
+                runId, tripId, ownerId, "a".repeat(64), "b".repeat(64), at, at, at, at.plusHours(1));
         jdbc.update("INSERT INTO optimization_proposals (id, run_id, rank, summary,"
                 + " comparison_eligible, comparison_reason_code, crowd_delta, validation_summary,"
                 + " created_at) VALUES (?, ?, 1, 'a proposal', true, NULL, NULL, '{}'::jsonb, ?)",

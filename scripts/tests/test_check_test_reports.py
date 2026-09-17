@@ -83,6 +83,27 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("acceptance_ids_owned_elsewhere=BA-099-T2(FE,#233)", result.stdout)
 
+    def test_a_clause_proven_by_the_rec_corpus_is_not_required_but_is_announced(self):
+        """pytest produces no JUnit testcase name and the manifest vocabulary cannot hold a BA ID,
+        so such a clause could never appear here. It is exempt and PRINTED; validate_backend_plan.py
+        is what makes the citation real by requiring the IDs to exist in the manifest."""
+        plan = {"tasks": [{"id": "BA-099", "status": "integration-ready", "tests": [
+            {"id": "BA-099-T1"},
+            {"id": "BA-099-T2", "recCoverage": {"ids": ["REC-OPT-01", "REC-ARCH-01"],
+                                                "reason": "apps/ai REC corpus"}}]}]}
+        (self.root / "plan.json").write_text(json.dumps(plan))
+        result = self.check()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("acceptance_ids_covered_by_rec=BA-099-T2(REC-OPT-01,REC-ARCH-01)", result.stdout)
+
+    def test_an_empty_rec_coverage_does_not_exempt(self):
+        """The exemption is the citation. A marker with nothing in it must not buy silence."""
+        plan = {"tasks": [{"id": "BA-099", "status": "integration-ready", "tests": [
+            {"id": "BA-099-T1"},
+            {"id": "BA-099-T2", "recCoverage": {"ids": [], "reason": "x"}}]}]}
+        (self.root / "plan.json").write_text(json.dumps(plan))
+        self.rejected(self.check(), "BA-099-T2 missing")
+
     def test_an_unmarked_missing_clause_still_fails(self):
         """The exemption must not become a way to stop asking about everything else."""
         plan = {"tasks": [{"id": "BA-099", "status": "integration-ready", "tests": [

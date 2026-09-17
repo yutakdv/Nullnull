@@ -243,9 +243,16 @@ class OptimizationRunIT {
         UUID runId = runId(create(owner, tripId, "\"1\"", itemRequest(itemId, 1))
                 .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
 
+        // V032 ties the digest to the inputs it was computed from, so a row that invents one has to
+        // invent the others too - which is the point: there is no such thing as a fingerprint
+        // without them. Written above the statement rather than inside it: a comment between two
+        // concatenated fragments hides the tail from check_test_row_ownership, and a statement that
+        // scanner cannot read through is reported as naming no rows even when it names one.
         jdbc.update("UPDATE optimization_runs SET status = 'APPLIED', started_at = queued_at,"
                 + " completed_at = queued_at, data_fingerprint = ?,"
-                + " expires_at = queued_at - interval '1 hour' WHERE id = ?", "a".repeat(64), runId);
+                + " policy_version = 'policy-v1', policy_hash = ?, catalog_version = ?,"
+                + " expires_at = queued_at - interval '1 hour' WHERE id = ?",
+                "a".repeat(64), "b".repeat(64), "KTO_KOR_SERVICE_2:7", runId);
 
         poll(owner, runId)
                 .andExpect(status().isOk())

@@ -62,6 +62,22 @@ jobs:
           # Same discovery, plus a JUnit report. api-quality collects that report so a
           # Python-proven acceptance ID is visible to check_test_reports.py at all.
           python scripts/run_script_tests.py --out "$RUNNER_TEMP/script-test-results"
+      - name: Checks whose verdict was resting on one of their own controls
+        # These three scan the real tree, and until now nothing in any gate named them. They ran
+        # because `test_this_repository_satisfies_the_check` in scripts/tests points each checker at
+        # the repository with cwd=ROOT - so the CI table's claim that docs-contract runs them was
+        # true in effect and false in mechanism. Anyone narrowing those controls to fixtures, which
+        # is the ordinary instinct for a unit test, would have removed the repository scan in
+        # silence while the table went on saying it ran.
+        #
+        # The controls stay. They answer "does this check speak at all", which is what a control is
+        # for; this step answers "does the tree pass", which is a verdict and belongs to the gate.
+        # check_cited_tests had neither - no gate call and no cwd=ROOT control - so its only reach
+        # into the tree was whatever root its own test passed, `apps/api/src`. It gets the repository.
+        run: |
+          python3 scripts/check_test_row_ownership.py
+          python3 scripts/check_container_test_inputs.py
+          python3 scripts/check_cited_tests.py .
       - name: State whether this release has an actual provider call (CMP-KTO-003)
         # An EXCLUSION row whose evidence the matrix describes as "a test that blocks a release
         # with no actual call". There was no such test. Staging does not exist yet (BA-006), so

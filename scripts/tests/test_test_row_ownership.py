@@ -106,6 +106,43 @@ class TestRowOwnership(unittest.TestCase):
             result = self.run_check(directory)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_a_spliced_java_expression_does_not_hide_the_where(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # The fourth false positive, and the one that made the joiner's approach untenable: a
+            # value concatenated INTO the SQL text closes the fragment mid-statement, and the seam
+            # `' " + expr + " '` has a literal on neither side. Widening the joiner had answered the
+            # previous three; this one said the question itself was wrong. The reader lost an hour
+            # to it, and the coordinator sent them three hypotheses instead of measuring.
+            self.tree(directory,
+                      'jdbc.update("UPDATE optimization_runs SET policy_hash = \'" + "b".repeat(64)\n'
+                      '        + "\'," + " expires_at = queued_at WHERE id = ?", runId);\n')
+            result = self.run_check(directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_url_inside_the_sql_does_not_swallow_the_where(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # Comments are found while reading the Java, not by a regex pass over the whole file.
+            # A regex that strips `//` without knowing where literals are eats the rest of any line
+            # holding a URL - including the WHERE after it, turning a scoped statement into a
+            # finding. This is the shape the previous implementation would have produced next.
+            self.tree(directory,
+                      'jdbc.update("UPDATE source_registry SET endpoint = \'http://api/x\'"\n'
+                      '        + " WHERE code = ?", code);\n')
+            result = self.run_check(directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_computed_table_name_stays_unjudged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # `OwnedRows` - the helper every class uses to delete exactly its own rows - builds both
+            # the table and the column from Java. This check has never judged those and must not
+            # start: erasing the Java to spaces would let the scanner read the table name as
+            # `where`, and report the one helper that exists to make statements scoped. The sentinel
+            # is what keeps that from happening, so the boundary is pinned here rather than assumed.
+            self.tree(directory,
+                      'jdbc.update("DELETE FROM " + table + " WHERE " + column + " IN (?)", rows);\n')
+            result = self.run_check(directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_the_reported_line_survives_a_block_comment(self):
         with tempfile.TemporaryDirectory() as directory:
             # Stripping a block comment used to remove its newlines, so every line number after one

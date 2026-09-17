@@ -1,14 +1,23 @@
 package io.nullnull.optimization.application;
 
+import io.nullnull.crowd.application.CrowdForecastQuery;
 import io.nullnull.identity.application.IdempotencyGuard;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.identity.domain.RequestFingerprint;
 import io.nullnull.operations.application.JobQueue;
 import io.nullnull.operations.domain.JobPayload;
 import io.nullnull.operations.domain.JobRequest;
+import io.nullnull.optimization.domain.OptimizationChange;
+import io.nullnull.optimization.domain.OptimizationChangeOperation;
+import io.nullnull.optimization.domain.OptimizationDecision;
+import io.nullnull.optimization.domain.OptimizationDecisionKind;
+import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.optimization.domain.OptimizationStatus;
+import io.nullnull.recommendation.application.RecommendationGateway;
+import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.shared.ids.UuidV7;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import io.nullnull.trip.application.TripService;
@@ -16,15 +25,20 @@ import io.nullnull.trip.domain.LockType;
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripConstraint;
 import io.nullnull.trip.domain.TripItem;
+import io.nullnull.trip.domain.TripValidationException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -45,6 +59,8 @@ public class OptimizationService {
 
     static final String CREATE_ROUTE = "POST /trips/{tripId}/optimizations";
 
+    static final String DECIDE_ROUTE = "POST /optimizations/{runId}/decisions";
+
     /**
      * How long a preview stays offerable. Long enough to read a comparison and decide, short enough
      * that the evidence behind it is still the evidence the decision was made on; APPLY revalidates
@@ -53,6 +69,12 @@ public class OptimizationService {
      */
     static final Duration PREVIEW_TTL = Duration.ofMinutes(15);
 
+    /**
+     * How long an APPLY can still be taken back. The contract fixes the number, not a policy:
+     * "revertUntil is exactly 24 hours after decidedAt; the server clock is authoritative."
+     */
+    static final Duration REVERT_WINDOW = Duration.ofHours(24);
+
     /** How long a poll is asked to wait. One tick of the worker's poll interval, not a guess at work. */
     public static final int RETRY_AFTER_SECONDS = 2;
 
@@ -60,6 +82,12 @@ public class OptimizationService {
     private static final int MAX_ATTEMPTS = 3;
 
     private final OptimizationRunStore runs;
+    private final OptimizationProposalStore proposals;
+    private final OptimizationDecisionStore decisions;
+    /** For BA-052-T7: the policy a decision is judged against is today's, not the run's. */
+    private final RecommendationGateway recommendations;
+    /** For BA-052-T5: the set this run froze, re-read by id rather than looked up again. */
+    private final CrowdForecastQuery forecasts;
     private final OptimizationCapability capability;
     private final TripService trips;
     private final JobQueue jobs;
@@ -67,10 +95,15 @@ public class OptimizationService {
     private final ObjectMapper json;
     private final Clock clock;
 
-    public OptimizationService(OptimizationRunStore runs, OptimizationCapability capability,
-            TripService trips, JobQueue jobs, IdempotencyGuard idempotency, ObjectMapper json,
-            Clock clock) {
+    public OptimizationService(OptimizationRunStore runs, OptimizationProposalStore proposals,
+            OptimizationDecisionStore decisions, RecommendationGateway recommendations,
+            CrowdForecastQuery forecasts, OptimizationCapability capability, TripService trips,
+            JobQueue jobs, IdempotencyGuard idempotency, ObjectMapper json, Clock clock) {
         this.runs = Objects.requireNonNull(runs, "runs");
+        this.proposals = Objects.requireNonNull(proposals, "proposals");
+        this.decisions = Objects.requireNonNull(decisions, "decisions");
+        this.recommendations = Objects.requireNonNull(recommendations, "recommendations");
+        this.forecasts = Objects.requireNonNull(forecasts, "forecasts");
         this.capability = Objects.requireNonNull(capability, "capability");
         this.trips = Objects.requireNonNull(trips, "trips");
         this.jobs = Objects.requireNonNull(jobs, "jobs");
@@ -152,6 +185,233 @@ public class OptimizationService {
     }
 
     /**
+     * decideOptimization: the traveller's answer to one run, recorded once.
+     *
+     * <p>Order is not arrangement. The capability is consulted before the run is read, so a server
+     * with optimization off answers 403 without revealing whether the id exists - the same rule
+     * {@code OptimizationCapabilityOffIT} fixes for createOptimization. The run is then read
+     * owner-scoped, so a foreign id is indistinguishable from one that never existed (invariant 11).
+     *
+     * <p><strong>Every failure throws.</strong> {@code IdempotencyGuard} reserves the key before the
+     * command and completes it only on a normal return, so a thrown failure rolls the reservation
+     * back and the same key may be retried - which is exactly what the contract promises: "A failed
+     * APPLY records no decision and changes no trip row, so the same idempotency key can replay it."
+     * Handing a failure back as a value would complete the record and pin the key to it.
+     *
+     * <p>BA-052-T7 is the policy check below. V032 froze the three fingerprint inputs that were
+     * previously kept nowhere - {@code policyVersion}, {@code policyHash} and {@code catalogVersion}
+     * - so a run can now be compared against the policy it was actually judged under rather than
+     * against whatever the service reports today.
+     *
+     * <p>BA-052-T5 is {@link #requireFrozenEvidenceStillStored}. It asks whether the set this run
+     * froze is still stored, by id - not whether a set is fresh now, which is a different question
+     * about a different moment. What it deliberately does NOT do is recompute the run's fingerprint
+     * and compare: the digest covers candidate verdicts that {@code CrowdProvenanceProjection}
+     * derives from the clock, so a set that was fresh when frozen produces a different digest later
+     * for no reason but elapsed time, and the instant the handler used is not stored to reproduce.
+     */
+    public OptimizationDecision decide(OwnerContext context, UUID runId, String ifMatch,
+            String idempotencyKey, DecideOptimizationCommand command) {
+        if (!capability.enabled()) {
+            throw new ApiException(ProblemCode.FORBIDDEN,
+                    "Optimization is not enabled on this server.");
+        }
+        long expected = parseIfMatch(ifMatch);
+        OptimizationRun run = runs.findForOwner(context.ownerId(), runId)
+                .orElseThrow(OptimizationService::notFound);
+        capability.require(run.scope());
+
+        String fingerprint = RequestFingerprint.of("decideOptimization",
+                        Map.of("runId", runId.toString()), canonicalDecision(command),
+                        Long.toString(expected))
+                .sha256Hex();
+        IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), DECIDE_ROUTE,
+                idempotencyKey, fingerprint,
+                () -> new IdempotencyGuard.CommandOutcome<>(200,
+                        new DecisionProjection(record(context, run, expected, command).id())),
+                value -> value);
+        DecisionProjection projection = readDecision(guarded.body());
+        return decisions.findByRun(runId).stream()
+                .filter(decision -> decision.id().equals(projection.decisionId()))
+                .findFirst()
+                .orElseThrow(OptimizationService::notFound);
+    }
+
+    /**
+     * The decision itself, inside the guard's transaction.
+     *
+     * <p>An expired preview is refused as DATA_CHANGED and not as PREVIEW_EXPIRED, which looks wrong
+     * until both canonical documents are read together: {@code docs/api/README.md} lists the codes an
+     * APPLY may answer with and PREVIEW_EXPIRED is not among them, while the same file maps
+     * PREVIEW_EXPIRED to 410 on the read. The two agree - the preview being gone is something you
+     * learn by reading the run, and at the moment of deciding, "the evidence you are acting on is no
+     * longer valid" is what DATA_CHANGED says, with the CTA the mapping already gives it.
+     */
+    private OptimizationDecision record(OwnerContext context, OptimizationRun run, long expected,
+            DecideOptimizationCommand command) {
+        Instant now = clock.instant();
+        if (run.status() != OptimizationStatus.READY) {
+            // Includes a run already decided. The partial unique index refuses a second initial
+            // decision underneath this, so removing this check loses the message, not the guarantee.
+            throw new ApiException(ProblemCode.DATA_CHANGED,
+                    "This run is no longer offering a preview to decide on.");
+        }
+        if (run.previewExpired(now)) {
+            throw new ApiException(ProblemCode.DATA_CHANGED,
+                    "The preview expired before this decision was made.");
+        }
+        requirePolicyStillInForce(run);
+        requireFrozenEvidenceStillStored(run);
+        OptimizationProposal proposal = proposals.findByRun(run.id()).stream()
+                .filter(each -> each.id().equals(command.proposalId()))
+                .findFirst()
+                // Not 404: the run exists and is the caller's, so this is a body naming something
+                // the run does not hold - the reading createOptimization gives an unknown item id.
+                .orElseThrow(() -> new TripValidationException("proposalId", "NotFound",
+                        "this run has no such proposal"));
+
+        UUID decisionId = UuidV7.create(clock);
+        OptimizationDecision decision = command.decision() == OptimizationDecisionKind.APPLY
+                ? applied(context, run, proposal, expected, decisionId, now)
+                : new OptimizationDecision(decisionId, run.id(), proposal.id(), run.ownerId(),
+                        OptimizationDecisionKind.KEEP, expected, null, null, null, null, null, now);
+        if (!decisions.insertIfFirst(decision)) {
+            // Another caller decided this run first; the database said so, not a read we did.
+            throw new ApiException(ProblemCode.DATA_CHANGED,
+                    "This run was already decided.");
+        }
+        OptimizationStatus ended = decision.decision() == OptimizationDecisionKind.APPLY
+                ? OptimizationStatus.APPLIED
+                : OptimizationStatus.KEPT;
+        if (!runs.transition(run.id(), OptimizationStatus.READY, ended, now)) {
+            throw new ApiException(ProblemCode.DATA_CHANGED, "This run was already decided.");
+        }
+        return decision;
+    }
+
+    /**
+     * BA-052-T7: a preview judged under a policy that has since been withdrawn is not applicable.
+     *
+     * <p>Compares what the run recorded against what the service reports now. The version is the
+     * readable half and the hash is the load-bearing one: a policy can be revised without renaming
+     * itself, and then only the digest differs. Both are checked because they fail differently - a
+     * changed version is a deliberate release, a changed hash alone is a revision nobody announced.
+     *
+     * <p>{@code algorithm_version} cannot answer this. It holds the PIPELINE version, and a withdrawn
+     * policy is not a changed pipeline - which is why V032 had to add the two columns rather than
+     * reuse the one already there.
+     *
+     * <p>A run that never reached READY has no stored policy, and the status check above has already
+     * refused it; this asserts that rather than treating null as agreement.
+     */
+    private void requirePolicyStillInForce(OptimizationRun run) {
+        if (run.policyVersion() == null || run.policyHash() == null) {
+            throw new IllegalStateException(
+                    "run " + run.id() + " is READY without the policy it was judged under");
+        }
+        PolicyDescriptor current = recommendations.policy();
+        if (!run.policyVersion().equals(current.policyVersion())
+                || !run.policyHash().equals(current.policyHash())) {
+            throw new ApiException(ProblemCode.DATA_CHANGED,
+                    "The policy this preview was computed under is no longer in force.");
+        }
+    }
+
+    /**
+     * BA-052-T5: a preview whose frozen evidence is no longer stored cannot be applied.
+     *
+     * <p>Only one cause is reachable, and saying which is the point of this comment. Crowd snapshots
+     * are immutable - V011's {@code crowd_prevent_snapshot_mutation} refuses every UPDATE, and its
+     * header says why: "individual rows are never updated in place, so a saved preview can keep its
+     * original provenance". So a set that is still there still holds exactly what this run hashed.
+     * The only way the evidence can stop supporting the preview is for it to be gone.
+     *
+     * <p>Nothing in production removes it today - no delete of {@code crowd_snapshots} or
+     * {@code snapshot_sets} outside test fixtures, and the ERD gives those tables no retention
+     * policy. The guard is written anyway because a retention sweep is a normal thing to add, and on
+     * the day it arrives this is already standing. An integration test creates the state by deleting
+     * the frozen rows, which is how the assertion fires without a producer.
+     *
+     * <p>Deliberately NOT a fingerprint recomputation. The digest was taken over candidates whose
+     * eligibility {@code CrowdProvenanceProjection.compare} decides from {@code now} - a set that
+     * was fresh when frozen is stale later, the verdicts flip, and the recomputed digest differs
+     * because time passed rather than because evidence changed. The instant the handler used is not
+     * stored, so it cannot even be reproduced. Comparing what cannot be reproduced would refuse
+     * valid applies for a reason that is not the one the code claims.
+     */
+    private void requireFrozenEvidenceStillStored(OptimizationRun run) {
+        if (run.snapshotSetIds().isEmpty()) {
+            // A READY run froze at least one set; recordFrozenEvidence writes them before markReady.
+            throw new IllegalStateException("run " + run.id() + " is READY with no frozen evidence");
+        }
+        Trip trip = trips.findForOwner(run.ownerId(), run.tripId())
+                .orElseThrow(OptimizationService::notFound);
+        TripItem target = trips.itemsOf(run.tripId()).stream()
+                .filter(item -> item.id().equals(run.targetItemId()))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(ProblemCode.DATA_CHANGED,
+                        "The item this preview is about is no longer in the trip."));
+        ZoneId zone = trip.range().timezone();
+        Instant from = trip.range().startDate().atStartOfDay(zone).toInstant();
+        Instant to = trip.range().endDate().plusDays(1).atStartOfDay(zone).toInstant();
+        for (UUID setId : run.snapshotSetIds()) {
+            if (forecasts.frozenSet(setId, target.placeId(), from, to).isEmpty()) {
+                throw new ApiException(ProblemCode.DATA_CHANGED,
+                        "The forecast evidence this preview was judged against is no longer stored.");
+            }
+        }
+    }
+
+    /** APPLY: the trip moves, in the trip module, and this records what that produced. */
+    private OptimizationDecision applied(OwnerContext context, OptimizationRun run,
+            OptimizationProposal proposal, long expected, UUID decisionId, Instant now) {
+        TripService.AppliedMoves moved = trips.applyOptimizationMoves(context.ownerId(), run.tripId(),
+                expected, movesOf(proposal));
+        return new OptimizationDecision(decisionId, run.id(), proposal.id(), run.ownerId(),
+                OptimizationDecisionKind.APPLY, expected, moved.trip().version(),
+                moved.beforeRevisionId(), moved.afterRevisionId(), null,
+                now.plus(REVERT_WINDOW), now);
+    }
+
+    /**
+     * The preview's changes as moves the trip module can apply.
+     *
+     * <p>Only MOVE is translated, and anything else is refused rather than skipped. The only producer
+     * today emits one MOVE per proposal; the day another operation is produced, an apply that quietly
+     * ignored it would change less than the traveller approved.
+     */
+    private List<TripService.ItemMove> movesOf(OptimizationProposal proposal) {
+        List<TripService.ItemMove> moves = new java.util.ArrayList<>(proposal.changes().size());
+        for (OptimizationChange change : proposal.changes()) {
+            if (change.operation() != OptimizationChangeOperation.MOVE) {
+                throw new ApiException(ProblemCode.APPLY_FAILED, HttpStatus.SERVICE_UNAVAILABLE,
+                        "This preview contains a change this release cannot apply.", false, null);
+            }
+            ItemState after = json.readValue(change.afterValue(), ItemState.class);
+            moves.add(new TripService.ItemMove(change.tripItemId(), LocalDate.parse(after.date()),
+                    after.position(),
+                    after.startTime() == null ? null : LocalTime.parse(after.startTime())));
+        }
+        return moves;
+    }
+
+    /** The shape ItemProposalMapper writes into optimization_changes. Parsed by its own module. */
+    private record ItemState(String placeId, String date, Integer position, String startTime) {
+    }
+
+    private record DecisionProjection(UUID decisionId) {
+    }
+
+    private DecisionProjection readDecision(String body) {
+        return json.readValue(body, DecisionProjection.class);
+    }
+
+    private static String canonicalDecision(DecideOptimizationCommand command) {
+        return "{\"proposalId\":\"" + command.proposalId() + "\",\"decision\":\""
+                + command.decision() + "\"}";
+    }
+
+    /**
      * A run as it reads now, which is not always as it was stored.
      *
      * <p>A run whose preview deadline has passed reads as EXPIRED even before a writer has recorded
@@ -205,7 +465,8 @@ public class OptimizationService {
         return new OptimizationRun(stored.id(), stored.tripId(), stored.ownerId(), stored.scope(),
                 stored.targetItemId(), stored.targetDate(), stored.includeCandidates(),
                 OptimizationStatus.EXPIRED, stored.inputTripVersion(), stored.inputRevisionId(),
-                stored.dataFingerprint(), stored.algorithmVersion(), stored.failureCode(),
+                stored.dataFingerprint(), stored.algorithmVersion(), stored.policyVersion(),
+                stored.policyHash(), stored.catalogVersion(), stored.failureCode(),
                 stored.failureMessage(), stored.queuedAt(), stored.startedAt(),
                 stored.completedAt() == null ? stored.expiresAt() : stored.completedAt(),
                 stored.expiresAt(), stored.snapshotSetIds());

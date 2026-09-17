@@ -121,7 +121,9 @@ class ItemProposalMapperTest {
 
     private static OptimizationRun run() {
         return new OptimizationRun(UUID.randomUUID(), TRIP, UUID.randomUUID(), OptimizationScope.ITEM,
-                TARGET, null, false, OptimizationStatus.RUNNING, 3L, null, null, null, null, null, AT,
-                AT, null, null, List.of());
+                // V032 widened the record: policyVersion, policyHash and catalogVersion sit after
+                // algorithmVersion. A RUNNING run has frozen nothing yet, so all three are null here.
+                TARGET, null, false, OptimizationStatus.RUNNING, 3L, null, null, null, null, null, null,
+                null, null, AT, AT, null, null, List.of());
     }
 }
