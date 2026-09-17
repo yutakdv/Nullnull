@@ -7,7 +7,7 @@ import tokens from '../tokens.json' with { type: 'json' };
 // not a re-derivation of it.
 const css = readFileSync(join(process.cwd(), 'src/design/tokens.css'), 'utf8');
 
-describe('design tokens', () => {
+describe('FE-002-T1 design tokens', () => {
   it('emits every semantic colour as an alias of a primitive', () => {
     for (const [name, alias] of Object.entries(tokens.semantic)) {
       const variable = '--' + name.replaceAll('/', '-');
