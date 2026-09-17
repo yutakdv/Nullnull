@@ -450,7 +450,18 @@ describe('FE-201-T3 keyboard and accessible names', () => {
   });
 });
 
-describe('FE-203 the add button actually saves a candidate', () => {
+// FE-203-T1 is "후보 저장이 중복·dismiss 상태를 구분하고 TripItem을 만들지
+// 않는다", and this block is where that half lives - trip-picker.test.tsx
+// carries the same ID for the picker, which chooses but never saves.
+//
+// Read against the bodies before adding the ID: `creates no trip item and
+// touches no itinerary` is the TripItem clause (invariant 1), and
+// `distinguishes an already-saved place from a new one` is the duplicate
+// clause. The dismiss case is deliberately NOT a separate state here -
+// CandidateIT:290 shows the server answers a re-save of a dismissed candidate
+// with 201 and duplicate:false, keeping the dismissal as the record that the
+// user once said no, so the screen must not tell those apart.
+describe('FE-203-T1 the add button actually saves a candidate', () => {
   // The card has taken an onAddCandidate prop since it was built, and the
   // screen never passed one. Pressing 내 여행에 담기 sent nothing, changed
   // nothing and said nothing — confirmed in a browser by wrapping fetch:
