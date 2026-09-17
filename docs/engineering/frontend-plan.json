@@ -1554,7 +1554,7 @@
       "id": "FE-603",
       "phase": "B08",
       "priority": "P0",
-      "title": "공모전 준수 REQUIRED 행을 기계가 지키게 한다 (CMP-LOC-002·ATT-002·ATT-003)",
+      "title": "공모전 준수 REQUIRED 행을 기계가 지키게 한다 (CMP-LOC-002·ATT-001·ATT-002·ATT-003)",
       "status": "integration-ready",
       "dependsOn": [
         "FE-601"
@@ -1566,7 +1566,8 @@
       "steps": [
         "제출 build에서 geolocation·permission prompt·좌표 전송이 0건임을 앱 전체 화면에서 검증한다",
         "ship하는 이미지가 허용 목록과 정확히 일치하고 각 항목에 사유가 있는지 검사한다",
-        "TourAPI가 provider display name 없이 단독으로 나타나면 실패시킨다"
+        "TourAPI가 provider display name 없이 단독으로 나타나면 실패시킨다",
+        "sourceAttribution을 읽는 모든 파일이 DataAttribution을 렌더하는지 정적으로 대조하고, 대상이 0건이면 실패시킨다"
       ],
       "safety": "위치 capability는 OFF이고 geolocation API·permission prompt·좌표 request를 만들지 않는다. 승인되지 않은 기관 CI/BI image를 ship하지 않고, 출처 문구는 승인된 텍스트를 그대로 표시한다.",
       "tests": [
@@ -1581,9 +1582,13 @@
         {
           "id": "FE-603-T3",
           "assertion": "TourAPI가 provider display name 없이 단독으로 표기되지 않는다"
+        },
+        {
+          "id": "FE-603-T4",
+          "assertion": "sourceAttribution을 읽는 파일이 전부 DataAttribution을 렌더하고 측정 대상이 0건이 아니다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-002·CMP-ATT-003 세 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts와 src/shared/ui/__tests__/image-assets.test.ts에 있고 둘 다 통과 중이다. verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
