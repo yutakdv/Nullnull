@@ -54,7 +54,6 @@ const WITHOUT_TABS = [
   ['/language', 'onboarding step'],
   ['/intro', 'onboarding step'],
   ['/start', 'wizard draft is unsaved'],
-  ['/start/must-visit', 'wizard draft is unsaved'],
   [`/trip/${trip.id}/candidates`, 'sub-page with a back control'],
   ['/about-data', 'sub-page with a back control'],
 ] as const;

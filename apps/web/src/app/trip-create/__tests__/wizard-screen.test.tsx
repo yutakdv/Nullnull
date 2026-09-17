@@ -63,9 +63,10 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
 
 describe('the paste path is reachable from the wizard', () => {
   // FE-104. The route existing is not the same as the route being reachable:
-  // /start/must-visit has been defined in routes.tsx the whole time and
-  // nothing links to it, so it can only be opened by typing its URL. This
-  // asserts the step 3 secondary actually lands on the paste screen.
+  // /start/must-visit sat in routes.tsx with nothing linking to it until #185
+  // moved must-visit into the wizard as step 4 and deleted the route. This
+  // asserts the step 3 secondary actually lands on the paste screen, which is
+  // still the only way in.
   it('reaches the paste screen from step 3', async () => {
     const user = userEvent.setup();
     renderWizard();

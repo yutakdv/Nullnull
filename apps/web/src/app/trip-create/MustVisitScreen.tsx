@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { usePlaceSearch } from '../../shared/api/index.js';
@@ -20,25 +19,30 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // A MUST_VISIT pick is a constraint on the trip, never a scheduled item — it
 // carries no date or time here (invariant 2).
 //
-// OUT OF P0 SCOPE, and not connected: there is nowhere to send these picks.
-// `CreateTripRequest` has seven properties — title, startDate, endDate,
-// timezone, planningLevel, interests, seedItems — and none of them carries a
-// must-visit place. `seedItems` cannot stand in because `SeedTripItem` makes
-// `date` and `position` required, so routing picks through it would mean
-// inventing a schedule the user never chose, which is exactly what invariant 2
-// forbids.
+// IN P0 SCOPE (owner, #180). An earlier version of this comment said the
+// opposite and called reconnecting it P1 work; that was wrong and is corrected
+// here rather than left to mislead the next reader.
 //
-// So this screen is reachable only by typing its URL: nothing in the app links
-// to `/start/must-visit` (routes.tsx defines it, and that is the only
-// reference). That is why the loss it would otherwise cause does not happen in
-// the judged flow — the scenario cannot start. Scope confirmed with the owner
-// and Backend/AI on #180 and #185; do not re-investigate why picks are not
-// sent. Reopening this is P1 work and needs a contract field first, best shaped
-// as a TripCandidate carrying a MUST_VISIT lock (no date, no schedule change).
+// This is step 4 of the wizard, not a screen of its own. Step 3 asks how much
+// the traveller has already planned (`438:3134`) and its three answers are the
+// branch: NOTHING creates the trip straight away, MUST_VISIT_ONLY comes here,
+// MOSTLY_PLANNED goes to the S02-4C input-method choice. The Figma copy carries
+// that thread — step 3's second card reads "그 장소는 지키고 나머지를 채워드릴게요"
+// and this screen opens with the same promise.
 //
-// Known rough edge while it stays disconnected: 다음 and 건너뛰기 both call
-// navigate('/feed'), so picks are dropped without a word. Raising the wording
-// and button shape as an FCR rather than guessing at the frame.
+// It used to live at its own route, which nothing linked to, so it was
+// reachable only by typing the URL and the picks it collected went nowhere.
+// The route is gone: steps 1-3 are component state in TripWizardScreen, and a
+// step that needs the same draft has to be held the same way. FIGMA_HANDOFF's
+// screen table lists one path for trip creation (`/start`) and never gave this
+// one a URL.
+//
+// The picks still do not reach the server: `CreateTripRequest` has no field for
+// a place without a date, and `seedItems` cannot stand in because
+// `SeedTripItem` requires `date` and `position` — filling those would invent a
+// schedule the traveller never chose (invariant 2). Backend/AI is shaping that
+// field on #180. Until it lands the wizard carries the picks in its draft and
+// `toCreateRequest` drops them, so what reaches the API stays honest.
 //
 // MOCK DATA: searchPlaces has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
@@ -52,11 +56,30 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // invariant 8 forbids. Add it here once PlaceSummary gains crowd with its
 // provenance and comparison eligibility (FCR-029).
 
-export function MustVisitScreen() {
+export interface MustVisitStepProps {
+  /** The places chosen so far, held by the wizard so going back keeps them. */
+  picked: PlaceSummary[];
+  /** Add one. The wizard applies the cap and the duplicate rule (addMustVisit). */
+  onAdd: (place: PlaceSummary) => void;
+  onRemove: (placeId: string) => void;
+  /** Create the trip with these picks. */
+  onSubmit: () => void;
+  /** Create the trip without any, which is a real answer rather than a cancel. */
+  onSkip: () => void;
+  /** True while createTrip is in flight, so neither exit fires twice. */
+  isSubmitting: boolean;
+}
+
+export function MustVisitStep({
+  picked,
+  onAdd,
+  onRemove,
+  onSubmit,
+  onSkip,
+  isSubmitting,
+}: MustVisitStepProps) {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState<PlaceSummary[]>([]);
   const search = usePlaceSearch(query);
 
   const pickedIds = new Set(picked.map((place) => place.id));
@@ -71,11 +94,13 @@ export function MustVisitScreen() {
       .join(' · ');
   }
 
+  // No <section>, no STEP line and no NavBar: TripWizardScreen renders the
+  // shell for every step, and this one used to draw its own because it was a
+  // route. Keeping both would put two STEP 4 labels on the page and nest a
+  // second labelled region inside the wizard's.
   return (
-    <section className={styles.screen} aria-labelledby="must-visit-heading">
-      <p className={styles.step}>{t('mustVisit.step')}</p>
-
-      <h1 className={styles.title} id="must-visit-heading">
+    <div className={styles.screen}>
+      <h1 className={styles.title} id="wizard-heading">
         {t('mustVisit.title1')}
         <br />
         {t('mustVisit.title2')}
@@ -147,7 +172,7 @@ export function MustVisitScreen() {
                     className={styles.action}
                     disabled={pickedIds.has(place.id)}
                     onClick={() => {
-                      setPicked((current) => [...current, place]);
+                      onAdd(place);
                     }}
                   >
                     {t('mustVisit.add')}
@@ -199,7 +224,7 @@ export function MustVisitScreen() {
                   className={styles.action}
                   aria-label={`${place.name} ${t('mustVisit.remove')}`}
                   onClick={() => {
-                    setPicked((current) => current.filter((p) => p.id !== place.id));
+                    onRemove(place.id);
                   }}
                 >
                   {t('mustVisit.remove')}
@@ -210,23 +235,30 @@ export function MustVisitScreen() {
         )}
       </div>
 
+      {/* The two exits now do different things, which is the whole point of
+          #185: both used to call navigate('/feed'), so a traveller who picked
+          places and pressed 이대로 채우기 got the same trip as one who pressed
+          건너뛰기, and the picks vanished with no word. 이대로 채우기 carries
+          them into the trip; 건너뛰기 states that there are none.
+
+          Both create the trip, so both are blocked while one is in flight —
+          a second press would be a second trip, which Idempotency-Key guards
+          against but the user should not have to discover. */}
       <BottomCta
         label={t('mustVisit.next')}
-        onClick={() => {
-          void navigate('/feed');
-        }}
+        disabled={isSubmitting}
+        onClick={onSubmit}
         secondary={
           <button
             type="button"
             className={styles.skip}
-            onClick={() => {
-              void navigate('/feed');
-            }}
+            disabled={isSubmitting}
+            onClick={onSkip}
           >
             {t('mustVisit.skip')}
           </button>
         }
       />
-    </section>
+    </div>
   );
 }

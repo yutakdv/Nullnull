@@ -13,9 +13,22 @@ import type { components } from '@nullnull/api-client';
 type PlanningLevel = components['schemas']['PlanningLevel'];
 type TripInterest = components['schemas']['TripInterest'];
 type CreateTripRequest = components['schemas']['CreateTripRequest'];
+type PlaceSummary = components['schemas']['PlaceSummary'];
 
 export const MAX_TRIP_DAYS = 30;
 export const MAX_INTERESTS = 20;
+
+/**
+ * Upper bound on must-visit picks (step 4, S02-4B).
+ *
+ * PROVISIONAL, and the only number here the contract does not yet own.
+ * CreateTripRequest has no field for a place without a date, so #180 is still
+ * shaping one; this borrows `seedItems`' own `maxItems: 100` because that is
+ * the cap the contract already puts on places carried into a new trip. When the
+ * field lands, take its `maxItems` and delete this constant rather than keeping
+ * a second answer to the same question.
+ */
+export const MAX_MUST_VISIT = 100;
 
 /** Interest codes, grouped as the Figma screen groups them (438:3108). */
 export const INTEREST_GROUPS = [
@@ -42,6 +55,14 @@ export interface WizardDraft {
   endDate: string | null;
   interests: string[];
   planningLevel: PlanningLevel | null;
+  /**
+   * Must-visit places from step 4, kept whole rather than as ids.
+   *
+   * The step renders each pick's name, thumbnail and attribution, so holding
+   * ids would mean re-fetching what the search already returned. Only the ids
+   * will go to the server once #180 gives them a field.
+   */
+  mustVisit: PlaceSummary[];
 }
 
 export const EMPTY_DRAFT: WizardDraft = {
@@ -49,6 +70,7 @@ export const EMPTY_DRAFT: WizardDraft = {
   endDate: null,
   interests: [],
   planningLevel: null,
+  mustVisit: [],
 };
 
 /** Inclusive day count, or null when the range is incomplete. */
@@ -90,6 +112,61 @@ export function canAddInterest(draft: WizardDraft): boolean {
   return draft.interests.length < MAX_INTERESTS;
 }
 
+/**
+ * Adds a must-visit pick, ignoring one already chosen.
+ *
+ * Duplicates are dropped rather than rejected loudly: the step disables a
+ * result's 담기 button once it is picked, so a repeat can only arrive from two
+ * results describing the same place.
+ */
+export function addMustVisit(draft: WizardDraft, place: PlaceSummary): WizardDraft {
+  if (draft.mustVisit.some((p) => p.id === place.id)) return draft;
+  if (draft.mustVisit.length >= MAX_MUST_VISIT) return draft;
+  return { ...draft, mustVisit: [...draft.mustVisit, place] };
+}
+
+export function removeMustVisit(draft: WizardDraft, placeId: string): WizardDraft {
+  return { ...draft, mustVisit: draft.mustVisit.filter((p) => p.id !== placeId) };
+}
+
+/**
+ * What follows step 3, decided by the answer given there.
+ *
+ * The three cards of `438:3134` are a branch, not three ways of saying the same
+ * thing — each one names what happens next, and the screen after it keeps that
+ * promise:
+ *
+ *   NOTHING          아직 하나도 없어요      → create now, the server fills the days
+ *   MUST_VISIT_ONLY  꼭 가고 싶은 곳만 정했어요 → step 4, S02-4B must-visit
+ *   MOSTLY_PLANNED   거의 다 세우고 왔어요     → create now
+ *
+ * The first two used to be the same call, so answering "꼭 가고 싶은 곳만
+ * 정했어요" created the trip without ever asking which places (#185).
+ *
+ * MOSTLY_PLANNED still creates the trip here rather than routing to the paste
+ * screen, even though S02-4C is where that answer leads in the Figma flow.
+ * Sending it there would DROP the dates and interests this wizard just
+ * collected: ImportPasteScreen builds its own draft from EMPTY_DRAFT and reads
+ * the dates out of the pasted text, then finishes through confirmTripImport
+ * instead of createTrip. Wiring the two flows into one is FE-104's follow-up
+ * and needs the `400:1201` input-method screen, whose confirm boundary is
+ * still open in FCR-018. The paste path stays reachable from step 3's
+ * secondary CTA, which is how it is entered today.
+ *
+ * `null` while step 3 is unanswered, so a caller cannot act before the choice.
+ */
+export function nextAfterPlanning(draft: WizardDraft): 'create' | 'must-visit' | null {
+  switch (draft.planningLevel) {
+    case 'MUST_VISIT_ONLY':
+      return 'must-visit';
+    case 'NOTHING':
+    case 'MOSTLY_PLANNED':
+      return 'create';
+    default:
+      return null;
+  }
+}
+
 /** Why step 1 cannot continue, or null when it can. */
 export function dateError(draft: WizardDraft): 'incomplete' | 'tooLong' | null {
   const length = rangeLength(draft.startDate, draft.endDate);
@@ -107,6 +184,14 @@ export function dateError(draft: WizardDraft): 'incomplete' | 'tooLong' | null {
  *
  * Returns null when the draft is incomplete, so a caller cannot submit a
  * half-filled trip.
+ *
+ * `draft.mustVisit` is deliberately NOT sent. CreateTripRequest has no field
+ * for a place without a date, and `seedItems` would require inventing one
+ * (invariant 2). The picks stay in the draft so the step can show them and so
+ * going back keeps them; they reach the server when #180 adds the field, which
+ * is the one line to change here. Dropping them silently is the lesser wrong
+ * only because the step no longer pretends otherwise — its two exits now say
+ * which one the traveller took (#185).
  */
 export function toCreateRequest(
   draft: WizardDraft,

@@ -29,8 +29,9 @@ import styles from './ImportPasteScreen.module.css';
 // `400:1201` (입력 방식 선택) is NOT built here. It is a step-4 branch screen
 // whose confirm boundary is still open in FCR-018, so this is reached from the
 // wizard's own step 3 as a secondary action instead of inventing that screen.
-// The alternative was another `/start/must-visit` — a route nothing links to,
-// reachable only by typing its URL.
+// The alternative was another route nothing links to, which is exactly what
+// `/start/must-visit` was until #185 folded must-visit into the wizard as
+// step 4 and deleted it.
 
 export function ImportPasteScreen() {
   const { t } = useI18n();

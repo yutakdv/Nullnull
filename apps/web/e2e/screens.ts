@@ -27,7 +27,6 @@ export const SCREENS = [
   // checked for a geolocation call either. Every entry below is an implemented
   // screen, not a placeholder, and two of them are submission screenshots.
   { path: '/start', name: 'trip start' },
-  { path: '/start/must-visit', name: 'must-visit picks' },
   { path: '/posts/018f4c30-3d52-7f63-8b66-7c2e1d4f9b02', name: 'post detail' },
   {
     path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/add-place',

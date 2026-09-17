@@ -41,21 +41,51 @@ afterEach(() => {
   server.events.removeAllListeners();
 });
 
-function renderScreen() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/start/must-visit'] });
-  return render(
+/**
+ * Renders the wizard and walks it to step 4.
+ *
+ * The step used to have its own route and these tests entered at it directly.
+ * Nothing linked to that route, so they were exercising a screen no traveller
+ * could reach (#185). Going through steps 1-3 costs a few clicks and buys the
+ * thing the old harness could not check: that the step is reachable at all, and
+ * that it is reached by answering MUST_VISIT_ONLY rather than by any other
+ * route through the wizard.
+ */
+async function renderStep4() {
+  const user = userEvent.setup();
+  const router = createMemoryRouter(routes, { initialEntries: ['/start'] });
+  render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
         <RouterProvider router={router} />
       </I18nProvider>
     </QueryClientProvider>,
   );
+
+  // Step 1: any day twice is a one-day range, which the contract allows.
+  const day = await screen.findByRole('button', { name: '15' });
+  await user.click(day);
+  await user.click(day);
+  await user.click(screen.getByRole('button', { name: /–/ }));
+
+  // Step 2 asks for interests and the contract permits none.
+  await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+
+  // Step 3: the answer that leads here. NOTHING would create the trip and
+  // MOSTLY_PLANNED would go to the paste screen.
+  await user.click(
+    await screen.findByRole('button', {
+      name: new RegExp(copy['wizard.planning.MUST_VISIT_ONLY.title']),
+    }),
+  );
+  await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+  await screen.findByRole('searchbox');
+  return user;
 }
 
 async function searchFor(text: string) {
-  const user = userEvent.setup();
-  renderScreen();
-  await user.type(await screen.findByRole('searchbox'), text);
+  const user = await renderStep4();
+  await user.type(screen.getByRole('searchbox'), text);
   return user;
 }
 
@@ -82,8 +112,7 @@ describe('searching for a place keeps the query out of every URL', () => {
   });
 
   it('does not search on an empty field', async () => {
-    renderScreen();
-    await screen.findByRole('searchbox');
+    await renderStep4();
     expect(requests.filter((r) => r.url.includes('/places/search'))).toEqual([]);
   });
 });
@@ -258,15 +287,14 @@ describe('keyboard and continuation', () => {
   });
 
   it('continues without keeping anything', async () => {
-    const user = userEvent.setup();
-    renderScreen();
-    await user.click(await screen.findByRole('button', { name: copy['mustVisit.skip'] }));
+    // 건너뛰기 is an answer, not a cancel: it creates the trip with no
+    // must-visit places. It used to navigate('/feed') exactly like 이대로
+    // 채우기, which is what #185 reported — the two exits were the same code.
+    const user = await renderStep4();
+    await user.click(screen.getByRole('button', { name: copy['mustVisit.skip'] }));
     await waitFor(() => {
-      // The feed is a real screen since FE-201, so the landing check is its
-      // heading rather than the placeholder's text.
-      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
-        'id',
-        'feed-heading',
+      expect(requests.some((r) => r.method === 'POST' && r.url.endsWith('/trips'))).toBe(
+        true,
       );
     });
   });

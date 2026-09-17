@@ -8,13 +8,17 @@ import { useCreateTrip } from '../../shared/api/index.js';
 import {
   EMPTY_DRAFT,
   INTEREST_GROUPS,
+  addMustVisit,
   canAddInterest,
   dateError,
+  nextAfterPlanning,
+  removeMustVisit,
   selectDay,
   toCreateRequest,
   toggleInterest,
   type WizardDraft,
 } from './wizard.js';
+import { MustVisitStep } from './MustVisitScreen.js';
 import styles from './TripWizardScreen.module.css';
 
 type PlanningLevel = components['schemas']['PlanningLevel'];
@@ -330,13 +334,23 @@ export function TripWizardScreen() {
             // which the Idempotency-Key guards against but need not be tested by
             // the user (.claude/rules/frontend.md on duplicate submits).
             disabled={draft.planningLevel === null || createTrip.isPending}
-            onClick={submit}
+            // The answer decides what follows: MUST_VISIT_ONLY goes to step 4
+            // and the other two create the trip. All three used to call
+            // submit(), so "꼭 가고 싶은 곳만 정했어요" made the same trip as
+            // "아직 하나도 없어요" and never asked which places (#185).
+            onClick={() => {
+              if (nextAfterPlanning(draft) === 'must-visit') {
+                setStep(4);
+                return;
+              }
+              submit();
+            }}
             secondary={
-              // The paste path (FE-104, `401:1221`). Offered here rather than
-              // as the `400:1201` branch screen, whose confirm boundary is
-              // still open in FCR-018 — and a route with no entry point is
-              // reachable only by typing its URL, which is how
-              // /start/must-visit ended up unreachable.
+              // The paste path (FE-104, `401:1221`) stays reachable from here
+              // as well: MOSTLY_PLANNED routes to it above, and this keeps it
+              // available to someone who answered differently but arrived with
+              // an itinerary in hand. The `400:1201` branch screen that would
+              // hold both input methods is still open in FCR-018.
               <button
                 type="button"
                 className={styles.later}
@@ -349,6 +363,31 @@ export function TripWizardScreen() {
             }
           />
         </>
+      ) : null}
+
+      {/* S02-4B `438:3158`, reached only from MUST_VISIT_ONLY. The picks live in
+          the draft, so stepping back to 3 and forward again keeps them — the
+          same promise FIGMA_HANDOFF makes for steps 1-3. */}
+      {step === 4 ? (
+        <MustVisitStep
+          picked={draft.mustVisit}
+          onAdd={(place) => {
+            setDraft((current) => addMustVisit(current, place));
+          }}
+          onRemove={(placeId) => {
+            setDraft((current) => removeMustVisit(current, placeId));
+          }}
+          onSubmit={submit}
+          onSkip={() => {
+            // A real answer, not a cancel: the traveller says there are no
+            // must-visit places, so the trip is created without any. Clearing
+            // first keeps that honest — pressing 건너뛰기 after picking some
+            // must not quietly carry them.
+            setDraft((current) => ({ ...current, mustVisit: [] }));
+            submit();
+          }}
+          isSubmitting={createTrip.isPending}
+        />
       ) : null}
     </section>
   );

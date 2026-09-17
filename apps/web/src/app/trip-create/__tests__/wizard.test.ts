@@ -95,6 +95,7 @@ describe('interests', () => {
         endDate: '2026-10-07',
         interests: [],
         planningLevel: 'NOTHING',
+        mustVisit: [],
       },
       'Asia/Seoul',
     );
@@ -108,6 +109,7 @@ describe('building the create request', () => {
     endDate: '2026-10-07',
     interests: ['FRIENDS', 'FOOD'],
     planningLevel: 'MUST_VISIT_ONLY' as const,
+    mustVisit: [],
   };
 
   it('carries only the fields the contract declares', () => {
