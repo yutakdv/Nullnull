@@ -743,9 +743,15 @@ export interface paths {
         put?: never;
         /**
          * Restore the state before an applied proposal
-         * @description Allowed once, only for an APPLY decision, for 24 hours after decidedAt. The immutable
-         *     before revision is restored as a new revision; history is never overwritten. Revert is
-         *     rejected if the current trip version differs from the applied revision.
+         * @description Allowed once, only for an APPLY decision, for 24 hours after decidedAt. The change the
+         *     decision applied is reversed - each of its recorded changes is written back to the value it
+         *     replaced - and the result is recorded as a NEW revision; history is never overwritten. Revert
+         *     is rejected if the current trip version differs from the applied revision.
+         *
+         *     Reversing the recorded changes is not the same as restoring the stored aggregate snapshot,
+         *     and this operation does the former. The snapshot omits an item's durationMinutes and note, so
+         *     restoring from it would silently clear fields the apply never touched. ERD section 9 carries
+         *     the same correction.
          */
         post: operations["revertOptimizationDecision"];
         delete?: never;
@@ -2245,7 +2251,9 @@ export interface components {
             beforeRevisionId: string;
             /**
              * Format: uuid
-             * @description New revision created by restoring the applied decision's before snapshot.
+             * @description New revision created by writing each recorded change back to the value it replaced. Not a
+             *     restore of the stored aggregate snapshot - see this operation's description for why the
+             *     two differ and why this one is the lossless direction.
              */
             afterRevisionId: string;
             /** Format: uuid */
