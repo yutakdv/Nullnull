@@ -27,8 +27,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * BA-002-T1/T2: migrations apply on an empty PostgreSQL and as an upgrade from the previous schema,
- * and every check, unique and foreign key rejects a direct SQL violation.
+ * BA-002-T1/T2/T4: migrations apply on an empty PostgreSQL and as an upgrade from the previous
+ * schema, every check, unique and foreign key rejects a direct SQL violation, and writes shaped for
+ * the previous schema are still accepted by the latest one.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -37,6 +38,37 @@ class FlywayMigrationIT {
 
     /** Dropped and recreated by the upgrade test; never the schema the application itself uses. */
     private static final String UPGRADE_SCHEMA = "ba002_upgrade_check";
+
+    /** The same, for the compatibility test. A second name so the two never share a schema. */
+    private static final String COMPAT_SCHEMA = "ba002_compat_check";
+
+    // Every table the previous schema owns, which populateEveryTable must cover; a new one has to be
+    // added here too. "Previous" is always the migration before the last one, so a table arrives in
+    // this list one migration after it is created: optimization_runs arrived when V025 landed,
+    // place_hours_* when V026 did, feed_feedback arrived when V027 did, place_relations when V028
+    // did, and itinerary_import_drafts arrived when V029 did, and V029's optimization_proposals and
+    // optimization_changes arrived when V030 did, and optimization_decisions arrived when V031 did.
+    //
+    // This list is therefore complete through V030, the last migration that created a table. It is
+    // written that way on purpose: an earlier version said "the next migration that does will find
+    // this list already complete", which is a claim about the FUTURE and went stale the moment
+    // V031, V032 and V033 landed - none of them creates a table, so the sentence stayed true and
+    // stopped being useful, and it would need editing again at V034. Naming the last table-creating
+    // migration is a claim about what this list HOLDS, and it only changes when the list does.
+    private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
+            "analytics_events", "background_jobs", "owners", "idempotency_records",
+            "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
+            "deletion_tombstones", "source_registry", "source_registry_revisions",
+            "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
+            "places", "place_localizations", "place_external_refs", "asset_licenses",
+            "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
+            "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
+            "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
+            "optimization_runs", "optimization_run_snapshot_sets",
+            "place_hours_observations", "place_hours_windows", "feed_feedback",
+            "place_relations", "itinerary_import_drafts",
+            "optimization_proposals", "optimization_changes",
+            "optimization_decisions");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -69,24 +101,25 @@ class FlywayMigrationIT {
         List<String> untilPrevious = versions.subList(0, versions.size() - 1);
         jdbc.execute("DROP SCHEMA IF EXISTS " + UPGRADE_SCHEMA + " CASCADE");
         try {
-            MigrateResult toPrevious = upgradeSchemaFlyway(previous).migrate();
+            MigrateResult toPrevious = flywayFor(UPGRADE_SCHEMA, previous).migrate();
             assertThat(toPrevious.success).isTrue();
             assertThat(toPrevious.migrationsExecuted).isEqualTo(untilPrevious.size());
-            assertThat(appliedVersionsInUpgradeSchema()).isEqualTo(untilPrevious);
+            assertThat(appliedVersionsIn(UPGRADE_SCHEMA)).isEqualTo(untilPrevious);
 
             // An empty schema upgrades even when a migration cannot: a NOT NULL column without a
             // default, or a unique index over existing duplicates, only fails on populated tables.
             UUID ownerId = UUID.randomUUID();
-            String outstandingKey = populateEveryTable(ownerId);
+            String outstandingKey = populateEveryTable(UPGRADE_SCHEMA, ownerId);
+            assertThat(tablesInUpgradeSchema()).containsExactlyInAnyOrderElementsOf(PREVIOUS_SCHEMA_TABLES);
             List<String> columnsBefore = columnsInUpgradeSchema();
             long rowsBefore = totalRowsInUpgradeSchema();
             assertThat(tablesInUpgradeSchema()).allSatisfy(table -> assertThat(jdbc.queryForObject(
                     "SELECT count(*) FROM " + UPGRADE_SCHEMA + "." + table, Long.class)).isPositive());
 
-            MigrateResult toLatest = upgradeSchemaFlyway(null).migrate();
+            MigrateResult toLatest = flywayFor(UPGRADE_SCHEMA, null).migrate();
             assertThat(toLatest.success).isTrue();
             assertThat(toLatest.migrationsExecuted).isEqualTo(versions.size() - untilPrevious.size());
-            assertThat(appliedVersionsInUpgradeSchema()).isEqualTo(versions);
+            assertThat(appliedVersionsIn(UPGRADE_SCHEMA)).isEqualTo(versions);
             assertThat(jdbc.queryForObject("SELECT bool_and(success) FROM " + UPGRADE_SCHEMA
                     + ".flyway_schema_history WHERE version IS NOT NULL", Boolean.class)).isTrue();
 
@@ -120,6 +153,44 @@ class FlywayMigrationIT {
                     .doesNotThrowAnyException();
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + UPGRADE_SCHEMA + " CASCADE");
+        }
+    }
+
+    @Test
+    @DisplayName("BA-002-T4 a write shaped for the previous schema is still accepted by the latest one")
+    void previousSchemaWritesAreAcceptedByTheLatestSchema() {
+        // The upgrade test above covers the reading half of compatibility: data written before the
+        // last migration survives it, and no column an older application reads was dropped or
+        // retyped. This is the writing half. During a rolling deploy an instance built against the
+        // previous schema keeps serving after the migration has run, and every INSERT it issues
+        // names the previous schema's columns and nothing else - which is exactly what
+        // populateEveryTable is, so it is pointed at a schema taken straight to the latest version.
+        //
+        // The two halves fail apart. A column that gains NOT NULL with a default and then drops the
+        // default passes the upgrade test - the existing rows are backfilled and no column
+        // disappears - and fails only here, on the next INSERT that does not name it.
+        //
+        // Not covered, here or anywhere yet: running an actual previous-release binary against this
+        // schema. That needs the deploy pipeline of BA-004; see the card.
+        jdbc.execute("DROP SCHEMA IF EXISTS " + COMPAT_SCHEMA + " CASCADE");
+        try {
+            MigrateResult toLatest = flywayFor(COMPAT_SCHEMA, null).migrate();
+            assertThat(toLatest.success).isTrue();
+            // Without this the test would still pass against a half-migrated schema, and would then
+            // be asserting compatibility with a version nothing deploys.
+            assertThat(appliedVersionsIn(COMPAT_SCHEMA)).isEqualTo(classpathVersions());
+
+            assertThatCode(() -> populateEveryTable(COMPAT_SCHEMA, UUID.randomUUID()))
+                    .doesNotThrowAnyException();
+
+            // And the write set has to have reached every table it claims to cover, or a
+            // populateEveryTable that quietly stopped writing would pass this test by writing
+            // nothing. (source_registry and its revisions are seeded by the migrations that own
+            // them rather than written here; the rest of the list is this method's own writes.)
+            assertThat(PREVIOUS_SCHEMA_TABLES).allSatisfy(table -> assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM " + COMPAT_SCHEMA + "." + table, Long.class)).isPositive());
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + COMPAT_SCHEMA + " CASCADE");
         }
     }
 
@@ -239,16 +310,16 @@ class FlywayMigrationIT {
                 .toList();
     }
 
-    private List<String> appliedVersionsInUpgradeSchema() {
-        return jdbc.queryForList("SELECT version FROM " + UPGRADE_SCHEMA + ".flyway_schema_history"
+    private List<String> appliedVersionsIn(String schema) {
+        return jdbc.queryForList("SELECT version FROM " + schema + ".flyway_schema_history"
                 + " WHERE version IS NOT NULL AND success ORDER BY installed_rank", String.class);
     }
 
-    private Flyway upgradeSchemaFlyway(String target) {
+    private Flyway flywayFor(String schema, String target) {
         FluentConfiguration configuration = Flyway.configure()
                 .dataSource(dataSource)
-                .schemas(UPGRADE_SCHEMA)
-                .defaultSchema(UPGRADE_SCHEMA)
+                .schemas(schema)
+                .defaultSchema(schema)
                 .createSchemas(true)
                 .locations("classpath:db/migration");
         if (target != null) {
@@ -258,56 +329,57 @@ class FlywayMigrationIT {
     }
 
     /**
-     * One representative row in every table the previous schema has, so the upgrade runs on data.
+     * One representative row in every table the previous schema has, written the way an application
+     * built against that schema writes it: no column the previous schema does not have is named.
      *
      * @return the deduplication key of the outstanding job row, which the upgrade must keep exclusive
      */
-    private String populateEveryTable(UUID ownerId) {
+    private String populateEveryTable(String schema, UUID ownerId) {
         String key = "upgrade-" + UUID.randomUUID();
-        insertJobInto(UPGRADE_SCHEMA + ".background_jobs", key, "READY");
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".owners"
+        insertJobInto(schema + ".background_jobs", key, "READY");
+        jdbc.update("INSERT INTO " + schema + ".owners"
                         + " (id, kind, locale, timezone, created_at) VALUES (?, 'ANONYMOUS', ?, ?, ?)",
                 ownerId, "ko-KR", "Asia/Seoul", OffsetDateTime.now());
-        insertRecordInto(UPGRADE_SCHEMA, ownerId);
+        insertRecordInto(schema, ownerId);
         UUID sessionId = UUID.randomUUID();
         byte[] hash = new byte[32];
         new java.security.SecureRandom().nextBytes(hash);
         OffsetDateTime now = OffsetDateTime.now();
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".demo_sessions"
+        jdbc.update("INSERT INTO " + schema + ".demo_sessions"
                         + " (id, owner_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
                 sessionId, ownerId, hash, now.plusDays(30), now);
         new java.security.SecureRandom().nextBytes(hash);
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".demo_session_csrf_tokens"
+        jdbc.update("INSERT INTO " + schema + ".demo_session_csrf_tokens"
                         + " (id, demo_session_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
                 UUID.randomUUID(), sessionId, hash, now.plusHours(2), now);
         UUID deletionRequestId = UUID.randomUUID();
         new java.security.SecureRandom().nextBytes(hash);
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".deletion_requests"
+        jdbc.update("INSERT INTO " + schema + ".deletion_requests"
                         + " (id, owner_id, status_token_hash, status, status_token_expires_at,"
                         + " requested_at, updated_at) VALUES (?, ?, ?, 'ACCEPTED', ?, ?, ?)",
                 deletionRequestId, ownerId, hash, now.plusDays(7), now, now);
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".deletion_tombstones"
+        jdbc.update("INSERT INTO " + schema + ".deletion_tombstones"
                         + " (id, deletion_request_id, owner_id, delete_before, retain_until, scope_hash, created_at)"
                         + " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 UUID.randomUUID(), deletionRequestId, ownerId, now, now.plusDays(21), "c".repeat(64), now);
         // V007 source registry tables are already seeded with reviewed rows. Add rows to the three
         // operational tables that are otherwise empty, so the C2 migrations are tested against populated C1 data too.
         UUID collectorRunId = UUID.randomUUID();
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".source_quality_incidents"
+        jdbc.update("INSERT INTO " + schema + ".source_quality_incidents"
                         + " (id, source_code, incident_code, affected_from, affected_to, scope, disposition, reviewed_at)"
                         + " VALUES (?, 'KTO_KOR_SERVICE_2', ?, ?, ?, 'PLACE', 'RESOLVED', ?)",
                 UUID.randomUUID(), "upgrade-incident-" + UUID.randomUUID(), now, now.plusMinutes(1), now);
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".collector_runs"
+        jdbc.update("INSERT INTO " + schema + ".collector_runs"
                         + " (id, source_code, status, trigger_type, records_received, records_accepted,"
                         + " records_rejected, schema_version, started_at, finished_at)"
                         + " VALUES (?, 'KTO_KOR_SERVICE_2', 'COMPLETED', 'MANUAL', 1, 1, 0, 'upgrade-v1', ?, ?)",
                 collectorRunId, now.minusSeconds(1), now);
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".api_ingest_logs"
+        jdbc.update("INSERT INTO " + schema + ".api_ingest_logs"
                         + " (id, collector_run_id, endpoint_key, outcome, http_status, duration_ms, response_count,"
                         + " release_version, request_id, payload_hash, validation_result, created_at)"
                         + " VALUES (?, ?, 'UPGRADE_TEST', 'OK', 200, 1, 1, 'upgrade-release', ?, ?, 'OK', ?)",
                 UUID.randomUUID(), collectorRunId, "upgrade-request-" + UUID.randomUUID(), "d".repeat(64), now);
-        jdbc.update("INSERT INTO " + UPGRADE_SCHEMA + ".kto_place_snapshots"
+        jdbc.update("INSERT INTO " + schema + ".kto_place_snapshots"
                         + " (id, source_code, source_registry_version, collector_run_id, content_id, content_type_id,"
                         + " title, payload_hash, fetched_at, stale_at, created_at)"
                         + " VALUES (?, 'KTO_KOR_SERVICE_2', 2, ?, '126508', '12', 'upgrade place', ?, ?, ?, ?)",
@@ -525,29 +597,7 @@ class FlywayMigrationIT {
                             'KEEP', 1, NULL, NULL, NULL, NULL, NULL, v_at);
                 END
                 $upgrade$;
-                """.formatted(UPGRADE_SCHEMA));
-        // Every table the previous schema owns must be covered; a new one has to be added here too.
-        // "Previous" is always the migration before the last one, so a table arrives in this list one
-        // migration after it is created: optimization_runs arrived when V025 landed, place_hours_*
-        // when V026 did, feed_feedback arrived when V027 did, place_relations when V028 did, and
-        // itinerary_import_drafts arrived when V029 did, and V029's optimization_proposals and
-        // optimization_changes arrived when V030 did, and optimization_decisions arrives now that
-        // V031 has. V031 creates no table of its own - it replaces a CHECK - so the next migration
-        // that does will find this list already complete.
-        assertThat(tablesInUpgradeSchema())
-                .containsExactlyInAnyOrder("analytics_events", "background_jobs", "owners", "idempotency_records",
-                        "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
-                        "deletion_tombstones", "source_registry", "source_registry_revisions",
-                        "source_quality_incidents", "collector_runs", "api_ingest_logs", "kto_place_snapshots",
-                        "places", "place_localizations", "place_external_refs", "asset_licenses",
-                        "media_assets", "place_media_assets", "snapshot_sets", "crowd_snapshots",
-                        "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
-                        "posts", "post_places", "saved_posts", "trip_candidates", "candidate_sources",
-                        "optimization_runs", "optimization_run_snapshot_sets",
-                        "place_hours_observations", "place_hours_windows", "feed_feedback",
-                        "place_relations", "itinerary_import_drafts",
-                        "optimization_proposals", "optimization_changes",
-                        "optimization_decisions");
+                """.formatted(schema));
         return key;
     }
 

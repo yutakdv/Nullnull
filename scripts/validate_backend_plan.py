@@ -13,11 +13,26 @@ from pathlib import Path
 from urllib.parse import unquote
 
 PLAN = 'docs/engineering/backend-plan.json'
+REC_MANIFEST = 'apps/ai/tests/recommendation/manifest.json'
 CARD = 'docs/roles/BACKEND_AI_PLAYBOOK.md'
 CANVAS = 'docs/BACKEND_ROADMAP.canvas'
 STATUSES = {'planned', 'contract-ready', 'in-progress', 'integration-ready',
             'verified', 'blocked', 'deferred'}
 LIVE_OPERATIONS = {'queryLiveAreas', 'listLiveAreaPlaces', 'getLivePlace'}
+
+
+def implemented_rec_ids(root: Path) -> set[str]:
+    """The REC IDs apps/ai actually implements, not the ones it still owes.
+
+    `requiredTestIds` is the wish list; `implementedTestIds` is the part with a test behind it.
+    A card that cites a merely-required ID would be pointing at nothing, which is the hole this
+    marker exists to avoid - so only the implemented set counts as coverage.
+    """
+    data = json.loads((root / REC_MANIFEST).read_text(encoding='utf-8'))
+    entries = data.get('implementedTestIds')
+    if not isinstance(entries, list) or not entries:
+        raise ValueError('implementedTestIds must be a non-empty list')
+    return {e['id'] for e in entries if isinstance(e, dict) and isinstance(e.get('id'), str)}
 
 
 def headings(text: str) -> set[str]:
@@ -93,6 +108,13 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
     assigned: set[str] = set()
     test_ids: list[str] = []
     card_sections = dict(re.findall(r'^### (BA-\d{3})\s*\n(.*?)(?=^### BA-|^## |\Z)', cards, re.M | re.S))
+    try:
+        rec_implemented = implemented_rec_ids(root)
+    except (OSError, ValueError, json.JSONDecodeError, KeyError) as error:
+        # No silent pass: a card citing REC coverage must be checkable, so an unreadable manifest
+        # is a failure rather than an empty set that would accept every citation.
+        problems.append(f'recommendation manifest unavailable: {error}')
+        rec_implemented = set()
     if set(card_sections) != set(ids):
         problems.append('backend task card IDs differ from plan manifest')
     for task in tasks:
@@ -169,6 +191,36 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
                         problems.append(f'{tid}: externalOwner for {ident} needs a {field}')
                 if not re.fullmatch(r'#\d+', str(external.get('issue', ''))):
                     problems.append(f'{tid}: externalOwner issue for {ident} must be #<number>')
+            # A clause whose proof is the REC corpus in apps/ai rather than a JUnit testcase.
+            # check_test_reports.py stops requiring a JUnit name for it, so - like externalOwner -
+            # this is a place a card could be promoted with a clause nobody proved. What keeps it
+            # from being a hole is that the cited IDs must be ones apps/ai IMPLEMENTS, and that the
+            # human card must name the same IDs on that clause's own row. Without the second rule
+            # the citation lives only in JSON and the card still reads as if a JUnit test covered
+            # it; #195 is about exactly that distance between what a card says and what runs.
+            covered = test.get('recCoverage')
+            if covered is not None:
+                if not isinstance(covered, dict):
+                    problems.append(f'{tid}: recCoverage for {ident} must be an object')
+                    continue
+                cited = covered.get('ids')
+                if not isinstance(cited, list) or not cited:
+                    problems.append(f'{tid}: recCoverage for {ident} needs a non-empty ids list')
+                    cited = []
+                reason = covered.get('reason')
+                if not isinstance(reason, str) or not reason.strip():
+                    problems.append(f'{tid}: recCoverage for {ident} needs a reason')
+                row = next((line for line in card_sections.get(tid, '').splitlines()
+                            if line.startswith(f'- `{ident}`')), '')
+                for rec in cited:
+                    if not isinstance(rec, str) or not re.fullmatch(r'REC-[A-Z]+-\d+', str(rec)):
+                        problems.append(f'{tid}: recCoverage for {ident} has an invalid REC ID: {rec}')
+                        continue
+                    if rec not in rec_implemented:
+                        problems.append(f'{tid}: recCoverage for {ident} cites {rec}, '
+                                        f'which apps/ai does not implement')
+                    if rec not in row:
+                        problems.append(f'{tid}: the card must name {rec} on the {ident} row')
         card = card_sections.get(tid, '')
         # Keep machine metadata and human task cards synchronized.
         #
@@ -223,8 +275,9 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
             # `verified` is the second pass, and what separates it from `integration-ready` is not a
             # signature. check_test_reports.py already proves, for both statuses alike, that each
             # acceptance ID APPEARS in some JUnit testcase name. Appearing is not proving: BA-002-T3
-            # carries its ID on twenty testcases and every one of them covers only the first of its
-            # two clauses. So `verified` asks the reviewer to NAME, per acceptance ID, the testcase
+            # carried its ID on twenty testcases and every one of them covered only the first of its
+            # two clauses, until #194 split the second one out as T4 and proved it. So `verified`
+            # asks the reviewer to NAME, per acceptance ID, the testcase
             # that proves it - which cannot be done for a clause nothing tests, and that refusal is
             # the whole point of the rung.
             #

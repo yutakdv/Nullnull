@@ -37,12 +37,14 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -209,6 +211,18 @@ public class TripService {
         return findForOwner(ownerId, tripId)
                 .map(trip -> java.util.OptionalLong.of(trip.version()))
                 .orElseGet(java.util.OptionalLong::empty);
+    }
+
+    /**
+     * The revision a trip was at when it reached this version, for work that has to name what it
+     * froze rather than what the trip is now.
+     *
+     * <p>Owner-scoped for the same reason {@link #versionFor} is: a caller holding a run row already
+     * recorded whose trip it is, and a read that did not ask would be the one here that does not.
+     */
+    @Transactional(readOnly = true)
+    public Optional<UUID> revisionAt(UUID ownerId, UUID tripId, long version) {
+        return findForOwner(ownerId, tripId).flatMap(trip -> trips.revisionAt(trip.id(), version));
     }
 
     @Transactional(readOnly = true)
@@ -1125,6 +1139,125 @@ public class TripService {
         return new TripMutationView(new TripView(trip,
                 trips.candidateCounts(List.of(tripId)).getOrDefault(tripId, 0),
                 itemViews(context, tripId)), changed);
+    }
+
+    /**
+     * Applies an approved optimization preview: every move lands, or none does.
+     *
+     * <p>The optimizer owns what to change; this owns that a trip changes correctly. It exists
+     * because {@code optimization} cannot assemble a revision - {@code snapshot}, the schema version
+     * and the hash are private here, deliberately, so the module that owns the table is the one that
+     * writes its history.
+     *
+     * <p><strong>Locks are consulted and never released, and that is the difference from
+     * {@link #reorder}.</strong> A reorder is a person moving their own item, so a lock they name is
+     * released because the screen already asked them. An APPLY is the machine's proposal being
+     * accepted, and invariant 7 says the four locks do not release automatically - so a lock that
+     * refuses a move refuses the whole apply. {@code ApplyOptimizationMoves} carries no
+     * {@code releaseConstraints} field at all: an empty one would be a field the next caller can
+     * fill, and absence is the only version of this rule that cannot be relaxed by accident.
+     *
+     * <p>Throws rather than returning a failure, and the contract is what forces that shape:
+     * <em>"A failed APPLY records no decision and changes no trip row, so the same idempotency key
+     * can replay it."</em> {@code IdempotencyGuard.execute} reserves the key before the command and
+     * calls {@code records.complete} only on a normal return, so a thrown failure rolls the
+     * reservation back and the key is free again. A failure handed back as a value would complete
+     * the record and pin that key to the failure - the sentence above would stop being true, and
+     * nothing in the type system would say so.
+     */
+    @Transactional
+    public AppliedMoves applyOptimizationMoves(UUID ownerId, UUID tripId, long expectedVersion,
+            List<ItemMove> moves) {
+        Trip current = trips.findForUpdate(ownerId, tripId).orElseThrow(TripService::notFound);
+        if (current.version() != expectedVersion) {
+            throw tripChanged(current.version());
+        }
+        UUID beforeRevisionId = trips.revisionAt(tripId, current.version()).orElseThrow(
+                () -> new IllegalStateException("trip " + tripId + " has no revision at its own version"));
+
+        Instant now = clock.instant();
+        Map<UUID, TripItem> byId = new LinkedHashMap<>();
+        for (TripItem item : trips.items(tripId)) {
+            byId.put(item.id(), item);
+        }
+        List<TripItem> after = new ArrayList<>();
+        List<UUID> moved = new ArrayList<>(moves.size());
+        for (ItemMove move : moves) {
+            TripItem item = byId.get(move.itemId());
+            if (item == null) {
+                // The preview named an item the trip no longer holds. DATA_CHANGED rather than a
+                // validation error: the caller did not compose this list, a frozen run did.
+                throw new ApiException(ProblemCode.DATA_CHANGED,
+                        "The preview names an item this trip no longer holds.");
+            }
+            LockChecks.Result verdict = LockChecks.evaluate(
+                    item.constraints().stream().map(TripConstraint::lock).toList(),
+                    move.date(), move.startTime() == null ? item.startTime() : move.startTime(),
+                    item.durationMinutes());
+            if (!verdict.satisfied()) {
+                // The failing codes travel with the refusal, the way setTripItemConstraint does it:
+                // "a lock refused" is not actionable, "DATE_LOCKED refused" is.
+                throw new ApiException(ProblemCode.LOCK_CONFLICT, HttpStatus.UNPROCESSABLE_CONTENT,
+                        "A lock on this item refuses the proposed change: "
+                                + String.join(", ", verdict.reasonCodes()), false, null);
+            }
+            moved.add(item.id());
+            after.add(new TripItem(item.id(), item.placeId(), move.date(), move.position(),
+                    move.startTime() == null ? item.startTime() : move.startTime(),
+                    item.durationMinutes(), item.note(), item.constraints()));
+        }
+        for (TripItem item : byId.values()) {
+            if (!moved.contains(item.id())) {
+                after.add(item);
+            }
+        }
+        TripScheduleRules.requireInsideRange(current.range(), after);
+        TripScheduleRules.requireWithinCaps(after);
+        TripScheduleRules.requireDistinctPositions(after);
+        // Deferred for the same reason reorder defers: an apply that swaps two items necessarily
+        // passes through a state where they share a slot, and the constraint judges the result.
+        trips.deferSlotUniqueness();
+        for (ItemMove move : moves) {
+            trips.moveItem(tripId, move.itemId(), move.date(), move.position(), now);
+        }
+        Trip bumped = commitItemChange(current, after, now);
+        UUID afterRevisionId = trips.revisionAt(tripId, bumped.version()).orElseThrow(
+                () -> new IllegalStateException("the revision this apply just wrote is not readable"));
+        return new AppliedMoves(bumped, beforeRevisionId, afterRevisionId, List.copyOf(moved));
+    }
+
+    /**
+     * One version, one snapshot, one revision - the four lines every mutation here ends with.
+     *
+     * <p>Named rather than copied because this is the tenth caller of that sequence and the first one
+     * written after we counted them.
+     *
+     * <p><strong>Only APPLY uses it.</strong> The nine older sites still assemble the four lines
+     * themselves, and collapsing them would rewrite the test surface of BA-030, BA-031 and BA-040 in
+     * a slice about none of them. So this is not "the place a revision is assembled" yet - it is one
+     * of ten, with a name. Read it that way rather than assuming the rule is centralised here.
+     */
+    private Trip commitItemChange(Trip current, List<TripItem> after, Instant now) {
+        Trip bumped = raiseVersion(current, now);
+        String snapshot = snapshot(bumped, after);
+        trips.updateMetadata(bumped, SNAPSHOT_SCHEMA_VERSION, sha256Hex(snapshot), snapshot);
+        return bumped;
+    }
+
+    /** Where one item should end up. No lock may be released to get it there (invariant 7). */
+    public record ItemMove(UUID itemId, LocalDate date, int position, LocalTime startTime) {
+        public ItemMove {
+            Objects.requireNonNull(itemId, "itemId");
+            Objects.requireNonNull(date, "date");
+            if (position < 0) {
+                throw new IllegalArgumentException("position must not be negative");
+            }
+        }
+    }
+
+    /** What an apply produced: the trip one version later, and the revisions it moved between. */
+    public record AppliedMoves(Trip trip, UUID beforeRevisionId, UUID afterRevisionId,
+            List<UUID> movedItemIds) {
     }
 
     /** The same trip one version later. Exactly one, however much the command changed. */

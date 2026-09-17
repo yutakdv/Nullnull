@@ -49,6 +49,16 @@ tags:
 
 ## 만료된 예외 (기록)
 
+- **`OptimizationFailure.code`에 `DATA_INSUFFICIENT` 추가** (승인: 오너, 추적: [#225](https://github.com/yutakdv/Nullnull/issues/225)).
+  PR [#229](https://github.com/yutakdv/Nullnull/pull/229)로 반영됐고 base가 따라 움직여 만료됐다 — `main`의 `openapi.yaml`이
+  이제 그 enum 값을 담고 있으므로 oasdiff가 두 operation(`GET /optimizations/{runId}` 200,
+  `POST /trips/{tripId}/optimizations` 202) 어느 쪽에서도 `response-property-enum-value-added`를 내지 않는다.
+  **이 정리는 다음 PR이 강제했다**: `check_oasdiff_exceptions.py`가 `stale oasdiff exception (no longer reported, remove it)`로
+  `docs-contract`를 빨갛게 만들었고, 그것이 이 장치의 목적이다 — **예외가 자기 수정보다 오래 살 수 없다.**
+  `apps/ai`는 비교 자격 없음·관측 없음·신선도 만료·대안 0건 네 자리에서 이 코드를 내고, 그전에는 그 넷이
+  `NO_IMPROVEMENT`(더 나은 답이 없다)나 `UNEXPECTED_FAILURE`(우리가 깨졌다)로 접혔는데 **둘 다 거짓**이었다.
+  이 코드는 **retryable이 아니다** — 같은 입력이면 같은 답이므로 화면의 CTA는 재시도가 아니라 범위 변경이어야 한다.
+
 정정이 `main`에 반영되면 base가 새 값이 되어 해당 메시지는 더 이상 보고되지 않는다. 그 시점에 ignore 줄을 지우고 행을 여기로 옮긴다. `scripts/check_oasdiff_exceptions.py`가 CI에서 이 정리를 강제한다 — 매칭되지 않는 ignore 줄이 남아 있으면 실패한다.
 
 - **`relationId` request property 제거** (승인: 오너, 추적: #204). PR #213으로 반영됐고 base가 따라 움직여

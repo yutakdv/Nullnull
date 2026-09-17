@@ -71,6 +71,14 @@ public class JdbcTripStore implements TripStore {
     }
 
     @Override
+    public Optional<UUID> revisionAt(UUID tripId, long version) {
+        return jdbc.sql("SELECT id FROM trip_revisions WHERE trip_id = ? AND version = ?")
+                .params(tripId, version)
+                .query(UUID.class)
+                .optional();
+    }
+
+    @Override
     public Optional<Trip> find(UUID ownerId, UUID tripId) {
         // owner_id is in the WHERE clause, not checked afterwards: a trip that is not this owner's
         // must not be readable even for long enough to compare it.

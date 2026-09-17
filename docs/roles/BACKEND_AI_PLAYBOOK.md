@@ -144,13 +144,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - `BA-002-T1`: 빈 DB와 직전 배포 schema에서 migration이 성공한다 — `FlywayMigrationIT.baselineMigrationIsAppliedOnPostgres17`, `FlywayMigrationIT.previousSchemaUpgradesToTheLatestVersion`. 후자는 직전 schema의 모든 table에 대표 row를 넣은 뒤 최신으로 올린다. 빈 schema만 올리면 default 없는 NOT NULL column이나 기존 중복 위의 unique index처럼 데이터가 있어야 실패하는 migration을 못 잡는다.
 - `BA-002-T2`: check·unique·FK를 직접 SQL로 위반하면 거부된다 — `FlywayMigrationIT.ownerChecksRejectInvalidRows`, `FlywayMigrationIT.accountIdIsUniqueOnlyWhenPresent`, `FlywayMigrationIT.idempotencyRecordConstraintsRejectInvalidRows`, `FlywayMigrationIT.duplicateDeduplicationKeyIsRejected`, `FlywayMigrationIT.unknownStatusAndHalfLeaseAreRejected`
-- `BA-002-T3`: transaction 중간 장애는 전체 rollback하며 구버전 app 호환성이 유지된다 — `IdempotencyGuardIT.failureRollsBackTheReservationAndTheEffect`, `IdempotencyGuardIT.completedCommandsReplayAndNeverRunTwice`, `IdempotencyGuardIT.theSameKeyWithAnotherRequestIsRejected`, `IdempotencyGuardIT.theSameKeyAndBodyOnAnotherResourceIsRejected`, `IdempotencyGuardIT.reservationsAreScopedByOwnerAndRoute`, `IdempotencyGuardIT.theStoredProjectionCanDropFieldsFromTheResponse`, `IdempotencyGuardIT.aProjectedReplayIsNotRehydratedByTheGuard`, `IdempotencyGuardIT.malformedKeysAndRoutesAreRejectedBeforeAnythingIsReserved`, `IdempotencyGuardIT.aProjectionWithANulCharacterIsRejected`, `IdempotencyGuardIT.anOversizedProjectionIsRejected`, `IdempotencyGuardIT.anExpiredRecordDoesNotReplayItsStoredResponse`, `IdempotencyGuardIT.anExpiredRecordDoesNotRejectADifferentRequest`, `IdempotencyGuardIT.aDeletedOwnerIsRejectedBeforeAnythingIsReserved`, `IdempotencyConfigurationIT.expiryComesFromTheConfiguredTtlAndTheInjectedClock`, `IdempotencyConfigurationIT.theConfiguredLockTimeoutIsAppliedToTheGuardedTransaction`, `IdempotencyConfigurationIT.aBlockedCommandFailsWithinTheBound`, `OwnerLifecycleLockIT.aSoftDeleteWaitsForTheGuardedCommandThatHoldsTheOwner`
+- `BA-002-T3`: transaction 중간 장애는 전체 rollback한다 — `IdempotencyGuardIT.failureRollsBackTheReservationAndTheEffect`, `IdempotencyGuardIT.completedCommandsReplayAndNeverRunTwice`, `IdempotencyGuardIT.theSameKeyWithAnotherRequestIsRejected`, `IdempotencyGuardIT.theSameKeyAndBodyOnAnotherResourceIsRejected`, `IdempotencyGuardIT.reservationsAreScopedByOwnerAndRoute`, `IdempotencyGuardIT.theStoredProjectionCanDropFieldsFromTheResponse`, `IdempotencyGuardIT.aProjectedReplayIsNotRehydratedByTheGuard`, `IdempotencyGuardIT.malformedKeysAndRoutesAreRejectedBeforeAnythingIsReserved`, `IdempotencyGuardIT.aProjectionWithANulCharacterIsRejected`, `IdempotencyGuardIT.anOversizedProjectionIsRejected`, `IdempotencyGuardIT.anExpiredRecordDoesNotReplayItsStoredResponse`, `IdempotencyGuardIT.anExpiredRecordDoesNotRejectADifferentRequest`, `IdempotencyGuardIT.aDeletedOwnerIsRejectedBeforeAnythingIsReserved`, `IdempotencyConfigurationIT.expiryComesFromTheConfiguredTtlAndTheInjectedClock`, `IdempotencyConfigurationIT.theConfiguredLockTimeoutIsAppliedToTheGuardedTransaction`, `IdempotencyConfigurationIT.aBlockedCommandFailsWithinTheBound`, `OwnerLifecycleLockIT.aSoftDeleteWaitsForTheGuardedCommandThatHoldsTheOwner`
+- `BA-002-T4`: 직전 schema 모양의 write가 최신 schema에서도 그대로 받아들여진다 — `FlywayMigrationIT.previousSchemaWritesAreAcceptedByTheLatestSchema`. `populateEveryTable`(직전 schema 모양의 INSERT 집합, 직전 schema에 없는 column은 하나도 적지 않는다)을 **latest까지 migrate한 별도 schema**에 대고 돌린다. `BA-002-T1`이 upgrade 쪽에서 쓰는 것과 같은 write 집합이고, 다른 것은 **대상 schema**다. 둘은 따로 깨진다: default를 주고 `NOT NULL`을 붙인 뒤 default를 떼는 column은 기존 행이 backfill되므로 `T1`을 통과하고, 그 column을 적지 않는 다음 INSERT에서만, 즉 여기서만 죽는다 — 실제로 그 모양의 임시 migration을 넣어 확인했다(`T1` 두 case 초록, 이 test만 빨강). 대상 schema가 정말 latest인지(`appliedVersionsIn`)와 write 집합이 자기가 덮는다고 적은 table에 실제로 닿았는지를 같이 단언한다. 후자가 없으면 아무것도 안 쓰는 `populateEveryTable`이 이 test를 통과시킨다
 - 단위 검증: canonical request hash `io.nullnull.identity.domain.RequestFingerprintTest`(golden vector로 parameter 정렬을 고정), duration property floor `io.nullnull.identity.application.IdempotencyGuardPropertiesTest` (둘 다 `test` suite)
 
-`BA-002-T3`의 "구버전 app 호환성"에서 실제로 검증한 것과 하지 않은 것:
+"구버전 app 호환성"은 절이 아니라 **세 조각**이고, 각각 어디에 있는지가 다르다. 원래 `BA-002-T3`이 rollback과 함께 한 절에 묶고 있던 것을 쪼갠 결과다([#194](https://github.com/yutakdv/Nullnull/issues/194)):
 
-- 검증함: 이 slice의 migration이 additive다. 직전 schema를 데이터가 있는 상태로 올린 뒤 `information_schema.columns`로 기존 table·column·type·nullability가 그대로 남았고 row가 사라지지 않았음을 확인한다. 새 table만 추가하며 기존 column을 drop/alter하지 않으므로 구버전 app이 읽는 대상은 그대로다.
-- 검증하지 않음: 구버전 application binary를 새 schema에 붙여 실제로 실행하는 배포 rehearsal. 배포 pipeline이 생기는 [BA-004](#ba-004) 이후에만 가능하며, 그전까지 이 항목을 통과로 쓰지 않는다.
+- **읽기 쪽** — 직전 schema의 table·column·type·nullability가 그대로 남고 row가 사라지지 않는다. 증명은 `FlywayMigrationIT.previousSchemaUpgradesToTheLatestVersion`의 `columnsBefore`·행 수 단언이고, 그 이름이 다는 ID는 **`BA-002-T1`**이다. 절과 ID가 어긋난 자리이지만(등록규칙 3의 거울상) 그 test의 절이 *"migration이 성공한다"* 라 단언이 거기 있는 것이 부자연스럽지 않아 그대로 둔다. 여기서는 위치만 적는다.
+- **쓰기 쪽** — 직전 schema 모양의 write가 최신 schema에서도 받아들여진다. `BA-002-T4`가 소유하며 위에 적었다.
+- **검증하지 않음** — 구버전 application binary를 새 schema에 붙여 실제로 실행하는 배포 rehearsal. 배포 pipeline이 생기는 [BA-004](#ba-004) 이후에만 가능하며, 그전까지 이 항목을 통과로 쓰지 않는다. `T4`는 schema 층까지만 보므로 이 조각을 대신하지 않는다.
 
 열린 계약 질문(구현 안에 주석으로도 남김): guarded transaction의 lock 대기 상한이 만료되면 identity가 `CommandLockTimeoutException`을 던진다. API layer는 이를 retryable Problem으로 매핑해야 하지만, 공개된 `ProblemCode` 23개 중 "같은 session의 다른 명령이 진행 중"을 뜻하는 값이 없다. A1에는 HTTP endpoint가 없으므로 여기서 공개 code를 만들지 않고 [BA-003](#ba-003)에서 확정한다.
 
@@ -1402,7 +1404,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-051
 
-**ITEM 후보 생성·검증·점수·설명** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**ITEM 후보 생성·검증·점수·설명** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-024](#ba-024), [BA-042](#ba-042), [BA-050](#ba-050)
 - 기능 ID: `FR-OPT-04`, `FR-OPT-05`, `FR-OPT-06`, `FR-OPT-12`, `FR-OPT-13`, `FR-OPT-14`
@@ -1426,11 +1428,19 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 넷으로 나눈 이유는 **실패 방식이 넷이기 때문**이다. CHECK가 자격 쪽 절반만 남게 편집되면 delta를 재는 test는 그대로 통과하고, 양방향 before/after를 증명하는 test는 사후 수정에 대해 아무 말도 하지 않는다. `T8`이 막는 것은 사용자에게 보이는 해다 — MOVE change가 한쪽만 들고 저장되면 **왼쪽 없는 diff를 사용자가 승인하게 된다.** `T9`의 UPDATE 금지 트리거는 `V011`의 `crowd_snapshots`와 같은 이유로, 제안의 근거가 나중에 조용히 바뀌면 사용자가 승인한 것과 기록된 것이 달라진다.
 
+**`T1`~`T3`은 acceptance 절이 아니라 `apps/ai` REC corpus를 가리키는 포인터다.** 셋 다 증명 경로가 **원리적으로** 없었다: manifest의 어휘는 `REC-[A-Z]+-\d+`라 BA ID를 등록할 수 없고, `check_test_reports.py`는 JUnit testcase 이름만 읽는데 pytest는 그것을 만들지 않는다. 그래서 `apps/ai`가 아무리 잘 구현해도 이 셋은 나타날 수 없었다 — `BA-040-T4`가 Playwright라 나타날 수 없던 것과 같은 모양이고 기제만 다르다. `T1`이 스스로 *"REC 핵심 suite 전부"* 라고 말하는 것이 그 증거다.
+
+그래서 `recCoverage`로 표시하고 `check_test_reports.py`가 JUnit 요구를 면제하되 **면제를 출력한다**(`acceptance_ids_covered_by_rec=`). 표시가 구멍이 되지 않게 `validate_backend_plan.py`가 둘을 강제한다: 인용한 REC ID가 manifest의 **`implementedTestIds`에 실재**해야 하고(`requiredTestIds`는 아직 빚이라 인용 대상이 아니다), **카드의 그 절 행이 같은 ID를 이름으로 적어야** 한다. 후자가 없으면 인용이 JSON에만 살고 카드는 여전히 JUnit test가 덮는 것처럼 읽힌다.
+
+**`T1`의 여섯 절 중 mixed-source만 덮이지 않는다.** 증명 자체는 있다 — `TemporalComparisonPolicyTest`가 `DIFFERENT_SOURCE`를 우선순위까지 고정한다. 없는 것은 **그것을 부르는 등록된 이름**이다: 그 class의 `@DisplayName`은 `REC-DATA-02`·`REC-DATA-03`·`REC-DATA-04` 셋을 적는데 manifest의 `implementedTestIds`에는 `REC-DATA-02`만 있고 `REC-DATA-03`(*"다른 POI KTO index, AREA 서울과 PLACE KTO"*)은 `requiredTestIds`에만 있다.
+
+**이것은 증명의 공백이 아니라 등록의 공백이다.** `REC-DATA-02`가 가리키는 파일이 바로 그 class이고 `DIFFERENT_SOURCE` 단언이 그 안에 있다 — 그래서 `T1`의 인용은 mixed-source를 증명하는 코드를 실제로 가리킨다. 없는 것은 catalogue가 그 절을 `REC-DATA-03`이라는 **별도의 이름으로 쪼개 등록**하지 않았다는 것뿐이다. 이름이 생기면 `T1`의 인용에 더한다.
+
 필수 검증:
 
-- `BA-051-T1`: REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다
-- `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다
-- `BA-051-T3`: 설명이 수치·장소·영업·route 사실을 추가하지 않는다
+- `BA-051-T1`: REC 핵심 suite 전부: 결정성·isolation·mixed-source·lock·null·후보 cap을 검증한다 — apps/ai REC coverage: `REC-OPT-01`(결정성·후보 cap), `REC-ARCH-01`(isolation), `REC-SLOT-01`(lock), `REC-DATA-02`(null). **mixed-source는 덮는 implemented REC가 없다**(아래)
+- `BA-051-T2`: 입력/현재 clock/source 도착 순서를 바꿔도 고정 snapshot 결과가 재현된다 — apps/ai REC coverage: `REC-OPT-01`(1,000회 shuffle fingerprint, fixture당 25순열의 candidate·neighbour 재평가), `REC-ARCH-01`(decision package에 clock·난수·환경·I/O 부재)
+- `BA-051-T3`: 설명이 수치·장소·영업·route 사실을 추가하지 않는다 — apps/ai REC coverage: `REC-LLM-01`(template 복구와 출력측 validator)
 - `BA-051-T4`: items/propose 호출 시점에 활성 transaction이 없다
 - `BA-051-T5`: 만료된 READY preview는 410 PREVIEW_EXPIRED로 답한다
 - `BA-051-T6`: 비교 자격이 없는 제안은 crowd delta를 담은 채로 저장되지 않는다

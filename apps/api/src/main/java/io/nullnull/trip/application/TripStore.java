@@ -32,6 +32,15 @@ public interface TripStore {
     List<TripItem> items(UUID tripId);
 
     /**
+     * The revision recorded at one version of a trip, if the trip has reached that version.
+     *
+     * <p>{@code (trip_id, version)} is unique, so a version names at most one revision. Empty means
+     * the version was never written - which is a real answer rather than an error, because a caller
+     * asking about a version it read a moment ago can be racing a mutation that has not committed.
+     */
+    Optional<UUID> revisionAt(UUID tripId, long version);
+
+    /**
      * Adds one item and its constraints. Every rule about whether it MAY be added - the range, the
      * caps, the positions - is the caller's, checked against the items it read under the same lock.
      */

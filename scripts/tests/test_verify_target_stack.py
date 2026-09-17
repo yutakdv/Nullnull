@@ -192,8 +192,26 @@ class ComposeContractTests(unittest.TestCase):
             name: {'networks': {'integration-internal': None}} for name in names
         }
 
+    # The four tests below are the ones a promotion would cite for BA-006-T2, so the warning sits
+    # where whoever fills provenBy has to pass: rule 2 of the registration rules says a name is
+    # matched against the test BODY before it is written down, which means opening these.
+    #
+    # They prove the INPUT side only - a browser-facing build is not handed a credential, and no
+    # VITE_-prefixed one is exported anywhere - which covers the bundle and the image layer. The
+    # clause still reads "frontend bundle, image layer AND log", and the log face is unproven: the
+    # value scanner (scripts/check_secret_exposure.py) reads real secrets through --secret-env and
+    # the required gate holds none, so no gate runs it.
+    #
+    # So: do not cite these names to promote BA-006 to integration-ready or verified while the
+    # clause is still one ID covering three faces. Splitting it - T2 for the input side, a new T4
+    # for the value side - is the fix, and it cannot be done yet: the edit lands in
+    # backend-plan.json and BACKEND_AI_PLAYBOOK.md, and both are held uncommitted until the P0
+    # milestone as pre-made AWS/staging material.
+    #
+    # Delete this block on the day the clause is split. It describes a situation, not a rule, and
+    # a note that outlives its situation is the stale-comment shape recorded in rule 7.
     def test_a_secret_handed_to_the_browser_build_is_refused(self):
-        """BA-006-T2 browser-facing build에 credential을 주면 거부된다"""
+        """BA-006-T2 browser-facing build에 credential을 주면 거부된다 (입력 쪽만 증명한다 — 위 주석 참조)"""
         services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
         # An image layer keeps what the build was given, so the leak is the handing over, not a later
         # mistake. This is the realistic shape: someone forwards the runtime env into the web build.
@@ -203,7 +221,7 @@ class ComposeContractTests(unittest.TestCase):
         self.assertTrue(any('web receives KTO_SERVICE_KEY' in e for e in errors), errors)
 
     def test_a_secret_under_the_vite_prefix_is_refused_on_any_service(self):
-        """BA-006-T2 VITE_ 접두 credential은 어느 service에서든 거부된다"""
+        """BA-006-T2 VITE_ 접두 credential은 어느 service에서든 거부된다 (입력 쪽만 증명한다 — 위 주석 참조)"""
         services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
         # Not a browser-facing service on purpose: the prefix is what leaks, because Vite inlines the
         # value into the bundle wherever code reads it, whichever service exported it.
@@ -213,7 +231,7 @@ class ComposeContractTests(unittest.TestCase):
         self.assertTrue(any('VITE_ANALYTICS_TOKEN' in e for e in errors), errors)
 
     def test_a_secret_passed_as_a_build_arg_is_refused(self):
-        """BA-006-T2 build arg로 넘긴 credential도 거부된다 — layer가 그것을 간직한다"""
+        """BA-006-T2 build arg로 넘긴 credential도 거부된다 — layer가 그것을 간직한다 (입력 쪽만 증명한다 — 위 주석 참조)"""
         services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
         services['e2e'] = {'networks': {'integration-internal': None},
                            'build': {'args': {'SEOUL_API_KEY': 'whatever'}}}
@@ -221,7 +239,7 @@ class ComposeContractTests(unittest.TestCase):
         self.assertTrue(any('e2e receives SEOUL_API_KEY' in e for e in errors), errors)
 
     def test_the_api_service_may_hold_its_own_database_password(self):
-        """BA-006-T2 browser로 가지 않는 service의 credential은 막지 않는다"""
+        """BA-006-T2 browser로 가지 않는 service의 credential은 막지 않는다 (입력 쪽만 증명한다 — 위 주석 참조)"""
         services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
         # The rule has to be scoped or it forbids the api from having a datasource password, which
         # would make it a rule nobody can satisfy and therefore a rule someone switches off.

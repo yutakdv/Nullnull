@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,20 @@ public class OwnerPreferencesService {
     }
     @Transactional(readOnly = true)
     public Owner get(OwnerContext context) {
-        return owners.findById(context.ownerId()).filter(owner -> !owner.deleted())
+        return get(context.ownerId());
+    }
+
+    /**
+     * The same read, for a caller that has an owner and no session.
+     *
+     * <p>A background job is that caller: the owner comes from the row it is working on, not from a
+     * cookie. The overload exists rather than having such a caller build an {@code OwnerContext} with
+     * a null session, because a job minting an owner context would be the shape invariant 11 forbids
+     * on request paths - and because the body only ever needed the id, which is what this says.
+     */
+    @Transactional(readOnly = true)
+    public Owner get(UUID ownerId) {
+        return owners.findById(ownerId).filter(owner -> !owner.deleted())
                 .orElseThrow(SessionService::unauthorized);
     }
     @Transactional

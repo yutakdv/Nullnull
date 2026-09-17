@@ -56,12 +56,28 @@ class KtoCrowdForecastGatewayIT {
     @Autowired KtoForecastSnapshotStore snapshots;
     @Autowired PlatformTransactionManager transactionManager;
 
+    /**
+     * The runs this class caused, named the way it already names its audit rows.
+     *
+     * <p>The source code is NOT such a name. P0 has exactly one forecast source, so
+     * {@code WHERE source_code = ?} is a statement about every class that writes a forecast row -
+     * {@code CrowdForecastApiIT} and {@code OptimizeItemIT} both do, and the delete below died on
+     * {@code optimization_run_snapshot_sets}' foreign key when one of them had left a set behind.
+     * A value is only a name while it is unique (AGENTS.md rule 6).
+     *
+     * <p>This prefix is stamped on every request the gateway issues and nothing else writes an
+     * {@code api_ingest_logs} row with it, so the subquery selects this class's runs and no others.
+     */
+    private static final String OWN_RUNS =
+            "SELECT collector_run_id FROM api_ingest_logs WHERE request_id LIKE 'kto-forecast-%'";
+
     private final List<UUID> places = new ArrayList<>();
 
     @AfterEach
     void removeOnlyC4CollectorFixtures() {
-        jdbc.update("DELETE FROM crowd_snapshots WHERE source_code = ?", SOURCE);
-        jdbc.update("DELETE FROM snapshot_sets WHERE source_code = ?", SOURCE);
+        jdbc.update("DELETE FROM crowd_snapshots WHERE snapshot_set_id IN ("
+                + " SELECT id FROM snapshot_sets WHERE collector_run_id IN (" + OWN_RUNS + "))");
+        jdbc.update("DELETE FROM snapshot_sets WHERE collector_run_id IN (" + OWN_RUNS + ")");
         jdbc.execute("""
                 WITH removed AS (
                     DELETE FROM api_ingest_logs WHERE request_id LIKE 'kto-forecast-%'
@@ -101,11 +117,11 @@ class KtoCrowdForecastGatewayIT {
             assertThat(result.hasCoverage()).isTrue();
             assertThat(result.snapshotSet().orElseThrow().sourceRegistryVersion()).isEqualTo(2);
             assertThat(result.snapshotSet().orElseThrow().points()).hasSize(2);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM crowd_snapshots WHERE source_code = ?", Integer.class,
-                    SOURCE)).isEqualTo(2);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM crowd_snapshots WHERE place_id = ?", Integer.class,
+                    place)).isEqualTo(2);
             assertThat(jdbc.queryForObject("""
-                    SELECT value FROM crowd_snapshots WHERE source_code = ? ORDER BY target_at LIMIT 1
-                    """, BigDecimal.class, SOURCE)).isEqualByComparingTo("42.5");
+                    SELECT value FROM crowd_snapshots WHERE place_id = ? ORDER BY target_at LIMIT 1
+                    """, BigDecimal.class, place)).isEqualByComparingTo("42.5");
 
             // PM-013: a KTO relative concentration rate is a DAILY index whose 100 is "the busiest
             // period", not the Seoul four-level or the common five-level scale. The frontend's
@@ -115,23 +131,22 @@ class KtoCrowdForecastGatewayIT {
             // ordinal_level stays absent until a reviewed vocabulary exists (FCR-029).
             assertThat(jdbc.queryForObject("""
                     SELECT count(*) FROM crowd_snapshots
-                     WHERE source_code = ? AND (ordinal_level IS NOT NULL OR unit <> 'relative-index')
-                    """, Integer.class, SOURCE))
+                     WHERE place_id = ? AND (ordinal_level IS NOT NULL OR unit <> 'relative-index')
+                    """, Integer.class, place))
                     .as("a daily relative index must not be projected onto a level scale")
                     .isZero();
 
             String snapshotRows = jdbc.queryForObject("""
                     SELECT string_agg(row_to_json(s)::text, E'\\n')
-                      FROM crowd_snapshots s WHERE s.source_code = ?
-                    """, String.class, SOURCE);
+                      FROM crowd_snapshots s WHERE s.place_id = ?
+                    """, String.class, place);
             String auditRow = jdbc.queryForObject("""
                     SELECT row_to_json(l)::text FROM api_ingest_logs l
                      WHERE l.request_id LIKE 'kto-forecast-%' ORDER BY l.created_at DESC LIMIT 1
                     """, String.class);
-            String runRow = jdbc.queryForObject("""
-                    SELECT row_to_json(r)::text FROM collector_runs r
-                     WHERE r.source_code = ? ORDER BY r.started_at DESC LIMIT 1
-                    """, String.class, SOURCE);
+            String runRow = jdbc.queryForObject("SELECT row_to_json(r)::text FROM collector_runs r"
+                    + " WHERE r.id IN (" + OWN_RUNS + ") ORDER BY r.started_at DESC LIMIT 1",
+                    String.class);
             assertThat(snapshotRows).doesNotContain(CANARY, "ignored", "serviceKey", "tAtsNm");
             assertThat(auditRow).doesNotContain(CANARY, "ignored", "serviceKey", "tAtsNm");
             assertThat(runRow).doesNotContain(CANARY, "ignored", "serviceKey", "tAtsNm");
@@ -153,12 +168,12 @@ class KtoCrowdForecastGatewayIT {
                     .refresh(new KtoForecastRequest(place, "11", "110", "테스트 관광지")).join();
 
             assertThat(result.hasCoverage()).isFalse();
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM crowd_snapshots WHERE source_code = ?", Integer.class,
-                    SOURCE)).isZero();
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM snapshot_sets WHERE source_code = ?", Integer.class,
-                    SOURCE)).isZero();
-            assertThat(jdbc.queryForObject("SELECT status FROM collector_runs WHERE source_code = ?", String.class,
-                    SOURCE)).isEqualTo("COMPLETED");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM crowd_snapshots WHERE place_id = ?", Integer.class,
+                    place)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM snapshot_sets WHERE collector_run_id IN ("
+                    + OWN_RUNS + ")", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT status FROM collector_runs WHERE id IN (" + OWN_RUNS + ")",
+                    String.class)).isEqualTo("COMPLETED");
         }
     }
 
@@ -176,10 +191,10 @@ class KtoCrowdForecastGatewayIT {
                     .hasRootCauseInstanceOf(KtoGatewayException.class)
                     .rootCause().hasMessage("KTO_RESPONSE_REJECTED");
 
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM crowd_snapshots WHERE source_code = ?", Integer.class,
-                    SOURCE)).isZero();
-            assertThat(jdbc.queryForObject("SELECT status FROM collector_runs WHERE source_code = ?", String.class,
-                    SOURCE)).isEqualTo("QUARANTINED");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM crowd_snapshots WHERE place_id = ?", Integer.class,
+                    place)).isZero();
+            assertThat(jdbc.queryForObject("SELECT status FROM collector_runs WHERE id IN (" + OWN_RUNS + ")",
+                    String.class)).isEqualTo("QUARANTINED");
             assertThat(jdbc.queryForObject("SELECT validation_result FROM api_ingest_logs WHERE request_id LIKE 'kto-forecast-%'",
                     String.class)).isEqualTo("RANGE");
         }

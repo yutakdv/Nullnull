@@ -3084,6 +3084,10 @@ paths:
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -3093,7 +3097,7 @@ paths:
         "422":
           $ref: "#/components/responses/Unprocessable"
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          $ref: "#/components/responses/ApplyUnavailable"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3108,9 +3112,15 @@ paths:
       operationId: revertOptimizationDecision
       summary: Restore the state before an applied proposal
       description: |
-        Allowed once, only for an APPLY decision, for 24 hours after decidedAt. The immutable
-        before revision is restored as a new revision; history is never overwritten. Revert is
-        rejected if the current trip version differs from the applied revision.
+        Allowed once, only for an APPLY decision, for 24 hours after decidedAt. The change the
+        decision applied is reversed - each of its recorded changes is written back to the value it
+        replaced - and the result is recorded as a NEW revision; history is never overwritten. Revert
+        is rejected if the current trip version differs from the applied revision.
+
+        Reversing the recorded changes is not the same as restoring the stored aggregate snapshot,
+        and this operation does the former. The snapshot omits an item's durationMinutes and note, so
+        restoring from it would silently clear fields the apply never touched. ERD section 9 carries
+        the same correction.
       x-error-codes:
         "409": [TRIP_CHANGED]
         "410": [REVERT_WINDOW_EXPIRED]
@@ -3573,15 +3583,15 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-    ServiceUnavailable:
+    ApplyUnavailable:
       description: |
-        A required capability is temporarily unavailable, WITHOUT saying which code arrives.
+        The apply could not be completed, and the trip was not changed.
 
-        503 carries two codes - `SOURCE_UNAVAILABLE` for a data source that is not published, and
-        `ROUTE_UNAVAILABLE` for a travel route that could not be confirmed - so this response cannot
-        name one. An operation that knows which of them it sends uses `SourceUnavailable` instead;
-        this generic form is for operations whose 503 does not exist yet and whose code is therefore
-        not decided. `EventContractTest` keeps that true: an implemented operation may not use it.
+        Named rather than generic because the two codes ask for different things from a screen.
+        `ROUTE_UNAVAILABLE` means no route evidence confirmed the change is reachable, so recomputing
+        is the way forward. `APPLY_FAILED` means the write itself did not happen - the trip is exactly
+        as it was, and the same Idempotency-Key may be retried, which is the one 503 in this API where
+        retrying the identical request is correct rather than merely allowed.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"
@@ -3592,6 +3602,18 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          examples:
+            applyFailed:
+              summary: APPLY_FAILED - nothing was written, so the same key may replay
+              value:
+                type: /problems/apply-failed
+                title: Apply failed
+                status: 503
+                code: APPLY_FAILED
+                detail: The apply could not be completed and the trip was not changed.
+                instance: /api/v1/optimizations/018f3f8e-9b67-7a21-8d31-31d315b93911/decisions
+                requestId: 01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70
+                retryable: true
     SourceUnavailable:
       description: A canonical data source this operation reads is not published yet
       headers:
@@ -6049,7 +6071,10 @@ components:
         afterRevisionId:
           type: string
           format: uuid
-          description: New revision created by restoring the applied decision's before snapshot.
+          description: |
+            New revision created by writing each recorded change back to the value it replaced. Not a
+            restore of the stored aggregate snapshot - see this operation's description for why the
+            two differ and why this one is the lossless direction.
         revertedDecisionId:
           type: string
           format: uuid

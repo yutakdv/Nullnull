@@ -743,9 +743,15 @@ export interface paths {
         put?: never;
         /**
          * Restore the state before an applied proposal
-         * @description Allowed once, only for an APPLY decision, for 24 hours after decidedAt. The immutable
-         *     before revision is restored as a new revision; history is never overwritten. Revert is
-         *     rejected if the current trip version differs from the applied revision.
+         * @description Allowed once, only for an APPLY decision, for 24 hours after decidedAt. The change the
+         *     decision applied is reversed - each of its recorded changes is written back to the value it
+         *     replaced - and the result is recorded as a NEW revision; history is never overwritten. Revert
+         *     is rejected if the current trip version differs from the applied revision.
+         *
+         *     Reversing the recorded changes is not the same as restoring the stored aggregate snapshot,
+         *     and this operation does the former. The snapshot omits an item's durationMinutes and note, so
+         *     restoring from it would silently clear fields the apply never touched. ERD section 9 carries
+         *     the same correction.
          */
         post: operations["revertOptimizationDecision"];
         delete?: never;
@@ -2245,7 +2251,9 @@ export interface components {
             beforeRevisionId: string;
             /**
              * Format: uuid
-             * @description New revision created by restoring the applied decision's before snapshot.
+             * @description New revision created by writing each recorded change back to the value it replaced. Not a
+             *     restore of the stored aggregate snapshot - see this operation's description for why the
+             *     two differ and why this one is the lossless direction.
              */
             afterRevisionId: string;
             /** Format: uuid */
@@ -2566,15 +2574,15 @@ export interface components {
             };
         };
         /**
-         * @description A required capability is temporarily unavailable, WITHOUT saying which code arrives.
+         * @description The apply could not be completed, and the trip was not changed.
          *
-         *     503 carries two codes - `SOURCE_UNAVAILABLE` for a data source that is not published, and
-         *     `ROUTE_UNAVAILABLE` for a travel route that could not be confirmed - so this response cannot
-         *     name one. An operation that knows which of them it sends uses `SourceUnavailable` instead;
-         *     this generic form is for operations whose 503 does not exist yet and whose code is therefore
-         *     not decided. `EventContractTest` keeps that true: an implemented operation may not use it.
+         *     Named rather than generic because the two codes ask for different things from a screen.
+         *     `ROUTE_UNAVAILABLE` means no route evidence confirmed the change is reachable, so recomputing
+         *     is the way forward. `APPLY_FAILED` means the write itself did not happen - the trip is exactly
+         *     as it was, and the same Idempotency-Key may be retried, which is the one 503 in this API where
+         *     retrying the identical request is correct rather than merely allowed.
          */
-        ServiceUnavailable: {
+        ApplyUnavailable: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
                 "Retry-After"?: number;
@@ -3978,6 +3986,7 @@ export interface operations {
             200: {
                 headers: {
                     ETag: components["headers"]["ETag"];
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -3988,7 +3997,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
-            503: components["responses"]["ServiceUnavailable"];
+            503: components["responses"]["ApplyUnavailable"];
             default: components["responses"]["Problem"];
         };
     };

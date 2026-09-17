@@ -1,4 +1,10 @@
-"""BA-006-T2: negative controls for the build-output secret scan.
+"""Negative controls for the build-output secret scan.
+
+No acceptance ID leads these docstrings. They used to lead with BA-006-T2, which made
+run_script_tests.py publish them as JUnit testcase names carrying that ID - so a card clause
+about this repository's build outputs was satisfied by fixtures that only prove the check
+fires. No card owns this check while no gate runs it, and borrowing one is the shape #195
+describes.
 
 Every case here makes the thing the check exists to catch and asserts it turns red, then asserts the
 clean case is green. The two that matter most are the chunk-boundary case - a secret split across
@@ -34,7 +40,7 @@ class SecretExposureScan(unittest.TestCase):
             capture_output=True, text=True, env=environment, check=False)
 
     def test_a_clean_bundle_passes(self):
-        """BA-006-T2 빌드 산출물에 runtime secret이 없으면 통과한다"""
+        """빌드 산출물에 runtime secret이 없으면 통과한다"""
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "assets"
             bundle.mkdir()
@@ -44,7 +50,7 @@ class SecretExposureScan(unittest.TestCase):
         self.assertIn("secret_exposure=clean", result.stdout)
 
     def test_a_secret_in_the_bundle_is_caught(self):
-        """BA-006-T2 frontend bundle에 들어간 secret을 검사가 잡는다"""
+        """frontend bundle에 들어간 secret을 검사가 잡는다"""
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "assets"
             bundle.mkdir()
@@ -56,7 +62,7 @@ class SecretExposureScan(unittest.TestCase):
         self.assertIn(VARIABLE, result.stderr)
 
     def test_a_secret_in_a_log_is_caught(self):
-        """BA-006-T2 log에 남은 secret을 검사가 잡는다"""
+        """log에 남은 secret을 검사가 잡는다"""
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "api.log"
             log.write_text(f'{{"header":"Authorization: {SECRET}"}}\n')
@@ -65,7 +71,7 @@ class SecretExposureScan(unittest.TestCase):
         self.assertIn("secret_exposure=leaked", result.stderr)
 
     def test_a_secret_in_an_image_layer_is_caught(self):
-        """BA-006-T2 image layer에 남은 secret을 검사가 잡는다"""
+        """image layer에 남은 secret을 검사가 잡는다"""
         with tempfile.TemporaryDirectory() as directory:
             # A layer export is a tar, so the scan has to read bytes rather than decoded text.
             layer = Path(directory) / "layer.tar"
@@ -75,7 +81,7 @@ class SecretExposureScan(unittest.TestCase):
         self.assertIn("secret_exposure=leaked", result.stderr)
 
     def test_a_secret_split_across_two_reads_is_still_found(self):
-        """BA-006-T2 읽기 경계에 걸친 secret도 찾는다"""
+        """읽기 경계에 걸친 secret도 찾는다"""
         with tempfile.TemporaryDirectory() as directory:
             big = Path(directory) / "bundle.js"
             chunk = 1 << 20
@@ -87,7 +93,7 @@ class SecretExposureScan(unittest.TestCase):
         self.assertIn("secret_exposure=leaked", result.stderr)
 
     def test_the_check_never_prints_the_secret_it_found(self):
-        """BA-006-T2 검사는 찾은 secret 값을 출력하지 않는다"""
+        """검사는 찾은 secret 값을 출력하지 않는다"""
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "index.js"
             bundle.write_text(f"const key='{SECRET}';\n")
@@ -97,7 +103,7 @@ class SecretExposureScan(unittest.TestCase):
         self.assertNotIn(SECRET, result.stderr)
 
     def test_a_scan_with_nothing_to_look_for_is_refused(self):
-        """BA-006-T2 찾을 secret이 없는 실행은 통과가 아니라 실패다"""
+        """찾을 secret이 없는 실행은 통과가 아니라 실패다"""
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "index.js"
             bundle.write_text("clean\n")
@@ -106,7 +112,7 @@ class SecretExposureScan(unittest.TestCase):
         self.assertIn("secret_exposure=blocked", result.stderr)
 
     def test_a_secret_too_short_to_be_one_is_refused(self):
-        """BA-006-T2 값이 사실상 비어 있는 변수는 secret으로 세지 않는다"""
+        """값이 사실상 비어 있는 변수는 secret으로 세지 않는다"""
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "index.js"
             bundle.write_text("clean\n")
@@ -115,13 +121,13 @@ class SecretExposureScan(unittest.TestCase):
         self.assertIn("secret_exposure=blocked", result.stderr)
 
     def test_a_missing_target_is_refused(self):
-        """BA-006-T2 존재하지 않는 대상을 겨눈 실행은 통과가 아니라 실패다"""
+        """존재하지 않는 대상을 겨눈 실행은 통과가 아니라 실패다"""
         result = self.run_check(str(ROOT / "does-not-exist"))
         self.assertEqual(result.returncode, 1)
         self.assertIn("secret_exposure=blocked", result.stderr)
 
     def test_an_empty_target_directory_is_refused(self):
-        """BA-006-T2 파일이 0건인 디렉터리를 겨눈 실행은 통과가 아니라 실패다"""
+        """파일이 0건인 디렉터리를 겨눈 실행은 통과가 아니라 실패다"""
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_check(directory)
         self.assertEqual(result.returncode, 1, "a directory with no files is not a clean scan")

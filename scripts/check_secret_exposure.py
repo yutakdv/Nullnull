@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""BA-006-T2: the build outputs must not carry the secrets the runtime is given.
+"""The build outputs must not carry the secrets the runtime is given.
+
+No acceptance ID leads this docstring, and it used to say BA-006-T2. That clause reads
+"frontend bundle, image layer and log hold no secret", and what proves it in the gate is
+verify_target_stack.py's check_browser_bundle_inputs - which looks at the build's INPUTS, not
+at values, and never opens a log. This scanner is the other half and no gate runs it: it reads
+the real values through --secret-env, and the required gate holds none (integration.yml passes
+no secrets). So the ID here named a clause this file does not prove on this repository - it
+proves the CHECK fires, against fixtures. Borrowing a card ID for a control is the shape #195
+describes, and here it was load-bearing: run_script_tests.py turns a docstring that opens with
+an acceptance ID into a JUnit testcase name, so BA-006-T2 appeared in the report and any
+promotion of BA-006 would have been satisfied - and a `verified` card could have pointed
+provenBy at "BA-006-T2 log에 남은 secret을 검사가 잡는다", which passes both checks the
+validator makes: the name carries the ID and the name exists.
 
 The npm audit that `security-scan` exports answers a different question - which dependencies have
 known vulnerabilities - and nothing in the gate has been asking whether a key ended up inside the
