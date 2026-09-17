@@ -642,7 +642,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "S03-C1~C4, S06 sheet, saved/duplicate/error variant",
-      "status": "integration-ready",
+      "status": "in-progress",
       "dependsOn": [
         "FE-202",
         "BA-034"
