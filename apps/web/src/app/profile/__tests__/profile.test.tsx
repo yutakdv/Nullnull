@@ -392,6 +392,56 @@ describe('privacy rows report state instead of asking for permission', () => {
   });
 });
 
+// FE-506-T3 is "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced
+// motion을 검증한다". The block below covers the screen's links in general; the
+// history rows need their own case because they are the part of S14 this card
+// owns, and a row that is a <li> with an onClick rather than a link is
+// reachable by mouse only - which is exactly what these assertions rule out.
+//
+// 360px and 200% zoom are not asserted here: jsdom computes no geometry, so
+// that half lives in e2e/responsive.spec.ts, whose SCREENS list carries
+// /profile. reduced motion has nothing to assert on this screen - it animates
+// nothing (no transition or animation in ProfileScreen.module.css).
+describe('FE-506-T3 the history rows are reachable and named', () => {
+  it('gives every openable row a name that says which run it opens', async () => {
+    renderProfile();
+    // Waits for a row: the section renders its loading state first, and
+    // getAllByRole on an empty section throws rather than proving anything.
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    const history = screen.getByRole('region', {
+      name: new RegExp(copy['profile.history.title']),
+    });
+    const rows = within(history).getAllByRole('link');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      // "Open the {date} {trip} optimization result" - the date and the trip
+      // are what distinguish one row from the next, and a screen reader user
+      // hearing "link" five times learns nothing.
+      const name = row.getAttribute('aria-label') ?? row.textContent ?? '';
+      expect(name).toMatch(/optimization result/i);
+    }
+  });
+
+  it('reaches a history row by keyboard alone', async () => {
+    const user = userEvent.setup();
+    renderProfile();
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    const history = screen.getByRole('region', {
+      name: new RegExp(copy['profile.history.title']),
+    });
+    const target = within(history).getAllByRole('link')[0];
+    expect(target).toBeDefined();
+
+    // Tabs until the row takes focus rather than assuming its position: the
+    // trip list above it varies with the fixture, so a fixed count would be a
+    // test of the fixture and not of the row.
+    for (let i = 0; i < 40 && document.activeElement !== target; i += 1) {
+      await user.tab();
+    }
+    expect(target).toHaveFocus();
+  });
+});
+
 describe('the profile is reachable by keyboard', () => {
   it('moves focus through the links in order', async () => {
     const user = userEvent.setup();
