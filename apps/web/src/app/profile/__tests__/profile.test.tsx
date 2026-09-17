@@ -138,7 +138,15 @@ describe('the trip list renders each of its states', () => {
   });
 });
 
-describe('optimization history shows status without itinerary content', () => {
+// FE-506-T1 is "이력이 상태·시각·대상 링크만 보여주고 일정 본문을 복제하지
+// 않는다", and this block is what proves it: the rows carry decision, status,
+// scope and a link to the target trip, and nothing here renders an item. The
+// ID is in the name because that is the string the aggregator reads - the
+// clause was proven and invisible, the same shape as FE-504 and FE-104.
+//
+// history.ts has its own unit tests, but those cover rowState's logic, not the
+// rendered row, and T1 is a claim about what the SCREEN shows.
+describe('FE-506-T1 optimization history shows status without itinerary content', () => {
   it('shows what the user chose, not just where the run ended', async () => {
     renderProfile();
     // The decision is the half of the row a status cannot supply. "APPLIED" is
@@ -277,6 +285,53 @@ describe('optimization history shows status without itinerary content', () => {
     );
     renderProfile();
     expect(await screen.findByText(copy['profile.history.empty'])).toBeInTheDocument();
+  });
+});
+
+// FE-506-T2 is "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다".
+// ProfileScreen implements all three branches for the history section
+// (isPending, isError, and an empty items list), but nothing exercised them:
+// the block above covers the default state, and "the trip list renders each of
+// its states" is a different section on the same screen. A branch that renders
+// and is never asserted is the shape this repo keeps finding.
+//
+// Offline is not a separate branch here by design - a network failure returns
+// null from toProblem and falls into the same error state (shared/api/
+// problem.ts:67), so the error case below is what covers it.
+describe('FE-506-T2 the history section renders each of its states', () => {
+  it('shows a loading state before the answer arrives', async () => {
+    server.use(
+      http.get(`${API_BASE}/optimizations`, async () => {
+        await delay('infinite');
+        return HttpResponse.json({ items: [], page: { hasMore: false } });
+      }),
+    );
+    renderProfile();
+    expect(await screen.findByText(copy['profile.history.loading'])).toBeInTheDocument();
+  });
+
+  it('says so when there is no history yet', async () => {
+    server.use(
+      http.get(`${API_BASE}/optimizations`, () =>
+        HttpResponse.json({ items: [], page: { hasMore: false } }),
+      ),
+    );
+    renderProfile();
+    expect(await screen.findByText(copy['profile.history.empty'])).toBeInTheDocument();
+  });
+
+  it('reports a failure instead of an empty history', async () => {
+    // The distinction invariant 6 asks for: "nothing here" and "we could not
+    // find out" are different answers, and showing the empty copy for a failed
+    // request tells the user something the server never said.
+    // HttpResponse.error() rather than a Problem body: this is the branch a
+    // dropped connection takes, and it is the same branch invariant-6's
+    // "데이터 부재" distinction has to survive. The trip-list error test above
+    // uses the same shape.
+    server.use(http.get(`${API_BASE}/optimizations`, () => HttpResponse.error()));
+    renderProfile();
+    expect(await screen.findByText(copy['profile.history.error'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['profile.history.empty'])).toBeNull();
   });
 });
 

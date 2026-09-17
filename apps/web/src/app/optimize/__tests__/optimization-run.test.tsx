@@ -311,7 +311,11 @@ describe('FE-502-T2 FE-504-T2 the screen renders each of its states', () => {
   });
 });
 
-describe('FE-502-T3 leaving is navigation, not cancellation', () => {
+// FE-504-T3's keyboard half lives here ("reaches the back control by
+// keyboard"); its 360px/200%-zoom half is responsive.spec.ts, whose SCREENS
+// list carries this route as "optimization run". Both halves exist, so the ID
+// goes on the block that holds the part living in this file.
+describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
   it('says the run continues when the user goes back', async () => {
     // FCR-014: P0 has no cancel operation, so the screen must not imply one.
     runIs('RUNNING');
