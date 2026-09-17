@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from xml.etree import ElementTree
 
 # Imported rather than copied: the two plans must judge an evidence path the same
 # way, and a second implementation would drift the moment one side is tightened.
@@ -31,6 +32,31 @@ HANDOFF = 'docs/design/FIGMA_HANDOFF.md'
 OPENAPI = 'docs/api/openapi.yaml'
 STATUSES = {'planned', 'contract-ready', 'in-progress', 'integration-ready',
             'verified', 'blocked', 'deferred'}
+
+
+def testcase_names(path: Path) -> set[str] | None:
+    """Every testcase name in a JUnit report, or None when it is not one.
+
+    None rather than an empty set, for the reason check_test_reports.py gives about
+    `implementedTestIds`: an empty set would satisfy every "is the ID in here" check
+    below, which is the failure this function exists to prevent.
+    """
+    try:
+        root = ElementTree.parse(path).getroot()
+    except (OSError, ElementTree.ParseError):
+        return None
+    cases = list(root.iter('testcase'))
+    if not cases:
+        return None
+    names: set[str] = set()
+    for case in cases:
+        # Playwright writes the spec title in `name` and the describe block in
+        # `classname`; an ID can be in either, so both are searched.
+        for key in ('name', 'classname'):
+            value = case.get(key)
+            if value:
+                names.add(value)
+    return names
 
 
 def validate(root: Path, problems: list[str]) -> None:
@@ -173,6 +199,32 @@ def validate(root: Path, problems: list[str]) -> None:
                                         f'for this repository, not {report!r}')
                 else:
                     resolve_link(root, root, report, problems, tid)
+                    # And the report has to CONTAIN the tests the card claims.
+                    #
+                    # Everything above this point can be satisfied without a test
+                    # ever running: resolve_link only proves the path exists, and
+                    # the testIds comparison holds evidence.testIds against the
+                    # card's own tests[] - both in this same file, so copying the
+                    # ids across always matches. #208 named the asymmetry: the
+                    # backend plan resolves its IDs against real JUnit testcase
+                    # names (check_test_reports.py), and the frontend plan resolved
+                    # them against itself. Demonstrated before writing this, by
+                    # pointing a card's report at frontend-plan.json itself and
+                    # watching the whole gate pass.
+                    #
+                    # A URL cannot be opened here, so the check applies to committed
+                    # paths only; that is the same boundary validate_backend_plan
+                    # draws, and a run URL is judged by the gate that produced it.
+                    path = (root / report).resolve()
+                    names = testcase_names(path)
+                    if names is None:
+                        problems.append(f'{tid}: evidence.report is not a JUnit report with '
+                                        f'testcases: {report}')
+                    else:
+                        for ident in sorted(evidence.get('testIds', [])):
+                            if not any(ident in name for name in names):
+                                problems.append(f'{tid}: {ident} is not named by any testcase in '
+                                                f'{report}')
         if task.get('status') in {'blocked', 'deferred'} and not task.get('reason'):
             problems.append(f'{tid}: blocked/deferred requires reason and safe default')
 

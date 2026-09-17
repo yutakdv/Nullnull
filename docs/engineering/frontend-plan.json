@@ -1549,6 +1549,83 @@
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-603",
+      "phase": "B08",
+      "priority": "P0",
+      "title": "공모전 준수 REQUIRED 행을 기계가 지키게 한다 (CMP-LOC-002·ATT-002·ATT-003)",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-601"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "제출 build에서 geolocation·permission prompt·좌표 전송이 0건임을 앱 전체 화면에서 검증한다",
+        "ship하는 이미지가 허용 목록과 정확히 일치하고 각 항목에 사유가 있는지 검사한다",
+        "TourAPI가 provider display name 없이 단독으로 나타나면 실패시킨다"
+      ],
+      "safety": "위치 capability는 OFF이고 geolocation API·permission prompt·좌표 request를 만들지 않는다. 승인되지 않은 기관 CI/BI image를 ship하지 않고, 출처 문구는 승인된 텍스트를 그대로 표시한다.",
+      "tests": [
+        {
+          "id": "FE-603-T1",
+          "assertion": "모든 P0 화면에서 geolocation 호출·permission prompt·좌표 전송이 0건이다"
+        },
+        {
+          "id": "FE-603-T2",
+          "assertion": "ship하는 이미지가 허용 목록과 정확히 일치하고 외부 origin을 코드에서 지목하지 않는다"
+        },
+        {
+          "id": "FE-603-T3",
+          "assertion": "TourAPI가 provider display name 없이 단독으로 표기되지 않는다"
+        }
+      ],
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-002·CMP-ATT-003 세 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts와 src/shared/ui/__tests__/image-assets.test.ts에 있고 둘 다 통과 중이다. verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-604",
+      "phase": "B08",
+      "priority": "P0",
+      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003)",
+      "status": "blocked",
+      "reason": "다섯 행 모두 배포된 제출 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못하고, 심사 녹화·smoke·스크린샷은 그 URL이 서기 전에는 촬영 자체가 불가능하다. 안전 기본값: 그 전까지 이 다섯 행은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다. BA-071(staging)이 서면 해제된다.",
+      "dependsOn": [
+        "FE-603",
+        "BA-071"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "배포 URL에서 session·shell E2E를 재실행해 익명 접속으로 핵심 흐름이 완결되는지 확인한다",
+        "외부망 익명창에서 심사 흐름을 녹화하고 360px·200% zoom 접근성 조건을 함께 만족하는지 기록한다",
+        "촬영 대상 화면 목록을 사전 확정하고 준비 중 화면과 개인 입력이 담긴 화면을 제외한다",
+        "배포 직후 smoke를 돌려 제출 직전 상태를 증거로 남긴다"
+      ],
+      "safety": "준비 중 화면과 P1 기능을 구현 완료로 제출하지 않는다. 촬영물에 개인 입력·붙여넣기 원문·좌표가 남지 않게 하고, 로그인 없이 완결되는 흐름만 증거로 쓴다.",
+      "tests": [
+        {
+          "id": "FE-604-T1",
+          "assertion": "배포 URL에서 로그인 없이 핵심 흐름이 완결된다"
+        },
+        {
+          "id": "FE-604-T2",
+          "assertion": "외부망 익명 접속에서 360px·200% zoom 조건을 만족한다"
+        },
+        {
+          "id": "FE-604-T3",
+          "assertion": "촬영 목록에 준비 중 화면과 개인 입력 화면이 포함되지 않는다"
+        }
+      ],
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003 다섯 행을 이 카드가 소유한다. 셋은 responsive.spec·session.spec·shell.spec이 뼈대를 이미 갖고 있어 배포 URL에 겨누기만 하면 된다. 마감 2026-09-21 16:00.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
     }
   ]
 }
