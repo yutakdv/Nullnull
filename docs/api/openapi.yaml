@@ -6071,7 +6071,10 @@ components:
         afterRevisionId:
           type: string
           format: uuid
-          description: New revision created by restoring the applied decision's before snapshot.
+          description: |
+            New revision created by writing each recorded change back to the value it replaced. Not a
+            restore of the stored aggregate snapshot - see this operation's description for why the
+            two differ and why this one is the lossless direction.
         revertedDecisionId:
           type: string
           format: uuid
