@@ -300,6 +300,35 @@ FE-504·FE-104·FE-506에서 고친 것과 같은 모양이고, 그 셋은 각�
 있다 — 이름만 옮겨 적으면 `integration-ready`와 같은 강도로 되돌아간다.
 카드마다 절과 본문을 대조해야 하고 그건 이 시간에 자동으로 할 일이 아니다.
 
+## 코드 전수조사 결과 — 결함 0건
+
+이슈만이 아니라 `apps/web` 코드를 직접 훑었다. **FE가 지금 고칠 결함은 없다.**
+
+| 검사 | 결과 |
+| --- | --- |
+| TODO·FIXME·HACK·미구현 표식 | **0건** (걸린 둘은 UI 문구다) |
+| `any`·타입 우회 | **0건** |
+| `dangerouslySetInnerHTML` | **0건** |
+| geolocation 호출 | **0건** (불변식 10) |
+| `localStorage` 남용 | locale 한 곳뿐 — 붙여넣기 원문·좌표 없음 |
+| `<dialog>`의 Escape 처리 | 전부 있음 |
+| error 상태의 복구 수단 | 전부 있음 |
+| mutation 중복 제출 가드 | 전부 있음 |
+| Problem code 23개 ↔ FE policy | **정확히 일치**, 양쪽 누락 0 |
+| generated client ↔ 계약 | 재생성해도 diff 0 |
+
+**두 건은 결함처럼 보였고 아니었다** — 확인하지 않았으면 없는 일을 만들 뻔했다:
+
+- `MustVisitScreen`이 `isError`에 retry 버튼이 없다. 그러나 그것은 **검색** 오류이고
+  쿼리가 입력값에 걸려 있어 **다시 입력하는 것이 곧 재시도**다. `AddPlaceScreen`의
+  같은 검색도 똑같이 처리한다.
+- `LanguageScreen`·`IntroScreen`이 `isPending` 가드 없이 `mutate`한다. 그러나 그것은
+  **best-effort 선호 저장**이고 로컬 상태는 이미 적용됐으며 같은 locale을 다시 보내는
+  것은 멱등이다. 주석이 그 의도를 적고 있다.
+
+`준비 중` 화면들(로그인·JA/ZH·Live·DAY/TRIP scope)은 전부 **기록된 P0 결정**이지
+미구현이 아니다.
+
 ## 아침에 사람이 판단할 것
 
 - 커밋 push 여부와 PR 구성
