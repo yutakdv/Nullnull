@@ -1170,7 +1170,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "오류 6종·stale·no improvement 상태",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-502",
         "BA-050"

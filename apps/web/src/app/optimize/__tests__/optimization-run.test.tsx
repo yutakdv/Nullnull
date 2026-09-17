@@ -146,7 +146,19 @@ describe('FE-502-T1 polling follows the run and then stops', () => {
   );
 });
 
-describe('FE-502-T1 nothing here changes the itinerary', () => {
+// Two card IDs on one describe, deliberately. FE-504 owns "오류 6종·stale·no
+// improvement가 각각 구분되고 APPLY를 유도하지 않는다" and FE-502 owns the
+// polling screen those cases live on; one test proving a clause of each card is
+// normal, and the aggregator reads IDs out of the test name, so a clause proven
+// under only the other card's ID is invisible to it.
+//
+// Added after comparing each clause against these bodies rather than copying
+// the ID across: the seven contract failure codes each have their own message
+// (verified against OptimizationFailure's enum), `run.unchanged` is asserted on
+// a failed run, recompute is offered only when the contract marks the failure
+// retryable, and 360px/200% zoom for this screen is covered by responsive.spec
+// (its SCREENS list includes /optimizations/{runId}).
+describe('FE-502-T1 FE-504-T1 nothing here changes the itinerary', () => {
   it('sends no write of any kind, whatever the run says', async () => {
     const writes: string[] = [];
     const record = ({ request }: { request: Request }) => {
@@ -181,7 +193,7 @@ describe('FE-502-T1 nothing here changes the itinerary', () => {
   });
 });
 
-describe('FE-502-T2 the screen renders each of its states', () => {
+describe('FE-502-T2 FE-504-T2 the screen renders each of its states', () => {
   it('shows a queued run as waiting, not as finished', async () => {
     runIs('QUEUED');
     renderRun();
