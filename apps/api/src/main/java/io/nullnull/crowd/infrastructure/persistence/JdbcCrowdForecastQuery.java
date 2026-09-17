@@ -69,7 +69,16 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
         if (ids.isEmpty()) {
             return Optional.empty();
         }
-        UUID setId = ids.get(0);
+        return frozenSet(ids.get(0), placeId, from, to);
+    }
+
+    /**
+     * Extracted from {@link #latest} so a caller that already knows the set id can ask for its points
+     * without re-running the "which set is newest" question. Same query, same mapping - the only
+     * change is who chooses {@code setId}.
+     */
+    @Override
+    public Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to) {
         List<Snapshot> points = jdbc.query("""
                 SELECT point.id, point.snapshot_set_id, set_row.collector_run_id, point.place_id,
                        point.source_code, point.source_registry_version, point.source_state,

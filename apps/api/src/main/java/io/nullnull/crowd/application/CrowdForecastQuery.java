@@ -17,6 +17,19 @@ public interface CrowdForecastQuery {
 
     Optional<SnapshotSet> latestStale(UUID placeId, Instant from, Instant to, Instant now);
 
+    /**
+     * The set a caller already froze, by its id - not "what is newest now".
+     *
+     * <p>The two queries above ask "what is the newest set for this place and window" - a question
+     * about NOW. A caller holding a set id froze it earlier and needs what that set holds, which is a
+     * question about THEN. Asking the window queries again would silently substitute today's evidence
+     * for the evidence a decision is supposed to be judged against.
+     *
+     * <p>Empty means the set no longer holds points for this place and window. That is a different
+     * fact from "the points changed", and callers that care must not fold the two.
+     */
+    Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to);
+
     record SnapshotSet(UUID id, List<Snapshot> snapshots) {
         public SnapshotSet {
             snapshots = List.copyOf(snapshots);

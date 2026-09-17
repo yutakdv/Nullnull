@@ -111,6 +111,14 @@ class TemporalCandidateAssemblerTest {
             public Optional<SnapshotSet> latestStale(UUID placeId, Instant from, Instant to, Instant now) {
                 throw new AssertionError("a proposal is an instruction to change a plan; stale is not evidence for one");
             }
+
+            @Override
+            public Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to) {
+                // The assembler asks which set is newest; it never holds a set id to ask about. Thrown
+                // rather than answered so the day that stops being true, this says so instead of
+                // quietly handing back an empty set the caller would read as "no evidence".
+                throw new AssertionError("the assembler chooses a set, it does not re-read one it was given");
+            }
         };
         return new TemporalCandidateAssembler(query, new CrowdProvenanceProjection())
                 .candidatesFor(PLACE, CURRENT, START, END, SEOUL, NOW);
