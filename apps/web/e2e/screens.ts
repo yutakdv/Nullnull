@@ -27,6 +27,14 @@ export const SCREENS = [
   // checked for a geolocation call either. Every entry below is an implemented
   // screen, not a placeholder, and two of them are submission screenshots.
   { path: '/start', name: 'trip start' },
+  // The paste screen (S02-4C-A, FE-104). It was the one route in routes.tsx
+  // that this list still did not name — 16 of 17 were here — so the screen
+  // with the app's largest text input, a review list and two blocking CTAs had
+  // never been measured at 360px, at 200% zoom, or against the 44px floor.
+  //
+  // FE-104-T3 asks for exactly that, and the clause had no way to be proven
+  // while the route was absent from the only spec that measures reflow.
+  { path: '/start/import', name: 'paste import' },
   { path: '/posts/018f4c30-3d52-7f63-8b66-7c2e1d4f9b02', name: 'post detail' },
   {
     path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/add-place',
