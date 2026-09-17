@@ -773,7 +773,8 @@ erDiagram
 - 한 run에 proposal은 최대 3개이며 rank별 unique `(run_id, rank)`다.
 - 한 run의 최초 decision(APPLY 또는 KEEP)은 정확히 최대 하나다: partial unique `(run_id) WHERE reverted_decision_id IS NULL`. 선택 proposal은 같은 run 소속이어야 한다.
 - revert decision은 APPLY 하나만 참조하고 원 decision당 최대 하나다: unique `(reverted_decision_id) WHERE reverted_decision_id IS NOT NULL`. KEEP/revert를 다시 revert할 수 없다.
-- APPLY는 before/after revision을 모두 기록하고 24시간 `revert_until`을 둔다. KEEP은 version/revision을 만들지 않는다. REVERT는 immutable before snapshot을 새 trip revision으로 복원하며 현재 trip version이 APPLY 결과와 다르면 거부한다.
+- APPLY는 before/after revision을 모두 기록하고 24시간 `revert_until`을 둔다. KEEP은 version/revision을 만들지 않는다. REVERT는 APPLY가 기록한 변경(`optimization_changes`의 before 값)을 되돌리고 그 결과를 새 trip revision으로 남기며 현재 trip version이 APPLY 결과와 다르면 거부한다.
+- 이 줄은 원래 *"immutable before snapshot을 새 trip revision으로 복원한다"* 였고, 그대로 구현하면 사용자 내용을 지운다. `trip_revisions.aggregate_snapshot`의 item은 `id`·`placeId`·`date`·`position`·`startTime`·`constraints[type]`만 담고 (`TripService.canonicalItems`, 실제 저장 행으로 확인) `V014`의 `duration_minutes`·`note`를 담지 않는다. snapshot은 저장되고 해시되지만 **되읽히지 않는다** — `aggregate_snapshot`을 읽는 코드가 0이고 `snapshot_hash`도 INSERT 열 목록에만 나온다. 그 필드 집합이 왜 그것인지는 **기록돼 있지 않다.** snapshot을 넓히는 것이 대안처럼 보이지만 그것은 `snapshot_schema_version`으로 고정된 저장 형태라 넓히면 version을 올려야 하고 **이미 기록된 revision은 좁은 형태 그대로 남으므로 과거 APPLY는 여전히 복원 불가다.** 반면 `optimization_changes`의 before 값은 APPLY가 바꾼 열만 담으므로 손대지 않은 열은 애초에 쓰이지 않는다 — 그래서 무손실이다.
 - `optimization_changes`: ADD는 `before_value IS NULL AND after_value IS NOT NULL`, REMOVE는 반대, MOVE/REORDER/REPLACE는 둘 다 필수다.
 - run은 하나 이상의 `optimization_run_snapshot_sets` row로 실제 사용한 BEFORE/AFTER/CANDIDATE snapshot을 모두 고정한다. route matrix도 junction으로 고정하며 run row의 단일 snapshot FK로 축약하지 않는다.
 - S14 P0 이력은 기존 run/decision의 상태·시각·trip 연결만 조회한다. 이력 화면을 위해 일정/proposal snapshot을 복제하거나 보존 기간을 늘리는 별도 table을 만들지 않는다.

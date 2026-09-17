@@ -14,6 +14,8 @@ import java.util.Objects;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -26,6 +28,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public final class CatalogPublicationProperties {
+
+    private static final Logger log = LoggerFactory.getLogger(CatalogPublicationProperties.class);
 
     private static final String HMAC = "HmacSHA256";
     private static final String KEY_ID = "catalog-v1";
@@ -43,6 +47,13 @@ public final class CatalogPublicationProperties {
             if (publicEnabled && !developmentProfile(environment)) {
                 throw new IllegalArgumentException("NULLNULL_CURSOR_SECRET is required when catalog publication is enabled");
             }
+            // The throw above covers the case that matters in production. Everywhere else an empty
+            // secret is a DEFINED value meaning "sign with a key that lives as long as this process",
+            // and that substitution used to leave no trace at all. A cursor is opaque and signed, so
+            // after a restart an old one simply stops resuming, with nothing anywhere saying why.
+            // The NAME is printed and the value never is: a variable name is not a secret, this is.
+            log.warn("NULLNULL_CURSOR_SECRET is empty — signing cursors with an ephemeral key for "
+                    + "this process; cursors issued before a restart stop resuming after it");
             secret = ephemeralSecret();
         }
         this.cursorSecret = secret.getBytes(StandardCharsets.UTF_8);

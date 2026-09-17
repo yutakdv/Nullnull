@@ -47,9 +47,14 @@ class FlywayMigrationIT {
     // this list one migration after it is created: optimization_runs arrived when V025 landed,
     // place_hours_* when V026 did, feed_feedback arrived when V027 did, place_relations when V028
     // did, and itinerary_import_drafts arrived when V029 did, and V029's optimization_proposals and
-    // optimization_changes arrived when V030 did, and optimization_decisions arrives now that V031
-    // has. V031 creates no table of its own - it replaces a CHECK - so the next migration that does
-    // will find this list already complete.
+    // optimization_changes arrived when V030 did, and optimization_decisions arrived when V031 did.
+    //
+    // This list is therefore complete through V030, the last migration that created a table. It is
+    // written that way on purpose: an earlier version said "the next migration that does will find
+    // this list already complete", which is a claim about the FUTURE and went stale the moment
+    // V031, V032 and V033 landed - none of them creates a table, so the sentence stayed true and
+    // stopped being useful, and it would need editing again at V034. Naming the last table-creating
+    // migration is a claim about what this list HOLDS, and it only changes when the list does.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",

@@ -68,8 +68,8 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_CSRF_TOKEN_TTL` | 아니오 | `PT2H` | tab token 갱신 주기; session 만료보다 길지 않음. **확정(2026-09-13 오너 승인, PM-017)** |
 | `nullnull.session.touch-interval` | 아니오 | `PT1M` | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록. **확정(2026-09-13 오너 승인, PM-017)** |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
-| `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M` |
-| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. 근거와 확정 조건은 아래 |
+| `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M`. **거절 message는 property 이름 `nullnull.idempotency.ttl`로 말한다** — 설정하는 이름과 보고되는 이름이 다르므로 둘을 함께 적는다. 이 줄이 없으면 운영자가 자기가 설정한 이름을 이 문서에서 grep해도 그 message를 찾지 못한다 |
+| `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. **거절 message는 property 이름 `nullnull.idempotency.lock-timeout`으로 말한다.** 근거와 확정 조건은 아래 |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
 | `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`; BA-012가 enqueue 시 읽고 1~20을 강제한다 |
 | `APP_DELETION_STATUS_TOKEN_TTL` | 아니오 | `P7D` | 삭제 상태 bearer hash 보존 기간. 경계 시각부터 410이며 sweep은 hash를 null로 만든다 |
@@ -81,7 +81,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `APP_ACCESS_LOG_INCLUDE_QUERY` | 아니오 | `false` | 검색어/identifier query logging 차단. access log filter가 실제로 읽으며, `NULLNULL_ENV=production`에서 `true`면 startup이 실패한다 |
 | `APP_LOG_RETENTION_DAYS` | 아니오 | `30` IaC input | CloudWatch policy |
 | `APP_CROWD_DEFAULT_STALE_AFTER` | 아니오 | source override 필요 | fallback only |
-| `NULLNULL_JOBS_ENABLED` | 아니오 | `true` | job worker polling과 보존 sweep을 함께 켠다. `false`는 test/점검 전용이며 보존 sweep도 함께 멈춘다. 값이 없으면 startup에서 실패한다(primitive 기본값 `false`로 조용히 꺼지지 않게). 꺼져 있거나 아직 시작하지 않았으면 readiness `jobs`가 DEGRADED다 |
+| `NULLNULL_JOBS_ENABLED` | 아니오 | `true` | job worker polling과 보존 sweep을 함께 켠다. `false`는 test/점검 전용이며 보존 sweep도 함께 멈춘다. **변수를 설정하지 않아도 기동은 성공한다** — `application.yaml`의 `${NULLNULL_JOBS_ENABLED:true}`가 `true`를 넣기 때문이다. 이 칸은 *"값이 없으면 startup에서 실패한다"* 고 적고 있었는데, 그건 **변수의 부재와 property의 부재를 한 문장으로 붙인 것**이다. `JobProperties`의 `requireNonNull`이 지키는 것은 property `nullnull.jobs.enabled`이고 그 yaml 줄이 사라져야 발화한다(`JobPropertiesTest.aMissingEnabledFlagFailsInsteadOfBindingToFalse`가 그 자리를 고정한다). `Boolean`을 primitive로 두지 않은 이유는 그때 `false`로 조용히 꺼지지 않게 하려는 것이고, 그 부분은 사실이다. 꺼져 있거나 아직 시작하지 않았으면 readiness `jobs`가 DEGRADED다 |
 | `NULLNULL_JOB_LEASE` | 아니오 | `PT60S` 제안값 | claim이 잡는 lease 길이, 최소 `PT1S`. heartbeat 주기는 lease/3으로 파생한다 |
 | `NULLNULL_JOB_POLL_INTERVAL` | 아니오 | `PT1S` 제안값 | type별 claim 주기, 최소 `PT0.01S` |
 | `NULLNULL_JOB_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | job 자신의 transaction에 거는 `lock_timeout`, 최소 `PT0.1S` |
@@ -90,7 +90,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_JOB_MAX_RETRY_BACKOFF` | 아니오 | `PT5M` 제안값 | 재시도 지연 상한, `NULLNULL_JOB_RETRY_BACKOFF` 이상 |
 | `NULLNULL_JOB_DEAD_LETTER_WINDOW` | 아니오 | `PT15M` 제안값 | 이 구간에 FAILED job이 있으면 readiness `jobs`가 DEGRADED, 최소 `PT1M` |
 | `NULLNULL_JOB_FINISHED_RETENTION` | 아니오 | `P7D` 제안값 | COMPLETED/FAILED job row 보존, 최소 `PT1H` |
-| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1M` 제안값 | bootstrap 15분 만료 후 다음 sweep에서 정리, 최소 `PT1M` |
+| `NULLNULL_JOB_RETENTION_SWEEP_INTERVAL` | 아니오 | `PT1M` 제안값 | bootstrap 15분 만료 후 다음 sweep에서 정리, 최소 `PT1M`. **거절 message는 property 이름 `nullnull.jobs.retention-sweep-interval`로 말한다** — `NULLNULL_JOB_*` 전체가 같다(`JobProperties`의 `atLeast`·`inRange`가 property 경로를 넘긴다). 빈 값은 Boot binder가 null로 접은 뒤 `… is required`로 거절되므로 **기동은 이름을 말하며 실패한다**; 고칠 것은 message가 아니라 이 표가 두 이름을 같이 적는 것이다 |
 | `NULLNULL_JOB_DEFAULT_CONCURRENCY` | 아니오 | `2` 제안값 | type별 동시 실행 기본값(1..64). 아래 connection budget에 걸리면 startup에서 실패한다 |
 | `NULLNULL_DB_POOL_MAX` | 아니오 | `12` | `spring.datasource.hikari.maximum-pool-size`. HTTP thread와 job worker가 같이 쓰는 pool이다. `10`이었다가 job type이 둘이 되면서 `JobConnectionBudget`이 startup에서 거절해 올렸다 — 그 가드는 test에서 우회하지 않고 값으로 푼다 |
 | `NULLNULL_AI_BASE_URL` | 아니오/내부 | `http://127.0.0.1:8090` local, ECS 내부 DNS cloud | 추천 서비스 `apps/ai` 주소; 공개 host 금지 |
@@ -357,9 +357,13 @@ while IFS='=' read -r k v; do [ -n "$v" ] && export "$k=$v"; done < .env.local
 
   `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
 
-- B01 scaffold는 `apps/api/.env.example`, `apps/web/.env.example`를 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다.
+- B01 scaffold는 `apps/api/.env.example`을 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다. **`apps/web/.env.example`은 이 문장이 오래 함께 적어 왔지만 존재한 적이 없다** — git 이력에도 없다. `apps/web/**`는 Frontend 소유 경로이므로 그 파일이 필요한지는 Frontend가 정하며, 여기서 만들지 않는다. 지금 FE가 실제로 읽는 유일한 `VITE_` 변수는 이 문서의 2절 표에 없는 `VITE_API_MOCKING`이고, 표가 *필수*로 적은 다섯은 읽는 코드가 없다.
 
-exact tool version, port, seed와 guarded reset은 [LOCAL_DEVELOPMENT.md](../engineering/LOCAL_DEVELOPMENT.md)를 따른다. example 파일은 매 CI에서 실제 configuration binding과 비교해 누락/폐기 변수를 검출한다.
+exact tool version, port, seed와 guarded reset은 [LOCAL_DEVELOPMENT.md](../engineering/LOCAL_DEVELOPMENT.md)를 따른다.
+
+`.env.example`이 설정하라고 적은 변수를 실제로 읽는 코드가 있는지는 `scripts/check_env_example_parity.py`가 검사하고 `docs-contract`가 직접 부른다. **한 방향만 본다**: 읽는 쪽이 없는 변수는 잡지만, 이 문서가 표로 적었는데 아무도 읽지 않는 변수는 잡지 않는다 — 그 방향은 측정해 보니 13개 이상에 `VITE_` 다섯이 더 있고 대부분 카드를 기다리는 정당한 행이라, 켜면 첫 실행이 정당한 findings로 가득 차고 그런 검사는 다음 진짜 findings까지 무시당하게 만든다. 의도적으로 읽는 코드가 없는 이름은 `scripts/env-example-allow.txt`에 **사유와 함께** 적으며, 사유는 두 종류를 섞지 않는다: *framework가 소비함*은 영구 행이고 *카드 대기*는 **그 카드가 이 행을 지우는** 임시 행이다.
+
+**이 문단은 원래 "example 파일은 매 CI에서 실제 configuration binding과 비교해 누락/폐기 변수를 검출한다"였고, 그런 검사는 없었다.** git 이력에도 존재한 적이 없다. 그 문장이 살아 있는 동안 `SEOUL_API_KEY`·`SEOUL_BASE_URL`·`AI_API_KEY`·`AI_MODEL_ID` 넷이 아무도 읽지 않는 채로 example 파일에 앉아 있었다 — 즉 **그 문장이 잡겠다고 약속한 바로 그것**이 그 문장 아래에서 자랐다. 이름이 있는 class를 가리키는 주석은 `check_cited_tests.py`가 실재를 대조하지만, *"CI가 이것을 검사한다"* 는 산문은 가리키는 artefact가 없어 아무도 대조할 수 없다. 그래서 이 문단은 이제 **실행되는 파일 이름**을 적는다.
 
 ## 8. Secrets Manager namespace
 

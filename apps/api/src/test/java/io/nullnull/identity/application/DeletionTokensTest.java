@@ -40,14 +40,14 @@ class DeletionTokensTest {
 
     @Test void deletionSettingsFailClosedOutsideDevelopmentProfiles() {
         var production = new MockEnvironment(); production.setActiveProfiles("production");
-        assertThatThrownBy(() -> new DeletionProperties("P7D", "P21D", 5, "", production))
+        assertThatThrownBy(() -> new DeletionProperties("P7D", "P21D", "5", "", production))
                 .isInstanceOf(IllegalArgumentException.class);
         var integration = new MockEnvironment(); integration.setActiveProfiles("integration");
-        assertThatCode(() -> new DeletionProperties("P7D", "P21D", 5, "", integration))
+        assertThatCode(() -> new DeletionProperties("P7D", "P21D", "5", "", integration))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> new DeletionProperties("P7D", "P6D", 5, secret(), integration))
+        assertThatThrownBy(() -> new DeletionProperties("P7D", "P6D", "5", secret(), integration))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new DeletionProperties("P7D", "P21D", 21, secret(), integration))
+        assertThatThrownBy(() -> new DeletionProperties("P7D", "P21D", "21", secret(), integration))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
