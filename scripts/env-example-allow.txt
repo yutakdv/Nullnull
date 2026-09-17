@@ -1,0 +1,18 @@
+# Names an example file tells an operator to set that nothing in this repository reads.
+# check_env_example_parity.py refuses an entry with no reason, an entry whose name IS read (the card
+# shipped and this row became a lie), and an entry no example file declares any more.
+#
+# THERE ARE TWO KINDS OF ROW AND THEY ARE NOT THE SAME.
+#
+#   "framework"  — permanent. Something outside this repository consumes the name. No card will ever
+#                  delete these, and looking for a reader here will always fail.
+#   "awaiting"   — temporary. A named card will add the reader, and THAT CARD DELETES THIS ROW.
+#                  If these are mixed in with the permanent ones nobody ever deletes them, which is
+#                  how AI_API_KEY and SEOUL_BASE_URL came to sit in example files unread.
+
+SPRING_PROFILES_ACTIVE framework — Spring Boot itself consumes this; no repository code reads it, and none should
+
+SEOUL_API_KEY awaiting B10 — the Seoul Live integration is the last phase; no collector exists yet
+SEOUL_BASE_URL awaiting B10 — same card as SEOUL_API_KEY; documented in ENVIRONMENT.md section 4
+AI_API_KEY awaiting BA-084 — read only after an LLM provider adapter is approved; ENVIRONMENT.md says so
+AI_MODEL_ID awaiting BA-084 — same card as AI_API_KEY
