@@ -131,3 +131,36 @@ route·상태·선행조건까지). 이번에 **표의 주장을 코드와 대�
   `docker-integration`은 catalog 게이트가 닫혀 있다. 매트릭스가 `CMP-SUB-007`에
   "mock 제외"를 적은 이유가 이것이다.
 - **`#107`은 악화됐다** — 이슈 본문은 20건이라고 적지만 실제로 38건까지 갔고 현재 33건이다.
+  (이후 셋을 연결해 **30**이 됐다. 남은 30 중 11건은 `FR-OPS-*`, 4건은 `FR-DAT-*`로
+  FE 화면이 없고, 12건은 FE-503/504/505·FE-401~403이 붙는 날 함께 해소된다.)
+
+## BE에게 하나 요청합니다 — FE-503이 이것 하나에 막혀 있습니다
+
+**READY optimization run의 proposal example이 저장소 어디에도 없습니다.** 세 곳을
+모두 찾았습니다:
+
+| 찾은 곳 | 결과 |
+| --- | --- |
+| `openapi.yaml`의 `getOptimizationRun` 200 example | proposals를 담은 것 없음 |
+| `packages/contracts/fixtures/optimizations/` | `history-page*.json` 둘뿐 |
+| FE의 MSW handler | `proposals: []` — **일부러 비워 둔 것** |
+
+MSW가 그 이유를 직접 적고 있습니다:
+
+> proposals stays empty because BA-051 computes them and nothing here may
+> invent a metric or a change list — an unsourced comparison is what
+> invariant 8 forbids.
+
+**`BA-051`은 `integration-ready`이고 서버는 실제로 proposal을 씁니다**
+(`OptimizationProposalStore`, `ItemProposalMapperTest`가 `comparisonEligible`을
+양방향으로 고정합니다). 그래서 이건 기능의 문제가 아니라 **FE가 붙일 승인 example이
+없는 것**이고, `CLAUDE.md:67`이 소유권을 정해 둔 자리입니다 — *"FE는 승인 example
+mock, BE/AI는 같은 example contract test로 병렬 진행한다."*
+
+**필요한 것**: `getOptimizationRun`의 READY 응답 example **1건**.
+`proposals[].metrics.crowdComparison`에 `eligible: true`인 것과 `false`인 것이 각각
+하나씩 있으면 충분합니다 — `MetricDelta` 컴포넌트가 이미 `eligible`을 받아 숫자 대신
+이유를 렌더하도록 만들어져 있어서(불변식 8), 그 두 갈래가 모두 덮입니다.
+
+이것이 오면 FE-503은 바로 붙습니다. 화면 쪽 준비는 끝났습니다 — 컴포넌트
+(`MetricDelta`·`DecisionBar`)가 이미 있고, bundle 예산도 그것을 담도록 올려 뒀습니다.

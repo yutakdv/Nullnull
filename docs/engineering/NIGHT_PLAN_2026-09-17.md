@@ -102,10 +102,43 @@ FE-503은 before/after 비교 UI 신규 제작이라 더 크고, STEP 2가 먼�
 
 핵심 제약: **`APPLY`를 유도하지 않는다**(불변식 3·4).
 
-### STEP 3 — FE-503 — **멈췄다. 예산 결정이 필요하다.**
+### STEP 3 — FE-503 — **예산은 열렸고, 다른 것에 막혔다 (BE 차례)**
 
-**STEP 0~2는 끝났고 STEP 3에서 escalation 조건(아래 "예산을 올려야만 통과하는
-상태")에 걸렸다.** 규칙 5대로 상수를 올리지 않고 측정치만 남긴다.
+**예산은 해결됐다**(`40a51f3`, 아래 측정 근거). 그 뒤 실제 구현에 들어가서
+**두 번째 blocker**를 만났고 이쪽은 FE가 풀 수 없다.
+
+**READY run의 proposal example이 이 저장소 어디에도 없다.** 세 곳을 전부 찾았다:
+
+| 찾은 곳 | 결과 |
+| --- | --- |
+| `openapi.yaml`의 200 response example | proposals를 담은 example 없음 |
+| `packages/contracts/fixtures/optimizations/` | `history-page*.json` 둘뿐 |
+| MSW handler | `proposals: []` — **일부러 비워 둔 것** |
+
+MSW가 그 이유를 직접 적어 두었다:
+
+> proposals stays empty because BA-051 computes them and nothing here may
+> invent a metric or a change list — an unsourced comparison is what
+> invariant 8 forbids.
+
+즉 FE-503을 지금 만들려면 **metric 값을 지어내야 하고**, 그것이 불변식 8이
+금지하는 바로 그 행위다. `CLAUDE.md:67`이 소유권을 정해 두었다 — *"FE는 승인
+example mock, BE/AI는 같은 example contract test로 병렬 진행한다."* example을
+만드는 것은 FE 몫이 아니다.
+
+**BA-051은 `integration-ready`이고 서버는 실제로 proposal을 쓴다**
+(`OptimizationProposalStore`·`ItemProposalMapperTest`가 `comparisonEligible`을
+양쪽으로 고정한다). 그래서 이것은 *"기능이 없다"* 가 아니라 *"FE가 붙일 승인
+example이 아직 없다"* 이고, **BE가 그 example 하나를 내면 STEP 3는 풀린다.**
+
+**BE에게 요청할 것**: `getOptimizationRun`의 READY 응답 example 1건 —
+`proposals[].metrics.crowdComparison`에 `eligible: true`인 것과 `false`인 것이
+각각 하나씩 있으면 `MetricDelta`의 두 갈래가 모두 덮인다. 그 컴포넌트는 이미
+`eligible`을 받아 숫자 대신 이유를 렌더하도록 만들어져 있다.
+
+#### 예산 결정 (해결됨)
+
+규칙 5대로 상수를 올리지 않고 먼저 측정치를 남겼고, 사용자가 올리기로 결정했다.
 
 | | gzip bytes |
 | --- | --- |
