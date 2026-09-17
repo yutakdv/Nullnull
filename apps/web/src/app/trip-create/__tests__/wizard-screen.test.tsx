@@ -83,7 +83,7 @@ describe('the paste path is reachable from the wizard', () => {
   });
 });
 
-describe('the user can go back a step without losing the draft', () => {
+describe('FE-102-T3 the user can go back a step without losing the draft', () => {
   // Reproduced in a browser before this existed: pick 9/15-9/18, press the
   // CTA, and step 2 offers only 다음 and 나중에 고를래요. There is no back
   // control and no tab bar, and the steps are component state rather than
@@ -146,7 +146,7 @@ describe('the user can go back a step without losing the draft', () => {
   });
 });
 
-describe('step 1 will not let an invalid range continue', () => {
+describe('FE-102-T2 step 1 will not let an invalid range continue', () => {
   it('keeps the CTA disabled until a range is complete', async () => {
     renderWizard();
     expect(
@@ -219,7 +219,7 @@ describe('the draft survives moving through the steps', () => {
   });
 });
 
-describe('creating the trip', () => {
+describe('FE-102-T1 creating the trip', () => {
   it('sends an Idempotency-Key, so a repeat cannot make a second trip', async () => {
     const user = userEvent.setup();
     renderWizard();

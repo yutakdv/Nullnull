@@ -130,7 +130,7 @@ const addButton = (name: string) =>
     name: copy['mustVisit.addNamed'].replace('{place}', name),
   });
 
-describe('results and the kept list', () => {
+describe('FE-103-T1 results and the kept list', () => {
   it('lists what the search returned', async () => {
     await searchFor('서울');
     expect(await screen.findByText(first?.name ?? '')).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe('results and the kept list', () => {
   });
 });
 
-describe('the card shows only what the contract supplies', () => {
+describe('FE-103-T2 the card shows only what the contract supplies', () => {
   it('renders no crowd figure, because PlaceSummary still has none', async () => {
     await searchFor('서울');
     await screen.findByText(first?.name ?? '');
@@ -275,7 +275,7 @@ describe('the card shows only what the contract supplies', () => {
   });
 });
 
-describe('keyboard and continuation', () => {
+describe('FE-103-T3 keyboard and continuation', () => {
   it('gives the remove control an accessible name that says which place', async () => {
     const user = await searchFor('서울');
     await user.click(await addButton(first?.name ?? ''));
