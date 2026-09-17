@@ -177,17 +177,22 @@ services:
       # has to name the origin the caller actually loads from — and the two
       # callers differ. api-quality drives MockMvc, whose tests write
       # "http://localhost:5173" as a literal in 124 places, so the anchor keeps
-      # that. Here the caller is a real browser served by `web`, which makes it
-      # "http://web:4173"; with the anchor's value every non-GET from the page
-      # was rejected CSRF_INVALID, the session bootstrap POST included, so no
-      # session was ever created and every screen showed "Your session ended".
+      # that; here the caller is a real browser served by `web`.
       #
-      # Measured rather than reasoned: same stack, same request, only this
-      # header changed — Origin http://web:4173 -> 403, http://localhost:5173
-      # -> 201. This value has never been web:4173 since it was introduced in
-      # 53dcd2d (BA-010), so the four browser-driven keyboard-flow tests could
-      # not have passed at any point.
-      APP_PUBLIC_ORIGIN: http://web:4173
+      # It says localhost rather than web because of what the BROWSER does with
+      # the name, not what resolves. A real Chromium was pointed at ONE server
+      # under three names (--host-resolver-rules mapped all three to the same
+      # loopback, so only the name differed):
+      #   http://localhost:<p>  Secure/__Host- cookie kept
+      #   http://127.0.0.1:<p>  kept
+      #   http://web:<p>        DROPPED
+      # localhost and 127.0.0.1 are potentially-trustworthy origins, so a Secure
+      # cookie survives plain HTTP there; `web` is not. An earlier version of
+      # this override said web:4173 and fixed the CSRF rejection but not the
+      # cookie, so the session still died at the first request after bootstrap.
+      # Reaching localhost is what `network_mode: service:web` on the e2e
+      # service below buys, and it is why these two must land together.
+      APP_PUBLIC_ORIGIN: http://localhost:4173
     depends_on:
       postgres:
         condition: service_healthy
@@ -213,7 +218,7 @@ services:
       dockerfile: apps/web/Dockerfile
       target: e2e
     environment:
-      PLAYWRIGHT_BASE_URL: http://web:4173
+      PLAYWRIGHT_BASE_URL: http://localhost:4173
       API_INTERNAL_BASE_URL: http://api:8080
       CI: "true"
     depends_on:
@@ -223,8 +228,15 @@ services:
       - ./.artifacts/integration/playwright:/workspace/apps/web/playwright-report
       - ./.artifacts/integration/test-results:/workspace/apps/web/test-results
     command: ["npm", "run", "test:e2e:integration"]
-    networks:
-      - integration-internal
+    # The browser must load from an origin it considers trustworthy or it silently drops the
+    # Secure/__Host- session cookie, and every request after bootstrap is a 401 with no cookie
+    # (#233). Measured with a real Chromium against ONE server under three names:
+    #   http://localhost:<p>  kept   http://127.0.0.1:<p>  kept   http://web:<p>  dropped
+    # Sharing web's network namespace lets the browser use localhost without TLS and without
+    # lowering APP_COOKIE_SECURE - which SessionProperties:34, SessionPropertiesTest and
+    # ENVIRONMENT.md all pin, and which would also change the cookie NAME the gate exercises
+    # (SessionProperties:56), so the E2E would stop testing the cookie production ships.
+    network_mode: service:web
 
   egress-denied:
     profiles: [quality]

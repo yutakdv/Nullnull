@@ -247,6 +247,36 @@ class ComposeContractTests(unittest.TestCase):
                            'environment': {'SPRING_DATASOURCE_PASSWORD': 'whatever'}}
         self.assertEqual([], self.check(self.config(services)))
 
+    def test_a_service_sharing_another_services_namespace_inherits_its_networks(self):
+        """e2e shares web's namespace so the browser can load from localhost - a trustworthy origin,
+        which is the only way a Secure/__Host- cookie survives without TLS (#233)."""
+        services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+        services['e2e'] = {'network_mode': 'service:web'}
+        self.assertEqual([], self.check(self.config(services)))
+
+    def test_sharing_a_namespace_that_reaches_a_public_network_is_refused(self):
+        """The inheritance must carry the refusal too, or it becomes a way around this check."""
+        services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+        services['web'] = {'networks': {'integration-internal': None, 'public': None}}
+        services['e2e'] = {'network_mode': 'service:web'}
+        errors = self.check(self.config(services, networks={
+            'integration-internal': {'internal': True}, 'public': {'internal': False}}))
+        self.assertTrue(any('e2e' in e and 'public' in e for e in errors), errors)
+
+    def test_a_network_mode_that_bypasses_the_declared_networks_is_refused(self):
+        for mode in ('host', 'bridge', 'none'):
+            with self.subTest(mode=mode):
+                services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+                services['e2e'] = {'network_mode': mode}
+                errors = self.check(self.config(services))
+                self.assertTrue(any('e2e' in e and 'no explicit network' in e for e in errors), errors)
+
+    def test_a_namespace_host_that_is_not_a_service_here_is_refused(self):
+        services = self.internal_services(REQUIRED_COMPOSE_SERVICES)
+        services['e2e'] = {'network_mode': 'service:nowhere'}
+        errors = self.check(self.config(services))
+        self.assertTrue(any('e2e' in e and 'no explicit network' in e for e in errors), errors)
+
     def test_required_services_on_the_internal_network_pass(self):
         errors = self.check(
             self.config(self.internal_services(REQUIRED_COMPOSE_SERVICES))
