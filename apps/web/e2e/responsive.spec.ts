@@ -71,7 +71,17 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
   }
 });
 
-test.describe('FE-601-T3 FE-602-T2 keyboard and motion', () => {
+// Several cards share one clause here: FE-001-T2, FE-002-T2, FE-003-T2 and
+// FE-004-T2 are word-for-word "keyboard 이동·focus 복귀·접근성 이름과
+// 360px·200% zoom·reduced motion을 검증한다", and this block runs exactly that
+// over every screen in SCREENS. One test proving a clause of several cards is
+// normal (AGENTS.md registration rule 2); what is not allowed is a clause with
+// no name the aggregator can read, which is what these four had.
+//
+// The scaffold cards own no screen of their own - FE-001 is the router shell,
+// FE-002 the tokens, FE-003 the error mapper, FE-004 the offline shell - so
+// their keyboard-and-reflow clause can only be shown across the whole set.
+test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 keyboard and motion', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);
