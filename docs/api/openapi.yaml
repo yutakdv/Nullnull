@@ -1861,13 +1861,13 @@ paths:
                     planningLevel: "MUST_VISIT_ONLY"
                     interests:
                       -
-                        code: "FRIENDS"
+                        code: "CULTURE"
                         weight: 3
                       -
                         code: "FOOD"
                         weight: 5
                       -
-                        code: "CULTURE"
+                        code: "FRIENDS"
                         weight: 3
                     days:
                       -
@@ -1880,9 +1880,12 @@ paths:
                               name: "경복궁"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 0
                             startTime: "09:30:00"
@@ -1890,14 +1893,14 @@ paths:
                             note: null
                             constraints:
                               -
-                                type: "MUST_VISIT"
-                                locked: true
-                                source: "USER"
-                              -
                                 type: "DATE"
                                 locked: true
                                 source: "USER"
                                 date: "2026-10-04"
+                              -
+                                type: "MUST_VISIT"
+                                locked: true
+                                source: "USER"
                             crowd: null
                           -
                             id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02"
@@ -1906,9 +1909,12 @@ paths:
                               name: "인사동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 1
                             startTime: "13:00:00"
@@ -1932,9 +1938,12 @@ paths:
                               name: "명동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-05"
                             position: 0
                             startTime: "14:00:00"
@@ -2004,13 +2013,13 @@ paths:
                     planningLevel: "MUST_VISIT_ONLY"
                     interests:
                       -
-                        code: "FRIENDS"
+                        code: "CULTURE"
                         weight: 3
                       -
                         code: "FOOD"
                         weight: 5
                       -
-                        code: "CULTURE"
+                        code: "FRIENDS"
                         weight: 3
                     days:
                       -
@@ -2023,9 +2032,12 @@ paths:
                               name: "경복궁"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 0
                             startTime: "09:30:00"
@@ -2033,14 +2045,14 @@ paths:
                             note: null
                             constraints:
                               -
-                                type: "MUST_VISIT"
-                                locked: true
-                                source: "USER"
-                              -
                                 type: "DATE"
                                 locked: true
                                 source: "USER"
                                 date: "2026-10-04"
+                              -
+                                type: "MUST_VISIT"
+                                locked: true
+                                source: "USER"
                             crowd: null
                           -
                             id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02"
@@ -2049,9 +2061,12 @@ paths:
                               name: "인사동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 1
                             startTime: "13:00:00"
@@ -2075,9 +2090,12 @@ paths:
                               name: "명동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-05"
                             position: 0
                             startTime: "14:00:00"
@@ -2182,13 +2200,13 @@ paths:
                     planningLevel: "MUST_VISIT_ONLY"
                     interests:
                       -
-                        code: "FRIENDS"
+                        code: "CULTURE"
                         weight: 3
                       -
                         code: "FOOD"
                         weight: 5
                       -
-                        code: "CULTURE"
+                        code: "FRIENDS"
                         weight: 3
                     days:
                       -

@@ -10,7 +10,7 @@
   "planningLevel": "MUST_VISIT_ONLY",
   "interests": [
     {
-      "code": "FRIENDS",
+      "code": "CULTURE",
       "weight": 3
     },
     {
@@ -18,7 +18,7 @@
       "weight": 5
     },
     {
-      "code": "CULTURE",
+      "code": "FRIENDS",
       "weight": 3
     }
   ],
@@ -33,9 +33,12 @@
             "name": "경복궁",
             "categoryCode": "HS",
             "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
             "thumbnailUrl": null,
             "thumbnailAttribution": null,
-            "address": null
+            "address": null,
+            "sourceAttribution": null
           },
           "date": "2026-10-04",
           "position": 0,
@@ -44,15 +47,15 @@
           "note": null,
           "constraints": [
             {
-              "type": "MUST_VISIT",
-              "locked": true,
-              "source": "USER"
-            },
-            {
               "type": "DATE",
               "locked": true,
               "source": "USER",
               "date": "2026-10-04"
+            },
+            {
+              "type": "MUST_VISIT",
+              "locked": true,
+              "source": "USER"
             }
           ],
           "crowd": null
@@ -64,9 +67,12 @@
             "name": "인사동",
             "categoryCode": "HS",
             "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
             "thumbnailUrl": null,
             "thumbnailAttribution": null,
-            "address": null
+            "address": null,
+            "sourceAttribution": null
           },
           "date": "2026-10-04",
           "position": 1,
@@ -96,9 +102,12 @@
             "name": "명동",
             "categoryCode": "HS",
             "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
             "thumbnailUrl": null,
             "thumbnailAttribution": null,
-            "address": null
+            "address": null,
+            "sourceAttribution": null
           },
           "date": "2026-10-05",
           "position": 0,

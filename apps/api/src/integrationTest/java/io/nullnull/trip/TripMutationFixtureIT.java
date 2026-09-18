@@ -2,6 +2,7 @@ package io.nullnull.trip;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -31,14 +32,17 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import tools.jackson.databind.JsonNode;
 
 /**
- * #16: the seven TripMutationResult fixtures describe the shape the server really sends.
+ * #16: the seven TripMutationResult fixtures, and the two trip-detail fixtures they start from, describe
+ * the shape the server really sends.
  *
  * <p>A TripMutationResult carries the whole trip, and which keys it holds depends on what the trip
  * holds: a DATE lock brings {@code date}, a TIME lock brings {@code startTime} and
  * {@code toleranceMinutes}. So a fixture cannot be compared with a response from just any trip. Each
  * case here builds, over HTTP, the trip trips/trip-detail-scheduled.json describes - 경복궁 with
  * MUST_VISIT and DATE locks, 인사동 with a TIME lock, 명동 scheduled from a candidate, five
- * candidates - makes the one change its fixture shows, and compares every level's keys.
+ * candidates - makes the one change its fixture shows, and compares every level's keys. The getTrip cases
+ * compare that trip itself with trip-detail-scheduled, and with trip-detail-reservation once 명동 holds the
+ * RESERVATION lock instead.
  */
 @SpringBootTest(properties = "nullnull.catalog.public-enabled=true")
 @AutoConfigureMockMvc
@@ -65,6 +69,18 @@ class TripMutationFixtureIT {
         for (UUID placeId : places) {
             jdbc.update("DELETE FROM places WHERE id = ?", placeId);
         }
+    }
+
+    @Test
+    @DisplayName("BA-030 getTrip of that trip has trip-detail-scheduled's shape, items[].crowd aside (#105)")
+    void getTripScheduled() throws Exception {
+        assertTripShape(scheduled(false), "trips/trip-detail-scheduled.json");
+    }
+
+    @Test
+    @DisplayName("BA-030 getTrip of that trip with a RESERVATION lock has trip-detail-reservation's shape, items[].crowd aside (#105)")
+    void getTripReservation() throws Exception {
+        assertTripShape(scheduled(true), "trips/trip-detail-reservation.json");
     }
 
     @Test
@@ -195,6 +211,14 @@ class TripMutationFixtureIT {
      * APPLY (run-applied), and this one through three adds. Only the version differs by that.
      */
     private Scheduled scheduled() throws Exception {
+        return scheduled(false);
+    }
+
+    /**
+     * With {@code reservation}, 명동 is instead the trip-detail-reservation item: 18:30 for 90 minutes,
+     * with a DATE lock and a RESERVATION lock for that slot.
+     */
+    private Scheduled scheduled(boolean reservation) throws Exception {
         SessionService.Bootstrap owner = sessions.bootstrap(null, null, null);
         String created = mvc.perform(post("/api/v1/trips")
                         .cookie(cookie(owner))
@@ -235,10 +259,15 @@ class TripMutationFixtureIT {
                 "{\"placeId\":\"" + insadong + "\",\"date\":\"2026-10-04\",\"position\":1,"
                         + "\"startTime\":\"13:00:00\",\"durationMinutes\":90,\"constraints\":["
                         + "{\"type\":\"TIME\",\"locked\":true,\"startTime\":\"13:00:00\",\"toleranceMinutes\":30}]}"));
+        String slot = reservation
+                ? "\"startTime\":\"18:30:00\",\"durationMinutes\":90,\"constraints\":["
+                        + "{\"type\":\"DATE\",\"locked\":true,\"date\":\"2026-10-05\"},"
+                        + "{\"type\":\"RESERVATION\",\"locked\":true,\"date\":\"2026-10-05\","
+                        + "\"startTime\":\"18:30:00\",\"endTime\":\"20:00:00\"}]"
+                : "\"startTime\":\"14:00:00\",\"durationMinutes\":120";
         UUID myeongdongItem = added(send(partial, post(partial.items()), "\"3\"",
                 "{\"placeId\":\"" + myeongdong + "\",\"candidateId\":\"" + myeongdongCandidate
-                        + "\",\"date\":\"2026-10-05\",\"position\":0,\"startTime\":\"14:00:00\","
-                        + "\"durationMinutes\":120}"));
+                        + "\",\"date\":\"2026-10-05\",\"position\":0," + slot + "}"));
         return new Scheduled(owner, tripId, gyeongbokgungItem, insadongItem, myeongdongItem, yeonhui,
                 seoulForest, seoulForestCandidate);
     }
@@ -304,6 +333,38 @@ class TripMutationFixtureIT {
         }));
         assertThat(ids).hasSize(1);
         return ids.get(0);
+    }
+
+    /**
+     * The trip-detail fixtures still hold items[].crowd: null, a key the server never sends. The contract
+     * declares TripItem.crowd with no producer - the kind #105 is deciding - and an FE test reads the
+     * fixture's null (trip-screen.test.tsx), so whether the server sends null or the fixtures drop the key
+     * waits for that decision. The path is taken out by name, and only once the fixture is seen to hold
+     * it, so this fails the day the fixture drops it and the exclusion has to go with it.
+     */
+    private void assertTripShape(Scheduled trip, String fixture) throws Exception {
+        JsonNode body = JSON.readTree(mvc.perform(get("/api/v1/trips/" + trip.tripId()).cookie(cookie(trip.owner())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        JsonNode onDisk = JsonShape.fixture(fixture);
+        java.util.SortedSet<String> expected = JsonShape.of(onDisk);
+        assertThat(expected.remove("$.days[].items[].crowd")).as("%s still holds items[].crowd", fixture).isTrue();
+        assertThat(JsonShape.of(body)).isEqualTo(expected);
+        // Order is not shape, and the fixture follows the server's: interests by code, each item's locks
+        // by type (JdbcTripStore's ORDER BY). This trip holds the fixture's places and locks, so the two
+        // lists must be the same lists.
+        assertThat(order(body)).isEqualTo(order(onDisk));
+    }
+
+    private static List<String> order(JsonNode trip) {
+        List<String> order = new ArrayList<>();
+        trip.get("interests").forEach(interest -> order.add(interest.get("code").asString()));
+        trip.get("days").forEach(day -> day.get("items").forEach(item -> {
+            StringBuilder locks = new StringBuilder(day.get("date").asString() + " " + item.get("place").get("name").asString());
+            item.get("constraints").forEach(lock -> locks.append(' ').append(lock.get("type").asString()));
+            order.add(locks.toString());
+        }));
+        return order;
     }
 
     private static void assertShape(JsonNode body, String fixture) {
