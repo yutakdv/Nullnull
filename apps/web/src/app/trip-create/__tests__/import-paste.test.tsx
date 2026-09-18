@@ -13,7 +13,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
@@ -26,6 +26,29 @@ import { routes } from '../../routes.js';
 const copy = messages['en-US'];
 
 const PASTE = '10/4 Gyeongbokgung 10am\n10/5 Myeongdong\nsomewhere in a hanok village';
+
+/**
+ * A draft that parsed cleanly and found nothing — the empty state of FE-104-T2.
+ *
+ * Built here rather than imported: the handlers' own `buildImportDraft` is
+ * module-private and deliberately shaped to carry the two unresolved tokens the
+ * correction tests need, so it is the opposite of this. Exporting it just to
+ * spread-and-blank it would widen the mock surface to express an absence.
+ *
+ * READY because nothing is unresolved, which is what makes this a state and not
+ * an error: the server read the paste, answered, and the answer was "no plan in
+ * here". A prose paste is the real way someone reaches it.
+ */
+const EMPTY_READ = {
+  id: '018f4c30-2b55-7f22-ad13-6e8f4a2b3c02',
+  version: 1,
+  status: 'READY',
+  title: null,
+  dates: { startDate: null, endDate: null },
+  items: [],
+  unresolved: [],
+  expiresAt: '2026-09-16T04:00:00Z',
+};
 
 /** Every request the app made, with body and headers, for the privacy sweep. */
 let seen: { method: string; url: string; body: string; headers: string }[] = [];
@@ -278,5 +301,195 @@ describe('a draft becomes a trip only once it is settled', () => {
     expect(posted?.headers).toMatch(
       /\["Idempotency-Key","[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"\]/i,
     );
+  });
+});
+
+// FE-104-T2 is "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다".
+//
+// The clause was the one FE-104 acceptance with NO test carrying its ID: T1 is
+// the privacy sweep above and T3 is proven by `e2e/screens.ts`, which names
+// `/start/import` so responsive.spec measures it at 360px and 200% zoom. The
+// state matrix was the gap, and a card cannot reach integration-ready while an
+// acceptance ID has no testcase to point `provenBy` at.
+//
+// The six names in the clause are a checklist for a QUERY screen, and this is
+// not one: `useParseTripImport` is a mutation and the draft is deliberately
+// kept out of the query cache (invariant 10 — a cache entry is a copy of the
+// itinerary that outlives the request). So there is no background refetch here
+// and no cached-then-revalidated read. Writing a test per literal word would
+// mean inventing two states the screen cannot enter, and a test that asserts a
+// state nothing produces is the "발화할 수 없는 단언" AGENTS.md rule 7② lists.
+//
+// What that clause means on a mutation screen, mapped one to one:
+//
+//   default  → the empty paste box, before anything is sent
+//   loading  → parse in flight, and confirm in flight (two different waits)
+//   empty    → a draft that parsed but yielded nothing to review
+//   error    → parse failed, and confirm failed, WITHOUT claiming a trip exists
+//   offline  → the transport itself fails rather than the server answering
+//   stale    → the draft expired underneath the person (410, not retryable)
+//
+// `changed` (a draft edited in another tab) is the sibling of `stale` and is
+// already proven above, so it is not repeated here.
+describe('FE-104-T2 the screen renders each of its states', () => {
+  it('starts on an empty box that cannot be sent', async () => {
+    renderImport();
+    expect(await screen.findByLabelText(copy['import.label'])).toHaveValue('');
+    // The privacy line is said BEFORE the paste, not after: it is the reason
+    // someone is willing to paste at all.
+    expect(screen.getByText(copy['import.privacy'])).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: copy['import.parse'] })).toBeDisabled();
+  });
+
+  it('reports that it is reading while the parse is in flight', async () => {
+    server.use(
+      http.post(`${API_BASE}/trip-imports/parse`, async () => {
+        await delay(50);
+        return HttpResponse.json(EMPTY_READ, {
+          headers: { ETag: '"1"', 'Cache-Control': 'no-store' },
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderImport();
+    const box = await screen.findByLabelText(copy['import.label']);
+    await user.click(box);
+    await user.paste(PASTE);
+    await user.click(screen.getByRole('button', { name: copy['import.parse'] }));
+
+    // Named its own state rather than only disabled: a button that goes quiet
+    // reads as a dead press, and this one can take a while on a long paste.
+    const reading = await screen.findByRole('button', { name: copy['import.parsing'] });
+    expect(reading).toBeDisabled();
+  });
+
+  it('says a draft that read nothing is empty rather than showing a bare list', async () => {
+    // A paste of prose parses fine and yields no items and no tokens. Without
+    // its own state the review screen renders "읽은 일정 0개" over two empty
+    // lists, which reads as a broken screen rather than as "we read nothing".
+    server.use(
+      http.post(`${API_BASE}/trip-imports/parse`, () =>
+        HttpResponse.json(EMPTY_READ, {
+          headers: { ETag: '"1"', 'Cache-Control': 'no-store' },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderImport();
+    const box = await screen.findByLabelText(copy['import.label']);
+    await user.click(box);
+    await user.paste('just some prose with no plan in it');
+    await user.click(screen.getByRole('button', { name: copy['import.parse'] }));
+
+    expect(await screen.findByText(copy['import.empty'])).toBeInTheDocument();
+    // And it does not offer to make a trip out of nothing.
+    expect(screen.queryByRole('button', { name: copy['import.confirm'] })).toBeNull();
+  });
+
+  it('keeps the paste in the box when the parse fails', async () => {
+    server.use(
+      http.post(`${API_BASE}/trip-imports/parse`, () =>
+        problemResponse('VALIDATION_FAILED'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderImport();
+    const box = await screen.findByLabelText(copy['import.label']);
+    await user.click(box);
+    await user.paste(PASTE);
+    await user.click(screen.getByRole('button', { name: copy['import.parse'] }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      copy['import.parseFailed'],
+    );
+    // The text survives so the retry is one press, not a re-paste. Clearing on
+    // failure would throw away something the app promises never to store, so
+    // the person could not get it back.
+    expect(screen.getByLabelText(copy['import.label'])).toHaveValue(PASTE);
+    expect(screen.getByRole('button', { name: copy['import.parse'] })).toBeEnabled();
+  });
+
+  it('reports a transport failure the same way, without a server answer', async () => {
+    // Offline is not a Problem response — there is no response at all. The
+    // screen has to reach the same state from a thrown fetch as from a 4xx,
+    // or a plane-mode paste shows nothing and looks like a dead button.
+    server.use(http.post(`${API_BASE}/trip-imports/parse`, () => HttpResponse.error()));
+    const user = userEvent.setup();
+    renderImport();
+    const box = await screen.findByLabelText(copy['import.label']);
+    await user.click(box);
+    await user.paste(PASTE);
+    await user.click(screen.getByRole('button', { name: copy['import.parse'] }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      copy['import.parseFailed'],
+    );
+    expect(screen.getByLabelText(copy['import.label'])).toHaveValue(PASTE);
+  });
+
+  it('tells the person to start again when the draft expired underneath them', async () => {
+    // The stale case. A draft has a lifetime and the paste is gone from the
+    // client by now, so this is the one error the screen cannot offer a retry
+    // for — problem-policy calls it `repaste`.
+    const user = userEvent.setup();
+    renderImport();
+    await paste(user);
+    server.use(
+      http.patch(`${API_BASE}/trip-imports/:draftId`, () =>
+        problemResponse('IMPORT_DRAFT_EXPIRED'),
+      ),
+    );
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
+      }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy['import.expired']);
+  });
+
+  it('does not claim a trip exists when the confirm fails', async () => {
+    const user = userEvent.setup();
+    renderImport();
+    await paste(user);
+
+    // Settle the draft so confirm is actually reachable, then fail it.
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
+      }),
+    );
+    const unreadable = await screen.findByText(copy['import.token.noLabel']);
+    await user.click(
+      within(unreadable.closest('li') as HTMLElement).getByRole('button', {
+        name: copy['import.token.dismiss'],
+      }),
+    );
+    const noDate = await screen.findByText(copy['import.item.noDate']);
+    await user.click(
+      within(noDate.closest('li') as HTMLElement).getByRole('button', {
+        name: new RegExp(copy['import.item.dismiss'].replace('{name}', '')),
+      }),
+    );
+
+    server.use(
+      http.post(`${API_BASE}/trip-imports/:draftId/confirm`, () =>
+        problemResponse('INTERNAL_ERROR'),
+      ),
+    );
+    const confirm = await screen.findByRole('button', { name: copy['import.confirm'] });
+    await waitFor(() => {
+      expect(confirm).toBeEnabled();
+    });
+    await user.click(confirm);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      copy['import.confirmFailed'],
+    );
+    // Still on the review screen, not navigated to a trip that was never made.
+    expect(
+      screen.getByRole('button', { name: copy['import.confirm'] }),
+    ).toBeInTheDocument();
   });
 });

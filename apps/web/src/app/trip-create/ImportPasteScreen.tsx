@@ -53,6 +53,11 @@ export function ImportPasteScreen() {
 
   const current = draft?.draft ?? null;
   const ready = current !== null && current.status === 'READY';
+  // The server answered and found no plan in the text. Distinct from "not
+  // parsed yet" (current === null) and from a failure: nothing went wrong, the
+  // paste simply had nothing in it to read.
+  const nothingRead =
+    current !== null && current.items.length === 0 && current.unresolved.length === 0;
 
   function runParse() {
     const text = raw.trim();
@@ -191,6 +196,25 @@ export function ImportPasteScreen() {
             disabled={raw.trim() === '' || parse.isPending}
             label={parse.isPending ? t('import.parsing') : t('import.parse')}
             onClick={runParse}
+          />
+        </>
+      ) : nothingRead ? (
+        /* A paste of prose parses fine and yields nothing. Without its own
+           branch this rendered "읽은 일정 0개 · 모두 확인했어요" above two empty
+           lists and an enabled 여행으로 만들기 — a READY draft with no items is
+           READY by the rule's own terms, so the CTA offered to build a trip out
+           of nothing and the server would have refused it.
+           `import.empty` existed in both locales for this and was rendered
+           nowhere; FE-104-T2 is what found that. */
+        <>
+          <p className={styles.note} role="status">
+            {t('import.empty')}
+          </p>
+          <BottomCta
+            label={t('import.retry')}
+            onClick={() => {
+              setDraft(null);
+            }}
           />
         </>
       ) : (

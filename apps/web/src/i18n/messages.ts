@@ -312,7 +312,8 @@ export const messages = {
     'import.parse': '읽어오기',
     'import.parsing': '읽는 중이에요',
     'import.parseFailed': '읽지 못했어요. 다시 시도해 주세요',
-    'import.empty': '붙여넣은 내용이 없어요',
+    'import.empty': '붙여넣은 내용에서 일정을 찾지 못했어요',
+    'import.retry': '다시 붙여넣기',
     // parse 결과 검토
     'import.review.title': '이렇게 읽었어요',
     'import.review.lead': '빠진 것만 채우면 여행으로 만들어 드릴게요',
@@ -976,7 +977,8 @@ export const messages = {
     'import.parse': 'Read it',
     'import.parsing': 'Reading',
     'import.parseFailed': "We couldn't read that. Try again",
-    'import.empty': 'There is nothing pasted yet',
+    'import.empty': "We couldn't find a plan in what you pasted",
+    'import.retry': 'Paste again',
     // Reviewing the parse
     'import.review.title': 'Here is what we read',
     'import.review.lead': 'Fill in what is missing and we will make the trip',
