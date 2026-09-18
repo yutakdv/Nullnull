@@ -82,6 +82,9 @@ class JobWorkerIT {
     static final String UNBOUND = "worker-unbound";
     static final String NESTED = "worker-nested";
     static final String POISON_CODE = "POISON_PILL";
+    /** A poison payload carrying this key also fails in its dead-letter hook (BA-005-T4). */
+    static final String HOOK_FAILS = "deadLetterHookFails";
+    static final List<String> DEAD_LETTER_HOOK_CALLS = new CopyOnWriteArrayList<>();
 
     /** What the handlers did, read back by the assertions. */
     static final List<UUID> WRITTEN = new CopyOnWriteArrayList<>();
@@ -105,13 +108,33 @@ class JobWorkerIT {
                     context.transactional(() -> owners.create(OwnerFixtures.anonymous(clock))).id()));
         }
 
-        /** Fails the same way every time: the poison job BA-005-T3 is about. */
+        /**
+         * Fails the same way every time: the poison job BA-005-T3 is about. Its dead-letter hook fails
+         * too when the payload asks for it, which is how BA-005-T4 shows the dead letter and the hook
+         * being one commit; without that key the hook does nothing and BA-005-T3 sees the plain path.
+         */
         @Bean
         JobHandler poisonHandler() {
-            return handler(POISON, context -> {
-                throw new JobExecutionException(POISON_CODE,
-                        "this handler always fails, by design, on every attempt");
-            });
+            return new JobHandler() {
+                @Override
+                public String type() {
+                    return POISON;
+                }
+
+                @Override
+                public void handle(JobContext context) {
+                    throw new JobExecutionException(POISON_CODE,
+                            "this handler always fails, by design, on every attempt");
+                }
+
+                @Override
+                public void onDeadLetter(JobPayload payload, String errorCode) {
+                    DEAD_LETTER_HOOK_CALLS.add(errorCode);
+                    if (payload.values().containsKey(HOOK_FAILS)) {
+                        throw new IllegalStateException("this dead-letter hook fails, by design");
+                    }
+                }
+            };
         }
 
         /** Writes outside the helper, which must be refused instead of committing unbound. */
@@ -206,6 +229,7 @@ class JobWorkerIT {
         ATTEMPTED_UNBOUND.clear();
         ATTEMPTED_INSIDE_UNIT_OF_WORK.clear();
         ATTEMPTED_REQUIRES_NEW.clear();
+        DEAD_LETTER_HOOK_CALLS.clear();
         // Only this class's own job types. The gate runs every suite against one database, so an
         // unscoped DELETE here took every other class's jobs, owners and sessions with it - and the
         // five tables that used to be cleared alongside were only ever cleared so that a global
@@ -281,6 +305,27 @@ class JobWorkerIT {
         assertThat(ready).bodyJson().extractingPath("$.checks[?(@.name=='jobs')].status")
                 .asArray().containsExactly("DEGRADED");
         assertThat(mvc.get().uri("/api/v1/health/live").exchange()).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("BA-005-T4 a dead letter is written only together with its handler's dead-letter hook")
+    void aDeadLetterRollsBackWithAHookThatFails() {
+        // #261: a handler ends what its job owned in the dead letter's own transaction. If that ending
+        // fails, the dead letter must not stand without it - otherwise the job reads FAILED while what
+        // it owned still says it is running, which is the state #261 exists to remove.
+        UUID jobId = enqueue(POISON, "worker-poison:" + UUID.randomUUID(),
+                JobPayload.of(Map.of(HOOK_FAILS, "true")), 1);
+
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(30))
+                .until(() -> workerLog.list.stream().anyMatch(event -> event.getLevel() == Level.ERROR
+                        && event.getFormattedMessage().startsWith("job failure not recorded")
+                        && event.getFormattedMessage().contains(jobId.toString())));
+
+        assertThat(DEAD_LETTER_HOOK_CALLS).as("the hook ran, with the handler's code").containsExactly(POISON_CODE);
+        // The clock does not move in this class, so the lease never lapses and nothing else can end it.
+        assertThat(jdbc.queryForObject("SELECT status FROM background_jobs WHERE id = ?", String.class, jobId))
+                .as("the dead letter rolled back with the hook that failed").isEqualTo("RUNNING");
+        assertThat(errorCode(jobId)).as("nothing of the dead letter was written").isNull();
     }
 
     @Test

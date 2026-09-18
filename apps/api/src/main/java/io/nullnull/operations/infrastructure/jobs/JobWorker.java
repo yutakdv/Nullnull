@@ -203,7 +203,7 @@ public class JobWorker implements SmartLifecycle {
         }
         JobHandler handler = handlers.require(type);
         int concurrency = properties.concurrencyFor(type);
-        endAbandoned(type);
+        endAbandoned(type, handler);
         while (running && active.get() < concurrency) {
             Instant now = clock.instant();
             Optional<ClaimedJob> claimed =
@@ -267,14 +267,14 @@ public class JobWorker implements SmartLifecycle {
                     lease.type(), lease.jobId(), lease.attempt());
         } catch (RuntimeException failure) {
             heartbeat.cancel(false);
-            recordFailure(job, failure);
+            recordFailure(job, handler, failure);
         } finally {
             heartbeat.cancel(false);
             active.decrementAndGet();
         }
     }
 
-    private void recordFailure(ClaimedJob job, RuntimeException failure) {
+    private void recordFailure(ClaimedJob job, JobHandler handler, RuntimeException failure) {
         JobLease lease = job.lease();
         String errorCode = JobExecutionException.codeOf(failure);
         // The throwable is logged because a poison job is otherwise undiagnosable. Handler exceptions
@@ -286,7 +286,12 @@ public class JobWorker implements SmartLifecycle {
             // A failure its handler marked as not retryable ends the job now: the attempts left would
             // each meet the same answer and only delay the dead-letter an operator has to act on.
             if (job.lastAttempt() || !JobExecutionException.retryableOf(failure)) {
-                queue.deadLetter(lease, errorCode, now);
+                // One commit for the dead letter and for what the job owned (#261): the handler ends
+                // it in this transaction, so neither can be written without the other.
+                transactions.executeWithoutResult(status -> {
+                    queue.deadLetter(lease, errorCode, now);
+                    handler.onDeadLetter(job.payload(), errorCode);
+                });
                 // The dead-letter line an operator alerts on: identifiers and a code, nothing else.
                 log.error("job dead-letter type={} jobId={} attempts={} errorCode={}",
                         lease.type(), lease.jobId(), lease.attempt(), errorCode);
@@ -301,6 +306,11 @@ public class JobWorker implements SmartLifecycle {
             // so the job is re-taken after the lease lapses and ends at the ceiling either way.
             log.warn("job failure not recorded, the job row is held elsewhere type={} jobId={}",
                     lease.type(), lease.jobId());
+        } catch (RuntimeException unrecorded) {
+            // Most likely the handler's onDeadLetter (#261). Its write and the dead letter rolled back
+            // together, so the job is still RUNNING on this lease: it is re-taken when the lease lapses,
+            // or ended by the abandoned sweep if its attempts are spent, and the hook runs again then.
+            log.error("job failure not recorded type={} jobId={}", lease.type(), lease.jobId(), unrecorded);
         }
     }
 
@@ -331,8 +341,25 @@ public class JobWorker implements SmartLifecycle {
      * the claim refuses to re-take it, and the operator gets the same dead-letter line a thrown failure
      * produces.
      */
-    private void endAbandoned(String type) {
-        List<AbandonedJob> abandoned = queue.failAbandoned(type, clock.instant());
+    private void endAbandoned(String type, JobHandler handler) {
+        List<AbandonedJob> abandoned;
+        try {
+            // The same single commit as a thrown dead letter (#261): the rows end together with what
+            // each job owned, or not at all.
+            abandoned = transactions.execute(status -> {
+                List<AbandonedJob> ended = queue.failAbandoned(type, clock.instant());
+                for (AbandonedJob job : ended) {
+                    handler.onDeadLetter(job.payload(), JobQueue.LEASE_EXPIRED_ERROR_CODE);
+                }
+                return ended;
+            });
+        } catch (RuntimeException failure) {
+            // Before the claim on purpose, and so not allowed to stop it: a handler that cannot end one
+            // abandoned job would otherwise halt every job of this type. The rows stay as they were -
+            // the claim never re-takes them - and the next tick tries again.
+            log.error("job abandoned sweep failed, retried on the next tick type={}", type, failure);
+            return;
+        }
         for (AbandonedJob job : abandoned) {
             log.error("job dead-letter type={} jobId={} attempts={} errorCode={}",
                     job.type(), job.jobId(), job.attempts(), JobQueue.LEASE_EXPIRED_ERROR_CODE);

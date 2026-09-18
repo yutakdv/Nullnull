@@ -2242,8 +2242,16 @@ export interface components {
             }[];
         };
         OptimizationFailure: {
-            /** @enum {string} */
-            code: "TRIP_CHANGED" | "DATA_CHANGED" | "LOCK_CONFLICT" | "ROUTE_UNAVAILABLE" | "NO_IMPROVEMENT" | "APPLY_FAILED" | "DATA_INSUFFICIENT";
+            /**
+             * @description Why the run or decision ended. APPLY_FAILED belongs to a decision; every other code can end a run.
+             *     RECOMMENDATION_UNAVAILABLE and INTERNAL_ERROR describe this service rather than the trip (#261):
+             *     the first is a recommendation service that did not answer through every attempt (retryable), the
+             *     second is anything else that stopped the run on this side - an answer outside the recommendation
+             *     contract, a repeated server failure, a run abandoned by its worker (not retryable). Neither
+             *     changed the trip.
+             * @enum {string}
+             */
+            code: "TRIP_CHANGED" | "DATA_CHANGED" | "LOCK_CONFLICT" | "ROUTE_UNAVAILABLE" | "NO_IMPROVEMENT" | "APPLY_FAILED" | "DATA_INSUFFICIENT" | "RECOMMENDATION_UNAVAILABLE" | "INTERNAL_ERROR";
             message: string;
             retryable: boolean;
         };

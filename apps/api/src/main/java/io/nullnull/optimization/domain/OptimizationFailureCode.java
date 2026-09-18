@@ -35,7 +35,24 @@ public enum OptimizationFailureCode {
      * have yet rather than a fact about the trip. A forecast that arrives tomorrow changes the
      * answer, while a trip that moved will not un-move.
      */
-    DATA_INSUFFICIENT(true);
+    DATA_INSUFFICIENT(true),
+    /**
+     * The recommendation service did not answer through every attempt the run's job had (#261). The
+     * run ends here instead of saying RUNNING for a job that will never run again.
+     *
+     * <p>Retryable: a service that was down is not a fact about the trip, and a new run may find it
+     * back.
+     */
+    RECOMMENDATION_UNAVAILABLE(true),
+    /**
+     * The run could not finish for a reason on this side (#261): the recommendation service answered
+     * outside its contract, the handler failed on every attempt, or the job's lease ran out with no
+     * attempt left. Not a statement about the trip or its evidence.
+     *
+     * <p>Not retryable: the same request gets the same answer from a service answering outside its
+     * contract, and for the other two there is no reason to believe a new run fares better.
+     */
+    INTERNAL_ERROR(false);
 
     private final boolean retryable;
 

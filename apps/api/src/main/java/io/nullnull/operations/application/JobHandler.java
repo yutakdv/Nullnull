@@ -1,5 +1,7 @@
 package io.nullnull.operations.application;
 
+import io.nullnull.operations.domain.JobPayload;
+
 /**
  * What one job type actually does. Implement it as a bean; {@link JobHandlerRegistry} indexes every
  * implementation by {@link #type()} at startup.
@@ -37,4 +39,22 @@ public interface JobHandler {
     String type();
 
     void handle(JobContext context);
+
+    /**
+     * The job has been dead-lettered: its attempts are spent, a failure was marked as final, or its
+     * lease ran out with nothing left to re-take (#261). Whatever the job was working on is left where
+     * the last attempt stopped unless this ends it - a record that says "in progress" for a job that
+     * will never run again.
+     *
+     * <p>Runs in the SAME transaction as the dead-letter write, so the two commit together: a job is
+     * never FAILED while what it owned still says it is running, and if this throws, the dead letter
+     * rolls back with it and is written again on the next pass. That makes it at-least-once like
+     * {@link #handle}, so it must be idempotent. It runs outside {@link JobContext}: write through the
+     * owning module's application port and let the caller's transaction carry it, never open another.
+     *
+     * @param errorCode the {@code last_error_code} the job ends with - a handler's
+     *                  {@link JobExecutionException} code, or {@link JobQueue#LEASE_EXPIRED_ERROR_CODE}
+     */
+    default void onDeadLetter(JobPayload payload, String errorCode) {
+    }
 }
