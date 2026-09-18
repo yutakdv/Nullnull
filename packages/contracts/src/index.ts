@@ -72,6 +72,9 @@ import mutationReplace from "../fixtures/trips/mutation-replace.json" with { typ
 import mutationConstraintSet from "../fixtures/trips/mutation-constraint-set.json" with { type: "json" };
 import mutationConstraintRemove from "../fixtures/trips/mutation-constraint-remove.json" with { type: "json" };
 import mutationRemove from "../fixtures/trips/mutation-remove.json" with { type: "json" };
+import importDraftNeedsReview from "../fixtures/imports/draft-needs-review.json" with { type: "json" };
+import importDraftReady from "../fixtures/imports/draft-ready.json" with { type: "json" };
+import importConfirmedTrip from "../fixtures/imports/confirmed-trip.json" with { type: "json" };
 import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
 import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
 import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
@@ -204,6 +207,16 @@ export const tripMutationFixtures = {
   constraintSet: mutationConstraintSet as components["schemas"]["TripMutationResult"],
   constraintRemove: mutationConstraintRemove as components["schemas"]["TripMutationResult"],
   remove: mutationRemove as components["schemas"]["TripMutationResult"],
+};
+
+// The import flow (#16): parseTripImport's draft with one question left, remapTripImport's READY draft,
+// and confirmTripImport's trip. Pinned to the contract's response examples by
+// scripts/check-examples.mjs; apps/api runs the same flow and compares their shape with a real
+// response (TripImportFixtureIT).
+export const importFixtures = {
+  draftNeedsReview: importDraftNeedsReview as components["schemas"]["ImportDraft"],
+  draftReady: importDraftReady as components["schemas"]["ImportDraft"],
+  confirmedTrip: importConfirmedTrip as components["schemas"]["TripDetail"],
 };
 
 // previewTripDraft's two faces (BA-055). Pinned to the contract's response examples by

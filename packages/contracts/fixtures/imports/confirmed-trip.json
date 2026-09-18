@@ -1,0 +1,88 @@
+{
+  "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a0a",
+  "title": "붙여넣은 서울 일정",
+  "startDate": "2026-10-04",
+  "endDate": "2026-10-05",
+  "timezone": "Asia/Seoul",
+  "status": "DRAFT",
+  "version": 1,
+  "candidateCount": 0,
+  "planningLevel": "NOTHING",
+  "interests": [],
+  "days": [
+    {
+      "date": "2026-10-04",
+      "items": [
+        {
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c21",
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
+            "name": "경복궁",
+            "categoryCode": "HS",
+            "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
+            "thumbnailUrl": null,
+            "thumbnailAttribution": null,
+            "address": null,
+            "sourceAttribution": null
+          },
+          "date": "2026-10-04",
+          "position": 0,
+          "startTime": null,
+          "durationMinutes": null,
+          "note": null,
+          "constraints": []
+        },
+        {
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c22",
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
+            "name": "인사동",
+            "categoryCode": "HS",
+            "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
+            "thumbnailUrl": null,
+            "thumbnailAttribution": null,
+            "address": null,
+            "sourceAttribution": null
+          },
+          "date": "2026-10-04",
+          "position": 1,
+          "startTime": "13:00:00",
+          "durationMinutes": null,
+          "note": null,
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "date": "2026-10-05",
+      "items": [
+        {
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c23",
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
+            "name": "명동",
+            "categoryCode": "HS",
+            "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
+            "thumbnailUrl": null,
+            "thumbnailAttribution": null,
+            "address": null,
+            "sourceAttribution": null
+          },
+          "date": "2026-10-05",
+          "position": 2,
+          "startTime": "14:00:00",
+          "durationMinutes": null,
+          "note": null,
+          "constraints": []
+        }
+      ]
+    }
+  ],
+  "candidates": []
+}

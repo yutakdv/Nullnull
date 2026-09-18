@@ -77,6 +77,12 @@
       "count": 3,
       "basis": "BE/AI authored from the operations controllers. Mixed evidence, stated per file rather than collapsed into one flag. demo-readiness-not-ready.json is PROVEN: apps/api's DemoReadinessContractTest builds the real DemoCapabilityQuery with every flag OFF and asserts it produces exactly that document, so its detail strings are the server's own. NOT_READY with three UNAVAILABLE capabilities is the correct P0 answer - no capability has a server-side source yet, and a FEATURE_* flag turned ON without one fails startup rather than advertising it; there is no READY or DEGRADED fixture because producing one would be a claim about behaviour that does not exist. health-live.json and readiness-ready.json are DERIVED, not proven: the values come from HealthController (status UP; checks named database, jobs and recommendation with detail null, because every probe returns null detail when READY) but no test regenerates them, so a probe renaming itself would not be caught here. NOT_READY is absent from readiness-ready.json on purpose - HealthController throws 503 SOURCE_UNAVAILABLE instead of answering 200 in that state. serverVerified stays false for the set because two of the three are not captured or proven.",
       "serverVerified": false
+    },
+    "imports": {
+      "schema": "ImportDraft, TripDetail",
+      "count": 3,
+      "basis": "BE/AI authored (#16). draft-needs-review, draft-ready and confirmed-trip are the response examples of parseTripImport, remapTripImport and confirmTripImport, pinned by check-examples.mjs. Their SHAPE is the server's: TripImportFixtureIT runs a synthetic paste (three places that resolve, one line that matches two) through parse, remap and confirm over HTTP and compares every level's keys, and each captured response validated against its schema before the file was written. Their VALUES are the captured ones with the places mapped to the other sets' ids by name (서울숲 공원 is the one new place), new draft, trip and item ids, and an expiresAt 24 hours after a parse at 2026-09-30T09:00:00Z. Nothing of the paste is in them: the question's label is empty and no item carries originalLabel. The server serialised originalLabel as null, which the schema (a string) refuses; #16 made it leave the key out instead. Not captured values, so serverVerified stays false for the set.",
+      "serverVerified": false
     }
   }
 }

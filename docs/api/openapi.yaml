@@ -2424,6 +2424,100 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportDraft"
+              examples:
+                importNeedsReview:
+                  summary: "Three places resolved, one line left as a question"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripImportFixtureIT runs a synthetic paste through parse, remap and
+                    confirm over HTTP and compares every level's keys.
+                    None of the paste is here. The question carries its line number and an empty label, and no item
+                    carries originalLabel: the parser fills none, so the key is absent rather than a null the schema
+                    refuses. Positions are the draft's order across its days.
+                  value:
+                    id: 018f4a80-5e21-7a11-8b01-3c4d5e6f7a01
+                    version: 1
+                    status: NEEDS_REVIEW
+                    title: null
+                    dates:
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-05'
+                    items:
+                    - clientKey: i2
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                        name: '경복궁'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: null
+                      position: 0
+                      confidence: 1
+                    - clientKey: i3
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                        name: '인사동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: '13:00:00'
+                      position: 1
+                      confidence: 1
+                    - clientKey: i5
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                        name: '명동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-05'
+                      startTime: null
+                      position: 2
+                      confidence: 1
+                    unresolved:
+                    - clientKey: t6
+                      kind: PLACE
+                      line: 6
+                      label: ''
+                      suggestions:
+                      - id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b12
+                        name: '서울숲'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      - id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b13
+                        name: '서울숲 공원'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                    expiresAt: '2026-10-01T09:00:00Z'
         "422":
           $ref: "#/components/responses/Unprocessable"
         "401":
@@ -2467,6 +2561,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportDraft"
+              examples:
+                importReady:
+                  summary: "명동 given a time and the question dismissed"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripImportFixtureIT runs a synthetic paste through parse, remap and
+                    confirm over HTTP and compares every level's keys.
+                    The remap set 명동's startTime and dismissed the one question, so nothing blocks READY and the
+                    version is 2. A question can only be dismissed; picking one of its suggestions is not a remap.
+                  value:
+                    id: 018f4a80-5e21-7a11-8b01-3c4d5e6f7a01
+                    version: 2
+                    status: READY
+                    title: null
+                    dates:
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-05'
+                    items:
+                    - clientKey: i2
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                        name: '경복궁'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: null
+                      position: 0
+                      confidence: 1
+                    - clientKey: i3
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                        name: '인사동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: '13:00:00'
+                      position: 1
+                      confidence: 1
+                    - clientKey: i5
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                        name: '명동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-05'
+                      startTime: '14:00:00'
+                      position: 2
+                      confidence: 1
+                    unresolved: []
+                    expiresAt: '2026-10-01T09:00:00Z'
         "404":
           $ref: "#/components/responses/NotFound"
         "410":
@@ -2514,6 +2676,87 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripDetail"
+              examples:
+                importConfirmed:
+                  summary: "The trip the READY draft became"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripImportFixtureIT runs a synthetic paste through parse, remap and
+                    confirm over HTTP and compares every level's keys.
+                    Title, planningLevel and interests come from the confirm request. The draft's positions are kept,
+                    so 명동 is alone on 10-05 at position 2: positions are unique within a day and gaps are allowed
+                    (TripScheduleRules).
+                  value:
+                    id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a0a
+                    title: '붙여넣은 서울 일정'
+                    startDate: '2026-10-04'
+                    endDate: '2026-10-05'
+                    timezone: 'Asia/Seoul'
+                    status: DRAFT
+                    version: 1
+                    candidateCount: 0
+                    planningLevel: NOTHING
+                    interests: []
+                    days:
+                    - date: '2026-10-04'
+                      items:
+                      - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c21
+                        place:
+                          id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                          name: '경복궁'
+                          categoryCode: HS
+                          regionCode: '11'
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          thumbnailAttribution: null
+                          address: null
+                          sourceAttribution: null
+                        date: '2026-10-04'
+                        position: 0
+                        startTime: null
+                        durationMinutes: null
+                        note: null
+                        constraints: []
+                      - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c22
+                        place:
+                          id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                          name: '인사동'
+                          categoryCode: HS
+                          regionCode: '11'
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          thumbnailAttribution: null
+                          address: null
+                          sourceAttribution: null
+                        date: '2026-10-04'
+                        position: 1
+                        startTime: '13:00:00'
+                        durationMinutes: null
+                        note: null
+                        constraints: []
+                    - date: '2026-10-05'
+                      items:
+                      - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c23
+                        place:
+                          id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                          name: '명동'
+                          categoryCode: HS
+                          regionCode: '11'
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          thumbnailAttribution: null
+                          address: null
+                          sourceAttribution: null
+                        date: '2026-10-05'
+                        position: 2
+                        startTime: '14:00:00'
+                        durationMinutes: null
+                        note: null
+                        constraints: []
+                    candidates: []
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
