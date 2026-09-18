@@ -40,6 +40,11 @@ import styles from './FeedScreen.module.css';
 // MOCK DATA: listFeed has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
 // generated client, so BA-032 landing removes the fixture and handler only.
+//
+// No author, heart count or reaction control (#163): FCR-024 in
+// docs/design/FIGMA_CHANGE_REQUESTS.md is the record of that decision and its
+// reasoning. This screen sends no feed feedback of any kind, which
+// feed.test.tsx guards at the wire.
 
 export function FeedScreen() {
   const { t } = useI18n();
