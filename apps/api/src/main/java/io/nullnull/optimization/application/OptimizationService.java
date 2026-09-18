@@ -15,6 +15,7 @@ import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.optimization.domain.OptimizationStatus;
+import io.nullnull.optimization.domain.RevertAvailability;
 import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
 import io.nullnull.shared.cursor.CursorClaims;
@@ -136,7 +137,7 @@ public class OptimizationService {
      * caller does not own. Ownership is next, so a foreign trip id cannot be probed for shape errors.
      * Only then the request's own shape, the version precondition and the locks.
      */
-    public OptimizationRun create(OwnerContext context, UUID tripId, String ifMatch,
+    public OptimizationRunView create(OwnerContext context, UUID tripId, String ifMatch,
             String idempotencyKey, CreateOptimizationCommand command) {
         capability.require(command.scope());
         long expected = parseIfMatch(ifMatch);
@@ -162,7 +163,10 @@ public class OptimizationService {
                         new RunProjection(queue(context, trip, command).id())),
                 value -> value);
         RunProjection projection = readProjection(guarded.body());
-        return runs.find(projection.runId()).orElseThrow(OptimizationService::notFound);
+        // Projected here too, and not shortcut to NOT_APPLICABLE because "this is a create response".
+        // A replayed Idempotency-Key returns the EXISTING run, which may already be APPLIED - the
+        // guard hands back the stored projection rather than running the command again.
+        return view(runs.find(projection.runId()).orElseThrow(OptimizationService::notFound));
     }
 
     /**
@@ -642,12 +646,63 @@ public class OptimizationService {
      * never got one.
      */
     @Transactional(readOnly = true)
-    public OptimizationRun get(OwnerContext context, UUID runId) {
+    public OptimizationRunView get(OwnerContext context, UUID runId) {
         OptimizationRun stored = runs.findForOwner(context.ownerId(), runId)
                 .orElseThrow(OptimizationService::notFound);
         Instant now = clock.instant();
         requirePreviewStillOffered(stored, now);
-        return asReadNow(stored, now);
+        // One instant for both, on purpose: the status a reader sees and the window this answers
+        // about are both clock-derived, and reading them a millisecond apart could report a preview
+        // as live while reporting its undo as expired.
+        return view(asReadNow(stored, now), now);
+    }
+
+    private OptimizationRunView view(OptimizationRun run) {
+        return view(run, clock.instant());
+    }
+
+    private OptimizationRunView view(OptimizationRun run, Instant now) {
+        return new OptimizationRunView(run, revertAvailabilityOf(run, now));
+    }
+
+    /**
+     * BA-054: the contract's precedence, in its order, read rather than re-derived.
+     *
+     * <p>Every input is something {@link #revert} already consults, and deliberately so - if the
+     * screen and the mutation computed this from different places they would answer differently at
+     * the boundary, which is the moment it matters. The run's own status is NOT an input: a run is
+     * APPLIED whether or not its window is still open, and the window is what this reports.
+     *
+     * <p>No null guard on {@code revertUntil}: {@link OptimizationDecision} refuses an APPLY without
+     * one, so a branch for it could never fire. ({@link #reverted} carries exactly such a clause -
+     * it is dead there too and should go when that path is next touched.)
+     */
+    private RevertAvailability revertAvailabilityOf(OptimizationRun run, Instant now) {
+        List<OptimizationDecision> taken = decisions.findByRun(run.id());
+        OptimizationDecision applied = taken.stream()
+                .filter(decision -> decision.decision() == OptimizationDecisionKind.APPLY)
+                .findFirst()
+                .orElse(null);
+        if (applied == null) {
+            return RevertAvailability.NOT_APPLICABLE;
+        }
+        if (taken.stream().anyMatch(decision -> decision.decision() == OptimizationDecisionKind.REVERT)) {
+            return RevertAvailability.REVERTED;
+        }
+        if (!now.isBefore(applied.revertUntil())) {
+            return RevertAvailability.EXPIRED;
+        }
+        // The trip cannot be missing - runs cascade with trips (V024) - so an empty Optional is a
+        // broken invariant rather than a state to report, and saying so is cheaper than a value the
+        // caller would have to interpret.
+        long current = trips.findForOwner(run.ownerId(), run.tripId())
+                .map(Trip::version)
+                .orElseThrow(() -> new IllegalStateException(
+                        "run " + run.id() + " outlived the trip it belongs to"));
+        if (applied.resultingTripVersion() != current) {
+            return RevertAvailability.NOT_APPLICABLE;
+        }
+        return RevertAvailability.AVAILABLE;
     }
 
     /**

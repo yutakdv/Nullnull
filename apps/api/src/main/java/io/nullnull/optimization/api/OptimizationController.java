@@ -5,6 +5,7 @@ import io.nullnull.optimization.application.CreateOptimizationCommand;
 import io.nullnull.optimization.application.DecideOptimizationCommand;
 import io.nullnull.optimization.application.OptimizationHistoryPageView;
 import io.nullnull.optimization.application.OptimizationHistoryQuery;
+import io.nullnull.optimization.application.OptimizationRunView;
 import io.nullnull.optimization.application.OptimizationService;
 import io.nullnull.optimization.domain.OptimizationDecision;
 import io.nullnull.optimization.domain.OptimizationDecisionKind;
@@ -46,25 +47,25 @@ public class OptimizationController {
             @RequestHeader("If-Match") String ifMatch,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody CreateOptimizationBody body) {
-        OptimizationRun run = optimizations.create(owner, tripId, ifMatch, idempotencyKey,
+        OptimizationRunView view = optimizations.create(owner, tripId, ifMatch, idempotencyKey,
                 command(body));
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .header("Location", "/optimizations/" + run.id())
+                .header("Location", "/optimizations/" + view.run().id())
                 .header("Cache-Control", "private, no-store")
-                .body(OptimizationRunResponse.from(run));
+                .body(OptimizationRunResponse.from(view));
     }
 
     @GetMapping(value = "/optimizations/{runId}", produces = MediaType.APPLICATION_JSON_VALUE)
     @NullnullOperation(id = "getOptimization", security = Security.SESSION)
     public ResponseEntity<OptimizationRunResponse> get(OwnerContext owner, @PathVariable UUID runId) {
-        OptimizationRun run = optimizations.get(owner, runId);
+        OptimizationRunView view = optimizations.get(owner, runId);
         ResponseEntity.BodyBuilder response = ResponseEntity.ok()
                 .header("Cache-Control", "private, no-store");
         // Present for QUEUED and RUNNING only, which is what the contract says and also the only
         // state in which asking again could produce a different answer.
-        OptimizationService.retryAfter(run)
+        OptimizationService.retryAfter(view.run())
                 .ifPresent(seconds -> response.header("Retry-After", Integer.toString(seconds)));
-        return response.body(OptimizationRunResponse.from(run));
+        return response.body(OptimizationRunResponse.from(view));
     }
 
     @PostMapping(value = "/optimizations/{runId}/decisions", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -186,14 +187,16 @@ public class OptimizationController {
      */
     public record OptimizationRunResponse(UUID id, UUID tripId, String scope, String status,
             long inputTripVersion, UUID inputRevisionId, boolean includeCandidates, String dataFingerprint,
-            String algorithmVersion, Instant queuedAt, Instant completedAt, Instant expiresAt,
-            List<Object> proposals, List<UUID> snapshotSetIds, List<Object> decisions,
+            String algorithmVersion, String revertAvailability, Instant queuedAt, Instant completedAt,
+            Instant expiresAt, List<Object> proposals, List<UUID> snapshotSetIds, List<Object> decisions,
             OptimizationFailureResponse failure) {
 
-        static OptimizationRunResponse from(OptimizationRun run) {
+        static OptimizationRunResponse from(OptimizationRunView view) {
+            OptimizationRun run = view.run();
             return new OptimizationRunResponse(run.id(), run.tripId(), run.scope().name(),
                     run.status().name(), run.inputTripVersion(), run.inputRevisionId(),
                     run.includeCandidates(), run.dataFingerprint(), run.algorithmVersion(),
+                    view.revertAvailability().name(),
                     run.queuedAt(), run.completedAt(), run.expiresAt(), List.of(), run.snapshotSetIds(),
                     List.of(), OptimizationFailureResponse.from(run));
         }
