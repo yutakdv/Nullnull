@@ -1714,8 +1714,40 @@
           "assertion": "실패 코드 어휘가 enum·CHECK·계약 세 곳에서 같다"
         },
         {
+          "id": "BA-051-T12",
+          "assertion": "getOptimization은 저장된 제안을 돌려준다"
+        },
+        {
+          "id": "BA-051-T13",
+          "assertion": "trip timezone을 수정한 뒤에도 dataProvenance는 제안이 비교한 쌍을 가리킨다"
+        },
+        {
+          "id": "BA-051-T14",
+          "assertion": "저장된 lockChecks는 LockType 순서의 checks 목록으로 나간다"
+        },
+        {
+          "id": "BA-051-T15",
+          "assertion": "allConstraintsPreserved는 모든 check가 통과했는지로 파생된다"
+        },
+        {
+          "id": "BA-051-T16",
+          "assertion": "lock 종류가 아닌 check는 목록에서 버리지 않고 거절한다"
+        },
+        {
+          "id": "BA-051-T17",
+          "assertion": "Spring이 판정한 lock 결과와 다른 lockChecks를 담은 제안은 저장되지 않는다"
+        },
+        {
           "id": "BA-051-T18",
           "assertion": "계약 밖 답을 받은 run의 job은 첫 시도에서 끝난다"
+        },
+        {
+          "id": "BA-051-T19",
+          "assertion": "catalog가 닫힌 동안 제안을 가진 run의 getOptimization은 503 SOURCE_UNAVAILABLE이다"
+        },
+        {
+          "id": "BA-051-T20",
+          "assertion": "catalog가 닫힌 동안 제안을 가진 run에 대한 createOptimization replay는 503 SOURCE_UNAVAILABLE이다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",
@@ -1981,6 +2013,14 @@
         {
           "id": "BA-054-T9",
           "assertion": "AVAILABLE을 읽은 뒤 그 APPLY가 이미 되돌려졌으면 두 번째 revert는 거절된다"
+        },
+        {
+          "id": "BA-054-T10",
+          "assertion": "getOptimization은 run의 decisions를 나열한다"
+        },
+        {
+          "id": "BA-054-T11",
+          "assertion": "decisions에서 최초 APPLY·KEEP은 REVERT보다 먼저 나온다"
         }
       ],
       "handoff": "applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다.",
@@ -2107,6 +2147,14 @@
         {
           "id": "BA-055-T22",
           "assertion": "policy hash가 빈 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T23",
+          "assertion": "apps/ai 답이 계약 밖이면 503이 아니라 500 INTERNAL_ERROR(retryable false)다"
+        },
+        {
+          "id": "BA-055-T24",
+          "assertion": "apps/ai 본문이 도중에 끊기거나 멈추면 500이 아니라 503이다"
         }
       ],
       "handoff": "READY·EMPTY fixture(packages/contracts/fixtures/trips/draft-preview-*.json)와 stop→SeedTripItem 변환 규칙, 503(게이트 닫힘·apps/ai 무응답)과 500(apps/ai 거절·계약 위반) 구분.",

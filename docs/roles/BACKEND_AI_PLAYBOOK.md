@@ -1257,8 +1257,10 @@ FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무�
 - `BA-055-T20`: verifyDraft가 거부한 답은 draft가 아니라 500 INTERNAL_ERROR(retryable false)로 나간다
 - `BA-055-T21`: 여행 기간 밖 날짜에 stop을 둔 답은 거부된다
 - `BA-055-T22`: policy hash가 빈 답은 거부된다
+- `BA-055-T23`: apps/ai 답이 계약 밖이면 503이 아니라 500 INTERNAL_ERROR(retryable false)다
+- `BA-055-T24`: apps/ai 본문이 도중에 끊기거나 멈추면 500이 아니라 503이다
 
-증거 위치: `TripDraftPreviewIT`(T1·T2·T3·T6·T9·T10·T11), `TripDraftPreviewFailsClosedIT`(T4), `TripDraftPreviewGatewayIT`(T5·T12·T20), `DraftComposeGatewayTest`(T7·T13~T19·T21·T22), `RecommendationRequestShapeTest`(T8), 응답 schema는 `TripDraftPreviewContractTest`.
+증거 위치: `TripDraftPreviewIT`(T1·T2·T3·T6·T9·T10·T11), `TripDraftPreviewFailsClosedIT`(T4), `TripDraftPreviewGatewayIT`(T5·T12·T20·T23·T24), `DraftComposeGatewayTest`(T7·T13~T19·T21·T22), `RecommendationRequestShapeTest`(T8), 응답 schema는 `TripDraftPreviewContractTest`. `T23`·`T24`는 #250이다: gateway가 503과 500을 한 곳에서 가르고, 역직렬화 예외 전체를 500으로 넓히는 변이는 `T24`만 빨갛게 한다.
 
 FE 인계·완료 증거: READY·EMPTY fixture(packages/contracts/fixtures/trips/draft-preview-*.json)와 stop→SeedTripItem 변환 규칙, 503(게이트 닫힘·apps/ai 무응답)과 500(apps/ai 거절·계약 위반) 구분. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1508,7 +1510,17 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T9`: 저장된 제안과 change는 사후 수정되지 않는다
 - `BA-051-T10`: preview 동안 일정 쓰기가 0이다
 - `BA-051-T11`: 실패 코드 어휘가 enum·CHECK·계약 세 곳에서 같다
+- `BA-051-T12`: getOptimization은 저장된 제안을 돌려준다
+- `BA-051-T13`: trip timezone을 수정한 뒤에도 dataProvenance는 제안이 비교한 쌍을 가리킨다
+- `BA-051-T14`: 저장된 lockChecks는 LockType 순서의 checks 목록으로 나간다
+- `BA-051-T15`: allConstraintsPreserved는 모든 check가 통과했는지로 파생된다
+- `BA-051-T16`: lock 종류가 아닌 check는 목록에서 버리지 않고 거절한다
+- `BA-051-T17`: Spring이 판정한 lock 결과와 다른 lockChecks를 담은 제안은 저장되지 않는다
 - `BA-051-T18`: 계약 밖 답을 받은 run의 job은 첫 시도에서 끝난다
+- `BA-051-T19`: catalog가 닫힌 동안 제안을 가진 run의 getOptimization은 503 SOURCE_UNAVAILABLE이다
+- `BA-051-T20`: catalog가 닫힌 동안 제안을 가진 run에 대한 createOptimization replay는 503 SOURCE_UNAVAILABLE이다
+
+**`T12`~`T20`은 getOptimization이 저장된 제안을 내는 절이다**(#16 R3·#242). `T14`~`T16`은 처음에 한 문장(*"lockChecks를 계약의 checks로 바꾼다"*)이었는데, 정렬 제거·파생 상수화·모르는 key 버리기 세 변이가 각각 다른 case 하나씩만 빨갛게 해서 셋으로 나눴다. `T13`은 V034가 비교한 쌍의 id를 저장하는 이유다 — 날짜로 쌍을 다시 찾던 설계로 되돌리면 이 case만 빨개진다. `T17`이 있어야 `T15`의 파생이 apps/ai의 주장이 아니라 이 API의 판정이 된다. `T18`은 #252의 worker 절이다. `T19`·`T20`은 getTrip과 같은 catalog 게이트 규칙이고, 검사가 `OptimizationProposalReader` 한 곳에 있어 create replay도 같이 따른다. 증거 위치: `OptimizeItemIT`(T12·T13), `ItemProposalMapperTest`(T14~T16), `ProposalRevalidatorTest`(T17), `OptimizationFailsClosedIT`(T19·T20).
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1678,6 +1690,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-054-T7`: AVAILABLE을 읽은 뒤에도 남의 owner가 보낸 revert는 없는 결정과 같은 404로 거절된다
 - `BA-054-T8`: AVAILABLE을 읽은 뒤 창이 닫히면 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
 - `BA-054-T9`: AVAILABLE을 읽은 뒤 그 APPLY가 이미 되돌려졌으면 두 번째 revert는 거절된다
+- `BA-054-T10`: getOptimization은 run의 decisions를 나열한다
+- `BA-054-T11`: decisions에서 최초 APPLY·KEEP은 REVERT보다 먼저 나온다
+
+`T10`·`T11`은 getOptimization의 decisions다. 순서(`T11`)를 unit으로 재는 이유: 같은 instant에 찍힌 APPLY와 REVERT는 `ORDER BY decided_at, id`에서 id의 난수가 순서를 정하므로 HTTP case로는 절반만 잡힌다. 나열은 `OptimizeRevertIT`, 순서는 `DecisionOrderTest`가 잰다.
 
 `T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`~`T9`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다. 뒤쪽이 넷인 것은 revert가 다시 하는 검사(version·owner·window·decision)마다 하나씩이기 때문이다. 처음에는 넷을 한 절(`T6`)에 묶었고 그 절의 test는 version 하나만 쟀다 — 등록 규칙 3이 말하는 모양이라 승격 전에 쪼갰다.
 
