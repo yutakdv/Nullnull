@@ -714,7 +714,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - 기능 ID: `FR-DAT-01`, `FR-DAT-02`, `FR-DAT-03`, `FR-DAT-04`, `FR-DAT-05`, `NFR-DATA-01`
 - API: `getPlaceCrowdForecast` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `423:2967`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: crowd_snapshots · snapshot_sets · crowd_comparisons · source registry
+- 데이터·정책: crowd_snapshots · snapshot_sets · crowd_comparisons · source registry · crowd snapshot 보존 정리(retention sweep)는 아직 생산자가 없다. 만들 때는 optimization 제안이 가리키는 point를 지우지 않거나 지운 run의 읽기 계약을 먼저 정한다(#259, BA-052-T5)
 
 구현 순서:
 
@@ -1524,8 +1524,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T18`: 계약 밖 답을 받은 run의 job은 첫 시도에서 끝난다
 - `BA-051-T19`: catalog가 닫힌 동안 제안을 가진 run의 getOptimization은 503 SOURCE_UNAVAILABLE이다
 - `BA-051-T20`: catalog가 닫힌 동안 제안을 가진 run에 대한 createOptimization replay는 503 SOURCE_UNAVAILABLE이다
+- `BA-051-T21`: 후보는 run이 동결한 set에서만 온다
+- `BA-051-T22`: 동결 window는 item의 날만 덮는다
 
-**`T12`~`T20`은 getOptimization이 저장된 제안을 내는 절이다**(#16 R3·#242). `T14`~`T16`은 처음에 한 문장(*"lockChecks를 계약의 checks로 바꾼다"*)이었는데, 정렬 제거·파생 상수화·모르는 key 버리기 세 변이가 각각 다른 case 하나씩만 빨갛게 해서 셋으로 나눴다. `T13`은 V034가 비교한 쌍의 id를 저장하는 이유다 — 날짜로 쌍을 다시 찾던 설계로 되돌리면 이 case만 빨개진다. `T17`이 있어야 `T15`의 파생이 apps/ai의 주장이 아니라 이 API의 판정이 된다. `T18`은 #252의 worker 절이다. `T19`·`T20`은 getTrip과 같은 catalog 게이트 규칙이고, 검사가 `OptimizationProposalReader` 한 곳에 있어 create replay도 같이 따른다. 증거 위치: `OptimizeItemIT`(T12·T13), `ItemProposalMapperTest`(T14~T16), `ProposalRevalidatorTest`(T17), `OptimizationFailsClosedIT`(T19·T20).
+**`T12`~`T20`은 getOptimization이 저장된 제안을 내는 절이다**(#16 R3·#242). `T14`~`T16`은 처음에 한 문장(*"lockChecks를 계약의 checks로 바꾼다"*)이었는데, 정렬 제거·파생 상수화·모르는 key 버리기 세 변이가 각각 다른 case 하나씩만 빨갛게 해서 셋으로 나눴다. `T13`은 V034가 비교한 쌍의 id를 저장하는 이유다 — 날짜로 쌍을 다시 찾던 설계로 되돌리면 이 case만 빨개진다. `T17`이 있어야 `T15`의 파생이 apps/ai의 주장이 아니라 이 API의 판정이 된다. `T18`은 #252의 worker 절이다. `T19`·`T20`은 getTrip과 같은 catalog 게이트 규칙이고, 검사가 `OptimizationProposalReader` 한 곳에 있어 create replay도 같이 따른다. 증거 위치: `OptimizeItemIT`(T12·T13), `ItemProposalMapperTest`(T14~T16), `ProposalRevalidatorTest`(T17), `OptimizationFailsClosedIT`(T19·T20). **`T21`·`T22`는 #259다** — handler가 동결한 set과 다른 set에서 후보를 고를 수 있었다. `T21`은 후보를 동결 set에서만 읽게 하고, `T22`는 동결이 다음 날 자정 point 하나만 가진 set을 "당일을 덮는 set"으로 고르던 경계를 막는다. 더 새 set이 item의 날을 빠뜨린 경우로 둘을 결정적으로 갈라 잰다: assembler를 되돌리면 `TemporalCandidateAssemblerTest`와 `OptimizeItemIT`가, window 끝을 되돌리면 `OptimizeItemIT`만 빨개진다. 경합 타이밍 자체는 재현하지 않았다.
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -764,7 +764,7 @@
         "423:2967"
       ],
       "designRequests": [],
-      "entities": "crowd_snapshots · snapshot_sets · crowd_comparisons · source registry",
+      "entities": "crowd_snapshots · snapshot_sets · crowd_comparisons · source registry · crowd snapshot 보존 정리(retention sweep)는 아직 생산자가 없다. 만들 때는 optimization 제안이 가리키는 point를 지우지 않거나 지운 run의 읽기 계약을 먼저 정한다(#259, BA-052-T5)",
       "steps": [
         "LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE와 freshness를 서로 다른 타입으로 매핑한다",
         "temporal은 같은 POI/issue/metric, spatial은 같은 source/scope/group/set인 pair만 비교한다",
@@ -1760,6 +1760,14 @@
         {
           "id": "BA-051-T20",
           "assertion": "catalog가 닫힌 동안 제안을 가진 run에 대한 createOptimization replay는 503 SOURCE_UNAVAILABLE이다"
+        },
+        {
+          "id": "BA-051-T21",
+          "assertion": "후보는 run이 동결한 set에서만 온다"
+        },
+        {
+          "id": "BA-051-T22",
+          "assertion": "동결 window는 item의 날만 덮는다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",
