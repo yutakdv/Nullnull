@@ -431,7 +431,7 @@ class OptimizeRevertIT {
     }
 
     @Test
-    @DisplayName("a revert leaves candidate changes alone, which no version check could reach")
+    @DisplayName("BA-053-T11 a revert leaves candidate changes alone, which no version check could reach")
     void candidateChangesSurviveTheRevert() throws Exception {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);
@@ -454,6 +454,28 @@ class OptimizeRevertIT {
                 .as("the candidate this case is about was really saved")
                 .isEqualTo("ACTIVE");
 
+        // #165 Q3 decided ACTIVE and DISMISSED alike, and a restore widened to candidates could as easily
+        // revive a dismissal as undo a save - so a second place is saved and then dismissed after the APPLY.
+        UUID dismissed = insertPlace("BA-053 지운 후보 장소");
+        mvc.perform(post("/api/v1/trips/" + fixture.tripId() + "/candidates")
+                .cookie(cookie(fixture.owner()))
+                .header("Origin", ORIGIN)
+                .header("X-CSRF-Token", fixture.owner().csrf.token)
+                .header("Idempotency-Key", "candidate-" + UUID.randomUUID())
+                .contentType("application/json")
+                .content("{\"placeId\":\"" + dismissed + "\",\"source\":{\"type\":\"SEARCH\"}}"));
+        UUID dismissedId = jdbc.queryForObject("SELECT id FROM trip_candidates WHERE trip_id = ? AND place_id = ?",
+                UUID.class, fixture.tripId(), dismissed);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/trips/" + fixture.tripId() + "/candidates/" + dismissedId)
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", ORIGIN)
+                        .header("X-CSRF-Token", fixture.owner().csrf.token))
+                .andExpect(status().isNoContent());
+        assertThat(candidateStatuses(fixture.tripId(), dismissed))
+                .as("the candidate this case is about was really dismissed")
+                .containsExactly("DISMISSED");
+
         // V016 says it outright: "there is no trigger or column here that touches trips, and that
         // absence is the point". So saving a candidate leaves the version at 2, and the revert's
         // TRIP_CHANGED check - which compares the caller's version against the one the APPLY
@@ -475,6 +497,10 @@ class OptimizeRevertIT {
         assertThat(candidateStatus(fixture.tripId(), saved))
                 .as("the traveller's candidate survives an undo of an unrelated optimization")
                 .isEqualTo("ACTIVE");
+        // Every row for the place, not the first: a revived dismissal would be a second, ACTIVE row beside it.
+        assertThat(candidateStatuses(fixture.tripId(), dismissed))
+                .as("and so does the traveller's dismissal")
+                .containsExactly("DISMISSED");
         assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
     }
 
@@ -1083,6 +1109,15 @@ class OptimizeRevertIT {
                 "SELECT status FROM trip_candidates WHERE trip_id = ? AND place_id = ?",
                 String.class, tripId, placeId);
         return found.isEmpty() ? null : found.get(0);
+    }
+
+    /**
+     * Every row for the place. The partial unique index lets a DISMISSED row sit beside a live one, so the
+     * first row alone cannot tell a kept dismissal from a revived one.
+     */
+    private List<String> candidateStatuses(UUID tripId, UUID placeId) {
+        return jdbc.queryForList("SELECT status FROM trip_candidates WHERE trip_id = ? AND place_id = ?",
+                String.class, tripId, placeId);
     }
 
     private long tripVersion(UUID tripId) {
