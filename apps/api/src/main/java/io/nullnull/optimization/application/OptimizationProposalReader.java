@@ -1,5 +1,6 @@
 package io.nullnull.optimization.application;
 
+import io.nullnull.catalog.application.CatalogPublicationProperties;
 import io.nullnull.crowd.application.CrowdForecastQuery;
 import io.nullnull.crowd.application.CrowdProvenanceProjection;
 import io.nullnull.optimization.domain.OptimizationChange;
@@ -22,6 +23,11 @@ import org.springframework.stereotype.Component;
  * stores with the proposal: the ids apps/ai answered with and ProposalRevalidator required to be the
  * pair of the candidate this API hydrated. It is read by id, not found again by day, so no timezone is
  * involved - a trip whose zone was edited after the run still shows what the run compared.
+ *
+ * <p>A proposal carries catalog-derived text - its summary names the place, its evidence quotes the
+ * provider's registry - so a run that has one is served only while the catalog is published, the rule
+ * getTrip keeps for a trip with items. A run with none is answered either way: there is nothing of
+ * the catalog's in it.
  */
 @Component
 public class OptimizationProposalReader {
@@ -29,10 +35,12 @@ public class OptimizationProposalReader {
     private final ItemProposalMapper mapper;
     private final CrowdForecastQuery forecasts;
     private final CrowdProvenanceProjection provenance;
+    private final CatalogPublicationProperties publication;
 
     public OptimizationProposalReader(ItemProposalMapper mapper, CrowdForecastQuery forecasts,
-            CrowdProvenanceProjection provenance) {
+            CrowdProvenanceProjection provenance, CatalogPublicationProperties publication) {
         this.mapper = Objects.requireNonNull(mapper, "mapper");
+        this.publication = Objects.requireNonNull(publication, "publication");
         this.forecasts = Objects.requireNonNull(forecasts, "forecasts");
         this.provenance = Objects.requireNonNull(provenance, "provenance");
     }
@@ -45,6 +53,9 @@ public class OptimizationProposalReader {
         if (stored.isEmpty()) {
             return List.of();
         }
+        // First, before anything is read: a closed catalog answers 503 SOURCE_UNAVAILABLE whatever
+        // state the stored rows are in.
+        publication.requirePublicProjection();
         List<UUID> named = new ArrayList<>();
         for (OptimizationProposal proposal : stored) {
             if (proposal.beforeSnapshotId() == null) {

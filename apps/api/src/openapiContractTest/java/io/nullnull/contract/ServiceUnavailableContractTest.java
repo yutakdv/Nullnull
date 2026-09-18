@@ -44,7 +44,11 @@ class ServiceUnavailableContractTest {
             "getReadiness", "SOURCE_UNAVAILABLE",
             // TripDraftPreviewFailsClosedIT (closed catalog) and TripDraftPreviewGatewayIT (apps/ai
             // unanswered) assert $.code on both producers.
-            "previewTripDraft", "SOURCE_UNAVAILABLE"));
+            "previewTripDraft", "SOURCE_UNAVAILABLE",
+            // OptimizationFailsClosedIT asserts $.code on both: a run holding proposals while the
+            // catalog is closed, read directly and through a replayed create.
+            "getOptimization", "SOURCE_UNAVAILABLE",
+            "createOptimization", "SOURCE_UNAVAILABLE"));
 
     private static final Pattern OPERATION = Pattern.compile("^\\s+operationId: (\\w+)\\s*$");
 
