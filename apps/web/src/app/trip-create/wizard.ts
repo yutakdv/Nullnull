@@ -75,6 +75,15 @@ export interface DraftStop {
   /** ISO date, always set: this screen only adds a stop UNDER a day header. */
   date: string;
   daypart: Daypart;
+  /**
+   * Picked as a must-visit on the confirm step (S02-5C `438:3259`).
+   *
+   * Becomes a `MUST_VISIT` constraint on this stop's seed item. Unlike
+   * `draft.mustVisit`, which holds dateless places #180 settled onto the
+   * candidate, this one CAN be a lock: the stop already has a date, so it is a
+   * `seedItem`, and `trip_constraints.trip_item_id` has a row to point at.
+   */
+  mustVisit: boolean;
 }
 
 export interface WizardDraft {
@@ -205,7 +214,12 @@ export function addStop(
 ): WizardDraft {
   if (draft.stops.length >= MAX_SEED_ITEMS) return draft;
   if (!tripDays(draft).includes(date)) return draft;
-  return { ...draft, stops: [...draft.stops, { key, place, date, daypart }] };
+  // Not picked by default: the confirm step asks, and a pick the traveller
+  // never made must not arrive pre-made.
+  return {
+    ...draft,
+    stops: [...draft.stops, { key, place, date, daypart, mustVisit: false }],
+  };
 }
 
 export function removeStop(draft: WizardDraft, key: string): WizardDraft {
@@ -221,6 +235,22 @@ export function setStopDaypart(
   return {
     ...draft,
     stops: draft.stops.map((stop) => (stop.key === key ? { ...stop, daypart } : stop)),
+  };
+}
+
+/**
+ * Turns one stop's must-visit pick on or off (S02-5C `438:3259`).
+ *
+ * No cap and no cross-stop rule: MUST_VISIT is one lock per ITEM, and the four
+ * lock types are independent (invariant 7). Picking every stop is a valid
+ * answer, and so is picking none.
+ */
+export function toggleStopMustVisit(draft: WizardDraft, key: string): WizardDraft {
+  return {
+    ...draft,
+    stops: draft.stops.map((stop) =>
+      stop.key === key ? { ...stop, mustVisit: !stop.mustVisit } : stop,
+    ),
   };
 }
 
@@ -269,6 +299,18 @@ export function seedItemsOf(draft: WizardDraft): SeedTripItem[] {
       date,
       position,
       startTime: null,
+      // Omitted when nothing was picked, for the reason toCreateRequest omits
+      // an empty seedItems: an empty array is a statement that this stop
+      // carries constraints, and it carries none.
+      //
+      // `locked: true` is the contract's `const` for this variant, not a
+      // choice — SetMustVisitConstraintInput admits no other value. An unset
+      // pick sends NO constraint rather than `locked: false`, because the four
+      // locks are independent and never auto-released (invariant 7): absence is
+      // how "not locked" is said.
+      ...(stop.mustVisit
+        ? { constraints: [{ type: 'MUST_VISIT' as const, locked: true as const }] }
+        : {}),
     })),
   );
 }

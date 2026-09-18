@@ -546,12 +546,18 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     // The whole point of the screen, and the one assertion that guards the
     // decision behind it: the card offers only 오전/오후, so no clock time was
     // ever chosen and none may be sent (see wizard.ts seedItemsOf).
+    //
+    // The submit happens one step later than it used to. This step's CTA now
+    // leads to the confirm step (S02-5C), which is where the must-visit picks
+    // are made, so the request is sent from there.
     const user = userEvent.setup();
     await reachManual(user);
     await screen.findByRole('heading', { name: copy['manual.title'] });
     await addPlaceTo(user, 0);
 
     await user.click(screen.getByRole('button', { name: copy['manual.next'] }));
+    await screen.findByRole('heading', { name: copy['confirm.title'] });
+    await user.click(screen.getByRole('button', { name: copy['confirm.next'] }));
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
@@ -559,6 +565,22 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     const body = created[0]?.body as { seedItems?: { startTime: unknown }[] };
     expect(body.seedItems).toHaveLength(1);
     expect(body.seedItems?.[0]?.startTime).toBeNull();
+  });
+
+  it('creates the trip directly when nothing was entered to confirm', async () => {
+    // The confirm step reads the itinerary back and asks which places must
+    // stay. With no stops there is nothing to read back and nothing to pick,
+    // so showing it would be an empty page with two buttons.
+    const user = userEvent.setup();
+    await reachManual(user);
+    await screen.findByRole('heading', { name: copy['manual.title'] });
+
+    await user.click(screen.getByRole('button', { name: copy['manual.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    expect((created[0]?.body as { seedItems?: unknown }).seedItems).toBeUndefined();
   });
 
   it('does not carry the stops when the traveller says there are none', async () => {
@@ -589,5 +611,125 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     expect(
       await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('S02-5C the confirm step picks what must stay (FE-103, FR-TRC-05)', () => {
+  /** Through the wizard to the manual step, with one stop entered on day 1. */
+  async function reachConfirm(user: ReturnType<typeof userEvent.setup>) {
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
+    );
+    await screen.findByRole('heading', { name: copy['manual.title'] });
+
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[0] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    const picks = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.pick']),
+    });
+    await user.click(picks[0] as HTMLElement);
+
+    await user.click(screen.getByRole('button', { name: copy['manual.next'] }));
+    await screen.findByRole('heading', { name: copy['confirm.title'] });
+  }
+
+  /** The Pick toggle of the first (only) stop. */
+  function pickToggle() {
+    return screen.getAllByRole('button', {
+      name: new RegExp(copy['confirm.pickNamed'].replace('{place}', '.+')),
+    })[0] as HTMLElement;
+  }
+
+  it('confirms before creating rather than submitting from the entry step', async () => {
+    // 이 일정으로 시작하기 on the manual step leads here, not to the server:
+    // this is where the must-visit picks are made, so submitting earlier would
+    // skip the question the screen exists to ask.
+    const user = userEvent.setup();
+    await reachConfirm(user);
+    expect(created).toHaveLength(0);
+  });
+
+  it('offers a pick toggle per stop, off until the traveller presses it', async () => {
+    // The toggle FIGMA_HANDOFF:154 left out of its description. It reports its
+    // own state, so the pin glyph is not the only thing carrying it.
+    const user = userEvent.setup();
+    await reachConfirm(user);
+    expect(pickToggle()).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('sends MUST_VISIT for a picked stop', async () => {
+    const user = userEvent.setup();
+    await reachConfirm(user);
+    await user.click(pickToggle());
+    expect(pickToggle()).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: copy['confirm.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    const body = created[0]?.body as {
+      seedItems?: { constraints?: { type: string; locked: boolean }[] }[];
+    };
+    expect(body.seedItems?.[0]?.constraints).toEqual([
+      { type: 'MUST_VISIT', locked: true },
+    ]);
+  });
+
+  it('sends no constraint for a stop left unpicked', async () => {
+    // Absence, not `locked: false`: the four locks are independent and never
+    // auto-released (invariant 7), so not-locked is said by saying nothing.
+    const user = userEvent.setup();
+    await reachConfirm(user);
+
+    await user.click(screen.getByRole('button', { name: copy['confirm.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    const body = created[0]?.body as { seedItems?: { constraints?: unknown }[] };
+    expect(body.seedItems?.[0]?.constraints).toBeUndefined();
+  });
+
+  it('renders no crowd figure, because nothing here can source one', async () => {
+    // The frame draws `4 · 혼잡`, a CrowdBar and the ⓒ한국관광공사 source line
+    // on every card. PlaceSummary carries no crowd field, so a number here
+    // would be one nobody measured (invariant 8) — and crediting KTO for a
+    // figure not shown would imply a source that was not granted
+    // (CMP-ATT-003). #105 / FCR-029 tracks it.
+    const user = userEvent.setup();
+    await reachConfirm(user);
+
+    const body = document.body.textContent ?? '';
+    expect(body).not.toMatch(/혼잡/);
+    expect(body).not.toMatch(/한국관광공사/);
+  });
+
+  it('keeps the picks when going back to fix the itinerary', async () => {
+    // 다시 고칠래요 is not a cancel. Every other step of this wizard preserves
+    // what was entered when moving back, and this one drops nothing either.
+    const user = userEvent.setup();
+    await reachConfirm(user);
+    await user.click(pickToggle());
+
+    await user.click(screen.getByRole('button', { name: copy['confirm.edit'] }));
+    await screen.findByRole('heading', { name: copy['manual.title'] });
+    await user.click(screen.getByRole('button', { name: copy['manual.next'] }));
+
+    await screen.findByRole('heading', { name: copy['confirm.title'] });
+    expect(pickToggle()).toHaveAttribute('aria-pressed', 'true');
   });
 });

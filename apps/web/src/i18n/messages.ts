@@ -342,6 +342,18 @@ export const messages = {
     'manual.daypartFor': '{place} 시간대',
     'manual.next': '이 일정으로 시작하기',
     'manual.skip': '건너뛰기',
+
+    // S02-5C 최종 확인 `438:3259`. Pick = MUST_VISIT constraint on that stop.
+    // The hint states what the lock does, which apps/ai's filters.py backs:
+    // the place is kept, a temporal move stays allowed.
+    'confirm.step': '마지막',
+    'confirm.title': '이렇게 입력하셨어요',
+    'confirm.lead': '맞는지 확인하고, 꼭 가고 싶은 곳을 골라주세요.',
+    'confirm.hint1': '고른 곳은 다른 장소로 바꾸자고 하지 않아요.',
+    'confirm.hint2': '대신 덜 붐비는 날짜를 알려드려요.',
+    'confirm.pickNamed': '{place} 꼭 가고 싶은 곳으로 고르기',
+    'confirm.next': '이 일정으로 시작하기',
+    'confirm.edit': '다시 고칠래요',
     'import.title': '일정 붙여넣기',
     'import.lead': '메모장이나 메신저에 적어둔 일정을 그대로 붙여넣어 주세요',
     'import.label': '일정 원문',
@@ -1051,6 +1063,16 @@ export const messages = {
     'manual.daypartFor': 'Time of day for {place}',
     'manual.next': 'Start with this plan',
     'manual.skip': 'Skip',
+
+    // S02-5C confirm `438:3259`.
+    'confirm.step': 'Last step',
+    'confirm.title': "Here's what you entered",
+    'confirm.lead': "Check it over, and pick the places you can't miss.",
+    'confirm.hint1': "We won't suggest swapping the places you pick.",
+    'confirm.hint2': "We'll suggest a less crowded day instead.",
+    'confirm.pickNamed': 'Mark {place} as a place you must visit',
+    'confirm.next': 'Start with this plan',
+    'confirm.edit': 'Let me fix it',
     'import.title': 'Paste your itinerary',
     'import.lead': 'Paste the plan you already wrote in notes or a chat',
     'import.label': 'Itinerary text',

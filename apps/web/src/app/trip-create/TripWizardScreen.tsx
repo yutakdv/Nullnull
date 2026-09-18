@@ -19,8 +19,10 @@ import {
   setStopDaypart,
   toCreateRequest,
   toggleInterest,
+  toggleStopMustVisit,
   type WizardDraft,
 } from './wizard.js';
+import { ConfirmStopsStep } from './ConfirmStopsStep.js';
 import { InputMethodStep } from './InputMethodStep.js';
 import { ManualStopsStep } from './ManualStopsStep.js';
 import { MustVisitStep } from './MustVisitScreen.js';
@@ -143,8 +145,10 @@ export function TripWizardScreen() {
   return (
     <section className={styles.screen} aria-labelledby="wizard-heading">
       <NavBar backLabel={t('wizard.back')} onBack={goBack} />
+      {/* The confirm step names itself 마지막 rather than STEP 6: the frame
+          says so, and a number implies a seventh step that does not exist. */}
       <p className={styles.step}>
-        {t('wizard.step')} {step}
+        {step === 6 ? t('confirm.step') : `${t('wizard.step')} ${String(step)}`}
       </p>
 
       {step === 1 ? (
@@ -428,7 +432,16 @@ export function TripWizardScreen() {
             setDraft((current) => setStopDaypart(current, key, daypart));
           }}
           onSubmit={() => {
-            submit(draft);
+            // On to the confirm step (S02-5C) rather than straight to the
+            // server: that screen reads the itinerary back and is where the
+            // must-visit picks are made. With nothing entered there is nothing
+            // to confirm and no place to pick, so that case creates the trip
+            // from here instead of showing an empty page.
+            if (draft.stops.length === 0) {
+              submit(draft);
+              return;
+            }
+            setStep(6);
           }}
           onSkip={() => {
             // An answer, not a cancel: the traveller says there is nothing to
@@ -439,6 +452,28 @@ export function TripWizardScreen() {
             const cleared = { ...draft, stops: [] };
             setDraft(cleared);
             submit(cleared);
+          }}
+          isSubmitting={createTrip.isPending}
+        />
+      ) : null}
+
+      {/* S02-5C `438:3259`: read the itinerary back and pick what must stay.
+          FIGMA_HANDOFF:154 describes this as a summary, which is how its Pick
+          toggle went uncounted — it is an input screen. */}
+      {step === 6 ? (
+        <ConfirmStopsStep
+          draft={draft}
+          onTogglePick={(key) => {
+            setDraft((current) => toggleStopMustVisit(current, key));
+          }}
+          onSubmit={() => {
+            submit(draft);
+          }}
+          onEdit={() => {
+            // 다시 고칠래요 goes back to the entry step with everything intact,
+            // picks included — the same promise the wizard makes at every other
+            // step. It is not a cancel and drops nothing.
+            setStep(5);
           }}
           isSubmitting={createTrip.isPending}
         />

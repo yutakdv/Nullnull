@@ -20,6 +20,7 @@ import {
   removeStop,
   seedItemsOf,
   selectDay,
+  toggleStopMustVisit,
   toCreateRequest,
   toggleInterest,
   tripDays,
@@ -284,5 +285,53 @@ describe('sending manually entered stops', () => {
     // change request first rather than an invented mapping here.
     const items = seedItemsOf(twoDays);
     expect(items.some((item) => 'daypart' in item)).toBe(false);
+  });
+});
+
+// S02-5C confirm (`438:3259`, FR-TRC-05, FE-103).
+//
+// The Pick toggle is a MUST_VISIT constraint on the stop's seed item. It can be
+// a lock here, unlike draft.mustVisit, precisely because the stop has a date.
+
+describe('picking must-visit places on the confirm step', () => {
+  const dayOne = (() => {
+    let draft: WizardDraft = planned;
+    draft = addStop(draft, '2026-10-04', placeNamed('p1', '경복궁'), 'k1');
+    draft = addStop(draft, '2026-10-04', placeNamed('p2', '인사동'), 'k2');
+    return draft;
+  })();
+
+  it('starts every stop unpicked, so no pick is made on the user behalf', () => {
+    expect(dayOne.stops.every((stop) => !stop.mustVisit)).toBe(true);
+  });
+
+  it('sends MUST_VISIT only for the stop that was picked', () => {
+    const picked = toggleStopMustVisit(dayOne, 'k1');
+    const items = seedItemsOf(picked);
+
+    expect(items[0]?.constraints).toEqual([{ type: 'MUST_VISIT', locked: true }]);
+    // The unpicked one carries NO constraints array rather than an empty one:
+    // absence is how "not locked" is said, and the four locks are independent
+    // and never auto-released (invariant 7).
+    expect(items[1]?.constraints).toBeUndefined();
+  });
+
+  it('turns a pick back off', () => {
+    const on = toggleStopMustVisit(dayOne, 'k1');
+    const off = toggleStopMustVisit(on, 'k1');
+    expect(seedItemsOf(off)[0]?.constraints).toBeUndefined();
+  });
+
+  it('lets every stop be picked, which is a valid answer', () => {
+    // MUST_VISIT is one lock per item and the types are independent, so there
+    // is no cross-stop cap to enforce here.
+    let draft = toggleStopMustVisit(dayOne, 'k1');
+    draft = toggleStopMustVisit(draft, 'k2');
+    expect(seedItemsOf(draft).every((item) => item.constraints?.length === 1)).toBe(true);
+  });
+
+  it('leaves the other stops alone when one is toggled', () => {
+    const picked = toggleStopMustVisit(dayOne, 'k1');
+    expect(picked.stops[1]).toEqual(dayOne.stops[1]);
   });
 });
