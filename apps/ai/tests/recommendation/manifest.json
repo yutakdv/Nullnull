@@ -52,7 +52,11 @@
     "REC-JOB-01",
     "REC-JOB-02",
     "REC-LLM-01",
-    "REC-ARCH-01"
+    "REC-ARCH-01",
+    "REC-DRAFT-01",
+    "REC-DRAFT-02",
+    "REC-DRAFT-03",
+    "REC-DRAFT-04"
   ],
   "implementedTestIds": [
     {
@@ -123,6 +127,32 @@
         "apps/api/src/integrationTest/java/io/nullnull/identity/DeletionIT.java",
         "apps/api/src/integrationTest/java/io/nullnull/identity/DeletionJobIT.java",
         "apps/api/src/test/java/io/nullnull/identity/application/TombstoneReapplierTest.java"
+      ]
+    },
+    {
+      "id": "REC-DRAFT-01",
+      "suite": "pytest",
+      "path": "tests/draft/test_composer.py"
+    },
+    {
+      "id": "REC-DRAFT-02",
+      "suite": "pytest",
+      "path": "tests/draft/test_composer.py"
+    },
+    {
+      "id": "REC-DRAFT-03",
+      "suite": "pytest",
+      "path": [
+        "tests/draft/test_composer.py",
+        "tests/test_api_drafts.py"
+      ]
+    },
+    {
+      "id": "REC-DRAFT-04",
+      "suite": "pytest",
+      "path": [
+        "tests/draft/test_composer.py",
+        "tests/test_api_drafts.py"
       ]
     }
   ],

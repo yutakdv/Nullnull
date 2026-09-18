@@ -241,6 +241,59 @@ class SlotEvaluateResponse(ContractModel):
     reasons: list[str]
 
 
+DraftStateName = Literal["READY", "EMPTY"]
+"""READY when at least one stop was placed; EMPTY is never padded with a stop."""
+
+DraftHoursState = Literal["OPEN", "UNKNOWN"]
+"""A CLOSED date never holds a stop, so a stop's hours are either verified OPEN or UNKNOWN."""
+
+DraftReasonCode = Literal["NO_ELIGIBLE_PLACES", "ALL_DATES_FULL"]
+
+DraftRejectionCode = Literal["HOURS_CLOSED_ALL_DATES", "DAY_CAP_FULL"]
+
+
+class DraftPlaceIn(ContractModel):
+    """One published place of the pool with its verified windows; a date without a window is unknown."""
+
+    place_id: UUID
+    opening_hours: dict[date_, OpeningWindowIn] = Field(max_length=30)  # one entry per trip date (max 30)
+
+
+class DraftComposeRequest(ContractModel):
+    """The trip dates and the pool to place on them (REC-CON-04).
+
+    `tripEnd` is inclusive and the trip spans at most 30 dates. The body carries no owner or session
+    id, no interest, no must-visit place, no crowd value and no time of day.
+    """
+
+    evaluated_at: AwareDatetime
+    trip_start: date_
+    trip_end: date_
+    trip_zone: str = Field(min_length=1, max_length=64)
+    max_stops_per_day: int = Field(ge=1)
+    pool: list[DraftPlaceIn] = Field(max_length=100)
+
+
+class DraftStopOut(ContractModel):
+    """One placed place. It carries no time field: P0 proposes a date and never invents a time."""
+
+    place_id: UUID
+    date: date_
+    position: int = Field(ge=0)
+    hours_state: DraftHoursState
+
+
+class DraftComposeResponse(ContractModel):
+    policy_version: str
+    policy_hash: str
+    pipeline_version: str
+    state: DraftStateName
+    stops: list[DraftStopOut]
+    reasons: list[DraftReasonCode]
+    evaluated: int
+    rejected_by_reason: dict[DraftRejectionCode, int]
+
+
 RelationTierName = Literal["EXACT", "SIMILAR"]
 """How the catalog mapping policy classified one relation. Never synthesized from a confidence value."""
 
