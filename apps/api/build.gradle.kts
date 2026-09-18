@@ -343,6 +343,24 @@ tasks.register<JavaExec>("ktoCallInventory") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("ktoDemoDetailRefresh") {
+    group = "verification"
+    description = "Renews the approved KTO detail snapshots of the demo places (NULLNULL_DEMO_PLACES) that lapse within two days"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoDemoDetailRefreshMain")
+    workingDir = projectDir
+}
+
+tasks.register<JavaExec>("ktoDemoForecastRefresh") {
+    group = "verification"
+    description = "Renews the approved KTO forecasts of the demo places (NULLNULL_DEMO_PLACES) that lapse within twelve hours"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoDemoForecastRefreshMain")
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("ktoForecastSmoke") {
     group = "verification"
     description = "Runs one approved KTO forecast call from a verified canonical KTO mapping and prints redacted evidence only"
