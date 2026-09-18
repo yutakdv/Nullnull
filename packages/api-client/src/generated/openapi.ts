@@ -688,6 +688,8 @@ export interface paths {
          *     current locks, then freezes the input revision. External data and route checks execute
          *     asynchronously; failure is reported on the run and never mutates the trip. ITEM requires
          *     exactly targetItemId, DAY requires exactly targetDate, and TRIP accepts neither target.
+         *     A replayed request answers with the run as it is now; if that run already holds proposals
+         *     and the catalog is not published, it is 503 SOURCE_UNAVAILABLE, as getOptimization is.
          */
         post: operations["createOptimization"];
         delete?: never;
@@ -734,6 +736,9 @@ export interface paths {
          *     do not extend or duplicate proposal/snapshot retention for this projection. An APPLIED
          *     run remains APPLIED when its revert window expires. Revert still revalidates state
          *     atomically; a preceding AVAILABLE read is not an authorization to skip those checks.
+         *     A run that holds proposals is 503 SOURCE_UNAVAILABLE while the catalog is not published,
+         *     as getTrip is for a trip with items: a proposal's summary names the place and its
+         *     dataProvenance quotes the source registry. A run with no proposal is answered either way.
          */
         get: operations["getOptimization"];
         put?: never;
@@ -4043,6 +4048,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -4109,6 +4115,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };

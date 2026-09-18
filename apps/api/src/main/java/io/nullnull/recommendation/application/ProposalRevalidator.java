@@ -19,8 +19,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -73,6 +75,7 @@ public final class ProposalRevalidator {
     public static final String NEIGHBOUR_DURATION_UNKNOWN = "NEIGHBOUR_DURATION_UNKNOWN";
     public static final String OVERLAPS_NEIGHBOUR = "OVERLAPS_NEIGHBOUR";
     public static final String ROUTE_EVIDENCE_MISSING = "ROUTE_EVIDENCE_MISSING";
+    public static final String LOCK_CHECKS_MISMATCH = "LOCK_CHECKS_MISMATCH";
 
     private final PolicyDescriptor cachedPolicy;
 
@@ -179,8 +182,19 @@ public final class ProposalRevalidator {
         if (proposal.date().isBefore(request.tripStart()) || proposal.date().isAfter(request.tripEnd())) {
             codes.add(OUTSIDE_TRIP_RANGE);
         }
-        codes.addAll(LockChecks.evaluate(locks, proposal.date(), proposal.startTime(), target.durationMinutes())
-                .reasonCodes());
+        LockChecks.Result judged = LockChecks.evaluate(locks, proposal.date(), proposal.startTime(),
+                target.durationMinutes());
+        codes.addAll(judged.reasonCodes());
+        // The service reports its own lock verdicts (lockChecks), and getOptimization shows them as the
+        // proposal's validation summary (#242). They are only this API's verdicts if they are the same
+        // ones: one entry per lock the request carried, each with the result judged above. A map that
+        // leaves a lock out, names one the item does not have, or disagrees on a result is refused
+        // rather than stored as what the traveller is told held.
+        Map<String, Boolean> expected = new LinkedHashMap<>();
+        judged.passed().forEach((type, passed) -> expected.put(type.name(), passed));
+        if (!proposal.lockChecks().equals(expected)) {
+            codes.add(LOCK_CHECKS_MISMATCH);
+        }
         addIfPresent(codes, openingHours(request.openingHours().get(proposal.date()), proposal.startTime(),
                 target.durationMinutes()));
         addIfPresent(codes, neighbourOverlap(request.neighbours(), target.itemId(), proposal.date(),
