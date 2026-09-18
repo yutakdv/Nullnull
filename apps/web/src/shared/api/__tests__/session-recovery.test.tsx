@@ -250,9 +250,20 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
   it('tells the user the session ended instead of loading for ever', async () => {
     expiredSession();
     renderAt('/feed');
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      messages['en-US']['session.expired'],
-    );
+    // Asserted as a HEADING, not as an alert. The sentence used to carry
+    // role="alert" on the <h1> itself, which replaced the implicit heading
+    // role and left this screen with no heading at all (#240) - the shape
+    // every h1-checking spec tripped over. The announcement now lives on a
+    // wrapping live region, so both hold.
+    // Waited for by NAME: the feed renders its own <h1> first, so asking for
+    // "the level-1 heading" matched "Browse" and failed on the frame before
+    // the session screen replaced it.
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: messages['en-US']['session.expired'],
+      }),
+    ).toBeInTheDocument();
   });
 
   it('offers the restart the contract names as the recovery', async () => {
@@ -271,7 +282,7 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
     // The recovery has to be the user's deliberate act, not an automatic one.
     expiredSession();
     renderAt('/feed');
-    await screen.findByRole('alert');
+    await screen.findByRole('heading', { level: 1 });
     expect(paths.filter((p) => p === '/api/v1/demo/sessions')).toHaveLength(0);
   });
 

@@ -82,12 +82,29 @@ export function AppShell({ tabs = false }: AppShellProps) {
       <div className={styles.shell}>
         <main className={styles.content} id="main">
           <section aria-labelledby="session-heading" className={styles.session}>
-            {/* role="alert" on the heading itself: two elements carrying the
-                same sentence would have a screen reader read it twice. */}
-            <h1 className={styles.sessionTitle} id="session-heading" role="alert">
-              {t('session.expired')}
-            </h1>
-            <p className={styles.sessionNote}>{t('session.expiredNote')}</p>
+            {/* The heading stays a heading.
+
+                `role="alert"` used to sit on this <h1> to avoid two elements
+                reading the same sentence twice. It works for the announcement
+                and costs the outline: an explicit role REPLACES the implicit
+                one, so the <h1> stopped being a heading in the accessibility
+                tree. A screen-reader user navigating by headings found none,
+                and `getByRole('heading', { level: 1 })` found none either —
+                which is why every spec that checks the h1's id reported
+                "element(s) not found" on this screen (#240).
+
+                The announcement moves to a container that wraps both lines, so
+                the sentence is still read on arrival and the heading is still
+                a heading. `aria-live="assertive"` rather than role="alert"
+                because the region already exists when this branch renders;
+                `role="alert"` on a wrapper would add a second announcement of
+                text the section is also labelled by. */}
+            <div aria-live="assertive">
+              <h1 className={styles.sessionTitle} id="session-heading">
+                {t('session.expired')}
+              </h1>
+              <p className={styles.sessionNote}>{t('session.expiredNote')}</p>
+            </div>
             {/* The restart is the user's deliberate act. Bootstrapping here on
                 their behalf would mint a different anonymous owner and strand
                 the trips this message just promised (SessionSafetyIT). Sending
