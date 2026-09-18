@@ -65,7 +65,7 @@ import org.springframework.test.web.servlet.ResultActions;
         "nullnull.jobs.max-retry-backoff=PT1S"})
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
-@DisplayName("BA-053 taking an optimization back")
+@DisplayName("BA-053 taking an optimization back, and BA-054 saying whether it can be")
 class OptimizeRevertIT {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -394,6 +394,116 @@ class OptimizeRevertIT {
         mvc.perform(get("/api/v1/optimizations").cookie(cookie(mine.owner())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[?(@.runId == '" + myRun + "')]").doesNotExist());
+    }
+
+    // ------------------------------------------------------- BA-054 projection
+
+    @Test
+    @DisplayName("BA-054-T1 a run with no APPLY decision reports NOT_APPLICABLE")
+    void noApplyDecisionIsNotApplicable() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+
+        // READY, nothing decided. There is no undo to offer and no reason to pretend otherwise.
+        assertThat(availability(fixture, runId)).isEqualTo("NOT_APPLICABLE");
+    }
+
+    @Test
+    @DisplayName("BA-054-T2 a run already taken back reports REVERTED")
+    void anAlreadyRevertedRunIsReverted() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        clock.advance(Duration.ofSeconds(1));
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andExpect(status().isOk());
+
+        assertThat(availability(fixture, runId)).isEqualTo("REVERTED");
+    }
+
+    @Test
+    @DisplayName("BA-054-T3 an APPLY past its window reports EXPIRED")
+    void aClosedWindowIsExpired() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"").andExpect(status().isOk());
+
+        assertThat(availability(fixture, runId))
+                .as("still inside the window before the clock moves")
+                .isEqualTo("AVAILABLE");
+        clock.advance(Duration.ofHours(25));
+
+        // The run is still APPLIED - a closed window does not un-apply anything - and only this
+        // projection changes. Asserting the status too keeps that distinction from drifting.
+        assertThat(availability(fixture, runId)).isEqualTo("EXPIRED");
+        assertThat(runColumn(runId, "status")).isEqualTo("APPLIED");
+    }
+
+    @Test
+    @DisplayName("BA-054-T4 an APPLY whose trip has since moved reports NOT_APPLICABLE")
+    void aMovedTripIsNotApplicable() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"").andExpect(status().isOk());
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+
+        editTheNote(fixture, "\"2\"");
+
+        // Same value as T1 and a different reason: there IS an apply, but its before-values describe
+        // a trip that no longer exists. The contract collapses the two on purpose - the caller is
+        // told the undo is not offered, not why.
+        assertThat(availability(fixture, runId)).isEqualTo("NOT_APPLICABLE");
+    }
+
+    @Test
+    @DisplayName("BA-054-T5 an APPLY inside its window on an unchanged trip reports AVAILABLE")
+    void anUndoableApplyIsAvailable() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"").andExpect(status().isOk());
+
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+    }
+
+    @Test
+    @DisplayName("BA-054-T6 AVAILABLE is advisory — the revert still refuses a trip that moved")
+    void availableDoesNotAuthoriseTheRevert() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+
+        // The read said yes, and then the world moved. If the projection were treated as permission
+        // the revert would go through on the strength of a value that was true a moment ago - which
+        // is exactly what a read-then-write race is. The mutation must re-decide for itself.
+        editTheNote(fixture, "\"2\"");
+        clock.advance(Duration.ofSeconds(1));
+
+        revert(fixture, applied, "\"3\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRIP_CHANGED"));
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+    }
+
+    /** The projection as a caller reads it, through the operation that publishes it. */
+    private String availability(Fixture fixture, UUID runId) throws Exception {
+        return mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()
+                .replaceFirst("(?s)^.*?\"revertAvailability\":\"([^\"]+)\".*$", "$1");
+    }
+
+    /** A note edit: it raises the trip version and is one of the two fields the snapshot omits. */
+    private void editTheNote(Fixture fixture, String ifMatch) throws Exception {
+        mvc.perform(patch("/api/v1/trips/" + fixture.tripId() + "/items/" + fixture.itemId())
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", ORIGIN)
+                        .header("X-CSRF-Token", fixture.owner().csrf.token)
+                        .header("If-Match", ifMatch)
+                        .contentType("application/merge-patch+json")
+                        .content("{\"note\":\"직접 적어 둔 메모\"}"))
+                .andExpect(status().isOk());
     }
 
     // ----------------------------------------------------------- fixtures

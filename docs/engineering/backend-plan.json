@@ -1830,6 +1830,65 @@
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-053"
     },
     {
+      "id": "BA-054",
+      "phase": "B06",
+      "priority": "P0",
+      "title": "revertAvailability 읽기 투영",
+      "status": "planned",
+      "dependsOn": [
+        "BA-053"
+      ],
+      "operations": [],
+      "featureIds": [
+        "FR-OPT-09"
+      ],
+      "figmaNodes": [
+        "724:4858"
+      ],
+      "designRequests": [
+        "FCR-015"
+      ],
+      "entities": "저장하지 않는 응답 시점 투영 · APPLY decision의 revertUntil·resultingTripVersion · run 상태",
+      "steps": [
+        "getOptimization 응답에 revertAvailability를 계산해 넣는다. 계약이 응답 시점 계산이라고 적었으므로 값을 저장하지 않는다",
+        "계약 precedence를 그 순서대로 적용한다: APPLY 없음 → 이미 되돌림 → 창 만료 → version 불일치 → AVAILABLE",
+        "판정 근거를 revert가 쓰는 것과 같은 자리에서 읽는다(decision의 revertUntil·resultingTripVersion, run 상태). 두 곳이 갈리면 화면과 mutation이 다른 답을 준다",
+        "AVAILABLE이 advisory임을 코드에 남긴다 — 이 투영을 근거로 revert의 재검사를 줄이지 않는다",
+        "필드 부재가 'client 시계로 undo를 켜도 된다'로 읽히지 않는지 계약 서술과 FE 계약서를 대조한다"
+      ],
+      "safety": "값을 저장하지 않고 응답 시점에 계산한다. AVAILABLE은 advisory이며 revert가 owner·version·window·decision을 다시 검사한다. 필드 부재를 client 시계로 undo를 켜는 근거로 쓰지 않는다.",
+      "tests": [
+        {
+          "id": "BA-054-T1",
+          "assertion": "APPLY decision이 없는 run은 NOT_APPLICABLE이다"
+        },
+        {
+          "id": "BA-054-T2",
+          "assertion": "이미 되돌린 run은 REVERTED다"
+        },
+        {
+          "id": "BA-054-T3",
+          "assertion": "서버 시각이 APPLY의 revertUntil 이후면 EXPIRED다"
+        },
+        {
+          "id": "BA-054-T4",
+          "assertion": "현재 trip version이 APPLY의 resultingTripVersion과 다르면 NOT_APPLICABLE이다"
+        },
+        {
+          "id": "BA-054-T5",
+          "assertion": "그 밖의 경우 AVAILABLE이다"
+        },
+        {
+          "id": "BA-054-T6",
+          "assertion": "AVAILABLE을 읽은 뒤에도 revert가 owner·version·window·decision을 다시 검사한다"
+        }
+      ],
+      "handoff": "applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-054"
+    },
+    {
       "id": "BA-060",
       "phase": "B07",
       "priority": "P0",
