@@ -30,6 +30,13 @@ public interface CrowdForecastQuery {
      */
     Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to);
 
+    /**
+     * Points by id, whichever sets they belong to, for a caller that stored which points it used
+     * (optimization_proposals' compared pair, V034). A point that no longer exists is simply absent;
+     * the caller decides what a missing one means.
+     */
+    List<Snapshot> points(List<UUID> ids);
+
     record SnapshotSet(UUID id, List<Snapshot> snapshots) {
         public SnapshotSet {
             snapshots = List.copyOf(snapshots);

@@ -1341,10 +1341,10 @@ swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있�
 `T7`~`T9`는 `TripScheduleBoundaryIT`에 있다(`apps/api/src/integrationTest/java/io/nullnull/trip/`). `f3bd262` 위의 격리 worktree에서 `test`(417)·`integrationTest`(391)·
 `openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
 
-**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기가 Playwright report를
-받지 않으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
+**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기는 #233부터 Playwright report를
+읽지만 이 절을 증명할 E2E가 아직 없으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
 (`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는
-ID"가 된다). FE가 E2E를 쓰고 `--e2e-junit-dir`가 배선되면 조건으로 복원한다. 그래서 **이 카드는
+ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. 그래서 **이 카드는
 `T4` 하나만 남기고 전부 증명된 상태이고, 그 하나 때문에 `planned`에 머문다** — 올릴 수 없는 것을
 올리지 않고, 왜 못 올리는지를 기계가 아니라 사람이 읽는 자리에 둔다.
 
@@ -1769,7 +1769,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다. 그래서 `T3`는 **시간을 재지 않는다** — 이 칸이 금지하는 것이 정확히 그것이다. CI가 정직하게 잴 수 있는 것은 구조이고(`JobConnectionBudget`이 선례다), p95는 staging의 질문이다.
 
-`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 `integration-test.sh`가 `--e2e-junit-dir`를 넘기지 않아 들어오지 않으므로, 이 ID는 FE가 실제로 구현해도 나타나지 않는다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰고 배선이 서면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
+`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어오지만 이 절을 증명할 E2E가 아직 없다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
 
 필수 검증:
 

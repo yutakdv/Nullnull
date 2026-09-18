@@ -1,21 +1,27 @@
 package io.nullnull.optimization.api;
 
+import io.nullnull.crowd.application.CrowdProvenanceProjection;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.optimization.application.CreateOptimizationCommand;
 import io.nullnull.optimization.application.DecideOptimizationCommand;
+import io.nullnull.optimization.application.ItemProposalMapper;
 import io.nullnull.optimization.application.OptimizationHistoryPageView;
 import io.nullnull.optimization.application.OptimizationHistoryQuery;
+import io.nullnull.optimization.application.OptimizationProposalView;
 import io.nullnull.optimization.application.OptimizationRunView;
 import io.nullnull.optimization.application.OptimizationService;
 import io.nullnull.optimization.domain.OptimizationDecision;
 import io.nullnull.optimization.domain.OptimizationDecisionKind;
+import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.shared.http.NullnullOperation.Security;
 import io.nullnull.trip.domain.TripValidationException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
@@ -176,9 +182,9 @@ public class OptimizationController {
     /**
      * OptimizationRun as the contract spells it.
      *
-     * <p>{@code proposals} and {@code decisions} are empty arrays rather than absent: the contract
-     * requires both fields, and a run that has not been answered has none of either. They are filled
-     * by the slices that produce them (BA-051, BA-052).
+     * <p>{@code proposals} and {@code decisions} are what is stored under the run, and empty arrays
+     * rather than absent when there is nothing: the contract requires both fields, and a run that has
+     * not been answered has none of either.
      *
      * <p>There is deliberately no {@code targetItemId} here. The run stores one, but
      * {@code OptimizationRun} in docs/api/openapi.yaml has no such property - PM-015 names that as an
@@ -188,8 +194,8 @@ public class OptimizationController {
     public record OptimizationRunResponse(UUID id, UUID tripId, String scope, String status,
             long inputTripVersion, UUID inputRevisionId, boolean includeCandidates, String dataFingerprint,
             String algorithmVersion, String revertAvailability, Instant queuedAt, Instant completedAt,
-            Instant expiresAt, List<Object> proposals, List<UUID> snapshotSetIds, List<Object> decisions,
-            OptimizationFailureResponse failure) {
+            Instant expiresAt, List<OptimizationProposalResponse> proposals, List<UUID> snapshotSetIds,
+            List<Object> decisions, OptimizationFailureResponse failure) {
 
         static OptimizationRunResponse from(OptimizationRunView view) {
             OptimizationRun run = view.run();
@@ -197,10 +203,103 @@ public class OptimizationController {
                     run.status().name(), run.inputTripVersion(), run.inputRevisionId(),
                     run.includeCandidates(), run.dataFingerprint(), run.algorithmVersion(),
                     view.revertAvailability().name(),
-                    run.queuedAt(), run.completedAt(), run.expiresAt(), List.of(), run.snapshotSetIds(),
-                    List.of(), OptimizationFailureResponse.from(run));
+                    run.queuedAt(), run.completedAt(), run.expiresAt(),
+                    view.proposals().stream().map(OptimizationProposalResponse::from).toList(),
+                    run.snapshotSetIds(),
+                    view.decisions().stream().map(OptimizationController::decisionOf).toList(),
+                    OptimizationFailureResponse.from(run));
         }
     }
+
+    /**
+     * The contract's {@code OptimizationDecision} union, which is the two initial variants plus the
+     * REVERT. The same records decideOptimization and revertOptimizationDecision answer with, so one
+     * decision reads the same wherever it is returned.
+     */
+    private static Object decisionOf(OptimizationDecision decision) {
+        return decision.decision() == OptimizationDecisionKind.REVERT
+                ? RevertDecisionResponse.from(decision)
+                : OptimizationDecisionResponse.from(decision);
+    }
+
+    /**
+     * The contract's {@code OptimizationProposal}.
+     *
+     * <p>{@code dataProvenance} is served as {@code CrowdProvenanceProjection} projects it for the
+     * crowd endpoints, so a forecast point reads the same here as on the place it belongs to.
+     */
+    public record OptimizationProposalResponse(UUID id, int rank, String summary,
+            List<OptimizationChangeResponse> changes, OptimizationMetricsResponse metrics,
+            ValidationSummaryResponse validation,
+            List<CrowdProvenanceProjection.DataProvenance> dataProvenance) {
+
+        static OptimizationProposalResponse from(OptimizationProposalView view) {
+            OptimizationProposal proposal = view.proposal();
+            return new OptimizationProposalResponse(proposal.id(), proposal.rank(), proposal.summary(),
+                    view.changes().stream().map(OptimizationChangeResponse::from).toList(),
+                    new OptimizationMetricsResponse(proposal.comparisonEligible(),
+                            proposal.comparisonReasonCode(), proposal.crowdDelta(),
+                            proposal.travelMinutesDelta(), null),
+                    ValidationSummaryResponse.from(view.validation()), view.provenance());
+        }
+    }
+
+    /**
+     * The flat metrics FE reads (#16): the verdict, its reason, and the delta the verdict allows.
+     *
+     * <p>{@code crowdComparison} is always null and is a declared component so the key is sent - the
+     * contract requires the key and allows the null. The nested comparison is not built because the
+     * crowd numbers are deliberately not copied onto a proposal (ItemProposalMapper), and
+     * {@code crowdBefore}/{@code crowdAfter} are left out for the same reason: they are optional, and a
+     * key sent as null would read as "measured, and unknown".
+     */
+    public record OptimizationMetricsResponse(boolean comparisonEligible, String comparisonReasonCode,
+            BigDecimal crowdDelta, Integer travelMinutesDelta, Object crowdComparison) {
+    }
+
+    /** One of the contract's three change variants; {@code before}/{@code after} are null where the variant says so. */
+    public record OptimizationChangeResponse(String operation, UUID itemId, TripItemStateResponse before,
+            TripItemStateResponse after) {
+
+        static OptimizationChangeResponse from(OptimizationProposalView.ChangeView change) {
+            return new OptimizationChangeResponse(change.operation().name(), change.itemId(),
+                    TripItemStateResponse.from(change.before()), TripItemStateResponse.from(change.after()));
+        }
+    }
+
+    /**
+     * {@code TripItemState} without {@code crowd}, which is optional and never stored on a change.
+     *
+     * <p>Seconds are always present: the contract's pattern requires them and the stored value was
+     * written by {@code LocalTime.toString()}, which drops them on the minute (#145).
+     */
+    public record TripItemStateResponse(UUID placeId, LocalDate date, int position, String startTime) {
+
+        static TripItemStateResponse from(ItemProposalMapper.ItemState state) {
+            if (state == null) {
+                return null;
+            }
+            return new TripItemStateResponse(state.placeId(), state.date(), state.position(),
+                    state.startTime() == null ? null : WALL_CLOCK.format(state.startTime()));
+        }
+    }
+
+    public record ValidationSummaryResponse(boolean allConstraintsPreserved,
+            List<ConstraintCheckResponse> checks) {
+
+        static ValidationSummaryResponse from(ItemProposalMapper.Validation validation) {
+            return new ValidationSummaryResponse(validation.allConstraintsPreserved(),
+                    validation.checks().stream()
+                            .map(check -> new ConstraintCheckResponse(check.constraintType().name(),
+                                    check.passed()))
+                            .toList());
+        }
+    }
+
+    public record ConstraintCheckResponse(String constraintType, boolean passed) {
+    }
+
+    private static final DateTimeFormatter WALL_CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public record OptimizationDecisionBody(UUID proposalId, String decision) {
     }

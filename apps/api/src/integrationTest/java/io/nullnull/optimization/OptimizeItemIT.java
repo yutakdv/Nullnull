@@ -3,6 +3,7 @@ package io.nullnull.optimization;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,6 +19,7 @@ import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -48,6 +50,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import tools.jackson.databind.JsonNode;
 
 /**
  * BA-051: the run that actually produces a preview.
@@ -177,6 +180,132 @@ class OptimizeItemIT {
         assertThat(change.get("operation")).isEqualTo("MOVE");
         assertThat(change.get("before_value").toString()).contains(DAY_ONE.toString());
         assertThat(change.get("after_value").toString()).contains(DAY_TWO.toString());
+    }
+
+    /**
+     * getOptimization answers with what the run stored, not with empty arrays.
+     *
+     * <p>Every value is compared with the row it came from, and the evidence with the two points this
+     * fixture filed for the item's day and the day it would move to - so a response that picked other
+     * points, or none, or rendered the stored {@code 09:00} as it was stored, fails here.
+     */
+    @Test
+    @DisplayName("getOptimization reads a READY run back with its proposal, its change, its checks and the pair it compared")
+    void aReadyRunIsReadBackWithWhatItStored() throws Exception {
+        Fixture fixture = fixture();
+        answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
+        UUID runId = queue(fixture);
+        awaitTerminal(runId);
+        assertThat(runColumn(runId, "status")).isEqualTo("READY");
+        Map<String, Object> stored = jdbc.queryForMap(
+                "SELECT id, crowd_delta FROM optimization_proposals WHERE run_id = ?", runId);
+        UUID left = pointOn(fixture.placeId(), DAY_ONE);
+        UUID arrived = pointOn(fixture.placeId(), DAY_TWO);
+
+        JsonNode body = JSON.readTree(poll(fixture, runId)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        assertThat(body.get("decisions")).isEmpty();
+        assertThat(body.get("proposals")).hasSize(1);
+        JsonNode proposal = body.get("proposals").get(0);
+        assertThat(proposal.get("id").asString()).isEqualTo(stored.get("id").toString());
+        assertThat(proposal.get("rank").asInt()).isEqualTo(1);
+        assertThat(proposal.get("summary").asString()).isEqualTo("이 날이 덜 붐빕니다.");
+
+        JsonNode metrics = proposal.get("metrics");
+        assertThat(metrics.get("comparisonEligible").asBoolean()).isTrue();
+        assertThat(metrics.get("comparisonReasonCode").isNull()).isTrue();
+        assertThat(metrics.get("crowdDelta").decimalValue())
+                .isEqualByComparingTo((BigDecimal) stored.get("crowd_delta"));
+        assertThat(metrics.get("travelMinutesDelta").isNull()).isTrue();
+        // Required by the contract and deliberately null: the key has to be there.
+        assertThat(metrics.has("crowdComparison")).isTrue();
+        assertThat(metrics.get("crowdComparison").isNull()).isTrue();
+
+        assertThat(proposal.get("changes")).hasSize(1);
+        JsonNode change = proposal.get("changes").get(0);
+        assertThat(change.get("operation").asString()).isEqualTo("MOVE");
+        assertThat(change.get("itemId").asString()).isEqualTo(fixture.itemId().toString());
+        assertThat(change.get("before").get("placeId").asString()).isEqualTo(fixture.placeId().toString());
+        assertThat(change.get("before").get("date").asString()).isEqualTo(DAY_ONE.toString());
+        assertThat(change.get("after").get("date").asString()).isEqualTo(DAY_TWO.toString());
+        assertThat(change.get("before").get("position").asInt()).isZero();
+        // Stored as 09:00; the contract's pattern requires the seconds.
+        assertThat(change.get("before").get("startTime").asString()).isEqualTo("09:00:00");
+        assertThat(change.get("after").get("startTime").asString()).isEqualTo("09:00:00");
+
+        // This fixture's answer asserts no lock (the item has none), so there is nothing to break.
+        assertThat(proposal.get("validation").get("allConstraintsPreserved").asBoolean()).isTrue();
+        assertThat(proposal.get("validation").get("checks")).isEmpty();
+
+        List<String> evidence = new ArrayList<>();
+        proposal.get("dataProvenance").forEach(point -> evidence.add(point.get("provenanceId").asString()));
+        assertThat(evidence).containsExactly(left.toString(), arrived.toString());
+        proposal.get("dataProvenance").forEach(point -> {
+            assertThat(point.get("source").asString()).isEqualTo(FORECAST_SOURCE);
+            assertThat(point.get("sourceState").asString()).isEqualTo("FORECAST");
+        });
+    }
+
+    /**
+     * A run stays readable after the trip's timezone is edited (V034).
+     *
+     * <p>The edit keeps the trip's local dates, so the days the change names no longer fall on the
+     * instants the forecast points were filed under. A reader that found the pair again by day would
+     * find nothing here; the pair is read by the ids the proposal stored.
+     */
+    @Test
+    @DisplayName("getOptimization still shows the compared pair after the trip's timezone is edited")
+    void aTimezoneEditDoesNotLoseTheComparedPair() throws Exception {
+        Fixture fixture = fixture();
+        answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
+        UUID runId = queue(fixture);
+        awaitTerminal(runId);
+        assertThat(runColumn(runId, "status")).isEqualTo("READY");
+
+        mvc.perform(patch("/api/v1/trips/" + fixture.tripId())
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", fixture.owner().csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .contentType("application/merge-patch+json")
+                        .content("{\"timezone\":\"Europe/London\"}"))
+                .andExpect(status().isOk());
+
+        JsonNode body = JSON.readTree(poll(fixture, runId)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        List<String> evidence = new ArrayList<>();
+        body.get("proposals").get(0).get("dataProvenance")
+                .forEach(point -> evidence.add(point.get("provenanceId").asString()));
+        assertThat(evidence).containsExactly(pointOn(fixture.placeId(), DAY_ONE).toString(),
+                pointOn(fixture.placeId(), DAY_TWO).toString());
+    }
+
+    /**
+     * The fixture Frontend mocks against has the keys the server really sends, at every level.
+     *
+     * <p>The item carries a TIME lock, as run-ready.json's does, so the check list has an element to
+     * compare. The values differ by construction and are not compared here.
+     */
+    @Test
+    @DisplayName("getOptimization's READY response has run-ready.json's shape at every level")
+    void aReadyRunHasTheFixturesShape() throws Exception {
+        Fixture fixture = fixture();
+        insertTimeLock(fixture.tripId(), fixture.itemId());
+        answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
+        UUID runId = queue(fixture);
+        awaitTerminal(runId);
+        assertThat(runColumn(runId, "status")).isEqualTo("READY");
+
+        JsonNode body = JSON.readTree(poll(fixture, runId)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        assertThat(body.get("proposals").get(0).get("validation").get("checks").get(0)
+                .get("constraintType").asString()).isEqualTo("TIME");
+        assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-ready.json")));
     }
 
     @Test
@@ -330,7 +459,7 @@ class OptimizeItemIT {
                     // hydrated, so an invented number is refused as IMPROVEMENT_MISMATCH.
                     candidate.beforeValue().subtract(candidate.afterValue()),
                     new BigDecimal("0.600000"), new BigDecimal("0.000000"),
-                    candidate.beforeSnapshotId(), candidate.afterSnapshotId(), Map.of());
+                    candidate.beforeSnapshotId(), candidate.afterSnapshotId(), lockChecksFor(request));
             return new ItemProposeResponse(policy.policyVersion(), policy.policyHash(),
                     policy.pipelineVersion(), ItemProposeResponse.Outcome.PROPOSALS,
                     List.of(proposal), List.of(), 1, Map.of());
@@ -340,6 +469,16 @@ class OptimizeItemIT {
             return new ExplanationRenderResponse(policy.policyVersion(), policy.policyHash(),
                     policy.pipelineVersion(), "이 날이 덜 붐빕니다.", "TEMPLATE");
         });
+    }
+
+    /**
+     * What a correct apps/ai asserts about the target's locks for a proposal it returns: one entry per
+     * lock the request carried, each held (filters.py lock_checks; a failed lock is never proposed).
+     */
+    private static Map<String, Boolean> lockChecksFor(ItemProposeRequest request) {
+        Map<String, Boolean> checks = new java.util.LinkedHashMap<>();
+        request.locks().forEach(lock -> checks.put(lock.type().name(), true));
+        return checks;
     }
 
     /**
@@ -498,6 +637,23 @@ class OptimizeItemIT {
     private ResultActions poll(Fixture fixture, UUID runId) throws Exception {
         return mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())));
     }
+
+    /** The item keeps its 09:00 on every day it is offered, so a TIME lock there holds for each proposal. */
+    private void insertTimeLock(UUID tripId, UUID itemId) {
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("INSERT INTO trip_constraints (id, trip_id, trip_item_id, type, source,"
+                + " date_value, start_time_value, tolerance_minutes, created_at, updated_at)"
+                + " VALUES (?, ?, ?, 'TIME', 'USER', NULL, CAST(? AS time), 30, ?, ?)",
+                UUID.randomUUID(), tripId, itemId, AT_NINE.toString(), now, now);
+    }
+
+    /** The one point this fixture filed for a place on a day; its id is the provenanceId a reader sees. */
+    private UUID pointOn(UUID placeId, LocalDate day) {
+        return jdbc.queryForObject("SELECT id FROM crowd_snapshots WHERE place_id = ? AND target_at = ?",
+                UUID.class, placeId, Timestamp.from(day.atStartOfDay(SEOUL).toInstant()));
+    }
+
+    private static final tools.jackson.databind.ObjectMapper JSON = new tools.jackson.databind.ObjectMapper();
 
     private String runColumn(UUID runId, String column) {
         Object value = jdbc.queryForMap("SELECT * FROM optimization_runs WHERE id = ?", runId).get(column);

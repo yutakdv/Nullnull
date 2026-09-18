@@ -6,6 +6,7 @@ import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.trip.domain.LockType;
 import io.nullnull.trip.domain.TripItem;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -83,8 +84,74 @@ public class ItemProposalMapper {
                 eligible ? null : candidate.verdictReasonCode(), delta,
                 // P0 confirms no route provider, so no proposal can claim a travel-time difference.
                 // Null is the honest value; zero would be a measurement.
-                null, json.writeValueAsString(Map.of("checks", answer.lockChecks())), createdAt,
+                null, answer.beforeSnapshotId(), answer.afterSnapshotId(),
+                json.writeValueAsString(Map.of("checks", answer.lockChecks())), createdAt,
                 List.of(move));
+    }
+
+    /**
+     * A stored {@link #state} read back, for the response that shows it (getOptimization).
+     *
+     * <p>Kept beside the writer so the stored shape has one owner in both directions. The start time
+     * is a {@link LocalTime} again rather than the stored text: {@code LocalTime.toString()} wrote
+     * {@code 09:00} on the minute, and the contract's pattern requires the seconds - rendering is the
+     * response's job, not the row's.
+     */
+    public ItemState readState(String stored) {
+        return stored == null ? null : json.readValue(stored, ItemState.class);
+    }
+
+    /**
+     * The stored {@code validation_summary} as the contract's {@code ValidationSummary} (#242).
+     *
+     * <p>The row keeps what apps/ai asserted - its {@code lockChecks} map, one entry per lock the
+     * target item has - and this is the only place that turns it into the contract's list. Storage is
+     * left as it is because it is evidence as received; the list is a projection of it.
+     *
+     * <p>{@code allConstraintsPreserved} is derived: every check passed. An ITEM proposal changes only
+     * its target's day, so the target's locks are the constraints it can break, and an item with no
+     * lock has none to break - true, not unknown. The checks are ordered by {@link LockType} because a
+     * jsonb object does not keep the order its keys were written in.
+     *
+     * <p>A key that is not a lock type, or a value that is not a boolean, is refused rather than
+     * dropped: the response would otherwise say every constraint held while leaving out the one entry
+     * nobody could read.
+     */
+    public Validation readValidation(String stored) {
+        StoredValidation read = json.readValue(stored, StoredValidation.class);
+        if (read.checks() == null) {
+            throw new IllegalStateException("a stored validation summary has no checks");
+        }
+        List<Check> checks = new java.util.ArrayList<>(read.checks().size());
+        read.checks().forEach((key, passed) -> {
+            if (passed == null) {
+                throw new IllegalStateException("lock check " + key + " carries no verdict");
+            }
+            checks.add(new Check(lockType(key), passed));
+        });
+        checks.sort(java.util.Comparator.comparing(Check::constraintType));
+        return new Validation(checks.stream().allMatch(Check::passed), List.copyOf(checks));
+    }
+
+    private static LockType lockType(String key) {
+        try {
+            return LockType.valueOf(key);
+        } catch (IllegalArgumentException unknown) {
+            throw new IllegalStateException("lock check names no lock type: " + key, unknown);
+        }
+    }
+
+    record StoredValidation(Map<String, Boolean> checks) {
+    }
+
+    /** {@code TripItemState} as stored, minus {@code crowd}, which is never stored here. */
+    public record ItemState(UUID placeId, LocalDate date, int position, LocalTime startTime) {
+    }
+
+    public record Validation(boolean allConstraintsPreserved, List<Check> checks) {
+    }
+
+    public record Check(LockType constraintType, boolean passed) {
     }
 
     /**

@@ -31,9 +31,9 @@
       "serverVerified": false
     },
     "optimizations": {
-      "schema": "OptimizationHistoryPage",
-      "count": 2,
-      "basis": "NO approved example exists for listOptimizationHistory. Values invented to match Figma S14 422:2925 (applied/kept/reverted, and an empty variant) and validated against the schema only. Replace with BE/AI's real response (BA-053).",
+      "schema": "OptimizationHistoryPage, OptimizationRun",
+      "count": 4,
+      "basis": "NO approved example exists for listOptimizationHistory. Values invented to match Figma S14 422:2925 (applied/kept/reverted, and an empty variant) and validated against the schema only. Replace with BE/AI's real response (BA-053). run-ready.json and run-applied.json (getOptimization, #16 R3) are BE/AI authored and are the operation's two response examples, pinned by check-examples.mjs. Their SHAPE is the server's: OptimizeItemIT and OptimizeRevertIT compare the keys at every level with a real response, and a captured response validated against OptimizationRun before these were written. Their VALUES follow the production formats (KtoForecastResponseValidator's kto-tats- issue ids, JdbcKtoForecastSnapshotStore's scope label, the V007/V011 registry text, the apps/ai KO explanation template - which really does read '상대 집중률가') and continue the other fixtures: run-applied is history-page's APPLIED ITEM run, and its APPLY moved 명동 onto 10-05, producing trip-detail-scheduled's version 3; run-ready is a later preview on that version for 인사동, whose TIME lock is why its one check is listed. Every proposal is comparison-eligible because ProposalRevalidator refuses an ineligible candidate (VERDICT_INELIGIBLE), so no ineligible proposal is ever stored. Not captured values, so serverVerified stays false for the set.",
       "serverVerified": false
     },
     "places": {

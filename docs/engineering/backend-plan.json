@@ -1302,7 +1302,7 @@
           "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance. #233부터 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하지만 이 절을 증명할 E2E가 아직 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. E2E가 서면 이 표시를 지운다.",
             "issue": "#233"
           }
         },
@@ -2272,7 +2272,7 @@
           "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance. #233부터 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하지만 이 절을 증명할 E2E가 아직 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. E2E가 서면 이 표시를 지운다.",
             "issue": "#233"
           }
         }

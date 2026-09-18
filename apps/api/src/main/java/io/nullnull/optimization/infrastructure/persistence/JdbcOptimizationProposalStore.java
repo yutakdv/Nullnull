@@ -32,12 +32,13 @@ public class JdbcOptimizationProposalStore implements OptimizationProposalStore 
             jdbc.sql("""
                     INSERT INTO optimization_proposals (id, run_id, rank, summary, comparison_eligible,
                             comparison_reason_code, crowd_delta, travel_minutes_delta,
-                            validation_summary, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
+                            before_snapshot_id, after_snapshot_id, validation_summary, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
                     """)
                     .params(proposal.id(), proposal.runId(), proposal.rank(), proposal.summary(),
                             proposal.comparisonEligible(), proposal.comparisonReasonCode(),
                             proposal.crowdDelta(), proposal.travelMinutesDelta(),
+                            proposal.beforeSnapshotId(), proposal.afterSnapshotId(),
                             proposal.validationSummary(), Timestamp.from(proposal.createdAt()))
                     .update();
             for (OptimizationChange change : proposal.changes()) {
@@ -77,7 +78,8 @@ public class JdbcOptimizationProposalStore implements OptimizationProposalStore 
                 .list();
         return jdbc.sql("""
                 SELECT id, run_id, rank, summary, comparison_eligible, comparison_reason_code,
-                       crowd_delta, travel_minutes_delta, validation_summary, created_at
+                       crowd_delta, travel_minutes_delta, before_snapshot_id, after_snapshot_id,
+                       validation_summary, created_at
                   FROM optimization_proposals
                  WHERE run_id = ?
                  ORDER BY rank
@@ -102,6 +104,7 @@ public class JdbcOptimizationProposalStore implements OptimizationProposalStore 
         return new OptimizationProposal(id, row.getObject("run_id", UUID.class), row.getInt("rank"),
                 row.getString("summary"), row.getBoolean("comparison_eligible"),
                 row.getString("comparison_reason_code"), crowdDelta, travelMinutesDelta,
+                row.getObject("before_snapshot_id", UUID.class), row.getObject("after_snapshot_id", UUID.class),
                 row.getString("validation_summary"), row.getTimestamp("created_at").toInstant(),
                 changes.getOrDefault(id, List.of()));
     }

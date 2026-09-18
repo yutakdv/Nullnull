@@ -77,9 +77,12 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
      * without re-running the "which set is newest" question. Same query, same mapping - the only
      * change is who chooses {@code setId}.
      */
-    @Override
-    public Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to) {
-        List<Snapshot> points = jdbc.query("""
+    /**
+     * One point with everything a provenance line needs: its set, its source revision and whether a
+     * quarantine covers it now. Shared by every read here so a point reads the same whichever way it
+     * was asked for.
+     */
+    private static final String POINT = """
                 SELECT point.id, point.snapshot_set_id, set_row.collector_run_id, point.place_id,
                        point.source_code, point.source_registry_version, point.source_state,
                        point.observed_at, point.target_at, point.fetched_at, point.stale_at,
@@ -107,6 +110,11 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
                   JOIN source_registry_revisions revision
                     ON revision.source_code = point.source_code
                    AND revision.version = point.source_registry_version
+                """;
+
+    @Override
+    public Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to) {
+        List<Snapshot> points = jdbc.query(POINT + """
                  WHERE point.snapshot_set_id = ?
                    AND point.place_id = ?
                    AND point.target_at >= ?
@@ -114,6 +122,17 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
                  ORDER BY point.target_at ASC, point.id ASC
                 """, new Object[] {setId, placeId, Timestamp.from(from), Timestamp.from(to)}, this::snapshot);
         return points.isEmpty() ? Optional.empty() : Optional.of(new SnapshotSet(setId, points));
+    }
+
+    @Override
+    public List<Snapshot> points(List<UUID> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.query(POINT + """
+                 WHERE point.id = ANY (?)
+                 ORDER BY point.target_at ASC, point.id ASC
+                """, new Object[] {ids.toArray(UUID[]::new)}, this::snapshot);
     }
 
     private Snapshot snapshot(ResultSet result, int row) throws SQLException {

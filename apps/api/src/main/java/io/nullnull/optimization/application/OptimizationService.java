@@ -99,6 +99,7 @@ public class OptimizationService {
     private final OptimizationRunStore runs;
     private final OptimizationProposalStore proposals;
     private final OptimizationDecisionStore decisions;
+    private final OptimizationProposalReader proposalReader;
     /** For BA-052-T7: the policy a decision is judged against is today's, not the run's. */
     private final RecommendationGateway recommendations;
     /** For BA-052-T5: the set this run froze, re-read by id rather than looked up again. */
@@ -118,10 +119,11 @@ public class OptimizationService {
             OptimizationCursorProperties historyCursors, RecommendationGateway recommendations,
             CrowdForecastQuery forecasts, OptimizationCapability capability, TripService trips,
             JobQueue jobs, IdempotencyGuard idempotency, ObjectMapper json, Clock clock,
-            CatalogHoursQuery hours) {
+            CatalogHoursQuery hours, OptimizationProposalReader proposalReader) {
         this.runs = Objects.requireNonNull(runs, "runs");
         this.proposals = Objects.requireNonNull(proposals, "proposals");
         this.decisions = Objects.requireNonNull(decisions, "decisions");
+        this.proposalReader = Objects.requireNonNull(proposalReader, "proposalReader");
         this.history = Objects.requireNonNull(history, "history");
         this.historyCursors = Objects.requireNonNull(historyCursors, "historyCursors");
         this.recommendations = Objects.requireNonNull(recommendations, "recommendations");
@@ -759,8 +761,26 @@ public class OptimizationService {
         return view(run, clock.instant());
     }
 
+    /**
+     * The run with what was proposed and decided under it.
+     *
+     * <p>Decisions are read once and serve both the list and the revert projection, so the two cannot
+     * describe different rows. They are ordered by kind rather than by {@code decided_at}: the contract
+     * says the initial APPLY or KEEP comes first and a REVERT after it, and a time order would depend
+     * on two clock readings never being equal, which a fixed test clock already broke once.
+     */
     private OptimizationRunView view(OptimizationRun run, Instant now) {
-        return new OptimizationRunView(run, revertAvailabilityOf(run, now));
+        List<OptimizationDecision> taken = inContractOrder(decisions.findByRun(run.id()));
+        return new OptimizationRunView(run, revertAvailabilityOf(run, taken, now),
+                proposalReader.read(proposals.findByRun(run.id()), now), taken);
+    }
+
+    /** The initial APPLY or KEEP first, the REVERT after it; stable otherwise. Package-private for its test. */
+    static List<OptimizationDecision> inContractOrder(List<OptimizationDecision> taken) {
+        return taken.stream()
+                .sorted(java.util.Comparator.comparing(
+                        (OptimizationDecision decision) -> decision.decision() == OptimizationDecisionKind.REVERT))
+                .toList();
     }
 
     /**
@@ -775,8 +795,8 @@ public class OptimizationService {
      * one, so a branch for it could never fire. ({@link #reverted} carries exactly such a clause -
      * it is dead there too and should go when that path is next touched.)
      */
-    private RevertAvailability revertAvailabilityOf(OptimizationRun run, Instant now) {
-        List<OptimizationDecision> taken = decisions.findByRun(run.id());
+    private RevertAvailability revertAvailabilityOf(OptimizationRun run, List<OptimizationDecision> taken,
+            Instant now) {
         OptimizationDecision applied = taken.stream()
                 .filter(decision -> decision.decision() == OptimizationDecisionKind.APPLY)
                 .findFirst()
