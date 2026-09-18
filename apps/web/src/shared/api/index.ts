@@ -37,6 +37,7 @@ export {
   reissueCsrfToken,
   useCsrfToken,
   useCreateOptimization,
+  useDecideOptimization,
   useFeed,
   isRunning,
   optimizationQueryKey,

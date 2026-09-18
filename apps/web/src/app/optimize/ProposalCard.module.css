@@ -102,3 +102,26 @@
   color: var(--color-text-primary);
   font-weight: 700;
 }
+
+/* The chosen proposal.
+   
+   An inset ring rather than an outer border: a border would change the card's
+   box and shift every card below it by 2px as the selection moves, which reads
+   as the list jittering. `box-shadow` paints inside the existing box.
+   
+   The forced-colors block below is not decoration — `box-shadow` is one of the
+   properties high contrast mode drops entirely (TEST_STRATEGY.md §3), so
+   without it the selected card would be indistinguishable from the others for
+   exactly the users who most need the distinction. */
+.selected {
+  box-shadow:
+    inset 0 0 0 2px var(--color-action-primary),
+    var(--elevation-card);
+}
+
+@media (forced-colors: active) {
+  .selected {
+    outline: 3px solid CanvasText;
+    outline-offset: -3px;
+  }
+}

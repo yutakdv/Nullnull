@@ -18,6 +18,18 @@ type ValidationCheck = OptimizationProposal['validation']['checks'][number];
 
 export interface ProposalCardProps {
   proposal: OptimizationProposal;
+  /**
+   * Whether the decision bar acts on this proposal.
+   *
+   * Omitted when there is nothing to choose between. A single proposal rendered
+   * as a selectable control tells the user a choice exists and then offers one
+   * option, which reads as something missing rather than as the only answer —
+   * so the screen passes neither this nor `onSelect` in that case, and the card
+   * renders as plain content.
+   */
+  selected?: boolean;
+  /** Present only when selecting is possible. See `selected`. */
+  onSelect?: (proposalId: string) => void;
   /** Localized copy from the caller; the shared components keep Korean defaults. */
   labels: {
     crowdLabel: string;
@@ -90,15 +102,47 @@ function ChangeList({
   );
 }
 
-export function ProposalCard({ proposal, labels }: ProposalCardProps) {
+export function ProposalCard({
+  proposal,
+  selected,
+  onSelect,
+  labels,
+}: ProposalCardProps) {
   const rows = changeRows(proposal.changes);
   const comparison = crowdComparison(proposal);
   const failed = proposal.validation.checks.filter(
     (check: ValidationCheck) => !check.passed,
   );
+  const selectable = onSelect !== undefined;
 
   return (
-    <article className={styles.card}>
+    // `role="radio"` and not a checkbox or a plain button: the run takes ONE
+    // decision, so the proposals are mutually exclusive and a screen reader
+    // should say "1 of 3" rather than announce three independent toggles. The
+    // screen owns the surrounding `radiogroup`.
+    //
+    // The attributes appear only when selecting is possible. A non-selectable
+    // card is an `<article>` with no role and no tabindex, which is what the
+    // single-proposal case needs — see `selected` above.
+    <article
+      aria-checked={selectable ? selected === true : undefined}
+      className={selected === true ? `${styles.card} ${styles.selected}` : styles.card}
+      onClick={selectable ? () => onSelect(proposal.id) : undefined}
+      onKeyDown={
+        selectable
+          ? (event) => {
+              // Space and Enter, which is what a radio answers to. Without this
+              // the card is reachable by Tab and does nothing when pressed,
+              // which is worse than not being focusable at all.
+              if (event.key !== ' ' && event.key !== 'Enter') return;
+              event.preventDefault();
+              onSelect(proposal.id);
+            }
+          : undefined
+      }
+      role={selectable ? 'radio' : undefined}
+      tabIndex={selectable ? 0 : undefined}
+    >
       {/* The server's sentence, verbatim. It is generated from the change set
           it describes, so rewriting or truncating it here would state something
           the optimizer did not. */}

@@ -617,14 +617,21 @@ export function forgetDeletionToken(): void {
  * are revoked immediately, so every later call on this device is unauthenticated
  * — which is why the status route uses its own token rather than the cookie.
  *
- * Carries an Idempotency-Key: for 24 hours the same key replays the same
- * receipt instead of queuing a second deletion (invariant 6).
+ * The Idempotency-Key is minted by the CALLER, for the reason
+ * `useCreateOptimization` spells out: for 24 hours the same key replays the
+ * same receipt instead of queuing a second deletion (invariant 6). It matters
+ * more here than anywhere else in this file, because deletion revokes the
+ * cookie in the same step that accepts the request. If the 202 is lost in
+ * transit, a retry with a FRESH key arrives as "revoked cookie, unknown key" —
+ * a request the server cannot tell apart from an unauthenticated one — and the
+ * user never receives a statusToken for a deletion that already happened. The
+ * same key gets the original 202 replayed back instead (#254).
  */
 export function useRequestDeletion() {
-  return useMutation<DeletionReceipt, Problem | Error, void>({
-    mutationFn: async () => {
+  return useMutation<DeletionReceipt, Problem | Error, { idempotencyKey: string }>({
+    mutationFn: async ({ idempotencyKey }) => {
       const { data, error, response } = await getApiClient().DELETE('/session', {
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
       });
       if (!data) fail(error, response);
       deletionStatusToken = data.statusToken;
@@ -1502,6 +1509,81 @@ export function useRelatedPlaces(
       );
       if (!data) fail(error, response);
       return data;
+    },
+  });
+}
+
+type OptimizationDecisionRequest = components['schemas']['OptimizationDecisionRequest'];
+
+/**
+ * Applies or keeps one proposal from a READY run (FR-OPT-05, BA-052).
+ *
+ * This is the only place in the app that can move an itinerary from an
+ * optimization, and it runs when the user presses a button and at no other
+ * time. Invariant 3 is the rule: opening the run screen, polling it, or
+ * selecting a proposal must not reach this function.
+ *
+ * `etag === null` throws rather than writing unconditionally. The contract
+ * requires If-Match and so does this — a blind decision would overwrite an edit
+ * this tab never saw, which is what `useUpdateTrip` says in the same words.
+ *
+ * The Idempotency-Key is minted by the CALLER, for the reason
+ * `useCreateOptimization` spells out. It matters more here: the contract says a
+ * failed APPLY "records no decision … so the same idempotency key can replay
+ * it". A key created inside this function would be fresh on every attempt, so
+ * the user's retry after a 503 would be a SECOND command rather than a replay
+ * of the first — and the first may yet have landed.
+ *
+ * The return type is inferred, not annotated, for the identity reason
+ * `useCreateOptimization` documents: the decision union nests
+ * OptimizationChange, and naming it explicitly fails to compile.
+ */
+export function useDecideOptimization(runId: string | null, tripId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      request,
+      etag,
+      idempotencyKey,
+    }: {
+      request: OptimizationDecisionRequest;
+      etag: string | null;
+      idempotencyKey: string;
+    }) => {
+      if (runId === null) throw new Error('No run selected');
+      if (etag === null) throw new Error('Cannot decide without the trip ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/optimizations/{runId}/decisions',
+        {
+          params: {
+            path: { runId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+          body: request,
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    onSuccess: (_result, variables) => {
+      // The run always changes: READY becomes APPLIED or KEPT and `decisions`
+      // gains an entry, so the screen must re-read it either way.
+      if (runId !== null) {
+        void queryClient.invalidateQueries({ queryKey: optimizationQueryKey(runId) });
+      }
+      // The trip changes on APPLY and nowhere else (invariant 4 — the contract:
+      // "KEEP records intent but does not increment trip version"). Invalidating
+      // after a KEEP would make the itinerary reload for a decision that changed
+      // nothing, which reads on screen as a change that did not happen.
+      if (variables.request.decision === 'APPLY' && tripId !== null) {
+        // `invalidateQueries`, not `setQueryData`. The 200 carries
+        // `resultingTripVersion` — a number, not the itinerary — so patching the
+        // cached trip with it would leave STALE ITEMS CARRYING A FRESH VERSION.
+        // The next mutation would send that ETag, the server would accept it,
+        // and the client would have manufactured exactly the lost update
+        // invariant 6 exists to prevent.
+        void queryClient.invalidateQueries({ queryKey: tripQueryKey(tripId) });
+      }
     },
   });
 }
