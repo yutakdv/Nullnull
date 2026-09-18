@@ -58,6 +58,17 @@ public interface CatalogHoursQuery {
      */
     Map<LocalDate, CatalogOpeningWindow> windowsFor(UUID placeId, LocalDate from, LocalDate to, Instant now);
 
+    /**
+     * {@link #windowsFor} for several places in one statement, keyed by place id. A place with no
+     * verified window in the range is absent from the result, exactly as an unverified date is absent
+     * from its map - absence still means "nobody established this", never closed.
+     *
+     * <p>One statement rather than one per place: the draft preview reads up to a hundred places, and
+     * a per-place loop is the N+1 BA-070-T3 measures against.
+     */
+    Map<UUID, Map<LocalDate, CatalogOpeningWindow>> windowsForAll(java.util.List<UUID> placeIds, LocalDate from,
+            LocalDate to, Instant now);
+
     /** A verified window or a verified closure. Never "unknown" - see {@link #windowsFor}. */
     record CatalogOpeningWindow(State state, LocalTime opensAt, LocalTime closesAt) {
 

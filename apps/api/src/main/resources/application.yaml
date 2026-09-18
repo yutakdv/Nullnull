@@ -67,6 +67,11 @@ logging:
   level:
     root: INFO
     org.hibernate.SQL: WARN
+    # Tomcat writes a Cookie pair it cannot parse to the log verbatim, at INFO the first time and DEBUG after
+    # (http/parser/Cookie.logInvalidHeader). The pair can hold a live session token - "name=<token> junk", or
+    # a folded "a=1, name=<token>" - and cookies never go into logs. Its UserDataHelper asks isInfoEnabled /
+    # isDebugEnabled before building the message, so WARN silences both. CookieParserLogRedactionIT pins it.
+    org.apache.tomcat.util.http.parser: WARN
   pattern:
     # Puts the MDC requestId that RequestIdFilter sets into every log line. Without it the id existed
     # in MDC and in the response header but appeared in no log line, so "quote your request id to

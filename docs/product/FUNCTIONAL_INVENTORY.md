@@ -51,7 +51,7 @@ tags:
 | FR-TRC-07 | P0 | 불확실 장소/날짜/time remap | 붙여넣기 review | `remapTripImport` | unresolved를 사용자가 수정 |
 | FR-TRC-08 | P0 | 직접 일정 입력 | `438:3199` | local draft/`searchPlaces` | 날짜·순서 validation |
 | FR-TRC-09 | P0 | 구조화된 생성 내용 최종 확인 | `438:3259` | `createTrip`/`confirmTripImport` | 멱등 생성, 부분 trip 없음 |
-| FR-TRC-10 | P0 | 결정적 추천 draft 제공 | `384:5673` | `createTrip` seed/read | 근거 없는 LLM 사실 생성 금지 |
+| FR-TRC-10 | P0 | 결정적 추천 draft 제공 | `384:5673` | `previewTripDraft`/`createTrip` seed | 근거 없는 LLM 사실 생성 금지 |
 | FR-TRC-11 | P1 | AI 기반 draft 보조 | `440:3244` | future optimization | AI state/근거/사용자 확인 |
 | FR-TRC-12 | P0 | wizard 뒤로가기/refresh 복구 | S02 전체 | client session state | raw text 제외 입력 보존 |
 

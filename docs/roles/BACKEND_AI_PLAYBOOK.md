@@ -403,6 +403,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-010-T1`: owner A/B/C 교차 조회·변경과 CSRF/Origin 위조를 거부한다
 - `BA-010-T2`: 미만료 token 5개를 함께 유지하고 6번째 발급 시 last_used_at 기준 LRU token을 회수한다
 - `BA-010-T3`: expiry·rotation·response loss 이후 안전한 bootstrap으로 복구한다
+- `BA-010-T4`: session cookie가 아예 없는 요청은 401 UNAUTHORIZED에 missingCredential SESSION_COOKIE를 싣는다
+- `BA-010-T5`: session 해석에서 거절된 요청은 원인과 무관하게 서로 구별되지 않는 필드 없는 401 UNAUTHORIZED다
+- `BA-010-T6`: cross-origin 상태 변경 요청은 session cookie 유무와 무관하게 필드 없는 403 CSRF_INVALID다
+- `BA-010-T7`: missingCredential을 싣는 경로는 session interceptor 하나뿐이다
+- `BA-010-T8`: cookie를 보낸 요청은 어느 parser가 그것을 보든 missing으로 답하지 않는다
 
 FE 인계·완료 증거: 쿠키/헤더 examples, 최초/refresh/만료/두 tab E2E fixture와 401 복구 순서. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1203,6 +1208,60 @@ FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무�
 받아들인 비용이다. `verified` 승격은 required gate가 한 바퀴 돌아 실제 run URL과 `contractSha`가
 생긴 뒤다 — 지금 채우면 일어나지 않은 실행을 기록하게 된다.
 
+### BA-055
+
+**저장 없는 여행 초안 preview** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-030](#ba-030), [BA-022](#ba-022), [BA-025](#ba-025)
+- 기능 ID: `FR-TRC-10`
+- API: `previewTripDraft` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `384:5673`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: 저장 없음 · 공개 catalog pool(id 오름차순 앞 100) · 검증된 영업시간 창 · apps/ai drafts/compose · createTrip seedItems 확정
+
+구현 순서:
+
+1. catalog 공개 게이트를 먼저 확인한다. 닫혀 있으면 아무것도 읽지 않고 apps/ai도 부르지 않고 503이다
+2. 읽기 전용 transaction 안에서 owner locale로 공개 장소 pool을 id 오름차순 앞 100개 읽고, 더 있으면 POOL_TRUNCATED를 붙인다. 검증된 영업시간 창은 한 statement로 읽는다
+3. transaction 밖에서 apps/ai drafts/compose를 부른다. 하루 stop 상한은 Spring 상수 3이고 측정값이 아니라 초기 설계값이다
+4. gateway post-condition(pool 밖 장소·중복·범위 밖 날짜·하루 상한·날짜별 position 0..n-1·검증된 휴무일 stop·OPEN 표기)을 통과한 답만 날짜별로 묶어 PlaceSummary로 채운다
+5. apps/ai 무응답은 503 SOURCE_UNAVAILABLE이고 EMPTY 200으로 바꾸지 않는다. apps/ai의 4xx와 post-condition 위반은 500 INTERNAL_ERROR(retryable false)다
+6. 확정은 이 operation이 아니라 createTrip이다. stop 하나가 seedItem 하나이고 startTime null·constraints 빈 배열이다
+
+실패·안전 경계: preview는 trip·item·candidate·idempotency 행을 만들지 않는다. 시각·혼잡·관심사 적합도를 만들지 않고, 검증되지 않은 날짜를 OPEN으로 쓰지 않으며, 장애를 EMPTY로 위장하지 않는다.
+
+범위(`integration-ready`가 뜻하는 것): 계약(`previewTripDraft`, READY·EMPTY example과 fixture), `TripDraftPreviewService`·`TripDraftController`, 내부 계약 `drafts/compose`의 Spring DTO와 `HttpRecommendationGateway.composeDraft`의 post-condition까지다. 배치 규칙은 `apps/ai`의 `REC-DRAFT-01`~`REC-DRAFT-04`가 증명하고 여기서는 다시 계산하지 않는다(ADR-0006) — IT의 `apps/ai` mock은 그 규칙을 test 안에서 다시 적은 것이라 요청이 바뀌면 답도 바뀐다. **남은 것**: catalog 게이트가 staging 증거 전까지 닫혀 있어 제출 설정에서는 이 화면이 503이고, `apps/ai`가 staging 배포 목록에 없으면 게이트가 열려도 503이다. 필수 장소(`MUST_VISIT`)는 확정 화면에서 createTrip의 constraints로 더하므로 이 operation은 받지 않는다.
+
+**절은 지웠을 때 따로 빨개지는 단위로 센다.** 처음에는 `T6`이 휴무일·UNKNOWN 두 절을, `T7`이 `verifyDraft`의 규칙 넷을 한 ID에 묶었다. 통합 검증에서 `verifyDraft`의 규칙 열 개를 하나씩 지워 보니 여덟은 각각 자기 case 하나만 빨갛고, 날짜 범위와 policy hash 둘은 아무것도 빨개지지 않았다(case가 없었다). 그래서 규칙마다 ID를 따로 두고(`T7`·`T13`~`T19`·`T21`·`T22`) 빠졌던 두 규칙에 case를 더했다. `T6`은 hydration — 검증된 창만 보낸다 — 이고 `verifyDraft` 규칙과는 다른 줄이다. `T20`은 규칙이 아니라 **매핑**이다: `TripDraftPreviewGatewayIT`가 거부된 답이 500으로 나가는 것을 단언한다. 그 case는 pool 밖 답을 쓰는데, pool 규칙만 지우면 요약 조회가 null을 만나 어차피 500이 되어 초록으로 남는다 — 그래서 규칙의 증거는 unit case이고, 매핑의 증거는 재시도 불가를 503으로 바꾼 변이에서 `T12`·`T20`이 함께 빨개지는 것이다.
+
+필수 검증:
+
+- `BA-055-T1`: preview는 그 owner의 trips·trip_items·trip_candidates·idempotency_records에 행을 만들지 않는다
+- `BA-055-T2`: 같은 요청을 두 번 보내면 같은 stop이 나온다
+- `BA-055-T3`: 모든 stop을 seedItems로 옮긴 createTrip이 201이고 item 수가 stop 수와 같다
+- `BA-055-T4`: catalog 공개 게이트가 닫힌 기본 설정에서는 503이고 apps/ai를 부르지 않는다
+- `BA-055-T5`: apps/ai가 응답하지 않으면 EMPTY 200이 아니라 503이다
+- `BA-055-T6`: 검증된 휴무일은 CLOSED 창으로, 검증되지 않은 날짜는 창 없이 apps/ai에 간다
+- `BA-055-T7`: pool 밖 장소를 둔 답은 거부된다
+- `BA-055-T8`: apps/ai 요청 record tree에 owner·session·원문·좌표 이름이 없다
+- `BA-055-T9`: 공개 장소가 없으면 EMPTY이고 모든 날짜가 stop 없이 남는다
+- `BA-055-T10`: OPENING_HOURS_VERIFIED는 OPEN인 stop이 하나 이상일 때만 basis에 있다
+- `BA-055-T11`: 응답은 실제로 Cache-Control: private, no-store를 보낸다
+- `BA-055-T12`: apps/ai가 4xx로 요청을 거절하면 503이 아니라 500 INTERNAL_ERROR다
+- `BA-055-T13`: 검증된 휴무일에 stop을 둔 답은 거부된다
+- `BA-055-T14`: 검증된 OPEN 창이 없는 날짜의 stop을 OPEN으로 표기한 답은 거부된다
+- `BA-055-T15`: 같은 장소를 두 번 둔 답은 거부된다
+- `BA-055-T16`: 하루 stop 상한을 넘긴 답은 거부된다
+- `BA-055-T17`: 날짜별 position이 0부터 빈칸 없이 이어지지 않는 답은 거부된다
+- `BA-055-T18`: stop 유무와 READY·EMPTY 상태가 어긋난 답은 거부된다
+- `BA-055-T19`: 내부 계약이 선언하지 않은 reason을 담은 답은 거부된다
+- `BA-055-T20`: verifyDraft가 거부한 답은 draft가 아니라 500 INTERNAL_ERROR(retryable false)로 나간다
+- `BA-055-T21`: 여행 기간 밖 날짜에 stop을 둔 답은 거부된다
+- `BA-055-T22`: policy hash가 빈 답은 거부된다
+
+증거 위치: `TripDraftPreviewIT`(T1·T2·T3·T6·T9·T10·T11), `TripDraftPreviewFailsClosedIT`(T4), `TripDraftPreviewGatewayIT`(T5·T12·T20), `DraftComposeGatewayTest`(T7·T13~T19·T21·T22), `RecommendationRequestShapeTest`(T8), 응답 schema는 `TripDraftPreviewContractTest`.
+
+FE 인계·완료 증거: READY·EMPTY fixture(packages/contracts/fixtures/trips/draft-preview-*.json)와 stop→SeedTripItem 변환 규칙, 503(게이트 닫힘·apps/ai 무응답)과 500(apps/ai 거절·계약 위반) 구분. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
 ## B05 · 일정 편집·독립 잠금
 
 원자 command와 version 충돌을 먼저 검증한다.
@@ -1458,7 +1517,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-052
 
-**APPLY·KEEP의 멱등 원자 결정** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**APPLY·KEEP의 멱등 원자 결정** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-050](#ba-050), [BA-051](#ba-051)
 - 기능 ID: `FR-OPT-07`, `FR-OPT-08`, `FR-OPT-10`, `FR-OPT-11`, `FR-OPT-15`
@@ -1473,9 +1532,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. APPLY는 item/revision/decision/response를 한 transaction에, KEEP은 decision만 기록한다
 4. 09-06 PM 검토 PM-015의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
-**`T9`·`T10`은 `V030`의 제약이 발화하는지 묻는다.** `T1`이 *"동시 APPLY/APPLY에서 최초 결정 하나만"* 을 **응용 층**에서 단언한다면 `T10`은 같은 사실을 **DB 층**에서 묻는다 — partial unique index가 REVERT를 제외하고 run당 최초 결정 하나를 강제하는지다. [BA-034](#ba-034)의 멱등 key(응용 guard)와 partial unique index(DB)가 따로 선 것과 같은 짝이고, **하나가 다른 하나를 증명하지 않는다**: guard가 없어도 index가 한 행을 남기고, index가 없어도 guard가 한 번만 쓴다. `T9`은 결정 종류별 shape CHECK로, `KEEP`이 revision을 갖지 않고 `APPLY`/`REVERT`가 갖는다는 것이 세 종류를 한 table에 두는 조건이다.
+**`T9`·`T10`은 `V030`의 제약이 발화하는지 묻는다.** `T12`가 *"동시 결정에서 최초 결정 하나만"* 을 **HTTP**에서 단언한다면 `T10`은 같은 index를 **DB 층**에서 따로 묻는다 — partial unique index가 REVERT를 제외하고 run당 최초 결정 하나를 강제하는지다. [BA-034](#ba-034)의 멱등 key(응용 guard)와 partial unique index(DB)가 따로 선 것과 같은 짝이고, **하나가 다른 하나를 증명하지 않는다**: guard가 없어도 index가 한 행을 남기고, index가 없어도 guard가 한 번만 쓴다. `T9`은 결정 종류별 shape CHECK로, `KEEP`이 revision을 갖지 않고 `APPLY`/`REVERT`가 갖는다는 것이 세 종류를 한 table에 두는 조건이다.
 
-**`T3`을 넷으로 나눈 이유.** 원래 한 절이 `TRIP_CHANGED`·`DATA_CHANGED`·expired·policy 철회를 묶고 있었는데 **기제가 넷 다 다르다** — 차례로 run의 `inputTripVersion`과 현재 trip version의 **버전 비교**, proposal이 선 근거(snapshot·hours)의 **지문 비교**, preview TTL의 **시계**, 결정 시점에 policy/incident를 다시 묻는 **재질의**다. 하나를 증명하는 test가 나머지를 증명하지 않으므로 `T3`·`T5`·`T6`·`T7`로 나눈다. 반대로 `T1`과 `T2`는 나누지 않는다 — `T1`의 APPLY/APPLY와 APPLY/KEEP은 조건부 쓰기 **한 기제**를 때리는 입력 둘이고 `T2`의 주입 지점 여럿도 transaction **하나**다. 절은 입력 case가 아니라 기제로 센다.
+**`T3`을 넷으로 나눈 이유.** 원래 한 절이 `TRIP_CHANGED`·`DATA_CHANGED`·expired·policy 철회를 묶고 있었는데 **기제가 넷 다 다르다** — 차례로 run의 `inputTripVersion`과 현재 trip version의 **버전 비교**, proposal이 선 근거의 **재확인**(snapshot이 아직 저장돼 있는가, hours가 같은 판정을 다시 통과하는가), preview TTL의 **시계**, 결정 시점에 policy/incident를 다시 묻는 **재질의**다. 하나를 증명하는 test가 나머지를 증명하지 않으므로 `T3`·`T5`·`T6`·`T7`로 나눈다. 반대로 `T2`는 나누지 않는다 — 주입 지점 여럿이 transaction **하나**다. `T1`도 처음에는 조건부 쓰기 한 기제의 입력 둘로 보고 나누지 않았는데, 승격 검토에서 기제가 셋으로 갈렸다(아래). 절은 입력 case가 아니라 기제로 센다.
 
 **`T2`가 말하는 "각 쓰기 지점"은 다섯이다.** `TripStore`의 write method를 전수로 세어 APPLY가 한 transaction에 쓰는 것을 정리했다:
 
@@ -1487,9 +1546,27 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 | `P4` | `optimization_decisions` ~ idempotency 응답 저장 사이 |
 | `P5` | idempotency 응답 저장 **안**(`requireStorable` 실패 포함) |
 
+**P0에서 `P1`이 실제로 도는 write는 `moveItem` 하나다.** P0 scope는 ITEM만 열려 있고(`OptimizationScope.java:15-17`) ITEM proposal의 change는 MOVE 하나이며(`ItemProposalMapper.java:78-87`) APPLY는 MOVE만 받는다(`OptimizationService.movesOf`, `OptimizationService.java:705`). 표의 나머지 다섯 write는 그 change 종류를 만드는 scope(DAY/TRIP — [BA-083](#ba-083))가 열릴 때 같은 지점의 test를 요구한다.
+
 `P1`을 따로 세는 이유: 하루에 change가 여럿인 proposal이 중간에 터지면 **그 날짜만 반쯤 적용된 상태**가 남는다. `P2`~`P5`가 전부 green이어도 `P1`이 비면 그 결함은 안 잡히고, *"부분 적용 0"* 이 정확히 그것을 말한다. `P5`는 `requireStorable`이 **command 뒤에** 돌기 때문에 필요하다 — 여기서 터지면 이미 적용된 요청이 500을 받고 그 key의 모든 재시도가 500이다([BA-040](#ba-040)의 `addItem`이 `{itemId}`만 저장하는 이유와 같다). 그래서 이 결정도 `{decisionId}`만 저장한다.
 
-**KEEP은 `P3` 하나뿐이고, `P1`·`P2`가 일어나지 않는 것을 같은 절이 단언한다** — 불변식 4(KEEP·failed·expired·stale preview는 trip을 수정하지 않는다)가 거기 산다.
+**KEEP은 trip 행을 하나도 쓰지 않는다** — `P1`·`P2`가 없고 결정·run 상태·응답만 쓴다. 불변식 4(KEEP·failed·expired·stale preview는 trip을 수정하지 않는다)가 거기 살고, *"transaction이 온전한가"* 와 *"애초에 그 쓰기를 하는가"* 를 섞지 않으려고 `T2`가 아니라 `T11`로 둔다.
+
+**`T2`의 지점별 증명.** 쓰기는 전부 한 transaction이다 — `IdempotencyGuard.execute`가 command를 자기 `TransactionTemplate` 안에서 돌리고 `TripService.applyOptimizationMoves`는 평범한 `@Transactional`로 합류한다. main 전체에 `grep -rnw "REQUIRES_NEW\|NOT_SUPPORTED\|TransactionalEventListener\|afterCommit\|registerSynchronization"`을 돌려 셌고 `operations/application`의 주석 셋 말고는 걸리지 않았다(`TransactionSynchronizationManager`는 `isActualTransactionActive()`를 묻기만 한다). 한 transaction이어도 지점 하나로 충분하지 않은 것은 지점마다 잡는 결함이 달라서다.
+
+- `P1`은 HTTP로 도달할 수 없어(위 문장) trip 모듈에 이동 둘을 넘기고 두 번째 `moveItem`에 장애를 넣는다. 루프가 그 실패를 삼키는 변이에서 `P1`만 빨갛다.
+- `P2`~`P5`는 HTTP APPLY에 각 지점의 store 장애를 넣고, 장애 지점에 실제로 도달했는지를 verify한다. trip 쓰기를 `REQUIRES_NEW`로 빼는 변이에서 `P3`·`P4`·`P5`만 빨갛다 — `P1`·`P2`는 그 안쪽 transaction에서 난다.
+- `P2`는 가드가 둘이다. version 쓰기 실패를 삼켜도 직후의 revision 재조회가 막아 `red=0`이고, 둘을 다 꺼야 `P2`만 빨개진다.
+- `P5`는 `requireStorable` 바로 뒤의 응답 기록에 넣는다. 둘 다 command 뒤·commit 전의 같은 구간이고, `requireStorable` 자체는 본문이 `{decisionId}`뿐이라 실패시킬 입력이 없어 따로 주입하지 않았다. 대신 key 예약 행이 되돌아간 것과 같은 key 재시도가 성공하는 것으로 그 구간의 실패가 key를 막지 않음을 본다.
+
+**승격 검토에서 채운 것.** 독립 검토가 이 카드를 `integration-ready`로 올리기 직전에 절과 구현의 틈 넷을 찾았다. 넷 다 test를 더하는 것만으로는 닫히지 않았다.
+
+- **`T3`의 버전 비교가 없었다.** APPLY는 If-Match를 현재 trip과 비교할 뿐 preview의 `inputTripVersion`과는 비교하지 않았다. 그래서 trip을 고친 뒤 새 ETag로 옛 preview를 APPLY하면 통과했다(불변식 4). `applied()`가 이제 둘을 비교한다. 기존 case(stale ETag "1")는 trip 모듈 검사를 재고 새 case(현재 ETag "2")는 이 검사를 잰다. 새 검사를 지운 변이에서 새 case만 빨갛다.
+- **경쟁은 HTTP에서 만들어진다.** `decideOptimization`은 run을 idempotency guard가 owner 잠금을 잡기 **전에** 읽고 status 검사를 그 읽기로 한다. owner 잠금은 쓰기의 순서만 정하고 읽기의 순서는 정하지 않는다. 그래서 `T1`은 기제별로 셋이 됐다 — 순차는 status 검사(`T1`), 동시 APPLY/KEEP은 V030 index(`T12`), 동시 APPLY/APPLY는 trip version 재조회(`T13`). 경쟁은 `optimization_runs` 테이블 잠금으로 두 요청을 run 읽기에 세웠다가 풀고, 먼저 transaction에 든 쪽을 policy 조회에서 멈춘 채 다른 쪽이 owner 대기열에 선 것을 `pg_stat_activity`로 확인한 뒤 풀어 재현한다. owner 행은 잡을 수 없다 — 컨트롤러 앞의 CSRF 재검증이 이미 그 행을 잠가서, 잡으면 두 요청이 run을 읽기 전에 멈춘다. 변이 반경은 `OptimizeDecisionIT`의 `T1` 주석에 있다.
+- **hours를 다시 보지 않았다(`T15`).** preview가 날짜를 고른 판정(`ProposalRevalidator.openingHours`, `filters.opening_hours`와 1:1)을 APPLY 때 현재 관측으로 **같은 변환을 거쳐** 다시 돌린다. 지문 비교가 아닌 이유는 hours 관측 id가 run에 저장되지 않기 때문이다(`RunFingerprint`에 hours 입력이 없다). 저장하려면 migration이 필요하고, 재판정은 결과를 직접 본다. 지문이 잡고 재판정이 놓치는 경우는 OPEN 창이 머무는 시간을 여전히 담는 다른 OPEN 창으로 바뀌는 것인데, 그것은 결과를 바꾸지 않는다. preview는 검증된 날짜만 제안하므로 UNKNOWN도 바뀐 것이다.
+- **incident를 다시 보지 않았다(`T14`).** 시각이 아니라 **판정**을 비교한다 — preview가 비교 적격으로 판정했는데 지금 그 쌍(떠나는 날과 옮길 날의 예보 점)에 격리가 걸려 있으면 거절한다. preview가 이미 본 incident는 비교를 부적격으로 만들었을 것이므로 다시 거절하면 일어나지 않은 변화를 말하게 된다. 다만 그 부적격 분기는 P0에 생산자가 없다 — `ProposalRevalidator`가 부적격 판정의 후보를 거부해 run이 FAILED가 된다(측정). 그래서 그 분기는 `ComparisonWithdrawalTest`가 판정 함수에서 증명하고, 파이프라인으로 닿는 절반은 `OptimizeDecisionIT`가 증명한다.
+
+그 밖에 `T8`은 잠금 네 종류를 다 잰다(이동을 허용하는 MUST_VISIT·TIME은 APPLY 뒤에도 남는지, 거부하는 DATE·RESERVATION은 APPLY를 거절하고 남는지). `T9`는 거절 행마다 CHECK의 조건을 하나만 어기고 constraint 이름으로 단언한다(무작위 `reverted_decision_id`는 FK 위반이 CHECK를 가렸다).
 
 **`T8`을 `T2`에서 떼어낸 이유.** `deleteConstraint`는 `TripStore`의 write method이지만 **APPLY 경로에 있으면 안 된다** — 불변식 7이 네 잠금을 자동 해제하지 않는다고 못박는다. 이것을 `T2`의 부분 적용 단언에 섞으면 *"transaction이 온전한가"* 와 *"애초에 그 쓰기를 하는가"* 가 한 절이 되고, 전자를 증명하는 test가 후자에 아무 말도 하지 않는다. 최적화가 사용자가 고정한 잠금을 조용히 푸는 것은 제품에서 제일 나쁜 실패라 별도 절로 둔다.
 
@@ -1497,7 +1574,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-052-T1`: 동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다
+- `BA-052-T1`: 순차로 두 번째 결정(APPLY·KEEP)이 오면 status 검사로 거절되고 최초 결정 하나만 남는다
 - `BA-052-T2`: 각 쓰기 지점 fault injection으로 부분 적용0을 확인한다
 - `BA-052-T3`: TRIP_CHANGED가 apply를 차단한다
 - `BA-052-T4`: 결정이 기록된 run은 만료돼도 PREVIEW_EXPIRED가 되지 않는다
@@ -1507,6 +1584,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T8`: APPLY는 어떤 잠금도 해제하지 않는다
 - `BA-052-T9`: 결정은 자기 종류가 가진 필드만 정확히 담는다
 - `BA-052-T10`: run의 최초 결정은 하나이고 REVERT는 그것이 아니다
+- `BA-052-T11`: KEEP은 trip의 item·version·revision을 쓰지 않는다
+- `BA-052-T12`: 동시에 온 APPLY와 KEEP은 index가 중재해 하나만 반영되고, 진 쪽은 item 이동까지 포함해 부분 적용 없이 rollback된다
+- `BA-052-T13`: 동시에 온 두 APPLY는 trip version 재조회가 중재해 하나만 반영된다
+- `BA-052-T14`: preview가 비교 적격으로 판정한 crowd 근거에 그 뒤 incident가 선언되면 APPLY가 거절된다
+- `BA-052-T15`: preview가 고른 날짜를 현재 opening hours로 같은 판정에 다시 넣어 통과하지 못하면 APPLY가 거절된다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1514,7 +1596,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-053
 
-**24시간 REVERT·최적화 이력** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**24시간 REVERT·최적화 이력** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-052](#ba-052)
 - 기능 ID: `FR-OPT-09`, `FR-PRO-04`
@@ -1534,9 +1616,23 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-053-T1`: 24시간 직전/정각/이후·두 요청 경쟁·같은 key replay를 검증한다
+- `BA-053-T1`: 창이 열려 있는 동안(revertUntil 전)의 revert는 일정을 되돌리고 run을 REVERTED로 끝낸다
 - `BA-053-T2`: 후속 metadata/관심사/item 편집이 있으면 revert를 거부한다
-- `BA-053-T3`: history owner/filter/expiry cursor와 trip 삭제 cascade를 검증한다
+- `BA-053-T3`: history는 caller의 run만 trip filter대로 보여 주고 trip 삭제와 함께 사라진다
+- `BA-053-T4`: revertUntil과 같은 순간의 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
+- `BA-053-T5`: revertUntil이 지난 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
+- `BA-053-T6`: 같은 Idempotency-Key로 다시 온 revert는 저장된 응답을 돌려주고 두 번 되돌리지 않는다
+- `BA-053-T7`: 동시에 온 두 revert는 trip version 재조회가 중재해 하나만 반영된다
+- `BA-053-T8`: 한 APPLY를 가리키는 두 번째 REVERT 행은 DB가 거부한다
+- `BA-053-T9`: KEEP과 REVERT 결정은 되돌릴 수 없다
+- `BA-053-T10`: 만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다
+
+**원래 세 절을 열로 나눈 이유.** `T1`은 창 경계 셋·경쟁·replay를, `T3`은 cursor 만료를 함께 묶고 있었고 그 ID들을 단 test는 절의 일부만 쟀다 — 정각 경계·경쟁·cursor 만료를 재는 case가 없었다. 등록 규칙 3의 모양이라 승격 전에 기제별로 나눴다. `T2`는 나누지 않는다: item·metadata·관심사 편집은 모두 `resultingTripVersion` 비교 **한 기제**를 때리는 입력이고, 세 입력마다 case가 있다.
+
+- **경계(`T1`·`T4`·`T5`).** 코드는 `!now.isBefore(revertUntil)`로 닫는다 — `revertUntil`은 undo가 제공되는 마지막 순간이 아니라 사라지는 첫 순간이다. 이 차이는 **정각 case만** 가른다. 1초 전·후는 `isAfter`로 잘못 써도 같은 답을 낸다. 비교를 `isAfter`로 바꾼 변이에서 `T4`만, 창을 1초 일찍 닫은 변이에서 1초 전 case(`T1`)만 빨갛다. 경계값은 APPLY 응답의 `revertUntil`에서 읽는다 — 이 파일이 생각하는 24시간이 아니라 저장된 창을 잰다.
+- **경쟁(`T7`·`T8`).** `revertOptimizationDecision`은 APPLY와 run을 idempotency guard가 owner 잠금을 잡기 **전에** 읽는다. 그래서 두 revert가 둘 다 쓰기 전에 읽을 수 있고, `T7`은 그것을 HTTP에서 재현한다 — decisions 테이블 잠금으로 두 요청을 읽기에 세웠다가 풀고, trip 행을 잡아 먼저 transaction에 든 쪽을 세운 채 다른 쪽이 owner 대기열에 선 것을 `pg_stat_activity`로 확인한 뒤 푼다. owner 행은 잡을 수 없다 — 컨트롤러 앞의 CSRF 재검증이 그 행을 잠가, 잡으면 두 요청이 읽기 전에 멈춘다. 진 쪽을 막는 것은 V033이 아니라 trip 모듈이 transaction 안에서 trip을 새로 읽는 version 검사다. 그 검사를 끈 변이에서 진 쪽은 V033에 걸려 `DATA_CHANGED`가 되고 `T7`이 빨갛다. `V033` unique는 그 뒤의 두 번째 선이고 `T8`이 SQL 층에서 따로 증명한다(일반 index로 바꾼 변이에서 `T8`만 빨갛다). 순차 두 번째 revert는 [BA-054](#ba-054)-`T9`가 잰다.
+- **`T9`는 안전 경계 문장(*"KEEP/REVERT를 다시 되돌리지 않는다"*)의 절이다.** 그 동작을 재던 case가 `T2` ID를 달고 있었는데 `T2`의 문구에는 그 절이 없었고, 이름은 KEEP과 REVERT를 말하면서 본문은 KEEP만 쟀다. REVERT를 되돌리는 case를 더했고, 종류 검사를 끈 변이에서 둘 다 빨갛다.
+- **`T10`.** history cursor의 수명은 `OptimizationCursorProperties`의 15분이고 만료는 `SignedCursorCodec`이 410 `CURSOR_EXPIRED`로 답한다. 같은 cursor가 신선할 때 받아들여지는 것을 대조군으로 둔다. 만료 검사를 끈 변이에서 `T10`만 빨갛다.
 
 FE 인계·완료 증거: undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1546,7 +1642,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-054
 
-**revertAvailability 읽기 투영** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**revertAvailability 읽기 투영** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-053](#ba-053)
 - 기능 ID: `FR-OPT-09`
@@ -1573,9 +1669,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-054-T3`: 서버 시각이 APPLY의 revertUntil 이후면 EXPIRED다
 - `BA-054-T4`: 현재 trip version이 APPLY의 resultingTripVersion과 다르면 NOT_APPLICABLE이다
 - `BA-054-T5`: 그 밖의 경우 AVAILABLE이다
-- `BA-054-T6`: AVAILABLE을 읽은 뒤에도 revert가 owner·version·window·decision을 다시 검사한다
+- `BA-054-T6`: AVAILABLE을 읽은 뒤 trip version이 움직였으면 revert가 거절한다
+- `BA-054-T7`: AVAILABLE을 읽은 뒤에도 남의 owner가 보낸 revert는 없는 결정과 같은 404로 거절된다
+- `BA-054-T8`: AVAILABLE을 읽은 뒤 창이 닫히면 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
+- `BA-054-T9`: AVAILABLE을 읽은 뒤 그 APPLY가 이미 되돌려졌으면 두 번째 revert는 거절된다
 
-절을 다섯이 아니라 여섯으로 쪼갠 이유는 `T6`가 나머지와 다른 것을 재기 때문이다. `T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다.
+`T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`~`T9`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다. 뒤쪽이 넷인 것은 revert가 다시 하는 검사(version·owner·window·decision)마다 하나씩이기 때문이다. 처음에는 넷을 한 절(`T6`)에 묶었고 그 절의 test는 version 하나만 쟀다 — 등록 규칙 3이 말하는 모양이라 승격 전에 쪼갰다.
+
+`T7`과 `T9`는 막은 줄이 아니라 결과를 단언한다. 둘 다 경로 위에 가드가 여럿이라서다. owner 검사는 decision·run·trip 조회 세 곳에 있고, 셋을 다 끈 변이에서 `T7`만 빨개진다(하나씩 끈 변이는 재지 않았다). 두 번째 undo는 오늘 HTTP에서 첫 undo가 올린 trip version에 걸리는데, 그 검사만 끄면 `red=0`이다 — V033의 `reverted_decision_id` unique와 run 상태 전이가 이어서 막는다. 셋을 다 꺼야 `T9`만 빨개진다. 그래서 `T9`는 409를 단언하고 code는 `TRIP_CHANGED`·`DATA_CHANGED` 중 무엇이든 받는다. V033에 닿기 전에 transaction 안에서 trip을 새로 읽는 version 검사가 두 번째 undo를 막는다 — 두 undo가 모두 쓰기 전에 읽는 경쟁에서도 그렇고, BA-053-T7이 그것을 동시에 보내 잰다. 그래서 그 index의 증명은 SQL 층에서 BA-053-T8이 한다.
 
 FE 인계·완료 증거: applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다. 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -224,8 +224,11 @@ public final class ProposalRevalidator {
     /**
      * Mirrors {@code filters.opening_hours}: the whole stay must sit inside a verified window (§5.4).
      * A missing entry is an unverified window, never an open one.
+     *
+     * <p>Public because decideOptimization re-runs exactly this judgment on the hours current at APPLY
+     * (BA-052-T15): the preview and the APPLY must not judge a day by two different rules.
      */
-    private static String openingHours(OpeningWindowIn window, LocalTime start, Integer durationMinutes) {
+    public static String openingHours(OpeningWindowIn window, LocalTime start, Integer durationMinutes) {
         if (window == null || window.state() == OpeningWindowIn.OpeningState.UNKNOWN) {
             return OPENING_HOURS_UNKNOWN;
         }

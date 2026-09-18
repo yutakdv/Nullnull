@@ -89,6 +89,17 @@ class SystemContractTest {
     }
 
     @Test
+    @DisplayName("BA-010-T4 a request with no session cookie gets missingCredential in the shape the contract declares")
+    void missingSessionCookieMatchesProblemSchema() {
+        MvcTestResult result = mvc.get().uri("/api/v1/demo/readiness").exchange();
+        assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
+        // Problem is additionalProperties: false. A Java name that drifted from the contract property would be
+        // rejected here and nowhere else - every example and fixture is a hand-written copy, not server output.
+        assertThat(schemaCheck.validate("Problem", body(result))).isEmpty();
+        assertThat(result).bodyJson().extractingPath("$.missingCredential").isEqualTo("SESSION_COOKIE");
+    }
+
+    @Test
     void notFoundMatchesProblemSchema() {
         MvcTestResult result = mvc.get().uri("/api/v1/missing").exchange();
         assertThat(result).hasStatus(HttpStatus.NOT_FOUND);

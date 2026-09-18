@@ -28,8 +28,14 @@ import tools.jackson.databind.json.JsonMapper;
  * diffed and approved before anything runs, which is the property a migration and a writing endpoint
  * both lack - one buries editorial content in the schema, the other has no reviewer at all.
  *
- * <p>The environment guard is the one {@code ktoSmoke} uses and for the same reason: a script that
- * writes published content should not be runnable against whatever database happens to be configured.
+ * <p>There is no environment guard. This comment used to say there was the one {@code ktoSmoke}
+ * uses; there never was - neither this class nor {@link CuratedPostImporter} reads
+ * {@code NULLNULL_ENV} or {@code KtoSmokeEnvironment}, and the script writes to whichever datasource
+ * is configured. So the operator confirms the target database before running it: step 5 of
+ * "staging이 선 날의 순서" in {@code docs/contest/CURATED_POSTS_TEMPLATE.md}.
+ * {@code CuratedHoursImportMain} and {@code CatalogRelationDeriveMain} are in the same state. A guard
+ * needs a decided set of allowed environments - staging has to be one - and that is recorded as an
+ * open gap on #183 rather than invented here.
  */
 public final class CuratedPostImportMain {
 

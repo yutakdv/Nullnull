@@ -2,6 +2,7 @@ package io.nullnull.recommendation.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.nullnull.recommendation.domain.draft.DraftComposeRequest;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
@@ -45,7 +46,7 @@ class RecommendationRequestShapeTest {
     /** Every request type the Spring gateway can send. */
     private static final List<Class<?>> REQUESTS = List.of(ItemProposeRequest.class,
             FeedRankRequest.class, RelatedRankRequest.class, SlotEvaluateRequest.class,
-            ExplanationRenderRequest.class);
+            ExplanationRenderRequest.class, DraftComposeRequest.class);
 
     /**
      * Fragments that must not appear in any component name, and what each one is about.
@@ -98,6 +99,20 @@ class RecommendationRequestShapeTest {
         List<String> violations = new ArrayList<>();
         collect(Offender.class, "Offender", new LinkedHashSet<>(), violations);
         assertThat(violations).singleElement().asString().contains("ownerId");
+    }
+
+    @Test
+    @DisplayName("BA-055-T8 the draft compose request tree carries no owner, session, raw text or coordinate name")
+    void theDraftRequestTreeCarriesNothingItMayNot() {
+        // Its own case so the draft card can point at a testcase that walks ITS request, not at the
+        // loop above that happens to include it. The visited set is asserted too: an empty walk also
+        // reports no violation, and the pool's places are nested two records deep.
+        Set<String> visited = new LinkedHashSet<>();
+        List<String> violations = new ArrayList<>();
+        collect(DraftComposeRequest.class, "DraftComposeRequest", visited, violations);
+        assertThat(visited).contains("DraftComposeRequest.pool", "DraftComposeRequest.pool[].placeId",
+                "DraftComposeRequest.pool[].openingHours");
+        assertThat(violations).isEmpty();
     }
 
     /** A record shaped like the mistake this test exists to catch. */

@@ -145,6 +145,7 @@ Frontend 실행 ID: `FE-103`, `FE-404`
 - [BA-032 · 고정 feed·게시물·SavedPost](../roles/BACKEND_AI_PLAYBOOK.md#ba-032) — P0
 - [BA-033 · 피드백·분석 이벤트 무결성](../roles/BACKEND_AI_PLAYBOOK.md#ba-033) — P0
 - [BA-034 · 여행 후보 저장·중복·dismiss](../roles/BACKEND_AI_PLAYBOOK.md#ba-034) — P0
+- [BA-055 · 저장 없는 여행 초안 preview](../roles/BACKEND_AI_PLAYBOOK.md#ba-055) — P0
 
 Frontend 실행 ID: `FE-102`, `FE-106`, `FE-201`, `FE-202`, `FE-203`
 

@@ -12,6 +12,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from nullnull_ai import __version__
+from nullnull_ai.api.drafts import router as drafts_router
 from nullnull_ai.api.explanations import router as explanations_router
 from nullnull_ai.api.feed import router as feed_router
 from nullnull_ai.api.items import router as items_router
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(slots_router, prefix="/internal/v1")
     app.include_router(related_router, prefix="/internal/v1")
     app.include_router(explanations_router, prefix="/internal/v1")
+    app.include_router(drafts_router, prefix="/internal/v1")
     return app
 
 

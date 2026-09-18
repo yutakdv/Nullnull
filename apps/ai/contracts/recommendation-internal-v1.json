@@ -42,6 +42,193 @@
         "title": "CapabilityStatus",
         "type": "object"
       },
+      "DraftComposeRequest": {
+        "additionalProperties": false,
+        "description": "The trip dates and the pool to place on them (REC-CON-04).\n\n`tripEnd` is inclusive and the trip spans at most 30 dates. The body carries no owner or session\nid, no interest, no must-visit place, no crowd value and no time of day.",
+        "properties": {
+          "evaluatedAt": {
+            "format": "date-time",
+            "title": "Evaluatedat",
+            "type": "string"
+          },
+          "maxStopsPerDay": {
+            "minimum": 1.0,
+            "title": "Maxstopsperday",
+            "type": "integer"
+          },
+          "pool": {
+            "items": {
+              "$ref": "#/components/schemas/DraftPlaceIn"
+            },
+            "maxItems": 100,
+            "title": "Pool",
+            "type": "array"
+          },
+          "tripEnd": {
+            "format": "date",
+            "title": "Tripend",
+            "type": "string"
+          },
+          "tripStart": {
+            "format": "date",
+            "title": "Tripstart",
+            "type": "string"
+          },
+          "tripZone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Tripzone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evaluatedAt",
+          "tripStart",
+          "tripEnd",
+          "tripZone",
+          "maxStopsPerDay",
+          "pool"
+        ],
+        "title": "DraftComposeRequest",
+        "type": "object"
+      },
+      "DraftComposeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluated": {
+            "title": "Evaluated",
+            "type": "integer"
+          },
+          "pipelineVersion": {
+            "title": "Pipelineversion",
+            "type": "string"
+          },
+          "policyHash": {
+            "title": "Policyhash",
+            "type": "string"
+          },
+          "policyVersion": {
+            "title": "Policyversion",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "enum": [
+                "NO_ELIGIBLE_PLACES",
+                "ALL_DATES_FULL"
+              ],
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "rejectedByReason": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "HOURS_CLOSED_ALL_DATES",
+                "DAY_CAP_FULL"
+              ]
+            },
+            "title": "Rejectedbyreason",
+            "type": "object"
+          },
+          "state": {
+            "enum": [
+              "READY",
+              "EMPTY"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/DraftStopOut"
+            },
+            "title": "Stops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "policyVersion",
+          "policyHash",
+          "pipelineVersion",
+          "state",
+          "stops",
+          "reasons",
+          "evaluated",
+          "rejectedByReason"
+        ],
+        "title": "DraftComposeResponse",
+        "type": "object"
+      },
+      "DraftPlaceIn": {
+        "additionalProperties": false,
+        "description": "One published place of the pool with its verified windows; a date without a window is unknown.",
+        "properties": {
+          "openingHours": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OpeningWindowIn"
+            },
+            "maxProperties": 30,
+            "propertyNames": {
+              "format": "date"
+            },
+            "title": "Openinghours",
+            "type": "object"
+          },
+          "placeId": {
+            "format": "uuid",
+            "title": "Placeid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeId",
+          "openingHours"
+        ],
+        "title": "DraftPlaceIn",
+        "type": "object"
+      },
+      "DraftStopOut": {
+        "additionalProperties": false,
+        "description": "One placed place. It carries no time field: P0 proposes a date and never invents a time.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "hoursState": {
+            "enum": [
+              "OPEN",
+              "UNKNOWN"
+            ],
+            "title": "Hoursstate",
+            "type": "string"
+          },
+          "placeId": {
+            "format": "uuid",
+            "title": "Placeid",
+            "type": "string"
+          },
+          "position": {
+            "minimum": 0.0,
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "placeId",
+          "date",
+          "position",
+          "hoursState"
+        ],
+        "title": "DraftStopOut",
+        "type": "object"
+      },
       "ExplanationRenderRequest": {
         "additionalProperties": false,
         "description": "The verified facts one explanation may mention (§9.1 allowlist).\n\n`placeName`, `metricLabel` and `attribution` are approved catalog and source registry text, and\nthe two values are a pair Spring already judged comparable. A time is null when the slot carries\nnone; nothing here is an owner, a session, a coordinate or a line of the user's own itinerary.",
@@ -1603,6 +1790,47 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/internal/v1/drafts/compose": {
+      "post": {
+        "operationId": "compose_draft_internal_v1_drafts_compose_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftComposeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftComposeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compose Draft",
+        "tags": [
+          "Draft"
+        ]
+      }
+    },
     "/internal/v1/explanations/render": {
       "post": {
         "operationId": "render_explanation_internal_v1_explanations_render_post",

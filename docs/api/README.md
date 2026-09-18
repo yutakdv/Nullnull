@@ -91,9 +91,9 @@ FE는 response type을 재선언하거나 unknown field에 의존하지 않는�
 - cookie가 없으면 `POST /demo/sessions`가 Owner, `__Host-nullnull_session` HttpOnly cookie, response body의 CSRF token을 만든다. valid cookie로 retry하면 200과 같은 Owner로 수렴하며 이유 없이 session을 rotate하지 않는다.
 - refresh/new tab은 valid cookie와 `POST /session/csrf`로 tab-local token을 받는다. token 발급은 same-origin 검증을 거친다. 미만료 token 5개까지 함께 유지하고, 6번째 발급 시 `last_used_at`(미사용이면 `created_at`) 기준 LRU token을 회수한다. 동률은 `created_at`, `id` 순으로 결정한다.
 - FE는 CSRF token을 memory에만 두며 bootstrap/재발급 response의 `expiresAt` 전에 갱신한다. 이 시각은 CSRF 만료이며 session idle/absolute 만료와 별개다. Backend는 session당 미만료 hash 최대 5개만 둔다.
-- 일반 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다. 최초 bootstrap은 cookie/CSRF 없이, token 재발급과 read-only `POST /places/search`는 cookie만 요구한다. 모든 non-safe operation은 동일 origin의 `Origin`(없으면 `Referer`)을 검증한다.
+- 일반 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다. 최초 bootstrap은 cookie/CSRF 없이, token 재발급과 read-only `POST /places/search`는 cookie만 요구한다. 모든 non-safe operation은 동일 origin의 `Origin`(없으면 `Referer`)을 검증하며, 이 검증은 session 해석보다 먼저 돈다. 그래서 cross-origin non-safe 요청은 cookie가 있든 없든 같은 `403 CSRF_INVALID`를 받고 어느 쪽인지 알 수 없다.
 - cookie는 HTTPS production에서 `Secure; HttpOnly; SameSite=Lax; Path=/`를 사용한다.
-- 401이면 cookie 유무에 따라 CSRF 재발급 또는 session 생성을 한 번 시도한 뒤 안전한 read만 재시도한다. mutation 자동 재실행은 동일 idempotency key가 있는 경우에도 UI가 요청 결과 불명을 처리하는 경로에서만 허용한다.
+- client는 HttpOnly cookie를 볼 수 없으므로 401을 `missingCredential`로 가른다. `missingCredential: SESSION_COOKIE`가 실린 401(요청에 session cookie가 아예 없음)이면 `POST /demo/sessions`로 session을 한 번 만든 뒤 안전한 read만 재시도한다. 필드가 없는 401(만료·폐기·위조·형식 오류)에는 자동으로 새 session을 만들지 않는다. 새 session은 다른 익명 Owner라 이전 여행이 돌아오지 않으므로 사용자가 결정한다. mutation 자동 재실행은 동일 idempotency key가 있는 경우에도 UI가 요청 결과 불명을 처리하는 경로에서만 허용한다.
 - 다른 owner의 resource도 404로 응답해 존재 여부를 노출하지 않는다.
 
 `PATCH /me`는 `application/merge-patch+json`만 받는다. 생략한 필드는 유지하고 `activeTripId: null`은 해제한다. 나머지 필드의 null·잘못된 JSON type·unknown key·빈 object는 400이다. locale은 P0 `ko-KR`/`en-US`이며 미지원 값은 422 `VALIDATION_FAILED`와 `UNSUPPORTED_LOCALE`, timezone 검증 실패는 `INVALID_TIMEZONE`, active trip이 없거나 타 owner/삭제 상태이면 구분 없이 `TRIP_NOT_FOUND` field error다. 반복 onboarding 완료는 추가 domain 효과를 만들지 않는다.
@@ -216,7 +216,7 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 | Code | HTTP | UI 행동 | 자동 재시도 |
 | --- | --- | --- | --- |
 | `INVALID_REQUEST` | 400/405/406/413/415 | 입력/지원 문의 | 금지 |
-| `UNAUTHORIZED` | 401 | session bootstrap 또는 로그인 | GET 1회만 |
+| `UNAUTHORIZED` | 401 | `missingCredential: SESSION_COOKIE`이면 session bootstrap 1회, 없으면 세션 종료 안내(새 session은 사용자가 결정) | GET 1회만 |
 | `FORBIDDEN` | 403 | 작업 불가 안내 | 금지 |
 | `NOT_FOUND` | 404 | 사라진 resource/목록 이동 | 금지 |
 | `VALIDATION_FAILED` | 422 | fieldErrors 연결 | 금지 |
@@ -321,7 +321,7 @@ client에서 다시 만들지 않는다.
 - 검색 body는 저장/analytics/trace 금지다. live viewport는 소수점 3자리로 반올림하고 각 축 0.01도 이상인 coarse bounds만 허용하며 device exact coordinate를 보내지 않는다.
 - analytics body는 `sessionId/ownerId`를 받지 않는다. Backend가 인증 cookie에서 bind하며 route는 query/실제 UUID가 없는 route template만 허용한다.
 - session DELETE는 즉시 revoke 후 202 receipt와 memory-only status token을 반환한다. 상태 endpoint는 삭제 데이터 접근 권한 없이 상태만 보여주며 token hash는 7일 뒤 삭제한다.
-- DELETE 응답을 잃은 경우에만 revoked cookie + 같은 Idempotency-Key를 24시간 허용해 동일 receipt를 재생한다. 그 cookie의 다른 route는 즉시 401이다. status token은 receipt ID/expiry에서 결정적으로 서명해 재생 가능하게 하고 원문을 DB에 저장하지 않는다.
+- DELETE 응답을 잃은 경우에만 revoked cookie + 같은 Idempotency-Key를 24시간 허용해 동일 receipt를 재생한다. 그 cookie의 다른 route는 즉시 401이다(non-safe cross-origin 요청은 그보다 먼저 origin 검증의 403). status token은 receipt ID/expiry에서 결정적으로 서명해 재생 가능하게 하고 원문을 DB에 저장하지 않는다.
 
 ## 14. 요청 한도
 
