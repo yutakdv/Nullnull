@@ -89,7 +89,7 @@ Figma page의 용도:
 
 | Figma node | 화면 | Route | 상태/동작 | 데이터/API |
 | --- | --- | --- | --- | --- |
-| `388:257` | A-1 splash | `/` | logo, bootstrap; 장기 loading이면 retry | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner`, readiness |
+| `388:257` | A-1 splash | `/` | logo, bootstrap; 성공 redirect는 mount 기준 최소 표시 하한선을 지키고 `prefers-reduced-motion: reduce`이면 하한선 없이 즉시; 장기 loading이면 retry | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner`, readiness |
 | `388:277`, `643:4088` | A-2 language | `/language` | 한국어·English 선택/확정, 日本語·中文 disabled `준비 중`(`color/text/disabled` + label); `388:277`은 KO 선택, `643:4088`은 EN 선택·영문 copy variant (`FCR-001` 2026-09-07 수정, 검토 대기) | `updatePreferences(locale)`; bootstrap 전에는 local draft |
 | `388:321` | A-3 intro | `/intro` | “한국인이 진짜 가는 곳”, 계속/건너뛰기 | local onboarding state |
 
@@ -98,6 +98,11 @@ Acceptance:
 - bootstrap 실패가 빈 화면이 되지 않는다.
 - 이미 onboarding을 마친 사용자는 splash 뒤 feed로 이동한다.
 - redirect loop가 없어야 한다.
+- splash는 성공 redirect 전에 brand를 최소 시간 보여준다. Figma가 A-1을 transition이 아니라 **화면**으로 그리는데, 따뜻한 cache에서 bootstrap이 한 자릿수 ms에 끝나면 wordmark가 약 한 frame만 찍히고 사용자가 처음 보는 것은 언어 목록이 된다. 시간 값의 정본은 `apps/web/src/app/onboarding/SplashScreen.tsx`의 `MINIMUM_VISIBLE_MS`다 — 여기 숫자를 적으면 둘 중 하나가 먼저 낡는다.
+- 그 최소 시간은 **sleep이 아니라 하한선**이다. 시계는 mount에서 시작해 요청과 나란히 흐르므로 느린 bootstrap은 추가 대기가 없다. 응답 뒤에 재우면 느린 연결일수록 더 기다리게 되는데 그것은 거꾸로다.
+- 하한선은 **성공 경로에만** 건다. 실패는 alert와 retry를 즉시 보여준다 — 위의 `bootstrap 실패가 빈 화면이 되지 않는다`가 요구하는 것이고, 앱이 켜지지 않았다는 말을 들으려고 기다리게 하는 것은 그 반대다.
+- `prefers-reduced-motion: reduce`이면 하한선을 건너뛴다. 붙잡힌 splash는 animation은 아니지만 interface가 content를 붙들고 있는 시간이고, `apps/web/src/styles.css`가 이미 같은 이유로 duration을 접는다.
+- 붙잡혀 있는 동안 화면은 기동 중임을 계속 말한다(`splash.loading`). 이 자리에 brand 이름을 쓰면 wordmark 아래에 같은 단어가 한 번 더 찍힌다.
 - 한국어와 English는 P0에서 실제 UI copy·날짜·숫자 표기가 변경되고, 준비 중 언어는 focus는 받되 선택/저장되지 않는다.
 
 ### B. 탐색과 후보 저장
