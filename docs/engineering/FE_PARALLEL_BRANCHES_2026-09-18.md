@@ -74,6 +74,77 @@ git rebase --onto origin/frontend dbbe387 frontend-splash-check
 
 **B로 가도 된다.** 알고만 있으면 된다.
 
+## 더 깊은 함정 — 브랜치를 올바로 파도 막히지 않는다
+
+위 항목은 *브랜치를 파는 순간*의 문제다. **그보다 자주 일어나는 것이 따로 있고, 이
+문서를 쓴 직후에 실제로 겪었다.**
+
+세션 A가 `frontend-mytrip-tab`을 체크아웃한 채 다른 일을 하는 동안, 세션 B가 같은
+공유 트리에서 커밋을 둘 했다. 그 커밋들은 **세션 A의 브랜치에 쌓였다** — 트리가
+하나이므로 `git commit`은 *그 순간 체크아웃된 브랜치*에 얹힌다. 누가 작업했는지는
+무관하다.
+
+```text
+frontend-mytrip-tab
+  bdfff8d  프로필 카드 (#FE-501)    ← 세션 B
+  fad8f65  병렬 브랜치 메모          ← 세션 A
+  aadc45a  feed 2열 grid (#FE-201)  ← 세션 B
+  dbbe387  내 여행 fallback          ← 세션 A
+```
+
+세션 B의 자기 브랜치(`frontend-figma-layout-fixes`)는 그동안 `origin/frontend`에
+머물러 있었다 — **자기 커밋이 남의 브랜치에 있는 것을 자기 쪽에서는 볼 수 없다.**
+
+### 그래서: 커밋하기 전에 브랜치를 확인한다
+
+```bash
+git branch --show-current     # 내 작업 브랜치인가?
+```
+
+다르면 내 브랜치로 돌아간 뒤 커밋한다. `git switch`도 공유 자원이라, 다른 세션이
+바꿔 둔 뒤일 수 있다.
+
+### 가장 확실한 것은 worktree다
+
+세션 B는 이 상황에서 **worktree를 만들어** 자기 브랜치를 체크아웃했고, 그래서
+세션 A가 `git branch -f`로 그 브랜치를 덮으려 했을 때 git이 막았다.
+
+```text
+fatal: cannot force update the branch 'frontend-figma-layout-fixes'
+       used by worktree at .../wt-pick
+```
+
+**그 거부가 세션 B의 작업을 지켰다.** 자기 브랜치를 worktree로 잡아 두면 남이
+실수로 옮길 수 없다.
+
+```bash
+git worktree add <scratchpad>/wt-<이름> <내-브랜치>
+cd <scratchpad>/wt-<이름> && npm ci     # 한 번, 3분쯤
+```
+
+공유 트리를 전혀 건드리지 않으므로 남의 미커밋 작업도 안전하다. 문서 하단의
+*"worktree는 마감 뒤"* 는 **세 세션 전부를 옮기는 이야기**이고, 이렇게 **한 세션이
+자기 브랜치만 잡아 두는 것은 지금 해도 싸다.**
+
+## 남의 커밋이 내 브랜치에 섞였을 때
+
+떼어내는 쪽이 정리한다. **남의 브랜치를 옮기지 않는다** — 그쪽이 worktree로 잡고
+있을 수 있고, 무엇보다 그 작업의 처분은 그 세션의 몫이다.
+
+```bash
+# 내 worktree 에서 (공유 트리를 건드리지 않는다)
+git reset --hard <내-마지막-연속-커밋>
+git cherry-pick <흩어진-내-커밋>...
+```
+
+시작 전에 되돌릴 자리를 태그로 남긴다. 끝나고 남의 커밋이 **자기 브랜치에 있는지**
+확인한 뒤에만 지운다.
+
+```bash
+git tag rescue/<이름> <브랜치>
+git branch --contains <남의-커밋>      # 그쪽 브랜치 이름이 나와야 한다
+```
+
 ## 로컬 `frontend`는 원격과 같게 유지한다
 
 작업 커밋이 로컬 `frontend`에 남아 있으면 다음 사람이 브랜치를 팔 때 또 상속한다.
