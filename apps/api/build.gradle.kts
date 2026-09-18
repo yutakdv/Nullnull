@@ -142,6 +142,11 @@ testing {
                     inputs.file(layout.projectDirectory.file("../../docs/contracts/events.schema.json"))
                         .withPathSensitivity(PathSensitivity.RELATIVE)
                         .withPropertyName("eventSchema")
+                    // ComparisonReasonCodeVocabularyTest reads §9 of the catalog as the definition the
+                    // server's constants must equal; an edit there has to invalidate this suite too.
+                    inputs.file(layout.projectDirectory.file("../../docs/data/SOURCE_CATALOG.md"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("sourceCatalog")
                     systemProperty(
                         "nullnull.openapi.path",
                         providers.gradleProperty("nullnull.openapi.path")

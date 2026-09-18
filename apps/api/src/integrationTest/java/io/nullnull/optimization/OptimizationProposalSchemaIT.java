@@ -3,6 +3,7 @@ package io.nullnull.optimization;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -66,12 +67,12 @@ class OptimizationProposalSchemaIT {
         // Invariant 8: a number comparing this proposal's crowd against the baseline is a claim that
         // the pair was comparable. Storing one anyway is how an ineligible comparison reaches a
         // screen looking like a measurement.
-        assertThatThrownBy(() -> proposal(run, 1, false, "SOURCE_MISMATCH", new BigDecimal("1.2500")))
+        assertThatThrownBy(() -> proposal(run, 1, false, ComparisonReasonCode.DIFFERENT_SOURCE, new BigDecimal("1.2500")))
                 .isInstanceOf(DataAccessException.class);
 
         // The same row without the delta is accepted, so what was refused is the delta and not the
         // ineligibility.
-        assertThatCode(() -> proposal(run, 1, false, "SOURCE_MISMATCH", null))
+        assertThatCode(() -> proposal(run, 1, false, ComparisonReasonCode.DIFFERENT_SOURCE, null))
                 .doesNotThrowAnyException();
         // And an eligible proposal may carry one, so the column is not simply unusable.
         assertThatCode(() -> proposal(run, 2, true, null, new BigDecimal("1.2500")))
@@ -88,10 +89,10 @@ class OptimizationProposalSchemaIT {
 
         // The mirror of the same biconditional, asserted here because one CHECK decides both: an
         // eligible proposal carrying a reason code would be a refusal nobody issued.
-        assertThatThrownBy(() -> proposal(run, 2, true, "SOURCE_MISMATCH", null))
+        assertThatThrownBy(() -> proposal(run, 2, true, ComparisonReasonCode.DIFFERENT_SOURCE, null))
                 .isInstanceOf(DataAccessException.class);
 
-        assertThatCode(() -> proposal(run, 3, false, "SOURCE_MISMATCH", null))
+        assertThatCode(() -> proposal(run, 3, false, ComparisonReasonCode.DIFFERENT_SOURCE, null))
                 .doesNotThrowAnyException();
     }
 
