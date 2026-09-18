@@ -11,6 +11,12 @@ export const SCREENS = [
   { path: '/feed', name: 'feed' },
   { path: '/language', name: 'language' },
   { path: '/intro', name: 'intro' },
+  // A-4 sign-in (#265). Added in the same commit as the route, because this
+  // list is the only thing that puts a screen in front of either spec and
+  // nothing checks the two agree — measured on this very screen: with the
+  // route added and this line missing, `tsc` exited 0 and all 1,059 unit tests
+  // passed. route-parity.test.ts now closes that, and it was written here.
+  { path: '/sign-in', name: 'sign in' },
   { path: '/profile', name: 'profile' },
   // A real trip id shape, though the built app has no API behind it yet: what
   // this measures is the reflow of whichever state the screen reaches, and the

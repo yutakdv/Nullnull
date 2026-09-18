@@ -133,6 +133,30 @@ export const messages = {
       '로그인 없이 시작했어요 · 여행은 이 기기의 익명 세션에 저장돼요',
     'profile.login': '로그인',
     'profile.comingSoon': '준비 중',
+
+    // A-4 sign-in (746:4707).
+    //
+    // The screen exists before the contract does: docs/api/openapi.yaml has no
+    // auth operation yet (#264), so the button submits nowhere. These strings
+    // describe what the screen will do, not what it does — the alternative was
+    // to ship no screen at all, and a route that renders nothing is worse than
+    // one that renders the form it is waiting on.
+    //
+    // `signIn.anonymous` is not `intro.noLogin`. Intro says "바로" to someone
+    // who has not started; here the traveller already has trips in this
+    // session, so the promise is that they keep them, not that they can begin.
+    // AGENTS.md rule 14 is the reason this line exists at all: signing in is an
+    // addition, and the anonymous path stays whole.
+    'signIn.title': '로그인',
+    'signIn.lead': '기기를 옮겨도 여행이 그대로 남아요',
+    'signIn.id.label': '아이디',
+    'signIn.id.placeholder': '아이디를 입력해 주세요',
+    'signIn.password.label': '비밀번호',
+    'signIn.password.placeholder': '비밀번호를 입력해 주세요',
+    'signIn.submit': '로그인',
+    'signIn.anonymous': '로그인 없이 계속 둘러볼 수 있어요',
+    // Shown in place of a request, because there is no request to make yet.
+    'signIn.pending': '로그인은 아직 준비 중이에요',
     'profile.trips.title': '내 여행 목록',
     'profile.trips.count': '{count}',
     'profile.trips.empty': '아직 만든 여행이 없어요',
@@ -877,6 +901,18 @@ export const messages = {
       'Started without signing in · trips are stored in this device\u2019s anonymous session',
     'profile.login': 'Sign in',
     'profile.comingSoon': 'Coming soon',
+
+    // A-4 sign-in (746:4707). See the ko-KR block for why this screen exists
+    // before the contract it will call.
+    'signIn.title': 'Sign in',
+    'signIn.lead': 'Your trips stay with you on any device',
+    'signIn.id.label': 'ID',
+    'signIn.id.placeholder': 'Enter your ID',
+    'signIn.password.label': 'Password',
+    'signIn.password.placeholder': 'Enter your password',
+    'signIn.submit': 'Sign in',
+    'signIn.anonymous': 'You can keep browsing without signing in',
+    'signIn.pending': 'Signing in is not available yet',
     'profile.trips.title': 'My trips',
     'profile.trips.count': '{count}',
     'profile.trips.empty': 'No trips yet',
