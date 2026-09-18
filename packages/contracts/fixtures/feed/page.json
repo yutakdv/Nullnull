@@ -125,7 +125,7 @@
           "normalizationVersion": "1.0.0",
           "qualityFlags": [],
           "forecastIssueId": "2026-09-11",
-          "comparisonAxis": "TEMPORAL",
+          "comparisonAxis": null,
           "comparisonEligible": false,
           "comparisonReasonCode": "MISSING_PROVENANCE",
           "comparisonGroupId": "KTO_CONCENTRATION_FORECAST",
@@ -136,7 +136,7 @@
           "scopeLabel": "장소",
           "mappingType": "DIRECT",
           "fallbackUsed": false,
-          "provenanceId": "018f5a00-0000-7000-8000-000000000003"
+          "provenanceId": null
         }
       }
     },

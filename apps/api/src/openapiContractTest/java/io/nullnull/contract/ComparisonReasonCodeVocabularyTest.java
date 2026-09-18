@@ -40,10 +40,19 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code NO_READING} in a feed example and its two fixtures, for a snapshot whose
  * {@code sourceState} is UNAVAILABLE - a shape {@code CrowdProvenanceProjectionTest} already pins
  * to MISSING_PROVENANCE; and {@code SOURCE_MISMATCH} in nine proposal test fixtures, where §9's
- * word for "source 다름" is DIFFERENT_SOURCE. Neither is emittable: the only producers of this
- * field are {@code CrowdProvenanceProjection.project} and {@code .compare}, and both return a
- * {@link ComparisonReasonCode} constant. An example a client branches on that the server can never
- * send is the same defect as a state the server holds and cannot serialise.
+ * word for "source 다름" is DIFFERENT_SOURCE. Neither is emittable. The value originates in two
+ * places, both of which name a {@link ComparisonReasonCode} constant: {@code TemporalComparisonPolicy},
+ * whose verdicts reach the wire through {@code CrowdProvenanceProjection.project} and {@code .compare}
+ * (the latter into {@code OptimizationProposal} via {@code TemporalCandidateIn}), and
+ * {@code CatalogRelationProjectionService}, which answers QUALITATIVE_ONLY for every relation. Counted
+ * by tracing every {@code String comparisonReasonCode} component in main back to where its value is
+ * first set; the other carriers relay or persist it. An example a client branches on that the server
+ * can never send is the same defect as a state the server holds and cannot serialise.
+ *
+ * <p>What this checks is membership, not emittability. A code that is in the vocabulary but that no
+ * producer emits today still passes - SAME_SOURCE_SCOPE_SET, which the component-level DataProvenance
+ * example uses, is one. Whether an example as a whole is producible is a different question and not
+ * answered here.
  *
  * <p>Deliberately NOT done here: putting {@code enum} on the contract field. The one other
  * vocabulary whose source of truth sits outside the server keeps its list in an extension

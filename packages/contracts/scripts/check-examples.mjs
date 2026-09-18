@@ -22,6 +22,8 @@ const FIXTURE_OF = {
   noTrips: 'trips/trip-page-empty.json',
   createdTrip: 'trips/trip-detail-created.json',
   scheduledTrip: 'trips/trip-detail-scheduled.json',
+  draftReady: 'trips/draft-preview-ready.json',
+  draftEmpty: 'trips/draft-preview-empty.json',
   updatedTrip: 'trips/trip-detail-scheduled.json',
   interestsReplaced: 'trips/trip-detail-interests.json',
   notFound: 'problems/not-found.json',

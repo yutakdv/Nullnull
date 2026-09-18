@@ -49,6 +49,34 @@ public class JdbcCatalogHoursQuery implements CatalogHoursQuery {
         return Map.copyOf(windows);
     }
 
+    /** {@link #WINDOWS} with the place id widened to a set and returned with each row. */
+    private static final String WINDOWS_FOR_ALL = """
+            SELECT evidence.place_id, window_row.effective_on, window_row.state, window_row.opens_at,
+                   window_row.closes_at
+              FROM place_hours_windows window_row
+              JOIN place_hours_observations evidence ON evidence.id = window_row.observation_id
+             WHERE evidence.place_id = ANY (?)
+               AND evidence.superseded_at IS NULL
+               AND evidence.stale_at > ?
+               AND window_row.effective_on BETWEEN ? AND ?
+            """;
+
+    @Override
+    public Map<UUID, Map<LocalDate, CatalogOpeningWindow>> windowsForAll(java.util.List<UUID> placeIds,
+            LocalDate from, LocalDate to, Instant now) {
+        if (placeIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Map<LocalDate, CatalogOpeningWindow>> byPlace = new LinkedHashMap<>();
+        RowCallbackHandler collect = row -> put(
+                byPlace.computeIfAbsent(row.getObject("place_id", UUID.class), id -> new LinkedHashMap<>()), row);
+        jdbc.query(WINDOWS_FOR_ALL, collect, placeIds.toArray(UUID[]::new), Timestamp.from(now),
+                java.sql.Date.valueOf(from), java.sql.Date.valueOf(to));
+        Map<UUID, Map<LocalDate, CatalogOpeningWindow>> frozen = new LinkedHashMap<>();
+        byPlace.forEach((place, windows) -> frozen.put(place, Map.copyOf(windows)));
+        return Map.copyOf(frozen);
+    }
+
     private static void put(Map<LocalDate, CatalogOpeningWindow> windows, ResultSet row) throws SQLException {
         java.sql.Time opensAt = row.getTime("opens_at");
         java.sql.Time closesAt = row.getTime("closes_at");

@@ -416,6 +416,26 @@
         {
           "id": "BA-010-T3",
           "assertion": "expiry·rotation·response loss 이후 안전한 bootstrap으로 복구한다"
+        },
+        {
+          "id": "BA-010-T4",
+          "assertion": "session cookie가 아예 없는 요청은 401 UNAUTHORIZED에 missingCredential SESSION_COOKIE를 싣는다"
+        },
+        {
+          "id": "BA-010-T5",
+          "assertion": "session 해석에서 거절된 요청은 원인과 무관하게 서로 구별되지 않는 필드 없는 401 UNAUTHORIZED다"
+        },
+        {
+          "id": "BA-010-T6",
+          "assertion": "cross-origin 상태 변경 요청은 session cookie 유무와 무관하게 필드 없는 403 CSRF_INVALID다"
+        },
+        {
+          "id": "BA-010-T7",
+          "assertion": "missingCredential을 싣는 경로는 session interceptor 하나뿐이다"
+        },
+        {
+          "id": "BA-010-T8",
+          "assertion": "cookie를 보낸 요청은 어느 parser가 그것을 보든 missing으로 답하지 않는다"
         }
       ],
       "handoff": "쿠키/헤더 examples, 최초/refresh/만료/두 tab E2E fixture와 401 복구 순서.",
@@ -1704,7 +1724,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "APPLY·KEEP의 멱등 원자 결정",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-050",
         "BA-051"
@@ -1735,7 +1755,7 @@
       "tests": [
         {
           "id": "BA-052-T1",
-          "assertion": "동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다"
+          "assertion": "순차로 두 번째 결정(APPLY·KEEP)이 오면 status 검사로 거절되고 최초 결정 하나만 남는다"
         },
         {
           "id": "BA-052-T2",
@@ -1772,6 +1792,26 @@
         {
           "id": "BA-052-T10",
           "assertion": "run의 최초 결정은 하나이고 REVERT는 그것이 아니다"
+        },
+        {
+          "id": "BA-052-T11",
+          "assertion": "KEEP은 trip의 item·version·revision을 쓰지 않는다"
+        },
+        {
+          "id": "BA-052-T12",
+          "assertion": "동시에 온 APPLY와 KEEP은 index가 중재해 하나만 반영되고, 진 쪽은 item 이동까지 포함해 부분 적용 없이 rollback된다"
+        },
+        {
+          "id": "BA-052-T13",
+          "assertion": "동시에 온 두 APPLY는 trip version 재조회가 중재해 하나만 반영된다"
+        },
+        {
+          "id": "BA-052-T14",
+          "assertion": "preview가 비교 적격으로 판정한 crowd 근거에 그 뒤 incident가 선언되면 APPLY가 거절된다"
+        },
+        {
+          "id": "BA-052-T15",
+          "assertion": "preview가 고른 날짜를 현재 opening hours로 같은 판정에 다시 넣어 통과하지 못하면 APPLY가 거절된다"
         }
       ],
       "handoff": "APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures.",
@@ -1784,7 +1824,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "24시간 REVERT·최적화 이력",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-052"
       ],
@@ -1813,7 +1853,7 @@
       "tests": [
         {
           "id": "BA-053-T1",
-          "assertion": "24시간 직전/정각/이후·두 요청 경쟁·같은 key replay를 검증한다"
+          "assertion": "창이 열려 있는 동안(revertUntil 전)의 revert는 일정을 되돌리고 run을 REVERTED로 끝낸다"
         },
         {
           "id": "BA-053-T2",
@@ -1821,7 +1861,35 @@
         },
         {
           "id": "BA-053-T3",
-          "assertion": "history owner/filter/expiry cursor와 trip 삭제 cascade를 검증한다"
+          "assertion": "history는 caller의 run만 trip filter대로 보여 주고 trip 삭제와 함께 사라진다"
+        },
+        {
+          "id": "BA-053-T4",
+          "assertion": "revertUntil과 같은 순간의 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-053-T5",
+          "assertion": "revertUntil이 지난 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-053-T6",
+          "assertion": "같은 Idempotency-Key로 다시 온 revert는 저장된 응답을 돌려주고 두 번 되돌리지 않는다"
+        },
+        {
+          "id": "BA-053-T7",
+          "assertion": "동시에 온 두 revert는 trip version 재조회가 중재해 하나만 반영된다"
+        },
+        {
+          "id": "BA-053-T8",
+          "assertion": "한 APPLY를 가리키는 두 번째 REVERT 행은 DB가 거부한다"
+        },
+        {
+          "id": "BA-053-T9",
+          "assertion": "KEEP과 REVERT 결정은 되돌릴 수 없다"
+        },
+        {
+          "id": "BA-053-T10",
+          "assertion": "만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다"
         }
       ],
       "handoff": "undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag.",
@@ -1834,7 +1902,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "revertAvailability 읽기 투영",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-053"
       ],
@@ -1880,13 +1948,151 @@
         },
         {
           "id": "BA-054-T6",
-          "assertion": "AVAILABLE을 읽은 뒤에도 revert가 owner·version·window·decision을 다시 검사한다"
+          "assertion": "AVAILABLE을 읽은 뒤 trip version이 움직였으면 revert가 거절한다"
+        },
+        {
+          "id": "BA-054-T7",
+          "assertion": "AVAILABLE을 읽은 뒤에도 남의 owner가 보낸 revert는 없는 결정과 같은 404로 거절된다"
+        },
+        {
+          "id": "BA-054-T8",
+          "assertion": "AVAILABLE을 읽은 뒤 창이 닫히면 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-054-T9",
+          "assertion": "AVAILABLE을 읽은 뒤 그 APPLY가 이미 되돌려졌으면 두 번째 revert는 거절된다"
         }
       ],
       "handoff": "applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-054"
+    },
+    {
+      "id": "BA-055",
+      "phase": "B04",
+      "priority": "P0",
+      "title": "저장 없는 여행 초안 preview",
+      "status": "integration-ready",
+      "dependsOn": [
+        "BA-030",
+        "BA-022",
+        "BA-025"
+      ],
+      "operations": [
+        "previewTripDraft"
+      ],
+      "featureIds": [
+        "FR-TRC-10"
+      ],
+      "figmaNodes": [
+        "384:5673"
+      ],
+      "designRequests": [],
+      "entities": "저장 없음 · 공개 catalog pool(id 오름차순 앞 100) · 검증된 영업시간 창 · apps/ai drafts/compose · createTrip seedItems 확정",
+      "steps": [
+        "catalog 공개 게이트를 먼저 확인한다. 닫혀 있으면 아무것도 읽지 않고 apps/ai도 부르지 않고 503이다",
+        "읽기 전용 transaction 안에서 owner locale로 공개 장소 pool을 id 오름차순 앞 100개 읽고, 더 있으면 POOL_TRUNCATED를 붙인다. 검증된 영업시간 창은 한 statement로 읽는다",
+        "transaction 밖에서 apps/ai drafts/compose를 부른다. 하루 stop 상한은 Spring 상수 3이고 측정값이 아니라 초기 설계값이다",
+        "gateway post-condition(pool 밖 장소·중복·범위 밖 날짜·하루 상한·날짜별 position 0..n-1·검증된 휴무일 stop·OPEN 표기)을 통과한 답만 날짜별로 묶어 PlaceSummary로 채운다",
+        "apps/ai 무응답은 503 SOURCE_UNAVAILABLE이고 EMPTY 200으로 바꾸지 않는다. apps/ai의 4xx와 post-condition 위반은 500 INTERNAL_ERROR(retryable false)다",
+        "확정은 이 operation이 아니라 createTrip이다. stop 하나가 seedItem 하나이고 startTime null·constraints 빈 배열이다"
+      ],
+      "safety": "preview는 trip·item·candidate·idempotency 행을 만들지 않는다. 시각·혼잡·관심사 적합도를 만들지 않고, 검증되지 않은 날짜를 OPEN으로 쓰지 않으며, 장애를 EMPTY로 위장하지 않는다.",
+      "tests": [
+        {
+          "id": "BA-055-T1",
+          "assertion": "preview는 그 owner의 trips·trip_items·trip_candidates·idempotency_records에 행을 만들지 않는다"
+        },
+        {
+          "id": "BA-055-T2",
+          "assertion": "같은 요청을 두 번 보내면 같은 stop이 나온다"
+        },
+        {
+          "id": "BA-055-T3",
+          "assertion": "모든 stop을 seedItems로 옮긴 createTrip이 201이고 item 수가 stop 수와 같다"
+        },
+        {
+          "id": "BA-055-T4",
+          "assertion": "catalog 공개 게이트가 닫힌 기본 설정에서는 503이고 apps/ai를 부르지 않는다"
+        },
+        {
+          "id": "BA-055-T5",
+          "assertion": "apps/ai가 응답하지 않으면 EMPTY 200이 아니라 503이다"
+        },
+        {
+          "id": "BA-055-T6",
+          "assertion": "검증된 휴무일은 CLOSED 창으로, 검증되지 않은 날짜는 창 없이 apps/ai에 간다"
+        },
+        {
+          "id": "BA-055-T7",
+          "assertion": "pool 밖 장소를 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T8",
+          "assertion": "apps/ai 요청 record tree에 owner·session·원문·좌표 이름이 없다"
+        },
+        {
+          "id": "BA-055-T9",
+          "assertion": "공개 장소가 없으면 EMPTY이고 모든 날짜가 stop 없이 남는다"
+        },
+        {
+          "id": "BA-055-T10",
+          "assertion": "OPENING_HOURS_VERIFIED는 OPEN인 stop이 하나 이상일 때만 basis에 있다"
+        },
+        {
+          "id": "BA-055-T11",
+          "assertion": "응답은 실제로 Cache-Control: private, no-store를 보낸다"
+        },
+        {
+          "id": "BA-055-T12",
+          "assertion": "apps/ai가 4xx로 요청을 거절하면 503이 아니라 500 INTERNAL_ERROR다"
+        },
+        {
+          "id": "BA-055-T13",
+          "assertion": "검증된 휴무일에 stop을 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T14",
+          "assertion": "검증된 OPEN 창이 없는 날짜의 stop을 OPEN으로 표기한 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T15",
+          "assertion": "같은 장소를 두 번 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T16",
+          "assertion": "하루 stop 상한을 넘긴 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T17",
+          "assertion": "날짜별 position이 0부터 빈칸 없이 이어지지 않는 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T18",
+          "assertion": "stop 유무와 READY·EMPTY 상태가 어긋난 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T19",
+          "assertion": "내부 계약이 선언하지 않은 reason을 담은 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T20",
+          "assertion": "verifyDraft가 거부한 답은 draft가 아니라 500 INTERNAL_ERROR(retryable false)로 나간다"
+        },
+        {
+          "id": "BA-055-T21",
+          "assertion": "여행 기간 밖 날짜에 stop을 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T22",
+          "assertion": "policy hash가 빈 답은 거부된다"
+        }
+      ],
+      "handoff": "READY·EMPTY fixture(packages/contracts/fixtures/trips/draft-preview-*.json)와 stop→SeedTripItem 변환 규칙, 503(게이트 닫힘·apps/ai 무응답)과 500(apps/ai 거절·계약 위반) 구분.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-055"
     },
     {
       "id": "BA-060",

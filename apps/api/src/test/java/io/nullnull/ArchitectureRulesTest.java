@@ -295,4 +295,25 @@ class ArchitectureRulesTest {
                 .allowEmptyShould(true)
                 .check(classes);
     }
+
+    @Test
+    @DisplayName("BA-010-T7 only the session interceptor can report a missing session cookie")
+    void missingSessionCookieHasOneProducer() {
+        // getMethod throws if the factory is renamed away, so this cannot pass by finding nothing to check. Accesses,
+        // not just calls, so a method reference (ApiException::missingSessionCookie) counts as a producer too.
+        var accesses = classes.get(io.nullnull.shared.problem.ApiException.class)
+                .getMethod("missingSessionCookie", String.class).getAccessesToSelf();
+        // A second producer - SessionService.unauthorized(), say - would widen the bit from "no cookie was sent" to
+        // "this cookie is no longer good". The contract enum does not change, so oasdiff would not notice.
+        String owner = io.nullnull.identity.api.SessionHttpConfiguration.class.getName();
+        org.assertj.core.api.Assertions.assertThat(accesses).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(accesses.iterator().next().getOriginOwner().getName())
+                .matches(java.util.regex.Pattern.quote(owner) + "(\\$.*)?");
+        // The other way to put the field on a body is to build the Problem directly; its setter is package-private,
+        // and its constructor may only be called from inside shared.problem, where the factory's path runs.
+        org.assertj.core.api.Assertions.assertThat(classes.get(io.nullnull.shared.problem.Problem.class).getConstructors())
+                .flatMap(constructor -> constructor.getAccessesToSelf())
+                .allSatisfy(access -> org.assertj.core.api.Assertions.assertThat(access.getOriginOwner().getPackageName())
+                        .isEqualTo("io.nullnull.shared.problem"));
+    }
 }

@@ -4,6 +4,10 @@ import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
 import io.nullnull.recommendation.domain.PolicyPins;
+import io.nullnull.recommendation.domain.draft.DraftComposeRequest;
+import io.nullnull.recommendation.domain.draft.DraftComposeResponse;
+import io.nullnull.recommendation.domain.draft.DraftPlaceIn;
+import io.nullnull.recommendation.domain.draft.DraftStopOut;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
@@ -12,6 +16,7 @@ import io.nullnull.recommendation.domain.feed.FeedRankResponse;
 import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
+import io.nullnull.recommendation.domain.item.OpeningWindowIn;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
 import io.nullnull.recommendation.domain.related.RelatedItemOut;
 import io.nullnull.recommendation.domain.related.RelatedRankRequest;
@@ -23,7 +28,11 @@ import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 import io.nullnull.recommendation.domain.slot.SlotOut;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -39,7 +48,8 @@ import org.springframework.web.client.RestClientException;
  * Internal contract v1 over HTTP. Called outside any DB transaction. Response identifiers are
  * checked against the request so the service can never introduce an id Spring did not hydrate.
  * Only the idempotent GET is retried; {@code rankFeed}, {@code proposeItem}, {@code evaluateSlots},
- * {@code rankRelated} and {@code renderExplanation} are POSTs and are attempted once.
+ * {@code rankRelated}, {@code renderExplanation} and {@code composeDraft} are POSTs and are attempted
+ * once.
  */
 public class HttpRecommendationGateway implements RecommendationGateway {
 
@@ -221,6 +231,88 @@ public class HttpRecommendationGateway implements RecommendationGateway {
         }
         verifyExplanation(request, response);
         return response;
+    }
+
+    @Override
+    public DraftComposeResponse composeDraft(DraftComposeRequest request) {
+        DraftComposeResponse response;
+        try {
+            response = client.post().uri("/internal/v1/drafts/compose")
+                    .header("X-Request-ID", requestId.get())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(DraftComposeResponse.class);
+        } catch (HttpClientErrorException exception) {
+            throw rejected("draftCompose", exception);
+        } catch (RestClientException | HttpMessageConversionException exception) {
+            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
+        }
+        if (response == null) {
+            throw new RecommendationUnavailableException("empty draft compose response", true, null);
+        }
+        verifyDraft(request, response);
+        return response;
+    }
+
+    /**
+     * A draft may only place a place this API put in the pool, once, on a trip date, within the per-day
+     * cap, at positions 0..n-1 per date without a gap. It may not put a stop on a date the API sent as
+     * verified CLOSED, and a stop says OPEN exactly when the API sent a verified OPEN window for that
+     * place and date - the label repeats what catalog established and nothing else. The state has to
+     * agree with the stops it summarises: EMPTY dressed as READY would render an empty itinerary as a
+     * proposal. A violation is a contract break, not an outage: retrying cannot fix it.
+     */
+    private static void verifyDraft(DraftComposeRequest request, DraftComposeResponse response) {
+        if (response.policyHash().isBlank()) {
+            throw unusable("draft compose response carries no policy hash");
+        }
+        if (!DraftComposeResponse.REASONS.containsAll(response.reasons())) {
+            throw unusable("service returned a draft reason the contract does not declare");
+        }
+        Map<UUID, Map<LocalDate, OpeningWindowIn>> pool = new HashMap<>();
+        for (DraftPlaceIn place : request.pool()) {
+            pool.put(place.placeId(), place.openingHours());
+        }
+        Set<UUID> placed = new HashSet<>();
+        Map<LocalDate, List<Integer>> positions = new HashMap<>();
+        for (DraftStopOut stop : response.stops()) {
+            Map<LocalDate, OpeningWindowIn> windows = pool.get(stop.placeId());
+            if (windows == null) {
+                throw unusable("service placed a place that was not in the pool");
+            }
+            if (!placed.add(stop.placeId())) {
+                throw unusable("a place is placed once, never repeated");
+            }
+            if (stop.date().isBefore(request.tripStart()) || stop.date().isAfter(request.tripEnd())) {
+                throw unusable("service placed a stop outside the trip range");
+            }
+            OpeningWindowIn window = windows.get(stop.date());
+            OpeningWindowIn.OpeningState verified = window == null ? null : window.state();
+            if (verified == OpeningWindowIn.OpeningState.CLOSED) {
+                throw unusable("service placed a stop on a date verified as closed");
+            }
+            boolean verifiedOpen = verified == OpeningWindowIn.OpeningState.OPEN;
+            if ((stop.hoursState() == DraftStopOut.HoursState.OPEN) != verifiedOpen) {
+                throw unusable("a stop is OPEN exactly when its date carries a verified OPEN window");
+            }
+            positions.computeIfAbsent(stop.date(), date -> new ArrayList<>()).add(stop.position());
+        }
+        for (List<Integer> day : positions.values()) {
+            if (day.size() > request.maxStopsPerDay()) {
+                throw unusable("service placed more stops on one date than the cap allows");
+            }
+            List<Integer> sorted = day.stream().sorted().toList();
+            for (int expected = 0; expected < sorted.size(); expected++) {
+                if (sorted.get(expected) != expected) {
+                    throw unusable("draft positions must run 0..n-1 per date without a gap");
+                }
+            }
+        }
+        boolean empty = response.stops().isEmpty();
+        if (empty != (response.state() == DraftComposeResponse.State.EMPTY)) {
+            throw unusable("a draft is EMPTY exactly when it places no stop");
+        }
     }
 
     /**

@@ -130,7 +130,7 @@ Controller는 JPA entity를 반환하지 않는다. API DTO와 domain type을 �
 - URL: 공유/새로고침 복구가 필요한 route, run id, 선택 tab만 둔다.
 - client preference: locale/onboarding 같은 비민감 값만 localStorage에 저장한다.
 - session token, 붙여넣기 원문, 정밀 위치는 localStorage에 저장하지 않는다.
-- CSRF token은 tab memory에만 둔다. refresh/new tab은 cookie가 있으면 `POST /session/csrf`, cookie가 없거나 401이면 `POST /demo/sessions`를 호출한다. 새 token이 다른 tab token을 폐기한다고 가정하지 않는다.
+- CSRF token은 tab memory에만 둔다. refresh/new tab은 `POST /session/csrf`를 호출하고, 401에 `missingCredential: SESSION_COOKIE`가 실렸을 때(요청에 cookie가 없음)만 `POST /demo/sessions`를 호출한다. 필드가 없는 401(만료·폐기)에는 새 Owner를 만들지 않고 사용자에게 맡긴다. 새 token이 다른 tab token을 폐기한다고 가정하지 않는다.
 - 검색과 coarse viewport는 URL에 넣지 않고 read-only POST body로 보낸다. query cache key에는 원문 대신 process-memory hash를 사용하고 persistence/dehydration에서 제외한다.
 
 ### API client

@@ -1,5 +1,6 @@
 package io.nullnull.optimization.application;
 
+import io.nullnull.catalog.application.CatalogHoursQuery;
 import io.nullnull.crowd.application.CrowdForecastQuery;
 import io.nullnull.identity.application.IdempotencyGuard;
 import io.nullnull.identity.application.OwnerContext;
@@ -18,6 +19,7 @@ import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.optimization.domain.RevertAvailability;
 import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.recommendation.application.ProposalRevalidator;
 import io.nullnull.shared.cursor.CursorClaims;
 import io.nullnull.shared.cursor.CursorException;
 import io.nullnull.shared.cursor.CursorSortKey;
@@ -37,6 +39,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -100,6 +103,7 @@ public class OptimizationService {
     private final RecommendationGateway recommendations;
     /** For BA-052-T5: the set this run froze, re-read by id rather than looked up again. */
     private final CrowdForecastQuery forecasts;
+    private final CatalogHoursQuery hours;
     private final OptimizationHistoryQuery history;
     private final OptimizationCursorProperties historyCursors;
     private final OptimizationCapability capability;
@@ -113,7 +117,8 @@ public class OptimizationService {
             OptimizationDecisionStore decisions, OptimizationHistoryQuery history,
             OptimizationCursorProperties historyCursors, RecommendationGateway recommendations,
             CrowdForecastQuery forecasts, OptimizationCapability capability, TripService trips,
-            JobQueue jobs, IdempotencyGuard idempotency, ObjectMapper json, Clock clock) {
+            JobQueue jobs, IdempotencyGuard idempotency, ObjectMapper json, Clock clock,
+            CatalogHoursQuery hours) {
         this.runs = Objects.requireNonNull(runs, "runs");
         this.proposals = Objects.requireNonNull(proposals, "proposals");
         this.decisions = Objects.requireNonNull(decisions, "decisions");
@@ -121,6 +126,7 @@ public class OptimizationService {
         this.historyCursors = Objects.requireNonNull(historyCursors, "historyCursors");
         this.recommendations = Objects.requireNonNull(recommendations, "recommendations");
         this.forecasts = Objects.requireNonNull(forecasts, "forecasts");
+        this.hours = Objects.requireNonNull(hours, "hours");
         this.capability = Objects.requireNonNull(capability, "capability");
         this.trips = Objects.requireNonNull(trips, "trips");
         this.jobs = Objects.requireNonNull(jobs, "jobs");
@@ -281,7 +287,7 @@ public class OptimizationService {
                     "The preview expired before this decision was made.");
         }
         requirePolicyStillInForce(run);
-        requireFrozenEvidenceStillStored(run);
+        FrozenEvidence evidence = requireFrozenEvidenceStillStored(run);
         OptimizationProposal proposal = proposals.findByRun(run.id()).stream()
                 .filter(each -> each.id().equals(command.proposalId()))
                 .findFirst()
@@ -292,7 +298,7 @@ public class OptimizationService {
 
         UUID decisionId = UuidV7.create(clock);
         OptimizationDecision decision = command.decision() == OptimizationDecisionKind.APPLY
-                ? applied(context, run, proposal, expected, decisionId, now)
+                ? applied(context, run, proposal, evidence, expected, decisionId, now)
                 : new OptimizationDecision(decisionId, run.id(), proposal.id(), run.ownerId(),
                         OptimizationDecisionKind.KEEP, expected, null, null, null, null, null, now);
         if (!decisions.insertIfFirst(decision)) {
@@ -359,14 +365,26 @@ public class OptimizationService {
      * stored, so it cannot even be reproduced. Comparing what cannot be reproduced would refuse
      * valid applies for a reason that is not the one the code claims.
      */
-    private void requireFrozenEvidenceStillStored(OptimizationRun run) {
+    /** What the run froze, as it reads now, and the trip it is about. */
+    private record FrozenEvidence(ZoneId zone, TripItem target, List<TripItem> items,
+            List<CrowdForecastQuery.Snapshot> snapshots) {
+
+        TripItem item(UUID id) {
+            return items.stream().filter(each -> each.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new ApiException(ProblemCode.DATA_CHANGED,
+                            "The preview names an item this trip no longer holds."));
+        }
+    }
+
+    private FrozenEvidence requireFrozenEvidenceStillStored(OptimizationRun run) {
         if (run.snapshotSetIds().isEmpty()) {
             // A READY run froze at least one set; recordFrozenEvidence writes them before markReady.
             throw new IllegalStateException("run " + run.id() + " is READY with no frozen evidence");
         }
         Trip trip = trips.findForOwner(run.ownerId(), run.tripId())
                 .orElseThrow(OptimizationService::notFound);
-        TripItem target = trips.itemsOf(run.tripId()).stream()
+        List<TripItem> items = trips.itemsOf(run.tripId());
+        TripItem target = items.stream()
                 .filter(item -> item.id().equals(run.targetItemId()))
                 .findFirst()
                 .orElseThrow(() -> new ApiException(ProblemCode.DATA_CHANGED,
@@ -374,19 +392,99 @@ public class OptimizationService {
         ZoneId zone = trip.range().timezone();
         Instant from = trip.range().startDate().atStartOfDay(zone).toInstant();
         Instant to = trip.range().endDate().plusDays(1).atStartOfDay(zone).toInstant();
+        List<CrowdForecastQuery.Snapshot> snapshots = new java.util.ArrayList<>();
         for (UUID setId : run.snapshotSetIds()) {
-            if (forecasts.frozenSet(setId, target.placeId(), from, to).isEmpty()) {
+            CrowdForecastQuery.SnapshotSet set = forecasts.frozenSet(setId, target.placeId(), from, to)
+                    .orElseThrow(() -> new ApiException(ProblemCode.DATA_CHANGED,
+                            "The forecast evidence this preview was judged against is no longer stored."));
+            snapshots.addAll(set.snapshots());
+        }
+        return new FrozenEvidence(zone, target, items, List.copyOf(snapshots));
+    }
+
+    /**
+     * BA-052-T14: a comparison the preview made, withdrawn since by a source incident.
+     *
+     * <p>Only an ELIGIBLE comparison can be withdrawn. An incident already active when the preview was
+     * judged made the comparison ineligible then, so the proposal carries no crowd claim, and refusing
+     * it now would report a change that did not happen. What is compared is therefore the verdict,
+     * not a time: eligible then, and a point of the pair it compared quarantined now. frozenSet
+     * computes incident_active against the incidents stored at the moment it is read.
+     *
+     * <p>The pair is not stored on the proposal. For a daily forecast it is the target's point on the
+     * day it leaves and the point on the day it would move to, which is what is read here.
+     */
+    private static void requireComparisonStillSupported(OptimizationProposal proposal,
+            FrozenEvidence evidence, List<TripService.ItemMove> moves) {
+        Set<LocalDate> compared = new java.util.HashSet<>();
+        compared.add(evidence.target().date());
+        moves.forEach(move -> compared.add(move.date()));
+        Set<LocalDate> quarantined = new java.util.HashSet<>();
+        evidence.snapshots().stream().filter(CrowdForecastQuery.Snapshot::incidentActive)
+                .forEach(point -> quarantined.add(LocalDate.ofInstant(point.targetAt(), evidence.zone())));
+        if (comparisonWithdrawn(proposal.comparisonEligible(), compared, quarantined)) {
+            throw new ApiException(ProblemCode.DATA_CHANGED,
+                    "The forecast this preview compared has since been quarantined by a source incident.");
+        }
+    }
+
+    /**
+     * The verdict comparison itself: eligible then, and a day it compared quarantined now.
+     *
+     * <p>Package-private for ComparisonWithdrawalTest. The eligible=false branch has no producer in
+     * P0 - ProposalRevalidator refuses a proposal whose candidate verdict is ineligible, so an
+     * incident active when the preview is judged fails the run instead of storing an ineligible
+     * proposal - and it is proven where it can be reached rather than by a hand-written READY row.
+     */
+    static boolean comparisonWithdrawn(boolean eligibleThen, Set<LocalDate> compared,
+            Set<LocalDate> quarantinedNow) {
+        return eligibleThen && compared.stream().anyMatch(quarantinedNow::contains);
+    }
+
+    /**
+     * BA-052-T15: the day the preview chose must still pass the judgment that chose it.
+     *
+     * <p>The preview judged opening hours with ProposalRevalidator.openingHours on the observations
+     * current then; this runs the same judgment, through the same conversion, on the observations
+     * current now. The observations are not frozen with the run - RunFingerprint has no hours input,
+     * and storing their ids would take a migration - so the outcome is re-judged rather than a
+     * fingerprint compared. What a fingerprint would catch and this does not is one OPEN window
+     * replaced by another the stay still fits, and that changes no outcome. UNKNOWN is a change: the
+     * preview proposes only days whose hours were verified.
+     */
+    private void requireOpeningHoursStillHold(FrozenEvidence evidence, List<TripService.ItemMove> moves,
+            Instant now) {
+        for (TripService.ItemMove move : moves) {
+            TripItem item = evidence.item(move.itemId());
+            CatalogHoursQuery.CatalogOpeningWindow window = hours
+                    .windowsFor(item.placeId(), move.date(), move.date(), now).get(move.date());
+            String violation = ProposalRevalidator.openingHours(
+                    window == null ? null : OptimizeItemHandler.windowIn(window),
+                    move.startTime() == null ? item.startTime() : move.startTime(), item.durationMinutes());
+            if (violation != null) {
                 throw new ApiException(ProblemCode.DATA_CHANGED,
-                        "The forecast evidence this preview was judged against is no longer stored.");
+                        "The opening hours this preview relied on no longer allow the proposed time.");
             }
         }
     }
 
     /** APPLY: the trip moves, in the trip module, and this records what that produced. */
     private OptimizationDecision applied(OwnerContext context, OptimizationRun run,
-            OptimizationProposal proposal, long expected, UUID decisionId, Instant now) {
+            OptimizationProposal proposal, FrozenEvidence evidence, long expected, UUID decisionId,
+            Instant now) {
+        // The preview was judged against inputTripVersion. The trip module checks only that If-Match
+        // names the trip as it is now, so a caller who refreshed after an edit sends the new version,
+        // passes that check, and would apply a preview computed for a trip that no longer exists -
+        // invariant 4. BA-052-T3 has a case for each of the two checks.
+        if (expected != run.inputTripVersion()) {
+            throw new ApiException(ProblemCode.TRIP_CHANGED,
+                    "The trip changed after this preview was computed, so it cannot be applied.");
+        }
+        List<TripService.ItemMove> moves = movesOf(proposal);
+        requireComparisonStillSupported(proposal, evidence, moves);
+        requireOpeningHoursStillHold(evidence, moves, now);
         TripService.AppliedMoves moved = trips.applyOptimizationMoves(context.ownerId(), run.tripId(),
-                expected, movesOf(proposal));
+                expected, moves);
         return new OptimizationDecision(decisionId, run.id(), proposal.id(), run.ownerId(),
                 OptimizationDecisionKind.APPLY, expected, moved.trip().version(),
                 moved.beforeRevisionId(), moved.afterRevisionId(), null,
