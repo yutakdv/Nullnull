@@ -12,7 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-@DisplayName("REC-DATA-02/03/04 temporal pair eligibility")
+@DisplayName("temporal pair eligibility (REC-DATA family, clauses 02/03/04)")
 class TemporalComparisonPolicyTest {
 
     static final UUID PLACE = UUID.fromString("018f3f8e-9b67-7a21-8d31-31d315b93a01");

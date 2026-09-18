@@ -12,7 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /** REC-FEED-04 cursor tamper/owner/expiry. The key here is a literal test value, never a real secret. */
-@DisplayName("REC-FEED-04 cursor tamper/owner/expiry")
+@DisplayName("cursor tamper/owner/expiry (REC-FEED family, clause 04)")
 class SignedCursorCodecTest {
 
     static final byte[] KEY = "test-only-cursor-secret-32-bytes!".getBytes(StandardCharsets.UTF_8);
