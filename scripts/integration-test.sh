@@ -290,6 +290,23 @@ if [[ "${api_ready}" != true || "${web_ready}" != true ]]; then
   exit 1
 fi
 
+# #253: the E2E reads catalog rows that no production path creates here (egress is denied, so the
+# KTO ingest cannot run). Seeded only now: api has migrated the schema, and api-quality - which
+# shares this database - has finished. The read-back line is the verdict; psql exiting 0 is not.
+readonly e2e_seed_report="${artifact_dir}/e2e-catalog-seed.txt"
+"${compose[@]}" exec -T postgres psql --no-psqlrc --quiet --tuples-only --no-align \
+  -v ON_ERROR_STOP=1 -U nullnull -d nullnull_integration \
+  <"${project_root}/scripts/e2e/catalog-seed.sql" >"${e2e_seed_report}" 2>&1 || {
+  cat "${e2e_seed_report}" >&2
+  exit 1
+}
+if ! grep -qx 'e2e_catalog_seed=places:2,published_posts:1' "${e2e_seed_report}"; then
+  echo "E2E catalog seed did not read back as expected:" >&2
+  cat "${e2e_seed_report}" >&2
+  exit 1
+fi
+grep -x 'e2e_catalog_seed=.*' "${e2e_seed_report}"
+
 "${compose[@]}" run --rm e2e
 echo "full-docker" >"${artifact_dir}/mode.txt"
 echo "integration_mode=full-docker"

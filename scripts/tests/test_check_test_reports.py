@@ -322,7 +322,8 @@ out.mkdir(parents=True, exist_ok=True)
                              'apps/api/gradle/wrapper/gradle-wrapper.jar',
                              'apps/api/gradle/wrapper/gradle-wrapper.properties',
                              'apps/web/Dockerfile', 'apps/web/package.json', 'package.json',
-                             'package-lock.json', 'compose.integration.yml', 'docs/api/openapi.yaml'):
+                             'package-lock.json', 'compose.integration.yml', 'docs/api/openapi.yaml',
+                             'scripts/e2e/catalog-seed.sql'):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
@@ -364,6 +365,9 @@ elif 'run' in args and 'egress-denied' in args:
     # Same reason as infra-plan above: the probe states a verdict token, and a stub that printed
     # nothing would fail check_egress_report.py - which is exactly what that checker is for.
     print('outbound_network=denied')
+elif 'exec' in args and 'postgres' in args:
+    # The seed step's verdict is its read-back line (#253); psql exiting 0 is not one.
+    print('e2e_catalog_seed=places:2,published_posts:1')
 elif 'exec' in args:
     print('{{"status":"READY"}}')
 else:
