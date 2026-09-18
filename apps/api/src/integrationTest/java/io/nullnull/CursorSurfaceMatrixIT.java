@@ -59,11 +59,14 @@ import tools.jackson.databind.ObjectMapper;
  * {@code searchPlaces} is a read-only POST whose cursor travels in the body, so scanning for the
  * {@code cursor} query parameter would miss it.
  *
- * <p><strong>Two of the six are declared and not yet routed</strong> ({@code listOptimizationHistory},
- * {@code listNotifications}). They are not skipped: the fixtures below must cover exactly the
- * surfaces the application actually serves, which is read from the running context's handler
- * methods. Routing either one makes {@code BA-027-T4} fail until it has a fixture here, which is
- * the only thing that stops the fifth surface being born with the defect.
+ * <p><strong>One of the six is declared and not yet routed</strong> ({@code listNotifications}). It is
+ * not skipped: the fixtures below must cover exactly the surfaces the application actually serves,
+ * which is read from the running context's handler methods. Routing it makes {@code BA-027-T4} fail
+ * until it has a fixture here, which is the only thing that stops the next surface being born with
+ * the defect.
+ *
+ * <p>{@code listOptimizationHistory} was the other one, and BA-053 routed it - so it is covered
+ * below now, which is the mechanism working rather than an exception to it.
  */
 @SpringBootTest(properties = {
         // searchPlaces and the feed's embedded places both sit behind the publication gate; with it
@@ -111,6 +114,7 @@ class CursorSurfaceMatrixIT {
     @Autowired io.nullnull.social.application.FeedCursorProperties feedCursors;
     @Autowired io.nullnull.trip.application.TripCursorProperties tripCursors;
     @Autowired io.nullnull.catalog.application.CatalogPublicationProperties catalogPublication;
+    @Autowired io.nullnull.optimization.application.OptimizationCursorProperties optimizationCursors;
 
     @org.junit.jupiter.api.AfterEach
     void removeTheRowsThisClassCreated() {
@@ -346,7 +350,7 @@ class CursorSurfaceMatrixIT {
     private Map<String, Surface> surfaces() {
         Map<String, Surface> surfaces = new LinkedHashMap<>();
         for (Surface surface : List.of(new FeedSurface(), new CandidateSurface(), new TripSurface(),
-                new PlaceSearchSurface())) {
+                new PlaceSearchSurface(), new OptimizationHistorySurface())) {
             surfaces.put(surface.operationId, surface);
         }
         return surfaces;
@@ -368,10 +372,30 @@ class CursorSurfaceMatrixIT {
         final String operationId;
         /** {@code items[].<nested>.id} where the item wraps the row, or null for {@code items[].id}. */
         private final String nested;
+        /** The field naming the row, because not every listing calls it {@code id}. */
+        private final String idField;
 
         Surface(String operationId, String nested) {
+            this(operationId, nested, "id");
+        }
+
+        /**
+         * The fifth surface is what found this.
+         *
+         * <p>This class was built so a new listing joins by existing - the surface list is read from
+         * the contract, not written here. But the row reader below hard-coded {@code "id"}, and
+         * {@code OptimizationHistoryItem} has no such field: its rows are named by {@code runId},
+         * because a history line names the run it is about rather than carrying an identity of its
+         * own. So the auto-discovery reached the fifth surface and the parsing did not, and the
+         * generality stopped exactly one step short of where the design intended it.
+         *
+         * <p>Widened rather than worked around: renaming the contract field to satisfy a test would
+         * put a duplicate identifier in a public schema to spare this file one parameter.
+         */
+        Surface(String operationId, String nested, String idField) {
             this.operationId = operationId;
             this.nested = nested;
+            this.idField = idField;
         }
 
         /** Creates {@link #SEEDED} rows and returns the session that can read them. */
@@ -388,7 +412,7 @@ class CursorSurfaceMatrixIT {
         abstract SignedCursorCodec codec();
 
         Page page(SessionService.Bootstrap reader, String cursor, int limit) throws Exception {
-            return read(call(reader, cursor, limit).getResponse().getContentAsString(), nested);
+            return read(call(reader, cursor, limit).getResponse().getContentAsString(), nested, idField);
         }
     }
 
@@ -620,6 +644,101 @@ class CursorSurfaceMatrixIT {
         }
     }
 
+    /**
+     * BA-053's history listing, paged by {@code queued_at DESC, id DESC}.
+     *
+     * <p>Rows go in through JDBC rather than by driving the optimizer. What is being measured is
+     * paging, and every run this listing can hold looks the same to it; producing four of them
+     * through the BA-051 pipeline would make this the slowest fixture in the class and would put a
+     * mocked recommendation gateway into a test about cursors. The rows are real runs in the real
+     * table - what is skipped is the journey, not the destination.
+     *
+     * <p>No {@code nullnull.capabilities.optimization} here on purpose: the read path does not gate on
+     * the capability (neither does {@code getOptimization}), and setting it would hide a regression
+     * that made this listing require a flag the profile screen has no reason to depend on.
+     *
+     * <p>Nothing is added to the cleanup lists: {@code optimization_runs.trip_id} is ON DELETE
+     * CASCADE, so the trip deletion this class already performs takes the runs with it.
+     */
+    private final class OptimizationHistorySurface extends Surface {
+
+        private SessionService.Bootstrap reader;
+        private UUID tripId;
+        private Instant base;
+
+        OptimizationHistorySurface() {
+            // items[].runId, not items[].id: a history line names the run it is about rather than
+            // carrying an identity of its own, which is why Surface had to learn the field name.
+            super("listOptimizationHistory", null, "runId");
+        }
+
+        @Override
+        SignedCursorCodec codec() {
+            return optimizationCursors.cursorCodec();
+        }
+
+        @Override
+        SessionService.Bootstrap seed() throws Exception {
+            // A fresh owner each time: this listing is per-owner, so the seeded four are all of it.
+            reader = owner();
+            tripId = UUID.fromString(trip(reader, "2026-10-01"));
+            base = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+            for (int index = 0; index < SEEDED; index++) {
+                run(base.minus(java.time.Duration.ofMinutes(60L - index * 10)));
+            }
+            return reader;
+        }
+
+        @Override
+        UUID insertAhead() {
+            // Ahead in this ordering means queued later than every seeded row.
+            return run(base.plus(java.time.Duration.ofHours(1)));
+        }
+
+        @Override
+        void remove(UUID id) {
+            jdbc.update("DELETE FROM optimization_runs WHERE id = ?", id);
+        }
+
+        @Override
+        MvcResult call(SessionService.Bootstrap owner, String cursor, int limit) throws Exception {
+            var request = get("/api/v1/optimizations").param("limit", Integer.toString(limit))
+                    .cookie(cookie(owner));
+            if (cursor != null) {
+                request.param("cursor", cursor);
+            }
+            return mvc.perform(request).andReturn();
+        }
+
+        /**
+         * A READY run in full, which is the only kind V024 will store.
+         *
+         * <p>The first attempt inserted eight columns and the database refused it -
+         * {@code optimization_runs_completed_check} first, and behind it {@code started_check},
+         * {@code ready_evidence_check} and V032's fingerprint-inputs rule. Every one of them says the
+         * same thing in its own terms: a READY preview that no pipeline could have produced is not a
+         * row, it is a shape. Filling them in is not ceremony for the CHECKs - it is what stops this
+         * fixture proving pagination over runs the system cannot make.
+         *
+         * <p>{@code expires_at} sits in the future on purpose. The service reports a stored READY
+         * whose preview has expired as EXPIRED, so a past expiry here would quietly change the status
+         * this listing returns and make a later reader think the projection was wrong.
+         */
+        private UUID run(Instant queuedAt) {
+            UUID runId = UUID.randomUUID();
+            java.sql.Timestamp at = java.sql.Timestamp.from(queuedAt);
+            jdbc.update("INSERT INTO optimization_runs (id, trip_id, requested_by_owner_id, scope,"
+                    + " include_candidates, status, input_trip_version, data_fingerprint,"
+                    + " algorithm_version, policy_version, policy_hash, catalog_version,"
+                    + " queued_at, started_at, completed_at, expires_at)"
+                    + " VALUES (?, ?, ?, 'TRIP', false, 'READY', 1, ?, 'pipeline-v1', 'policy-v1', ?,"
+                    + " 'KTO_KOR_SERVICE_2:7', ?, ?, ?, ?)",
+                    runId, tripId, reader.owner.id(), "a".repeat(64), "b".repeat(64),
+                    at, at, at, java.sql.Timestamp.from(base.plus(java.time.Duration.ofDays(1))));
+            return runId;
+        }
+    }
+
     // ------------------------------------------------------------- fixtures
 
     private SessionService.Bootstrap owner() {
@@ -676,8 +795,8 @@ class CursorSurfaceMatrixIT {
                 Instant.ofEpochSecond(Long.parseLong(parts[5])), parts[6]));
     }
 
-    /** {@code items[].id}, or {@code items[].<nested>.id} where the item wraps the row. */
-    private Page read(String body, String nested) {
+    /** {@code items[].<idField>}, or {@code items[].<nested>.<idField>} where the item wraps the row. */
+    private Page read(String body, String nested, String idField) {
         JsonNode root = json.readTree(body);
         JsonNode items = root.path("items");
         if (!items.isArray()) {
@@ -686,7 +805,7 @@ class CursorSurfaceMatrixIT {
         List<UUID> ids = new ArrayList<>();
         for (JsonNode item : items) {
             JsonNode row = nested == null ? item : item.path(nested);
-            ids.add(UUID.fromString(row.path("id").stringValue()));
+            ids.add(UUID.fromString(row.path(idField).stringValue()));
         }
         JsonNode next = root.path("page").path("nextCursor");
         return new Page(List.copyOf(ids), next.isNull() || next.isMissingNode() ? null : next.stringValue());

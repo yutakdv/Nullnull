@@ -19,6 +19,7 @@ public final class ImplementedOperationsRegistry {
                     "replaceTripInterests", "addTripItem", "removeTripItem", "reorderTripItems", "replaceTripItem", "updateTripItem",
                     "setTripItemConstraint", "removeTripItemConstraint",
                     "createOptimization", "getOptimization", "decideOptimization",
+                    "revertOptimizationDecision", "listOptimizationHistory",
                     "parseTripImport", "remapTripImport", "confirmTripImport");
 
     private ImplementedOperationsRegistry() {

@@ -2,6 +2,7 @@ package io.nullnull.optimization.application;
 
 import io.nullnull.optimization.domain.OptimizationDecision;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -30,4 +31,12 @@ public interface OptimizationDecisionStore {
 
     /** A run's decisions, oldest first - an APPLY and the REVERT that undoes it read as a sequence. */
     List<OptimizationDecision> findByRun(UUID runId);
+
+    /**
+     * The owner's own decision, so a foreign id is indistinguishable from one that does not exist.
+     *
+     * <p>The same shape {@code OptimizationRunStore.findForOwner} has, and for invariant 11's reason:
+     * a 403 on someone else's decision answers the question the caller was actually asking.
+     */
+    Optional<OptimizationDecision> findForOwner(UUID ownerId, UUID decisionId);
 }
