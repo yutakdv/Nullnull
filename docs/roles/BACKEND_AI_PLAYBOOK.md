@@ -1544,6 +1544,41 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 이슈 검토: [#10 기반](../engineering/FOUNDATION_DECISIONS.md) · [#11 계약](../contracts/review-2026-09-06/README.md).
 
+### BA-054
+
+**revertAvailability 읽기 투영** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-053](#ba-053)
+- 기능 ID: `FR-OPT-09`
+- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `724:4858`; FCR: `FCR-015`
+- 데이터·정책: 저장하지 않는 응답 시점 투영 · APPLY decision의 revertUntil·resultingTripVersion · run 상태
+
+새 operation이 없다. 계약 `getOptimization`이 precedence까지 완결해 둔 선택 필드에 **생산자가 없어서**, FE는 만료를 지속 표시할 서버 근거 없이 `README.md` §5의 "기기 시계로 undo를 켜지 않는다"만 지키고 있다. 금지는 있는데 대안이 없는 상태다.
+
+구현 순서:
+
+1. getOptimization 응답에 revertAvailability를 계산해 넣는다. 계약이 응답 시점 계산이라고 적었으므로 값을 저장하지 않는다
+2. 계약 precedence를 그 순서대로 적용한다: APPLY 없음 → 이미 되돌림 → 창 만료 → version 불일치 → AVAILABLE
+3. 판정 근거를 revert가 쓰는 것과 같은 자리에서 읽는다(decision의 revertUntil·resultingTripVersion, run 상태). 두 곳이 갈리면 화면과 mutation이 다른 답을 준다
+4. AVAILABLE이 advisory임을 코드에 남긴다 — 이 투영을 근거로 revert의 재검사를 줄이지 않는다
+5. 필드 부재가 'client 시계로 undo를 켜도 된다'로 읽히지 않는지 계약 서술과 FE 계약서를 대조한다
+
+실패·안전 경계: 값을 저장하지 않고 응답 시점에 계산한다. AVAILABLE은 advisory이며 revert가 owner·version·window·decision을 다시 검사한다. 필드 부재를 client 시계로 undo를 켜는 근거로 쓰지 않는다.
+
+필수 검증:
+
+- `BA-054-T1`: APPLY decision이 없는 run은 NOT_APPLICABLE이다
+- `BA-054-T2`: 이미 되돌린 run은 REVERTED다
+- `BA-054-T3`: 서버 시각이 APPLY의 revertUntil 이후면 EXPIRED다
+- `BA-054-T4`: 현재 trip version이 APPLY의 resultingTripVersion과 다르면 NOT_APPLICABLE이다
+- `BA-054-T5`: 그 밖의 경우 AVAILABLE이다
+- `BA-054-T6`: AVAILABLE을 읽은 뒤에도 revert가 owner·version·window·decision을 다시 검사한다
+
+절을 다섯이 아니라 여섯으로 쪼갠 이유는 `T6`가 나머지와 다른 것을 재기 때문이다. `T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다.
+
+FE 인계·완료 증거: applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다. 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
 ## B07 · 붙여넣기 import
 
 핵심 일정 도메인을 재사용해 P0 import를 완결한다.
