@@ -112,7 +112,7 @@ class TripDraftPreviewGatewayIT {
      * has a type it cannot have. Asking again gets the same body, so this is not the outage T5 is.
      */
     @Test
-    @DisplayName("an apps/ai answer that does not parse as the contract is 500 INTERNAL_ERROR, not a retryable 503")
+    @DisplayName("BA-055-T23 an apps/ai answer that does not parse as the contract is 500 INTERNAL_ERROR, not a retryable 503")
     void anUnreadableAnswerIsAnInternalErrorNotAnOutage() throws Exception {
         MODE.set(Mode.WRONG_FIELD_TYPE);
 
@@ -128,7 +128,7 @@ class TripDraftPreviewGatewayIT {
      * a line drawn on the outer type would call this outage a contract break.
      */
     @Test
-    @DisplayName("an apps/ai body cut off part way is 503 SOURCE_UNAVAILABLE, not a contract break")
+    @DisplayName("BA-055-T24 an apps/ai body cut off part way is 503 SOURCE_UNAVAILABLE, not a contract break")
     void aBodyCutOffPartWayIsAnOutage() throws Exception {
         MODE.set(Mode.CUT_OFF);
 
@@ -140,7 +140,7 @@ class TripDraftPreviewGatewayIT {
 
     /** #250, the same side: the body starts and then stops arriving, past the read timeout. */
     @Test
-    @DisplayName("an apps/ai body that stops arriving past the read timeout is 503 SOURCE_UNAVAILABLE")
+    @DisplayName("BA-055-T24 an apps/ai body that stops arriving past the read timeout is 503 SOURCE_UNAVAILABLE")
     void aBodyThatStallsPastTheTimeoutIsAnOutage() throws Exception {
         MODE.set(Mode.STALL);
 
