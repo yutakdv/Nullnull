@@ -13,16 +13,22 @@
 -- Ids are the ones packages/contracts/fixtures/trips/trip-detail-scheduled.json uses for the same
 -- names, so a test written against that fixture keeps its place ids. 서울숲 has no fixture id: it
 -- exists because trip-create.spec searches "서울" and searchPlaces matches on the name alone.
--- Coordinates are left null: no value here was observed, and a map pin is not something this seed
--- may invent. No place_external_refs row is written, so no place claims a provider's attribution.
+-- Coordinates are null except on 서울숲, because searchPlaces only returns a place that has a pin
+-- (JdbcCatalogPlaceQuery.search). Its (37.5, 127.0) is a round stand-in chosen to look synthetic,
+-- not an observed location. No place_external_refs row is written, so no place claims a provider's
+-- attribution.
 
 BEGIN;
 
 INSERT INTO places (id, canonical_name, category_code, region_code, status, created_at, updated_at)
 VALUES
     ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b01', '경복궁', 'HS', '11', 'ACTIVE', now(), now()),
-    ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b03', '인사동', 'HS', '11', 'ACTIVE', now(), now()),
-    ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b04', '서울숲', 'HS', '11', 'ACTIVE', now(), now());
+    ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b03', '인사동', 'HS', '11', 'ACTIVE', now(), now());
+
+INSERT INTO places (id, canonical_name, category_code, region_code, status, latitude, longitude,
+                    created_at, updated_at)
+VALUES ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b04', '서울숲', 'HS', '11', 'ACTIVE', 37.5, 127.0,
+        now(), now());
 
 -- A published post needs a 1st-party cover asset (V021), on the licence V021 itself seeds.
 INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url, served_url, checksum,
