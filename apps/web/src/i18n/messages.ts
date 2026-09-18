@@ -522,6 +522,28 @@ export const messages = {
     'run.proposal.remove': '제외',
     'run.proposal.constraintsOk': '잠금과 제약은 그대로예요',
     'run.proposal.constraintsBroken': '지킬 수 없는 제약이 있어요',
+
+    // S07 applied panel (417:2412 and its three sibling states). The panel
+    // lives on the trip screen, not the run screen: Figma draws it over the
+    // itinerary, and APPLY already sends the traveller back there.
+    //
+    // `revision.reverted` says "v8 → v9", not "back to v7", because the
+    // contract records a revert as a NEW revision rather than a rollback
+    // ("history is never overwritten"). The third clause is what explains
+    // that to the traveller: the contents match v7 but the version does not.
+    'trip.applied.badge.available': '되돌리기 가능',
+    'trip.applied.badge.submitting': '되돌리는 중',
+    'trip.applied.badge.reverted': '되돌림',
+    'trip.applied.badge.expired': '기한 지남',
+    'trip.applied.revision.available':
+      '일정 v{from} → v{to} · {appliedAt} 적용 · {revertUntil}까지 되돌릴 수 있어요',
+    'trip.applied.revision.expired':
+      '일정 v{from} → v{to} · {appliedAt} 적용 · 되돌리기 기한({revertUntil})이 지났어요',
+    'trip.applied.revision.reverted':
+      '일정 v{from} → v{to} · {revertedAt} 되돌림 · v{restored}와 같은 일정이에요',
+    'trip.applied.revert': '이전 일정(v{from})으로 되돌리기',
+    'trip.applied.reverting': '되돌리는 중…',
+    'trip.applied.expired': '되돌릴 수 없어요 · 일정 편집에서 직접 바꿔요',
     'run.notFound': '없는 최적화예요',
     'run.expired': '제안이 만료됐어요. 일정은 그대로예요',
     'run.recompute': '다시 계산하기',
@@ -1268,6 +1290,21 @@ export const messages = {
     'run.proposal.remove': 'Removed',
     'run.proposal.constraintsOk': 'Your locks and constraints are kept',
     'run.proposal.constraintsBroken': 'Some constraints cannot be kept',
+
+    // See the ko-KR block for why `revision.reverted` counts forward.
+    'trip.applied.badge.available': 'Can be undone',
+    'trip.applied.badge.submitting': 'Undoing',
+    'trip.applied.badge.reverted': 'Undone',
+    'trip.applied.badge.expired': 'Window closed',
+    'trip.applied.revision.available':
+      'Itinerary v{from} → v{to} · applied {appliedAt} · you can undo until {revertUntil}',
+    'trip.applied.revision.expired':
+      'Itinerary v{from} → v{to} · applied {appliedAt} · the undo window closed {revertUntil}',
+    'trip.applied.revision.reverted':
+      'Itinerary v{from} → v{to} · undone {revertedAt} · same itinerary as v{restored}',
+    'trip.applied.revert': 'Undo, back to v{from}',
+    'trip.applied.reverting': 'Undoing…',
+    'trip.applied.expired': "This can't be undone · edit the itinerary directly",
     'run.notFound': 'No such optimization',
     'run.expired': 'The suggestion expired. Your itinerary is unchanged',
     'run.recompute': 'Calculate again',
