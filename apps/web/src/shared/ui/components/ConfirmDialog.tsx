@@ -64,8 +64,83 @@ export function ConfirmDialog({
     if (open) return;
     const target = restoreTo.current;
     restoreTo.current = null;
+    // Nothing was captured, so this dialog has never been open — every screen
+    // that mounts one renders it closed, and moving focus here would steal it
+    // from wherever the page actually starts. trip-screen.test.tsx caught
+    // exactly that: its tab walk began one control late.
+    if (target === null) return;
     // Restored after the dialog has gone, so focus lands on a visible element.
-    if (target?.isConnected) target.focus();
+    if (target.isConnected) {
+      target.focus();
+      return;
+    }
+    // The opener has unmounted. That happens when one surface opens this
+    // dialog and closes itself doing it — a day picked inside MoveDaySheet
+    // opens the DATE-lock confirm and dismisses the sheet, so the button this
+    // captured is gone by now (#233, measured in a browser: focus fell to
+    // <body> and the next Tab restarted at the top of the page).
+    //
+    // `isConnected` refusing to focus a detached node is right; leaving focus
+    // nowhere is not. The dialog's own parent is the nearest thing still on
+    // screen that the traveller was looking at, so focus goes there and the
+    // next Tab continues from the region they were working in rather than
+    // from the document.
+    //
+    // The dialog's own previous sibling that can still take focus, rather
+    // than the parent container: marking the container with tabIndex -1
+    // changes tab traversal for every screen that mounts a dialog, and two
+    // tab-order tests caught exactly that (profile.test.tsx and
+    // trip-screen.test.tsx both went red — measured). A control that is
+    // already focusable needs no mutation at all.
+    const dialog = ref.current;
+    if (!dialog) return;
+    const focusable = dialog.parentElement?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    // The last one before this dialog in document order: the traveller was
+    // working forward through the page, so the nearest control behind them is
+    // where they left off.
+    //
+    // `dialog.contains` alone is not enough, and the difference is not
+    // theoretical: TripScreen renders LockRow's ConfirmDialog and
+    // ItemMoveControls' ConfirmDialog as SIBLINGS inside one <article>
+    // (TripScreen.tsx:358,362), and LockRow's stays mounted-but-closed the
+    // whole time. `display: none` does not remove a node from
+    // querySelectorAll, so that closed dialog's Cancel button matched the
+    // selector, sat earlier in document order, and won — and focusing an
+    // element inside a closed <dialog> is a no-op per spec, so focus stayed on
+    // <body>, which is the exact thing this fallback exists to prevent.
+    //
+    // KNOWN INCOMPLETE, and the gap is worth stating precisely because it is
+    // easy to read this filter as more than it is. Excluding closed dialogs
+    // fixes WHICH element gets picked. It does not guarantee focus lands: when
+    // the itinerary move that opened this confirm also unmounts the <article>
+    // the dialog sits in, every candidate under `dialog.parentElement` goes
+    // with it, and the one picked here is detached by the time it is focused.
+    // Measured that way: `targetStillConnected=false`,
+    // `targetLabel="Replace 경복궁"`, focus on <body> (3/3 runs), with no
+    // `focusin` for the target in any of 8 event traces.
+    //
+    // Closing that needs a candidate search that can leave the moved item's
+    // subtree, plus a landing check after `focus()` (it fails silently today).
+    // That is a separate change with its own test; this one is scoped to the
+    // closed-dialog case, which confirm-dialog.test.tsx pins (mutation:
+    // radius 1, its own case only).
+    const closedDialog = (node: HTMLElement) => {
+      for (let p: HTMLElement | null = node; p; p = p.parentElement) {
+        if (p.tagName === 'DIALOG' && !p.hasAttribute('open')) return true;
+      }
+      return false;
+    };
+    let previous: HTMLElement | null = null;
+    for (const candidate of focusable ?? []) {
+      if (dialog.contains(candidate)) continue;
+      if (closedDialog(candidate)) continue;
+      if (candidate.compareDocumentPosition(dialog) & Node.DOCUMENT_POSITION_FOLLOWING) {
+        previous = candidate;
+      }
+    }
+    previous?.focus();
   }, [open]);
 
   return (

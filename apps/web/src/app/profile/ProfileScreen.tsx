@@ -109,11 +109,19 @@ export function ProfileScreen() {
             <span className={styles.guestNote}>{t('profile.guest.note')}</span>
           </span>
         </div>
-        {/* P0 has no accounts. Rendered as inert text with a `준비 중` badge —
-            never a control, so there is nothing to press and no request. */}
+        {/* Now a link, where P0 had inert text and a `준비 중` badge (FCR-006).
+            The owner moved sign-in into P0 (#264, #265), so this row has a
+            destination.
+
+            It still sends nothing. /sign-in has no contract behind it — there
+            is no auth operation in docs/api/openapi.yaml — so the screen it
+            opens tells the traveller that rather than posting to a guessed
+            path. profile.test.tsx keeps asserting no auth request leaves the
+            app, and that assertion is what holds this line honest. */}
         <p className={styles.loginRow}>
-          <span className={styles.loginLabel}>{t('profile.login')}</span>
-          <span className={styles.badge}>{t('profile.comingSoon')}</span>
+          <Link className={styles.loginLabel} to="/sign-in">
+            {t('profile.login')}
+          </Link>
         </p>
       </div>
 

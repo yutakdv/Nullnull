@@ -43,6 +43,7 @@ const DEFAULTS_WITH_OVERRIDE: Record<string, string> = {
   'CrowdLevel.tsx': 'levelLabel',
   'NavBar.tsx': 'backLabel',
   'MustVisitBadge.tsx': 'label',
+  'DecisionBar.tsx': 'labels',
 };
 
 /**
@@ -55,7 +56,6 @@ const DEFAULTS_WITH_OVERRIDE: Record<string, string> = {
  */
 const KNOWN_UNFIXED = new Set([
   'CandidateCard.tsx',
-  'DecisionBar.tsx',
   'MetricDelta.tsx',
   'TripItemCard.tsx',
 ]);
@@ -133,7 +133,7 @@ describe('shared components do not lock the user into one language', () => {
     // A guard whose exemption list can grow protects nothing. This pins the
     // count: fixing a component means deleting its entry and lowering this
     // number, and adding a new offender fails here.
-    expect(KNOWN_UNFIXED.size).toBeLessThanOrEqual(4);
+    expect(KNOWN_UNFIXED.size).toBeLessThanOrEqual(3);
     for (const name of KNOWN_UNFIXED) {
       const body = code(readFileSync(join(COMPONENTS, name), 'utf8'));
       expect(

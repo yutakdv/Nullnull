@@ -92,9 +92,40 @@ const assets = process.env.NULLNULL_BUNDLE_DIR
 //
 // Headroom is ~15% again on both, the same fraction the 2026-09-11 re-measure
 // chose, so the next screen that doubles this app still fails the way it should.
+//
+// CSS raised again, and this entry exists because the entry above it planned a
+// slice that then did not fit. That plan was 8,810 + ~462 + 719~920 ≈ 10,200.
+// CSS is now 9,978 before any of it: FE-103's two steps (ManualStopsStep 4,256
+// and ConfirmStopsStep 3,215 raw), ScheduleCandidateSheet and edits to Feed and
+// Profile spent the 1,168 the preview was holding. Nobody overspent — the plan
+// reserved room in a number that later slices could not see was reserved.
+//
+// Two measurements, both by building rather than estimating:
+//
+//   MetricDelta + DecisionBar cost 153 gzip bytes, not the ~462 this file
+//   predicted. The prediction was made the way this file has twice warned
+//   against, and it was wrong by 3x in the direction that looks safe.
+//   Measuring them needs a real reference, not a side-effect import: Vite
+//   tree-shakes `import './x.module.css'` and the first attempt reported a
+//   delta of 0, which reads exactly like "already bundled". What separated the
+//   two was checking for `.unavailable` in the output alongside the number.
+//
+//   Cutting was tried first and there is still nothing to cut. The two FE-103
+//   steps share 1,105 raw bytes of byte-identical rule bodies (.dot, .stop,
+//   .day, .dayHead, .dayName, .dayDate, .stops, .stop::before — they draw the
+//   same day-by-day stop list). Deleting all of them from one file recovers
+//   43 gzip bytes. That is the same 26x-over lesson as the sheet module above,
+//   now measured a fourth time, so this file should stop being asked.
+//
+// 12,900 covers the preview (153 + ~700 for its screen module, sized against
+// OptimizationRunScreen's 2,012 raw) and /sign-in (~400, two inputs and a
+// button, simpler than any screen here), and leaves ~15% on top of that.
+// JS is NOT raised: it sits at 160,022 of 178,000 with 17,978 free, and the
+// two components are 4,114 bytes of source before minify. The entry above
+// raised both because both were near the line; only one is now.
 const BUDGETS = {
-  js: 178_000, //  measured 155,007
-  css: 10_200, //  measured   8,810
+  js: 178_000, //  measured 160,022
+  css: 12_900, //  measured   9,978
 };
 
 if (!existsSync(assets)) {

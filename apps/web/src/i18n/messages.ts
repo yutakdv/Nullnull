@@ -133,6 +133,28 @@ export const messages = {
       '로그인 없이 시작했어요 · 여행은 이 기기의 익명 세션에 저장돼요',
     'profile.login': '로그인',
     'profile.comingSoon': '준비 중',
+
+    // A-4 sign-in (746:4707).
+    //
+    // The screen exists before the contract does: docs/api/openapi.yaml has no
+    // auth operation yet (#264), so the button verifies nothing — pressing it
+    // moves the traveller to the feed without checking the fields against
+    // anything. These strings describe a real form whose submit does not yet
+    // mean what it says.
+    //
+    // `signIn.anonymous` is not `intro.noLogin`. Intro says "바로" to someone
+    // who has not started; here the traveller already has trips in this
+    // session, so the promise is that they keep them, not that they can begin.
+    // AGENTS.md rule 14 is the reason this line exists at all: signing in is an
+    // addition, and the anonymous path stays whole.
+    'signIn.title': '로그인',
+    'signIn.lead': '기기를 옮겨도 여행이 그대로 남아요',
+    'signIn.id.label': '아이디',
+    'signIn.id.placeholder': '아이디를 입력해 주세요',
+    'signIn.password.label': '비밀번호',
+    'signIn.password.placeholder': '비밀번호를 입력해 주세요',
+    'signIn.submit': '로그인',
+    'signIn.anonymous': '로그인 없이 계속 둘러볼 수 있어요',
     'profile.trips.title': '내 여행 목록',
     'profile.trips.count': '{count}',
     'profile.trips.empty': '아직 만든 여행이 없어요',
@@ -448,6 +470,11 @@ export const messages = {
     'optimize.conflict': '일정이 그 사이에 바뀌었어요. 새로 불러온 뒤 다시 시도해주세요',
     'optimize.locked': '고정된 조건 때문에 바꿀 수 없어요',
     'optimize.unavailable': '이 서버에서는 최적화가 아직 켜져 있지 않아요',
+    // 503 SOURCE_UNAVAILABLE, unlike the 403 above: the catalog is closed for
+    // now, not switched off. So the copy has to stop the traveller pressing
+    // again this second without telling them it can never work.
+    'optimize.sourceUnavailable':
+      '지금은 대안을 계산할 수 없어요. 잠시 후 다시 시도해 주세요',
     'optimize.retry': '다시 시도',
     // FE-502 계산 중과 결과 대기 (S09-1 `415:2413`).
     // FCR-005: route provider가 없는 P0에서는 `경로 계산`·이동시간 문구를 쓰지
@@ -473,6 +500,50 @@ export const messages = {
     'run.readyPending': '결과 화면은 준비 중이에요',
     'run.loading': '불러오는 중이에요',
     'run.error': '상태를 불러오지 못했어요',
+    // A run holding proposals cannot be described while the catalog is closed:
+    // a proposal names the place and its provenance quotes the source. Paired
+    // with `run.unchanged` so nobody recomputes a run that is still there.
+    'run.sourceUnavailable': '혼잡 정보를 지금 불러올 수 없어요',
+    // FE-503 proposal card. ProposalCard takes every string as a prop, so
+    // these are the screen's side of that contract.
+    //
+    // `comparisonUnavailable` is one fixed sentence, not a map from the
+    // server's `comparisonReasonCode`: that field is a free-form string in
+    // the contract and one of its values (SAME_METRIC_AND_ISSUE) is a reason
+    // the comparison IS allowed, so a code-to-copy map would have a slot for
+    // putting a negative sentence under a positive reason. ReplaceSheet took
+    // the same decision for the same field.
+    'run.proposal.crowd': '혼잡도',
+    'run.proposal.comparisonUnavailable': '두 시간대의 혼잡도는 비교할 수 없어요',
+    'run.proposal.changes': '바뀌는 것',
+    'run.proposal.changeCount': '변경 {count}개',
+    'run.proposal.move': '시간 변경',
+    'run.proposal.add': '추가',
+    'run.proposal.remove': '제외',
+    'run.proposal.constraintsOk': '잠금과 제약은 그대로예요',
+    'run.proposal.constraintsBroken': '지킬 수 없는 제약이 있어요',
+
+    // S07 applied panel (417:2412 and its three sibling states). The panel
+    // lives on the trip screen, not the run screen: Figma draws it over the
+    // itinerary, and APPLY already sends the traveller back there.
+    //
+    // `revision.reverted` says "v8 → v9", not "back to v7", because the
+    // contract records a revert as a NEW revision rather than a rollback
+    // ("history is never overwritten"). The third clause is what explains
+    // that to the traveller: the contents match v7 but the version does not.
+    'trip.applied.badge.available': '되돌리기 가능',
+    'trip.applied.badge.submitting': '되돌리는 중',
+    'trip.applied.badge.reverted': '되돌림',
+    'trip.applied.badge.expired': '기한 지남',
+    'trip.applied.revision.available':
+      '일정 v{from} → v{to} · {appliedAt} 적용 · {revertUntil}까지 되돌릴 수 있어요',
+    'trip.applied.revision.expired':
+      '일정 v{from} → v{to} · {appliedAt} 적용 · 되돌리기 기한({revertUntil})이 지났어요',
+    'trip.applied.revision.reverted':
+      '일정 v{from} → v{to} · {revertedAt} 되돌림 · v{restored}와 같은 일정이에요',
+    'trip.applied.revert': '이전 일정(v{from})으로 되돌리기',
+    'trip.applied.reverting': '되돌리는 중…',
+    'trip.applied.expired': '되돌릴 수 없어요 · 일정 편집에서 직접 바꿔요',
     'run.notFound': '없는 최적화예요',
     'run.expired': '제안이 만료됐어요. 일정은 그대로예요',
     'run.recompute': '다시 계산하기',
@@ -495,12 +566,41 @@ export const messages = {
     // "아직" / "yet" carries retryable:true — the answer changes once a forecast
     // arrives, which is what separates this from ROUTE_UNAVAILABLE.
     'run.failure.DATA_INSUFFICIENT': '아직 판단할 만큼 정보가 모이지 않았어요',
+    // #261. The contract splits two service-side outcomes from the trip-side
+    // ones above, and only one of them gets its own line here.
+    //
+    // RECOMMENDATION_UNAVAILABLE is retryable — the recommendation service did
+    // not answer through every attempt — so the CTA offers a recalculation and
+    // the sentence has to say why pressing it is worth doing.
+    //
+    // INTERNAL_ERROR deliberately has NO key. It folds to `run.failure.unknown`
+    // ("최적화를 마치지 못했어요"), which is what the traveller can act on: the
+    // contract lists it as not retryable and the causes it covers — an answer
+    // outside the recommendation contract, a repeated server failure, a run its
+    // worker abandoned — are not distinguishable to them and not theirs to fix.
+    // Naming the internals would be a token, not an explanation.
+    'run.failure.RECOMMENDATION_UNAVAILABLE':
+      '추천 서비스가 응답하지 않아 계산을 마치지 못했어요',
     // Shown for a failure code this build does not know. The server may add one
     // before a matching client ships, and the alternative was rendering the
     // literal string "undefined" into the error screen.
     'run.failure.unknown': '최적화를 마치지 못했어요',
     // 불변식 3·4: 실패·만료·KEEP 어느 쪽도 일정을 바꾸지 않는다.
     'run.unchanged': '일정은 그대로예요',
+
+    // DecisionBar (C03). Figma가 고정한 문구 — 임의 변경 금지.
+    'decision.apply': '이 변경 적용',
+    'decision.keep': '현재 일정 유지',
+    'decision.applying': '적용하는 중이에요',
+    'decision.applied': '일정을 업데이트했어요',
+    'decision.staleMessage':
+      '다른 곳에서 일정이 바뀌었어요. 최신 일정 기준으로 다시 계산해야 적용할 수 있어요.',
+    'decision.staleAction': '최신 일정으로 다시 계산',
+    'decision.failedMessage':
+      '일정은 바뀌지 않았어요. 네트워크 상태를 확인하고 다시 시도해주세요.',
+    'decision.failedAction': '다시 시도',
+    'decision.groupLabel': '최적화 결정',
+
     'trip.optimize': 'AI로 일정 최적화',
     'trip.edit': '일정 편집',
     // P1 until FE-501 wires the run; announced rather than silently inert.
@@ -877,6 +977,17 @@ export const messages = {
       'Started without signing in · trips are stored in this device\u2019s anonymous session',
     'profile.login': 'Sign in',
     'profile.comingSoon': 'Coming soon',
+
+    // A-4 sign-in (746:4707). See the ko-KR block for why this screen exists
+    // before the contract it will call.
+    'signIn.title': 'Sign in',
+    'signIn.lead': 'Your trips stay with you on any device',
+    'signIn.id.label': 'ID',
+    'signIn.id.placeholder': 'Enter your ID',
+    'signIn.password.label': 'Password',
+    'signIn.password.placeholder': 'Enter your password',
+    'signIn.submit': 'Sign in',
+    'signIn.anonymous': 'You can keep browsing without signing in',
     'profile.trips.title': 'My trips',
     'profile.trips.count': '{count}',
     'profile.trips.empty': 'No trips yet',
@@ -1163,6 +1274,8 @@ export const messages = {
     'optimize.conflict': 'The itinerary changed meanwhile. Reload and try again',
     'optimize.locked': 'A lock on this stop prevents the change',
     'optimize.unavailable': 'Optimization is not switched on for this server yet',
+    'optimize.sourceUnavailable':
+      "We can't work out alternatives right now. Please try again shortly",
     'optimize.retry': 'Try again',
     'run.title': 'Looking for alternatives',
     'run.working': 'Checking crowd levels and the conditions you locked',
@@ -1181,6 +1294,32 @@ export const messages = {
     'run.readyPending': 'The result screen is still being built',
     'run.loading': 'Loading',
     'run.error': "We couldn't load the status",
+    'run.sourceUnavailable': "We can't load crowd information right now",
+    'run.proposal.crowd': 'Crowding',
+    'run.proposal.comparisonUnavailable':
+      "These two times can't be compared for crowding",
+    'run.proposal.changes': 'What changes',
+    'run.proposal.changeCount': '{count} changes',
+    'run.proposal.move': 'Time change',
+    'run.proposal.add': 'Added',
+    'run.proposal.remove': 'Removed',
+    'run.proposal.constraintsOk': 'Your locks and constraints are kept',
+    'run.proposal.constraintsBroken': 'Some constraints cannot be kept',
+
+    // See the ko-KR block for why `revision.reverted` counts forward.
+    'trip.applied.badge.available': 'Can be undone',
+    'trip.applied.badge.submitting': 'Undoing',
+    'trip.applied.badge.reverted': 'Undone',
+    'trip.applied.badge.expired': 'Window closed',
+    'trip.applied.revision.available':
+      'Itinerary v{from} → v{to} · applied {appliedAt} · you can undo until {revertUntil}',
+    'trip.applied.revision.expired':
+      'Itinerary v{from} → v{to} · applied {appliedAt} · the undo window closed {revertUntil}',
+    'trip.applied.revision.reverted':
+      'Itinerary v{from} → v{to} · undone {revertedAt} · same itinerary as v{restored}',
+    'trip.applied.revert': 'Undo, back to v{from}',
+    'trip.applied.reverting': 'Undoing…',
+    'trip.applied.expired': "This can't be undone · edit the itinerary directly",
     'run.notFound': 'No such optimization',
     'run.expired': 'The suggestion expired. Your itinerary is unchanged',
     'run.recompute': 'Calculate again',
@@ -1193,8 +1332,25 @@ export const messages = {
     'run.failure.APPLY_FAILED': "We couldn't apply it",
     // Ahead of the contract on purpose; see the ko-KR entry and #225.
     'run.failure.DATA_INSUFFICIENT': "We don't have enough information yet",
+    // See the ko-KR block: INTERNAL_ERROR has no key on purpose.
+    'run.failure.RECOMMENDATION_UNAVAILABLE':
+      "The recommendation service did not answer, so we couldn't finish",
     'run.failure.unknown': "The optimization didn't finish",
     'run.unchanged': 'Your itinerary is unchanged',
+
+    // DecisionBar (C03).
+    'decision.apply': 'Apply this change',
+    'decision.keep': 'Keep current itinerary',
+    'decision.applying': 'Applying…',
+    'decision.applied': 'Your itinerary is updated',
+    'decision.staleMessage':
+      'Your itinerary changed elsewhere. Recompute against the latest version to apply this.',
+    'decision.staleAction': 'Recompute against the latest',
+    'decision.failedMessage':
+      'Your itinerary is unchanged. Check your connection and try again.',
+    'decision.failedAction': 'Try again',
+    'decision.groupLabel': 'Optimization decision',
+
     'trip.optimize': 'Optimize with AI',
     'trip.edit': 'Edit itinerary',
     'trip.comingSoon': 'Coming soon',

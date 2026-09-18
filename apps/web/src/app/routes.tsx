@@ -8,6 +8,7 @@ import { OptimizationRunScreen } from './optimize/OptimizationRunScreen.js';
 import { RouteErrorBoundary } from './RouteErrorBoundary.js';
 import { IntroScreen } from './onboarding/IntroScreen.js';
 import { LanguageScreen } from './onboarding/LanguageScreen.js';
+import { SignInScreen } from './onboarding/SignInScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
 import { LiveScreen } from './live/LiveScreen.js';
@@ -39,6 +40,11 @@ export const routes: RouteObject[] = [
       { index: true, element: <SplashScreen /> },
       { path: 'language', element: <LanguageScreen /> },
       { path: 'intro', element: <IntroScreen /> },
+      // A-4 sign-in `746:4707` (#265). Here rather than under the tabbed
+      // layout for the reason stated above: a tab press mid-form abandons what
+      // the traveller typed. The screen sends nothing yet — #264 asks BE for
+      // the auth contract, and until it lands there is no endpoint to post to.
+      { path: 'sign-in', element: <SignInScreen /> },
       // S02 wizard, one route for all four steps. Steps 1-3 are the local
       // draft (FE-102) and step 4 collects must-visit places (FE-103); they are
       // held as component state in TripWizardScreen, so the draft survives

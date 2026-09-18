@@ -4,7 +4,12 @@ export { Chip, type ChipProps } from './Chip.js';
 export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog.js';
 export { CrowdLevel, type CrowdLevelProps } from './CrowdLevel.js';
 export { DataAttribution, type DataAttributionProps } from './DataAttribution.js';
-export { DecisionBar, type DecisionBarProps, type DecisionState } from './DecisionBar.js';
+export {
+  DecisionBar,
+  type DecisionBarLabels,
+  type DecisionBarProps,
+  type DecisionState,
+} from './DecisionBar.js';
 export { FeedPostCard, type FeedPostCardProps } from './FeedPostCard.js';
 export {
   LockControl,

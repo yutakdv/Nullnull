@@ -1,0 +1,106 @@
+/* The applied-optimization panel on the trip screen (S09-3, FE-503).
+
+   Figma: 417:2412 / 724:4602 / 724:4730 / 724:4858. Measured from the
+   `applied-panel` nodes: bg action/subtle, radius 12, padding 14/12, gap 8.
+   Nothing here hardcodes a value tokens.css already names — the one exception
+   is the 14px horizontal padding, which has no token (space-3 is 12, space-4
+   is 16) and is written as a literal rather than snapped to a token that would
+   move the panel off its frame. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 14px;
+  border-radius: var(--radius-card);
+  background: var(--color-action-subtle);
+}
+
+.resultRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+}
+
+.result {
+  flex: 1 0 0;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 500;
+  line-height: 19px;
+  overflow-wrap: anywhere;
+}
+
+/* The pill. AVAILABLE is the only state drawn in the action colour: it is the
+   only one offering an action, and the rest read as status. */
+.badge {
+  flex-shrink: 0;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-surface);
+  color: var(--color-text-disabled);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge[data-state='available'],
+.badge[data-state='submitting'] {
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+.revision {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.revert {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: var(--space-2) 14px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-body-sm);
+  font-weight: 500;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+/* EXPIRED and the in-flight state share this: both are unpressable, and the
+   Figma frame draws the expired button at half opacity. */
+.revert:disabled {
+  color: var(--color-text-disabled);
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The 44px touch floor responsive.spec.ts measures. The button's own box is
+   8 + 16 + 8 = 32px, so the target is grown without moving the frame. */
+@media (pointer: coarse) {
+  .revert {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
+/* Forced colours drop the background that distinguishes the badge states, so
+   the border carries the difference instead. */
+@media (forced-colors: active) {
+  .badge {
+    border-color: currentColor;
+  }
+
+  .revert:disabled {
+    opacity: 1;
+    color: GrayText;
+  }
+}

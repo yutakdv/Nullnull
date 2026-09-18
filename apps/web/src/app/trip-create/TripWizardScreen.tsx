@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
@@ -69,6 +69,19 @@ export function TripWizardScreen() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [draft, setDraft] = useState<WizardDraft>(EMPTY_DRAFT);
+  // The step the heading was last moved to, so focus follows a CHANGE rather
+  // than a render.
+  //
+  // The first render must not steal focus — a page that grabs it on load moves
+  // the caret out from under someone who was already typing, and a screen
+  // reader does not need to be told where it just landed.
+  //
+  // Holding the step value and not a "have we mounted" boolean, because
+  // StrictMode runs effects twice in development: a boolean flips on the first
+  // pass and the second pass then reads it as a real step change and takes
+  // focus. Measured — the heading was focused on mount with the boolean
+  // version. Comparing the step survives any number of extra runs.
+  const focusedStep = useRef(1);
   const [month, setMonth] = useState(() => new Date());
   const createTrip = useCreateTrip();
   // Points the owner's 내 여행 tab at whatever this wizard creates (BA-011).
@@ -155,6 +168,52 @@ export function TripWizardScreen() {
     }
     void navigate('/feed');
   }
+
+  // Moves focus to the new step's heading (BA-070-T5, FE-102).
+  //
+  // The steps are component state rather than routes, so nothing resets focus
+  // when one replaces another: the whole panel is torn down and rebuilt while
+  // focus stays on whatever the old step left it on — and since the control
+  // that was pressed is gone, the browser drops it to `<body>`. Measured in a
+  // browser before this existed: steps 1, 2 and 3 all reported
+  // `document.activeElement === BODY`. Two costs, and neither is visible in a
+  // screenshot:
+  //
+  //   - a screen reader says nothing. The DOM was replaced, focus did not
+  //     move, and there is no live region — so the user is told neither that
+  //     the step changed nor what the new one asks.
+  //   - a keyboard user starts from the top of the document on every step. Six
+  //     steps means six walks back down.
+  //
+  // The HEADING and not the first control. The first focusable in step 2 is
+  // the back button — an icon button whose text content is empty — so focusing
+  // "the first thing" would announce "Previous step" to someone who just moved
+  // forward. The heading says which step this is, which is what a person needs
+  // before they can answer it. `tabindex="-1"` is what makes an `h1`
+  // programmatically focusable without adding it to the Tab order.
+  //
+  // Found by id rather than held in a ref: each step renders its own `<h1>`, so
+  // a ref would point at the previous step's element on the render where it
+  // matters, and two of the six steps draw their heading from a child
+  // component this file cannot ref into.
+  //
+  // `queueMicrotask` for the reason TripScreen.tsx:199-203 gives — the new DOM
+  // has to exist before it can take focus. The direction differs (that one
+  // returns focus to a trigger it kept a ref to; this one moves it to an
+  // element that did not exist a moment ago), so only the timing is borrowed.
+  useEffect(() => {
+    if (focusedStep.current === step) return;
+    focusedStep.current = step;
+    queueMicrotask(() => {
+      const heading = document.getElementById('wizard-heading');
+      if (!heading) return;
+      // Set here rather than in the JSX so the attribute exists only on the
+      // heading that is actually being focused, and so a step whose heading
+      // lives in a child component gets it too.
+      heading.setAttribute('tabindex', '-1');
+      heading.focus();
+    });
+  }, [step]);
 
   return (
     <section className={styles.screen} aria-labelledby="wizard-heading">
