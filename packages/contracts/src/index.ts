@@ -65,6 +65,13 @@ import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" w
 import tripDetailReservation from "../fixtures/trips/trip-detail-reservation.json" with { type: "json" };
 import draftPreviewReady from "../fixtures/trips/draft-preview-ready.json" with { type: "json" };
 import draftPreviewEmpty from "../fixtures/trips/draft-preview-empty.json" with { type: "json" };
+import mutationAdd from "../fixtures/trips/mutation-add.json" with { type: "json" };
+import mutationUpdate from "../fixtures/trips/mutation-update.json" with { type: "json" };
+import mutationReorder from "../fixtures/trips/mutation-reorder.json" with { type: "json" };
+import mutationReplace from "../fixtures/trips/mutation-replace.json" with { type: "json" };
+import mutationConstraintSet from "../fixtures/trips/mutation-constraint-set.json" with { type: "json" };
+import mutationConstraintRemove from "../fixtures/trips/mutation-constraint-remove.json" with { type: "json" };
+import mutationRemove from "../fixtures/trips/mutation-remove.json" with { type: "json" };
 import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
 import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
 import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
@@ -184,6 +191,19 @@ export const tripFixtures = {
   // while four FE code paths branch on it. It is separate because detailScheduled's unlocked item
   // is what FE-307 uses to exercise "a lock can still be set here" (#144).
   detailReservation: tripDetailReservation as components["schemas"]["TripDetail"],
+};
+
+// The seven item mutations' responses (#16): each is trip-detail-scheduled's trip at version 4 after
+// that one change. Pinned to the contract's response examples by scripts/check-examples.mjs; apps/api
+// builds the same trip and compares their shape with a real response (TripMutationFixtureIT).
+export const tripMutationFixtures = {
+  add: mutationAdd as components["schemas"]["TripMutationResult"],
+  update: mutationUpdate as components["schemas"]["TripMutationResult"],
+  reorder: mutationReorder as components["schemas"]["TripMutationResult"],
+  replace: mutationReplace as components["schemas"]["TripMutationResult"],
+  constraintSet: mutationConstraintSet as components["schemas"]["TripMutationResult"],
+  constraintRemove: mutationConstraintRemove as components["schemas"]["TripMutationResult"],
+  remove: mutationRemove as components["schemas"]["TripMutationResult"],
 };
 
 // previewTripDraft's two faces (BA-055). Pinned to the contract's response examples by
