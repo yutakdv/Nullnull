@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createSeededTrip, FIRST_ITEM } from './seeded-trip.js';
 
 // Keyboard and focus through the itinerary editor and the judged walk-through.
 //
@@ -21,11 +22,6 @@ import { expect, test } from '@playwright/test';
 // behaviour has unit coverage but no browser coverage. jsdom/happy-dom do not
 // implement <dialog>'s focus semantics, so "the dialog closed and focus went
 // back to the button the user pressed" is only observable here.
-
-const TRIP = '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01';
-
-/** The fixture trip's first day holds 경복궁 then 인사동. */
-const FIRST_ITEM = '경복궁';
 
 /**
  * Opens a screen with a session already in hand.
@@ -58,9 +54,16 @@ async function openWithSession(page: import('@playwright/test').Page, path: stri
   await page.waitForLoadState('networkidle');
 }
 
+/** Opens a trip this test's session owns (see seeded-trip.ts for why it is not a fixed id). */
+async function openTrip(page: import('@playwright/test').Page) {
+  const path = await createSeededTrip(page);
+  await page.goto(path);
+  await page.waitForLoadState('networkidle');
+}
+
 test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   test.beforeEach(async ({ page }) => {
-    await openWithSession(page, TRIP);
+    await openTrip(page);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
@@ -201,7 +204,7 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     // Every sheet in the app must answer Escape (.claude/rules/frontend.md).
     // The itinerary editor is the densest surface, so it is where a missed
     // Escape handler would strand someone.
-    await openWithSession(page, TRIP);
+    await openTrip(page);
 
     const trigger = page.getByRole('button', {
       name: `Move ${FIRST_ITEM} to another day`,

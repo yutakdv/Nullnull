@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { overflow } from './overflow.js';
+import { createSeededTrip } from './seeded-trip.js';
 
 // FE-203-T3 / FE-601: the bottom sheets survive 360px and 200% zoom.
 //
@@ -20,19 +21,19 @@ import { overflow } from './overflow.js';
 // 200% zoom is modelled as a 180px viewport, the same way responsive.spec.ts
 // models it and for the same reason: doubling the text size halves the space.
 
-const TRIP = '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01';
+/** Where a sheet lives: the test's own trip, or the feed. */
+type SheetPath = 'own-trip' | '/feed';
 
 /**
- * Opens a screen with a session already in hand.
+ * Opens a screen with a session and a trip of this test's own.
  *
- * The app bootstraps once, on the splash screen, so a test that navigates
- * straight to /trip or /feed gets a 401 and renders "your session ended"
- * instead of the screen it meant to measure (#233).
+ * The move-day sheet needs a trip whose items it can move, and a fixed fixture id is nobody's
+ * trip against the real API (seeded-trip.ts has why). The feed gets the same trip so the picker
+ * has one to list rather than an empty state.
  */
-async function openWithSession(page: import('@playwright/test').Page, path: string) {
-  await page.goto('/');
-  await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
-  await page.goto(path);
+async function openWithSession(page: import('@playwright/test').Page, path: SheetPath) {
+  const trip = await createSeededTrip(page);
+  await page.goto(path === 'own-trip' ? trip : path);
   await page.waitForLoadState('networkidle');
 }
 
@@ -40,7 +41,7 @@ async function openWithSession(page: import('@playwright/test').Page, path: stri
 const SHEETS = [
   {
     name: 'move day sheet',
-    path: TRIP,
+    path: 'own-trip',
     open: /Move .* to another day/,
     shows: 'Which day should it move to?',
   },
