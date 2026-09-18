@@ -138,29 +138,32 @@ export function removeMustVisit(draft: WizardDraft, placeId: string): WizardDraf
  *
  *   NOTHING          아직 하나도 없어요      → create now, the server fills the days
  *   MUST_VISIT_ONLY  꼭 가고 싶은 곳만 정했어요 → step 4, S02-4B must-visit
- *   MOSTLY_PLANNED   거의 다 세우고 왔어요     → create now
+ *   MOSTLY_PLANNED   거의 다 세우고 왔어요     → step 4, S02-4C input-method
  *
  * The first two used to be the same call, so answering "꼭 가고 싶은 곳만
  * 정했어요" created the trip without ever asking which places (#185).
  *
- * MOSTLY_PLANNED still creates the trip here rather than routing to the paste
- * screen, even though S02-4C is where that answer leads in the Figma flow.
- * Sending it there would DROP the dates and interests this wizard just
- * collected: ImportPasteScreen builds its own draft from EMPTY_DRAFT and reads
- * the dates out of the pasted text, then finishes through confirmTripImport
- * instead of createTrip. Wiring the two flows into one is FE-104's follow-up
- * and needs the `400:1201` input-method screen, whose confirm boundary is
- * still open in FCR-018. The paste path stays reachable from step 3's
- * secondary CTA, which is how it is entered today.
+ * MOSTLY_PLANNED used to create the trip immediately too, for a stated reason:
+ * routing to the standalone paste screen would DROP the dates and interests
+ * this wizard had just collected, because ImportPasteScreen builds its own
+ * draft from EMPTY_DRAFT. That reason is gone now that `400:1201` is a STEP of
+ * this wizard rather than a separate route — the method choice keeps the draft
+ * it is holding, and only the manual branch continues inside it.
+ *
+ * Answering 거의 다 세우고 왔어요 and being given a trip with empty days was
+ * the screen contradicting its own question (FR-TRC-05: 수동/붙여넣기 분기).
  *
  * `null` while step 3 is unanswered, so a caller cannot act before the choice.
  */
-export function nextAfterPlanning(draft: WizardDraft): 'create' | 'must-visit' | null {
+export function nextAfterPlanning(
+  draft: WizardDraft,
+): 'create' | 'must-visit' | 'method' | null {
   switch (draft.planningLevel) {
     case 'MUST_VISIT_ONLY':
       return 'must-visit';
-    case 'NOTHING':
     case 'MOSTLY_PLANNED':
+      return 'method';
+    case 'NOTHING':
       return 'create';
     default:
       return null;

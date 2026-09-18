@@ -18,6 +18,7 @@ import {
   toggleInterest,
   type WizardDraft,
 } from './wizard.js';
+import { InputMethodStep } from './InputMethodStep.js';
 import { MustVisitStep } from './MustVisitScreen.js';
 import styles from './TripWizardScreen.module.css';
 
@@ -339,7 +340,13 @@ export function TripWizardScreen() {
             // submit(), so "꼭 가고 싶은 곳만 정했어요" made the same trip as
             // "아직 하나도 없어요" and never asked which places (#185).
             onClick={() => {
-              if (nextAfterPlanning(draft) === 'must-visit') {
+              // Step 4 is whichever branch step 3 was answered with: the
+              // must-visit picker (S02-4B) or the input-method choice
+              // (S02-4C `400:1201`). Only NOTHING creates the trip from here,
+              // because it is the one answer that says there is nothing more
+              // to collect.
+              const next = nextAfterPlanning(draft);
+              if (next === 'must-visit' || next === 'method') {
                 setStep(4);
                 return;
               }
@@ -368,7 +375,22 @@ export function TripWizardScreen() {
       {/* S02-4B `438:3158`, reached only from MUST_VISIT_ONLY. The picks live in
           the draft, so stepping back to 3 and forward again keeps them — the
           same promise FIGMA_HANDOFF makes for steps 1-3. */}
-      {step === 4 ? (
+      {/* S02-4C `400:1201`: the branch 거의 다 세우고 왔어요 takes. Held as a
+          step rather than a route so the dates and interests collected above
+          survive the choice — sending the traveller to `/start/import` would
+          hand them a screen that starts from EMPTY_DRAFT. */}
+      {step === 4 && nextAfterPlanning(draft) === 'method' ? (
+        <InputMethodStep
+          onManual={() => {
+            setStep(5);
+          }}
+          onPaste={() => {
+            void navigate('/start/import');
+          }}
+        />
+      ) : null}
+
+      {step === 4 && nextAfterPlanning(draft) === 'must-visit' ? (
         <MustVisitStep
           picked={draft.mustVisit}
           onAdd={(place) => {

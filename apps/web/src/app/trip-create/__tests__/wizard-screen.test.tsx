@@ -313,20 +313,34 @@ describe('FE-102-T1 creating the trip', () => {
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
     await screen.findByText(copy['wizard.createFailed']);
 
-    // Change the draft, then submit again. Step 3 still shows the planning
-    // options after a failure, so picking a different one is a real change to
-    // the request the user is about to send.
-    await user.click(
-      screen.getByRole('button', {
-        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
-      }),
-    );
+    // Change the draft, then submit again.
+    //
+    // An INTEREST rather than the planning level, which is what this used to
+    // change: only NOTHING creates the trip from step 3 now, because
+    // MUST_VISIT_ONLY and MOSTLY_PLANNED each continue to a step 4 of their
+    // own (`438:3158` / `400:1201`). Picking another level would leave this
+    // measuring navigation instead of the key. Interests ride in the request
+    // body, so toggling one is a real change to what is about to be sent while
+    // keeping the answer that submits from here.
+    await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
+    const interest = await screen.findByRole('button', {
+      name: copy['interest.FOOD'],
+    });
+    await user.click(interest);
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
 
     await waitFor(() => {
-      expect(created).toHaveLength(2);
+      expect(created.length).toBeGreaterThanOrEqual(2);
     });
-    expect(created[0]?.key).not.toBe(created[1]?.key);
+    // The key changed with the draft. Compared as first-vs-last rather than by
+    // an exact count: what this measures is that a CHANGED request is not
+    // replayed under the old key, and pinning the number of attempts would
+    // make the test fail whenever the route to step 3 gains or loses a press.
+    expect(created[0]?.key).not.toBe(created[created.length - 1]?.key);
+    // And the two really are different requests, so the keys differing is not
+    // the trivial case of one draft being sent twice under fresh keys.
+    expect(created[0]?.body).not.toEqual(created[created.length - 1]?.body);
   });
 
   it('blocks a second submit while the first is in flight', async () => {
@@ -405,5 +419,64 @@ describe('the calendar names its weekdays in the reader locale', () => {
     // And the Korean literal is gone rather than merely joined.
     expect(screen.queryByText('일')).toBeNull();
     expect(screen.queryByText('월')).toBeNull();
+  });
+});
+
+// S02-4C `400:1201` (FR-TRC-05). The screen existed in Figma and nowhere in
+// the code: answering 거의 다 세우고 왔어요 created a trip with empty days
+// immediately, which contradicted the answer the traveller had just given.
+describe('FE-103 the input-method branch is reachable and keeps the draft', () => {
+  async function reachMethod(user: ReturnType<typeof userEvent.setup>) {
+    renderWizard();
+    await pickDates(user);
+    // Step 1's CTA is the range itself, not 다음.
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['interest.FOOD'] }));
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+  }
+
+  it('offers both ways in rather than creating the trip', async () => {
+    const user = userEvent.setup();
+    await reachMethod(user);
+
+    expect(
+      await screen.findByRole('button', { name: new RegExp(copy['method.paste']) }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: new RegExp(copy['method.manual']) }),
+    ).toBeInTheDocument();
+    // The answer was "거의 다 세우고 왔어요". Creating a trip with empty days
+    // at this point is the defect this screen exists to stop.
+    expect(created).toHaveLength(0);
+  });
+
+  it('carries the dates and interests into the paste screen', async () => {
+    // The reason this is a STEP and not a route: /start/import starts from
+    // EMPTY_DRAFT, so sending the traveller there used to throw away
+    // everything steps 1-2 collected. Reaching it from inside the wizard keeps
+    // the draft alive behind it.
+    const user = userEvent.setup();
+    await reachMethod(user);
+    await user.click(
+      await screen.findByRole('button', { name: new RegExp(copy['method.paste']) }),
+    );
+    expect(await screen.findByLabelText(copy['import.label'])).toBeInTheDocument();
+  });
+
+  it('goes back to the planning question rather than out of the flow', async () => {
+    const user = userEvent.setup();
+    await reachMethod(user);
+    await user.click(await screen.findByRole('button', { name: copy['wizard.back'] }));
+    expect(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
+      }),
+    ).toBeInTheDocument();
   });
 });

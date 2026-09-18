@@ -312,6 +312,14 @@ export const messages = {
     // S02-4C 붙여넣기 `401:1221` (FE-104). 원문은 요청 본문으로만 나가고
     // 저장·로그·analytics 어디에도 남지 않는다(불변식 10).
     'import.start': '이미 짜둔 일정 붙여넣기',
+    // S02-4C 입력 방법 선택 `400:1201` (FR-TRC-05). 문구는 Figma 그대로다.
+    'method.title1': '어떤 방법으로',
+    'method.title2': '옮길까요?',
+    'method.lead': '쓰던 그대로 가져오면 저희가 읽어드릴게요.',
+    'method.paste': '텍스트 붙여넣기',
+    'method.pasteHint': '캘린더 · 메모앱에서 복사한 그대로',
+    'method.manual': '직접 입력',
+    'method.manualHint': '날짜별로 하나씩 담기',
     'import.title': '일정 붙여넣기',
     'import.lead': '메모장이나 메신저에 적어둔 일정을 그대로 붙여넣어 주세요',
     'import.label': '일정 원문',
@@ -993,6 +1001,13 @@ export const messages = {
     // S02-4C paste `401:1221` (FE-104). The raw text goes out as a request
     // body and is never stored, logged or sent to analytics (invariant 10).
     'import.start': 'Paste an itinerary you already have',
+    'method.title1': 'How would you like',
+    'method.title2': 'to bring it over?',
+    'method.lead': "Bring it as it is and we'll read it for you.",
+    'method.paste': 'Paste text',
+    'method.pasteHint': 'Straight from your calendar or notes app',
+    'method.manual': 'Enter it yourself',
+    'method.manualHint': 'One place at a time, by day',
     'import.title': 'Paste your itinerary',
     'import.lead': 'Paste the plan you already wrote in notes or a chat',
     'import.label': 'Itinerary text',
