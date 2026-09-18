@@ -2,6 +2,7 @@ package io.nullnull.optimization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -286,7 +287,77 @@ class OptimizeGatewayFailureIT {
                 .until(() -> "READY".equals(runColumn(runId, "status")));
     }
 
+    // ------------------------------------------------------------------ dead letter (#261)
+
+    @Test
+    @DisplayName("BA-051-T23 a run whose job ends on an answer outside the contract ends FAILED as INTERNAL_ERROR, not retryable")
+    void aRunEndedByAnUnusableAnswerFailsAsAnInternalError() throws Exception {
+        answerFromTheRequest();
+        Fixture fixture = fixture();
+        MODE.set(Mode.BAD_HASH);
+        UUID runId = queue(fixture);
+        awaitRun(runId, "FAILED");
+        assertThat(jobColumn(runId, "status")).isEqualTo("FAILED");
+        assertThat(jobColumn(runId, "last_error_code")).isEqualTo("RECOMMENDATION_UNUSABLE");
+        assertPublishedFailure(fixture, runId, "INTERNAL_ERROR", false);
+    }
+
+    @Test
+    @DisplayName("BA-051-T24 a run whose every attempt met an apps/ai that did not answer ends FAILED as RECOMMENDATION_UNAVAILABLE, retryable")
+    void aRunWhoseAttemptsAllWentUnansweredFailsAsUnavailable() throws Exception {
+        answerFromTheRequest();
+        Fixture fixture = fixture();
+        MODE.set(Mode.UNAVAILABLE_503);
+        UUID runId = queue(fixture);
+        awaitRun(runId, "FAILED");
+        assertThat(jobColumn(runId, "attempt_count")).as("every attempt was spent")
+                .isEqualTo(jobColumn(runId, "max_attempts"));
+        assertThat(jobColumn(runId, "last_error_code")).isEqualTo("RECOMMENDATION_UNAVAILABLE");
+        assertPublishedFailure(fixture, runId, "RECOMMENDATION_UNAVAILABLE", true);
+    }
+
+    @Test
+    @DisplayName("BA-051-T25 a run whose job was abandoned with no attempt left ends FAILED as INTERNAL_ERROR")
+    void aRunWhoseJobWasAbandonedFailsAsAnInternalError() throws Exception {
+        answerFromTheRequest();
+        Fixture fixture = fixture();
+        MODE.set(Mode.DROP_CONNECTION);
+        UUID runId = queue(fixture);
+        org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS)
+                .pollInterval(20, TimeUnit.MILLISECONDS)
+                .until(() -> "RETRY".equals(jobColumn(runId, "status")));
+        // What a worker that died mid-attempt leaves once its attempts are spent: RUNNING under a lease
+        // nobody renews. Built from the RETRY row while its back-off holds it, so no worker has it; the
+        // lapsed lease is far in the past so it is lapsed whatever clock the application reads.
+        int abandoned = jdbc.update("UPDATE background_jobs SET status = 'RUNNING',"
+                + " attempt_count = max_attempts, locked_by = 'a-worker-that-died',"
+                + " lease_until = TIMESTAMPTZ '2000-01-01 00:00:00+00'"
+                + " WHERE deduplication_key = ? AND status = 'RETRY'", "optimization:" + runId);
+        assertThat(abandoned).as("the job was still waiting out its back-off").isOne();
+        assertThat(runColumn(runId, "status")).isEqualTo("RUNNING");
+        awaitRun(runId, "FAILED");
+        assertThat(jobColumn(runId, "status")).isEqualTo("FAILED");
+        assertThat(jobColumn(runId, "last_error_code")).isEqualTo("LEASE_EXPIRED");
+        assertPublishedFailure(fixture, runId, "INTERNAL_ERROR", false);
+    }
+
     // ------------------------------------------------------------------ support
+
+    private void awaitRun(UUID runId, String status) {
+        org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS)
+                .pollInterval(50, TimeUnit.MILLISECONDS)
+                .until(() -> status.equals(runColumn(runId, "status")));
+    }
+
+    /** What the client is told, through getOptimization - the code alone would not show retryable. */
+    private void assertPublishedFailure(Fixture fixture, UUID runId, String code, boolean retryable)
+            throws Exception {
+        mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.failure.code").value(code))
+                .andExpect(jsonPath("$.failure.retryable").value(retryable));
+    }
 
     private void assertNothingWritten(Fixture fixture, UUID runId, Mode mode) {
         assertThat(tripVersion(fixture.tripId())).as(mode + " trip version").isEqualTo(1L);

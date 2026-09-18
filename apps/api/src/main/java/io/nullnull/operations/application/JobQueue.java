@@ -76,8 +76,11 @@ public interface JobQueue {
      * the claim skipped for its attempt count is ended by this statement on the same pass rather than
      * sitting RUNNING forever.
      *
+     * <p>Joins the caller's transaction when there is one, so the worker can end what each job owned
+     * in the same commit (#261).
+     *
      * @return one entry per job ended, so the caller can log the same alertable line a thrown failure
-     *         produces
+     *         produces and hand the payload to the job's handler
      */
     List<AbandonedJob> failAbandoned(String type, Instant now);
 

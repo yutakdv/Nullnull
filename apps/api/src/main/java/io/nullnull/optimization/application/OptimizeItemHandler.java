@@ -10,6 +10,7 @@ import io.nullnull.identity.application.OwnerPreferencesService;
 import io.nullnull.operations.application.JobContext;
 import io.nullnull.operations.application.JobExecutionException;
 import io.nullnull.operations.application.JobHandler;
+import io.nullnull.operations.domain.JobPayload;
 import io.nullnull.optimization.domain.OptimizationFailureCode;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationProposal;
@@ -389,16 +390,50 @@ public class OptimizeItemHandler implements JobHandler {
      *       instead of spending the rest; the gateway has already logged which of the two it was.</li>
      * </ul>
      *
-     * <p>The run itself is left as it is, as it always was when a job ended on a handler failure: the
-     * contract's run failure codes describe the trip and its evidence, and none of them says the
-     * recommendation service failed.
+     * <p>Neither ends the run here. The job may still be retried; when it is dead-lettered instead,
+     * {@link #onDeadLetter} ends the run with the code the job ended on (#261).
      */
     private static JobExecutionException jobFailure(RecommendationUnavailableException unavailable) {
         return unavailable.retryable()
-                ? new JobExecutionException("RECOMMENDATION_UNAVAILABLE",
+                ? new JobExecutionException(UNAVAILABLE,
                         "apps/ai did not answer the optimization run.", unavailable, true)
                 : new JobExecutionException("RECOMMENDATION_UNUSABLE",
                         "apps/ai answered the optimization run outside its contract.", unavailable, false);
+    }
+
+    /** The job error code of an {@code apps/ai} that did not answer; {@link #onDeadLetter} reads it back. */
+    private static final String UNAVAILABLE = "RECOMMENDATION_UNAVAILABLE";
+
+    /**
+     * #261: a run whose job is dead-lettered ends FAILED instead of saying RUNNING for a job that will
+     * never run again. It is called in the dead letter's own transaction ({@link JobHandler}), so it
+     * writes through the run store and opens nothing.
+     *
+     * <p>{@code RECOMMENDATION_UNAVAILABLE} when every attempt met a service that did not answer, which
+     * a new run may not; anything else - an answer outside the contract, a handler failure, a lease that
+     * ran out with no attempt left - is {@code INTERNAL_ERROR}. QUEUED is ended too because a job can
+     * die before the run is taken to RUNNING. A run that already reached READY or ended is left alone:
+     * {@code fail} changes only the state it is given, which is also what makes a second call a no-op.
+     */
+    @Override
+    public void onDeadLetter(JobPayload payload, String errorCode) {
+        UUID runId;
+        try {
+            runId = UUID.fromString(payload.get("runId"));
+        } catch (RuntimeException invalid) {
+            // INVALID_JOB_PAYLOAD: nothing names a run, so there is no run to end.
+            return;
+        }
+        OptimizationFailureCode code = UNAVAILABLE.equals(errorCode)
+                ? OptimizationFailureCode.RECOMMENDATION_UNAVAILABLE
+                : OptimizationFailureCode.INTERNAL_ERROR;
+        String message = code == OptimizationFailureCode.RECOMMENDATION_UNAVAILABLE
+                ? "The recommendation service did not answer, so the optimization could not finish."
+                : "The optimization could not finish.";
+        Instant at = clock.instant();
+        if (!runs.fail(runId, OptimizationStatus.RUNNING, code, message, at)) {
+            runs.fail(runId, OptimizationStatus.QUEUED, code, message, at);
+        }
     }
 
     private static UUID runId(JobContext context) {
