@@ -10,6 +10,7 @@ import io.nullnull.identity.application.OwnerPreferencesService;
 import io.nullnull.operations.application.JobContext;
 import io.nullnull.operations.application.JobExecutionException;
 import io.nullnull.operations.application.JobHandler;
+import io.nullnull.operations.domain.JobPayload;
 import io.nullnull.optimization.domain.OptimizationFailureCode;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationProposal;
@@ -139,11 +140,8 @@ public class OptimizeItemHandler implements JobHandler {
         // transaction this lease does not control. The same rule is why the evidence the run stores
         // is the evidence this transaction saw.
         Instant frozenAt = clock.instant();
-        List<UUID> frozen = context.transactional(() -> {
-            List<UUID> sets = evidence.snapshotSetsFor(run);
-            runs.recordFrozenEvidence(runId, frozenAt.plus(OptimizationService.PREVIEW_TTL), sets);
-            return sets;
-        });
+        context.transactional(() -> runs.recordFrozenEvidence(runId,
+                frozenAt.plus(OptimizationService.PREVIEW_TTL), evidence.snapshotSetsFor(run)));
 
         if (!requireInputStillHolds(context, run)) {
             return;
@@ -152,9 +150,7 @@ public class OptimizeItemHandler implements JobHandler {
         // Everything the question is built from, read in one unit of work. Assembling the request is
         // not another chance to read: a value fetched afterwards would describe a later moment than
         // the evidence this run froze.
-        // The candidates come from the sets frozen above, by id (#259) - not from a fresh choice of
-        // "newest", which a set stored in between would change.
-        Prepared prepared = context.transactional(() -> prepare(run, frozen));
+        Prepared prepared = context.transactional(() -> prepare(run));
         if (prepared.candidates().isEmpty()) {
             // Not NO_IMPROVEMENT. Nothing was judged and found wanting - there was nothing to judge,
             // because no forecast covers this trip or none covers the day the item is on. The card
@@ -249,7 +245,7 @@ public class OptimizeItemHandler implements JobHandler {
      * rather than at explanation time for the same reason the candidates are: an explanation written
      * from a name fetched later would describe a catalog that had moved since the evidence froze.
      */
-    private Prepared prepare(OptimizationRun run, List<UUID> frozen) {
+    private Prepared prepare(OptimizationRun run) {
         Trip trip = trips.findForOwner(run.ownerId(), run.tripId())
                 .orElseThrow(() -> new IllegalStateException("the run outlived its trip"));
         List<TripItem> items = trips.itemsOf(run.tripId());
@@ -257,7 +253,7 @@ public class OptimizeItemHandler implements JobHandler {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the run's target item is no longer in the trip"));
         Instant now = clock.instant();
-        TemporalCandidateAssembler.Candidates offered = candidates.candidatesFor(frozen, target.placeId(),
+        TemporalCandidateAssembler.Candidates offered = candidates.candidatesFor(target.placeId(),
                 target.date(), trip.range().startDate(), trip.range().endDate(),
                 trip.range().timezone(), now);
         if (offered.isEmpty()) {
@@ -389,16 +385,50 @@ public class OptimizeItemHandler implements JobHandler {
      *       instead of spending the rest; the gateway has already logged which of the two it was.</li>
      * </ul>
      *
-     * <p>The run itself is left as it is, as it always was when a job ended on a handler failure: the
-     * contract's run failure codes describe the trip and its evidence, and none of them says the
-     * recommendation service failed.
+     * <p>Neither ends the run here. The job may still be retried; when it is dead-lettered instead,
+     * {@link #onDeadLetter} ends the run with the code the job ended on (#261).
      */
     private static JobExecutionException jobFailure(RecommendationUnavailableException unavailable) {
         return unavailable.retryable()
-                ? new JobExecutionException("RECOMMENDATION_UNAVAILABLE",
+                ? new JobExecutionException(UNAVAILABLE,
                         "apps/ai did not answer the optimization run.", unavailable, true)
                 : new JobExecutionException("RECOMMENDATION_UNUSABLE",
                         "apps/ai answered the optimization run outside its contract.", unavailable, false);
+    }
+
+    /** The job error code of an {@code apps/ai} that did not answer; {@link #onDeadLetter} reads it back. */
+    private static final String UNAVAILABLE = "RECOMMENDATION_UNAVAILABLE";
+
+    /**
+     * #261: a run whose job is dead-lettered ends FAILED instead of saying RUNNING for a job that will
+     * never run again. It is called in the dead letter's own transaction ({@link JobHandler}), so it
+     * writes through the run store and opens nothing.
+     *
+     * <p>{@code RECOMMENDATION_UNAVAILABLE} when every attempt met a service that did not answer, which
+     * a new run may not; anything else - an answer outside the contract, a handler failure, a lease that
+     * ran out with no attempt left - is {@code INTERNAL_ERROR}. QUEUED is ended too because a job can
+     * die before the run is taken to RUNNING. A run that already reached READY or ended is left alone:
+     * {@code fail} changes only the state it is given, which is also what makes a second call a no-op.
+     */
+    @Override
+    public void onDeadLetter(JobPayload payload, String errorCode) {
+        UUID runId;
+        try {
+            runId = UUID.fromString(payload.get("runId"));
+        } catch (RuntimeException invalid) {
+            // INVALID_JOB_PAYLOAD: nothing names a run, so there is no run to end.
+            return;
+        }
+        OptimizationFailureCode code = UNAVAILABLE.equals(errorCode)
+                ? OptimizationFailureCode.RECOMMENDATION_UNAVAILABLE
+                : OptimizationFailureCode.INTERNAL_ERROR;
+        String message = code == OptimizationFailureCode.RECOMMENDATION_UNAVAILABLE
+                ? "The recommendation service did not answer, so the optimization could not finish."
+                : "The optimization could not finish.";
+        Instant at = clock.instant();
+        if (!runs.fail(runId, OptimizationStatus.RUNNING, code, message, at)) {
+            runs.fail(runId, OptimizationStatus.QUEUED, code, message, at);
+        }
     }
 
     private static UUID runId(JobContext context) {

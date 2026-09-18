@@ -252,7 +252,7 @@ Backend는 stack trace, SQL, 외부 API body, secret을 detail에 넣지 않는�
 | 단계 | 오류 code | trip 변경 여부 | FE 처리 |
 | --- | --- | --- | --- |
 | create preflight | `TRIP_CHANGED`, `LOCK_CONFLICT` | 없음 | 최신 trip/잠금 표시 |
-| async run | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `ROUTE_UNAVAILABLE`, `NO_IMPROVEMENT` | 없음 | run failure 화면과 허용 CTA |
+| async run | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `ROUTE_UNAVAILABLE`, `NO_IMPROVEMENT`, `DATA_INSUFFICIENT`, `RECOMMENDATION_UNAVAILABLE`, `INTERNAL_ERROR` | 없음 | run failure 화면과 허용 CTA |
 | APPLY | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `NO_IMPROVEMENT`, `ROUTE_UNAVAILABLE`, `APPLY_FAILED` | 실패 시 없음 | 동일 action 결과 조회 후 재시도/재계산 |
 | REVERT | `TRIP_CHANGED`, `REVERT_WINDOW_EXPIRED`, `APPLY_FAILED` | 실패 시 없음 | 현재 trip 유지·만료 상태 고정 |
 

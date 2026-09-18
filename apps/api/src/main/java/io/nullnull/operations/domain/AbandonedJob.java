@@ -13,12 +13,16 @@ import java.util.UUID;
  * final status RUNNING, and zero dead letters, so readiness stayed READY and no alert line was ever
  * written. The queue now ends such a job itself, and this is what it reports so the worker can log the
  * same alertable dead-letter line a thrown failure produces.
+ *
+ * <p>{@code payload} is carried so the job's handler can end what the job owned (#261,
+ * {@code JobHandler#onDeadLetter}): an abandoned job is a dead letter like any other.
  */
-public record AbandonedJob(UUID jobId, String type, int attempts) {
+public record AbandonedJob(UUID jobId, String type, int attempts, JobPayload payload) {
 
     public AbandonedJob {
         Objects.requireNonNull(jobId, "jobId");
         Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(payload, "payload");
         if (attempts < 1) {
             throw new IllegalArgumentException("an abandoned job has at least one attempt: " + attempts);
         }
