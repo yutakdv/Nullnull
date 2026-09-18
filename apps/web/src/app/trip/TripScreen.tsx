@@ -7,6 +7,7 @@ import { Chip, DataAttribution } from '../../shared/ui/components/index.js';
 import { ItemMoveControls } from './ItemMoveControls.js';
 import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
+import { TripAppliedPanel } from './TripAppliedPanel.js';
 import { TripEditForm } from './TripEditForm.js';
 import styles from './TripScreen.module.css';
 import {
@@ -185,6 +186,12 @@ export function TripScreen() {
           )}
         </p>
       </header>
+
+      {/* The undo an apply earned, for as long as the server says it stands.
+          Persistent rather than a toast (`FCR-015`): the window is 24 hours,
+          so a traveller who comes back the next morning still finds it. The
+          panel renders nothing at all when there is nothing to undo. */}
+      <TripAppliedPanel etag={query.data.etag} tripId={trip.id} />
 
       {editing ? (
         <TripEditForm

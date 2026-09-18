@@ -1587,3 +1587,103 @@ export function useDecideOptimization(runId: string | null, tripId: string | nul
     },
   });
 }
+
+/**
+ * The most recent run for one trip, used to decide whether an undo is offered.
+ *
+ * Separate from `useOptimizationHistory`, which is the profile's whole-owner
+ * list: this one filters by trip and asks for a single row, because the trip
+ * screen needs exactly "the last thing that happened to THIS trip" and paying
+ * for a full page on every visit to the most-opened screen in the app is not
+ * worth the one row it would use.
+ *
+ * The page carries no revert state — `OptimizationHistoryItem` is
+ * `additionalProperties: false` over nine fields and holds neither
+ * `revertAvailability` nor the decision id. It is step one of two, and its job
+ * is only to name the run worth reading.
+ */
+export function useLatestTripOptimization(
+  tripId: string | null,
+): UseQueryResult<OptimizationHistoryPage, Problem | Error> {
+  return useQuery({
+    queryKey: ['optimizations', 'history', 'trip', tripId ?? ''],
+    enabled: tripId !== null,
+    queryFn: async () => {
+      if (tripId === null) throw new Error('No trip selected');
+      const { data, error, response } = await getApiClient().GET('/optimizations', {
+        params: { query: { tripId, limit: 1 } },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
+
+/**
+ * Undoes an applied optimization inside the contract's 24-hour window
+ * (FR-OPT-06, BA-053).
+ *
+ * `etag === null` throws for the same reason `useDecideOptimization` gives: the
+ * contract requires If-Match, and a revert sent without one would undo an apply
+ * on top of an edit this tab never saw.
+ *
+ * The Idempotency-Key is minted by the CALLER. The contract allows the revert
+ * once, so a key created in here would turn the user's retry after a 503 into a
+ * second command rather than a replay of the first — and the first may yet have
+ * landed.
+ *
+ * There is no body: `decisionId` in the path already names what to undo.
+ *
+ * The return type is inferred rather than annotated, as the other optimization
+ * mutations are, because the decision union nests OptimizationChange.
+ */
+export function useRevertOptimizationDecision(
+  runId: string | null,
+  tripId: string | null,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      decisionId,
+      etag,
+      idempotencyKey,
+    }: {
+      decisionId: string;
+      etag: string | null;
+      idempotencyKey: string;
+    }) => {
+      if (etag === null) throw new Error('Cannot revert without the trip ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/optimization-decisions/{decisionId}/revert',
+        {
+          params: {
+            path: { decisionId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    onSuccess: () => {
+      // Both caches move, and unconditionally — which is where this differs
+      // from `useDecideOptimization`. That one invalidates the trip only for
+      // APPLY because KEEP changes nothing; a revert has no such branch,
+      // because the contract gives it one outcome: "each of its recorded
+      // changes is written back", as a new revision with a new version.
+      if (tripId !== null) {
+        void queryClient.invalidateQueries({ queryKey: tripQueryKey(tripId) });
+      }
+      // The run's own projection changes too: `revertAvailability` becomes
+      // REVERTED and `decisions` gains the REVERT entry the panel reads its
+      // versions from. Leaving it cached would keep offering the undo that
+      // just succeeded.
+      if (runId !== null) {
+        void queryClient.invalidateQueries({ queryKey: optimizationQueryKey(runId) });
+      }
+      // The trip screen's step-one read still names this run, but its
+      // `decision` column is now REVERT rather than APPLY.
+      void queryClient.invalidateQueries({ queryKey: ['optimizations', 'history'] });
+    },
+  });
+}
