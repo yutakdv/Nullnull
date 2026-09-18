@@ -12,6 +12,7 @@ import io.nullnull.operations.application.JobContext;
 import io.nullnull.operations.application.JobExecutionException;
 import io.nullnull.operations.application.JobHandler;
 import io.nullnull.operations.application.JobQueue;
+import io.nullnull.operations.application.OpsAlarm;
 import io.nullnull.operations.application.ReadinessProbe.ProbeStatus;
 import io.nullnull.operations.application.ReadinessQuery;
 import io.nullnull.operations.application.ReadinessQuery.ReadinessReport;
@@ -222,6 +223,7 @@ class JobWorkerIT {
     MutableClock clock;
 
     private ListAppender<ILoggingEvent> workerLog;
+    private ListAppender<ILoggingEvent> alarmLog;
 
     @BeforeEach
     void startFromAQuietQueue() {
@@ -238,6 +240,9 @@ class JobWorkerIT {
         workerLog = new ListAppender<>();
         workerLog.start();
         workerLogger().addAppender(workerLog);
+        alarmLog = new ListAppender<>();
+        alarmLog.start();
+        alarmLogger().addAppender(alarmLog);
     }
 
     @AfterEach
@@ -253,6 +258,8 @@ class JobWorkerIT {
     void detachTheLogAppender() {
         workerLogger().detachAppender(workerLog);
         workerLog.stop();
+        alarmLogger().detachAppender(alarmLog);
+        alarmLog.stop();
     }
 
     @Test
@@ -277,13 +284,13 @@ class JobWorkerIT {
         assertThat(attempts(jobId)).as("the ceiling is the number of attempts, not a suggestion").isEqualTo(3);
         assertThat(errorCode(jobId)).isEqualTo(POISON_CODE);
 
-        List<ILoggingEvent> deadLetters = workerLog.list.stream()
-                .filter(event -> event.getLevel() == Level.ERROR)
-                .filter(event -> event.getFormattedMessage().contains("job dead-letter"))
-                .toList();
-        assertThat(deadLetters).as("one alertable line per exhausted job").hasSize(1);
+        // The alertable line is logged after the dead letter commits, so it is awaited.
+        List<ILoggingEvent> deadLetters = awaitAlarms(OpsAlarm.Name.JOB_DEAD_LETTER, jobId);
+        assertThat(deadLetters).as("one alertable line per exhausted job")
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly(OpsAlarm.jobDeadLetter(POISON, jobId, 3, POISON_CODE).line());
+        assertThat(deadLetters.getFirst().getLevel()).isEqualTo(Level.ERROR);
         String line = deadLetters.getFirst().getFormattedMessage();
-        assertThat(line).contains(POISON, jobId.toString(), POISON_CODE);
         // The alert line carries identifiers and a code. Never the key, never a payload value.
         assertThat(line).doesNotContain(key).doesNotContain(ownerId.toString());
 
@@ -326,6 +333,8 @@ class JobWorkerIT {
         assertThat(jdbc.queryForObject("SELECT status FROM background_jobs WHERE id = ?", String.class, jobId))
                 .as("the dead letter rolled back with the hook that failed").isEqualTo("RUNNING");
         assertThat(errorCode(jobId)).as("nothing of the dead letter was written").isNull();
+        assertThat(alarms(OpsAlarm.Name.JOB_DEAD_LETTER, jobId))
+                .as("the alarm follows the dead letter's commit, and there was none").isEmpty();
     }
 
     @Test
@@ -411,6 +420,27 @@ class JobWorkerIT {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(interrupted);
         }
+    }
+
+    /** Waits for the first line, then answers every line so far: a second one would be a defect. */
+    private List<ILoggingEvent> awaitAlarms(OpsAlarm.Name name, UUID jobId) {
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(30)).until(() -> !alarms(name, jobId).isEmpty());
+        return alarms(name, jobId);
+    }
+
+    private List<ILoggingEvent> alarms(OpsAlarm.Name name, UUID jobId) {
+        List<ILoggingEvent> snapshot;
+        synchronized (alarmLog) {
+            snapshot = List.copyOf(alarmLog.list);
+        }
+        return snapshot.stream()
+                .filter(event -> event.getFormattedMessage().startsWith(name.phrase() + " "))
+                .filter(event -> event.getFormattedMessage().contains(" jobId=" + jobId + " "))
+                .toList();
+    }
+
+    private static ch.qos.logback.classic.Logger alarmLogger() {
+        return ((LoggerContext) LoggerFactory.getILoggerFactory()).getLogger(OpsAlarm.class.getName());
     }
 
     private static ch.qos.logback.classic.Logger workerLogger() {

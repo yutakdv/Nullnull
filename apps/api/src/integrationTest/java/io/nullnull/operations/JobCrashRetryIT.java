@@ -2,11 +2,15 @@ package io.nullnull.operations;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.nullnull.operations.application.JobContext;
 import io.nullnull.operations.application.JobExecutionException;
 import io.nullnull.operations.application.JobHandler;
-import io.nullnull.operations.application.JobProperties;
 import io.nullnull.operations.application.JobQueue;
+import io.nullnull.operations.application.OpsAlarm;
 import io.nullnull.operations.domain.JobPayload;
 import io.nullnull.operations.domain.JobRequest;
 import io.nullnull.shared.ids.UuidV7;
@@ -15,6 +19,7 @@ import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +29,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -127,9 +133,6 @@ class JobCrashRetryIT {
     JobQueue queue;
 
     @Autowired
-    JobProperties properties;
-
-    @Autowired
     TransactionTemplate transactions;
 
     @Autowired
@@ -137,6 +140,8 @@ class JobCrashRetryIT {
 
     @Autowired
     MutableClock clock;
+
+    private ListAppender<ILoggingEvent> alarms;
 
     @BeforeEach
     void startFromAQuietQueue() {
@@ -148,6 +153,9 @@ class JobCrashRetryIT {
         // five tables that used to be cleared alongside were only ever cleared so that a global
         // count of owners would mean something. That count now names its own rows instead.
         jdbc.update("DELETE FROM background_jobs WHERE type = ?", TYPE);
+        alarms = new ListAppender<>();
+        alarms.start();
+        alarmLogger().addAppender(alarms);
     }
 
     @AfterEach
@@ -162,10 +170,12 @@ class JobCrashRetryIT {
     @AfterEach
     void releaseTheHandler() {
         releaseTheHungAttempt.countDown();
+        alarmLogger().detachAppender(alarms);
+        alarms.stop();
     }
 
     @Test
-    @DisplayName("a lease that lapsed with attempts left is re-taken, and only the ceiling ends the job")
+    @DisplayName("BA-072-T5 a lease that lapsed with attempts left is re-taken with one JOB_LEASE_RETAKEN line, and only the ceiling ends the job")
     void aCrashedAttemptIsRetakenAndOnlyTheCeilingEndsTheJob() {
         UUID jobId = enqueue();
         await(() -> firstAttemptEntered.getCount() == 0, "attempt 1 never started");
@@ -181,6 +191,13 @@ class JobCrashRetryIT {
                 .isEqualTo(AFTER_CRASH_CODE)
                 .isNotEqualTo(JobQueue.LEASE_EXPIRED_ERROR_CODE);
         assertThat(invocations.get()).as("the crash was re-taken and really ran again").isEqualTo(CEILING);
+
+        // One line for the one re-take: attempt 3 came out of RETRY after attempt 2 failed, which is a
+        // retry and not a lapsed lease. It was logged before attempt 2 ran, so it is here by now.
+        List<ILoggingEvent> retaken = alarms(OpsAlarm.Name.JOB_LEASE_RETAKEN, jobId);
+        assertThat(retaken).extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly(OpsAlarm.jobLeaseRetaken(TYPE, jobId, 2, CEILING).line());
+        assertThat(retaken.getFirst().getLevel()).isEqualTo(Level.WARN);
     }
 
     /**
@@ -189,6 +206,12 @@ class JobCrashRetryIT {
      * that attempt's lease and let the sweep end the job for a reason this test is not about. The
      * back-off between the failing attempts is crossed the way {@code JobWorkerIT} crosses it, by
      * moving to the {@code next_attempt_at} the worker just wrote while nothing is running.
+     *
+     * <p>The first lease is expired by moving to just past its own {@code lease_until}, read in the same
+     * statement that says attempt 1 still holds the row, and never by a relative step. A step repeated
+     * after attempt 2 was claimed - the row can be claimed between two reads - would expire attempt 2's
+     * lease as well and re-take the job a second time; moving to a fixed instant again changes nothing,
+     * because attempt 2's lease ends at least one lease after attempt 1's.
      */
     private String awaitTerminal(UUID jobId) {
         long deadline = System.nanoTime() + AWAIT_TIMEOUT.toNanos();
@@ -197,8 +220,12 @@ class JobCrashRetryIT {
             if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
                 return status;
             }
-            if ("RUNNING".equals(status) && attempts(jobId) == 1) {
-                clock.advance(properties.lease().plusSeconds(1));
+            Instant firstLeaseUntil = firstAttemptLeaseUntil(jobId);
+            if (firstLeaseUntil != null) {
+                Instant past = firstLeaseUntil.plusSeconds(1);
+                if (past.isAfter(clock.instant())) {
+                    clock.set(past);
+                }
             } else if ("RETRY".equals(status)) {
                 Instant next = nextAttemptAt(jobId);
                 if (next.isAfter(clock.instant())) {
@@ -228,6 +255,28 @@ class JobCrashRetryIT {
     private String errorCode(UUID jobId) {
         return jdbc.queryForObject("SELECT last_error_code FROM background_jobs WHERE id = ?",
                 String.class, jobId);
+    }
+
+    /** The lease of attempt 1 while it still holds the row, otherwise null. */
+    private Instant firstAttemptLeaseUntil(UUID jobId) {
+        return jdbc.query("SELECT lease_until FROM background_jobs WHERE id = ? AND status = 'RUNNING'"
+                        + " AND attempt_count = 1", (row, ignored) -> row.getObject(1, OffsetDateTime.class),
+                jobId).stream().findFirst().map(OffsetDateTime::toInstant).orElse(null);
+    }
+
+    private List<ILoggingEvent> alarms(OpsAlarm.Name name, UUID jobId) {
+        List<ILoggingEvent> snapshot;
+        synchronized (alarms) {
+            snapshot = List.copyOf(alarms.list);
+        }
+        return snapshot.stream()
+                .filter(event -> event.getFormattedMessage().startsWith(name.phrase() + " "))
+                .filter(event -> event.getFormattedMessage().contains(" jobId=" + jobId + " "))
+                .toList();
+    }
+
+    private static ch.qos.logback.classic.Logger alarmLogger() {
+        return ((LoggerContext) LoggerFactory.getILoggerFactory()).getLogger(OpsAlarm.class.getName());
     }
 
     private Instant nextAttemptAt(UUID jobId) {

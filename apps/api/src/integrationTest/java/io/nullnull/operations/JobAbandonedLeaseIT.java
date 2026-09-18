@@ -11,6 +11,7 @@ import io.nullnull.operations.application.JobContext;
 import io.nullnull.operations.application.JobHandler;
 import io.nullnull.operations.application.JobProperties;
 import io.nullnull.operations.application.JobQueue;
+import io.nullnull.operations.application.OpsAlarm;
 import io.nullnull.operations.application.ReadinessProbe.ProbeStatus;
 import io.nullnull.operations.application.ReadinessQuery;
 import io.nullnull.operations.domain.JobPayload;
@@ -179,6 +180,7 @@ class JobAbandonedLeaseIT {
     MutableClock clock;
 
     private ListAppender<ILoggingEvent> workerLog;
+    private ListAppender<ILoggingEvent> alarmLog;
 
     @BeforeEach
     void startFromAQuietQueue() {
@@ -194,6 +196,9 @@ class JobAbandonedLeaseIT {
         workerLog = new ListAppender<>();
         workerLog.start();
         workerLogger().addAppender(workerLog);
+        alarmLog = new ListAppender<>();
+        alarmLog.start();
+        alarmLogger().addAppender(alarmLog);
     }
 
     @AfterEach
@@ -210,6 +215,8 @@ class JobAbandonedLeaseIT {
         release.countDown();
         workerLogger().detachAppender(workerLog);
         workerLog.stop();
+        alarmLogger().detachAppender(alarmLog);
+        alarmLog.stop();
     }
 
     @Test
@@ -229,13 +236,11 @@ class JobAbandonedLeaseIT {
         assertThat(completedAt(jobId)).as("a dead letter without completed_at is invisible to the probe")
                 .isNotNull();
 
-        List<ILoggingEvent> deadLetters = workerLog.list.stream()
-                .filter(event -> event.getLevel() == Level.ERROR)
-                .filter(event -> event.getFormattedMessage().contains("job dead-letter"))
-                .toList();
-        assertThat(deadLetters).as("the same alertable line a thrown failure produces").hasSize(1);
-        assertThat(deadLetters.getFirst().getFormattedMessage())
-                .contains(HANGING, jobId.toString(), JobQueue.LEASE_EXPIRED_ERROR_CODE);
+        List<ILoggingEvent> deadLetters = awaitAlarms(OpsAlarm.Name.JOB_DEAD_LETTER, jobId);
+        assertThat(deadLetters).as("the same alertable line a thrown failure produces")
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly(OpsAlarm.jobDeadLetter(HANGING, jobId, 1, JobQueue.LEASE_EXPIRED_ERROR_CODE).line());
+        assertThat(deadLetters.getFirst().getLevel()).isEqualTo(Level.ERROR);
 
         assertThat(queue.countDeadLettersSince(clock.instant().minus(properties.deadLetterWindow())))
                 .isPositive();
@@ -330,6 +335,27 @@ class JobAbandonedLeaseIT {
     private OffsetDateTime completedAt(UUID jobId) {
         return jdbc.queryForObject("SELECT completed_at FROM background_jobs WHERE id = ?",
                 OffsetDateTime.class, jobId);
+    }
+
+    /** Waits for the first line, then answers every line so far: a second one would be a defect. */
+    private List<ILoggingEvent> awaitAlarms(OpsAlarm.Name name, UUID jobId) {
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(30)).until(() -> !alarms(name, jobId).isEmpty());
+        return alarms(name, jobId);
+    }
+
+    private List<ILoggingEvent> alarms(OpsAlarm.Name name, UUID jobId) {
+        List<ILoggingEvent> snapshot;
+        synchronized (alarmLog) {
+            snapshot = List.copyOf(alarmLog.list);
+        }
+        return snapshot.stream()
+                .filter(event -> event.getFormattedMessage().startsWith(name.phrase() + " "))
+                .filter(event -> event.getFormattedMessage().contains(" jobId=" + jobId + " "))
+                .toList();
+    }
+
+    private static ch.qos.logback.classic.Logger alarmLogger() {
+        return ((LoggerContext) LoggerFactory.getILoggerFactory()).getLogger(OpsAlarm.class.getName());
     }
 
     private static ch.qos.logback.classic.Logger workerLogger() {

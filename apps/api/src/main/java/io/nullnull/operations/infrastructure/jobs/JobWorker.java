@@ -10,6 +10,7 @@ import io.nullnull.operations.application.JobLockTimeoutException;
 import io.nullnull.operations.application.JobProperties;
 import io.nullnull.operations.application.JobQueue;
 import io.nullnull.operations.application.JobUnitOfWorkGuard;
+import io.nullnull.operations.application.OpsAlarm;
 import io.nullnull.operations.application.StaleLeaseException;
 import io.nullnull.operations.application.TtlSweep;
 import io.nullnull.operations.domain.AbandonedJob;
@@ -212,6 +213,14 @@ public class JobWorker implements SmartLifecycle {
                 return;
             }
             ClaimedJob job = claimed.get();
+            if (job.leaseRetaken()) {
+                // After claim() committed, once per re-take: only one worker's claim can take a row and
+                // it charges an attempt, so (jobId, attempt) never repeats. A crash is not the only way
+                // here - an attempt that gave up on lock contention in run(), and one a stopping worker
+                // left behind, also let their lease lapse - so one line is a signal, not an incident.
+                OpsAlarm.emit(OpsAlarm.jobLeaseRetaken(type, job.lease().jobId(), job.lease().attempt(),
+                        job.maxAttempts()));
+            }
             active.incrementAndGet();
             try {
                 executor.execute(() -> run(job, handler, active));
@@ -292,9 +301,8 @@ public class JobWorker implements SmartLifecycle {
                     queue.deadLetter(lease, errorCode, now);
                     handler.onDeadLetter(job.payload(), errorCode);
                 });
-                // The dead-letter line an operator alerts on: identifiers and a code, nothing else.
-                log.error("job dead-letter type={} jobId={} attempts={} errorCode={}",
-                        lease.type(), lease.jobId(), lease.attempt(), errorCode);
+                // The dead-letter line an operator alerts on, after the commit: identifiers and a code.
+                OpsAlarm.emit(OpsAlarm.jobDeadLetter(lease.type(), lease.jobId(), lease.attempt(), errorCode));
             } else {
                 queue.retry(lease, errorCode, now, properties.nextAttemptAt(now, lease.attempt()));
             }
@@ -361,8 +369,8 @@ public class JobWorker implements SmartLifecycle {
             return;
         }
         for (AbandonedJob job : abandoned) {
-            log.error("job dead-letter type={} jobId={} attempts={} errorCode={}",
-                    job.type(), job.jobId(), job.attempts(), JobQueue.LEASE_EXPIRED_ERROR_CODE);
+            OpsAlarm.emit(OpsAlarm.jobDeadLetter(job.type(), job.jobId(), job.attempts(),
+                    JobQueue.LEASE_EXPIRED_ERROR_CODE));
         }
     }
 
