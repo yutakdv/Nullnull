@@ -308,19 +308,20 @@ public class JdbcJobQueue implements JobQueue {
     @Transactional
     public Optional<ClaimedJob> claim(String type, String leaseToken, Instant now, Instant leaseUntil) {
         lockWaitLimit.applyToCurrentTransaction(properties.lockTimeout());
-        Optional<ClaimedJob> ready = claimWith(CLAIM_READY_OR_RETRY, type, leaseToken, now, leaseUntil);
+        Optional<ClaimedJob> ready = claimWith(CLAIM_READY_OR_RETRY, false, type, leaseToken, now, leaseUntil);
         return ready.isPresent() ? ready
-                : claimWith(CLAIM_EXPIRED_LEASE, type, leaseToken, now, leaseUntil);
+                : claimWith(CLAIM_EXPIRED_LEASE, true, type, leaseToken, now, leaseUntil);
     }
 
-    private Optional<ClaimedJob> claimWith(String eligible, String type, String leaseToken, Instant now,
-            Instant leaseUntil) {
+    /** {@code retaken} says which statement this is, so the worker can tell a re-take from a first claim. */
+    private Optional<ClaimedJob> claimWith(String eligible, boolean retaken, String type, String leaseToken,
+            Instant now, Instant leaseUntil) {
         return BoundedJobLockWait.on("claim", () -> jdbc.sql(eligible + CLAIM_TAIL)
                 .param("type", type)
                 .param("leaseToken", leaseToken)
                 .param("now", utc(now))
                 .param("leaseUntil", utc(leaseUntil))
-                .query((ResultSet rs, int row) -> claimed(rs, leaseToken))
+                .query((ResultSet rs, int row) -> claimed(rs, leaseToken, retaken))
                 .optional());
     }
 
@@ -418,13 +419,13 @@ public class JdbcJobQueue implements JobQueue {
                 "now", utc(now));
     }
 
-    private ClaimedJob claimed(ResultSet rs, String leaseToken) throws SQLException {
+    private ClaimedJob claimed(ResultSet rs, String leaseToken, boolean retaken) throws SQLException {
         // The token is the one this claim just wrote, so it is not read back from the row.
         JobLease lease = new JobLease(rs.getObject("id", UUID.class), rs.getString("type"),
                 leaseToken, rs.getInt("attempt_count"));
         return new ClaimedJob(lease, rs.getString("deduplication_key"),
                 JobPayload.of(json.readValue(rs.getString("payload_reference"), PAYLOAD)),
-                rs.getInt("max_attempts"));
+                rs.getInt("max_attempts"), retaken);
     }
 
     private EnqueuedJob outstanding(ResultSet rs, JobRequest request) throws SQLException {

@@ -14,6 +14,7 @@ public interface DeletionStore {
     void markCompleted(UUID requestId, Instant now);
     void markFailed(UUID requestId, int attempt, String status, String failureCode, Instant now);
     List<UUID> tombstonedOwners();
-    int expireStatusTokens(Instant now);
+    /** Clears every due status token and answers what each of those rows was when it was cleared. */
+    List<ExpiredReceipt> expireStatusTokens(Instant now);
     int hardDeleteEligibleOwners(Instant now);
 }
