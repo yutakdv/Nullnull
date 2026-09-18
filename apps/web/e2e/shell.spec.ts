@@ -76,14 +76,40 @@ test.describe('onboarding and profile in a real browser', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR');
   });
 
-  test('profile shows the guest state without offering sign-in', async ({ page }) => {
+  test('profile offers sign-in as a link, and it still sends nothing', async ({
+    page,
+  }) => {
+    // This used to assert the opposite — that the row was inert text and
+    // neither a button nor a link. The owner moved sign-in into P0 (#264,
+    // #265), so the clause is inverted rather than deleted.
+    //
+    // The unit test in profile.test.tsx was inverted in the same commit that
+    // added the link; this one was not, and the gate caught it. Inverting an
+    // assertion in one layer and not the other is how a promise quietly stops
+    // being checked where it matters most.
+    const writes: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() !== 'GET') writes.push(request.url());
+    });
+
     await page.goto('/profile');
     await expect(page.getByRole('heading', { level: 1 })).toHaveAttribute(
       'id',
       'profile-heading',
     );
-    // P0 has no accounts: the row is inert text, not a control.
-    await expect(page.getByRole('button', { name: /로그인|Sign in/ })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /로그인|Sign in/ })).toHaveCount(0);
+
+    const link = page.getByRole('link', { name: /로그인|Sign in/ });
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAttribute('href', '/sign-in');
+
+    // The screen it opens has no contract behind it yet (#264), so following
+    // the link must not produce an auth request. That is the promise the
+    // sign-in screen carries, checked here in a real browser.
+    await link.click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'signin-heading',
+    );
+    expect(writes.filter((url) => /login|auth|sign-?in|account/i.test(url))).toEqual([]);
   });
 });

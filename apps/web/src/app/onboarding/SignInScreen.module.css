@@ -118,3 +118,15 @@
   text-align: center;
   cursor: pointer;
 }
+
+/* The gate caught this one: at 13px the button was 234×18, and
+ * responsive.spec's touch-target walk found it. The text stays the size Figma
+ * drew — only the hit area grows, which is the same treatment AppliedPanel's
+ * .revert and ConfirmStopsStep's controls already carry. Padding rather than a
+ * bare min-height so the centred label does not drift off the tap area. */
+@media (pointer: coarse) {
+  .anonymous {
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+  }
+}
