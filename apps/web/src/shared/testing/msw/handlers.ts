@@ -76,11 +76,38 @@ function currentTripPage() {
  * The owner profile, which PATCH /me mutates and every bootstrap answers with.
  *
  * Stateful for the same reason the trip list is — see the PATCH handler.
+ *
+ * `activeTripId` starts at the list's first trip rather than at the fixture's
+ * `null`. The fixture is right about what it models — the contract calls it "a
+ * freshly bootstrapped owner", and null until a trip is created is exactly that
+ * — but this mock ALSO serves a trip list with four trips in it, and an owner
+ * who has four trips and no active one is a state the server cannot produce:
+ * the pointer is only null before the first create or after the active trip is
+ * deleted.
+ *
+ * Getting this wrong is what made the 내 여행 tab look broken in `npm run dev`:
+ * the trips were right there on the profile and the tab kept falling back,
+ * because the two fixtures disagreed about the same owner.
+ *
+ * The fixture is not edited: it is pinned to the contract's own example by
+ * packages/contracts/scripts/check-examples.mjs, and that example is correct.
+ * Composing the mock's starting state here is the same thing the trip and
+ * import handlers already do.
+ *
+ * NO TEST COVERS THIS LINE, and that is measured rather than assumed: reverting
+ * it to the bare fixture leaves all 1045 green. Every test seeds the session
+ * cache itself, because a test that depended on the mock's opening state would
+ * be asserting the mock rather than the screen. What this line fixes is `npm
+ * run dev` — where the tab fell back while four trips sat on the profile — and
+ * the browser is where it was verified.
  */
 let ownerState: (typeof sessionFixtures)['owner'] | null = null;
 
 function currentOwner() {
-  ownerState ??= sessionFixtures.owner;
+  ownerState ??= {
+    ...sessionFixtures.owner,
+    activeTripId: currentTripPage().items[0]?.id ?? null,
+  };
   return ownerState;
 }
 

@@ -183,6 +183,60 @@ describe('the 내 여행 tab resolves to the owner active trip (BA-011)', () => 
     });
   });
 
+  it('keeps 내 여행 lit on the fallback, not the tab it landed on', async () => {
+    // The symptom, precisely: pressing 내 여행 lit up 내 정보, so the bar said
+    // the traveller had pressed something they had not. The press is the fact;
+    // /profile is a consequence of having no active trip.
+    const user = userEvent.setup();
+    renderAt('/feed', withActiveTrip(null));
+    const bar = await screen.findByRole('navigation', TAB_BAR);
+
+    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+
+    await waitFor(() => {
+      const current = [...bar.querySelectorAll('button')].filter(
+        (b) => b.getAttribute('aria-current') === 'page',
+      );
+      expect(current[0]?.textContent).toBe(copy['nav.tab.trip']);
+    });
+  });
+
+  it('shows the trip list rather than the account block on the fallback', async () => {
+    // The other half of the symptom: the trips were there and 245px down,
+    // behind the profile header and a sign-in CTA, so the screen read as "my
+    // trip shows nothing". The section is scrolled to on arrival.
+    const scrolled: string[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function scrollIntoViewSpy(this: Element) {
+      scrolled.push(this.id);
+    };
+    try {
+      const user = userEvent.setup();
+      renderAt('/feed', withActiveTrip(null));
+      await screen.findByRole('navigation', TAB_BAR);
+
+      await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+
+      await waitFor(() => {
+        expect(scrolled).toContain('profile-trips-heading');
+      });
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('leaves a direct visit to the profile reading as 내 정보', async () => {
+    // Only the tab press carries the override. A reload, a link or a typed URL
+    // has no history state, and the path decides as it always did — otherwise
+    // the bar would start lying in the other direction.
+    renderAt('/profile', withActiveTrip(null));
+    const bar = await screen.findByRole('navigation', TAB_BAR);
+    const current = [...bar.querySelectorAll('button')].filter(
+      (b) => b.getAttribute('aria-current') === 'page',
+    );
+    expect(current[0]?.textContent).toBe(copy['nav.tab.profile']);
+  });
+
   it('falls back when the session has not bootstrapped in this tab', async () => {
     // Deep link with a cold cache: nothing has answered yet, so the tab cannot
     // know the active trip. Guessing an id here would open someone else's trip

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
 import { useQuery } from '@tanstack/react-query';
@@ -27,11 +28,31 @@ const TAB_PATHS: Record<Exclude<TabKey, 'trip'>, string> = {
   profile: '/profile',
 };
 
-function activeTab(pathname: string): TabKey {
+/**
+ * Which tab is current.
+ *
+ * `fromTab` is the tab the traveller actually pressed, carried in history
+ * state, and it wins over the path for one reason: the 내 여행 tab can land on
+ * /profile when there is no active trip, and highlighting 내 정보 there tells
+ * the user they pressed something other than what they pressed. The press is
+ * the fact; the path is a consequence of it.
+ *
+ * Only that one case sets it. A direct visit to /profile, a reload, or a link
+ * from anywhere else carries no state and reads from the path as before.
+ */
+function activeTab(pathname: string, fromTab?: TabKey): TabKey {
+  if (fromTab) return fromTab;
   if (pathname.startsWith('/profile')) return 'profile';
   if (pathname.startsWith('/live')) return 'live';
   if (pathname.startsWith('/trip')) return 'trip';
   return 'home';
+}
+
+/** History state the tab bar sets when a press lands somewhere unexpected. */
+interface TabNavState {
+  fromTab?: TabKey;
+  /** Scroll target on arrival, so the fallback shows what was asked for. */
+  focus?: string;
 }
 
 export interface AppShellProps {
@@ -41,6 +62,7 @@ export interface AppShellProps {
 
 export function AppShell({ tabs = false }: AppShellProps) {
   const location = useLocation();
+  const navState = location.state as TabNavState | null;
   const navigate = useNavigate();
   const { t } = useI18n();
 
@@ -107,6 +129,25 @@ export function AppShell({ tabs = false }: AppShellProps) {
   // so creating a trip moves the tab without a reload.
   const activeTripId = session.data?.owner.activeTripId ?? null;
 
+  // Brings the asked-for section into view after a tab press landed on a screen
+  // that holds more than it.
+  //
+  // In AppShell rather than in the destination: the screen should not have to
+  // know which tab sent someone to it, and any future fallback gets this for
+  // free. Runs after paint because the section belongs to the route that is
+  // still rendering when this effect is queued.
+  //
+  // `block: 'start'` and not `focus()`: moving focus would announce the heading
+  // and strand a keyboard user mid-page, while scrolling shows the list and
+  // leaves the tab order alone. `behavior: 'auto'` respects a reduced-motion
+  // preference by not animating at all.
+  const focusTarget = navState?.focus ?? null;
+  useEffect(() => {
+    if (!focusTarget) return;
+    const node = document.getElementById(focusTarget);
+    node?.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }, [focusTarget, location.key]);
+
   if (sessionGone) {
     // Only 401. A network failure is not an ended session, and replacing the
     // whole screen for one would hide a recoverable error behind a restart.
@@ -164,7 +205,7 @@ export function AppShell({ tabs = false }: AppShellProps) {
       {tabs ? (
         <div className={styles.tabs}>
           <TabBar
-            active={activeTab(location.pathname)}
+            active={activeTab(location.pathname, navState?.fromTab)}
             labels={{
               home: t('nav.tab.home'),
               trip: t('nav.tab.trip'),
@@ -184,7 +225,18 @@ export function AppShell({ tabs = false }: AppShellProps) {
                 // has the pointer cleared by `owners.active_trip_id`'s ON
                 // DELETE SET NULL. Both land on the list, which is where a trip
                 // gets picked.
-                void navigate(activeTripId ? `/trip/${activeTripId}` : '/profile');
+                if (activeTripId) {
+                  void navigate(`/trip/${activeTripId}`);
+                  return;
+                }
+                // The fallback says where the press came from, so the bar keeps
+                // 내 여행 lit and the profile scrolls to its trip list instead
+                // of opening on the account block. Without this the tab reads
+                // as broken: a different tab lights up and the trips sit below
+                // the fold.
+                void navigate('/profile', {
+                  state: { fromTab: 'trip', focus: 'profile-trips-heading' },
+                });
                 return;
               }
               void navigate(TAB_PATHS[key]);
