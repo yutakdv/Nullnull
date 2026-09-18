@@ -137,7 +137,7 @@ class TemporalCandidateAssemblerTest {
     }
 
     @Test
-    @DisplayName("#259 the candidates come from the set the run froze, asked for by its id")
+    @DisplayName("BA-051-T21 #259 the candidates come from the set the run froze, asked for by its id")
     void theCandidatesComeFromTheFrozenSet() {
         CrowdForecastQuery.SnapshotSet frozen = set(
                 snapshot(CURRENT, "80", ISSUE, "v1", Set.of()),

@@ -318,7 +318,7 @@ class OptimizeItemIT {
      * timing.
      */
     @Test
-    @DisplayName("#259 a run proposes from the set it froze even when a newer set leaves out the item's day")
+    @DisplayName("BA-051-T21 BA-051-T22 #259 a run proposes from the set it froze even when a newer set leaves out the item's day")
     void theCandidatesComeFromTheSetTheRunFroze() throws Exception {
         Fixture fixture = fixtureWithoutForecasts();
         Instant earlier = Instant.now().minus(Duration.ofHours(1));
