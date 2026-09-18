@@ -294,6 +294,70 @@ class BackendPlanTests(unittest.TestCase):
             p['tasks'][0]['tests'].append(copy.deepcopy(p['tasks'][0]['tests'][0]))
         self.check_mutation(mutate, 'duplicate backend acceptance')
 
+    # --- The clause text in both files (#GOV-001). Only the ID used to be compared, and BA-020-T1~T3
+    # had drifted apart. Each case asserts its specimen is shaped the way it claims, or it would pass
+    # on a card that no longer has the row.
+
+    def clause_errors(self, plan=None, cards=None):
+        errors = []
+        validate_plan(copy.deepcopy(self.plan) if plan is None else plan, self.ops, self.features,
+                      self.cards if cards is None else cards, ROOT, errors)
+        return [e for e in errors if 'card clause for' in e or "필수 검증 list" in e]
+
+    def required_row(self, ident):
+        rows = [line for line in self.cards.splitlines() if line.startswith(f'- `{ident}`: ')]
+        self.assertTrue(rows, f'{ident} has no row, so this case proves nothing')
+        return rows[0]
+
+    def test_a_one_character_change_on_either_side_is_caught(self):
+        ident = 'BA-030-T1'
+        row = self.required_row(ident)
+        plan = copy.deepcopy(self.plan)
+        clause = next(c for t in plan['tasks'] for c in t['tests'] if c['id'] == ident)
+        self.assertEqual(row, f"- `{ident}`: {clause['assertion']}", 'the specimen must be an exact row')
+        clause['assertion'] = clause['assertion'][:-1] + '.'
+        self.assertTrue(self.clause_errors(plan=plan), 'a changed manifest clause must be reported')
+        self.assertTrue(self.clause_errors(cards=self.cards.replace(row, row[:-1] + '.')),
+                        'a changed card row must be reported')
+        # Only " — " opens the evidence part. Text run on without it is a different clause.
+        self.assertTrue(self.clause_errors(cards=self.cards.replace(row, row + '고 기록한다')),
+                        'a clause extended without the dash must be reported')
+
+    def test_markup_is_part_of_the_clause(self):
+        # What BA-020-T1~T3 had: the card wrapped class names in backticks and the manifest did not.
+        # The rule compares the text as written rather than normalising markup away - simpler, and
+        # the two files then have one spelling instead of two that a reader must reconcile.
+        ident = 'BA-020-T2'
+        row = self.required_row(ident)
+        self.assertIn('SourceRegistryIT', row, 'the specimen must name the class, or this proves nothing')
+        marked = row.replace('SourceRegistryIT', '`SourceRegistryIT`', 1)
+        self.assertTrue(self.clause_errors(cards=self.cards.replace(row, marked)))
+
+    def test_evidence_after_the_dash_is_not_the_clause(self):
+        ident = 'BA-000-T1'
+        row = self.required_row(ident)
+        clause = next(c['assertion'] for t in self.plan['tasks'] for c in t['tests'] if c['id'] == ident)
+        self.assertTrue(row.startswith(f"- `{ident}`: {clause} — "), 'the specimen must carry evidence')
+        self.assertEqual([], self.clause_errors(cards=self.cards.replace(row, row + ' 덧붙인 증거')))
+        broken = row.replace(clause, clause[:-1] + '!', 1)
+        self.assertTrue(self.clause_errors(cards=self.cards.replace(row, broken)),
+                        'the clause before the dash is still compared')
+
+    def test_an_evidence_row_outside_the_required_list_is_ignored(self):
+        # BA-004-T2 has a second "- `ID`:" row under the card's evidence heading that lists testcase
+        # names. Reading it as the clause would fail a card that is correct.
+        ident = 'BA-004-T2'
+        rows = [line for line in self.cards.splitlines() if line.startswith(f'- `{ident}`: ')]
+        self.assertEqual(2, len(rows), 'the specimen needs its evidence row, or this proves nothing')
+        evidence = rows[1]
+        self.assertEqual([], self.clause_errors(cards=self.cards.replace(evidence, evidence + ' 아무 말')))
+
+    def test_a_row_moved_out_of_the_required_list_is_caught(self):
+        ident = 'BA-030-T1'
+        row = self.required_row(ident)
+        cards = self.cards.replace(row + '\n', '', 1).replace('### BA-031', row + '\n\n### BA-031', 1)
+        self.assertTrue(any(f'{ident} has no row' in e for e in self.clause_errors(cards=cards)))
+
     def test_stale_human_card(self):
         # The card losing a test ID is now reported by the exact per-card comparison rather than
         # by "this value appears nowhere", which could be satisfied by prose.
