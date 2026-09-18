@@ -37,12 +37,21 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // screen table lists one path for trip creation (`/start`) and never gave this
 // one a URL.
 //
-// The picks still do not reach the server: `CreateTripRequest` has no field for
-// a place without a date, and `seedItems` cannot stand in because
-// `SeedTripItem` requires `date` and `position` — filling those would invent a
-// schedule the traveller never chose (invariant 2). Backend/AI is shaping that
-// field on #180. Until it lands the wizard carries the picks in its draft and
-// `toCreateRequest` drops them, so what reaches the API stays honest.
+// The picks still do not reach the server, but NOT because the contract is
+// missing — that part is settled and this comment used to say otherwise.
+// #180 was answered on 2026-09-13 with option B: the intention rides on the
+// CANDIDATE, so `AddCandidateRequest.mustVisit` exists today (and is typed in
+// the generated client). `CreateTripRequest` will never carry it — a dateless
+// place cannot be a `seedItem` (`date` is required) and cannot hold a lock
+// (`trip_constraints.trip_item_id` is NOT NULL), so it stays an intention until
+// scheduling promotes it to a `MUST_VISIT` constraint.
+//
+// What is still open is the WRITE, not the field: sending the picks means N
+// `addTripCandidate` calls after `createTrip`, and those N+1 requests are not
+// one transaction (invariant 5). #185 asks what this screen should show when
+// the trip is created and only some picks land, and that is unanswered. Until
+// it is, the wizard carries the picks in its draft and `toCreateRequest` drops
+// them, so what reaches the API stays honest.
 //
 // MOCK DATA: searchPlaces has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real

@@ -185,13 +185,24 @@ export function dateError(draft: WizardDraft): 'incomplete' | 'tooLong' | null {
  * Returns null when the draft is incomplete, so a caller cannot submit a
  * half-filled trip.
  *
- * `draft.mustVisit` is deliberately NOT sent. CreateTripRequest has no field
- * for a place without a date, and `seedItems` would require inventing one
- * (invariant 2). The picks stay in the draft so the step can show them and so
- * going back keeps them; they reach the server when #180 adds the field, which
- * is the one line to change here. Dropping them silently is the lesser wrong
- * only because the step no longer pretends otherwise — its two exits now say
- * which one the traveller took (#185).
+ * `draft.mustVisit` is deliberately NOT sent from HERE, and it never will be:
+ * the owner settled #180 on 2026-09-13 with option B, where the intention
+ * rides on the CANDIDATE rather than on the trip. `AddCandidateRequest` now
+ * carries `mustVisit` (openapi.yaml, and `mustVisit?: boolean` in the
+ * generated client) and `CreateTripRequest` deliberately does not — a place
+ * with no date cannot be a `seedItem` (`date` is required) and cannot hold a
+ * lock (`trip_constraints.trip_item_id` is NOT NULL), so the contract keeps it
+ * an intention until scheduling turns it into a `MUST_VISIT` constraint.
+ *
+ * So the remaining work is NOT "one line here". It is: after `createTrip`
+ * returns, POST each pick to `/trips/{tripId}/candidates` with
+ * `mustVisit: true` — `useAddTripCandidate` already takes a per-call `tripId`
+ * for exactly this caller. That wiring is still open because N+1 requests are
+ * not one transaction (invariant 5): #185 asks what the screen should do when
+ * the trip is created and only some of the candidates land, and that question
+ * has no answer yet. Until it does, the picks stay in the draft so the step can
+ * show them and so going back keeps them, and the two exits say which one the
+ * traveller took (#185).
  */
 export function toCreateRequest(
   draft: WizardDraft,
