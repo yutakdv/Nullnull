@@ -156,7 +156,7 @@ class ProviderKitTest {
     }
 
     @Test
-    @DisplayName("REC-DATA-05 redirect and non-allowlisted hosts never reach transport")
+    @DisplayName("BA-020-T1 redirect and non-allowlisted hosts never reach transport")
     void exactHostPolicyFailsClosed() {
         try (ClientFixture fixture = fixture(1, Duration.ofMillis(100), 5)) {
             assertThatThrownBy(() -> fixture.client.get(SOURCE,

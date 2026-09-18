@@ -2923,6 +2923,11 @@ paths:
       responses:
         "200":
           description: Cursor page of terminal and active optimization runs
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -3137,6 +3142,10 @@ paths:
           headers:
             ETag:
               $ref: "#/components/headers/ETag"
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:

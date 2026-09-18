@@ -761,7 +761,7 @@ erDiagram
 - `trip_constraints`: unique `(trip_item_id, type)`; `trip_id`는 같은 item의 trip과 일치해야 한다.
 - `trip_constraints` typed check: `MUST_VISIT`는 값 column 모두 null, `DATE`는 `date_value`만 필수, `TIME`은 `start_time_value`와 `tolerance_minutes(0..180)` 필수, `RESERVATION`은 `date_value/start_time_value` 필수다. `locked=true` row만 저장하고 해제는 row 삭제로 표현한다.
 - import가 만든 lock은 `source=IMPORT`, 직접 조작은 `source=USER`다. 네 type은 서로 독립이며 한 type 변경이 다른 row를 제거하지 않는다.
-- `trip_revisions`: unique `(trip_id, version)`; `aggregate_snapshot`은 metadata, interest, item, constraint, candidate linkage를 포함하는 canonical JSON이며 schema version/hash를 고정한다. 한 번 기록한 revision/item은 수정하지 않는다.
+- `trip_revisions`: unique `(trip_id, version)`; `aggregate_snapshot`은 metadata, interest, item, constraint를 담는 canonical JSON이며 schema version/hash를 고정한다. 한 번 기록한 revision/item은 수정하지 않는다. `candidates` key는 있으나 `TripService.snapshot`이 **항상 빈 배열**로 쓴다 — 이 줄은 원래 *"candidate linkage를 포함한다"* 였고 그것은 구현이 한 번도 만족한 적이 없다(문구는 `346baf3` baseline 산문, writer는 `8d605ea`). 아래 9절이 같은 절 안에서 *"`aggregate_snapshot`을 읽는 코드가 0"* 이라고 적고 있어 두 줄이 어긋나 있었다. 채우려면 `snapshot_schema_version`을 올려야 하고 **이미 기록된 revision은 빈 배열 그대로 남는다.**
 - trip 기간 축소 시 범위 밖 item 또는 DATE/RESERVATION lock이 하나라도 있으면 전체 요청을 거부한다. 자동 이동/삭제는 하지 않는다.
 - `itinerary_import_drafts.version >= 1`; remap마다 증가하고 API ETag/If-Match와 일치해야 한다. 상태 전이는 `NEEDS_REVIEW ↔ READY → CONFIRMED`, 모든 비terminal 상태에서 `→ EXPIRED`만 허용한다. CONFIRMED/EXPIRED draft는 수정할 수 없다.
 - `itinerary_import_drafts.confirmed_trip_id`는 confirm에서 한 번만 채워지고 UNIQUE다. NULL은 여러 행이 가질 수 있으므로 이 제약은 *"trip 하나는 draft 하나 이하에서 나온다"* 를 정확히 표현한다 — 두 draft가 같은 trip을 자기 것이라고 주장하는 행을 DB가 거부한다. draft가 **가리키는 trip은 자기가 만든 trip뿐**이라 "기존 trip에 import"를 위한 별도 열은 두지 않는다(그 경로는 화면도 카드도 없다).

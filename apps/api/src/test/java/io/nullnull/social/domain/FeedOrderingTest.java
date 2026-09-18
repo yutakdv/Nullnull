@@ -12,7 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /** REC-FEED-02 fixed feed order: publishedAt DESC, then postId ASC as its canonical string. */
-@DisplayName("REC-FEED-02 fixed feed order")
+@DisplayName("fixed feed order (REC-FEED family, clause 02)")
 class FeedOrderingTest {
 
     static final Instant T = Instant.parse("2026-09-01T00:00:00Z");

@@ -1432,7 +1432,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 그래서 `recCoverage`로 표시하고 `check_test_reports.py`가 JUnit 요구를 면제하되 **면제를 출력한다**(`acceptance_ids_covered_by_rec=`). 표시가 구멍이 되지 않게 `validate_backend_plan.py`가 둘을 강제한다: 인용한 REC ID가 manifest의 **`implementedTestIds`에 실재**해야 하고(`requiredTestIds`는 아직 빚이라 인용 대상이 아니다), **카드의 그 절 행이 같은 ID를 이름으로 적어야** 한다. 후자가 없으면 인용이 JSON에만 살고 카드는 여전히 JUnit test가 덮는 것처럼 읽힌다.
 
-**`T1`의 여섯 절 중 mixed-source만 덮이지 않는다.** 증명 자체는 있다 — `TemporalComparisonPolicyTest`가 `DIFFERENT_SOURCE`를 우선순위까지 고정한다. 없는 것은 **그것을 부르는 등록된 이름**이다: 그 class의 `@DisplayName`은 `REC-DATA-02`·`REC-DATA-03`·`REC-DATA-04` 셋을 적는데 manifest의 `implementedTestIds`에는 `REC-DATA-02`만 있고 `REC-DATA-03`(*"다른 POI KTO index, AREA 서울과 PLACE KTO"*)은 `requiredTestIds`에만 있다.
+**`T1`의 여섯 절 중 mixed-source만 덮이지 않는다.** 증명 자체는 있다 — `TemporalComparisonPolicyTest`가 `DIFFERENT_SOURCE`를 우선순위까지 고정한다. 없는 것은 **그것을 부르는 등록된 이름**이다: 등록된 이름은 method `@DisplayName`의 `REC-DATA-02` 하나이고 class 라벨은 계열만 적는다. 예전 class 라벨은 `REC-DATA-02`·`REC-DATA-03`·`REC-DATA-04` 셋을 적었는데 manifest의 `implementedTestIds`에는 `REC-DATA-02`만 있고 `REC-DATA-03`(*"다른 POI KTO index, AREA 서울과 PLACE KTO"*)은 `requiredTestIds`에만 있어 **나머지 둘은 집계기가 읽는 이름으로 주장되기만 했다** — 그래서 계열 표기로 좁혔다.
 
 **이것은 증명의 공백이 아니라 등록의 공백이다.** `REC-DATA-02`가 가리키는 파일이 바로 그 class이고 `DIFFERENT_SOURCE` 단언이 그 안에 있다 — 그래서 `T1`의 인용은 mixed-source를 증명하는 코드를 실제로 가리킨다. 없는 것은 catalogue가 그 절을 `REC-DATA-03`이라는 **별도의 이름으로 쪼개 등록**하지 않았다는 것뿐이다. 이름이 생기면 `T1`의 인용에 더한다.
 
