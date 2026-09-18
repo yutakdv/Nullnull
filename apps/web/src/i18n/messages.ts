@@ -504,6 +504,24 @@ export const messages = {
     // a proposal names the place and its provenance quotes the source. Paired
     // with `run.unchanged` so nobody recomputes a run that is still there.
     'run.sourceUnavailable': '혼잡 정보를 지금 불러올 수 없어요',
+    // FE-503 proposal card. ProposalCard takes every string as a prop, so
+    // these are the screen's side of that contract.
+    //
+    // `comparisonUnavailable` is one fixed sentence, not a map from the
+    // server's `comparisonReasonCode`: that field is a free-form string in
+    // the contract and one of its values (SAME_METRIC_AND_ISSUE) is a reason
+    // the comparison IS allowed, so a code-to-copy map would have a slot for
+    // putting a negative sentence under a positive reason. ReplaceSheet took
+    // the same decision for the same field.
+    'run.proposal.crowd': '혼잡도',
+    'run.proposal.comparisonUnavailable': '두 시간대의 혼잡도는 비교할 수 없어요',
+    'run.proposal.changes': '바뀌는 것',
+    'run.proposal.changeCount': '변경 {count}개',
+    'run.proposal.move': '시간 변경',
+    'run.proposal.add': '추가',
+    'run.proposal.remove': '제외',
+    'run.proposal.constraintsOk': '잠금과 제약은 그대로예요',
+    'run.proposal.constraintsBroken': '지킬 수 없는 제약이 있어요',
     'run.notFound': '없는 최적화예요',
     'run.expired': '제안이 만료됐어요. 일정은 그대로예요',
     'run.recompute': '다시 계산하기',
@@ -532,6 +550,20 @@ export const messages = {
     'run.failure.unknown': '최적화를 마치지 못했어요',
     // 불변식 3·4: 실패·만료·KEEP 어느 쪽도 일정을 바꾸지 않는다.
     'run.unchanged': '일정은 그대로예요',
+
+    // DecisionBar (C03). Figma가 고정한 문구 — 임의 변경 금지.
+    'decision.apply': '이 변경 적용',
+    'decision.keep': '현재 일정 유지',
+    'decision.applying': '적용하는 중이에요',
+    'decision.applied': '일정을 업데이트했어요',
+    'decision.staleMessage':
+      '다른 곳에서 일정이 바뀌었어요. 최신 일정 기준으로 다시 계산해야 적용할 수 있어요.',
+    'decision.staleAction': '최신 일정으로 다시 계산',
+    'decision.failedMessage':
+      '일정은 바뀌지 않았어요. 네트워크 상태를 확인하고 다시 시도해주세요.',
+    'decision.failedAction': '다시 시도',
+    'decision.groupLabel': '최적화 결정',
+
     'trip.optimize': 'AI로 일정 최적화',
     'trip.edit': '일정 편집',
     // P1 until FE-501 wires the run; announced rather than silently inert.
@@ -1226,6 +1258,16 @@ export const messages = {
     'run.loading': 'Loading',
     'run.error': "We couldn't load the status",
     'run.sourceUnavailable': "We can't load crowd information right now",
+    'run.proposal.crowd': 'Crowding',
+    'run.proposal.comparisonUnavailable':
+      "These two times can't be compared for crowding",
+    'run.proposal.changes': 'What changes',
+    'run.proposal.changeCount': '{count} changes',
+    'run.proposal.move': 'Time change',
+    'run.proposal.add': 'Added',
+    'run.proposal.remove': 'Removed',
+    'run.proposal.constraintsOk': 'Your locks and constraints are kept',
+    'run.proposal.constraintsBroken': 'Some constraints cannot be kept',
     'run.notFound': 'No such optimization',
     'run.expired': 'The suggestion expired. Your itinerary is unchanged',
     'run.recompute': 'Calculate again',
@@ -1240,6 +1282,20 @@ export const messages = {
     'run.failure.DATA_INSUFFICIENT': "We don't have enough information yet",
     'run.failure.unknown': "The optimization didn't finish",
     'run.unchanged': 'Your itinerary is unchanged',
+
+    // DecisionBar (C03).
+    'decision.apply': 'Apply this change',
+    'decision.keep': 'Keep current itinerary',
+    'decision.applying': 'Applying…',
+    'decision.applied': 'Your itinerary is updated',
+    'decision.staleMessage':
+      'Your itinerary changed elsewhere. Recompute against the latest version to apply this.',
+    'decision.staleAction': 'Recompute against the latest',
+    'decision.failedMessage':
+      'Your itinerary is unchanged. Check your connection and try again.',
+    'decision.failedAction': 'Try again',
+    'decision.groupLabel': 'Optimization decision',
+
     'trip.optimize': 'Optimize with AI',
     'trip.edit': 'Edit itinerary',
     'trip.comingSoon': 'Coming soon',
