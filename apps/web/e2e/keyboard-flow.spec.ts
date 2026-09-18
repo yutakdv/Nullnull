@@ -181,7 +181,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   //
   // So restoring it needs two things, not one: a fallback that looks outside
   // the moved item's subtree AND a lock the real API actually attaches. The
-  // full text of the removed test is in the issue filed for it.
+  // full text of the removed test is in #272.
 
   test('BA-040-T4 a lock confirm can be answered and cancelled by keyboard', async ({
     page,

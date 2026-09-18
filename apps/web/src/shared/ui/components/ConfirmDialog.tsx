@@ -123,7 +123,7 @@ export function ConfirmDialog({
     //
     // Closing that needs a candidate search that can leave the moved item's
     // subtree, plus a landing check after `focus()` (it fails silently today).
-    // That is a separate change with its own test; this one is scoped to the
+    // That is a separate change with its own test (#272); this one is scoped to the
     // closed-dialog case, which confirm-dialog.test.tsx pins (mutation:
     // radius 1, its own case only).
     const closedDialog = (node: HTMLElement) => {
