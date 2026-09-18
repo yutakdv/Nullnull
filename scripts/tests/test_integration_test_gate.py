@@ -196,7 +196,7 @@ class E2ECatalogSeedTests(unittest.TestCase):
         # psql exiting 0 says the statements ran, not that the rows are there.
         seed = self.seed_line()
         verdict = [i for i, line in enumerate(self.lines)
-                   if "grep -qx 'e2e_catalog_seed=places:2,published_posts:1'" in line]
+                   if "grep -qx 'e2e_catalog_seed=places:3,published_posts:1'" in line]
         self.assertEqual(len(verdict), 1)
         self.assertLess(seed, verdict[0])
         self.assertLess(verdict[0], self.lines.index(E2E_RUN))
@@ -216,7 +216,9 @@ class E2ECatalogSeedTests(unittest.TestCase):
                    'scripts/tests/test_check_test_reports.py', E2E_SEED}
         referrers = []
         for relative in listed:
-            if relative in allowed:
+            # The E2E specs read what the seed wrote and may say so; a consumer running against the
+            # throwaway database is not a path that applies the file anywhere.
+            if relative in allowed or relative.startswith('apps/web/e2e/'):
                 continue
             path = ROOT / relative
             try:

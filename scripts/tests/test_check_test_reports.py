@@ -367,7 +367,7 @@ elif 'run' in args and 'egress-denied' in args:
     print('outbound_network=denied')
 elif 'exec' in args and 'postgres' in args:
     # The seed step's verdict is its read-back line (#253); psql exiting 0 is not one.
-    print('e2e_catalog_seed=places:2,published_posts:1')
+    print('e2e_catalog_seed=places:3,published_posts:1')
 elif 'exec' in args:
     print('{{"status":"READY"}}')
 else:
