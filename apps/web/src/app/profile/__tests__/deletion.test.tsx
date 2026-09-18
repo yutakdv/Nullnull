@@ -25,7 +25,12 @@ import { DeletionSection } from '../DeletionSection.js';
 
 const copy = messages['en-US'];
 
-let requests: { method: string; url: string; token: string | null }[] = [];
+let requests: {
+  method: string;
+  url: string;
+  token: string | null;
+  idempotencyKey: string | null;
+}[] = [];
 
 beforeEach(() => {
   requests = [];
@@ -35,6 +40,7 @@ beforeEach(() => {
       method: request.method,
       url: request.url,
       token: request.headers.get('x-deletion-status-token'),
+      idempotencyKey: request.headers.get('Idempotency-Key'),
     });
   });
   localStorage.clear();
@@ -87,6 +93,76 @@ describe('deletion takes two deliberate actions', () => {
     expect(
       screen.getByRole('button', { name: copy['deletion.request'] }),
     ).toBeInTheDocument();
+  });
+});
+
+// #254: the Idempotency-Key used to be minted inside useRequestDeletion's
+// mutationFn, so every press — including a retry of a failed attempt — sent a
+// fresh key. Deletion revokes the cookie in the same step it accepts the
+// request, so a retry with a fresh key after a lost 202 arrives as "revoked
+// cookie, unknown key": the server cannot tell it apart from an
+// unauthenticated request, and the user never gets a statusToken for a
+// deletion that already happened. The same key gets the original 202 replayed
+// back instead — but only if the client actually sends the same one.
+describe('the deletion request carries a stable Idempotency-Key (#254)', () => {
+  it('sends a key on the request', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await requestDeletion(user);
+
+    await waitFor(() => {
+      expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(1);
+    });
+    const sent = requests.filter((r) => r.method === 'DELETE');
+    expect(sent[0]?.idempotencyKey).not.toBeNull();
+  });
+
+  it('replays the same key when a failed attempt is retried', async () => {
+    server.use(http.delete(`${API_BASE}/session`, () => HttpResponse.error()));
+    const user = userEvent.setup();
+    renderSection();
+    await requestDeletion(user);
+
+    await waitFor(() => {
+      expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(1);
+    });
+    expect(await screen.findByText(copy['deletion.failed'])).toBeInTheDocument();
+
+    // The confirm row is still showing (requestId never got set), so the same
+    // "yes" press retries the same attempt.
+    await user.click(screen.getByRole('button', { name: copy['deletion.confirm.yes'] }));
+    await waitFor(() => {
+      expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(2);
+    });
+
+    const [first, second] = requests.filter((r) => r.method === 'DELETE');
+    expect(first?.idempotencyKey).not.toBeNull();
+    expect(second?.idempotencyKey).toBe(first?.idempotencyKey);
+  });
+
+  it('mints a new key for a new attempt after the user backs out', async () => {
+    // Backing out with 아니요 is a decision to stop, not a failed attempt — a
+    // later 예 is a NEW attempt and must not replay whatever the abandoned one
+    // sent, so it needs its own key.
+    server.use(http.delete(`${API_BASE}/session`, () => HttpResponse.error()));
+    const user = userEvent.setup();
+    renderSection();
+    await requestDeletion(user);
+    await waitFor(() => {
+      expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(1);
+    });
+    await screen.findByText(copy['deletion.failed']);
+
+    // Back out, then start a fresh confirm flow.
+    await user.click(screen.getByRole('button', { name: copy['deletion.confirm.no'] }));
+    await requestDeletion(user);
+    await waitFor(() => {
+      expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(2);
+    });
+
+    const [first, second] = requests.filter((r) => r.method === 'DELETE');
+    expect(second?.idempotencyKey).not.toBeNull();
+    expect(second?.idempotencyKey).not.toBe(first?.idempotencyKey);
   });
 });
 
