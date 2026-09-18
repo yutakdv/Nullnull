@@ -1890,6 +1890,10 @@
         {
           "id": "BA-053-T10",
           "assertion": "만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-053-T11",
+          "assertion": "REVERT는 기록된 일정 변경만 되돌리고 후보의 ACTIVE·DISMISSED 상태를 바꾸지 않는다"
         }
       ],
       "handoff": "undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag.",
