@@ -339,7 +339,7 @@ SLO 초안:
 | 서울 Live | 일반 feed/여행 | Live replay 또는 unavailable |
 | 지도/경로 | 목록/직접 편집 | map tile/route metric 제한, 경로 근거가 필요 없는 ITEM만 검토; 필요한 경우 ROUTE_UNAVAILABLE |
 | optimization worker | 모든 수동 기능 | queued timeout 및 재시도 |
-| 추천 서비스 `apps/ai` | feed(Spring 고정 순서 fallback), 여행/후보/직접 편집 | related/slot `UNKNOWN`, ITEM run `FAILED`, readiness `DEGRADED`; 계산을 Spring에서 대체 구현하지 않음 |
+| 추천 서비스 `apps/ai` | feed(Spring 고정 순서 fallback), 여행/후보/직접 편집, 관련 장소(Spring이 정렬, [ADR-0006 · 예외](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006--예외)) | slot `UNKNOWN`, ITEM run `FAILED`, readiness `DEGRADED`; 계산을 Spring에서 대체 구현하지 않음 |
 | analytics | 제품 기능 전체 | event drop/buffer, 사용자 요청 실패 금지 |
 
 ## 13. 진화 경로
@@ -381,7 +381,7 @@ flowchart TB
     INGEST --> EXT[KTO / Seoul / P1 route]
 ```
 
-Spring의 `recommendation` package는 `RecommendationGateway` port, 내부 계약 DTO, `ProposalRevalidator`, `FeedFallback`을 가진다. 실제 계산(feed 순서, 관련 장소, slot, ITEM, 설명 template)은 `apps/ai`의 `source → dedup → hydrate → filter → score → select` pipeline이 수행한다. 두 쪽 모두 table을 소유하지 않고 caller가 가져온 snapshot만 받는다. `apps/ai`는 public endpoint가 아니며 internal network에서만 접근한다.
+Spring의 `recommendation` package는 `RecommendationGateway` port, 내부 계약 DTO, `ProposalRevalidator`, `FeedFallback`을 가진다. 실제 계산(feed 순서, slot, ITEM, 설명 template)은 `apps/ai`의 `source → dedup → hydrate → filter → score → select` pipeline이 수행한다. 관련 장소의 병합·정렬만 [ADR-0006 · 예외](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006--예외)로 Spring catalog projection이 한다. 두 쪽 모두 table을 소유하지 않고 caller가 가져온 snapshot만 받는다. `apps/ai`는 public endpoint가 아니며 internal network에서만 접근한다.
 
 ## 15. 모듈 책임과 public interface
 

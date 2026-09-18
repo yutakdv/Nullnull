@@ -2,6 +2,7 @@ package io.nullnull.recommendation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.nullnull.catalog.application.CatalogRelationDeriver;
 import io.nullnull.recommendation.domain.PolicyPins;
 import java.io.IOException;
 import java.math.RoundingMode;
@@ -62,6 +63,15 @@ class PolicyPinsParityTest {
         assertThat(PolicyPins.V1.caps().relatedMerged()).isEqualTo(caps.get("relatedMerged"));
         assertThat(PolicyPins.V1.caps().slotDates()).isEqualTo(caps.get("slotDates"));
         assertThat(PolicyPins.V1.caps().itemProposals()).isEqualTo(caps.get("itemProposals"));
+    }
+
+    @Test
+    void theRelationWriterCapIsThePolicyPerChannelCap() {
+        // Related places are ordered in Spring (ADR-0006 · 예외) and the ranker that caps each channel is
+        // not called, so the writer's cap is the one that holds. It was a literal whose javadoc named
+        // policy-v1 as its source, and nothing compared the two.
+        Map<?, ?> caps = (Map<?, ?>) policy.get("candidateCaps");
+        assertThat(CatalogRelationDeriver.MAX_PER_SOURCE).isEqualTo(caps.get("relatedPerChannel"));
     }
 
     @Test

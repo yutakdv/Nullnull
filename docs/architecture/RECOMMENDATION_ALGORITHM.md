@@ -15,7 +15,7 @@ tags:
 - 작성일: 2026-09-06
 - DRI: Backend/AI, 검토자: Frontend
 - 연결: [Backend 전체 설계](SYSTEM_ARCHITECTURE.md), [X 공개 코드 참조](RECOMMENDATION_ALGORITHM.md#13-x-공개-코드와-참조-버전), [추천 CI 명세](../engineering/TEST_STRATEGY.md#12-추천-핵심-ci-상세)
-- 실행 위치: 계산은 Python 서비스 `apps/ai`, hydration·재검증·저장은 Spring `apps/api`([ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)). 구현 순서는 [추천 서비스 구현 계획](../superpowers/plans/2026-09-07-recommendation-python-service.md)이다.
+- 실행 위치: 계산은 Python 서비스 `apps/ai`, hydration·재검증·저장은 Spring `apps/api`([ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)). 관련 장소 정렬은 [ADR-0006 · 예외](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006--예외)로 Spring이 한다. 구현 순서는 [추천 서비스 구현 계획](../superpowers/plans/2026-09-07-recommendation-python-service.md)이다.
 - 기준: [OpenAPI](../api/openapi.yaml), [ERD](ERD.md), [Source catalog](../data/SOURCE_CATALOG.md), [개인정보](../security/PRIVACY_REQUIREMENTS.md)
 
 ## 1. 추천의 목표와 적용 순서
@@ -161,7 +161,7 @@ cursor는 `snapshotId, nextOrdinal, owner binding, selectedTrip binding, sortVer
 
 `listRelatedPlaces`는 대체 후보를 소개하며 이동 가능성·더 한적함을 보증하지 않는다. relation의 출처·scope·매핑을 먼저 검증한다. EXACT와 SIMILAR는 relation의 의미이며 confidence 숫자만으로 EXACT를 합성하지 않는다.
 
-초기 정렬은 `(relation tier, categoryMatch DESC, placeId ASC)`다. tier는 검증된 EXACT가 SIMILAR보다 앞선다. categoryMatch는 동일 canonical category면 1, 검토된 상위 category가 같으면 0.5, 다르면 0이다. taxonomyVersion을 고정하며 category 결측은 별도 missing 상태로 같은 tier의 known 후보 뒤에 둔다.
+초기 정렬은 `(relation tier, categoryMatch DESC, placeId ASC)`다. tier는 검증된 EXACT가 SIMILAR보다 앞선다. categoryMatch는 동일 canonical category면 1, 검토된 상위 category가 같으면 0.5, 다르면 0이다. taxonomyVersion을 고정하며 category 결측은 별도 missing 상태로 같은 tier의 known 후보 뒤에 둔다. P0 구현은 [ADR-0006 · 예외](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006--예외)에 따라 Spring이 `(relation tier, placeId)`로 정렬하며 categoryMatch를 적용하지 않는다.
 
 출처가 다른 혼잡값·provider 인기도·단순 노출량은 이 정렬에 넣지 않는다. crowd가 있으면 provenance와 함께 부가 표시한다. 검증된 관련성만 있을 때는 관련 이유만 설명한다. `SIMILAR` 항목을 자동 교체하거나 `NONE`을 가짜 관광지로 채우지 않는다.
 

@@ -46,8 +46,9 @@ public class CatalogRelationDeriver {
 
     /**
      * The most candidates one source place may produce, taken from policy-v1's
-     * {@code candidateCaps.relatedPerChannel}. Beyond it the ranker would drop the surplus anyway, and
-     * a source over the cap is not trimmed here - see {@link #derive()}.
+     * {@code candidateCaps.relatedPerChannel}; {@code PolicyPinsParityTest} fails the build if the two
+     * drift. No ranker sits after this (ADR-0006 · 예외), so this is the only cap on the path, and a
+     * source over it is not trimmed here - see {@link #derive()}.
      */
     public static final int MAX_PER_SOURCE = 100;
 

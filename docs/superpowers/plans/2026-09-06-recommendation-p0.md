@@ -2,15 +2,17 @@
 aliases:
   - "P0 추천 알고리즘 구현 계획"
 doc_type: plan
-status: draft
+status: superseded
 area: engineering
 tags:
   - nullnull/plan
   - nullnull/engineering
 ---
 
-# Nullnull P0 추천 알고리즘 구현 계획
+# Nullnull P0 추천 알고리즘 구현 계획 (대체됨)
 
+> **대체됨.** 실행 계획은 [ADR-0006](../../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)과 [추천 서비스 구현 계획](2026-09-07-recommendation-python-service.md)이 대체했다. 수식·기대값 명세로서의 지위는 바로 아래 상태 줄이 정한다.
+>
 > **2026-09-07 상태: 알고리즘 명세로만 유효.** 사용자 결정(D-REC-6)으로 추천 계산 전체는 `apps/ai`(Python)에서 구현한다. 실행 계획은 [2026-09-07-recommendation-python-service.md](2026-09-07-recommendation-python-service.md)를 따르고, 이 문서의 Task 1~10은 수식·필터 순서·종결 우선순위·테스트 기대값(손계산)의 정본으로 참조한다. 여기 있는 Java 코드는 실행 대상이 아니다.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
