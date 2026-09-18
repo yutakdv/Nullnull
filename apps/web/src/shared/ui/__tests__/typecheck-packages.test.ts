@@ -92,7 +92,13 @@ describe('FE-005-T1 the packages typecheck gate refuses an empty scan', () => {
 
   it('fails when a package has no tsconfig at all', () => {
     const dir = workspace({});
+    // BOTH, not one. Each package is handled independently, so removing a
+    // single tsconfig leaves the other one reaching `npx tsc` - which hangs
+    // for 70s in the gate's egress-denied container and timed this test out
+    // (the local run passed only because TypeScript was already cached).
+    // Every package must short-circuit for the spawn to be unreachable.
     rmSync(join(dir, 'packages/contracts/tsconfig.json'));
+    rmSync(join(dir, 'packages/api-client/tsconfig.json'));
     const result = run(dir);
     expect(result.code).not.toBe(0);
     expect(result.out).toMatch(/tsconfig\.json is missing/i);
