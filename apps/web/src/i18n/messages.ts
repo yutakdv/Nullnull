@@ -62,6 +62,11 @@ export const messages = {
     'splash.tagline2': '취향으로 이어지는 여행 SNS',
     'splash.retry': '다시 시도',
     'splash.failed': '시작하지 못했어요. 다시 시도해주세요.',
+    // 이 자리는 `app.name`을 쓰고 있었다. bootstrap이 끝나는 즉시 화면이
+    // 넘어가던 동안에는 한 프레임만 스쳐서 아무도 못 봤는데, 브랜드가 최소
+    // 시간 머무르게 되면서 워드마크 아래에 같은 단어가 한 번 더 찍혔다.
+    // 다른 화면의 `*.loading`과 같은 어투를 쓴다.
+    'splash.loading': '시작하는 중이에요',
     // 세션 만료 (FR-SES-02). PROBLEM_POLICY의 UNAUTHORIZED는 severity `screen`,
     // recovery `restart-session`이다. 다시 시작은 사용자가 직접 눌러야 한다 —
     // 만료된 세션에 자동으로 bootstrap하면 다른 익명 owner가 생겨 그동안의
@@ -812,6 +817,7 @@ export const messages = {
     'splash.tagline2': 'a travel feed that follows your taste',
     'splash.retry': 'Try again',
     'splash.failed': "We couldn't start. Please try again.",
+    'splash.loading': 'Starting up',
     'session.expired': 'Your session ended. Please start again',
     'session.expiredNote': 'Trips saved on this device come back when you start again',
     'session.restart': 'Start again',

@@ -19,7 +19,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sessionFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
@@ -32,17 +32,45 @@ const copy = messages['en-US'];
 
 let requests: { method: string; url: string }[] = [];
 
+/**
+ * Reports a `prefers-reduced-motion` preference to the code under test.
+ *
+ * The splash holds its frame for MINIMUM_VISIBLE_MS before redirecting, and
+ * honours a reduce preference by skipping that hold. Declaring the preference
+ * here does double duty: it exercises the branch a real traveller with the OS
+ * setting takes, and it keeps every test that merely passes THROUGH the splash
+ * from spending most of a second doing it. Left at the happy-dom default of
+ * no-preference, this file went from 241ms to 3.4s.
+ *
+ * The hold itself is asserted in its own describe block below, where the
+ * preference is set to no-preference on purpose.
+ */
+function stubReducedMotion(reduce: boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: reduce && query.includes('prefers-reduced-motion: reduce'),
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+    addListener: () => {},
+    removeListener: () => {},
+  }));
+}
+
 beforeEach(() => {
   requests = [];
   server.events.on('request:start', ({ request }) => {
     requests.push({ method: request.method, url: request.url });
   });
   localStorage.clear();
+  stubReducedMotion(true);
 });
 
 afterEach(() => {
   server.events.removeAllListeners();
   localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 function renderAt(path: string) {
@@ -115,12 +143,74 @@ describe('A-1 splash bootstraps the anonymous session', () => {
     );
   });
 
+  it('does not make a failed bootstrap wait out the hold', async () => {
+    // FR-ONB-01 asks for a retry instead of a blank screen. The hold gates the
+    // redirect, not the failure: making somebody wait to be told the app did
+    // not start would be the opposite of that acceptance criterion. Run with
+    // the hold ENABLED so this measures the failure path rather than the
+    // preference.
+    stubReducedMotion(false);
+    server.use(http.post(`${API_BASE}/demo/sessions`, () => HttpResponse.error()));
+    const started = Date.now();
+    renderAt('/');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy['splash.failed']);
+    expect(Date.now() - started).toBeLessThan(400);
+    // The status line gives way to the alert rather than stacking beneath it.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('does not retry a failed bootstrap on its own', async () => {
     server.use(http.post(`${API_BASE}/demo/sessions`, () => HttpResponse.error()));
     renderAt('/');
     await screen.findByRole('alert');
     const attempts = requests.filter((r) => r.url.includes('/demo/sessions')).length;
     expect(attempts).toBe(1);
+  });
+
+  it('holds the brand on screen before redirecting', async () => {
+    // The point of the hold: without it the wordmark rendered for about a
+    // frame against a warm cache and the first thing anyone saw was the
+    // language list. Asserted as "still on the splash after the response has
+    // landed", which is the user-visible claim; a timer spy would pass on a
+    // screen that started the timer and redirected anyway.
+    stubReducedMotion(false);
+    renderAt('/');
+
+    // Wait for the request to come back, so what holds the screen afterwards
+    // is the floor rather than an in-flight fetch.
+    await waitFor(() => {
+      expect(requests.filter((r) => r.url.includes('/demo/sessions'))).toHaveLength(1);
+    });
+    expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'splash-heading',
+    );
+    // And it is not a dead frame: the screen keeps saying it is starting up.
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    // It does eventually move on. findBy* retries past the floor.
+    expect(
+      await screen.findByRole('heading', { name: /Choose your language/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('skips the hold when the traveller asked for reduced motion', async () => {
+    // styles.css already collapses animation for this preference. A held
+    // splash is time spent withholding content, which is the same bargain,
+    // so it is skipped rather than shortened.
+    //
+    // beforeEach sets reduce for every test in this file; stated here too
+    // because this test is ABOUT the preference, and a reader should not have
+    // to hold the default in their head to see what is being claimed.
+    stubReducedMotion(true);
+    const started = Date.now();
+    renderAt('/');
+
+    await screen.findByRole('heading', { name: /Choose your language/ });
+    // Comfortably under the 800ms floor without pinning the exact value: this
+    // asserts the floor was not applied, not how fast the machine is.
+    expect(Date.now() - started).toBeLessThan(400);
   });
 
   it('retries only when the user asks, and then proceeds', async () => {
