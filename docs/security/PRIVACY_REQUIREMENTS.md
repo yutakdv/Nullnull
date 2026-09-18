@@ -183,7 +183,7 @@ production debug logging은 time-bound flag와 승인 없이는 활성화하지 
 - support가 requestId로 조사하더라도 필요한 최소 record만 조회한다.
 - session 삭제 시 즉시 revoke하고 새 API 접근을 막는다.
 - 같은 transaction에서 모든 CSRF token revoke, deletion request, restore tombstone, leased job을 생성한다. receipt의 one-purpose status token은 memory에만 두고 DB에는 hash만 저장한다.
-- DELETE 응답 유실은 revoked cookie와 동일 Idempotency-Key로 24시간 동안 동일 receipt만 재생한다. status token은 receipt ID/expiry의 결정적 서명으로 다시 만들고 plaintext를 저장하지 않으며, revoked cookie는 다른 endpoint에서 항상 401이다.
+- DELETE 응답 유실은 revoked cookie와 동일 Idempotency-Key로 24시간 동안 동일 receipt만 재생한다. status token은 receipt ID/expiry의 결정적 서명으로 다시 만들고 plaintext를 저장하지 않으며, revoked cookie는 다른 endpoint에서 401이다(non-safe cross-origin 요청은 그보다 먼저 origin 검증의 403).
 - session이 이미 revoke되므로 삭제 상태 endpoint는 `X-Deletion-Status-Token`만 받고 진행 상태 외 domain data를 반환하지 않는다. token은 7일 만료이며 URL/query/log에 넣지 않는다.
 - owned trip/candidate/item/import/event/feedback/notification 삭제 job은 ACCEPTED→RUNNING→COMPLETED/PARTIAL_FAILED/FAILED 상태, attempt, failure code, alert를 둔다.
 - tombstone은 최대 backup 보존보다 7일 이상 길게 유지한다. restore 환경은 public traffic 전에 tombstone의 owner/delete-before를 재적용하고 완료 검증 후에만 열린다.

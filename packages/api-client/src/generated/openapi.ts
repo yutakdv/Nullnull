@@ -118,7 +118,8 @@ export interface paths {
          * Revoke the current session and request owned-data deletion
          * @description Atomically records the idempotent receipt, revokes the session and CSRF tokens, and
          *     queues deletion. For 24 hours only this route may resolve the revoked cookie plus the
-         *     same Idempotency-Key to replay the same receipt; all other use of that cookie is 401.
+         *     same Idempotency-Key to replay the same receipt; all other use of that cookie is 401 (a
+         *     cross-origin state-changing request is refused earlier, with 403).
          *     The status token is deterministically signed for the receipt and never stored plaintext.
          */
         delete: operations["deleteCurrentSession"];
@@ -2476,6 +2477,13 @@ export interface components {
             currentTripVersion?: number | null;
             /** Format: uri-reference */
             recomputeUrl?: string | null;
+            /**
+             * @description Present only on a 401 whose request carried no session cookie at all, and absent on every
+             *     other problem, including every other 401. One value by design: naming why a sent cookie
+             *     failed (expired, revoked, ...) would tell the caller whether it was once valid.
+             * @enum {string}
+             */
+            missingCredential?: "SESSION_COOKIE";
         };
         FieldError: {
             field: string;
@@ -2504,7 +2512,16 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Session is absent, expired, or revoked */
+        /**
+         * @description The request is not authenticated, and `code` is always `UNAUTHORIZED`. The body carries
+         *     `missingCredential: SESSION_COOKIE` only when the request sent no session cookie at all, so a
+         *     client can tell a first visit (start a session) from a session that ended (let the traveller
+         *     decide: a new session is a different anonymous owner). The field is never set when a cookie was
+         *     sent, so its absence says nothing about why that cookie failed: an expired, revoked, forged,
+         *     malformed or never-issued cookie gets the same answer from session resolution. The field describes
+         *     this request, not what the browser holds - a proxy that strips `Cookie` also produces it - so a
+         *     client should start at most one new session per page load in answer to it.
+         */
         Unauthorized: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
@@ -2515,10 +2532,11 @@ export interface components {
             };
         };
         /**
-         * @description The session is valid but the request is not allowed to proceed. In this API that is a CSRF
-         *     failure (`CSRF_INVALID`): a state-changing request whose token is missing, stale, or from a
-         *     different origin. A resource owned by another session answers `404`, not `403`, so ownership
-         *     never leaks through the status.
+         * @description The request is not allowed to proceed. In this API that is a CSRF failure (`CSRF_INVALID`): a
+         *     state-changing request whose token is missing or stale, or that does not come from this origin.
+         *     The origin check runs before any session work, so a cross-origin state-changing request gets this
+         *     `403` whether or not it carries a session cookie, and cannot tell which. A resource owned by
+         *     another session answers `404`, not `403`, so ownership never leaks through the status.
          */
         Forbidden: {
             headers: {

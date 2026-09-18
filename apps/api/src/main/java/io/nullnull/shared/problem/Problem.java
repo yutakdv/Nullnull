@@ -21,7 +21,8 @@ public record Problem(
         boolean retryable,
         @JsonInclude(JsonInclude.Include.NON_NULL) List<FieldError> fieldErrors,
         @JsonInclude(JsonInclude.Include.NON_NULL) Long currentTripVersion,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String recomputeUrl) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) String recomputeUrl,
+        @JsonInclude(JsonInclude.Include.NON_NULL) MissingCredential missingCredential) {
 
     public static final String MEDIA_TYPE = "application/problem+json";
 
@@ -41,11 +42,17 @@ public record Problem(
     public static Problem of(ProblemCode code, int status, String detail, String instance,
             String requestId, boolean retryable) {
         return new Problem(code.typeReference(), code.title(), status, code, detail, instance,
-                requestId, retryable, null, null, null);
+                requestId, retryable, null, null, null, null);
     }
 
     public Problem withFieldErrors(List<FieldError> errors) {
         return new Problem(type, title, status, code, detail, instance, requestId, retryable,
-                errors, currentTripVersion, recomputeUrl);
+                errors, currentTripVersion, recomputeUrl, missingCredential);
+    }
+
+    /** Package-private: only ProblemResponses, carrying ApiException.missingSessionCookie, may set it. */
+    Problem withMissingCredential(MissingCredential missing) {
+        return new Problem(type, title, status, code, detail, instance, requestId, retryable,
+                fieldErrors, currentTripVersion, recomputeUrl, missing);
     }
 }

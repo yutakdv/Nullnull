@@ -60,7 +60,7 @@ flowchart LR
 | ID | 위협 | 경계/범주 | 예방·탐지 | 검증/잔여 위험 |
 | --- | --- | --- | --- | --- |
 | T-01 | session cookie 탈취 | Browser, Spoofing | HttpOnly/Secure/SameSite, CSP, rotation, expiry | XSS가 동일 session action 가능; CSP/E2E |
-| T-02 | CSRF mutation | Edge/API, Spoofing | CSRF header, Origin/Referer allowlist, SameSite | browser edge case; integration matrix |
+| T-02 | CSRF mutation | Edge/API, Spoofing | CSRF header, Origin/Referer allowlist을 session 해석보다 먼저 검사(cross-origin 요청이 cookie 유무를 알 수 없음), SameSite | browser edge case; integration matrix; safe method는 origin 검사가 없고 CORS mapping 부재에 기댄다 |
 | T-03 | IDOR로 다른 trip 조회/변경 | API/DB, Elevation | owner-scoped query, 404 masking | 모든 repository path matrix test |
 | T-04 | XSS in post/place/note/provider text | Browser, Tampering | React escaping, HTML 금지/sanitize, CSP | rich text P1 재검토 |
 | T-05 | 중복 tap/replay request | API, Tampering | Idempotency-Key, unique constraints | key 저장 TTL 후 재시도 UX |
