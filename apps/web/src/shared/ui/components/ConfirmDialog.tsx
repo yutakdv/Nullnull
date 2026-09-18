@@ -12,6 +12,11 @@ import styles from './ConfirmDialog.module.css';
 // unmounted or re-rendered by the time it closes, so the caller's element is
 // captured on open and restored on close (.claude/rules/frontend.md).
 
+// Module scope rather than rebuilt per restore: the same string is now read
+// once per ancestor as the fallback widens its search outward.
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+
 export interface ConfirmDialogProps {
   open: boolean;
   title: string;
@@ -41,6 +46,7 @@ export function ConfirmDialog({
   const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
+  const dialogNode = useRef<HTMLDialogElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -51,6 +57,11 @@ export function ConfirmDialog({
       // Captured before the dialog takes focus, so it is the element the user
       // actually came from.
       restoreTo.current = document.activeElement as HTMLElement | null;
+      // The node itself, not just the ref: React sets `ref.current` to null
+      // when this component unmounts, and the unmount path below still needs
+      // the element to compare document order against. Measured — on the
+      // unmount commit `ref.current === null` while `restoreTo` was intact.
+      dialogNode.current = dialog;
       if (!dialog.open) dialog.showModal();
       // The safe choice takes focus, not the destructive one: Enter on an
       // unread dialog must not discard the user's work.
@@ -60,8 +71,12 @@ export function ConfirmDialog({
     }
   }, [open]);
 
-  useEffect(() => {
-    if (open) return;
+  // Held in a ref so the unmount cleanup below can call the same routine the
+  // close path does, without taking `open` as a dependency — a cleanup that
+  // re-ran on every toggle would fire the fallback while the dialog is still
+  // alive.
+  const restoreFocus = useRef<() => void>(() => undefined);
+  restoreFocus.current = () => {
     const target = restoreTo.current;
     restoreTo.current = null;
     // Nothing was captured, so this dialog has never been open — every screen
@@ -81,26 +96,17 @@ export function ConfirmDialog({
     // <body> and the next Tab restarted at the top of the page).
     //
     // `isConnected` refusing to focus a detached node is right; leaving focus
-    // nowhere is not. The dialog's own parent is the nearest thing still on
-    // screen that the traveller was looking at, so focus goes there and the
-    // next Tab continues from the region they were working in rather than
-    // from the document.
+    // nowhere is not. So the nearest control still on screen behind the dialog
+    // takes it, and the next Tab continues from the region the traveller was
+    // working in rather than from the document.
     //
-    // The dialog's own previous sibling that can still take focus, rather
-    // than the parent container: marking the container with tabIndex -1
-    // changes tab traversal for every screen that mounts a dialog, and two
-    // tab-order tests caught exactly that (profile.test.tsx and
-    // trip-screen.test.tsx both went red — measured). A control that is
-    // already focusable needs no mutation at all.
-    const dialog = ref.current;
+    // An already-focusable control rather than the container itself: marking a
+    // container with tabIndex -1 changes tab traversal for every screen that
+    // mounts a dialog, and two tab-order tests caught exactly that
+    // (profile.test.tsx and trip-screen.test.tsx both went red — measured). A
+    // control that is already focusable needs no mutation at all.
+    const dialog = ref.current ?? dialogNode.current;
     if (!dialog) return;
-    const focusable = dialog.parentElement?.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    // The last one before this dialog in document order: the traveller was
-    // working forward through the page, so the nearest control behind them is
-    // where they left off.
-    //
     // `dialog.contains` alone is not enough, and the difference is not
     // theoretical: TripScreen renders LockRow's ConfirmDialog and
     // ItemMoveControls' ConfirmDialog as SIBLINGS inside one <article>
@@ -111,37 +117,120 @@ export function ConfirmDialog({
     // element inside a closed <dialog> is a no-op per spec, so focus stayed on
     // <body>, which is the exact thing this fallback exists to prevent.
     //
-    // KNOWN INCOMPLETE, and the gap is worth stating precisely because it is
-    // easy to read this filter as more than it is. Excluding closed dialogs
-    // fixes WHICH element gets picked. It does not guarantee focus lands: when
-    // the itinerary move that opened this confirm also unmounts the <article>
-    // the dialog sits in, every candidate under `dialog.parentElement` goes
-    // with it, and the one picked here is detached by the time it is focused.
-    // Measured that way: `targetStillConnected=false`,
+    // The parent alone is not enough either, and that is #272: when the
+    // itinerary move that opened this confirm also unmounts the <article> the
+    // dialog sits in, every candidate under `dialog.parentElement` goes with
+    // it, and the one picked is detached by the time it is focused. Measured
+    // that way before this change: `targetStillConnected=false`,
     // `targetLabel="Replace 경복궁"`, focus on <body> (3/3 runs), with no
     // `focusin` for the target in any of 8 event traces.
     //
-    // Closing that needs a candidate search that can leave the moved item's
-    // subtree, plus a landing check after `focus()` (it fails silently today).
-    // That is a separate change with its own test (#272); this one is scoped to the
-    // closed-dialog case, which confirm-dialog.test.tsx pins (mutation:
-    // radius 1, its own case only).
+    // So the search widens outward — the dialog's parent first, then each
+    // ancestor — and stops at the first one that still holds a usable
+    // candidate. Widening rather than starting at <body> keeps the near case
+    // near: the control beside the dialog is still preferred when it survives,
+    // and only a container that went away sends the search outward.
+    //
+    // The walk starts from a scope that is still IN the document, which is not
+    // the same as the dialog's parent and the difference is the whole of the
+    // #272 case. By the time this effect runs, React has already removed the
+    // <article>, taking the dialog with it: `dialog.isConnected` is false and
+    // walking `dialog.parentElement` climbs the DETACHED tree, topping out at
+    // the removed <article> without ever reaching the live page. Measured:
+    // parent chain after unmount is exactly ["ARTICLE#row"] while the surviving
+    // control sat in the live tree the walk never visited. So when the dialog
+    // has gone with its container, the search restarts at <body>, which is the
+    // nearest scope guaranteed to still be there.
+    //
+    // Document order still decides among what it finds, and a detached dialog
+    // compares as DOCUMENT_POSITION_FOLLOWING against live nodes (measured), so
+    // "the last control before the dialog" keeps its meaning: the traveller is
+    // returned to the itinerary above the row that just left.
     const closedDialog = (node: HTMLElement) => {
       for (let p: HTMLElement | null = node; p; p = p.parentElement) {
         if (p.tagName === 'DIALOG' && !p.hasAttribute('open')) return true;
       }
       return false;
     };
-    let previous: HTMLElement | null = null;
-    for (const candidate of focusable ?? []) {
-      if (dialog.contains(candidate)) continue;
-      if (closedDialog(candidate)) continue;
-      if (candidate.compareDocumentPosition(dialog) & Node.DOCUMENT_POSITION_FOLLOWING) {
-        previous = candidate;
+    const previousWithin = (scope: HTMLElement): HTMLElement | null => {
+      let found: HTMLElement | null = null;
+      for (const candidate of scope.querySelectorAll<HTMLElement>(FOCUSABLE)) {
+        if (dialog.contains(candidate)) continue;
+        if (closedDialog(candidate)) continue;
+        // The last one before this dialog in document order: the traveller was
+        // working forward through the page, so the nearest control behind them
+        // is where they left off.
+        if (
+          candidate.compareDocumentPosition(dialog) & Node.DOCUMENT_POSITION_FOLLOWING
+        ) {
+          found = candidate;
+        }
       }
+      return found;
+    };
+
+    let previous: HTMLElement | null = null;
+    for (
+      let scope = dialog.isConnected ? dialog.parentElement : document.body;
+      scope && previous === null;
+      scope = scope.parentElement
+    ) {
+      previous = previousWithin(scope);
     }
+
     previous?.focus();
+    // `focus()` fails silently rather than throwing — an element that is
+    // detached, `display: none`, or inside an `inert` subtree simply does not
+    // take focus — so landing is verified instead of assumed, and the <main>
+    // landmark is the honest last resort. It keeps the traveller inside the
+    // itinerary region rather than the document, and is made programmatically
+    // focusable only for the moment it is needed, because a permanent tabIndex
+    // on a container changes tab traversal for every screen that mounts a
+    // dialog (profile.test.tsx and trip-screen.test.tsx both went red when that
+    // was tried — measured).
+    //
+    // WHAT THE SUITE PINS, stated precisely because the two differ: the tests
+    // below reach this line only with `previous === null` (no candidate
+    // survived), so they pin the landmark branch, NOT the comparison itself.
+    // Replacing this line with `if (previous !== null) return` leaves all ten
+    // green — measured. The comparison is the stronger form on purpose: in
+    // happy-dom every candidate accepts focus (measured: hidden and inert
+    // elements both became activeElement), so a candidate that is found but
+    // refuses focus cannot be built here, while in a real browser it can. That
+    // is the same environment gap that made cause ① invisible to unit tests.
+    // If this line is ever weakened, the e2e suite is where it would be caught.
+    if (document.activeElement === previous) return;
+    const main = document.querySelector<HTMLElement>('main');
+    if (!main || !main.isConnected) return;
+    const hadTabIndex = main.hasAttribute('tabindex');
+    if (!hadTabIndex) main.setAttribute('tabindex', '-1');
+    main.focus();
+    if (!hadTabIndex) main.removeAttribute('tabindex');
+  };
+
+  useEffect(() => {
+    if (open) return;
+    restoreFocus.current();
   }, [open]);
+
+  // The same restore, for the case where this dialog never gets a closing
+  // render: the change it confirmed unmounts the container it lives in, so
+  // React removes the <article> and the dialog together in ONE commit and the
+  // effect above never runs with `open: false`. Measured that way — the only
+  // two runs of that effect were `open:false` at mount and `open:true` on
+  // opening, with no `focusin` anywhere after the row left and focus sitting on
+  // <body>. That is #272: no amount of fixing WHICH candidate the close path
+  // picks can help, because the close path does not execute.
+  //
+  // Empty deps so this is an unmount cleanup and nothing else; the guard makes
+  // it a no-op for the ordinary case, where the close path has already run and
+  // cleared `restoreTo`.
+  useEffect(() => {
+    return () => {
+      if (restoreTo.current === null) return;
+      restoreFocus.current();
+    };
+  }, []);
 
   return (
     <dialog
