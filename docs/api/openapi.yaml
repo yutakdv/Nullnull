@@ -3220,7 +3220,7 @@ paths:
         as getTrip is for a trip with items: a proposal's summary names the place and its
         dataProvenance quotes the source registry. A run with no proposal is answered either way.
       x-error-codes:
-        asynchronous: [TRIP_CHANGED, DATA_CHANGED, LOCK_CONFLICT, ROUTE_UNAVAILABLE, NO_IMPROVEMENT]
+        asynchronous: [TRIP_CHANGED, DATA_CHANGED, LOCK_CONFLICT, ROUTE_UNAVAILABLE, NO_IMPROVEMENT, DATA_INSUFFICIENT, RECOMMENDATION_UNAVAILABLE, INTERNAL_ERROR]
         "410": [PREVIEW_EXPIRED]
       security:
         - sessionCookie: []
@@ -6669,7 +6669,14 @@ components:
       properties:
         code:
           type: string
-          enum: [TRIP_CHANGED, DATA_CHANGED, LOCK_CONFLICT, ROUTE_UNAVAILABLE, NO_IMPROVEMENT, APPLY_FAILED, DATA_INSUFFICIENT]
+          enum: [TRIP_CHANGED, DATA_CHANGED, LOCK_CONFLICT, ROUTE_UNAVAILABLE, NO_IMPROVEMENT, APPLY_FAILED, DATA_INSUFFICIENT, RECOMMENDATION_UNAVAILABLE, INTERNAL_ERROR]
+          description: |
+            Why the run or decision ended. APPLY_FAILED belongs to a decision; every other code can end a run.
+            RECOMMENDATION_UNAVAILABLE and INTERNAL_ERROR describe this service rather than the trip (#261):
+            the first is a recommendation service that did not answer through every attempt (retryable), the
+            second is anything else that stopped the run on this side - an answer outside the recommendation
+            contract, a repeated server failure, a run abandoned by its worker (not retryable). Neither
+            changed the trip.
         message:
           type: string
         retryable:

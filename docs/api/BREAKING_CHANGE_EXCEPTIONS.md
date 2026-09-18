@@ -42,10 +42,14 @@ tags:
 
 ## 승인된 예외
 
-현재 활성 예외는 없다. 표가 비어 있는 것이 정상 상태다.
+활성 예외는 `OptimizationFailure.code`의 `RECOMMENDATION_UNAVAILABLE`·`INTERNAL_ERROR` 추가 넷이다(#261). 두 operation이 같은 schema를 내므로 값 하나가 두 줄이 된다. 승인은 FE가 했고 오너가 조율 세션에 전했다. 이 행을 쓴 세션은 그 승인을 직접 보지 않았으므로, 승인자 칸에 전달 경로를 함께 적었다. 표가 비어 있는 것이 정상 상태다.
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
+| in API GET /optimizations/{runId} added the new `INTERNAL_ERROR` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `200` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
+| in API GET /optimizations/{runId} added the new `RECOMMENDATION_UNAVAILABLE` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `200` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
+| in API POST /trips/{tripId}/optimizations added the new `INTERNAL_ERROR` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `202` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
+| in API POST /trips/{tripId}/optimizations added the new `RECOMMENDATION_UNAVAILABLE` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `202` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
 
 ## 만료된 예외 (기록)
 

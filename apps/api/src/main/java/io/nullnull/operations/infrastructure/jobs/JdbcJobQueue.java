@@ -169,7 +169,7 @@ public class JdbcJobQueue implements JobQueue {
                    lease_until = NULL
               FROM abandoned
              WHERE job.id = abandoned.id
-            RETURNING job.id, job.type, job.attempt_count
+            RETURNING job.id, job.type, job.attempt_count, job.payload_reference
             """;
 
     /** The condition every post-claim write shares: this owner, this attempt, still RUNNING, not expired. */
@@ -333,7 +333,8 @@ public class JdbcJobQueue implements JobQueue {
                 .param("now", utc(now))
                 .param("errorCode", LEASE_EXPIRED_ERROR_CODE)
                 .query((ResultSet rs, int row) -> new AbandonedJob(rs.getObject("id", UUID.class),
-                        rs.getString("type"), rs.getInt("attempt_count")))
+                        rs.getString("type"), rs.getInt("attempt_count"),
+                        JobPayload.of(json.readValue(rs.getString("payload_reference"), PAYLOAD))))
                 .list());
     }
 
