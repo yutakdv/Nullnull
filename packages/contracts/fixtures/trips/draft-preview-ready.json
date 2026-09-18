@@ -1,0 +1,97 @@
+{
+  "state": "READY",
+  "evaluatedAt": "2026-09-18T02:00:00Z",
+  "policyVersion": "policy-v1",
+  "basis": [
+    "DATE_RANGE",
+    "OPENING_HOURS_VERIFIED"
+  ],
+  "days": [
+    {
+      "date": "2026-10-04",
+      "stops": [
+        {
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
+            "name": "경복궁",
+            "categoryCode": "HS",
+            "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
+            "thumbnailUrl": null,
+            "thumbnailAttribution": null,
+            "address": "서울 종로구 사직로 161",
+            "sourceAttribution": {
+              "source": "KTO_KOR_SERVICE_2",
+              "sourceDisplayName": "한국관광공사 국문 관광정보",
+              "sourceRegistryVersion": 4,
+              "attribution": "출처: ⓒ한국관광공사",
+              "officialUrl": "https://www.data.go.kr/data/15101578/openapi.do",
+              "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+              "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+            }
+          },
+          "date": "2026-10-04",
+          "position": 0,
+          "hoursState": "OPEN"
+        },
+        {
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
+            "name": "북촌한옥마을",
+            "categoryCode": "HS",
+            "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
+            "thumbnailUrl": null,
+            "thumbnailAttribution": null,
+            "address": "서울 종로구 계동길",
+            "sourceAttribution": {
+              "source": "KTO_KOR_SERVICE_2",
+              "sourceDisplayName": "한국관광공사 국문 관광정보",
+              "sourceRegistryVersion": 4,
+              "attribution": "출처: ⓒ한국관광공사",
+              "officialUrl": "https://www.data.go.kr/data/15101578/openapi.do",
+              "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+              "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+            }
+          },
+          "date": "2026-10-04",
+          "position": 1,
+          "hoursState": "UNKNOWN"
+        }
+      ]
+    },
+    {
+      "date": "2026-10-05",
+      "stops": [
+        {
+          "place": {
+            "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
+            "name": "명동",
+            "categoryCode": "HS",
+            "regionCode": "11",
+            "categoryName": null,
+            "regionName": null,
+            "thumbnailUrl": null,
+            "thumbnailAttribution": null,
+            "address": "서울 중구 명동길",
+            "sourceAttribution": {
+              "source": "KTO_KOR_SERVICE_2",
+              "sourceDisplayName": "한국관광공사 국문 관광정보",
+              "sourceRegistryVersion": 4,
+              "attribution": "출처: ⓒ한국관광공사",
+              "officialUrl": "https://www.data.go.kr/data/15101578/openapi.do",
+              "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+              "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+            }
+          },
+          "date": "2026-10-05",
+          "position": 0,
+          "hoursState": "UNKNOWN"
+        }
+      ]
+    }
+  ],
+  "reasons": []
+}

@@ -1,0 +1,21 @@
+{
+  "state": "EMPTY",
+  "evaluatedAt": "2026-09-18T02:00:00Z",
+  "policyVersion": "policy-v1",
+  "basis": [
+    "DATE_RANGE"
+  ],
+  "days": [
+    {
+      "date": "2026-10-04",
+      "stops": []
+    },
+    {
+      "date": "2026-10-05",
+      "stops": []
+    }
+  ],
+  "reasons": [
+    "NO_ELIGIBLE_PLACES"
+  ]
+}

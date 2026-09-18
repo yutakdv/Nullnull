@@ -387,6 +387,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trip-drafts/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a deterministic draft itinerary without saving anything
+         * @description FR-TRC-10 (REC-CON-04). Places the published catalog on the requested dates and returns the
+         *     result as a preview. Nothing is written: no trip, item, candidate or idempotency record is
+         *     created, so the call takes no Idempotency-Key and no CSRF token, like searchPlaces. It is a
+         *     POST so the dates stay out of URL logs.
+         *
+         *     Confirming the draft is createTrip, not this operation. Each stop becomes exactly one
+         *     `SeedTripItem{placeId: stop.place.id, date: stop.date, position: stop.position,
+         *     startTime: null, constraints: []}`; the user's must-visit choices are added on the
+         *     confirmation screen as constraints of that request. createTrip validates the seeds again
+         *     like any other, so a draft the client edited is held to the same caps.
+         *
+         *     The draft never carries a time of day, a crowd reading or an interest match: it proposes a
+         *     date and a position only. A stop's `hoursState` is OPEN only when a verified opening window
+         *     says so for that date; a date nobody verified is UNKNOWN, and a date verified as closed never
+         *     holds a stop.
+         *
+         *     Failures are not dressed as an empty draft. A closed catalog, or a draft service that did not
+         *     answer in time, is 503 SOURCE_UNAVAILABLE (retryable). A draft service that refused the
+         *     request or answered outside its contract is 500 INTERNAL_ERROR with `retryable: false`
+         *     (covered by `default`), because retrying the same request cannot change it. EMPTY is only
+         *     ever the answer "no place could be put on these dates".
+         */
+        post: operations["previewTripDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trip-imports/parse": {
         parameters: {
             query?: never;
@@ -1578,6 +1618,62 @@ export interface components {
             position: number;
             startTime?: string | null;
             constraints?: components["schemas"]["SetConstraintInput"][];
+        };
+        /**
+         * @description The dates to draft for, and nothing else. Interests are not taken because no reviewed mapping
+         *     from an interest code to a place category exists, and must-visit places are chosen on the
+         *     confirmation screen, after the draft.
+         */
+        PreviewTripDraftRequest: {
+            /** Format: date */
+            startDate: string;
+            /**
+             * Format: date
+             * @description Inclusive; ranges longer than 30 calendar days are refused with VALIDATION_FAILED, as createTrip refuses them.
+             */
+            endDate: string;
+            /** @description IANA timezone id; an unknown zone is VALIDATION_FAILED. */
+            timezone: string;
+        };
+        TripDraftPreview: {
+            /**
+             * @description EMPTY means no place could be put on any date. It is never used for an outage.
+             * @enum {string}
+             */
+            state: "READY" | "EMPTY";
+            /** Format: date-time */
+            evaluatedAt: string;
+            policyVersion: string;
+            /**
+             * @description What decided at least one stop, as codes; the screen owns the wording. DATE_RANGE is always
+             *     present. OPENING_HOURS_VERIFIED is present only when at least one stop is OPEN.
+             */
+            basis: ("DATE_RANGE" | "OPENING_HOURS_VERIFIED")[];
+            /** @description Every date of the requested range, in order, including dates that hold no stop. */
+            days: components["schemas"]["TripDraftDay"][];
+            /**
+             * @description NO_ELIGIBLE_PLACES - no place could be placed. ALL_DATES_FULL - places were left over because
+             *     every date reached its cap. POOL_TRUNCATED - the catalog held more places than one draft reads,
+             *     so only the first ones by id were considered.
+             */
+            reasons: ("NO_ELIGIBLE_PLACES" | "ALL_DATES_FULL" | "POOL_TRUNCATED")[];
+        };
+        TripDraftDay: {
+            /** Format: date */
+            date: string;
+            stops: components["schemas"]["TripDraftStop"][];
+        };
+        /**
+         * @description One proposed place. It has no time field: P0 proposes a date and never invents a time, so the
+         *     seed item it becomes carries `startTime: null`.
+         */
+        TripDraftStop: {
+            place: components["schemas"]["PlaceSummary"];
+            /** Format: date */
+            date: string;
+            position: number;
+            /** @enum {string} */
+            hoursState: "OPEN" | "UNKNOWN";
         };
         /** @description Date-range shrink is rejected with VALIDATION_FAILED while any item or DATE/RESERVATION lock lies outside the new range. */
         UpdateTripRequest: {
@@ -3373,6 +3469,37 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["SourceUnavailable"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    previewTripDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewTripDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description A draft preview; nothing was saved */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripDraftPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["Unprocessable"];
             503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };

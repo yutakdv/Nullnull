@@ -2028,6 +2028,164 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /trip-drafts/preview:
+    post:
+      tags: [Trips]
+      operationId: previewTripDraft
+      summary: Preview a deterministic draft itinerary without saving anything
+      description: |
+        FR-TRC-10 (REC-CON-04). Places the published catalog on the requested dates and returns the
+        result as a preview. Nothing is written: no trip, item, candidate or idempotency record is
+        created, so the call takes no Idempotency-Key and no CSRF token, like searchPlaces. It is a
+        POST so the dates stay out of URL logs.
+
+        Confirming the draft is createTrip, not this operation. Each stop becomes exactly one
+        `SeedTripItem{placeId: stop.place.id, date: stop.date, position: stop.position,
+        startTime: null, constraints: []}`; the user's must-visit choices are added on the
+        confirmation screen as constraints of that request. createTrip validates the seeds again
+        like any other, so a draft the client edited is held to the same caps.
+
+        The draft never carries a time of day, a crowd reading or an interest match: it proposes a
+        date and a position only. A stop's `hoursState` is OPEN only when a verified opening window
+        says so for that date; a date nobody verified is UNKNOWN, and a date verified as closed never
+        holds a stop.
+
+        Failures are not dressed as an empty draft. A closed catalog, or a draft service that did not
+        answer in time, is 503 SOURCE_UNAVAILABLE (retryable). A draft service that refused the
+        request or answered outside its contract is 500 INTERNAL_ERROR with `retryable: false`
+        (covered by `default`), because retrying the same request cannot change it. EMPTY is only
+        ever the answer "no place could be put on these dates".
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreviewTripDraftRequest"
+      responses:
+        "200":
+          description: A draft preview; nothing was saved
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDraftPreview"
+              examples:
+                draftReady:
+                  summary: "Three places over two dates"
+                  description: |
+                    Schema-shaped, not a captured server response: it is pinned to the fixture Frontend mocks
+                    against. The places are the searchPlaces fixture's, so the same id renders the same
+                    summary everywhere. One stop sits on a verified OPEN date, so OPENING_HOURS_VERIFIED is
+                    in `basis`; the other two dates were not verified and say UNKNOWN.
+                  value:
+                    state: "READY"
+                    evaluatedAt: "2026-09-18T02:00:00Z"
+                    policyVersion: "policy-v1"
+                    basis: ["DATE_RANGE", "OPENING_HOURS_VERIFIED"]
+                    days:
+                      - date: "2026-10-04"
+                        stops:
+                          - place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                              name: "경복궁"
+                              categoryCode: "HS"
+                              regionCode: "11"
+                              categoryName: null
+                              regionName: null
+                              thumbnailUrl: null
+                              thumbnailAttribution: null
+                              address: "서울 종로구 사직로 161"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            date: "2026-10-04"
+                            position: 0
+                            hoursState: "OPEN"
+                          - place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03"
+                              name: "북촌한옥마을"
+                              categoryCode: "HS"
+                              regionCode: "11"
+                              categoryName: null
+                              regionName: null
+                              thumbnailUrl: null
+                              thumbnailAttribution: null
+                              address: "서울 종로구 계동길"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            date: "2026-10-04"
+                            position: 1
+                            hoursState: "UNKNOWN"
+                      - date: "2026-10-05"
+                        stops:
+                          - place:
+                              id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02"
+                              name: "명동"
+                              categoryCode: "HS"
+                              regionCode: "11"
+                              categoryName: null
+                              regionName: null
+                              thumbnailUrl: null
+                              thumbnailAttribution: null
+                              address: "서울 중구 명동길"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            date: "2026-10-05"
+                            position: 0
+                            hoursState: "UNKNOWN"
+                    reasons: []
+                draftEmpty:
+                  summary: "No place could be placed"
+                  description: |
+                    EMPTY is an answer about the catalog, not an outage: every trip date is still present and
+                    none holds a stop. Nothing is padded to fill a day. An outage is a 503, never this.
+                  value:
+                    state: "EMPTY"
+                    evaluatedAt: "2026-09-18T02:00:00Z"
+                    policyVersion: "policy-v1"
+                    basis: ["DATE_RANGE"]
+                    days:
+                      - date: "2026-10-04"
+                        stops: []
+                      - date: "2026-10-05"
+                        stops: []
+                    reasons: ["NO_ELIGIBLE_PLACES"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /trip-imports/parse:
     post:
       tags: [Imports]
@@ -4953,6 +5111,100 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/SetConstraintInput"
+    PreviewTripDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [startDate, endDate, timezone]
+      description: |
+        The dates to draft for, and nothing else. Interests are not taken because no reviewed mapping
+        from an interest code to a place category exists, and must-visit places are chosen on the
+        confirmation screen, after the draft.
+      properties:
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          description: Inclusive; ranges longer than 30 calendar days are refused with VALIDATION_FAILED, as createTrip refuses them.
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: IANA timezone id; an unknown zone is VALIDATION_FAILED.
+    TripDraftPreview:
+      type: object
+      additionalProperties: false
+      required: [state, evaluatedAt, policyVersion, basis, days, reasons]
+      properties:
+        state:
+          type: string
+          enum: [READY, EMPTY]
+          description: EMPTY means no place could be put on any date. It is never used for an outage.
+        evaluatedAt:
+          type: string
+          format: date-time
+        policyVersion:
+          type: string
+        basis:
+          type: array
+          maxItems: 2
+          uniqueItems: true
+          description: |
+            What decided at least one stop, as codes; the screen owns the wording. DATE_RANGE is always
+            present. OPENING_HOURS_VERIFIED is present only when at least one stop is OPEN.
+          items:
+            type: string
+            enum: [DATE_RANGE, OPENING_HOURS_VERIFIED]
+        days:
+          type: array
+          maxItems: 30
+          description: Every date of the requested range, in order, including dates that hold no stop.
+          items:
+            $ref: "#/components/schemas/TripDraftDay"
+        reasons:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: |
+            NO_ELIGIBLE_PLACES - no place could be placed. ALL_DATES_FULL - places were left over because
+            every date reached its cap. POOL_TRUNCATED - the catalog held more places than one draft reads,
+            so only the first ones by id were considered.
+          items:
+            type: string
+            enum: [NO_ELIGIBLE_PLACES, ALL_DATES_FULL, POOL_TRUNCATED]
+    TripDraftDay:
+      type: object
+      additionalProperties: false
+      required: [date, stops]
+      properties:
+        date:
+          type: string
+          format: date
+        stops:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/TripDraftStop"
+    TripDraftStop:
+      type: object
+      additionalProperties: false
+      required: [place, date, position, hoursState]
+      description: |
+        One proposed place. It has no time field: P0 proposes a date and never invents a time, so the
+        seed item it becomes carries `startTime: null`.
+      properties:
+        place:
+          $ref: "#/components/schemas/PlaceSummary"
+        date:
+          type: string
+          format: date
+        position:
+          type: integer
+          minimum: 0
+        hoursState:
+          type: string
+          enum: [OPEN, UNKNOWN]
     UpdateTripRequest:
       type: object
       additionalProperties: false

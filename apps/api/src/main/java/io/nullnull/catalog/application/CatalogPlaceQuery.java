@@ -43,6 +43,17 @@ public interface CatalogPlaceQuery {
     List<CatalogPlaceSummary> summaries(List<UUID> placeIds, String locale, Instant observedAt);
 
     /**
+     * The first {@code limit} active, coordinate-complete canonical places ordered by id ascending -
+     * the pool a draft preview is composed from (REC-CON-04).
+     *
+     * <p>Ordered by id rather than by anything that means "better", because the pool is not a ranking:
+     * the order only has to be stable, so the same catalog always yields the same pool and a caller
+     * can ask for one more row to learn whether it truncated. The filter is the search path's, so a
+     * place a user could not find by searching is not proposed to them either.
+     */
+    List<CatalogPlaceSummary> activePool(int limit, String locale, Instant observedAt);
+
+    /**
      * One media asset by id, for a caller that already holds the reference - a post's cover
      * (A-024, V021), which social stores as {@code posts.cover_asset_id} and cannot read itself.
      *

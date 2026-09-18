@@ -1,6 +1,8 @@
 package io.nullnull.recommendation.application;
 
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.recommendation.domain.draft.DraftComposeRequest;
+import io.nullnull.recommendation.domain.draft.DraftComposeResponse;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedRankRequest;
@@ -50,4 +52,12 @@ public interface RecommendationGateway {
      * wrote it, so a model outage is visible instead of silent.
      */
     ExplanationRenderResponse renderExplanation(ExplanationRenderRequest request);
+
+    /**
+     * A draft itinerary for a trip that does not exist yet (REC-CON-04). The answer is a preview: it
+     * names dates and positions only, never a time, and nothing is written - the user confirms it
+     * through createTrip, which validates it again as any other seed. Every stop names a place this
+     * API put in the pool.
+     */
+    DraftComposeResponse composeDraft(DraftComposeRequest request);
 }

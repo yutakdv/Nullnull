@@ -66,6 +66,7 @@ OPERATION_PREFIXES = (
     "decide",
     "revert",
     "cancel",
+    "preview",
 )
 
 EXPECTED_COMPONENTS = {

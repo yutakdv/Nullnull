@@ -41,7 +41,10 @@ class ServiceUnavailableContractTest {
             "listFeed", "SOURCE_UNAVAILABLE",
             "getPost", "SOURCE_UNAVAILABLE",
             // HealthController throws it when a readiness check reports NOT_READY.
-            "getReadiness", "SOURCE_UNAVAILABLE"));
+            "getReadiness", "SOURCE_UNAVAILABLE",
+            // TripDraftPreviewFailsClosedIT (closed catalog) and TripDraftPreviewGatewayIT (apps/ai
+            // unanswered) assert $.code on both producers.
+            "previewTripDraft", "SOURCE_UNAVAILABLE"));
 
     private static final Pattern OPERATION = Pattern.compile("^\\s+operationId: (\\w+)\\s*$");
 

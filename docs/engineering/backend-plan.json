@@ -1969,6 +1969,132 @@
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-054"
     },
     {
+      "id": "BA-055",
+      "phase": "B04",
+      "priority": "P0",
+      "title": "저장 없는 여행 초안 preview",
+      "status": "integration-ready",
+      "dependsOn": [
+        "BA-030",
+        "BA-022",
+        "BA-025"
+      ],
+      "operations": [
+        "previewTripDraft"
+      ],
+      "featureIds": [
+        "FR-TRC-10"
+      ],
+      "figmaNodes": [
+        "384:5673"
+      ],
+      "designRequests": [],
+      "entities": "저장 없음 · 공개 catalog pool(id 오름차순 앞 100) · 검증된 영업시간 창 · apps/ai drafts/compose · createTrip seedItems 확정",
+      "steps": [
+        "catalog 공개 게이트를 먼저 확인한다. 닫혀 있으면 아무것도 읽지 않고 apps/ai도 부르지 않고 503이다",
+        "읽기 전용 transaction 안에서 owner locale로 공개 장소 pool을 id 오름차순 앞 100개 읽고, 더 있으면 POOL_TRUNCATED를 붙인다. 검증된 영업시간 창은 한 statement로 읽는다",
+        "transaction 밖에서 apps/ai drafts/compose를 부른다. 하루 stop 상한은 Spring 상수 3이고 측정값이 아니라 초기 설계값이다",
+        "gateway post-condition(pool 밖 장소·중복·범위 밖 날짜·하루 상한·날짜별 position 0..n-1·검증된 휴무일 stop·OPEN 표기)을 통과한 답만 날짜별로 묶어 PlaceSummary로 채운다",
+        "apps/ai 무응답은 503 SOURCE_UNAVAILABLE이고 EMPTY 200으로 바꾸지 않는다. apps/ai의 4xx와 post-condition 위반은 500 INTERNAL_ERROR(retryable false)다",
+        "확정은 이 operation이 아니라 createTrip이다. stop 하나가 seedItem 하나이고 startTime null·constraints 빈 배열이다"
+      ],
+      "safety": "preview는 trip·item·candidate·idempotency 행을 만들지 않는다. 시각·혼잡·관심사 적합도를 만들지 않고, 검증되지 않은 날짜를 OPEN으로 쓰지 않으며, 장애를 EMPTY로 위장하지 않는다.",
+      "tests": [
+        {
+          "id": "BA-055-T1",
+          "assertion": "preview는 그 owner의 trips·trip_items·trip_candidates·idempotency_records에 행을 만들지 않는다"
+        },
+        {
+          "id": "BA-055-T2",
+          "assertion": "같은 요청을 두 번 보내면 같은 stop이 나온다"
+        },
+        {
+          "id": "BA-055-T3",
+          "assertion": "모든 stop을 seedItems로 옮긴 createTrip이 201이고 item 수가 stop 수와 같다"
+        },
+        {
+          "id": "BA-055-T4",
+          "assertion": "catalog 공개 게이트가 닫힌 기본 설정에서는 503이고 apps/ai를 부르지 않는다"
+        },
+        {
+          "id": "BA-055-T5",
+          "assertion": "apps/ai가 응답하지 않으면 EMPTY 200이 아니라 503이다"
+        },
+        {
+          "id": "BA-055-T6",
+          "assertion": "검증된 휴무일은 CLOSED 창으로, 검증되지 않은 날짜는 창 없이 apps/ai에 간다"
+        },
+        {
+          "id": "BA-055-T7",
+          "assertion": "pool 밖 장소를 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T8",
+          "assertion": "apps/ai 요청 record tree에 owner·session·원문·좌표 이름이 없다"
+        },
+        {
+          "id": "BA-055-T9",
+          "assertion": "공개 장소가 없으면 EMPTY이고 모든 날짜가 stop 없이 남는다"
+        },
+        {
+          "id": "BA-055-T10",
+          "assertion": "OPENING_HOURS_VERIFIED는 OPEN인 stop이 하나 이상일 때만 basis에 있다"
+        },
+        {
+          "id": "BA-055-T11",
+          "assertion": "응답은 실제로 Cache-Control: private, no-store를 보낸다"
+        },
+        {
+          "id": "BA-055-T12",
+          "assertion": "apps/ai가 4xx로 요청을 거절하면 503이 아니라 500 INTERNAL_ERROR다"
+        },
+        {
+          "id": "BA-055-T13",
+          "assertion": "검증된 휴무일에 stop을 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T14",
+          "assertion": "검증된 OPEN 창이 없는 날짜의 stop을 OPEN으로 표기한 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T15",
+          "assertion": "같은 장소를 두 번 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T16",
+          "assertion": "하루 stop 상한을 넘긴 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T17",
+          "assertion": "날짜별 position이 0부터 빈칸 없이 이어지지 않는 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T18",
+          "assertion": "stop 유무와 READY·EMPTY 상태가 어긋난 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T19",
+          "assertion": "내부 계약이 선언하지 않은 reason을 담은 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T20",
+          "assertion": "verifyDraft가 거부한 답은 draft가 아니라 500 INTERNAL_ERROR(retryable false)로 나간다"
+        },
+        {
+          "id": "BA-055-T21",
+          "assertion": "여행 기간 밖 날짜에 stop을 둔 답은 거부된다"
+        },
+        {
+          "id": "BA-055-T22",
+          "assertion": "policy hash가 빈 답은 거부된다"
+        }
+      ],
+      "handoff": "READY·EMPTY fixture(packages/contracts/fixtures/trips/draft-preview-*.json)와 stop→SeedTripItem 변환 규칙, 503(게이트 닫힘·apps/ai 무응답)과 500(apps/ai 거절·계약 위반) 구분.",
+      "owner": "BE_AI_DRI",
+      "reviewer": "FE_DRI",
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-055"
+    },
+    {
       "id": "BA-060",
       "phase": "B07",
       "priority": "P0",

@@ -1208,6 +1208,60 @@ FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무�
 받아들인 비용이다. `verified` 승격은 required gate가 한 바퀴 돌아 실제 run URL과 `contractSha`가
 생긴 뒤다 — 지금 채우면 일어나지 않은 실행을 기록하게 된다.
 
+### BA-055
+
+**저장 없는 여행 초안 preview** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+
+- 선행: [BA-030](#ba-030), [BA-022](#ba-022), [BA-025](#ba-025)
+- 기능 ID: `FR-TRC-10`
+- API: `previewTripDraft` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `384:5673`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 데이터·정책: 저장 없음 · 공개 catalog pool(id 오름차순 앞 100) · 검증된 영업시간 창 · apps/ai drafts/compose · createTrip seedItems 확정
+
+구현 순서:
+
+1. catalog 공개 게이트를 먼저 확인한다. 닫혀 있으면 아무것도 읽지 않고 apps/ai도 부르지 않고 503이다
+2. 읽기 전용 transaction 안에서 owner locale로 공개 장소 pool을 id 오름차순 앞 100개 읽고, 더 있으면 POOL_TRUNCATED를 붙인다. 검증된 영업시간 창은 한 statement로 읽는다
+3. transaction 밖에서 apps/ai drafts/compose를 부른다. 하루 stop 상한은 Spring 상수 3이고 측정값이 아니라 초기 설계값이다
+4. gateway post-condition(pool 밖 장소·중복·범위 밖 날짜·하루 상한·날짜별 position 0..n-1·검증된 휴무일 stop·OPEN 표기)을 통과한 답만 날짜별로 묶어 PlaceSummary로 채운다
+5. apps/ai 무응답은 503 SOURCE_UNAVAILABLE이고 EMPTY 200으로 바꾸지 않는다. apps/ai의 4xx와 post-condition 위반은 500 INTERNAL_ERROR(retryable false)다
+6. 확정은 이 operation이 아니라 createTrip이다. stop 하나가 seedItem 하나이고 startTime null·constraints 빈 배열이다
+
+실패·안전 경계: preview는 trip·item·candidate·idempotency 행을 만들지 않는다. 시각·혼잡·관심사 적합도를 만들지 않고, 검증되지 않은 날짜를 OPEN으로 쓰지 않으며, 장애를 EMPTY로 위장하지 않는다.
+
+범위(`integration-ready`가 뜻하는 것): 계약(`previewTripDraft`, READY·EMPTY example과 fixture), `TripDraftPreviewService`·`TripDraftController`, 내부 계약 `drafts/compose`의 Spring DTO와 `HttpRecommendationGateway.composeDraft`의 post-condition까지다. 배치 규칙은 `apps/ai`의 `REC-DRAFT-01`~`REC-DRAFT-04`가 증명하고 여기서는 다시 계산하지 않는다(ADR-0006) — IT의 `apps/ai` mock은 그 규칙을 test 안에서 다시 적은 것이라 요청이 바뀌면 답도 바뀐다. **남은 것**: catalog 게이트가 staging 증거 전까지 닫혀 있어 제출 설정에서는 이 화면이 503이고, `apps/ai`가 staging 배포 목록에 없으면 게이트가 열려도 503이다. 필수 장소(`MUST_VISIT`)는 확정 화면에서 createTrip의 constraints로 더하므로 이 operation은 받지 않는다.
+
+**절은 지웠을 때 따로 빨개지는 단위로 센다.** 처음에는 `T6`이 휴무일·UNKNOWN 두 절을, `T7`이 `verifyDraft`의 규칙 넷을 한 ID에 묶었다. 통합 검증에서 `verifyDraft`의 규칙 열 개를 하나씩 지워 보니 여덟은 각각 자기 case 하나만 빨갛고, 날짜 범위와 policy hash 둘은 아무것도 빨개지지 않았다(case가 없었다). 그래서 규칙마다 ID를 따로 두고(`T7`·`T13`~`T19`·`T21`·`T22`) 빠졌던 두 규칙에 case를 더했다. `T6`은 hydration — 검증된 창만 보낸다 — 이고 `verifyDraft` 규칙과는 다른 줄이다. `T20`은 규칙이 아니라 **매핑**이다: `TripDraftPreviewGatewayIT`가 거부된 답이 500으로 나가는 것을 단언한다. 그 case는 pool 밖 답을 쓰는데, pool 규칙만 지우면 요약 조회가 null을 만나 어차피 500이 되어 초록으로 남는다 — 그래서 규칙의 증거는 unit case이고, 매핑의 증거는 재시도 불가를 503으로 바꾼 변이에서 `T12`·`T20`이 함께 빨개지는 것이다.
+
+필수 검증:
+
+- `BA-055-T1`: preview는 그 owner의 trips·trip_items·trip_candidates·idempotency_records에 행을 만들지 않는다
+- `BA-055-T2`: 같은 요청을 두 번 보내면 같은 stop이 나온다
+- `BA-055-T3`: 모든 stop을 seedItems로 옮긴 createTrip이 201이고 item 수가 stop 수와 같다
+- `BA-055-T4`: catalog 공개 게이트가 닫힌 기본 설정에서는 503이고 apps/ai를 부르지 않는다
+- `BA-055-T5`: apps/ai가 응답하지 않으면 EMPTY 200이 아니라 503이다
+- `BA-055-T6`: 검증된 휴무일은 CLOSED 창으로, 검증되지 않은 날짜는 창 없이 apps/ai에 간다
+- `BA-055-T7`: pool 밖 장소를 둔 답은 거부된다
+- `BA-055-T8`: apps/ai 요청 record tree에 owner·session·원문·좌표 이름이 없다
+- `BA-055-T9`: 공개 장소가 없으면 EMPTY이고 모든 날짜가 stop 없이 남는다
+- `BA-055-T10`: OPENING_HOURS_VERIFIED는 OPEN인 stop이 하나 이상일 때만 basis에 있다
+- `BA-055-T11`: 응답은 실제로 Cache-Control: private, no-store를 보낸다
+- `BA-055-T12`: apps/ai가 4xx로 요청을 거절하면 503이 아니라 500 INTERNAL_ERROR다
+- `BA-055-T13`: 검증된 휴무일에 stop을 둔 답은 거부된다
+- `BA-055-T14`: 검증된 OPEN 창이 없는 날짜의 stop을 OPEN으로 표기한 답은 거부된다
+- `BA-055-T15`: 같은 장소를 두 번 둔 답은 거부된다
+- `BA-055-T16`: 하루 stop 상한을 넘긴 답은 거부된다
+- `BA-055-T17`: 날짜별 position이 0부터 빈칸 없이 이어지지 않는 답은 거부된다
+- `BA-055-T18`: stop 유무와 READY·EMPTY 상태가 어긋난 답은 거부된다
+- `BA-055-T19`: 내부 계약이 선언하지 않은 reason을 담은 답은 거부된다
+- `BA-055-T20`: verifyDraft가 거부한 답은 draft가 아니라 500 INTERNAL_ERROR(retryable false)로 나간다
+- `BA-055-T21`: 여행 기간 밖 날짜에 stop을 둔 답은 거부된다
+- `BA-055-T22`: policy hash가 빈 답은 거부된다
+
+증거 위치: `TripDraftPreviewIT`(T1·T2·T3·T6·T9·T10·T11), `TripDraftPreviewFailsClosedIT`(T4), `TripDraftPreviewGatewayIT`(T5·T12·T20), `DraftComposeGatewayTest`(T7·T13~T19·T21·T22), `RecommendationRequestShapeTest`(T8), 응답 schema는 `TripDraftPreviewContractTest`.
+
+FE 인계·완료 증거: READY·EMPTY fixture(packages/contracts/fixtures/trips/draft-preview-*.json)와 stop→SeedTripItem 변환 규칙, 503(게이트 닫힘·apps/ai 무응답)과 500(apps/ai 거절·계약 위반) 구분. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+
 ## B05 · 일정 편집·독립 잠금
 
 원자 command와 version 충돌을 먼저 검증한다.
