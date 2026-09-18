@@ -12,6 +12,8 @@ import io.nullnull.recommendation.domain.draft.DraftComposeRequest;
 import io.nullnull.recommendation.domain.draft.DraftComposeResponse;
 import io.nullnull.recommendation.domain.draft.DraftPlaceIn;
 import io.nullnull.recommendation.domain.draft.DraftStopOut;
+import io.nullnull.testsupport.JsonSchemaCheck;
+import io.nullnull.testsupport.OpenApiDocument;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;

@@ -3,6 +3,8 @@ package io.nullnull.contract;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.nullnull.shared.http.RequestIdFilter;
+import io.nullnull.testsupport.JsonSchemaCheck;
+import io.nullnull.testsupport.OpenApiDocument;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.util.TreeSet;

@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.nullnull.shared.http.NullnullOperation;
 import io.nullnull.shared.http.NullnullOperation.Security;
+import io.nullnull.testsupport.JsonSchemaCheck;
+import io.nullnull.testsupport.OpenApiDocument;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;

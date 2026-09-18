@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -101,6 +102,7 @@ class TripImportFixtureIT {
                         .content(JSON.writeValueAsString(Map.of("rawText", paste, "locale", "ko-KR",
                                 "timezone", "Asia/Seoul"))))
                 .andExpect(status().isOk()));
+        ContractResponse.assertValid("parseTripImport", 200, parsed);
         // Three lines resolved to one place each; the fourth matched two and is a question.
         assertThat(placesOf(parsed)).containsExactly(gyeongbokgung.toString(), insadong.toString(),
                 myeongdong.toString());
@@ -123,6 +125,7 @@ class TripImportFixtureIT {
                         .content("{\"updates\":[{\"clientKey\":\"" + myeongdongKey + "\",\"startTime\":\"14:00:00\"},"
                                 + "{\"clientKey\":\"" + questionKey + "\",\"dismissed\":true}]}"))
                 .andExpect(status().isOk()));
+        ContractResponse.assertValid("remapTripImport", 200, remapped);
         assertThat(remapped.get("status").asString()).isEqualTo("READY");
         assertThat(remapped.get("unresolved")).isEmpty();
         assertShape(remapped, "imports/draft-ready.json");
@@ -135,6 +138,7 @@ class TripImportFixtureIT {
                         .contentType("application/json")
                         .content("{\"title\":\"붙여넣은 서울 일정\",\"planningLevel\":\"NOTHING\",\"interests\":[]}"))
                 .andExpect(status().isCreated()));
+        ContractResponse.assertValid("confirmTripImport", 201, confirmed);
         assertShape(confirmed, "imports/confirmed-trip.json");
     }
 

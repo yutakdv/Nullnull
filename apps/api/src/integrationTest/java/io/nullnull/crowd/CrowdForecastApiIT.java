@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.MutableClock;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
@@ -125,6 +126,7 @@ class CrowdForecastApiIT {
         assertThat(result.getResponse().getContentAsString())
                 .contains("\"observedAt\":null", "\"targetAt\":\"" + targetOne + "\"");
         // The fixtures Frontend mocks each face against have the keys the server sends, everywhere (#16).
+        ContractResponse.assertValid("getPlaceCrowdForecast", 200, result.getResponse().getContentAsString());
         assertThat(shapeOf(result)).isEqualTo(JsonShape.of(JsonShape.fixture("crowd/series-forecast.json")));
     }
 
@@ -146,6 +148,7 @@ class CrowdForecastApiIT {
                 .andExpect(jsonPath("$.points[0].provenance.comparisonEligible").value(false))
                 .andExpect(jsonPath("$.points[0].provenance.comparisonReasonCode").value("STALE_INPUT"))
                 .andReturn();
+        ContractResponse.assertValid("getPlaceCrowdForecast", 200, stale.getResponse().getContentAsString());
         assertThat(shapeOf(stale)).isEqualTo(JsonShape.of(JsonShape.fixture("crowd/series-stale.json")));
 
         forecast(owner, place, clock.instant(), clock.instant().plus(Duration.ofDays(31)))
@@ -222,6 +225,7 @@ class CrowdForecastApiIT {
                 .andExpect(jsonPath("$.points").isEmpty())
                 .andExpect(jsonPath("$.unavailableReason").value("NO_COVERAGE"))
                 .andReturn();
+        ContractResponse.assertValid("getPlaceCrowdForecast", 200, unavailable.getResponse().getContentAsString());
         assertThat(shapeOf(unavailable))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("crowd/series-unavailable.json")));
     }

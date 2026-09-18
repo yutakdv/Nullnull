@@ -1,4 +1,4 @@
-package io.nullnull.contract;
+package io.nullnull.testsupport;
 
 import com.networknt.schema.Error;
 import com.networknt.schema.InputFormat;
@@ -18,7 +18,16 @@ public final class JsonSchemaCheck {
     }
 
     public List<Error> validate(String componentSchema, String json) {
-        Schema schema = registry.getSchema(document.schemaJson(componentSchema), InputFormat.JSON);
+        return validateAgainst(document.schemaJson(componentSchema), json);
+    }
+
+    /** Validates a body against what the contract declares for that operation and status. */
+    public List<Error> validateResponse(String operationId, String statusCode, String json) {
+        return validateAgainst(document.responseSchemaJson(operationId, statusCode), json);
+    }
+
+    private List<Error> validateAgainst(String schemaJson, String json) {
+        Schema schema = registry.getSchema(schemaJson, InputFormat.JSON);
         return schema.validate(json, InputFormat.JSON, context -> context
                 .executionConfig(config -> config.formatAssertionsEnabled(true)));
     }

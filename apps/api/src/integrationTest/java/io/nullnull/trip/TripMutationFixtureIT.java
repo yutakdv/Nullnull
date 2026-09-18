@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -95,7 +96,7 @@ class TripMutationFixtureIT {
 
         // The new item is the one the candidate was scheduled onto, on the day that was empty.
         assertThat(changed(body)).containsExactly(itemOn(body, trip.seoulForest()));
-        assertShape(body, "trips/mutation-add.json");
+        assertShape("addTripItem", 201, body, "trips/mutation-add.json");
     }
 
     @Test
@@ -113,7 +114,7 @@ class TripMutationFixtureIT {
                 .andExpect(status().isOk()));
 
         assertThat(changed(body)).containsExactly(trip.myeongdongItem().toString());
-        assertShape(body, "trips/mutation-update.json");
+        assertShape("updateTripItem", 200, body, "trips/mutation-update.json");
     }
 
     @Test
@@ -127,7 +128,7 @@ class TripMutationFixtureIT {
                 .andExpect(status().isOk()));
 
         assertThat(changed(body)).containsExactly(trip.myeongdongItem().toString());
-        assertShape(body, "trips/mutation-reorder.json");
+        assertShape("reorderTripItems", 200, body, "trips/mutation-reorder.json");
     }
 
     @Test
@@ -142,7 +143,7 @@ class TripMutationFixtureIT {
         // The item keeps its id and its slot; only the place changes (the fixture relies on both).
         assertThat(changed(body)).containsExactly(trip.gyeongbokgungItem().toString());
         assertThat(itemOn(body, trip.yeonhui())).isEqualTo(trip.gyeongbokgungItem().toString());
-        assertShape(body, "trips/mutation-replace.json");
+        assertShape("replaceTripItem", 200, body, "trips/mutation-replace.json");
     }
 
     @Test
@@ -161,7 +162,7 @@ class TripMutationFixtureIT {
                 .andExpect(status().isOk()));
 
         assertThat(changed(body)).containsExactly(trip.myeongdongItem().toString());
-        assertShape(body, "trips/mutation-constraint-set.json");
+        assertShape("setTripItemConstraint", 200, body, "trips/mutation-constraint-set.json");
     }
 
     @Test
@@ -177,7 +178,7 @@ class TripMutationFixtureIT {
                 .andExpect(status().isOk()));
 
         assertThat(changed(body)).containsExactly(trip.insadongItem().toString());
-        assertShape(body, "trips/mutation-constraint-remove.json");
+        assertShape("removeTripItemConstraint", 200, body, "trips/mutation-constraint-remove.json");
     }
 
     @Test
@@ -194,7 +195,7 @@ class TripMutationFixtureIT {
                 .andExpect(status().isOk()));
 
         assertThat(changed(body)).containsExactly(trip.myeongdongItem().toString());
-        assertShape(body, "trips/mutation-remove.json");
+        assertShape("removeTripItem", 200, body, "trips/mutation-remove.json");
     }
 
     /** The ids a case needs of the trip trips/trip-detail-scheduled.json describes. */
@@ -346,6 +347,7 @@ class TripMutationFixtureIT {
         JsonNode body = JSON.readTree(mvc.perform(get("/api/v1/trips/" + trip.tripId()).cookie(cookie(trip.owner())))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString());
+        ContractResponse.assertValid("getTrip", 200, body);
         JsonNode onDisk = JsonShape.fixture(fixture);
         java.util.SortedSet<String> expected = JsonShape.of(onDisk);
         assertThat(expected.remove("$.days[].items[].crowd")).as("%s still holds items[].crowd", fixture).isTrue();
@@ -367,7 +369,8 @@ class TripMutationFixtureIT {
         return order;
     }
 
-    private static void assertShape(JsonNode body, String fixture) {
+    private static void assertShape(String operationId, int status, JsonNode body, String fixture) {
+        ContractResponse.assertValid(operationId, status, body);
         // The fixture Frontend mocks this mutation against has the keys the server sends, everywhere.
         assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
     }
