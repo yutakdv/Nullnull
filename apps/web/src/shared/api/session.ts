@@ -322,6 +322,11 @@ export function useOptimization(runId: string | null) {
       // An expired preview is terminal. Asking again cannot un-expire it.
       if (isProblem(error) && error.code === 'PREVIEW_EXPIRED') return false;
       if (isProblem(error) && error.code === 'NOT_FOUND') return false;
+      // The catalog being closed is a server state, not a hiccup: three
+      // requests get three identical answers. PROBLEM_POLICY marks this
+      // `retry: 'none'` for exactly that reason, and the screen offers the
+      // user a button instead.
+      if (isProblem(error) && error.code === 'SOURCE_UNAVAILABLE') return false;
       return count < 2;
     },
   });

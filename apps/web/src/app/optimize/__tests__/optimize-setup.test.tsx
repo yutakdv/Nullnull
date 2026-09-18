@@ -323,6 +323,45 @@ describe('FE-501-T2 the setup renders its states', () => {
   });
 });
 
+// BA-050 (503 SOURCE_UNAVAILABLE): the catalog being closed is temporary,
+// unlike FORBIDDEN above (capability off, permanent). The submit button must
+// stay usable — a fresh press just returns the same answer until the server
+// opens, so nothing here should read as "press again right now".
+describe('FE-501 a closed catalog does not disable the submit button', () => {
+  it('shows its own copy for SOURCE_UNAVAILABLE, not the generic failure', async () => {
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/optimizations`, () =>
+        problemResponse('SOURCE_UNAVAILABLE'),
+      ),
+    );
+    const user = userEvent.setup();
+    await pickFirstStop(user);
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+
+    expect(
+      await screen.findByText(copy['optimize.sourceUnavailable']),
+    ).toBeInTheDocument();
+    // Not just an addition alongside the generic line: it must replace it.
+    expect(screen.queryByText(copy['optimize.failed'])).not.toBeInTheDocument();
+  });
+
+  it('keeps the submit control enabled, unlike a permanent FORBIDDEN', async () => {
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/optimizations`, () =>
+        problemResponse('SOURCE_UNAVAILABLE'),
+      ),
+    );
+    const user = userEvent.setup();
+    await pickFirstStop(user);
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+
+    expect(
+      await screen.findByText(copy['optimize.sourceUnavailable']),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: copy['optimize.submit'] })).toBeEnabled();
+  });
+});
+
 describe('FE-501-T3 keyboard and names', () => {
   it('reaches a stop by keyboard and selects it with Enter', async () => {
     const user = userEvent.setup();

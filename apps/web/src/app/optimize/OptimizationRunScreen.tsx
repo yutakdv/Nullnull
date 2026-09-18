@@ -142,13 +142,26 @@ export function OptimizationRunScreen() {
     const problem = isProblem(run.error) ? run.error : null;
     const expired = problem?.code === 'PREVIEW_EXPIRED';
     const missing = problem?.code === 'NOT_FOUND';
+    // The catalog is closed, so a run holding proposals cannot be described:
+    // a proposal's summary names the place and its provenance quotes the
+    // source registry. Temporary, unlike the two above — the retry button
+    // below stays, and `terminal` deliberately does not include this.
+    const sourceDown = problem?.code === 'SOURCE_UNAVAILABLE';
     const terminal = expired || missing;
     return frame(
       <>
         <p className={styles.status} role="alert">
-          {expired ? t('run.expired') : missing ? t('run.notFound') : t('run.error')}
+          {expired
+            ? t('run.expired')
+            : missing
+              ? t('run.notFound')
+              : sourceDown
+                ? t('run.sourceUnavailable')
+                : t('run.error')}
         </p>
-        {expired ? <p className={styles.note}>{t('run.unchanged')}</p> : null}
+        {expired || sourceDown ? (
+          <p className={styles.note}>{t('run.unchanged')}</p>
+        ) : null}
         <div className={styles.actions}>
           {terminal ? null : (
             <button
