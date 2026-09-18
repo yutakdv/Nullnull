@@ -137,10 +137,10 @@ export const messages = {
     // A-4 sign-in (746:4707).
     //
     // The screen exists before the contract does: docs/api/openapi.yaml has no
-    // auth operation yet (#264), so the button submits nowhere. These strings
-    // describe what the screen will do, not what it does — the alternative was
-    // to ship no screen at all, and a route that renders nothing is worse than
-    // one that renders the form it is waiting on.
+    // auth operation yet (#264), so the button verifies nothing — pressing it
+    // moves the traveller to the feed without checking the fields against
+    // anything. These strings describe a real form whose submit does not yet
+    // mean what it says.
     //
     // `signIn.anonymous` is not `intro.noLogin`. Intro says "바로" to someone
     // who has not started; here the traveller already has trips in this
@@ -155,8 +155,6 @@ export const messages = {
     'signIn.password.placeholder': '비밀번호를 입력해 주세요',
     'signIn.submit': '로그인',
     'signIn.anonymous': '로그인 없이 계속 둘러볼 수 있어요',
-    // Shown in place of a request, because there is no request to make yet.
-    'signIn.pending': '로그인은 아직 준비 중이에요',
     'profile.trips.title': '내 여행 목록',
     'profile.trips.count': '{count}',
     'profile.trips.empty': '아직 만든 여행이 없어요',
@@ -472,6 +470,11 @@ export const messages = {
     'optimize.conflict': '일정이 그 사이에 바뀌었어요. 새로 불러온 뒤 다시 시도해주세요',
     'optimize.locked': '고정된 조건 때문에 바꿀 수 없어요',
     'optimize.unavailable': '이 서버에서는 최적화가 아직 켜져 있지 않아요',
+    // 503 SOURCE_UNAVAILABLE, unlike the 403 above: the catalog is closed for
+    // now, not switched off. So the copy has to stop the traveller pressing
+    // again this second without telling them it can never work.
+    'optimize.sourceUnavailable':
+      '지금은 대안을 계산할 수 없어요. 잠시 후 다시 시도해 주세요',
     'optimize.retry': '다시 시도',
     // FE-502 계산 중과 결과 대기 (S09-1 `415:2413`).
     // FCR-005: route provider가 없는 P0에서는 `경로 계산`·이동시간 문구를 쓰지
@@ -497,6 +500,10 @@ export const messages = {
     'run.readyPending': '결과 화면은 준비 중이에요',
     'run.loading': '불러오는 중이에요',
     'run.error': '상태를 불러오지 못했어요',
+    // A run holding proposals cannot be described while the catalog is closed:
+    // a proposal names the place and its provenance quotes the source. Paired
+    // with `run.unchanged` so nobody recomputes a run that is still there.
+    'run.sourceUnavailable': '혼잡 정보를 지금 불러올 수 없어요',
     'run.notFound': '없는 최적화예요',
     'run.expired': '제안이 만료됐어요. 일정은 그대로예요',
     'run.recompute': '다시 계산하기',
@@ -912,7 +919,6 @@ export const messages = {
     'signIn.password.placeholder': 'Enter your password',
     'signIn.submit': 'Sign in',
     'signIn.anonymous': 'You can keep browsing without signing in',
-    'signIn.pending': 'Signing in is not available yet',
     'profile.trips.title': 'My trips',
     'profile.trips.count': '{count}',
     'profile.trips.empty': 'No trips yet',
@@ -1199,6 +1205,8 @@ export const messages = {
     'optimize.conflict': 'The itinerary changed meanwhile. Reload and try again',
     'optimize.locked': 'A lock on this stop prevents the change',
     'optimize.unavailable': 'Optimization is not switched on for this server yet',
+    'optimize.sourceUnavailable':
+      "We can't work out alternatives right now. Please try again shortly",
     'optimize.retry': 'Try again',
     'run.title': 'Looking for alternatives',
     'run.working': 'Checking crowd levels and the conditions you locked',
@@ -1217,6 +1225,7 @@ export const messages = {
     'run.readyPending': 'The result screen is still being built',
     'run.loading': 'Loading',
     'run.error': "We couldn't load the status",
+    'run.sourceUnavailable': "We can't load crowd information right now",
     'run.notFound': 'No such optimization',
     'run.expired': 'The suggestion expired. Your itinerary is unchanged',
     'run.recompute': 'Calculate again',

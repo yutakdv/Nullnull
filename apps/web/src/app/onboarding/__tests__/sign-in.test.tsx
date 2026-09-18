@@ -54,7 +54,7 @@ async function fillCredentials(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(copy['signIn.password.label']), 'hunter2');
 }
 
-describe('the sign-in screen holds a form it cannot submit yet', () => {
+describe('the sign-in screen holds a form that moves on without checking it', () => {
   it('sends no request when the form is submitted', async () => {
     // The whole point of the screen existing before its contract. If this goes
     // red, either an endpoint was guessed or a real one landed — and in the
@@ -65,7 +65,9 @@ describe('the sign-in screen holds a form it cannot submit yet', () => {
 
     await user.click(screen.getByRole('button', { name: copy['signIn.submit'] }));
 
-    await screen.findByText(copy['signIn.pending']);
+    // The press is done when the feed has rendered. Waiting on a screen the
+    // navigation leaves behind would race it.
+    await screen.findByRole('heading', { name: copy['feed.title'] });
 
     // Two filters, because either alone can be satisfied by the wrong thing.
     //
@@ -88,16 +90,19 @@ describe('the sign-in screen holds a form it cannot submit yet', () => {
     expect(writes).toEqual([]);
   });
 
-  it('says why nothing happened rather than failing silently', async () => {
-    // A button that responds to a press by doing nothing observable is the
-    // dead end this screen exists to avoid.
+  it('moves to the feed when the form is submitted', async () => {
+    // Where the old screen showed a notice and stopped, this one carries on.
+    // The traveller is not verified — there is nothing to verify against — but
+    // they are not stuck either.
     const user = userEvent.setup();
     renderSignIn();
     await fillCredentials(user);
 
-    expect(screen.queryByText(copy['signIn.pending'])).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: copy['signIn.submit'] }));
-    expect(await screen.findByText(copy['signIn.pending'])).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole('heading', { name: copy['feed.title'] }),
+    ).toBeInTheDocument();
   });
 
   it('keeps the submit button unpressable until both fields are filled', async () => {

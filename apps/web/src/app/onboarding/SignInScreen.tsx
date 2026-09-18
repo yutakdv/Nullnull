@@ -11,10 +11,10 @@ import styles from './SignInScreen.module.css';
 // lines), so there is no endpoint to post to and no error code to render. #264
 // asks BE for the contract; #265 tracks this screen.
 //
-// Submitting therefore shows `signIn.pending` and stops. That is a deliberate
-// dead end rather than a hidden one: the form is real, the button responds, and
-// the traveller is told why nothing happened. Wiring a fetch to a guessed path
-// would be worse — it would 404 and read as "my password is wrong".
+// Submitting therefore navigates to the feed without checking anything. That
+// is the same thing continuing without an account does, which is the honest
+// behaviour while there is nothing to check against: wiring a fetch to a
+// guessed path would 404 and read to the traveller as "my password is wrong".
 //
 // profile.test.tsx asserts no request matching /login|auth|session\/account/
 // leaves the app. That assertion stays true here and is what guards this
@@ -34,17 +34,19 @@ export function SignInScreen() {
   // An uncontrolled form would need a separate "has the user typed" signal.
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
-  // Only ever set by submit. Null means "the user has not asked yet", which is
-  // different from "the request came back empty".
-  const [notice, setNotice] = useState<string | null>(null);
 
   const ready = account.trim() !== '' && password !== '';
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
-    // The form must not navigate. Without this the browser would reload the
-    // app with the password in the query string — invariant 10.
+    // preventDefault first: without it the browser submits the form itself and
+    // reloads the app with the password in the query string — invariant 10.
     event.preventDefault();
-    setNotice(t('signIn.pending'));
+    // Straight to the feed, and still without a request. There is no auth
+    // operation to call (#264), so nothing is verified here — pressing the
+    // button moves the traveller on, exactly as continuing without an account
+    // does. When the contract lands, this is where `useSignIn` goes, and the
+    // navigation moves into its onSuccess.
+    void navigate('/feed', { replace: true });
   }
 
   return (
@@ -68,7 +70,6 @@ export function SignInScreen() {
               id={idField}
               onChange={(event) => {
                 setAccount(event.target.value);
-                setNotice(null);
               }}
               placeholder={t('signIn.id.placeholder')}
               type="text"
@@ -86,19 +87,12 @@ export function SignInScreen() {
               id={passwordField}
               onChange={(event) => {
                 setPassword(event.target.value);
-                setNotice(null);
               }}
               placeholder={t('signIn.password.placeholder')}
               type="password"
               value={password}
             />
           </div>
-
-          {/* Reserved for the field errors the contract will name. Announced
-              because it appears after a press, when focus is on the button. */}
-          <p aria-live="polite" className={styles.notice}>
-            {notice}
-          </p>
         </div>
 
         <BottomCta

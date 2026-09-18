@@ -93,7 +93,11 @@
  * critical) and again by value (red-ish RGB) and found none. `protect/default`
  * exists but means "protected", not "wrong", so it is not borrowed here.
  * Until a token is added — a design-system change, so an FCR — this reads in
- * secondary text, and the live region carries the meaning instead of colour. */
+ * secondary text, and the live region carries the meaning instead of colour.
+ *
+ * Unused while the screen has nothing to report (#265) — kept because the
+ * contract's field errors land here, and the reasoning above is what the next
+ * person needs when they arrive. */
 .notice {
   min-height: 16px;
   margin: 0;
