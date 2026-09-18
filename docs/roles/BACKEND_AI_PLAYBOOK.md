@@ -1508,6 +1508,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T9`: 저장된 제안과 change는 사후 수정되지 않는다
 - `BA-051-T10`: preview 동안 일정 쓰기가 0이다
 - `BA-051-T11`: 실패 코드 어휘가 enum·CHECK·계약 세 곳에서 같다
+- `BA-051-T18`: 계약 밖 답을 받은 run의 job은 첫 시도에서 끝난다
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1589,6 +1590,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T13`: 동시에 온 두 APPLY는 trip version 재조회가 중재해 하나만 반영된다
 - `BA-052-T14`: preview가 비교 적격으로 판정한 crowd 근거에 그 뒤 incident가 선언되면 APPLY가 거절된다
 - `BA-052-T15`: preview가 고른 날짜를 현재 opening hours로 같은 판정에 다시 넣어 통과하지 못하면 APPLY가 거절된다
+- `BA-052-T16`: apps/ai가 답하지 못한 결정은 503 APPLY_FAILED(retryable)로 답한다
+- `BA-052-T17`: apps/ai가 계약 밖으로 답한 결정은 500 INTERNAL_ERROR(retryable 아님)로 답한다
+- `BA-052-T18`: apps/ai 장애로 실패한 결정은 아무것도 쓰지 않아서, 복구 뒤 같은 key의 재시도가 200이다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
