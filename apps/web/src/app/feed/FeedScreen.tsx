@@ -7,7 +7,12 @@ import {
   useFeed,
   useTrips,
 } from '../../shared/api/index.js';
-import { FeedPostCard, type TripAddState } from '../../shared/ui/index.js';
+import {
+  FeedPostCard,
+  Toast,
+  TripPicker,
+  type TripAddState,
+} from '../../shared/ui/index.js';
 import styles from './FeedScreen.module.css';
 
 // Figma: S03-F0 `391:310` (no trip) and S03-F1 `396:2926` (active trip).
@@ -41,31 +46,81 @@ export function FeedScreen() {
   const navigate = useNavigate();
   const trips = useTrips();
 
-  // The first trip is the selected one until FE-203 introduces a real
-  // selector. Null while the list is still loading, which is the difference
-  // between "no trip" and "not known yet" — asking with a tripId we do not
-  // have yet would bind the cursor to the wrong selection.
-  const selectedTripId = trips.data?.items[0]?.id ?? null;
+  // Which trip the `+` collects into.
+  //
+  // `chosenTripId` is what the user picked in the sheet; until they pick, the
+  // first trip stands in. That default is deliberate: the feed needs a tripId
+  // to ask for `candidateState`, and having none would make every card read
+  // NO_TRIP_SELECTED for an owner who has trips. Null while the list is still
+  // loading, which is the difference between "no trip" and "not known yet" —
+  // asking with a tripId we do not have yet would bind the cursor to the wrong
+  // selection.
+  const [chosenTripId, setChosenTripId] = useState<string | null>(null);
+  const tripItems = trips.data?.items ?? [];
+  const chosenStillExists = tripItems.some((trip) => trip.id === chosenTripId);
+  // A choice only counts while that trip is still in the list. A background
+  // refetch can remove it — another device deletes the trip — and the id would
+  // otherwise stay selected and be sent for a trip that no longer exists.
+  const selectedTripId = chosenStillExists ? chosenTripId : (tripItems[0]?.id ?? null);
+  // The place the sheet is choosing a trip for, or null when it is closed.
+  const [pickerFor, setPickerFor] = useState<{
+    placeId: string;
+    postId: string;
+    name: string;
+  } | null>(null);
   // Waits for the trip list: the cursor the server mints is bound to the trip
   // selection, so asking before it is known spends a request on a selection
   // that is about to change.
   const feed = useFeed(selectedTripId, trips.isSuccess);
+  // Bound to the selection, and the sheet sets the selection before it saves —
+  // useAddTripCandidate takes its trip at hook level, so a save into a trip
+  // other than the selected one is not expressible without changing that hook.
   const addCandidate = useAddTripCandidate(selectedTripId);
 
   // Which card is mid-save, and how each one ended. Per place rather than one
   // flag for the screen: the buttons are one per card, and a single flag would
   // put every card into the state of whichever was pressed last.
   const [addStates, setAddStates] = useState<Record<string, TripAddState>>({});
+  // S03-C2 `399:843` / C3 `399:1011` / C4 `399:1179`: the result of a save is a
+  // toast, not a sheet and not the button alone.
+  //
+  // The button cannot carry this by itself. `saved` and `duplicate` are
+  // different facts — one made a candidate, one found it already there — and
+  // both render the same ✓ glyph, so without the toast the two screens Figma
+  // draws separately are indistinguishable. The toast is also where `보기`
+  // lives, which is the only path from the feed to the trip the place landed
+  // in.
+  //
+  // Secondary feedback, per Toast's own contract: the button keeps the
+  // durable state after the toast is gone, so nothing that must stay
+  // actionable lives only here.
+  // `postId` and `tripId` ride along because 다시 시도 has to replay the SAME
+  // save: the source provenance and the chosen trip are both part of it, and
+  // re-deriving them from the selection would retry into whichever trip is
+  // selected now rather than the one the user answered the sheet with.
+  const [toast, setToast] = useState<{
+    kind: 'saved' | 'duplicate' | 'error';
+    placeId: string;
+    postId: string;
+    tripId: string;
+    tripName: string;
+  } | null>(null);
   // One key per place, held across retries of that same save so a retry after
   // a lost response replays it instead of saving twice (invariant 6).
   const addKeys = useRef<Record<string, string>>({});
 
-  function saveCandidate(placeId: string, postId: string) {
-    if (selectedTripId === null) return;
+  function saveCandidate(placeId: string, postId: string, tripId: string) {
+    if (tripId === '') return;
     addKeys.current[placeId] ??= crypto.randomUUID();
     setAddStates((current) => ({ ...current, [placeId]: 'loading' }));
     addCandidate.mutate(
       {
+        // The trip the user answered the sheet with, sent explicitly. It used
+        // to ride on the hook's closure instead, which made this argument
+        // inert: the save reached the right trip only because the state update
+        // happened to re-render first, and the test written to prove the
+        // choice was honoured passed with the choice deleted.
+        tripId,
         // POST with the post it came from: the contract's source records
         // where a candidate was found, and the feed knows the answer
         // exactly. Inventing a FEED type would not compile — the enum is
@@ -84,10 +139,34 @@ export function FeedScreen() {
             ...current,
             [placeId]: result.duplicate ? 'duplicate' : 'saved',
           }));
+          setToast({
+            kind: result.duplicate ? 'duplicate' : 'saved',
+            placeId,
+            postId,
+            tripId,
+            // Named, because the feed can collect into any of several trips
+            // and "담았어요" alone does not say which one received it.
+            tripName: tripItems.find((trip) => trip.id === tripId)?.title ?? '',
+          });
         },
         onError: () => {
-          // The key is kept, so pressing again replays this same save.
-          setAddStates((current) => ({ ...current, [placeId]: 'error' }));
+          // The card goes back to idle rather than to an error state, and the
+          // toast carries the retry. That is `Action / TripAddButton`'s own
+          // rule for this screen: "D-01 실패 화면(S03-C4)에서는 카드를
+          // 원상(idle) 유지하고 다시 시도는 Toast가 담당한다" — Figma
+          // `399:1179` draws the card with + and the error in the toast.
+          //
+          // It is also the honest state: nothing was saved, so a card that
+          // still says 담기 describes the trip correctly. An error glyph on
+          // the card would outlive the failure it refers to.
+          setAddStates((current) => {
+            const next = { ...current };
+            delete next[placeId];
+            return next;
+          });
+          // The key is kept, so pressing 다시 시도 replays this same save
+          // rather than starting a second one (invariant 6).
+          setToast({ kind: 'error', placeId, postId, tripId, tripName: '' });
         },
       },
     );
@@ -237,7 +316,14 @@ export function FeedScreen() {
                 onAddCandidate={
                   card.candidateState === 'NOT_SAVED' && selectedTripId !== null
                     ? (placeId) => {
-                        saveCandidate(placeId, card.post.id);
+                        // Ask which trip rather than assuming the first one.
+                        // FR-CAN-01: the `+` opens the picker, and the save is
+                        // what the user answers with.
+                        setPickerFor({
+                          placeId,
+                          postId: card.post.id,
+                          name: card.primaryPlace.name,
+                        });
                       }
                     : undefined
                 }
@@ -254,6 +340,77 @@ export function FeedScreen() {
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {/* FR-CAN-01: which trip the place goes in. Mounted once for the screen
+          rather than per card — twelve cards would otherwise mount twelve
+          dialogs, which is the shape that made an earlier E2E measure the
+          wrong one. */}
+      <TripPicker
+        failed={trips.isError}
+        labels={{
+          title: t('tripPicker.title'),
+          cancel: t('tripPicker.cancel'),
+          loading: t('tripPicker.loading'),
+          empty: t('tripPicker.empty'),
+          createTrip: t('feed.createTrip'),
+          error: t('tripPicker.error'),
+          retry: t('tripPicker.retry'),
+        }}
+        loading={trips.isPending}
+        onCancel={() => {
+          setPickerFor(null);
+        }}
+        onCreateTrip={() => {
+          setPickerFor(null);
+          void navigate('/start');
+        }}
+        onPick={(tripId) => {
+          const target = pickerFor;
+          setChosenTripId(tripId);
+          setPickerFor(null);
+          if (target) saveCandidate(target.placeId, target.postId, tripId);
+        }}
+        onRetry={() => {
+          void trips.refetch();
+        }}
+        open={pickerFor !== null}
+        placeName={pickerFor?.name ?? ''}
+        selectedTripId={selectedTripId}
+        trips={tripItems}
+      />
+
+      {/* S03-C2 `399:843` · C3 `399:1011` · C4 `399:1179`.
+          Not auto-dismissed on a timer: the action inside it (보기 / 다시 시도)
+          is the only one offered, and a toast that removes its own button after
+          n seconds is unusable by anyone who reads slower than the timer. It is
+          replaced by the next result and closed by acting on it. */}
+      {toast ? (
+        <Toast
+          actionLabel={
+            toast.kind === 'error' ? t('tripAdd.toast.retry') : t('tripAdd.toast.view')
+          }
+          message={
+            toast.kind === 'saved'
+              ? t('tripAdd.toast.saved', { trip: toast.tripName })
+              : toast.kind === 'duplicate'
+                ? t('tripAdd.toast.duplicate')
+                : t('tripAdd.toast.error')
+          }
+          onAction={() => {
+            if (toast.kind === 'error') {
+              setToast(null);
+              saveCandidate(toast.placeId, toast.postId, toast.tripId);
+              return;
+            }
+            // 보기 goes to the trip the place was saved into — the candidate
+            // list, not the itinerary: a candidate is not a scheduled item
+            // (invariant 1) and landing on the day view would suggest it was.
+            setToast(null);
+            void navigate(`/trip/${toast.tripId}/candidates`);
+          }}
+          tone={toast.kind === 'error' ? 'error' : 'info'}
+        />
       ) : null}
 
       {/* A button, not an infinite scroll: a scroll handler that loads more

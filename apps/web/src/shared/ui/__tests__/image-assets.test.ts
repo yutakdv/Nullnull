@@ -77,7 +77,7 @@ function walk(dir: string): string[] {
 const BARE_PROVIDER = /TourAPI/;
 const PROVIDER_DISPLAY_NAME = /한국관광공사|Korea Tourism Organization/;
 
-describe('CMP-ATT-002 TourAPI is never the whole credit', () => {
+describe('FE-603-T3 CMP-ATT-002 TourAPI is never the whole credit', () => {
   it('never names TourAPI without the provider beside it', () => {
     const offenders: string[] = [];
     for (const file of walk(SRC)) {
@@ -96,7 +96,7 @@ describe('CMP-ATT-002 TourAPI is never the whole credit', () => {
   });
 });
 
-describe('CMP-ATT-003 the app ships only images it may ship', () => {
+describe('FE-603-T2 CMP-ATT-003 the app ships only images it may ship', () => {
   it('has exactly the images on the allow list, no more and no fewer', () => {
     const found = [...walk(PUBLIC), ...walk(SRC)]
       .filter((file) => IMAGE_EXTENSIONS.has(extname(file).toLowerCase()))

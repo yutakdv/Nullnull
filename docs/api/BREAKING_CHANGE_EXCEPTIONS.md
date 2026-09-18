@@ -59,6 +59,11 @@ tags:
   `NO_IMPROVEMENT`(더 나은 답이 없다)나 `UNEXPECTED_FAILURE`(우리가 깨졌다)로 접혔는데 **둘 다 거짓**이었다.
   이 코드는 **retryable이 아니다** — 같은 입력이면 같은 답이므로 화면의 CTA는 재시도가 아니라 범위 변경이어야 한다.
 
+  **그리고 이 지연은 PR에서만 드러난다.** oasdiff diff는 `main` 대상 PR에서만 돌므로, 계약이 머지된
+  순간 면제는 만료됐지만 그 뒤 **처음 열린 PR**([#234](https://github.com/yutakdv/Nullnull/pull/234), FE)에서야
+  빨개졌다 — 계약을 넣은 쪽과 실패를 본 쪽이 달라진다. 계약 PR을 머지한 직후 같은 PR에서 ignore 줄을
+  비우는 것이 그 지연을 없애는 유일한 방법이다.
+
 정정이 `main`에 반영되면 base가 새 값이 되어 해당 메시지는 더 이상 보고되지 않는다. 그 시점에 ignore 줄을 지우고 행을 여기로 옮긴다. `scripts/check_oasdiff_exceptions.py`가 CI에서 이 정리를 강제한다 — 매칭되지 않는 ignore 줄이 남아 있으면 실패한다.
 
 - **`relationId` request property 제거** (승인: 오너, 추적: #204). PR #213으로 반영됐고 base가 따라 움직여

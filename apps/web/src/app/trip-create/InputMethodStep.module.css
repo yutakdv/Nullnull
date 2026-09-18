@@ -1,0 +1,54 @@
+/* S02-4C 입력 방법 선택 `400:1201`: two option rows, gap 12, px16 py20, r14. */
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 437:3042 / 437:3060 */
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 20px var(--space-4);
+  border: 0;
+  border-radius: 14px;
+  background: var(--color-bg-subtle);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.optionText {
+  display: flex;
+  flex: 1 0 0;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* 437:3047 */
+.optionName {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-lg);
+  font-weight: 700;
+}
+
+/* 437:3048 — wraps rather than truncating: the hint is the difference between
+   the two options, so a clipped one makes them read the same. */
+.optionHint {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.arrow {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-lg);
+}

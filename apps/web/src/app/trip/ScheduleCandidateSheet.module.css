@@ -1,0 +1,157 @@
+/* S07-10 후보 일정화 sheet `527:4732`: bottom sheet, pt10 pb24 px16, top radius 24.
+   Same geometry as the move sheet — the two are the same Figma sheet shape and
+   sharing the tokens keeps them from drifting apart visually. */
+
+.sheet {
+  composes: sheet from '../../shared/ui/styles/sheet.module.css';
+}
+
+.panel {
+  composes: panel from '../../shared/ui/styles/sheet.module.css';
+}
+
+/* 527:4734 */
+.grab {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-track, #e5e7ea);
+}
+
+.head {
+  composes: head from '../../shared/ui/styles/sheet.module.css';
+}
+
+.title {
+  composes: title from '../../shared/ui/styles/sheet.module.css';
+}
+
+.cancel {
+  composes: cancel from '../../shared/ui/styles/sheet.module.css';
+}
+
+/* 527:4741: which place is being scheduled, tinted. */
+.context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-action-subtle);
+}
+
+.contextLabel {
+  color: var(--color-action-strong);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.contextName {
+  color: var(--color-action-strong);
+  font-size: var(--font-body-base);
+  font-weight: 500;
+}
+
+/* 527:4746 */
+.pick {
+  margin: 18px 0 10px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  font-weight: 500;
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+/* 527:4748 / 527:4756: px14 py12, r12. */
+.day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) 14px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* A date the server marked ineligible, or the one the candidate already sits
+   on. Disabled rather than hidden: a date missing with no explanation reads as
+   a bug, and the reason is what turns the absence into an answer. */
+.dayBlocked {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.dayText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dayName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.dayBlocked .dayName {
+  color: var(--color-text-disabled);
+}
+
+.dayDate {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 400;
+}
+
+.dayBlocked .dayDate {
+  color: var(--color-text-disabled);
+}
+
+.dayNote {
+  color: var(--color-text-disabled);
+  font-size: var(--font-caption);
+}
+
+/* The suggested start time the server returned for this slot. */
+.dayTime {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}
+
+.chevron {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-md);
+}
+
+.state {
+  margin: 10px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.footnote {
+  margin: 14px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+}

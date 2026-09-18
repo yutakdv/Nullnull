@@ -32,13 +32,73 @@
   font-size: var(--font-caption);
 }
 
+/* Two cards per row, which is what both feed frames draw: S03-F1 `396:2926`
+   and S03-F0 `391:310` place `Card / FeedPost` at x=16 and x=205, each 172
+   wide, inside a 393 frame with 16 padding — 361 = 172 + 17 + 172. The rows
+   sit at y=166 and y=411, so the row gap is 411 - (166 + 232) = 13.
+
+   This was a single column, so the screen rendered one card per row while
+   FeedPostCard.module.css already described itself as a "172px column card"
+   with a 3/4 cover. The card was built for this grid; the list never became
+   one.
+
+   Figma's 17px and 13px are off the 4px token scale, and they are artefacts
+   of absolute positions rather than chosen values. `--space-4` (16px) and
+   `--space-3` (12px) land within a pixel of both and keep the spacing on the
+   scale, which is the rule the rest of this file already follows.
+
+   `auto-fit` rather than `repeat(2, ...)`: responsive.spec.ts measures every
+   screen in SCREENS — /feed included — at a 180px viewport modelling 200%
+   zoom, where WCAG 1.4.10 requires reflow instead of sideways scrolling. Two
+   columns cannot fit there, so the count has to be able to drop to one.
+
+   The floor comes from the other end, and from MEASURED widths rather than
+   Figma's frame. The list is inset 32px per side, not 16: `main._content`
+   (AppShell.module.css) pads 16 and `.screen` above pads 16 again. So the list
+   gets viewport - 64 — 296px at 360, 329px at 393 — and two columns need a
+   floor <= (296 - 16) / 2 = 140 to appear at 360px, the narrowest supported
+   width. A floor of 150, derived from the frame's 361px instead, measured as
+   ONE column at 360px.
+
+   `min(140px, 100%)` and not a bare `140px`: dropping to one column is not
+   enough, because a bare floor is also a MINIMUM — the track stays 140px in a
+   container narrower than that and overflows. Measured at the 180px viewport:
+   the row correctly became one column and still reached 182px, because the
+   space the list actually gets there is 116px, not the 148px that `.screen`'s
+   own padding suggests — AppShell adds its own. `min()` lets the floor
+   collapse to the container when the container is the smaller of the two, so
+   the track follows the width that exists rather than the width we assumed.
+
+   Both halves matter, and neither is `minmax(auto, 1fr)`: the implicit `auto`
+   refuses to shrink below the content's min-content width, which is exactly
+   what pushed the trip-create calendar sideways at 200% zoom
+   (TripWizardScreen.module.css:72).
+
+   No `order` and no `grid-auto-flow: dense`: reading and tab order must stay
+   DOM order, and both properties would separate them. */
 .list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  column-gap: var(--space-4);
+  row-gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Figma draws every card at the same 232px height, so the two cards in a row
+   end level. A grid item stretches by default but `article.card` does not, and
+   without this the surface and its shadow stop at the shorter card's text
+   while the row's height is set by the taller one — visible as soon as two
+   place names wrap to different line counts, which the English copy does more
+   often than the Korean. The card is already `flex-direction: column`, so the
+   extra height goes below the body rather than stretching the 3/4 cover. */
+.list > li {
+  display: grid;
+}
+
+.list > li > * {
+  height: 100%;
 }
 
 .state,

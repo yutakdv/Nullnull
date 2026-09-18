@@ -1,0 +1,171 @@
+/* Figma: S02-5C 최종 확인 438:3259. */
+
+.hint {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-action-subtle);
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  line-height: 19px;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-5);
+}
+
+.dayHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.dayName {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 700;
+}
+
+.dayDate {
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  font-weight: 400;
+}
+
+.stops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The spine, as in the manual step: a line behind the dots that ends at the
+   last one rather than running past it. */
+.stop::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 0;
+  bottom: calc(-1 * var(--space-2));
+  width: 2px;
+  background: var(--color-structure-axis);
+}
+
+.stop:last-child::before {
+  bottom: 50%;
+}
+
+.dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--wf-white);
+  font-size: var(--font-label);
+  font-weight: 500;
+}
+
+/* A picked stop is drawn in the protect colour, the same pair the rest of the
+   app uses for a lock. Never colour alone: the toggle beside it carries
+   aria-pressed and swaps the pin glyph. */
+.dot[data-picked='true'] {
+  background: var(--color-protect-default);
+}
+
+.card {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+}
+
+.card[data-picked='true'] {
+  background: var(--color-protect-subtle);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.row1 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daypart {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.pick {
+  /* 30px in the frame, padded out to a 44px touch target. */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.pick[aria-pressed='true'] {
+  color: var(--color-protect-default);
+}
+
+.edit {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}

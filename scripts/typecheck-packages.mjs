@@ -15,7 +15,13 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// The repository root by default. Overridable so the gate itself can be
+// tested: FE-005-T1 asks that a type error FAILS and that a zero-file scan
+// fails too, and neither is observable without pointing the script at a tree
+// built for the purpose. CI never sets this.
+const root = process.env.NULLNULL_WORKSPACE_ROOT
+  ? resolve(process.env.NULLNULL_WORKSPACE_ROOT)
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packages = ['packages/api-client', 'packages/contracts'];
 
 function countTypeScriptSources(directory) {

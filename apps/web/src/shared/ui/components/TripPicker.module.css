@@ -1,0 +1,119 @@
+/* S03-C1 trip picker `399:658` / S06-1 `409:1595`: bottom sheet, matching the
+   move sheet's geometry so two sheets in the same app do not arrive from
+   different places. */
+
+.sheet {
+  composes: sheet from '../styles/sheet.module.css';
+}
+
+.panel {
+  composes: panel from '../styles/sheet.module.css';
+}
+
+.head {
+  composes: head from '../styles/sheet.module.css';
+}
+
+.title {
+  composes: title from '../styles/sheet.module.css';
+}
+
+.cancel {
+  composes: cancel from '../styles/sheet.module.css';
+  min-width: 44px;
+}
+
+/* Which place is being filed, tinted the way the move sheet tints its item. */
+.context {
+  margin: 10px 0 0;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-action-subtle);
+}
+
+.contextName {
+  color: var(--color-action-strong);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+}
+
+.state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 18px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.secondary {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}
+
+.trips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.trip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) 14px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* The trip already being collected into. Marked, not removed: taking it out of
+   the list would move every other row under the user's finger. */
+.tripHere {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: -2px;
+}
+
+/* Lets a long title wrap instead of pushing the chevron off the sheet. */
+.tripText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tripName {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tripDates {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.chevron {
+  flex: none;
+  color: var(--color-text-secondary);
+}

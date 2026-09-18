@@ -17,14 +17,8 @@ import {
   PlaceThumbnail,
 } from '../../shared/ui/components/index.js';
 import styles from './CandidatesScreen.module.css';
-import {
-  blockedSlots,
-  eligibleSlots,
-  isScheduled,
-  nextPosition,
-  visibleCandidates,
-} from './candidates.js';
-import { formatTime } from './trip-view.js';
+import { isScheduled, nextPosition, visibleCandidates } from './candidates.js';
+import { ScheduleCandidateSheet } from './ScheduleCandidateSheet.js';
 
 // Figma: S07-8 candidate panel `412:1912`
 // (FR-CAN-05, FR-CAN-07, FR-ITM-02, FE-303).
@@ -42,10 +36,21 @@ import { formatTime } from './trip-view.js';
 // MOCK DATA: listTripCandidates, getCandidateTripMatches and addTripItem have
 // no approved example (BA-034, BA-042).
 //
-// NOT BUILT, deliberately: the Figma card shows `ⓒ한국관광공사` under each place
-// and a recommendation reason line. PlaceSummary carries neither a source nor a
-// provenance, so both would be invented text — and an invented source is worse
-// than none, because CMP-ATT-003 forbids implying an origin. Raised as FCR-031.
+// The Figma card shows `ⓒ한국관광공사` under each place and a recommendation
+// reason line.
+//
+// The CREDIT ships (FCR-031 closed it): BA-022 gave PlaceSummary
+// `sourceAttribution`, and this screen renders the server's approved string
+// verbatim below — `candidate.place.sourceAttribution`. This comment used to
+// say the opposite ("PlaceSummary carries neither a source nor a provenance"),
+// which stopped being true when `b85f09d` added the field and the render, and
+// the note was left behind. A header that contradicts the code 200 lines under
+// it is worse than no header: the next reader trusts it and re-raises a closed
+// request, or deletes a render they think is invented.
+//
+// NOT BUILT: the recommendation reason line. Nothing in TripCandidate or
+// PlaceSummary explains WHY a place is a candidate — the traveller saved it —
+// so that line would be invented text (invariant 9).
 
 type TripCandidate = components['schemas']['TripCandidate'];
 
@@ -76,9 +81,18 @@ export function CandidatesScreen() {
         {/* The count waits for the list. Rendering `items.length` while the
             request is in flight shows "0 saved places" to someone who has
             three, which reads as data loss rather than as loading. */}
+        {/* The total comes from `candidateCount`, the contract's own field —
+            NOT from `items.length`, which is one PAGE of the candidates.
+            TripScreen already says this in as many words (:150) and links here
+            with that number, so counting the page made the two screens
+            disagree about the same set one tap apart: 담아둔 장소 5 became
+            담아둔 장소 3 in identical wording.
+
+            `trip` is already fetched above for the title, so this costs no
+            extra request. */}
         <h1 className={styles.title} id="candidates-heading">
-          {candidates.isSuccess
-            ? t('candidates.open', { count: items.length })
+          {trip.isSuccess
+            ? t('candidates.open', { count: trip.data.trip.candidateCount })
             : t('candidates.title')}
         </h1>
         <p className={styles.note}>{t('candidates.note')}</p>
@@ -180,8 +194,17 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join(' · ');
   const match = matches.data;
-  const eligible = match ? eligibleSlots(match) : [];
-  const blocked = match ? blockedSlots(match) : [];
+
+  /**
+   * Which day of the trip a date is, so the sheet can say `day 2` the way the
+   * itinerary does rather than a bare date the user has to map themselves.
+   *
+   * -1 when the trip has not loaded or the date is outside it; the sheet falls
+   * back to the date alone rather than printing `day 0`.
+   */
+  function dayIndexOf(date: string): number {
+    return (trip.data?.trip.days ?? []).findIndex((day) => day.date === date);
+  }
 
   function schedule(date: string, suggestedTime: string | null | undefined) {
     setFailed(null);
@@ -275,78 +298,39 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
             </p>
           ) : null}
 
-          {open ? (
-            <div className={styles.slots}>
-              {matches.isPending ? (
-                <p className={styles.state} role="status">
-                  {t('candidates.match.CHECKING')}
-                </p>
-              ) : null}
+          {/* S07-10 `527:4732`: the date choice is a bottom sheet, not an
+              inline list. The frame draws a dim + sheet with its own title,
+              context row and 취소; an expanding card gave the dates no focus
+              trap, no Escape and no accessible title of their own. */}
+          <ScheduleCandidateSheet
+            busy={add.isPending || etag === null}
+            dayIndexOf={dayIndexOf}
+            failed={matches.isError}
+            loading={matches.isPending}
+            locale={locale}
+            match={match ?? null}
+            onCancel={onToggle}
+            onPick={(slot) => {
+              schedule(slot.date, slot.suggestedTime);
+            }}
+            open={open}
+            placeName={candidate.place.name}
+          />
 
-              {matches.isError ? (
-                <p className={styles.state} role="alert">
-                  {t('candidates.match.error')}
-                </p>
-              ) : null}
-
-              {eligible.length > 0 ? (
-                <ul className={styles.dates} aria-label={t('candidates.pickDate')}>
-                  {eligible.map((slot) => (
-                    <li key={slot.date}>
-                      <button
-                        className={styles.date}
-                        disabled={add.isPending || etag === null}
-                        onClick={() => {
-                          schedule(slot.date, slot.suggestedTime);
-                        }}
-                        type="button"
-                      >
-                        {new Intl.DateTimeFormat(locale, {
-                          month: 'numeric',
-                          day: 'numeric',
-                          weekday: 'short',
-                          timeZone: 'UTC',
-                        }).format(new Date(`${slot.date}T00:00:00Z`))}
-                        {slot.suggestedTime
-                          ? ` · ${formatTime(slot.suggestedTime, locale) ?? ''}`
-                          : ''}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-
-              {/* Blocked dates are shown with their reason rather than hidden:
-                  a date that simply is not there reads as a bug. */}
-              {blocked.length > 0 ? (
-                <ul className={styles.dates}>
-                  {blocked.map((slot) => (
-                    <li className={styles.blocked} key={slot.date}>
-                      {new Intl.DateTimeFormat(locale, {
-                        month: 'numeric',
-                        day: 'numeric',
-                        timeZone: 'UTC',
-                      }).format(new Date(`${slot.date}T00:00:00Z`))}
-                      {' · '}
-                      {t('candidates.blocked')}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-
-              {add.isPending ? (
-                <p className={styles.state} role="status">
-                  {t('candidates.adding')}
-                </p>
-              ) : null}
-
-              {failed === null ? null : (
-                <p className={styles.state} role="alert">
-                  {failed}
-                </p>
-              )}
-            </div>
+          {/* Kept on the card rather than inside the sheet: the sheet closes on
+              success, and a message that closes with it would never be read.
+              A failure leaves the sheet open, so both are reachable. */}
+          {add.isPending ? (
+            <p className={styles.state} role="status">
+              {t('candidates.adding')}
+            </p>
           ) : null}
+
+          {failed === null ? null : (
+            <p className={styles.state} role="alert">
+              {failed}
+            </p>
+          )}
         </>
       )}
 

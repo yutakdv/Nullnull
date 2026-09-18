@@ -6,17 +6,28 @@
 // request the server will refuse is a screen that wastes a round trip and shows
 // an error it could have prevented.
 import { describe, expect, it } from 'vitest';
+import type { components } from '@nullnull/api-client';
 import {
   EMPTY_DRAFT,
   MAX_INTERESTS,
+  MAX_SEED_ITEMS,
   MAX_TRIP_DAYS,
+  addStop,
   canAddInterest,
+  canAddStop,
   dateError,
   rangeLength,
+  removeStop,
+  seedItemsOf,
   selectDay,
+  toggleStopMustVisit,
   toCreateRequest,
   toggleInterest,
+  tripDays,
+  type WizardDraft,
 } from '../wizard.js';
+
+type PlaceSummary = components['schemas']['PlaceSummary'];
 
 describe('picking a date range', () => {
   it('counts an inclusive range', () => {
@@ -95,6 +106,8 @@ describe('interests', () => {
         endDate: '2026-10-07',
         interests: [],
         planningLevel: 'NOTHING',
+        mustVisit: [],
+        stops: [],
       },
       'Asia/Seoul',
     );
@@ -108,6 +121,8 @@ describe('building the create request', () => {
     endDate: '2026-10-07',
     interests: ['FRIENDS', 'FOOD'],
     planningLevel: 'MUST_VISIT_ONLY' as const,
+    mustVisit: [],
+    stops: [],
   };
 
   it('carries only the fields the contract declares', () => {
@@ -132,5 +147,191 @@ describe('building the create request', () => {
     expect(toCreateRequest(EMPTY_DRAFT, 'Asia/Seoul')).toBeNull();
     expect(toCreateRequest({ ...ready, planningLevel: null }, 'Asia/Seoul')).toBeNull();
     expect(toCreateRequest({ ...ready, endDate: '2026-12-31' }, 'Asia/Seoul')).toBeNull();
+  });
+});
+
+// S02-4C-C manual entry (`438:3199`, FR-TRC-05, FE-103).
+//
+// The rules that decide what reaches the server, tested without rendering for
+// the same reason the rest of this file is: the screen cannot quietly disagree
+// with them.
+
+function placeNamed(id: string, name: string): PlaceSummary {
+  // Only the fields these rules read. The screen renders more, and
+  // must-visit.test.tsx covers that against the msw fixture.
+  return { id, name } as PlaceSummary;
+}
+
+const planned = {
+  startDate: '2026-10-04',
+  endDate: '2026-10-07',
+  interests: [],
+  planningLevel: 'MOSTLY_PLANNED' as const,
+  mustVisit: [],
+  stops: [],
+};
+
+describe('the days a manual entry screen offers', () => {
+  it('lists every day of the range, inclusive', () => {
+    expect(tripDays(planned)).toEqual([
+      '2026-10-04',
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+    ]);
+  });
+
+  it('crosses a month boundary without repeating or skipping a day', () => {
+    const days = tripDays({ ...planned, startDate: '2026-10-30', endDate: '2026-11-02' });
+    expect(days).toEqual(['2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02']);
+  });
+
+  it('offers nothing while the range is incomplete', () => {
+    expect(tripDays(EMPTY_DRAFT)).toEqual([]);
+    expect(tripDays({ ...planned, endDate: null })).toEqual([]);
+  });
+});
+
+describe('adding stops to a day', () => {
+  it('keeps a place added to two days on both', () => {
+    // A traveller can pass the same station twice; seedItems has no uniqueness
+    // rule, so this is not the duplicate that addMustVisit drops.
+    const place = placeNamed('p1', '서울역');
+    let draft = addStop(planned, '2026-10-04', place, 'k1');
+    draft = addStop(draft, '2026-10-05', place, 'k2');
+    expect(draft.stops).toHaveLength(2);
+  });
+
+  it('refuses a day outside the trip', () => {
+    // The screen only renders 장소 추가 under a real day header, so this is a
+    // guard against a caller, not something the user can reach.
+    const draft = addStop(planned, '2026-10-20', placeNamed('p1', '경복궁'), 'k1');
+    expect(draft.stops).toEqual([]);
+  });
+
+  it('stops at the contract maximum rather than dropping the last silently', () => {
+    let draft: WizardDraft = planned;
+    for (let n = 0; n < MAX_SEED_ITEMS + 3; n += 1) {
+      draft = addStop(
+        draft,
+        '2026-10-04',
+        placeNamed(`p${String(n)}`, '경복궁'),
+        `k${String(n)}`,
+      );
+    }
+    expect(draft.stops).toHaveLength(MAX_SEED_ITEMS);
+    expect(canAddStop(draft)).toBe(false);
+  });
+
+  it('removes one stop by key, leaving a repeat of the same place', () => {
+    const place = placeNamed('p1', '경복궁');
+    let draft = addStop(planned, '2026-10-04', place, 'k1');
+    draft = addStop(draft, '2026-10-04', place, 'k2');
+    draft = removeStop(draft, 'k1');
+    expect(draft.stops.map((s) => s.key)).toEqual(['k2']);
+  });
+});
+
+describe('sending manually entered stops', () => {
+  const twoDays = (() => {
+    let draft: WizardDraft = planned;
+    draft = addStop(draft, '2026-10-04', placeNamed('p1', '경복궁'), 'k1');
+    draft = addStop(draft, '2026-10-04', placeNamed('p2', '인사동'), 'k2', 'AFTERNOON');
+    draft = addStop(draft, '2026-10-05', placeNamed('p3', '남산'), 'k3');
+    return draft;
+  })();
+
+  it('never sends a time the traveller did not name', () => {
+    // THE decision of this screen. The card offers 오전 and 오후 and nothing
+    // finer, so no clock time was ever chosen; mapping 오전 to 09:00:00 would
+    // put a number in the itinerary that nobody picked and that the trip screen
+    // would then show back as fact. ItineraryParser already refuses the easier
+    // version of this inference (a bare `3시` is AMBIGUOUS_TIME), and a
+    // meridiem with no hour says even less.
+    const items = seedItemsOf(twoDays);
+    expect(items).not.toHaveLength(0);
+    expect(items.every((item) => item.startTime === null)).toBe(true);
+  });
+
+  it('numbers positions per day, restarting at zero', () => {
+    // requireDistinctPositions buckets by date, so day 2 starts over. The spine
+    // numbers the stops 1, 2, 3 within each day and this is that order.
+    const items = seedItemsOf(twoDays);
+    expect(items.map((i) => [i.date, i.position])).toEqual([
+      ['2026-10-04', 0],
+      ['2026-10-04', 1],
+      ['2026-10-05', 0],
+    ]);
+  });
+
+  it('carries the stops into the create request', () => {
+    const request = toCreateRequest(twoDays, 'Asia/Seoul');
+    expect(request?.seedItems).toHaveLength(3);
+    expect(request?.seedItems?.[0]).toMatchObject({ placeId: 'p1', date: '2026-10-04' });
+  });
+
+  it('omits seedItems entirely when no stop was entered', () => {
+    // Not `[]`: the server branches on whether seedItems is empty to decide
+    // whether the catalog publication gate applies, and an empty array would
+    // claim this trip carries seeded places.
+    const request = toCreateRequest(planned, 'Asia/Seoul');
+    expect(request).not.toBeNull();
+    expect('seedItems' in (request ?? {})).toBe(false);
+  });
+
+  it('drops the daypart, which is a sorting aid and not data', () => {
+    // If this ever needs to survive, the field for it is a real time the
+    // traveller entered — which the frame does not draw, so it needs a Figma
+    // change request first rather than an invented mapping here.
+    const items = seedItemsOf(twoDays);
+    expect(items.some((item) => 'daypart' in item)).toBe(false);
+  });
+});
+
+// S02-5C confirm (`438:3259`, FR-TRC-05, FE-103).
+//
+// The Pick toggle is a MUST_VISIT constraint on the stop's seed item. It can be
+// a lock here, unlike draft.mustVisit, precisely because the stop has a date.
+
+describe('picking must-visit places on the confirm step', () => {
+  const dayOne = (() => {
+    let draft: WizardDraft = planned;
+    draft = addStop(draft, '2026-10-04', placeNamed('p1', '경복궁'), 'k1');
+    draft = addStop(draft, '2026-10-04', placeNamed('p2', '인사동'), 'k2');
+    return draft;
+  })();
+
+  it('starts every stop unpicked, so no pick is made on the user behalf', () => {
+    expect(dayOne.stops.every((stop) => !stop.mustVisit)).toBe(true);
+  });
+
+  it('sends MUST_VISIT only for the stop that was picked', () => {
+    const picked = toggleStopMustVisit(dayOne, 'k1');
+    const items = seedItemsOf(picked);
+
+    expect(items[0]?.constraints).toEqual([{ type: 'MUST_VISIT', locked: true }]);
+    // The unpicked one carries NO constraints array rather than an empty one:
+    // absence is how "not locked" is said, and the four locks are independent
+    // and never auto-released (invariant 7).
+    expect(items[1]?.constraints).toBeUndefined();
+  });
+
+  it('turns a pick back off', () => {
+    const on = toggleStopMustVisit(dayOne, 'k1');
+    const off = toggleStopMustVisit(on, 'k1');
+    expect(seedItemsOf(off)[0]?.constraints).toBeUndefined();
+  });
+
+  it('lets every stop be picked, which is a valid answer', () => {
+    // MUST_VISIT is one lock per item and the types are independent, so there
+    // is no cross-stop cap to enforce here.
+    let draft = toggleStopMustVisit(dayOne, 'k1');
+    draft = toggleStopMustVisit(draft, 'k2');
+    expect(seedItemsOf(draft).every((item) => item.constraints?.length === 1)).toBe(true);
+  });
+
+  it('leaves the other stops alone when one is toggled', () => {
+    const picked = toggleStopMustVisit(dayOne, 'k1');
+    expect(picked.stops[1]).toEqual(dayOne.stops[1]);
   });
 });
