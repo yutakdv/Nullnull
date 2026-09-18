@@ -225,6 +225,14 @@ export const messages = {
     'tripAdd.no-trip': '여행을 만들고 담기',
     'tripAdd.loading': '담는 중이에요',
     'tripAdd.error': '담지 못했어요. 다시 시도',
+    // S03-C2/C3/C4 토스트. 문구는 Figma `399:1008`·`399:1176`·`399:1344` 그대로다.
+    // 계약 9가 토스트에 날짜·시간·"일정에 추가" 문구를 금지한다 — 후보 저장은
+    // 일정을 바꾸지 않으므로(불변식 1·2) 담았다는 사실만 말한다.
+    'tripAdd.toast.saved': '{trip}에 담았어요',
+    'tripAdd.toast.duplicate': '이미 담아둔 장소예요',
+    'tripAdd.toast.error': '저장하지 못했어요',
+    'tripAdd.toast.view': '보기',
+    'tripAdd.toast.retry': '다시 시도',
     // Sheet/TripPicker (C02). The sheet takes its copy from the caller so the
     // same component can serve the feed and the post detail without knowing
     // which one opened it.
@@ -897,6 +905,11 @@ export const messages = {
     'tripAdd.no-trip': 'Make a trip and add it',
     'tripAdd.loading': 'Adding',
     'tripAdd.error': "Couldn't add it. Try again",
+    'tripAdd.toast.saved': 'Added to {trip}',
+    'tripAdd.toast.duplicate': 'Already in your trip',
+    'tripAdd.toast.error': "Couldn't save it",
+    'tripAdd.toast.view': 'View',
+    'tripAdd.toast.retry': 'Try again',
     'tripPicker.title': 'Which trip should it go in?',
     'tripPicker.cancel': 'Cancel',
     'tripPicker.loading': 'Loading your trips',

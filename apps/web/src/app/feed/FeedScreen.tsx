@@ -7,7 +7,12 @@ import {
   useFeed,
   useTrips,
 } from '../../shared/api/index.js';
-import { FeedPostCard, TripPicker, type TripAddState } from '../../shared/ui/index.js';
+import {
+  FeedPostCard,
+  Toast,
+  TripPicker,
+  type TripAddState,
+} from '../../shared/ui/index.js';
 import styles from './FeedScreen.module.css';
 
 // Figma: S03-F0 `391:310` (no trip) and S03-F1 `396:2926` (active trip).
@@ -76,6 +81,30 @@ export function FeedScreen() {
   // flag for the screen: the buttons are one per card, and a single flag would
   // put every card into the state of whichever was pressed last.
   const [addStates, setAddStates] = useState<Record<string, TripAddState>>({});
+  // S03-C2 `399:843` / C3 `399:1011` / C4 `399:1179`: the result of a save is a
+  // toast, not a sheet and not the button alone.
+  //
+  // The button cannot carry this by itself. `saved` and `duplicate` are
+  // different facts — one made a candidate, one found it already there — and
+  // both render the same ✓ glyph, so without the toast the two screens Figma
+  // draws separately are indistinguishable. The toast is also where `보기`
+  // lives, which is the only path from the feed to the trip the place landed
+  // in.
+  //
+  // Secondary feedback, per Toast's own contract: the button keeps the
+  // durable state after the toast is gone, so nothing that must stay
+  // actionable lives only here.
+  // `postId` and `tripId` ride along because 다시 시도 has to replay the SAME
+  // save: the source provenance and the chosen trip are both part of it, and
+  // re-deriving them from the selection would retry into whichever trip is
+  // selected now rather than the one the user answered the sheet with.
+  const [toast, setToast] = useState<{
+    kind: 'saved' | 'duplicate' | 'error';
+    placeId: string;
+    postId: string;
+    tripId: string;
+    tripName: string;
+  } | null>(null);
   // One key per place, held across retries of that same save so a retry after
   // a lost response replays it instead of saving twice (invariant 6).
   const addKeys = useRef<Record<string, string>>({});
@@ -110,10 +139,34 @@ export function FeedScreen() {
             ...current,
             [placeId]: result.duplicate ? 'duplicate' : 'saved',
           }));
+          setToast({
+            kind: result.duplicate ? 'duplicate' : 'saved',
+            placeId,
+            postId,
+            tripId,
+            // Named, because the feed can collect into any of several trips
+            // and "담았어요" alone does not say which one received it.
+            tripName: tripItems.find((trip) => trip.id === tripId)?.title ?? '',
+          });
         },
         onError: () => {
-          // The key is kept, so pressing again replays this same save.
-          setAddStates((current) => ({ ...current, [placeId]: 'error' }));
+          // The card goes back to idle rather than to an error state, and the
+          // toast carries the retry. That is `Action / TripAddButton`'s own
+          // rule for this screen: "D-01 실패 화면(S03-C4)에서는 카드를
+          // 원상(idle) 유지하고 다시 시도는 Toast가 담당한다" — Figma
+          // `399:1179` draws the card with + and the error in the toast.
+          //
+          // It is also the honest state: nothing was saved, so a card that
+          // still says 담기 describes the trip correctly. An error glyph on
+          // the card would outlive the failure it refers to.
+          setAddStates((current) => {
+            const next = { ...current };
+            delete next[placeId];
+            return next;
+          });
+          // The key is kept, so pressing 다시 시도 replays this same save
+          // rather than starting a second one (invariant 6).
+          setToast({ kind: 'error', placeId, postId, tripId, tripName: '' });
         },
       },
     );
@@ -326,6 +379,39 @@ export function FeedScreen() {
         selectedTripId={selectedTripId}
         trips={tripItems}
       />
+
+      {/* S03-C2 `399:843` · C3 `399:1011` · C4 `399:1179`.
+          Not auto-dismissed on a timer: the action inside it (보기 / 다시 시도)
+          is the only one offered, and a toast that removes its own button after
+          n seconds is unusable by anyone who reads slower than the timer. It is
+          replaced by the next result and closed by acting on it. */}
+      {toast ? (
+        <Toast
+          actionLabel={
+            toast.kind === 'error' ? t('tripAdd.toast.retry') : t('tripAdd.toast.view')
+          }
+          message={
+            toast.kind === 'saved'
+              ? t('tripAdd.toast.saved', { trip: toast.tripName })
+              : toast.kind === 'duplicate'
+                ? t('tripAdd.toast.duplicate')
+                : t('tripAdd.toast.error')
+          }
+          onAction={() => {
+            if (toast.kind === 'error') {
+              setToast(null);
+              saveCandidate(toast.placeId, toast.postId, toast.tripId);
+              return;
+            }
+            // 보기 goes to the trip the place was saved into — the candidate
+            // list, not the itinerary: a candidate is not a scheduled item
+            // (invariant 1) and landing on the day view would suggest it was.
+            setToast(null);
+            void navigate(`/trip/${toast.tripId}/candidates`);
+          }}
+          tone={toast.kind === 'error' ? 'error' : 'info'}
+        />
+      ) : null}
 
       {/* A button, not an infinite scroll: a scroll handler that loads more
           has no keyboard equivalent and no announced end, and the frontend

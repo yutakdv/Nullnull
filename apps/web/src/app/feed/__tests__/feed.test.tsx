@@ -47,13 +47,18 @@ afterEach(() => {
 
 function renderFeed() {
   const router = createMemoryRouter(routes, { initialEntries: ['/feed'] });
-  return render(
-    <QueryClientProvider client={createQueryClient()}>
-      <I18nProvider>
-        <RouterProvider router={router} />
-      </I18nProvider>
-    </QueryClientProvider>,
-  );
+  // The router comes back so a test can read where a navigation landed —
+  // `window.location` never moves under a memory router.
+  return {
+    ...render(
+      <QueryClientProvider client={createQueryClient()}>
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    ),
+    router,
+  };
 }
 
 const firstTitle = feedFixtures.page.items[0]?.post.title ?? '';
@@ -596,19 +601,12 @@ describe('FE-203-T1 the add button actually saves a candidate', () => {
     renderFeed();
     await screen.findByText(firstTitle);
     await saveVia(user, firstTitle);
-    await screen.findByRole('button', { name: copy['tripAdd.error'] });
-    // The retry goes through the sheet too: the failed button is the same `+`
-    // control, and `+` opens the picker (FR-CAN-01). What matters for
-    // invariant 6 is that the SECOND request carries the first one's key, and
-    // it does — the key is held per place, not per press.
-    await user.click(screen.getByRole('button', { name: copy['tripAdd.error'] }));
-    const retrySheet = await screen.findByRole('dialog', {
-      name: copy['tripPicker.title'],
-    });
+    // S03-C4 `399:1179`: the retry lives in the toast, not on the card. The
+    // card is back to `+` — it does NOT go through the sheet again, because
+    // the trip was already answered and re-asking would let the replay land
+    // in a different trip than the save it is replaying.
     await user.click(
-      within(retrySheet).getByRole('button', {
-        name: new RegExp(tripFixtures.page.items[0]?.title ?? ''),
-      }),
+      await screen.findByRole('button', { name: copy['tripAdd.toast.retry'] }),
     );
 
     await waitFor(() => {
@@ -669,6 +667,15 @@ describe('FE-203-T1 the add button actually saves a candidate', () => {
   });
 
   it('reports a failure instead of claiming the place was saved', async () => {
+    // S03-C4 `399:1179`. Figma draws the failed card as `+` with the error in
+    // a toast, and `Action / TripAddButton`'s own documentation says so:
+    // "D-01 실패 화면(S03-C4)에서는 카드를 원상(idle) 유지하고 다시 시도는
+    // Toast가 담당한다".
+    //
+    // That is also the honest state. Nothing was saved, so a card still
+    // offering 담기 describes the trip correctly; a ✓ or an error glyph would
+    // outlive the failure it refers to and claim something about the trip that
+    // is not true.
     server.use(
       http.post(`${API_BASE}/trips/:tripId/candidates`, () =>
         problemResponse('RATE_LIMITED'),
@@ -678,9 +685,65 @@ describe('FE-203-T1 the add button actually saves a candidate', () => {
     renderFeed();
     await screen.findByText(firstTitle);
     await saveVia(user, firstTitle);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(copy['tripAdd.toast.error']);
     expect(
-      await screen.findByRole('button', { name: copy['tripAdd.error'] }),
+      within(alert).getByRole('button', { name: copy['tripAdd.toast.retry'] }),
     ).toBeInTheDocument();
+    // And THIS card is back to idle rather than holding a saved or error face.
+    // Asked of the one card that was pressed: the fixture feed already
+    // contains a place saved in another trip, so a screen-wide query for
+    // 담았어요 matches that one and would pass with this card left wrong.
+    expect(addButtonOn(firstTitle)).toHaveAccessibleName(copy['tripAdd.idle']);
+  });
+
+  it('says which trip received the place, and offers a way to it', async () => {
+    // S03-C2 `399:843`. The button alone cannot carry this: `saved` and
+    // `duplicate` render the same ✓, and the trip's NAME appears nowhere on
+    // the card. Without the toast the two screens Figma draws separately are
+    // indistinguishable, and there is no path from the feed to the trip.
+    const user = userEvent.setup();
+    const { router } = renderFeed();
+    await screen.findByText(firstTitle);
+    await saveVia(user, firstTitle);
+
+    const tripName = tripFixtures.page.items[0]?.title ?? '';
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(
+      copy['tripAdd.toast.saved'].replace('{trip}', tripName),
+    );
+    // 보기 goes to the candidate list, not the itinerary: a candidate is not a
+    // scheduled item (invariant 1) and the day view would suggest it was.
+    await user.click(
+      within(status).getByRole('button', { name: copy['tripAdd.toast.view'] }),
+    );
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(
+        `/trip/${tripFixtures.page.items[0]?.id ?? ''}/candidates`,
+      );
+    });
+  });
+
+  it('tells a duplicate apart from a fresh save', async () => {
+    // S03-C3 `399:1011`. The contract answers 200 duplicate:true, and the
+    // screen must not show a plain success for a no-op.
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, () =>
+        HttpResponse.json(saveResult(true), { status: 200 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await saveVia(user, firstTitle);
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(copy['tripAdd.toast.duplicate']);
+    // Not the saved copy — the two are different facts about the trip.
+    expect(status).not.toHaveTextContent(
+      copy['tripAdd.toast.saved'].replace('{trip}', ''),
+    );
   });
 
   it('does not send anything when no trip is selected', async () => {
