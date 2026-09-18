@@ -74,7 +74,14 @@ async function loaded() {
   return await screen.findByRole('heading', { level: 2, name: active?.place.name ?? '' });
 }
 
-/** Opens one candidate's date picker. */
+/**
+ * Opens the schedule sheet for one candidate.
+ *
+ * Returns the sheet as well as the card because S07-10 `527:4732` puts the
+ * dates in a <dialog>, not inside the card: a query scoped to the card can no
+ * longer see them, and one scoped to the screen would match the sheet of
+ * whichever card was opened last.
+ */
 async function openDates(name: string) {
   const user = userEvent.setup();
   renderPanel();
@@ -82,7 +89,10 @@ async function openDates(name: string) {
   const card = screen.getByRole('heading', { level: 2, name }).closest('article');
   if (!card) throw new Error('card not found');
   await user.click(within(card).getByRole('button', { name: copy['candidates.add'] }));
-  return { user, card };
+  const sheet = await within(card).findByRole('dialog', {
+    name: copy['candidates.sheet.title'],
+  });
+  return { user, card, sheet };
 }
 
 describe('FE-303-T2 the panel renders each state', () => {
@@ -147,8 +157,13 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
   it('shows eligible dates for an EXACT match', async () => {
     await openDates(page.items[1]?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
-    // Two eligible slots in the fixture; the third is blocked.
-    expect(within(dates).getAllByRole('button')).toHaveLength(2);
+    // Three rows in the fixture, of which two can be pressed. The blocked one
+    // is in the same list, disabled — S07-10 `527:4732` draws every day of the
+    // trip and greys the ones that cannot take the place, so the row count is
+    // the trip's days and the ENABLED count is what the server allowed.
+    const rows = within(dates).getAllByRole('button');
+    expect(rows).toHaveLength(3);
+    expect(rows.filter((row) => !row.hasAttribute('disabled'))).toHaveLength(2);
   });
 
   it('names a SIMILAR match as similar rather than presenting it as exact', async () => {
@@ -205,10 +220,17 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
   });
 
   it('shows a blocked date with a reason rather than dropping it', async () => {
-    await openDates(page.items[1]?.place.name ?? '');
+    const { sheet } = await openDates(page.items[1]?.place.name ?? '');
     // A date that simply is not there reads as a bug.
-    expect(await screen.findByText(/10\/4.*|.*10\. 4\./)).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(copy['candidates.blocked']))).toBeInTheDocument();
+    expect(await within(sheet).findByText(/10\/4.*|.*10\. 4\./)).toBeInTheDocument();
+    // The fixture's reasonCode is TIME_CONFLICT, and the row says what that
+    // MEANS. Asserting the sentence rather than the code is the point: the
+    // code is a server enum and putting it on screen is the defect this
+    // checks for.
+    expect(
+      within(sheet).getByText(copy['candidates.sheet.blocked.TIME_CONFLICT']),
+    ).toBeInTheDocument();
+    expect(within(sheet).queryByText(/TIME_CONFLICT/)).toBeNull();
   });
 });
 
@@ -487,11 +509,13 @@ describe('FE-303-T3 the panel is reachable and named', () => {
     const toggle = within(card).getByRole('button', { name: copy['candidates.add'] });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await userEvent.setup().click(toggle);
+    // The card's own toggle, followed by identity rather than looked up again
+    // by name: the sheet has a 취소 of its own and in en-US both render
+    // "Cancel", so a name query matches two buttons once the sheet is open.
     await waitFor(() => {
-      expect(
-        within(card).getByRole('button', { name: copy['candidates.cancel'] }),
-      ).toHaveAttribute('aria-expanded', 'true');
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
     });
+    expect(toggle).toHaveAccessibleName(copy['candidates.cancel']);
   });
 
   it('names the date list so its buttons are not bare numbers', async () => {
@@ -620,5 +644,51 @@ describe('FE-303 a candidate card shows an image only when it can be credited', 
     await loaded();
     expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
     expect(screen.queryByText(CREDIT)).toBeNull();
+  });
+});
+
+// S07-10 `527:4732`. The date choice moved out of the card and into a
+// <dialog> because Figma draws it as a bottom sheet — and a sheet is not a
+// styling choice: it is the focus trap, the Escape key and a title of its own,
+// none of which an expanding card had. These are the clauses that were not
+// provable before, so they are asserted rather than assumed.
+describe('FE-303-T3 the date sheet is operable without a mouse', () => {
+  it('opens focused on the one control every state has', async () => {
+    const { sheet } = await openDates(page.items[1]?.place.name ?? '');
+    // Cancel, not the first date: while the match is still being checked, or
+    // came back NONE, there is no date to land on.
+    expect(
+      within(sheet).getByRole('button', { name: copy['candidates.sheet.cancel'] }),
+    ).toHaveFocus();
+  });
+
+  it('closes on Escape without scheduling anything', async () => {
+    const { user, card, sheet } = await openDates(page.items[1]?.place.name ?? '');
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(sheet).not.toBeVisible();
+    });
+    // And the itinerary was not touched: Escape is a cancel, and a sheet that
+    // scheduled on the way out would violate invariant 1 silently.
+    expect(sent).toHaveLength(0);
+    expect(
+      within(card).getByRole('button', { name: copy['candidates.add'] }),
+    ).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('says which place it is placing', async () => {
+    // The sheet asks "어느 날에 추가할까요?" — about nothing in particular
+    // unless it names the place, and that question is identical for every card.
+    const name = page.items[1]?.place.name ?? '';
+    const { sheet } = await openDates(name);
+    expect(within(sheet).getByText(name)).toBeInTheDocument();
+    expect(
+      within(sheet).getByText(copy['candidates.sheet.newPlace']),
+    ).toBeInTheDocument();
+  });
+
+  it('is titled, so it is not an unnamed dialog', async () => {
+    const { sheet } = await openDates(page.items[1]?.place.name ?? '');
+    expect(sheet).toHaveAccessibleName(copy['candidates.sheet.title']);
   });
 });
