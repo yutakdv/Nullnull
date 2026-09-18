@@ -1704,7 +1704,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "APPLY·KEEP의 멱등 원자 결정",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-050",
         "BA-051"
@@ -1735,7 +1735,7 @@
       "tests": [
         {
           "id": "BA-052-T1",
-          "assertion": "동시 APPLY/APPLY 및 APPLY/KEEP에서 최초 결정 하나만 반영된다"
+          "assertion": "순차로 두 번째 결정(APPLY·KEEP)이 오면 status 검사로 거절되고 최초 결정 하나만 남는다"
         },
         {
           "id": "BA-052-T2",
@@ -1772,6 +1772,26 @@
         {
           "id": "BA-052-T10",
           "assertion": "run의 최초 결정은 하나이고 REVERT는 그것이 아니다"
+        },
+        {
+          "id": "BA-052-T11",
+          "assertion": "KEEP은 trip의 item·version·revision을 쓰지 않는다"
+        },
+        {
+          "id": "BA-052-T12",
+          "assertion": "동시에 온 APPLY와 KEEP은 index가 중재해 하나만 반영되고, 진 쪽은 item 이동까지 포함해 부분 적용 없이 rollback된다"
+        },
+        {
+          "id": "BA-052-T13",
+          "assertion": "동시에 온 두 APPLY는 trip version 재조회가 중재해 하나만 반영된다"
+        },
+        {
+          "id": "BA-052-T14",
+          "assertion": "preview가 비교 적격으로 판정한 crowd 근거에 그 뒤 incident가 선언되면 APPLY가 거절된다"
+        },
+        {
+          "id": "BA-052-T15",
+          "assertion": "preview가 고른 날짜를 현재 opening hours로 같은 판정에 다시 넣어 통과하지 못하면 APPLY가 거절된다"
         }
       ],
       "handoff": "APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures.",

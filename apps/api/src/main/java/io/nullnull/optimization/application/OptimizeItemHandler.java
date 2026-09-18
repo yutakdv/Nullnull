@@ -321,11 +321,18 @@ public class OptimizeItemHandler implements JobHandler {
         Map<LocalDate, CatalogOpeningWindow> verified = hours.windowsFor(placeId,
                 trip.range().startDate(), trip.range().endDate(), now);
         Map<LocalDate, OpeningWindowIn> converted = new LinkedHashMap<>(verified.size());
-        verified.forEach((date, window) -> converted.put(date,
-                window.state() == CatalogOpeningWindow.State.OPEN
-                        ? OpeningWindowIn.open(window.opensAt(), window.closesAt())
-                        : OpeningWindowIn.closed()));
+        verified.forEach((date, window) -> converted.put(date, windowIn(window)));
         return converted;
+    }
+
+    /**
+     * A verified catalog window as the proposal judgment reads it. Shared with decideOptimization,
+     * which re-runs that judgment at APPLY (BA-052-T15) and must see hours the way the preview did.
+     */
+    static OpeningWindowIn windowIn(CatalogOpeningWindow window) {
+        return window.state() == CatalogOpeningWindow.State.OPEN
+                ? OpeningWindowIn.open(window.opensAt(), window.closesAt())
+                : OpeningWindowIn.closed();
     }
 
     private void failRun(JobContext context, OptimizationRun run, OptimizationFailureCode code,

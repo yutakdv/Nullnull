@@ -2,6 +2,7 @@ package io.nullnull.optimization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,7 +33,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +50,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
@@ -71,10 +79,13 @@ class OptimizeDecisionIT {
     private static final String FORECAST_SOURCE = "KTO_CONCENTRATION_FORECAST";
     private static final BigDecimal CROWDED = new BigDecimal("80.0000");
     private static final BigDecimal QUIET = new BigDecimal("20.0000");
+    /** The status check's sentence (OptimizationService.record); the index's is "already decided". */
+    private static final String NOT_OFFERING = "This run is no longer offering a preview to decide on.";
 
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired DataSource dataSource;
     @MockitoBean RecommendationGateway recommendations;
     @MockitoBean CatalogHoursQuery hours;
 
@@ -83,10 +94,15 @@ class OptimizeDecisionIT {
     private final List<UUID> snapshotSets = new ArrayList<>();
     private final List<UUID> collectorRuns = new ArrayList<>();
     private final List<UUID> runIds = new ArrayList<>();
+    private final List<UUID> incidents = new ArrayList<>();
 
     /** Only rows this class created, each named by an id it minted (AGENTS.md rule 6). */
     @AfterEach
     void removeOnlyOwnFixtures() {
+        // First: a QUARANTINE left behind would flag every forecast fetched in its window.
+        for (UUID incident : incidents) {
+            jdbc.update("DELETE FROM source_quality_incidents WHERE id = ?", incident);
+        }
         for (UUID runId : runIds) {
             jdbc.update("DELETE FROM background_jobs WHERE deduplication_key = ?", "optimization:" + runId);
         }
@@ -133,24 +149,183 @@ class OptimizeDecisionIT {
         // moved to version 2, so the If-Match a second caller would hold is that one.
         decide(fixture, runId, proposalId, "KEEP", "\"2\"")
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("DATA_CHANGED"));
+                .andExpect(jsonPath("$.code").value("DATA_CHANGED"))
+                .andExpect(jsonPath("$.detail").value(NOT_OFFERING));
 
-        // TWO guards produce this, and neither is individually necessary - measured, not assumed:
+        // T1 is the status check's clause. A second decision sent after the first has committed reads
+        // a run that is already decided, and the check refuses it in its own sentence - asserted,
+        // because the index behind it would refuse this request too, with the same code and a
+        // different sentence. Measured with this class as it stands:
         //
-        //   status != READY disabled            red=0   the index refuses instead
-        //   insertIfFirst's answer ignored      red=0   the status check refuses instead
-        //   both disabled                       red=1   this case, and only this case
+        //   status != READY disabled            red=2   both T1 cases, and no other
+        //   insertIfFirst's answer ignored      red=1   only T12, the concurrent APPLY/KEEP case
+        //   both disabled                       red=3   the two above together
         //
-        // So this asserts the outcome, not a line. Say it that way rather than crediting one of
-        // them: a reader who deletes "the load-bearing check" would find the suite still green and
-        // conclude the other is dead code. The index is proven where it can actually arbitrate - at
-        // the SQL layer, by OptimizationDecisionSchemaIT's BA-052-T10 - because from HTTP two
-        // decisions by one owner are serialised before they meet it: IdempotencyGuard locks the
-        // owner row as its first statement and holds it through commit.
+        // The index answers when two decisions RACE: decideOptimization reads the run before the
+        // idempotency guard takes the owner lock, so a request that read READY before the other
+        // committed passes the status check on that read. T12 races that over HTTP; T10 proves the
+        // index on its own at the SQL layer.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM optimization_decisions WHERE run_id = ?",
                 Integer.class, runId))
                 .as("a decided run refuses a second decision, and records one row")
                 .isOne();
+    }
+
+    @Test
+    @DisplayName("BA-052-T12 an APPLY and a KEEP sent at once: the index keeps one, the other rolls back")
+    void concurrentApplyAndKeepRecordOneDecision() throws Exception {
+        Raced raced = race("APPLY", "KEEP");
+        MvcResult apply = raced.first();
+        MvcResult keep = raced.second();
+        assertThat(List.of(apply.getResponse().getStatus(), keep.getResponse().getStatus()))
+                .containsExactlyInAnyOrder(200, 409);
+        boolean applyWon = apply.getResponse().getStatus() == 200;
+        MvcResult refused = applyWon ? keep : apply;
+
+        // The loser read READY and passed the status check on it, so it was refused at the write:
+        // this sentence belongs to insertIfFirst and the run transition. A loser that had read the run
+        // fresh would carry the status check's "no longer offering a preview" instead - which is what
+        // both sequential cases get, and why they cannot see this branch.
+        assertThat(refused.getResponse().getContentAsString())
+                .contains("\"DATA_CHANGED\"").contains("This run was already decided.");
+        assertThat(decisionCount(raced.runId())).isOne();
+        assertThat(runColumn(raced.runId(), "status")).isEqualTo(applyWon ? "APPLIED" : "KEPT");
+        // When the KEEP wins, the APPLY really moved the item before its decision write was refused;
+        // the item being back on day one is that transaction rolling back.
+        assertThat(itemDate(raced.fixture().itemId()))
+                .isEqualTo((applyWon ? DAY_TWO : DAY_ONE).toString());
+        assertThat(tripVersion(raced.fixture().tripId())).isEqualTo(applyWon ? 2L : 1L);
+    }
+
+    @Test
+    @DisplayName("BA-052-T13 two APPLYs sent at once: the trip version keeps one, the other is refused")
+    void concurrentAppliesRecordOneDecision() throws Exception {
+        Raced raced = race("APPLY", "APPLY");
+        assertThat(List.of(raced.first().getResponse().getStatus(), raced.second().getResponse().getStatus()))
+                .containsExactlyInAnyOrder(200, 409);
+        MvcResult refused = raced.first().getResponse().getStatus() == 409 ? raced.first() : raced.second();
+
+        // The loser read READY too, and the trip module refused it: the winner had already moved the
+        // trip to version 2 and the loser still holds "1". A fresh read would have been the status
+        // check's DATA_CHANGED instead.
+        assertThat(refused.getResponse().getContentAsString()).contains("\"TRIP_CHANGED\"");
+        assertThat(decisionCount(raced.runId())).isOne();
+        assertThat(runColumn(raced.runId(), "status")).isEqualTo("APPLIED");
+        assertThat(tripVersion(raced.fixture().tripId())).as("moved once").isEqualTo(2L);
+    }
+
+    private record Raced(Fixture fixture, UUID runId, MvcResult first, MvcResult second) {
+    }
+
+    /**
+     * Two decisions on one run, interleaved the way a race interleaves them.
+     *
+     * <p>decideOptimization reads the run BEFORE the idempotency guard takes the owner lock, and the
+     * status check runs on that read. So two requests can both read READY; the owner lock then orders
+     * their writes but not their reads, and the second one checks a status that is no longer true.
+     * The session check in front of the controller also locks the owner row, which is why the owner
+     * row cannot be the thing held here: both requests would stop before reading the run.
+     *
+     * <p>So the table is held instead. Both requests pass the session check and wait to read the run;
+     * the table is released and both read READY. Whichever takes the owner lock first is paused inside
+     * its transaction (in the policy lookup record() makes) until the other is seen queued on the
+     * owner row - by then it has read READY for certain - and only then let go. Which of the two wins
+     * is the lock queue's choice; the assertions hold for either.
+     */
+    private Raced race(String firstKind, String secondKind) throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+
+        PolicyDescriptor policy = new PolicyDescriptor(PolicyPins.V1.policyVersion(),
+                PolicyPins.V1.policyHash(), PolicyPins.V1.pipelineVersion(), "test-service");
+        AtomicBoolean armed = new AtomicBoolean(true);
+        CountDownLatch paused = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(call -> {
+            if (armed.compareAndSet(true, false)) {
+                paused.countDown();
+                if (!resume.await(30, TimeUnit.SECONDS)) {
+                    throw new AssertionError("the race was never let go");
+                }
+            }
+            return policy;
+        }).when(recommendations).policy();
+
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try (java.sql.Connection holder = dataSource.getConnection()) {
+            holder.setAutoCommit(false);
+            int holderPid;
+            try (java.sql.Statement statement = holder.createStatement()) {
+                java.sql.ResultSet pid = statement.executeQuery("SELECT pg_backend_pid()");
+                pid.next();
+                holderPid = pid.getInt(1);
+                statement.execute("LOCK TABLE optimization_runs IN ACCESS EXCLUSIVE MODE");
+            }
+            Future<MvcResult> first = callers.submit(() ->
+                    decide(fixture, runId, proposalId, firstKind, "\"1\"").andReturn());
+            Future<MvcResult> second = callers.submit(() ->
+                    decide(fixture, runId, proposalId, secondKind, "\"1\"").andReturn());
+
+            // Both past the session check, both waiting on the run read (findForOwner's predicate).
+            org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid))"
+                            + " AND query ILIKE '%requested_by_owner_id%'", Integer.class, holderPid) == 2);
+            holder.rollback();
+
+            assertThat(paused.await(30, TimeUnit.SECONDS)).as("one decision is inside its transaction").isTrue();
+            // The other has read READY and is queued on the owner row the first one holds.
+            org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
+                            + " AND query ILIKE '%from owners%'", Integer.class) == 1);
+            resume.countDown();
+
+            return new Raced(fixture, runId, first.get(60, TimeUnit.SECONDS), second.get(60, TimeUnit.SECONDS));
+        } finally {
+            resume.countDown();
+            callers.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("BA-052-T1 a second APPLY on a run already applied is refused")
+    void aSecondApplyIsRefused() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+
+        decide(fixture, runId, proposalId, "APPLY", "\"1\"").andExpect(status().isOk());
+
+        // The other second decision after the KEEP case above: a different key, and the version the
+        // first APPLY produced, so neither a replay nor a stale If-Match answers: the status check
+        // does, as in the case above.
+        decide(fixture, runId, proposalId, "APPLY", "\"2\"")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DATA_CHANGED"))
+                .andExpect(jsonPath("$.detail").value(NOT_OFFERING));
+
+        assertThat(decisionCount(runId)).as("one decision row").isOne();
+        assertThat(tripVersion(fixture.tripId())).as("the trip moved once, not twice").isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("BA-052-T11 a KEEP records its decision and writes no trip row")
+    void aKeepWritesNoTripRow() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        long versionBefore = tripVersion(fixture.tripId());
+        int revisionsBefore = revisionCount(fixture.tripId());
+
+        decide(fixture, runId, proposalId, "KEEP", "\"1\"").andExpect(status().isOk());
+
+        // Recorded, so the request reached the write rather than being refused before it.
+        assertThat(decisionCount(runId)).isOne();
+        assertThat(runColumn(runId, "status")).isEqualTo("KEPT");
+        // Invariant 4: a KEEP writes no trip row - no item, no version, no revision.
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+        assertThat(tripVersion(fixture.tripId())).isEqualTo(versionBefore);
+        assertThat(revisionCount(fixture.tripId())).isEqualTo(revisionsBefore);
     }
 
     @Test
@@ -160,7 +335,9 @@ class OptimizeDecisionIT {
         UUID runId = readyRun(fixture);
         UUID proposalId = proposalOf(runId);
 
-        // The edit a user makes in another tab while looking at the preview.
+        // The edit a user makes in another tab while looking at the preview. This case sends the
+        // stale ETag "1", which the trip module's If-Match check refuses; the next case sends the
+        // current one, which only the run's own inputTripVersion can refuse.
         jdbc.update("UPDATE trips SET version = 2, updated_at = now() WHERE id = ?", fixture.tripId());
 
         decide(fixture, runId, proposalId, "APPLY", "\"1\"")
@@ -169,6 +346,35 @@ class OptimizeDecisionIT {
 
         assertThat(decisionCount(runId)).as("a refused decision records nothing").isZero();
         assertThat(itemDate(fixture.itemId())).as("and moves nothing").isEqualTo(DAY_ONE.toString());
+    }
+
+    @Test
+    @DisplayName("BA-052-T3 a preview computed before a trip edit is refused even with the current ETag")
+    void aStalePreviewIsRefusedWithTheCurrentETag() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+
+        // Through the API, so the version moves the way another tab moves it.
+        mvc.perform(patch("/api/v1/trips/" + fixture.tripId())
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", fixture.owner().csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .contentType("application/merge-patch+json")
+                        .content("{\"title\":\"다른 탭에서 고친 제목\"}"))
+                .andExpect(status().isOk());
+
+        // The caller refreshed and holds version 2, so If-Match agrees with the trip and the trip
+        // module's check passes. The preview was still judged against version 1, and nothing but the
+        // run's inputTripVersion knows that.
+        decide(fixture, runId, proposalId, "APPLY", "\"2\"")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRIP_CHANGED"));
+
+        assertThat(decisionCount(runId)).as("a refused decision records nothing").isZero();
+        assertThat(itemDate(fixture.itemId())).as("and moves nothing").isEqualTo(DAY_ONE.toString());
+        assertThat(tripVersion(fixture.tripId())).as("only the edit moved the version").isEqualTo(2L);
     }
 
     @Test
@@ -265,6 +471,151 @@ class OptimizeDecisionIT {
                 + " AND type = 'MUST_VISIT'", Integer.class, fixture.itemId()))
                 .as("an APPLY is the machine's proposal being accepted, not a person answering a lock")
                 .isOne();
+    }
+
+    @Test
+    @DisplayName("BA-052-T8 a TIME lock the move satisfies is still there after the APPLY")
+    void applyKeepsATimeLock() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        // 09:00 with no tolerance: the proposal moves the day and keeps the time, so this lock does not
+        // refuse it - like MUST_VISIT, the question is whether the APPLY removes it on the way past.
+        insertLock(fixture.tripId(), fixture.itemId(), "TIME", null, AT_NINE, 0);
+
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"").andExpect(status().isOk());
+
+        assertThat(itemDate(fixture.itemId())).as("the apply really moved the item").isEqualTo(DAY_TWO.toString());
+        assertThat(lockCount(fixture.itemId(), "TIME")).isOne();
+    }
+
+    @Test
+    @DisplayName("BA-052-T8 a DATE lock the move breaks refuses the APPLY and is still there")
+    void aDateLockRefusesRatherThanReleases() throws Exception {
+        assertARefusingLockSurvives("DATE", DAY_ONE, null, "DATE_LOCKED");
+    }
+
+    @Test
+    @DisplayName("BA-052-T8 a RESERVATION the move breaks refuses the APPLY and is still there")
+    void aReservationRefusesRatherThanReleases() throws Exception {
+        assertARefusingLockSurvives("RESERVATION", DAY_ONE, AT_NINE, "RESERVATION_LOCKED");
+    }
+
+    /**
+     * A lock the proposal breaks, present when the APPLY runs.
+     *
+     * <p>Written straight to the table after READY, and that is a state the product reaches only
+     * through a defect elsewhere: a lock set through the API raises the trip version, so the version
+     * check refuses first, and a lock present at preview time keeps the proposal from being offered.
+     * The case is the guard behind those two - the same reasoning as T5, which constructs what its
+     * guard stands against because nothing produces it. What it pins is the direction: the move is
+     * refused and the lock stays, rather than the lock going so the move can happen (reorder releases
+     * constraints; APPLY must not learn to).
+     */
+    private void assertARefusingLockSurvives(String type, LocalDate date, LocalTime time, String code)
+            throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        insertLock(fixture.tripId(), fixture.itemId(), type, date, time, null);
+
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("LOCK_CONFLICT"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString(code)));
+
+        assertThat(lockCount(fixture.itemId(), type)).as("the lock is still there").isOne();
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+        assertThat(decisionCount(runId)).isZero();
+    }
+
+    @Test
+    @DisplayName("BA-052-T14 an incident declared on the compared forecast after the preview refuses the APPLY")
+    void anIncidentOnTheComparedForecastRefusesTheApply() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        assertThat(comparisonEligible(runId)).as("the preview made a crowd comparison").isTrue();
+        Instant fetched = fetchedAtOfLastSet();
+        quarantine(fetched.minusSeconds(60), fetched.plusSeconds(60));
+
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DATA_CHANGED"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("quarantined")));
+        assertThat(decisionCount(runId)).isZero();
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+    }
+
+    @Test
+    @DisplayName("BA-052-T14 an incident covering none of the compared points does not refuse the APPLY")
+    void anIncidentElsewhereDoesNotRefuse() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        assertThat(comparisonEligible(runId)).isTrue();
+        // Same source, a window that starts after every frozen point was fetched.
+        Instant fetched = fetchedAtOfLastSet();
+        quarantine(fetched.plusSeconds(3600), fetched.plusSeconds(7200));
+
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("BA-052-T15 a proposed day that has closed since the preview refuses the APPLY")
+    void aDayThatClosedRefusesTheApply() throws Exception {
+        assertHoursNowRefuse(Map.of(DAY_ONE, openAllDay(),
+                DAY_TWO, new CatalogOpeningWindow(CatalogOpeningWindow.State.CLOSED, null, null)));
+    }
+
+    @Test
+    @DisplayName("BA-052-T15 a proposed day whose hours are no longer verified refuses the APPLY")
+    void aDayNoLongerVerifiedRefusesTheApply() throws Exception {
+        // DAY_TWO absent: unverified, which the preview never proposes.
+        assertHoursNowRefuse(Map.of(DAY_ONE, openAllDay()));
+    }
+
+    @Test
+    @DisplayName("BA-052-T15 a proposed day whose window no longer holds the stay refuses the APPLY")
+    void aWindowThatNoLongerHoldsTheStayRefusesTheApply() throws Exception {
+        // The stay is 09:00 for 90 minutes; the window now opens at 10:00.
+        assertHoursNowRefuse(Map.of(DAY_ONE, openAllDay(), DAY_TWO, new CatalogOpeningWindow(
+                CatalogOpeningWindow.State.OPEN, LocalTime.of(10, 0), LocalTime.of(20, 0))));
+    }
+
+    /**
+     * The hours change after the preview was judged: stubbed only now, so the preview saw both days
+     * open all day. Every other APPLY in this class runs with them still open and goes through, which
+     * is what makes these refusals about the hours.
+     */
+    private void assertHoursNowRefuse(Map<LocalDate, CatalogOpeningWindow> now) throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        org.mockito.Mockito.doReturn(now).when(hours).windowsFor(any(), any(), any(), any());
+
+        decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DATA_CHANGED"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("opening hours")));
+        assertThat(decisionCount(runId)).isZero();
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+    }
+
+    private boolean comparisonEligible(UUID runId) {
+        return jdbc.queryForObject("SELECT comparison_eligible FROM optimization_proposals WHERE run_id = ?",
+                Boolean.class, runId);
+    }
+
+    private Instant fetchedAtOfLastSet() {
+        return jdbc.queryForObject("SELECT fetched_at FROM snapshot_sets WHERE id = ?", Timestamp.class,
+                snapshotSets.get(snapshotSets.size() - 1)).toInstant();
+    }
+
+    /** A QUARANTINE on the forecast source, removed by id after the case. */
+    private void quarantine(Instant from, Instant to) {
+        UUID id = UUID.randomUUID();
+        incidents.add(id);
+        jdbc.update("INSERT INTO source_quality_incidents (id, source_code, incident_code, affected_from,"
+                + " affected_to, scope, disposition, reviewed_at)"
+                + " VALUES (?, ?, ?, ?, ?, 'BA-052 fixture', 'QUARANTINE', ?)",
+                id, FORECAST_SOURCE, "ba052-" + id, Timestamp.from(from), Timestamp.from(to),
+                Timestamp.from(Instant.now()));
     }
 
     // ---- fixture -------------------------------------------------------------------------------
@@ -403,6 +754,21 @@ class OptimizeDecisionIT {
         return itemId;
     }
 
+    private void insertLock(UUID tripId, UUID itemId, String type, LocalDate date, LocalTime time,
+            Integer tolerance) {
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("INSERT INTO trip_constraints (id, trip_id, trip_item_id, type, source,"
+                + " date_value, start_time_value, tolerance_minutes, created_at, updated_at)"
+                + " VALUES (?, ?, ?, ?, 'USER', ?, CAST(? AS time), ?, ?, ?)",
+                UUID.randomUUID(), tripId, itemId, type, date == null ? null : java.sql.Date.valueOf(date),
+                time == null ? null : time.toString(), tolerance, now, now);
+    }
+
+    private int lockCount(UUID itemId, String type) {
+        return jdbc.queryForObject("SELECT count(*) FROM trip_constraints WHERE trip_item_id = ? AND type = ?",
+                Integer.class, itemId, type);
+    }
+
     private void lock(UUID tripId, UUID itemId, String type) {
         OffsetDateTime now = OffsetDateTime.now();
         jdbc.update("INSERT INTO trip_constraints (id, trip_id, trip_item_id, type, source,"
@@ -456,6 +822,15 @@ class OptimizeDecisionIT {
     private int decisionCount(UUID runId) {
         return jdbc.queryForObject("SELECT count(*) FROM optimization_decisions WHERE run_id = ?",
                 Integer.class, runId);
+    }
+
+    private long tripVersion(UUID tripId) {
+        return jdbc.queryForObject("SELECT version FROM trips WHERE id = ?", Long.class, tripId);
+    }
+
+    private int revisionCount(UUID tripId) {
+        return jdbc.queryForObject("SELECT count(*) FROM trip_revisions WHERE trip_id = ?",
+                Integer.class, tripId);
     }
 
     private String itemDate(UUID itemId) {

@@ -49,19 +49,43 @@ class OptimizationDecisionSchemaIT {
     @DisplayName("BA-052-T9 a decision carries exactly the fields its kind has, in all three shapes")
     void eachDecisionCarriesItsOwnFields() {
         seed();
+        UUID before = revision();
+        UUID after = revision();
 
-        // A KEEP changes nothing, so a trip version recorded on one would claim it did.
-        assertThatThrownBy(() -> decision("KEEP", 7L, revision(), revision(), null, true))
-                .isInstanceOf(DataAccessException.class);
+        // Every refused row breaks ONE conjunct of the shape CHECK and is refused by that constraint by
+        // name. A row that broke two conjuncts - or that also broke the reverted_decision_id foreign
+        // key, as a random target does - would stay refused whichever conjunct was removed, and "it
+        // threw" would prove nothing about the one this line is about.
+
+        // A KEEP changes nothing, so it carries none of the five.
+        refusedByShape("KEEP", 7L, null, null, null, false);
+        refusedByShape("KEEP", null, before, null, null, false);
+        refusedByShape("KEEP", null, null, after, null, false);
+        refusedByShape("KEEP", null, null, null, null, true);
+        UUID kept = decision("KEEP", null, null, null, null, false);
+        // Removed again so the run can take the APPLY the rest of the case needs: one initial
+        // decision per run is V030's partial index, a different rule from this one.
+        jdbc.update("DELETE FROM optimization_decisions WHERE id = ?", kept);
+
         // An APPLY without a revert window is an APPLY nobody could take back.
-        assertThatThrownBy(() -> decision("APPLY", 7L, revision(), revision(), null, false))
-                .isInstanceOf(DataAccessException.class);
-        // A REVERT cannot itself be reverted, which the contract says by leaving revertUntil out of
-        // RevertOptimizationDecision.
-        assertThatThrownBy(() -> decision("REVERT", 7L, revision(), revision(), UUID.randomUUID(), true))
-                .isInstanceOf(DataAccessException.class);
+        refusedByShape("APPLY", 7L, before, after, null, false);
+        UUID applied = decision("APPLY", 7L, before, after, null, true);
+        // With a real APPLY to point at, a target is the only thing wrong with these two.
+        refusedByShape("KEEP", null, null, null, applied, false);
+        refusedByShape("APPLY", 7L, before, after, applied, true);
 
-        assertThatCode(() -> decision("KEEP", null, null, null, null, false)).doesNotThrowAnyException();
+        // A REVERT cannot itself be reverted, which the contract says by leaving revertUntil out of
+        // RevertOptimizationDecision. The target is real, so the foreign key cannot be what refuses it.
+        refusedByShape("REVERT", 8L, revision(), revision(), applied, true);
+        assertThatCode(() -> decision("REVERT", 8L, revision(), revision(), applied, false))
+                .doesNotThrowAnyException();
+    }
+
+    private void refusedByShape(String kind, Long resultingVersion, UUID before, UUID after,
+            UUID reverted, boolean revertWindow) {
+        assertThatThrownBy(() -> decision(kind, resultingVersion, before, after, reverted, revertWindow))
+                .isInstanceOf(DataAccessException.class)
+                .hasStackTraceContaining("optimization_decisions_shape_check");
     }
 
     @Test
