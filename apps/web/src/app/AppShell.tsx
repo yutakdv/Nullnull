@@ -1,9 +1,12 @@
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
 import { useQuery } from '@tanstack/react-query';
+import type { components } from '@nullnull/api-client';
 import { isProblem, sessionQueryKey, useCsrfToken } from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
+
+type SessionBootstrap = components['schemas']['SessionBootstrap'];
 
 // The app chrome: content plus the four-tab bar (C12).
 //
@@ -87,9 +90,22 @@ export function AppShell({ tabs = false }: AppShellProps) {
   // owns - it never creates one.
   // `enabled: false` is what makes this an observer and not a second caller:
   // the hook subscribes to the cache entry and never runs a queryFn.
-  const bootstrapped = useQuery({ queryKey: sessionQueryKey, enabled: false }).isSuccess;
+  const session = useQuery<SessionBootstrap>({
+    queryKey: sessionQueryKey,
+    enabled: false,
+  });
+  const bootstrapped = session.isSuccess;
   const sessionGone =
     isProblem(csrf.error) && csrf.error.code === 'UNAUTHORIZED' && !bootstrapped;
+
+  // Where the 내 여행 tab goes, read from the same cache entry rather than
+  // fetched: `useSessionBootstrap` owns it and asks once per load, and a second
+  // caller here would POST /demo/sessions again — which mints a different
+  // anonymous owner and strands the trips this tab is trying to open.
+  //
+  // `useUpdatePreferences` writes the owner back into this entry after a PATCH,
+  // so creating a trip moves the tab without a reload.
+  const activeTripId = session.data?.owner.activeTripId ?? null;
 
   if (sessionGone) {
     // Only 401. A network failure is not an ended session, and replacing the
@@ -158,11 +174,17 @@ export function AppShell({ tabs = false }: AppShellProps) {
             navLabel={t('nav.tabs')}
             onSelect={(key) => {
               if (key === 'trip') {
-                // There is no single "my trip" URL: the active trip comes from
-                // the owner profile (BA-011's activeTripId), which is not wired
-                // yet. Until it is, the tab goes to the list on the profile
-                // rather than guessing at a trip id.
-                void navigate('/profile');
+                // There is no single "my trip" URL — the tab resolves at press
+                // time to the owner's active trip (BA-011's `activeTripId`),
+                // which the wizard sets on every create.
+                //
+                // The fallback is the trip list on the profile, and it is a
+                // real state rather than a stopgap: a traveller who has made no
+                // trip has none to open, and one whose active trip was deleted
+                // has the pointer cleared by `owners.active_trip_id`'s ON
+                // DELETE SET NULL. Both land on the list, which is where a trip
+                // gets picked.
+                void navigate(activeTripId ? `/trip/${activeTripId}` : '/profile');
                 return;
               }
               void navigate(TAB_PATHS[key]);

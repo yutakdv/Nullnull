@@ -165,6 +165,7 @@ type UpdatePreferencesRequest = components['schemas']['UpdatePreferencesRequest'
  * choice did not reach the server.
  */
 export function useUpdatePreferences() {
+  const queryClient = useQueryClient();
   return useMutation<OwnerProfile, Problem | Error, UpdatePreferencesRequest>({
     mutationFn: async (patch) => {
       const { data, error, response } = await getApiClient().PATCH('/me', {
@@ -176,6 +177,24 @@ export function useUpdatePreferences() {
       });
       if (!data) fail(error, response);
       return data;
+    },
+    onSuccess: (owner) => {
+      // The bootstrap entry holds the owner profile, and for `activeTripId`
+      // that cache IS the source of truth — AppShell reads it to decide where
+      // the 내 여행 tab goes. Leaving it stale means the tab keeps sending the
+      // traveller to the fallback until the next full load.
+      //
+      // Written from the RESPONSE rather than from the patch: a merge patch
+      // says what changed, and the server answers with the whole profile after
+      // applying it. Merging the request instead would copy a value the server
+      // may have rejected or normalised.
+      //
+      // setQueryData, not invalidateQueries: bootstrapping again would POST
+      // /demo/sessions, and `useSessionBootstrap` exists precisely to keep that
+      // to one call per load (a repeat mints a second anonymous owner).
+      queryClient.setQueryData<SessionBootstrap>(sessionQueryKey, (current) =>
+        current ? { ...current, owner } : current,
+      );
     },
   });
 }

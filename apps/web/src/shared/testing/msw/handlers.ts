@@ -72,6 +72,18 @@ function currentTripPage() {
   return tripPageState;
 }
 
+/**
+ * The owner profile, which PATCH /me mutates and every bootstrap answers with.
+ *
+ * Stateful for the same reason the trip list is — see the PATCH handler.
+ */
+let ownerState: (typeof sessionFixtures)['owner'] | null = null;
+
+function currentOwner() {
+  ownerState ??= sessionFixtures.owner;
+  return ownerState;
+}
+
 let candidateState: (typeof candidateFixtures)['page'] | null = null;
 
 function currentCandidates() {
@@ -227,6 +239,7 @@ const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
 export function resetMockState(): void {
   tripState = null;
   tripPageState = null;
+  ownerState = null;
   candidateState = null;
   importDraftState = null;
   savedPosts.clear();
@@ -238,18 +251,35 @@ export function resetMockState(): void {
  * FE-003 needs. Screen slices add their own as their fixtures arrive from BE.
  */
 export const handlers = [
+  // The bootstrap carries the owner, so it has to serve the SAME one PATCH /me
+  // writes. Serving the flat fixture here would undo every preference on the
+  // next load while the PATCH handler still reported success.
   http.post(`${API_BASE}/demo/sessions`, () =>
-    HttpResponse.json(sessionFixtures.bootstrap, { status: 201 }),
+    HttpResponse.json(
+      { ...sessionFixtures.bootstrap, owner: currentOwner() },
+      { status: 201 },
+    ),
   ),
   http.post(`${API_BASE}/session/csrf`, () =>
     HttpResponse.json(sessionFixtures.csrfToken),
   ),
-  http.get(`${API_BASE}/me`, () => HttpResponse.json(sessionFixtures.owner)),
-  // Merge-patch: echo the fixture with the patch applied, so a screen sees the
-  // field it just wrote. The body is still fixture-shaped, not hand-built.
+  http.get(`${API_BASE}/me`, () => HttpResponse.json(currentOwner())),
+  // Merge-patch, and STATEFUL for the reason the trip list is: the owner
+  // profile is what the next bootstrap answers with, so a handler that echoed
+  // the patch and forgot it would make "the preference stuck" true for exactly
+  // one render and false after any reload.
+  //
+  // `activeTripId` is the case that showed it. The 내 여행 tab resolves through
+  // this field, the wizard PATCHes it on create, and a reload re-bootstraps —
+  // against a flat fixture the tab went back to the fallback every time, which
+  // reads as "the tab is broken" and is really "the mock forgot".
   http.patch(`${API_BASE}/me`, async ({ request }) => {
     const patch = (await request.json()) as Partial<typeof sessionFixtures.owner>;
-    return HttpResponse.json({ ...sessionFixtures.owner, ...patch });
+    // Merge-patch semantics: omitted fields keep their value, an explicit null
+    // clears. Spreading the patch over the current owner is exactly that,
+    // because `undefined` never appears in parsed JSON.
+    ownerState = { ...currentOwner(), ...patch };
+    return HttpResponse.json(ownerState);
   }),
 
   // MOCK DATA (FE-105) — these two operations have no approved example, so the
