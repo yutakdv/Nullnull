@@ -807,11 +807,11 @@
       "featureIds": [],
       "figmaNodes": [],
       "designRequests": [],
-      "entities": "catalog.place_relations · relation evidence · RelatedPlaceRanker(apps/ai related/rank)",
+      "entities": "catalog.place_relations · relation evidence · CatalogRelationProjectionService 정렬(ADR-0006 예외)",
       "steps": [
         "공식 direct relation과 canonical mapping을 검증하고 category 기반 약한 관계는 SIMILAR로 분리한다",
         "EXACT/SIMILAR/NONE/CHECKING/UNKNOWN 이유·유효기간·근거를 응답 계약에 매핑한다",
-        "후보 수집→보강→hard filter→결정적 정렬을 apps/ai의 순수 ranker에 gateway로 연결하고 Spring은 hydration·fallback(UNKNOWN)만 담당한다",
+        "후보 병합과 (tier, placeId) 정렬은 Spring catalog projection이 하고 apps/ai related/rank는 호출하지 않는다(ADR-0006 예외). 상한은 writer의 MAX_PER_SOURCE(= policy-v1 relatedPerChannel)다",
         "09-06 PM 검토 PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
       ],
       "safety": "관계가 있다는 이유로 더 한산하거나 경로 가능하다고 말하지 않는다. 이 API에 없는 tripId/숨은 active trip을 ranking 입력으로 쓰지 않는다.",
