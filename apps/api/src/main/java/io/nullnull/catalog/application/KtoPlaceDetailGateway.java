@@ -72,6 +72,29 @@ public class KtoPlaceDetailGateway {
                 .orElseGet(() -> flights.executeAsync(request.cacheKey(), () -> refreshIfStillNeeded(request)));
     }
 
+    /**
+     * The stored snapshot if it will still be fresh at {@code freshAt}, otherwise a new call.
+     *
+     * <p>{@link #detail} answers "is it fresh now", which is what a read needs. An operator renewing the
+     * mapping a forecast refresh depends on (ktoDemoRefresh) has to ask about a later instant instead:
+     * a snapshot fresh now but stale before the next scheduled run is exactly the one to renew, and
+     * {@link #detail} would hand it back without a call.
+     */
+    public CompletableFuture<KtoPlaceSnapshot> detailFreshAt(KtoPlaceRequest request, Instant freshAt) {
+        Instant now = clock.instant();
+        if (freshAt.isBefore(now)) {
+            throw new IllegalArgumentException("freshAt must not be in the past");
+        }
+        requireHealthySource(now);
+        return snapshots.findFresh(request, freshAt).map(CompletableFuture::completedFuture)
+                .orElseGet(() -> flights.executeAsync(request.cacheKey(), () -> {
+                    Instant startedAt = clock.instant();
+                    SourceRegistration source = requireHealthySource(startedAt);
+                    return snapshots.findFresh(request, freshAt).map(CompletableFuture::completedFuture)
+                            .orElseGet(() -> refresh(request, source, startedAt));
+                }));
+    }
+
     private CompletableFuture<KtoPlaceSnapshot> refreshIfStillNeeded(KtoPlaceRequest request) {
         Instant now = clock.instant();
         SourceRegistration source = requireHealthySource(now);
