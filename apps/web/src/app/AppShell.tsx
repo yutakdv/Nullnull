@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
-import { currentCsrfToken, isProblem, useCsrfToken } from '../shared/api/index.js';
+import { useQuery } from '@tanstack/react-query';
+import { isProblem, sessionQueryKey, useCsrfToken } from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
 
@@ -70,10 +71,25 @@ export function AppShell({ tabs = false }: AppShellProps) {
   // bootstrap won and this tab is usable. A token still absent means the
   // reissue failed for a session that really is gone, which is the case this
   // screen exists for and which SessionSafetyIT.expiration pins.
+  // Subscribed, not read - and WITHOUT starting a bootstrap of its own.
+  //
+  // `currentCsrfToken()` is a module variable, so reading it during render
+  // answers with whatever was true when this render started, and nothing
+  // re-renders when SplashScreen's bootstrap fills it in moments later.
+  // Measured in the gate's container: `201 /demo/sessions` at 39ms, the token
+  // set, and the screen stayed on "session ended" for ever.
+  //
+  // `useQuery` here would fix the reactivity and break something worse: it has
+  // no `enabled` guard, so every deep link would POST /demo/sessions and an
+  // expired session would silently get a DIFFERENT anonymous owner
+  // (SessionSafetyIT.expiration), stranding the trips this screen promises are
+  // still there. `useQueryState` only observes the cache entry SplashScreen
+  // owns - it never creates one.
+  // `enabled: false` is what makes this an observer and not a second caller:
+  // the hook subscribes to the cache entry and never runs a queryFn.
+  const bootstrapped = useQuery({ queryKey: sessionQueryKey, enabled: false }).isSuccess;
   const sessionGone =
-    isProblem(csrf.error) &&
-    csrf.error.code === 'UNAUTHORIZED' &&
-    currentCsrfToken() === null;
+    isProblem(csrf.error) && csrf.error.code === 'UNAUTHORIZED' && !bootstrapped;
 
   if (sessionGone) {
     // Only 401. A network failure is not an ended session, and replacing the
