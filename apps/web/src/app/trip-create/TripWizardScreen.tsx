@@ -9,16 +9,20 @@ import {
   EMPTY_DRAFT,
   INTEREST_GROUPS,
   addMustVisit,
+  addStop,
   canAddInterest,
   dateError,
   nextAfterPlanning,
   removeMustVisit,
+  removeStop,
   selectDay,
+  setStopDaypart,
   toCreateRequest,
   toggleInterest,
   type WizardDraft,
 } from './wizard.js';
 import { InputMethodStep } from './InputMethodStep.js';
+import { ManualStopsStep } from './ManualStopsStep.js';
 import { MustVisitStep } from './MustVisitScreen.js';
 import styles from './TripWizardScreen.module.css';
 
@@ -83,11 +87,25 @@ export function TripWizardScreen() {
     setMonth(new Date(year, monthIndex + by, 1));
   }
 
-  function submit() {
+  // `using` is the draft to send, for a caller that has just changed it:
+  // setDraft is queued, so `draft` here is still the previous render's value
+  // and a caller that cleared something would send it anyway. 건너뛰기 on the
+  // manual step is exactly that case — it must not carry the stops it just
+  // dropped — and passing the draft explicitly says so at the call site
+  // instead of depending on when React applies the update.
+  //
+  // REQUIRED, not defaulted, and the callers below pass `draft` by hand. A
+  // default made this silently wrong: the steps hand `onSubmit` straight to a
+  // DOM button, so React calls it with the click EVENT, which filled `using`
+  // and made dateError read a MouseEvent — toCreateRequest returned null and
+  // the press did nothing at all, with no error shown. The prop is typed
+  // `() => void`, which happily accepts a function that ignores its argument,
+  // so TypeScript could not see it.
+  function submit(using: WizardDraft) {
     // The browser's zone: the trip is planned where the user is, and the
     // contract defaults to Asia/Seoul only when nothing is supplied.
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const request = toCreateRequest(draft, timezone);
+    const request = toCreateRequest(using, timezone);
     if (!request) return;
     const fingerprint = JSON.stringify(request);
     if (submitKey.current?.for !== fingerprint) {
@@ -350,7 +368,7 @@ export function TripWizardScreen() {
                 setStep(4);
                 return;
               }
-              submit();
+              submit(draft);
             }}
             secondary={
               // The paste path (FE-104, `401:1221`) stays reachable from here
@@ -390,6 +408,42 @@ export function TripWizardScreen() {
         />
       ) : null}
 
+      {/* S02-4C-C `438:3199`: the manual half of the input-method branch.
+          Before this existed, InputMethodStep's 직접 입력 called setStep(5)
+          and nothing rendered there, so choosing it landed on a blank
+          screen — a reachable dead end of exactly the kind #185 is about. */}
+      {step === 5 ? (
+        <ManualStopsStep
+          draft={draft}
+          onAddStop={(date, place) => {
+            // The key is minted here rather than inside addStop so the rule
+            // stays a pure function: same draft in, same draft out.
+            const key = crypto.randomUUID();
+            setDraft((current) => addStop(current, date, place, key));
+          }}
+          onRemoveStop={(key) => {
+            setDraft((current) => removeStop(current, key));
+          }}
+          onSetDaypart={(key, daypart) => {
+            setDraft((current) => setStopDaypart(current, key, daypart));
+          }}
+          onSubmit={() => {
+            submit(draft);
+          }}
+          onSkip={() => {
+            // An answer, not a cancel: the traveller says there is nothing to
+            // carry over, so the stops entered so far must NOT be sent. The
+            // cleared draft is passed to submit rather than only stored,
+            // because setDraft is queued and submit would otherwise read the
+            // stops it is meant to drop.
+            const cleared = { ...draft, stops: [] };
+            setDraft(cleared);
+            submit(cleared);
+          }}
+          isSubmitting={createTrip.isPending}
+        />
+      ) : null}
+
       {step === 4 && nextAfterPlanning(draft) === 'must-visit' ? (
         <MustVisitStep
           picked={draft.mustVisit}
@@ -399,14 +453,23 @@ export function TripWizardScreen() {
           onRemove={(placeId) => {
             setDraft((current) => removeMustVisit(current, placeId));
           }}
-          onSubmit={submit}
+          onSubmit={() => {
+            submit(draft);
+          }}
           onSkip={() => {
             // A real answer, not a cancel: the traveller says there are no
             // must-visit places, so the trip is created without any. Clearing
             // first keeps that honest — pressing 건너뛰기 after picking some
             // must not quietly carry them.
-            setDraft((current) => ({ ...current, mustVisit: [] }));
-            submit();
+            //
+            // The cleared draft is passed rather than only stored, for the
+            // reason submit() states. It makes no difference to the request
+            // today, because toCreateRequest drops mustVisit either way, and
+            // it is written this way so it does not start mattering silently
+            // when #180's wiring gives the picks somewhere to go.
+            const cleared = { ...draft, mustVisit: [] };
+            setDraft(cleared);
+            submit(cleared);
           }}
           isSubmitting={createTrip.isPending}
         />

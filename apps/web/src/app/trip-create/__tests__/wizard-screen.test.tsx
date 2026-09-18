@@ -480,3 +480,114 @@ describe('FE-103 the input-method branch is reachable and keeps the draft', () =
     ).toBeInTheDocument();
   });
 });
+
+describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)', () => {
+  async function reachManual(user: ReturnType<typeof userEvent.setup>) {
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
+    );
+  }
+
+  /** Adds the first search result to the given day. */
+  async function addPlaceTo(
+    user: ReturnType<typeof userEvent.setup>,
+    dayButtonIndex: number,
+  ) {
+    // Queried by the accessible name, not the visible `+ Add a place`: every
+    // day's button shows the same words, so each one names its own day for a
+    // screen reader (manual.addToDay) and that label is what the role query
+    // sees.
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[dayButtonIndex] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    const pick = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.pick']),
+    });
+    await user.click(pick[0] as HTMLElement);
+  }
+
+  it('renders a step rather than the blank screen 직접 입력 used to reach', async () => {
+    // The defect this closes: InputMethodStep's 직접 입력 called setStep(5)
+    // and nothing rendered at step 5, so choosing it showed the wizard shell
+    // with no content and no way on — a reachable dead end (#185).
+    const user = userEvent.setup();
+    await reachManual(user);
+
+    expect(
+      await screen.findByRole('heading', { name: copy['manual.title'] }),
+    ).toBeInTheDocument();
+    expect(created).toHaveLength(0);
+  });
+
+  it('offers one day header per day of the chosen range', async () => {
+    // The days come from the trip's own range, so this screen cannot offer a
+    // day the trip does not have. pickDates picks a 4-day span.
+    const user = userEvent.setup();
+    await reachManual(user);
+    await screen.findByRole('heading', { name: copy['manual.title'] });
+
+    const days = screen.getAllByRole('heading', { level: 2 });
+    expect(days).toHaveLength(4);
+  });
+
+  it('sends the entered stops as seedItems, with no invented time', async () => {
+    // The whole point of the screen, and the one assertion that guards the
+    // decision behind it: the card offers only 오전/오후, so no clock time was
+    // ever chosen and none may be sent (see wizard.ts seedItemsOf).
+    const user = userEvent.setup();
+    await reachManual(user);
+    await screen.findByRole('heading', { name: copy['manual.title'] });
+    await addPlaceTo(user, 0);
+
+    await user.click(screen.getByRole('button', { name: copy['manual.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    const body = created[0]?.body as { seedItems?: { startTime: unknown }[] };
+    expect(body.seedItems).toHaveLength(1);
+    expect(body.seedItems?.[0]?.startTime).toBeNull();
+  });
+
+  it('does not carry the stops when the traveller says there are none', async () => {
+    // 건너뛰기 is an answer, not a cancel. This failed before submit() took the
+    // draft as an argument: setDraft is queued, so the cleared draft had not
+    // been applied yet and submit read the stops it was meant to drop —
+    // sending exactly what the user had just said to leave out.
+    const user = userEvent.setup();
+    await reachManual(user);
+    await screen.findByRole('heading', { name: copy['manual.title'] });
+    await addPlaceTo(user, 0);
+
+    await user.click(screen.getByRole('button', { name: copy['manual.skip'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    expect((created[0]?.body as { seedItems?: unknown }).seedItems).toBeUndefined();
+  });
+
+  it('goes back to the method choice rather than out of the flow', async () => {
+    const user = userEvent.setup();
+    await reachManual(user);
+    await screen.findByRole('heading', { name: copy['manual.title'] });
+
+    await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
+
+    expect(
+      await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
+    ).toBeInTheDocument();
+  });
+});
