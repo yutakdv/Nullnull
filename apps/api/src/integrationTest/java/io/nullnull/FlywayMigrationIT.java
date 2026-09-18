@@ -133,8 +133,11 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V031 is the last one today and seeds nothing: it replaces a CHECK constraint and
-            // creates no row and no table. V030 was the same before it, and V029, V028, V027, V026. V025's two rows - the NULLNULL_CURATED_HOURS
+            // V034 is the last one today and seeds nothing: it adds two nullable columns and a CHECK
+            // to optimization_proposals and creates no row and no table - so the proposal rows
+            // populateEveryTable wrote under V033 have to satisfy that CHECK as they are, which they
+            // do with both columns null. V033, V032 and V031 seeded nothing either, nor V030, V029,
+            // V028, V027, V026. V025's two rows - the NULLNULL_CURATED_HOURS
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.

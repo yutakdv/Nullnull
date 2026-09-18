@@ -20,6 +20,7 @@ import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.MutableClock;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -53,6 +54,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
+import tools.jackson.databind.JsonNode;
 
 /**
  * BA-053 revertOptimizationDecision and listOptimizationHistory.
@@ -431,7 +433,7 @@ class OptimizeRevertIT {
     }
 
     @Test
-    @DisplayName("a revert leaves candidate changes alone, which no version check could reach")
+    @DisplayName("BA-053-T11 a revert leaves candidate changes alone, which no version check could reach")
     void candidateChangesSurviveTheRevert() throws Exception {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);
@@ -454,6 +456,28 @@ class OptimizeRevertIT {
                 .as("the candidate this case is about was really saved")
                 .isEqualTo("ACTIVE");
 
+        // #165 Q3 decided ACTIVE and DISMISSED alike, and a restore widened to candidates could as easily
+        // revive a dismissal as undo a save - so a second place is saved and then dismissed after the APPLY.
+        UUID dismissed = insertPlace("BA-053 지운 후보 장소");
+        mvc.perform(post("/api/v1/trips/" + fixture.tripId() + "/candidates")
+                .cookie(cookie(fixture.owner()))
+                .header("Origin", ORIGIN)
+                .header("X-CSRF-Token", fixture.owner().csrf.token)
+                .header("Idempotency-Key", "candidate-" + UUID.randomUUID())
+                .contentType("application/json")
+                .content("{\"placeId\":\"" + dismissed + "\",\"source\":{\"type\":\"SEARCH\"}}"));
+        UUID dismissedId = jdbc.queryForObject("SELECT id FROM trip_candidates WHERE trip_id = ? AND place_id = ?",
+                UUID.class, fixture.tripId(), dismissed);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/trips/" + fixture.tripId() + "/candidates/" + dismissedId)
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", ORIGIN)
+                        .header("X-CSRF-Token", fixture.owner().csrf.token))
+                .andExpect(status().isNoContent());
+        assertThat(candidateStatuses(fixture.tripId(), dismissed))
+                .as("the candidate this case is about was really dismissed")
+                .containsExactly("DISMISSED");
+
         // V016 says it outright: "there is no trigger or column here that touches trips, and that
         // absence is the point". So saving a candidate leaves the version at 2, and the revert's
         // TRIP_CHANGED check - which compares the caller's version against the one the APPLY
@@ -475,6 +499,10 @@ class OptimizeRevertIT {
         assertThat(candidateStatus(fixture.tripId(), saved))
                 .as("the traveller's candidate survives an undo of an unrelated optimization")
                 .isEqualTo("ACTIVE");
+        // Every row for the place, not the first: a revived dismissal would be a second, ACTIVE row beside it.
+        assertThat(candidateStatuses(fixture.tripId(), dismissed))
+                .as("and so does the traveller's dismissal")
+                .containsExactly("DISMISSED");
         assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
     }
 
@@ -814,6 +842,61 @@ class OptimizeRevertIT {
                 .isEqualTo(3L);
     }
 
+    /**
+     * getOptimization lists what was decided under the run, and keeps showing what was proposed.
+     *
+     * <p>After the APPLY the item sits on the day it moved to, so the proposal's evidence has to be read
+     * from the stored change rather than from the live item - which this is the case for. The REVERT is
+     * made without moving the clock: the two rows then share a decidedAt, and the list still has to put
+     * the initial decision first (the order itself is pinned by DecisionOrderTest).
+     */
+    @Test
+    @DisplayName("getOptimization lists the APPLY, then the APPLY and its REVERT, and still shows the proposal")
+    void theRunListsItsDecisionsAndKeepsItsProposal() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalId, "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+
+        JsonNode afterApply = runBody(fixture, runId);
+        assertThat(afterApply.get("status").asString()).isEqualTo("APPLIED");
+        assertThat(afterApply.get("decisions")).hasSize(1);
+        JsonNode apply = afterApply.get("decisions").get(0);
+        assertThat(apply.get("id").asString()).isEqualTo(applied.toString());
+        assertThat(apply.get("decision").asString()).isEqualTo("APPLY");
+        assertThat(apply.get("proposalId").asString()).isEqualTo(proposalId.toString());
+        assertThat(apply.get("resultingTripVersion").asLong()).isEqualTo(2L);
+        assertThat(apply.has("revertUntil")).isTrue();
+        assertThat(apply.has("revertedDecisionId")).isFalse();
+        assertThat(afterApply.get("proposals")).hasSize(1);
+        assertThat(afterApply.get("proposals").get(0).get("id").asString()).isEqualTo(proposalId.toString());
+        assertThat(afterApply.get("proposals").get(0).get("dataProvenance")).hasSize(2);
+        // The fixture Frontend mocks the APPLIED face against has the keys the server sends, everywhere.
+        assertThat(JsonShape.of(afterApply))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-applied.json")));
+
+        UUID reverted = decisionIdOf(revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isOk()));
+
+        JsonNode afterRevert = runBody(fixture, runId);
+        assertThat(afterRevert.get("status").asString()).isEqualTo("REVERTED");
+        List<String> kinds = new ArrayList<>();
+        afterRevert.get("decisions").forEach(decision -> kinds.add(decision.get("decision").asString()));
+        assertThat(kinds).containsExactly("APPLY", "REVERT");
+        JsonNode revert = afterRevert.get("decisions").get(1);
+        assertThat(revert.get("id").asString()).isEqualTo(reverted.toString());
+        assertThat(revert.get("revertedDecisionId").asString()).isEqualTo(applied.toString());
+        assertThat(revert.has("revertUntil")).isFalse();
+    }
+
+    private JsonNode runBody(Fixture fixture, UUID runId) throws Exception {
+        return new tools.jackson.databind.ObjectMapper().readTree(
+                mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())))
+                        .andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString());
+    }
+
     /** The projection as a caller reads it, through the operation that publishes it. */
     private String availability(Fixture fixture, UUID runId) throws Exception {
         return mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())))
@@ -1083,6 +1166,15 @@ class OptimizeRevertIT {
                 "SELECT status FROM trip_candidates WHERE trip_id = ? AND place_id = ?",
                 String.class, tripId, placeId);
         return found.isEmpty() ? null : found.get(0);
+    }
+
+    /**
+     * Every row for the place. The partial unique index lets a DISMISSED row sit beside a live one, so the
+     * first row alone cannot tell a kept dismissal from a revived one.
+     */
+    private List<String> candidateStatuses(UUID tripId, UUID placeId) {
+        return jdbc.queryForList("SELECT status FROM trip_candidates WHERE trip_id = ? AND place_id = ?",
+                String.class, tripId, placeId);
     }
 
     private long tripVersion(UUID tripId) {

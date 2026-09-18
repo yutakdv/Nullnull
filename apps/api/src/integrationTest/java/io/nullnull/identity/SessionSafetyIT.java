@@ -41,12 +41,28 @@ class SessionSafetyIT {
     private static final String ORIGIN = "http://localhost:5173";
     @RestController
     static class Probe {
+        private final JdbcTemplate jdbc;
+        private final IdempotencyGuard guard;
+        Probe(JdbcTemplate jdbc, IdempotencyGuard guard) { this.jdbc = jdbc; this.guard = guard; }
         @GetMapping("/identity-test/me")
         @NullnullOperation(id = "testOwner", security = Security.SESSION)
         Map<String, UUID> me(OwnerContext owner) { return Map.of("id", owner.ownerId()); }
         @PostMapping("/identity-test/change")
         @NullnullOperation(id = "testChange", security = {Security.SESSION, Security.CSRF})
         Map<String, UUID> change(OwnerContext owner) { return Map.of("id", owner.ownerId()); }
+        /**
+         * The race IdempotencyGuard answers, made deterministic: the session resolved while its owner was alive (each
+         * SessionService call commits on return), and the owner is soft-deleted before the command's own transaction
+         * locks it.
+         */
+        @PostMapping("/identity-test/guarded")
+        @NullnullOperation(id = "testGuarded", security = {Security.SESSION, Security.CSRF})
+        Map<String, UUID> guarded(OwnerContext owner) {
+            jdbc.update("UPDATE owners SET deleted_at = now() WHERE id = ?", owner.ownerId());
+            guard.execute(owner.ownerId(), "POST /identity-test/guarded", "guarded-" + UUID.randomUUID(), "0".repeat(64),
+                    () -> new IdempotencyGuard.CommandOutcome<>(200, "ran"), java.util.function.Function.identity());
+            return Map.of("id", owner.ownerId());
+        }
     }
     private SessionService.Bootstrap bootstrap() { return sessions.bootstrap(null, null, null); }
     private Cookie cookie(SessionService.Bootstrap b) { return new Cookie("__Host-nullnull_session", b.cookie); }
@@ -221,6 +237,8 @@ class SessionSafetyIT {
     private static final String NAME = "__Host-nullnull_session";
     private static final String ME = "/api/v1/identity-test/me";
     private static final String CSRF = "/api/v1/session/csrf";
+    private static final String SESSION = "/api/v1/session";
+    private static final String GUARDED = "/api/v1/identity-test/guarded";
     private static final JsonMapper JSON = JsonMapper.builder().build();
     @Test @DisplayName("BA-010-T4 a request that carries no session cookie gets missingCredential SESSION_COOKIE")
     void missingCookieIsNamed() throws Exception {
@@ -237,14 +255,19 @@ class SessionSafetyIT {
                     .andExpect(jsonPath("$.missingCredential").value("SESSION_COOKIE"));
         }
     }
-    @Test @DisplayName("BA-010-T5 a sent cookie that session resolution rejects is the same UNAUTHORIZED, whatever the cause")
+    @Test @DisplayName("BA-010-T5 a sent cookie that cannot carry the request is the same UNAUTHORIZED, whatever the cause and wherever it is refused")
     void everyOtherFailureLooksAlike() throws Exception {
         var expired = bootstrap(); var revoked = bootstrap(); var deleted = bootstrap(); var a = bootstrap(); var b = bootstrap();
+        var raced = bootstrap(); var gone = bootstrap();
         jdbc.update("UPDATE demo_sessions SET expires_at = ? WHERE id = ?", Timestamp.from(clock.instant().minusSeconds(1)),
                 context(expired).sessionId());
         jdbc.update("UPDATE demo_sessions SET revoked_at = ? WHERE id = ?", Timestamp.from(clock.instant().minusSeconds(1)),
                 context(revoked).sessionId());
         jdbc.update("UPDATE owners SET deleted_at = now() WHERE id = ?", deleted.owner.id());
+        // Revoked by its own deletion: for 24 hours this cookie still replays that receipt, and must do nothing else.
+        String goneKey = "delete-" + UUID.randomUUID();
+        mvc.perform(delete(SESSION).cookie(cookie(gone)).header("Origin", ORIGIN).header("X-CSRF-Token", gone.csrf.token)
+                .header("Idempotency-Key", goneKey)).andExpect(status().isAccepted());
         Map<String, MockHttpServletRequestBuilder> cases = new LinkedHashMap<>();
         cases.put("garbage value", get(ME).cookie(new Cookie(NAME, "invalid")));
         cases.put("empty value", get(ME).cookie(new Cookie(NAME, "")));
@@ -255,19 +278,48 @@ class SessionSafetyIT {
         cases.put("duplicate", get(ME).cookie(cookie(a), cookie(b)));
         // Named in the raw header but not parsed into a cookie - what the container does with a value it drops.
         cases.put("sent but unparsed", get(ME).header("Cookie", NAME + "=bad\\value"));
-        // Naming any of these would tell the caller whether the cookie was once valid, so they must not differ in
-        // anything but the per-request fields: not in detail, not in a header name, not in a header value.
-        String first = null; Map<String, List<String>> firstHeaders = null;
-        for (var entry : cases.entrySet()) {
-            MvcResult result = mvc.perform(entry.getValue()).andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
-                    .andExpect(jsonPath("$.missingCredential").doesNotExist()).andReturn();
-            String body = withoutPerRequestFields(result);
-            Map<String, List<String>> headers = headers(result);
-            if (first == null) { first = body; firstHeaders = headers; continue; }
-            assertThat(body).as(entry.getKey()).isEqualTo(first);
-            assertThat(headers).as(entry.getKey()).isEqualTo(firstHeaders);
+        // Refused after resolution: the owner was deleted between session resolution and the command's own lock.
+        cases.put("owner deleted after its session resolved", post(GUARDED).header("Origin", ORIGIN)
+                .header("X-CSRF-Token", raced.csrf.token).cookie(cookie(raced)));
+        // The deletion route admits a revoked cookie past the interceptor, so every request it cannot replay - even one
+        // a live session would fail for its own reason - must look like any dead cookie sent the same request.
+        for (var cookie : List.of(new Cookie(NAME, "invalid"), cookie(gone))) {
+            String label = cookie.getValue().equals("invalid") ? "DELETE, garbage value" : "DELETE, revoked by its deletion";
+            cases.put(label + ", another key", delete(SESSION).header("Origin", ORIGIN)
+                    .header("Idempotency-Key", "delete-" + UUID.randomUUID()).cookie(cookie));
+            cases.put(label + ", no key", delete(SESSION).header("Origin", ORIGIN).cookie(cookie));
+            cases.put(label + ", empty key", delete(SESSION).header("Origin", ORIGIN).header("Idempotency-Key", "").cookie(cookie));
+            cases.put(label + ", two keys", delete(SESSION).header("Origin", ORIGIN)
+                    .header("Idempotency-Key", goneKey, "delete-" + UUID.randomUUID()).cookie(cookie));
+            cases.put(label + ", two CSRF headers", delete(SESSION).header("Origin", ORIGIN)
+                    .header("Idempotency-Key", "delete-" + UUID.randomUUID()).header("X-CSRF-Token", "a", "b").cookie(cookie));
         }
+        // Naming any of these would tell the caller whether the cookie was once valid, so they must not differ in
+        // anything but the per-request fields: not in status, detail, a header name or a header value.
+        Map<String, String> answers = new LinkedHashMap<>();
+        for (var entry : cases.entrySet()) {
+            MvcResult result = mvc.perform(entry.getValue()).andReturn();
+            answers.put(entry.getKey(), result.getResponse().getStatus() + " " + withoutPerRequestFields(result) + " "
+                    + headers(result));
+        }
+        mvc.perform(cases.values().iterator().next()).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED")).andExpect(jsonPath("$.missingCredential").doesNotExist());
+        String first = answers.values().iterator().next();
+        assertThat(answers).allSatisfy((name, answer) -> assertThat(answer).as(name).isEqualTo(first));
+
+        // Each case refused for the reason it names, not because its setup had quietly died: the race reached the
+        // guard (the probe deleted the owner, so resolution had passed), and the revoked cookie still replays.
+        assertThat(jdbc.queryForObject("SELECT deleted_at IS NOT NULL FROM owners WHERE id = ?", Boolean.class,
+                raced.owner.id())).isTrue();
+        mvc.perform(delete(SESSION).cookie(cookie(gone)).header("Origin", ORIGIN).header("Idempotency-Key", goneKey))
+                .andExpect(status().isAccepted());
+        // Only a cookie that cannot carry the request is folded in: a live session still fails the check it failed.
+        var live = bootstrap();
+        mvc.perform(delete(SESSION).cookie(cookie(live)).header("Origin", ORIGIN).header("X-CSRF-Token", live.csrf.token))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(delete(SESSION).cookie(cookie(live)).header("Origin", ORIGIN)
+                        .header("Idempotency-Key", "delete-" + UUID.randomUUID()).header("X-CSRF-Token", "a", "b"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
     }
     @Test @DisplayName("BA-010-T6 a cross-origin state-changing request is refused before any session work")
     void crossOriginNeverLearnsAboutTheCookie() throws Exception {

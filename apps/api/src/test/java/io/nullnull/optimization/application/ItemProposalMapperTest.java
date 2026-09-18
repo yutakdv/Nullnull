@@ -10,6 +10,7 @@ import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.trip.domain.LockType;
 import io.nullnull.trip.domain.TripItem;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -94,6 +95,65 @@ class ItemProposalMapperTest {
                 Map.of(), AT, List.of("요약")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("did not offer");
+    }
+
+    @Test
+    @DisplayName("a stored change reads back as the state it was written from, time included")
+    void aStoredChangeReadsBackAsItsState() {
+        var change = map(candidate(true, null, "80", "20"), "요약").get(0).changes().get(0);
+
+        // The writer stores 09:00 without seconds; the reader returns the time itself, and the
+        // response renders it (the contract's pattern needs the seconds).
+        assertThat(mapper.readState(change.beforeValue()))
+                .isEqualTo(new ItemProposalMapper.ItemState(PLACE, CURRENT, 0, LocalTime.of(9, 0)));
+        assertThat(mapper.readState(change.afterValue()))
+                .isEqualTo(new ItemProposalMapper.ItemState(PLACE, PROPOSED, 0, LocalTime.of(9, 0)));
+        assertThat(mapper.readState(null)).isNull();
+    }
+
+    @Test
+    @DisplayName("#242 the stored lock checks read back as the contract's list, derived verdict included")
+    void storedLockChecksReadBackAsTheContractsList() {
+        String written = map(candidate(true, null, "80", "20"), "요약").get(0).validationSummary();
+
+        assertThat(mapper.readValidation(written)).isEqualTo(new ItemProposalMapper.Validation(true,
+                List.of(new ItemProposalMapper.Check(LockType.MUST_VISIT, true))));
+    }
+
+    @Test
+    @DisplayName("#242 checks come back in lock order, whatever order the object holds them in")
+    void checksAreOrderedByLockType() {
+        var read = mapper.readValidation(
+                "{\"checks\":{\"RESERVATION\":true,\"TIME\":true,\"MUST_VISIT\":true,\"DATE\":true}}");
+
+        assertThat(read.checks()).extracting(ItemProposalMapper.Check::constraintType)
+                .containsExactly(LockType.MUST_VISIT, LockType.DATE, LockType.TIME, LockType.RESERVATION);
+    }
+
+    @Test
+    @DisplayName("#242 allConstraintsPreserved is false when any stored check failed")
+    void oneFailedCheckIsNotAllPreserved() {
+        var read = mapper.readValidation("{\"checks\":{\"DATE\":true,\"TIME\":false}}");
+
+        assertThat(read.allConstraintsPreserved()).isFalse();
+        assertThat(read.checks()).extracting(ItemProposalMapper.Check::passed).containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("#242 an item with no lock has no constraint to break, which is preserved rather than unknown")
+    void noLockIsPreserved() {
+        var read = mapper.readValidation("{\"checks\":{}}");
+
+        assertThat(read.allConstraintsPreserved()).isTrue();
+        assertThat(read.checks()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("#242 a check that names no lock type is refused, not dropped from the list")
+    void anUnknownCheckIsRefused() {
+        assertThatThrownBy(() -> mapper.readValidation("{\"checks\":{\"DATE\":true,\"SOMETHING\":true}}"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SOMETHING");
     }
 
     private List<OptimizationProposal> map(TemporalCandidateIn candidate, String summary) {

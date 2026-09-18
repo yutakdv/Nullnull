@@ -37,6 +37,9 @@ class OptimizationProposalStoreIT {
 
     private static final String BEFORE = "{\"position\":0}";
     private static final String AFTER = "{\"position\":1}";
+    /** Not foreign keys (V034), so any ids round-trip; what is asserted is that both come back. */
+    private static final java.util.UUID BEFORE_POINT = java.util.UUID.randomUUID();
+    private static final java.util.UUID AFTER_POINT = java.util.UUID.randomUUID();
 
     @Autowired
     OptimizationProposalStore proposals;
@@ -65,11 +68,13 @@ class OptimizationProposalStoreIT {
         Instant at = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         // Inserted out of order on purpose: rank 2 first, and the changes of each proposal reversed.
         OptimizationProposal second = new OptimizationProposal(UUID.randomUUID(), run, 2,
-                "the ineligible one", false, ComparisonReasonCode.DIFFERENT_SOURCE, null, null, "{\"checks\":[]}", at,
+                "the ineligible one", false, ComparisonReasonCode.DIFFERENT_SOURCE, null, null, null, null,
+                "{\"checks\":[]}", at,
                 List.of(change(1, OptimizationChangeOperation.REMOVE, BEFORE, null),
                         change(0, OptimizationChangeOperation.MOVE, BEFORE, AFTER)));
         OptimizationProposal first = new OptimizationProposal(UUID.randomUUID(), run, 1,
-                "the eligible one", true, null, new BigDecimal("-1.2500"), 12, "{\"checks\":[]}", at,
+                "the eligible one", true, null, new BigDecimal("-1.2500"), 12, BEFORE_POINT, AFTER_POINT,
+                "{\"checks\":[]}", at,
                 List.of(change(0, OptimizationChangeOperation.ADD, null, AFTER)));
 
         proposals.insertAll(List.of(second, first));
@@ -77,6 +82,12 @@ class OptimizationProposalStoreIT {
         List<OptimizationProposal> read = proposals.findByRun(run);
         assertThat(read).extracting(OptimizationProposal::rank).containsExactly(1, 2);
         assertThat(read.get(0).summary()).isEqualTo("the eligible one");
+        // V034: the pair the proposal compared comes back as written, and a row written without one
+        // (every row before V034) comes back without one rather than with a guess.
+        assertThat(read.get(0).beforeSnapshotId()).isEqualTo(BEFORE_POINT);
+        assertThat(read.get(0).afterSnapshotId()).isEqualTo(AFTER_POINT);
+        assertThat(read.get(1).beforeSnapshotId()).isNull();
+        assertThat(read.get(1).afterSnapshotId()).isNull();
         // numeric(14,4) round-trips as scale 4, which is the column's promise rather than the
         // literal's - comparing by value keeps the assertion about the number and not its spelling.
         assertThat(read.get(0).crowdDelta()).isEqualByComparingTo(new BigDecimal("-1.2500"));

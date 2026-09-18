@@ -316,4 +316,25 @@ class ArchitectureRulesTest {
                 .allSatisfy(access -> org.assertj.core.api.Assertions.assertThat(access.getOriginOwner().getPackageName())
                         .isEqualTo("io.nullnull.shared.problem"));
     }
+
+    @Test
+    @DisplayName("BA-010-T5 a refused session cookie gets its 401 from SessionService.unauthorized() and nowhere else")
+    void aRefusedCookieHasOneAnswer() {
+        // #249: two 401s once carried sentences of their own ("owner no longer active", "deletion replay required"),
+        // each telling the caller the cookie had been valid. Any new producer of this code would be a third. Origins
+        // are methods, so a second method in an allowed class is caught too.
+        var origins = classes.get(io.nullnull.shared.problem.ProblemCode.class).getField("UNAUTHORIZED")
+                .getAccessesToSelf().stream().map(access -> access.getOrigin().getFullName()).distinct().toList();
+        org.assertj.core.api.Assertions.assertThat(origins)
+                .contains("io.nullnull.identity.application.SessionService.unauthorized()")
+                .allSatisfy(origin -> org.assertj.core.api.Assertions.assertThat(origin).matches(
+                        "io\\.nullnull\\.identity\\.application\\.SessionService\\.unauthorized\\(\\)"
+                        // No cookie was sent at all - BA-010-T4, and T7 pins its one caller.
+                        + "|io\\.nullnull\\.shared\\.problem\\.ApiException\\.missingSessionCookie\\(java\\.lang\\.String\\)"
+                        // A 401 the container raised. Nothing does: no container authentication is configured and
+                        // main code has no sendError call (grep for sendError and SC_UNAUTHORIZED, #249).
+                        + "|io\\.nullnull\\.shared\\.problem\\.ProblemErrorController\\.error\\(.*\\)"
+                        // The enum's own declaration.
+                        + "|io\\.nullnull\\.shared\\.problem\\.ProblemCode\\..*"));
+    }
 }

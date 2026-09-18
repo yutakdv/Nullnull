@@ -404,7 +404,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-010-T2`: 미만료 token 5개를 함께 유지하고 6번째 발급 시 last_used_at 기준 LRU token을 회수한다
 - `BA-010-T3`: expiry·rotation·response loss 이후 안전한 bootstrap으로 복구한다
 - `BA-010-T4`: session cookie가 아예 없는 요청은 401 UNAUTHORIZED에 missingCredential SESSION_COOKIE를 싣는다
-- `BA-010-T5`: session 해석에서 거절된 요청은 원인과 무관하게 서로 구별되지 않는 필드 없는 401 UNAUTHORIZED다
+- `BA-010-T5`: origin 검사에서 거절되지 않은 요청이 보낸 session cookie로 그 요청을 수행할 수 없으면, 원인·거절 단계와 무관하게 서로 구별되지 않는 필드 없는 401 UNAUTHORIZED다
 - `BA-010-T6`: cross-origin 상태 변경 요청은 session cookie 유무와 무관하게 필드 없는 403 CSRF_INVALID다
 - `BA-010-T7`: missingCredential을 싣는 경로는 session interceptor 하나뿐이다
 - `BA-010-T8`: cookie를 보낸 요청은 어느 parser가 그것을 보든 missing으로 답하지 않는다
@@ -1341,10 +1341,10 @@ swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있�
 `T7`~`T9`는 `TripScheduleBoundaryIT`에 있다(`apps/api/src/integrationTest/java/io/nullnull/trip/`). `f3bd262` 위의 격리 worktree에서 `test`(417)·`integrationTest`(391)·
 `openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
 
-**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기가 Playwright report를
-받지 않으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
+**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기는 #233부터 Playwright report를
+읽지만 이 절을 증명할 E2E가 아직 없으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
 (`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는
-ID"가 된다). FE가 E2E를 쓰고 `--e2e-junit-dir`가 배선되면 조건으로 복원한다. 그래서 **이 카드는
+ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. 그래서 **이 카드는
 `T4` 하나만 남기고 전부 증명된 상태이고, 그 하나 때문에 `planned`에 머문다** — 올릴 수 없는 것을
 올리지 않고, 왜 못 올리는지를 기계가 아니라 사람이 읽는 자리에 둔다.
 
@@ -1626,6 +1626,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-053-T8`: 한 APPLY를 가리키는 두 번째 REVERT 행은 DB가 거부한다
 - `BA-053-T9`: KEEP과 REVERT 결정은 되돌릴 수 없다
 - `BA-053-T10`: 만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다
+- `BA-053-T11`: REVERT는 기록된 일정 변경만 되돌리고 후보의 ACTIVE·DISMISSED 상태를 바꾸지 않는다
 
 **원래 세 절을 열로 나눈 이유.** `T1`은 창 경계 셋·경쟁·replay를, `T3`은 cursor 만료를 함께 묶고 있었고 그 ID들을 단 test는 절의 일부만 쟀다 — 정각 경계·경쟁·cursor 만료를 재는 case가 없었다. 등록 규칙 3의 모양이라 승격 전에 기제별로 나눴다. `T2`는 나누지 않는다: item·metadata·관심사 편집은 모두 `resultingTripVersion` 비교 **한 기제**를 때리는 입력이고, 세 입력마다 case가 있다.
 
@@ -1768,7 +1769,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다. 그래서 `T3`는 **시간을 재지 않는다** — 이 칸이 금지하는 것이 정확히 그것이다. CI가 정직하게 잴 수 있는 것은 구조이고(`JobConnectionBudget`이 선례다), p95는 staging의 질문이다.
 
-`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 `integration-test.sh`가 `--e2e-junit-dir`를 넘기지 않아 들어오지 않으므로, 이 ID는 FE가 실제로 구현해도 나타나지 않는다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰고 배선이 서면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
+`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어오지만 이 절을 증명할 E2E가 아직 없다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
 
 필수 검증:
 

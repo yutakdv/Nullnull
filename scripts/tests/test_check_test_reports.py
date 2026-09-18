@@ -322,7 +322,8 @@ out.mkdir(parents=True, exist_ok=True)
                              'apps/api/gradle/wrapper/gradle-wrapper.jar',
                              'apps/api/gradle/wrapper/gradle-wrapper.properties',
                              'apps/web/Dockerfile', 'apps/web/package.json', 'package.json',
-                             'package-lock.json', 'compose.integration.yml', 'docs/api/openapi.yaml'):
+                             'package-lock.json', 'compose.integration.yml', 'docs/api/openapi.yaml',
+                             'scripts/e2e/catalog-seed.sql'):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
@@ -364,6 +365,24 @@ elif 'run' in args and 'egress-denied' in args:
     # Same reason as infra-plan above: the probe states a verdict token, and a stub that printed
     # nothing would fail check_egress_report.py - which is exactly what that checker is for.
     print('outbound_network=denied')
+elif 'exec' in args and 'postgres' in args:
+    # The seed step's verdict is its read-back line (#253); psql exiting 0 is not one.
+    print('e2e_catalog_seed=places:3,published_posts:1')
+elif 'run' in args and 'e2e' in args:
+    # The browser suite's JUnit, in the shape Playwright 1.56 writes it: all four counts on both
+    # testsuites and testsuite, and a skipped test as a <skipped/> child. The aggregator reads it
+    # after this step (#233), so a run that leaves none, a skip, or a report older than
+    # quality-run-start has to fail the gate rather than pass on the other suites.
+    if mode != 'e2e-missing':
+        skipped = 1 if mode == 'e2e-skip' else 0
+        case = '<testcase name="BA-099-T1 shell loads" classname="shell.spec.ts"/>'
+        if skipped:
+            case += '<testcase name="a skipped browser test" classname="shell.spec.ts"><skipped/></testcase>'
+        counts = f'tests="{{1 + skipped}}" failures="0" skipped="{{skipped}}" errors="0"'
+        path = root / 'playwright/e2e/results.xml'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f'<testsuites {{counts}}><testsuite name="shell.spec.ts" {{counts}}>{{case}}</testsuite></testsuites>')
+        if mode == 'e2e-stale': os.utime(path, (1, 1))
 elif 'exec' in args:
     print('{{"status":"READY"}}')
 else:
@@ -396,6 +415,19 @@ else:
                               ('command', 'missing JUnit XML')):
             with self.subTest(mode=mode):
                 result, status = self.run_wrapper(mode, suppress=True)
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                self.assertIn(message, result.stderr)
+                self.assertEqual('failed', status)
+                self.assertNotIn('integration_mode=full-docker', result.stdout)
+
+    def test_BA_004_T2_actual_wrapper_rejects_a_browser_report_it_cannot_count(self):
+        """BA-004-T2 browser suite의 report 부재·skip·이전 실행의 report를 실제 wrapper가 거부한다"""
+        # Every other suite passes in these runs, so the only thing that can fail them is the e2e
+        # report - which is exactly what counting it after the browser suite has to mean (#233).
+        for mode, message in (('e2e-missing', 'e2e: missing JUnit XML'), ('e2e-skip', 'skipped=1, expected 0'),
+                              ('e2e-stale', 'stale report')):
+            with self.subTest(mode=mode):
+                result, status = self.run_wrapper(mode)
                 self.assertNotEqual(0, result.returncode, result.stdout)
                 self.assertIn(message, result.stderr)
                 self.assertEqual('failed', status)
@@ -475,7 +507,7 @@ class WorkflowWiringTests(unittest.TestCase):
         the wrapper: Gradle JUnit, the Python suite, and the gate verdicts recorded from the probes.
         """
         wrapper = (ROOT / 'scripts/integration-test.sh').read_text()
-        for flag in ('--backend-plan', '--junit-dir', '--script-junit-dir', '--gate-junit-dir'):
+        for flag in ('--backend-plan', '--junit-dir', '--script-junit-dir', '--gate-junit-dir', '--e2e-junit-dir'):
             self.assertIn(flag, wrapper, f'the required gate must pass {flag}')
         self.assertIn('record_gate_evidence.py', wrapper)
         # Evidence before aggregation: recording a verdict after the checker read the directory
@@ -483,6 +515,15 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertLess(wrapper.index('record_gate_evidence.py'),
                         wrapper.index('--gate-junit-dir'),
                         'the gate verdict must be recorded before the checker reads it')
+        # The same rule for the browser suite (#233): aggregated above the e2e run, the checker could
+        # only read a report this run had not produced yet. Executed lines only, so moving the call
+        # into a comment does not satisfy it.
+        lines = [line.strip() for line in wrapper.splitlines() if line.strip() and not line.strip().startswith('#')]
+        checker = [i for i, line in enumerate(lines) if line == 'python3 "${test_report_checker}" \\']
+        self.assertEqual(1, len(checker), 'the wrapper must aggregate exactly once')
+        self.assertLess(lines.index('"${compose[@]}" run --rm e2e'), checker[0],
+                        'the browser suite must write its report before the checker reads it')
+        self.assertIn('--e2e-junit-dir "${artifact_dir}/playwright" \\', lines[checker[0]:])
 
 
 if __name__ == '__main__':

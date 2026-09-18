@@ -26,6 +26,7 @@ import io.nullnull.recommendation.domain.related.RelationCandidateIn.RelationTie
 import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 import io.nullnull.recommendation.domain.slot.SlotOut;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -38,18 +39,21 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
  * Internal contract v1 over HTTP. Called outside any DB transaction. Response identifiers are
  * checked against the request so the service can never introduce an id Spring did not hydrate.
- * Only the idempotent GET is retried; {@code rankFeed}, {@code proposeItem}, {@code evaluateSlots},
- * {@code rankRelated}, {@code renderExplanation} and {@code composeDraft} are POSTs and are attempted
- * once.
+ * Only the idempotent GET is retried, and only when apps/ai did not answer; {@code rankFeed},
+ * {@code proposeItem}, {@code evaluateSlots}, {@code rankRelated}, {@code renderExplanation} and
+ * {@code composeDraft} are POSTs and are attempted once. Which failures are retryable is decided in
+ * {@link #exchange} for all seven.
  */
 public class HttpRecommendationGateway implements RecommendationGateway {
 
@@ -79,44 +83,88 @@ public class HttpRecommendationGateway implements RecommendationGateway {
 
     @Override
     public PolicyDescriptor policy() {
-        RuntimeException lastFailure = null;
+        RecommendationUnavailableException lastFailure = null;
         for (int attempt = 1; attempt <= POLICY_ATTEMPTS; attempt++) {
             try {
-                PolicyDescriptor descriptor = client.get().uri("/internal/v1/policy")
-                        .header("X-Request-ID", requestId.get()).retrieve().body(PolicyDescriptor.class);
-                if (descriptor == null) {
-                    throw new RecommendationUnavailableException("empty policy response", true, null);
+                return exchange("policy", () -> client.get().uri("/internal/v1/policy")
+                        .header("X-Request-ID", requestId.get()).retrieve().body(PolicyDescriptor.class));
+            } catch (RecommendationUnavailableException failure) {
+                if (!failure.retryable()) {
+                    // A rejected request and an answer outside the contract come back the same the
+                    // second time. Only a service that did not answer is worth asking again.
+                    throw failure;
                 }
-                return descriptor;
-            } catch (HttpClientErrorException exception) {
-                throw rejected("policy", exception);
-            } catch (RestClientException | HttpMessageConversionException exception) {
-                // 5xx, unknown status, transport failure and an unreadable body all end in the fallback.
                 log.warn("recommendation call failed operation=policy attempt={} of {}", attempt, POLICY_ATTEMPTS);
-                lastFailure = exception;
+                lastFailure = failure;
             }
         }
-        throw new RecommendationUnavailableException("recommendation service unavailable", true, lastFailure);
+        throw lastFailure;
+    }
+
+    private <T> T post(String operation, String path, Object request, Class<T> type) {
+        return exchange(operation, () -> client.post().uri(path)
+                .header("X-Request-ID", requestId.get())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(type));
+    }
+
+    /**
+     * One exchange with apps/ai, and the only place its failures are sorted (#250).
+     *
+     * <p>Every method of this class calls through here, so the line between 503 and 500 cannot drift
+     * between them: it drifted once already, when every method filed an unreadable body with the
+     * outages and the edge answered a contract break with a retryable 503. A 4xx is this API's own
+     * hydration bug, a failure to answer is {@link #unanswered}, and everything else - including an
+     * empty body - is an answer outside the contract.
+     */
+    private <T> T exchange(String operation, Supplier<T> call) {
+        T body;
+        try {
+            body = call.get();
+        } catch (HttpClientErrorException exception) {
+            throw rejected(operation, exception);
+        } catch (RestClientException | HttpMessageConversionException exception) {
+            if (unanswered(exception)) {
+                throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
+            }
+            throw unreadable(operation, exception);
+        }
+        if (body == null) {
+            throw unusable(operation + " response has no body");
+        }
+        return body;
+    }
+
+    /**
+     * Whether apps/ai failed to ANSWER, as opposed to answering outside its contract. Only this is
+     * retryable, and only this is what a caller may turn into 503 SOURCE_UNAVAILABLE.
+     *
+     * <p>Not answering is an I/O failure anywhere in the chain - refused, reset, timed out, or cut off
+     * part way through the body - or a 5xx, which is apps/ai, or the load balancer in front of it during
+     * a rollout, saying it cannot answer now.
+     *
+     * <p>The chain has to be walked. A body cut off part way arrives as {@code RestClientException},
+     * then {@code HttpMessageNotReadableException}, then Jackson's {@code JacksonIOException}, then the
+     * {@code IOException}: Jackson 3 wraps the I/O failure it meets while parsing, and Spring files it
+     * with the parse errors. Sorting by the outer type would report an outage as a contract break.
+     */
+    private static boolean unanswered(Throwable failure) {
+        if (failure instanceof HttpServerErrorException) {
+            return true;
+        }
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof IOException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public FeedRankResponse rankFeed(FeedRankRequest request) {
-        FeedRankResponse response;
-        try {
-            response = client.post().uri("/internal/v1/feed/rank")
-                    .header("X-Request-ID", requestId.get())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(FeedRankResponse.class);
-        } catch (HttpClientErrorException exception) {
-            throw rejected("feedRank", exception);
-        } catch (RestClientException | HttpMessageConversionException exception) {
-            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
-        }
-        if (response == null) {
-            throw new RecommendationUnavailableException("empty feed rank response", true, null);
-        }
+        FeedRankResponse response = post("feedRank", "/internal/v1/feed/rank", request, FeedRankResponse.class);
         verifyFeedOrder(request, response);
         return response;
     }
@@ -147,110 +195,35 @@ public class HttpRecommendationGateway implements RecommendationGateway {
 
     @Override
     public ItemProposeResponse proposeItem(ItemProposeRequest request) {
-        ItemProposeResponse response;
-        try {
-            response = client.post().uri("/internal/v1/items/propose")
-                    .header("X-Request-ID", requestId.get())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(ItemProposeResponse.class);
-        } catch (HttpClientErrorException exception) {
-            throw rejected("itemPropose", exception);
-        } catch (RestClientException | HttpMessageConversionException exception) {
-            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
-        }
-        if (response == null) {
-            throw new RecommendationUnavailableException("empty item propose response", true, null);
-        }
+        ItemProposeResponse response = post("itemPropose", "/internal/v1/items/propose", request, ItemProposeResponse.class);
         verifyResponse(request, response);
         return response;
     }
 
     @Override
     public SlotEvaluateResponse evaluateSlots(SlotEvaluateRequest request) {
-        SlotEvaluateResponse response;
-        try {
-            response = client.post().uri("/internal/v1/slots/evaluate")
-                    .header("X-Request-ID", requestId.get())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(SlotEvaluateResponse.class);
-        } catch (HttpClientErrorException exception) {
-            throw rejected("slotEvaluate", exception);
-        } catch (RestClientException | HttpMessageConversionException exception) {
-            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
-        }
-        if (response == null) {
-            throw new RecommendationUnavailableException("empty slot evaluation response", true, null);
-        }
+        SlotEvaluateResponse response = post("slotEvaluate", "/internal/v1/slots/evaluate", request, SlotEvaluateResponse.class);
         verifySlots(request, response);
         return response;
     }
 
     @Override
     public RelatedRankResponse rankRelated(RelatedRankRequest request) {
-        RelatedRankResponse response;
-        try {
-            response = client.post().uri("/internal/v1/related/rank")
-                    .header("X-Request-ID", requestId.get())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(RelatedRankResponse.class);
-        } catch (HttpClientErrorException exception) {
-            throw rejected("relatedRank", exception);
-        } catch (RestClientException | HttpMessageConversionException exception) {
-            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
-        }
-        if (response == null) {
-            throw new RecommendationUnavailableException("empty related rank response", true, null);
-        }
+        RelatedRankResponse response = post("relatedRank", "/internal/v1/related/rank", request, RelatedRankResponse.class);
         verifyRelated(request, response);
         return response;
     }
 
     @Override
     public ExplanationRenderResponse renderExplanation(ExplanationRenderRequest request) {
-        ExplanationRenderResponse response;
-        try {
-            response = client.post().uri("/internal/v1/explanations/render")
-                    .header("X-Request-ID", requestId.get())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(ExplanationRenderResponse.class);
-        } catch (HttpClientErrorException exception) {
-            throw rejected("explanationRender", exception);
-        } catch (RestClientException | HttpMessageConversionException exception) {
-            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
-        }
-        if (response == null) {
-            throw new RecommendationUnavailableException("empty explanation render response", true, null);
-        }
+        ExplanationRenderResponse response = post("explanationRender", "/internal/v1/explanations/render", request, ExplanationRenderResponse.class);
         verifyExplanation(request, response);
         return response;
     }
 
     @Override
     public DraftComposeResponse composeDraft(DraftComposeRequest request) {
-        DraftComposeResponse response;
-        try {
-            response = client.post().uri("/internal/v1/drafts/compose")
-                    .header("X-Request-ID", requestId.get())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(DraftComposeResponse.class);
-        } catch (HttpClientErrorException exception) {
-            throw rejected("draftCompose", exception);
-        } catch (RestClientException | HttpMessageConversionException exception) {
-            throw new RecommendationUnavailableException("recommendation service unavailable", true, exception);
-        }
-        if (response == null) {
-            throw new RecommendationUnavailableException("empty draft compose response", true, null);
-        }
+        DraftComposeResponse response = post("draftCompose", "/internal/v1/drafts/compose", request, DraftComposeResponse.class);
         verifyDraft(request, response);
         return response;
     }
@@ -492,6 +465,19 @@ public class HttpRecommendationGateway implements RecommendationGateway {
     private static RecommendationUnavailableException unusable(String message) {
         log.error("recommendation response rejected — {}", message);
         return new RecommendationUnavailableException(message, false, null);
+    }
+
+    /**
+     * apps/ai answered and the answer does not parse as the contract: a malformed body, a missing
+     * field, a content type no converter reads. {@link #unusable} one layer earlier, and the same
+     * verdict - the same request gets the same answer, so never retry.
+     */
+    private static RecommendationUnavailableException unreadable(String operation, RuntimeException exception) {
+        // The type and not the message: a parse error quotes the body it could not read.
+        log.error("recommendation response unreadable operation={} cause={} — retry will not help",
+                operation, NestedExceptionUtils.getMostSpecificCause(exception).getClass().getName());
+        return new RecommendationUnavailableException("recommendation response outside the contract", false,
+                exception);
     }
 
     /** A 4xx means this service hydrated an invalid request: an alert, not a transient outage. */

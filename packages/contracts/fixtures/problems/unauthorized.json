@@ -3,7 +3,7 @@
   "title": "Unauthorized",
   "status": 401,
   "code": "UNAUTHORIZED",
-  "detail": "The session owner is no longer active.",
+  "detail": "A valid session is required.",
   "instance": "/api/v1/trips/018f3f8e-9b67-7a21-8d31-31d315b93911",
   "requestId": "01931f7e-8b2c-7a44-9f13-6d2b8c4e5a70",
   "retryable": false

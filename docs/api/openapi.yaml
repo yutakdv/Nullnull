@@ -3205,6 +3205,335 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OptimizationRun"
+              examples:
+                optimizationReady:
+                  summary: "A preview waiting for a decision"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against.
+                    Its shape was taken from a real response: OptimizeRevertIT compares every level's keys
+                    with the server's. The item carries a TIME lock, so its one check is listed. A proposal
+                    is always comparison-eligible here: the revalidator refuses an ineligible candidate
+                    (VERDICT_INELIGIBLE), so an ineligible proposal is never stored. dataProvenance is the
+                    pair the proposal compared, as of the read; `metrics.comparisonEligible` is the verdict
+                    at the time of the run.
+                  value:
+                    id: 018f4a20-9f11-7c08-b3d7-2e5a41c9b106
+                    tripId: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                    scope: ITEM
+                    status: READY
+                    inputTripVersion: 3
+                    inputRevisionId: 018f4a40-6c21-7b18-9e44-1d2c3b4a5f03
+                    includeCandidates: false
+                    dataFingerprint: 82cd9e6a8923867450300bf0717d3c44bf81f57bedbeb29a4878d863b89e48dd
+                    algorithmVersion: nullnull-ai-pipeline-v1
+                    revertAvailability: NOT_APPLICABLE
+                    queuedAt: '2026-10-02T05:00:00Z'
+                    completedAt: '2026-10-02T05:00:03Z'
+                    expiresAt: '2026-10-02T05:15:02Z'
+                    proposals:
+                    - id: 018f4a50-2b11-7c33-8a01-4e5f6a7b8c11
+                      rank: 1
+                      summary: '인사동 방문을 10월 4일 13:00에서 10월 7일 13:00로 옮기면 상대 집중률가 88에서 41로 47포인트 낮아져요. 출처: ⓒ한국관광공사'
+                      changes:
+                      - operation: MOVE
+                        itemId: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                        before:
+                          placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                        after:
+                          placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                          date: '2026-10-07'
+                          position: 1
+                          startTime: '13:00:00'
+                      metrics:
+                        comparisonEligible: true
+                        comparisonReasonCode: null
+                        crowdDelta: -47
+                        travelMinutesDelta: null
+                        crowdComparison: null
+                      validation:
+                        allConstraintsPreserved: true
+                        checks:
+                        - constraintType: TIME
+                          passed: true
+                      dataProvenance:
+                      - source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: 한국관광공사 관광지 집중률 예측
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-03T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: 이용허락범위 제한 없음
+                        officialUrl: https://www.data.go.kr/data/15128555/openapi.do
+                        licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: 가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-4dade0577091770be16e8a81d0821356
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-4dade0577091770be16e8a81d0821356
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e10
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e11
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: KTO 관광지 일별 집중률 예측
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e14
+                      - source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: 한국관광공사 관광지 집중률 예측
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-06T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: 이용허락범위 제한 없음
+                        officialUrl: https://www.data.go.kr/data/15128555/openapi.do
+                        licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: 가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-4dade0577091770be16e8a81d0821356
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-4dade0577091770be16e8a81d0821356
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e10
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e11
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: KTO 관광지 일별 집중률 예측
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e17
+                    snapshotSetIds:
+                    - 018f5a10-3c21-7d41-9b02-6a7b8c9d0e11
+                    decisions: []
+                    failure: null
+                optimizationApplied:
+                  summary: "The same trip after its earlier preview was applied"
+                  description: |
+                    The APPLY this lists produced trip-detail-scheduled's version 3. Every proposal of the run
+                    stays listed after the decision, with its evidence; the undo is still offered.
+                  value:
+                    id: 018f4a20-9f11-7c08-b3d7-2e5a41c9b101
+                    tripId: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                    scope: ITEM
+                    status: APPLIED
+                    inputTripVersion: 2
+                    inputRevisionId: 018f4a40-6c21-7b18-9e44-1d2c3b4a5f02
+                    includeCandidates: false
+                    dataFingerprint: f6e219e463c6e7b4278d66c323aa81da5fb2c3498dbcc5647d06dd2f95c2c58b
+                    algorithmVersion: nullnull-ai-pipeline-v1
+                    revertAvailability: AVAILABLE
+                    queuedAt: '2026-10-02T01:12:00Z'
+                    completedAt: '2026-10-02T01:12:04Z'
+                    expiresAt: '2026-10-02T01:27:02Z'
+                    proposals:
+                    - id: 018f4a50-2b11-7c33-8a01-4e5f6a7b8c01
+                      rank: 1
+                      summary: '명동 방문을 10월 6일 14:00에서 10월 5일 14:00로 옮기면 상대 집중률가 72.5에서 34로 38.5포인트 낮아져요. 출처: ⓒ한국관광공사'
+                      changes:
+                      - operation: MOVE
+                        itemId: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                        before:
+                          placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                          date: '2026-10-06'
+                          position: 0
+                          startTime: '14:00:00'
+                        after:
+                          placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                          date: '2026-10-05'
+                          position: 0
+                          startTime: '14:00:00'
+                      metrics:
+                        comparisonEligible: true
+                        comparisonReasonCode: null
+                        crowdDelta: -38.5
+                        travelMinutesDelta: null
+                        crowdComparison: null
+                      validation:
+                        allConstraintsPreserved: true
+                        checks: []
+                      dataProvenance:
+                      - source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: 한국관광공사 관광지 집중률 예측
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-05T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: 이용허락범위 제한 없음
+                        officialUrl: https://www.data.go.kr/data/15128555/openapi.do
+                        licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: 가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: KTO 관광지 일별 집중률 예측
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e06
+                      - source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: 한국관광공사 관광지 집중률 예측
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-04T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: 이용허락범위 제한 없음
+                        officialUrl: https://www.data.go.kr/data/15128555/openapi.do
+                        licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: 가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: KTO 관광지 일별 집중률 예측
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e05
+                    - id: 018f4a50-2b11-7c33-8a01-4e5f6a7b8c02
+                      rank: 2
+                      summary: '명동 방문을 10월 6일 14:00에서 10월 7일 14:00로 옮기면 상대 집중률가 72.5에서 51로 21.5포인트 낮아져요. 출처: ⓒ한국관광공사'
+                      changes:
+                      - operation: MOVE
+                        itemId: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                        before:
+                          placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                          date: '2026-10-06'
+                          position: 0
+                          startTime: '14:00:00'
+                        after:
+                          placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                          date: '2026-10-07'
+                          position: 0
+                          startTime: '14:00:00'
+                      metrics:
+                        comparisonEligible: true
+                        comparisonReasonCode: null
+                        crowdDelta: -21.5
+                        travelMinutesDelta: null
+                        crowdComparison: null
+                      validation:
+                        allConstraintsPreserved: true
+                        checks: []
+                      dataProvenance:
+                      - source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: 한국관광공사 관광지 집중률 예측
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-05T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: 이용허락범위 제한 없음
+                        officialUrl: https://www.data.go.kr/data/15128555/openapi.do
+                        licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: 가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: KTO 관광지 일별 집중률 예측
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e06
+                      - source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: 한국관광공사 관광지 집중률 예측
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-06T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: 이용허락범위 제한 없음
+                        officialUrl: https://www.data.go.kr/data/15128555/openapi.do
+                        licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: 가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: KTO 관광지 일별 집중률 예측
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e07
+                    snapshotSetIds:
+                    - 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                    decisions:
+                    - id: 018f4a60-4d31-7e22-8c03-5f6a7b8c9d01
+                      runId: 018f4a20-9f11-7c08-b3d7-2e5a41c9b101
+                      proposalId: 018f4a50-2b11-7c33-8a01-4e5f6a7b8c01
+                      decision: APPLY
+                      resultingTripVersion: 3
+                      beforeRevisionId: 018f4a40-6c21-7b18-9e44-1d2c3b4a5f02
+                      afterRevisionId: 018f4a40-6c21-7b18-9e44-1d2c3b4a5f03
+                      revertUntil: '2026-10-03T01:13:40Z'
+                      decidedAt: '2026-10-02T01:13:40Z'
+                    failure: null
         "404":
           $ref: "#/components/responses/NotFound"
         "410":
@@ -3690,9 +4019,10 @@ components:
         client can tell a first visit (start a session) from a session that ended (let the traveller
         decide: a new session is a different anonymous owner). The field is never set when a cookie was
         sent, so its absence says nothing about why that cookie failed: an expired, revoked, forged,
-        malformed or never-issued cookie gets the same answer from session resolution. The field describes
-        this request, not what the browser holds - a proxy that strips `Cookie` also produces it - so a
-        client should start at most one new session per page load in answer to it.
+        malformed or never-issued cookie, or one whose owner was deleted mid-request, gets the same answer
+        wherever it is refused. The field describes this request, not what the browser holds - a proxy
+        that strips `Cookie` also produces it - so a client should start at most one new session per page
+        load in answer to it.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"
@@ -6792,7 +7122,7 @@ components:
           title: Unauthorized
           status: 401
           code: UNAUTHORIZED
-          detail: The session owner is no longer active.
+          detail: A valid session is required.
           instance: /api/v1/me
           requestId: 01931f7e-9c31-7b02-8e55-2a7f0c9d4e18
           retryable: false

@@ -423,7 +423,7 @@
         },
         {
           "id": "BA-010-T5",
-          "assertion": "session 해석에서 거절된 요청은 원인과 무관하게 서로 구별되지 않는 필드 없는 401 UNAUTHORIZED다"
+          "assertion": "origin 검사에서 거절되지 않은 요청이 보낸 session cookie로 그 요청을 수행할 수 없으면, 원인·거절 단계와 무관하게 서로 구별되지 않는 필드 없는 401 UNAUTHORIZED다"
         },
         {
           "id": "BA-010-T6",
@@ -1302,7 +1302,7 @@
           "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance. #233부터 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하지만 이 절을 증명할 E2E가 아직 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. E2E가 서면 이 표시를 지운다.",
             "issue": "#233"
           }
         },
@@ -1890,6 +1890,10 @@
         {
           "id": "BA-053-T10",
           "assertion": "만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-053-T11",
+          "assertion": "REVERT는 기록된 일정 변경만 되돌리고 후보의 ACTIVE·DISMISSED 상태를 바꾸지 않는다"
         }
       ],
       "handoff": "undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag.",
@@ -2268,7 +2272,7 @@
           "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance. integration-test.sh가 --e2e-junit-dir를 넘기지 않아 JUnit testcase 이름에 나타날 수 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. 배선과 E2E가 서면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance. #233부터 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하지만 이 절을 증명할 E2E가 아직 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. E2E가 서면 이 표시를 지운다.",
             "issue": "#233"
           }
         }

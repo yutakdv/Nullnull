@@ -162,14 +162,6 @@ python3 "${gate_evidence_recorder}" \
 # api-quality went green and docker-integration failed on the same commit. A non-required workflow
 # agreeing is not this gate's answer.
 python3 "${script_tests_runner}" --out "${artifact_dir}/script-test-results"
-python3 "${test_report_checker}" \
-  --junit-dir "${artifact_dir}/api-test-results" \
-  --script-junit-dir "${artifact_dir}/script-test-results" \
-  --gate-junit-dir "${artifact_dir}/gate-evidence" \
-  --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
-  --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
-  --evaluation "${recommendation_report}" \
-  --run-start "${artifact_dir}/quality-run-start"
 
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff
@@ -290,6 +282,36 @@ if [[ "${api_ready}" != true || "${web_ready}" != true ]]; then
   exit 1
 fi
 
+# #253: the E2E reads catalog rows that no production path creates here (egress is denied, so the
+# KTO ingest cannot run). Seeded only now: api has migrated the schema, and api-quality - which
+# shares this database - has finished. The read-back line is the verdict; psql exiting 0 is not.
+readonly e2e_seed_report="${artifact_dir}/e2e-catalog-seed.txt"
+"${compose[@]}" exec -T postgres psql --no-psqlrc --quiet --tuples-only --no-align \
+  -v ON_ERROR_STOP=1 -U nullnull -d nullnull_integration \
+  <"${project_root}/scripts/e2e/catalog-seed.sql" >"${e2e_seed_report}" 2>&1 || {
+  cat "${e2e_seed_report}" >&2
+  exit 1
+}
+if ! grep -qx 'e2e_catalog_seed=places:3,published_posts:1' "${e2e_seed_report}"; then
+  echo "E2E catalog seed did not read back as expected:" >&2
+  cat "${e2e_seed_report}" >&2
+  exit 1
+fi
+grep -x 'e2e_catalog_seed=.*' "${e2e_seed_report}"
+
 "${compose[@]}" run --rm e2e
+# #233: aggregated only now, after the browser suite has written its JUnit, so an acceptance ID a
+# Playwright title carries is counted like any other. Earlier it ran above web-quality and could
+# only have read a report this run had not produced yet - --run-start rejects anything older than
+# quality-run-start, so a report left by an earlier run fails rather than standing in for this one.
+python3 "${test_report_checker}" \
+  --junit-dir "${artifact_dir}/api-test-results" \
+  --script-junit-dir "${artifact_dir}/script-test-results" \
+  --gate-junit-dir "${artifact_dir}/gate-evidence" \
+  --e2e-junit-dir "${artifact_dir}/playwright" \
+  --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
+  --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
+  --evaluation "${recommendation_report}" \
+  --run-start "${artifact_dir}/quality-run-start"
 echo "full-docker" >"${artifact_dir}/mode.txt"
 echo "integration_mode=full-docker"

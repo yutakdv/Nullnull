@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -166,6 +167,67 @@ class IntegrationScriptWiringTests(unittest.TestCase):
         self.assertLess(
             self.lines.index(AI_QUALITY_RUN), self.lines.index(GATE_CALL)
         )
+
+
+E2E_SEED = 'scripts/e2e/catalog-seed.sql'
+API_QUALITY_RUN = '"${compose[@]}" run --rm api-quality'
+E2E_RUN = '"${compose[@]}" run --rm e2e'
+
+
+class E2ECatalogSeedTests(unittest.TestCase):
+    """#253: synthetic catalog rows reach the throwaway integration database and nothing else."""
+
+    def setUp(self):
+        self.lines = executable_lines(INTEGRATION_SCRIPT.read_text(encoding='utf-8'))
+
+    def seed_line(self) -> int:
+        matches = [i for i, line in enumerate(self.lines) if E2E_SEED in line]
+        self.assertEqual(len(matches), 1, 'the wrapper must apply the seed exactly once')
+        return matches[0]
+
+    def test_the_seed_runs_after_api_quality_and_before_e2e(self):
+        # Before api-quality it would sit under suites that share the database; after e2e it
+        # would seed nothing the tests read.
+        seed = self.seed_line()
+        self.assertLess(self.lines.index(API_QUALITY_RUN), seed)
+        self.assertLess(seed, self.lines.index(E2E_RUN))
+
+    def test_the_read_back_is_the_verdict(self):
+        # psql exiting 0 says the statements ran, not that the rows are there.
+        seed = self.seed_line()
+        verdict = [i for i, line in enumerate(self.lines)
+                   if "grep -qx 'e2e_catalog_seed=places:3,published_posts:1'" in line]
+        self.assertEqual(len(verdict), 1)
+        self.assertLess(seed, verdict[0])
+        self.assertLess(verdict[0], self.lines.index(E2E_RUN))
+
+    def test_nothing_but_the_wrapper_names_the_seed(self):
+        # The rows are synthetic. A migration, a Dockerfile, a workflow or a deploy script that
+        # names this file is a path to staging or production, so the only referrer allowed is the
+        # wrapper that owns the throwaway database. Untracked files count: work in progress is
+        # exactly where such a reference would first appear.
+        listed = subprocess.run(
+            ['git', 'ls-files', '--cached', '--others', '--exclude-standard'],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.splitlines()
+        self.assertGreater(len(listed), 100, 'git ls-files returned too few paths to be a scan')
+        allowed = {'scripts/integration-test.sh', 'scripts/tests/test_integration_test_gate.py',
+                   # the wrapper's execution harness, which runs it against a fake docker
+                   'scripts/tests/test_check_test_reports.py', E2E_SEED}
+        referrers = []
+        for relative in listed:
+            # The E2E specs read what the seed wrote and may say so; a consumer running against the
+            # throwaway database is not a path that applies the file anywhere.
+            if relative in allowed or relative.startswith('apps/web/e2e/'):
+                continue
+            path = ROOT / relative
+            try:
+                text = path.read_text(encoding='utf-8')
+            except (UnicodeDecodeError, OSError):
+                continue
+            if 'scripts/e2e' in text or 'catalog-seed' in text:
+                referrers.append(relative)
+        self.assertEqual(referrers, [])
 
 
 if __name__ == '__main__':

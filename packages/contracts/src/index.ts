@@ -43,6 +43,8 @@ import savedPostState from "../fixtures/posts/saved-post-state.json" with { type
 import savedPostStateDuplicate from "../fixtures/posts/saved-post-state-duplicate.json" with { type: "json" };
 import historyPage from "../fixtures/optimizations/history-page.json" with { type: "json" };
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
+import optimizationRunReady from "../fixtures/optimizations/run-ready.json" with { type: "json" };
+import optimizationRunApplied from "../fixtures/optimizations/run-applied.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
 import relatedPage from "../fixtures/places/related-page.json" with { type: "json" };
 import relatedNone from "../fixtures/places/related-none.json" with { type: "json" };
@@ -257,6 +259,11 @@ export const optimizationFixtures = {
   historyPage: historyPage as components["schemas"]["OptimizationHistoryPage"],
   historyPageEmpty:
     historyPageEmpty as components["schemas"]["OptimizationHistoryPage"],
+  // getOptimization's two faces (#16 R3). Unlike the history pages these are pinned to the
+  // contract's response examples by scripts/check-examples.mjs, and apps/api compares their shape
+  // with a real response at every level (OptimizeItemIT, OptimizeRevertIT).
+  runReady: optimizationRunReady as components["schemas"]["OptimizationRun"],
+  runApplied: optimizationRunApplied as components["schemas"]["OptimizationRun"],
 };
 
 // PROVISIONAL MOCK DATA — replace when BA-022 serves searchPlaces for real.

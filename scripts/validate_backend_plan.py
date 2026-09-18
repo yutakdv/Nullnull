@@ -173,11 +173,12 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
             # reason and a tracking issue, or it is not an exception, it is a hole.
             #
             # The case it exists for: BA-040-T4 and BA-070-T5 are keyboard/focus E2E in apps/web.
-            # The aggregator reads JUnit testcase names and integration-test.sh does not pass
-            # --e2e-junit-dir, so those IDs cannot appear however well FE implements them - and the
-            # two cards were unpromotable forever. Moving them to the frontend plan is not the
-            # answer either: validate_frontend_plan.py never opens a report, so the ID would go
-            # from "the aggregator cannot see it" to "nothing verifies it".
+            # The aggregator reads JUnit testcase names, and until #233 integration-test.sh did not
+            # pass --e2e-junit-dir, so those IDs could not appear however well FE implemented them -
+            # the two cards were unpromotable forever. The gate reads the browser suite now; what
+            # remains is the E2E itself, and the marker comes off with it. Moving them to the
+            # frontend plan is not the answer either: validate_frontend_plan.py never opens a
+            # report, so the ID would go from "the aggregator cannot see it" to "nothing verifies it".
             external = test.get('externalOwner')
             if external is not None:
                 if not isinstance(external, dict):

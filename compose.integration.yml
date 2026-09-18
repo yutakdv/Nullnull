@@ -172,7 +172,13 @@ services:
       target: runtime
     environment:
       <<: *api-environment
-      # The ONE key that cannot be shared with api-quality. CsrfOriginInterceptor
+      # The catalog gate is opened here and only here (#253): the E2E drives trips and the feed,
+      # which are 503 while it is closed. api-quality keeps the default (closed) because the
+      # *FailsClosedIT suites prove that state. No cursor secret is needed: SPRING_PROFILES_ACTIVE
+      # is `integration` alone, a development profile, so CatalogPublicationProperties signs with
+      # an ephemeral key.
+      NULLNULL_CATALOG_PUBLIC_ENABLED: "true"
+      # The other key that cannot be shared with api-quality. CsrfOriginInterceptor
       # compares the request's Origin against this value on every non-GET, so it
       # has to name the origin the caller actually loads from — and the two
       # callers differ. api-quality drives MockMvc, whose tests write

@@ -130,10 +130,11 @@ def required_plan_ids(plan: dict) -> set[str]:
             ident = test.get("id") if isinstance(test, dict) else None
             if not isinstance(ident, str) or not re.fullmatch(r"BA-\d{3}-T\d+", ident):
                 raise ValueError("backend plan: invalid acceptance ID")
-            # A clause the other role owns is not required to appear here - it cannot. FE-owned
-            # acceptance lives in Playwright, integration-test.sh does not pass --e2e-junit-dir,
-            # and the ID would never reach a JUnit name however well FE implemented it. The shape
-            # of the marker (role, reason, tracking issue) is validate_backend_plan.py's to
+            # A clause the other role owns is not required to appear here. FE-owned acceptance
+            # lives in Playwright; until #233 the gate did not pass --e2e-junit-dir, so the ID could
+            # never reach a JUnit name however well FE implemented it. The gate reads the browser
+            # suite now, so what keeps the marker is the missing E2E, and it comes off with it. The
+            # shape of the marker (role, reason, tracking issue) is validate_backend_plan.py's to
             # enforce; this honours it and PRINTS it, because an exemption nobody sees is how a
             # gate quietly stops asking.
             external = test.get("externalOwner")

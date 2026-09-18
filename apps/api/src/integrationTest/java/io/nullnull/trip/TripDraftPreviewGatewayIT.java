@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
@@ -39,13 +40,16 @@ import org.springframework.test.web.servlet.ResultActions;
  * request would get the same answer. A mocked gateway could only show how the service maps an
  * exception it was handed; this shows which exception a real transport failure and a real 422 become.
  */
-@SpringBootTest(properties = "nullnull.catalog.public-enabled=true")
+// The read timeout is shortened so the STALL case can outlast it without the suite waiting the
+// production five seconds. It bounds the whole exchange, body included (JdkClientHttpRequest's
+// TimeoutHandler closes the body stream), which is what that case relies on.
+@SpringBootTest(properties = {"nullnull.catalog.public-enabled=true", "nullnull.ai.read-timeout=PT1S"})
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 @DisplayName("BA-055 trip draft preview when apps/ai does not answer usably")
 class TripDraftPreviewGatewayIT {
 
-    enum Mode { DROP_CONNECTION, REJECT_422, OUTSIDE_THE_POOL }
+    enum Mode { DROP_CONNECTION, REJECT_422, OUTSIDE_THE_POOL, WRONG_FIELD_TYPE, CUT_OFF, STALL }
 
     private static final AtomicReference<Mode> MODE = new AtomicReference<>(Mode.DROP_CONNECTION);
     private static final AtomicInteger CALLS = new AtomicInteger();
@@ -103,6 +107,49 @@ class TripDraftPreviewGatewayIT {
         org.assertj.core.api.Assertions.assertThat(CALLS.get()).as("the stub was really reached").isEqualTo(1);
     }
 
+    /**
+     * #250, the side of the line that moved. The body arrives whole and is valid JSON; one declared field
+     * has a type it cannot have. Asking again gets the same body, so this is not the outage T5 is.
+     */
+    @Test
+    @DisplayName("an apps/ai answer that does not parse as the contract is 500 INTERNAL_ERROR, not a retryable 503")
+    void anUnreadableAnswerIsAnInternalErrorNotAnOutage() throws Exception {
+        MODE.set(Mode.WRONG_FIELD_TYPE);
+
+        preview().andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.retryable").value(false));
+        org.assertj.core.api.Assertions.assertThat(CALLS.get()).as("the stub was really reached").isEqualTo(1);
+    }
+
+    /**
+     * #250, the side that must NOT move. The body stops short of its Content-Length: the parse fails, but
+     * because the read did. It reaches the gateway as a parse error with the I/O failure underneath, so
+     * a line drawn on the outer type would call this outage a contract break.
+     */
+    @Test
+    @DisplayName("an apps/ai body cut off part way is 503 SOURCE_UNAVAILABLE, not a contract break")
+    void aBodyCutOffPartWayIsAnOutage() throws Exception {
+        MODE.set(Mode.CUT_OFF);
+
+        preview().andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SOURCE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.retryable").value(true));
+        org.assertj.core.api.Assertions.assertThat(CALLS.get()).as("the stub was really reached").isEqualTo(1);
+    }
+
+    /** #250, the same side: the body starts and then stops arriving, past the read timeout. */
+    @Test
+    @DisplayName("an apps/ai body that stops arriving past the read timeout is 503 SOURCE_UNAVAILABLE")
+    void aBodyThatStallsPastTheTimeoutIsAnOutage() throws Exception {
+        MODE.set(Mode.STALL);
+
+        preview().andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SOURCE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.retryable").value(true));
+        org.assertj.core.api.Assertions.assertThat(CALLS.get()).as("the stub was really reached").isEqualTo(1);
+    }
+
     private ResultActions preview() throws Exception {
         var owner = sessions.bootstrap(null, null, null);
         return mvc.perform(post("/api/v1/trip-drafts/preview")
@@ -116,6 +163,9 @@ class TripDraftPreviewGatewayIT {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.createContext("/internal/v1/drafts/compose", TripDraftPreviewGatewayIT::respond);
+            // STALL holds its handler past the client's timeout; on the default single dispatcher thread
+            // the next case's request would queue behind it and could time out itself.
+            server.setExecutor(Executors.newCachedThreadPool());
             server.start();
             return server;
         } catch (IOException exception) {
@@ -139,6 +189,34 @@ class TripDraftPreviewGatewayIT {
                      "state":"READY","stops":[{"placeId":"00000000-0000-7000-8000-0000000000ff","date":"2026-10-04",
                      "position":0,"hoursState":"UNKNOWN"}],"reasons":[],"evaluated":0,"rejectedByReason":{}}
                     """.formatted("a".repeat(64)));
+            case WRONG_FIELD_TYPE -> send(exchange, 200, """
+                    {"policyVersion":"policy-v1","policyHash":"%s","pipelineVersion":"nullnull-ai-pipeline-v1",
+                     "state":"EMPTY","stops":[],"reasons":[],"evaluated":"many","rejectedByReason":{}}
+                    """.formatted("a".repeat(64)));
+            case CUT_OFF -> {
+                // Promise the whole body and send half: the connection closes short of Content-Length.
+                byte[] half = "{\"policyVersion\":\"policy-v1\",\"policyHash\":\"".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, half.length * 2L);
+                OutputStream out = exchange.getResponseBody();
+                out.write(half);
+                out.flush();
+                exchange.close();
+            }
+            case STALL -> {
+                // Enough for the parser to start, then nothing until well after the one-second timeout.
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, 0);
+                OutputStream out = exchange.getResponseBody();
+                out.write("{\"policyVersion\":\"policy-v1\",".getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                try {
+                    Thread.sleep(3_000);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                exchange.close();
+            }
         }
     }
 
