@@ -169,8 +169,16 @@ class SourceRegistryIT {
         }
     }
 
+    /**
+     * No acceptance ID leads this label. `REC-DATA-05` was borrowed and did not fit - that clause
+     * is drift quarantine. The near match is `REC-SEC-02`, whose clause names four faces (log, DB,
+     * event, artifact); this covers two of them, the sanitized error and the audit row. Registering
+     * it would recreate on the REC side exactly what `BA-006-T2` was: one ID over faces only some
+     * of which are proven. It stays unlabelled until either the remaining faces are proven here or
+     * the clause is split.
+     */
     @Test
-    @DisplayName("REC-DATA-05 provider canary remains out of the sanitized error and audit database")
+    @DisplayName("provider canary remains out of the sanitized error and audit database")
     void providerCanaryCannotReachTheAuditLedger() throws Exception {
         String canary = "fake-secret-key-never-retain";
         Instant now = Instant.parse("2026-09-10T00:00:00Z");
