@@ -103,3 +103,69 @@ describe('ConfirmDialog', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });
+
+// The restore fallback, for the case where the opener is gone by the time the
+// dialog closes: one surface opens this dialog and dismisses itself doing it,
+// so `restoreTo` holds a detached node and focus has to go somewhere else.
+//
+// What this file CAN measure and what it cannot, measured rather than assumed:
+// happy-dom's `parentElement.querySelectorAll` DOES return elements inside a
+// closed <dialog>, exactly as a browser does — so WHICH element the fallback
+// picks is observable here. But happy-dom lets `.focus()` succeed on an element
+// inside a closed <dialog>, where a real browser makes it a no-op — so the
+// CONSEQUENCE (focus ends up on <body>) is not observable here, and the e2e
+// suite is where that was seen.
+//
+// So this asserts the choice, not the landing. That is the whole of the fix:
+// a closed sibling dialog's button must not be chosen.
+describe('ConfirmDialog restores focus past closed sibling dialogs', () => {
+  it('skips a closed sibling dialog and takes the nearest real control', async () => {
+    const user = userEvent.setup();
+
+    // The shape TripScreen actually renders: LockRow's confirm sits mounted and
+    // closed in the same container as the one being opened and closed
+    // (TripScreen.tsx:358,362). Its Cancel button is earlier in document order
+    // than the live dialog, so before the fix it won the "previous focusable"
+    // search — and it is unfocusable in a browser.
+    function Siblings() {
+      const [open, setOpen] = useState(false);
+      return (
+        <div>
+          <button onClick={() => setOpen(true)} type="button">
+            실제 컨트롤
+          </button>
+          <dialog>
+            <button type="button">닫힌 형제의 취소</button>
+          </dialog>
+          <ConfirmDialog
+            cancelLabel="취소"
+            confirmLabel="확인"
+            onCancel={() => setOpen(false)}
+            onConfirm={() => setOpen(false)}
+            open={open}
+            title="확인"
+          />
+        </div>
+      );
+    }
+
+    render(<Siblings />);
+    const opener = screen.getByRole('button', { name: '실제 컨트롤' });
+    await user.click(opener);
+
+    // Detach the opener while the dialog is up, which is the situation the
+    // fallback exists for: `restoreTo` now points at a node out of the page.
+    opener.remove();
+
+    await user.click(await screen.findByRole('button', { name: '취소' }));
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement | null;
+      // Not the closed sibling's button. Naming the element rather than
+      // asserting "not body" is deliberate: "not body" passes in happy-dom even
+      // with the bug present, because happy-dom focuses the unfocusable button
+      // successfully.
+      expect(active?.textContent).not.toBe('닫힌 형제의 취소');
+    });
+  });
+});

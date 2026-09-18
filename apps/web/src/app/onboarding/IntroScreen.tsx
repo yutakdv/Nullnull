@@ -11,6 +11,10 @@ import styles from './IntroScreen.module.css';
 // Both paths mark onboarding complete and land on the same place, so "skip"
 // means "skip reading", not "skip recording". The icons are decorative — the
 // adjacent text is the label.
+//
+// Continue and skip now both land on /sign-in rather than /feed (#265). The
+// traveller can still go on without an account — the sign-in screen offers
+// that — so this is one more step in the path, not a gate in front of it.
 
 const POINTS: { Icon: typeof IconHeart; titleKey: MessageKey; bodyKey: MessageKey }[] = [
   { Icon: IconHeart, titleKey: 'intro.point1.title', bodyKey: 'intro.point1.body' },
@@ -27,7 +31,7 @@ export function IntroScreen() {
     // Best effort until BA-011 opens: onboarding must not stall on a request
     // the server does not answer yet.
     updatePreferences.mutate({ onboardingCompleted: true });
-    void navigate('/feed', { replace: true });
+    void navigate('/sign-in', { replace: true });
   }
 
   return (

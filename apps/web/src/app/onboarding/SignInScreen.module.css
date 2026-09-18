@@ -1,0 +1,132 @@
+/* Figma: A-4 sign-in 746:4707.
+ *
+ * The frame is still A-3's content at the time of writing — the Figma account's
+ * seat on this team is View, so the screen could not be redrawn (see #265).
+ * These values come from the tokens that frame already binds, measured by a
+ * session that could read it, plus the paste screen's input treatment
+ * (401:1230), which is the only real text field in the design file.
+ *
+ * .screen/.body/.copy/.title/.lead deliberately repeat IntroScreen's geometry
+ * rather than importing it: they are two screens in one flow and gzip folds
+ * the duplicate bytes (measured four times in check-bundle-budget.mjs — the
+ * last attempt recovered 43 gzip bytes for 1,105 raw). Extracting a shared
+ * module is its own change with its own tests.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-4) 0;
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-lg);
+  font-weight: 700;
+  line-height: 34px;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 21px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 19px;
+}
+
+/* 401:1230's treatment: subtle fill, card radius, 16 padding, no border.
+ * 16 + 21 + 16 = 53px, which clears the 44px touch floor responsive.spec.ts
+ * measures. Height is not fixed so the field grows with the user's font size
+ * instead of clipping it. */
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-body-sm);
+  line-height: 21px;
+}
+
+.input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+/* The design file has no error colour: a session with read access scanned all
+ * 35 colour variables by name (error|danger|negative|warn|alert|invalid|fail|
+ * critical) and again by value (red-ish RGB) and found none. `protect/default`
+ * exists but means "protected", not "wrong", so it is not borrowed here.
+ * Until a token is added — a design-system change, so an FCR — this reads in
+ * secondary text, and the live region carries the meaning instead of colour.
+ *
+ * Unused while the screen has nothing to report (#265) — kept because the
+ * contract's field errors land here, and the reasoning above is what the next
+ * person needs when they arrive. */
+.notice {
+  min-height: 16px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
+/* A button, not a link: it goes back to wherever the traveller came from, so
+ * it has no destination of its own to put in an href. */
+.anonymous {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-body-sm);
+  text-align: center;
+  cursor: pointer;
+}
+
+/* The gate caught this one: at 13px the button was 234×18, and
+ * responsive.spec's touch-target walk found it. The text stays the size Figma
+ * drew — only the hit area grows, which is the same treatment AppliedPanel's
+ * .revert and ConfirmStopsStep's controls already carry. Padding rather than a
+ * bare min-height so the centred label does not drift off the tap area. */
+@media (pointer: coarse) {
+  .anonymous {
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+  }
+}

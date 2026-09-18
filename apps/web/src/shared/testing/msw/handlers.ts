@@ -278,8 +278,98 @@ function postDetailFor(postId: string): PostDetail | null {
  */
 const runPolls = new Map<string, number>();
 
-/** Runs the mock should answer for. Seeded by createOptimization. */
-const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
+/**
+ * Runs the mock should answer for. Seeded by createOptimization.
+ *
+ * Exported so a test can drive the DEFAULT handlers rather than copying the id:
+ * two spellings of the same constant drift, and the one that drifts is the one
+ * that makes a test quietly stop reaching the handler it meant to.
+ */
+export const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
+
+/**
+ * The decision recorded against a run, if any.
+ *
+ * Kept so `getOptimization` can answer APPLIED or KEPT after one is made. A
+ * mock that always re-answered READY would leave the transition the decision
+ * causes untestable: the bar's `applied` state and the run's own status line
+ * would both pass against a run that never moved, which is the shape of a test
+ * that renders the right thing for the wrong reason.
+ */
+const runDecisions = new Map<string, { decision: 'APPLY' | 'KEEP'; decidedAt: string }>();
+
+/**
+ * Runs whose APPLY has since been reverted, with the time it happened.
+ *
+ * Kept apart from `runDecisions` rather than replacing its entry, because the
+ * contract keeps BOTH: `decisions` is "one initial APPLY/KEEP, then optional
+ * one REVERT of APPLY" (maxItems 2), and the panel reads its versions from the
+ * two of them. Overwriting the APPLY here would lose the number the reverted
+ * panel needs and would also make an already-reverted run answer as revertable
+ * again.
+ */
+const runReverts = new Map<string, { decidedAt: string }>();
+
+/** The APPLY decision's id — the path parameter a revert is aimed at. */
+export const MOCK_DECISION_ID = '018f6b00-0000-7000-8000-000000000001';
+
+/** The REVERT decision's own id, which is a different decision entirely. */
+const MOCK_REVERT_DECISION_ID = '018f6b00-0000-7000-8000-000000000002';
+
+/**
+ * The fields that belong to one kind of decision and not the other.
+ *
+ * The contract splits these by discriminator: only APPLY carries a resulting
+ * version, the two revision ids and a revert window — a KEEP changed nothing,
+ * so there is no version to report and nothing to revert to. Returning them on
+ * a KEEP would let a screen read `resultingTripVersion` off a decision that
+ * never moved the trip, which is invariant 4 stated the wrong way round.
+ *
+ * `revertUntil` is `decidedAt` plus exactly 24 hours, per the contract.
+ */
+/**
+ * Two proposals, derived from the one approved example.
+ *
+ * The contract allows up to three (`maxItems: 3`) and the example carries one,
+ * so a mock that served the fixture flat left the whole selection path — the
+ * radiogroup, `aria-checked`, the keyboard move — unreachable: the screen only
+ * makes the cards selectable when there is more than one, so that code had
+ * never executed anywhere, including in `npm run dev`.
+ *
+ * Derived here rather than by editing the fixture: that file is pinned to the
+ * contract's example by check-examples.mjs and fixtures.test.ts, and it is
+ * right about the SHAPE. What it does not carry is a COUNT the screen has to
+ * handle.
+ *
+ * The clone keeps `metrics` and `dataProvenance` untouched, so both proposals
+ * pass the same `crowdComparison` gate. Changing them here would make the two
+ * cards differ for a reason unrelated to choosing between them, and a test
+ * that then looked at the wrong card would still find something plausible.
+ *
+ * Rank 2 is listed FIRST so "the default is rank 1" cannot pass on array order.
+ */
+function mockProposals() {
+  const [first] = optimizationFixtures.runReady.proposals;
+  if (!first) return optimizationFixtures.runReady.proposals;
+  const second = {
+    ...first,
+    id: '018f6d00-0000-7000-8000-000000000002',
+    rank: 2,
+    summary: '경복궁 방문을 10월 5일 오전으로 옮기면 상대 집중률이 조금 낮아져요.',
+  };
+  return [second, first];
+}
+
+function decisionOutcome(decision: 'APPLY' | 'KEEP', decidedAt: string, version: number) {
+  if (decision === 'KEEP') return {};
+  const REVERT_WINDOW_MS = 24 * 60 * 60 * 1000;
+  return {
+    resultingTripVersion: version,
+    beforeRevisionId: '018f6c00-0000-7000-8000-000000000001',
+    afterRevisionId: '018f6c00-0000-7000-8000-000000000002',
+    revertUntil: new Date(new Date(decidedAt).getTime() + REVERT_WINDOW_MS).toISOString(),
+  };
+}
 
 /** Drops mutations between tests, so ordering cannot leak state. */
 export function resetMockState(): void {
@@ -290,6 +380,8 @@ export function resetMockState(): void {
   importDraftState = null;
   savedPosts.clear();
   runPolls.clear();
+  runDecisions.clear();
+  runReverts.clear();
 }
 
 /**
@@ -360,9 +452,52 @@ export const handlers = [
       headers: { 'Cache-Control': 'private, no-store' },
     });
   }),
-  http.get(`${API_BASE}/optimizations`, () =>
-    HttpResponse.json(optimizationFixtures.historyPage),
-  ),
+  // The profile reads this unfiltered; the trip screen reads it with
+  // `tripId` and `limit=1` to find the run worth a second request (FE-504).
+  //
+  // The filter is honoured rather than ignored because the trip screen's whole
+  // reason to call it is "the last thing that happened to THIS trip" — a
+  // handler that answered the owner's full history would let a screen that
+  // dropped the parameter pass, and that screen would offer another trip's
+  // undo.
+  //
+  // A decided run is reported from the live decision state, not from the
+  // fixture's frozen row: the panel's first gate is `decision === 'APPLY'`,
+  // and a fixture that always said null would keep the second request from
+  // ever being sent.
+  http.get(`${API_BASE}/optimizations`, ({ request }) => {
+    const url = new URL(request.url, 'http://localhost');
+    const tripId = url.searchParams.get('tripId');
+    const limit = Number(url.searchParams.get('limit') ?? '0');
+    const page = optimizationFixtures.historyPage;
+    if (!tripId) return HttpResponse.json(page);
+
+    const trip = currentTrip();
+    const decided = runDecisions.get(MOCK_RUN_ID);
+    const reverted = runReverts.get(MOCK_RUN_ID);
+    const live =
+      tripId === trip.id && decided
+        ? [
+            {
+              runId: MOCK_RUN_ID,
+              tripId: trip.id,
+              tripTitle: trip.title,
+              scope: 'ITEM' as const,
+              status:
+                decided.decision === 'APPLY' ? ('APPLIED' as const) : ('KEPT' as const),
+              decision: reverted ? ('REVERT' as const) : decided.decision,
+              runLink: `/trip/${trip.id}/optimizations/${MOCK_RUN_ID}`,
+              queuedAt: '2026-09-11T06:00:00Z',
+              decidedAt: reverted ? reverted.decidedAt : decided.decidedAt,
+            },
+          ]
+        : [];
+    const items = [...live, ...page.items.filter((item) => item.tripId === tripId)];
+    return HttpResponse.json({
+      ...page,
+      items: limit > 0 ? items.slice(0, limit) : items,
+    });
+  }),
   // MOCK DATA (FE-501). createOptimization has an approved example, so the
   // request shape is the contract's own; the run it answers with is invented
   // until BA-050 lands. 202 with a Location header, per the contract.
@@ -398,23 +533,102 @@ export const handlers = [
   }),
 
   // MOCK DATA (FE-502). getOptimization has no approved example (BA-050), so
-  // the run below is a schema-valid invention. It PROGRESSES: the first poll
-  // answers QUEUED, the second RUNNING, the third READY, and Retry-After
-  // carries the interval the contract says to send "for QUEUED/RUNNING
-  // responses". A handler pinned to one status would let a screen that never
-  // polls and a screen that polls a settled run for ever both pass.
+  // the QUEUED/RUNNING shape below is a schema-valid invention. It
+  // PROGRESSES: the first poll answers QUEUED, the second RUNNING, the third
+  // READY, and Retry-After carries the interval the contract says to send
+  // "for QUEUED/RUNNING responses". A handler pinned to one status would let
+  // a screen that never polls and a screen that polls a settled run for ever
+  // both pass.
   //
-  // proposals stays empty because BA-051 computes them and nothing here may
-  // invent a metric or a change list — an unsourced comparison is what
-  // invariant 8 forbids. The READY state a user reaches is therefore the
-  // "result arrived, the preview screen is FE-503" state, not a fake preview.
+  // READY no longer invents proposals: BA-051 computes them now, and
+  // optimizationFixtures.runReady is that computed shape, pinned to the
+  // contract's response example by check-examples.mjs and to the schema by
+  // fixtures.test.ts. Only id, tripId and inputTripVersion are overridden —
+  // they have to match this mock's run and trip, everything else must stay
+  // as the contract fixed it. inputTripVersion in particular: the fixture's
+  // value is whatever BE captured when the example was written, not this
+  // mock's live trip.version, and trip.version moves (a replace increments
+  // it) — leaving the fixture's number in would make the run compare as
+  // stale against a trip it was never actually run against, and no APPLY
+  // path could ever be exercised against a fresh run.
   http.get(`${API_BASE}/optimizations/:runId`, ({ params }) => {
     const runId = String(params.runId);
     if (runId !== MOCK_RUN_ID) return problemResponse('NOT_FOUND');
     const seen = (runPolls.get(runId) ?? 0) + 1;
     runPolls.set(runId, seen);
-    const status = seen === 1 ? 'QUEUED' : seen === 2 ? 'RUNNING' : 'READY';
+    const decided = runDecisions.get(runId);
+    // A decided run has settled. The poll counter no longer drives it —
+    // otherwise an APPLIED run would answer READY again on the next read and
+    // the screen would offer to apply something it already applied.
+    const status = decided
+      ? decided.decision === 'APPLY'
+        ? 'APPLIED'
+        : 'KEPT'
+      : seen === 1
+        ? 'QUEUED'
+        : seen === 2
+          ? 'RUNNING'
+          : 'READY';
     const trip = currentTrip();
+
+    if (status === 'READY' || decided) {
+      const reverted = runReverts.get(runId);
+      const applyDecision = decided
+        ? {
+            id: MOCK_DECISION_ID,
+            runId,
+            proposalId: optimizationFixtures.runReady.proposals[0]?.id,
+            decision: decided.decision,
+            decidedAt: decided.decidedAt,
+            ...decisionOutcome(decided.decision, decided.decidedAt, trip.version),
+          }
+        : null;
+      return HttpResponse.json({
+        ...optimizationFixtures.runReady,
+        id: runId,
+        tripId: trip.id,
+        inputTripVersion: trip.version,
+        status,
+        proposals: mockProposals(),
+        // The server's own projection, following the contract's precedence
+        // list. Computed here rather than left on the fixture because the
+        // fixture says AVAILABLE unconditionally, and a mock that always said
+        // so would let a panel that ignores the field pass every test.
+        revertAvailability: !applyDecision
+          ? 'NOT_APPLICABLE'
+          : applyDecision.decision === 'KEEP'
+            ? 'NOT_APPLICABLE'
+            : reverted
+              ? 'REVERTED'
+              : 'AVAILABLE',
+        // The decision the run now carries. The contract keeps proposals on a
+        // decided run — the user can still see what was applied — so only the
+        // status and this array change.
+        //
+        // A reverted run carries BOTH entries (maxItems 2): the APPLY stays,
+        // and the REVERT is appended. The panel reads its two versions from
+        // the pair, so dropping the APPLY would leave it with one number.
+        decisions: applyDecision
+          ? reverted
+            ? [
+                applyDecision,
+                {
+                  id: MOCK_REVERT_DECISION_ID,
+                  runId,
+                  proposalId: optimizationFixtures.runReady.proposals[0]?.id,
+                  decision: 'REVERT',
+                  decidedAt: reverted.decidedAt,
+                  resultingTripVersion: trip.version,
+                  beforeRevisionId: '018f6c00-0000-7000-8000-000000000002',
+                  afterRevisionId: '018f6c00-0000-7000-8000-000000000003',
+                  revertedDecisionId: MOCK_DECISION_ID,
+                },
+              ]
+            : [applyDecision]
+          : [],
+      });
+    }
+
     return HttpResponse.json(
       {
         id: runId,
@@ -424,15 +638,98 @@ export const handlers = [
         inputTripVersion: trip.version,
         includeCandidates: false,
         queuedAt: '2026-09-11T06:00:00Z',
-        completedAt: status === 'READY' ? '2026-09-11T06:00:12Z' : null,
+        completedAt: null,
         proposals: [],
         snapshotSetIds: [],
         decisions: [],
       },
       // Seconds, per the contract's integer schema. Only while working.
-      status === 'READY' ? undefined : { headers: { 'Retry-After': '1' } },
+      { headers: { 'Retry-After': '1' } },
     );
   }),
+
+  // MOCK DATA (FE-505). decideOptimization has no approved example, so the
+  // response is built from the contract's required fields rather than copied
+  // from a fixture.
+  //
+  // The decision is READ FROM THE BODY and echoed back. Answering a fixed
+  // 'APPLY' would make the client's own branch — invalidate the trip cache on
+  // APPLY, leave it alone on KEEP — take the wrong path with nothing on screen
+  // to show for it, and the test asserting that KEEP does not reload the
+  // itinerary would pass against a mock that called it an APPLY.
+  //
+  // Stateful for the same reason the GET above is: recording it lets the next
+  // poll answer APPLIED or KEPT, so the transition a decision causes is
+  // observable instead of being asserted against a run that never moved.
+  http.post(`${API_BASE}/optimizations/:runId/decisions`, async ({ params, request }) => {
+    const runId = String(params.runId);
+    if (runId !== MOCK_RUN_ID) return problemResponse('NOT_FOUND');
+    const body = (await request.json()) as {
+      proposalId: string;
+      decision: 'APPLY' | 'KEEP';
+    };
+    // Now, not a fixed instant. The revert window is 24 hours wide and the
+    // trip screen only reads a run whose apply is inside it, so a decision
+    // frozen in the past could never produce a revertable run — the panel
+    // would be unreachable in every test and in `npm run dev` alike. A real
+    // server stamps this at decision time; so does this.
+    const decidedAt = new Date().toISOString();
+    runDecisions.set(runId, { decision: body.decision, decidedAt });
+    const trip = currentTrip();
+    return HttpResponse.json(
+      {
+        id: MOCK_DECISION_ID,
+        runId,
+        proposalId: body.proposalId,
+        decision: body.decision,
+        decidedAt,
+        ...decisionOutcome(body.decision, decidedAt, trip.version),
+      },
+      // The contract declares ETag on this 200: the trip moved, and the next
+      // mutation needs the new one.
+      { headers: { ETag: `W/"trip-${String(trip.version)}"` } },
+    );
+  }),
+
+  // MOCK DATA (FE-504). revertOptimizationDecision has no approved example, so
+  // the response is built from the contract's required fields.
+  //
+  // Stateful like the decision above: recording the revert is what lets the
+  // next GET answer REVERTED with both decisions in the array. A handler that
+  // only echoed a body would leave the panel offering the undo it just ran.
+  http.post(
+    `${API_BASE}/optimization-decisions/:decisionId/revert`,
+    ({ params, request }) => {
+      const decisionId = String(params.decisionId);
+      if (decisionId !== MOCK_DECISION_ID) return problemResponse('NOT_FOUND');
+      // The contract requires If-Match, and a mock that answered without it
+      // would let a client that forgot the header pass.
+      if (!request.headers.get('If-Match')) return problemResponse('TRIP_CHANGED');
+      const applied = runDecisions.get(MOCK_RUN_ID);
+      // Only an APPLY can be reverted, and only once. The contract's own
+      // wording: "Allowed once, only for an APPLY decision".
+      if (!applied || applied.decision !== 'APPLY') return problemResponse('NOT_FOUND');
+      if (runReverts.has(MOCK_RUN_ID)) return problemResponse('REVERT_WINDOW_EXPIRED');
+      const decidedAt = '2026-09-11T06:20:00Z';
+      runReverts.set(MOCK_RUN_ID, { decidedAt });
+      const trip = currentTrip();
+      return HttpResponse.json(
+        {
+          id: MOCK_REVERT_DECISION_ID,
+          runId: MOCK_RUN_ID,
+          proposalId: optimizationFixtures.runReady.proposals[0]?.id,
+          decision: 'REVERT',
+          resultingTripVersion: trip.version,
+          beforeRevisionId: '018f6c00-0000-7000-8000-000000000002',
+          afterRevisionId: '018f6c00-0000-7000-8000-000000000003',
+          revertedDecisionId: decisionId,
+          decidedAt,
+        },
+        // The revert is a new revision, so the trip's ETag moved again.
+        { headers: { ETag: `W/"trip-${String(trip.version)}"` } },
+      );
+    },
+  ),
 
   // MOCK DATA (FE-202). getPost, savePost and unsavePost have no approved
   // example (BA-032). Stateful so a save actually round-trips: a handler that

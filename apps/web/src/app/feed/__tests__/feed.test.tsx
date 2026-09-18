@@ -776,3 +776,58 @@ describe('FE-203-T1 the add button actually saves a candidate', () => {
     expect(posted).toHaveLength(0);
   });
 });
+
+// #163 / FCR-024: reactions (author, heart count, LIKE/HIDE/DISLIKE) are
+// deliberately out of scope for P0 — the full record of why is FCR-024 in
+// FIGMA_HANDOFF's change-request log, not repeated here.
+//
+// This screen does not send ANY feed feedback request, not just the three
+// refused actions. FR-FED-04's own instrumentation (IMPRESSION, OPEN) is
+// unwired too — there is no button for a reaction and no impression/open call
+// either, so the honest assertion is zero requests to the endpoint at all.
+//
+// Deliberately the stronger claim, not "no LIKE/HIDE/DISLIKE": the day
+// someone wires IMPRESSION or OPEN, THIS test goes red — which is the point.
+// Sending feed feedback at all is a decision (what counts as an impression,
+// how often, batched or not), and that decision has not been made. A weaker
+// assertion here would let instrumentation slip in unnoticed and unreviewed.
+// Whoever turns this red should read FCR-024 before widening it, not assume
+// the test is stale.
+describe('FE-201 #163 the feed sends no feedback of any kind', () => {
+  it('never calls POST /feed/feedback', async () => {
+    const feedbackCalls: string[] = [];
+    const record = ({ request }: { request: Request }) => {
+      if (new URL(request.url).pathname.endsWith('/feed/feedback')) {
+        feedbackCalls.push(request.method);
+      }
+    };
+    server.events.on('request:start', record);
+    try {
+      const user = userEvent.setup();
+      renderFeed();
+      await screen.findByText(firstTitle);
+      // Exercise the screen a little rather than just mounting it: open the
+      // first card's cover (the OPEN-shaped interaction). The listener is on
+      // the msw server, not the component, so it still sees a call made right
+      // before this screen navigates away and unmounts. This block does not
+      // have candidate-save infrastructure in scope (FE-203-T1 owns that), so
+      // it does not also press the `+` button here.
+      const card = screen.getByText(firstTitle).closest('article') as HTMLElement;
+      await user.click(within(card).getByRole('button', { name: firstTitle }));
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(feedbackCalls).toEqual([]);
+    } finally {
+      server.events.removeListener('request:start', record);
+    }
+  });
+
+  it('renders no reaction affordance: no author, no heart count, no like/hide control', async () => {
+    renderFeed();
+    await screen.findByText(firstTitle);
+    // FCR-024's own evidence table (하트 수: 아니오, 집계 소스가 없고 표시할
+    // 자리도 없다). A card only has a cover, title, place, crowd/attribution
+    // and the save button — nothing that reads as a reaction control.
+    expect(screen.queryByRole('button', { name: /like|좋아요|하트/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /hide|숨기기/i })).toBeNull();
+  });
+});

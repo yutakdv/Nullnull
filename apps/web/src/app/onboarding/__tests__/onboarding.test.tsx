@@ -336,4 +336,26 @@ describe('A-3 intro completes onboarding', () => {
     renderAt('/intro');
     expect(await screen.findByText(copy['intro.noLogin'])).toBeInTheDocument();
   });
+
+  it('leads to sign-in, and from there on to the feed', async () => {
+    // Owner decision (#265): intro no longer lands on the feed directly.
+    // sign-in.test.tsx covers what the sign-in screen does on its own; this
+    // test is the one that would catch a break in the link between the two
+    // screens, which neither file alone can see.
+    const user = userEvent.setup();
+    renderAt('/intro');
+    await user.click(await screen.findByRole('button', { name: copy['intro.start'] }));
+
+    expect(
+      await screen.findByRole('heading', { name: copy['signIn.title'] }),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(copy['signIn.id.label']), 'traveller');
+    await user.type(screen.getByLabelText(copy['signIn.password.label']), 'hunter2');
+    await user.click(screen.getByRole('button', { name: copy['signIn.submit'] }));
+
+    expect(
+      await screen.findByRole('heading', { name: copy['feed.title'] }),
+    ).toBeInTheDocument();
+  });
 });

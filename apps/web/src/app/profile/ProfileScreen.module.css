@@ -95,18 +95,47 @@
 }
 
 /* Disabled sign-in. Not a control: it is inert and says why. */
+/* The row was inert text with a `준비 중` badge at 0.55 opacity, and the label
+ * was painted in text-disabled. Sign-in moved into P0 (#264, #265), so it is a
+ * real link now and both of those would lie about it: a control the traveller
+ * can follow must not be drawn as one they cannot. */
 .loginRow {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4) var(--space-1);
-  opacity: 0.55;
 }
 
 .loginLabel {
-  color: var(--color-text-disabled);
+  color: var(--color-action-primary);
   font-size: var(--font-body-base);
   font-weight: 500;
+  text-decoration: none;
+}
+
+/* The gate caught this twice. First at 42×18, and then — after a min-height
+ * alone — at 42×44: the floor is on BOTH axes and "Sign in" is 42px wide there.
+ *
+ * `min-width` cannot be verified locally, which is worth knowing before anyone
+ * decides it is dead code. Measured: the same link is 45×44 against the dev
+ * server and 42×44 in the container, so deleting this line leaves the local
+ * run green and the gate red. The width comes from the font the environment
+ * has, and the container's is not this machine's.
+ *
+ * Worth stating why this row is measured at all. responsive.spec exempts
+ * `display: inline` controls, because a link inside a run of text is measured
+ * by its line and WCAG 2.5.5 exempts it for that reason. Giving `display:
+ * flex` here opted this link INTO the measurement — which is correct: it is a
+ * row of its own, not a word inside a sentence, so a traveller reaching for it
+ * is aiming at a target rather than at text. The fix is to make that target
+ * real, not to drop back to `inline` and take the exemption. */
+@media (pointer: coarse) {
+  .loginLabel {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 .badge {

@@ -72,17 +72,14 @@ describe('S14 profile shows the anonymous guest state', () => {
     expect(await screen.findByText(copy['profile.guest.note'])).toBeInTheDocument();
   });
 
-  it('shows sign-in as `준비 중` and never as a control', async () => {
+  it('offers sign-in as a link to the sign-in screen', async () => {
+    // This used to assert the opposite — that the row was inert text with a
+    // `준비 중` badge, and neither a button nor a link. The owner moved sign-in
+    // into P0 (#264, #265), so the clause is inverted rather than deleted: the
+    // row now has to BE a control, and something has to say so.
     renderProfile();
-    await screen.findByText(copy['profile.login']);
-    expect(screen.getByText(copy['profile.comingSoon'])).toBeInTheDocument();
-    // Not a button and not a link: there is nothing to activate.
-    expect(
-      screen.queryByRole('button', { name: copy['profile.login'] }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: copy['profile.login'] }),
-    ).not.toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: copy['profile.login'] });
+    expect(link).toHaveAttribute('href', '/sign-in');
   });
 
   it('sends no auth request while rendering the profile', async () => {
@@ -453,11 +450,18 @@ describe('the profile is reachable by keyboard', () => {
       name: new RegExp(tripFixtures.page.items[0]?.title ?? ''),
     });
 
+    // Sign-in now sits above the trip list and is the first link on the screen
+    // (#265). Asserting the order rather than just "a trip link gets focus"
+    // keeps this honest: a second tab has to reach the list, so a control
+    // inserted between them would still be caught.
     await user.tab();
-    const first = screen
+    expect(screen.getByRole('link', { name: copy['profile.login'] })).toHaveFocus();
+
+    await user.tab();
+    const firstTrip = screen
       .getAllByRole('link')
       .find((a) => a.getAttribute('href')?.startsWith('/trip/'));
-    expect(first).toHaveFocus();
+    expect(firstTrip).toHaveFocus();
   });
 
   it('reaches the data guide link and follows it', async () => {

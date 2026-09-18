@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -42,6 +42,16 @@ export function DeletionSection() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const request = useRequestDeletion();
   const status = useDeletionStatus(requestId);
+  // Held across retries of the SAME deletion attempt (#254): the cookie is
+  // revoked in the same step the server accepts the request, so a retry that
+  // minted a fresh key would arrive as "revoked cookie, unknown key" — a
+  // request the server cannot distinguish from an unauthenticated one — and
+  // the user would never receive the statusToken for a deletion that already
+  // happened. The same key gets the original 202 replayed back instead.
+  // Cleared on success (the receipt is in hand) and when the user backs out of
+  // confirming (아니요) — declining and asking again later is a new attempt,
+  // not a retry of this one.
+  const idempotencyKey = useRef<string | null>(null);
 
   // Before anything is requested: the entry point plus what it costs.
   if (requestId === null) {
@@ -63,11 +73,18 @@ export function DeletionSection() {
                 className={styles.danger}
                 disabled={request.isPending}
                 onClick={() => {
-                  request.mutate(undefined, {
-                    onSuccess: (receipt) => {
-                      setRequestId(receipt.requestId);
+                  request.mutate(
+                    // Reused across retries of this same request; minting a
+                    // fresh key per press would turn a retry into a second
+                    // deletion command (invariant 6, #254).
+                    { idempotencyKey: (idempotencyKey.current ??= crypto.randomUUID()) },
+                    {
+                      onSuccess: (receipt) => {
+                        idempotencyKey.current = null;
+                        setRequestId(receipt.requestId);
+                      },
                     },
-                  });
+                  );
                 }}
               >
                 {t('deletion.confirm.yes')}
@@ -76,6 +93,9 @@ export function DeletionSection() {
                 type="button"
                 className={styles.cancel}
                 onClick={() => {
+                  // Backing out is a decision to stop, not a failed attempt —
+                  // asking again later is a new attempt and deserves a new key.
+                  idempotencyKey.current = null;
                   setConfirming(false);
                 }}
               >

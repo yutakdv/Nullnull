@@ -269,12 +269,34 @@ describe('FE-502-T2 FE-504-T2 the screen renders each of its states', () => {
       'ROUTE_UNAVAILABLE',
       'NO_IMPROVEMENT',
       'APPLY_FAILED',
+      'RECOMMENDATION_UNAVAILABLE',
     ] as const) {
       runIs('FAILED', { failure: { code, message: code, retryable: false } });
       const view = renderRun();
       expect(await screen.findByText(copy[`run.failure.${code}`])).toBeInTheDocument();
       view.unmount();
     }
+  });
+
+  it('folds INTERNAL_ERROR to the generic line rather than naming internals', async () => {
+    // The contract carries this code (#261) and this screen deliberately has no
+    // message for it: it covers an answer outside the recommendation contract, a
+    // repeated server failure and a run its worker abandoned, none of which the
+    // traveller can tell apart or act on. The fold is the behaviour, so it is
+    // asserted rather than left to the absence of a key.
+    //
+    // This is also the test that would catch the fold breaking. `failureMessage`
+    // builds the key from the code and checks `key in messages`; if that check
+    // were dropped, `t()` would return the missing key as-is and the screen
+    // would render the literal string. Measured before, not assumed: a probe of
+    // an unknown key produced "[undefined]".
+    runIs('FAILED', {
+      failure: { code: 'INTERNAL_ERROR', message: 'internal', retryable: false },
+    });
+    renderRun();
+
+    expect(await screen.findByText(copy['run.failure.unknown'])).toBeInTheDocument();
+    expect(screen.queryByText(/INTERNAL_ERROR|undefined/)).toBeNull();
   });
 
   it('offers a recompute only when the contract says the failure is retryable', async () => {
@@ -411,6 +433,76 @@ describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
 //
 // Folding to a generic line also decouples the deploys: BE can add a code
 // without this client being updated first (#225, DATA_INSUFFICIENT).
+// BA-050 (503 SOURCE_UNAVAILABLE): a run holding proposals cannot be shown
+// while the catalog is closed, but this is a server STATE, not a hiccup —
+// three requests get three identical answers (PROBLEM_POLICY marks it
+// `retry: 'none'`). Unlike PREVIEW_EXPIRED/NOT_FOUND above, it is temporary,
+// so the retry control must stay and the itinerary-unchanged note must show.
+describe('FE-502 a closed catalog is temporary, not a generic error', () => {
+  it('shows its own copy for SOURCE_UNAVAILABLE, not the generic error', async () => {
+    server.use(
+      http.get(`${API_BASE}/optimizations/:runId`, () => {
+        polls += 1;
+        return problemResponse('SOURCE_UNAVAILABLE');
+      }),
+    );
+    renderRun();
+    expect(await screen.findByText(copy['run.sourceUnavailable'])).toBeInTheDocument();
+    // Not just an addition alongside the generic line: it must replace it.
+    expect(screen.queryByText(copy['run.error'])).not.toBeInTheDocument();
+  });
+
+  it('keeps a retry control available, unlike a terminal failure', async () => {
+    server.use(
+      http.get(`${API_BASE}/optimizations/:runId`, () => {
+        polls += 1;
+        return problemResponse('SOURCE_UNAVAILABLE');
+      }),
+    );
+    renderRun();
+    await screen.findByText(copy['run.sourceUnavailable']);
+    expect(
+      screen.getByRole('button', { name: copy['optimize.retry'] }),
+    ).toBeInTheDocument();
+  });
+
+  it('states the itinerary is unchanged, same as an expired preview', async () => {
+    server.use(
+      http.get(`${API_BASE}/optimizations/:runId`, () => {
+        polls += 1;
+        return problemResponse('SOURCE_UNAVAILABLE');
+      }),
+    );
+    renderRun();
+    await screen.findByText(copy['run.sourceUnavailable']);
+    expect(screen.getByText(copy['run.unchanged'])).toBeInTheDocument();
+  });
+
+  it(
+    'sends exactly one request: SOURCE_UNAVAILABLE is not auto-retried',
+    { timeout: 10000 },
+    async () => {
+      // The one assertion here that measures real behaviour rather than
+      // strings: PROBLEM_POLICY declares `retry: 'none'` for this code, and
+      // useOptimization's retry callback now checks it. Before that line
+      // existed this fell through to `count < 2`, so a closed catalog cost
+      // three requests (one attempt plus two retries) instead of one.
+      server.use(
+        http.get(`${API_BASE}/optimizations/:runId`, () => {
+          polls += 1;
+          return problemResponse('SOURCE_UNAVAILABLE');
+        }),
+      );
+      renderRun();
+      await screen.findByText(copy['run.sourceUnavailable']);
+      // Past react-query's retry backoff window, so a retry in flight would
+      // have landed by the time this reads `polls`.
+      await new Promise((resolve) => setTimeout(resolve, 2600));
+      expect(polls).toBe(1);
+    },
+  );
+});
+
 describe('FE-502 an unknown failure code folds to the generic message', () => {
   it('never renders the literal "undefined" for a code it does not know', async () => {
     runIs('FAILED', {

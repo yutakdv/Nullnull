@@ -147,9 +147,15 @@ export function OptimizeSetupScreen() {
           // work, so this case says what is actually true instead.
           problem?.code === 'FORBIDDEN'
           ? t('optimize.unavailable')
-          : create.isError
-            ? t('optimize.failed')
-            : null;
+          : // The catalog is closed. Unlike FORBIDDEN above this is temporary,
+            // so the submit button stays usable — but the copy must not read
+            // as "press it again now", because the next press gets the same
+            // answer until the server opens.
+            problem?.code === 'SOURCE_UNAVAILABLE'
+            ? t('optimize.sourceUnavailable')
+            : create.isError
+              ? t('optimize.failed')
+              : null;
 
   return (
     <section aria-labelledby="optimize-heading" className={styles.screen}>
