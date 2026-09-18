@@ -851,7 +851,7 @@ class OptimizeRevertIT {
      * the initial decision first (the order itself is pinned by DecisionOrderTest).
      */
     @Test
-    @DisplayName("getOptimization lists the APPLY, then the APPLY and its REVERT, and still shows the proposal")
+    @DisplayName("BA-054-T10 getOptimization lists the APPLY, then the APPLY and its REVERT, and still shows the proposal")
     void theRunListsItsDecisionsAndKeepsItsProposal() throws Exception {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);

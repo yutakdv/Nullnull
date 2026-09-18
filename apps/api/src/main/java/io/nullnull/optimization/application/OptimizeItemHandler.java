@@ -16,6 +16,7 @@ import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.recommendation.application.ProposalRevalidator;
 import io.nullnull.recommendation.application.RecommendationGateway;
+import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.application.RunFingerprint;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
 import io.nullnull.recommendation.domain.Reason;
@@ -138,8 +139,11 @@ public class OptimizeItemHandler implements JobHandler {
         // transaction this lease does not control. The same rule is why the evidence the run stores
         // is the evidence this transaction saw.
         Instant frozenAt = clock.instant();
-        context.transactional(() -> runs.recordFrozenEvidence(runId,
-                frozenAt.plus(OptimizationService.PREVIEW_TTL), evidence.snapshotSetsFor(run)));
+        List<UUID> frozen = context.transactional(() -> {
+            List<UUID> sets = evidence.snapshotSetsFor(run);
+            runs.recordFrozenEvidence(runId, frozenAt.plus(OptimizationService.PREVIEW_TTL), sets);
+            return sets;
+        });
 
         if (!requireInputStillHolds(context, run)) {
             return;
@@ -148,7 +152,9 @@ public class OptimizeItemHandler implements JobHandler {
         // Everything the question is built from, read in one unit of work. Assembling the request is
         // not another chance to read: a value fetched afterwards would describe a later moment than
         // the evidence this run froze.
-        Prepared prepared = context.transactional(() -> prepare(run));
+        // The candidates come from the sets frozen above, by id (#259) - not from a fresh choice of
+        // "newest", which a set stored in between would change.
+        Prepared prepared = context.transactional(() -> prepare(run, frozen));
         if (prepared.candidates().isEmpty()) {
             // Not NO_IMPROVEMENT. Nothing was judged and found wanting - there was nothing to judge,
             // because no forecast covers this trip or none covers the day the item is on. The card
@@ -174,8 +180,14 @@ public class OptimizeItemHandler implements JobHandler {
         // startup would hold whatever the service published then, which is the drift it exists to
         // catch. Nothing in this repository defines such a bean, and a constructor asking for one
         // would not start.
-        PolicyDescriptor policy = recommendations.policy();
-        ItemProposeResponse answer = recommendations.proposeItem(prepared.request());
+        PolicyDescriptor policy;
+        ItemProposeResponse answer;
+        try {
+            policy = recommendations.policy();
+            answer = recommendations.proposeItem(prepared.request());
+        } catch (RecommendationUnavailableException unavailable) {
+            throw jobFailure(unavailable);
+        }
 
         List<Reason> refusals = new ProposalRevalidator(policy).check(prepared.request(), answer);
         if (!refusals.isEmpty()) {
@@ -237,7 +249,7 @@ public class OptimizeItemHandler implements JobHandler {
      * rather than at explanation time for the same reason the candidates are: an explanation written
      * from a name fetched later would describe a catalog that had moved since the evidence froze.
      */
-    private Prepared prepare(OptimizationRun run) {
+    private Prepared prepare(OptimizationRun run, List<UUID> frozen) {
         Trip trip = trips.findForOwner(run.ownerId(), run.tripId())
                 .orElseThrow(() -> new IllegalStateException("the run outlived its trip"));
         List<TripItem> items = trips.itemsOf(run.tripId());
@@ -245,7 +257,7 @@ public class OptimizeItemHandler implements JobHandler {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the run's target item is no longer in the trip"));
         Instant now = clock.instant();
-        TemporalCandidateAssembler.Candidates offered = candidates.candidatesFor(target.placeId(),
+        TemporalCandidateAssembler.Candidates offered = candidates.candidatesFor(frozen, target.placeId(),
                 target.date(), trip.range().startDate(), trip.range().endDate(),
                 trip.range().timezone(), now);
         if (offered.isEmpty()) {
@@ -279,8 +291,12 @@ public class OptimizeItemHandler implements JobHandler {
 
         requireNoTransaction();
         List<String> summaries = new ArrayList<>(answer.proposals().size());
-        answer.proposals().forEach(proposal -> summaries.add(
-                recommendations.renderExplanation(explanation(prepared, byDate, proposal)).summary()));
+        try {
+            answer.proposals().forEach(proposal -> summaries.add(
+                    recommendations.renderExplanation(explanation(prepared, byDate, proposal)).summary()));
+        } catch (RecommendationUnavailableException unavailable) {
+            throw jobFailure(unavailable);
+        }
 
         Instant at = clock.instant();
         List<OptimizationProposal> stored = mapper.toProposals(run, prepared.target(),
@@ -359,6 +375,30 @@ public class OptimizeItemHandler implements JobHandler {
     /** What one run needs, read once. */
     private record Prepared(ItemProposeRequest request, TemporalCandidateAssembler.Candidates candidates,
             String locale, String placeName, String catalogVersion, Trip trip, TripItem target) {
+    }
+
+    /**
+     * An {@code apps/ai} that gave no usable answer, as the job's failure (#252). Two codes, because
+     * they ask different things of an operator and of the queue:
+     *
+     * <ul>
+     *   <li>{@code RECOMMENDATION_UNAVAILABLE} - the service did not answer (refused, reset, timed out,
+     *       5xx). The attempt is retried; the next one may find it back.</li>
+     *   <li>{@code RECOMMENDATION_UNUSABLE} - it answered outside its contract, or refused the request
+     *       this service built. The same request gets the same answer, so the job ends on this attempt
+     *       instead of spending the rest; the gateway has already logged which of the two it was.</li>
+     * </ul>
+     *
+     * <p>The run itself is left as it is, as it always was when a job ended on a handler failure: the
+     * contract's run failure codes describe the trip and its evidence, and none of them says the
+     * recommendation service failed.
+     */
+    private static JobExecutionException jobFailure(RecommendationUnavailableException unavailable) {
+        return unavailable.retryable()
+                ? new JobExecutionException("RECOMMENDATION_UNAVAILABLE",
+                        "apps/ai did not answer the optimization run.", unavailable, true)
+                : new JobExecutionException("RECOMMENDATION_UNUSABLE",
+                        "apps/ai answered the optimization run outside its contract.", unavailable, false);
     }
 
     private static UUID runId(JobContext context) {

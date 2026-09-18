@@ -190,7 +190,7 @@ class OptimizeItemIT {
      * points, or none, or rendered the stored {@code 09:00} as it was stored, fails here.
      */
     @Test
-    @DisplayName("getOptimization reads a READY run back with its proposal, its change, its checks and the pair it compared")
+    @DisplayName("BA-051-T12 getOptimization reads a READY run back with its proposal, its change, its checks and the pair it compared")
     void aReadyRunIsReadBackWithWhatItStored() throws Exception {
         Fixture fixture = fixture();
         answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
@@ -256,7 +256,7 @@ class OptimizeItemIT {
      * find nothing here; the pair is read by the ids the proposal stored.
      */
     @Test
-    @DisplayName("getOptimization still shows the compared pair after the trip's timezone is edited")
+    @DisplayName("BA-051-T13 getOptimization still shows the compared pair after the trip's timezone is edited")
     void aTimezoneEditDoesNotLoseTheComparedPair() throws Exception {
         Fixture fixture = fixture();
         answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
@@ -306,6 +306,38 @@ class OptimizeItemIT {
         assertThat(body.get("proposals").get(0).get("validation").get("checks").get(0)
                 .get("constraintType").asString()).isEqualTo("TIME");
         assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-ready.json")));
+    }
+
+    /**
+     * #259: the candidates come from the set the run froze, not from a second choice of "newest".
+     *
+     * <p>Two fresh sets, and the newer one leaves out the item's day. The freeze asks for the newest set
+     * covering that day and gets the older one; a second choice over the whole trip would get the newer
+     * one, find no point to compare against, and fail the run for evidence it had in fact frozen. The
+     * same divergence is what a set stored between the freeze and the assembly produced, without the
+     * timing.
+     */
+    @Test
+    @DisplayName("#259 a run proposes from the set it froze even when a newer set leaves out the item's day")
+    void theCandidatesComeFromTheSetTheRunFroze() throws Exception {
+        Fixture fixture = fixtureWithoutForecasts();
+        Instant earlier = Instant.now().minus(Duration.ofHours(1));
+        UUID frozen = insertSet(fixture.placeId(), earlier, Map.of(DAY_ONE, CROWDED, DAY_TWO, QUIET));
+        UUID newer = insertSet(fixture.placeId(), Instant.now(), Map.of(DAY_TWO, new BigDecimal("50.0000")));
+        answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
+
+        UUID runId = queue(fixture);
+        awaitTerminal(runId);
+
+        assertThat(runColumn(runId, "status")).isEqualTo("READY");
+        assertThat(jdbc.queryForList("SELECT snapshot_set_id FROM optimization_run_snapshot_sets WHERE run_id = ?",
+                UUID.class, runId)).containsExactly(frozen);
+        Map<String, Object> pair = jdbc.queryForMap("SELECT before_snapshot_id, after_snapshot_id"
+                + " FROM optimization_proposals WHERE run_id = ?", runId);
+        assertThat(jdbc.queryForList("SELECT DISTINCT snapshot_set_id FROM crowd_snapshots WHERE id IN (?, ?)",
+                UUID.class, pair.get("before_snapshot_id"), pair.get("after_snapshot_id")))
+                .as("both points of the pair the proposal compared are in the set the run froze, not in %s", newer)
+                .containsExactly(frozen);
     }
 
     @Test
@@ -585,6 +617,33 @@ class OptimizeItemIT {
                 Timestamp.from(fetchedAt), Timestamp.from(staleAt), Timestamp.from(fetchedAt));
         insertSnapshot(set, placeId, sourceVersion, DAY_ONE, CROWDED, issue, fetchedAt, staleAt);
         insertSnapshot(set, placeId, sourceVersion, DAY_TWO, QUIET, issue, fetchedAt, staleAt);
+    }
+
+    /** One fresh set fetched at {@code fetchedAt}, holding a point for each day given. */
+    private UUID insertSet(UUID placeId, Instant fetchedAt, Map<LocalDate, BigDecimal> points) {
+        Instant staleAt = fetchedAt.plus(Duration.ofHours(12));
+        long sourceVersion = jdbc.queryForObject(
+                "SELECT current_revision FROM source_registry WHERE code = ?", Long.class, FORECAST_SOURCE);
+        UUID collectorRun = UUID.randomUUID();
+        collectorRuns.add(collectorRun);
+        jdbc.update("INSERT INTO collector_runs (id, source_code, status, trigger_type,"
+                + " records_received, records_accepted, records_rejected, schema_version, started_at,"
+                + " finished_at) VALUES (?, ?, 'COMPLETED', 'READ_THROUGH', ?, ?, 0,"
+                + " 'kto-tats-cnctr-rate-v4.1', ?, ?)",
+                collectorRun, FORECAST_SOURCE, points.size(), points.size(), Timestamp.from(fetchedAt),
+                Timestamp.from(fetchedAt));
+        UUID set = UUID.randomUUID();
+        snapshotSets.add(set);
+        String issue = "ba051-" + set;
+        jdbc.update("INSERT INTO snapshot_sets (id, source_code, source_registry_version,"
+                + " collector_run_id, source_state, forecast_issue_id, comparison_group_id,"
+                + " observed_at, fetched_at, stale_at, normalization_version, created_at)"
+                + " VALUES (?, ?, ?, ?, 'FORECAST', ?, ?, NULL, ?, ?, 'kto-tats-cnctr-rate-v4.1', ?)",
+                set, FORECAST_SOURCE, sourceVersion, collectorRun, issue, issue,
+                Timestamp.from(fetchedAt), Timestamp.from(staleAt), Timestamp.from(fetchedAt));
+        points.forEach((day, value) ->
+                insertSnapshot(set, placeId, sourceVersion, day, value, issue, fetchedAt, staleAt));
+        return set;
     }
 
     private void insertSnapshot(UUID set, UUID placeId, long sourceVersion, LocalDate day,

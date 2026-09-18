@@ -22,21 +22,41 @@ public class JobExecutionException extends RuntimeException {
     static final Pattern ERROR_CODE = Pattern.compile("[A-Z][A-Z0-9_]{0,63}");
 
     private final String errorCode;
+    private final boolean retryable;
 
     public JobExecutionException(String errorCode, String message) {
         this(errorCode, message, null);
     }
 
     public JobExecutionException(String errorCode, String message, Throwable cause) {
+        this(errorCode, message, cause, true);
+    }
+
+    /**
+     * @param retryable false when another attempt would meet the same failure - a dependency that
+     *                  answered outside its contract answers the same way the next time. The job then
+     *                  ends at once instead of spending the attempts it has left (#252).
+     */
+    public JobExecutionException(String errorCode, String message, Throwable cause, boolean retryable) {
         super(message, cause);
         if (errorCode == null || !ERROR_CODE.matcher(errorCode).matches()) {
             throw new IllegalArgumentException("job error code must match " + ERROR_CODE.pattern());
         }
         this.errorCode = errorCode;
+        this.retryable = retryable;
     }
 
     public String errorCode() {
         return errorCode;
+    }
+
+    public boolean retryable() {
+        return retryable;
+    }
+
+    /** Whether a failed attempt may be tried again: every failure may, unless its handler said otherwise. */
+    public static boolean retryableOf(Throwable failure) {
+        return !(failure instanceof JobExecutionException named) || named.retryable();
     }
 
     /**

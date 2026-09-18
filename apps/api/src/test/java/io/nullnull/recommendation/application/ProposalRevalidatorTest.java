@@ -331,7 +331,7 @@ class ProposalRevalidatorTest {
     }
 
     @Test
-    @DisplayName("#242 the service's lock checks are stored only when they are this API's own verdicts")
+    @DisplayName("BA-051-T17 #242 the service's lock checks are stored only when they are this API's own verdicts")
     void lockChecksMustBeTheVerdictsJudgedHere() {
         ItemFixture same = fixture("temporal-same-issue");
         ItemProposeRequest mustVisit = withLocks(same.request(), List.of(LockIn.mustVisit()));

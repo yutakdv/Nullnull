@@ -78,10 +78,10 @@ def test_the_year_and_a_date_only_slot_stay_inside_the_allowlist() -> None:
 @pytest.mark.parametrize(
     ("place_name", "text"),
     [
-        ("63빌딩", "63빌딩 방문을 옮기면 상대 집중률가 80에서 60로 20포인트 낮아져요. 출처: ⓒ한국관광공사"),
+        ("63빌딩", "63빌딩 방문을 옮기면 상대 집중률이 80에서 60으로 20포인트 낮아져요. 출처: ⓒ한국관광공사"),
         (
             "청계천 물길 거리",
-            "청계천 물길 거리 방문을 옮기면 상대 집중률가 80에서 60로 20포인트 낮아져요. 출처: ⓒ한국관광공사",
+            "청계천 물길 거리 방문을 옮기면 상대 집중률이 80에서 60으로 20포인트 낮아져요. 출처: ⓒ한국관광공사",
         ),
     ],
 )
@@ -115,7 +115,7 @@ def test_a_number_that_only_touches_an_approved_name_is_not_a_known_number() -> 
 def test_a_digit_from_the_source_line_may_not_be_reused_outside_it() -> None:
     """The Seoul attribution names 2022; that does not make 2022 a number the sentence may claim."""
     facts = replace(FACTS, attribution=SEOUL_ATTRIBUTION)
-    assert accepts(facts, f"상대 집중률가 80에서 60로 20포인트 낮아져요. {SEOUL_ATTRIBUTION}")
+    assert accepts(facts, f"상대 집중률이 80에서 60으로 20포인트 낮아져요. {SEOUL_ATTRIBUTION}")
     assert not accepts(facts, f"2022년부터 80에서 60으로 20포인트 낮아요. {SEOUL_ATTRIBUTION}")
 
 

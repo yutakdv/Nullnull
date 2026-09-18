@@ -112,7 +112,7 @@ class ItemProposalMapperTest {
     }
 
     @Test
-    @DisplayName("#242 the stored lock checks read back as the contract's list, derived verdict included")
+    @DisplayName("BA-051-T14 #242 the stored lock checks read back as the contract's list, derived verdict included")
     void storedLockChecksReadBackAsTheContractsList() {
         String written = map(candidate(true, null, "80", "20"), "요약").get(0).validationSummary();
 
@@ -121,7 +121,7 @@ class ItemProposalMapperTest {
     }
 
     @Test
-    @DisplayName("#242 checks come back in lock order, whatever order the object holds them in")
+    @DisplayName("BA-051-T14 #242 checks come back in lock order, whatever order the object holds them in")
     void checksAreOrderedByLockType() {
         var read = mapper.readValidation(
                 "{\"checks\":{\"RESERVATION\":true,\"TIME\":true,\"MUST_VISIT\":true,\"DATE\":true}}");
@@ -131,7 +131,7 @@ class ItemProposalMapperTest {
     }
 
     @Test
-    @DisplayName("#242 allConstraintsPreserved is false when any stored check failed")
+    @DisplayName("BA-051-T15 #242 allConstraintsPreserved is false when any stored check failed")
     void oneFailedCheckIsNotAllPreserved() {
         var read = mapper.readValidation("{\"checks\":{\"DATE\":true,\"TIME\":false}}");
 
@@ -140,7 +140,7 @@ class ItemProposalMapperTest {
     }
 
     @Test
-    @DisplayName("#242 an item with no lock has no constraint to break, which is preserved rather than unknown")
+    @DisplayName("BA-051-T15 #242 an item with no lock has no constraint to break, which is preserved rather than unknown")
     void noLockIsPreserved() {
         var read = mapper.readValidation("{\"checks\":{}}");
 
@@ -149,7 +149,7 @@ class ItemProposalMapperTest {
     }
 
     @Test
-    @DisplayName("#242 a check that names no lock type is refused, not dropped from the list")
+    @DisplayName("BA-051-T16 #242 a check that names no lock type is refused, not dropped from the list")
     void anUnknownCheckIsRefused() {
         assertThatThrownBy(() -> mapper.readValidation("{\"checks\":{\"DATE\":true,\"SOMETHING\":true}}"))
                 .isInstanceOf(IllegalStateException.class)

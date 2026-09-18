@@ -45,7 +45,7 @@ def test_the_korean_sentence_carries_the_policy_identity_and_its_source(client: 
         "pipelineVersion": "nullnull-ai-pipeline-v1",
         "summary": (
             "경복궁 방문을 9월 12일 10:00에서 9월 12일 12:00로 옮기면 "
-            "상대 집중률가 80에서 60로 20포인트 낮아져요. 출처: ⓒ한국관광공사"
+            "상대 집중률이 80에서 60으로 20포인트 낮아져요. 출처: ⓒ한국관광공사"
         ),
         "source": "TEMPLATE",
     }

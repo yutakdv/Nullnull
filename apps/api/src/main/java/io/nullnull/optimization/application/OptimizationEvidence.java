@@ -78,8 +78,17 @@ public class OptimizationEvidence {
         return item.date().atStartOfDay(zone).toInstant();
     }
 
+    /**
+     * The last instant of the item's day, not the first of the next (#259).
+     *
+     * <p>The set queries bound the window inclusively ({@code target_at <= to}), and the one forecast
+     * source P0 has files each point at local midnight. With the next midnight as the bound, a set
+     * holding only the NEXT day's point counted as covering this one, and the freeze took it as the
+     * newest - a set with nothing to compare the item's day against, so the run failed for want of
+     * evidence an older frozen-able set had. One microsecond is PostgreSQL's timestamptz resolution.
+     */
     private static Instant endOfDay(TripItem item, ZoneId zone) {
         LocalDate next = item.date().plusDays(1);
-        return next.atStartOfDay(zone).toInstant();
+        return next.atStartOfDay(zone).toInstant().minus(1, java.time.temporal.ChronoUnit.MICROS);
     }
 }
