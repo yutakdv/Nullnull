@@ -139,8 +139,11 @@ public class OptimizeItemHandler implements JobHandler {
         // transaction this lease does not control. The same rule is why the evidence the run stores
         // is the evidence this transaction saw.
         Instant frozenAt = clock.instant();
-        context.transactional(() -> runs.recordFrozenEvidence(runId,
-                frozenAt.plus(OptimizationService.PREVIEW_TTL), evidence.snapshotSetsFor(run)));
+        List<UUID> frozen = context.transactional(() -> {
+            List<UUID> sets = evidence.snapshotSetsFor(run);
+            runs.recordFrozenEvidence(runId, frozenAt.plus(OptimizationService.PREVIEW_TTL), sets);
+            return sets;
+        });
 
         if (!requireInputStillHolds(context, run)) {
             return;
@@ -149,7 +152,9 @@ public class OptimizeItemHandler implements JobHandler {
         // Everything the question is built from, read in one unit of work. Assembling the request is
         // not another chance to read: a value fetched afterwards would describe a later moment than
         // the evidence this run froze.
-        Prepared prepared = context.transactional(() -> prepare(run));
+        // The candidates come from the sets frozen above, by id (#259) - not from a fresh choice of
+        // "newest", which a set stored in between would change.
+        Prepared prepared = context.transactional(() -> prepare(run, frozen));
         if (prepared.candidates().isEmpty()) {
             // Not NO_IMPROVEMENT. Nothing was judged and found wanting - there was nothing to judge,
             // because no forecast covers this trip or none covers the day the item is on. The card
@@ -244,7 +249,7 @@ public class OptimizeItemHandler implements JobHandler {
      * rather than at explanation time for the same reason the candidates are: an explanation written
      * from a name fetched later would describe a catalog that had moved since the evidence froze.
      */
-    private Prepared prepare(OptimizationRun run) {
+    private Prepared prepare(OptimizationRun run, List<UUID> frozen) {
         Trip trip = trips.findForOwner(run.ownerId(), run.tripId())
                 .orElseThrow(() -> new IllegalStateException("the run outlived its trip"));
         List<TripItem> items = trips.itemsOf(run.tripId());
@@ -252,7 +257,7 @@ public class OptimizeItemHandler implements JobHandler {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the run's target item is no longer in the trip"));
         Instant now = clock.instant();
-        TemporalCandidateAssembler.Candidates offered = candidates.candidatesFor(target.placeId(),
+        TemporalCandidateAssembler.Candidates offered = candidates.candidatesFor(frozen, target.placeId(),
                 target.date(), trip.range().startDate(), trip.range().endDate(),
                 trip.range().timezone(), now);
         if (offered.isEmpty()) {

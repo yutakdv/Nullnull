@@ -1742,7 +1742,7 @@ git commit -m "feat(ai): verified related-place ranker and related/rank contract
 **Interfaces:**
 
 - Produces: `ExplanationFacts(locale, place_name, before_date, before_time, after_date, after_time, before_value, after_value, metric_label, attribution, forecast_issue_id)`; `render(facts) -> str`(출처 보존, 장소명 축약, 500자); `accepts(facts, text) -> bool`; `LlmExplanationPort.rewrite(facts, template) -> str | None`; `NoopLlmExplanationPort`; `ExplanationService(port).summary(facts) -> tuple[str, Literal["TEMPLATE","LLM"]]`.
-- 규칙·금지어·기대값은 [Java 계획 Task 8](2026-09-06-recommendation-p0.md#task-8-koen-근거-template-llm-port-출력-validator)(reviewer 반영판: 영업/경로/거리 어휘 금지, 출처 보존 절단)과 동일. KO 문장: `"{place} 방문을 {before}에서 {after}로 옮기면 {metric}가 {b}에서 {a}로 {delta}포인트 낮아져요. {attribution}"`, EN: `"Moving {place} from {before} to {after} lowers {metric} from {b} to {a} ({delta} points). {attribution}"`.
+- 규칙·금지어·기대값은 [Java 계획 Task 8](2026-09-06-recommendation-p0.md#task-8-koen-근거-template-llm-port-출력-validator)(reviewer 반영판: 영업/경로/거리 어휘 금지, 출처 보존 절단)과 동일. KO 문장: `"{place} 방문을 {before}에서 {after}(으)로 옮기면 {metric}이/가 {b}에서 {a}(으)로 {delta}포인트 낮아져요. {attribution}"`(조사는 앞 말의 읽는 소리로 고르고, 판정할 수 없으면 `이(가)`·`(으)로`를 병기한다 — #260. Java 계획 Task 8의 기대값 문장은 이 점에서 대체된다), EN: `"Moving {place} from {before} to {after} lowers {metric} from {b} to {a} ({delta} points). {attribution}"`.
 
 - [ ] **Step 1: 구현 요지**
 

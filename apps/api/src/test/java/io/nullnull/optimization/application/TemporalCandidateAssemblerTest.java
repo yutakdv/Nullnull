@@ -101,10 +101,19 @@ class TemporalCandidateAssemblerTest {
     }
 
     private TemporalCandidateAssembler.Candidates assembled(CrowdForecastQuery.SnapshotSet set) {
+        return assembledFrom(set, FROZEN);
+    }
+
+    /** The one set id this test's run froze; the fake answers for it and for nothing else. */
+    private static final UUID FROZEN = UUID.randomUUID();
+
+    private TemporalCandidateAssembler.Candidates assembledFrom(CrowdForecastQuery.SnapshotSet set, UUID frozen) {
         CrowdForecastQuery query = new CrowdForecastQuery() {
             @Override
             public Optional<SnapshotSet> latestFresh(UUID placeId, Instant from, Instant to, Instant now) {
-                return Optional.ofNullable(set);
+                // #259: choosing "the newest" here was a second read that a set stored after the freeze
+                // could change. Thrown rather than answered so a return to it is a failure, not a pass.
+                throw new AssertionError("the assembler reads the set the run froze; it does not choose one");
             }
 
             @Override
@@ -114,20 +123,51 @@ class TemporalCandidateAssemblerTest {
 
             @Override
             public Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to) {
-                // The assembler asks which set is newest; it never holds a set id to ask about. Thrown
-                // rather than answered so the day that stops being true, this says so instead of
-                // quietly handing back an empty set the caller would read as "no evidence".
-                throw new AssertionError("the assembler chooses a set, it does not re-read one it was given");
+                return setId.equals(FROZEN) ? Optional.ofNullable(set) : Optional.empty();
             }
 
             @Override
             public List<Snapshot> points(List<UUID> ids) {
-                // The same reason: reading stored points back by id is what a reader of a proposal does.
-                throw new AssertionError("the assembler chooses a set, it does not read points by id");
+                // Reading stored points back by id is what a reader of a proposal does.
+                throw new AssertionError("the assembler reads a frozen set, it does not read points by id");
             }
         };
         return new TemporalCandidateAssembler(query, new CrowdProvenanceProjection())
-                .candidatesFor(PLACE, CURRENT, START, END, SEOUL, NOW);
+                .candidatesFor(List.of(frozen), PLACE, CURRENT, START, END, SEOUL, NOW);
+    }
+
+    @Test
+    @DisplayName("#259 the candidates come from the set the run froze, asked for by its id")
+    void theCandidatesComeFromTheFrozenSet() {
+        CrowdForecastQuery.SnapshotSet frozen = set(
+                snapshot(CURRENT, "80", ISSUE, "v1", Set.of()),
+                snapshot(END, "20", ISSUE, "v1", Set.of()));
+
+        TemporalCandidateAssembler.Candidates offered = assembledFrom(frozen, FROZEN);
+        assertThat(offered.snapshotIds()).containsExactlyInAnyOrderElementsOf(
+                frozen.snapshots().stream().map(CrowdForecastQuery.Snapshot::id).toList());
+
+        // A run that froze a different set is not handed this one - there is no "newest" to fall back to.
+        assertThat(assembledFrom(frozen, UUID.randomUUID()).isEmpty()).isTrue();
+    }
+
+    @Test
+    @DisplayName("#259 a frozen set that has gone stale since the freeze offers nothing")
+    void aFrozenSetThatWentStaleOffersNothing() {
+        CrowdForecastQuery.SnapshotSet stale = set(
+                staleSnapshot(CURRENT, "80"), staleSnapshot(END, "20"));
+
+        assertThat(assembled(stale).isEmpty()).isTrue();
+    }
+
+    private static CrowdForecastQuery.Snapshot staleSnapshot(LocalDate date, String value) {
+        CrowdForecastQuery.Snapshot fresh = snapshot(date, value, ISSUE, "v1", Set.of());
+        return new CrowdForecastQuery.Snapshot(fresh.id(), fresh.snapshotSetId(), fresh.collectorRunId(),
+                fresh.placeId(), fresh.source(), fresh.sourceState(), fresh.observedAt(), fresh.targetAt(),
+                fresh.fetchedAt(), NOW, fresh.metricCode(), fresh.value(), fresh.unit(), fresh.ordinalLevel(),
+                fresh.confidence(), fresh.qualityFlags(), fresh.forecastIssueId(), fresh.comparisonGroupId(),
+                fresh.normalizationVersion(), fresh.observedAtSkewSeconds(), fresh.scope(), fresh.scopeLabel(),
+                fresh.mappingType(), fresh.fallbackUsed(), fresh.incidentActive());
     }
 
     @Test
