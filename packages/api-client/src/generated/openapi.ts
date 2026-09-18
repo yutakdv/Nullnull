@@ -2728,6 +2728,7 @@ export interface operations {
                     "application/json": components["schemas"]["SessionBootstrap"];
                 };
             };
+            403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             default: components["responses"]["Problem"];
         };
@@ -2752,6 +2753,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             default: components["responses"]["Problem"];
         };
@@ -3075,6 +3077,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             default: components["responses"]["Problem"];
         };
     };
@@ -4068,6 +4071,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             default: components["responses"]["Problem"];
         };
     };

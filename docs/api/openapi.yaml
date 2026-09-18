@@ -229,6 +229,8 @@ paths:
                       activeTripId: null
                     csrfToken: "cS8kZ2xhc3Nob3VzZS10b2tlbi1mb3ItdGVzdHMtb25seQ"
                     expiresAt: "2026-09-08T12:00:00Z"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
         default:
@@ -269,6 +271,8 @@ paths:
                     expiresAt: "2026-09-08T12:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/RateLimited"
         default:
@@ -1191,6 +1195,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /places/{placeId}:
@@ -3196,6 +3202,8 @@ paths:
                 $ref: "#/components/schemas/LiveAreaResult"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Problem"
   /live/areas/{areaId}/places:
