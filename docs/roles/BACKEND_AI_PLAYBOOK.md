@@ -1616,6 +1616,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T16`: apps/ai가 답하지 못한 결정은 503 APPLY_FAILED(retryable)로 답한다
 - `BA-052-T17`: apps/ai가 계약 밖으로 답한 결정은 500 INTERNAL_ERROR(retryable 아님)로 답한다
 - `BA-052-T18`: apps/ai 장애로 실패한 결정은 아무것도 쓰지 않아서, 복구 뒤 같은 key의 재시도가 200이다
+- `BA-052-T19`: apps/ai가 멈춘 APPLY 동안에도 같은 owner의 다른 요청은 답을 받는다
+- `BA-052-T20`: 답한 APPLY의 replay는 apps/ai에 묻지 않는다
+- `BA-052-T21`: 더는 결정할 수 없는 run의 결정은 apps/ai에 묻지 않고 거절된다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
