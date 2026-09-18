@@ -23,6 +23,39 @@ tags:
 실제 계획 파일의 경로·실행 명령은 Backend/AI가 소유한다([#183](https://github.com/yutakdv/Nullnull/issues/183)).
 이 문서는 **무엇을 쓰면 통과하는지**만 정한다.
 
+### 계획 파일 — Backend/AI
+
+실제 계획 파일은 `ops/curated-posts.json`이다. FE 초안(`docs/contest/curated-posts.draft.json`)에
+Backend/AI가 `id`·`publishedAt`을 채운 것이고, `placeId`·`cover.url`은 아직 `<BE: …>` 자리표시자다.
+자리표시자가 남아 있으면 `CuratedPostPlan`이 **파일 전체를 거절**한다(https·UUID 형식이 아니다) —
+채우기 전에 실수로 실행해도 아무것도 쓰이지 않는다. 두 칸만 형식에 맞게 채운 파일은 다섯 편 모두
+실제 리더(`CuratedPostImportMain.read`)를 통과한다.
+
+- `id`: 게시물마다 고정 UUID다. 같은 파일을 다시 실행하면 같은 요청이므로 바꾸지 않는다.
+- `publishedAt`: feed는 `published_at DESC`로 정렬하므로 파일의 첫 게시물이 가장 늦은 시각이다.
+  운영자가 적은 값이 곧 feed 순서라, 첫 import 전에만 고칠 수 있고 그 뒤로는 바꾸지 않는다.
+
+### staging이 선 날의 순서
+
+1. **장소 다섯 곳을 staging 카탈로그에 등록한다** — 경복궁·창덕궁·덕수궁·서울숲·북촌한옥마을.
+   장소마다 `ktoSmoke`(KTO `detailCommon2` 실제 호출, 입력 `NULLNULL_KTO_SMOKE_CONTENT_ID`·
+   `NULLNULL_KTO_SMOKE_CONTENT_TYPE_ID`)로 snapshot을 저장하고 `ktoCanonicalIngest`(입력
+   `NULLNULL_KTO_INGEST_CONTENT_ID`·`NULLNULL_KTO_INGEST_CONTENT_TYPE_ID`)로 canonical 행을 만든다.
+   **실제 호출 승인 flag `NULLNULL_KTO_SMOKE_APPROVED=true`는 오너가 자기 셸에서 직접 켠다** — 세션이
+   대신 켜지 않는다. 장소별 KTO contentId는 이 문서가 정하지 않는다.
+2. **`placeId`를 채운다.** `ktoCanonicalIngest`가 출력한 place ID를 `ops/curated-posts.json`의
+   자리표시자에 넣는다. `ops/curated-hours.json`도 같은 다섯 장소를 가리키므로 같은 ID로 맞춘다 —
+   그 파일의 현재 ID가 어느 카탈로그에서 나왔는지는 기록이 없다.
+3. **표지를 올린다.** `_source_file`이 가리키는 다섯 장을 배포 도메인에 올리고, 올린 파일의
+   `shasum -a 256` 값이 `cover.checksum`과 같은지 확인한다. 도메인과 저장 위치는 staging 담당이 정한다.
+4. **`cover.url`을 채운다.** 올린 주소만 넣는다(https만, [#182](https://github.com/yutakdv/Nullnull/issues/182)).
+5. **import한다.** `NULLNULL_CURATION_PLAN=ops/curated-posts.json ./gradlew curatePosts`
+   (영업시간은 `NULLNULL_HOURS_PLAN=ops/curated-hours.json ./gradlew curateHours`). 이 스크립트에는
+   대상 DB를 가리는 가드가 **없다** — `CuratedPostImportMain`의 javadoc은 ktoSmoke와 같은 가드가
+   있다고 적지만 코드에는 없다. 그래서 실행 전에 datasource가 staging을 가리키는지 사람이 확인한다.
+   staging DB에 닿는 경로는 staging runbook이 정한다.
+6. **`/feed`를 확인한다.** 다섯 건이 파일 순서(첫 게시물이 맨 위)대로 보이고 표지가 뜨는지 본다.
+
 ## 한 건의 서식
 
 ```json
