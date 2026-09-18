@@ -427,7 +427,10 @@ class OptimizeDecisionFaultIT {
                     new BigDecimal("0.480000"),
                     candidate.beforeValue().subtract(candidate.afterValue()),
                     new BigDecimal("0.600000"), new BigDecimal("0.000000"),
-                    candidate.beforeSnapshotId(), candidate.afterSnapshotId(), Map.of());
+                    candidate.beforeSnapshotId(), candidate.afterSnapshotId(),
+                    // What apps/ai asserts for a proposal it returns: every lock the request carried,
+                    // held. ProposalRevalidator refuses a map that differs from its own verdicts.
+                    lockChecksFor(request));
             return new ItemProposeResponse(policy.policyVersion(), policy.policyHash(),
                     policy.pipelineVersion(), ItemProposeResponse.Outcome.PROPOSALS,
                     List.of(proposal), List.of(), 1, Map.of());
@@ -563,5 +566,11 @@ class OptimizeDecisionFaultIT {
 
     private static Cookie cookie(SessionService.Bootstrap owner) {
         return new Cookie("__Host-nullnull_session", owner.cookie);
+    }
+
+    private static Map<String, Boolean> lockChecksFor(ItemProposeRequest request) {
+        Map<String, Boolean> checks = new java.util.LinkedHashMap<>();
+        request.locks().forEach(lock -> checks.put(lock.type().name(), true));
+        return checks;
     }
 }

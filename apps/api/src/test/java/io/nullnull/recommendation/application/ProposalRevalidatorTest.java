@@ -331,6 +331,30 @@ class ProposalRevalidatorTest {
     }
 
     @Test
+    @DisplayName("#242 the service's lock checks are stored only when they are this API's own verdicts")
+    void lockChecksMustBeTheVerdictsJudgedHere() {
+        ItemFixture same = fixture("temporal-same-issue");
+        ItemProposeRequest mustVisit = withLocks(same.request(), List.of(LockIn.mustVisit()));
+        ItemProposeResponse golden = goldenResponse(same);
+        ItemProposalOut proposal = golden.proposals().get(0);
+
+        // The control: one entry for the one lock, held - exactly what LockChecks judges.
+        assertThat(codes(REVALIDATOR.check(mustVisit,
+                withProposal(golden, withLockChecks(proposal, Map.of("MUST_VISIT", true)))))).isEmpty();
+        // A lock the request carried and the answer left out.
+        assertThat(codes(REVALIDATOR.check(mustVisit, withProposal(golden, withLockChecks(proposal, Map.of())))))
+                .containsExactly(ProposalRevalidator.LOCK_CHECKS_MISMATCH);
+        // A result that disagrees with the one judged here.
+        assertThat(codes(REVALIDATOR.check(mustVisit,
+                withProposal(golden, withLockChecks(proposal, Map.of("MUST_VISIT", false))))))
+                .containsExactly(ProposalRevalidator.LOCK_CHECKS_MISMATCH);
+        // A lock the item does not have.
+        assertThat(codes(REVALIDATOR.check(same.request(),
+                withProposal(golden, withLockChecks(proposal, Map.of("DATE", true))))))
+                .containsExactly(ProposalRevalidator.LOCK_CHECKS_MISMATCH);
+    }
+
+    @Test
     void aPinnedStartTimeIsNeverMovedBeyondItsTolerance() {
         ItemFixture fixture = fixture("temporal-same-issue");
         ItemProposeRequest locked = withLocks(fixture.request(), List.of(LockIn.time(LocalTime.of(10, 0), 0)));
@@ -551,6 +575,17 @@ class ProposalRevalidatorTest {
 
     private static Instant instant(ItemProposeRequest request, LocalDate date, LocalTime at) {
         return ZonedDateTime.of(date, at == null ? LocalTime.MIDNIGHT : at, ZoneId.of(request.tripZone())).toInstant();
+    }
+
+    private static ItemProposalOut withLockChecks(ItemProposalOut p, Map<String, Boolean> lockChecks) {
+        return new ItemProposalOut(p.rank(), p.date(), p.startTime(), p.beforeInstant(), p.afterInstant(), p.score(),
+                p.improvement(), p.relief(), p.changeCost(), p.beforeSnapshotId(), p.afterSnapshotId(), lockChecks);
+    }
+
+    private static ItemProposeResponse withProposal(ItemProposeResponse response, ItemProposalOut proposal) {
+        return new ItemProposeResponse(response.policyVersion(), response.policyHash(), response.pipelineVersion(),
+                response.outcome(), List.of(proposal), response.reasons(), response.evaluated(),
+                response.rejectedByReason());
     }
 
     private static ItemProposalOut ranked(ItemProposalOut p, int rank) {
