@@ -800,13 +800,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - 기능 ID: 해당 없음
 - API: `listRelatedPlaces` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: catalog.place_relations · relation evidence · RelatedPlaceRanker(apps/ai related/rank)
+- 데이터·정책: catalog.place_relations · relation evidence · CatalogRelationProjectionService 정렬(ADR-0006 예외)
 
 착수 불가 사유(조사 결과): `RelatedPlace.place`가 **required `PlaceSummary`**다. 그 값은 `CatalogPlaceProjectionService.embeddedSummaries`를 지나고 그 첫 줄이 `requirePublicProjection()`이므로, catalog 공개 게이트가 닫혀 있는 동안 `listRelatedPlaces`는 **응답을 만들 수 없다**. 게이트는 BA-021-T3(staging 실호출 증거)까지 열리지 않고 그건 [BA-006](#ba-006)에 달려 있다. 즉 이 카드는 계약이 아니라 **증거**를 기다린다.
 
 **막히는 것은 절반이다.** `RelatedPlaceResult.items`는 **빈 배열이 허용**되므로 `NONE`·`UNKNOWN` 응답은 `PlaceSummary`를 전혀 거치지 않는다 — 게이트가 막는 것은 **후보가 있는 응답**뿐이다. `place_relations` 저장·가드와 그 위의 IT(`T1`·`T4`·`T5`)는 지금 만들 수 있고, `V010`이 `BA-022`에서 projection이 fail-closed인 채로 C3 foundation을 먼저 세운 것과 같은 모양이다.
 
-**남은 절반이 기다리는 것.** 응답에 후보가 실리려면 catalog 공개 게이트가 열려야 한다 — `RelatedPlace.place`가 required `PlaceSummary`이고 그 경로의 첫 줄이 `requirePublicProjection()`이며, 닫힌 동안 이 route는 형제 route들과 같이 **503 `SOURCE_UNAVAILABLE`(retryable)** 로 답한다. **게이트가 닫힌 채로 `NONE`을 내지 않는다** — `SOURCE_CATALOG` §4가 `NONE`을 *"필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때"* 로 정의하므로, 완료하지 못한 조회 위에서 그 상태를 주장하는 것이 된다. `200 UNKNOWN`도 아니다 — `UNKNOWN`은 *"시도가 끝났지만 답이 없다"* 이고 polling으로 풀리지 않는데 **닫힌 게이트는 풀린다.** 정렬은 게이트와 무관하고 계약도 이미 있다 — `/internal/v1/related/rank`와 `RelatedRankRequest`/`RelatedRankResponse`가 내부 계약에 있고 `HttpRecommendationGateway`가 호출한다. 없는 것은 `place_relations`에서 후보를 모아 넘기는 caller다. 게이트가 열리면 `T7`의 다섯 중 `SIMILAR`·`UNKNOWN` **둘**이 생산 가능해진다. **`NONE`은 생산하지 않는다** — `KTO_RELATED_PLACES` 미신청에 대한 사용자 확정 결정이 C5의 상태를 `NULLNULL_CATALOG_RULE` `SIMILAR`와 `UNKNOWN(reason SOURCE_DISABLED)` **둘로** 못박았다. `SIMILAR`는 우리 규칙이 검증한 후보가 여기 있다는 **긍정** 주장이라 우리 근거만으로 서지만, `NONE`은 관련 장소가 없다는 **부정** 주장이라 "다 찾아봤다"가 있어야 서고 공식 relation source가 꺼져 있는 한 그것이 없다 — §4의 *"필요한 조회와 검증을 완료한 뒤"* 가 그 뜻이고 *"확인 실패·근거 부족은 `UNKNOWN`"* 이 그 자리를 받는다. `NONE`을 enum에서 빼지는 않는다(FE가 렌더할 수 있고 제거는 breaking이다). `EXACT`는 `KTO_RELATED_PLACES` 승인까지, `CHECKING`은 relation 검증 job이 생길 때까지 생산자가 없다(P0 job type은 `delete-owner-data`·`optimize-item` 둘뿐).
+**남은 절반이 기다리는 것.** 응답에 후보가 실리려면 catalog 공개 게이트가 열려야 한다 — `RelatedPlace.place`가 required `PlaceSummary`이고 그 경로의 첫 줄이 `requirePublicProjection()`이며, 닫힌 동안 이 route는 형제 route들과 같이 **503 `SOURCE_UNAVAILABLE`(retryable)** 로 답한다. **게이트가 닫힌 채로 `NONE`을 내지 않는다** — `SOURCE_CATALOG` §4가 `NONE`을 *"필요한 조회와 검증을 완료한 뒤 적격 후보가 0일 때"* 로 정의하므로, 완료하지 못한 조회 위에서 그 상태를 주장하는 것이 된다. `200 UNKNOWN`도 아니다 — `UNKNOWN`은 *"시도가 끝났지만 답이 없다"* 이고 polling으로 풀리지 않는데 **닫힌 게이트는 풀린다.** 정렬은 게이트와 무관하다 — Spring catalog projection이 하고 `apps/ai` `related/rank`는 호출하지 않는다([ADR-0006 · 예외](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006--예외)). 게이트가 열리면 `T7`의 다섯 중 `SIMILAR`·`UNKNOWN` **둘**이 생산 가능해진다. **`NONE`은 생산하지 않는다** — `KTO_RELATED_PLACES` 미신청에 대한 사용자 확정 결정이 C5의 상태를 `NULLNULL_CATALOG_RULE` `SIMILAR`와 `UNKNOWN(reason SOURCE_DISABLED)` **둘로** 못박았다. `SIMILAR`는 우리 규칙이 검증한 후보가 여기 있다는 **긍정** 주장이라 우리 근거만으로 서지만, `NONE`은 관련 장소가 없다는 **부정** 주장이라 "다 찾아봤다"가 있어야 서고 공식 relation source가 꺼져 있는 한 그것이 없다 — §4의 *"필요한 조회와 검증을 완료한 뒤"* 가 그 뜻이고 *"확인 실패·근거 부족은 `UNKNOWN`"* 이 그 자리를 받는다. `NONE`을 enum에서 빼지는 않는다(FE가 렌더할 수 있고 제거는 breaking이다). `EXACT`는 `KTO_RELATED_PLACES` 승인까지, `CHECKING`은 relation 검증 job이 생길 때까지 생산자가 없다(P0 job type은 `delete-owner-data`·`optimize-item` 둘뿐).
 
 **`T7`은 이 slice에 쓰지 않는다.** 응답 경로가 없으면 다섯 값 중 어느 것도 *"생산 가능"* 을 보일 수 없고, 그 상태에서 coverage test를 쓰면 **전부 "생산자 없음"으로 등록하는 표**가 된다 — `CrowdQualityFlagCoverageIT`가 잡으려던 것의 정반대다. `T7`은 응답 경로를 만드는 slice에 붙는다.
 
@@ -814,7 +814,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 1. 공식 direct relation과 canonical mapping을 검증하고 category 기반 약한 관계는 SIMILAR로 분리한다
 2. EXACT/SIMILAR/NONE/CHECKING/UNKNOWN 이유·유효기간·근거를 응답 계약에 매핑한다
-3. 후보 수집→보강→hard filter→결정적 정렬을 apps/ai의 순수 ranker에 gateway로 연결하고 Spring은 hydration·fallback(UNKNOWN)만 담당한다
+3. 후보 병합과 (tier, placeId) 정렬은 Spring catalog projection이 하고 apps/ai related/rank는 호출하지 않는다(ADR-0006 예외). 상한은 writer의 MAX_PER_SOURCE(= policy-v1 relatedPerChannel)다
 4. 09-06 PM 검토 PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: 관계가 있다는 이유로 더 한산하거나 경로 가능하다고 말하지 않는다. 이 API에 없는 tripId/숨은 active trip을 ranking 입력으로 쓰지 않는다.
@@ -884,7 +884,7 @@ FE 인계·완료 증거: 영업시간이 있는 장소와 없는 장소의 `get
 
 **승인이 필요 없다.** 이 source는 `approval_state=PROD_APPROVED`·`enabled=true`·`stale_after=P7D`다 — `SEOUL_CITYDATA`와 정반대다.
 
-**계산은 Spring이다(ADR-0006 위반이 아니다).** `AGENTS.md` 16이 *"관련 장소 계산은 `apps/ai`"* 라고 하지만, `RelationCandidateIn`의 javadoc이 자기 입력을 *"one relation evidence row from `catalog.place_relations` after canonical mapping"* 으로 정의한다 — **ranker는 이미 저장된 행을 받아 정렬한다.** ADR-0006이 가르는 것은 *점수·순서*이고, *두 장소가 같은 분류·지역에 있다*는 것은 점수가 아니라 catalog의 사실이다. `place_hours_observations`가 catalog의 사실인 것과 같다.
+**계산은 Spring이다(ADR-0006 위반이 아니다).** `AGENTS.md` 16이 *"관련 장소 계산은 `apps/ai`"* 라고 하지만, `RelationCandidateIn`의 javadoc이 자기 입력을 *"one relation evidence row from `catalog.place_relations` after canonical mapping"* 으로 정의한다 — **ranker는 이미 저장된 행을 받아 정렬한다.** ADR-0006이 가르는 것은 *점수·순서*이고, *두 장소가 같은 분류·지역에 있다*는 것은 점수가 아니라 catalog의 사실이다. `place_hours_observations`가 catalog의 사실인 것과 같다. 그 뒤의 정렬도 Spring이 하고 ranker는 불리지 않는다 — [ADR-0006 · 예외](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006--예외).
 
 **plan 파일을 만들지 않는다 — [A-031](../project/DECISIONS_AND_RISKS.md)·A-032와 다른 이유가 있다.** 게시물과 영업시간은 **사람이 읽어야만 알 수 있는 것**이라 plan이 검토 산출물이었다. 관계는 입력이 이미 우리 DB에 있어서 **운영자가 읽을 것이 없다** — plan을 만들면 우리 DB를 베껴 적는 꼴이 된다. `CuratedHoursImporter`의 *모양*(재실행 안전한 transaction + Gradle task)은 맞고 *plan 파일*은 아니다. 요청마다 계산하는 것도 아니다: 행이 `effective_at`·`expires_at`과 pin된 `source_registry_version`을 가진 **증거**이고, 매 요청 scan은 그 증거를 없앤다.
 
@@ -1257,8 +1257,10 @@ FE 인계·완료 증거: **배포 순간 발급돼 있던 cursor는 전부 무�
 - `BA-055-T20`: verifyDraft가 거부한 답은 draft가 아니라 500 INTERNAL_ERROR(retryable false)로 나간다
 - `BA-055-T21`: 여행 기간 밖 날짜에 stop을 둔 답은 거부된다
 - `BA-055-T22`: policy hash가 빈 답은 거부된다
+- `BA-055-T23`: apps/ai 답이 계약 밖이면 503이 아니라 500 INTERNAL_ERROR(retryable false)다
+- `BA-055-T24`: apps/ai 본문이 도중에 끊기거나 멈추면 500이 아니라 503이다
 
-증거 위치: `TripDraftPreviewIT`(T1·T2·T3·T6·T9·T10·T11), `TripDraftPreviewFailsClosedIT`(T4), `TripDraftPreviewGatewayIT`(T5·T12·T20), `DraftComposeGatewayTest`(T7·T13~T19·T21·T22), `RecommendationRequestShapeTest`(T8), 응답 schema는 `TripDraftPreviewContractTest`.
+증거 위치: `TripDraftPreviewIT`(T1·T2·T3·T6·T9·T10·T11), `TripDraftPreviewFailsClosedIT`(T4), `TripDraftPreviewGatewayIT`(T5·T12·T20·T23·T24), `DraftComposeGatewayTest`(T7·T13~T19·T21·T22), `RecommendationRequestShapeTest`(T8), 응답 schema는 `TripDraftPreviewContractTest`. `T23`·`T24`는 #250이다: gateway가 503과 500을 한 곳에서 가르고, 역직렬화 예외 전체를 500으로 넓히는 변이는 `T24`만 빨갛게 한다.
 
 FE 인계·완료 증거: READY·EMPTY fixture(packages/contracts/fixtures/trips/draft-preview-*.json)와 stop→SeedTripItem 변환 규칙, 503(게이트 닫힘·apps/ai 무응답)과 500(apps/ai 거절·계약 위반) 구분. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1508,6 +1510,17 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T9`: 저장된 제안과 change는 사후 수정되지 않는다
 - `BA-051-T10`: preview 동안 일정 쓰기가 0이다
 - `BA-051-T11`: 실패 코드 어휘가 enum·CHECK·계약 세 곳에서 같다
+- `BA-051-T12`: getOptimization은 저장된 제안을 돌려준다
+- `BA-051-T13`: trip timezone을 수정한 뒤에도 dataProvenance는 제안이 비교한 쌍을 가리킨다
+- `BA-051-T14`: 저장된 lockChecks는 LockType 순서의 checks 목록으로 나간다
+- `BA-051-T15`: allConstraintsPreserved는 모든 check가 통과했는지로 파생된다
+- `BA-051-T16`: lock 종류가 아닌 check는 목록에서 버리지 않고 거절한다
+- `BA-051-T17`: Spring이 판정한 lock 결과와 다른 lockChecks를 담은 제안은 저장되지 않는다
+- `BA-051-T18`: 계약 밖 답을 받은 run의 job은 첫 시도에서 끝난다
+- `BA-051-T19`: catalog가 닫힌 동안 제안을 가진 run의 getOptimization은 503 SOURCE_UNAVAILABLE이다
+- `BA-051-T20`: catalog가 닫힌 동안 제안을 가진 run에 대한 createOptimization replay는 503 SOURCE_UNAVAILABLE이다
+
+**`T12`~`T20`은 getOptimization이 저장된 제안을 내는 절이다**(#16 R3·#242). `T14`~`T16`은 처음에 한 문장(*"lockChecks를 계약의 checks로 바꾼다"*)이었는데, 정렬 제거·파생 상수화·모르는 key 버리기 세 변이가 각각 다른 case 하나씩만 빨갛게 해서 셋으로 나눴다. `T13`은 V034가 비교한 쌍의 id를 저장하는 이유다 — 날짜로 쌍을 다시 찾던 설계로 되돌리면 이 case만 빨개진다. `T17`이 있어야 `T15`의 파생이 apps/ai의 주장이 아니라 이 API의 판정이 된다. `T18`은 #252의 worker 절이다. `T19`·`T20`은 getTrip과 같은 catalog 게이트 규칙이고, 검사가 `OptimizationProposalReader` 한 곳에 있어 create replay도 같이 따른다. 증거 위치: `OptimizeItemIT`(T12·T13), `ItemProposalMapperTest`(T14~T16), `ProposalRevalidatorTest`(T17), `OptimizationFailsClosedIT`(T19·T20).
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1589,6 +1602,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T13`: 동시에 온 두 APPLY는 trip version 재조회가 중재해 하나만 반영된다
 - `BA-052-T14`: preview가 비교 적격으로 판정한 crowd 근거에 그 뒤 incident가 선언되면 APPLY가 거절된다
 - `BA-052-T15`: preview가 고른 날짜를 현재 opening hours로 같은 판정에 다시 넣어 통과하지 못하면 APPLY가 거절된다
+- `BA-052-T16`: apps/ai가 답하지 못한 결정은 503 APPLY_FAILED(retryable)로 답한다
+- `BA-052-T17`: apps/ai가 계약 밖으로 답한 결정은 500 INTERNAL_ERROR(retryable 아님)로 답한다
+- `BA-052-T18`: apps/ai 장애로 실패한 결정은 아무것도 쓰지 않아서, 복구 뒤 같은 key의 재시도가 200이다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1674,6 +1690,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-054-T7`: AVAILABLE을 읽은 뒤에도 남의 owner가 보낸 revert는 없는 결정과 같은 404로 거절된다
 - `BA-054-T8`: AVAILABLE을 읽은 뒤 창이 닫히면 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
 - `BA-054-T9`: AVAILABLE을 읽은 뒤 그 APPLY가 이미 되돌려졌으면 두 번째 revert는 거절된다
+- `BA-054-T10`: getOptimization은 run의 decisions를 나열한다
+- `BA-054-T11`: decisions에서 최초 APPLY·KEEP은 REVERT보다 먼저 나온다
+
+`T10`·`T11`은 getOptimization의 decisions다. 순서(`T11`)를 unit으로 재는 이유: 같은 instant에 찍힌 APPLY와 REVERT는 `ORDER BY decided_at, id`에서 id의 난수가 순서를 정하므로 HTTP case로는 절반만 잡힌다. 나열은 `OptimizeRevertIT`, 순서는 `DecisionOrderTest`가 잰다.
 
 `T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`~`T9`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다. 뒤쪽이 넷인 것은 revert가 다시 하는 검사(version·owner·window·decision)마다 하나씩이기 때문이다. 처음에는 넷을 한 절(`T6`)에 묶었고 그 절의 test는 version 하나만 쟀다 — 등록 규칙 3이 말하는 모양이라 승격 전에 쪼갰다.
 

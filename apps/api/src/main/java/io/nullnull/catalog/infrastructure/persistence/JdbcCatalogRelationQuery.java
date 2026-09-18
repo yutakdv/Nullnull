@@ -30,8 +30,9 @@ public class JdbcCatalogRelationQuery implements CatalogRelationQuery {
     /**
      * EXACT before SIMILAR because the stronger evidence is the better candidate, then target id as
      * the tiebreaker. The tiebreaker is what makes the order total: without it two relations written
-     * in either order could come back in either order, and the ranker downstream would be scoring a
-     * different input each time for the same stored evidence.
+     * in either order could come back in either order, and whatever orders them next would be handed a
+     * different input each time for the same stored evidence. (That is the projection's converge, not an
+     * apps/ai ranker: ADR-0006 · 예외, docs/decisions/ARCHITECTURE_DECISIONS.md.)
      *
      * <p>Measured, and only half of it is proven. Removing the EXACT ranking turns
      * exactEvidenceIsOfferedBeforeSimilar red; removing {@code target_place_id} turns nothing red,

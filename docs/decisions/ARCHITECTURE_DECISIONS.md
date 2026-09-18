@@ -290,6 +290,19 @@ Backend/AI 담당은 2026-09-07 추천 계산 전체를 Python 서비스로 두�
 - Spring `recommendation` package는 gateway port·DTO·재검증·fallback만 가지며 계산을 중복 구현하지 않는다. 정책 YAML과 REC safety corpus는 `apps/ai`에만 둔다.
 - `recommendationTest`(Gradle)는 Spring DTO와 내부 계약 JSON의 parity를, `apps/ai` pytest는 REC corpus와 `evaluation.json`을 검증한다. 두 결과 모두 `docker-integration` 안에서 실행한다.
 - P0 `AI_PROVIDER`는 `NONE`뿐이다. `OPENAI`는 BA-084에서 adapter·model ID·timeout·kill switch와 함께 추가하며 그 전에는 startup 실패다.
+- 단, 관련 장소(`listRelatedPlaces`)의 병합·정렬은 Spring이 한다. [ADR-0006 · 예외](#adr-0006--예외)로 위 표 "계산"·"장애" 행의 예외가 됐다(2026-09-19).
+
+### ADR-0006 · 예외
+
+관련 장소(`listRelatedPlaces`)의 병합·정렬은 Spring이 한다. 오너가 2026-09-19에 정했다(Backend/AI 조율 세션 경유). 이 절이 그 결정의 정본이고, 다른 문서는 이 절을 가리킨다.
+
+- 범위: 한 장소의 관계 행을 대상 장소마다 한 행으로 합치고 순서를 정하는 일 하나다. `CatalogRelationProjectionService.converge`가 (tier, source code)로 남길 행을 고르고 목록을 (tier, target id)로 정렬한다. 관계 증거를 만드는 일(BA-026 `CatalogRelationDeriver`, "같은 분류·지역")은 위 표의 "계산"이 아니다. 점수나 순서가 아니라 catalog의 사실이다.
+- 이유: `apps/ai`의 `POST /internal/v1/related/rank`에 production 호출자가 없었고, 그 사이 Spring이 같은 순서를 스스로 정하고 있었다. 연결하려면 호출 말고도 입력 둘과 결정 둘이 필요하다. 입력은 `places`에 없는 parent category와 taxonomy version이다. 결정은 관계 source와 ranker channel의 대응, 그리고 ranker가 내는 `NONE`을 오너 결정(`UNKNOWN(SOURCE_DISABLED)`, `NONE` 미발행)으로 덮어쓰는 규칙이다.
+- 포기하는 것: [추천 알고리즘](../architecture/RECOMMENDATION_ALGORITHM.md)의 관련 장소 정렬에서 `categoryMatch` 항이다. P0 순서는 (tier, placeId)다. 지금 유일한 writer(`JdbcCatalogRelationStore`)는 같은 `category_code`끼리만 관계를 만든다. 그래서 한 taxonomy version 아래서는 categoryMatch가 모두 1이고, 오늘의 결과 순서는 ranker의 순서와 같다. 다른 category를 잇는 관계가 생기는 날부터 갈라진다.
+- 상한: ranker의 `relatedPerChannel`(100)은 writer 쪽 `CatalogRelationDeriver.MAX_PER_SOURCE`가 지킨다. peer가 그보다 많은 source는 통째로 건너뛰고 일부를 골라 쓰지 않는다. 두 값은 `PolicyPinsParityTest`가 `policy-v1.yaml`과 대조한다. 읽기 쪽(query·응답·계약)에는 상한이 없고 `relatedMerged`(300)도 이 경로에 걸리지 않는다. 두 번째 관계 source를 들일 때 함께 정한다.
+- 남는 것: `apps/ai`의 `related/rank`와 그 내부 계약 parity, Spring `RecommendationGateway.rankRelated`는 그대로 두지만 production 호출자가 없다. `apps/ai` 장애는 관련 장소에 닿지 않으므로, 위 표 "장애" 행의 related `UNKNOWN`은 해당하지 않는다.
+- 고칠 수 없는 서술: `V027` migration 주석은 `apps/ai` related/rank gateway가 후보를 정렬한다고 적는다. 적용된 migration은 고칠 수 없으므로 이 절이 그 문장을 대체한다.
+- 재검토 조건: 공모전 제출 뒤, 또는 두 번째 관계 source(예: `KTO_RELATED_PLACES`)를 승인할 때 `apps/ai` 연결을 다시 판단한다. 위 입력 둘과 결정 둘이 선행 조건이다.
 
 ### ADR-0006 · Consequences
 

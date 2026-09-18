@@ -70,7 +70,7 @@ class OptimizationFailsClosedIT {
     }
 
     @Test
-    @DisplayName("getOptimization answers a run with no proposal and is 503 for one that holds a proposal")
+    @DisplayName("BA-051-T19 getOptimization answers a run with no proposal and is 503 for one that holds a proposal")
     void aRunHoldingProposalsIsNotServedWhileTheCatalogIsClosed() throws Exception {
         Fixture fixture = fixture();
         String key = "optimize-" + UUID.randomUUID();
@@ -88,7 +88,7 @@ class OptimizationFailsClosedIT {
     }
 
     @Test
-    @DisplayName("a replayed createOptimization is 503 once its run holds a proposal")
+    @DisplayName("BA-051-T20 a replayed createOptimization is 503 once its run holds a proposal")
     void aReplayedCreateIsNotServedOnceItsRunHoldsProposals() throws Exception {
         Fixture fixture = fixture();
         String key = "optimize-" + UUID.randomUUID();

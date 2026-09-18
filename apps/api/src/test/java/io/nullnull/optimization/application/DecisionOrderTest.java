@@ -26,7 +26,7 @@ class DecisionOrderTest {
     private static final Instant AT = Instant.parse("2026-10-01T00:00:00Z");
 
     @Test
-    @DisplayName("a REVERT that arrives first is still listed after the APPLY it undoes")
+    @DisplayName("BA-054-T11 a REVERT that arrives first is still listed after the APPLY it undoes")
     void theRevertComesAfterItsApply() {
         OptimizationDecision apply = apply();
         OptimizationDecision revert = revertOf(apply);

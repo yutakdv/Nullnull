@@ -190,7 +190,7 @@ class OptimizeItemIT {
      * points, or none, or rendered the stored {@code 09:00} as it was stored, fails here.
      */
     @Test
-    @DisplayName("getOptimization reads a READY run back with its proposal, its change, its checks and the pair it compared")
+    @DisplayName("BA-051-T12 getOptimization reads a READY run back with its proposal, its change, its checks and the pair it compared")
     void aReadyRunIsReadBackWithWhatItStored() throws Exception {
         Fixture fixture = fixture();
         answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
@@ -256,7 +256,7 @@ class OptimizeItemIT {
      * find nothing here; the pair is read by the ids the proposal stored.
      */
     @Test
-    @DisplayName("getOptimization still shows the compared pair after the trip's timezone is edited")
+    @DisplayName("BA-051-T13 getOptimization still shows the compared pair after the trip's timezone is edited")
     void aTimezoneEditDoesNotLoseTheComparedPair() throws Exception {
         Fixture fixture = fixture();
         answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());

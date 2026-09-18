@@ -171,7 +171,9 @@ public class CatalogRelationProjectionService {
      * <p>Both orders below are total and read only the row's own content, so every arrival order
      * gives one answer. The merge keeps the stronger row by (tier, source code) and the list is
      * ordered by (tier, target id) - the same {@code relatedOrdering} the pure ranker applies, minus
-     * the {@code categoryMatch} term it computes and this cannot, which sits between the two.
+     * the {@code categoryMatch} term it computes and this cannot, which sits between the two. Leaving it
+     * out is a decision rather than a gap: ADR-0006 · 예외 (docs/decisions/ARCHITECTURE_DECISIONS.md)
+     * keeps related-place ordering here and gives that term up for P0.
      *
      * <p>Ordering on {@code toString} rather than on {@link UUID#compareTo} is deliberate: UUID's
      * natural order compares its halves as signed longs, so it disagrees with both PostgreSQL's
