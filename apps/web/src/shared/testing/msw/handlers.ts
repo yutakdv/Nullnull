@@ -309,6 +309,39 @@ const runDecisions = new Map<string, { decision: 'APPLY' | 'KEEP'; decidedAt: st
  *
  * `revertUntil` is `decidedAt` plus exactly 24 hours, per the contract.
  */
+/**
+ * Two proposals, derived from the one approved example.
+ *
+ * The contract allows up to three (`maxItems: 3`) and the example carries one,
+ * so a mock that served the fixture flat left the whole selection path — the
+ * radiogroup, `aria-checked`, the keyboard move — unreachable: the screen only
+ * makes the cards selectable when there is more than one, so that code had
+ * never executed anywhere, including in `npm run dev`.
+ *
+ * Derived here rather than by editing the fixture: that file is pinned to the
+ * contract's example by check-examples.mjs and fixtures.test.ts, and it is
+ * right about the SHAPE. What it does not carry is a COUNT the screen has to
+ * handle.
+ *
+ * The clone keeps `metrics` and `dataProvenance` untouched, so both proposals
+ * pass the same `crowdComparison` gate. Changing them here would make the two
+ * cards differ for a reason unrelated to choosing between them, and a test
+ * that then looked at the wrong card would still find something plausible.
+ *
+ * Rank 2 is listed FIRST so "the default is rank 1" cannot pass on array order.
+ */
+function mockProposals() {
+  const [first] = optimizationFixtures.runReady.proposals;
+  if (!first) return optimizationFixtures.runReady.proposals;
+  const second = {
+    ...first,
+    id: '018f6d00-0000-7000-8000-000000000002',
+    rank: 2,
+    summary: '경복궁 방문을 10월 5일 오전으로 옮기면 상대 집중률이 조금 낮아져요.',
+  };
+  return [second, first];
+}
+
 function decisionOutcome(decision: 'APPLY' | 'KEEP', decidedAt: string, version: number) {
   if (decision === 'KEEP') return {};
   const REVERT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -483,6 +516,7 @@ export const handlers = [
         tripId: trip.id,
         inputTripVersion: trip.version,
         status,
+        proposals: mockProposals(),
         // The decision the run now carries. The contract keeps proposals on a
         // decided run — the user can still see what was applied — so only the
         // status and this array change.

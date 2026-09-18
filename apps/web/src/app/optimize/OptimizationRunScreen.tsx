@@ -411,8 +411,15 @@ export function OptimizationRunScreen() {
             // 'APPLY' here would turn a failed KEEP into an APPLY on the retry
             // button, which is the one substitution invariant 4 cannot survive:
             // the user declined and the screen would apply.
+            // …but the DECISION is replayed, not the proposal. The cards stay
+            // on screen while the bar shows `failed`, so the user can change
+            // their mind between the failure and the retry — and if they did,
+            // resending the old proposalId applies something they are no
+            // longer looking at. `submitDecision` keys by (proposal, decision),
+            // so the moved selection gets its own key and the server sees a new
+            // command rather than a replay of the abandoned one.
             const last = decide.variables?.request;
-            if (last) submitDecision(last.proposalId, last.decision);
+            if (last) submitDecision(selectedId ?? last.proposalId, last.decision);
           }}
           state={phase.state}
         />

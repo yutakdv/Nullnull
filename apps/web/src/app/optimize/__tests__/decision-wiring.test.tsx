@@ -412,9 +412,7 @@ describe('FE-503 choosing between proposals', () => {
     renderTwo();
 
     const options = await screen.findAllByRole('radio');
-    const second = options.find(
-      (o) => o.getAttribute('aria-checked') === 'false',
-    );
+    const second = options.find((o) => o.getAttribute('aria-checked') === 'false');
     expect(second).toBeDefined();
     if (!second) return;
 
@@ -424,9 +422,53 @@ describe('FE-503 choosing between proposals', () => {
     // A card reachable by Tab that does nothing when pressed is worse than one
     // that is not focusable at all: it promises an action and withholds it.
     expect(second.getAttribute('aria-checked')).toBe('true');
-    expect(
-      options.filter((o) => o.getAttribute('aria-checked') === 'true'),
-    ).toHaveLength(1);
+    expect(options.filter((o) => o.getAttribute('aria-checked') === 'true')).toHaveLength(
+      1,
+    );
+  });
+
+  it('gives a different proposal a different idempotency key', async () => {
+    const user = userEvent.setup();
+    recordWrites();
+    renderTwo();
+    decisionAnswers(
+      () =>
+        new HttpResponse(
+          JSON.stringify({
+            type: 'https://nullnull.app/problems/apply-failed',
+            title: 'Apply failed',
+            status: 503,
+            code: 'APPLY_FAILED',
+            retryable: true,
+          }),
+          { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+    );
+
+    // Apply the default (rank 1), which fails.
+    await user.click(await screen.findByRole('button', { name: copy['decision.apply'] }));
+    await waitFor(() => {
+      expect(writes).toHaveLength(1);
+    });
+
+    // Now choose the OTHER proposal and apply that.
+    const options = await screen.findAllByRole('radio');
+    const other = options.find((o) => o.getAttribute('aria-checked') === 'false');
+    if (!other) throw new Error('both cards already selected');
+    await user.click(other);
+    await user.click(screen.getByRole('button', { name: copy['decision.failedAction'] }));
+    await waitFor(() => {
+      expect(writes.length).toBeGreaterThan(1);
+    });
+
+    // Reusing the first key here would make the server REPLAY the first
+    // decision: the user picked B and A would be applied. A retry of the SAME
+    // command shares a key (asserted above); a different proposal is a
+    // different command and must not.
+    expect(writes[1]?.body).not.toMatchObject({
+      proposalId: (writes[0]?.body as { proposalId: string }).proposalId,
+    });
+    expect(writes[1]?.idempotencyKey).not.toBe(writes[0]?.idempotencyKey);
   });
 
   it('decides on the proposal the user chose, not on the default', async () => {
