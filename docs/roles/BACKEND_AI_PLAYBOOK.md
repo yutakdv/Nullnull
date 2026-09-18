@@ -533,9 +533,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-020-T1`: `ProviderKitTest`·`CollectorRunRecorderTest`·`SourceRegistryIT`가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 합성 provider와 PostgreSQL로 검증한다.
-- `BA-020-T2`: `SourceRegistryIT`가 KST 일일 quota의 60/80/90% 경보·100% 초과 거부 및 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다.
-- `BA-020-T3`: `SourceRegistryIT.slowProviderDoesNotBlockApiRequests`가 네 개의 지연 provider call 중에도 readiness와 owner `/me` 요청이 즉시 처리되는지를 검증한다.
+- `BA-020-T1`: ProviderKitTest·CollectorRunRecorderTest·SourceRegistryIT가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 합성 provider와 PostgreSQL로 검증한다
+- `BA-020-T2`: SourceRegistryIT가 KST 일일 quota의 60/80/90% 경보·100% 초과 거부 및 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다
+- `BA-020-T3`: SourceRegistryIT.slowProviderDoesNotBlockApiRequests가 네 개의 지연 provider call 중에도 readiness와 owner /me 요청이 즉시 처리되는지를 검증한다
 
 구현·검증 증거:
 

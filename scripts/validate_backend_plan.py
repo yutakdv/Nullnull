@@ -270,6 +270,24 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
         if declared_tests != required_tests:
             problems.append(f'{tid}: task card test IDs {sorted(declared_tests)} differ from '
                             f'manifest {sorted(required_tests)}')
+        # The clause itself, not just its ID. Both files state every acceptance clause and nothing
+        # compared the wording, so they drifted: BA-020-T1~T3 read differently in the two files
+        # until ad13236. Only the 필수 검증 list is read - the evidence block under it reuses the
+        # "- `ID`:" shape to list testcase names (BA-004-T2 has one), and reading those rows would
+        # compare test names against the clause. A row may add evidence after " — " (BA-000..005
+        # name their testcases there, and BA-051 names the REC IDs a recCoverage clause cites); the
+        # clause before it must be the manifest's, character for character.
+        listed = re.search(r'^필수 검증:\n\n((?:- `BA-\d{3}-T\d+`: .*(?:\n|$))+)', card, re.M)
+        rows = dict(re.findall(r'^- `(BA-\d{3}-T\d+)`: (.*)$', listed.group(1), re.M)) if listed else {}
+        for test in required:
+            ident, clause = test.get('id'), test.get('assertion')
+            if not isinstance(ident, str) or not isinstance(clause, str) or not clause.strip():
+                continue
+            row = rows.get(ident)
+            if row is None:
+                problems.append(f"{tid}: {ident} has no row in the card's 필수 검증 list")
+            elif row != clause and not row.startswith(clause + ' — '):
+                problems.append(f'{tid}: card clause for {ident} differs from the manifest assertion')
         if task.get('note') != f'{CARD}#{tid.lower()}':
             problems.append(f'{tid}: note must link to its exact task card')
         if task.get('status') == 'verified':
