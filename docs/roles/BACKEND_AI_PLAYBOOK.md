@@ -403,6 +403,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-010-T1`: owner A/B/C 교차 조회·변경과 CSRF/Origin 위조를 거부한다
 - `BA-010-T2`: 미만료 token 5개를 함께 유지하고 6번째 발급 시 last_used_at 기준 LRU token을 회수한다
 - `BA-010-T3`: expiry·rotation·response loss 이후 안전한 bootstrap으로 복구한다
+- `BA-010-T4`: session cookie가 아예 없는 요청은 401 UNAUTHORIZED에 missingCredential SESSION_COOKIE를 싣는다
+- `BA-010-T5`: session 해석에서 거절된 요청은 원인과 무관하게 서로 구별되지 않는 필드 없는 401 UNAUTHORIZED다
+- `BA-010-T6`: cross-origin 상태 변경 요청은 session cookie 유무와 무관하게 필드 없는 403 CSRF_INVALID다
+- `BA-010-T7`: missingCredential을 싣는 경로는 session interceptor 하나뿐이다
+- `BA-010-T8`: cookie를 보낸 요청은 어느 parser가 그것을 보든 missing으로 답하지 않는다
 
 FE 인계·완료 증거: 쿠키/헤더 examples, 최초/refresh/만료/두 tab E2E fixture와 401 복구 순서. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
