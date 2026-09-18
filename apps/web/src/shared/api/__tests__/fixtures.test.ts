@@ -70,6 +70,8 @@ describe('contract fixtures satisfy the OpenAPI schema', () => {
     ['FeedPage', feedFixtures.pageEmpty],
     ['OptimizationHistoryPage', optimizationFixtures.historyPage],
     ['OptimizationHistoryPage', optimizationFixtures.historyPageEmpty],
+    ['OptimizationRun', optimizationFixtures.runReady],
+    ['OptimizationRun', optimizationFixtures.runApplied],
     ['PlaceSearchPage', placeFixtures.searchPage],
     ['PlaceSearchPage', placeFixtures.searchPageEmpty],
     ['RelatedPlaceResult', relatedFixtures.page],
