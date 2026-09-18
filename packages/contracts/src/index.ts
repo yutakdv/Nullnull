@@ -56,6 +56,9 @@ import relatedNone from "../fixtures/places/related-none.json" with { type: "jso
 import relatedChecking from "../fixtures/places/related-checking.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
 import placeDetail from "../fixtures/places/place-detail.json" with { type: "json" };
+import crowdSeriesForecast from "../fixtures/crowd/series-forecast.json" with { type: "json" };
+import crowdSeriesStale from "../fixtures/crowd/series-stale.json" with { type: "json" };
+import crowdSeriesUnavailable from "../fixtures/crowd/series-unavailable.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
@@ -301,4 +304,15 @@ export const placeFixtures = {
   // against. description and both thumbnail fields are null because the collector
   // requests overviewYN=N and firstImageYN=N.
   detail: placeDetail as components["schemas"]["PlaceDetail"],
+};
+
+// getPlaceCrowdForecast's three faces (#16): a fresh forecast, the same forecast served as a
+// stale fallback, and no coverage. Pinned to the contract's response examples by
+// scripts/check-examples.mjs; apps/api compares their shape with a real response at every level
+// (CrowdForecastApiIT).
+export const crowdFixtures = {
+  seriesForecast: crowdSeriesForecast as components["schemas"]["CrowdSeries"],
+  seriesStale: crowdSeriesStale as components["schemas"]["CrowdSeries"],
+  seriesUnavailable:
+    crowdSeriesUnavailable as components["schemas"]["CrowdSeries"],
 };

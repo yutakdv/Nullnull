@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.MutableClock;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -45,6 +46,7 @@ class CrowdForecastApiIT {
 
     private static final String FORECAST_SOURCE = "KTO_CONCENTRATION_FORECAST";
     private static final String PLACE_SOURCE = "KTO_KOR_SERVICE_2";
+    private static final tools.jackson.databind.ObjectMapper JSON = new tools.jackson.databind.ObjectMapper();
 
     @TestConfiguration
     static class Time {
@@ -122,6 +124,8 @@ class CrowdForecastApiIT {
                 .andReturn();
         assertThat(result.getResponse().getContentAsString())
                 .contains("\"observedAt\":null", "\"targetAt\":\"" + targetOne + "\"");
+        // The fixtures Frontend mocks each face against have the keys the server sends, everywhere (#16).
+        assertThat(shapeOf(result)).isEqualTo(JsonShape.of(JsonShape.fixture("crowd/series-forecast.json")));
     }
 
     @Test
@@ -133,14 +137,16 @@ class CrowdForecastApiIT {
         insertForecastSet(place, "issue-stale", clock.instant().minus(Duration.ofDays(2)),
                 clock.instant().minus(Duration.ofHours(1)), List.of(target), BigDecimal.valueOf(31));
 
-        forecast(owner, place, target, target)
+        MvcResult stale = forecast(owner, place, target, target)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("STALE"))
                 .andExpect(jsonPath("$.points[0].state").value("STALE"))
                 .andExpect(jsonPath("$.points[0].provenance.freshness").value("STALE"))
                 .andExpect(jsonPath("$.points[0].provenance.fallbackUsed").value(true))
                 .andExpect(jsonPath("$.points[0].provenance.comparisonEligible").value(false))
-                .andExpect(jsonPath("$.points[0].provenance.comparisonReasonCode").value("STALE_INPUT"));
+                .andExpect(jsonPath("$.points[0].provenance.comparisonReasonCode").value("STALE_INPUT"))
+                .andReturn();
+        assertThat(shapeOf(stale)).isEqualTo(JsonShape.of(JsonShape.fixture("crowd/series-stale.json")));
 
         forecast(owner, place, clock.instant(), clock.instant().plus(Duration.ofDays(31)))
                 .andExpect(status().isUnprocessableEntity())
@@ -210,11 +216,14 @@ class CrowdForecastApiIT {
         UUID place = activePlace("C4 no coverage fixture");
         Instant target = clock.instant().plus(Duration.ofDays(1));
 
-        forecast(owner, place, target, target)
+        MvcResult unavailable = forecast(owner, place, target, target)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("UNAVAILABLE"))
                 .andExpect(jsonPath("$.points").isEmpty())
-                .andExpect(jsonPath("$.unavailableReason").value("NO_COVERAGE"));
+                .andExpect(jsonPath("$.unavailableReason").value("NO_COVERAGE"))
+                .andReturn();
+        assertThat(shapeOf(unavailable))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("crowd/series-unavailable.json")));
     }
 
     private org.springframework.test.web.servlet.ResultActions forecast(SessionService.Bootstrap owner, UUID place,
@@ -299,6 +308,10 @@ class CrowdForecastApiIT {
                     Timestamp.from(fetchedAt), Timestamp.from(staleAt), value, issue, issue, Timestamp.from(fetchedAt));
         }
         return snapshots;
+    }
+
+    private static java.util.SortedSet<String> shapeOf(MvcResult result) throws Exception {
+        return JsonShape.of(JSON.readTree(result.getResponse().getContentAsString()));
     }
 
     private long sourceVersion(String sourceCode) {

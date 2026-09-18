@@ -48,6 +48,12 @@
       "basis": "BE/AI authored from the server projection (PlaceController.PlaceDetailResponse.from) so FE can build getPlace before the route opens. description/thumbnailUrl/thumbnailAsset are null because the collector requests overviewYN=N and firstImageYN=N, so overview text and images are never stored — an example with rich text there would break on first real integration. categoryCode/regionCode reuse 경복궁's HS/11, the only pair that came from an actual detailCommon2 call (#109). externalId is the placeholder KTO-PENDING-CAPTURE and location uses public reference coordinates: neither came from a captured response, so do not treat them as provider evidence. getPlace's canonicalPlace example is pinned to it by check-examples.mjs, so the two cannot drift. Note getPlace is fail-closed behind NULLNULL_CATALOG_PUBLIC_ENABLED=false until BA-021-T3 staging evidence exists, so this fixture is the only shape FE can build against today.",
       "serverVerified": false
     },
+    "crowd": {
+      "schema": "CrowdSeries",
+      "count": 3,
+      "basis": "BE/AI authored (#16). getPlaceCrowdForecast's three faces - series-forecast (FORECAST), series-stale (the same forecast served as a STALE fallback) and series-unavailable (NO_COVERAGE) - are the operation's response examples, pinned by check-examples.mjs. Their SHAPE is the server's: each was taken from a captured response that validated against CrowdSeries, and CrowdForecastApiIT compares every level's keys with a real response. Their VALUES continue the optimization fixtures: all three are 명동, the place run-applied moved; series-forecast's three points are the snapshots its proposals compared (same set, issue and provenanceId) with the values their summaries quote (34, 72.5, 51); series-stale is the 10-06 point read after the set's staleAt with no newer set, so the server's fallback fields (state and sourceState STALE, fallbackUsed true, comparisonEligible false with STALE_INPUT) and its label for a stale point are set. The labels are CrowdProvenanceProjection's. Not captured values, so serverVerified stays false for the set.",
+      "serverVerified": false
+    },
     "candidates": {
       "schema": "CandidatePage, CandidateMatchResult, CandidateSaveResult",
       "count": 9,

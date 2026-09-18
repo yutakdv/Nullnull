@@ -1,0 +1,47 @@
+{
+  "placeId": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
+  "state": "STALE",
+  "points": [
+    {
+      "state": "STALE",
+      "value": 72.5,
+      "unit": "relative-index",
+      "ordinalLevel": null,
+      "label": "만료된 관광지 집중률 예측",
+      "provenance": {
+        "source": "KTO_CONCENTRATION_FORECAST",
+        "sourceDisplayName": "한국관광공사 관광지 집중률 예측",
+        "sourceRegistryVersion": 2,
+        "sourceState": "STALE",
+        "observedAt": null,
+        "targetAt": "2026-10-05T15:00:00Z",
+        "freshness": "STALE",
+        "fetchedAt": "2026-10-02T00:00:00Z",
+        "staleAt": "2026-10-03T00:00:00Z",
+        "confidence": null,
+        "license": "이용허락범위 제한 없음",
+        "officialUrl": "https://www.data.go.kr/data/15128555/openapi.do",
+        "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+        "attribution": "출처: ⓒ한국관광공사",
+        "attributionShort": null,
+        "metricDefinition": "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님",
+        "normalizationVersion": "kto-tats-cnctr-rate-v4.1",
+        "qualityFlags": [],
+        "forecastIssueId": "kto-tats-25aa417641d7c6ed0ca7685961d74c9d",
+        "comparisonAxis": "TEMPORAL",
+        "comparisonEligible": false,
+        "comparisonReasonCode": "STALE_INPUT",
+        "comparisonGroupId": "kto-tats-25aa417641d7c6ed0ca7685961d74c9d",
+        "collectorRunId": "018f5a10-3c21-7d41-9b02-6a7b8c9d0e00",
+        "snapshotSetId": "018f5a10-3c21-7d41-9b02-6a7b8c9d0e01",
+        "observedAtSkewSeconds": null,
+        "scope": "PLACE",
+        "scopeLabel": "KTO 관광지 일별 집중률 예측",
+        "mappingType": "DIRECT",
+        "fallbackUsed": true,
+        "provenanceId": "018f5a10-3c21-7d41-9b02-6a7b8c9d0e06"
+      }
+    }
+  ],
+  "unavailableReason": null
+}

@@ -1296,6 +1296,193 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CrowdSeries"
+              examples:
+                forecastFresh:
+                  summary: "명동's forecast while its set is fresh"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: CrowdForecastApiIT compares every level's keys with the server's.
+                    The three points are the snapshots optimizationApplied compared - the same set, issue and
+                    provenanceId - and their values are the ones its summaries quote. observedAt is null because a
+                    forecast has no publisher time.
+                  value:
+                    placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                    state: FORECAST
+                    points:
+                    - state: FORECAST
+                      value: 34
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-04T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e05
+                    - state: FORECAST
+                      value: 72.5
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-05T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e06
+                    - state: FORECAST
+                      value: 51
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-06T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e07
+                    unavailableReason: null
+                forecastStale:
+                  summary: "The same forecast read after its staleAt"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: CrowdForecastApiIT compares every level's keys with the server's.
+                    The set expired and no newer one arrived, so the stored value is served as a labelled fallback:
+                    state and sourceState are STALE, fallbackUsed is true, and comparisonEligible is false
+                    (STALE_INPUT). A stale value may be shown; it is never compared.
+                  value:
+                    placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                    state: STALE
+                    points:
+                    - state: STALE
+                      value: 72.5
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '만료된 관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: STALE
+                        observedAt: null
+                        targetAt: '2026-10-05T15:00:00Z'
+                        freshness: STALE
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: false
+                        comparisonReasonCode: STALE_INPUT
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: true
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e06
+                    unavailableReason: null
+                forecastUnavailable:
+                  summary: "No stored forecast covers the window"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: CrowdForecastApiIT compares every level's keys with the server's.
+                    Neither a fresh nor a stale set has a point in the requested range, so the series says so
+                    instead of inventing a value: no points, and unavailableReason NO_COVERAGE.
+                  value:
+                    placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                    state: UNAVAILABLE
+                    points: []
+                    unavailableReason: NO_COVERAGE
         "401":
           $ref: "#/components/responses/Unauthorized"
         default:
