@@ -121,7 +121,7 @@ class ReadinessOutageIT {
     }
 
     @Test
-    @DisplayName("a database whose name no longer resolves is 503, not 500")
+    @DisplayName("BA-003-T4 BA-003-T6 a database whose name no longer resolves is 503, not 500")
     void anUnresolvableDatabaseIsNotReady() throws Exception {
         // .invalid is reserved never to resolve (RFC 2606) - the shape of a stopped container's name.
         // A longer wait than the other two: resolving the name has to finish failing, or the pool
@@ -134,7 +134,7 @@ class ReadinessOutageIT {
     }
 
     @Test
-    @DisplayName("a database that refuses the connection is 503, not 500")
+    @DisplayName("BA-003-T4 BA-003-T6 a database that refuses the connection is 503, not 500")
     void aRefusingDatabaseIsNotReady() throws Exception {
         int closedPort;
         try (ServerSocket probe = new ServerSocket(0)) {
@@ -148,7 +148,7 @@ class ReadinessOutageIT {
     }
 
     @Test
-    @DisplayName("a database that accepts and never answers is 503 within the pool's timeout, not a hang")
+    @DisplayName("BA-003-T4 BA-003-T6 a database that accepts and never answers is 503 within the pool's timeout, not a hang")
     void aSilentDatabaseIsNotReady() throws Exception {
         ServerSocket silent = new ServerSocket(0);
         opened.add(silent);

@@ -55,7 +55,7 @@ class ReadinessQueryTest {
     }
 
     @Test
-    @DisplayName("#258 a required probe that throws is NOT_READY, not an exception out of readiness")
+    @DisplayName("BA-003-T5 #258 a required probe that throws is NOT_READY, not an exception out of readiness")
     void aThrowingRequiredProbeIsNotReady() {
         var calls = new java.util.concurrent.atomic.AtomicInteger();
         ReadinessQuery query = new ReadinessQuery(List.of(throwing("database", true, calls)), CLOCK);
@@ -70,7 +70,7 @@ class ReadinessQueryTest {
     }
 
     @Test
-    @DisplayName("#258 an optional probe that throws only degrades")
+    @DisplayName("BA-003-T5 #258 an optional probe that throws only degrades")
     void aThrowingOptionalProbeOnlyDegrades() {
         var calls = new java.util.concurrent.atomic.AtomicInteger();
         ReadinessQuery query = new ReadinessQuery(List.of(
@@ -83,7 +83,7 @@ class ReadinessQueryTest {
     }
 
     @Test
-    @DisplayName("#258 an unavailable required probe answers without running the optional ones")
+    @DisplayName("BA-003-T6 #258 an unavailable required probe answers without running the optional ones")
     void optionalProbesDoNotRunOnceARequiredOneIsUnavailable() {
         var calls = new java.util.concurrent.atomic.AtomicInteger();
         // Registered first, on purpose: the order of registration must not decide what runs.
