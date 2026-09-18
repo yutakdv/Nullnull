@@ -642,7 +642,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "S03-C1~C4, S06 sheet, saved/duplicate/error variant",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-202",
         "BA-034"
@@ -687,7 +687,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "T1 is proven in apps/web/src/app/feed/__tests__/feed.test.tsx (the save half: an already-saved place is told from a new one, and no TripItem is created). T2 and T3 are in src/shared/ui/components/__tests__/trip-picker.test.tsx (loading, empty-with-create and failed-with-retry each render as themselves; opens focused on Cancel, closes on Escape, rows named by title and dates), and T3 is also measured at 360px and 200% zoom by e2e/sheet-responsive.spec.ts. Dismiss is deliberately not a separate screen state: CandidateIT shows the server answers a re-save of a dismissed candidate with 201 and duplicate:false, so the screen must not tell those apart."
     },
     {
       "id": "FE-301",
@@ -1307,7 +1308,7 @@
       "phase": "B07",
       "priority": "P0",
       "title": "browser-first 한국어 parser와 correction UI",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-102",
         "BA-060"
@@ -1348,7 +1349,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "T1 is the privacy sweep in apps/web/src/app/trip-create/__tests__/import-paste.test.tsx: the raw text appears in the parse body and in no URL, header, other request body, response or DOM. T2 was the one FE-104 acceptance with no testcase carrying its ID and is now the state block in that file, mapping the clause onto a mutation screen (no query cache by design, so there is no background-refresh state to assert). Writing it found a real gap rather than documenting a finished one: a READY draft with zero items rendered an empty review list over an enabled 여행으로 만들기, so ImportPasteScreen gained a nothingRead branch and import.empty, which existed in both locales and was rendered nowhere, is now used. Mutation-checked: forcing nothingRead false reddens exactly that one case. T3 is covered by e2e/screens.ts naming /start/import so responsive.spec measures it."
     },
     {
       "id": "FE-601",
