@@ -397,8 +397,12 @@ class OptimizeRevertIT {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);
         UUID proposalId = proposalOf(runId);
-        UUID kept = decisionIdOf(decide(fixture, runId, proposalId, "KEEP", "\"1\"")
-                .andExpect(status().isOk()));
+        ResultActions keep = decide(fixture, runId, proposalId, "KEEP", "\"1\"")
+                .andExpect(status().isOk());
+        UUID kept = decisionIdOf(keep);
+        // The fixture Frontend mocks a KEEP against has the keys the server sends (#16).
+        assertThat(JsonShape.of(bodyOf(keep)))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/decision-keep.json")));
 
         // V030's own comment assigns this check to BA-053: a CHECK constraint sees only its own row,
         // and reverted_decision_id points at a different one. V033's unique index cannot see it
@@ -856,8 +860,11 @@ class OptimizeRevertIT {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);
         UUID proposalId = proposalOf(runId);
-        UUID applied = decisionIdOf(decide(fixture, runId, proposalId, "APPLY", "\"1\"")
-                .andExpect(status().isOk()));
+        ResultActions applying = decide(fixture, runId, proposalId, "APPLY", "\"1\"")
+                .andExpect(status().isOk());
+        UUID applied = decisionIdOf(applying);
+        assertThat(JsonShape.of(bodyOf(applying)))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/decision-apply.json")));
 
         JsonNode afterApply = runBody(fixture, runId);
         assertThat(afterApply.get("status").asString()).isEqualTo("APPLIED");
@@ -876,8 +883,11 @@ class OptimizeRevertIT {
         assertThat(JsonShape.of(afterApply))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-applied.json")));
 
-        UUID reverted = decisionIdOf(revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
-                .andExpect(status().isOk()));
+        ResultActions undo = revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isOk());
+        UUID reverted = decisionIdOf(undo);
+        assertThat(JsonShape.of(bodyOf(undo)))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/decision-revert.json")));
 
         JsonNode afterRevert = runBody(fixture, runId);
         assertThat(afterRevert.get("status").asString()).isEqualTo("REVERTED");
@@ -993,6 +1003,11 @@ class OptimizeRevertIT {
                 .matcher(body);
         assertThat(found.find()).as("an APPLY states its window").isTrue();
         return Instant.parse(found.group(1));
+    }
+
+    private static JsonNode bodyOf(ResultActions decided) throws Exception {
+        return new tools.jackson.databind.ObjectMapper().readTree(
+                decided.andReturn().getResponse().getContentAsString());
     }
 
     private static UUID decisionIdOf(ResultActions decided) throws Exception {

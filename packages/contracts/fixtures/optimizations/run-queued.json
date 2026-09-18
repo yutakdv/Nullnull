@@ -1,0 +1,19 @@
+{
+  "id": "018f4a20-9f11-7c08-b3d7-2e5a41c9b106",
+  "tripId": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
+  "scope": "ITEM",
+  "status": "QUEUED",
+  "inputTripVersion": 3,
+  "inputRevisionId": "018f4a40-6c21-7b18-9e44-1d2c3b4a5f03",
+  "includeCandidates": false,
+  "dataFingerprint": null,
+  "algorithmVersion": null,
+  "revertAvailability": "NOT_APPLICABLE",
+  "queuedAt": "2026-10-02T05:00:00Z",
+  "completedAt": null,
+  "expiresAt": null,
+  "proposals": [],
+  "snapshotSetIds": [],
+  "decisions": [],
+  "failure": null
+}
