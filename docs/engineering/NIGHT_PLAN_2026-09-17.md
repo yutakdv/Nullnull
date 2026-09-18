@@ -329,6 +329,33 @@ FE-504·FE-104·FE-506에서 고친 것과 같은 모양이고, 그 셋은 각�
 `준비 중` 화면들(로그인·JA/ZH·Live·DAY/TRIP scope)은 전부 **기록된 P0 결정**이지
 미구현이 아니다.
 
+## 푸시 완료 (2026-09-18)
+
+24건을 `origin/frontend`로 밀었고 PR [#234](https://github.com/yutakdv/Nullnull/pull/234)의
+head가 `d2ac198` → `24002f0`으로 움직였다.
+
+- **`origin/main`이 이미 조상**이라 merge가 필요 없었다(`git merge-base --is-ancestor`로 확인).
+  main은 24시간째 `8ceba6d`에 멈춰 있다.
+- 밀기 전 커밋 작성자를 확인했다 — 24건 전부 이 세션 것이고 남의 미커밋 작업은 섞이지 않았다(규칙 6).
+- PR 본문에 `Closes` 8건을 넣었다: `#79`·`#80`·`#86`·`#87`·`#88`·`#89`·`#91`·`#93`.
+  기존 `#208`·`#185`와 합쳐 **머지되면 10건이 닫힌다.**
+- 본문의 낡은 문장 하나를 고쳤다 — *"`session.spec` 3건이 통과로 돌아섰습니다"* 가
+  지금은 사실이 아니다. 로컬에서 `ECONNREFUSED :8080`으로 실패하며, 그 spec은
+  `API_INTERNAL_BASE_URL`을 읽어 실제 API를 요구하므로 게이트 안에서만 판정된다.
+  **이 PR에서 건드리지 않은 파일이다.**
+
+### 푸시 전 검증 (전부 실행함)
+
+| 검사 | 결과 |
+| --- | --- |
+| `validate_docs.py` | 통과 |
+| `scripts/tests` (python3.13) | 274건 OK |
+| markdownlint | 0 issues |
+| Redocly | valid |
+| AJV | valid |
+| `apps/web` `verify:ci` | exit 0, **unit 982건** |
+| Playwright 전체 | **114/117** — 실패 3건은 위 `session.spec` |
+
 ## 아침에 사람이 판단할 것
 
 - 커밋 push 여부와 PR 구성
