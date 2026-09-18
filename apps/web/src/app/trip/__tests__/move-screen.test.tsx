@@ -556,3 +556,41 @@ describe('FE-305-T3 the sheet behaves like a dialog', () => {
     expect(myeongdong.place.name).toBe('명동');
   });
 });
+
+describe('each move sheet is labelled by its OWN heading', () => {
+  // This screen mounts one MoveDaySheet per item, and the sheet used a
+  // hardcoded `id="move-day-title"` for both the <h2> and its
+  // aria-labelledby. getElementById returns the first match in document
+  // order, so on a trip with N stops every sheet after the first was named by
+  // the FIRST sheet's heading — a screen-reader user opening "move 명동" heard
+  // the heading belonging to 경복궁's sheet. ConfirmDialog already used
+  // useId(); these two did not.
+  it('gives every sheet a distinct title id', async () => {
+    renderTrip();
+    // Waiting for a MOVE control, not just the h1: the sheets mount with the
+    // item cards, and the h1 arrives before them.
+    await screen.findByRole('button', { name: moveName('경복궁') });
+
+    // querySelectorAll, not getAllByRole: a closed <dialog> is not exposed
+    // with the dialog role, and these are all closed until one is opened.
+    const ids = [...document.querySelectorAll('dialog[aria-labelledby]')].map((d) =>
+      d.getAttribute('aria-labelledby'),
+    );
+
+    expect(ids.length).toBeGreaterThan(1); // or this asserts nothing
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('points each aria-labelledby at an element that exists', async () => {
+    renderTrip();
+    await screen.findByRole('button', { name: moveName('경복궁') });
+
+    for (const dialog of document.querySelectorAll('dialog[aria-labelledby]')) {
+      const id = dialog.getAttribute('aria-labelledby');
+      if (!id) continue;
+      // Scoped to the dialog itself: a document-wide lookup would find the
+      // first sheet's heading and pass even when the id is shared.
+      expect(dialog.querySelector(`#${CSS.escape(id)}`)).not.toBeNull();
+    }
+  });
+});

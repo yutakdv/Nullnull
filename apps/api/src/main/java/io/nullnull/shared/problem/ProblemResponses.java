@@ -21,6 +21,12 @@ public final class ProblemResponses {
     public static ResponseEntity<Problem> build(HttpServletRequest request, ProblemCode code,
             HttpStatus status, String detail, boolean retryable, Integer retryAfterSeconds,
             List<FieldError> fieldErrors) {
+        return build(request, code, status, detail, retryable, retryAfterSeconds, fieldErrors, null);
+    }
+
+    private static ResponseEntity<Problem> build(HttpServletRequest request, ProblemCode code,
+            HttpStatus status, String detail, boolean retryable, Integer retryAfterSeconds,
+            List<FieldError> fieldErrors, MissingCredential missingCredential) {
         // instance is the REAL request URI, and deliberately not the route template that logs use
         // (io.nullnull.shared.http.RouteTemplate). Two different audiences: this body goes to the one
         // caller that just sent the URL and the contract types instance as a uri-reference, while a log
@@ -32,6 +38,9 @@ public final class ProblemResponses {
         if (fieldErrors != null && !fieldErrors.isEmpty()) {
             problem = problem.withFieldErrors(fieldErrors);
         }
+        if (missingCredential != null) {
+            problem = problem.withMissingCredential(missingCredential);
+        }
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(status)
                 .contentType(MediaType.parseMediaType(Problem.MEDIA_TYPE));
         if (retryAfterSeconds != null) {
@@ -42,7 +51,8 @@ public final class ProblemResponses {
 
     public static ResponseEntity<Problem> of(HttpServletRequest request, ApiException exception) {
         return build(request, exception.code(), exception.status(), exception.getMessage(),
-                exception.retryable(), exception.retryAfterSeconds(), exception.fieldErrors());
+                exception.retryable(), exception.retryAfterSeconds(), exception.fieldErrors(),
+                exception.missingCredential());
     }
 
     /**

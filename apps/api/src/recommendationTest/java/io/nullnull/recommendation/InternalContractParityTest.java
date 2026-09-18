@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.recommendation.domain.draft.DraftComposeRequest;
+import io.nullnull.recommendation.domain.draft.DraftComposeResponse;
+import io.nullnull.recommendation.domain.draft.DraftPlaceIn;
+import io.nullnull.recommendation.domain.draft.DraftStopOut;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderRequest;
 import io.nullnull.recommendation.domain.explanation.ExplanationRenderResponse;
 import io.nullnull.recommendation.domain.feed.FeedCandidateIn;
@@ -68,6 +72,12 @@ class InternalContractParityTest {
      * an empty one and is refused here rather than sent for the service to answer with a 422.
      */
     private static final Map<String, Integer> BOUNDS = Map.ofEntries(
+            Map.entry("DraftComposeRequest.tripZone.minLength", 1),
+            Map.entry("DraftComposeRequest.tripZone.maxLength", DraftComposeRequest.MAX_TRIP_ZONE),
+            Map.entry("DraftComposeRequest.maxStopsPerDay.minimum", 1),
+            Map.entry("DraftComposeRequest.pool.maxItems", DraftComposeRequest.MAX_POOL),
+            Map.entry("DraftPlaceIn.openingHours.maxProperties", DraftPlaceIn.MAX_OPENING_HOURS),
+            Map.entry("DraftStopOut.position.minimum", 0),
             Map.entry("ExplanationRenderRequest.placeName.maxLength", ExplanationRenderRequest.MAX_PLACE_NAME),
             // ExplanationRenderRequest.requireBounded: an approved string is never blank.
             Map.entry("ExplanationRenderRequest.placeName.minLength", 1),
@@ -176,6 +186,19 @@ class InternalContractParityTest {
         // A category match is 1, 0.5, 0 or null; it travels as a string so it arrives as an exact BigDecimal.
         assertThat(schemas.get("RelatedItemOut").get("properties").get("categoryMatch").get("anyOf").get(0).get("type")
                 .asString()).isEqualTo("string");
+    }
+
+    @Test
+    void draftComposeContractMatches() {
+        assertParity(DraftComposeRequest.class, "DraftComposeRequest");
+        assertParity(DraftPlaceIn.class, "DraftPlaceIn");
+        assertParity(DraftComposeResponse.class, "DraftComposeResponse");
+        assertParity(DraftStopOut.class, "DraftStopOut");
+        // reasons is a List<String>, so the enum check above cannot see it: pin the declared set.
+        Set<String> reasons = new TreeSet<>();
+        schemas.get("DraftComposeResponse").get("properties").get("reasons").get("items").get("enum")
+                .forEach(node -> reasons.add(node.asString()));
+        assertThat(reasons).isEqualTo(new TreeSet<>(DraftComposeResponse.REASONS));
     }
 
     @Test

@@ -589,3 +589,57 @@ describe('a trip can be deleted from the profile', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('the trip count does not present one page as the total', () => {
+  // `TripPage` has no total — `items.length` counts the page in hand. Past the
+  // first page that number is smaller than the list it labels, and unlike the
+  // candidates case there is no second screen to contradict it, so nothing on
+  // screen reveals the gap. `hasMore` is the contract's own way of saying the
+  // page is partial; where it is true the figure is withheld rather than
+  // guessed, which is the same rule the rest of this app follows for a number
+  // the contract cannot source.
+  it('shows the count while this page is the whole set', async () => {
+    renderProfile();
+    const section = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+
+    // The default fixture is a complete page.
+    expect(tripFixtures.page.page.hasMore).toBe(false);
+
+    // Counted from what actually rendered, not from the fixture: the mock trip
+    // list is stateful (a delete removes a row), so an earlier test in this
+    // file can leave fewer trips than the fixture declares and a literal would
+    // make this pass or fail on test ORDER rather than on the behaviour.
+    const rows = await within(section).findAllByRole('link');
+    expect(
+      within(section).getByText(
+        copy['profile.trips.count'].replace('{count}', String(rows.length)),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('withholds it when the page is only part of the list', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips`, () =>
+        HttpResponse.json({
+          ...tripFixtures.page,
+          page: { ...tripFixtures.page.page, hasMore: true, nextCursor: 'more' },
+        }),
+      ),
+    );
+    renderProfile();
+    const section = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+    // The list still renders — only the claim about the total is dropped.
+    const rows = await within(section).findAllByRole('link');
+    expect(rows.length).toBeGreaterThan(0);
+
+    expect(
+      within(section).queryByText(
+        copy['profile.trips.count'].replace('{count}', String(rows.length)),
+      ),
+    ).toBeNull();
+  });
+});

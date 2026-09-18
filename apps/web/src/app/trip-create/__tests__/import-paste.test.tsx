@@ -427,10 +427,18 @@ describe('FE-104-T2 the screen renders each of its states', () => {
     expect(screen.getByLabelText(copy['import.label'])).toHaveValue(PASTE);
   });
 
-  it('tells the person to start again when the draft expired underneath them', async () => {
+  it('offers the repaste the expiry message asks for', async () => {
     // The stale case. A draft has a lifetime and the paste is gone from the
-    // client by now, so this is the one error the screen cannot offer a retry
-    // for — problem-policy calls it `repaste`.
+    // client by now (`setRaw('')`, invariant 10), so the recovery is to paste
+    // again rather than to retry the same draft — problem-policy calls it
+    // `repaste`.
+    //
+    // This test used to assert only the alert, and its own comment called this
+    // "the one error the screen cannot offer a retry for". That framing was
+    // wrong and the screen matched it: the copy said 다시 붙여넣어야 해요 while
+    // the only control left was a confirm button that re-sent the same expired
+    // ETag. The traveller could either watch it fail or leave through the
+    // NavBar, losing the dates and interests they had entered.
     const user = userEvent.setup();
     renderImport();
     await paste(user);
@@ -447,6 +455,33 @@ describe('FE-104-T2 the screen renders each of its states', () => {
     );
 
     expect(await screen.findByRole('alert')).toHaveTextContent(copy['import.expired']);
+
+    // The way out, and it has to LAND somewhere: pressing it returns the
+    // textarea, which is the only place a new paste can be typed.
+    await user.click(screen.getByRole('button', { name: copy['import.retry'] }));
+    expect(await screen.findByLabelText(copy['import.label'])).toBeInTheDocument();
+  });
+
+  it('does not leave the confirm live on an expired draft', async () => {
+    // The same ETag is refused every time, so a live 여행으로 만들기 offers a
+    // button whose only outcome is the error already on screen.
+    const user = userEvent.setup();
+    renderImport();
+    await paste(user);
+    server.use(
+      http.patch(`${API_BASE}/trip-imports/:draftId`, () =>
+        problemResponse('IMPORT_DRAFT_EXPIRED'),
+      ),
+    );
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
+      }),
+    );
+    await screen.findByRole('alert');
+
+    expect(screen.queryByRole('button', { name: copy['import.confirm'] })).toBeNull();
   });
 
   it('does not claim a trip exists when the confirm fails', async () => {

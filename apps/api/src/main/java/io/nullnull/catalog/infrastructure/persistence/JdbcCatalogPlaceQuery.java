@@ -175,6 +175,20 @@ SELECT p.id,
     }
 
     @Override
+    public List<CatalogPlaceSummary> activePool(int limit, String locale, Instant observedAt) {
+        CatalogPlaceSearchRequest normalized = CatalogPlaceSearchRequest.of("x", locale, null, null, 1);
+        // The search path's filter without its text match: active and coordinate-complete.
+        return jdbc.query(SUMMARY_PROJECTION + """
+                 WHERE p.status = 'ACTIVE'
+                   AND p.latitude IS NOT NULL
+                   AND p.longitude IS NOT NULL
+                 ORDER BY p.id
+                 LIMIT ?
+                """, JdbcCatalogPlaceQuery::summary, normalized.locale(), normalized.language(),
+                Timestamp.from(observedAt), limit);
+    }
+
+    @Override
     public Optional<CatalogPlaceDetail> find(UUID requestedPlaceId, String locale, Instant observedAt) {
         String normalizedLocale = CatalogPlaceSearchRequest.of("x", locale, null, null, 1).locale();
         String language = normalizedLocale.substring(0, normalizedLocale.indexOf('-') < 0

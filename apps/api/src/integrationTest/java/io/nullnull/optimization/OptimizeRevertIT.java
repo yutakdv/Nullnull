@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -35,7 +36,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,6 +51,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
@@ -103,6 +109,7 @@ class OptimizeRevertIT {
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired DataSource dataSource;
     @Autowired MutableClock clock;
     @MockitoBean RecommendationGateway recommendations;
     @MockitoBean CatalogHoursQuery hours;
@@ -184,7 +191,52 @@ class OptimizeRevertIT {
     }
 
     @Test
-    @DisplayName("BA-053-T1 a revert after the window closes is refused and changes nothing")
+    @DisplayName("BA-053-T1 a revert one second before revertUntil still restores the itinerary")
+    void aRevertJustInsideTheWindowRestoresTheItinerary() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        ResultActions decided = decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk());
+        UUID applied = decisionIdOf(decided);
+        Instant revertUntil = revertUntilOf(decided);
+
+        // The last moment the window is open. The boundary is read from the APPLY rather than computed
+        // here, so the case measures the stored window and not this file's idea of 24 hours.
+        clock.set(revertUntil.minusSeconds(1));
+
+        // A fresh CSRF token: nearly a day has passed and the token lives PT2H (see BA-053-T5).
+        revertWith(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID(), freshCsrf(fixture))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision").value("REVERT"));
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+        assertThat(runColumn(runId, "status")).isEqualTo("REVERTED");
+    }
+
+    @Test
+    @DisplayName("BA-053-T4 a revert at exactly revertUntil is refused as expired")
+    void aRevertAtTheBoundaryIsRefused() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        ResultActions decided = decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk());
+        UUID applied = decisionIdOf(decided);
+        Instant revertUntil = revertUntilOf(decided);
+
+        // revertUntil is the first instant the undo is gone, not the last one it is offered:
+        // OptimizationService compares !now.isBefore(revertUntil). A comparison written as isAfter
+        // would let this one instant through, and only a case AT the boundary can tell the two apart -
+        // one second either side answers the same for both.
+        clock.set(revertUntil);
+
+        revertWith(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID(), freshCsrf(fixture))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("REVERT_WINDOW_EXPIRED"));
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_TWO.toString());
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+    }
+
+    @Test
+    @DisplayName("BA-053-T5 a revert after the window closes is refused and changes nothing")
     void aRevertAfterTheWindowIsRefused() throws Exception {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);
@@ -214,7 +266,7 @@ class OptimizeRevertIT {
     }
 
     @Test
-    @DisplayName("BA-053-T1 the same Idempotency-Key replays one revert instead of performing two")
+    @DisplayName("BA-053-T6 the same Idempotency-Key replays one revert instead of performing two")
     void theSameKeyReplaysTheRevert() throws Exception {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);
@@ -279,7 +331,66 @@ class OptimizeRevertIT {
     }
 
     @Test
-    @DisplayName("BA-053-T2 a KEEP cannot be reverted, and neither can a REVERT")
+    @DisplayName("BA-053-T2 a trip metadata edit made after the apply refuses the revert")
+    void aLaterMetadataEditRefusesTheRevert() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+
+        // A trip-level edit touches no row the APPLY moved, so nothing but the version can tell the
+        // revert that this is no longer the trip the APPLY left.
+        mvc.perform(patch("/api/v1/trips/" + fixture.tripId())
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", ORIGIN)
+                        .header("X-CSRF-Token", fixture.owner().csrf.token)
+                        .header("If-Match", "\"2\"")
+                        .contentType("application/merge-patch+json")
+                        .content("{\"title\":\"직접 고친 제목\"}"))
+                .andExpect(status().isOk());
+        // Without this the refusal below could come from a stale If-Match rather than from the edit.
+        assertThat(tripVersion(fixture.tripId())).as("the edit raised the version").isEqualTo(3L);
+        clock.advance(Duration.ofSeconds(1));
+
+        revert(fixture, applied, "\"3\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRIP_CHANGED"));
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_TWO.toString());
+        assertThat(jdbc.queryForObject("SELECT title FROM trips WHERE id = ?", String.class,
+                fixture.tripId())).as("the traveller's own later edit is still there").isEqualTo("직접 고친 제목");
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+    }
+
+    @Test
+    @DisplayName("BA-053-T2 an interests edit made after the apply refuses the revert")
+    void aLaterInterestsEditRefusesTheRevert() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+
+        mvc.perform(put("/api/v1/trips/" + fixture.tripId() + "/interests")
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", ORIGIN)
+                        .header("X-CSRF-Token", fixture.owner().csrf.token)
+                        .header("If-Match", "\"2\"")
+                        .contentType("application/json")
+                        .content("{\"interests\":[{\"code\":\"FOOD\",\"weight\":3}]}"))
+                .andExpect(status().isOk());
+        assertThat(tripVersion(fixture.tripId())).as("the edit raised the version").isEqualTo(3L);
+        clock.advance(Duration.ofSeconds(1));
+
+        revert(fixture, applied, "\"3\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRIP_CHANGED"));
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_TWO.toString());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_interests WHERE trip_id = ?",
+                Integer.class, fixture.tripId())).as("the traveller's own later edit is still there").isOne();
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+    }
+
+    @Test
+    @DisplayName("BA-053-T9 a KEEP cannot be reverted")
     void onlyAnApplyCanBeReverted() throws Exception {
         Fixture fixture = fixture();
         UUID runId = readyRun(fixture);
@@ -295,6 +406,28 @@ class OptimizeRevertIT {
 
         assertThat(decisionKinds(runId)).containsExactly("KEEP");
         assertThat(runColumn(runId, "status")).isEqualTo("KEPT");
+    }
+
+    @Test
+    @DisplayName("BA-053-T9 a REVERT cannot itself be reverted")
+    void aRevertCannotBeReverted() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        clock.advance(Duration.ofSeconds(1));
+        UUID reverted = decisionIdOf(revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isOk()));
+        clock.advance(Duration.ofSeconds(1));
+
+        // The same kind check as the KEEP case, reached by the other decision that is not an APPLY.
+        // The If-Match is the version the REVERT produced, so a stale precondition cannot be what
+        // refuses it.
+        revert(fixture, reverted, "\"3\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        assertThat(decisionKinds(runId)).containsExactly("APPLY", "REVERT");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
     }
 
     @Test
@@ -396,6 +529,117 @@ class OptimizeRevertIT {
                 .andExpect(jsonPath("$.items[?(@.runId == '" + myRun + "')]").doesNotExist());
     }
 
+    @Test
+    @DisplayName("BA-053-T10 a history cursor past its fifteen minutes is refused as expired")
+    void anExpiredHistoryCursorIsRefused() throws Exception {
+        Fixture fixture = fixture();
+        UUID first = readyRun(fixture);
+        decide(fixture, first, proposalOf(first), "KEEP", "\"1\"").andExpect(status().isOk());
+        // A second run on the same trip, so a one-row page has a page after it.
+        readyRun(fixture);
+
+        String cursor = nextCursorOf(history(fixture, null)
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        // The negative control: the same cursor is accepted while it is fresh.
+        history(fixture, cursor).andExpect(status().isOk());
+
+        // OptimizationCursorProperties.CURSOR_TTL is fifteen minutes.
+        clock.advance(Duration.ofMinutes(16));
+
+        history(fixture, cursor)
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("CURSOR_EXPIRED"));
+    }
+
+    private ResultActions history(Fixture fixture, String cursor) throws Exception {
+        var request = get("/api/v1/optimizations").param("limit", "1").cookie(cookie(fixture.owner()));
+        if (cursor != null) {
+            request.param("cursor", cursor);
+        }
+        return mvc.perform(request);
+    }
+
+    private static String nextCursorOf(String body) {
+        java.util.regex.Matcher found = java.util.regex.Pattern.compile("\"nextCursor\":\"([^\"]+)\"")
+                .matcher(body);
+        assertThat(found.find()).as("a one-row page of two runs hands out a cursor").isTrue();
+        return found.group(1);
+    }
+
+    @Test
+    @DisplayName("BA-053-T7 two reverts of one APPLY sent at once: the trip version keeps one, the other is refused")
+    void concurrentRevertsRecordOne() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        clock.advance(Duration.ofSeconds(1));
+
+        // revertOptimizationDecision reads the APPLY and the run BEFORE the idempotency guard takes the
+        // owner lock, so two reverts can both read before either writes. They are made to: both wait
+        // on the decisions table to read, then the trip row is held so whichever enters its
+        // transaction first stops there, holding the owner lock, while the other queues on the owner
+        // row having read the APPLY. Only when that state is observed is the trip row let go. The
+        // owner row itself cannot be what is held - the session check in front of the controller
+        // locks it too, and both requests would stop before reading anything.
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try (java.sql.Connection decisionsHold = dataSource.getConnection();
+                java.sql.Connection tripHold = dataSource.getConnection()) {
+            decisionsHold.setAutoCommit(false);
+            tripHold.setAutoCommit(false);
+            int decisionsPid = backendPid(decisionsHold);
+            int tripPid = backendPid(tripHold);
+            try (java.sql.Statement statement = decisionsHold.createStatement()) {
+                statement.execute("LOCK TABLE optimization_decisions IN ACCESS EXCLUSIVE MODE");
+            }
+            Future<MvcResult> first = callers.submit(() ->
+                    revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andReturn());
+            Future<MvcResult> second = callers.submit(() ->
+                    revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andReturn());
+            awaitBlocked(decisionsPid, "from optimization_decisions", 2);
+
+            try (java.sql.PreparedStatement lock = tripHold.prepareStatement(
+                    "SELECT id FROM trips WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, fixture.tripId());
+                lock.executeQuery();
+            }
+            decisionsHold.rollback();
+            awaitBlocked(tripPid, "from trips", 1);
+            org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
+                            + " AND query ILIKE '%from owners%'", Integer.class) == 1);
+            tripHold.rollback();
+
+            MvcResult a = first.get(60, TimeUnit.SECONDS);
+            MvcResult b = second.get(60, TimeUnit.SECONDS);
+            assertThat(List.of(a.getResponse().getStatus(), b.getResponse().getStatus()))
+                    .containsExactlyInAnyOrder(200, 409);
+            MvcResult refused = a.getResponse().getStatus() == 409 ? a : b;
+            // The loser read the APPLY before the winner wrote, passed the resultingTripVersion check
+            // on that read, and met the trip module's own read of the trip - version 3 now.
+            assertThat(refused.getResponse().getContentAsString()).contains("\"TRIP_CHANGED\"");
+        } finally {
+            callers.shutdownNow();
+        }
+        assertThat(decisionKinds(runId)).containsExactly("APPLY", "REVERT");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+        assertThat(tripVersion(fixture.tripId())).as("moved back once").isEqualTo(3L);
+    }
+
+    private static int backendPid(java.sql.Connection connection) throws java.sql.SQLException {
+        try (java.sql.Statement statement = connection.createStatement();
+                java.sql.ResultSet pid = statement.executeQuery("SELECT pg_backend_pid()")) {
+            pid.next();
+            return pid.getInt(1);
+        }
+    }
+
+    private void awaitBlocked(int holderPid, String queryFragment, int expected) {
+        org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> jdbc.queryForObject(
+                "SELECT count(*) FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid))"
+                        + " AND query ILIKE ?", Integer.class, holderPid, "%" + queryFragment + "%") == expected);
+    }
+
     // ------------------------------------------------------- BA-054 projection
 
     @Test
@@ -486,6 +730,90 @@ class OptimizeRevertIT {
         assertThat(decisionKinds(runId)).containsExactly("APPLY");
     }
 
+    @Test
+    @DisplayName("BA-054-T7 AVAILABLE is advisory — another owner's revert is the not-found a missing decision gets")
+    void availableDoesNotAuthoriseAnotherOwner() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+        clock.advance(Duration.ofSeconds(1));
+
+        // The run is undoable and the id is real; only the caller is wrong. Invariant 11 asks for the
+        // answer a decision that never existed gets, not a refusal that confirms this one does.
+        SessionService.Bootstrap stranger = sessions.bootstrap(null, null, null);
+        revertAs(stranger, applied, "\"2\"", "revert-" + UUID.randomUUID(), stranger.csrf.token)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        revertAs(stranger, UUID.randomUUID(), "\"2\"", "revert-" + UUID.randomUUID(), stranger.csrf.token)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_TWO.toString());
+
+        // The negative control. Two 404s agree just as easily when the request dies before ownership is
+        // ever asked - a header the route rejects, a precondition it refuses - so the same call from the
+        // owner has to go through, or the two answers above measured validation rather than ownership.
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("BA-054-T8 AVAILABLE is advisory — a window that closes after it was read still refuses the revert")
+    void availableDoesNotHoldTheWindowOpen() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+
+        // The caller read AVAILABLE and then waited. The window is stored on the APPLY, so the revert
+        // asks it again rather than trusting an answer that was true when it was given.
+        clock.advance(Duration.ofHours(25));
+
+        // A fresh CSRF token for the reason the BA-053-T5 after-window case gives: PT2H, not P30D.
+        revertWith(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID(), freshCsrf(fixture))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("REVERT_WINDOW_EXPIRED"));
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_TWO.toString());
+    }
+
+    @Test
+    @DisplayName("BA-054-T9 AVAILABLE is advisory — an APPLY already undone elsewhere is not undone twice")
+    void availableDoesNotAuthoriseASecondUndo() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+        clock.advance(Duration.ofSeconds(1));
+
+        // Another tab undoes it first, under its own key.
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andExpect(status().isOk());
+        clock.advance(Duration.ofSeconds(1));
+
+        // This tab still holds what it read: AVAILABLE, at version 2. A different key, so this is a
+        // second undo and not a replay - replay is BA-053-T6's.
+        //
+        // The outcome is the claim, not the line that produces it. From HTTP the refusal comes from the
+        // trip version, which the first undo moved and the trip module re-reads inside the
+        // transaction - so even two undos that both read the APPLY before either writes meet it first
+        // (BA-053-T7 races them). V033's unique reverted_decision_id sits behind it and is proven on
+        // its own at the SQL layer by BA-053-T8. Hence 409 and either conflict code: the status says
+        // the domain refused it rather than CSRF or validation, and neither code is pinned.
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(
+                        org.hamcrest.Matchers.oneOf("TRIP_CHANGED", "DATA_CHANGED")));
+
+        assertThat(decisionKinds(runId)).containsExactly("APPLY", "REVERT");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+        assertThat(tripVersion(fixture.tripId()))
+                .as("one undo moved the trip once; a second would have moved it again")
+                .isEqualTo(3L);
+    }
+
     /** The projection as a caller reads it, through the operation that publishes it. */
     private String availability(Fixture fixture, UUID runId) throws Exception {
         return mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())))
@@ -558,8 +886,13 @@ class OptimizeRevertIT {
 
     private ResultActions revertWith(Fixture fixture, UUID decisionId, String ifMatch, String key,
             String csrf) throws Exception {
+        return revertAs(fixture.owner(), decisionId, ifMatch, key, csrf);
+    }
+
+    private ResultActions revertAs(SessionService.Bootstrap caller, UUID decisionId, String ifMatch,
+            String key, String csrf) throws Exception {
         return mvc.perform(post("/api/v1/optimization-decisions/" + decisionId + "/revert")
-                .cookie(cookie(fixture.owner()))
+                .cookie(cookie(caller))
                 .header("Origin", ORIGIN)
                 .header("X-CSRF-Token", csrf)
                 .header("If-Match", ifMatch)
@@ -569,6 +902,14 @@ class OptimizeRevertIT {
     /** A new token on the SAME session, the way SessionTimeIT's BA-010-T2 renews one. */
     private String freshCsrf(Fixture fixture) {
         return sessions.issueCsrf(sessions.resolve(fixture.owner().cookie, false)).token;
+    }
+
+    private static Instant revertUntilOf(ResultActions decided) throws Exception {
+        String body = decided.andReturn().getResponse().getContentAsString();
+        java.util.regex.Matcher found = java.util.regex.Pattern.compile("\"revertUntil\":\"([^\"]+)\"")
+                .matcher(body);
+        assertThat(found.find()).as("an APPLY states its window").isTrue();
+        return Instant.parse(found.group(1));
     }
 
     private static UUID decisionIdOf(ResultActions decided) throws Exception {

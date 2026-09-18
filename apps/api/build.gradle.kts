@@ -72,6 +72,12 @@ testing {
                     inputs.dir(layout.projectDirectory.dir("../ai/tests/recommendation/fixtures"))
                         .withPathSensitivity(PathSensitivity.RELATIVE)
                         .withPropertyName("aiOrderParityFixtures")
+                    // CrowdMetricLabelTest reads the catalog by path; measured without this, an edit to
+                    // §3 left the suite UP-TO-DATE on the previous PASS. EventBatchValidatorTest needs no
+                    // entry: it reads the copy processResources packages, and measured, that re-runs it.
+                    inputs.file(layout.projectDirectory.file("../../docs/data/SOURCE_CATALOG.md"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("sourceCatalog")
                     // Order parity fixtures are owned by apps/ai and read by both languages.
                     systemProperty(
                         "nullnull.ai.fixtures.path",
@@ -101,7 +107,18 @@ testing {
                 runtimeOnly("org.postgresql:postgresql")
             }
             targets.all {
-                testTask.configure { shouldRunAfter(test) }
+                testTask.configure {
+                    shouldRunAfter(test)
+                    // Several ITs read the contract by path, and CandidateIT reads the candidate fixtures.
+                    // Measured without these, an edit to either left the suite UP-TO-DATE on the
+                    // previous PASS (CandidateSourceVocabularyIT, CandidateIT).
+                    inputs.file(layout.projectDirectory.file("../../docs/api/openapi.yaml"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("openapiContract")
+                    inputs.dir(layout.projectDirectory.dir("../../packages/contracts/fixtures/candidates"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("candidateFixtures")
+                }
             }
         }
 

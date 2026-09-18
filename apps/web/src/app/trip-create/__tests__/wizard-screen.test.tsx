@@ -10,6 +10,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
+import { sessionFixtures } from '@nullnull/contracts';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
@@ -22,10 +23,18 @@ import { routes } from '../../routes.js';
 const copy = messages['en-US'];
 
 let created: { key: string | null; body: unknown }[] = [];
+/** Preference patches the wizard sent, so the active-trip write is observable. */
+let patched: Record<string, unknown>[] = [];
 
 beforeEach(() => {
   created = [];
+  patched = [];
   server.use(
+    http.patch(`${API_BASE}/me`, async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      patched.push(body);
+      return HttpResponse.json({ ...sessionFixtures.owner, ...body });
+    }),
     http.post(`${API_BASE}/trips`, async ({ request }) => {
       created.push({
         key: request.headers.get('idempotency-key'),
@@ -731,5 +740,61 @@ describe('S02-5C the confirm step picks what must stay (FE-103, FR-TRC-05)', () 
 
     await screen.findByRole('heading', { name: copy['confirm.title'] });
     expect(pickToggle()).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('a created trip becomes the owner active trip (BA-011)', () => {
+  // Why the wizard writes this at all: `owners.active_trip_id` is only ever set
+  // by PATCH /me — the server never fills it on create, and the trip module
+  // only clears it through ON DELETE SET NULL. Without this call a traveller
+  // can own four trips and the 내 여행 tab still has nowhere to go, which is
+  // exactly how it read: pressing it opened 내 정보 with the trips below the
+  // fold and the wrong tab lit up.
+  it('points the tab at the trip it just created', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.NOTHING.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(patched).toEqual([{ activeTripId: '018f4c00-0000-7000-8000-000000000001' }]);
+    });
+  });
+
+  it('still opens the trip when the preference write fails', async () => {
+    // Best effort: the trip EXISTS. Blocking navigation on a preference write
+    // would strand the traveller on the wizard after a successful create, and
+    // a rejection only leaves the pointer where it already was — the same
+    // state as before this call, which the tab's fallback already handles.
+    server.use(http.patch(`${API_BASE}/me`, () => HttpResponse.error()));
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.NOTHING.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    // The trip screen is reached all the same.
+    await waitFor(() => {
+      expect(screen.queryByText(`${copy['wizard.step']} 3`)).toBeNull();
+    });
   });
 });

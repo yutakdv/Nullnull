@@ -53,6 +53,8 @@ import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with 
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
 import tripDetailReservation from "../fixtures/trips/trip-detail-reservation.json" with { type: "json" };
+import draftPreviewReady from "../fixtures/trips/draft-preview-ready.json" with { type: "json" };
+import draftPreviewEmpty from "../fixtures/trips/draft-preview-empty.json" with { type: "json" };
 import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
 import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
 import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
@@ -172,6 +174,13 @@ export const tripFixtures = {
   // while four FE code paths branch on it. It is separate because detailScheduled's unlocked item
   // is what FE-307 uses to exercise "a lock can still be set here" (#144).
   detailReservation: tripDetailReservation as components["schemas"]["TripDetail"],
+};
+
+// previewTripDraft's two faces (BA-055). Pinned to the contract's response examples by
+// scripts/check-examples.mjs. EMPTY is an answer, not an outage: an outage is a 503.
+export const tripDraftFixtures = {
+  ready: draftPreviewReady as components["schemas"]["TripDraftPreview"],
+  empty: draftPreviewEmpty as components["schemas"]["TripDraftPreview"],
 };
 
 export const candidateFixtures = {

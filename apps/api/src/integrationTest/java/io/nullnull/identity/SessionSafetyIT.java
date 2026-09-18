@@ -23,6 +23,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.bind.annotation.*;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -215,4 +217,89 @@ class SessionSafetyIT {
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 
+
+    private static final String NAME = "__Host-nullnull_session";
+    private static final String ME = "/api/v1/identity-test/me";
+    private static final String CSRF = "/api/v1/session/csrf";
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+    @Test @DisplayName("BA-010-T4 a request that carries no session cookie gets missingCredential SESSION_COOKIE")
+    void missingCookieIsNamed() throws Exception {
+        List<MockHttpServletRequestBuilder> requests = new ArrayList<>(List.of(get(ME), post(CSRF).header("Origin", ORIGIN)));
+        // A Cookie header that does not name ours is still no session cookie: other cookies, the development name,
+        // names that only contain ours, another case, an empty header and a bare separator. Presence is by name.
+        for (String header : List.of("other=1", "nullnull_session=x", "x" + NAME + "=1", NAME + "2=1", "other=" + NAME,
+                "__HOST-nullnull_session=1", "", ";")) {
+            requests.add(get(ME).header("Cookie", header));
+        }
+        for (var request : requests) {
+            mvc.perform(request).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                    .andExpect(jsonPath("$.retryable").value(false))
+                    .andExpect(jsonPath("$.missingCredential").value("SESSION_COOKIE"));
+        }
+    }
+    @Test @DisplayName("BA-010-T5 a sent cookie that session resolution rejects is the same UNAUTHORIZED, whatever the cause")
+    void everyOtherFailureLooksAlike() throws Exception {
+        var expired = bootstrap(); var revoked = bootstrap(); var deleted = bootstrap(); var a = bootstrap(); var b = bootstrap();
+        jdbc.update("UPDATE demo_sessions SET expires_at = ? WHERE id = ?", Timestamp.from(clock.instant().minusSeconds(1)),
+                context(expired).sessionId());
+        jdbc.update("UPDATE demo_sessions SET revoked_at = ? WHERE id = ?", Timestamp.from(clock.instant().minusSeconds(1)),
+                context(revoked).sessionId());
+        jdbc.update("UPDATE owners SET deleted_at = now() WHERE id = ?", deleted.owner.id());
+        Map<String, MockHttpServletRequestBuilder> cases = new LinkedHashMap<>();
+        cases.put("garbage value", get(ME).cookie(new Cookie(NAME, "invalid")));
+        cases.put("empty value", get(ME).cookie(new Cookie(NAME, "")));
+        cases.put("well-formed, never issued", get(ME).cookie(new Cookie(NAME, "A".repeat(43))));
+        cases.put("expired", get(ME).cookie(cookie(expired)));
+        cases.put("revoked", get(ME).cookie(cookie(revoked)));
+        cases.put("owner deleted", get(ME).cookie(cookie(deleted)));
+        cases.put("duplicate", get(ME).cookie(cookie(a), cookie(b)));
+        // Named in the raw header but not parsed into a cookie - what the container does with a value it drops.
+        cases.put("sent but unparsed", get(ME).header("Cookie", NAME + "=bad\\value"));
+        // Naming any of these would tell the caller whether the cookie was once valid, so they must not differ in
+        // anything but the per-request fields: not in detail, not in a header name, not in a header value.
+        String first = null; Map<String, List<String>> firstHeaders = null;
+        for (var entry : cases.entrySet()) {
+            MvcResult result = mvc.perform(entry.getValue()).andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                    .andExpect(jsonPath("$.missingCredential").doesNotExist()).andReturn();
+            String body = withoutPerRequestFields(result);
+            Map<String, List<String>> headers = headers(result);
+            if (first == null) { first = body; firstHeaders = headers; continue; }
+            assertThat(body).as(entry.getKey()).isEqualTo(first);
+            assertThat(headers).as(entry.getKey()).isEqualTo(firstHeaders);
+        }
+    }
+    @Test @DisplayName("BA-010-T6 a cross-origin state-changing request is refused before any session work")
+    void crossOriginNeverLearnsAboutTheCookie() throws Exception {
+        String evil = "https://evil.example";
+        List<java.util.function.Supplier<MockHttpServletRequestBuilder>> requests = List.of(
+                () -> post(CSRF), () -> delete("/api/v1/session"),
+                () -> patch("/api/v1/me").contentType("application/merge-patch+json").content("{}"));
+        for (var request : requests) {
+            MvcResult none = refused(request.get().header("Origin", evil));
+            MvcResult invalid = refused(request.get().header("Origin", evil).cookie(new Cookie(NAME, "invalid")));
+            // Indistinguishable is the property: with the session checked first these were 401 and 401+field.
+            assertThat(withoutPerRequestFields(invalid)).isEqualTo(withoutPerRequestFields(none));
+            assertThat(headers(invalid)).isEqualTo(headers(none));
+        }
+        // A valid cookie is refused too. That was 403 under the old order as well, so it guards the refusal, not the order.
+        refused(post(CSRF).header("Origin", evil).cookie(cookie(bootstrap())));
+    }
+    private MvcResult refused(MockHttpServletRequestBuilder request) throws Exception {
+        return mvc.perform(request).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"))
+                .andExpect(jsonPath("$.missingCredential").doesNotExist()).andReturn();
+    }
+    /** Every response header with its values, except the per-request id. */
+    private static Map<String, List<String>> headers(MvcResult result) {
+        Map<String, List<String>> headers = new TreeMap<>();
+        for (String name : result.getResponse().getHeaderNames()) {
+            if (!name.equalsIgnoreCase("X-Request-ID")) { headers.put(name, result.getResponse().getHeaders(name)); }
+        }
+        return headers;
+    }
+    private static String withoutPerRequestFields(MvcResult result) throws Exception {
+        var node = (tools.jackson.databind.node.ObjectNode) JSON.readTree(result.getResponse().getContentAsString());
+        node.remove("instance"); node.remove("requestId");
+        return node.toString();
+    }
 }

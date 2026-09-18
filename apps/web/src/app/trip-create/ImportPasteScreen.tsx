@@ -330,16 +330,40 @@ export function ImportPasteScreen() {
             </p>
           ) : null}
 
-          <BottomCta
-            disabled={!ready || confirm.isPending}
-            label={confirm.isPending ? t('import.confirming') : t('import.confirm')}
-            onClick={runConfirm}
-            secondary={
-              ready ? undefined : (
-                <p className={styles.note}>{t('import.confirmBlocked')}</p>
-              )
-            }
-          />
+          {/* Expired is terminal for THIS draft: the server refuses the same
+              ETag every time, so the confirm CTA is replaced rather than left
+              live beside an error it can only repeat.
+
+              The copy says 다시 붙여넣어야 해요 and the screen did not offer it.
+              The only `setDraft(null)` was in the `nothingRead` branch, and the
+              paste is already gone by then (`setRaw('')`, invariant 10) — so an
+              expired draft left the traveller with a button that could only
+              fail and a NavBar that drops the dates and interests just
+              entered. problem-policy names this recovery `repaste`; nothing
+              rendered it. Same dead-end class as #223.
+
+              Rendered as the primary CTA, reusing the `nothingRead` branch's
+              shape: repasting IS the action here, and a secondary would put
+              the only way forward under a button that cannot move. */}
+          {expired ? (
+            <BottomCta
+              label={t('import.retry')}
+              onClick={() => {
+                setDraft(null);
+              }}
+            />
+          ) : (
+            <BottomCta
+              disabled={!ready || confirm.isPending}
+              label={confirm.isPending ? t('import.confirming') : t('import.confirm')}
+              onClick={runConfirm}
+              secondary={
+                ready ? undefined : (
+                  <p className={styles.note}>{t('import.confirmBlocked')}</p>
+                )
+              }
+            />
+          )}
         </>
       )}
     </section>

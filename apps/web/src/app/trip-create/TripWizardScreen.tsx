@@ -4,7 +4,7 @@ import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { BottomCta, Chip, NavBar } from '../../shared/ui/index.js';
-import { useCreateTrip } from '../../shared/api/index.js';
+import { useCreateTrip, useUpdatePreferences } from '../../shared/api/index.js';
 import {
   EMPTY_DRAFT,
   INTEREST_GROUPS,
@@ -71,6 +71,8 @@ export function TripWizardScreen() {
   const [draft, setDraft] = useState<WizardDraft>(EMPTY_DRAFT);
   const [month, setMonth] = useState(() => new Date());
   const createTrip = useCreateTrip();
+  // Points the owner's 내 여행 tab at whatever this wizard creates (BA-011).
+  const setActiveTrip = useUpdatePreferences();
   // The key for the request in flight, held across retries of THAT request.
   // Keyed by the request body so it rotates exactly when the draft changes:
   // pressing 만들기 again after a failure replays the first attempt, while
@@ -118,6 +120,18 @@ export function TripWizardScreen() {
       {
         onSuccess: (trip) => {
           submitKey.current = null;
+          // The trip just created becomes the owner's active one, which is what
+          // the 내 여행 tab resolves to (AppShell). BA-011 stores the pointer
+          // but never sets it on its own — `owners.active_trip_id` is only ever
+          // written by this PATCH and cleared by the trip's own ON DELETE SET
+          // NULL — so without this call a traveller can own four trips and the
+          // tab still has nowhere to go.
+          //
+          // Best effort, and deliberately not awaited: the trip EXISTS, and
+          // navigation must not wait on a preference write or fail because of
+          // one. A rejection leaves the pointer where it was and the tab falls
+          // back, which is the same state as before this call.
+          setActiveTrip.mutate({ activeTripId: trip.id });
           void navigate(`/trip/${trip.id}`, { replace: true });
         },
       },

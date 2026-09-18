@@ -27,7 +27,7 @@ class SessionContractTest {
     @Autowired java.time.Clock clock;
     @Autowired @Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping mapping;
     /**
-     * A session-scoped response always carries {@code Cache-Control: private, no-store}, set by
+     * A successful session-scoped response always carries {@code Cache-Control: private, no-store}, set by
      * {@code SessionHttpConfiguration}'s interceptor for every SESSION operation. A header the server
      * always sends but the contract never names is invisible to a generated client, so the two must agree.
      */

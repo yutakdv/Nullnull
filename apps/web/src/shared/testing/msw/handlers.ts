@@ -19,6 +19,7 @@ import type { components } from '@nullnull/api-client';
 import type { ProblemCode } from '../../api/index.js';
 
 type PostDetail = components['schemas']['PostDetail'];
+type Problem = components['schemas']['Problem'];
 
 /**
  * The dev proxy and the deployed app both serve the API under /api/v1.
@@ -31,10 +32,28 @@ export const API_BASE = '/api/v1';
 
 const PROBLEM_CONTENT_TYPE = 'application/problem+json';
 
-/** A Problem response with the fixture's own status and the RFC 9457 type. */
-export function problemResponse(code: ProblemCode, headers: Record<string, string> = {}) {
+/**
+ * A Problem response with the fixture's own status and the RFC 9457 type.
+ *
+ * `overrides` carries BODY fields, `headers` carries headers — they are
+ * separate because `problemFixtures` is `Record<ProblemCode, Problem>` and has
+ * room for exactly one body per code. UNAUTHORIZED has two shapes the screen
+ * must tell apart (`missingCredential` present or absent, #240), and a second
+ * fixture for the same code has nowhere to live; overriding one field of the
+ * one fixture is how the variant is expressed without a parallel fixture set
+ * that could drift from it.
+ *
+ * Third parameter, not second: `headers` was already the second and 79 call
+ * sites pass it that way.
+ */
+export function problemResponse(
+  code: ProblemCode,
+  headers: Record<string, string> = {},
+  overrides: Partial<Problem> = {},
+) {
   const fixture = problemFixtures[code];
-  return HttpResponse.json(fixture, {
+  const body = { ...fixture, ...overrides };
+  return HttpResponse.json(body, {
     status: fixture.status,
     headers: {
       'Content-Type': PROBLEM_CONTENT_TYPE,
@@ -70,6 +89,45 @@ let tripPageState: (typeof tripFixtures)['page'] | null = null;
 function currentTripPage() {
   tripPageState ??= tripFixtures.page;
   return tripPageState;
+}
+
+/**
+ * The owner profile, which PATCH /me mutates and every bootstrap answers with.
+ *
+ * Stateful for the same reason the trip list is — see the PATCH handler.
+ *
+ * `activeTripId` starts at the list's first trip rather than at the fixture's
+ * `null`. The fixture is right about what it models — the contract calls it "a
+ * freshly bootstrapped owner", and null until a trip is created is exactly that
+ * — but this mock ALSO serves a trip list with four trips in it, and an owner
+ * who has four trips and no active one is a state the server cannot produce:
+ * the pointer is only null before the first create or after the active trip is
+ * deleted.
+ *
+ * Getting this wrong is what made the 내 여행 tab look broken in `npm run dev`:
+ * the trips were right there on the profile and the tab kept falling back,
+ * because the two fixtures disagreed about the same owner.
+ *
+ * The fixture is not edited: it is pinned to the contract's own example by
+ * packages/contracts/scripts/check-examples.mjs, and that example is correct.
+ * Composing the mock's starting state here is the same thing the trip and
+ * import handlers already do.
+ *
+ * NO TEST COVERS THIS LINE, and that is measured rather than assumed: reverting
+ * it to the bare fixture leaves all 1045 green. Every test seeds the session
+ * cache itself, because a test that depended on the mock's opening state would
+ * be asserting the mock rather than the screen. What this line fixes is `npm
+ * run dev` — where the tab fell back while four trips sat on the profile — and
+ * the browser is where it was verified.
+ */
+let ownerState: (typeof sessionFixtures)['owner'] | null = null;
+
+function currentOwner() {
+  ownerState ??= {
+    ...sessionFixtures.owner,
+    activeTripId: currentTripPage().items[0]?.id ?? null,
+  };
+  return ownerState;
 }
 
 let candidateState: (typeof candidateFixtures)['page'] | null = null;
@@ -227,6 +285,7 @@ const MOCK_RUN_ID = '018f6a00-0000-7000-8000-000000000001';
 export function resetMockState(): void {
   tripState = null;
   tripPageState = null;
+  ownerState = null;
   candidateState = null;
   importDraftState = null;
   savedPosts.clear();
@@ -238,18 +297,35 @@ export function resetMockState(): void {
  * FE-003 needs. Screen slices add their own as their fixtures arrive from BE.
  */
 export const handlers = [
+  // The bootstrap carries the owner, so it has to serve the SAME one PATCH /me
+  // writes. Serving the flat fixture here would undo every preference on the
+  // next load while the PATCH handler still reported success.
   http.post(`${API_BASE}/demo/sessions`, () =>
-    HttpResponse.json(sessionFixtures.bootstrap, { status: 201 }),
+    HttpResponse.json(
+      { ...sessionFixtures.bootstrap, owner: currentOwner() },
+      { status: 201 },
+    ),
   ),
   http.post(`${API_BASE}/session/csrf`, () =>
     HttpResponse.json(sessionFixtures.csrfToken),
   ),
-  http.get(`${API_BASE}/me`, () => HttpResponse.json(sessionFixtures.owner)),
-  // Merge-patch: echo the fixture with the patch applied, so a screen sees the
-  // field it just wrote. The body is still fixture-shaped, not hand-built.
+  http.get(`${API_BASE}/me`, () => HttpResponse.json(currentOwner())),
+  // Merge-patch, and STATEFUL for the reason the trip list is: the owner
+  // profile is what the next bootstrap answers with, so a handler that echoed
+  // the patch and forgot it would make "the preference stuck" true for exactly
+  // one render and false after any reload.
+  //
+  // `activeTripId` is the case that showed it. The 내 여행 tab resolves through
+  // this field, the wizard PATCHes it on create, and a reload re-bootstraps —
+  // against a flat fixture the tab went back to the fallback every time, which
+  // reads as "the tab is broken" and is really "the mock forgot".
   http.patch(`${API_BASE}/me`, async ({ request }) => {
     const patch = (await request.json()) as Partial<typeof sessionFixtures.owner>;
-    return HttpResponse.json({ ...sessionFixtures.owner, ...patch });
+    // Merge-patch semantics: omitted fields keep their value, an explicit null
+    // clears. Spreading the patch over the current owner is exactly that,
+    // because `undefined` never appears in parsed JSON.
+    ownerState = { ...currentOwner(), ...patch };
+    return HttpResponse.json(ownerState);
   }),
 
   // MOCK DATA (FE-105) — these two operations have no approved example, so the
