@@ -398,16 +398,24 @@ export const handlers = [
   }),
 
   // MOCK DATA (FE-502). getOptimization has no approved example (BA-050), so
-  // the run below is a schema-valid invention. It PROGRESSES: the first poll
-  // answers QUEUED, the second RUNNING, the third READY, and Retry-After
-  // carries the interval the contract says to send "for QUEUED/RUNNING
-  // responses". A handler pinned to one status would let a screen that never
-  // polls and a screen that polls a settled run for ever both pass.
+  // the QUEUED/RUNNING shape below is a schema-valid invention. It
+  // PROGRESSES: the first poll answers QUEUED, the second RUNNING, the third
+  // READY, and Retry-After carries the interval the contract says to send
+  // "for QUEUED/RUNNING responses". A handler pinned to one status would let
+  // a screen that never polls and a screen that polls a settled run for ever
+  // both pass.
   //
-  // proposals stays empty because BA-051 computes them and nothing here may
-  // invent a metric or a change list — an unsourced comparison is what
-  // invariant 8 forbids. The READY state a user reaches is therefore the
-  // "result arrived, the preview screen is FE-503" state, not a fake preview.
+  // READY no longer invents proposals: BA-051 computes them now, and
+  // optimizationFixtures.runReady is that computed shape, pinned to the
+  // contract's response example by check-examples.mjs and to the schema by
+  // fixtures.test.ts. Only id, tripId and inputTripVersion are overridden —
+  // they have to match this mock's run and trip, everything else must stay
+  // as the contract fixed it. inputTripVersion in particular: the fixture's
+  // value is whatever BE captured when the example was written, not this
+  // mock's live trip.version, and trip.version moves (a replace increments
+  // it) — leaving the fixture's number in would make the run compare as
+  // stale against a trip it was never actually run against, and no APPLY
+  // path could ever be exercised against a fresh run.
   http.get(`${API_BASE}/optimizations/:runId`, ({ params }) => {
     const runId = String(params.runId);
     if (runId !== MOCK_RUN_ID) return problemResponse('NOT_FOUND');
@@ -415,6 +423,16 @@ export const handlers = [
     runPolls.set(runId, seen);
     const status = seen === 1 ? 'QUEUED' : seen === 2 ? 'RUNNING' : 'READY';
     const trip = currentTrip();
+
+    if (status === 'READY') {
+      return HttpResponse.json({
+        ...optimizationFixtures.runReady,
+        id: runId,
+        tripId: trip.id,
+        inputTripVersion: trip.version,
+      });
+    }
+
     return HttpResponse.json(
       {
         id: runId,
@@ -424,13 +442,13 @@ export const handlers = [
         inputTripVersion: trip.version,
         includeCandidates: false,
         queuedAt: '2026-09-11T06:00:00Z',
-        completedAt: status === 'READY' ? '2026-09-11T06:00:12Z' : null,
+        completedAt: null,
         proposals: [],
         snapshotSetIds: [],
         decisions: [],
       },
       // Seconds, per the contract's integer schema. Only while working.
-      status === 'READY' ? undefined : { headers: { 'Retry-After': '1' } },
+      { headers: { 'Retry-After': '1' } },
     );
   }),
 
