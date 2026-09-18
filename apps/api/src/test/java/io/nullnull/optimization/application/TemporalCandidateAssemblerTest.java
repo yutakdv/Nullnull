@@ -119,6 +119,12 @@ class TemporalCandidateAssemblerTest {
                 // quietly handing back an empty set the caller would read as "no evidence".
                 throw new AssertionError("the assembler chooses a set, it does not re-read one it was given");
             }
+
+            @Override
+            public List<Snapshot> points(List<UUID> ids) {
+                // The same reason: reading stored points back by id is what a reader of a proposal does.
+                throw new AssertionError("the assembler chooses a set, it does not read points by id");
+            }
         };
         return new TemporalCandidateAssembler(query, new CrowdProvenanceProjection())
                 .candidatesFor(PLACE, CURRENT, START, END, SEOUL, NOW);

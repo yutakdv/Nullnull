@@ -20,6 +20,7 @@ import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.MutableClock;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -53,6 +54,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
+import tools.jackson.databind.JsonNode;
 
 /**
  * BA-053 revertOptimizationDecision and listOptimizationHistory.
@@ -838,6 +840,61 @@ class OptimizeRevertIT {
         assertThat(tripVersion(fixture.tripId()))
                 .as("one undo moved the trip once; a second would have moved it again")
                 .isEqualTo(3L);
+    }
+
+    /**
+     * getOptimization lists what was decided under the run, and keeps showing what was proposed.
+     *
+     * <p>After the APPLY the item sits on the day it moved to, so the proposal's evidence has to be read
+     * from the stored change rather than from the live item - which this is the case for. The REVERT is
+     * made without moving the clock: the two rows then share a decidedAt, and the list still has to put
+     * the initial decision first (the order itself is pinned by DecisionOrderTest).
+     */
+    @Test
+    @DisplayName("getOptimization lists the APPLY, then the APPLY and its REVERT, and still shows the proposal")
+    void theRunListsItsDecisionsAndKeepsItsProposal() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalId, "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+
+        JsonNode afterApply = runBody(fixture, runId);
+        assertThat(afterApply.get("status").asString()).isEqualTo("APPLIED");
+        assertThat(afterApply.get("decisions")).hasSize(1);
+        JsonNode apply = afterApply.get("decisions").get(0);
+        assertThat(apply.get("id").asString()).isEqualTo(applied.toString());
+        assertThat(apply.get("decision").asString()).isEqualTo("APPLY");
+        assertThat(apply.get("proposalId").asString()).isEqualTo(proposalId.toString());
+        assertThat(apply.get("resultingTripVersion").asLong()).isEqualTo(2L);
+        assertThat(apply.has("revertUntil")).isTrue();
+        assertThat(apply.has("revertedDecisionId")).isFalse();
+        assertThat(afterApply.get("proposals")).hasSize(1);
+        assertThat(afterApply.get("proposals").get(0).get("id").asString()).isEqualTo(proposalId.toString());
+        assertThat(afterApply.get("proposals").get(0).get("dataProvenance")).hasSize(2);
+        // The fixture Frontend mocks the APPLIED face against has the keys the server sends, everywhere.
+        assertThat(JsonShape.of(afterApply))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-applied.json")));
+
+        UUID reverted = decisionIdOf(revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isOk()));
+
+        JsonNode afterRevert = runBody(fixture, runId);
+        assertThat(afterRevert.get("status").asString()).isEqualTo("REVERTED");
+        List<String> kinds = new ArrayList<>();
+        afterRevert.get("decisions").forEach(decision -> kinds.add(decision.get("decision").asString()));
+        assertThat(kinds).containsExactly("APPLY", "REVERT");
+        JsonNode revert = afterRevert.get("decisions").get(1);
+        assertThat(revert.get("id").asString()).isEqualTo(reverted.toString());
+        assertThat(revert.get("revertedDecisionId").asString()).isEqualTo(applied.toString());
+        assertThat(revert.has("revertUntil")).isFalse();
+    }
+
+    private JsonNode runBody(Fixture fixture, UUID runId) throws Exception {
+        return new tools.jackson.databind.ObjectMapper().readTree(
+                mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())))
+                        .andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString());
     }
 
     /** The projection as a caller reads it, through the operation that publishes it. */

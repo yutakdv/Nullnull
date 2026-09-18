@@ -68,7 +68,7 @@ class OptimizationProposalTest {
         // proposal as a whole, and a per-row constraint cannot count rows that were never inserted.
         // The contract states it as minItems 1; this is where that is enforced.
         assertThatThrownBy(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1,
-                "a proposal", true, null, null, null, "{}", Instant.now(), List.of()))
+                "a proposal", true, null, null, null, null, null, "{}", Instant.now(), List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("changes nothing");
     }
@@ -77,19 +77,37 @@ class OptimizationProposalTest {
     @DisplayName("rank starts at 1 and a summary fits what the contract publishes")
     void boundsMatchTheContract() {
         assertThatThrownBy(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 0,
-                "a proposal", true, null, null, null, "{}", Instant.now(), List.of(anyChange())))
+                "a proposal", true, null, null, null, null, null, "{}", Instant.now(), List.of(anyChange())))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1,
-                "   ", true, null, null, null, "{}", Instant.now(), List.of(anyChange())))
+                "   ", true, null, null, null, null, null, "{}", Instant.now(), List.of(anyChange())))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1,
-                "x".repeat(OptimizationProposal.MAX_SUMMARY_LENGTH + 1), true, null, null, null, "{}",
+                "x".repeat(OptimizationProposal.MAX_SUMMARY_LENGTH + 1), true, null, null, null, null, null, "{}",
                 Instant.now(), List.of(anyChange())))
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThatCode(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1,
-                "x".repeat(OptimizationProposal.MAX_SUMMARY_LENGTH), true, null, null, null, "{}",
+                "x".repeat(OptimizationProposal.MAX_SUMMARY_LENGTH), true, null, null, null, null, null, "{}",
                 Instant.now(), List.of(anyChange())))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("a compared pair is recorded whole or not at all, as V034's CHECK says")
+    void aComparedPairIsWholeOrAbsent() {
+        UUID point = UUID.randomUUID();
+        assertThatThrownBy(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1,
+                "a proposal", true, null, null, null, point, null, "{}", Instant.now(), List.of(anyChange())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("both of its points or neither");
+        assertThatThrownBy(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1,
+                "a proposal", true, null, null, null, null, point, "{}", Instant.now(), List.of(anyChange())))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThatCode(() -> new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1,
+                "a proposal", true, null, null, null, point, UUID.randomUUID(), "{}", Instant.now(),
+                List.of(anyChange())))
                 .doesNotThrowAnyException();
     }
 
@@ -104,6 +122,6 @@ class OptimizationProposalTest {
 
     private static OptimizationProposal proposal(boolean eligible, String reasonCode, BigDecimal delta) {
         return new OptimizationProposal(UUID.randomUUID(), UUID.randomUUID(), 1, "a proposal", eligible,
-                reasonCode, delta, null, "{}", Instant.now(), List.of(anyChange()));
+                reasonCode, delta, null, null, null, "{}", Instant.now(), List.of(anyChange()));
     }
 }

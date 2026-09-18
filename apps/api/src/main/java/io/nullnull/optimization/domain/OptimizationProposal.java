@@ -20,8 +20,8 @@ import java.util.UUID;
  */
 public record OptimizationProposal(UUID id, UUID runId, int rank, String summary,
         boolean comparisonEligible, String comparisonReasonCode, BigDecimal crowdDelta,
-        Integer travelMinutesDelta, String validationSummary, Instant createdAt,
-        List<OptimizationChange> changes) {
+        Integer travelMinutesDelta, UUID beforeSnapshotId, UUID afterSnapshotId, String validationSummary,
+        Instant createdAt, List<OptimizationChange> changes) {
 
     /** The contract's own bound, kept so an unstorable summary is refused before the write. */
     public static final int MAX_SUMMARY_LENGTH = 500;
@@ -50,6 +50,11 @@ public record OptimizationProposal(UUID id, UUID runId, int rank, String summary
             if (crowdDelta != null) {
                 throw new IllegalArgumentException("a crowd delta claims the pair was comparable");
             }
+        }
+        // V034's CHECK, mirrored: the pair it compared is recorded whole or - on a row written before
+        // V034 - not at all. Half a pair names a comparison with one side missing.
+        if ((beforeSnapshotId == null) != (afterSnapshotId == null)) {
+            throw new IllegalArgumentException("a compared pair has both of its points or neither");
         }
         changes = List.copyOf(Objects.requireNonNull(changes, "changes"));
         if (changes.isEmpty()) {

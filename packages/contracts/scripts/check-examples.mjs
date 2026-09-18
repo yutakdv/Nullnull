@@ -56,6 +56,8 @@ const FIXTURE_OF = {
   noAlternatives: 'places/related-none.json',
   checking: 'places/related-checking.json',
   history: 'optimizations/history-page.json',
+  optimizationReady: 'optimizations/run-ready.json',
+  optimizationApplied: 'optimizations/run-applied.json',
   noHistory: 'optimizations/history-page-empty.json',
   matchExact: 'candidates/match-exact.json',
   matchSimilar: 'candidates/match-similar.json',
