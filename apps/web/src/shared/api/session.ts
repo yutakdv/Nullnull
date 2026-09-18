@@ -58,7 +58,12 @@ function fail(error: unknown, response: Response): never {
   throw new Error(`Request failed with status ${String(response.status)}`);
 }
 
-async function bootstrapSession(): Promise<SessionBootstrap> {
+/**
+ * Mints or resumes the anonymous session. Exported so AppShell can run it as
+ * the SAME query the splash screen owns — one key, one in-flight request, which
+ * is what the contract's "at most one new session per page load" needs.
+ */
+export async function bootstrapSession(): Promise<SessionBootstrap> {
   const { data, error, response } = await getApiClient().POST('/demo/sessions', {});
   if (!data) fail(error, response);
   csrfToken = data.csrfToken;

@@ -358,3 +358,68 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
     ).toBeNull();
   });
 });
+
+describe('BA-010 a deep link with no cookie starts a session; an ended one does not', () => {
+  // The server now says WHICH of the two a 401 is (#240). Before it did, the
+  // client could not tell them apart — the cookie is httpOnly — so a deep link
+  // onto /feed showed the session-ended screen even on a first visit, and 13
+  // e2e specs failed on exactly that.
+  //
+  // The two directions are asserted separately because widening this condition
+  // is how trips get lost: bootstrapping on an EXPIRED session mints a
+  // different anonymous owner (SessionSafetyIT.expiration) and strands every
+  // trip the traveller had. A test that only proved the happy half would let
+  // that through.
+
+  const noCookie = () =>
+    http.post(`${API_BASE}/session/csrf`, () =>
+      problemResponse('UNAUTHORIZED', {}, { missingCredential: 'SESSION_COOKIE' }),
+    );
+
+  it('bootstraps when the request carried no session cookie at all', async () => {
+    server.use(noCookie());
+    renderAt('/feed');
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/demo/sessions');
+    });
+  });
+
+  it('does not bootstrap when a cookie was sent and failed', async () => {
+    // No `missingCredential` — the contract sets it ONLY when nothing was sent,
+    // so its absence covers expired, revoked, forged and malformed alike. None
+    // of those may mint a new owner.
+    server.use(
+      http.post(`${API_BASE}/session/csrf`, () => problemResponse('UNAUTHORIZED')),
+    );
+    renderAt('/feed');
+
+    await screen.findByText(messages['en-US']['session.expired']);
+    expect(paths).not.toContain('/api/v1/demo/sessions');
+  });
+
+  it('shows the ordinary screen rather than the ended one on a first visit', async () => {
+    // The user-visible half: what made this look broken was the wrong SCREEN,
+    // not the missing request.
+    server.use(noCookie());
+    renderAt('/feed');
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/demo/sessions');
+    });
+    expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
+  });
+
+  it('starts at most one session per page load', async () => {
+    // The contract's own words: "a client should start at most one new session
+    // per page load". AppShell and SplashScreen share one queryKey, so
+    // react-query dedupes them — this pins that rather than trusting it.
+    server.use(noCookie());
+    renderAt('/feed');
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/demo/sessions');
+    });
+    expect(paths.filter((p) => p === '/api/v1/demo/sessions')).toHaveLength(1);
+  });
+});

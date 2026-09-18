@@ -46,6 +46,7 @@ export {
   usePost,
   useSavePost,
   useUnsavePost,
+  bootstrapSession,
   useSessionBootstrap,
   useTrip,
   useSetItemConstraint,

@@ -3,7 +3,12 @@ import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
 import { useQuery } from '@tanstack/react-query';
 import type { components } from '@nullnull/api-client';
-import { isProblem, sessionQueryKey, useCsrfToken } from '../shared/api/index.js';
+import {
+  bootstrapSession,
+  isProblem,
+  sessionQueryKey,
+  useCsrfToken,
+} from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
 
@@ -112,13 +117,49 @@ export function AppShell({ tabs = false }: AppShellProps) {
   // owns - it never creates one.
   // `enabled: false` is what makes this an observer and not a second caller:
   // the hook subscribes to the cache entry and never runs a queryFn.
+  // A 401 with `missingCredential: SESSION_COOKIE` means the request carried no
+  // session cookie AT ALL — a first visit, a cleared browser, or a proxy that
+  // stripped the header. There is no session to strand, so this tab may start
+  // one (#240, BA-010).
+  //
+  // The distinction is the whole point and it has to stay narrow. The field is
+  // NEVER set when a cookie was sent, so its absence says nothing about why
+  // that cookie failed: expired, revoked, forged, malformed and never-issued
+  // all answer the same way. Bootstrapping on those would mint a DIFFERENT
+  // anonymous owner (SessionSafetyIT.expiration) and strand every trip the
+  // traveller had — which is why this reads the field rather than `!bootstrapped`,
+  // and why it must not be widened to "any UNAUTHORIZED".
+  //
+  // Deep links were the visible cost: every Playwright context is a fresh
+  // browser, so /feed, /profile and /live opened on the session-ended screen
+  // and 13 e2e specs failed on it. The client could not tell the two apart
+  // until the server said which one this was.
+  const noCookieSent =
+    isProblem(csrf.error) &&
+    csrf.error.code === 'UNAUTHORIZED' &&
+    csrf.error.missingCredential === 'SESSION_COOKIE';
+
+  // Same queryKey as `useSessionBootstrap`, which is what keeps the contract's
+  // "at most one new session per page load" true by construction rather than by
+  // a flag someone has to remember: react-query dedupes by key, and the entry
+  // is `staleTime: Infinity`, so SplashScreen and this share one in-flight
+  // request and one result. `enabled` only decides whether THIS observer may
+  // start it.
   const session = useQuery<SessionBootstrap>({
     queryKey: sessionQueryKey,
-    enabled: false,
+    queryFn: bootstrapSession,
+    enabled: noCookieSent,
+    staleTime: Infinity,
+    retry: false,
   });
   const bootstrapped = session.isSuccess;
+  // An ended session, now that the two are distinguishable: a 401 whose request
+  // DID carry a cookie, and no bootstrap has succeeded in this tab.
   const sessionGone =
-    isProblem(csrf.error) && csrf.error.code === 'UNAUTHORIZED' && !bootstrapped;
+    isProblem(csrf.error) &&
+    csrf.error.code === 'UNAUTHORIZED' &&
+    !noCookieSent &&
+    !bootstrapped;
 
   // Where the 내 여행 tab goes, read from the same cache entry rather than
   // fetched: `useSessionBootstrap` owns it and asks once per load, and a second

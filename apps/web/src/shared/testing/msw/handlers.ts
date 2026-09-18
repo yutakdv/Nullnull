@@ -19,6 +19,7 @@ import type { components } from '@nullnull/api-client';
 import type { ProblemCode } from '../../api/index.js';
 
 type PostDetail = components['schemas']['PostDetail'];
+type Problem = components['schemas']['Problem'];
 
 /**
  * The dev proxy and the deployed app both serve the API under /api/v1.
@@ -31,10 +32,28 @@ export const API_BASE = '/api/v1';
 
 const PROBLEM_CONTENT_TYPE = 'application/problem+json';
 
-/** A Problem response with the fixture's own status and the RFC 9457 type. */
-export function problemResponse(code: ProblemCode, headers: Record<string, string> = {}) {
+/**
+ * A Problem response with the fixture's own status and the RFC 9457 type.
+ *
+ * `overrides` carries BODY fields, `headers` carries headers — they are
+ * separate because `problemFixtures` is `Record<ProblemCode, Problem>` and has
+ * room for exactly one body per code. UNAUTHORIZED has two shapes the screen
+ * must tell apart (`missingCredential` present or absent, #240), and a second
+ * fixture for the same code has nowhere to live; overriding one field of the
+ * one fixture is how the variant is expressed without a parallel fixture set
+ * that could drift from it.
+ *
+ * Third parameter, not second: `headers` was already the second and 79 call
+ * sites pass it that way.
+ */
+export function problemResponse(
+  code: ProblemCode,
+  headers: Record<string, string> = {},
+  overrides: Partial<Problem> = {},
+) {
   const fixture = problemFixtures[code];
-  return HttpResponse.json(fixture, {
+  const body = { ...fixture, ...overrides };
+  return HttpResponse.json(body, {
     status: fixture.status,
     headers: {
       'Content-Type': PROBLEM_CONTENT_TYPE,
