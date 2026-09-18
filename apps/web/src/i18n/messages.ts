@@ -1055,7 +1055,7 @@ export const messages = {
     'manual.noResults': 'No results',
     'manual.searchError': "Couldn't search",
     'manual.pick': 'Add',
-    'manual.addNamed': 'Add {place}',
+    'manual.addNamed': 'Add {place} to this day',
     'manual.cancel': 'Close',
     'manual.removeNamed': 'Remove {place}',
     'manual.daypart.MORNING': 'Morning',
