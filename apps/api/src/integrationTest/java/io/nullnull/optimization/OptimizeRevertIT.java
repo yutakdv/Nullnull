@@ -486,6 +486,90 @@ class OptimizeRevertIT {
         assertThat(decisionKinds(runId)).containsExactly("APPLY");
     }
 
+    @Test
+    @DisplayName("BA-054-T7 AVAILABLE is advisory — another owner's revert is the not-found a missing decision gets")
+    void availableDoesNotAuthoriseAnotherOwner() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+        clock.advance(Duration.ofSeconds(1));
+
+        // The run is undoable and the id is real; only the caller is wrong. Invariant 11 asks for the
+        // answer a decision that never existed gets, not a refusal that confirms this one does.
+        SessionService.Bootstrap stranger = sessions.bootstrap(null, null, null);
+        revertAs(stranger, applied, "\"2\"", "revert-" + UUID.randomUUID(), stranger.csrf.token)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        revertAs(stranger, UUID.randomUUID(), "\"2\"", "revert-" + UUID.randomUUID(), stranger.csrf.token)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_TWO.toString());
+
+        // The negative control. Two 404s agree just as easily when the request dies before ownership is
+        // ever asked - a header the route rejects, a precondition it refuses - so the same call from the
+        // owner has to go through, or the two answers above measured validation rather than ownership.
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("BA-054-T8 AVAILABLE is advisory — a window that closes after it was read still refuses the revert")
+    void availableDoesNotHoldTheWindowOpen() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+
+        // The caller read AVAILABLE and then waited. The window is stored on the APPLY, so the revert
+        // asks it again rather than trusting an answer that was true when it was given.
+        clock.advance(Duration.ofHours(25));
+
+        // A fresh CSRF token for the reason the BA-053-T1 after-window case gives: PT2H, not P30D.
+        revertWith(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID(), freshCsrf(fixture))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("REVERT_WINDOW_EXPIRED"));
+        assertThat(decisionKinds(runId)).containsExactly("APPLY");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_TWO.toString());
+    }
+
+    @Test
+    @DisplayName("BA-054-T9 AVAILABLE is advisory — an APPLY already undone elsewhere is not undone twice")
+    void availableDoesNotAuthoriseASecondUndo() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalOf(runId), "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        assertThat(availability(fixture, runId)).isEqualTo("AVAILABLE");
+        clock.advance(Duration.ofSeconds(1));
+
+        // Another tab undoes it first, under its own key.
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andExpect(status().isOk());
+        clock.advance(Duration.ofSeconds(1));
+
+        // This tab still holds what it read: AVAILABLE, at version 2. A different key, so this is a
+        // second undo and not a replay - replay is BA-053-T1's.
+        //
+        // The outcome is the claim, not the line that produces it. From HTTP the refusal today comes
+        // from the trip version, which the first undo moved; the decision-level guard (V033's unique
+        // reverted_decision_id) arbitrates only when two undos read before either writes, and the
+        // idempotency guard's owner lock serialises that race before it reaches the index. That half
+        // is proven at the SQL layer under BA-053. Hence 409 and either conflict code: the status says
+        // the domain refused it rather than CSRF or validation, and neither code is pinned.
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(
+                        org.hamcrest.Matchers.oneOf("TRIP_CHANGED", "DATA_CHANGED")));
+
+        assertThat(decisionKinds(runId)).containsExactly("APPLY", "REVERT");
+        assertThat(itemDate(fixture.itemId())).isEqualTo(DAY_ONE.toString());
+        assertThat(tripVersion(fixture.tripId()))
+                .as("one undo moved the trip once; a second would have moved it again")
+                .isEqualTo(3L);
+    }
+
     /** The projection as a caller reads it, through the operation that publishes it. */
     private String availability(Fixture fixture, UUID runId) throws Exception {
         return mvc.perform(get("/api/v1/optimizations/" + runId).cookie(cookie(fixture.owner())))
@@ -558,8 +642,13 @@ class OptimizeRevertIT {
 
     private ResultActions revertWith(Fixture fixture, UUID decisionId, String ifMatch, String key,
             String csrf) throws Exception {
+        return revertAs(fixture.owner(), decisionId, ifMatch, key, csrf);
+    }
+
+    private ResultActions revertAs(SessionService.Bootstrap caller, UUID decisionId, String ifMatch,
+            String key, String csrf) throws Exception {
         return mvc.perform(post("/api/v1/optimization-decisions/" + decisionId + "/revert")
-                .cookie(cookie(fixture.owner()))
+                .cookie(cookie(caller))
                 .header("Origin", ORIGIN)
                 .header("X-CSRF-Token", csrf)
                 .header("If-Match", ifMatch)

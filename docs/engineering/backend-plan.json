@@ -1834,7 +1834,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "revertAvailability 읽기 투영",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-053"
       ],
@@ -1880,7 +1880,19 @@
         },
         {
           "id": "BA-054-T6",
-          "assertion": "AVAILABLE을 읽은 뒤에도 revert가 owner·version·window·decision을 다시 검사한다"
+          "assertion": "AVAILABLE을 읽은 뒤 trip version이 움직였으면 revert가 거절한다"
+        },
+        {
+          "id": "BA-054-T7",
+          "assertion": "AVAILABLE을 읽은 뒤에도 남의 owner가 보낸 revert는 없는 결정과 같은 404로 거절된다"
+        },
+        {
+          "id": "BA-054-T8",
+          "assertion": "AVAILABLE을 읽은 뒤 창이 닫히면 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-054-T9",
+          "assertion": "AVAILABLE을 읽은 뒤 그 APPLY가 이미 되돌려졌으면 두 번째 revert는 거절된다"
         }
       ],
       "handoff": "applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다.",

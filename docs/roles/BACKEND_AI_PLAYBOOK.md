@@ -1546,7 +1546,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-054
 
-**revertAvailability 읽기 투영** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**revertAvailability 읽기 투영** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-053](#ba-053)
 - 기능 ID: `FR-OPT-09`
@@ -1573,9 +1573,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-054-T3`: 서버 시각이 APPLY의 revertUntil 이후면 EXPIRED다
 - `BA-054-T4`: 현재 trip version이 APPLY의 resultingTripVersion과 다르면 NOT_APPLICABLE이다
 - `BA-054-T5`: 그 밖의 경우 AVAILABLE이다
-- `BA-054-T6`: AVAILABLE을 읽은 뒤에도 revert가 owner·version·window·decision을 다시 검사한다
+- `BA-054-T6`: AVAILABLE을 읽은 뒤 trip version이 움직였으면 revert가 거절한다
+- `BA-054-T7`: AVAILABLE을 읽은 뒤에도 남의 owner가 보낸 revert는 없는 결정과 같은 404로 거절된다
+- `BA-054-T8`: AVAILABLE을 읽은 뒤 창이 닫히면 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
+- `BA-054-T9`: AVAILABLE을 읽은 뒤 그 APPLY가 이미 되돌려졌으면 두 번째 revert는 거절된다
 
-절을 다섯이 아니라 여섯으로 쪼갠 이유는 `T6`가 나머지와 다른 것을 재기 때문이다. `T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다.
+`T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`~`T9`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다. 뒤쪽이 넷인 것은 revert가 다시 하는 검사(version·owner·window·decision)마다 하나씩이기 때문이다. 처음에는 넷을 한 절(`T6`)에 묶었고 그 절의 test는 version 하나만 쟀다 — 등록 규칙 3이 말하는 모양이라 승격 전에 쪼갰다.
+
+`T7`과 `T9`는 막은 줄이 아니라 결과를 단언한다. 둘 다 경로 위에 가드가 여럿이라서다. owner 검사는 decision·run·trip 조회 세 곳에 있고, 셋을 다 끈 변이에서 `T7`만 빨개진다(하나씩 끈 변이는 재지 않았다). 두 번째 undo는 오늘 HTTP에서 첫 undo가 올린 trip version에 걸리는데, 그 검사만 끄면 `red=0`이다 — V033의 `reverted_decision_id` unique와 run 상태 전이가 이어서 막는다. 셋을 다 꺼야 `T9`만 빨개진다. 그래서 `T9`는 409를 단언하고 code는 `TRIP_CHANGED`·`DATA_CHANGED` 중 무엇이든 받는다. V033은 두 undo가 모두 쓰기 전에 읽는 경쟁에서만 중재하는데 idempotency guard의 owner 잠금이 HTTP에서 그 경쟁을 직렬화하므로, 그 index의 증명은 SQL 층에서 BA-053이 한다.
 
 FE 인계·완료 증거: applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다. 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
