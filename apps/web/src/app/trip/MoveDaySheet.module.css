@@ -1,30 +1,11 @@
 /* S07-10 move sheet `522:4050`: bottom sheet, pt10 pb24 px16, top radius 24. */
 
 .sheet {
-  width: 100%;
-  max-width: 100vw;
-  height: 100%;
-  max-height: 100vh;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.sheet::backdrop {
-  background: rgb(0 0 0 / 40%);
+  composes: sheet from '../../shared/ui/styles/sheet.module.css';
 }
 
 .panel {
-  position: absolute;
-  inset: auto 0 0;
-  display: flex;
-  flex-direction: column;
-  padding: 10px var(--space-4) var(--space-6);
-  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
-  border-radius: 24px 24px 0 0;
-  background: var(--color-bg-default);
-  /* Never taller than the screen; the day list scrolls instead. */
-  max-height: 90dvh;
+  composes: panel from '../../shared/ui/styles/sheet.module.css';
 }
 
 /* 522:4052 */
@@ -37,30 +18,15 @@
 }
 
 .head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: 14px;
+  composes: head from '../../shared/ui/styles/sheet.module.css';
 }
 
 .title {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-title-sm);
-  font-weight: 700;
+  composes: title from '../../shared/ui/styles/sheet.module.css';
 }
 
 .cancel {
-  min-height: 44px;
-  margin-inline-start: auto;
-  padding: 0 var(--space-2);
-  border: 0;
-  background: none;
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-body-base);
-  font-weight: 500;
-  cursor: pointer;
+  composes: cancel from '../../shared/ui/styles/sheet.module.css';
 }
 
 /* 522:4059: which item is moving, tinted. */

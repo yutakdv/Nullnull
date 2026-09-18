@@ -10,12 +10,27 @@ test.use({
   video: 'off',
 });
 
+/**
+ * The Origin these requests claim, which CsrfOriginInterceptor compares against
+ * the server's APP_PUBLIC_ORIGIN on every non-GET.
+ *
+ * Derived from PLAYWRIGHT_BASE_URL rather than written out, because the literal
+ * is only correct while the page happens to be served on the port someone typed
+ * here. It was 'http://localhost:5173' and the stack moved to 4173, so all three
+ * requests below started coming back 403 CSRF_INVALID — the same shape as a
+ * `WHERE source_code = ?` that is only a filter while one source exists. Compose
+ * sets both this and APP_PUBLIC_ORIGIN from one decision, so reading it here
+ * keeps the two from drifting again (#233).
+ *
+ * The fallback matches playwright.config.ts's own local default.
+ */
+const ORIGIN = new URL(process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5173').origin;
+
 test('BA-010 bootstrap, refresh and independent tabs use the same owner', async ({
   request,
 }) => {
-  const origin = 'http://localhost:5173';
   const created = await request.post('/api/v1/demo/sessions', {
-    headers: { Origin: origin },
+    headers: { Origin: ORIGIN },
   });
   expect(created.status()).toBe(201);
   const first = (await created.json()) as {
@@ -26,7 +41,7 @@ test('BA-010 bootstrap, refresh and independent tabs use the same owner', async 
   // explicitly for this API transport test; browser cookie acceptance is not claimed.
   const cookie = created.headers()['set-cookie']?.split(';')[0];
   expect(Boolean(cookie)).toBe(true);
-  const headers = { Origin: origin, Cookie: cookie! };
+  const headers = { Origin: ORIGIN, Cookie: cookie! };
   const resumed = await request.post('/api/v1/demo/sessions', { headers });
   expect(resumed.status()).toBe(200);
   const second = (await resumed.json()) as { owner: { id: string } };
@@ -50,16 +65,15 @@ test('BA-010 bootstrap, refresh and independent tabs use the same owner', async 
 });
 
 test('BA-011 preferences persist and reject unsupported locale', async ({ request }) => {
-  const origin = 'http://localhost:5173';
   const bootstrap = await request.post('/api/v1/demo/sessions', {
-    headers: { Origin: origin },
+    headers: { Origin: ORIGIN },
   });
   expect(bootstrap.status()).toBe(201);
   const owner = (await bootstrap.json()) as { csrfToken: string };
   const cookie = bootstrap.headers()['set-cookie']?.split(';')[0];
   expect(Boolean(cookie)).toBe(true);
   const headers = {
-    Origin: origin,
+    Origin: ORIGIN,
     Cookie: cookie!,
     'X-CSRF-Token': owner.csrfToken,
     'Content-Type': 'application/merge-patch+json',
@@ -91,9 +105,8 @@ test('BA-011 preferences persist and reject unsupported locale', async ({ reques
 test('BA-012 deletion replays its receipt and status token cannot authorize the session', async ({
   request,
 }) => {
-  const origin = 'http://localhost:5173';
   const bootstrap = await request.post('/api/v1/demo/sessions', {
-    headers: { Origin: origin },
+    headers: { Origin: ORIGIN },
   });
   const session = (await bootstrap.json()) as { csrfToken: string };
   const cookie = bootstrap.headers()['set-cookie']?.split(';')[0];
@@ -101,7 +114,7 @@ test('BA-012 deletion replays its receipt and status token cannot authorize the 
   const key = `delete-${crypto.randomUUID()}`;
   const accepted = await request.delete('/api/v1/session', {
     headers: {
-      Origin: origin,
+      Origin: ORIGIN,
       Cookie: cookie!,
       'X-CSRF-Token': session.csrfToken,
       'Idempotency-Key': key,
@@ -115,7 +128,7 @@ test('BA-012 deletion replays its receipt and status token cannot authorize the 
     statusUrl: string;
   };
   const replay = await request.delete('/api/v1/session', {
-    headers: { Origin: origin, Cookie: cookie!, 'Idempotency-Key': key },
+    headers: { Origin: ORIGIN, Cookie: cookie!, 'Idempotency-Key': key },
   });
   expect(replay.status()).toBe(202);
   expect(await replay.text()).toBe(firstText);
@@ -129,7 +142,7 @@ test('BA-012 deletion replays its receipt and status token cannot authorize the 
   expect(revoked.status()).toBe(401);
   const wrongKey = await request.delete('/api/v1/session', {
     headers: {
-      Origin: origin,
+      Origin: ORIGIN,
       Cookie: cookie!,
       'Idempotency-Key': `delete-${crypto.randomUUID()}`,
     },

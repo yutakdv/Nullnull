@@ -15,7 +15,7 @@ import { AddPlaceScreen } from './trip/AddPlaceScreen.js';
 import { CandidatesScreen } from './trip/CandidatesScreen.js';
 import { TripScreen } from './trip/TripScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
-import { MustVisitScreen } from './trip-create/MustVisitScreen.js';
+import { ImportPasteScreen } from './trip-create/ImportPasteScreen.js';
 import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
 
 // P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
@@ -39,14 +39,22 @@ export const routes: RouteObject[] = [
       { index: true, element: <SplashScreen /> },
       { path: 'language', element: <LanguageScreen /> },
       { path: 'intro', element: <IntroScreen /> },
-      // S02 wizard. Steps 1-3 are the local draft (FE-102); step 4 collects
-      // must-visit places (FE-103) and is a nested step of the same flow, not a
-      // separate entry point. Wiring them into one flow is FE-102's follow-up
-      // once step 4 knows the draft it belongs to.
+      // S02 wizard, one route for all four steps. Steps 1-3 are the local
+      // draft (FE-102) and step 4 collects must-visit places (FE-103); they are
+      // held as component state in TripWizardScreen, so the draft survives
+      // moving between them.
+      //
+      // Step 4 had its own `start/must-visit` route until #185. Nothing linked
+      // to it, so it was reachable only by typing the URL, and the picks it
+      // collected could not reach the draft the other steps built. Removing it
+      // is what let step 3's answer branch to it (FIGMA_HANDOFF §2 lists one
+      // path for trip creation, and never gave step 4 one).
       //
       // No tab bar either: the draft is unsaved, so a stray tap discards it.
       { path: 'start', element: <TripWizardScreen /> },
-      { path: 'start/must-visit', element: <MustVisitScreen /> },
+      // S02-4C-A paste `401:1221` (FE-104), reached from step 3 rather than by
+      // URL — MOSTLY_PLANNED routes here, and the CTA offers it directly.
+      { path: 'start/import', element: <ImportPasteScreen /> },
       // Sub-pages reached by a back control, so they carry a NavBar instead.
       { path: 'posts/:postId', element: <PostScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },

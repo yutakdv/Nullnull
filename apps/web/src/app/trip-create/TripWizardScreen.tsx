@@ -4,17 +4,28 @@ import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { BottomCta, Chip, NavBar } from '../../shared/ui/index.js';
-import { useCreateTrip } from '../../shared/api/index.js';
+import { useCreateTrip, useUpdatePreferences } from '../../shared/api/index.js';
 import {
   EMPTY_DRAFT,
   INTEREST_GROUPS,
+  addMustVisit,
+  addStop,
   canAddInterest,
   dateError,
+  nextAfterPlanning,
+  removeMustVisit,
+  removeStop,
   selectDay,
+  setStopDaypart,
   toCreateRequest,
   toggleInterest,
+  toggleStopMustVisit,
   type WizardDraft,
 } from './wizard.js';
+import { ConfirmStopsStep } from './ConfirmStopsStep.js';
+import { InputMethodStep } from './InputMethodStep.js';
+import { ManualStopsStep } from './ManualStopsStep.js';
+import { MustVisitStep } from './MustVisitScreen.js';
 import styles from './TripWizardScreen.module.css';
 
 type PlanningLevel = components['schemas']['PlanningLevel'];
@@ -60,6 +71,8 @@ export function TripWizardScreen() {
   const [draft, setDraft] = useState<WizardDraft>(EMPTY_DRAFT);
   const [month, setMonth] = useState(() => new Date());
   const createTrip = useCreateTrip();
+  // Points the owner's 내 여행 tab at whatever this wizard creates (BA-011).
+  const setActiveTrip = useUpdatePreferences();
   // The key for the request in flight, held across retries of THAT request.
   // Keyed by the request body so it rotates exactly when the draft changes:
   // pressing 만들기 again after a failure replays the first attempt, while
@@ -78,11 +91,25 @@ export function TripWizardScreen() {
     setMonth(new Date(year, monthIndex + by, 1));
   }
 
-  function submit() {
+  // `using` is the draft to send, for a caller that has just changed it:
+  // setDraft is queued, so `draft` here is still the previous render's value
+  // and a caller that cleared something would send it anyway. 건너뛰기 on the
+  // manual step is exactly that case — it must not carry the stops it just
+  // dropped — and passing the draft explicitly says so at the call site
+  // instead of depending on when React applies the update.
+  //
+  // REQUIRED, not defaulted, and the callers below pass `draft` by hand. A
+  // default made this silently wrong: the steps hand `onSubmit` straight to a
+  // DOM button, so React calls it with the click EVENT, which filled `using`
+  // and made dateError read a MouseEvent — toCreateRequest returned null and
+  // the press did nothing at all, with no error shown. The prop is typed
+  // `() => void`, which happily accepts a function that ignores its argument,
+  // so TypeScript could not see it.
+  function submit(using: WizardDraft) {
     // The browser's zone: the trip is planned where the user is, and the
     // contract defaults to Asia/Seoul only when nothing is supplied.
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const request = toCreateRequest(draft, timezone);
+    const request = toCreateRequest(using, timezone);
     if (!request) return;
     const fingerprint = JSON.stringify(request);
     if (submitKey.current?.for !== fingerprint) {
@@ -93,6 +120,18 @@ export function TripWizardScreen() {
       {
         onSuccess: (trip) => {
           submitKey.current = null;
+          // The trip just created becomes the owner's active one, which is what
+          // the 내 여행 tab resolves to (AppShell). BA-011 stores the pointer
+          // but never sets it on its own — `owners.active_trip_id` is only ever
+          // written by this PATCH and cleared by the trip's own ON DELETE SET
+          // NULL — so without this call a traveller can own four trips and the
+          // tab still has nowhere to go.
+          //
+          // Best effort, and deliberately not awaited: the trip EXISTS, and
+          // navigation must not wait on a preference write or fail because of
+          // one. A rejection leaves the pointer where it was and the tab falls
+          // back, which is the same state as before this call.
+          setActiveTrip.mutate({ activeTripId: trip.id });
           void navigate(`/trip/${trip.id}`, { replace: true });
         },
       },
@@ -120,8 +159,10 @@ export function TripWizardScreen() {
   return (
     <section className={styles.screen} aria-labelledby="wizard-heading">
       <NavBar backLabel={t('wizard.back')} onBack={goBack} />
+      {/* The confirm step names itself 마지막 rather than STEP 6: the frame
+          says so, and a number implies a seventh step that does not exist. */}
       <p className={styles.step}>
-        {t('wizard.step')} {step}
+        {step === 6 ? t('confirm.step') : `${t('wizard.step')} ${String(step)}`}
       </p>
 
       {step === 1 ? (
@@ -330,9 +371,157 @@ export function TripWizardScreen() {
             // which the Idempotency-Key guards against but need not be tested by
             // the user (.claude/rules/frontend.md on duplicate submits).
             disabled={draft.planningLevel === null || createTrip.isPending}
-            onClick={submit}
+            // The answer decides what follows: MUST_VISIT_ONLY goes to step 4
+            // and the other two create the trip. All three used to call
+            // submit(), so "꼭 가고 싶은 곳만 정했어요" made the same trip as
+            // "아직 하나도 없어요" and never asked which places (#185).
+            onClick={() => {
+              // Step 4 is whichever branch step 3 was answered with: the
+              // must-visit picker (S02-4B) or the input-method choice
+              // (S02-4C `400:1201`). Only NOTHING creates the trip from here,
+              // because it is the one answer that says there is nothing more
+              // to collect.
+              const next = nextAfterPlanning(draft);
+              if (next === 'must-visit' || next === 'method') {
+                setStep(4);
+                return;
+              }
+              submit(draft);
+            }}
+            secondary={
+              // The paste path (FE-104, `401:1221`) stays reachable from here
+              // as well: MOSTLY_PLANNED routes to it above, and this keeps it
+              // available to someone who answered differently but arrived with
+              // an itinerary in hand. The `400:1201` branch screen that would
+              // hold both input methods is still open in FCR-018.
+              <button
+                type="button"
+                className={styles.later}
+                onClick={() => {
+                  void navigate('/start/import');
+                }}
+              >
+                {t('import.start')}
+              </button>
+            }
           />
         </>
+      ) : null}
+
+      {/* S02-4B `438:3158`, reached only from MUST_VISIT_ONLY. The picks live in
+          the draft, so stepping back to 3 and forward again keeps them — the
+          same promise FIGMA_HANDOFF makes for steps 1-3. */}
+      {/* S02-4C `400:1201`: the branch 거의 다 세우고 왔어요 takes. Held as a
+          step rather than a route so the dates and interests collected above
+          survive the choice — sending the traveller to `/start/import` would
+          hand them a screen that starts from EMPTY_DRAFT. */}
+      {step === 4 && nextAfterPlanning(draft) === 'method' ? (
+        <InputMethodStep
+          onManual={() => {
+            setStep(5);
+          }}
+          onPaste={() => {
+            void navigate('/start/import');
+          }}
+        />
+      ) : null}
+
+      {/* S02-4C-C `438:3199`: the manual half of the input-method branch.
+          Before this existed, InputMethodStep's 직접 입력 called setStep(5)
+          and nothing rendered there, so choosing it landed on a blank
+          screen — a reachable dead end of exactly the kind #185 is about. */}
+      {step === 5 ? (
+        <ManualStopsStep
+          draft={draft}
+          onAddStop={(date, place) => {
+            // The key is minted here rather than inside addStop so the rule
+            // stays a pure function: same draft in, same draft out.
+            const key = crypto.randomUUID();
+            setDraft((current) => addStop(current, date, place, key));
+          }}
+          onRemoveStop={(key) => {
+            setDraft((current) => removeStop(current, key));
+          }}
+          onSetDaypart={(key, daypart) => {
+            setDraft((current) => setStopDaypart(current, key, daypart));
+          }}
+          onSubmit={() => {
+            // On to the confirm step (S02-5C) rather than straight to the
+            // server: that screen reads the itinerary back and is where the
+            // must-visit picks are made. With nothing entered there is nothing
+            // to confirm and no place to pick, so that case creates the trip
+            // from here instead of showing an empty page.
+            if (draft.stops.length === 0) {
+              submit(draft);
+              return;
+            }
+            setStep(6);
+          }}
+          onSkip={() => {
+            // An answer, not a cancel: the traveller says there is nothing to
+            // carry over, so the stops entered so far must NOT be sent. The
+            // cleared draft is passed to submit rather than only stored,
+            // because setDraft is queued and submit would otherwise read the
+            // stops it is meant to drop.
+            const cleared = { ...draft, stops: [] };
+            setDraft(cleared);
+            submit(cleared);
+          }}
+          isSubmitting={createTrip.isPending}
+        />
+      ) : null}
+
+      {/* S02-5C `438:3259`: read the itinerary back and pick what must stay.
+          FIGMA_HANDOFF:154 describes this as a summary, which is how its Pick
+          toggle went uncounted — it is an input screen. */}
+      {step === 6 ? (
+        <ConfirmStopsStep
+          draft={draft}
+          onTogglePick={(key) => {
+            setDraft((current) => toggleStopMustVisit(current, key));
+          }}
+          onSubmit={() => {
+            submit(draft);
+          }}
+          onEdit={() => {
+            // 다시 고칠래요 goes back to the entry step with everything intact,
+            // picks included — the same promise the wizard makes at every other
+            // step. It is not a cancel and drops nothing.
+            setStep(5);
+          }}
+          isSubmitting={createTrip.isPending}
+        />
+      ) : null}
+
+      {step === 4 && nextAfterPlanning(draft) === 'must-visit' ? (
+        <MustVisitStep
+          picked={draft.mustVisit}
+          onAdd={(place) => {
+            setDraft((current) => addMustVisit(current, place));
+          }}
+          onRemove={(placeId) => {
+            setDraft((current) => removeMustVisit(current, placeId));
+          }}
+          onSubmit={() => {
+            submit(draft);
+          }}
+          onSkip={() => {
+            // A real answer, not a cancel: the traveller says there are no
+            // must-visit places, so the trip is created without any. Clearing
+            // first keeps that honest — pressing 건너뛰기 after picking some
+            // must not quietly carry them.
+            //
+            // The cleared draft is passed rather than only stored, for the
+            // reason submit() states. It makes no difference to the request
+            // today, because toCreateRequest drops mustVisit either way, and
+            // it is written this way so it does not start mattering silently
+            // when #180's wiring gives the picks somewhere to go.
+            const cleared = { ...draft, mustVisit: [] };
+            setDraft(cleared);
+            submit(cleared);
+          }}
+          isSubmitting={createTrip.isPending}
+        />
       ) : null}
     </section>
   );

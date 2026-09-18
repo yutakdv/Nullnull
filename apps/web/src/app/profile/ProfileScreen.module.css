@@ -1,9 +1,29 @@
 /* Figma: S14 profile 422:2925. Cards on a subtle ground. */
 
+/* The "subtle ground" the line above names, which was never actually painted.
+   `.card` below already had the white fill and the 14px radius, but the ground
+   behind it was white too — measured `rgba(0,0,0,0)` on the screen, main and
+   body — so every card boundary was invisible and the screen read as one flat
+   sheet. Figma's own variables for this frame carry both halves:
+   `color/bg/subtle #f7f8f9` behind and `color/bg/default #ffffff` on the card.
+
+   Painted here rather than on AppShell's `.content`, which is shared by every
+   screen and would tint all of them.
+
+   `min-height: 100%` so the ground reaches the bottom of the scroll area when
+   the content is shorter than the viewport; without it the grey stops partway
+   down and the rest of the screen is white. The negative margin and matching
+   padding let it span the full width — `.content` and `.screen` each add 16px
+   of side padding, and a background that respects both would leave white
+   gutters down the edges that Figma does not draw. */
 .screen {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  min-height: 100%;
+  margin: calc(var(--space-4) * -1);
+  padding: var(--space-4);
+  background: var(--color-bg-subtle);
 }
 
 .title {
@@ -14,11 +34,17 @@
   line-height: 27px;
 }
 
+/* `--elevation-raised` and not one of the other three: this frame's Figma
+   variables name `Elevation/raised` (drop shadow, offset 0 2, radius 12,
+   #0000001A), and that token is the same values — 0 2px 12px rgb(0 0 0 / 0.1).
+   The card was rendering with `box-shadow: none`, so together with the white
+   ground it had nothing to separate it from the page. */
 .card {
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-card-lg);
   background: var(--color-bg-default);
+  box-shadow: var(--elevation-raised);
   padding-block: var(--space-1);
 }
 
@@ -124,6 +150,47 @@
 a.row,
 button.row {
   cursor: pointer;
+}
+
+/* The trip link and its delete control share one row.
+
+   `flex-wrap: wrap` was doing the opposite of what the comment here claimed:
+   `.row` is `width: 100%`, so the link alone fills the line and the delete
+   button is guaranteed to wrap onto the next one. Measured at 393px, that put
+   a bare ✕ under every trip — four of them down the screen, which is not a
+   shape S14 `422:2925` draws anywhere.
+
+   `min-width: 0` lets the link shrink below its content width so the button
+   keeps its place instead of pushing the row wider. The title does not
+   ellipsize — it wraps — so a long one makes the row taller rather than
+   pushing the ✕ off the edge, which is the behaviour the 360px and 200%-zoom
+   specs measure. The button holds its place by being `flex: none` (below). */
+.tripRow {
+  display: flex;
+  align-items: center;
+}
+
+.tripRow > .row {
+  min-width: 0;
+}
+
+.rowDelete {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+  margin-inline-end: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-label);
+  cursor: pointer;
+}
+
+.rowDelete:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
 }
 
 .rowText {

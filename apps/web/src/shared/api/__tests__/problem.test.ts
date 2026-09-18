@@ -117,7 +117,7 @@ describe('retryDelayMs', () => {
   });
 });
 
-describe('presentation keeps message ownership straight', () => {
+describe('FE-003-T1 presentation keeps message ownership straight', () => {
   it('uses the Figma copy for the six confirmed codes', () => {
     const { message } = problemPresentation(problemFixtures.TRIP_CHANGED, t);
     expect(message).toBe('다른 곳에서 일정이 바뀌었어요.');

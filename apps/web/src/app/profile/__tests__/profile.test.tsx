@@ -21,7 +21,7 @@ import { optimizationFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
-import { API_BASE } from '../../../shared/testing/msw/handlers.js';
+import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
 import { routes } from '../../routes.js';
 
@@ -138,7 +138,15 @@ describe('the trip list renders each of its states', () => {
   });
 });
 
-describe('optimization history shows status without itinerary content', () => {
+// FE-506-T1 is "이력이 상태·시각·대상 링크만 보여주고 일정 본문을 복제하지
+// 않는다", and this block is what proves it: the rows carry decision, status,
+// scope and a link to the target trip, and nothing here renders an item. The
+// ID is in the name because that is the string the aggregator reads - the
+// clause was proven and invisible, the same shape as FE-504 and FE-104.
+//
+// history.ts has its own unit tests, but those cover rowState's logic, not the
+// rendered row, and T1 is a claim about what the SCREEN shows.
+describe('FE-506-T1 optimization history shows status without itinerary content', () => {
   it('shows what the user chose, not just where the run ended', async () => {
     renderProfile();
     // The decision is the half of the row a status cannot supply. "APPLIED" is
@@ -152,6 +160,33 @@ describe('optimization history shows status without itinerary content', () => {
     expect(
       screen.getByText(new RegExp(copy['profile.history.decision.REVERT'])),
     ).toBeInTheDocument();
+  });
+
+  it('carries no itinerary content, only status, time and a link', async () => {
+    // The second half of FE-506-T1, which had no assertion: the clause is
+    // "상태·시각·대상 링크만 보여주고 일정 본문을 복제하지 않는다", and the
+    // cases around it only separate decision from status.
+    //
+    // CLAUDE.md's P0 decision is that history must not keep a copy of the
+    // itinerary, so the row may name the TARGET TRIP but never its stops.
+    // Scoped to the history section because the trip list on the same screen
+    // legitimately names trips.
+    renderProfile();
+    // Waits for a row before measuring: the section renders its loading state
+    // first, and an empty section would satisfy "no itinerary content" without
+    // proving anything.
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    const history = screen.getByRole('region', {
+      name: new RegExp(copy['profile.history.title']),
+    });
+    // Every stop the trip fixtures hold. If a row ever rendered the itinerary
+    // these are the strings that would appear.
+    for (const stop of ['경복궁', '인사동']) {
+      expect(within(history).queryByText(new RegExp(stop))).toBeNull();
+    }
+    // And the row is not empty of everything - it still links its target trip,
+    // so the assertion above is about itinerary content, not a blank section.
+    expect(within(history).getAllByRole('link').length).toBeGreaterThan(0);
   });
 
   it('shows the decision for a decided run and the status for an undecided one', async () => {
@@ -280,6 +315,53 @@ describe('optimization history shows status without itinerary content', () => {
   });
 });
 
+// FE-506-T2 is "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다".
+// ProfileScreen implements all three branches for the history section
+// (isPending, isError, and an empty items list), but nothing exercised them:
+// the block above covers the default state, and "the trip list renders each of
+// its states" is a different section on the same screen. A branch that renders
+// and is never asserted is the shape this repo keeps finding.
+//
+// Offline is not a separate branch here by design - a network failure returns
+// null from toProblem and falls into the same error state (shared/api/
+// problem.ts:67), so the error case below is what covers it.
+describe('FE-506-T2 the history section renders each of its states', () => {
+  it('shows a loading state before the answer arrives', async () => {
+    server.use(
+      http.get(`${API_BASE}/optimizations`, async () => {
+        await delay('infinite');
+        return HttpResponse.json({ items: [], page: { hasMore: false } });
+      }),
+    );
+    renderProfile();
+    expect(await screen.findByText(copy['profile.history.loading'])).toBeInTheDocument();
+  });
+
+  it('says so when there is no history yet', async () => {
+    server.use(
+      http.get(`${API_BASE}/optimizations`, () =>
+        HttpResponse.json({ items: [], page: { hasMore: false } }),
+      ),
+    );
+    renderProfile();
+    expect(await screen.findByText(copy['profile.history.empty'])).toBeInTheDocument();
+  });
+
+  it('reports a failure instead of an empty history', async () => {
+    // The distinction invariant 6 asks for: "nothing here" and "we could not
+    // find out" are different answers, and showing the empty copy for a failed
+    // request tells the user something the server never said.
+    // HttpResponse.error() rather than a Problem body: this is the branch a
+    // dropped connection takes, and it is the same branch invariant-6's
+    // "데이터 부재" distinction has to survive. The trip-list error test above
+    // uses the same shape.
+    server.use(http.get(`${API_BASE}/optimizations`, () => HttpResponse.error()));
+    renderProfile();
+    expect(await screen.findByText(copy['profile.history.error'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['profile.history.empty'])).toBeNull();
+  });
+});
+
 describe('privacy rows report state instead of asking for permission', () => {
   it('says location never leaves the device and offers no toggle', async () => {
     renderProfile();
@@ -307,6 +389,56 @@ describe('privacy rows report state instead of asking for permission', () => {
     renderProfile();
     await screen.findByText(copy['profile.location.note']);
     expect(asked).toBe(false);
+  });
+});
+
+// FE-506-T3 is "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced
+// motion을 검증한다". The block below covers the screen's links in general; the
+// history rows need their own case because they are the part of S14 this card
+// owns, and a row that is a <li> with an onClick rather than a link is
+// reachable by mouse only - which is exactly what these assertions rule out.
+//
+// 360px and 200% zoom are not asserted here: jsdom computes no geometry, so
+// that half lives in e2e/responsive.spec.ts, whose SCREENS list carries
+// /profile. reduced motion has nothing to assert on this screen - it animates
+// nothing (no transition or animation in ProfileScreen.module.css).
+describe('FE-506-T3 the history rows are reachable and named', () => {
+  it('gives every openable row a name that says which run it opens', async () => {
+    renderProfile();
+    // Waits for a row: the section renders its loading state first, and
+    // getAllByRole on an empty section throws rather than proving anything.
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    const history = screen.getByRole('region', {
+      name: new RegExp(copy['profile.history.title']),
+    });
+    const rows = within(history).getAllByRole('link');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      // "Open the {date} {trip} optimization result" - the date and the trip
+      // are what distinguish one row from the next, and a screen reader user
+      // hearing "link" five times learns nothing.
+      const name = row.getAttribute('aria-label') ?? row.textContent ?? '';
+      expect(name).toMatch(/optimization result/i);
+    }
+  });
+
+  it('reaches a history row by keyboard alone', async () => {
+    const user = userEvent.setup();
+    renderProfile();
+    await screen.findByText(new RegExp(copy['profile.history.decision.APPLY']));
+    const history = screen.getByRole('region', {
+      name: new RegExp(copy['profile.history.title']),
+    });
+    const target = within(history).getAllByRole('link')[0];
+    expect(target).toBeDefined();
+
+    // Tabs until the row takes focus rather than assuming its position: the
+    // trip list above it varies with the fixture, so a fixed count would be a
+    // test of the fixture and not of the row.
+    for (let i = 0; i < 40 && document.activeElement !== target; i += 1) {
+      await user.tab();
+    }
+    expect(target).toHaveFocus();
   });
 });
 
@@ -341,5 +473,173 @@ describe('the profile is reachable by keyboard', () => {
         'data-guide-heading',
       );
     });
+  });
+});
+
+/**
+ * FR-TRP-04: deleting a trip and everything it owns.
+ *
+ * The contract requires If-Match and Idempotency-Key on this operation, and
+ * the ETag it wants is the quoted trip version. That is why these assert the
+ * HEADERS and not just that a DELETE went out: a request without a validator
+ * is how one device's delete lands on another device's newer trip.
+ */
+describe('a trip can be deleted from the profile', () => {
+  const target = tripFixtures.page.items[0] ?? null;
+
+  /** Records what the delete actually carried; the screen-level recorder keeps no headers. */
+  function recordDelete() {
+    const seen: { ifMatch: string | null; key: string | null; url: string }[] = [];
+    server.use(
+      http.delete(`${API_BASE}/trips/:tripId`, ({ request }) => {
+        seen.push({
+          ifMatch: request.headers.get('If-Match'),
+          key: request.headers.get('Idempotency-Key'),
+          url: request.url,
+        });
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    return seen;
+  }
+
+  async function openConfirm(user: ReturnType<typeof userEvent.setup>) {
+    const card = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+    await user.click(
+      await within(card).findByRole('button', {
+        name: copy['trip.delete.open'].replace('{name}', target?.title ?? ''),
+      }),
+    );
+    return card;
+  }
+
+  it('asks before deleting, and sends nothing if the answer is no', async () => {
+    const user = userEvent.setup();
+    renderProfile();
+    await openConfirm(user);
+
+    expect(
+      await screen.findByRole('heading', { name: copy['trip.delete.title'] }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: copy['trip.delete.cancel'] }));
+
+    expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(0);
+  });
+
+  it('sends the row version as If-Match and a key with the delete', async () => {
+    const user = userEvent.setup();
+    const seen = recordDelete();
+    renderProfile();
+    await openConfirm(user);
+    await user.click(screen.getByRole('button', { name: copy['trip.delete.confirm'] }));
+
+    await waitFor(() => {
+      expect(seen).toHaveLength(1);
+    });
+    // The quoted trip version, which is what the contract defines an ETag to
+    // be. Asserted as the exact string: `"3"` and `3` are not the same header.
+    expect(seen[0]?.ifMatch).toBe(`"${String(target?.version ?? 0)}"`);
+    expect(seen[0]?.key).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(seen[0]?.url).toContain(target?.id ?? '');
+  });
+
+  it('takes the trip out of the list and says so', async () => {
+    const user = userEvent.setup();
+    renderProfile();
+    const card = await openConfirm(user);
+    await user.click(screen.getByRole('button', { name: copy['trip.delete.confirm'] }));
+
+    // The row goes. This is only meaningful because the msw handler actually
+    // drops it from the list it serves.
+    await waitFor(() => {
+      expect(
+        within(card).queryByRole('link', { name: new RegExp(target?.title ?? '') }),
+      ).not.toBeInTheDocument();
+    });
+    // And the outcome is announced somewhere that OUTLIVES the deleted row.
+    expect(
+      await screen.findByText(
+        copy['trip.delete.deleted'].replace('{name}', target?.title ?? ''),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('reports a conflict instead of retrying when the trip moved on', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.delete(`${API_BASE}/trips/:tripId`, () => problemResponse('TRIP_CHANGED')),
+    );
+    renderProfile();
+    await openConfirm(user);
+    await user.click(screen.getByRole('button', { name: copy['trip.delete.confirm'] }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      copy['trip.delete.conflict'],
+    );
+    // Nothing was deleted, so the row is still there to try again on.
+    const card = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+    expect(
+      within(card).getByRole('link', { name: new RegExp(target?.title ?? '') }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('the trip count does not present one page as the total', () => {
+  // `TripPage` has no total — `items.length` counts the page in hand. Past the
+  // first page that number is smaller than the list it labels, and unlike the
+  // candidates case there is no second screen to contradict it, so nothing on
+  // screen reveals the gap. `hasMore` is the contract's own way of saying the
+  // page is partial; where it is true the figure is withheld rather than
+  // guessed, which is the same rule the rest of this app follows for a number
+  // the contract cannot source.
+  it('shows the count while this page is the whole set', async () => {
+    renderProfile();
+    const section = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+
+    // The default fixture is a complete page.
+    expect(tripFixtures.page.page.hasMore).toBe(false);
+
+    // Counted from what actually rendered, not from the fixture: the mock trip
+    // list is stateful (a delete removes a row), so an earlier test in this
+    // file can leave fewer trips than the fixture declares and a literal would
+    // make this pass or fail on test ORDER rather than on the behaviour.
+    const rows = await within(section).findAllByRole('link');
+    expect(
+      within(section).getByText(
+        copy['profile.trips.count'].replace('{count}', String(rows.length)),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('withholds it when the page is only part of the list', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips`, () =>
+        HttpResponse.json({
+          ...tripFixtures.page,
+          page: { ...tripFixtures.page.page, hasMore: true, nextCursor: 'more' },
+        }),
+      ),
+    );
+    renderProfile();
+    const section = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+    // The list still renders — only the claim about the total is dropped.
+    const rows = await within(section).findAllByRole('link');
+    expect(rows.length).toBeGreaterThan(0);
+
+    expect(
+      within(section).queryByText(
+        copy['profile.trips.count'].replace('{count}', String(rows.length)),
+      ),
+    ).toBeNull();
   });
 });

@@ -75,7 +75,8 @@
         "createDemoSession"
       ],
       "featureIds": [
-        "FR-SES-01"
+        "FR-SES-01",
+        "FR-SES-02"
       ],
       "figmaNodes": [],
       "designRequests": [],
@@ -308,7 +309,8 @@
         "FR-PRO-01",
         "FR-PRO-02",
         "FR-PRO-03",
-        "FR-SES-04"
+        "FR-SES-04",
+        "FR-TRP-04"
       ],
       "figmaNodes": [
         "422:2925"
@@ -456,7 +458,8 @@
         "FR-TRC-02",
         "FR-TRC-03",
         "FR-TRC-09",
-        "FR-TRC-10"
+        "FR-TRC-10",
+        "FR-TRC-12"
       ],
       "figmaNodes": [
         "438:3012",
@@ -553,7 +556,8 @@
       ],
       "featureIds": [
         "FR-FED-01",
-        "FR-FED-02"
+        "FR-FED-02",
+        "FR-FED-03"
       ],
       "figmaNodes": [
         "391:310",
@@ -638,7 +642,7 @@
       "phase": "B04",
       "priority": "P0",
       "title": "S03-C1~C4, S06 sheet, saved/duplicate/error variant",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-202",
         "BA-034"
@@ -683,7 +687,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "T1 is proven in apps/web/src/app/feed/__tests__/feed.test.tsx (the save half: an already-saved place is told from a new one, and no TripItem is created). T2 and T3 are in src/shared/ui/components/__tests__/trip-picker.test.tsx (loading, empty-with-create and failed-with-retry each render as themselves; opens focused on Cancel, closes on Escape, rows named by title and dates), and T3 is also measured at 360px and 200% zoom by e2e/sheet-responsive.spec.ts. Dismiss is deliberately not a separate screen state: CandidateIT shows the server answers a re-save of a dismissed candidate with 201 and duplicate:false, so the screen must not tell those apart."
     },
     {
       "id": "FE-301",
@@ -899,7 +904,9 @@
         "FR-ITM-03",
         "FR-ITM-05",
         "FR-ITM-07",
-        "FR-ITM-08"
+        "FR-ITM-08",
+        "FR-ITM-04",
+        "FR-ITM-06"
       ],
       "figmaNodes": [
         "527:4085",
@@ -951,7 +958,8 @@
         "updateTrip"
       ],
       "featureIds": [
-        "FR-TRP-05"
+        "FR-TRP-05",
+        "FR-CON-06"
       ],
       "figmaNodes": [
         "411:1837"
@@ -1163,7 +1171,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "오류 6종·stale·no improvement 상태",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-502",
         "BA-050"
@@ -1300,16 +1308,20 @@
       "phase": "B07",
       "priority": "P0",
       "title": "browser-first 한국어 parser와 correction UI",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-102",
         "BA-060"
       ],
       "operations": [
-        "parseTripImport"
+        "parseTripImport",
+        "remapTripImport",
+        "confirmTripImport"
       ],
       "featureIds": [
-        "FR-TRC-06"
+        "FR-TRC-06",
+        "FR-TRC-07",
+        "FR-TRC-09"
       ],
       "figmaNodes": [
         "401:1221"
@@ -1337,7 +1349,8 @@
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
-      "reviewer": "BE_AI_DRI"
+      "reviewer": "BE_AI_DRI",
+      "note": "T1 is the privacy sweep in apps/web/src/app/trip-create/__tests__/import-paste.test.tsx: the raw text appears in the parse body and in no URL, header, other request body, response or DOM. T2 was the one FE-104 acceptance with no testcase carrying its ID and is now the state block in that file, mapping the clause onto a mutation screen (no query cache by design, so there is no background-refresh state to assert). Writing it found a real gap rather than documenting a finished one: a READY draft with zero items rendered an empty review list over an enabled 여행으로 만들기, so ImportPasteScreen gained a nothingRead branch and import.empty, which existed in both locales and was rendered nowhere, is now used. Mutation-checked: forcing nothingRead false reddens exactly that one case. T3 is covered by e2e/screens.ts naming /start/import so responsive.spec measures it."
     },
     {
       "id": "FE-601",
@@ -1543,6 +1556,90 @@
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-603",
+      "phase": "B08",
+      "priority": "P0",
+      "title": "공모전 준수 REQUIRED 행을 기계가 지키게 한다 (CMP-LOC-002·ATT-001·ATT-002·ATT-003)",
+      "status": "integration-ready",
+      "dependsOn": [
+        "FE-601"
+      ],
+      "operations": [],
+      "featureIds": [],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "제출 build에서 geolocation·permission prompt·좌표 전송이 0건임을 앱 전체 화면에서 검증한다",
+        "ship하는 이미지가 허용 목록과 정확히 일치하고 각 항목에 사유가 있는지 검사한다",
+        "TourAPI가 provider display name 없이 단독으로 나타나면 실패시킨다",
+        "sourceAttribution을 읽는 모든 파일이 DataAttribution을 렌더하는지 정적으로 대조하고, 대상이 0건이면 실패시킨다"
+      ],
+      "safety": "위치 capability는 OFF이고 geolocation API·permission prompt·좌표 request를 만들지 않는다. 승인되지 않은 기관 CI/BI image를 ship하지 않고, 출처 문구는 승인된 텍스트를 그대로 표시한다.",
+      "tests": [
+        {
+          "id": "FE-603-T1",
+          "assertion": "모든 P0 화면에서 geolocation 호출·permission prompt·좌표 전송이 0건이다"
+        },
+        {
+          "id": "FE-603-T2",
+          "assertion": "ship하는 이미지가 허용 목록과 정확히 일치하고 외부 origin을 코드에서 지목하지 않는다"
+        },
+        {
+          "id": "FE-603-T3",
+          "assertion": "TourAPI가 provider display name 없이 단독으로 표기되지 않는다"
+        },
+        {
+          "id": "FE-603-T4",
+          "assertion": "sourceAttribution을 읽는 파일이 전부 DataAttribution을 렌더하고 측정 대상이 0건이 아니다"
+        }
+      ],
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-604",
+      "phase": "B08",
+      "priority": "P0",
+      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003)",
+      "status": "blocked",
+      "reason": "다섯 행 모두 배포된 제출 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못하고, 심사 녹화·smoke·스크린샷은 그 URL이 서기 전에는 촬영 자체가 불가능하다. 안전 기본값: 그 전까지 이 다섯 행은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다. BA-071(staging)이 서면 해제된다.",
+      "dependsOn": [
+        "FE-603",
+        "BA-071"
+      ],
+      "operations": [],
+      "featureIds": [
+        "FR-OPS-12"
+      ],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "배포 URL에서 session·shell E2E를 재실행해 익명 접속으로 핵심 흐름이 완결되는지 확인한다",
+        "외부망 익명창에서 심사 흐름을 녹화하고 360px·200% zoom 접근성 조건을 함께 만족하는지 기록한다",
+        "촬영 대상 화면 목록을 사전 확정하고 준비 중 화면과 개인 입력이 담긴 화면을 제외한다",
+        "배포 직후 smoke를 돌려 제출 직전 상태를 증거로 남긴다"
+      ],
+      "safety": "준비 중 화면과 P1 기능을 구현 완료로 제출하지 않는다. 촬영물에 개인 입력·붙여넣기 원문·좌표가 남지 않게 하고, 로그인 없이 완결되는 흐름만 증거로 쓴다.",
+      "tests": [
+        {
+          "id": "FE-604-T1",
+          "assertion": "배포 URL에서 로그인 없이 핵심 흐름이 완결된다"
+        },
+        {
+          "id": "FE-604-T2",
+          "assertion": "외부망 익명 접속에서 360px·200% zoom 조건을 만족한다"
+        },
+        {
+          "id": "FE-604-T3",
+          "assertion": "촬영 목록에 준비 중 화면과 개인 입력 화면이 포함되지 않는다"
+        }
+      ],
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003 다섯 행을 이 카드가 소유한다. 셋은 responsive.spec·session.spec·shell.spec이 뼈대를 이미 갖고 있어 배포 URL에 겨누기만 하면 된다. 마감 2026-09-21 16:00.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     }

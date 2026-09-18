@@ -58,7 +58,12 @@ function fail(error: unknown, response: Response): never {
   throw new Error(`Request failed with status ${String(response.status)}`);
 }
 
-async function bootstrapSession(): Promise<SessionBootstrap> {
+/**
+ * Mints or resumes the anonymous session. Exported so AppShell can run it as
+ * the SAME query the splash screen owns — one key, one in-flight request, which
+ * is what the contract's "at most one new session per page load" needs.
+ */
+export async function bootstrapSession(): Promise<SessionBootstrap> {
   const { data, error, response } = await getApiClient().POST('/demo/sessions', {});
   if (!data) fail(error, response);
   csrfToken = data.csrfToken;
@@ -165,6 +170,7 @@ type UpdatePreferencesRequest = components['schemas']['UpdatePreferencesRequest'
  * choice did not reach the server.
  */
 export function useUpdatePreferences() {
+  const queryClient = useQueryClient();
   return useMutation<OwnerProfile, Problem | Error, UpdatePreferencesRequest>({
     mutationFn: async (patch) => {
       const { data, error, response } = await getApiClient().PATCH('/me', {
@@ -176,6 +182,24 @@ export function useUpdatePreferences() {
       });
       if (!data) fail(error, response);
       return data;
+    },
+    onSuccess: (owner) => {
+      // The bootstrap entry holds the owner profile, and for `activeTripId`
+      // that cache IS the source of truth — AppShell reads it to decide where
+      // the 내 여행 tab goes. Leaving it stale means the tab keeps sending the
+      // traveller to the fallback until the next full load.
+      //
+      // Written from the RESPONSE rather than from the patch: a merge patch
+      // says what changed, and the server answers with the whole profile after
+      // applying it. Merging the request instead would copy a value the server
+      // may have rejected or normalised.
+      //
+      // setQueryData, not invalidateQueries: bootstrapping again would POST
+      // /demo/sessions, and `useSessionBootstrap` exists precisely to keep that
+      // to one call per load (a repeat mints a second anonymous owner).
+      queryClient.setQueryData<SessionBootstrap>(sessionQueryKey, (current) =>
+        current ? { ...current, owner } : current,
+      );
     },
   });
 }
@@ -753,6 +777,53 @@ export function useUpdateTrip(tripId: string | null) {
   });
 }
 
+/**
+ * Deletes a trip and everything it owns (FR-TRP-04).
+ *
+ * 204 with no body, so success is read from the status rather than from data —
+ * `if (!data) fail(...)`, the shape every other trip hook uses, would treat a
+ * successful delete as a failure. useUnsavePost is the precedent.
+ *
+ * The ETag comes from `TripSummary.version`, not from a prior getTrip. The
+ * contract defines the header as the quoted trip version (`"7"`,
+ * `^"[1-9][0-9]*"$`), so the list row already holds everything If-Match needs
+ * and the profile can delete without fetching each trip first. If that
+ * derivation ever stops holding, this sends a stale validator and the server
+ * answers 409 — it fails closed, which is the point of invariant 6.
+ *
+ * The Idempotency-Key is minted by the CALLER for the same reason it is on
+ * reorder: a retry of the same user action must reuse the key, and a key minted
+ * in here would be fresh on every attempt, turning one destructive command into
+ * two.
+ *
+ * On success the trip's own cache entry is REMOVED rather than invalidated.
+ * Invalidating asks for it again, and the next fetch is a 404 for a resource
+ * the user deliberately destroyed.
+ */
+export function useDeleteTrip() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Problem | Error,
+    { tripId: string; etag: string; idempotencyKey: string }
+  >({
+    mutationFn: async ({ tripId, etag, idempotencyKey }) => {
+      const { error, response } = await getApiClient().DELETE('/trips/{tripId}', {
+        params: {
+          path: { tripId },
+          header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+        },
+      });
+      if (response.status !== 204) fail(error, response);
+    },
+    onSuccess: (_result, { tripId }) => {
+      queryClient.removeQueries({ queryKey: tripQueryKey(tripId) });
+      queryClient.removeQueries({ queryKey: candidatesQueryKey(tripId) });
+      void queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+  });
+}
+
 type CandidatePage = components['schemas']['CandidatePage'];
 type CandidateMatchResult = components['schemas']['CandidateMatchResult'];
 type AddTripItemRequest = components['schemas']['AddTripItemRequest'];
@@ -1222,21 +1293,39 @@ type CandidateSaveResult = components['schemas']['CandidateSaveResult'];
  * Carries an Idempotency-Key because a repeated submit must not save the place
  * twice; the server answers 200 with `duplicate: true` when it already exists.
  */
+/**
+ * Saves a place as a candidate of a trip (FR-CAN-01).
+ *
+ * The trip can be given per call, not only at hook level. That is not a
+ * convenience: a screen where the user PICKS the trip binds this hook while
+ * the choice is still unmade, so a hook-level id is whatever was selected at
+ * render time. It worked only because the state update happened to re-render
+ * before the async mutationFn dereferenced the rebuilt closure — a race with
+ * a benign outcome today and no test able to see it, because the argument the
+ * caller passed was inert (#FR-CAN-01 audit).
+ *
+ * Passing `tripId` in the variables makes the caller's choice the thing that
+ * is actually sent, so a test that picks the second trip fails when the code
+ * sends the first.
+ */
 export function useAddTripCandidate(tripId: string | null) {
   const queryClient = useQueryClient();
   return useMutation<
     CandidateSaveResult,
     Problem | Error,
-    { request: AddCandidateRequest; idempotencyKey: string }
+    { request: AddCandidateRequest; idempotencyKey: string; tripId?: string }
   >({
-    mutationFn: async ({ request, idempotencyKey }) => {
-      if (tripId === null) throw new Error('No trip selected');
+    mutationFn: async ({ request, idempotencyKey, tripId: target }) => {
+      // The call's own trip wins; the hook-level one is the default for
+      // screens whose trip comes from the route and cannot change mid-flight.
+      const id = target ?? tripId;
+      if (id === null) throw new Error('No trip selected');
       const { data, error, response } = await getApiClient().POST(
         '/trips/{tripId}/candidates',
         {
           body: request,
           params: {
-            path: { tripId },
+            path: { tripId: id },
             header: { 'Idempotency-Key': idempotencyKey },
           },
         },
@@ -1244,11 +1333,136 @@ export function useAddTripCandidate(tripId: string | null) {
       if (!data) fail(error, response);
       return data;
     },
-    onSuccess: () => {
-      if (tripId === null) return;
+    onSuccess: (_result, variables) => {
+      // Invalidate the list of the trip that was actually written to. Using
+      // the hook-level id here would refresh the wrong trip's candidates
+      // whenever the caller saved into a different one.
+      const id = variables.tripId ?? tripId;
+      if (id === null) return;
       // The itinerary is untouched by construction, so only the candidate list
       // is refetched.
-      void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(tripId) });
+      void queryClient.invalidateQueries({ queryKey: candidatesQueryKey(id) });
+    },
+  });
+}
+
+type ImportDraft = components['schemas']['ImportDraft'];
+type ParseImportRequest = components['schemas']['ParseImportRequest'];
+type RemapImportRequest = components['schemas']['RemapImportRequest'];
+type ConfirmImportRequest = components['schemas']['ConfirmImportRequest'];
+
+/** A draft and the ETag its next mutation has to send back. */
+export interface ImportDraftWithETag {
+  draft: ImportDraft;
+  etag: string | null;
+}
+
+/**
+ * Turns pasted itinerary text into a structured draft (FR-TRC-08, FE-104).
+ *
+ * The raw text is a request body and nothing else. It is never put in a query
+ * string, a cache key, a log line or an analytics event, and the contract says
+ * the response must not echo it back — invariant 10 is the reason this
+ * operation exists in this shape at all. That is also why the draft is NOT
+ * written into the query cache here: a cache entry is a copy that outlives the
+ * request, and the only thing the screen needs is the value this returns.
+ *
+ * Carries an Idempotency-Key minted by the caller, so a retry after a lost
+ * response re-reads the same parse instead of starting a second one.
+ */
+export function useParseTripImport() {
+  return useMutation<
+    ImportDraftWithETag,
+    Problem | Error,
+    { request: ParseImportRequest; idempotencyKey: string }
+  >({
+    mutationFn: async ({ request, idempotencyKey }) => {
+      const { data, error, response } = await getApiClient().POST('/trip-imports/parse', {
+        body: request,
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
+      });
+      if (!data) fail(error, response);
+      return { draft: data, etag: response.headers.get('ETag') };
+    },
+  });
+}
+
+/**
+ * Corrects what the parser could not place (FR-TRC-08).
+ *
+ * `updates` is a partial patch per clientKey where an absent field means
+ * "leave alone", so this sends only what the user actually changed. The one
+ * field that is not a value correction is `dismissed`: it withdraws a token or
+ * an item instead of resolving it (#223), which is how a line the parser could
+ * not place stops blocking READY. Without it a draft containing a free-memo
+ * line could never reach confirm — the dead end FCR-019 recorded.
+ *
+ * If-Match is required and required here: the draft version advances on every
+ * remap, and a blind PATCH would overwrite a correction made in another tab.
+ * A 410 means the draft expired, which is not retryable — the paste is gone
+ * and the user has to start again (problem-policy: `repaste`).
+ */
+export function useRemapTripImport(draftId: string | null) {
+  return useMutation<
+    ImportDraftWithETag,
+    Problem | Error,
+    { updates: RemapImportRequest['updates']; etag: string | null }
+  >({
+    mutationFn: async ({ updates, etag }) => {
+      if (draftId === null) throw new Error('No import draft');
+      if (etag === null) throw new Error('Cannot correct a draft without its ETag');
+      const { data, error, response } = await getApiClient().PATCH(
+        '/trip-imports/{draftId}',
+        {
+          body: { updates },
+          params: { path: { draftId }, header: { 'If-Match': etag } },
+        },
+      );
+      if (!data) fail(error, response);
+      return { draft: data, etag: response.headers.get('ETag') };
+    },
+  });
+}
+
+/**
+ * Turns a reviewed draft into a real trip (FR-TRC-09).
+ *
+ * One atomic transaction on the server (invariant 5): either the trip and all
+ * of its mapped items exist, or none of them do. The client's part is to send
+ * both guards the contract asks for — If-Match so a draft edited elsewhere
+ * cannot be confirmed from a stale view, and an Idempotency-Key so a retry
+ * after a lost response does not create a second trip.
+ *
+ * The trip list is invalidated rather than written: this returns the new trip,
+ * but `listTrips` is a separate cursor-paged resource and guessing where the
+ * new row belongs in it is how a list starts disagreeing with the server.
+ */
+export function useConfirmTripImport(draftId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    TripWithETag,
+    Problem | Error,
+    { request: ConfirmImportRequest; etag: string | null; idempotencyKey: string }
+  >({
+    mutationFn: async ({ request, etag, idempotencyKey }) => {
+      if (draftId === null) throw new Error('No import draft');
+      if (etag === null) throw new Error('Cannot confirm a draft without its ETag');
+      const { data, error, response } = await getApiClient().POST(
+        '/trip-imports/{draftId}/confirm',
+        {
+          body: request,
+          params: {
+            path: { draftId },
+            header: { 'If-Match': etag, 'Idempotency-Key': idempotencyKey },
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return { trip: data, etag: response.headers.get('ETag') };
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(tripQueryKey(result.trip.id), result);
+      void queryClient.invalidateQueries({ queryKey: ['trips'] });
     },
   });
 }

@@ -111,6 +111,68 @@ class FrontendPlanTests(unittest.TestCase):
             lambda plan: plan['tasks'][5].update(status='verified'),
             'verified requires report')
 
+    def check_report(self, report_body, expected, *, filename='report.xml'):
+        """A verified card whose evidence points at `report_body`, written to the temp root.
+
+        check_mutation cannot serve this: it copies a fixed list of canonical files
+        and the report has to be a new one, varying per test.
+        """
+        plan = copy.deepcopy(self.plan)
+        task = plan['tasks'][5]
+        task['status'] = 'verified'
+        task['evidence'] = {
+            'report': filename,
+            'contractSha': 'a' * 40,
+            'reviewer': 'FE_DRI',
+            'testIds': [t['id'] for t in task['tests']],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for relative in (
+                'docs/product/FUNCTIONAL_INVENTORY.md',
+                'docs/design/FIGMA_HANDOFF.md',
+                'docs/api/openapi.yaml',
+                'docs/engineering/backend-plan.json',
+            ):
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, destination)
+            (root / PLAN).write_text(json.dumps(plan, ensure_ascii=False), encoding='utf-8')
+            (root / filename).write_text(report_body, encoding='utf-8')
+            errors: list[str] = []
+            validate(root, errors)
+        if expected is None:
+            self.assertEqual([], errors)
+        else:
+            self.assertTrue(any(expected in error for error in errors), errors)
+
+    def test_verified_report_must_be_a_junit_report(self):
+        # #208: the path resolving is not the same as the path being a report. A
+        # card pointed at frontend-plan.json itself passed the whole gate.
+        self.check_report('{"not": "junit"}', 'not a JUnit report with testcases')
+
+    def test_verified_report_with_no_testcases_is_rejected(self):
+        # Well-formed XML and zero testcases is the shape a skipped or crashed run
+        # leaves behind, and it would otherwise satisfy every ID lookup vacuously.
+        self.check_report('<testsuite name="empty" tests="0"></testsuite>',
+                          'not a JUnit report with testcases')
+
+    def test_verified_report_must_name_the_claimed_tests(self):
+        # The asymmetry #208 reported: evidence.testIds was only ever compared with
+        # the card's own tests[], and both live in the same file.
+        self.check_report(
+            '<testsuite><testcase classname="other" name="something else"/></testsuite>',
+            'is not named by any testcase')
+
+    def test_verified_report_naming_the_tests_is_accepted(self):
+        # The positive control. Without it the three above could pass because the
+        # check rejects everything, which would be a different bug.
+        plan_task = self.plan['tasks'][5]
+        cases = ''.join(
+            f'<testcase classname="suite" name="{t["id"]} does the thing"/>'
+            for t in plan_task['tests'])
+        self.check_report(f'<testsuite>{cases}</testsuite>', None)
+
     def test_blocked_without_reason_is_rejected(self):
         self.check_mutation(
             lambda plan: plan['tasks'][5].update(status='blocked'),

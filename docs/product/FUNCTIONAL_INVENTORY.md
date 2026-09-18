@@ -24,7 +24,7 @@ tags:
 
 | ID | Pri | 요구사항 | Figma | API/event | 핵심 acceptance |
 | --- | --- | --- | --- | --- | --- |
-| FR-ONB-01 | P0 | splash에서 session/readiness를 bootstrap | `388:257` | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner` | blank/redirect loop 없음, retry 제공 |
+| FR-ONB-01 | P0 | splash에서 session/readiness를 bootstrap | `388:257` | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner` | blank/redirect loop 없음, retry 제공, 성공 redirect는 brand 최소 표시 하한선 뒤(실패·reduced-motion은 즉시) |
 | FR-ONB-02 | P0 | 한국어·English 선택/저장, 日本語·中文 준비 중 표시 | `388:277` | `updatePreferences` | KO/EN copy·format 전환, JA/ZH는 선택/저장 불가 |
 | FR-ONB-03 | P0 | intro 계속/건너뛰기 | `388:321` | `onboarding_completed` | 완료 후 재방문 redirect |
 | FR-SES-01 | P0 | 가입 없는 익명 owner/session | A-1 | `createDemoSession` | Secure/HttpOnly cookie, owner 격리 |

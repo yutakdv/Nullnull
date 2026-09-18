@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -70,6 +70,12 @@ export function ReplaceSheet({
   onCancel,
 }: ReplaceSheetProps) {
   const { t } = useI18n();
+  // Unique per instance, not a literal: this screen mounts one sheet PER trip
+  // item, so a hardcoded id put the same value on every dialog in the document.
+  // getElementById returns the first match, so every sheet after the first was
+  // labelled by another item's heading — a screen reader announced the wrong
+  // place. ConfirmDialog already does it this way.
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -116,7 +122,7 @@ export function ReplaceSheet({
 
   return (
     <dialog
-      aria-labelledby="replace-title"
+      aria-labelledby={titleId}
       className={styles.sheet}
       onCancel={(event) => {
         event.preventDefault();
@@ -137,7 +143,7 @@ export function ReplaceSheet({
         <span aria-hidden="true" className={styles.grab} />
 
         <div className={styles.head}>
-          <h2 className={styles.title} id="replace-title">
+          <h2 className={styles.title} id={titleId}>
             {t('replace.title')}
           </h2>
           <button

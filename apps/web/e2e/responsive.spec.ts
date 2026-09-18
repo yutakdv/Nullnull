@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { overflow } from './overflow.js';
 import { SCREENS } from './screens.js';
 
 // FE-601: every built P0 screen must survive 360px, 200% zoom and long copy.
@@ -12,87 +13,7 @@ import { SCREENS } from './screens.js';
 // `body { min-width: 360px }` floor -- which forced a horizontal scrollbar at
 // exactly the zoom level the accessibility rule requires us to support.
 
-/** Elements wider than the viewport, and text clipped by its own box. */
-async function overflow(page: import('@playwright/test').Page) {
-  return page.evaluate(() => {
-    const spilling: string[] = [];
-    const clipped: string[] = [];
-    /**
-     * Whether some ancestor is a row that deliberately scrolls sideways.
-     *
-     * Such a row satisfies WCAG 1.4.10: the PAGE still does not scroll, and
-     * the user reaches the rest of the row without a second axis of page
-     * scrolling. The trip day selector is built that way on purpose
-     * (TripScreen.module.css `.dayNav`), so its chips sit past the viewport
-     * edge by design. The `clipped` check below already made this
-     * distinction; `spilling` did not, so every scrolling row read as an
-     * overflow failure once the screens had data to render.
-     *
-     * A container that only asked for `overflow-y: auto` does NOT count.
-     * CSS computes the other axis to `auto` as well, so the scroll container
-     * wrapping the whole app (AppShell's `.main`) reports `overflow-x: auto`
-     * without anyone writing it — and accepting that would suppress every
-     * genuine overflow on every screen, leaving the assertion unable to fail.
-     * The marker below is therefore opt-in: a row that means to scroll
-     * sideways says so with `data-scrolls-x`.
-     */
-    const insideScroller = (node: HTMLElement) => {
-      for (let p = node.parentElement; p; p = p.parentElement) {
-        if (p.dataset.scrollsX !== undefined) return true;
-      }
-      return false;
-    };
-    for (const el of document.querySelectorAll('*')) {
-      const node = el as HTMLElement;
-      const box = node.getBoundingClientRect();
-      if (box.right > window.innerWidth + 1 && !insideScroller(node)) {
-        spilling.push(
-          `<${node.tagName.toLowerCase()}> reaches ${Math.round(box.right)}px`,
-        );
-      }
-      // Visually hidden text is clipped on purpose; it is not on screen.
-      const hidden = getComputedStyle(node).clipPath.startsWith('inset(50%');
-      const scrolls = getComputedStyle(node).overflowX !== 'visible';
-      if (
-        !hidden &&
-        !scrolls &&
-        node.children.length === 0 &&
-        node.scrollWidth > node.clientWidth + 1
-      ) {
-        clipped.push(`"${(node.textContent ?? '').trim().slice(0, 24)}" is cut off`);
-      }
-    }
-    // Named so a failure says which element was wide, not just that one was.
-    const widest = [...document.querySelectorAll('*')]
-      .map((el) => {
-        const node = el as HTMLElement;
-        return {
-          label: `<${node.tagName.toLowerCase()}> "${(node.textContent ?? '').trim().slice(0, 20)}"`,
-          width: Math.max(
-            node.scrollWidth,
-            Math.round(node.getBoundingClientRect().width),
-          ),
-        };
-      })
-      // Compared against the document's own client width, not innerWidth:
-      // when the page is wider than the viewport innerWidth grows with it, and
-      // then nothing measures as too wide even though something is.
-      .filter((entry) => entry.width > document.documentElement.clientWidth)
-      .sort((a, b) => b.width - a.width)
-      .slice(0, 3)
-      .map((entry) => `${entry.label} ${String(entry.width)}px`);
-
-    return {
-      documentWidth: document.documentElement.scrollWidth,
-      viewportWidth: window.innerWidth,
-      spilling,
-      clipped,
-      widest,
-    };
-  });
-}
-
-test.describe('at 360px, the narrowest designed width', () => {
+test.describe('FE-601-T1 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} fits`, async ({ page }) => {
       await page.goto(screen.path);
@@ -136,7 +57,7 @@ test.describe('at 200% zoom, where the viewport halves', () => {
   }
 });
 
-test.describe('with English copy, which runs longer than the Korean', () => {
+test.describe('FE-601-T2 with English copy, which runs longer than the Korean', () => {
   test.use({ locale: 'en-US' });
   for (const screen of SCREENS) {
     test(`${screen.name} holds the longer strings`, async ({ page }) => {
@@ -150,7 +71,17 @@ test.describe('with English copy, which runs longer than the Korean', () => {
   }
 });
 
-test.describe('keyboard and motion', () => {
+// Several cards share one clause here: FE-001-T2, FE-002-T2, FE-003-T2 and
+// FE-004-T2 are word-for-word "keyboard 이동·focus 복귀·접근성 이름과
+// 360px·200% zoom·reduced motion을 검증한다", and this block runs exactly that
+// over every screen in SCREENS. One test proving a clause of several cards is
+// normal (AGENTS.md registration rule 2); what is not allowed is a clause with
+// no name the aggregator can read, which is what these four had.
+//
+// The scaffold cards own no screen of their own - FE-001 is the router shell,
+// FE-002 the tokens, FE-003 the error mapper, FE-004 the offline shell - so
+// their keyboard-and-reflow clause can only be shown across the whole set.
+test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 keyboard and motion', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);

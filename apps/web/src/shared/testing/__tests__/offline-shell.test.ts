@@ -23,7 +23,7 @@ const manifest = JSON.parse(
   scope: string;
 };
 
-describe('the offline shell never caches API data', () => {
+describe('FE-004-T1 the offline shell never caches API data', () => {
   // The worker is evaluated in a fake ServiceWorkerGlobalScope and its real
   // fetch handler is driven, because reading the source for the right `if`
   // proves nothing: commenting that line out still leaves the text present.

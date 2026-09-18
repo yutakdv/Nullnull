@@ -17,7 +17,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
@@ -146,7 +146,68 @@ describe('FE-502-T1 polling follows the run and then stops', () => {
   );
 });
 
-describe('FE-502-T1 nothing here changes the itinerary', () => {
+// Two card IDs on one describe, deliberately. FE-504 owns "오류 6종·stale·no
+// improvement가 각각 구분되고 APPLY를 유도하지 않는다" and FE-502 owns the
+// polling screen those cases live on; one test proving a clause of each card is
+// normal, and the aggregator reads IDs out of the test name, so a clause proven
+// under only the other card's ID is invisible to it.
+//
+// Added after comparing each clause against these bodies rather than copying
+// the ID across: the seven contract failure codes each have their own message
+// (verified against OptimizationFailure's enum), `run.unchanged` is asserted on
+// a failed run, recompute is offered only when the contract marks the failure
+// retryable, and 360px/200% zoom for this screen is covered by responsive.spec
+// (its SCREENS list includes /optimizations/{runId}).
+// FE-502-T1's other clause: "polling이 background 복귀 후 재개된다".
+//
+// The resume is react-query's behaviour, not ours: `refetchIntervalInBackground`
+// defaults to false, so the interval pauses while the tab is hidden and runs
+// again when it comes back. A test that drove visibilitychange would be testing
+// the library.
+//
+// What IS ours is the pair of defaults that produce it, and either one can be
+// turned off in a line. `refetchIntervalInBackground: true` would keep polling
+// a hidden tab (the battery cost the default exists to avoid), and an interval
+// that returns false for a running status would stop the poll altogether. This
+// pins both against the query's own config rather than against the clock.
+describe('FE-502-T1 a hidden tab pauses the poll and a returning one resumes it', () => {
+  it('stops asking while the tab is hidden and asks again when it returns', async () => {
+    runIs('RUNNING');
+    renderRun();
+    await screen.findByText(copy['run.running']);
+    await waitFor(
+      () => {
+        expect(polls).toBeGreaterThan(1);
+      },
+      { timeout: 3000 },
+    );
+
+    // Hide the tab. react-query's `refetchIntervalInBackground` defaults to
+    // false, so the interval stops here - that pause is what makes "resumes on
+    // return" mean anything, and it is a default this app could switch off in
+    // one line.
+    const hidden = vi.spyOn(document, 'visibilityState', 'get');
+    hidden.mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    const whileHidden = polls;
+    await new Promise((resolve) => setTimeout(resolve, 2600));
+    expect(polls, 'a hidden tab should not keep polling').toBe(whileHidden);
+
+    // And back.
+    hidden.mockReturnValue('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitFor(
+      () => {
+        expect(polls).toBeGreaterThan(whileHidden);
+      },
+      { timeout: 3000 },
+    );
+    hidden.mockRestore();
+  }, 15000);
+});
+
+describe('FE-502-T1 FE-504-T1 nothing here changes the itinerary', () => {
   it('sends no write of any kind, whatever the run says', async () => {
     const writes: string[] = [];
     const record = ({ request }: { request: Request }) => {
@@ -181,7 +242,7 @@ describe('FE-502-T1 nothing here changes the itinerary', () => {
   });
 });
 
-describe('FE-502-T2 the screen renders each of its states', () => {
+describe('FE-502-T2 FE-504-T2 the screen renders each of its states', () => {
   it('shows a queued run as waiting, not as finished', async () => {
     runIs('QUEUED');
     renderRun();
@@ -299,7 +360,11 @@ describe('FE-502-T2 the screen renders each of its states', () => {
   });
 });
 
-describe('FE-502-T3 leaving is navigation, not cancellation', () => {
+// FE-504-T3's keyboard half lives here ("reaches the back control by
+// keyboard"); its 360px/200%-zoom half is responsive.spec.ts, whose SCREENS
+// list carries this route as "optimization run". Both halves exist, so the ID
+// goes on the block that holds the part living in this file.
+describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
   it('says the run continues when the user goes back', async () => {
     // FCR-014: P0 has no cancel operation, so the screen must not imply one.
     runIs('RUNNING');

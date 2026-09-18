@@ -250,9 +250,20 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
   it('tells the user the session ended instead of loading for ever', async () => {
     expiredSession();
     renderAt('/feed');
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      messages['en-US']['session.expired'],
-    );
+    // Asserted as a HEADING, not as an alert. The sentence used to carry
+    // role="alert" on the <h1> itself, which replaced the implicit heading
+    // role and left this screen with no heading at all (#240) - the shape
+    // every h1-checking spec tripped over. The announcement now lives on a
+    // wrapping live region, so both hold.
+    // Waited for by NAME: the feed renders its own <h1> first, so asking for
+    // "the level-1 heading" matched "Browse" and failed on the frame before
+    // the session screen replaced it.
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: messages['en-US']['session.expired'],
+      }),
+    ).toBeInTheDocument();
   });
 
   it('offers the restart the contract names as the recovery', async () => {
@@ -271,7 +282,7 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
     // The recovery has to be the user's deliberate act, not an automatic one.
     expiredSession();
     renderAt('/feed');
-    await screen.findByRole('alert');
+    await screen.findByRole('heading', { level: 1 });
     expect(paths.filter((p) => p === '/api/v1/demo/sessions')).toHaveLength(0);
   });
 
@@ -302,6 +313,40 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
     expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
   });
 
+  it('does not call a FIRST VISIT an ended session', async () => {
+    // The gate's e2e failed on this for days and it read as infrastructure.
+    //
+    // On a first visit there is no cookie, so AppShell's reissue 401s by
+    // design while SplashScreen's POST /demo/sessions mints the session a
+    // moment later. Measured inside the gate's own container:
+    //
+    //   50ms  401 /api/v1/session/csrf
+    //   55ms  201 /api/v1/demo/sessions
+    //   final h1 id = session-heading        ← wrong, and it never cleared
+    //
+    // Every route rendered "세션이 만료됐어요", which is why shell.spec looked
+    // for `not-found-heading` and reported "element(s) not found" (#240).
+    //
+    // The distinction is the token, not the status: a 401 followed by a token
+    // means the bootstrap won the race and this tab is usable; a 401 with no
+    // token means the session really is gone, which the cases above pin.
+    server.use(
+      http.post(`${API_BASE}/session/csrf`, () => problemResponse('UNAUTHORIZED')),
+    );
+    renderAt('/');
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/session/csrf');
+    });
+    // The splash bootstrap supplies a token even though the reissue failed.
+    await waitFor(() => {
+      expect(currentCsrfToken()).not.toBeNull();
+    });
+    // Let any re-render settle, so this is not observing the frame before the
+    // session screen would have appeared.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
+  });
+
   it('leaves a working session alone', async () => {
     renderAt('/feed');
     // The ordinary case still renders the feed, not the session screen.
@@ -311,5 +356,70 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
     expect(
       screen.queryByRole('button', { name: messages['en-US']['session.restart'] }),
     ).toBeNull();
+  });
+});
+
+describe('BA-010 a deep link with no cookie starts a session; an ended one does not', () => {
+  // The server now says WHICH of the two a 401 is (#240). Before it did, the
+  // client could not tell them apart — the cookie is httpOnly — so a deep link
+  // onto /feed showed the session-ended screen even on a first visit, and 13
+  // e2e specs failed on exactly that.
+  //
+  // The two directions are asserted separately because widening this condition
+  // is how trips get lost: bootstrapping on an EXPIRED session mints a
+  // different anonymous owner (SessionSafetyIT.expiration) and strands every
+  // trip the traveller had. A test that only proved the happy half would let
+  // that through.
+
+  const noCookie = () =>
+    http.post(`${API_BASE}/session/csrf`, () =>
+      problemResponse('UNAUTHORIZED', {}, { missingCredential: 'SESSION_COOKIE' }),
+    );
+
+  it('bootstraps when the request carried no session cookie at all', async () => {
+    server.use(noCookie());
+    renderAt('/feed');
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/demo/sessions');
+    });
+  });
+
+  it('does not bootstrap when a cookie was sent and failed', async () => {
+    // No `missingCredential` — the contract sets it ONLY when nothing was sent,
+    // so its absence covers expired, revoked, forged and malformed alike. None
+    // of those may mint a new owner.
+    server.use(
+      http.post(`${API_BASE}/session/csrf`, () => problemResponse('UNAUTHORIZED')),
+    );
+    renderAt('/feed');
+
+    await screen.findByText(messages['en-US']['session.expired']);
+    expect(paths).not.toContain('/api/v1/demo/sessions');
+  });
+
+  it('shows the ordinary screen rather than the ended one on a first visit', async () => {
+    // The user-visible half: what made this look broken was the wrong SCREEN,
+    // not the missing request.
+    server.use(noCookie());
+    renderAt('/feed');
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/demo/sessions');
+    });
+    expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
+  });
+
+  it('starts at most one session per page load', async () => {
+    // The contract's own words: "a client should start at most one new session
+    // per page load". AppShell and SplashScreen share one queryKey, so
+    // react-query dedupes them — this pins that rather than trusting it.
+    server.use(noCookie());
+    renderAt('/feed');
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/demo/sessions');
+    });
+    expect(paths.filter((p) => p === '/api/v1/demo/sessions')).toHaveLength(1);
   });
 });

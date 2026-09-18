@@ -21,10 +21,53 @@ import { SCREENS } from './screens.js';
 //   - the wire, because a coordinate can be collected without navigator (a
 //     map SDK, an IP lookup) and sending one is the thing the rule protects
 //     against, whatever produced it
+//
+// On the wire, three shapes count as a coordinate, because a position reaches a
+// server in more than one form: a comma-joined pair (`37.5665,126.9780`), a
+// JSON field (`{"lat": …}`), and a named parameter (`?lat=…`, `&lng=…`) in
+// either a URL or a form-encoded body. The last of these was added after the
+// first two were found to miss `?lat=37.5665&lng=126.9780` entirely — see
+// COORDINATE_PARAM below for what it excludes and why the precision floor sits
+// where it does.
 
-/** Reads like a latitude/longitude pair in a URL or a body. */
+/** Reads like a latitude/longitude pair — `37.5665,126.9780` — in a URL or a body. */
 const COORDINATE = /[-+]?\d{1,3}\.\d{4,}\s*,\s*[-+]?\d{1,3}\.\d{4,}/;
+
+/** A JSON object key that names a coordinate: `{"lat": 37.5665}`. Bodies only. */
 const COORDINATE_FIELD = /"(lat|lng|latitude|longitude|coords|geo)"\s*:/i;
+
+/**
+ * A coordinate carried as a named parameter: `?lat=37.5665`, `&lng=126.9780`,
+ * or the same shape in a form-encoded body.
+ *
+ * The two patterns above could not see this. `COORDINATE` needs the pair joined
+ * by a comma, and a URL splits them across `&`; `COORDINATE_FIELD` needs JSON
+ * quoting, and it was only ever applied to bodies. So
+ * `GET /api/v1/places/nearby?lat=37.5665&lng=126.9780` — the most ordinary way
+ * to send a position — passed all three checks.
+ *
+ * What keeps this from firing on innocent traffic:
+ *
+ *   - The key must be followed IMMEDIATELY by `=`, so `latest=1` cannot match:
+ *     after `lat` comes `e`, not `=`. Same for `catalog=`, `later=`.
+ *   - The lookbehind requires the key to start at a boundary, so a longer word
+ *     ending in one of these cannot match: `translate=37.5665`, `plat=37.5665`,
+ *     `flag=` are all excluded.
+ *   - Every query parameter the contract actually defines was checked against
+ *     it: at, cursor, disposition, from, limit, source, status, to, tripId.
+ *     None matches, and none of them is a coordinate — the contract defines no
+ *     coordinate parameter at all, so a match here is a violation rather than a
+ *     tolerated case.
+ *
+ * The `\d{4,}` floor is deliberately kept from `COORDINATE`, and it is about
+ * PRECISION rather than formatting. At Seoul's latitude one decimal place is
+ * worth roughly: 2 places ±1.1km (a district), 3 places ±111m (a block),
+ * 4 places ±11m (a building). Four is where a coordinate stops describing an
+ * area and starts locating a person, which is what invariant 10 and CMP-LOC-002
+ * protect against. A coarse `region=37.5` is not the leak this guards.
+ */
+const COORDINATE_PARAM =
+  /(?<![a-z0-9_])(lat|lon|lng|latitude|longitude|coord|coords|geo|position)\s*=\s*[-+]?\d{1,3}\.\d{4,}/i;
 
 for (const screen of SCREENS) {
   test(`${screen.name} asks for no location`, async ({ page }) => {
@@ -59,7 +102,16 @@ for (const screen of SCREENS) {
       const url = request.url();
       if (!url.includes('/api/')) return;
       const body = request.postData() ?? '';
-      if (COORDINATE.test(url) || COORDINATE.test(body) || COORDINATE_FIELD.test(body)) {
+      // COORDINATE_PARAM is applied to the body as well as the URL: a
+      // form-encoded POST carries `lat=37.5665` in exactly the same shape, and
+      // checking only the URL would let the same value through by changing verb.
+      if (
+        COORDINATE.test(url) ||
+        COORDINATE.test(body) ||
+        COORDINATE_FIELD.test(body) ||
+        COORDINATE_PARAM.test(url) ||
+        COORDINATE_PARAM.test(body)
+      ) {
         leaked.push(`${request.method()} ${url}`);
       }
     });
@@ -128,7 +180,9 @@ for (const screen of SCREENS) {
   });
 }
 
-test('no screen registers a geolocation permission at all', async ({ page }) => {
+test('FE-603-T1 no screen registers a geolocation permission at all', async ({
+  page,
+}) => {
   // The capability is OFF, so even querying it is a signal the feature is
   // half-wired. Checked once rather than per screen: the Permissions API is
   // global, and a query anywhere would show up here.

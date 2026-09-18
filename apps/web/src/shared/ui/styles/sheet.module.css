@@ -1,0 +1,71 @@
+/* Shared bottom-sheet geometry (S07-10 `522:4050` and its siblings).
+ *
+ * Three sheets declared the same <dialog> geometry byte-for-byte
+ * (MoveDaySheet, ReplaceSheet, TripPicker). check-bundle-budget.mjs recorded
+ * twice that shaving declarations is not the lever here and extracting one
+ * shared module is - gzip already folds the identical bytes, so the win only
+ * appears when the rules stop being repeated at all.
+ *
+ * Measured before writing: the three modules gzip to 3,330 bytes apart and
+ * 1,982 concatenated, so roughly 1,348 is recoverable. CSS had 4 bytes of
+ * headroom against its budget.
+ *
+ * Only what is IDENTICAL in all three lives here. `.panel` and `.cancel`
+ * differ (ReplaceSheet scrolls with a gap; TripPicker's cancel carries
+ * min-width for the 44px target), so each sheet composes the base and adds
+ * its own line rather than this file growing variants nobody can see.
+ */
+
+.sheet {
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
+  max-height: 100vh;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.sheet::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.panel {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px var(--space-4) var(--space-6);
+  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--color-bg-default);
+  /* Never taller than the screen; the sheet's own list scrolls instead. */
+  max-height: 90dvh;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 14px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-sm);
+  font-weight: 700;
+}
+
+.cancel {
+  min-height: 44px;
+  margin-inline-start: auto;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-body-base);
+  font-weight: 500;
+  cursor: pointer;
+}

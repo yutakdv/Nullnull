@@ -14,7 +14,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const web = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const assets = join(web, 'dist/assets');
+// The real build by default. Overridable so the guard itself can be tested:
+// FE-602-T1 asks that an overage is REPORTED as a failure, and the only way to
+// see that without shipping an over-budget bundle is to point the check at a
+// directory built for the purpose. The gate never sets this.
+const assets = process.env.NULLNULL_BUNDLE_DIR
+  ? resolve(process.env.NULLNULL_BUNDLE_DIR)
+  : join(web, 'dist/assets');
 
 // Budgets are gzip bytes, which is what a user actually downloads.
 //
@@ -37,9 +43,58 @@ const assets = join(web, 'dist/assets');
 // is its own change with its own tests, not something to smuggle into a
 // feature slice. Measured before raising, and the check still fails when the
 // limit is passed (verified by lowering it).
+// Raised again for FE-203's trip picker (Sheet/TripPicker, C02). CSS measured
+// 8,533 against 8,400 — the third sheet in the app, and the overage is the
+// price of it existing rather than waste inside it.
+//
+// Measured before raising, and cutting was tried first: collapsing the picker's
+// own declarations recovered 11 gzip bytes of 133, because gzip already folds
+// the geometry this sheet shares with MoveDaySheet (.sheet/.panel/.head/.title/
+// .cancel are byte-identical across the two). Shaving declarations is not the
+// lever here; extracting one shared sheet module is, and that is a refactor
+// across three existing sheets with its own tests — the same call this file
+// already recorded for the repeated 44px button block, and for the same reason:
+// not something to smuggle into a feature slice.
+//
+// Headroom is deliberately small. The next sheet fails this check, which is
+// what should happen if a fourth one lands before the shared module does.
+//
+// The shared module landed (shared/ui/styles/sheet.module.css), and this file's
+// prediction was right about the lever and wrong about the size: it recovered
+// 86 gzip bytes, not the ~1,348 a naive measurement suggested. The mistake is
+// worth keeping because it is easy to repeat — `cat a b c | gzip` measures
+// "compressed apart vs together", but Vite already emits one CSS file, so the
+// duplicate bytes were being folded before the refactor started. What the
+// extraction actually removed was three ::backdrop rules becoming one.
+//
+// Raised for FE-503's optimization preview. CSS measured 8,810 against 8,900
+// with 90 bytes of headroom, and the screen needs the two components it has
+// never bundled - MetricDelta and DecisionBar are built but no screen imports
+// them, so their rules are not in the output at all (verified: `.value` and
+// `.unavailable` appear nowhere in the built CSS). Adding them measured ~462
+// gzip bytes before the screen's own module, which comparable screens put at
+// 719 (OptimizationRunScreen) to 920 (OptimizeSetupScreen).
+//
+// Cutting was tried first, again, and this time there was nothing left to cut.
+// The remaining duplication is the 44px touch-target declaration this file has
+// pointed at twice. Deleting ALL SIXTY of them - which would break the
+// accessibility rule they exist to satisfy - recovers 91 gzip bytes of 9,141.
+// gzip folds that repetition already. There is no waste inside the largest
+// modules either; they are screen content (TripScreen 1,890, TripWizardScreen
+// 1,630). So the overage is the price of the preview existing, and the honest
+// move is to raise the number rather than to shave something load-bearing.
+//
+// JS is raised in the same edit and for the same slice. It sat at 155,007 of
+// 157,000 - 1,993 bytes - while MetricDelta and DecisionBar are 4,114 bytes of
+// source that nothing imports yet, so the preview would have failed this check
+// on the JS line immediately after clearing the CSS one. Raising one of the two
+// would have bought a second late failure rather than a working slice.
+//
+// Headroom is ~15% again on both, the same fraction the 2026-09-11 re-measure
+// chose, so the next screen that doubles this app still fails the way it should.
 const BUDGETS = {
-  js: 157_000, //  measured 142,812
-  css: 8_400, //   measured   7,263
+  js: 178_000, //  measured 155,007
+  css: 10_200, //  measured   8,810
 };
 
 if (!existsSync(assets)) {

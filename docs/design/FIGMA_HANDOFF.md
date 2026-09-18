@@ -89,7 +89,7 @@ Figma page의 용도:
 
 | Figma node | 화면 | Route | 상태/동작 | 데이터/API |
 | --- | --- | --- | --- | --- |
-| `388:257` | A-1 splash | `/` | logo, bootstrap; 장기 loading이면 retry | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner`, readiness |
+| `388:257` | A-1 splash | `/` | logo, bootstrap; 성공 redirect는 mount 기준 최소 표시 하한선을 지키고 `prefers-reduced-motion: reduce`이면 하한선 없이 즉시; 장기 loading이면 retry | `createDemoSession`, `issueCsrfToken`, `getCurrentOwner`, readiness |
 | `388:277`, `643:4088` | A-2 language | `/language` | 한국어·English 선택/확정, 日本語·中文 disabled `준비 중`(`color/text/disabled` + label); `388:277`은 KO 선택, `643:4088`은 EN 선택·영문 copy variant (`FCR-001` 2026-09-07 수정, 검토 대기) | `updatePreferences(locale)`; bootstrap 전에는 local draft |
 | `388:321` | A-3 intro | `/intro` | “한국인이 진짜 가는 곳”, 계속/건너뛰기 | local onboarding state |
 
@@ -98,6 +98,11 @@ Acceptance:
 - bootstrap 실패가 빈 화면이 되지 않는다.
 - 이미 onboarding을 마친 사용자는 splash 뒤 feed로 이동한다.
 - redirect loop가 없어야 한다.
+- splash는 성공 redirect 전에 brand를 최소 시간 보여준다. Figma가 A-1을 transition이 아니라 **화면**으로 그리는데, 따뜻한 cache에서 bootstrap이 한 자릿수 ms에 끝나면 wordmark가 약 한 frame만 찍히고 사용자가 처음 보는 것은 언어 목록이 된다. 시간 값의 정본은 `apps/web/src/app/onboarding/SplashScreen.tsx`의 `MINIMUM_VISIBLE_MS`다 — 여기 숫자를 적으면 둘 중 하나가 먼저 낡는다.
+- 그 최소 시간은 **sleep이 아니라 하한선**이다. 시계는 mount에서 시작해 요청과 나란히 흐르므로 느린 bootstrap은 추가 대기가 없다. 응답 뒤에 재우면 느린 연결일수록 더 기다리게 되는데 그것은 거꾸로다.
+- 하한선은 **성공 경로에만** 건다. 실패는 alert와 retry를 즉시 보여준다 — 위의 `bootstrap 실패가 빈 화면이 되지 않는다`가 요구하는 것이고, 앱이 켜지지 않았다는 말을 들으려고 기다리게 하는 것은 그 반대다.
+- `prefers-reduced-motion: reduce`이면 하한선을 건너뛴다. 붙잡힌 splash는 animation은 아니지만 interface가 content를 붙들고 있는 시간이고, `apps/web/src/styles.css`가 이미 같은 이유로 duration을 접는다.
+- 붙잡혀 있는 동안 화면은 기동 중임을 계속 말한다(`splash.loading`). 이 자리에 brand 이름을 쓰면 wordmark 아래에 같은 단어가 한 번 더 찍힌다.
 - 한국어와 English는 P0에서 실제 UI copy·날짜·숫자 표기가 변경되고, 준비 중 언어는 focus는 받되 선택/저장되지 않는다.
 
 ### B. 탐색과 후보 저장
@@ -108,9 +113,9 @@ Acceptance:
 | `396:2926` | S03-F1 활성 여행 feed | `/feed` | active trip context, `+` 저장; 검색·bell·`팔로잉/최신` tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `GET /feed?tripId=` |
 | `398:611` | S03-D 게시물 상세 | `/posts/:postId` | 장소/근거/저장 action; `팔로우` 없음 (`FCR-002`) | `GET /posts/:postId` |
 | `399:658` | S03-C1 여행 선택 | sheet | 대상 여행 선택, 새 여행 만들기; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `GET /trips` |
-| `399:843` | S03-C2 저장 완료 | sheet/result | 후보 생성, 일정은 미변경; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `POST /trips/:id/candidates` |
-| `399:1011` | S03-C3 중복 | sheet/result | 기존 후보로 이동, row 추가 안 함; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | API `duplicate=true` 또는 200 existing |
-| `399:1179` | S03-C4 저장 오류 | sheet/error | “일정은 바뀌지 않음”, 재시도; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | Problem Details |
+| `399:843` | S03-C2 저장 완료 | toast | 후보 생성, 일정은 미변경; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | `POST /trips/:id/candidates` |
+| `399:1011` | S03-C3 중복 | toast | 기존 후보로 이동, row 추가 안 함; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | API `duplicate=true` 또는 200 existing |
+| `399:1179` | S03-C4 저장 오류 | toast | “일정은 바뀌지 않음”, 재시도; 배경 검색·bell·tab·filter chip 없음 (`FCR-002`, `FCR-003`) | Problem Details |
 | `409:1595` | S06-1 저장 sheet | reusable sheet | 피드/상세 공통 | 위와 동일 |
 
 상태 전이:
@@ -150,8 +155,8 @@ stateDiagram-v2
 | `438:3158` | S02-4B 필수 장소 | 4 | canonical POI 매핑, 검색/제거 | place search |
 | `400:1201` | S02-4C 입력 방식 | 4 | 붙여넣기/직접 입력 선택 | 없음 |
 | `401:1221` | S02-4C-A 붙여넣기 | 4 | 원문 비저장; parse 상태와 수정 제공 | import parse/remap |
-| `438:3199` | S02-4C-C 직접 입력 | 4 | 날짜별 직접 장소 구성 | place search/local draft |
-| `438:3259` | S02-5C 확인 | 5 | 구조화 결과 최종 확인 | `POST /trips` 또는 import confirm |
+| `438:3199` | S02-4C-C 직접 입력 | 4 | 날짜별 직접 장소 구성. 시간대(`오전`/`오후`)는 표시·순서 전용이고 `startTime`은 보내지 않는다 | place search/local draft |
+| `438:3259` | S02-5C 확인 | 5 | 구조화 결과 확인 **및 필수 장소 Pick 토글**(stop별 `MUST_VISIT` constraint). 혼잡도·출처는 계약 부재로 미구현(#105) | `POST /trips` 또는 import confirm |
 | `384:5673` | Final S02-5 추천 draft | result | P0 결정적 seed 일정 | trip detail |
 | `440:3244` | S02-6 AI draft | result | P1, AI 생성임과 근거 표시 | optimization P1 |
 
