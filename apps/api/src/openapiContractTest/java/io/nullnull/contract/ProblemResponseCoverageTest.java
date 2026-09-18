@@ -37,6 +37,11 @@ class ProblemResponseCoverageTest {
     private static final Pattern SECURITY_BLOCK = Pattern.compile("^ {6}security:\\s*$");
     private static final Pattern OPERATION_FIELD = Pattern.compile("^ {6}\\w+:.*$");
     private static final Pattern SECURITY_SCHEME = Pattern.compile("^\\s+-?\\s*(\\w+): \\[\\]\\s*$");
+    private static final Pattern METHOD =
+            Pattern.compile("^ {4}(get|put|post|patch|delete|head|options|trace):\\s*$");
+    /** The methods preHandle lets past without an Origin check, in its own words. */
+    private static final java.util.Set<String> SAFE_METHODS =
+            java.util.Set.of("get", "head", "options", "trace");
 
     private static List<String> contractLines() {
         String property = System.getProperty("nullnull.openapi.path");
@@ -99,6 +104,32 @@ class ProblemResponseCoverageTest {
     }
 
     /** operationId -> the security schemes it requires, in document order. */
+    /**
+     * operationId -&gt; the HTTP method it is declared under.
+     *
+     * <p>Needed because the same-origin refusal is keyed by method, not by security: {@code preHandle}
+     * asks {@code GET|HEAD|OPTIONS|TRACE} and nothing else about the operation before it can throw.
+     *
+     * <p>The method line is the one at exactly four spaces with nothing after the colon, which is what
+     * separates it from {@code x-error-codes}' entries and from any nested key.
+     */
+    private static Map<String, String> declaredMethods() {
+        Map<String, String> declared = new LinkedHashMap<>();
+        String method = null;
+        for (String line : contractLines()) {
+            Matcher verb = METHOD.matcher(line);
+            if (verb.matches()) {
+                method = verb.group(1);
+                continue;
+            }
+            Matcher header = OPERATION.matcher(line);
+            if (header.matches() && method != null) {
+                declared.put(header.group(1), method);
+            }
+        }
+        return declared;
+    }
+
     private static Map<String, List<String>> declaredSecurity() {
         Map<String, List<String>> declared = new LinkedHashMap<>();
         String operation = null;
@@ -140,16 +171,32 @@ class ProblemResponseCoverageTest {
         // every operation in the contract without proving anything.
         //
         // The rule is derived, not curated: the session filter answers 401 wherever a session is
-        // required, and the CSRF filter answers 403 (CSRF_INVALID) wherever a token is required.
-        // SessionContractTest pins the contract's security against the @NullnullOperation annotations,
-        // so reading security here is the same as reading the code. A resource owned by someone else
-        // answers 404, so 403 has exactly one producer and no operation outside CSRF declares it.
+        // required. SessionContractTest pins the contract's security against the @NullnullOperation
+        // annotations, so reading security here is the same as reading the code. A resource owned by
+        // someone else answers 404, so ownership never surfaces as 403.
+        //
+        // 403 has TWO producers, and this case knew only one of them until #170. SessionService
+        // rejects a missing or stale CSRF token wherever a token is required - that is the one it
+        // knew. But SessionHttpConfiguration.preHandle checks same-origin for EVERY non-safe method
+        // before it reads the operation's security at all, so a POST whose security is [] still
+        // answers 403 CSRF_INVALID when the Origin is wrong. SessionSafetyIT asserts exactly that
+        // against createDemoSession, whose security is [].
+        //
+        // The old derivation therefore forbade the correct declaration: adding the 403 those four
+        // operations really produce turned this case red, and that red was measured before the rule
+        // was widened rather than predicted from reading the assertion. A guard that fires precisely,
+        // on a derivation that disagrees with the code, rejects the repair as a rule violation - and
+        // a red makes people doubt their change, not the guard.
+        //
+        // The sentence this replaces said "403 has exactly one producer". That was a countable claim
+        // and one grep refuted it; a comment stating a countable fact should say how it was counted.
         //
         // Both directions matter. Missing means the client has no type for an answer it will get;
         // extra means the contract advertises a failure nothing can produce, which is the shape this
         // repository refuses elsewhere (429 has no in-application producer and is not enumerated).
         Map<String, List<String>> responses = declaredResponses();
         Map<String, List<String>> security = declaredSecurity();
+        Map<String, String> methods = declaredMethods();
         List<String> wrong = new ArrayList<>();
         int checked = 0;
         // Every operation in the contract, not only the implemented ones. The rule is derived from
@@ -166,9 +213,12 @@ class ProblemResponseCoverageTest {
                 wrong.add(operation + ": sessionCookie=" + schemes.contains("sessionCookie")
                         + " but 401 declared=" + declared.contains("401"));
             }
-            if (schemes.contains("csrfToken") != declared.contains("403")) {
-                wrong.add(operation + ": csrfToken=" + schemes.contains("csrfToken")
-                        + " but 403 declared=" + declared.contains("403"));
+            boolean nonSafe = !SAFE_METHODS.contains(methods.getOrDefault(operation, "get"));
+            boolean reaches403 = schemes.contains("csrfToken") || nonSafe;
+            if (reaches403 != declared.contains("403")) {
+                wrong.add(operation + ": 403 reachable=" + reaches403 + " (csrfToken="
+                        + schemes.contains("csrfToken") + ", non-safe method=" + nonSafe
+                        + ") but 403 declared=" + declared.contains("403"));
             }
         }
         // Non-vacuous twice over: an empty registry, or a parser that found no security at all,
