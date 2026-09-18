@@ -64,8 +64,50 @@ export function ConfirmDialog({
     if (open) return;
     const target = restoreTo.current;
     restoreTo.current = null;
+    // Nothing was captured, so this dialog has never been open — every screen
+    // that mounts one renders it closed, and moving focus here would steal it
+    // from wherever the page actually starts. trip-screen.test.tsx caught
+    // exactly that: its tab walk began one control late.
+    if (target === null) return;
     // Restored after the dialog has gone, so focus lands on a visible element.
-    if (target?.isConnected) target.focus();
+    if (target.isConnected) {
+      target.focus();
+      return;
+    }
+    // The opener has unmounted. That happens when one surface opens this
+    // dialog and closes itself doing it — a day picked inside MoveDaySheet
+    // opens the DATE-lock confirm and dismisses the sheet, so the button this
+    // captured is gone by now (#233, measured in a browser: focus fell to
+    // <body> and the next Tab restarted at the top of the page).
+    //
+    // `isConnected` refusing to focus a detached node is right; leaving focus
+    // nowhere is not. The dialog's own parent is the nearest thing still on
+    // screen that the traveller was looking at, so focus goes there and the
+    // next Tab continues from the region they were working in rather than
+    // from the document.
+    //
+    // The dialog's own previous sibling that can still take focus, rather
+    // than the parent container: marking the container with tabIndex -1
+    // changes tab traversal for every screen that mounts a dialog, and two
+    // tab-order tests caught exactly that (profile.test.tsx and
+    // trip-screen.test.tsx both went red — measured). A control that is
+    // already focusable needs no mutation at all.
+    const dialog = ref.current;
+    if (!dialog) return;
+    const focusable = dialog.parentElement?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    // The last one before this dialog in document order: the traveller was
+    // working forward through the page, so the nearest control behind them is
+    // where they left off.
+    let previous: HTMLElement | null = null;
+    for (const candidate of focusable ?? []) {
+      if (dialog.contains(candidate)) continue;
+      if (candidate.compareDocumentPosition(dialog) & Node.DOCUMENT_POSITION_FOLLOWING) {
+        previous = candidate;
+      }
+    }
+    previous?.focus();
   }, [open]);
 
   return (
