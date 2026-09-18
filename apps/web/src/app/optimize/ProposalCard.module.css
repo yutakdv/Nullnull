@@ -1,0 +1,104 @@
+/* One proposal on the run screen (S12, FE-503).
+
+   Spacing and colour come from the design tokens; nothing here hardcodes a
+   value that `src/design/tokens.css` already names. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
+  box-shadow: var(--elevation-card);
+}
+
+.summary {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 500;
+  line-height: 21px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The operation, as a word rather than a colour alone: forced colours strips
+   background and colour, and TEST_STRATEGY.md §3 requires the distinction to
+   survive that. The tint is secondary to the label. */
+.changeKind {
+  flex: none;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.changeWhen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-primary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+/* The old value reads as replaced, not deleted: a strikethrough on a time the
+   user still has to recognise makes it harder to read, and the arrow beside it
+   already says which way the change goes. */
+.before {
+  color: var(--color-text-secondary);
+}
+
+.after {
+  font-weight: 700;
+}
+
+.validation {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 15px;
+}
+
+/* Weight and wording, not colour.
+
+   There is no warning colour in the token set — `--color-text-warning` does not
+   exist, and inventing one here would put a value outside `tokens.css` that the
+   drift check cannot see. The two states already say different sentences, so
+   the distinction survives with colour removed (TEST_STRATEGY.md §3) without
+   needing a forced-colors block of its own. */
+.validation[data-ok='false'] {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
