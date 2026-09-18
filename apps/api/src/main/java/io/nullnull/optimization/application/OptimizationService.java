@@ -15,8 +15,12 @@ import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.optimization.domain.OptimizationStatus;
+import io.nullnull.optimization.domain.RevertAvailability;
 import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
+import io.nullnull.shared.cursor.CursorClaims;
+import io.nullnull.shared.cursor.CursorException;
+import io.nullnull.shared.cursor.CursorSortKey;
 import io.nullnull.shared.ids.UuidV7;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
@@ -75,6 +79,14 @@ public class OptimizationService {
      */
     static final Duration REVERT_WINDOW = Duration.ofHours(24);
 
+    /** The route template the idempotency slot is keyed by, distinct from the decide route. */
+    static final String REVERT_ROUTE = "POST /optimization-decisions/{decisionId}/revert";
+
+    /** Contract: listOptimizationHistory limit, default 20, maximum 50. */
+    private static final int DEFAULT_LIMIT = 20;
+
+    private static final int MAX_LIMIT = 50;
+
     /** How long a poll is asked to wait. One tick of the worker's poll interval, not a guess at work. */
     public static final int RETRY_AFTER_SECONDS = 2;
 
@@ -88,6 +100,8 @@ public class OptimizationService {
     private final RecommendationGateway recommendations;
     /** For BA-052-T5: the set this run froze, re-read by id rather than looked up again. */
     private final CrowdForecastQuery forecasts;
+    private final OptimizationHistoryQuery history;
+    private final OptimizationCursorProperties historyCursors;
     private final OptimizationCapability capability;
     private final TripService trips;
     private final JobQueue jobs;
@@ -96,12 +110,15 @@ public class OptimizationService {
     private final Clock clock;
 
     public OptimizationService(OptimizationRunStore runs, OptimizationProposalStore proposals,
-            OptimizationDecisionStore decisions, RecommendationGateway recommendations,
+            OptimizationDecisionStore decisions, OptimizationHistoryQuery history,
+            OptimizationCursorProperties historyCursors, RecommendationGateway recommendations,
             CrowdForecastQuery forecasts, OptimizationCapability capability, TripService trips,
             JobQueue jobs, IdempotencyGuard idempotency, ObjectMapper json, Clock clock) {
         this.runs = Objects.requireNonNull(runs, "runs");
         this.proposals = Objects.requireNonNull(proposals, "proposals");
         this.decisions = Objects.requireNonNull(decisions, "decisions");
+        this.history = Objects.requireNonNull(history, "history");
+        this.historyCursors = Objects.requireNonNull(historyCursors, "historyCursors");
         this.recommendations = Objects.requireNonNull(recommendations, "recommendations");
         this.forecasts = Objects.requireNonNull(forecasts, "forecasts");
         this.capability = Objects.requireNonNull(capability, "capability");
@@ -120,7 +137,7 @@ public class OptimizationService {
      * caller does not own. Ownership is next, so a foreign trip id cannot be probed for shape errors.
      * Only then the request's own shape, the version precondition and the locks.
      */
-    public OptimizationRun create(OwnerContext context, UUID tripId, String ifMatch,
+    public OptimizationRunView create(OwnerContext context, UUID tripId, String ifMatch,
             String idempotencyKey, CreateOptimizationCommand command) {
         capability.require(command.scope());
         long expected = parseIfMatch(ifMatch);
@@ -146,7 +163,10 @@ public class OptimizationService {
                         new RunProjection(queue(context, trip, command).id())),
                 value -> value);
         RunProjection projection = readProjection(guarded.body());
-        return runs.find(projection.runId()).orElseThrow(OptimizationService::notFound);
+        // Projected here too, and not shortcut to NOT_APPLICABLE because "this is a create response".
+        // A replayed Idempotency-Key returns the EXISTING run, which may already be APPLIED - the
+        // guard hands back the stored projection rather than running the command again.
+        return view(runs.find(projection.runId()).orElseThrow(OptimizationService::notFound));
     }
 
     /**
@@ -374,6 +394,207 @@ public class OptimizationService {
     }
 
     /**
+     * BA-053 revertOptimizationDecision: take an APPLY back, once, inside its window.
+     *
+     * <p>Shaped like {@link #decide}, and for the same reason: the guard is the outermost boundary, so
+     * everything that can refuse without writing is read before it, and everything that writes is
+     * inside {@link #reverted}. The failures this can answer with are the three the contract lists
+     * plus the two generic ones - and which of them applies is decided in there, not here.
+     */
+    public OptimizationDecision revert(OwnerContext context, UUID decisionId, String ifMatch,
+            String idempotencyKey) {
+        if (!capability.enabled()) {
+            throw new ApiException(ProblemCode.FORBIDDEN,
+                    "Optimization is not enabled on this server.");
+        }
+        long expected = parseIfMatch(ifMatch);
+        OptimizationDecision applied = decisions.findForOwner(context.ownerId(), decisionId)
+                .orElseThrow(OptimizationService::notFound);
+        OptimizationRun run = runs.findForOwner(context.ownerId(), applied.runId())
+                .orElseThrow(OptimizationService::notFound);
+        capability.require(run.scope());
+
+        String fingerprint = RequestFingerprint.of("revertOptimizationDecision",
+                        Map.of("decisionId", decisionId.toString()), "", Long.toString(expected))
+                .sha256Hex();
+        IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), REVERT_ROUTE,
+                idempotencyKey, fingerprint,
+                () -> new IdempotencyGuard.CommandOutcome<>(200,
+                        new DecisionProjection(reverted(context, run, applied, expected).id())),
+                value -> value);
+        DecisionProjection projection = readDecision(guarded.body());
+        return decisions.findByRun(run.id()).stream()
+                .filter(decision -> decision.id().equals(projection.decisionId()))
+                .findFirst()
+                .orElseThrow(OptimizationService::notFound);
+    }
+
+    /**
+     * REVERT: the trip moves back, in the trip module, and this records what that produced.
+     *
+     * <p>Three refusals come before the write, in the order of what they protect.
+     *
+     * <p>One, the target must be an APPLY. V030's own comment assigns this check here, because a CHECK
+     * constraint sees only its own row and {@code reverted_decision_id} points at another one. It
+     * answers 404 rather than a conflict: the contract says a KEEP and a REVERT are not revertable by
+     * omitting {@code revertUntil} from their variants, so "no revert exists at this id" is the same
+     * sentence in a different grammar. Inventing a code for it would be a contract change, and the
+     * canonical list for REVERT (docs/api/README.md section 9) has none that fits.
+     *
+     * <p>Two, the window. {@code revertUntil} is stored on the APPLY rather than recomputed, so a
+     * server whose REVERT_WINDOW changes later cannot retroactively reopen a closed window - the row
+     * says when this particular decision stopped being reversible.
+     *
+     * <p>Three, the trip must still be where the APPLY left it. This is the check that makes T2 real
+     * and it is NOT the same as the If-Match precondition: a caller who reads the trip, sees version
+     * 9 and sends "9" satisfies If-Match perfectly while the APPLY produced version 8. Comparing the
+     * caller's version against what the APPLY produced is what notices the edits in between - the
+     * recorded before-values describe a trip that no longer exists, and writing them back would undo
+     * the traveller's own later work along with the optimizer's.
+     */
+    private OptimizationDecision reverted(OwnerContext context, OptimizationRun run,
+            OptimizationDecision applied, long expected) {
+        Instant now = clock.instant();
+        if (applied.decision() != OptimizationDecisionKind.APPLY) {
+            throw notFound();
+        }
+        if (applied.revertUntil() == null || !now.isBefore(applied.revertUntil())) {
+            // The same sentence the published fixture carries
+            // (packages/contracts/fixtures/problems/revert-window-expired.json).
+            throw new ApiException(ProblemCode.REVERT_WINDOW_EXPIRED,
+                    "The window to undo this optimization has closed.");
+        }
+        if (applied.resultingTripVersion() == null || applied.resultingTripVersion() != expected) {
+            throw new ApiException(ProblemCode.TRIP_CHANGED,
+                    "This trip changed after the optimization was applied, so it cannot be undone.");
+        }
+        OptimizationProposal proposal = proposals.findByRun(run.id()).stream()
+                .filter(each -> each.id().equals(applied.proposalId()))
+                .findFirst()
+                // Proposals are immutable (V029) and cascade with their run, so a missing one means
+                // the evidence of what to undo is gone rather than that the caller named it wrongly.
+                .orElseThrow(() -> new ApiException(ProblemCode.APPLY_FAILED,
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "The record of what this decision changed is no longer stored.", false, null));
+
+        UUID decisionId = UuidV7.create(clock);
+        TripService.AppliedMoves moved = trips.applyOptimizationMoves(context.ownerId(), run.tripId(),
+                expected, reverseMovesOf(proposal));
+        OptimizationDecision decision = new OptimizationDecision(decisionId, run.id(), proposal.id(),
+                run.ownerId(), OptimizationDecisionKind.REVERT, expected, moved.trip().version(),
+                moved.beforeRevisionId(), moved.afterRevisionId(), applied.id(), null, now);
+        if (!decisions.insertIfFirst(decision)) {
+            // V033's unique index refused a second revert of this APPLY. The database said so, not a
+            // read we did - two callers racing both see an unreverted decision.
+            throw new ApiException(ProblemCode.DATA_CHANGED,
+                    "This optimization was already undone.");
+        }
+        if (!runs.transition(run.id(), OptimizationStatus.APPLIED, OptimizationStatus.REVERTED, now)) {
+            throw new ApiException(ProblemCode.DATA_CHANGED, "This optimization was already undone.");
+        }
+        return decision;
+    }
+
+    /**
+     * The preview's changes as the moves that put the trip back where it was.
+     *
+     * <p>The mirror of {@link #movesOf}: the same translation reading {@code beforeValue} instead of
+     * {@code afterValue}. Reversing the recorded changes is deliberately NOT the same as restoring
+     * {@code trip_revisions.aggregate_snapshot}, which ERD section 9 and the operation's own
+     * description both now say - the snapshot omits durationMinutes and note, so restoring from it
+     * would clear fields the apply never touched. A before-value names only columns the apply wrote.
+     */
+    private List<TripService.ItemMove> reverseMovesOf(OptimizationProposal proposal) {
+        List<TripService.ItemMove> moves = new java.util.ArrayList<>(proposal.changes().size());
+        for (OptimizationChange change : proposal.changes()) {
+            if (change.operation() != OptimizationChangeOperation.MOVE) {
+                throw new ApiException(ProblemCode.APPLY_FAILED, HttpStatus.SERVICE_UNAVAILABLE,
+                        "This decision contains a change this release cannot undo.", false, null);
+            }
+            ItemState before = json.readValue(change.beforeValue(), ItemState.class);
+            moves.add(new TripService.ItemMove(change.tripItemId(), LocalDate.parse(before.date()),
+                    before.position(),
+                    before.startTime() == null ? null : LocalTime.parse(before.startTime())));
+        }
+        return moves;
+    }
+
+    /**
+     * BA-053 listOptimizationHistory: the owner's runs, newest first, state and time only.
+     *
+     * <p>Keyset paging over {@code queued_at DESC, id DESC}, the same way listTrips pages: a run
+     * queued later inserts at the head, so an offset would re-serve the row the reader just saw.
+     */
+    @Transactional(readOnly = true)
+    public OptimizationHistoryPageView history(OwnerContext context, UUID tripId, String cursor,
+            Integer limit) {
+        int size = pageSize(limit);
+        String binding = historyCursors.ownerBinding(context.ownerId());
+        OptimizationHistoryQuery.PageKey after = null;
+        if (cursor != null && !cursor.isBlank()) {
+            CursorClaims claims = historyCursors.cursorCodec().decode(cursor, clock.instant(), binding,
+                    OptimizationCursorProperties.CONTEXT);
+            if (claims.sortVersion() != OptimizationCursorProperties.SORT_VERSION) {
+                // A key minted under another order names a row this order would resume elsewhere.
+                throw new CursorException(ProblemCode.CURSOR_INVALID);
+            }
+            CursorSortKey key = CursorSortKey.decode(claims.sortKey());
+            after = new OptimizationHistoryQuery.PageKey(key.instantValue(), key.id());
+        }
+        // One extra row: a page that is exactly full is otherwise indistinguishable from the last
+        // page, and a cursor handed out for an empty next page is a wasted round trip.
+        Instant now = clock.instant();
+        List<OptimizationHistoryQuery.HistoryRow> found =
+                history.page(context.ownerId(), tripId, after, size + 1);
+        boolean hasMore = found.size() > size;
+        List<OptimizationHistoryQuery.HistoryRow> page = hasMore ? found.subList(0, size) : found;
+        List<OptimizationHistoryQuery.HistoryRow> views = new java.util.ArrayList<>(page.size());
+        for (OptimizationHistoryQuery.HistoryRow row : page) {
+            views.add(asReadNow(row, now));
+        }
+        String next = hasMore ? nextHistoryCursor(page.get(page.size() - 1), binding) : null;
+        return new OptimizationHistoryPageView(views, next, hasMore);
+    }
+
+    /**
+     * The status a reader sees, computed the way {@link #asReadNow(OptimizationRun, Instant)} computes
+     * it for the detail.
+     *
+     * <p>Without this the same run would read READY in the list and EXPIRED on its own screen, and the
+     * list is where a traveller decides whether to open it - so the list would be inviting them into
+     * a preview that is no longer there. Expiry is a property of the clock, not of the row, which is
+     * why neither place stores it.
+     */
+    private static OptimizationHistoryQuery.HistoryRow asReadNow(
+            OptimizationHistoryQuery.HistoryRow row, Instant now) {
+        boolean expired = row.expiresAt() != null && !now.isBefore(row.expiresAt());
+        if (row.status().terminal() || !expired) {
+            return row;
+        }
+        return new OptimizationHistoryQuery.HistoryRow(row.runId(), row.tripId(), row.tripTitle(),
+                row.scope(), OptimizationStatus.EXPIRED, row.queuedAt(), row.expiresAt(),
+                row.decision(), row.decidedAt());
+    }
+
+    private String nextHistoryCursor(OptimizationHistoryQuery.HistoryRow last, String binding) {
+        return historyCursors.cursorCodec().encode(new CursorClaims(OptimizationCursorProperties.CONTEXT,
+                CursorSortKey.of(last.queuedAt(), last.runId()).encode(), binding,
+                OptimizationCursorProperties.CONTEXT, OptimizationCursorProperties.SORT_VERSION,
+                clock.instant().plus(historyCursors.cursorTtl()), historyCursors.keyId()));
+    }
+
+    private static int pageSize(Integer limit) {
+        if (limit == null) {
+            return DEFAULT_LIMIT;
+        }
+        if (limit < 1 || limit > MAX_LIMIT) {
+            throw new ApiException(ProblemCode.INVALID_REQUEST,
+                    "limit must be between 1 and " + MAX_LIMIT + ".");
+        }
+        return limit;
+    }
+
+    /**
      * The preview's changes as moves the trip module can apply.
      *
      * <p>Only MOVE is translated, and anything else is refused rather than skipped. The only producer
@@ -425,12 +646,63 @@ public class OptimizationService {
      * never got one.
      */
     @Transactional(readOnly = true)
-    public OptimizationRun get(OwnerContext context, UUID runId) {
+    public OptimizationRunView get(OwnerContext context, UUID runId) {
         OptimizationRun stored = runs.findForOwner(context.ownerId(), runId)
                 .orElseThrow(OptimizationService::notFound);
         Instant now = clock.instant();
         requirePreviewStillOffered(stored, now);
-        return asReadNow(stored, now);
+        // One instant for both, on purpose: the status a reader sees and the window this answers
+        // about are both clock-derived, and reading them a millisecond apart could report a preview
+        // as live while reporting its undo as expired.
+        return view(asReadNow(stored, now), now);
+    }
+
+    private OptimizationRunView view(OptimizationRun run) {
+        return view(run, clock.instant());
+    }
+
+    private OptimizationRunView view(OptimizationRun run, Instant now) {
+        return new OptimizationRunView(run, revertAvailabilityOf(run, now));
+    }
+
+    /**
+     * BA-054: the contract's precedence, in its order, read rather than re-derived.
+     *
+     * <p>Every input is something {@link #revert} already consults, and deliberately so - if the
+     * screen and the mutation computed this from different places they would answer differently at
+     * the boundary, which is the moment it matters. The run's own status is NOT an input: a run is
+     * APPLIED whether or not its window is still open, and the window is what this reports.
+     *
+     * <p>No null guard on {@code revertUntil}: {@link OptimizationDecision} refuses an APPLY without
+     * one, so a branch for it could never fire. ({@link #reverted} carries exactly such a clause -
+     * it is dead there too and should go when that path is next touched.)
+     */
+    private RevertAvailability revertAvailabilityOf(OptimizationRun run, Instant now) {
+        List<OptimizationDecision> taken = decisions.findByRun(run.id());
+        OptimizationDecision applied = taken.stream()
+                .filter(decision -> decision.decision() == OptimizationDecisionKind.APPLY)
+                .findFirst()
+                .orElse(null);
+        if (applied == null) {
+            return RevertAvailability.NOT_APPLICABLE;
+        }
+        if (taken.stream().anyMatch(decision -> decision.decision() == OptimizationDecisionKind.REVERT)) {
+            return RevertAvailability.REVERTED;
+        }
+        if (!now.isBefore(applied.revertUntil())) {
+            return RevertAvailability.EXPIRED;
+        }
+        // The trip cannot be missing - runs cascade with trips (V024) - so an empty Optional is a
+        // broken invariant rather than a state to report, and saying so is cheaper than a value the
+        // caller would have to interpret.
+        long current = trips.findForOwner(run.ownerId(), run.tripId())
+                .map(Trip::version)
+                .orElseThrow(() -> new IllegalStateException(
+                        "run " + run.id() + " outlived the trip it belongs to"));
+        if (applied.resultingTripVersion() != current) {
+            return RevertAvailability.NOT_APPLICABLE;
+        }
+        return RevertAvailability.AVAILABLE;
     }
 
     /**

@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -44,9 +45,13 @@ public class JdbcOptimizationDecisionStore implements OptimizationDecisionStore 
             // than checked for beforehand, because a read-then-write would leave a window in which
             // both callers saw no decision - which is exactly the race BA-052-T1 is about.
             //
-            // Narrow on purpose: only an initial decision can collide this way. A REVERT is outside
-            // the index's predicate, and the primary key cannot collide because these ids are minted
-            // here rather than supplied by a caller.
+            // Two indexes can raise this now, and both mean "someone got here first". V030's partial
+            // unique index refuses a second INITIAL decision for a run; V033's refuses a second
+            // REVERT of the same APPLY. The sentence above was written when only the first existed
+            // and said a REVERT could not collide - V033 made that false, and a caller racing to
+            // undo the same decision twice is exactly what it now catches.
+            //
+            // The primary key still cannot collide: these ids are minted here, not supplied.
             return false;
         }
     }
@@ -64,6 +69,20 @@ public class JdbcOptimizationDecisionStore implements OptimizationDecisionStore 
                 .param(runId)
                 .query((ResultSet row, int index) -> decision(row))
                 .list();
+    }
+
+    @Override
+    public Optional<OptimizationDecision> findForOwner(UUID ownerId, UUID decisionId) {
+        return jdbc.sql("""
+                SELECT id, run_id, proposal_id, owner_id, decision, expected_trip_version,
+                       resulting_trip_version, before_revision_id, after_revision_id,
+                       reverted_decision_id, revert_until, decided_at
+                  FROM optimization_decisions
+                 WHERE id = ? AND owner_id = ?
+                """)
+                .params(decisionId, ownerId)
+                .query((ResultSet row, int index) -> decision(row))
+                .optional();
     }
 
     private static Timestamp timestamp(Instant at) {

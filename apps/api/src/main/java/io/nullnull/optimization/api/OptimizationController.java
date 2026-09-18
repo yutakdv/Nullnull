@@ -3,6 +3,9 @@ package io.nullnull.optimization.api;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.optimization.application.CreateOptimizationCommand;
 import io.nullnull.optimization.application.DecideOptimizationCommand;
+import io.nullnull.optimization.application.OptimizationHistoryPageView;
+import io.nullnull.optimization.application.OptimizationHistoryQuery;
+import io.nullnull.optimization.application.OptimizationRunView;
 import io.nullnull.optimization.application.OptimizationService;
 import io.nullnull.optimization.domain.OptimizationDecision;
 import io.nullnull.optimization.domain.OptimizationDecisionKind;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** createOptimization and getOptimization. Nothing here can change a trip. */
@@ -43,25 +47,25 @@ public class OptimizationController {
             @RequestHeader("If-Match") String ifMatch,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody CreateOptimizationBody body) {
-        OptimizationRun run = optimizations.create(owner, tripId, ifMatch, idempotencyKey,
+        OptimizationRunView view = optimizations.create(owner, tripId, ifMatch, idempotencyKey,
                 command(body));
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .header("Location", "/optimizations/" + run.id())
+                .header("Location", "/optimizations/" + view.run().id())
                 .header("Cache-Control", "private, no-store")
-                .body(OptimizationRunResponse.from(run));
+                .body(OptimizationRunResponse.from(view));
     }
 
     @GetMapping(value = "/optimizations/{runId}", produces = MediaType.APPLICATION_JSON_VALUE)
     @NullnullOperation(id = "getOptimization", security = Security.SESSION)
     public ResponseEntity<OptimizationRunResponse> get(OwnerContext owner, @PathVariable UUID runId) {
-        OptimizationRun run = optimizations.get(owner, runId);
+        OptimizationRunView view = optimizations.get(owner, runId);
         ResponseEntity.BodyBuilder response = ResponseEntity.ok()
                 .header("Cache-Control", "private, no-store");
         // Present for QUEUED and RUNNING only, which is what the contract says and also the only
         // state in which asking again could produce a different answer.
-        OptimizationService.retryAfter(run)
+        OptimizationService.retryAfter(view.run())
                 .ifPresent(seconds -> response.header("Retry-After", Integer.toString(seconds)));
-        return response.body(OptimizationRunResponse.from(run));
+        return response.body(OptimizationRunResponse.from(view));
     }
 
     @PostMapping(value = "/optimizations/{runId}/decisions", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -81,6 +85,38 @@ public class OptimizationController {
                 .eTag("\"" + decision.effectiveTripVersion() + "\"")
                 .header("Cache-Control", "private, no-store")
                 .body(OptimizationDecisionResponse.from(decision));
+    }
+
+    @PostMapping(value = "/optimization-decisions/{decisionId}/revert",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "revertOptimizationDecision", security = {Security.SESSION, Security.CSRF})
+    public ResponseEntity<RevertDecisionResponse> revert(OwnerContext owner,
+            @PathVariable UUID decisionId,
+            @RequestHeader("If-Match") String ifMatch,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        OptimizationDecision decision = optimizations.revert(owner, decisionId, ifMatch, idempotencyKey);
+        // A REVERT always moves the trip, so the tag is the version it produced. Unlike decide, there
+        // is no KEEP branch here and effectiveTripVersion() would answer the same thing either way -
+        // it is used anyway so the two routes cannot drift into meaning different things by the tag.
+        return ResponseEntity.ok()
+                .eTag("\"" + decision.effectiveTripVersion() + "\"")
+                .header("Cache-Control", "private, no-store")
+                .body(RevertDecisionResponse.from(decision));
+    }
+
+    @GetMapping(value = "/optimizations", produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "listOptimizationHistory", security = Security.SESSION)
+    public ResponseEntity<OptimizationHistoryPageResponse> history(OwnerContext owner,
+            @RequestParam(required = false) UUID tripId,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        OptimizationHistoryPageView page = optimizations.history(owner, tripId, cursor, limit);
+        return ResponseEntity.ok()
+                // Owner-scoped, so never cacheable by anything between here and the browser.
+                .header("Cache-Control", "private, no-store")
+                .body(new OptimizationHistoryPageResponse(
+                        page.items().stream().map(OptimizationHistoryItemResponse::from).toList(),
+                        new CursorPageResponse(page.nextCursor(), page.hasMore())));
     }
 
     private static DecideOptimizationCommand decision(OptimizationDecisionBody body) {
@@ -151,14 +187,16 @@ public class OptimizationController {
      */
     public record OptimizationRunResponse(UUID id, UUID tripId, String scope, String status,
             long inputTripVersion, UUID inputRevisionId, boolean includeCandidates, String dataFingerprint,
-            String algorithmVersion, Instant queuedAt, Instant completedAt, Instant expiresAt,
-            List<Object> proposals, List<UUID> snapshotSetIds, List<Object> decisions,
+            String algorithmVersion, String revertAvailability, Instant queuedAt, Instant completedAt,
+            Instant expiresAt, List<Object> proposals, List<UUID> snapshotSetIds, List<Object> decisions,
             OptimizationFailureResponse failure) {
 
-        static OptimizationRunResponse from(OptimizationRun run) {
+        static OptimizationRunResponse from(OptimizationRunView view) {
+            OptimizationRun run = view.run();
             return new OptimizationRunResponse(run.id(), run.tripId(), run.scope().name(),
                     run.status().name(), run.inputTripVersion(), run.inputRevisionId(),
                     run.includeCandidates(), run.dataFingerprint(), run.algorithmVersion(),
+                    view.revertAvailability().name(),
                     run.queuedAt(), run.completedAt(), run.expiresAt(), List.of(), run.snapshotSetIds(),
                     List.of(), OptimizationFailureResponse.from(run));
         }
@@ -197,6 +235,55 @@ public class OptimizationController {
 
     public record KeepDecisionResponse(UUID id, UUID runId, UUID proposalId, String decision,
             Instant decidedAt) implements OptimizationDecisionResponse {
+    }
+
+    /**
+     * The contract's {@code RevertOptimizationDecision}, which is its own schema rather than a third
+     * variant of {@code InitialOptimizationDecision}.
+     *
+     * <p>Two fields are why they cannot be one type: a REVERT carries {@code revertedDecisionId},
+     * which the initial variants forbid, and it omits {@code revertUntil}, which is how the contract
+     * says a REVERT cannot itself be reverted (V030's column comment names that as its source). Both
+     * schemas are {@code additionalProperties: false}, so a shared record would answer a shape the
+     * schema refuses in whichever direction it was merged.
+     */
+    public record RevertDecisionResponse(UUID id, UUID runId, UUID proposalId, String decision,
+            Long resultingTripVersion, UUID beforeRevisionId, UUID afterRevisionId,
+            UUID revertedDecisionId, Instant decidedAt) {
+
+        static RevertDecisionResponse from(OptimizationDecision decision) {
+            return new RevertDecisionResponse(decision.id(), decision.runId(), decision.proposalId(),
+                    decision.decision().name(), decision.resultingTripVersion(),
+                    decision.beforeRevisionId(), decision.afterRevisionId(),
+                    decision.revertedDecisionId(), decision.decidedAt());
+        }
+    }
+
+    public record OptimizationHistoryPageResponse(List<OptimizationHistoryItemResponse> items,
+            CursorPageResponse page) {
+    }
+
+    public record CursorPageResponse(String nextCursor, boolean hasMore) {
+    }
+
+    /**
+     * One history line: state, time, and where to go. No itinerary content, which the operation's
+     * description states as a rule rather than a consequence ("This view never returns or causes a
+     * duplicate itinerary snapshot").
+     */
+    public record OptimizationHistoryItemResponse(UUID runId, UUID tripId, String tripTitle,
+            String scope, String status, String decision, String runLink, Instant queuedAt,
+            Instant decidedAt) {
+
+        static OptimizationHistoryItemResponse from(OptimizationHistoryQuery.HistoryRow row) {
+            return new OptimizationHistoryItemResponse(row.runId(), row.tripId(), row.tripTitle(),
+                    row.scope().name(), row.status().name(),
+                    row.decision() == null ? null : row.decision().name(),
+                    // A client router path, not an API path: the contract's pattern excludes the
+                    // /api/v1 base on purpose and says callers may navigate to it verbatim.
+                    "/trip/" + row.tripId() + "/optimizations/" + row.runId(),
+                    row.queuedAt(), row.decidedAt());
+        }
     }
 
     public record OptimizationFailureResponse(String code, String message, boolean retryable) {

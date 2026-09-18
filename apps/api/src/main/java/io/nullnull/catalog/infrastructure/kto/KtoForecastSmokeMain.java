@@ -31,7 +31,7 @@ public final class KtoForecastSmokeMain {
         requirePermittedEnvironment(requestedEnvironment);
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
                 .web(WebApplicationType.NONE)
-                .properties(KtoSmokeEnvironment.runtimeProperties(settings))
+                .initializers(KtoSmokeEnvironment.applying(settings))
                 .registerShutdownHook(false)
                 .run()) {
             String environment = context.getEnvironment().getProperty("nullnull.env", requestedEnvironment);

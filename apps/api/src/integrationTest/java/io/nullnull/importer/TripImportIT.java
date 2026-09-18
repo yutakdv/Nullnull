@@ -84,6 +84,17 @@ class TripImportIT {
      * Moving it would expire the caller's own session first - the request would be refused before it
      * ever reached the draft - and MutableClock only moves forward by design, so one test that
      * advanced it would expire every draft seeded by the tests after it.
+     *
+     * <p><strong>Why that is true HERE:</strong> this card's draft window and the idempotency key's
+     * retention are both 24 hours, so there is no amount of time that closes one without closing the
+     * other, and the key is what the caller needs to reach the draft at all. A card whose window does
+     * not collide with a credential's lifetime can move the clock instead - {@code OptimizeRevertIT}
+     * advances 25 hours to close the 24-hour revert window, because sessions idle at P30D. Read this
+     * paragraph as a fact about these two durations rather than as a rule about clocks: a constraint
+     * with no stated source is either ignored or obeyed everywhere, and both are wrong.
+     *
+     * <p>The credential to check is not only the session. {@code APP_CSRF_TOKEN_TTL} is PT2H, so any
+     * advance past two hours needs a freshly issued token even where the session is fine.
      */
     @Autowired MutableClock clock;
 
