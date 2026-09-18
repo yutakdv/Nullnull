@@ -89,7 +89,7 @@ AI 도구 사용을 별도 가점이나 구현 완료 증거로 주장하지 않
 
 | ID | 성격/수준 | 요구사항 | Nullnull 구현 결정 | 완료 증거 | DRI / 검토 |
 | --- | --- | --- | --- | --- | --- |
-| CMP-LOC-001 | 공식/주의 | 개인 위치를 서버로 전송하면 저장 여부와 무관하게 위치기반서비스 신고 대상일 수 있음 | 제출 profile의 위치 capability OFF | environment/startup readiness | BE/AI / FE |
+| CMP-LOC-001 | 공식/주의 | 개인 위치를 서버로 전송하면 저장 여부와 무관하게 위치기반서비스 신고 대상일 수 있음 | 제출 profile의 위치 capability OFF | environment/startup readiness · 계약 고정: `LocationInputContractTest` (openapi.yaml의 모든 요청 body·parameter와 events.schema.json의 event property에 좌표가 없다. 예외는 Live coarse viewport 하나이고 `multipleOf: 0.001`로 고정된다) | BE/AI / FE |
 | CMP-LOC-002 | 팀 결정/INTERNAL | 제출 build에서 위치 데이터 흐름 자체를 제거 | geolocation API/permission prompt/좌표 request 0 | Playwright permission spy, network/log scan | FE / BE·AI |
 | CMP-LOC-003 | 팀 결정/INTERNAL | 위치 없이 핵심 기능 사용 가능 | 지역·장소 직접 선택과 다음 일정 기반 | external judge E2E | FE / BE·AI |
 | CMP-PRV-001 | 팀 결정/INTERNAL | raw itinerary·cookie/token·key를 저장/로그하지 않음 | browser-first parser와 allowlisted telemetry | DB/log/artifact canary scan | BE/AI / FE |
