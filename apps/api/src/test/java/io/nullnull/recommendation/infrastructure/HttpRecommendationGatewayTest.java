@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -36,6 +37,7 @@ import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 import io.nullnull.recommendation.domain.slot.SlotOut;
 import java.math.BigDecimal;
+import java.net.SocketTimeoutException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -46,11 +48,19 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 class HttpRecommendationGatewayTest {
 
@@ -164,14 +174,108 @@ class HttpRecommendationGatewayTest {
     }
 
     @Test
-    void unreadableResponseIsRetryableUnavailable() {
-        // A body the contract records reject must reach the documented fallback, not escape as a Spring exception.
+    void unreadableResponseIsUnavailableButNotRetryable() {
+        // A body the contract records reject must reach the documented fallback, not escape as a Spring
+        // exception - and not as an outage either: asking again gets the same body (#250).
         server.expect(ExpectedCount.once(), requestTo("http://ai.test:8090/internal/v1/feed/rank"))
                 .andRespond(withSuccess(BODY_WITHOUT_ORDER, MediaType.APPLICATION_JSON));
         assertThatThrownBy(() -> gateway.rankFeed(requestFor("00000000-0000-0000-0000-000000000001")))
                 .isInstanceOf(RecommendationUnavailableException.class)
-                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isTrue());
+                .satisfies(e -> assertThat(((RecommendationUnavailableException) e).retryable()).isFalse());
         server.verify();
+    }
+
+    /** The seven operations of the internal contract, each driven the way its caller drives it. */
+    enum Operation {
+        POLICY(HttpMethod.GET, "/internal/v1/policy", HttpRecommendationGateway::policy),
+        FEED_RANK(HttpMethod.POST, "/internal/v1/feed/rank",
+                gateway -> gateway.rankFeed(requestFor("00000000-0000-0000-0000-000000000001"))),
+        ITEM_PROPOSE(HttpMethod.POST, "/internal/v1/items/propose",
+                gateway -> gateway.proposeItem(proposeRequest(LocalTime.of(10, 0)))),
+        SLOT_EVALUATE(HttpMethod.POST, "/internal/v1/slots/evaluate", gateway -> gateway.evaluateSlots(slotRequest())),
+        RELATED_RANK(HttpMethod.POST, "/internal/v1/related/rank", gateway -> gateway.rankRelated(relatedRequest())),
+        EXPLANATION_RENDER(HttpMethod.POST, "/internal/v1/explanations/render",
+                gateway -> gateway.renderExplanation(explanationRequest())),
+        DRAFT_COMPOSE(HttpMethod.POST, "/internal/v1/drafts/compose",
+                gateway -> gateway.composeDraft(DraftComposeGatewayTest.request()));
+
+        final HttpMethod method;
+        final String path;
+        final java.util.function.Consumer<HttpRecommendationGateway> call;
+
+        Operation(HttpMethod method, String path, java.util.function.Consumer<HttpRecommendationGateway> call) {
+            this.method = method;
+            this.path = path;
+            this.call = call;
+        }
+    }
+
+    /**
+     * Both sides of the line, as apps/ai can produce them. The first three ARRIVED and are not the
+     * contract; the last two are apps/ai not answering. A body cut off part way is the case that needs a
+     * real socket, and TripDraftPreviewGatewayIT holds it.
+     */
+    enum Failure {
+        /** Syntax: the body ends inside a value. Content-Length matches, so the read itself completes. */
+        MALFORMED_BODY(false, withSuccess("{\"policyVersion\":", MediaType.APPLICATION_JSON)),
+        /** Valid JSON, and every response record's first component in a type it cannot be. */
+        WRONG_FIELD_TYPE(false, withSuccess("{\"policyVersion\":{\"not\":\"a string\"}}", MediaType.APPLICATION_JSON)),
+        EMPTY_BODY(false, withSuccess()),
+        TIMED_OUT(true, withException(new SocketTimeoutException("read timed out"))),
+        SERVER_ERROR(true, withServerError());
+
+        final boolean retryable;
+        final ResponseCreator response;
+
+        Failure(boolean retryable, ResponseCreator response) {
+            this.retryable = retryable;
+            this.response = response;
+        }
+    }
+
+    static List<Arguments> everyOperationOnBothSides() {
+        return Arrays.stream(Operation.values())
+                .flatMap(operation -> Arrays.stream(Failure.values()).map(failure -> Arguments.of(operation, failure)))
+                .toList();
+    }
+
+    /**
+     * #250: an answer outside the contract is not an outage, for every operation.
+     *
+     * <p>The line is drawn once, in {@code exchange}; this drives all seven through both sides of it, so
+     * an operation that grows its own catch turns its own rows red, and so does the line moving in either
+     * direction. The client is built the way {@code RecommendationClientConfiguration} builds it - the
+     * Jackson 3 converter - because the verdict depends on what that converter wraps.
+     */
+    @ParameterizedTest(name = "{0} answering {1}")
+    @MethodSource("everyOperationOnBothSides")
+    void onlyAServiceThatDidNotAnswerIsRetryable(Operation operation, Failure failure) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://ai.test:8090")
+                .configureMessageConverters(converters -> converters.withJsonConverter(new JacksonJsonHttpMessageConverter(
+                        JsonMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build())));
+        MockRestServiceServer ai = MockRestServiceServer.bindTo(builder).build();
+        HttpRecommendationGateway production = new HttpRecommendationGateway(builder.build(), () -> "req_test-0001");
+        // policy() is the one GET, and it asks twice only when the first attempt went unanswered.
+        int attempts = operation == Operation.POLICY && failure.retryable ? 2 : 1;
+        ai.expect(ExpectedCount.times(attempts), requestTo("http://ai.test:8090" + operation.path))
+                .andExpect(method(operation.method))
+                .andRespond(failure.response);
+
+        assertThatThrownBy(() -> operation.call.accept(production))
+                .isInstanceOfSatisfying(RecommendationUnavailableException.class, unavailable -> {
+                    assertThat(unavailable.retryable()).isEqualTo(failure.retryable);
+                    if (failure == Failure.MALFORMED_BODY || failure == Failure.WRONG_FIELD_TYPE) {
+                        // The premise, not the verdict: this body was read to its end and failed to
+                        // parse. With an I/O failure anywhere under it, it would be the other case.
+                        List<Throwable> chain = new java.util.ArrayList<>();
+                        for (Throwable cause = unavailable; cause != null; cause = cause.getCause()) {
+                            chain.add(cause);
+                        }
+                        assertThat(chain).anyMatch(HttpMessageNotReadableException.class::isInstance)
+                                .noneMatch(java.io.IOException.class::isInstance);
+                    }
+                });
+        ai.verify();
     }
 
     @Test

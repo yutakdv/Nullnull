@@ -215,6 +215,10 @@ public class IdempotencyGuard {
     /**
      * Replays an already completed command for a soft-deleted owner. It never reserves a slot and
      * never invokes an effect, so a revoked deletion cookie cannot start a second command.
+     *
+     * <p>Every refusal here, and the owner check in {@code guarded}, is {@link SessionService#unauthorized()}
+     * (#249): a revoked cookie that cannot replay, or an owner deleted after its session resolved, must read
+     * like any other dead cookie. A sentence of its own would tell the caller the cookie was once valid.
      */
     public GuardedResponse replayOnly(UUID ownerId, String routeKey, String idempotencyKey,
             String requestHash) {
@@ -226,25 +230,21 @@ public class IdempotencyGuard {
                 || keyLength < IdempotencyRecord.IDEMPOTENCY_KEY_MIN_LENGTH
                 || keyLength > IdempotencyRecord.IDEMPOTENCY_KEY_MAX_LENGTH
                 || requestHash == null || !REQUEST_HASH.matcher(requestHash).matches()) {
-            throw replayUnauthorized();
+            throw SessionService.unauthorized();
         }
         return transactions.execute(status -> {
             lockWaitLimit.applyToCurrentTransaction(lockTimeout);
             if (owners.lockAny(ownerId).isEmpty()) {
-                throw replayUnauthorized();
+                throw SessionService.unauthorized();
             }
             Instant now = clock.instant();
             IdempotencyRecord record = records.lockExisting(ownerId, routeKey, idempotencyKey)
                     .filter(existing -> existing.expiresAt().isAfter(now))
                     .filter(IdempotencyRecord::completed)
                     .filter(existing -> existing.requestHash().equals(requestHash))
-                    .orElseThrow(IdempotencyGuard::replayUnauthorized);
+                    .orElseThrow(SessionService::unauthorized);
             return new GuardedResponse(record.responseStatus(), record.responseBody(), true);
         });
-    }
-
-    private static ApiException replayUnauthorized() {
-        return new ApiException(ProblemCode.UNAUTHORIZED, "A valid deletion replay is required.");
     }
 
     private <T, S> GuardedResponse guarded(UUID ownerId, String routeKey, String idempotencyKey,
@@ -253,8 +253,7 @@ public class IdempotencyGuard {
         // Before the first lock: a stuck command must not hold this connection or this owner forever.
         lockWaitLimit.applyToCurrentTransaction(lockTimeout);
 
-        Owner owner = owners.lockAlive(ownerId).orElseThrow(() -> new ApiException(
-                ProblemCode.UNAUTHORIZED, "The session owner is no longer active."));
+        Owner owner = owners.lockAlive(ownerId).orElseThrow(SessionService::unauthorized);
 
         Instant now = clock.instant();
         IdempotencyRecord reserved = reserve(IdempotencyRecord.reservation(UuidV7.create(clock),
