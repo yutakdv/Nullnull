@@ -49,15 +49,22 @@ public class TemporalCandidateAssembler {
     }
 
     /**
-     * Every other date in the trip that has a forecast for this place, paired against the date the
-     * item sits on now.
+     * Every other date in the trip that the run's frozen forecast covers for this place, paired against
+     * the date the item sits on now.
+     *
+     * <p>The set is the one the run froze, read by its id - never chosen again (#259). Choosing it here
+     * with {@code latestFresh} was a second read in a second unit of work: a set stored in between, or
+     * a newer one that leaves out the item's day, made the candidates - and so the pair a proposal
+     * compared - come from a set the run never froze, which APPLY then revalidated instead.
      *
      * <p>An empty list is a real answer with two causes that the caller must not merge: no forecast
      * covers the trip at all, or none covers the day the item is on, so nothing can be compared
      * against it. Neither is "the itinerary is already optimal", and the run has to say so.
+     *
+     * @param frozenSetIds the sets {@code OptimizationEvidence.snapshotSetsFor} froze for this run
      */
     @Transactional(readOnly = true)
-    public Candidates candidatesFor(UUID placeId, LocalDate currentDate,
+    public Candidates candidatesFor(List<UUID> frozenSetIds, UUID placeId, LocalDate currentDate,
             LocalDate tripStart, LocalDate tripEnd, ZoneId zone, Instant now) {
         Objects.requireNonNull(placeId, "placeId");
         Objects.requireNonNull(currentDate, "currentDate");
@@ -66,8 +73,8 @@ public class TemporalCandidateAssembler {
 
         // Fresh only. A stale forecast is readable elsewhere with its freshness shown to a human, but
         // a proposal is an instruction to change a plan, and a stale measurement is not evidence for
-        // one. latestStale exists for the screens that label it; this path does not take it.
-        Optional<CrowdForecastQuery.SnapshotSet> found = forecasts.latestFresh(placeId, from, to, now);
+        // one. The frozen set was fresh when frozen; one that has gone stale since offers nothing.
+        Optional<CrowdForecastQuery.SnapshotSet> found = frozenAndFresh(frozenSetIds, placeId, from, to, now);
         if (found.isEmpty()) {
             return Candidates.none();
         }
@@ -110,6 +117,24 @@ public class TemporalCandidateAssembler {
                 Map.of(evidence.source().code(), Math.toIntExact(evidence.source().registryVersion())),
                 evidence.normalizationVersion(), evidence.source().attribution(),
                 evidence.forecastIssueId(), evidence.metricCode());
+    }
+
+    /**
+     * The first frozen set that still holds points for this place in the window and is fresh now -
+     * the same test {@code latestFresh} made when the run froze it (a set's {@code stale_at} after
+     * now), read off the points, which carry their set's {@code stale_at}.
+     */
+    private Optional<CrowdForecastQuery.SnapshotSet> frozenAndFresh(List<UUID> frozenSetIds, UUID placeId,
+            Instant from, Instant to, Instant now) {
+        for (UUID setId : frozenSetIds) {
+            Optional<CrowdForecastQuery.SnapshotSet> set = forecasts.frozenSet(setId, placeId, from, to)
+                    .filter(frozen -> frozen.snapshots().stream()
+                            .allMatch(point -> point.staleAt() != null && now.isBefore(point.staleAt())));
+            if (set.isPresent()) {
+                return set;
+            }
+        }
+        return Optional.empty();
     }
 
     /**
