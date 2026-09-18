@@ -45,6 +45,11 @@ import historyPage from "../fixtures/optimizations/history-page.json" with { typ
 import historyPageEmpty from "../fixtures/optimizations/history-page-empty.json" with { type: "json" };
 import optimizationRunReady from "../fixtures/optimizations/run-ready.json" with { type: "json" };
 import optimizationRunApplied from "../fixtures/optimizations/run-applied.json" with { type: "json" };
+import optimizationRunQueued from "../fixtures/optimizations/run-queued.json" with { type: "json" };
+import optimizationRunFailed from "../fixtures/optimizations/run-failed.json" with { type: "json" };
+import optimizationDecisionApply from "../fixtures/optimizations/decision-apply.json" with { type: "json" };
+import optimizationDecisionKeep from "../fixtures/optimizations/decision-keep.json" with { type: "json" };
+import optimizationDecisionRevert from "../fixtures/optimizations/decision-revert.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
 import relatedPage from "../fixtures/places/related-page.json" with { type: "json" };
 import relatedNone from "../fixtures/places/related-none.json" with { type: "json" };
@@ -264,6 +269,17 @@ export const optimizationFixtures = {
   // with a real response at every level (OptimizeItemIT, OptimizeRevertIT).
   runReady: optimizationRunReady as components["schemas"]["OptimizationRun"],
   runApplied: optimizationRunApplied as components["schemas"]["OptimizationRun"],
+  // The rest of the flow, pinned and shape-compared the same way: createOptimization's 202, the
+  // FAILED face of getOptimization, and the three decisions (decideOptimization APPLY and KEEP,
+  // revertOptimizationDecision).
+  runQueued: optimizationRunQueued as components["schemas"]["OptimizationRun"],
+  runFailed: optimizationRunFailed as components["schemas"]["OptimizationRun"],
+  decisionApply:
+    optimizationDecisionApply as components["schemas"]["InitialOptimizationDecision"],
+  decisionKeep:
+    optimizationDecisionKeep as components["schemas"]["InitialOptimizationDecision"],
+  decisionRevert:
+    optimizationDecisionRevert as components["schemas"]["RevertOptimizationDecision"],
 };
 
 // PROVISIONAL MOCK DATA — replace when BA-022 serves searchPlaces for real.

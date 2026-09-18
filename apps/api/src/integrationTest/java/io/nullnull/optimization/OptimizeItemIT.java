@@ -430,6 +430,17 @@ class OptimizeItemIT {
         // Nothing was judged, so nothing may be stored as having been judged.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM optimization_proposals WHERE run_id = ?",
                 Integer.class, runId)).isZero();
+
+        // The fixtures Frontend mocks the queued and failed faces against have the keys the server
+        // sends, everywhere (#16).
+        assertThat(JsonShape.of(JSON.readTree(queuedBody)))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-queued.json")));
+        JsonNode failed = JSON.readTree(poll(fixture, runId)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(failed.get("failure").get("code").asString()).isEqualTo("DATA_INSUFFICIENT");
+        assertThat(JsonShape.of(failed))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-failed.json")));
     }
 
     @Test
@@ -665,6 +676,9 @@ class OptimizeItemIT {
                 issue, issue, Timestamp.from(fetchedAt));
     }
 
+    /** The last createOptimization 202 body, for the one case that compares it with its fixture. */
+    private String queuedBody;
+
     private UUID queue(Fixture fixture) throws Exception {
         String created = mvc.perform(post("/api/v1/trips/" + fixture.tripId() + "/optimizations")
                         .cookie(cookie(fixture.owner()))
@@ -680,6 +694,7 @@ class OptimizeItemIT {
                 .andReturn().getResponse().getContentAsString();
         UUID runId = UUID.fromString(created.replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
         runIds.add(runId);
+        queuedBody = created;
         return runId;
     }
 
