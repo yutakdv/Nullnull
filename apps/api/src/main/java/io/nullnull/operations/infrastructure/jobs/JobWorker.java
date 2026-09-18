@@ -283,7 +283,9 @@ public class JobWorker implements SmartLifecycle {
                 lease.type(), lease.jobId(), lease.attempt(), errorCode, failure);
         try {
             Instant now = clock.instant();
-            if (job.lastAttempt()) {
+            // A failure its handler marked as not retryable ends the job now: the attempts left would
+            // each meet the same answer and only delay the dead-letter an operator has to act on.
+            if (job.lastAttempt() || !JobExecutionException.retryableOf(failure)) {
                 queue.deadLetter(lease, errorCode, now);
                 // The dead-letter line an operator alerts on: identifiers and a code, nothing else.
                 log.error("job dead-letter type={} jobId={} attempts={} errorCode={}",

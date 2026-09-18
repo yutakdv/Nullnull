@@ -16,6 +16,7 @@ import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.recommendation.application.ProposalRevalidator;
 import io.nullnull.recommendation.application.RecommendationGateway;
+import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.application.RunFingerprint;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
 import io.nullnull.recommendation.domain.Reason;
@@ -174,8 +175,14 @@ public class OptimizeItemHandler implements JobHandler {
         // startup would hold whatever the service published then, which is the drift it exists to
         // catch. Nothing in this repository defines such a bean, and a constructor asking for one
         // would not start.
-        PolicyDescriptor policy = recommendations.policy();
-        ItemProposeResponse answer = recommendations.proposeItem(prepared.request());
+        PolicyDescriptor policy;
+        ItemProposeResponse answer;
+        try {
+            policy = recommendations.policy();
+            answer = recommendations.proposeItem(prepared.request());
+        } catch (RecommendationUnavailableException unavailable) {
+            throw jobFailure(unavailable);
+        }
 
         List<Reason> refusals = new ProposalRevalidator(policy).check(prepared.request(), answer);
         if (!refusals.isEmpty()) {
@@ -279,8 +286,12 @@ public class OptimizeItemHandler implements JobHandler {
 
         requireNoTransaction();
         List<String> summaries = new ArrayList<>(answer.proposals().size());
-        answer.proposals().forEach(proposal -> summaries.add(
-                recommendations.renderExplanation(explanation(prepared, byDate, proposal)).summary()));
+        try {
+            answer.proposals().forEach(proposal -> summaries.add(
+                    recommendations.renderExplanation(explanation(prepared, byDate, proposal)).summary()));
+        } catch (RecommendationUnavailableException unavailable) {
+            throw jobFailure(unavailable);
+        }
 
         Instant at = clock.instant();
         List<OptimizationProposal> stored = mapper.toProposals(run, prepared.target(),
@@ -359,6 +370,30 @@ public class OptimizeItemHandler implements JobHandler {
     /** What one run needs, read once. */
     private record Prepared(ItemProposeRequest request, TemporalCandidateAssembler.Candidates candidates,
             String locale, String placeName, String catalogVersion, Trip trip, TripItem target) {
+    }
+
+    /**
+     * An {@code apps/ai} that gave no usable answer, as the job's failure (#252). Two codes, because
+     * they ask different things of an operator and of the queue:
+     *
+     * <ul>
+     *   <li>{@code RECOMMENDATION_UNAVAILABLE} - the service did not answer (refused, reset, timed out,
+     *       5xx). The attempt is retried; the next one may find it back.</li>
+     *   <li>{@code RECOMMENDATION_UNUSABLE} - it answered outside its contract, or refused the request
+     *       this service built. The same request gets the same answer, so the job ends on this attempt
+     *       instead of spending the rest; the gateway has already logged which of the two it was.</li>
+     * </ul>
+     *
+     * <p>The run itself is left as it is, as it always was when a job ended on a handler failure: the
+     * contract's run failure codes describe the trip and its evidence, and none of them says the
+     * recommendation service failed.
+     */
+    private static JobExecutionException jobFailure(RecommendationUnavailableException unavailable) {
+        return unavailable.retryable()
+                ? new JobExecutionException("RECOMMENDATION_UNAVAILABLE",
+                        "apps/ai did not answer the optimization run.", unavailable, true)
+                : new JobExecutionException("RECOMMENDATION_UNUSABLE",
+                        "apps/ai answered the optimization run outside its contract.", unavailable, false);
     }
 
     private static UUID runId(JobContext context) {

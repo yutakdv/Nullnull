@@ -18,6 +18,7 @@ import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.optimization.domain.RevertAvailability;
 import io.nullnull.recommendation.application.RecommendationGateway;
+import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
 import io.nullnull.recommendation.application.ProposalRevalidator;
 import io.nullnull.shared.cursor.CursorClaims;
@@ -331,13 +332,30 @@ public class OptimizationService {
      *
      * <p>A run that never reached READY has no stored policy, and the status check above has already
      * refused it; this asserts that rather than treating null as agreement.
+     *
+     * <p>A service that cannot answer is not a withdrawn policy, and it is not a server bug either
+     * (#252). Nothing has been written yet and the transaction rolls back, so the trip is exactly as
+     * it was and the stored idempotency record is not made - which is the contract's APPLY_FAILED 503:
+     * retryable, the same key. A service that answered outside its contract or refused the request
+     * gets the same answer the next time, so that is a 500 and not retryable; the gateway has already
+     * logged which one it was. KEEP passes through here too and gets the same answers.
      */
     private void requirePolicyStillInForce(OptimizationRun run) {
         if (run.policyVersion() == null || run.policyHash() == null) {
             throw new IllegalStateException(
                     "run " + run.id() + " is READY without the policy it was judged under");
         }
-        PolicyDescriptor current = recommendations.policy();
+        PolicyDescriptor current;
+        try {
+            current = recommendations.policy();
+        } catch (RecommendationUnavailableException unavailable) {
+            if (unavailable.retryable()) {
+                throw new ApiException(ProblemCode.APPLY_FAILED, HttpStatus.SERVICE_UNAVAILABLE,
+                        "The apply could not be completed and the trip was not changed.", true, null);
+            }
+            throw new ApiException(ProblemCode.INTERNAL_ERROR,
+                    "The apply could not be completed and the trip was not changed.");
+        }
         if (!run.policyVersion().equals(current.policyVersion())
                 || !run.policyHash().equals(current.policyHash())) {
             throw new ApiException(ProblemCode.DATA_CHANGED,
