@@ -107,6 +107,25 @@ class OptimizationDecisionSchemaIT {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("BA-053-T8 the database refuses a second REVERT of one APPLY")
+    void oneRevertPerApply() {
+        seed();
+        UUID applied = decision("APPLY", 7L, revision(), revision(), null, true);
+
+        // The first REVERT of it is accepted - the control that the refusal below is about the second
+        // one and not about REVERT rows in general.
+        assertThatCode(() -> decision("REVERT", 8L, revision(), revision(), applied, false))
+                .doesNotThrowAnyException();
+
+        // The second line under a race. From HTTP a second undo meets the trip module's re-read of the
+        // trip version first - even when both read the APPLY before either wrote, which BA-053-T7
+        // races - so this is the layer where V033's unique index is the arbiter. V030's partial index
+        // cannot be what refuses it - it leaves REVERTs out.
+        assertThatThrownBy(() -> decision("REVERT", 9L, revision(), revision(), applied, false))
+                .isInstanceOf(DataAccessException.class);
+    }
+
     private UUID decision(String kind, Long resultingVersion, UUID before, UUID after, UUID reverted,
             boolean revertWindow) {
         UUID id = UUID.randomUUID();

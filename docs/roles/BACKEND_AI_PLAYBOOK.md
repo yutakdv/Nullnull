@@ -1537,7 +1537,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-053
 
-**24시간 REVERT·최적화 이력** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**24시간 REVERT·최적화 이력** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-052](#ba-052)
 - 기능 ID: `FR-OPT-09`, `FR-PRO-04`
@@ -1557,9 +1557,23 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-053-T1`: 24시간 직전/정각/이후·두 요청 경쟁·같은 key replay를 검증한다
+- `BA-053-T1`: 창이 열려 있는 동안(revertUntil 전)의 revert는 일정을 되돌리고 run을 REVERTED로 끝낸다
 - `BA-053-T2`: 후속 metadata/관심사/item 편집이 있으면 revert를 거부한다
-- `BA-053-T3`: history owner/filter/expiry cursor와 trip 삭제 cascade를 검증한다
+- `BA-053-T3`: history는 caller의 run만 trip filter대로 보여 주고 trip 삭제와 함께 사라진다
+- `BA-053-T4`: revertUntil과 같은 순간의 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
+- `BA-053-T5`: revertUntil이 지난 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다
+- `BA-053-T6`: 같은 Idempotency-Key로 다시 온 revert는 저장된 응답을 돌려주고 두 번 되돌리지 않는다
+- `BA-053-T7`: 동시에 온 두 revert는 trip version 재조회가 중재해 하나만 반영된다
+- `BA-053-T8`: 한 APPLY를 가리키는 두 번째 REVERT 행은 DB가 거부한다
+- `BA-053-T9`: KEEP과 REVERT 결정은 되돌릴 수 없다
+- `BA-053-T10`: 만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다
+
+**원래 세 절을 열로 나눈 이유.** `T1`은 창 경계 셋·경쟁·replay를, `T3`은 cursor 만료를 함께 묶고 있었고 그 ID들을 단 test는 절의 일부만 쟀다 — 정각 경계·경쟁·cursor 만료를 재는 case가 없었다. 등록 규칙 3의 모양이라 승격 전에 기제별로 나눴다. `T2`는 나누지 않는다: item·metadata·관심사 편집은 모두 `resultingTripVersion` 비교 **한 기제**를 때리는 입력이고, 세 입력마다 case가 있다.
+
+- **경계(`T1`·`T4`·`T5`).** 코드는 `!now.isBefore(revertUntil)`로 닫는다 — `revertUntil`은 undo가 제공되는 마지막 순간이 아니라 사라지는 첫 순간이다. 이 차이는 **정각 case만** 가른다. 1초 전·후는 `isAfter`로 잘못 써도 같은 답을 낸다. 비교를 `isAfter`로 바꾼 변이에서 `T4`만, 창을 1초 일찍 닫은 변이에서 1초 전 case(`T1`)만 빨갛다. 경계값은 APPLY 응답의 `revertUntil`에서 읽는다 — 이 파일이 생각하는 24시간이 아니라 저장된 창을 잰다.
+- **경쟁(`T7`·`T8`).** `revertOptimizationDecision`은 APPLY와 run을 idempotency guard가 owner 잠금을 잡기 **전에** 읽는다. 그래서 두 revert가 둘 다 쓰기 전에 읽을 수 있고, `T7`은 그것을 HTTP에서 재현한다 — decisions 테이블 잠금으로 두 요청을 읽기에 세웠다가 풀고, trip 행을 잡아 먼저 transaction에 든 쪽을 세운 채 다른 쪽이 owner 대기열에 선 것을 `pg_stat_activity`로 확인한 뒤 푼다. owner 행은 잡을 수 없다 — 컨트롤러 앞의 CSRF 재검증이 그 행을 잠가, 잡으면 두 요청이 읽기 전에 멈춘다. 진 쪽을 막는 것은 V033이 아니라 trip 모듈이 transaction 안에서 trip을 새로 읽는 version 검사다. 그 검사를 끈 변이에서 진 쪽은 V033에 걸려 `DATA_CHANGED`가 되고 `T7`이 빨갛다. `V033` unique는 그 뒤의 두 번째 선이고 `T8`이 SQL 층에서 따로 증명한다(일반 index로 바꾼 변이에서 `T8`만 빨갛다). 순차 두 번째 revert는 [BA-054](#ba-054)-`T9`가 잰다.
+- **`T9`는 안전 경계 문장(*"KEEP/REVERT를 다시 되돌리지 않는다"*)의 절이다.** 그 동작을 재던 case가 `T2` ID를 달고 있었는데 `T2`의 문구에는 그 절이 없었고, 이름은 KEEP과 REVERT를 말하면서 본문은 KEEP만 쟀다. REVERT를 되돌리는 case를 더했고, 종류 검사를 끈 변이에서 둘 다 빨갛다.
+- **`T10`.** history cursor의 수명은 `OptimizationCursorProperties`의 15분이고 만료는 `SignedCursorCodec`이 410 `CURSOR_EXPIRED`로 답한다. 같은 cursor가 신선할 때 받아들여지는 것을 대조군으로 둔다. 만료 검사를 끈 변이에서 `T10`만 빨갛다.
 
 FE 인계·완료 증거: undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1603,7 +1617,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 `T1`~`T5`는 투영이 맞는 값을 내는지를 묻고 `T6`~`T9`는 **그 값을 믿어도 되는 범위**를 묻는다 — AVAILABLE을 보고 revert가 검사를 건너뛰면 `T1`~`T5`는 전부 초록인 채로 불변식 6이 깨진다. 뒤쪽이 넷인 것은 revert가 다시 하는 검사(version·owner·window·decision)마다 하나씩이기 때문이다. 처음에는 넷을 한 절(`T6`)에 묶었고 그 절의 test는 version 하나만 쟀다 — 등록 규칙 3이 말하는 모양이라 승격 전에 쪼갰다.
 
-`T7`과 `T9`는 막은 줄이 아니라 결과를 단언한다. 둘 다 경로 위에 가드가 여럿이라서다. owner 검사는 decision·run·trip 조회 세 곳에 있고, 셋을 다 끈 변이에서 `T7`만 빨개진다(하나씩 끈 변이는 재지 않았다). 두 번째 undo는 오늘 HTTP에서 첫 undo가 올린 trip version에 걸리는데, 그 검사만 끄면 `red=0`이다 — V033의 `reverted_decision_id` unique와 run 상태 전이가 이어서 막는다. 셋을 다 꺼야 `T9`만 빨개진다. 그래서 `T9`는 409를 단언하고 code는 `TRIP_CHANGED`·`DATA_CHANGED` 중 무엇이든 받는다. V033은 두 undo가 모두 쓰기 전에 읽는 경쟁에서만 중재하는데 idempotency guard의 owner 잠금이 HTTP에서 그 경쟁을 직렬화하므로, 그 index의 증명은 SQL 층에서 BA-053이 한다.
+`T7`과 `T9`는 막은 줄이 아니라 결과를 단언한다. 둘 다 경로 위에 가드가 여럿이라서다. owner 검사는 decision·run·trip 조회 세 곳에 있고, 셋을 다 끈 변이에서 `T7`만 빨개진다(하나씩 끈 변이는 재지 않았다). 두 번째 undo는 오늘 HTTP에서 첫 undo가 올린 trip version에 걸리는데, 그 검사만 끄면 `red=0`이다 — V033의 `reverted_decision_id` unique와 run 상태 전이가 이어서 막는다. 셋을 다 꺼야 `T9`만 빨개진다. 그래서 `T9`는 409를 단언하고 code는 `TRIP_CHANGED`·`DATA_CHANGED` 중 무엇이든 받는다. V033에 닿기 전에 transaction 안에서 trip을 새로 읽는 version 검사가 두 번째 undo를 막는다 — 두 undo가 모두 쓰기 전에 읽는 경쟁에서도 그렇고, BA-053-T7이 그것을 동시에 보내 잰다. 그래서 그 index의 증명은 SQL 층에서 BA-053-T8이 한다.
 
 FE 인계·완료 증거: applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다. 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

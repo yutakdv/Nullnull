@@ -1804,7 +1804,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "24시간 REVERT·최적화 이력",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-052"
       ],
@@ -1833,7 +1833,7 @@
       "tests": [
         {
           "id": "BA-053-T1",
-          "assertion": "24시간 직전/정각/이후·두 요청 경쟁·같은 key replay를 검증한다"
+          "assertion": "창이 열려 있는 동안(revertUntil 전)의 revert는 일정을 되돌리고 run을 REVERTED로 끝낸다"
         },
         {
           "id": "BA-053-T2",
@@ -1841,7 +1841,35 @@
         },
         {
           "id": "BA-053-T3",
-          "assertion": "history owner/filter/expiry cursor와 trip 삭제 cascade를 검증한다"
+          "assertion": "history는 caller의 run만 trip filter대로 보여 주고 trip 삭제와 함께 사라진다"
+        },
+        {
+          "id": "BA-053-T4",
+          "assertion": "revertUntil과 같은 순간의 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-053-T5",
+          "assertion": "revertUntil이 지난 revert는 410 REVERT_WINDOW_EXPIRED로 거절된다"
+        },
+        {
+          "id": "BA-053-T6",
+          "assertion": "같은 Idempotency-Key로 다시 온 revert는 저장된 응답을 돌려주고 두 번 되돌리지 않는다"
+        },
+        {
+          "id": "BA-053-T7",
+          "assertion": "동시에 온 두 revert는 trip version 재조회가 중재해 하나만 반영된다"
+        },
+        {
+          "id": "BA-053-T8",
+          "assertion": "한 APPLY를 가리키는 두 번째 REVERT 행은 DB가 거부한다"
+        },
+        {
+          "id": "BA-053-T9",
+          "assertion": "KEEP과 REVERT 결정은 되돌릴 수 없다"
+        },
+        {
+          "id": "BA-053-T10",
+          "assertion": "만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다"
         }
       ],
       "handoff": "undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag.",
