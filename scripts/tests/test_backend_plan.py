@@ -323,6 +323,39 @@ class BackendPlanTests(unittest.TestCase):
         self.assertTrue(self.clause_errors(cards=self.cards.replace(row, row + '고 기록한다')),
                         'a clause extended without the dash must be reported')
 
+    # --- The 데이터·정책 row in both files. Only `entities` being non-empty was checked, and CLAUDE.md
+    # asks both files to change together. Each case asserts its specimen is an exact row first.
+
+    def data_policy_errors(self, plan=None, cards=None):
+        errors = []
+        validate_plan(copy.deepcopy(self.plan) if plan is None else plan, self.ops, self.features,
+                      self.cards if cards is None else cards, ROOT, errors)
+        return [e for e in errors if '데이터·정책' in e]
+
+    def data_policy_row(self, tid):
+        task = next(t for t in self.plan['tasks'] if t['id'] == tid)
+        card = self.cards[self.cards.index(f'### {tid}\n'):]
+        row = next(line for line in card.splitlines() if line.startswith('- 데이터·정책:'))
+        self.assertEqual(row, f"- 데이터·정책: {task['entities']}", 'the specimen must be an exact row')
+        return row
+
+    def test_the_data_policy_rows_agree_today(self):
+        self.assertEqual([], self.data_policy_errors())
+
+    def test_a_one_character_change_to_the_data_policy_row_is_caught_on_either_side(self):
+        row = self.data_policy_row('BA-024')
+        plan = copy.deepcopy(self.plan)
+        task = next(t for t in plan['tasks'] if t['id'] == 'BA-024')
+        task['entities'] = task['entities'][:-1] + '.'
+        self.assertTrue(self.data_policy_errors(plan=plan), 'a changed manifest entities must be reported')
+        self.assertTrue(self.data_policy_errors(cards=self.cards.replace(row, row[:-1] + '.', 1)),
+                        'a changed card row must be reported')
+
+    def test_a_card_without_a_data_policy_row_is_caught(self):
+        row = self.data_policy_row('BA-024')
+        errors = self.data_policy_errors(cards=self.cards.replace(row + '\n', '', 1))
+        self.assertTrue(any('BA-024: card has no - 데이터·정책: row' in e for e in errors), errors)
+
     def test_markup_is_part_of_the_clause(self):
         # What BA-020-T1~T3 had: the card wrapped class names in backticks and the manifest did not.
         # The rule compares the text as written rather than normalising markup away - simpler, and

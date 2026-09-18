@@ -56,12 +56,28 @@ import relatedNone from "../fixtures/places/related-none.json" with { type: "jso
 import relatedChecking from "../fixtures/places/related-checking.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
 import placeDetail from "../fixtures/places/place-detail.json" with { type: "json" };
+import crowdSeriesForecast from "../fixtures/crowd/series-forecast.json" with { type: "json" };
+import crowdSeriesStale from "../fixtures/crowd/series-stale.json" with { type: "json" };
+import crowdSeriesUnavailable from "../fixtures/crowd/series-unavailable.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
 import tripDetailReservation from "../fixtures/trips/trip-detail-reservation.json" with { type: "json" };
 import draftPreviewReady from "../fixtures/trips/draft-preview-ready.json" with { type: "json" };
 import draftPreviewEmpty from "../fixtures/trips/draft-preview-empty.json" with { type: "json" };
+import mutationAdd from "../fixtures/trips/mutation-add.json" with { type: "json" };
+import mutationUpdate from "../fixtures/trips/mutation-update.json" with { type: "json" };
+import mutationReorder from "../fixtures/trips/mutation-reorder.json" with { type: "json" };
+import mutationReplace from "../fixtures/trips/mutation-replace.json" with { type: "json" };
+import mutationConstraintSet from "../fixtures/trips/mutation-constraint-set.json" with { type: "json" };
+import mutationConstraintRemove from "../fixtures/trips/mutation-constraint-remove.json" with { type: "json" };
+import mutationRemove from "../fixtures/trips/mutation-remove.json" with { type: "json" };
+import importDraftNeedsReview from "../fixtures/imports/draft-needs-review.json" with { type: "json" };
+import importDraftReady from "../fixtures/imports/draft-ready.json" with { type: "json" };
+import importConfirmedTrip from "../fixtures/imports/confirmed-trip.json" with { type: "json" };
+import ownerProfileOnboarded from "../fixtures/session/owner-profile-onboarded.json" with { type: "json" };
+import eventReceiptAccepted from "../fixtures/analytics/receipt-accepted.json" with { type: "json" };
+import eventReceiptResent from "../fixtures/analytics/receipt-resent.json" with { type: "json" };
 import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
 import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
 import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
@@ -183,6 +199,41 @@ export const tripFixtures = {
   detailReservation: tripDetailReservation as components["schemas"]["TripDetail"],
 };
 
+// The seven item mutations' responses (#16): each is trip-detail-scheduled's trip at version 4 after
+// that one change. Pinned to the contract's response examples by scripts/check-examples.mjs; apps/api
+// builds the same trip and compares their shape with a real response (TripMutationFixtureIT).
+export const tripMutationFixtures = {
+  add: mutationAdd as components["schemas"]["TripMutationResult"],
+  update: mutationUpdate as components["schemas"]["TripMutationResult"],
+  reorder: mutationReorder as components["schemas"]["TripMutationResult"],
+  replace: mutationReplace as components["schemas"]["TripMutationResult"],
+  constraintSet: mutationConstraintSet as components["schemas"]["TripMutationResult"],
+  constraintRemove: mutationConstraintRemove as components["schemas"]["TripMutationResult"],
+  remove: mutationRemove as components["schemas"]["TripMutationResult"],
+};
+
+// The import flow (#16): parseTripImport's draft with one question left, remapTripImport's READY draft,
+// and confirmTripImport's trip. Pinned to the contract's response examples by
+// scripts/check-examples.mjs; apps/api runs the same flow and compares their shape with a real
+// response (TripImportFixtureIT).
+export const importFixtures = {
+  draftNeedsReview: importDraftNeedsReview as components["schemas"]["ImportDraft"],
+  draftReady: importDraftReady as components["schemas"]["ImportDraft"],
+  confirmedTrip: importConfirmedTrip as components["schemas"]["TripDetail"],
+};
+
+// updatePreferences and ingestEventBatch (#16), pinned to the contract's response examples by
+// scripts/check-examples.mjs; apps/api compares their shape with a real response and validates it
+// against the contract (OwnerPreferencesIT, AnalyticsIngestIT).
+export const preferenceFixtures = {
+  ownerOnboarded: ownerProfileOnboarded as components["schemas"]["OwnerProfile"],
+};
+
+export const analyticsFixtures = {
+  receiptAccepted: eventReceiptAccepted as components["schemas"]["EventBatchReceipt"],
+  receiptResent: eventReceiptResent as components["schemas"]["EventBatchReceipt"],
+};
+
 // previewTripDraft's two faces (BA-055). Pinned to the contract's response examples by
 // scripts/check-examples.mjs. EMPTY is an answer, not an outage: an outage is a 503.
 export const tripDraftFixtures = {
@@ -301,4 +352,15 @@ export const placeFixtures = {
   // against. description and both thumbnail fields are null because the collector
   // requests overviewYN=N and firstImageYN=N.
   detail: placeDetail as components["schemas"]["PlaceDetail"],
+};
+
+// getPlaceCrowdForecast's three faces (#16): a fresh forecast, the same forecast served as a
+// stale fallback, and no coverage. Pinned to the contract's response examples by
+// scripts/check-examples.mjs; apps/api compares their shape with a real response at every level
+// (CrowdForecastApiIT).
+export const crowdFixtures = {
+  seriesForecast: crowdSeriesForecast as components["schemas"]["CrowdSeries"],
+  seriesStale: crowdSeriesStale as components["schemas"]["CrowdSeries"],
+  seriesUnavailable:
+    crowdSeriesUnavailable as components["schemas"]["CrowdSeries"],
 };

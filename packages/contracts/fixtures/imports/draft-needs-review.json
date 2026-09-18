@@ -1,0 +1,104 @@
+{
+  "id": "018f4a80-5e21-7a11-8b01-3c4d5e6f7a01",
+  "version": 1,
+  "status": "NEEDS_REVIEW",
+  "title": null,
+  "dates": {
+    "startDate": "2026-10-04",
+    "endDate": "2026-10-05"
+  },
+  "items": [
+    {
+      "clientKey": "i2",
+      "place": {
+        "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
+        "name": "경복궁",
+        "categoryCode": "HS",
+        "regionCode": "11",
+        "categoryName": null,
+        "regionName": null,
+        "thumbnailUrl": null,
+        "thumbnailAttribution": null,
+        "address": null,
+        "sourceAttribution": null
+      },
+      "date": "2026-10-04",
+      "startTime": null,
+      "position": 0,
+      "confidence": 1
+    },
+    {
+      "clientKey": "i3",
+      "place": {
+        "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
+        "name": "인사동",
+        "categoryCode": "HS",
+        "regionCode": "11",
+        "categoryName": null,
+        "regionName": null,
+        "thumbnailUrl": null,
+        "thumbnailAttribution": null,
+        "address": null,
+        "sourceAttribution": null
+      },
+      "date": "2026-10-04",
+      "startTime": "13:00:00",
+      "position": 1,
+      "confidence": 1
+    },
+    {
+      "clientKey": "i5",
+      "place": {
+        "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
+        "name": "명동",
+        "categoryCode": "HS",
+        "regionCode": "11",
+        "categoryName": null,
+        "regionName": null,
+        "thumbnailUrl": null,
+        "thumbnailAttribution": null,
+        "address": null,
+        "sourceAttribution": null
+      },
+      "date": "2026-10-05",
+      "startTime": null,
+      "position": 2,
+      "confidence": 1
+    }
+  ],
+  "unresolved": [
+    {
+      "clientKey": "t6",
+      "kind": "PLACE",
+      "line": 6,
+      "label": "",
+      "suggestions": [
+        {
+          "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b12",
+          "name": "서울숲",
+          "categoryCode": "HS",
+          "regionCode": "11",
+          "categoryName": null,
+          "regionName": null,
+          "thumbnailUrl": null,
+          "thumbnailAttribution": null,
+          "address": null,
+          "sourceAttribution": null
+        },
+        {
+          "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b13",
+          "name": "서울숲 공원",
+          "categoryCode": "HS",
+          "regionCode": "11",
+          "categoryName": null,
+          "regionName": null,
+          "thumbnailUrl": null,
+          "thumbnailAttribution": null,
+          "address": null,
+          "sourceAttribution": null
+        }
+      ]
+    }
+  ],
+  "expiresAt": "2026-10-01T09:00:00Z"
+}

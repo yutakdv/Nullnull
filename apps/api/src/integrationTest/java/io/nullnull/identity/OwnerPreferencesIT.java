@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.ContractResponse;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -76,8 +78,14 @@ class OwnerPreferencesIT {
         // made-up id no longer reaches the column at all.
         UUID trip=io.nullnull.testsupport.TripRows.insert(jdbc,a.owner.id(),java.time.Instant.now());
         jdbc.update("UPDATE owners SET active_trip_id = ? WHERE id = ?",trip,a.owner.id());
-        change(a,"{\"onboardingCompleted\":true}").andExpect(status().isOk())
-                .andExpect(jsonPath("$.activeTripId").value(trip.toString()));
+        String onboarded=change(a,"{\"onboardingCompleted\":true}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeTripId").value(trip.toString()))
+                .andReturn().getResponse().getContentAsString();
+        // The fixture Frontend mocks updatePreferences against has the keys the server sends, and the
+        // response is what the contract declares (#16).
+        ContractResponse.assertValid("updatePreferences",200,onboarded);
+        assertThat(JsonShape.of(new tools.jackson.databind.ObjectMapper().readTree(onboarded)))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("session/owner-profile-onboarded.json")));
         String version=jdbc.queryForObject("SELECT xmin::text FROM owners WHERE id = ?",String.class,a.owner.id());
         change(a,"{\"onboardingCompleted\":true}").andExpect(status().isOk());
         assertThat(jdbc.queryForObject("SELECT xmin::text FROM owners WHERE id = ?",String.class,a.owner.id())).isEqualTo(version);

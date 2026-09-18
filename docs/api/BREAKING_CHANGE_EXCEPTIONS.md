@@ -104,7 +104,9 @@ tags:
   `docs-contract`를 빨갛게 만들었고, 그것이 이 장치의 목적이다 — **예외가 자기 수정보다 오래 살 수 없다.**
   `apps/ai`는 비교 자격 없음·관측 없음·신선도 만료·대안 0건 네 자리에서 이 코드를 내고, 그전에는 그 넷이
   `NO_IMPROVEMENT`(더 나은 답이 없다)나 `UNEXPECTED_FAILURE`(우리가 깨졌다)로 접혔는데 **둘 다 거짓**이었다.
-  이 코드는 **retryable이 아니다** — 같은 입력이면 같은 답이므로 화면의 CTA는 재시도가 아니라 범위 변경이어야 한다.
+  이 코드는 **retryable이다**(오너 결정 2026-09-19, #225) — 근거가 아직 없는 것이라 예보가 들어오면 답이 바뀐다.
+  `retryable`은 원인에 대한 진술이고(`OptimizationFailureCode`), 화면은 그것으로 재계산을 켠다. 이 기록은 처음에
+  "retryable이 아니다"로 적혔고 코드·FE와 어긋나 있었다.
 
   **그리고 이 지연은 PR에서만 드러난다.** oasdiff diff는 `main` 대상 PR에서만 돌므로, 계약이 머지된
   순간 면제는 만료됐지만 그 뒤 **처음 열린 PR**([#234](https://github.com/yutakdv/Nullnull/pull/234), FE)에서야

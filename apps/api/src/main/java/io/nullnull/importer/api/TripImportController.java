@@ -1,5 +1,6 @@
 package io.nullnull.importer.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.nullnull.catalog.api.PlaceController.PlaceSummaryResponse;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.identity.application.OwnerContext;
@@ -193,11 +194,13 @@ public class TripImportController {
 
     /**
      * {@code ImportDraftItem}. No {@code constraints} field: the schema allows one and nothing
-     * produces it, and a field serialised as null would not even be valid against it.
+     * produces it, and a field serialised as null would not even be valid against it. The same holds
+     * for {@code originalLabel}, which the parser never fills (TripImportService): the schema types it
+     * as a string, so it is left out when null rather than sent as a null the contract refuses.
      */
     public record ImportDraftItemResponse(String clientKey, PlaceSummaryResponse place,
-            String originalLabel, LocalDate date, String startTime, int position,
-            BigDecimal confidence) { }
+            @JsonInclude(JsonInclude.Include.NON_NULL) String originalLabel, LocalDate date, String startTime,
+            int position, BigDecimal confidence) { }
 
     public record UnresolvedImportTokenResponse(String clientKey, String kind, int line, String label,
             List<PlaceSummaryResponse> suggestions) { }

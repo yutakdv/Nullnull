@@ -1,33 +1,20 @@
 {
-  "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
-  "title": "서울 가을 여행",
+  "id": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a0a",
+  "title": "붙여넣은 서울 일정",
   "startDate": "2026-10-04",
-  "endDate": "2026-10-07",
+  "endDate": "2026-10-05",
   "timezone": "Asia/Seoul",
-  "status": "ACTIVE",
-  "version": 3,
-  "candidateCount": 5,
-  "planningLevel": "MUST_VISIT_ONLY",
-  "interests": [
-    {
-      "code": "CULTURE",
-      "weight": 3
-    },
-    {
-      "code": "FOOD",
-      "weight": 5
-    },
-    {
-      "code": "FRIENDS",
-      "weight": 3
-    }
-  ],
+  "status": "DRAFT",
+  "version": 1,
+  "candidateCount": 0,
+  "planningLevel": "NOTHING",
+  "interests": [],
   "days": [
     {
       "date": "2026-10-04",
       "items": [
         {
-          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c01",
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c21",
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01",
             "name": "경복궁",
@@ -42,26 +29,13 @@
           },
           "date": "2026-10-04",
           "position": 0,
-          "startTime": "09:30:00",
-          "durationMinutes": 120,
+          "startTime": null,
+          "durationMinutes": null,
           "note": null,
-          "constraints": [
-            {
-              "type": "DATE",
-              "locked": true,
-              "source": "USER",
-              "date": "2026-10-04"
-            },
-            {
-              "type": "MUST_VISIT",
-              "locked": true,
-              "source": "USER"
-            }
-          ],
-          "crowd": null
+          "constraints": []
         },
         {
-          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02",
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c22",
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03",
             "name": "인사동",
@@ -77,18 +51,9 @@
           "date": "2026-10-04",
           "position": 1,
           "startTime": "13:00:00",
-          "durationMinutes": 90,
+          "durationMinutes": null,
           "note": null,
-          "constraints": [
-            {
-              "type": "TIME",
-              "locked": true,
-              "source": "USER",
-              "startTime": "13:00:00",
-              "toleranceMinutes": 30
-            }
-          ],
-          "crowd": null
+          "constraints": []
         }
       ]
     },
@@ -96,7 +61,7 @@
       "date": "2026-10-05",
       "items": [
         {
-          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03",
+          "id": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c23",
           "place": {
             "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02",
             "name": "명동",
@@ -110,22 +75,13 @@
             "sourceAttribution": null
           },
           "date": "2026-10-05",
-          "position": 0,
+          "position": 2,
           "startTime": "14:00:00",
-          "durationMinutes": 120,
+          "durationMinutes": null,
           "note": null,
-          "constraints": [],
-          "crowd": null
+          "constraints": []
         }
       ]
-    },
-    {
-      "date": "2026-10-06",
-      "items": []
-    },
-    {
-      "date": "2026-10-07",
-      "items": []
     }
   ],
   "candidates": []

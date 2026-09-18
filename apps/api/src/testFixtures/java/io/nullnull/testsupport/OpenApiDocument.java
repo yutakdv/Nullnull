@@ -1,4 +1,4 @@
-package io.nullnull.contract;
+package io.nullnull.testsupport;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -242,6 +242,48 @@ public final class OpenApiDocument {
 
     /** One HTTP method and the full request path of an operation. */
     public record Route(String method, String path) {
+    }
+
+    /**
+     * A JSON Schema 2020-12 document for the body an operation declares for one status: that response's
+     * {@code application/json} or {@code application/problem+json} schema, with every component schema
+     * beside it so its references resolve. A response given as a {@code $ref} into
+     * {@code components.responses} is followed. An operation that declares no JSON body for the status
+     * is refused rather than answered with an empty schema, so a check against it cannot pass by having
+     * nothing to check.
+     */
+    @SuppressWarnings("unchecked")
+    public String responseSchemaJson(String operationId, String statusCode) {
+        Map<String, Object> paths = section(document.get("paths"), "paths");
+        for (Object item : paths.values()) {
+            for (Map.Entry<String, Object> entry : section(item, "paths.*").entrySet()) {
+                if (!HTTP_METHODS.contains(entry.getKey()) || !(entry.getValue() instanceof Map<?, ?> op)
+                        || !operationId.equals(op.get("operationId"))) {
+                    continue;
+                }
+                Map<String, Object> responses = section(op.get("responses"), operationId + ".responses");
+                Map<String, Object> response = section(responses.get(statusCode),
+                        operationId + ".responses." + statusCode);
+                if (response.get("$ref") instanceof String ref) {
+                    Map<String, Object> components = section(document.get("components"), "components");
+                    response = section(section(components.get("responses"), "components.responses")
+                            .get(ref.substring(ref.lastIndexOf('/') + 1)), ref);
+                }
+                Map<String, Object> content = section(response.get("content"),
+                        operationId + ".responses." + statusCode + ".content");
+                Object media = content.containsKey("application/json")
+                        ? content.get("application/json") : content.get("application/problem+json");
+                Map<String, Object> schema = section(section(media, operationId + " " + statusCode + " JSON body")
+                        .get("schema"), operationId + " " + statusCode + " schema");
+                Map<String, Object> components = section(document.get("components"), "components");
+                Map<String, Object> wrapper = new LinkedHashMap<>(schema);
+                wrapper.put("$schema", "https://json-schema.org/draft/2020-12/schema");
+                wrapper.put("components", Map.of("schemas", section(components.get("schemas"),
+                        "components.schemas")));
+                return json.writeValueAsString(wrapper);
+            }
+        }
+        throw new IllegalArgumentException("unknown operationId: " + operationId);
     }
 
     /** JSON Schema 2020-12 document whose root {@code $ref} points at one component schema. */

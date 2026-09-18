@@ -254,10 +254,19 @@ public class OptimizationService {
                         Map.of("runId", runId.toString()), canonicalDecision(command),
                         Long.toString(expected))
                 .sha256Hex();
+        // #271: the one call out of the process is made here, before the guard and outside any
+        // transaction. Inside the guard it held the owner's row lock for as long as apps/ai took, and every
+        // request that owner made meanwhile - reads too, since resolving a session locks the owner - failed
+        // on the lock timeout. It is skipped when the command will refuse the run anyway, as it was refused
+        // before without apps/ai. That includes every replay: a stored decision was written in the same
+        // transaction that moved its run to APPLIED or KEPT, so a replay finds the run no longer READY.
+        Optional<PolicyDescriptor> current = policyNeeded(run)
+                ? Optional.of(currentPolicy())
+                : Optional.empty();
         IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), DECIDE_ROUTE,
                 idempotencyKey, fingerprint,
                 () -> new IdempotencyGuard.CommandOutcome<>(200,
-                        new DecisionProjection(record(context, run, expected, command).id())),
+                        new DecisionProjection(record(context, run, expected, command, current).id())),
                 value -> value);
         DecisionProjection projection = readDecision(guarded.body());
         return decisions.findByRun(runId).stream()
@@ -277,7 +286,7 @@ public class OptimizationService {
      * longer valid" is what DATA_CHANGED says, with the CTA the mapping already gives it.
      */
     private OptimizationDecision record(OwnerContext context, OptimizationRun run, long expected,
-            DecideOptimizationCommand command) {
+            DecideOptimizationCommand command, Optional<PolicyDescriptor> current) {
         Instant now = clock.instant();
         if (run.status() != OptimizationStatus.READY) {
             // Includes a run already decided. The partial unique index refuses a second initial
@@ -289,7 +298,8 @@ public class OptimizationService {
             throw new ApiException(ProblemCode.DATA_CHANGED,
                     "The preview expired before this decision was made.");
         }
-        requirePolicyStillInForce(run);
+        requirePolicyStillInForce(run, current.orElseThrow(() -> new IllegalStateException(
+                "run " + run.id() + " was decidable without its policy having been asked (#271)")));
         FrozenEvidence evidence = requireFrozenEvidenceStillStored(run);
         OptimizationProposal proposal = proposals.findByRun(run.id()).stream()
                 .filter(each -> each.id().equals(command.proposalId()))
@@ -333,21 +343,48 @@ public class OptimizationService {
      * <p>A run that never reached READY has no stored policy, and the status check above has already
      * refused it; this asserts that rather than treating null as agreement.
      *
-     * <p>A service that cannot answer is not a withdrawn policy, and it is not a server bug either
-     * (#252). Nothing has been written yet and the transaction rolls back, so the trip is exactly as
-     * it was and the stored idempotency record is not made - which is the contract's APPLY_FAILED 503:
-     * retryable, the same key. A service that answered outside its contract or refused the request
-     * gets the same answer the next time, so that is a 500 and not retryable; the gateway has already
-     * logged which one it was. KEEP passes through here too and gets the same answers.
+     * <p>What the service reports now is read by {@link #currentPolicy} before the guard (#271); this only
+     * compares. KEEP passes through here too.
      */
-    private void requirePolicyStillInForce(OptimizationRun run) {
+    private void requirePolicyStillInForce(OptimizationRun run, PolicyDescriptor current) {
         if (run.policyVersion() == null || run.policyHash() == null) {
             throw new IllegalStateException(
                     "run " + run.id() + " is READY without the policy it was judged under");
         }
-        PolicyDescriptor current;
+        if (!run.policyVersion().equals(current.policyVersion())
+                || !run.policyHash().equals(current.policyHash())) {
+            throw new ApiException(ProblemCode.DATA_CHANGED,
+                    "The policy this preview was computed under is no longer in force.");
+        }
+    }
+
+    /**
+     * Whether this decision needs the service's current policy (#271): only when the command could still
+     * decide the run. It is the same snapshot and the same two checks the command makes first, so a run it
+     * will refuse - a replay among them - is refused without asking apps/ai, as before. The clock only
+     * moves forward, so a preview expired here is expired there too.
+     */
+    private boolean policyNeeded(OptimizationRun run) {
+        return run.status() == OptimizationStatus.READY && !run.previewExpired(clock.instant());
+    }
+
+    /**
+     * The policy the service reports now, asked outside any transaction (#271) - the check refuses to run
+     * inside one, which is where it used to hold the owner's lock for as long as apps/ai took.
+     *
+     * <p>A service that cannot answer is not a withdrawn policy, and it is not a server bug either
+     * (#252). Nothing has been written - the guard has not been entered - so the trip is exactly as it
+     * was and no idempotency record is made, which is the contract's APPLY_FAILED 503: retryable, the
+     * same key. A service that answered outside its contract or refused the request gets the same answer
+     * the next time, so that is a 500 and not retryable; the gateway has already logged which one it was.
+     */
+    private PolicyDescriptor currentPolicy() {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager
+                .isActualTransactionActive()) {
+            throw new IllegalStateException("apps/ai is asked for the policy outside any transaction (#271)");
+        }
         try {
-            current = recommendations.policy();
+            return recommendations.policy();
         } catch (RecommendationUnavailableException unavailable) {
             if (unavailable.retryable()) {
                 throw new ApiException(ProblemCode.APPLY_FAILED, HttpStatus.SERVICE_UNAVAILABLE,
@@ -355,11 +392,6 @@ public class OptimizationService {
             }
             throw new ApiException(ProblemCode.INTERNAL_ERROR,
                     "The apply could not be completed and the trip was not changed.");
-        }
-        if (!run.policyVersion().equals(current.policyVersion())
-                || !run.policyHash().equals(current.policyHash())) {
-            throw new ApiException(ProblemCode.DATA_CHANGED,
-                    "The policy this preview was computed under is no longer in force.");
         }
     }
 

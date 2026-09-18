@@ -50,6 +50,11 @@ dependencies {
     testFixturesImplementation("org.testcontainers:testcontainers-postgresql")
     testFixturesImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testFixturesImplementation("org.springframework:spring-test")
+    // OpenApiDocument and JsonSchemaCheck read docs/api/openapi.yaml and evaluate a response against it.
+    // They live here so openapiContractTest and integrationTest use the same reader and evaluator.
+    testFixturesImplementation("org.yaml:snakeyaml")
+    testFixturesImplementation("tools.jackson.core:jackson-databind")
+    testFixturesImplementation(libs.json.schema.validator)
 }
 
 // Four suites with one meaning each (docs/engineering/TEST_STRATEGY.md):
@@ -104,20 +109,33 @@ testing {
                 implementation("org.springframework.boot:spring-boot-testcontainers")
                 implementation("org.testcontainers:testcontainers-postgresql")
                 implementation("tools.jackson.core:jackson-databind")
+                // ContractResponse validates the responses the fixture ITs compare with JsonSchemaCheck,
+                // whose API returns this library's types.
+                implementation(libs.json.schema.validator)
                 runtimeOnly("org.postgresql:postgresql")
             }
             targets.all {
                 testTask.configure {
                     shouldRunAfter(test)
-                    // Several ITs read the contract by path, and CandidateIT reads the candidate fixtures.
-                    // Measured without these, an edit to either left the suite UP-TO-DATE on the
-                    // previous PASS (CandidateSourceVocabularyIT, CandidateIT).
+                    // Several ITs read the contract by path, and the fixture ITs read packages/contracts/
+                    // fixtures (JsonShape.fixture). Measured without these, an edit to either left the
+                    // suite UP-TO-DATE on the previous PASS (CandidateSourceVocabularyIT, CandidateIT) -
+                    // and while only fixtures/candidates was declared, removing a key from
+                    // crowd/series-stale.json still reported CrowdForecastApiIT UP-TO-DATE and green (#16).
                     inputs.file(layout.projectDirectory.file("../../docs/api/openapi.yaml"))
                         .withPathSensitivity(PathSensitivity.RELATIVE)
                         .withPropertyName("openapiContract")
-                    inputs.dir(layout.projectDirectory.dir("../../packages/contracts/fixtures/candidates"))
+                    inputs.dir(layout.projectDirectory.dir("../../packages/contracts/fixtures"))
                         .withPathSensitivity(PathSensitivity.RELATIVE)
-                        .withPropertyName("candidateFixtures")
+                        .withPropertyName("contractFixtures")
+                    // ContractResponse reads the contract through OpenApiDocument, which takes its path
+                    // from here, as openapiContractTest's does.
+                    systemProperty(
+                        "nullnull.openapi.path",
+                        providers.gradleProperty("nullnull.openapi.path")
+                            .orElse(layout.projectDirectory.file("../../docs/api/openapi.yaml").asFile.absolutePath)
+                            .get()
+                    )
                 }
             }
         }
@@ -135,8 +153,8 @@ testing {
                 implementation("org.yaml:snakeyaml")
                 implementation("tools.jackson.core:jackson-databind")
                 // JvmTestSuite's implementation(project()) deliberately does not expose the
-                // application's implementation dependencies. JsonSchemaCheck owns this direct
-                // OpenAPI contract dependency, while ProviderResponseValidator owns the main one.
+                // application's implementation dependencies. JsonSchemaCheck (testFixtures) owns this
+                // direct OpenAPI contract dependency, while ProviderResponseValidator owns the main one.
                 implementation(libs.json.schema.validator)
                 runtimeOnly("org.postgresql:postgresql")
             }
@@ -312,6 +330,16 @@ tasks.register<JavaExec>("curatePosts") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("io.nullnull.social.infrastructure.curation.CuratedPostImportMain")
     environment("NULLNULL_CURATION_PLAN", providers.environmentVariable("NULLNULL_CURATION_PLAN").getOrElse(""))
+    workingDir = projectDir
+}
+
+tasks.register<JavaExec>("ktoCallInventory") {
+    group = "verification"
+    description = "Lists the KTO operations one release actually used, from the call-audit (CMP-KTO-006); read-only"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.crowd.infrastructure.audit.KtoCallInventoryMain")
+    environment("NULLNULL_INVENTORY_RELEASE", providers.environmentVariable("NULLNULL_INVENTORY_RELEASE").getOrElse(""))
     workingDir = projectDir
 }
 
