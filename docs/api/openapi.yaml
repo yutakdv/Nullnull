@@ -571,6 +571,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OwnerProfile"
+              examples:
+                preferencesUpdated:
+                  summary: "Onboarding completed, with a trip active"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. OwnerPreferencesIT compares
+                    its keys with a real response, which is also validated against OwnerProfile. It is
+                    the anonymous owner's profile after onboarding, with trip-detail-scheduled's trip active.
+                  value:
+                    id: 018f3f8e-9b67-7a21-8d31-31d315b93911
+                    kind: ANONYMOUS
+                    locale: 'ko-KR'
+                    timezone: 'Asia/Seoul'
+                    onboardingCompleted: true
+                    activeTripId: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
         "401":
@@ -5135,6 +5149,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventBatchReceipt"
+              examples:
+                eventsAccepted:
+                  summary: "A batch of one event, stored"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. AnalyticsIngestIT compares
+                    its keys with a real response, which is also validated against EventBatchReceipt.
+                  value:
+                    accepted: 1
+                    duplicates: 0
+                    rejected: 0
+                eventsResent:
+                  summary: "The same batch sent again"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. AnalyticsIngestIT compares
+                    its keys with a real response. The client cannot know whether the first attempt landed, so
+                    the resend is counted as a duplicate rather than stored twice or refused.
+                  value:
+                    accepted: 0
+                    duplicates: 1
+                    rejected: 0
         "422":
           $ref: "#/components/responses/Unprocessable"
         "401":

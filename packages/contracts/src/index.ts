@@ -75,6 +75,9 @@ import mutationRemove from "../fixtures/trips/mutation-remove.json" with { type:
 import importDraftNeedsReview from "../fixtures/imports/draft-needs-review.json" with { type: "json" };
 import importDraftReady from "../fixtures/imports/draft-ready.json" with { type: "json" };
 import importConfirmedTrip from "../fixtures/imports/confirmed-trip.json" with { type: "json" };
+import ownerProfileOnboarded from "../fixtures/session/owner-profile-onboarded.json" with { type: "json" };
+import eventReceiptAccepted from "../fixtures/analytics/receipt-accepted.json" with { type: "json" };
+import eventReceiptResent from "../fixtures/analytics/receipt-resent.json" with { type: "json" };
 import candidatePage from "../fixtures/candidates/candidate-page.json" with { type: "json" };
 import candidatePageEmpty from "../fixtures/candidates/candidate-page-empty.json" with { type: "json" };
 import matchExact from "../fixtures/candidates/match-exact.json" with { type: "json" };
@@ -217,6 +220,18 @@ export const importFixtures = {
   draftNeedsReview: importDraftNeedsReview as components["schemas"]["ImportDraft"],
   draftReady: importDraftReady as components["schemas"]["ImportDraft"],
   confirmedTrip: importConfirmedTrip as components["schemas"]["TripDetail"],
+};
+
+// updatePreferences and ingestEventBatch (#16), pinned to the contract's response examples by
+// scripts/check-examples.mjs; apps/api compares their shape with a real response and validates it
+// against the contract (OwnerPreferencesIT, AnalyticsIngestIT).
+export const preferenceFixtures = {
+  ownerOnboarded: ownerProfileOnboarded as components["schemas"]["OwnerProfile"],
+};
+
+export const analyticsFixtures = {
+  receiptAccepted: eventReceiptAccepted as components["schemas"]["EventBatchReceipt"],
+  receiptResent: eventReceiptResent as components["schemas"]["EventBatchReceipt"],
 };
 
 // previewTripDraft's two faces (BA-055). Pinned to the contract's response examples by

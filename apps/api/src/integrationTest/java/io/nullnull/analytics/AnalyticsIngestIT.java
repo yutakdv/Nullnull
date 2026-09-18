@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.ContractResponse;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -81,19 +83,31 @@ class AnalyticsIngestIT {
         String id = UUID.randomUUID().toString();
         String body = batch(tripCreated(id));
 
-        send(owner, body)
+        String accepted = send(owner, body)
                 .andExpect(status().isAccepted())
                 .andExpect(header().string("Cache-Control", "private, no-store"))
                 .andExpect(jsonPath("$.accepted").value(1))
                 .andExpect(jsonPath("$.duplicates").value(0))
-                .andExpect(jsonPath("$.rejected").value(0));
+                .andExpect(jsonPath("$.rejected").value(0))
+                .andReturn().getResponse().getContentAsString();
         // The client cannot know whether the first attempt landed, so a resend is the normal case
         // and gets an honest count rather than a second row or a 409.
-        send(owner, body)
+        String resent = send(owner, body)
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.accepted").value(0))
-                .andExpect(jsonPath("$.duplicates").value(1));
+                .andExpect(jsonPath("$.duplicates").value(1))
+                .andReturn().getResponse().getContentAsString();
         assertThat(storedFor(owner)).isEqualTo(1);
+
+        // The fixtures Frontend mocks both receipts against have the keys the server sends, and each
+        // response is what the contract declares (#16).
+        var json = new tools.jackson.databind.ObjectMapper();
+        ContractResponse.assertValid("ingestEventBatch", 202, accepted);
+        assertThat(JsonShape.of(json.readTree(accepted)))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("analytics/receipt-accepted.json")));
+        ContractResponse.assertValid("ingestEventBatch", 202, resent);
+        assertThat(JsonShape.of(json.readTree(resent)))
+                .isEqualTo(JsonShape.of(JsonShape.fixture("analytics/receipt-resent.json")));
     }
 
     @Test

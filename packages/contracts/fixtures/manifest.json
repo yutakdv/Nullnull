@@ -20,8 +20,8 @@
         "DeletionReceipt",
         "DeletionRequestStatus"
       ],
-      "count": 8,
-      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies. deletion-receipt.statusUrl now carries the /api/v1 server base, matching what DeletionService actually emits; it previously omitted it and the contract constrained neither, so both spellings passed. The contract now describes statusUrl as an API path and DeletionIT pins its prefix to spring.mvc.servlet.path so the literal and the configured path cannot drift. BE/AI reviewed (#16 R1): DeletionStatus is a plain record with no @JsonInclude, so the server really does send completedAt, failureCode and retryable rather than omitting them, and the fixture's retryable false with status RUNNING matches the rule that retryable is true exactly while status is PARTIAL_FAILED. Three more DeletionRequestStatus fixtures cover COMPLETED, PARTIAL_FAILED and FAILED: every field is decided by apps/api (JdbcDeletionStore.markCompleted clears failureCode and sets completedAt; markFailed sets completedAt only when the status is FAILED), so FAILED carries a completedAt while PARTIAL_FAILED does not - which is exactly why terminality is read from status and never from completedAt. These are derived from the server's own write paths rather than invented, but no captured response backs them, so serverVerified stays false.",
+      "count": 9,
+      "basis": "Bootstrap trio needed to exercise the 401 retry and CSRF reissue policies. deletion-receipt.statusUrl now carries the /api/v1 server base, matching what DeletionService actually emits; it previously omitted it and the contract constrained neither, so both spellings passed. The contract now describes statusUrl as an API path and DeletionIT pins its prefix to spring.mvc.servlet.path so the literal and the configured path cannot drift. BE/AI reviewed (#16 R1): DeletionStatus is a plain record with no @JsonInclude, so the server really does send completedAt, failureCode and retryable rather than omitting them, and the fixture's retryable false with status RUNNING matches the rule that retryable is true exactly while status is PARTIAL_FAILED. Three more DeletionRequestStatus fixtures cover COMPLETED, PARTIAL_FAILED and FAILED: every field is decided by apps/api (JdbcDeletionStore.markCompleted clears failureCode and sets completedAt; markFailed sets completedAt only when the status is FAILED), so FAILED carries a completedAt while PARTIAL_FAILED does not - which is exactly why terminality is read from status and never from completedAt. These are derived from the server's own write paths rather than invented, but no captured response backs them, so serverVerified stays false. owner-profile-onboarded.json (#16) is updatePreferences' response example, pinned by check-examples.mjs: the anonymous owner after onboarding with trip-detail-scheduled's trip active. OwnerPreferencesIT compares its keys with a real response and validates that response against OwnerProfile.",
       "serverVerified": false
     },
     "trips": {
@@ -82,6 +82,12 @@
       "schema": "ImportDraft, TripDetail",
       "count": 3,
       "basis": "BE/AI authored (#16). draft-needs-review, draft-ready and confirmed-trip are the response examples of parseTripImport, remapTripImport and confirmTripImport, pinned by check-examples.mjs. Their SHAPE is the server's: TripImportFixtureIT runs a synthetic paste (three places that resolve, one line that matches two) through parse, remap and confirm over HTTP and compares every level's keys, and each captured response validated against its schema before the file was written. Their VALUES are the captured ones with the places mapped to the other sets' ids by name (서울숲 공원 is the one new place), new draft, trip and item ids, and an expiresAt 24 hours after a parse at 2026-09-30T09:00:00Z. Nothing of the paste is in them: the question's label is empty and no item carries originalLabel. The server serialised originalLabel as null, which the schema (a string) refuses; #16 made it leave the key out instead. Not captured values, so serverVerified stays false for the set.",
+      "serverVerified": false
+    },
+    "analytics": {
+      "schema": "EventBatchReceipt",
+      "count": 2,
+      "basis": "BE/AI authored (#16). receipt-accepted and receipt-resent are ingestEventBatch's two response examples, pinned by check-examples.mjs, and their counts are the ones AnalyticsIngestIT's BA-033-T2 case asserts for a batch sent and then sent again. The same case compares their keys with the real responses and validates those against EventBatchReceipt.",
       "serverVerified": false
     }
   }
