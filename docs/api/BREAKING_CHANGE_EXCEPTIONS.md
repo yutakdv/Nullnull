@@ -38,20 +38,63 @@ tags:
 4. 같은 메시지를 아래 표에 등록한다. 이유·승인자·추적 이슈가 모두 있어야 한다.
 5. 정정이 `main`에 반영되고 base가 새 값이 되면 그 줄은 더 이상 매칭되지 않는다. **그때 두 곳에서 함께 지운다.**
 
+   **"그때"는 계약 PR을 머지하는 순간이고, 지우는 사람은 그 PR의 주인이다.** 이 한 줄이 없어서
+   **두 번 같은 일이 났다**(`DATA_INSUFFICIENT`·#225, 그리고 `RECOMMENDATION_UNAVAILABLE`·`INTERNAL_ERROR`·#261).
+   두 번 다 계약을 넣은 쪽이 아니라 **그 뒤 처음 PR을 연 쪽**이 빨간불을 봤다.
+
+   이유는 타이밍이다: oasdiff diff는 `main` 대상 PR에서만 돌므로, 계약이 머지되는 순간 면제는
+   이미 만료됐지만 **그 사실을 드러낼 실행이 없다.** 계약 PR 자신은 머지 전 실행에서 green이다 —
+   그때는 base에 새 값이 없어 finding이 실재하고 예외가 제 일을 한다. 그래서 같은 PR에서
+   **미리** 비울 수는 없고, **머지 직후 후속 커밋으로** 비우는 것이 유일한 방법이다.
+   미루면 그 빨간불은 무관한 사람이 받는다.
+
 `scripts/tests/test_oasdiff_exceptions.py`가 강제한다: ignore 줄은 전부 표에 있어야 하고, 표의 모든 행은 이유·승인자·`#번호`가 있어야 하며, 표에만 있고 ignore에 없는 **stale 행도 실패**다.
 
 ## 승인된 예외
 
-활성 예외는 `OptimizationFailure.code`의 `RECOMMENDATION_UNAVAILABLE`·`INTERNAL_ERROR` 추가 넷이다(#261). 두 operation이 같은 schema를 내므로 값 하나가 두 줄이 된다. 승인은 FE가 했고 오너가 조율 세션에 전했다. 이 행을 쓴 세션은 그 승인을 직접 보지 않았으므로, 승인자 칸에 전달 경로를 함께 적었다. 표가 비어 있는 것이 정상 상태다.
+활성 예외는 없다. **표가 비어 있는 것이 정상 상태다.**
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| in API GET /optimizations/{runId} added the new `INTERNAL_ERROR` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `200` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
-| in API GET /optimizations/{runId} added the new `RECOMMENDATION_UNAVAILABLE` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `200` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
-| in API POST /trips/{tripId}/optimizations added the new `INTERNAL_ERROR` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `202` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
-| in API POST /trips/{tripId}/optimizations added the new `RECOMMENDATION_UNAVAILABLE` enum value to the `failure/oneOf[#/components/schemas/OptimizationFailure]/code` response property for the response status `202` | run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가 없었다(V024 CHECK가 FAILED에 코드를 요구한다). 기존 여섯은 전부 여행·근거의 원인이라 서비스 장애를 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고 CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 | FE 승인(오너 전달·조율자 경유, 2026-09-19) | [#261](https://github.com/yutakdv/Nullnull/issues/261) |
 
 ## 만료된 예외 (기록)
+
+- **`OptimizationFailure.code`에 `RECOMMENDATION_UNAVAILABLE`·`INTERNAL_ERROR` 추가, 네 줄**
+  (승인: FE 승인을 오너가 조율 세션에 전달, 추적: [#261](https://github.com/yutakdv/Nullnull/issues/261)).
+  두 operation이 같은 schema를 내므로 값 하나가 두 줄이었다(`GET /optimizations/{runId}` 200,
+  `POST /trips/{tripId}/optimizations` 202). 계약이 `main`에 들어가면서 base가 따라 움직여 만료됐다 —
+  로컬에서 CI 단계를 그대로 재현하니 oasdiff가 `No changes detected`이고
+  `check_oasdiff_exceptions.py`가 네 줄 전부를 stale로 rc=1이었다.
+
+  **`DATA_INSUFFICIENT` 항목이 경고한 지연이 그대로 재현됐다 — 두 번째다.** `#261`의 계약 PR은
+  정리를 하지 않았고, 그래서 **그 뒤 처음 열린 PR**(FE의
+  [#267](https://github.com/yutakdv/Nullnull/pull/267))이 빨개졌다. 계약을 넣은 쪽과 실패를 본 쪽이
+  다시 갈렸고, 이번에는 정리도 그 PR이 했다.
+
+  **경고가 있는데도 같은 일이 난 이유 둘이 이 기록의 값이다.**
+
+  하나는 **자리**다. 그 경고는 *만료된* 예외 절에 있고, 예외를 **등록하는** 사람이 읽는 것은 위쪽
+  `## 절차`와 `## 승인된 예외`다. 등록 시점에 보이는 자리에 없으면 산문은 다음 사람에게 도달하지
+  않는다. 그래서 이번에는 `## 절차` 5번에 넣었다.
+
+  다른 하나는 **그 경고의 처방이 실행 불가였다는 것**이다. 원문은 *"계약 PR을 머지한 직후 **같은
+  PR에서** ignore 줄을 비우는 것이 유일한 방법"* 이었는데, 같은 PR에서는 비울 수 없다 — 재현해
+  쟀다: `00412ca`의 부모를 base, `00412ca`를 revision으로 두면 finding이 4건이고, 빈 ignore로
+  oasdiff action을 돌리면 **rc=1로 그 PR이 막힌다**. 그 시점의 면제는 stale이 아니라 실재하는
+  finding에 대응하므로 필요하다. `check_oasdiff_exceptions.py`는 같은 조건에서 rc=0을 주는데,
+  그 검사는 *"예외가 stale인가"* 만 묻고 *"finding이 억제됐는가"* 는 묻지 않기 때문이다 —
+  두 검사가 다른 질문에 답한다(`## 절차` 3번이 같은 비대칭을 적고 있다).
+
+  **그래서 올바른 시점은 "머지 직후 후속 커밋"이고, 그것을 5번에 적었다.** 원문을 지우지 않고
+  정정한 이유는, 그 문장을 그대로 따른 사람이 막히고 나서 *"그럼 언제"* 를 다시 유도해야 하기
+  때문이다.
+
+  코드 자체의 필요는 승인 당시 기록대로다: run이 dead-letter되면 FAILED로 끝나야 하는데 담을 코드가
+  없었고(`V024` CHECK가 FAILED에 코드를 요구한다), 기존 여섯은 전부 여행·근거의 원인이라 서비스
+  장애를 그중 하나로 적으면 불변식 6을 깬다. FE는 모르는 코드를 `run.failure.unknown`으로 접고
+  CTA를 서버의 `retryable`로 고르므로(FE-502) 배포 순서와 무관하게 깨지지 않는다 —
+  `RECOMMENDATION_UNAVAILABLE`만 전용 문구를 받았고 `INTERNAL_ERROR`는 **일부러** 접힌다
+  (`apps/web/src/i18n/messages.ts`에 키가 없고 그 접힘을 test가 고정한다).
 
 - **`OptimizationFailure.code`에 `DATA_INSUFFICIENT` 추가** (승인: 오너, 추적: [#225](https://github.com/yutakdv/Nullnull/issues/225)).
   PR [#229](https://github.com/yutakdv/Nullnull/pull/229)로 반영됐고 base가 따라 움직여 만료됐다 — `main`의 `openapi.yaml`이
@@ -67,6 +110,11 @@ tags:
   순간 면제는 만료됐지만 그 뒤 **처음 열린 PR**([#234](https://github.com/yutakdv/Nullnull/pull/234), FE)에서야
   빨개졌다 — 계약을 넣은 쪽과 실패를 본 쪽이 달라진다. 계약 PR을 머지한 직후 같은 PR에서 ignore 줄을
   비우는 것이 그 지연을 없애는 유일한 방법이다.
+
+  **정정(#261 건에서 측정):** 위 마지막 문장의 *"같은 PR에서"* 는 틀렸다. 같은 PR에서는 비울 수 없다 —
+  그 시점의 면제는 실재하는 finding에 대응하므로 비우면 oasdiff action이 rc=1로 그 PR을 막는다.
+  올바른 시점은 **머지 직후 후속 커밋**이고 `## 절차` 5번에 적혀 있다. 지연의 진단(*계약을 넣은 쪽과
+  실패를 본 쪽이 달라진다*)은 그대로 옳다.
 
 정정이 `main`에 반영되면 base가 새 값이 되어 해당 메시지는 더 이상 보고되지 않는다. 그 시점에 ignore 줄을 지우고 행을 여기로 옮긴다. `scripts/check_oasdiff_exceptions.py`가 CI에서 이 정리를 강제한다 — 매칭되지 않는 ignore 줄이 남아 있으면 실패한다.
 
