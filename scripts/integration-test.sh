@@ -162,14 +162,6 @@ python3 "${gate_evidence_recorder}" \
 # api-quality went green and docker-integration failed on the same commit. A non-required workflow
 # agreeing is not this gate's answer.
 python3 "${script_tests_runner}" --out "${artifact_dir}/script-test-results"
-python3 "${test_report_checker}" \
-  --junit-dir "${artifact_dir}/api-test-results" \
-  --script-junit-dir "${artifact_dir}/script-test-results" \
-  --gate-junit-dir "${artifact_dir}/gate-evidence" \
-  --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
-  --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
-  --evaluation "${recommendation_report}" \
-  --run-start "${artifact_dir}/quality-run-start"
 
 "${compose[@]}" run --rm web-quality
 "${compose[@]}" run --rm api-client-diff
@@ -308,5 +300,18 @@ fi
 grep -x 'e2e_catalog_seed=.*' "${e2e_seed_report}"
 
 "${compose[@]}" run --rm e2e
+# #233: aggregated only now, after the browser suite has written its JUnit, so an acceptance ID a
+# Playwright title carries is counted like any other. Earlier it ran above web-quality and could
+# only have read a report this run had not produced yet - --run-start rejects anything older than
+# quality-run-start, so a report left by an earlier run fails rather than standing in for this one.
+python3 "${test_report_checker}" \
+  --junit-dir "${artifact_dir}/api-test-results" \
+  --script-junit-dir "${artifact_dir}/script-test-results" \
+  --gate-junit-dir "${artifact_dir}/gate-evidence" \
+  --e2e-junit-dir "${artifact_dir}/playwright" \
+  --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
+  --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
+  --evaluation "${recommendation_report}" \
+  --run-start "${artifact_dir}/quality-run-start"
 echo "full-docker" >"${artifact_dir}/mode.txt"
 echo "integration_mode=full-docker"
