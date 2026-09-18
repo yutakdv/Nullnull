@@ -566,6 +566,21 @@ export const messages = {
     // "아직" / "yet" carries retryable:true — the answer changes once a forecast
     // arrives, which is what separates this from ROUTE_UNAVAILABLE.
     'run.failure.DATA_INSUFFICIENT': '아직 판단할 만큼 정보가 모이지 않았어요',
+    // #261. The contract splits two service-side outcomes from the trip-side
+    // ones above, and only one of them gets its own line here.
+    //
+    // RECOMMENDATION_UNAVAILABLE is retryable — the recommendation service did
+    // not answer through every attempt — so the CTA offers a recalculation and
+    // the sentence has to say why pressing it is worth doing.
+    //
+    // INTERNAL_ERROR deliberately has NO key. It folds to `run.failure.unknown`
+    // ("최적화를 마치지 못했어요"), which is what the traveller can act on: the
+    // contract lists it as not retryable and the causes it covers — an answer
+    // outside the recommendation contract, a repeated server failure, a run its
+    // worker abandoned — are not distinguishable to them and not theirs to fix.
+    // Naming the internals would be a token, not an explanation.
+    'run.failure.RECOMMENDATION_UNAVAILABLE':
+      '추천 서비스가 응답하지 않아 계산을 마치지 못했어요',
     // Shown for a failure code this build does not know. The server may add one
     // before a matching client ships, and the alternative was rendering the
     // literal string "undefined" into the error screen.
@@ -1317,6 +1332,9 @@ export const messages = {
     'run.failure.APPLY_FAILED': "We couldn't apply it",
     // Ahead of the contract on purpose; see the ko-KR entry and #225.
     'run.failure.DATA_INSUFFICIENT': "We don't have enough information yet",
+    // See the ko-KR block: INTERNAL_ERROR has no key on purpose.
+    'run.failure.RECOMMENDATION_UNAVAILABLE':
+      "The recommendation service did not answer, so we couldn't finish",
     'run.failure.unknown': "The optimization didn't finish",
     'run.unchanged': 'Your itinerary is unchanged',
 

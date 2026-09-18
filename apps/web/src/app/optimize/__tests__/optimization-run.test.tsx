@@ -269,12 +269,34 @@ describe('FE-502-T2 FE-504-T2 the screen renders each of its states', () => {
       'ROUTE_UNAVAILABLE',
       'NO_IMPROVEMENT',
       'APPLY_FAILED',
+      'RECOMMENDATION_UNAVAILABLE',
     ] as const) {
       runIs('FAILED', { failure: { code, message: code, retryable: false } });
       const view = renderRun();
       expect(await screen.findByText(copy[`run.failure.${code}`])).toBeInTheDocument();
       view.unmount();
     }
+  });
+
+  it('folds INTERNAL_ERROR to the generic line rather than naming internals', async () => {
+    // The contract carries this code (#261) and this screen deliberately has no
+    // message for it: it covers an answer outside the recommendation contract, a
+    // repeated server failure and a run its worker abandoned, none of which the
+    // traveller can tell apart or act on. The fold is the behaviour, so it is
+    // asserted rather than left to the absence of a key.
+    //
+    // This is also the test that would catch the fold breaking. `failureMessage`
+    // builds the key from the code and checks `key in messages`; if that check
+    // were dropped, `t()` would return the missing key as-is and the screen
+    // would render the literal string. Measured before, not assumed: a probe of
+    // an unknown key produced "[undefined]".
+    runIs('FAILED', {
+      failure: { code: 'INTERNAL_ERROR', message: 'internal', retryable: false },
+    });
+    renderRun();
+
+    expect(await screen.findByText(copy['run.failure.unknown'])).toBeInTheDocument();
+    expect(screen.queryByText(/INTERNAL_ERROR|undefined/)).toBeNull();
   });
 
   it('offers a recompute only when the contract says the failure is retryable', async () => {
