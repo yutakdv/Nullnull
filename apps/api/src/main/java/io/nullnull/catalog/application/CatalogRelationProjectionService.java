@@ -3,6 +3,7 @@ package io.nullnull.catalog.application;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.catalog.application.CatalogRelationQuery.CatalogRelationCandidate;
 import io.nullnull.catalog.application.CatalogRelationQuery.CatalogRelationSource;
+import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
@@ -152,7 +153,7 @@ public class CatalogRelationProjectionService {
                 source.sourceState(), null, null, "FRESH", candidate.recordedAt(), candidate.expiresAt(),
                 null, source.license(), source.officialUrl(), source.licenseUrl(), source.attribution(),
                 source.metricDefinition(), source.normalizationVersion(), qualityFlags, null, null,
-                false, "QUALITATIVE_ONLY", null, null, null, null, source.scope(), null,
+                false, ComparisonReasonCode.QUALITATIVE_ONLY, null, null, null, null, source.scope(), null,
                 candidate.derivation(), false, candidate.id());
     }
 
