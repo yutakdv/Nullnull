@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
-import { isProblem, useCsrfToken } from '../shared/api/index.js';
+import { currentCsrfToken, isProblem, useCsrfToken } from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
 
@@ -55,7 +55,25 @@ export function AppShell({ tabs = false }: AppShellProps) {
   // gates on isSuccess — the feed does — sat on its loading state for ever
   // with no error, no retry and no way back. Reproduced in a browser.
   const csrf = useCsrfToken();
-  const sessionGone = isProblem(csrf.error) && csrf.error.code === 'UNAUTHORIZED';
+  // A 401 is only an ENDED session when no token exists afterwards.
+  //
+  // On a first visit there is no cookie yet, so this reissue 401s by design
+  // while SplashScreen's POST /demo/sessions mints the session moments later.
+  // Measured in the gate's own container: `401 /session/csrf` at 50ms,
+  // `201 /demo/sessions` at 55ms - and the shell stayed on the "session ended"
+  // screen for ever, because the error was read once and nothing cleared it.
+  // Every route rendered that screen, which is why shell.spec looked for
+  // `not-found-heading` and found `session-heading` instead (#240).
+  //
+  // `currentCsrfToken()` is what distinguishes the two: bootstrapSession sets
+  // it on success (session.ts:64), so a token present after the 401 means the
+  // bootstrap won and this tab is usable. A token still absent means the
+  // reissue failed for a session that really is gone, which is the case this
+  // screen exists for and which SessionSafetyIT.expiration pins.
+  const sessionGone =
+    isProblem(csrf.error) &&
+    csrf.error.code === 'UNAUTHORIZED' &&
+    currentCsrfToken() === null;
 
   if (sessionGone) {
     // Only 401. A network failure is not an ended session, and replacing the

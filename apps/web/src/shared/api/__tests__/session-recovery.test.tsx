@@ -302,6 +302,40 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
     expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
   });
 
+  it('does not call a FIRST VISIT an ended session', async () => {
+    // The gate's e2e failed on this for days and it read as infrastructure.
+    //
+    // On a first visit there is no cookie, so AppShell's reissue 401s by
+    // design while SplashScreen's POST /demo/sessions mints the session a
+    // moment later. Measured inside the gate's own container:
+    //
+    //   50ms  401 /api/v1/session/csrf
+    //   55ms  201 /api/v1/demo/sessions
+    //   final h1 id = session-heading        ← wrong, and it never cleared
+    //
+    // Every route rendered "세션이 만료됐어요", which is why shell.spec looked
+    // for `not-found-heading` and reported "element(s) not found" (#240).
+    //
+    // The distinction is the token, not the status: a 401 followed by a token
+    // means the bootstrap won the race and this tab is usable; a 401 with no
+    // token means the session really is gone, which the cases above pin.
+    server.use(
+      http.post(`${API_BASE}/session/csrf`, () => problemResponse('UNAUTHORIZED')),
+    );
+    renderAt('/');
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/session/csrf');
+    });
+    // The splash bootstrap supplies a token even though the reissue failed.
+    await waitFor(() => {
+      expect(currentCsrfToken()).not.toBeNull();
+    });
+    // Let any re-render settle, so this is not observing the frame before the
+    // session screen would have appeared.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
+  });
+
   it('leaves a working session alone', async () => {
     renderAt('/feed');
     // The ordinary case still renders the feed, not the session screen.
