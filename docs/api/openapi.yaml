@@ -3690,9 +3690,10 @@ components:
         client can tell a first visit (start a session) from a session that ended (let the traveller
         decide: a new session is a different anonymous owner). The field is never set when a cookie was
         sent, so its absence says nothing about why that cookie failed: an expired, revoked, forged,
-        malformed or never-issued cookie gets the same answer from session resolution. The field describes
-        this request, not what the browser holds - a proxy that strips `Cookie` also produces it - so a
-        client should start at most one new session per page load in answer to it.
+        malformed or never-issued cookie, or one whose owner was deleted mid-request, gets the same answer
+        wherever it is refused. The field describes this request, not what the browser holds - a proxy
+        that strips `Cookie` also produces it - so a client should start at most one new session per page
+        load in answer to it.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestId"
@@ -6792,7 +6793,7 @@ components:
           title: Unauthorized
           status: 401
           code: UNAUTHORIZED
-          detail: The session owner is no longer active.
+          detail: A valid session is required.
           instance: /api/v1/me
           requestId: 01931f7e-9c31-7b02-8e55-2a7f0c9d4e18
           retryable: false

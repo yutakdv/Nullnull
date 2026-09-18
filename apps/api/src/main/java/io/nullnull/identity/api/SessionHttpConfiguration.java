@@ -77,9 +77,14 @@ public class SessionHttpConfiguration implements WebMvcConfigurer {
             if (!sessionCookieSent(request)) {
                 throw ApiException.missingSessionCookie("No session cookie was sent.");
             }
-            OwnerContext context = sessions.resolve(cookie(request), op.id().equals("deleteCurrentSession"));
+            // A revoked cookie is admitted only as a deletion replay, which is looked up by its Idempotency-Key. Without
+            // one it could only be refused later, by a check no dead cookie ever reaches (#249).
+            boolean replay = op.id().equals("deleteCurrentSession") && request.getHeader("Idempotency-Key") != null;
+            OwnerContext context = sessions.resolve(cookie(request), replay);
             request.setAttribute(CONTEXT, context);
-            boolean csrf = Arrays.asList(op.security()).contains(Security.CSRF);
+            // A replay is matched against its stored receipt, not a CSRF token - accepting the deletion removed them -
+            // and reading the header anyway would answer a duplicated one 403 where a dead cookie gets 401.
+            boolean csrf = !context.revoked() && Arrays.asList(op.security()).contains(Security.CSRF);
             sessions.authorize(context, csrf ? singleHeader(request, "X-CSRF-Token") : null, csrf);
             return true;
         }
