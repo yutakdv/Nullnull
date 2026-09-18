@@ -36,10 +36,21 @@ import { ScheduleCandidateSheet } from './ScheduleCandidateSheet.js';
 // MOCK DATA: listTripCandidates, getCandidateTripMatches and addTripItem have
 // no approved example (BA-034, BA-042).
 //
-// NOT BUILT, deliberately: the Figma card shows `ⓒ한국관광공사` under each place
-// and a recommendation reason line. PlaceSummary carries neither a source nor a
-// provenance, so both would be invented text — and an invented source is worse
-// than none, because CMP-ATT-003 forbids implying an origin. Raised as FCR-031.
+// The Figma card shows `ⓒ한국관광공사` under each place and a recommendation
+// reason line.
+//
+// The CREDIT ships (FCR-031 closed it): BA-022 gave PlaceSummary
+// `sourceAttribution`, and this screen renders the server's approved string
+// verbatim below — `candidate.place.sourceAttribution`. This comment used to
+// say the opposite ("PlaceSummary carries neither a source nor a provenance"),
+// which stopped being true when `b85f09d` added the field and the render, and
+// the note was left behind. A header that contradicts the code 200 lines under
+// it is worse than no header: the next reader trusts it and re-raises a closed
+// request, or deletes a render they think is invented.
+//
+// NOT BUILT: the recommendation reason line. Nothing in TripCandidate or
+// PlaceSummary explains WHY a place is a candidate — the traveller saved it —
+// so that line would be invented text (invariant 9).
 
 type TripCandidate = components['schemas']['TripCandidate'];
 
