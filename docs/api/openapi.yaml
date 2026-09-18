@@ -735,7 +735,7 @@ paths:
                             forecastIssueId: "2026-09-11"
                             comparisonAxis: "TEMPORAL"
                             comparisonEligible: false
-                            comparisonReasonCode: "NO_READING"
+                            comparisonReasonCode: "MISSING_PROVENANCE"
                             comparisonGroupId: "KTO_CONCENTRATION_FORECAST"
                             collectorRunId: "018f5a00-0000-7000-8000-000000000001"
                             snapshotSetId: "018f5a00-0000-7000-8000-000000000002"

@@ -3,6 +3,7 @@ package io.nullnull.optimization.domain;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.nullnull.crowd.domain.ComparisonReasonCode;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -29,16 +30,16 @@ class OptimizationProposalTest {
     @Test
     @DisplayName("a crowd delta needs an eligible comparison, and an ineligible one needs a reason")
     void invariantEightHoldsInMemoryToo() {
-        assertThatThrownBy(() -> proposal(false, "SOURCE_MISMATCH", new BigDecimal("1.25")))
+        assertThatThrownBy(() -> proposal(false, ComparisonReasonCode.DIFFERENT_SOURCE, new BigDecimal("1.25")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("comparable");
         assertThatThrownBy(() -> proposal(false, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("reason");
-        assertThatThrownBy(() -> proposal(true, "SOURCE_MISMATCH", null))
+        assertThatThrownBy(() -> proposal(true, ComparisonReasonCode.DIFFERENT_SOURCE, null))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        assertThatCode(() -> proposal(false, "SOURCE_MISMATCH", null)).doesNotThrowAnyException();
+        assertThatCode(() -> proposal(false, ComparisonReasonCode.DIFFERENT_SOURCE, null)).doesNotThrowAnyException();
         assertThatCode(() -> proposal(true, null, new BigDecimal("1.25"))).doesNotThrowAnyException();
     }
 

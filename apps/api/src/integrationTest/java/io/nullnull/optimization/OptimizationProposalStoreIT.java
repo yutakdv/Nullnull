@@ -2,6 +2,7 @@ package io.nullnull.optimization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.optimization.application.OptimizationProposalStore;
 import io.nullnull.optimization.domain.OptimizationChange;
 import io.nullnull.optimization.domain.OptimizationChangeOperation;
@@ -64,7 +65,7 @@ class OptimizationProposalStoreIT {
         Instant at = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         // Inserted out of order on purpose: rank 2 first, and the changes of each proposal reversed.
         OptimizationProposal second = new OptimizationProposal(UUID.randomUUID(), run, 2,
-                "the ineligible one", false, "SOURCE_MISMATCH", null, null, "{\"checks\":[]}", at,
+                "the ineligible one", false, ComparisonReasonCode.DIFFERENT_SOURCE, null, null, "{\"checks\":[]}", at,
                 List.of(change(1, OptimizationChangeOperation.REMOVE, BEFORE, null),
                         change(0, OptimizationChangeOperation.MOVE, BEFORE, AFTER)));
         OptimizationProposal first = new OptimizationProposal(UUID.randomUUID(), run, 1,
@@ -81,7 +82,7 @@ class OptimizationProposalStoreIT {
         assertThat(read.get(0).crowdDelta()).isEqualByComparingTo(new BigDecimal("-1.2500"));
         assertThat(read.get(0).travelMinutesDelta()).isEqualTo(12);
         assertThat(read.get(1).comparisonEligible()).isFalse();
-        assertThat(read.get(1).comparisonReasonCode()).isEqualTo("SOURCE_MISMATCH");
+        assertThat(read.get(1).comparisonReasonCode()).isEqualTo(ComparisonReasonCode.DIFFERENT_SOURCE);
         assertThat(read.get(1).crowdDelta()).isNull();
         assertThat(read.get(1).changes()).extracting(OptimizationChange::sequence)
                 .containsExactly(0, 1);
