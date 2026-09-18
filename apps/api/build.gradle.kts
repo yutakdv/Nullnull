@@ -315,6 +315,16 @@ tasks.register<JavaExec>("curatePosts") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("ktoCallInventory") {
+    group = "verification"
+    description = "Lists the KTO operations one release actually used, from the call-audit (CMP-KTO-006); read-only"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.crowd.infrastructure.audit.KtoCallInventoryMain")
+    environment("NULLNULL_INVENTORY_RELEASE", providers.environmentVariable("NULLNULL_INVENTORY_RELEASE").getOrElse(""))
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("ktoForecastSmoke") {
     group = "verification"
     description = "Runs one approved KTO forecast call from a verified canonical KTO mapping and prints redacted evidence only"
