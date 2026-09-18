@@ -48,7 +48,7 @@ def test_the_korean_sentence_states_only_the_point_difference_and_the_source() -
     text = render(KO)
     assert text == (
         "경복궁 방문을 9월 12일 10:00에서 9월 12일 12:00로 옮기면 "
-        "상대 집중률가 80에서 60로 20포인트 낮아져요. 출처: ⓒ한국관광공사"
+        "상대 집중률이 80에서 60으로 20포인트 낮아져요. 출처: ⓒ한국관광공사"
     )
     for claim in ("방문자", "한산", "여유로", "%", "영업", "경로", "가까"):
         assert claim not in text
@@ -72,7 +72,52 @@ def test_a_slot_without_a_time_renders_the_date_alone() -> None:
 
 def test_trailing_zeros_are_dropped_so_the_numbers_read_as_the_facts_do() -> None:
     scaled = replace(KO, before_value=Decimal("80.500"), after_value=Decimal("60.00"))
-    assert " 80.5에서 60로 20.5포인트 " in render(scaled)
+    assert " 80.5에서 60으로 20.5포인트 " in render(scaled)
+
+
+@pytest.mark.parametrize(
+    ("metric_label", "expected"),
+    [
+        ("상대 집중률", "상대 집중률이 "),  # 률 ends in ㄹ (#260: the fixed 가 read "집중률가")
+        ("혼잡도", "혼잡도가 "),
+        ("관광지 집중률 예측", "관광지 집중률 예측이 "),
+        ("PM10", "PM10이 "),  # 십
+        ("index", "index이(가) "),  # a sound this module cannot tell is written out, not guessed
+        ("집중률(예측)", "집중률(예측)이(가) "),
+    ],
+)
+def test_the_subject_particle_follows_the_metric_label(metric_label: str, expected: str) -> None:
+    assert f" 옮기면 {expected}80에서 " in render(replace(KO, metric_label=metric_label))
+
+
+@pytest.mark.parametrize(
+    ("after_value", "expected"),
+    [
+        ("60", "60으로"),  # 육십
+        ("41", "41로"),  # 사십일: ㄹ takes 로
+        ("34", "34로"),  # 사십사
+        ("13", "13으로"),  # 십삼
+        ("16", "16으로"),  # 십육
+        ("0", "0으로"),  # 영
+        ("100", "100으로"),  # 백
+        ("20000", "20000으로"),  # 이만
+        ("0.5", "0.5로"),  # 영 점 오
+        ("20.03", "20.03으로"),  # 이십 점 영삼
+        ("3000000000000", "3000000000000(으)로"),  # 삼조: past what this module reads, so written out
+    ],
+)
+def test_the_directional_particle_follows_how_the_number_is_read(after_value: str, expected: str) -> None:
+    facts = replace(KO, before_value=Decimal("100000000000000"), after_value=Decimal(after_value))
+    assert f"에서 {expected} " in render(facts)
+
+
+@pytest.mark.parametrize(
+    ("after_time", "expected"),
+    [(None, "9월 12일로 "), (time(12, 0), "12:00로 "), (time(12, 30), "12:30으로 "), (time(9, 5), "09:05으로 ")],
+)
+def test_the_directional_particle_follows_how_the_new_slot_is_read(after_time: time | None, expected: str) -> None:
+    """A date ends in 일 and a whole hour in 시, both taking 로; a time with minutes ends in 분."""
+    assert f" {expected}옮기면 " in render(replace(KO, after_time=after_time))
 
 
 #: The longest sentence the contract can ask for: place name 200, metric label 64, source line 200.
