@@ -49,7 +49,8 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home \
 - compose `api-quality`는 `NULLNULL_TEST_DATABASE=external`로 Testcontainers 대신 compose PostgreSQL을 쓰고
   `--offline`로 실행된다. 새 test dependency는 `resolveTestClasspaths`가 해석하는 configuration에 있어야 한다.
 - `recommendation` package는 추천 계산을 **중복 구현하지 않는다**(ADR-0006). feed 순서·관련 장소·slot·ITEM 개선·
-  설명 template은 `apps/ai`가 계산하고 여기서는 hydration·재검증·저장·APPLY만 한다.
+  설명 template은 `apps/ai`가 계산하고 여기서는 hydration·재검증·저장·APPLY만 한다. 예외: 관련 장소의
+  병합·정렬은 `catalog`의 `CatalogRelationProjectionService`가 한다(ADR-0006 · 예외).
 - `apps/ai` 요청에 owner/session ID·붙여넣기 원문·좌표를 넣지 않는다.
 - `apps/ai`의 endpoint/schema를 바꾸면 `apps/ai/contracts/recommendation-internal-v1.json`을 갱신하고
   Spring DTO를 맞춘다. `recommendationTest`가 parity를 검사한다.

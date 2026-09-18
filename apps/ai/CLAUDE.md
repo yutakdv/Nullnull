@@ -12,7 +12,7 @@ Python 3.13 · uv 0.12.10 고정. Spring(`apps/api`)이 보낸 immutable 입력�
 | `api` | 내부 HTTP endpoint(`/internal/v1/...`)와 요청/응답 schema |
 | `domain` | 입력 model과 값 객체 |
 | `pipeline` | `runner` 실행 순서·단계 조립 |
-| `feed` · `item` · `related` · `slot` | 실제 계산(피드 순서, ITEM 개선, 관련 장소, slot 판정) |
+| `feed` · `item` · `related` · `slot` | 실제 계산(피드 순서, ITEM 개선, 관련 장소, slot 판정). `related`는 P0 운영 경로에서 호출되지 않는다 — 관련 장소 정렬은 Spring이 한다(ADR-0006 · 예외) |
 | `policy` | 판정 기준과 pin된 정책 값 |
 | `explain` | 근거 설명 template |
 | `evaluation` | corpus·invariant·fixture와 `evaluation.json` gate |

@@ -25,7 +25,7 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 - 기능 추적: `docs/product/FUNCTIONAL_INVENTORY.md`의 기능 ID.
 - 현재 존재: `apps/api`(Spring Boot 4.1.1, Java 21), `apps/ai`(Python 3.13 추천 서비스), `apps/web`, `packages/api-client`, `packages/contracts`, `.nullnull-target-stack`, `compose.yml`. 아직 없음: `infra`.
 - 이 줄은 **한 번 낡아서 사람을 틀리게 했다.** FE scaffold가 들어온 뒤에도 `apps/web`이 *아직 없음*에 남아 있었고, 그것을 읽은 세션이 *"E2E를 돌릴 대상이 없다"* 를 카드에 적을 뻔했다. **존재 여부를 주장하기 전에 `git ls-tree -d --name-only origin/main`으로 본다** — 산문은 상하고 tree는 안 상한다.
-- 추천 계산은 `apps/ai`, hydration·재검증·저장은 `apps/api`다(ADR-0006, `docs/decisions/ARCHITECTURE_DECISIONS.md`). 실행 계획: `docs/superpowers/plans/2026-09-07-recommendation-python-service.md`.
+- 추천 계산은 `apps/ai`, hydration·재검증·저장은 `apps/api`다(ADR-0006, `docs/decisions/ARCHITECTURE_DECISIONS.md`). 관련 장소의 병합·정렬만 Spring이 한다(같은 문서의 ADR-0006 · 예외). 실행 계획: `docs/superpowers/plans/2026-09-07-recommendation-python-service.md`.
 - 앱별 module 지도·검증 명령·함정은 `apps/api/CLAUDE.md`, `apps/ai/CLAUDE.md`에 있다(해당 경로 작업 시 함께 적용).
 - 현재 저장소에는 목표 서비스 정본만 둔다. 과거 prototype/문서는 Git 이력 또는 별도 작업공간에서만 참고한다.
 - 기존/untracked 파일을 사용자 작업으로 간주한다. 임의 삭제·이동·reset/clean을 하지 않는다.
@@ -123,7 +123,7 @@ CI 등록 규칙(required 두 개, `api-quality`·`ai-quality` workflow, test ID
 
 - 실행 toolchain은 앱별로 고정돼 있다. Gradle은 Temurin 21 `JAVA_HOME`으로만(설치형 금지, wrapper만), `apps/ai`는 uv 0.12.10 `.uv-bootstrap/bin/uv`로만 실행된다. compose `api-quality`의 external DB·offline 조건을 포함한 상세는 `apps/api/CLAUDE.md`·`apps/ai/CLAUDE.md`에 있다.
 - `docs/**/*.md`는 Obsidian frontmatter(`aliases`, `doc_type`, `status`, `area`, `tags`)가 필수다. `scripts/validate_docs.py`가 링크·heading anchor·frontmatter를 검사한다.
-- `docs/roles/BACKEND_AI_PLAYBOOK.md` 카드와 `docs/engineering/backend-plan.json`은 validator가 동기화를 검사한다. title/ID/기능/API/선행/test ID/`데이터·정책`은 둘 다 고친다.
+- `docs/roles/BACKEND_AI_PLAYBOOK.md` 카드와 `docs/engineering/backend-plan.json`은 validator가 동기화를 검사한다. title/ID/기능/API/선행/test ID와 acceptance 문구/`데이터·정책`은 둘 다 고친다.
 - `docs/engineering/frontend-plan.json`은 FE 작업 목록의 기계 판독 정본이고 GitHub issue는 투영이다. 상태는 JSON이 정본이며 `scripts/validate_frontend_plan.py`가 기능 ID·operation·Figma node·선행/순환을 검사한다. FE task를 추가하면 `IMPLEMENTATION_PLAN.md`의 실행 ID 표와 해당 B단계 `Frontend 실행 ID` 줄을 같은 PR에서 고친다.
 - `IMPLEMENTATION_PLAN.md`와 `BACKEND_AI_PLAYBOOK.md`에는 날짜·소요일을 쓸 수 없다. `validate_backend_plan.has_calendar_estimate`가 `2026-09-08`·`09/08`·`(1d)`를 거부한다(링크 URL은 제외되지만 링크 텍스트는 검사 대상).
 - 문서 본문에 `FCR-0XX`를 쓰면 `docs/design/FIGMA_CHANGE_REQUESTS.md` 표에 먼저 등록해야 한다. 미등록이면 `unregistered design request`로 실패한다(fenced code block은 예외).
