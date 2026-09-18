@@ -81,9 +81,18 @@ export function CandidatesScreen() {
         {/* The count waits for the list. Rendering `items.length` while the
             request is in flight shows "0 saved places" to someone who has
             three, which reads as data loss rather than as loading. */}
+        {/* The total comes from `candidateCount`, the contract's own field —
+            NOT from `items.length`, which is one PAGE of the candidates.
+            TripScreen already says this in as many words (:150) and links here
+            with that number, so counting the page made the two screens
+            disagree about the same set one tap apart: 담아둔 장소 5 became
+            담아둔 장소 3 in identical wording.
+
+            `trip` is already fetched above for the title, so this costs no
+            extra request. */}
         <h1 className={styles.title} id="candidates-heading">
-          {candidates.isSuccess
-            ? t('candidates.open', { count: items.length })
+          {trip.isSuccess
+            ? t('candidates.open', { count: trip.data.trip.candidateCount })
             : t('candidates.title')}
         </h1>
         <p className={styles.note}>{t('candidates.note')}</p>

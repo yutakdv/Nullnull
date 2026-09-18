@@ -125,8 +125,15 @@ export function ProfileScreen() {
           <h2 className={styles.sectionHead} id="profile-trips-heading">
             {t('profile.trips.title')}
           </h2>
-          {/* 422:2943: the count sits at the end of the section row. */}
-          {trips.isSuccess ? (
+          {/* 422:2943: the count sits at the end of the section row.
+              Shown only while this page IS the whole set. `TripPage` has no
+              total — `items.length` counts one page — so past the first page
+              the number would be smaller than the list it labels, with nothing
+              on screen to reveal the gap. `hasMore` is the contract's own way
+              of saying the page is partial, and suppressing the figure there
+              is the same rule the rest of this app follows: a number the
+              contract cannot source is not rendered. */}
+          {trips.isSuccess && !trips.data.page.hasMore ? (
             <span className={styles.rowValue}>
               {t('profile.trips.count', { count: trips.data.items.length })}
             </span>

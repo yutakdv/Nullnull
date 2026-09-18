@@ -462,12 +462,19 @@ describe('FE-303 removing a saved place (FR-CAN-06)', () => {
 });
 
 describe('FE-303-T3 the panel is reachable and named', () => {
-  it('names the screen with the count once the list has arrived', async () => {
+  it('names the screen with the trip total once it has arrived', async () => {
     renderPanel();
     await loaded();
-    // Three saved, one of them already scheduled — all three are listed.
+    // The TOTAL, from the contract's `candidateCount` — not the length of the
+    // page. This asserted the literal '3' (the page's length) while TripScreen
+    // labelled its link with `candidateCount`, so the two screens reported
+    // different totals for the same set one tap apart. The fixtures carry that
+    // disagreement: candidateCount is 5, the page holds 3.
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
-      copy['candidates.open'].replace('{count}', '3'),
+      copy['candidates.open'].replace(
+        '{count}',
+        String(tripFixtures.detailScheduled.candidateCount),
+      ),
     );
   });
 
@@ -690,5 +697,25 @@ describe('FE-303-T3 the date sheet is operable without a mouse', () => {
   it('is titled, so it is not an unnamed dialog', async () => {
     const { sheet } = await openDates(page.items[1]?.place.name ?? '');
     expect(sheet).toHaveAccessibleName(copy['candidates.sheet.title']);
+  });
+});
+
+describe('the saved-places count agrees with the screen that links here', () => {
+  // TripScreen labels the link with `candidateCount`, the contract's own
+  // field, and says why in a comment (TripScreen.tsx:150). This screen counted
+  // `items.length` instead — one PAGE of the candidates — so the two screens
+  // reported different totals for the same set, one tap apart. The fixtures
+  // make it visible: candidateCount is 5 and the page holds 3.
+  it('reports the trip total, not the length of one page', async () => {
+    renderPanel();
+    await loaded();
+    const heading = await screen.findByRole('heading', { level: 1 });
+
+    const total = tripFixtures.detailScheduled.candidateCount;
+    expect(total).not.toBe(page.items.length); // the fixtures must disagree,
+    // or this test would pass either way.
+    expect(heading).toHaveTextContent(
+      copy['candidates.open'].replace('{count}', String(total)),
+    );
   });
 });
