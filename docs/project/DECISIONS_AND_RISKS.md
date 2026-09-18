@@ -54,7 +54,7 @@ tags:
 | A-032 | 사람이 검토한 영업시간의 `stale_after_seconds`는 **P30D**로 둔다 | 2026-09-13 오너 결정, `BA-022`. 측정이 아니라 판단이며, 평가 기간이 한 달이라 사실상 만료가 걸리지 않는 값이다. 값을 늘릴 근거가 생기면 다시 정한다 |
 | A-027 | KTO `detailIntro2`를 **1회 탐색 호출**하여 응답 shape를 관찰하는 것을 승인한다. **채택이 아니다** — `SOURCE_CATALOG`의 승인 범위는 `detailCommon2` 그대로이고, 채택은 응답을 본 뒤의 별도 결정이다 | 2026-09-13 오너 승인, #181. `usetime`·`restdate`가 자유 텍스트인지가 지금 **추측**이고, 그 추측이 SLOT·ITEM을 영구 `UNKNOWN`으로 둘지를 가른다. 개발 쿼터 1,000 중 1건이면 측정이 된다. 자유 텍스트로 판명되면 파싱하지 않고 큐레이션 영업시간으로 간다(불변식 9) |
 | A-025 | inbound rate limiting은 edge에만 두고 application은 429를 발행하지 않는다. P0 제출 범위에 포함하지 않는다 | 2026-09-13 결정, #148과 D-033. 익명 전용 P0에서 owner 축 제한은 cookie를 버리면 우회되고, IP 축은 심사 환경의 공유 NAT에서 오탐이 크다. 심사위원을 막는 것이 데모의 최악 실패다 |
-| A-024 | post 표지는 팀이 직접 만든 1st-party 자산만 쓰고 provider 사진을 재배포하지 않는다. `MediaAsset`은 `attributionRequired=false`·`redistributionAllowed=true`로 채우며, 실제 장소를 사진처럼 묘사하지 않는 명시적 일러스트로 제한한다 | 2026-09-13 오너 결정, D-007의 post 절반. provider 사진은 record별 공공누리 유형 심사가 필요하고 `PostSummary`에 credit 경로가 없어 계약 breaking이 된다. 실사풍 합성은 불변식 6의 합성·관측 구분을 깬다 |
+| A-024 | post 표지는 팀이 직접 만든 1st-party 자산만 쓰고 provider 사진을 재배포하지 않는다. `MediaAsset`은 `attributionRequired=false`·`redistributionAllowed=true`로 채운다. **표현 형식은 둘 중 하나다 — 팀이 직접 촬영한 사진, 또는 명시적 일러스트. 실제 장소를 사진처럼 묘사한 합성 이미지는 금지한다** | 2026-09-13 오너 결정(D-007의 post 절반), **2026-09-18 오너가 직접 촬영한 사진을 허용하도록 개정**. provider 사진은 record별 공공누리 유형 심사가 필요하고 `PostSummary`에 credit 경로가 없어 계약 breaking이 된다 — 이 부분은 그대로다. 원래 문구가 *"사진처럼 묘사하지 않는 일러스트"* 로 형식을 좁혔던 이유는 **실사풍 합성**이 불변식 6의 합성·관측 구분을 깨기 때문인데, **직접 촬영한 사진은 합성이 아니라 관측이므로 그 이유가 적용되지 않는다.** 금지 대상은 *사진 형식*이 아니라 *실제 장소를 사진처럼 지어낸 이미지*다. `V021`의 주석과 `NULLNULL_FIRST_PARTY`의 `metric_definition`이 *"일러스트"* 만 적고 있으나 migration은 적용 후 고칠 수 없다(checksum 고정) — 살아 있는 정본은 이 줄이다 |
 
 ## 2. 열린 결정
 
