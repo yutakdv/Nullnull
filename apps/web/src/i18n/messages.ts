@@ -421,6 +421,13 @@ export const messages = {
     'feed.title': '둘러보기',
     'feed.loading': '불러오는 중이에요',
     'feed.error': '피드를 불러오지 못했어요',
+    // 503 SOURCE_UNAVAILABLE. feed.error 와 나누는 이유는 원인이 다르기
+    // 때문이다: 저쪽은 요청이 실패한 것이고, 이쪽은 요청이 닿았는데 아직
+    // 공개된 장소 데이터가 없는 것이다. 게이트가 열리면 같은 요청이 그대로
+    // 성공하므로 `고장`으로 읽히면 안 되고, 지금 다시 눌러도 같은 답이므로
+    // `바로 다시`로 읽혀도 안 된다.
+    'feed.sourceUnavailable':
+      '추천할 장소를 아직 불러올 수 없어요. 잠시 후 다시 시도해 주세요',
     'feed.empty': '아직 보여드릴 게시물이 없어요',
     'feed.emptyNoTrip': '여행을 만들면 일정에 맞춰 추천해드려요',
     'feed.createTrip': '여행 만들기',
@@ -1262,6 +1269,8 @@ export const messages = {
     'feed.title': 'Browse',
     'feed.loading': 'Loading',
     'feed.error': "We couldn't load the feed",
+    'feed.sourceUnavailable':
+      "We can't show places to recommend yet. Please try again in a little while",
     'feed.empty': 'Nothing to show yet',
     'feed.emptyNoTrip': 'Make a trip and we will suggest places for it',
     'feed.createTrip': 'Make a trip',

@@ -7,7 +7,57 @@
 //
 // FE-201-T1: pagination continues without duplicates or gaps, and an expired
 //            cursor is distinguished from a load failure.
-// FE-201-T2: default/loading/empty/error states each render.
+// FE-201-T2: "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다" —
+//            six clauses, and the four words above were only the first four.
+//            Mapped one to one, with the two that are not literal named:
+//
+//              기본    → a populated feed page
+//              loading → the first page in flight
+//              empty   → a page that came back with no items
+//              error   → a failed load, kept apart from an expired cursor
+//                        (FE-201-T1) and from a closed catalog: a 503
+//                        SOURCE_UNAVAILABLE says the catalog is not published
+//                        yet, which is not a broken screen
+//              offline → NOT its own state on this screen. There is no offline
+//                        branch in apps/web/src at all: no navigator.onLine,
+//                        no online/offline listener (measured — the only
+//                        matches are main.tsx's service-worker registration).
+//                        A thrown fetch arrives as a failed query and renders
+//                        the error state above, so a separate case would
+//                        assert a state the screen cannot enter, which rule
+//                        7② calls a 발화할 수 없는 단언. FE-004-T1 holds the
+//                        worker boundary (no /api/v1 body is ever served from
+//                        cache); that is a different claim from this render.
+//              stale   → real and implemented, but NOT a screen state: it is
+//                        PER CARD provenance. `crowd.state` carries one of six
+//                        SourceState values and the card renders the matching
+//                        label through CrowdLevel → StateLabel, so one feed
+//                        page can hold a LIVE card beside a STALE one. A
+//                        screen-level "the feed is stale" state would have to
+//                        average those, and invariant 6 keeps observation,
+//                        forecast, replay and stale distinguishable per
+//                        reading rather than collapsed.
+//
+//            THE STALE CLAUSE IS NOT MEASURED AT THIS LAYER, and the gap is
+//            wider than a missing case. Measured, not assumed:
+//
+//              - this suite makes 0 STALE assertions;
+//              - the feed fixtures (packages/contracts/fixtures/feed/*.json)
+//                carry only FORECAST and UNAVAILABLE, so no STALE card can
+//                reach this screen in a test without a new fixture;
+//              - deleting `STALE: t('state.STALE')` from FeedScreen's label
+//                map breaks NOTHING: 60 tests across this suite,
+//                data-components and card-components all stay green, and
+//                `tsc` stays green too because `stateLabels` is a
+//                Partial<Record<SourceState, string>> and a missing key is
+//                legal by type.
+//
+//            data-components.test.tsx proves StateLabel gives all six states
+//            distinct words, but it renders StateLabel DIRECTLY — it never
+//            goes through the feed, so it cannot see the feed's own wiring
+//            drop a state. Recorded rather than fixed: closing it needs a
+//            STALE feed fixture, which is a contract-fixture change and not
+//            this file's to make.
 // FE-201-T3: keyboard reach, accessible names, announced results.
 //
 // The pagination assertions read what actually reached the wire. A "load
@@ -97,6 +147,27 @@ describe('FE-201-T2 the feed renders each of its states', () => {
     renderFeed();
     expect(await screen.findByText(copy['feed.error'])).toBeInTheDocument();
     expect(screen.getByRole('button', { name: copy['feed.retry'] })).toBeInTheDocument();
+  });
+
+  // Both directions, because one of them alone does not distinguish this fix
+  // from a screen that calls EVERY failure `sourceUnavailable`. The pair is
+  // what pins the branch: 503 gets the catalog copy, a transport failure keeps
+  // the load-failure copy.
+  it('says the catalog is not published yet when the feed answers 503', async () => {
+    server.use(http.get(`${API_BASE}/feed`, () => problemResponse('SOURCE_UNAVAILABLE')));
+    renderFeed();
+    expect(await screen.findByText(copy['feed.sourceUnavailable'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['feed.error'])).toBeNull();
+    // Still recoverable: the gate opens server-side, and the same request then
+    // succeeds without a reload.
+    expect(screen.getByRole('button', { name: copy['feed.retry'] })).toBeInTheDocument();
+  });
+
+  it('keeps the load-failure copy when the feed fails for any other reason', async () => {
+    server.use(http.get(`${API_BASE}/feed`, () => HttpResponse.error()));
+    renderFeed();
+    expect(await screen.findByText(copy['feed.error'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['feed.sourceUnavailable'])).toBeNull();
   });
 
   it('does not hang on loading when the trip list fails', async () => {
