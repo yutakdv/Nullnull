@@ -1133,19 +1133,27 @@
       "phase": "B06",
       "priority": "P0",
       "title": "before/after MetricDelta, 근거, decision bar",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-502",
         "BA-051"
       ],
-      "operations": [],
-      "featureIds": [],
-      "figmaNodes": [],
+      "operations": [
+        "decideOptimization"
+      ],
+      "featureIds": [
+        "FR-OPT-04",
+        "FR-OPT-07",
+        "FR-OPT-08"
+      ],
+      "figmaNodes": [
+        "655:4067"
+      ],
       "designRequests": [],
       "steps": [
-        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
-        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
-        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+        "승인된 OpenAPI example의 READY proposal로 before/after·provenance·lock validation을 렌더한다",
+        "선택한 proposal의 APPLY/KEEP만 decideOptimization으로 보내고 응답 전에는 일정을 바꾸지 않는다",
+        "default/loading/empty/error/offline/stale/background-refresh와 keyboard·responsive·reduced motion을 검증한다"
       ],
       "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
       "tests": [
@@ -1159,7 +1167,11 @@
         },
         {
           "id": "FE-503-T3",
-          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+          "assertion": "keyboard 이동·접근성 이름과 360px·200% zoom을 검증한다"
+        },
+        {
+          "id": "FE-503-T4",
+          "assertion": "dialog·sheet가 없는 READY 화면임을 확인하고 reduced motion을 이 화면에서 검증한다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
