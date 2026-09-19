@@ -153,10 +153,23 @@ let importDraftState: ImportDraft | null = null;
 /**
  * Builds a draft from the place fixtures rather than from an import fixture.
  *
- * There is no approved example for parseTripImport (BA-060) and no
- * packages/contracts fixture for it, so this models the contract the way the
- * FE-305 item handlers do. The places are real fixture rows, which is what
- * keeps the PlaceSummary shape honest; only the draft envelope is composed.
+ * parseTripImport now HAS approved examples — importFixtures.draftNeedsReview,
+ * .draftReady and .confirmedTrip (#16). They are not used as the body here for
+ * the same reason the FE-305 item handlers do not serve mutation-*.json: a
+ * fixture is one snapshot, and this handler has to answer a remap that advances
+ * the version, resolves a token and reaches READY. Serving a fixture would make
+ * "the correction stuck" true before the screen did anything. The fixtures are
+ * instead what the composed shape is checked AGAINST.
+ *
+ * Two keys the server never sends are therefore absent here too, and both are
+ * optional in the schema, so nothing but this comment holds them out:
+ *   - `originalLabel` — TripImportController.ImportDraftItemResponse declares it
+ *     @JsonInclude(NON_NULL) and TripImportService never fills it, because the
+ *     only things it could hold are the pasted text (invariant 10) and the place
+ *     name, which is already in `place`.
+ *   - `constraints` — that record has no such component at all; a draft stores
+ *     no locks because nothing parses one, and remap REFUSES an update carrying
+ *     them (INVALID_REQUEST, "This operation does not read constraints yet").
  *
  * The shape says what the screen has to handle: one item the parser placed,
  * one it placed without a date, and two unresolved tokens — a PLACE with
@@ -176,24 +189,20 @@ function buildImportDraft(): ImportDraft {
       {
         clientKey: 'line-1',
         place: first ?? null,
-        originalLabel: first?.name ?? '',
         date: '2026-10-04',
         startTime: '10:00:00',
         position: 0,
         confidence: 0.94,
-        constraints: [],
       },
       {
         clientKey: 'line-2',
         place: second ?? null,
-        originalLabel: second?.name ?? '',
         // No date: the parser read the place but not the day, so this is an
         // item the person still has to answer for before READY.
         date: null,
         startTime: null,
         position: 1,
         confidence: 0.61,
-        constraints: [],
       },
     ],
     unresolved: [
@@ -1316,12 +1325,10 @@ export const handlers = [
           {
             clientKey: token.clientKey,
             place,
-            originalLabel: token.label,
             date: update.date ?? null,
             startTime: update.startTime ?? null,
             position: items.length,
             confidence: 1,
-            constraints: [],
           },
         ];
         continue;
