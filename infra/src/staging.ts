@@ -593,8 +593,10 @@ export function createStacks(
   //
   // The target is universal, not the templated ECS one: a templated target carries EcsParameters only and
   // cannot carry container overrides, and without an override there is no LOADER_MAIN, hence no main
-  // class. The input is therefore the ECS RunTask request itself (camelCase, the API's own shape - the
-  // same call staging_operator.py makes through boto3).
+  // class. The input is therefore the ECS RunTask request itself, in the PascalCase member names Scheduler
+  // validates universal-target input against - not the camelCase of the ECS JSON API or boto3. The first
+  // deploy with camelCase keys was refused at CREATE ("Request payload is missing the following field(s):
+  // TaskDefinition", run 35457509371), and a synth-only test cannot see that refusal.
   const operationsTarget = `postgresql://${db.dbInstanceEndpointAddress}:5432/nullnull`;
   // One shape, two clocks. Each mode renews one of them before it lapses (KtoDemoRefresh), and neither
   // renews the other's, so a single schedule would leave the forecast without a mapping to ask with.
@@ -624,33 +626,33 @@ export function createStacks(
         maxEventAge: cdk.Duration.hours(1),
         retryAttempts: 3,
         input: scheduler.ScheduleTargetInput.fromObject({
-          cluster: cluster.clusterArn,
-          taskDefinition: ops.taskDefinitionArn,
-          launchType: "FARGATE",
-          count: 1,
+          Cluster: cluster.clusterArn,
+          TaskDefinition: ops.taskDefinitionArn,
+          LaunchType: "FARGATE",
+          Count: 1,
           // Distinct from the operator's own 'nullnull-stg-ops', and per mode, so a running task says
           // which of the two started it (RunTask caps this at 36 characters).
-          startedBy: name,
-          networkConfiguration: {
-            awsvpcConfiguration: {
-              subnets: vpc.publicSubnets.map((s) => s.subnetId),
-              securityGroups: [migrationSg.securityGroupId],
-              assignPublicIp: "ENABLED",
+          StartedBy: name,
+          NetworkConfiguration: {
+            AwsvpcConfiguration: {
+              Subnets: vpc.publicSubnets.map((s) => s.subnetId),
+              SecurityGroups: [migrationSg.securityGroupId],
+              AssignPublicIp: "ENABLED",
             },
           },
-          overrides: {
-            containerOverrides: [
+          Overrides: {
+            ContainerOverrides: [
               {
-                name: "ops",
-                environment: [
-                  { name: "LOADER_MAIN", value: main },
-                  { name: "NULLNULL_DEMO_PLACES", value: FORECAST_DEMO_PLACES },
-                  { name: "APP_CONTEST_PROFILE", value: "2026_KTO_WEBAPP" },
-                  { name: approval, value: "true" },
+                Name: "ops",
+                Environment: [
+                  { Name: "LOADER_MAIN", Value: main },
+                  { Name: "NULLNULL_DEMO_PLACES", Value: FORECAST_DEMO_PLACES },
+                  { Name: "APP_CONTEST_PROFILE", Value: "2026_KTO_WEBAPP" },
+                  { Name: approval, Value: "true" },
                   // OperationsContext.target() of the task's own spring.datasource.url, which is dbEnv's
                   // JDBC URL above: same endpoint, same database, so a task that reached another database
                   // refuses itself before it connects.
-                  { name: "NULLNULL_OPERATIONS_TARGET", value: operationsTarget },
+                  { Name: "NULLNULL_OPERATIONS_TARGET", Value: operationsTarget },
                 ],
               },
             ],
