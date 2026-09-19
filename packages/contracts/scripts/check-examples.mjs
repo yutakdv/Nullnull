@@ -68,6 +68,7 @@ const FIXTURE_OF = {
   forecastStale: 'crowd/series-stale.json',
   forecastUnavailable: 'crowd/series-unavailable.json',
   forecastsQueried: 'crowd/forecast-query.json',
+  forecastsQueriedRequest: 'crowd/forecast-query-request.json',
   itemAdded: 'trips/mutation-add.json',
   itemUpdated: 'trips/mutation-update.json',
   itemsReordered: 'trips/mutation-reorder.json',
@@ -102,7 +103,15 @@ let pinned = 0;
 function* exampleSites(api) {
   for (const [path, item] of Object.entries(api.paths ?? {})) {
     for (const [method, op] of Object.entries(item ?? {})) {
-      if (!op || typeof op !== 'object' || !op.responses) continue;
+      if (!op || typeof op !== 'object') continue;
+      // A request example is a mock's input as much as a response example is its output: a pinned
+      // request is what lets a mock pair a merged id with the canonical place the response names.
+      for (const [type, media] of Object.entries(op.requestBody?.content ?? {})) {
+        if (media?.examples && media.schema) {
+          yield [media, `${method.toUpperCase()} ${path} request (${type})`];
+        }
+      }
+      if (!op.responses) continue;
       for (const [code, response] of Object.entries(op.responses)) {
         for (const [type, media] of Object.entries(response?.content ?? {})) {
           if (media?.examples && media.schema) {
