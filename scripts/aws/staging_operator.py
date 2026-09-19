@@ -63,6 +63,11 @@ OPS_TASKS = {
     'curate-hours': ('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain', None, {}),
     # Curated feed posts (A-031, #183), the same way: no provider call, the owner approves the plan's bytes.
     'curate-posts': ('io.nullnull.social.infrastructure.curation.CuratedPostImportMain', None, {}),
+    # The KTO operations the deployed release actually called, from the call-audit (CMP-KTO-006, BA-073-T3). It reads
+    # the audit and calls no provider (KtoCallInventoryMain starts OperationsContext with READ access and touches no
+    # gateway), so it takes no KTO approval. Its release has no input: it is the deployed one, set under the deployment
+    # lock, because an inventory of another release would pass check_submission_inventory against a ledger naming it.
+    'kto-call-inventory': ('io.nullnull.crowd.infrastructure.audit.KtoCallInventoryMain', None, {}),
 }
 # A curate task's plan cannot be a file in the task: it runs the release's image with a read-only root, and baking
 # the plan into the image would make every plan edit a release (the hours re-observation before 2026-10-13 falls in
@@ -111,6 +116,14 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|curated_posts_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_post [0-9a-f-]{36} (PUBLISHED \([0-9]{1,3} place\(s\)\)|ALREADY_PRESENT \(left as it is\))'
                           r'|curated_posts_published=[0-9]{1,4} of [0-9]{1,4}|curated_posts_failed reason=[A-Za-z_]{1,80}'
+                          # The call inventory (KtoCallInventoryMain.render), four shapes: its header, one line per operation,
+                          # what it excluded and the total with the evidence verdict. Only audit ids, counts and instants.
+                          r'|kto_inventory target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
+                          r' environment=[a-z]+ release=v0\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?'
+                          r'|kto_operation source=[A-Z0-9_]{2,100} endpoint=[A-Z0-9_:-]{2,100} calls=[0-9]{1,9}'
+                          r' first=[0-9T:.-]{10,40}Z last=[0-9T:.-]{10,40}Z'
+                          r'|kto_inventory_excluded rejected=[0-9]{1,9} replay=[0-9]{1,9}'
+                          r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
 
@@ -965,8 +978,12 @@ def ops_task(args):
         definition = aws('ecs', 'describe-task-definition', taskDefinition=definition_arn)['taskDefinition']
         # The smoke's report names a release, and a curate task needs an image that reads an inline plan: both run
         # only on the recorded release's own definition and image.
-        bound = args.task == 'kto-smoke' or plan is not None
+        bound = args.task in ('kto-smoke', 'kto-call-inventory') or plan is not None
         current, expected_digest = release_binding(definition) if bound else (None, None)
+        if args.task == 'kto-call-inventory':
+            # Read under the lock with the binding, so the release inventoried is the one this task definition is.
+            overrides['containerOverrides'][0]['environment'].append(
+                {'name': 'NULLNULL_INVENTORY_RELEASE', 'value': current['releaseVersion']})
         lock.mutating()
         result = aws('ecs', 'run-task', cluster=cluster, taskDefinition=definition_arn, launchType='FARGATE', count=1,
                      clientToken=lock.owner, startedBy='nullnull-stg-ops',
@@ -985,10 +1002,19 @@ def ops_task(args):
         except OpsError as error:
             failure = error
         stream = 'ops/ops/' + arn.rsplit('/', 1)[1]
-        log = aws('logs', 'get-log-events', logGroupName=output('Platform', 'MigrationLogGroupName'),
-                  logStreamName=stream, startFromHead=True, limit=500)
-        evidence, echoed = [], []
-        for event in log.get('events', []):
+        # Every page: a task that logs more than one page of startup before its own lines (the inventory prints last)
+        # would otherwise lose exactly the lines that are its result. The last page repeats the token it was given.
+        events, token = [], None
+        for _ in range(50):
+            page = aws('logs', 'get-log-events', logGroupName=output('Platform', 'MigrationLogGroupName'),
+                       logStreamName=stream, startFromHead=True, limit=500, **({'nextToken': token} if token else {}))
+            events += page.get('events', [])
+            following = page.get('nextForwardToken')
+            if not following or following == token:
+                break
+            token = following
+        evidence, echoed, inventory = [], [], []
+        for event in events:
             line = event.get('message', '').strip()
             if OPS_LOG_LINE.match(line):
                 print('ops_log ' + line)
@@ -996,13 +1022,45 @@ def ops_task(args):
                     evidence.append(line)
                 if plan and line.startswith(CURATION_PLANS[args.task]['lines']):
                     echoed.append(line)
+                if args.task == 'kto-call-inventory' and line.startswith(('kto_inventory', 'kto_operation ')):
+                    inventory.append(line)
         if failure:
             raise failure
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:
             record_curation(args.task, plan, echoed, current)
+        if args.task == 'kto-call-inventory':
+            record_inventory(inventory, current)
     print('ops_task=' + args.task + ' result=succeeded')
+
+def record_inventory(lines, current):
+    """The task's inventory lines, verbatim and in their order, as the file check_submission_inventory.py --inventory
+    reads, kept with the release's evidence.
+
+    Verbatim because that checker matches the lines themselves (^kto_inventory ... release=, ^kto_operation source=
+    endpoint=, counts_as_evidence=true): the ops_log prefix this operator prints would make every one of them miss. And
+    complete, or nothing: the total the main prints last must count exactly the operation lines read back, because an
+    inventory that lost a line to the log would list fewer APIs than were called and still read as a list.
+    """
+    release = current['releaseVersion']
+    headers = [line for line in lines if line.startswith('kto_inventory target=')]
+    require(len(headers) == 1, 'inventory-header-missing')
+    require(headers[0].endswith(' release=' + release), 'inventory-not-for-the-deployed-release')
+    totals = [line for line in lines if line.startswith('kto_inventory operations=')]
+    operations = [line for line in lines if line.startswith('kto_operation ')]
+    require(len(totals) == 1 and totals[0].split()[1] == f'operations={len(operations)}', 'inventory-incomplete')
+    stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    path = ROOT/'.artifacts/aws/evidence'/f'kto-inventory-{release}-{stamp}.txt'
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
+    key = f'evidence/kto-inventory/{release}/{path.name}'
+    require(aws_cli(['s3', 'cp', path, f's3://{release_bucket()}/{key}', '--only-show-errors']).returncode == 0,
+            'inventory-evidence-upload-failed')
+    verdict = totals[0].split(' ', 2)[2]
+    print(f'kto_inventory_file={path} release={release} operations={len(operations)} {verdict} evidence={key}')
 
 def record_curation(task, plan, echoed, current):
     """The task imported the approved bytes, all of them, and those bytes are kept where the release's evidence is.

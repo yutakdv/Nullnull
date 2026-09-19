@@ -1175,6 +1175,115 @@ class PlanStagesCoversRegressions(unittest.TestCase):
         self.assertIn('cover-photos-missing',r['error'] or '')
         self.assertEqual([],r['cdk'])
 
+class KtoCallInventoryRegressions(unittest.TestCase):
+    """kto-call-inventory: the deployed release's KTO operation list, as the file check_submission_inventory reads."""
+    DIGEST='sha256:'+'a'*64
+    RELEASE='v0.1.0-rc.9'
+    # Verbatim what KtoCallInventoryMain.render prints for a deployed environment with two operations.
+    LINES=['kto_inventory target=postgresql://db.example.internal:5432/nullnull environment=staging release=v0.1.0-rc.9',
+           'kto_operation source=KTO_KOR_SERVICE_2 endpoint=KOR_SERVICE_2_DETAIL_COMMON_2 calls=12 first=2026-09-19T05:29:12.345678Z last=2026-09-20T01:02:03Z',
+           'kto_operation source=KTO_CONCENTRATION_FORECAST endpoint=TATS_CNCTR_RATE_LIST calls=8 first=2026-09-19T06:00:00Z last=2026-09-20T02:00:00.5Z',
+           'kto_inventory_excluded rejected=0 replay=1',
+           'kto_inventory operations=2 counts_as_evidence=true']
+    def run_inventory(self, lines=None, pages=None, image=None, release=None):
+        import contextlib, io
+        from types import SimpleNamespace
+        pages=pages if pages is not None else [['Starting NullnullApiApplication']+(self.LINES if lines is None else lines)]
+        calls,uploads=[],[]
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if (service,operation)==('rds','describe-db-instances'):
+                return {'DBInstances':[{'Endpoint':{'Address':OperationsTargetRegressions.HOST,'Port':5432},'DBName':'nullnull'}]}
+            if (service,operation)==('ecs','describe-task-definition'):
+                return {'taskDefinition':{'containerDefinitions':[{'name':'ops','image':image or '1.dkr.ecr/nullnull-api@'+self.DIGEST,
+                        'environment':[{'name':'APP_RELEASE_VERSION','value':release or self.RELEASE}]}]}}
+            if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
+            if (service,operation)==('logs','get-log-events'):
+                # As CloudWatch answers: a token past the last page returns no events and that same token again.
+                n=int(kw.get('nextToken','f/0').split('/')[1])
+                if n>=len(pages):return {'events':[],'nextForwardToken':f'f/{n}'}
+                return {'events':[{'message':m} for m in pages[n]],'nextForwardToken':f'f/{n+1}'}
+            raise AssertionError((service,operation))
+        def fake_cli(args,**kw):
+            args=[str(a) for a in args]
+            uploads.append((args[3],Path(args[2]).read_text()));return subprocess.CompletedProcess(args,0,'','')
+        record={'releaseVersion':self.RELEASE,'gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
+             ops.OPERATIONS_TARGET:OperationsTargetRegressions.TARGET}
+        out=io.StringIO()
+        with tempfile.TemporaryDirectory() as d:
+            with patch.dict(os.environ,env),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),\
+                 patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+                 patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),patch.object(ops,'wait_task'),\
+                 patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
+                 patch.object(ops,'ROOT',Path(d)),patch.object(ops,'aws_cli',side_effect=fake_cli),contextlib.redirect_stdout(out):
+                error=None
+                try:
+                    ops.ops_task(SimpleNamespace(task='kto-call-inventory',content_id=None,content_type_id=None,place_id=None,
+                                                 owner_approval=None,places=None,plan_file=None,approved_plan_sha256=None))
+                except ops.OpsError as e:
+                    error=str(e)
+                kept=sorted((Path(d)/'.artifacts/aws/evidence').glob('kto-inventory-*.txt'))
+                kept=kept[0].read_text() if kept else None
+        run=[kw for s_,o,kw in calls if (s_,o)==('ecs','run-task')]
+        return {'error':error,'out':out.getvalue(),'run':run,'kept':kept,'uploads':uploads,'calls':[(s_,o) for s_,o,_ in calls]}
+    def test_the_deployed_releases_inventory_is_kept_as_the_checker_reads_it(self):
+        import importlib.util as iu
+        r=self.run_inventory()
+        self.assertIsNone(r['error'],r['out'])
+        env={e['name']:e['value'] for e in r['run'][0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('io.nullnull.crowd.infrastructure.audit.KtoCallInventoryMain',env['LOADER_MAIN'])
+        # The release is the deployed one, set by the operator: no input can name another.
+        self.assertEqual(self.RELEASE,env['NULLNULL_INVENTORY_RELEASE'])
+        # It calls no provider, so it carries no KTO approval.
+        self.assertFalse([n for n in env if n.startswith('NULLNULL_KTO_')],env)
+        self.assertEqual('\n'.join(self.LINES)+'\n',r['kept'])
+        key,uploaded=r['uploads'][0]
+        self.assertTrue(key.startswith(f's3://b/evidence/kto-inventory/{self.RELEASE}/kto-inventory-{self.RELEASE}-'),key)
+        self.assertEqual(r['kept'],uploaded)
+        # The consumer's own patterns find the release and both operations in the kept file.
+        spec=iu.spec_from_file_location('check_submission_inventory',ROOT/'scripts/check_submission_inventory.py')
+        checker=iu.module_from_spec(spec);spec.loader.exec_module(checker)
+        self.assertEqual(self.RELEASE,checker.HEADER_LINE.search(r['kept']).group(1))
+        self.assertEqual({('KTO_KOR_SERVICE_2','KOR_SERVICE_2_DETAIL_COMMON_2'),('KTO_CONCENTRATION_FORECAST','TATS_CNCTR_RATE_LIST')},
+                         set(checker.OPERATION_LINE.findall(r['kept'])))
+        self.assertIn('counts_as_evidence=true',r['kept'])
+        self.assertIn(f'kto_inventory_file=',r['out'])
+        self.assertIn('operations=2 counts_as_evidence=true',r['out'])
+    def test_lines_after_the_first_page_of_startup_are_read(self):
+        r=self.run_inventory(pages=[['startup line']*500,['more startup']+self.LINES])
+        self.assertIsNone(r['error'],r['out'])
+        self.assertEqual('\n'.join(self.LINES)+'\n',r['kept'])
+        self.assertEqual(3,r['calls'].count(('logs','get-log-events')))  # two pages, then the empty one that ends it
+    def test_an_inventory_that_is_not_whole_or_not_this_releases_records_nothing(self):
+        other=[self.LINES[0].replace('rc.9','rc.8')]+self.LINES[1:]
+        for lines,reason in [([],'inventory-header-missing'),
+                             (other,'inventory-not-for-the-deployed-release'),
+                             (self.LINES[:-1],'inventory-incomplete'),
+                             # A line lost between the main and the log: the total no longer counts what was read.
+                             ([self.LINES[0],self.LINES[1],self.LINES[3],self.LINES[4]],'inventory-incomplete')]:
+            with self.subTest(reason=reason,lines=len(lines)):
+                r=self.run_inventory(lines=lines)
+                self.assertIn(reason,r['error'] or '')
+                self.assertIsNone(r['kept']);self.assertEqual([],r['uploads'])
+    def test_it_runs_only_on_the_recorded_releases_image(self):
+        for kw,reason in [({'image':'1.dkr.ecr/nullnull-api@sha256:'+'b'*64},'ops-image-not-the-deployed-release'),
+                          ({'release':'v0.1.0-rc.8'},'ops-definition-not-the-deployed-release')]:
+            with self.subTest(reason=reason):
+                r=self.run_inventory(**kw)
+                self.assertIn(reason,r['error'] or '')
+                self.assertEqual([],r['run'])
+    def test_the_inventory_lines_pass_and_nothing_that_carries_more(self):
+        allowed=self.LINES+['kto_inventory target=unknown environment=unset release=v0.1.0',
+                            'kto_inventory operations=0 counts_as_evidence=false reason=environment-not-deployed']
+        refused=['kto_inventory target=postgresql://user:secret@db:5432/nullnull environment=staging release=v0.1.0-rc.9',
+                 self.LINES[1]+' serviceKey=abc',
+                 'kto_operation source=KTO_KOR_SERVICE_2 endpoint=detail common calls=1 first=2026-09-19T05:29:12Z last=2026-09-19T05:29:12Z',
+                 'kto_inventory release=v0.1.0-rc.9 title=경복궁',
+                 'kto_inventory operations=2 counts_as_evidence=true extra']
+        for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
+        for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
 class EdgeRegressions(unittest.TestCase):
     """edge opens or closes the public API of the deployed release by redeploying WebEdge alone from its own plan."""
     PLAN_SHA='p'*64
