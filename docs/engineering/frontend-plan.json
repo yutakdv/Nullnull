@@ -391,7 +391,7 @@
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI",
-      "note": "Search UI on provisional mock data (searchPlaces has no approved example). Crowd display omitted: PlaceSummary has no crowd field, raised as FCR-029."
+      "note": "Search UI remains on provisional mock data because searchPlaces has no approved example. PlaceSummary intentionally has no crowd field (FCR-029); search cards fetch queryPlaceCrowdForecasts separately, join items to requests by index, and consume the approved request/response fixtures including deprecated-to-canonical place ID parity."
     },
     {
       "id": "FE-404",
