@@ -333,9 +333,7 @@ public class JdbcJobQueue implements JobQueue {
                 .param("type", type)
                 .param("now", utc(now))
                 .param("errorCode", LEASE_EXPIRED_ERROR_CODE)
-                .query((ResultSet rs, int row) -> new AbandonedJob(rs.getObject("id", UUID.class),
-                        rs.getString("type"), rs.getInt("attempt_count"),
-                        JobPayload.of(json.readValue(rs.getString("payload_reference"), PAYLOAD))))
+                .query((ResultSet rs, int row) -> abandoned(rs))
                 .list());
     }
 
@@ -423,9 +421,38 @@ public class JdbcJobQueue implements JobQueue {
         // The token is the one this claim just wrote, so it is not read back from the row.
         JobLease lease = new JobLease(rs.getObject("id", UUID.class), rs.getString("type"),
                 leaseToken, rs.getInt("attempt_count"));
-        return new ClaimedJob(lease, rs.getString("deduplication_key"),
-                JobPayload.of(json.readValue(rs.getString("payload_reference"), PAYLOAD)),
-                rs.getInt("max_attempts"), retaken);
+        Optional<JobPayload> payload = payload(rs);
+        return payload.isPresent()
+                ? new ClaimedJob(lease, rs.getString("deduplication_key"), payload.get(), rs.getInt("max_attempts"),
+                        retaken)
+                : ClaimedJob.withUnreadablePayload(lease, rs.getString("deduplication_key"),
+                        rs.getInt("max_attempts"), retaken);
+    }
+
+    private AbandonedJob abandoned(ResultSet rs) throws SQLException {
+        UUID id = rs.getObject("id", UUID.class);
+        String type = rs.getString("type");
+        int attempts = rs.getInt("attempt_count");
+        return payload(rs).map(read -> new AbandonedJob(id, type, attempts, read))
+                .orElseGet(() -> AbandonedJob.withUnreadablePayload(id, type, attempts));
+    }
+
+    /**
+     * The stored payload, or empty when it cannot be read as one - JSON that is not an object of
+     * strings, or a value JobPayload refuses. Enqueue validates, so such a row was written before a rule
+     * tightened, by hand, or by a newer release whose rules are wider (JobPayload says why that last one
+     * must not happen). These mappers run inside the claim and sweep statements, and a throw there
+     * rolled the statement back: the claim left the row first in line for every later job of its type,
+     * and the sweep left every abandoned row of the type RUNNING (BA-005-T8, T9). The worker ends such a
+     * job itself. The cause is dropped on purpose: a parse error can quote the bytes it could not read.
+     */
+    private Optional<JobPayload> payload(ResultSet rs) throws SQLException {
+        String stored = rs.getString("payload_reference");
+        try {
+            return Optional.of(JobPayload.of(json.readValue(stored, PAYLOAD)));
+        } catch (RuntimeException unreadable) {
+            return Optional.empty();
+        }
     }
 
     private EnqueuedJob outstanding(ResultSet rs, JobRequest request) throws SQLException {

@@ -15,9 +15,10 @@ import java.util.UUID;
  * same alertable dead-letter line a thrown failure produces.
  *
  * <p>{@code payload} is carried so the job's handler can end what the job owned (#261,
- * {@code JobHandler#onDeadLetter}): an abandoned job is a dead letter like any other.
+ * {@code JobHandler#onDeadLetter}): an abandoned job is a dead letter like any other - when its payload
+ * can be read. When it cannot, {@code payloadUnreadable} says so and the hook is not called.
  */
-public record AbandonedJob(UUID jobId, String type, int attempts, JobPayload payload) {
+public record AbandonedJob(UUID jobId, String type, int attempts, JobPayload payload, boolean payloadUnreadable) {
 
     public AbandonedJob {
         Objects.requireNonNull(jobId, "jobId");
@@ -26,5 +27,21 @@ public record AbandonedJob(UUID jobId, String type, int attempts, JobPayload pay
         if (attempts < 1) {
             throw new IllegalArgumentException("an abandoned job has at least one attempt: " + attempts);
         }
+        if (payloadUnreadable && !payload.values().isEmpty()) {
+            throw new IllegalArgumentException("an unreadable payload carries no values");
+        }
+    }
+
+    /** An abandoned job whose payload was read. */
+    public AbandonedJob(UUID jobId, String type, int attempts, JobPayload payload) {
+        this(jobId, type, attempts, payload, false);
+    }
+
+    /**
+     * An abandoned job whose stored payload could not be read (BA-005-T9). It ends like any other - the
+     * sweep is one statement and must not roll back for one row - but nothing names what it owned.
+     */
+    public static AbandonedJob withUnreadablePayload(UUID jobId, String type, int attempts) {
+        return new AbandonedJob(jobId, type, attempts, JobPayload.empty(), true);
     }
 }

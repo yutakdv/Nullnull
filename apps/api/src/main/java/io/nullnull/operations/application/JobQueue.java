@@ -31,6 +31,14 @@ public interface JobQueue {
     String LEASE_EXPIRED_ERROR_CODE = "LEASE_EXPIRED";
 
     /**
+     * {@code last_error_code} of a job whose stored payload could not be read as one. The same code the
+     * handlers give a payload they can read but cannot use (DeleteOwnerDataHandler, OptimizeItemHandler):
+     * either way the next attempt would meet the same bytes, so the job ends on the attempt that found
+     * them.
+     */
+    String INVALID_PAYLOAD_ERROR_CODE = "INVALID_JOB_PAYLOAD";
+
+    /**
      * Registers a job, or returns the <em>outstanding</em> one that already holds the deduplication
      * key.
      *
@@ -80,7 +88,7 @@ public interface JobQueue {
      * in the same commit (#261).
      *
      * @return one entry per job ended, so the caller can log the same alertable line a thrown failure
-     *         produces and hand the payload to the job's handler
+     *         produces and hand a readable payload to the job's handler
      */
     List<AbandonedJob> failAbandoned(String type, Instant now);
 

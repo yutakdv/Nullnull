@@ -54,7 +54,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * BA-005-T3 (retry ceiling and dead letter) plus the two properties that make a handler's write safe:
  * the happy path commits through {@link JobContext#transactional}, and a write attempted outside it is
- * refused rather than committed unbound.
+ * refused rather than committed unbound. BA-005-T7 and T8: a row whose stored payload the queue cannot
+ * read ends without its handler and does not hold up the jobs behind it.
  *
  * <p>The worker really runs here - {@code nullnull.jobs.enabled=true} overrides the suite default -
  * and the clock is a {@link MutableClock} so the exponential back-off between attempts is crossed by
@@ -86,6 +87,15 @@ class JobWorkerIT {
     /** A poison payload carrying this key also fails in its dead-letter hook (BA-005-T4). */
     static final String HOOK_FAILS = "deadLetterHookFails";
     static final List<String> DEAD_LETTER_HOOK_CALLS = new CopyOnWriteArrayList<>();
+    /** A stored value JobPayload refuses (it has spaces); T7 searches every log line for it. */
+    static final String VALUE_CANARY = "value canary 51c7e0";
+    /**
+     * A stored key JobPayload refuses (the underscore). Its refusal message quotes the key, so this is
+     * the canary that would reach a log if the dropped cause were ever logged.
+     */
+    static final String KEY_CANARY = "keyCanary_7d2f94";
+    /** Jobs the poison handler's handle() was called for, so T7 can see that it was not. */
+    static final List<UUID> POISON_HANDLED = new CopyOnWriteArrayList<>();
 
     /** What the handlers did, read back by the assertions. */
     static final List<UUID> WRITTEN = new CopyOnWriteArrayList<>();
@@ -124,6 +134,7 @@ class JobWorkerIT {
 
                 @Override
                 public void handle(JobContext context) {
+                    POISON_HANDLED.add(context.jobId());
                     throw new JobExecutionException(POISON_CODE,
                             "this handler always fails, by design, on every attempt");
                 }
@@ -232,6 +243,7 @@ class JobWorkerIT {
         ATTEMPTED_INSIDE_UNIT_OF_WORK.clear();
         ATTEMPTED_REQUIRES_NEW.clear();
         DEAD_LETTER_HOOK_CALLS.clear();
+        POISON_HANDLED.clear();
         // Only this class's own job types. The gate runs every suite against one database, so an
         // unscoped DELETE here took every other class's jobs, owners and sessions with it - and the
         // five tables that used to be cleared alongside were only ever cleared so that a global
@@ -337,6 +349,110 @@ class JobWorkerIT {
                 .as("the alarm follows the dead letter's commit, and there was none").isEmpty();
     }
 
+    /**
+     * Three ways a stored payload can stop being one: a value that is not an identifier, JSON that is not
+     * an object, and a key that is not an identifier name. None can be enqueued - JobPayload refuses all
+     * three - so they are written the way they arrive in production: by a validation rule that tightened
+     * after the row was stored, a newer release's wider rule, or a hand edit.
+     *
+     * <p>The log check listens to the ROOT logger and reads each event's throwable too: the stored bytes
+     * exist only where the queue parses them, not in the worker, and the key refusal's message quotes the
+     * key - so a cause logged anywhere on the way would carry KEY_CANARY.
+     */
+    @Test
+    @DisplayName("BA-005-T7 a job whose stored payload cannot be read ends on its first claim as "
+            + "INVALID_JOB_PAYLOAD, without its handler")
+    void anUnreadablePayloadEndsOnItsFirstClaimWithoutItsHandler() {
+        ListAppender<ILoggingEvent> everything = new ListAppender<>();
+        everything.start();
+        ch.qos.logback.classic.Logger root = ((LoggerContext) LoggerFactory.getILoggerFactory())
+                .getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        root.addAppender(everything);
+        List<UUID> jobs;
+        try {
+            UUID notAnIdentifier = unreadable(POISON, "{\"ownerId\":\"" + VALUE_CANARY + "\"}", 3);
+            UUID notAnObject = unreadable(POISON, "[\"" + VALUE_CANARY + "\"]", 3);
+            UUID notAKeyName = unreadable(POISON, "{\"" + KEY_CANARY + "\":\"x\"}", 3);
+            jobs = List.of(notAnIdentifier, notAnObject, notAKeyName);
+            for (UUID jobId : jobs) {
+                assertThat(awaitTerminal(jobId)).isEqualTo("FAILED");
+                assertThat(attempts(jobId)).as("no retry: the next attempt would read the same bytes").isOne();
+                assertThat(errorCode(jobId)).isEqualTo(JobQueue.INVALID_PAYLOAD_ERROR_CODE);
+                assertThat(awaitAlarms(OpsAlarm.Name.JOB_DEAD_LETTER, jobId))
+                        .extracting(ILoggingEvent::getFormattedMessage)
+                        .containsExactly(OpsAlarm.jobDeadLetter(POISON, jobId, 1, JobQueue.INVALID_PAYLOAD_ERROR_CODE)
+                                .line());
+            }
+        } finally {
+            root.detachAppender(everything);
+            everything.stop();
+        }
+        // Had the poison handler run, it would have recorded the job, failed it with POISON_PILL, retried
+        // it to the ceiling and had its hook record that code.
+        assertThat(POISON_HANDLED).as("handle() was never called").doesNotContainAnyElementsOf(jobs);
+        assertThat(DEAD_LETTER_HOOK_CALLS)
+                .as("the hook is given nothing: an empty payload in place of the unreadable one would be invented")
+                .isEmpty();
+
+        List<String> logged;
+        synchronized (everything) {
+            logged = everything.list.stream().map(event -> event.getFormattedMessage()
+                    + (event.getThrowableProxy() == null ? ""
+                            : ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy())))
+                    .toList();
+        }
+        for (UUID jobId : jobs) {
+            // Not vacuous: the listener really heard the worker end each of these jobs.
+            assertThat(logged).as("the worker's line for %s reached the root listener", jobId)
+                    .anyMatch(line -> line.startsWith("job payload could not be read") && line.contains(jobId.toString()));
+        }
+        assertThat(logged).as("the stored bytes never reach a log line, message or cause")
+                .noneMatch(line -> line.contains(VALUE_CANARY) || line.contains(KEY_CANARY));
+    }
+
+    /**
+     * The defect this and T7 close: the claim mapped the row inside its own statement, so an unreadable
+     * payload threw there, the claim rolled back, and the row stayed first in line - every later job of
+     * its type waited behind it on every poll, for as long as the row existed.
+     */
+    @Test
+    @DisplayName("BA-005-T8 a job with an unreadable payload does not hold up the jobs of its type queued "
+            + "behind it")
+    void anUnreadablePayloadDoesNotHoldUpTheQueue() {
+        UUID first = unreadable(OK, "{\"ownerId\":\"" + VALUE_CANARY + "\"}", 1);
+        UUID behind = enqueue(OK, JobPayload.empty(), 1);
+
+        assertThat(awaitTerminal(behind)).isEqualTo("COMPLETED");
+        assertThat(awaitTerminal(first)).isEqualTo("FAILED");
+        assertThat(WRITTEN).as("only the job behind it ran its handler").hasSize(1);
+    }
+
+    /**
+     * A row whose payload cannot be read reaches the re-take path only when an earlier claim of it never
+     * recorded its dead letter - the process died in between, or the write failed. That lapse is what
+     * JOB_LEASE_RETAKEN exists to report, so the re-take line comes before the payload is judged.
+     */
+    @Test
+    @DisplayName("a re-taken job whose payload cannot be read still reports the re-take before it ends")
+    void aRetakenUnreadableJobStillReportsTheRetake() {
+        UUID id = UuidV7.create(clock);
+        java.sql.Timestamp before = java.sql.Timestamp.from(clock.instant().minusSeconds(600));
+        java.sql.Timestamp lapsed = java.sql.Timestamp.from(clock.instant().minusSeconds(60));
+        jdbc.update("""
+                INSERT INTO background_jobs
+                    (id, type, deduplication_key, status, payload_reference, attempt_count, max_attempts,
+                     next_attempt_at, locked_by, lease_until, heartbeat_at, created_at)
+                VALUES (?, ?, ?, 'RUNNING', CAST(? AS jsonb), 1, 3, ?, 'gone:token', ?, ?, ?)
+                """, id, POISON, POISON + ":" + UUID.randomUUID(), "[\"" + VALUE_CANARY + "\"]", before, lapsed,
+                before, before);
+
+        assertThat(awaitTerminal(id)).isEqualTo("FAILED");
+        assertThat(errorCode(id)).isEqualTo(JobQueue.INVALID_PAYLOAD_ERROR_CODE);
+        assertThat(awaitAlarms(OpsAlarm.Name.JOB_LEASE_RETAKEN, id))
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly(OpsAlarm.jobLeaseRetaken(POISON, id, 2, 3).line());
+    }
+
     @Test
     void aWriteAttemptedOutsideTheUnitOfWorkIsRefusedInsteadOfCommittedUnbound() {
         UUID jobId = enqueue(UNBOUND, JobPayload.empty(), 1);
@@ -374,6 +490,22 @@ class JobWorkerIT {
                 .filteredOn(check -> check.name().equals("jobs"))
                 .singleElement()
                 .satisfies(check -> assertThat(check.result().status()).isEqualTo(ProbeStatus.READY));
+    }
+
+    /**
+     * A READY row whose payload JobPayload would refuse, due a second before now so it is first in
+     * line. Written directly: enqueue validates the payload and could never store it.
+     */
+    private UUID unreadable(String type, String payloadJson, int maxAttempts) {
+        UUID id = UuidV7.create(clock);
+        java.sql.Timestamp due = java.sql.Timestamp.from(clock.instant().minusSeconds(1));
+        jdbc.update("""
+                INSERT INTO background_jobs
+                    (id, type, deduplication_key, status, payload_reference, attempt_count, max_attempts,
+                     next_attempt_at, created_at)
+                VALUES (?, ?, ?, 'READY', CAST(? AS jsonb), 0, ?, ?, ?)
+                """, id, type, type + ":" + UUID.randomUUID(), payloadJson, maxAttempts, due, due);
+        return id;
     }
 
     private UUID enqueue(String type, JobPayload payload, int maxAttempts) {

@@ -53,6 +53,13 @@ public interface JobHandler {
      * {@link #handle}, so it must be idempotent. It runs outside {@link JobContext}: write through the
      * owning module's application port and let the caller's transaction carry it, never open another.
      *
+     * <p>Not called when the queue cannot read the job's stored payload (BA-005-T7, T10): on claim such
+     * a job ends as {@link JobQueue#INVALID_PAYLOAD_ERROR_CODE}, in the abandoned sweep as
+     * {@link JobQueue#LEASE_EXPIRED_ERROR_CODE}, and in neither case does anything name what it owned. An
+     * empty payload in its place would say the job owned nothing. Whatever the job was working on then
+     * stays where its last attempt left it and has to be caught another way (the deletion receipt's
+     * expiry, for a deletion).
+     *
      * @param errorCode the {@code last_error_code} the job ends with - a handler's
      *                  {@link JobExecutionException} code, or {@link JobQueue#LEASE_EXPIRED_ERROR_CODE}
      */
