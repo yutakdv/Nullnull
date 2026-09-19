@@ -17,6 +17,12 @@ import java.util.regex.Pattern;
  *
  * <p>The map is kept sorted so the serialised JSON is stable for the same content, which keeps a
  * stored payload comparable across enqueues and diffable in a test.
+ *
+ * <p><b>Widening these rules is a two-release change.</b> The queue reads every stored payload back
+ * through this record, and a row it cannot read is ended on its first claim as INVALID_JOB_PAYLOAD
+ * with no handler and no dead-letter hook (BA-005-T7). A release may therefore <em>accept</em> a wider
+ * key, value or entry count; only a later release may <em>write</em> one, once no binary still polling
+ * the queue - a rolling deploy's old tasks, a rollback's whole fleet - refuses it.
  */
 public record JobPayload(Map<String, String> values) {
 

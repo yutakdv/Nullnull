@@ -219,8 +219,15 @@ public class JobWorker implements SmartLifecycle {
                 // it charges an attempt, so (jobId, attempt) never repeats. A crash is not the only way
                 // here - an attempt that gave up on lock contention in run(), and one a stopping worker
                 // left behind, also let their lease lapse - so one line is a signal, not an incident.
+                // Before the unreadable branch below, so a re-take reports itself whatever the payload.
                 OpsAlarm.emit(OpsAlarm.jobLeaseRetaken(type, job.lease().jobId(), job.lease().attempt(),
                         job.maxAttempts()));
+            }
+            if (job.payloadUnreadable()) {
+                // Ended here, on the poll thread, and the loop claims the next job: this row is what used
+                // to stand first in line for ever (BA-005-T8).
+                endUnreadable(job);
+                continue;
             }
             active.incrementAndGet();
             try {
@@ -324,6 +331,29 @@ public class JobWorker implements SmartLifecycle {
         }
     }
 
+    /**
+     * A claimed job whose stored payload could not be read (BA-005-T7) ends now as a dead letter, and
+     * neither its handler nor its dead-letter hook is called. Both would be given an empty payload in
+     * place of the one stored, which says "this job carried nothing" - an input nobody wrote. No retry:
+     * the next attempt would read the same bytes. The alertable line is the one every dead letter gets.
+     */
+    private void endUnreadable(ClaimedJob job) {
+        JobLease lease = job.lease();
+        // Identifiers only: the stored bytes are exactly what must not reach a log.
+        log.warn("job payload could not be read, ending it without its handler type={} jobId={} attempt={}",
+                lease.type(), lease.jobId(), lease.attempt());
+        try {
+            queue.deadLetter(lease, JobQueue.INVALID_PAYLOAD_ERROR_CODE, clock.instant());
+        } catch (StaleLeaseException | JobLockTimeoutException notRecorded) {
+            // The row moved on or is held elsewhere. Its lease lapses and it is claimed again, and ended
+            // again - or, attempts spent, ended by the abandoned sweep.
+            log.warn("job with an unreadable payload not ended now type={} jobId={}", lease.type(), lease.jobId());
+            return;
+        }
+        OpsAlarm.emit(OpsAlarm.jobDeadLetter(lease.type(), lease.jobId(), lease.attempt(),
+                JobQueue.INVALID_PAYLOAD_ERROR_CODE));
+    }
+
     private void heartbeat(JobLease lease) {
         Instant now = clock.instant();
         try {
@@ -355,10 +385,19 @@ public class JobWorker implements SmartLifecycle {
         List<AbandonedJob> abandoned;
         try {
             // The same single commit as a thrown dead letter (#261): the rows end together with what
-            // each job owned, or not at all.
+            // each readable job owned, or not at all. A row whose payload cannot be read names nothing
+            // to end, so it ends without the hook.
             abandoned = transactions.execute(status -> {
                 List<AbandonedJob> ended = queue.failAbandoned(type, clock.instant());
                 for (AbandonedJob job : ended) {
+                    if (job.payloadUnreadable()) {
+                        // Nothing names what it owned, and an empty payload would claim it owned nothing
+                        // (BA-005-T10). The row still ends, with the rest, and still gets its alert line
+                        // (BA-005-T9).
+                        log.warn("abandoned job payload could not be read, its dead-letter hook is skipped "
+                                + "type={} jobId={}", job.type(), job.jobId());
+                        continue;
+                    }
                     handler.onDeadLetter(new DeadLetter(job.jobId(), job.type(), job.attempts(), job.payload(),
                             JobQueue.LEASE_EXPIRED_ERROR_CODE));
                 }

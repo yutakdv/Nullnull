@@ -14,6 +14,7 @@ import io.nullnull.operations.application.JobQueue;
 import io.nullnull.operations.application.OpsAlarm;
 import io.nullnull.operations.application.ReadinessProbe.ProbeStatus;
 import io.nullnull.operations.application.ReadinessQuery;
+import io.nullnull.operations.domain.DeadLetter;
 import io.nullnull.operations.domain.JobPayload;
 import io.nullnull.operations.domain.JobRequest;
 import io.nullnull.shared.ids.UuidV7;
@@ -89,6 +90,8 @@ class JobAbandonedLeaseIT {
     /** Opened when the contended handler's unit of work has finished raising its failure. */
     static volatile CountDownLatch failureReported = new CountDownLatch(1);
     static volatile List<UUID> attemptedWrites = new CopyOnWriteArrayList<>();
+    /** Every job the hanging type's dead-letter hook was called for. */
+    static final List<UUID> DEAD_LETTER_HOOK_JOBS = new CopyOnWriteArrayList<>();
 
     @TestConfiguration(proxyBeanMethods = false)
     static class TestJobs {
@@ -99,13 +102,29 @@ class JobAbandonedLeaseIT {
             return MutableClock.at(START);
         }
 
-        /** A worker that is gone as far as the queue can tell: it holds the job and never finishes. */
+        /**
+         * A worker that is gone as far as the queue can tell: it holds the job and never finishes. Its
+         * dead-letter hook records which jobs it was called for (BA-005-T10).
+         */
         @Bean
         JobHandler hangingHandler() {
-            return handler(HANGING, context -> {
-                entered.countDown();
-                await(release);
-            });
+            return new JobHandler() {
+                @Override
+                public String type() {
+                    return HANGING;
+                }
+
+                @Override
+                public void handle(JobContext context) {
+                    entered.countDown();
+                    await(release);
+                }
+
+                @Override
+                public void onDeadLetter(DeadLetter deadLetter) {
+                    DEAD_LETTER_HOOK_JOBS.add(deadLetter.jobId());
+                }
+            };
         }
 
         /** Writes the normal way; the test makes its unit of work lose a race for the job row. */
@@ -188,6 +207,7 @@ class JobAbandonedLeaseIT {
         release = new CountDownLatch(1);
         failureReported = new CountDownLatch(1);
         attemptedWrites = new CopyOnWriteArrayList<>();
+        DEAD_LETTER_HOOK_JOBS.clear();
         // Only this class's own job types. The gate runs every suite against one database, so an
         // unscoped DELETE here took every other class's jobs, owners and sessions with it - and the
         // five tables that used to be cleared alongside were only ever cleared so that a global
@@ -253,6 +273,52 @@ class JobAbandonedLeaseIT {
                 });
     }
 
+    /**
+     * The sweep is one statement over every abandoned row of a type, mapped as it returns. A payload it
+     * could not map used to throw there, so the whole sweep rolled back: that row AND every other
+     * abandoned row of its type stayed RUNNING, re-tried and re-failed on every tick. Seeded, not produced
+     * by the hanging handler: enqueue refuses such a payload, the claim ends one before any handler runs
+     * (BA-005-T7) so no worker is ever holding it when its lease runs out, and both rows have to be in
+     * one sweep statement, which a one-slot hanging type cannot set up. This is what a dead process would
+     * leave.
+     */
+    @Test
+    @DisplayName("BA-005-T9 the abandoned sweep ends every abandoned row of a type as LEASE_EXPIRED, one with "
+            + "an unreadable payload among them")
+    void theAbandonedSweepEndsAnUnreadableRowWithTheRest() {
+        UUID unreadable = abandoned(HANGING, "[\"not an identifier\"]");
+        UUID readable = abandoned(HANGING, "{}");
+
+        await(() -> "FAILED".equals(status(unreadable)) && "FAILED".equals(status(readable)),
+                "the sweep never ended the abandoned rows");
+        for (UUID jobId : List.of(unreadable, readable)) {
+            assertThat(errorCode(jobId)).isEqualTo(JobQueue.LEASE_EXPIRED_ERROR_CODE);
+            assertThat(completedAt(jobId)).isNotNull();
+            assertThat(awaitAlarms(OpsAlarm.Name.JOB_DEAD_LETTER, jobId))
+                    .extracting(ILoggingEvent::getFormattedMessage)
+                    .containsExactly(OpsAlarm.jobDeadLetter(HANGING, jobId, 2, JobQueue.LEASE_EXPIRED_ERROR_CODE)
+                            .line());
+        }
+    }
+
+    /**
+     * What the hook would get for an unreadable row is an empty payload standing in for one nobody can
+     * read - "this job owned nothing", which is not what the row says. The readable row beside it is
+     * the control: the hook runs for it, so its absence for the other is the skip and not a hook that
+     * never runs.
+     */
+    @Test
+    @DisplayName("BA-005-T10 the abandoned sweep does not call the dead-letter hook for a row whose payload "
+            + "cannot be read")
+    void theHookIsNotGivenAnInventedPayload() {
+        UUID unreadable = abandoned(HANGING, "{\"requestId\":\"not an identifier\"}");
+        UUID readable = abandoned(HANGING, "{}");
+
+        await(() -> "FAILED".equals(status(unreadable)) && "FAILED".equals(status(readable)),
+                "the sweep never ended the abandoned rows");
+        assertThat(DEAD_LETTER_HOOK_JOBS).containsExactly(readable);
+    }
+
     @Test
     @DisplayName("a unit of work that loses the race for its own row is contention, not a failed attempt")
     void aContendedUnitOfWorkDoesNotSpendAnAttempt() throws Exception {
@@ -310,6 +376,24 @@ class JobAbandonedLeaseIT {
             sleep();
         }
         throw new AssertionError("job " + jobId + " never reached a terminal status");
+    }
+
+    /**
+     * What a process that died mid-job leaves: RUNNING, its lease a minute gone, its attempts spent -
+     * so the claim may not re-take it and only the sweep can end it. Written directly because the
+     * payload may be one enqueue would refuse.
+     */
+    private UUID abandoned(String type, String payloadJson) {
+        UUID id = UuidV7.create(clock);
+        java.sql.Timestamp before = java.sql.Timestamp.from(clock.instant().minusSeconds(600));
+        java.sql.Timestamp lapsed = java.sql.Timestamp.from(clock.instant().minusSeconds(60));
+        jdbc.update("""
+                INSERT INTO background_jobs
+                    (id, type, deduplication_key, status, payload_reference, attempt_count, max_attempts,
+                     next_attempt_at, locked_by, lease_until, heartbeat_at, created_at)
+                VALUES (?, ?, ?, 'RUNNING', CAST(? AS jsonb), 2, 2, ?, 'gone:token', ?, ?, ?)
+                """, id, type, type + ":" + UUID.randomUUID(), payloadJson, before, lapsed, before, before);
+        return id;
     }
 
     private UUID enqueue(String type, int maxAttempts) {
