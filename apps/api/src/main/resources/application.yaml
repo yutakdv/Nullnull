@@ -72,6 +72,24 @@ logging:
     # a folded "a=1, name=<token>" - and cookies never go into logs. Its UserDataHelper asks isInfoEnabled /
     # isDebugEnabled before building the message, so WARN silences both. CookieParserLogRedactionIT pins it.
     org.apache.tomcat.util.http.parser: WARN
+    # A datasource URL may carry credentials (?password=..., ?sslpassword=...), and four loggers write the URL
+    # down as it is. DatasourceUrlLogRedactionIT pins each one with a canary.
+    # - Hibernate's HHH10001005 "Database info" block prints "Database JDBC URL [...]" at INFO on every start.
+    #   WARN drops that block (driver, dialect, version, pool) and HHH10001013 "Ignoring setting", which only
+    #   hibernate.connection.* settings this application does not set would trigger.
+    # - Flyway's "Database: <url>" line masks password= only up to the first ';' and not sslpassword= at all,
+    #   and it also prints the host, which docs/operations/ENVIRONMENT.md keeps out of logs. WARN drops that
+    #   line and two sign-in/community notices; migration progress comes from other Flyway classes.
+    # - The PostgreSQL driver echoes a URL it rejects (a missing or extra '/', a user:password@ where the port
+    #   goes) at WARNING, password included. ERROR also drops its other warnings: a missing pg_service entry, an
+    #   unparsable loginTimeout, a port outside 1-65535, host=/port= lists of different lengths.
+    # Not closed by a level: the pool's own refusal of such a URL, in the startup failure, masks password=
+    # parameters only, so a user:password@ URL appears there whole, and a connection failure names host:port.
+    # Refusing credentials in the URL is what would close that.
+    org.hibernate.orm.connections.pooling: WARN
+    org.flywaydb.core.FlywayExecutor: WARN
+    org.postgresql.Driver: ERROR
+    org.postgresql.util.PGPropertyUtil: ERROR
   pattern:
     # Puts the MDC requestId that RequestIdFilter sets into every log line. Without it the id existed
     # in MDC and in the response header but appeared in no log line, so "quote your request id to

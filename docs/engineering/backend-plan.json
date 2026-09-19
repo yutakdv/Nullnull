@@ -331,6 +331,14 @@
         {
           "id": "BA-005-T4",
           "assertion": "job의 dead letter는 handler의 dead-letter 처리와 함께만 기록된다"
+        },
+        {
+          "id": "BA-005-T5",
+          "assertion": "handler가 필요한 식별자를 읽을 수 없는 payload의 삭제 job은 재시도 없이 첫 attempt에서 dead letter가 된다"
+        },
+        {
+          "id": "BA-005-T6",
+          "assertion": "handler가 필요한 식별자를 읽을 수 없는 payload의 최적화 job은 재시도 없이 첫 attempt에서 dead letter가 된다"
         }
       ],
       "handoff": "QUEUED/RUNNING/FAILED 예시와 retryable 의미, polling·timeout은 취소가 아니라는 인계 설명.",
@@ -553,6 +561,14 @@
         {
           "id": "BA-012-T3",
           "assertion": "backup 복원 뒤 tombstone 재적용 전 public traffic이 열리지 않는다"
+        },
+        {
+          "id": "BA-012-T4",
+          "assertion": "dead letter가 된 삭제 job의 요청은 진행 중(ACCEPTED·RUNNING·PARTIAL_FAILED)으로 남지 않고 FAILED로 끝난다"
+        },
+        {
+          "id": "BA-012-T5",
+          "assertion": "job 행 잠금 경합으로 멈춘 삭제 attempt는 삭제 실패(PARTIAL_FAILED)로 기록되지 않는다"
         }
       ],
       "handoff": "S14 삭제 확인·상태 polling·receipt 분실/만료·부분 실패 예시. 보존 기간 안내는 privacy 문서와 동일하게 전달한다.",
@@ -1315,12 +1331,7 @@
         },
         {
           "id": "BA-040-T4",
-          "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
-          "externalOwner": {
-            "role": "FE",
-            "reason": "FE 소유 Playwright acceptance. #233부터 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하지만 이 절을 증명할 E2E가 아직 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. E2E가 서면 이 표시를 지운다.",
-            "issue": "#233"
-          }
+          "assertion": "일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright). sheet를 닫을 때 focus가 trigger로 돌아오는 절은 뺀다: 브라우저가 스스로 복원해 E2E에서는 발화할 수 없고, unit `move-screen.test.tsx`의 returns focus to the control that opened it가 덮는다"
         },
         {
           "id": "BA-040-T5",
@@ -2381,10 +2392,10 @@
         },
         {
           "id": "BA-070-T5",
-          "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)",
+          "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright): tab bar를 Tab으로 순회·Enter로 이동, focus ring이 여러 Tab에 걸쳐 보인다, 키보드로 연 sheet를 Escape로 닫는다, 여행 생성을 키보드만으로 완주한다. 후보 저장과 최적화의 키보드 흐름은 이 카드의 범위 밖이다",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance. #233부터 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하지만 이 절을 증명할 E2E가 아직 없고, frontend-plan으로 옮기면 validate_frontend_plan.py가 report를 열지 않아 아무것도 검증하지 않는 ID가 된다. E2E가 서면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하고 tab bar 순회·Enter 이동·Escape·wizard 단계 안내 test는 #276으로 잡히지만, focus ring을 여러 Tab에 걸쳐 확인하기·Escape test의 sheet를 키보드로 열기·여행 생성을 키보드만으로 완주하기 셋이 아직 없다. 셋이 게이트 JUnit에 잡히면 이 표시를 지운다.",
             "issue": "#233"
           }
         }
@@ -2493,6 +2504,10 @@
         {
           "id": "BA-072-T8",
           "assertion": "삭제 attempt가 잡고 있는 receipt는 만료 sweep이 기다리지 않고 건너뛰며 다음 sweep이 보고한다"
+        },
+        {
+          "id": "BA-072-T9",
+          "assertion": "dead letter가 된 삭제 job의 hook이 요청을 FAILED로 끝낼 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다"
         }
       ],
       "handoff": "복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다.",

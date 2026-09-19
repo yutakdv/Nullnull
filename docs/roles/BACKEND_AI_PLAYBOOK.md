@@ -326,6 +326,8 @@ A4 Backend/AI 구현 증거:
 - `BA-005-T2`: lease 만료 후 이전 worker의 commit을 거부한다 — `JobLeaseIT.anExpiredLeaseCannotCommitAfterAnotherWorkerRetookTheJob`. `REC-JOB-01`과 같은 test다. lease 만료 → 둘째 worker 재인수(attempt 2) → 첫 worker의 `JobContext.transactional` domain write·완료·heartbeat·retry가 모두 `StaleLeaseException`이고 owner row는 정확히 1개다.
 - `BA-005-T3`: poison job 재시도 상한과 삭제 우선 처리 중 API 지연 격리를 검증한다 — `JobWorkerIT.aPoisonJobStopsAtTheCeilingAndDegradesTheJobsCapability`(attempt 3에서 FAILED, `last_error_code`, dead-letter ERROR 한 줄에 key·payload 없음, readiness `jobs`만 DEGRADED, `/health/ready` 200), `JobIsolationIT.aSaturatedExecutorDoesNotDelayAnotherTypeOrTheApi`(포화된 executor가 handler를 잡고 있는 동안 다른 type의 job 완료 지연과 `/health/ready` 지연을 실제로 측정한다).
 - `BA-005-T4`: job의 dead letter는 handler의 dead-letter 처리와 함께만 기록된다
+- `BA-005-T5`: handler가 필요한 식별자를 읽을 수 없는 payload의 삭제 job은 재시도 없이 첫 attempt에서 dead letter가 된다 — `DeletionIncidentSignalIT.anUnreadablePayloadIsNotRetried`
+- `BA-005-T6`: handler가 필요한 식별자를 읽을 수 없는 payload의 최적화 job은 재시도 없이 첫 attempt에서 dead letter가 된다 — `OptimizeGatewayFailureIT.anUnreadablePayloadIsNotRetried`. T5와 T6은 같은 규칙을 handler별로 나눈 것이다. 생산자가 둘(`DeleteOwnerDataHandler.requiredUuid`·`OptimizeItemHandler.runId`, 지금 있는 `JobHandler` 전부)이라 한 ID로 묶으면 어느 한쪽 test만으로 그 ID가 충족된다. 다음 attempt도 같은 payload를 읽으므로 둘 다 `INVALID_JOB_PAYLOAD`를 non-retryable로 던지고, worker가 그 attempt에서 끝낸다. 전에는 상한까지 back-off를 거치며 같은 실패를 되풀이했다(측정: 상한 3인 삭제 job이 attempt 3에서 FAILED). cause는 붙이지 않는다 — 그 message가 payload 값을 worker의 WARN 줄로 옮긴다. queue 자신이 읽을 수 없는 payload(`JobPayload`의 식별자 모양을 벗어난 값)는 이 절 밖이다. 그런 행은 claim 단계에서 실패하므로 handler에 닿지 않는다.
 - port·worker 그 밖의 검증: `JobQueueIT`(enqueue transaction 강제, deduplication 충돌, 다른 type의 key 점유 거부, handler 없는 type 거부, attempt 상한 거부, back-off 전 claim 없음, crash 후 lease 만료 재인수, stale lease의 모든 쓰기 거부, payload 왕복, TTL sweep 정확도, commit 직전 lease 재확인으로 중복 실행 차단, lease 만료 재인수의 attempt 상한과 `LEASE_EXPIRED` dead letter, 완료 job의 dedup key 해제, 비기본값 `nullnull.idempotency.lock-timeout`으로 측정한 TTL sweep의 fast fail 상한), `JobCrashRetryIT`(attempt가 남은 crash는 abandoned sweep이 아니라 `CLAIM_EXPIRED_LEASE`가 재인수하고, 상한에서야 handler 자신의 code로 dead letter가 된다), `JobWorkerIT`(정상 handler의 lease 검증 commit, unit of work 밖 쓰기 거부, unit of work 안 `REQUIRES_NEW` 거부, dead letter 없을 때 probe READY), `JobAbandonedLeaseIT`(hang한 worker의 job이 상한에서 dead letter가 되고 probe가 DEGRADED, row 경합은 attempt를 쓰지 않음), `JobConfigurationIT`(비기본값 `lock-timeout`이 claim·failAbandoned·assertLeaseHeld·heartbeat·complete·retry·deadLetter·deleteFinishedBefore 8개 statement 모두에 걸림, 막힌 쓰기의 fast fail, unit of work의 lease 상한), `FlywayMigrationIT`(완료 job은 dedup key를 잡지 않고, 채워진 previous schema가 V004로 올라간다), `SystemEndpointsIT`(worker가 꺼져 있으면 `jobs` DEGRADED)
 - 단위 검증: `JobPayloadTest`(원문·좌표·secret 거부), `JobRequestTest`, `JobPropertiesTest`(단위 없는 숫자 = 밀리초 함정, back-off 계단, `enabled` 누락 시 startup 실패), `JobHandlerRegistryTest`(type 중복·미등록), `JobConnectionBudgetTest`(worker 최악 connection 수요 공식과 거부 message), `JobWorkerStartupTest`(그 검사가 실제로 `start()`에 걸려 있다), `ArchitectureRulesTest.jobHandlersNeverTouchTheDatabaseDirectly`(handler가 JDBC·EntityManager를 직접 만지지 못한다) — 모두 `test` suite
 
@@ -501,6 +503,8 @@ PM-018 확인 결과: **요구한 예외 projection은 이미 구현돼 있고 �
 - `BA-012-T1`: 응답 유실 뒤 같은 receipt만 재생하고 revoked cookie의 다른 API는 401이다
 - `BA-012-T2`: 재시도·partial failure·owner 삭제 경합에서 데이터가 부활하지 않는다
 - `BA-012-T3`: backup 복원 뒤 tombstone 재적용 전 public traffic이 열리지 않는다
+- `BA-012-T4`: dead letter가 된 삭제 job의 요청은 진행 중(ACCEPTED·RUNNING·PARTIAL_FAILED)으로 남지 않고 FAILED로 끝난다
+- `BA-012-T5`: job 행 잠금 경합으로 멈춘 삭제 attempt는 삭제 실패(PARTIAL_FAILED)로 기록되지 않는다
 
 FE 인계·완료 증거: S14 삭제 확인·상태 polling·receipt 분실/만료·부분 실패 예시. 보존 기간 안내는 privacy 문서와 동일하게 전달한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -509,6 +513,16 @@ BA-012 구현 증거:
 - `DeletionIT`가 `BA-012-T1`의 동일 receipt 재생, revoked cookie의 다른 key·route 401, header-only 상태 token의 정상/오류/정확한 7일 만료 경계, hash-only 저장과 enqueue 실패 원자 rollback을 실제 PostgreSQL에서 검사한다.
 - `DeletionJobIT`가 `BA-012-T2`와 `REC-SEC-03`의 부분 실패→재시도→완료, eraser 비중첩, owner profile 비부활을 실제 worker로 검사한다. 첫 production handler가 추가되어 기존 BA-005 synthetic handler 테스트의 pool은 각 context의 실제 type/slot 수식만큼 명시했다. 운영 기본 type 1개·concurrency 2는 reserve 포함 최소 pool 8이고 기본 10 안에 든다.
 - `DeletionIT.tombstoneReappliesRestoredOwnerData`와 `TombstoneReapplierTest`가 `BA-012-T3`의 restore 재삭제와 web lifecycle 이전 fail-closed 시작을 검사한다. owner hard delete는 tombstone 21일 뒤에도 30일 revoked session과 idempotency row가 없어질 때까지 기다린다.
+- `DeletionIncidentSignalIT`가 `BA-012-T4`를 실제 worker의 두 dead-letter 경로에서 검사한다.
+  - abandoned sweep 경로: 마지막 attempt에서 worker가 죽은 상태(job RUNNING, lease 만료, attempt 소진)를 요청이 ACCEPTED·RUNNING·PARTIAL_FAILED인 경우 각각 심는다. 셋 모두 dead letter와 같은 transaction에서 FAILED(`OWNER_DATA_ERASE_FAILED`, `completed_at`)로 끝난다.
+  - worker의 실패 경로: test용 store가 지정한 owner의 실패 기록(`markFailed`)을 모든 attempt에서 던지게 한다. 그 예외는 handler 밖으로 나가 재시도되고, 마지막 attempt에서 `HANDLER_ERROR`로 dead letter가 된다. 이 경우에도 hook이 요청을 끝낸다. `markFailed`가 매번 던지던 BA-072의 결함이 바로 이 부류였다.
+  - 전에는 삭제 handler에 `onDeadLetter`가 없어 그 요청이 receipt가 만료될 때까지 RUNNING이었다(측정).
+  - 이미 끝난 요청(COMPLETED, 또는 마지막 attempt가 쓴 FAILED)은 건드리지 않고 줄도 내지 않는다. 그래서 hook을 두 번 불러도 같다.
+  - 스레드를 멈추는 대신 행을 심는 이유가 있다. handler는 모든 쓰기를 lease 확인 unit of work 안에서 하므로, 거기서 멈춘 attempt는 job 행을 잡고 있고 sweep은 잠긴 행을 건너뛴다. 심은 상태는 그 프로세스가 죽어 잠금이 풀린 뒤다.
+- `DeleteOwnerDataHandlerTest`가 `BA-012-T5`를 검사한다.
+  - unit of work가 job 행 경합(`JobLockTimeoutException`)이나 넘어간 lease(`StaleLeaseException`)로 끝나면 handler는 실패를 기록하지 않고 그대로 던진다(둘 다 case가 있다). 부분 실패 알람도 없다. worker는 lease를 끊기게 둔다. attempt가 남았으면 다시 가져가고, 마지막 attempt였으면 abandoned sweep이 dead letter로 끝내며 hook이 요청을 FAILED로 끝낸다.
+  - 전에는 `catch (RuntimeException)`이 경합까지 잡아 PARTIAL_FAILED와 DELETION_PARTIAL_FAILED를 냈다(측정).
+  - 같은 test class는 두 가지를 더 검사한다. `markRunning`을 try 안으로 옮긴 것(시작을 기록하지 못한 attempt도 실패로 기록된다)과, hook의 DELETION_FAILED 줄이 dead letter commit 뒤에만 나고 rollback이면 없다는 것이다.
 - `FlywayMigrationIT`는 V005 populated schema→V006 upgrade를, `SessionContractTest`는 두 operation의 route/security/response schema를 검사한다. report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}/*.xml`이며 Playwright transport는 `apps/web/e2e/session.spec.ts`에 있다.
 - token·transaction·worker·lifecycle·TTL 가드 변이 14종은 모두 RED였고 scratch backup 복원 SHA256이 일치한다. 로컬 증거는 `.artifacts/ba-012/token-mutations.json`과 `.artifacts/ba-012/mutations.json`이다.
 - 전체 Docker gate는 Java 280/127/13/19, AI pytest 410, web unit 224, Playwright 36을 failures/errors/skipped 0으로 실행했고 generated client diff·npm audit·egress-denied·readiness까지 통과했다. 공유 PostgreSQL에서 V006 FK가 드러낸 기존 BA-005 fixture 정리 순서는 tombstone→receipt→owner 순으로 보강했다.
@@ -1338,7 +1352,7 @@ swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있�
 - `BA-040-T1`: 한 요청 안의 자리 교환이 position unique 경쟁을 통과한다
 - `BA-040-T2`: candidate schedule/RESTORE_CANDIDATE 전이가 item과 동시에 반영된다
 - `BA-040-T3`: merge-patch의 null과 absent를 구분한다
-- `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
+- `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright). sheet를 닫을 때 focus가 trigger로 돌아오는 절은 뺀다: 브라우저가 스스로 복원해 E2E에서는 발화할 수 없고, unit `move-screen.test.tsx`의 returns focus to the control that opened it가 덮는다
 - `BA-040-T5`: reorder가 item을 다른 날로 옮긴다
 - `BA-040-T6`: 요청의 한 entry가 거절되면 어떤 item도 움직이지 않는다
 - `BA-040-T7`: 모든 command가 여행 기간 밖의 날짜를 거절한다
@@ -1349,12 +1363,13 @@ swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있�
 `T7`~`T9`는 `TripScheduleBoundaryIT`에 있다(`apps/api/src/integrationTest/java/io/nullnull/trip/`). `f3bd262` 위의 격리 worktree에서 `test`(417)·`integrationTest`(391)·
 `openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
 
-**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기는 #233부터 Playwright report를
-읽지만 이 절을 증명할 E2E가 아직 없으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
-(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는
-ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. 그래서 **이 카드는
-`T4` 하나만 남기고 전부 증명된 상태이고, 그 하나 때문에 `planned`에 머문다** — 올릴 수 없는 것을
-올리지 않고, 왜 못 올리는지를 기계가 아니라 사람이 읽는 자리에 둔다.
+**`T4`는 소유자가 FE이고, #276부터 다시 이 카드의 `integration-ready` 조건이다.** 집계기는 #233부터
+`--e2e-junit-dir`로 Playwright report를 읽고, #276 head의 `docker-integration` report(`playwright/e2e/results.xml`)에서
+`keyboard-flow.spec.ts`의 testcase 넷이 이 ID로 잡혔다(136건 중 실패 0). 그 전에는 이 절을 증명할 E2E가 없어 조건에서
+빼 두었고, FE plan으로 옮기는 것은 답이 아니었다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는
+ID"가 "아무것도 검증하지 않는 ID"가 된다). 절에서 뺀 하나는 **sheet를 닫을 때 focus가 trigger로 돌아오는 것**이다.
+native dialog가 스스로 복원하므로 구현을 지워도 E2E는 초록이었다(그 spec 주석의 측정). 그래서 E2E에서는 발화할 수 없는
+단언이 되고, unit `move-screen.test.tsx`가 덮는다(#233).
 
 FE 인계·완료 증거: 편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1803,7 +1818,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다. 그래서 `T3`는 **시간을 재지 않는다** — 이 칸이 금지하는 것이 정확히 그것이다. CI가 정직하게 잴 수 있는 것은 구조이고(`JobConnectionBudget`이 선례다), p95는 staging의 질문이다.
 
-`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어오지만 이 절을 증명할 E2E가 아직 없다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
+`T5`는 **소유자가 FE다.** 범위는 여행 생성 완주까지로 좁혔다(#233): 후보 저장과 최적화의 키보드 흐름은 이 카드 밖이며 제출 뒤 후속으로 남긴다. 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어온다. #276으로 tab bar 순회·Enter 이동·Escape·wizard 단계 안내가 잡혔지만 셋이 아직 없다: focus ring을 여러 Tab에 걸쳐 확인하기, Escape test의 sheet를 키보드로 열기, 여행 생성을 키보드만으로 완주하기. **그래서 아직 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). 셋이 게이트 JUnit에 잡히면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`는 그렇게 복원됐다.
 
 필수 검증:
 
@@ -1811,7 +1826,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-070-T2`: redaction canary와 API 응답 PII·secret denylist가 0이다
 - `BA-070-T3`: 고정 크기 입력의 쿼리 수와 connection 수에 상한이 있다
 - `BA-070-T4`: P1 capability가 꺼진 목록과 실제로 꺼진 동작이 같은 집합이다
-- `BA-070-T5`: 핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
+- `BA-070-T5`: 핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright): tab bar를 Tab으로 순회·Enter로 이동, focus ring이 여러 Tab에 걸쳐 보인다, 키보드로 연 sheet를 Escape로 닫는다, 여행 생성을 키보드만으로 완주한다. 후보 저장과 최적화의 키보드 흐름은 이 카드의 범위 밖이다
 
 FE 인계·완료 증거: 오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1874,8 +1889,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-072-T6`: receipt 만료, 즉 삭제가 끝나기 전(ACCEPTED·RUNNING·PARTIAL_FAILED)에 status token이 만료된 요청마다 id 없는 `ops.alarm name=DELETION_RECEIPT_EXPIRED_UNFINISHED` 한 줄을 한 번 남긴다
 - `BA-072-T7`: staging에서 위 `ops.alarm` 이름들의 metric filter와 alarm이 발화해 primary/secondary 수신자에게 도달한다
 - `BA-072-T8`: 삭제 attempt가 잡고 있는 receipt는 만료 sweep이 기다리지 않고 건너뛰며 다음 sweep이 보고한다
+- `BA-072-T9`: dead letter가 된 삭제 job의 hook이 요청을 FAILED로 끝낼 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다
 
-T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다"* 였고 세 절이라 T2·T5·T6으로 나눴다. 로컬에서 증명할 수 있는 신호 줄과, staging에서만 증명할 수 있는 alarm·수신(T7)도 나눴다. 두 해석은 조율자가 승인했다. *lease 재시도*는 만료된 lease의 재인수로, *receipt 만료*는 끝나지 않은 삭제의 receipt 만료로 읽었다. 로컬 증거(`d044388`)는 T2·T4가 `DeletionIncidentSignalIT`, T5가 `JobCrashRetryIT`, T6·T8이 `DeletionReceiptExpiryIT`다. 줄 형식의 정본은 `OpsAlarm`이고 `OpsAlarmTest`가 리터럴로 고정한다. 조건 (3)은 sweep 건수 gauge가 아니라 전이 시점(`UPDATE … RETURNING`)에서 잡으므로 migration이 없다. commit과 log 사이의 crash로 줄을 잃으면 `status_token_hash IS NULL AND (completed_at IS NULL OR completed_at > status_token_expires_at)`로 복원한다. T5의 줄은 crash뿐 아니라 contention으로 포기한 attempt와 graceful stop 뒤에도 나므로, T7의 alarm은 1건이 아니라 임계값으로 건다. T1·T3·T7은 staging이 필요하므로 카드는 `planned`로 남는다.
+T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다"* 였고 세 절이라 T2·T5·T6으로 나눴다. 로컬에서 증명할 수 있는 신호 줄과, staging에서만 증명할 수 있는 alarm·수신(T7)도 나눴다. 두 해석은 조율자가 승인했다. *lease 재시도*는 만료된 lease의 재인수로, *receipt 만료*는 끝나지 않은 삭제의 receipt 만료로 읽었다. 로컬 증거(`d044388`)는 T2·T4가 `DeletionIncidentSignalIT`, T5가 `JobCrashRetryIT`, T6·T8이 `DeletionReceiptExpiryIT`다. T9는 dead letter hook이 요청을 끝낼 때의 줄이다. T4의 생산자(마지막 attempt의 handler)와 다르므로 ID를 나눴다. 증거는 `DeletionIncidentSignalIT`의 두 dead-letter 경로(abandoned sweep, worker의 실패 경로)다. 줄 형식의 정본은 `OpsAlarm`이고 `OpsAlarmTest`가 리터럴로 고정한다. 조건 (3)은 sweep 건수 gauge가 아니라 전이 시점(`UPDATE … RETURNING`)에서 잡으므로 migration이 없다. commit과 log 사이의 crash로 줄을 잃으면 `status_token_hash IS NULL AND (completed_at IS NULL OR completed_at > status_token_expires_at)`로 복원한다. T5의 줄은 crash뿐 아니라 contention으로 포기한 attempt와 graceful stop 뒤에도 나므로, T7의 alarm은 1건이 아니라 임계값으로 건다. T1·T3·T7은 staging이 필요하므로 카드는 `planned`로 남는다.
 
 FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

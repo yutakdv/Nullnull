@@ -283,6 +283,25 @@ class ArchitectureRulesTest {
                 .check(classes);
     }
 
+    /**
+     * #183: every operations tool starts the application through {@code OperationsContext}, which is where the
+     * job worker is turned off, migrating is refused outside local/test, and a writing tool must be told its
+     * deployed database. A main that built its own {@code SpringApplicationBuilder} again would quietly get
+     * none of that - the worker would start against staging - so the builder itself is off limits, and so is
+     * the service's own entry point, which a tool could otherwise call to start the same unguarded application.
+     */
+    @Test
+    void onlyOperationsContextStartsTheApplicationForATool() {
+        noClasses().that().doNotHaveFullyQualifiedName("io.nullnull.NullnullApplication")
+                .and().doNotHaveFullyQualifiedName("io.nullnull.OperationsContext")
+                .should().dependOnClassesThat().haveFullyQualifiedName(
+                        "org.springframework.boot.builder.SpringApplicationBuilder")
+                .orShould().dependOnClassesThat().haveFullyQualifiedName("org.springframework.boot.SpringApplication")
+                .orShould().callMethod(NullnullApplication.class, "main", String[].class)
+                .because("a tool started any other way runs a job worker and may migrate a deployed database (#183)")
+                .check(classes);
+    }
+
     @Test
     void sharedPackageStaysTechnicalOnly() {
         String[] modulePackages = new String[MODULES.length];

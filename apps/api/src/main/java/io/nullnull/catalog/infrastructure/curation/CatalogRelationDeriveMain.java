@@ -1,10 +1,8 @@
 package io.nullnull.catalog.infrastructure.curation;
 
-import io.nullnull.NullnullApplication;
+import io.nullnull.OperationsContext;
 import io.nullnull.catalog.application.CatalogRelationDeriver;
 import io.nullnull.catalog.application.CatalogRelationDeriver.DerivationReport;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
 /**
@@ -28,10 +26,7 @@ public final class CatalogRelationDeriveMain {
     }
 
     public static void main(String[] args) {
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
-                .web(WebApplicationType.NONE)
-                .registerShutdownHook(false)
-                .run()) {
+        try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
             System.out.println(summary(context.getBean(CatalogRelationDeriver.class).derive()));
         }
     }

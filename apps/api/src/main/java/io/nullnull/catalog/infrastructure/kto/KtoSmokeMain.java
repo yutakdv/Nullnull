@@ -1,14 +1,12 @@
 package io.nullnull.catalog.infrastructure.kto;
 
-import io.nullnull.NullnullApplication;
+import io.nullnull.OperationsContext;
 import io.nullnull.catalog.application.KtoGatewayException;
 import io.nullnull.catalog.application.KtoPlaceDetailGateway;
 import io.nullnull.catalog.domain.KtoPlaceSnapshot;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
 /**
@@ -31,11 +29,8 @@ public final class KtoSmokeMain {
         KtoSmokeEnvironment.sources(System.getenv(), java.nio.file.Path.of(".env.local"))
                 .forEach(line -> System.out.println("KTO_SMOKE_SETTINGS " + line));
         request.requirePermittedEnvironment(requestedEnvironment);
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
-                .web(WebApplicationType.NONE)
-                .initializers(KtoSmokeEnvironment.applying(settings))
-                .registerShutdownHook(false)
-                .run()) {
+        try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE,
+                KtoSmokeEnvironment.applying(settings))) {
             String environment = context.getEnvironment().getProperty("nullnull.env", requestedEnvironment);
             request.requirePermittedEnvironment(environment);
             KtoKorServiceProperties properties = context.getBean(KtoKorServiceProperties.class);
