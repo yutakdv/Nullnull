@@ -81,13 +81,13 @@ export function CandidatesScreen() {
       <div className={styles.head}>
         {/* The count waits for the list. Rendering `items.length` while the
             request is in flight shows "0 saved places" to someone who has
-            three, which reads as data loss rather than as loading. */}
+            saved places, which reads as data loss rather than as loading. */}
         {/* The total comes from `candidateCount`, the contract's own field —
             NOT from `items.length`, which is one PAGE of the candidates.
             TripScreen already says this in as many words (:150) and links here
             with that number, so counting the page made the two screens
-            disagree about the same set one tap apart: 담아둔 장소 5 became
-            담아둔 장소 3 in identical wording.
+            disagree about the same set one tap apart: the trip total became
+            the current page length in otherwise identical wording.
 
             `trip` is already fetched above for the title, so this costs no
             extra request. */}
@@ -365,7 +365,7 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
         )}
         <button
           // Visible text stays short as the frame has it; the accessible name
-          // carries the place, because three identical "제거" buttons in a list
+          // carries the place, because identical "제거" buttons in a list
           // tell a screen reader nothing about which one they act on.
           aria-label={t('candidates.removeNamed', { name: candidate.place.name })}
           className={styles.remove}

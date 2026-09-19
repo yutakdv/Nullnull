@@ -8,6 +8,7 @@ import {
   useTrips,
 } from '../../shared/api/index.js';
 import {
+  CROWD_LEVEL_STEPS,
   FeedPostCard,
   Toast,
   TripPicker,
@@ -346,7 +347,7 @@ export function FeedScreen() {
                   ...cardLabels,
                   // Interpolated per card: the level is part of the sentence.
                   crowdLevel: t('crowd.level', {
-                    steps: 4,
+                    steps: CROWD_LEVEL_STEPS,
                     level: Number(card.crowd?.ordinalLevel) || 0,
                   }),
                 }}

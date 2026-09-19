@@ -24,13 +24,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Levels: Story = {
-  args: { crowd: crowd('4', '4 · 혼잡', 'LIVE') },
+  args: { crowd: crowd('5', '5 · 매우 혼잡', 'LIVE') },
   render: () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <CrowdLevel crowd={crowd('1', '1 · 매우 여유', 'LIVE')} />
       <CrowdLevel crowd={crowd('2', '2 · 여유', 'LIVE')} />
       <CrowdLevel crowd={crowd('3', '3 · 보통', 'FORECAST')} />
       <CrowdLevel crowd={crowd('4', '4 · 혼잡', 'FORECAST')} />
+      <CrowdLevel crowd={crowd('5', '5 · 매우 혼잡', 'FORECAST')} />
     </div>
   ),
 };
@@ -40,7 +41,7 @@ export const Unavailable: Story = {
   args: { crowd: null, unavailableReason: '관측 권역 밖이에요' },
 };
 
-/** A level outside 1..4 draws no bar rather than guessing. */
+/** A level outside 1..5 draws no bar rather than guessing. */
 export const UnknownLevel: Story = {
-  args: { crowd: crowd('', '수치 없음', 'QUALITATIVE') },
+  args: { crowd: crowd('5.0', '수치 없음', 'QUALITATIVE') },
 };
