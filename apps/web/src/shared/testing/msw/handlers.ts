@@ -976,26 +976,32 @@ export const handlers = [
   }),
 
   // queryPlaceCrowdForecasts (#105). Every item comes from the approved batch
-  // response fixture. Its canonical-id order differs from the place-search
-  // fixture, so returning it wholesale would attach 명동's reading to 경복궁
-  // and violate the same-length/same-order contract. Reorder the approved
-  // canonical items to the request; screen code still joins by index because
-  // a real response may canonicalize a deprecated request id.
+  // request/response fixtures. Their order differs from the place-search
+  // fixture, so returning the response wholesale would attach 명동's reading
+  // to 경복궁 and violate the same-length/same-order contract. Pair the
+  // approved examples by index first: the first request id was merged into
+  // 명동, so its response intentionally carries a different canonical id.
+  // Canonical ids remain valid lookup keys for ordinary screen fixtures.
   //
   // An id outside the fixture uses its approved PLACE_UNAVAILABLE item as a
   // template. Only the requested id changes, exactly as the contract requires;
   // no crowd value, state, provenance or display text is invented here.
-  // The response-only fixture does not publish the deprecated request alias
-  // used by its first example, so this default handler cannot reproduce that
-  // alias honestly. Screen tests use a mismatched response placeId to prove the
-  // production join-by-index behavior; default-handler alias parity remains a
-  // BE request-fixture handoff on #105.
   http.post(`${API_BASE}/places/crowd-forecasts/query`, async ({ request }) => {
     const body = (await request.json()) as { placeIds?: unknown };
     const placeIds = Array.isArray(body.placeIds)
       ? body.placeIds.filter((id): id is string => typeof id === 'string')
       : [];
-    const byPlaceId = new Map(
+    const requestFixtureIds = crowdFixtures.forecastQueryRequest.placeIds;
+    const responseFixtureItems = crowdFixtures.forecastQuery.items;
+    if (requestFixtureIds.length !== responseFixtureItems.length) {
+      throw new Error('forecast-query request and response fixtures must align by index');
+    }
+    const byExampleRequestId = new Map(
+      requestFixtureIds.map(
+        (placeId, index) => [placeId, responseFixtureItems[index]] as const,
+      ),
+    );
+    const byCanonicalPlaceId = new Map(
       crowdFixtures.forecastQuery.items.map((item) => [item.placeId, item] as const),
     );
     const unavailable = crowdFixtures.forecastQuery.items.find(
@@ -1007,7 +1013,9 @@ export const handlers = [
       {
         ...crowdFixtures.forecastQuery,
         items: placeIds.map(
-          (placeId) => byPlaceId.get(placeId) ?? { ...unavailable, placeId },
+          (placeId) =>
+            byExampleRequestId.get(placeId) ??
+            byCanonicalPlaceId.get(placeId) ?? { ...unavailable, placeId },
         ),
       },
       { headers: { 'Cache-Control': 'private, no-store' } },

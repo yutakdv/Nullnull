@@ -19,8 +19,8 @@
 // two, which is the state this endpoint exists to report.
 //
 // WHAT IT IS NOT. It does not claim the fixtures match the real server — that
-// is BE's CrowdForecastApiIT and the BA-055 suite — nor that any screen uses
-// these yet. Nothing does; that is FR-TRC-10 and #105.
+// is BE's CrowdForecastApiIT and the BA-055 suite. This suite isolates handler
+// parity; AddPlace and MustVisit separately prove the screens consume it.
 import { describe, expect, it } from 'vitest';
 import { crowdFixtures, tripDraftFixtures } from '@nullnull/contracts';
 import { API_BASE } from '../handlers.js';
@@ -75,12 +75,41 @@ describe('queryPlaceCrowdForecasts is mocked from the approved batch fixture', (
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        ...crowdFixtures.forecastQueryRequest,
         placeIds,
-        from: '2026-10-04T15:00:00Z',
-        to: '2026-10-07T14:59:59.999999Z',
       }),
     });
   }
+
+  it('pairs the approved deprecated-id request with its canonical response by position', async () => {
+    const requestFixture = crowdFixtures.forecastQueryRequest;
+    const response = await query(requestFixture.placeIds);
+    const body = (await response.json()) as typeof crowdFixtures.forecastQuery;
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(body).toEqual(crowdFixtures.forecastQuery);
+    expect(body.items).toHaveLength(requestFixture.placeIds.length);
+    expect(requestFixture.placeIds[0]).not.toBe(body.items[0]?.placeId);
+    expect(body.items[0]).toEqual(
+      expect.objectContaining({
+        placeId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02',
+        state: 'FORECAST',
+      }),
+    );
+    expect(body.items.map((item) => item.state)).toEqual([
+      'FORECAST',
+      'STALE',
+      'UNAVAILABLE',
+      'UNAVAILABLE',
+    ]);
+    expect(body.items.map((item) => item.unavailableReason)).toEqual([
+      null,
+      null,
+      'NO_COVERAGE',
+      'PLACE_UNAVAILABLE',
+    ]);
+  });
 
   it('serves the exported response fixture for its canonical item ids', async () => {
     const placeIds = crowdFixtures.forecastQuery.items.map((item) => item.placeId);
@@ -92,11 +121,10 @@ describe('queryPlaceCrowdForecasts is mocked from the approved batch fixture', (
   });
 
   it('keeps a different canonical-id request length and order with mixed states', async () => {
-    // This deliberately claims only canonical-id parity. The response fixture
-    // does not expose the deprecated request id behind its first canonical
-    // item, so inventing that alias here would make the mock a second contract.
-    // AddPlace/MustVisit separately return mismatched response ids to prove
-    // that shipped screen code joins by index rather than by item.placeId.
+    // The approved request/response pair above owns deprecated-id parity. This
+    // complementary case proves canonical ids still work in another subset and
+    // order. AddPlace/MustVisit separately prove shipped screens join by index
+    // rather than by item.placeId.
     const fixtureItems = crowdFixtures.forecastQuery.items;
     const placeIds = [
       fixtureItems[1]?.placeId,
