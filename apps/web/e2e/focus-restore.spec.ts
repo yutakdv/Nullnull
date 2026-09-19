@@ -1,64 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createSeededTrip } from './seeded-trip.js';
-
-// 서울숲, from scripts/e2e/catalog-seed.sql. Deliberately NOT one of the two
-// places createSeededTrip schedules: a candidate whose place is already on the
-// itinerary renders as scheduled, and CandidatesScreen.tsx:342 draws no
-// "Add to a day" button for one — the trigger this spec needs would be absent
-// for the same reason the gate failure had no trigger at all.
-const SEOUL_FOREST = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b04';
-
-/**
- * Saves one unscheduled candidate onto `tripPath`'s trip, the way the product does.
- *
- * createSeededTrip builds an itinerary through `seedItems`; it has no candidate
- * path and is not given one here, because two other specs already depend on it
- * and widening it would move what they measure. `addTripCandidate` is a
- * separate operation (openapi.yaml:3043) and a candidate carries no date, so
- * this cannot disturb the schedule the helper just created —
- * `tripScheduleChanged` is const false on both its answers.
- */
-async function saveCandidate(page: Page, tripId: string): Promise<void> {
-  const result = await page.evaluate(
-    async ({ tripId, placeId }) => {
-      const csrf = await fetch('/api/v1/session/csrf', {
-        method: 'POST',
-        credentials: 'same-origin',
-      });
-      if (!csrf.ok) return { status: csrf.status, step: 'csrf', body: await csrf.text() };
-      const { csrfToken } = (await csrf.json()) as { csrfToken: string };
-      const saved = await fetch(`/api/v1/trips/${tripId}/candidates`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken,
-          'Idempotency-Key': crypto.randomUUID(),
-        },
-        // SEARCH rather than POST: a POST source needs a postId, and this
-        // candidate comes from no post.
-        body: JSON.stringify({ placeId, source: { type: 'SEARCH' } }),
-      });
-      // 200 is "the same active candidate already existed", which is as good as
-      // 201 for a test that only needs one to exist.
-      if (saved.status !== 201 && saved.status !== 200) {
-        return { status: saved.status, step: 'addCandidate', body: await saved.text() };
-      }
-      return { status: saved.status, step: 'addCandidate', body: '' };
-    },
-    { tripId, placeId: SEOUL_FOREST },
-  );
-
-  // Thrown rather than asserted so the failure names the request that did not
-  // happen. A silent 4xx here would surface later as "no saved candidate offers
-  // a day to add it to", which is the message the gate actually printed — it
-  // describes the symptom, and this describes the cause.
-  if (result.status !== 201 && result.status !== 200) {
-    throw new Error(
-      `could not save the candidate: ${result.step} answered ${String(result.status)} ${result.body}`,
-    );
-  }
-}
 
 // The "focus 복귀" clause on the saved-places sheet: where focus lands after
 // it closes. Carries no acceptance ID -- see WHY THIS TEST CARRIES NO
@@ -121,166 +62,60 @@ async function saveCandidate(page: Page, tripId: string): Promise<void> {
 // intact: focus on "Remove ... from saved"; with that one line removed: focus
 // on <body>, which is what makes this assertion able to fail.
 
-test.describe('closing the saved-places sheet leaves focus somewhere usable', () => {
-  // FIXME(gate data): this cannot pass in docker-integration until that
-  // environment has verified opening hours for the candidate's place. It is
-  // `fixme` rather than deleted or quietly narrowed because the clause is real
-  // and unproven, and an empty gap is the honest record of that.
-  //
-  // WHAT BLOCKS IT, as a chain rather than a guess. scripts/e2e/catalog-seed.sql
-  // writes places but no `place_hours` row (grep: zero). CandidateMatchService
-  // .openingHours() therefore hands the evaluator an empty map, and
-  // apps/ai/src/nullnull_ai/item/filters.py:143 answers an absent window with
-  // `Eligibility.unknown(OPENING_HOURS_UNKNOWN)`. slot/evaluator.py:111-112
-  // then emits a Slot for EVERY day regardless — `Slot(day, None, False,
-  // reason)` when the verdict is not eligible — so the sheet does draw a row
-  // per day, and ScheduleCandidateSheet.tsx:156 sets `disabled` on each one.
-  //
-  // So the button is PRESENT AND DISABLED, not missing. That distinction is why
-  // the gate log reads `locator.click: Test timeout … waiting for locator(…)`
-  // rather than a "not found": getByRole matches a disabled button, the locator
-  // resolves, and `.click()` then waits for an actionability that never comes.
-  // Read as "the button is absent" it sends the next reader hunting the sheet's
-  // markup, which is the wrong file.
-  //
-  // WHY NOT FIXED IN THIS SPEC. Picking whichever day is enabled, or skipping
-  // when none is, makes this green without scheduling anything — and the clause
-  // is that a COMPLETED schedule moves focus to the row. The completion is the
-  // subject: CandidatesScreen.tsx:342 stops rendering the trigger once the
-  // candidate is scheduled, which is what makes `afterScheduleRef` the only
-  // thing that can restore focus. No schedule, nothing measured.
-  //
-  // WHY NOT SEEDED. `place_hours_observations` (V025) requires `evidence_url`,
-  // which its own comment defines as the page a reviewer actually read, and
-  // guards the windows table with a trigger besides. Seeding it here would
-  // manufacture review evidence for a place nobody reviewed, in the one table
-  // whose purpose is that values carry provenance. Its production path is
-  // BA-025's curated import (CuratedHoursImportIT), which is where such rows
-  // belong.
-  //
-  // WHAT OPENS IT: verified opening hours existing for this place in the gate
-  // environment. Delete this `fixme` that day — the body below needs no other
-  // change, because everything up to the click already worked in the gate (the
-  // sheet opened, which is what the previous failure could not reach).
-  //
-  // LOCALLY THIS PASSES, which is the trap. MSW answers the match request with
-  // one eligible slot (measured: `Day 3`, `disabled=false`), so the click
-  // succeeds and the whole test is green on a dev server. A green run here is
-  // not evidence about the gate, in either direction.
-  test.fixme(
-    'a completed schedule moves focus to the row, not the document',
-    async ({ page }) => {
-      // A trip of this session's own, then a candidate saved onto it.
-      //
-      // The hardcoded /trip/018f4a10-… this used to open is the MSW FIXTURE's id.
-      // It works against the dev server, where the mock worker answers for it,
-      // and is nobody's trip against the real API the docker gate runs: every run
-      // starts a fresh anonymous session and a trip belongs to the session that
-      // created it, so the answer is 404 by design (invariant 11, BA-070-T1).
-      // The screen then had no saved candidate, no "Add to a day" button, and
-      // this spec died on the precondition below rather than on its assertion —
-      // seeded-trip.ts:3-14 records the same failure from #253, which is where
-      // createSeededTrip came from. This spec did not use it.
-      const tripPath = await createSeededTrip(page);
-      const tripId = tripPath.replace('/trip/', '');
-      await saveCandidate(page, tripId);
-
-      await page.goto(`${tripPath}/candidates`);
-      await page.waitForLoadState('networkidle');
-
-      // The seeding landed, asserted before the trigger is looked for. Without
-      // this the next expectation still fails when the save 4xx'd, but it fails
-      // saying "no saved candidate offers a day" — which reads as a product
-      // defect on the screen rather than a setup that never ran. The two are
-      // different repairs, and the gate failure this spec is fixing was misread
-      // that way once already.
-      // The row's own heading, not `getByText`: the name also appears in a
-      // context line elsewhere on the card, and matching both is a strict-mode
-      // violation that fails as though the candidate were missing. Measured —
-      // the first version of this guard did exactly that while the seeding had
-      // in fact worked.
-      await expect(
-        page.getByRole('heading', { name: '서울숲' }),
-        'the seeded candidate is not on the screen, so the setup did not take',
-      ).toBeVisible();
-
-      const trigger = page.locator('button[aria-expanded]').first();
-      await expect(
-        trigger,
-        'no saved candidate offers a day to add it to: the sheet under test never opens',
-      ).toBeVisible();
-      await trigger.focus();
-      await page.keyboard.press('Enter');
-
-      // THE SHEET REALLY OPENED, asserted before anything about focus. "Focus is
-      // on the trigger" is trivially true of a sheet that never opened, so
-      // without this line the test below passes on a screen where nothing
-      // happens at all.
-      const sheet = page.locator('dialog[open]');
-      await expect(
-        sheet,
-        'the sheet did not open, so there is nothing to close',
-      ).toHaveCount(1);
-      await expect(sheet).toContainText('Which day should it go on?');
-      // ...and it took focus with it. A modal that opens without moving focus
-      // leaves a keyboard user tabbing the page underneath.
-      const landedInside = await page.evaluate(() => {
-        const open = [...document.querySelectorAll('dialog')].find((d) => d.open);
-        return open?.contains(document.activeElement) ?? false;
-      });
-      expect(landedInside, 'focus should move into the open sheet').toBe(true);
-
-      // Complete the schedule: this is the close that unmounts the trigger.
-      await sheet
-        .getByRole('button', { name: /Day \d/ })
-        .first()
-        .click();
-      await expect(sheet, 'the sheet should close once the day is picked').toHaveCount(
-        0,
-        {
-          timeout: 10_000,
-        },
-      );
-
-      // The row re-renders without its "Add to a day" button, and the restore is
-      // queued behind that render (a setTimeout at CandidatesScreen.tsx:235), so
-      // the landing place is read after it, not during it.
-      await expect
-        .poll(
-          () =>
-            page.evaluate(() => {
-              const el = document.activeElement as HTMLElement | null;
-              return {
-                onBody: el === document.body,
-                connected: el?.isConnected ?? false,
-                name: (el?.getAttribute('aria-label') ?? el?.textContent ?? '').trim(),
-              };
-            }),
-          {
-            message:
-              'focus fell to <body> after the sheet closed: the next Tab restarts at the top of the page',
-            timeout: 5_000,
-          },
-        )
-        .toMatchObject({ onBody: false, connected: true });
-
-      // Not merely "off <body>": on the row the traveller was just acting on.
-      // Without this a focus parked on any surviving node would pass, including
-      // one in a different card.
-      const name = await page.evaluate(() =>
-        (
-          (document.activeElement as HTMLElement | null)?.getAttribute('aria-label') ??
-          document.activeElement?.textContent ??
-          ''
-        ).trim(),
-      );
-      expect(
-        name,
-        'focus should land on a control of the row that was scheduled',
-      ).toMatch(/Remove .+ from saved/);
-    },
-  );
-});
+// THE SAVED-PLACES SHEET'S CLAUSE IS NOT HERE, AND THAT IS A GAP, NOT A PASS.
+//
+// This file held a second case: the saved-places (후보) sheet, asserting that a
+// COMPLETED schedule moves focus to the row rather than dropping it on the
+// document. It is gone rather than skipped, and the reason it is gone is worth
+// more than the code was.
+//
+// WHY IT CANNOT RUN IN THE GATE, as a chain rather than a guess:
+//   scripts/e2e/catalog-seed.sql writes places but no `place_hours` row
+//     -> CandidateMatchService.openingHours() hands the evaluator an empty map
+//     -> apps/ai .../item/filters.py:143 answers an absent window with
+//        `Eligibility.unknown(OPENING_HOURS_UNKNOWN)`
+//     -> .../slot/evaluator.py:111-112 still emits a Slot for EVERY day, as
+//        `Slot(day, None, False, reason)` when not eligible
+//     -> ScheduleCandidateSheet.tsx:156 sets `disabled` on each day row.
+// So the `Day N` button is PRESENT AND DISABLED, not missing. The gate log read
+// `locator.click: Test timeout ... waiting for locator(...)`, which is
+// actionability timing out, not a locator failing to resolve -- getByRole
+// matches a disabled button. Read as "the button is absent" it sends the next
+// reader into the sheet's markup, which is the wrong file.
+//
+// WHY IT WAS NOT REWRITTEN TO PASS. Picking whichever day happens to be
+// enabled, or bailing when none is, makes a green test that never schedules
+// anything -- and the clause is that a COMPLETED schedule restores focus.
+// CandidatesScreen.tsx:342 stops rendering the trigger once the candidate is
+// scheduled, and that removal is precisely what makes `afterScheduleRef` the
+// only thing that can put focus anywhere. No schedule, nothing measured.
+//
+// WHY THE FIXTURE WAS NOT SEEDED. `place_hours_observations` (V025) requires
+// `evidence_url`, which its own comment defines as the page a reviewer actually
+// read, and a trigger guards the windows table besides. Seeding it here would
+// manufacture review evidence for a place nobody reviewed, in the one table
+// whose entire purpose is that values carry provenance. Those rows have a
+// production path -- BA-025's curated import (CuratedHoursImportIT).
+//
+// WHY NOT `test.fixme`, which is the obvious answer and is wrong. MEASURED, by
+// generating this file's JUnit with the case marked fixme and feeding it to
+// scripts/check_test_reports.py's own `read_junit`: Playwright writes
+// `skipped="1"` and a `<skipped/>` child, and that function raises twice --
+// `skipped=1, expected 0` (:81-83) and the per-case `testcase skipped` (:98-100).
+// A rejected file then counts as ZERO testcases for the suite, so one fixme
+// would have discarded the passing FE-203-T4 case below along with it and the
+// gate would have read "E2E ran nothing". Do not try it again.
+//
+// WHAT RESTORES IT: verified opening hours for the candidate's place in the
+// gate environment. Everything up to the click already worked there -- the
+// sheet opened -- so the case can come back close to as it was, with
+// `createSeededTrip` plus a candidate save. Its `saveCandidate` helper and the
+// 서울숲 place id went with it and are in this file's history.
+//
+// LOCALLY IT PASSED, which is the trap that hid this for a whole gate run. MSW
+// answers the match request with one eligible slot (measured: `Day 3`,
+// `disabled=false`), so the click succeeded on a dev server. A green local run
+// says nothing about the gate here, in either direction.
 
 // FE-203 `T4`, the same clause on the OTHER sheet the app has: the 담기 sheet
 // (`399:658` S03-C1, `409:1595` S06-1 -- TripPicker.tsx, mounted once by
