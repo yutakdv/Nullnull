@@ -452,8 +452,11 @@ describe('FE-501-T3 keyboard and names', () => {
 // credit at all — DataAttribution was not even imported. There was no test to
 // mutate, because the behaviour had never been written.
 //
-// The trip fixtures carry no sourceAttribution, so the state is supplied by an
-// override rather than by editing the shared BE/FE fixture.
+// The state is supplied by an override rather than by editing the shared BE/FE
+// fixture. That was once forced — no trip fixture carried sourceAttribution at
+// all — and is now a choice: #281 filled in the two trip fixtures that hold
+// items, but this case asserts one exact credit string, and reading it from a
+// shared fixture would make the assertion move whenever BE re-authors it.
 describe('FE-501 the stop list credits the places it lists', () => {
   const CREDIT = '출처: ⓒ한국관광공사 (최적화 화면 검증용)';
 

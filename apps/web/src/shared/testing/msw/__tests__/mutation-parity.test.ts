@@ -36,17 +36,15 @@ type Json = Record<string, unknown>;
  * `changedItemIds` names whichever item the caller asked about — both are
  * properties of the request, not the shape.
  *
- * `sourceAttribution` is the awkward one and is exempted for a DIFFERENT
- * reason, stated plainly because it is the kind of entry that quietly turns a
- * parity test into a key-set test. It differs between fixture SETS rather than
- * between mock and server: BE's trip fixtures carry `null` on every place,
- * while the candidate and related fixtures — where the replacement places
- * 연희동 카페거리 and 서울숲 actually live — carry the full KTO credit. So the
- * mock is right to answer with the credit its own fixture holds, and the
- * example is right to show null for a place whose fixture has none; neither is
- * a defect this test can resolve. Whether BE's trip fixtures SHOULD carry
- * attribution is a question for #16, not something to hide by comparing
- * loosely everywhere.
+ * `sourceAttribution` USED to be a third entry here, exempted because BE's trip
+ * fixtures carried `null` on every place while the candidate and related
+ * fixtures carried the full KTO credit — so the two sides disagreed for a
+ * reason neither was wrong about. #281 filled those fixtures in, and the
+ * exemption became a line that made both sides equal before comparing them: it
+ * turned this field into a key-set check while reading like a value check.
+ * Measured before removing it — with the exemption gone the suite stays green,
+ * and corrupting one fixture's attribution text turns it red, which is what
+ * says the field is now compared by value rather than merely present.
  *
  * Everything else — versions, positions, dates, constraints, candidateCount,
  * the rest of the place object — is compared by value. Anything added here
@@ -62,9 +60,6 @@ const REQUEST_SHAPED = new Set(['id', 'changedItemIds']);
  * exactly the sort of thing an exemption list tends to hide.
  */
 function normalise(value: unknown, key?: string): unknown {
-  // Differs between fixture SETS, so neither the value nor its presence can be
-  // compared — see the note on REQUEST_SHAPED.
-  if (key === 'sourceAttribution') return '<fixture-set>';
   if (key !== undefined && REQUEST_SHAPED.has(key)) {
     // A marker for the KIND of value, so a field that vanished is still
     // caught. An earlier version returned objects unchanged, which meant an
