@@ -218,6 +218,38 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     // for a lock — leaves the lock alone.
     await expect(release).toBeFocused();
     await expect(release).toBeVisible();
+
+    // ANSWERED, the other half of this title. Cancelling was the only path this
+    // test walked, so "answered" was a promise the body never kept: every
+    // assertion above passes on a dialog whose confirm button does nothing.
+    //
+    // The lock going away is the assertion, not the dialog closing. Escape
+    // already closes it, so "the dialog is hidden" cannot tell confirming from
+    // cancelling — and invariant 7 is about the lock, not the dialog. The
+    // control is rendered from `activeLocks(item)` (LockRow.tsx:66), so it
+    // disappears exactly when the release actually landed on the trip.
+    await release.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeVisible();
+
+    // Reached by Tab rather than by `focus()`: this is a keyboard test and the
+    // confirm of a destructive action is precisely where a control that takes
+    // focus only programmatically would strand someone (#233).
+    const confirm = dialog.getByRole('button', { name: 'Release and continue' });
+    await expect(confirm).toBeVisible();
+    let onConfirm = false;
+    for (let i = 0; i < 20 && !onConfirm; i += 1) {
+      await page.keyboard.press('Tab');
+      onConfirm = await confirm.evaluate((el) => el === document.activeElement);
+    }
+    expect(onConfirm, 'the confirm button should be reachable by Tab').toBe(true);
+
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(
+      release,
+      'the Must visit lock should be gone once the release is confirmed',
+    ).toBeHidden();
   });
 });
 
