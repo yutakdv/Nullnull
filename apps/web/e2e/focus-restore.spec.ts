@@ -122,114 +122,164 @@ async function saveCandidate(page: Page, tripId: string): Promise<void> {
 // on <body>, which is what makes this assertion able to fail.
 
 test.describe('closing the saved-places sheet leaves focus somewhere usable', () => {
-  test('a completed schedule moves focus to the row, not the document', async ({
-    page,
-  }) => {
-    // A trip of this session's own, then a candidate saved onto it.
-    //
-    // The hardcoded /trip/018f4a10-… this used to open is the MSW FIXTURE's id.
-    // It works against the dev server, where the mock worker answers for it,
-    // and is nobody's trip against the real API the docker gate runs: every run
-    // starts a fresh anonymous session and a trip belongs to the session that
-    // created it, so the answer is 404 by design (invariant 11, BA-070-T1).
-    // The screen then had no saved candidate, no "Add to a day" button, and
-    // this spec died on the precondition below rather than on its assertion —
-    // seeded-trip.ts:3-14 records the same failure from #253, which is where
-    // createSeededTrip came from. This spec did not use it.
-    const tripPath = await createSeededTrip(page);
-    const tripId = tripPath.replace('/trip/', '');
-    await saveCandidate(page, tripId);
+  // FIXME(gate data): this cannot pass in docker-integration until that
+  // environment has verified opening hours for the candidate's place. It is
+  // `fixme` rather than deleted or quietly narrowed because the clause is real
+  // and unproven, and an empty gap is the honest record of that.
+  //
+  // WHAT BLOCKS IT, as a chain rather than a guess. scripts/e2e/catalog-seed.sql
+  // writes places but no `place_hours` row (grep: zero). CandidateMatchService
+  // .openingHours() therefore hands the evaluator an empty map, and
+  // apps/ai/src/nullnull_ai/item/filters.py:143 answers an absent window with
+  // `Eligibility.unknown(OPENING_HOURS_UNKNOWN)`. slot/evaluator.py:111-112
+  // then emits a Slot for EVERY day regardless — `Slot(day, None, False,
+  // reason)` when the verdict is not eligible — so the sheet does draw a row
+  // per day, and ScheduleCandidateSheet.tsx:156 sets `disabled` on each one.
+  //
+  // So the button is PRESENT AND DISABLED, not missing. That distinction is why
+  // the gate log reads `locator.click: Test timeout … waiting for locator(…)`
+  // rather than a "not found": getByRole matches a disabled button, the locator
+  // resolves, and `.click()` then waits for an actionability that never comes.
+  // Read as "the button is absent" it sends the next reader hunting the sheet's
+  // markup, which is the wrong file.
+  //
+  // WHY NOT FIXED IN THIS SPEC. Picking whichever day is enabled, or skipping
+  // when none is, makes this green without scheduling anything — and the clause
+  // is that a COMPLETED schedule moves focus to the row. The completion is the
+  // subject: CandidatesScreen.tsx:342 stops rendering the trigger once the
+  // candidate is scheduled, which is what makes `afterScheduleRef` the only
+  // thing that can restore focus. No schedule, nothing measured.
+  //
+  // WHY NOT SEEDED. `place_hours_observations` (V025) requires `evidence_url`,
+  // which its own comment defines as the page a reviewer actually read, and
+  // guards the windows table with a trigger besides. Seeding it here would
+  // manufacture review evidence for a place nobody reviewed, in the one table
+  // whose purpose is that values carry provenance. Its production path is
+  // BA-025's curated import (CuratedHoursImportIT), which is where such rows
+  // belong.
+  //
+  // WHAT OPENS IT: verified opening hours existing for this place in the gate
+  // environment. Delete this `fixme` that day — the body below needs no other
+  // change, because everything up to the click already worked in the gate (the
+  // sheet opened, which is what the previous failure could not reach).
+  //
+  // LOCALLY THIS PASSES, which is the trap. MSW answers the match request with
+  // one eligible slot (measured: `Day 3`, `disabled=false`), so the click
+  // succeeds and the whole test is green on a dev server. A green run here is
+  // not evidence about the gate, in either direction.
+  test.fixme(
+    'a completed schedule moves focus to the row, not the document',
+    async ({ page }) => {
+      // A trip of this session's own, then a candidate saved onto it.
+      //
+      // The hardcoded /trip/018f4a10-… this used to open is the MSW FIXTURE's id.
+      // It works against the dev server, where the mock worker answers for it,
+      // and is nobody's trip against the real API the docker gate runs: every run
+      // starts a fresh anonymous session and a trip belongs to the session that
+      // created it, so the answer is 404 by design (invariant 11, BA-070-T1).
+      // The screen then had no saved candidate, no "Add to a day" button, and
+      // this spec died on the precondition below rather than on its assertion —
+      // seeded-trip.ts:3-14 records the same failure from #253, which is where
+      // createSeededTrip came from. This spec did not use it.
+      const tripPath = await createSeededTrip(page);
+      const tripId = tripPath.replace('/trip/', '');
+      await saveCandidate(page, tripId);
 
-    await page.goto(`${tripPath}/candidates`);
-    await page.waitForLoadState('networkidle');
+      await page.goto(`${tripPath}/candidates`);
+      await page.waitForLoadState('networkidle');
 
-    // The seeding landed, asserted before the trigger is looked for. Without
-    // this the next expectation still fails when the save 4xx'd, but it fails
-    // saying "no saved candidate offers a day" — which reads as a product
-    // defect on the screen rather than a setup that never ran. The two are
-    // different repairs, and the gate failure this spec is fixing was misread
-    // that way once already.
-    // The row's own heading, not `getByText`: the name also appears in a
-    // context line elsewhere on the card, and matching both is a strict-mode
-    // violation that fails as though the candidate were missing. Measured —
-    // the first version of this guard did exactly that while the seeding had
-    // in fact worked.
-    await expect(
-      page.getByRole('heading', { name: '서울숲' }),
-      'the seeded candidate is not on the screen, so the setup did not take',
-    ).toBeVisible();
+      // The seeding landed, asserted before the trigger is looked for. Without
+      // this the next expectation still fails when the save 4xx'd, but it fails
+      // saying "no saved candidate offers a day" — which reads as a product
+      // defect on the screen rather than a setup that never ran. The two are
+      // different repairs, and the gate failure this spec is fixing was misread
+      // that way once already.
+      // The row's own heading, not `getByText`: the name also appears in a
+      // context line elsewhere on the card, and matching both is a strict-mode
+      // violation that fails as though the candidate were missing. Measured —
+      // the first version of this guard did exactly that while the seeding had
+      // in fact worked.
+      await expect(
+        page.getByRole('heading', { name: '서울숲' }),
+        'the seeded candidate is not on the screen, so the setup did not take',
+      ).toBeVisible();
 
-    const trigger = page.locator('button[aria-expanded]').first();
-    await expect(
-      trigger,
-      'no saved candidate offers a day to add it to: the sheet under test never opens',
-    ).toBeVisible();
-    await trigger.focus();
-    await page.keyboard.press('Enter');
+      const trigger = page.locator('button[aria-expanded]').first();
+      await expect(
+        trigger,
+        'no saved candidate offers a day to add it to: the sheet under test never opens',
+      ).toBeVisible();
+      await trigger.focus();
+      await page.keyboard.press('Enter');
 
-    // THE SHEET REALLY OPENED, asserted before anything about focus. "Focus is
-    // on the trigger" is trivially true of a sheet that never opened, so
-    // without this line the test below passes on a screen where nothing
-    // happens at all.
-    const sheet = page.locator('dialog[open]');
-    await expect(
-      sheet,
-      'the sheet did not open, so there is nothing to close',
-    ).toHaveCount(1);
-    await expect(sheet).toContainText('Which day should it go on?');
-    // ...and it took focus with it. A modal that opens without moving focus
-    // leaves a keyboard user tabbing the page underneath.
-    const landedInside = await page.evaluate(() => {
-      const open = [...document.querySelectorAll('dialog')].find((d) => d.open);
-      return open?.contains(document.activeElement) ?? false;
-    });
-    expect(landedInside, 'focus should move into the open sheet').toBe(true);
+      // THE SHEET REALLY OPENED, asserted before anything about focus. "Focus is
+      // on the trigger" is trivially true of a sheet that never opened, so
+      // without this line the test below passes on a screen where nothing
+      // happens at all.
+      const sheet = page.locator('dialog[open]');
+      await expect(
+        sheet,
+        'the sheet did not open, so there is nothing to close',
+      ).toHaveCount(1);
+      await expect(sheet).toContainText('Which day should it go on?');
+      // ...and it took focus with it. A modal that opens without moving focus
+      // leaves a keyboard user tabbing the page underneath.
+      const landedInside = await page.evaluate(() => {
+        const open = [...document.querySelectorAll('dialog')].find((d) => d.open);
+        return open?.contains(document.activeElement) ?? false;
+      });
+      expect(landedInside, 'focus should move into the open sheet').toBe(true);
 
-    // Complete the schedule: this is the close that unmounts the trigger.
-    await sheet
-      .getByRole('button', { name: /Day \d/ })
-      .first()
-      .click();
-    await expect(sheet, 'the sheet should close once the day is picked').toHaveCount(0, {
-      timeout: 10_000,
-    });
-
-    // The row re-renders without its "Add to a day" button, and the restore is
-    // queued behind that render (a setTimeout at CandidatesScreen.tsx:235), so
-    // the landing place is read after it, not during it.
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const el = document.activeElement as HTMLElement | null;
-            return {
-              onBody: el === document.body,
-              connected: el?.isConnected ?? false,
-              name: (el?.getAttribute('aria-label') ?? el?.textContent ?? '').trim(),
-            };
-          }),
+      // Complete the schedule: this is the close that unmounts the trigger.
+      await sheet
+        .getByRole('button', { name: /Day \d/ })
+        .first()
+        .click();
+      await expect(sheet, 'the sheet should close once the day is picked').toHaveCount(
+        0,
         {
-          message:
-            'focus fell to <body> after the sheet closed: the next Tab restarts at the top of the page',
-          timeout: 5_000,
+          timeout: 10_000,
         },
-      )
-      .toMatchObject({ onBody: false, connected: true });
+      );
 
-    // Not merely "off <body>": on the row the traveller was just acting on.
-    // Without this a focus parked on any surviving node would pass, including
-    // one in a different card.
-    const name = await page.evaluate(() =>
-      (
-        (document.activeElement as HTMLElement | null)?.getAttribute('aria-label') ??
-        document.activeElement?.textContent ??
-        ''
-      ).trim(),
-    );
-    expect(name, 'focus should land on a control of the row that was scheduled').toMatch(
-      /Remove .+ from saved/,
-    );
-  });
+      // The row re-renders without its "Add to a day" button, and the restore is
+      // queued behind that render (a setTimeout at CandidatesScreen.tsx:235), so
+      // the landing place is read after it, not during it.
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => {
+              const el = document.activeElement as HTMLElement | null;
+              return {
+                onBody: el === document.body,
+                connected: el?.isConnected ?? false,
+                name: (el?.getAttribute('aria-label') ?? el?.textContent ?? '').trim(),
+              };
+            }),
+          {
+            message:
+              'focus fell to <body> after the sheet closed: the next Tab restarts at the top of the page',
+            timeout: 5_000,
+          },
+        )
+        .toMatchObject({ onBody: false, connected: true });
+
+      // Not merely "off <body>": on the row the traveller was just acting on.
+      // Without this a focus parked on any surviving node would pass, including
+      // one in a different card.
+      const name = await page.evaluate(() =>
+        (
+          (document.activeElement as HTMLElement | null)?.getAttribute('aria-label') ??
+          document.activeElement?.textContent ??
+          ''
+        ).trim(),
+      );
+      expect(
+        name,
+        'focus should land on a control of the row that was scheduled',
+      ).toMatch(/Remove .+ from saved/);
+    },
+  );
 });
 
 // FE-203 `T4`, the same clause on the OTHER sheet the app has: the 담기 sheet
