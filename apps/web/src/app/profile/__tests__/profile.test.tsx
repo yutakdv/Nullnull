@@ -118,6 +118,11 @@ describe('FE-105-T1 S14 anonymous guest state (FCR-006 trace)', () => {
       expect(requests.some((request) => request.url.includes('/optimizations'))).toBe(
         true,
       );
+      expect(
+        requests.some((request) =>
+          request.url.endsWith(`/trips/${tripFixtures.page.items[0]?.id ?? ''}`),
+        ),
+      ).toBe(true);
     });
     const requestCount = requests.length;
 
