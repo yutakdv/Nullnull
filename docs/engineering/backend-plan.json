@@ -388,7 +388,7 @@
         "09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
         "#10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다"
       ],
-      "safety": "account ID/secondary alarm/실제 resource·secret 주입 증거가 없으면 release-ready가 아니다. 실제 설정·배포 완료를 문서와 script만으로 표시하지 않는다.",
+      "safety": "실제 secret 값 기반 bundle·image layer·log scan과 잘못된 OIDC subject의 AssumeRole 거부 기록이 없으면 integration-ready가 아니다. 실제 설정·배포 완료를 문서와 구조 test만으로 표시하지 않는다.",
       "tests": [
         {
           "id": "BA-006-T1",
@@ -407,7 +407,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006",
-      "reason": "2026-09-14 오너가 $200/2026-10-25/primary alarm을 확정해 staging 실행 계약과 plan-first AWS scripts를 만들기 시작했다. infra/CDK와 실제 AWS evidence는 아직 없으므로 in-progress이며 완료로 세지 않는다."
+      "reason": "main d988123의 Staging release가 성공했고 배포 뒤 smoke가 public API edge closed, internal ALB, private S3, private Multi-AZ RDS와 live GitHub role trust의 exact subject 집합을 관측했다. T1은 full Docker와 outbound-deny report로 증명됐다. T2는 browser build에 credential을 건네지 않는 입력 경계까지만 증명됐고 실제 secret 값으로 log를 검사한 report가 없다. T3는 구조 test와 live trust의 exact 집합 관측만 있으며 잘못된 repo/environment subject의 실제 AssumeRole 거부 기록이 없다. 따라서 in-progress를 유지한다."
     },
     {
       "id": "BA-010",
@@ -2494,7 +2494,7 @@
       "phase": "B08",
       "priority": "P0",
       "title": "AWS 배포·불변 artifact·롤백",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-006",
         "BA-070"
@@ -2530,14 +2530,15 @@
       "handoff": "공개 config·release/contract SHA·이전 rollback target과 staging acceptance URL. UI artifact 확인은 FE 담당.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-071"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-071",
+      "reason": "첫 CD run 35426407975는 ALB grace 부족으로 circuit breaker rollback됐고 AWS 쓰기 뒤 배포 잠금을 유지해 오너 승인 unlock을 거쳤다. PR #285의 grace 수정 뒤 main d988123 Staging release는 성공했다. T1은 internal ALB·private S3·private Multi-AZ RDS와 live OIDC trust exact 집합까지 관측했지만 wrong-subject 실제 거부가 없다. T2는 실패 뒤 잠금 유지·승인 해제까지 관측했지만 두 deploy/migration의 동시 진입 거부를 실제로 재현하지 않았다. T3는 성공 release의 manifest 승격까지만 관측했고 rollback 뒤 smoke drill은 오너 결정으로 제출 뒤에 수행한다."
     },
     {
       "id": "BA-072",
       "phase": "B08",
       "priority": "P0",
       "title": "복원·삭제 재적용·alarm·사고 대응",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-012",
         "BA-020",
@@ -2553,7 +2554,7 @@
       "steps": [
         "backup14일 기준과 RPO/RTO 목표를 실제 restore로 측정한다",
         "public traffic 전에 tombstone 재적용·삭제 검증을 수행하고 실패 시 닫힌 상태를 유지한다",
-        "source/quota/queue/security/budget alarm의 실제 primary/secondary 수신과 tabletop을 검증한다"
+        "source/quota/queue/security/budget alarm의 실제 primary 수신과 tabletop을 검증한다"
       ],
       "safety": "연락망·restore·alarm 수신 증거가 없는 상태를 운영 준비 완료로 표시하지 않는다. tombstone은 backup 최대 보존보다7일 이상 길게 보존한다.",
       "tests": [
@@ -2583,7 +2584,7 @@
         },
         {
           "id": "BA-072-T7",
-          "assertion": "staging에서 위 `ops.alarm` 이름들의 metric filter와 alarm이 발화해 primary/secondary 수신자에게 도달한다"
+          "assertion": "staging에서 위 `ops.alarm` 이름들의 metric filter와 alarm이 발화해 primary 수신자에게 도달한다"
         },
         {
           "id": "BA-072-T8",
@@ -2597,7 +2598,8 @@
       "handoff": "복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-072"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-072",
+      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 삭제 원장이 미구현이고 A-039가 심사 기간 restore를 금지해 restore drill과 복원 뒤 비노출 evidence가 없다. T3는 primary 실제 alarm 수신과 quota/budget/rollback tabletop을 재현하지 않았고 조직 SCP 때문에 자동 Budget 신호도 없다. T7도 metric filter·alarm 발화와 primary 도달을 staging에서 아직 재현하지 않았다. secondary 수신자는 A-043으로 범위 밖이다."
     },
     {
       "id": "BA-073",
