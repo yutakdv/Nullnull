@@ -85,7 +85,24 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
       page.getByRole('button', { name: `Move ${FIRST_ITEM} up` }),
     ).toBeDisabled();
 
-    await down.focus();
+    // Tab, not `down.focus()` — the same reason the tab bar walk below gives.
+    // `focus()` succeeds on a control the keyboard cannot reach, so the
+    // "reachable by Tab" half of this title was unfalsifiable: measured, giving
+    // this button `tabindex="-1"` left the old version green (#233).
+    //
+    // Bounded rather than a guess at the order: the trip screen renders the
+    // header and day nav before the rows, so the walk passes through them
+    // first and stops as soon as it arrives.
+    const label = `Move ${FIRST_ITEM} down`;
+    let reached = false;
+    for (let i = 0; i < 60 && !reached; i += 1) {
+      await page.keyboard.press('Tab');
+      reached = await page.evaluate(
+        (name) => (document.activeElement?.getAttribute('aria-label') ?? '') === name,
+        label,
+      );
+    }
+    expect(reached, 'the move-down control should be reachable by Tab').toBe(true);
     await expect(down).toBeFocused();
     await page.keyboard.press('Enter');
 
