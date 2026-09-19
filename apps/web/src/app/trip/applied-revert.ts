@@ -143,6 +143,40 @@ export function shouldReadRun(
 }
 
 /**
+ * The run the panel is about: the most recent DECIDED one, or undefined.
+ *
+ * The history is newest-first and carries every run, decided or not — a
+ * QUEUED one, a READY one waiting on the traveller, a FAILED one. The panel is
+ * about an APPLY that can still be undone, and "most recent run" and "most
+ * recent decided run" are only the same sentence while nothing else has
+ * happened since.
+ *
+ * They came apart in the obvious way: start a second optimization while an
+ * undo is still live, and row 0 becomes the new RUNNING one. That is not a
+ * fixture accident — the contract's own `listOptimizationHistory` example is
+ * five rows with exactly that shape, RUNNING and READY sitting above the
+ * APPLIED row, so an owner in that state could never see the panel no matter
+ * what the server returned.
+ *
+ * `shouldReadRun` IS the test, reused rather than restated: a second copy of
+ * "decided, and inside the window" would be the same rule in two files, and
+ * the copy that drifts is the one nobody is looking at.
+ *
+ * Scanning rather than filtering server-side is what the contract affords
+ * today. `?decided=true` would let this go back to asking for one row, and
+ * that is the better shape when the contract has it.
+ */
+export function latestDecidedRun(
+  items: readonly OptimizationHistoryItem[] | undefined,
+  now: number,
+): OptimizationHistoryItem | undefined {
+  // Newest-first is the contract's guarantee ("Results are newest-first"), so
+  // the first match is the most recent one and no sorting happens here. A
+  // client that re-sorted would be inventing an order the server owns.
+  return items?.find((item) => shouldReadRun(item, now));
+}
+
+/**
  * An instant as the panel reads it: "10/7 14:35".
  *
  * A new helper rather than `ProfileScreen`'s `runDate`, which formats the date
