@@ -133,8 +133,25 @@ describe('shouldReadRun spends a request, and only that', () => {
     );
   });
 
-  it('does not read a run whose undo was already spent', () => {
+  // #279 하4. This case asserted `false` until a rehearsal showed what that
+  // cost: the panel vanished the instant the undo succeeded, so the traveller
+  // got no confirmation that anything had happened.
+  //
+  // The undo IS spent — that part of the old reasoning was right — but the
+  // request does not buy another undo, it buys the REVERTED panel, which
+  // `AppliedPanel` already draws (Figma `724:4730`) and which nothing else can
+  // reach. Skipping the call saved a round trip and spent the confirmation.
+  it('reads a reverted run, because REVERTED is the confirmation', () => {
     expect(shouldReadRun(historyItem({ decision: 'REVERT' }), decidedAt + 1000)).toBe(
+      true,
+    );
+  });
+
+  it('stops reading a reverted run once its window has closed too', () => {
+    // The window still applies: after 24h there is nothing left to say about
+    // it, and this is what keeps the REVERT branch from reading every old run
+    // on every trip visit.
+    expect(shouldReadRun(historyItem({ decision: 'REVERT' }), decidedAt + DAY)).toBe(
       false,
     );
   });

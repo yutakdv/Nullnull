@@ -119,10 +119,23 @@ export function shouldReadRun(
   now: number,
 ): boolean {
   if (!latest) return false;
-  // Only an APPLY can be undone. A KEEP changed nothing, and a run already
-  // reported as REVERT has had its undo spent — the server would answer
-  // REVERTED either way, so the request would buy nothing.
-  if (latest.decision !== 'APPLY') return false;
+  // APPLY and REVERT, not APPLY alone (#279 하4).
+  //
+  // A KEEP changed nothing, so there is no panel to draw for it. A REVERT is
+  // different: its undo IS spent and the server does answer REVERTED, but that
+  // answer is the confirmation. `AppliedPanel` has a whole REVERTED state for
+  // it — Figma `724:4730`, a badge and a revision line in both locales — and
+  // skipping the request meant `run.data` stayed undefined, `TripAppliedPanel`
+  // returned null, and the panel VANISHED the moment the undo succeeded. A
+  // rehearsal read that as "did it work?", which is the one question the panel
+  // exists to answer.
+  //
+  // The comment this replaces said the request "would buy nothing". It buys
+  // the confirmation. Saving the call was not wrong about the cost of the
+  // call — it was wrong about the cost of skipping it, which is the sentence
+  // directly above: narrowing this wrongly costs a panel that should have
+  // appeared.
+  if (latest.decision !== 'APPLY' && latest.decision !== 'REVERT') return false;
   if (!latest.decidedAt) return false;
   const decidedAt = new Date(latest.decidedAt).getTime();
   if (Number.isNaN(decidedAt)) return false;
