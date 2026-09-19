@@ -94,48 +94,35 @@
   line-height: 16px;
 }
 
-/* Disabled sign-in. Not a control: it is inert and says why. */
-/* The row was inert text with a `준비 중` badge at 0.55 opacity, and the label
- * was painted in text-disabled. Sign-in moved into P0 (#264, #265), so it is a
- * real link now and both of those would lie about it: a control the traveller
- * can follow must not be drawn as one they cannot. */
+/* Disabled sign-in. Not a control: it is inert and says why.
+ *
+ * This was a real `<Link>` for a day, while login was briefly in P0 (#264,
+ * #265), and the opacity and the disabled colour were removed then because
+ * they would have lied about a control the traveller could follow. The owner
+ * reverted login to P1 on 2026-09-19, so the row is inert text again and both
+ * are back. ProfileScreen.tsx carries the reason — read it before flipping
+ * this a third time.
+ *
+ * NO TOUCH-TARGET FLOOR HERE, deliberately. While this was a link it needed
+ * one on both axes and the gate caught it twice (42×18, then 42×44 after a
+ * bare min-height). Now it is a `<span>`, and responsive.spec's walk selects
+ * `a, button, [role="button"], input, select, textarea` — a span is not in
+ * that set, so it is not measured. That spec's own comment says the same thing
+ * from the other side: "`준비 중` rows are inert by design and must not be
+ * dragged up to 44px to satisfy a rule." Adding a 44px box to inert text would
+ * satisfy nothing and would make the row look tappable. */
 .loginRow {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4) var(--space-1);
+  opacity: 0.55;
 }
 
 .loginLabel {
-  color: var(--color-action-primary);
+  color: var(--color-text-disabled);
   font-size: var(--font-body-base);
   font-weight: 500;
-  text-decoration: none;
-}
-
-/* The gate caught this twice. First at 42×18, and then — after a min-height
- * alone — at 42×44: the floor is on BOTH axes and "Sign in" is 42px wide there.
- *
- * `min-width` cannot be verified locally, which is worth knowing before anyone
- * decides it is dead code. Measured: the same link is 45×44 against the dev
- * server and 42×44 in the container, so deleting this line leaves the local
- * run green and the gate red. The width comes from the font the environment
- * has, and the container's is not this machine's.
- *
- * Worth stating why this row is measured at all. responsive.spec exempts
- * `display: inline` controls, because a link inside a run of text is measured
- * by its line and WCAG 2.5.5 exempts it for that reason. Giving `display:
- * flex` here opted this link INTO the measurement — which is correct: it is a
- * row of its own, not a word inside a sentence, so a traveller reaching for it
- * is aiming at a target rather than at text. The fix is to make that target
- * real, not to drop back to `inline` and take the exemption. */
-@media (pointer: coarse) {
-  .loginLabel {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    min-width: 44px;
-  }
 }
 
 .badge {
