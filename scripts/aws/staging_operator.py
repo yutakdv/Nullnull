@@ -697,9 +697,11 @@ def ops_task(args):
         require(False, 'operations-target-not-set-by-caller' if not stated else 'operations-target-not-the-staging-database')
     environment.append({'name': OPERATIONS_TARGET, 'value': stated})
     cluster = output('Platform', 'ClusterName')
-    definition_arn = output('Migration', 'OpsTaskDefinitionArn')
-    definition = aws('ecs', 'describe-task-definition', taskDefinition=definition_arn)['taskDefinition']
     with DeploymentLock() as lock:
+        # Read under the lock, so no release can land between this read and the task.
+        definition_arn = output('Migration', 'OpsTaskDefinitionArn')
+        definition = aws('ecs', 'describe-task-definition', taskDefinition=definition_arn)['taskDefinition']
+        current, expected_digest = smoke_release_binding(definition) if args.task == 'kto-smoke' else (None, None)
         lock.mutating()
         result = aws('ecs', 'run-task', cluster=cluster, taskDefinition=definition_arn, launchType='FARGATE', count=1,
                      clientToken=lock.owner, startedBy='nullnull-stg-ops',
@@ -713,7 +715,7 @@ def ops_task(args):
               + (' owner_approval=' + re.sub(r'[^A-Za-z0-9 _:.-]', '', args.owner_approval) if approval else ''))
         failure = None
         try:
-            wait_task(cluster, arn, lock, definition, 'ops')
+            wait_task(cluster, arn, lock, definition, 'ops', expected_digest)
         except OpsError as error:
             failure = error
         stream = 'ops/ops/' + arn.rsplit('/', 1)[1]
@@ -729,16 +731,42 @@ def ops_task(args):
         if failure:
             raise failure
         if args.task == 'kto-smoke':
-            write_actual_call_report(evidence)
+            write_actual_call_report(evidence, current)
     print('ops_task=' + args.task + ' result=succeeded')
 
-def write_actual_call_report(lines):
-    """CMP-KTO-003 evidence: the staging service's own call, as its smoke main reported it (redacted fields only)."""
+def smoke_release_binding(definition):
+    """The release the smoke's report will name, and the image digest the task must run.
+
+    The report credits current.json's release, so the task has to be that release's. After a failed deploy the ops
+    definition (Migration stack) can already be the next release's while current.json still names the previous one,
+    and two releases can share one API digest (rc.1000 and rc.1001 did), so the digest alone does not name a
+    release: the definition's APP_RELEASE_VERSION has to be current.json's as well. Checked before the task starts,
+    so a mismatch costs no KTO call and writes nothing; the digest is checked again on the image that actually ran.
+    """
+    current = read_current_release(release_bucket())
+    require(current is not None, 'no-deployed-release-record')
+    expected = (current.get('releaseManifest') or {}).get('apiImageDigest')
+    require(bool(expected), 'deployed-release-has-no-api-digest')
+    container = next((c for c in definition.get('containerDefinitions', []) if c.get('name') == 'ops'), {})
+    require(container.get('image', '').endswith('@' + expected), 'ops-image-not-the-deployed-release')
+    environment = {e.get('name'): e.get('value') for e in container.get('environment', [])}
+    require(environment.get('APP_RELEASE_VERSION') == current.get('releaseVersion'), 'ops-definition-not-the-deployed-release')
+    return current, expected
+
+def write_actual_call_report(lines, current):
+    """CMP-KTO-003 evidence: the staging service's own call, as its smoke main reported it (redacted fields only).
+
+    `called=true` is the smoke's own statement that this run's request produced the snapshot (KtoSmokeMain derives
+    it from the gateway's fetchedAt on one clock). A stored snapshot handed back without a call prints
+    KTO_SMOKE_CACHED instead, and an image older than that rule prints no `called` at all; both stop here, because
+    a report without a call is exactly the evidence CMP-KTO-003 must not accept. `current` is the release record
+    the caller already checked the image against.
+    """
     require(len(lines) == 1, 'kto-smoke-evidence-line-missing')
     fields = dict(part.split('=', 1) for part in lines[0].split()[1:] if '=' in part)
-    for name in ['source', 'contentId', 'snapshotId', 'collectorRunId', 'payloadHash', 'fetchedAt']:
+    for name in ['source', 'contentId', 'snapshotId', 'collectorRunId', 'payloadHash', 'fetchedAt', 'called']:
         require(bool(fields.get(name)), 'kto-smoke-evidence-field-missing-' + name)
-    current = read_current_release(release_bucket())
+    require(fields['called'] == 'true', 'kto-smoke-did-not-call')
     require(current is not None, 'no-deployed-release-record')
     release = current['releaseVersion']
     report = {'verdict': 'verified', 'environment': 'staging', 'source': fields['source'], 'releaseId': release,

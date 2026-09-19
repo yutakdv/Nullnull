@@ -535,16 +535,109 @@ class SecretProvisioningRegressions(unittest.TestCase):
 
 class EvidenceRegressions(unittest.TestCase):
     LINE=('KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 snapshotId=s-1 '
-          'collectorRunId=c-1 sourceRegistryVersion=4 payloadHash=abc fetchedAt=2026-09-18T13:00:00Z')
+          'collectorRunId=c-1 sourceRegistryVersion=4 payloadHash=abc fetchedAt=2026-09-18T13:00:00Z called=true')
+    RECORD={'releaseVersion':'v0.1.0-rc.1','gitSha':'a'*40}
     def test_report_is_what_the_repository_gate_accepts_for_this_release(self):
         with tempfile.TemporaryDirectory() as d:
-            record={'releaseVersion':'v0.1.0-rc.1','gitSha':'a'*40}
-            with patch.object(ops,'ROOT',Path(d)),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'aws_cli',return_value=subprocess.CompletedProcess([],0,'','')),patch.object(ops,'run') as run:
-                ops.write_actual_call_report([self.LINE])
+            with patch.object(ops,'ROOT',Path(d)),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'aws_cli',return_value=subprocess.CompletedProcess([],0,'','')),patch.object(ops,'run') as run:
+                ops.write_actual_call_report([self.LINE],self.RECORD)
             report=json.loads((Path(d)/'.artifacts/aws/evidence/actual-call-v0.1.0-rc.1.json').read_text())
             gate=subprocess.run(['python3',str(ROOT/'scripts/check_actual_call_evidence.py'),str(Path(d)/'.artifacts/aws/evidence/actual-call-v0.1.0-rc.1.json'),'--release','v0.1.0-rc.1','--require-verified'],capture_output=True,text=True)
             self.assertEqual(0,gate.returncode,gate.stderr)
             self.assertEqual('staging',report['environment']);self.assertEqual('OK',report['calls'][0]['outcome'])
             self.assertIn('--require-verified',[str(a) for a in run.call_args.args[0]])
     def test_no_evidence_line_means_no_report(self):
-        with self.assertRaisesRegex(ops.OpsError,'kto-smoke-evidence-line-missing'):ops.write_actual_call_report([])
+        with self.assertRaisesRegex(ops.OpsError,'kto-smoke-evidence-line-missing'):ops.write_actual_call_report([],self.RECORD)
+    def test_a_line_that_does_not_say_this_run_called_writes_no_report(self):
+        # An image older than the forced smoke prints no `called`; a stored snapshot handed back prints called=false.
+        # Either would otherwise become this release's CMP-KTO-003 evidence for a call it never made.
+        old_image=self.LINE.replace(' called=true','')
+        for line,reason in [(old_image,'kto-smoke-evidence-field-missing-called'),
+                            (self.LINE.replace('called=true','called=false'),'kto-smoke-did-not-call'),
+                            (self.LINE.replace('called=true','called=yes'),'kto-smoke-did-not-call')]:
+            with self.subTest(line=line[-24:]),patch.object(ops,'write_private') as write,patch.object(ops,'aws_cli') as upload:
+                with self.assertRaisesRegex(ops.OpsError,reason):ops.write_actual_call_report([line],self.RECORD)
+                write.assert_not_called();upload.assert_not_called()
+    def test_the_cached_line_passes_the_log_allowlist_so_the_owner_sees_why_it_stopped(self):
+        cached=self.LINE.replace('KTO_SMOKE_OK','KTO_SMOKE_CACHED').replace('called=true','called=false')
+        self.assertTrue(ops.OPS_LOG_LINE.match(cached))
+        longest=('KTO_SMOKE_CACHED source=KTO_KOR_SERVICE_2 contentId='+'9'*30+' contentTypeId='+'9'*30
+                 +' snapshotId='+'f'*36+' collectorRunId='+'f'*36+' sourceRegistryVersion=99 payloadHash='+'f'*64
+                 +' fetchedAt=2026-09-18T13:00:00.123456Z called=false')
+        self.assertTrue(ops.OPS_LOG_LINE.match(longest),len(longest))
+
+class SmokeImageBindingRegressions(unittest.TestCase):
+    """The smoke's report names the deployed release, so it must run that release's image (checked twice)."""
+    DIGEST='sha256:'+'a'*64
+    TARGET=OperationsTargetRegressions.TARGET
+    LINE=EvidenceRegressions.LINE
+    def run_smoke(self, record, ops_image, ops_release='v0.1.0-rc.2'):
+        import contextlib, io
+        from types import SimpleNamespace
+        calls=[]
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if (service,operation)==('rds','describe-db-instances'):
+                return {'DBInstances':[{'Endpoint':{'Address':OperationsTargetRegressions.HOST,'Port':5432},'DBName':'nullnull'}]}
+            if (service,operation)==('ecs','describe-task-definition'):
+                return {'taskDefinition':{'containerDefinitions':[{'name':'ops','image':ops_image,
+                        'environment':[{'name':'APP_RELEASE_VERSION','value':ops_release}]}]}}
+            if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
+            if (service,operation)==('logs','get-log-events'): return {'events':[{'message':self.LINE}]}
+            raise AssertionError((service,operation))
+        env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
+             'NULLNULL_KTO_SMOKE_APPROVED':'true',ops.OPERATIONS_TARGET:self.TARGET}
+        with patch.dict(os.environ,env),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),\
+             patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+             patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),patch.object(ops,'wait_task') as wait,\
+             patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
+             patch.object(ops,'write_actual_call_report') as report,contextlib.redirect_stdout(io.StringIO()):
+            error=None
+            try:
+                ops.ops_task(SimpleNamespace(task='kto-smoke',content_id='126508',content_type_id='12',place_id=None,
+                                             owner_approval='owner approved in session',places=None))
+            except ops.OpsError as e:
+                error=str(e)
+        return error,[(s,o) for s,o,_ in calls],wait,report
+    def test_the_executed_image_is_checked_against_the_deployed_release_and_the_same_record_is_reported(self):
+        record={'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        error,calls,wait,report=self.run_smoke(record,'1.dkr.ecr/nullnull-api@'+self.DIGEST)
+        self.assertIsNone(error)
+        self.assertEqual(self.DIGEST,wait.call_args.args[5])
+        report.assert_called_once_with([self.LINE],record)
+    def test_a_smoke_that_would_run_another_image_or_has_no_release_stops_before_the_task(self):
+        other='1.dkr.ecr/nullnull-api@sha256:'+'b'*64
+        for record,image,reason in [
+                (None,other,'no-deployed-release-record'),
+                ({'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{}},other,'deployed-release-has-no-api-digest'),
+                ({'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}},other,
+                 'ops-image-not-the-deployed-release')]:
+            with self.subTest(reason=reason):
+                error,calls,wait,report=self.run_smoke(record,image)
+                self.assertIn(reason,error or '')
+                self.assertNotIn(('ecs','run-task'),calls)
+                report.assert_not_called()
+    def test_one_digest_shared_by_two_releases_is_not_enough_to_name_the_release(self):
+        # rc.1000 and rc.1001 shared an API digest; a failed deploy of the next release can leave its ops definition
+        # behind while current.json still names the previous one.
+        record={'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        error,calls,wait,report=self.run_smoke(record,'1.dkr.ecr/nullnull-api@'+self.DIGEST,ops_release='v0.1.0-rc.3')
+        self.assertIn('ops-definition-not-the-deployed-release',error or '')
+        self.assertNotIn(('ecs','run-task'),calls)
+        report.assert_not_called()
+
+class WaitTaskRegressions(unittest.TestCase):
+    """The executed-image comparison itself, which every ops_task test patches away with a Mock."""
+    class Lock:
+        def check(self): pass
+    def wait(self, ran_digest, expected):
+        stopped={'tasks':[{'lastStatus':'STOPPED','stopCode':'EssentialContainerExited',
+                           'containers':[{'name':'ops','exitCode':0,'imageDigest':ran_digest}]}]}
+        definition={'containerDefinitions':[{'name':'ops','essential':True}]}
+        with patch.object(ops,'aws',return_value=stopped):
+            return ops.wait_task('c','arn',self.Lock(),definition,'ops',expected)
+    def test_a_task_that_ran_another_image_is_refused_after_it_stops(self):
+        digest='sha256:'+'a'*64
+        with self.assertRaisesRegex(ops.OpsError,'executed-image-mismatch'):self.wait('sha256:'+'b'*64,digest)
+        self.assertEqual('STOPPED',self.wait(digest,digest)['lastStatus'])
+        self.assertEqual('STOPPED',self.wait('sha256:'+'b'*64,None)['lastStatus'])
