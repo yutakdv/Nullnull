@@ -79,13 +79,13 @@ describe('CrowdLevel', () => {
           unit: null,
           provenance: {} as never,
         }}
-        levelLabel="Level 4 of 4"
+        levelLabel="Level 4 of 5"
         stateLabels={{ LIVE: 'Observed live' }}
       />,
     );
     expect(screen.getByText('Observed live')).toBeInTheDocument();
     expect(screen.queryByText('실시간 관측')).toBeNull();
-    expect(screen.getByRole('img', { name: 'Level 4 of 4' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Level 4 of 5' })).toBeInTheDocument();
   });
 
   it('says data is missing instead of drawing an empty bar', () => {
@@ -114,8 +114,46 @@ describe('CrowdLevel', () => {
     // source's language whatever locale they chose.
     expect(screen.queryByText('4 · 혼잡')).toBeNull();
     expect(screen.getByText('실시간 관측')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '4단계 중 4번째' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '5단계 중 4번째' })).toBeInTheDocument();
   });
+
+  it('renders the fifth contract level instead of dropping it', () => {
+    const { container } = render(
+      <CrowdLevel
+        crowd={{
+          state: 'LIVE',
+          label: '5 · 매우 혼잡',
+          ordinalLevel: '5',
+          value: null,
+          unit: null,
+          provenance: {} as never,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: '5단계 중 5번째' })).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-filled]')).toHaveLength(5);
+  });
+
+  it.each(['05', '5.0', '5e0', ' 5 '])(
+    'rejects malformed level token %j instead of coercing it to five',
+    (ordinalLevel) => {
+      render(
+        <CrowdLevel
+          crowd={{
+            state: 'LIVE',
+            label: 'invalid level',
+            ordinalLevel,
+            value: null,
+            unit: null,
+            provenance: {} as never,
+          }}
+        />,
+      );
+
+      expect(screen.queryByRole('img')).toBeNull();
+    },
+  );
 });
 
 describe('MetricDelta', () => {
