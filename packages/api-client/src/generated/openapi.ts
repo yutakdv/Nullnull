@@ -1472,11 +1472,11 @@ export interface components {
             /**
              * @description The crowd stage on the product's five-step scale, as a digit string: "1" is the least crowded
              *     and "5" the most. It is what the source published on that scale and nothing else - it is
-             *     never derived from `value`. Null when the source publishes no stage, which is every KTO
-             *     forecast point today: the KTO series is a relative index with no stages, so there is no stage
-             *     to draw from it. A source with a scale of its own fills this only through a reviewed mapping
-             *     onto these five, and a stored stage off this scale is served as null, with `SCHEMA_DRIFT` in
-             *     `provenance.qualityFlags`. The words for each stage are Frontend copy.
+             *     never derived from `value`. Null on every point today: no source has a mapping onto this
+             *     scale that anyone reviewed, and KTO publishes a relative index with no stages at all. A stage
+             *     a source stored without such a mapping is served as null with `SCHEMA_DRIFT` in
+             *     `provenance.qualityFlags`, rather than passed through as a stage nobody approved. The words
+             *     for each stage are Frontend copy.
              */
             ordinalLevel?: string | null;
             /**
