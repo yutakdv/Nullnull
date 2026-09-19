@@ -58,10 +58,18 @@ class OwnerDataErasureIT {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
 
-    /** Every table that holds an owner's data through a trip rather than an owner_id of its own. */
+    /**
+     * Every table that holds an owner's data through a trip rather than an owner_id of its own. The two
+     * optimization tables are here because an applied run is the case this erasure never covered: the
+     * same trip delete answered 500 through deleteTrip until V036 (BA-053-T12), and the erasure escaped
+     * it only because DeleteOwnerDataHandler sorts erasers by name and "optimization-runs" happens to
+     * sort before "trip-owned-aggregates". Measured: with V036 removed, renaming that eraser so it runs
+     * last makes this test fail; with V036 in place the rename changes nothing. These rows are what
+     * keeps the erasure's own coverage of them honest.
+     */
     private static final String[] TRANSITIVE_TABLES = {
         "trips", "trip_interests", "trip_revisions", "trip_items", "trip_constraints",
-        "trip_candidates", "candidate_sources"};
+        "trip_candidates", "candidate_sources", "optimization_runs", "optimization_decisions"};
 
     @Test
     @DisplayName("BA-012-T2 soft delete already removes the whole trip aggregate, not just the owner row")
@@ -136,7 +144,35 @@ class OwnerDataErasureIT {
                         .header("Origin", "http://localhost:5173")
                         .header("X-CSRF-Token", owner.csrf.token))
                 .andExpect(status().isCreated());
+        applyAnOptimization(owner, UUID.fromString(tripId), now);
         return counts(owner);
+    }
+
+    /**
+     * An applied run, written the way the service writes one: the decision names the revisions the
+     * apply moved the trip between. Seeded rather than driven through the pipeline because what this
+     * test needs is the row shape, not another proof that the pipeline produces it (OptimizeRevertIT).
+     */
+    private void applyAnOptimization(SessionService.Bootstrap owner, UUID tripId, OffsetDateTime now) {
+        UUID revisionId = jdbc.queryForObject(
+                "SELECT id FROM trip_revisions WHERE trip_id = ? ORDER BY version LIMIT 1", UUID.class, tripId);
+        UUID itemId = jdbc.queryForObject(
+                "SELECT id FROM trip_items WHERE trip_id = ? LIMIT 1", UUID.class, tripId);
+        UUID runId = UUID.randomUUID();
+        UUID proposalId = UUID.randomUUID();
+        jdbc.update("INSERT INTO optimization_runs (id, trip_id, requested_by_owner_id, scope,"
+                        + " target_item_id, include_candidates, status, input_trip_version, input_revision_id,"
+                        + " queued_at, started_at, completed_at) VALUES (?, ?, ?, 'ITEM', ?, false, 'APPLIED',"
+                        + " 1, ?, ?, ?, ?)",
+                runId, tripId, owner.owner.id(), itemId, revisionId, now, now, now);
+        jdbc.update("INSERT INTO optimization_proposals (id, run_id, rank, summary, comparison_eligible,"
+                        + " validation_summary, created_at) VALUES (?, ?, 1, '테스트 제안', true, '{}'::jsonb, ?)",
+                proposalId, runId, now);
+        jdbc.update("INSERT INTO optimization_decisions (id, run_id, proposal_id, owner_id, decision,"
+                        + " expected_trip_version, resulting_trip_version, before_revision_id,"
+                        + " after_revision_id, revert_until, decided_at) VALUES (?, ?, ?, ?, 'APPLY', 1, 2,"
+                        + " ?, ?, ?, ?)",
+                UUID.randomUUID(), runId, proposalId, owner.owner.id(), revisionId, revisionId, now, now);
     }
 
     private Map<String, Integer> counts(SessionService.Bootstrap owner) {
@@ -147,12 +183,17 @@ class OwnerDataErasureIT {
             if ("trips".equals(table)) {
                 continue;
             }
-            String sql = "candidate_sources".equals(table)
-                    ? "SELECT count(*) FROM candidate_sources source JOIN trip_candidates candidate"
-                            + " ON candidate.id = source.candidate_id JOIN trips trip"
-                            + " ON trip.id = candidate.trip_id WHERE trip.owner_id = ?"
-                    : "SELECT count(*) FROM " + table + " child JOIN trips trip"
-                            + " ON trip.id = child.trip_id WHERE trip.owner_id = ?";
+            String sql = switch (table) {
+                case "candidate_sources" -> "SELECT count(*) FROM candidate_sources source"
+                        + " JOIN trip_candidates candidate ON candidate.id = source.candidate_id"
+                        + " JOIN trips trip ON trip.id = candidate.trip_id WHERE trip.owner_id = ?";
+                // Its owner reaches it through the run, which is the only row that names the trip.
+                case "optimization_decisions" -> "SELECT count(*) FROM optimization_decisions decision"
+                        + " JOIN optimization_runs run ON run.id = decision.run_id"
+                        + " JOIN trips trip ON trip.id = run.trip_id WHERE trip.owner_id = ?";
+                default -> "SELECT count(*) FROM " + table + " child JOIN trips trip"
+                        + " ON trip.id = child.trip_id WHERE trip.owner_id = ?";
+            };
             counts.put(table, jdbc.queryForObject(sql, Integer.class, owner.owner.id()));
         }
         return counts;

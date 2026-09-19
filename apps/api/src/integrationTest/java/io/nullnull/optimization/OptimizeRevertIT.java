@@ -1,6 +1,7 @@
 package io.nullnull.optimization;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -561,6 +562,83 @@ class OptimizeRevertIT {
         mvc.perform(get("/api/v1/optimizations").cookie(cookie(mine.owner())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[?(@.runId == '" + myRun + "')]").doesNotExist());
+    }
+
+    /**
+     * The staging release's own optimize-item flow ended on this - rc.6 reported
+     * {@code FAIL optimization.trip-deleted status=500}: every decision passed and the cleanup DELETE
+     * answered 500. trips cascades into trip_revisions, and an APPLY's decision points
+     * at two of them; the NO ACTION check for those revisions ran before the cascade that removes the
+     * decision, so the delete failed on a foreign key (V036 has the measured message). BA-053-T3's
+     * cascade case could not see it: its run was never decided, and a KEEP stores no revision ids.
+     *
+     * <p>The same statement is how an owner's erasure removes their trips, so this failed that job too.
+     */
+    @Test
+    @DisplayName("BA-053-T12 a trip whose run was applied and reverted is deleted, not answered 500")
+    void aTripWithDecisionsIsDeleted() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        UUID applied = decisionIdOf(decide(fixture, runId, proposalId, "APPLY", "\"1\"")
+                .andExpect(status().isOk()));
+        clock.advance(Duration.ofSeconds(1));
+        revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID()).andExpect(status().isOk());
+        assertThat(decisionKinds(runId)).as("the trip really carries both decisions")
+                .containsExactly("APPLY", "REVERT");
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/trips/" + fixture.tripId())
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", ORIGIN)
+                        .header("X-CSRF-Token", fixture.owner().csrf.token)
+                        .header("If-Match", "\"3\"")
+                        .header("Idempotency-Key", "delete-" + UUID.randomUUID()))
+                .andExpect(status().isNoContent());
+
+        // The history goes with the trip, as ERD section 6 says and BA-053-T3 asserts for a run with
+        // no decisions: nothing of this one is left behind to point at an itinerary nobody can read.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM optimization_runs WHERE id = ?", Integer.class,
+                runId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM optimization_decisions WHERE run_id = ?",
+                Integer.class, runId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_revisions WHERE trip_id = ?", Integer.class,
+                fixture.tripId())).isZero();
+    }
+
+    /**
+     * Why V036 defers these foreign keys instead of cascading them. Nothing in the schema says a run's
+     * revisions belong to that run's trip, so a cascade would turn one misaligned row into "deleting
+     * trip B erases trip A's history". Deferring keeps the refusal: at COMMIT the referencing row is
+     * still there, because it belongs to a trip nobody deleted.
+     */
+    @Test
+    @DisplayName("BA-053-T13 deleting a trip is refused while another trip's run points at its revision")
+    void aMisalignedRevisionReferenceStillRefusesTheDelete() throws Exception {
+        Fixture mine = fixture();
+        Fixture other = fixture();
+        UUID foreignRevision = jdbc.queryForObject(
+                "SELECT id FROM trip_revisions WHERE trip_id = ? ORDER BY version LIMIT 1", UUID.class,
+                other.tripId());
+        UUID runId = UUID.randomUUID();
+        // Written by hand on purpose: the service always uses its own trip's revision, and the point is
+        // what the database does when something does not.
+        jdbc.update("""
+                INSERT INTO optimization_runs (id, trip_id, requested_by_owner_id, scope, target_item_id,
+                     include_candidates, status, input_trip_version, input_revision_id, queued_at, started_at,
+                     completed_at)
+                VALUES (?, ?, ?, 'ITEM', ?, false, 'APPLIED', 1, ?, ?, ?, ?)
+                """, runId, mine.tripId(), mine.owner().owner.id(), mine.itemId(), foreignRevision,
+                java.sql.Timestamp.from(clock.instant()), java.sql.Timestamp.from(clock.instant()),
+                java.sql.Timestamp.from(clock.instant()));
+
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM trips WHERE id = ?", other.tripId()))
+                .as("the delete is refused rather than taking another trip's run with it")
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM optimization_runs WHERE id = ?", Integer.class,
+                runId)).as("and the run it pointed at is still there").isOne();
+
+        jdbc.update("DELETE FROM optimization_runs WHERE id = ?", runId);
     }
 
     @Test

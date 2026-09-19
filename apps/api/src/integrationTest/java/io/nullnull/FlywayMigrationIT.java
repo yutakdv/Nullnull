@@ -133,9 +133,12 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V035 is the last one today and seeds nothing: it replaces the run failure_code CHECK with
-            // a wider one and creates no row and no table, so every run row populateEveryTable wrote
-            // under V034 still satisfies it. V034 seeded nothing either - it added two nullable columns
+            // V036 is the last one today and seeds nothing: it swaps three foreign keys on
+            // optimization_decisions and optimization_runs to ON DELETE CASCADE, which creates no row
+            // and no table (so PREVIOUS_SCHEMA_TABLES above is still complete through V030) and holds
+            // for the decision rows populateEveryTable wrote under V035. V035 seeded nothing either: it
+            // replaced the run failure_code CHECK with a wider one, which every run row already
+            // satisfies. V034 seeded nothing either - it added two nullable columns
             // and a CHECK to optimization_proposals, which the proposal rows satisfy with both columns
             // null - and neither did V033, V032, V031, V030, V029,
             // V028, V027, V026. V025's two rows - the NULLNULL_CURATED_HOURS
