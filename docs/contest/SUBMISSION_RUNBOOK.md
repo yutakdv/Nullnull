@@ -13,7 +13,7 @@ tags:
 
 - 상태: Accepted operational checklist
 - 공식 마감: 2026-09-21 16:00(KST)
-- 배포·제출 전 차단 검사: `python3 scripts/check_actual_call_evidence.py <report> --require-verified`. `CMP-KTO-003`이 EXCLUSION이므로 **actual-call 증거가 없으면 release를 진행하지 않는다.** local 실행 증거는 통과하지 않는다(BA-021-T3은 staging을 요구한다).
+- 배포·제출 전 차단 검사: `python3 scripts/check_actual_call_evidence.py <report> --require-verified`. `CMP-KTO-003`이 EXCLUSION이므로 **actual-call 증거가 없으면 release를 진행하지 않는다.** local 실행 증거는 통과하지 않는다(BA-021-T3은 staging을 요구한다). 제출일의 명령·성공 줄·멈춤 조건은 [제출 release 대조 검사](#제출-release-대조-검사)에 있다.
 - 제출 방식: 외부 HTTPS 웹 URL, `로그인 불필요`, 공식 기능설명서 PDF
 
 이 문서는 제출을 실제로 수행할 때 순서대로 체크하는 운영 절차다. 공식 제출 화면과 최신 매뉴얼이 바뀌면 공식 자료를 우선하고 [준수 매트릭스](./COMPETITION_COMPLIANCE_MATRIX.md)를 즉시 갱신한다. 체크하지 않은 항목을 완료로 간주하지 않는다.
@@ -133,7 +133,8 @@ catalog 게이트가 열린 뒤여야 실데이터가 나오므로 1·2·3·5번
 ### 데이터 활용
 
 - [ ] 한국관광공사 API 목록은 call-audit에서 실제 성공한 operation set과 정확히 일치한다.
-  그 set은 staging API와 같은 환경(`SPRING_PROFILES_ACTIVE`·`NULLNULL_ENV=staging`·`SPRING_FLYWAY_ENABLED=false`·datasource, 자격 증명은 URL이 아니라 `SPRING_DATASOURCE_USERNAME`/`PASSWORD`)에서 `NULLNULL_INVENTORY_RELEASE=<releaseVersion> ./gradlew ktoCallInventory`(`apps/api`, call-audit만 읽는다 — job worker를 끄고 배포 환경에서는 migrate하지 않으며, 기동할 때 앱이 늘 하는 삭제 tombstone 재적용만 멱등으로 쓴다. app role은 migration 이력을 읽지 못하므로 Flyway를 끄고 돌며 `schema=unchecked`가 찍힌다)로 뽑고, `counts_as_evidence=true`인 출력의 `kto_` 줄만 `ktoOperationsActuallyUsed`에 옮긴다.
+  그 set은 staging API와 같은 환경(`SPRING_PROFILES_ACTIVE`·`NULLNULL_ENV=staging`·`SPRING_FLYWAY_ENABLED=false`·datasource, 자격 증명은 URL이 아니라 `SPRING_DATASOURCE_USERNAME`/`PASSWORD`)에서 `NULLNULL_INVENTORY_RELEASE=<releaseVersion> ./gradlew ktoCallInventory`(`apps/api`, call-audit만 읽는다 — job worker를 끄고 배포 환경에서는 migrate하지 않으며, 기동할 때 앱이 늘 하는 삭제 tombstone 재적용만 멱등으로 쓴다. app role은 migration 이력을 읽지 못하므로 Flyway를 끄고 돌며 `schema=unchecked`가 찍힌다)로 뽑고, `counts_as_evidence=true`인 출력의 `kto_` 줄만 `ktoOperationsActuallyUsed`에 옮긴다. **지금 이 명령을 staging DB에 돌릴 경로가 없다**([제출 release 대조 검사](#제출-release-대조-검사)의 ②).
+- [ ] 기능 목록과 KTO API 목록을 동결할 때 같은 목록으로 submission ledger를 만든다([ledger 만들기](#ledger-만들기)).
 - [ ] API마다 서비스의 어느 기능/화면/field에 사용되는지 적는다.
 - [ ] service key, encoded/decoded 인증정보, 전체 호출 URL을 PDF에 넣지 않는다.
 - [ ] 기타 데이터도 실제 사용한 것만 적고 source·용도·기준시각·출처를 구분한다.
@@ -186,6 +187,115 @@ catalog 게이트가 열린 뒤여야 실데이터가 나오므로 1·2·3·5번
 
 ## 6. 단계 4: 제출 후보 대조와 접수
 
+### 제출 release 대조 검사
+
+제출 release를 고정하고(단계 3의 배포) edge를 연 뒤, 제출 입력 전에 아래 두 검사를 **같은 release**에 돌린다. **이 절의 시작부터 [접수 완료](#접수-완료-조건)까지 배포하지 않는다.** readiness 답에는 release 필드가 없고 API도 자기 release를 응답에 싣지 않는다. 그래서 그 사이 배포가 바뀌면 옛 release의 증거끼리는 서로 맞는데 심사 URL은 새 release를 가리키게 된다. ③을 세 번 돌려 그것을 잡는다: 두 검사 뒤, 제출 화면 입력 직전, 접수 완료 직후. 둘 다 exit 0과 성공 줄이 나와야 다음으로 간다. 아니면 그 release로 제출하지 않는다 — 원인을 해소하고 다시 돌리거나 NO-GO다. 두 성공 줄은 증거 원장에 release와 함께 남긴다. 이 둘이 [BA-073](../roles/BACKEND_AI_PLAYBOOK.md#ba-073)의 `T2`·`T3`을 닫는 증거다.
+
+공통 변수(operator profile로, 값은 기록에 남기지 않는다):
+
+```bash
+export AWS_REGION=ap-northeast-2
+BUCKET=$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+  --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue" --output text)
+RELEASE=$(aws s3 cp "s3://$BUCKET/deployed/current.json" - \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["releaseVersion"])')
+DIR=".artifacts/submission/$RELEASE"; mkdir -p "$DIR"   # .artifacts/는 gitignore다
+```
+
+#### ① 실제 KTO 호출 증거 (`BA-073-T2`, CMP-KTO-003)
+
+- 입력: `kto-smoke` ops task가 쓴 `.artifacts/aws/evidence/actual-call-$RELEASE.json`. 같은 파일이 release bucket의 `evidence/`에도 올라간다. 다른 기기에서는 `aws s3 cp "s3://$BUCKET/evidence/actual-call-$RELEASE.json" .artifacts/aws/evidence/`로 받는다.
+- 파일이 없으면 제출 release에서 `kto-smoke`를 **한 번** 돌린다([staging runbook](../operations/STAGING_DEPLOYMENT_RUNBOOK.md)의 ops task 명령). 거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없으므로, 마지막 호출이 통과한 장소로 한 번만 돈다.
+
+```bash
+python3 scripts/check_actual_call_evidence.py ".artifacts/aws/evidence/actual-call-$RELEASE.json" \
+  --release "$RELEASE" --require-verified
+```
+
+- 성공 줄: `actual_call=verified release=<RELEASE> environment=staging operation=KorService2/detailCommon2`
+- 멈춤: exit 1과 `actual_call=error …`. 보고서 없음(`--require-verified`라 `blocked`가 아니라 실패다), 다른 release의 보고서, local·test 환경, mock·replay·fixture·file source, 호출 0건, 거절된 호출이 여기에 든다.
+
+#### ② 기능설명서 목록과 release의 대조 (`BA-073-T3`, CMP-SUB-008·CMP-KTO-006)
+
+입력은 셋이다. **지금 둘이 없다.**
+
+- **ledger — 지금 없다.** 아래 "ledger 만들기"를 따른다.
+- **readiness**: 제출 release에서 받은 `GET /api/v1/demo/readiness` body다. 답에 release 필드가 없어 검사기가 release에 묶지 못하므로 release를 고정한 **뒤** 그 배포에서 받는다. 두 호출은 `scripts/aws/staging-flows.mjs`의 session·readiness 호출을 curl로 옮긴 것이다. 이 형태로 staging에서 돌려 보지는 않았다. 익명 demo session이 하나 생긴다.
+
+```bash
+URL=<publicUrl>; JAR=$(mktemp)
+curl -sS --fail-with-body -c "$JAR" -H "Origin: $URL" -H 'Content-Type: application/json' \
+    -X POST "$URL/api/v1/demo/sessions" -d '{}' -o /dev/null \
+  && curl -sS --fail-with-body -b "$JAR" -H 'Accept: application/json' \
+    "$URL/api/v1/demo/readiness" -o "$DIR/readiness.json"; FETCHED=$?; rm -f "$JAR"
+[ "$FETCHED" -eq 0 ] \
+  && python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); sys.exit(0 if d.get("overall") and d.get("checkedAt") and d.get("capabilities") else "readiness=failed body is not a DemoReadiness")' "$DIR/readiness.json" \
+  && echo readiness=captured || { echo readiness=failed >&2; rm -f "$DIR/readiness.json"; false; }
+```
+
+- 성공 줄: `readiness=captured`. `--fail-with-body`는 4xx·5xx에서 curl을 실패로 끝낸다(로컬 서버의 401로 exit 22를 쟀다). 그 뒤 body가 `overall`·`checkedAt`·비어 있지 않은 `capabilities`를 가졌는지 본다. 검사기는 capability를 묶은 기능에 대해서만 readiness를 읽으므로, 오류 body가 readiness 자리에 들어가면 `capability: null`뿐인 ledger는 그대로 통과한다. 이 두 단계가 그 구멍을 막는다.
+
+- **KTO call inventory — 지금 쓸 수 있는 운영 경로가 없다.** `ktoCallInventory`(단계 2 "데이터 활용")는 staging DB를 읽어야 하는데, RDS는 `PubliclyAccessible=false`라 밖에서 `./gradlew`로 닿지 않는다. ECS Exec나 SSM 터널도 없다(찾은 범위: `docs/operations`·`scripts/aws`·`infra`). operator의 ops task(`staging_operator.py`의 `OPS_TASKS`)에도 이 명령이 없다. operator role로 `nullnull-stg-ops` task definition을 raw `aws ecs run-task`하면서 `LOADER_MAIN`만 바꾸면 기술적으로는 돈다. main class allowlist가 container가 아니라 `staging_operator.py`에만 있기 때문이다. **그러나 그 길은 배포 잠금, 배포된 release와의 결속, task log 수집을 모두 건너뛰므로 제출 증거를 만드는 데 쓰지 않는다.** operator에 `KtoCallInventoryMain`을 돌리는 ops task가 생기기 전까지 ②는 돌 수 없고, `BA-073-T3`은 제출일에도 닫히지 않는다. **`OPS_TASKS`에 한 줄을 더하는 것으로는 부족하다.** 필요한 것은 넷이다: (가) `OPS_TASKS` 항목과 `NULLNULL_INVENTORY_RELEASE` 입력. (나) release 결속. 지금 `release_binding`은 `kto-smoke`와 plan이 있는 curation에만 걸린다. (다) task log에서 `kto_inventory`·`kto_operation`·`counts_as_evidence` 줄을 회수하는 패턴. 지금 `OPS_LOG_LINE`은 대문자 `KTO_`로 시작하는 줄과 curation 줄만 받는다. (라) 회수한 줄을 `$DIR/kto-inventory.txt`에 그대로 쓰는 경로와 그 test.
+
+```bash
+python3 scripts/check_submission_inventory.py --ledger "$DIR/ledger.json" \
+  --readiness "$DIR/readiness.json" --inventory "$DIR/kto-inventory.txt"
+```
+
+- 성공 줄: `submission_inventory=verified release=<RELEASE>`
+- 멈춤: exit 1과 `submission_inventory=error …` 한 줄 이상. 다음 경우에 멈춘다.
+  - P1 기능을 적었다.
+  - capability가 READY가 아닌 기능을 적었다. 예를 들어 `optimization`에 묶은 기능은 그 release의 readiness에서 `optimization`이 READY여야 한다.
+  - PDF의 API 목록과 inventory가 어느 방향으로든 다르다.
+  - `usedBy`가 목록에 없는 기능을 가리킨다.
+  - ledger와 inventory의 release가 다르다.
+  - inventory에 `counts_as_evidence=true`가 없다.
+- **검사기가 보지 않는 것: `pdfLabel`.** 비어 있어도 통과한다(측정했다). ledger의 문구가 PDF의 실제 문구와 같은지는 independent checker가 PDF를 옆에 두고 읽어서 대조한다.
+- **검사기가 믿는 것: 기능마다 적은 `capability`.** `capability`가 `null`인 기능은 readiness를 보지 않는다(`judge()`가 null이 아닐 때만 대조한다). 그래서 capability가 필요한 기능을 `null`로 적으면 그 capability가 꺼져 있어도 통과한다. 기능→capability의 정본 표는 아직 없다. 알려진 것은 [기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md)의 P0 `FR-OPT-*`가 모두 최적화 흐름이라 `optimization`에 묶인다는 것이다(flag가 꺼져 있으면 `createOptimization`이 거절한다). `null`로 둔 기능마다 independent checker가 judge smoke에서 그 기능이 capability 없이 동작하는 것을 확인한다.
+
+#### ③ 같은 release였는지 확인
+
+```bash
+NOW=$(aws s3 cp "s3://$BUCKET/deployed/current.json" - \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["releaseVersion"])')
+LOCK=$(aws dynamodb get-item --table-name nullnull-stg-deployment-lock \
+    --key '{"LockId": {"S": "staging"}}' --consistent-read --output json \
+  | python3 -c 'import json, sys; t = sys.stdin.read().strip(); print("held" if (json.loads(t) if t else {}).get("Item") else "")')
+[ -z "$LOCK" ] && [ "$NOW" = "$RELEASE" ] && echo "submission_release=unchanged release=$RELEASE" \
+  || { echo "submission_release=changed-or-deploying expected=$RELEASE current=$NOW lock=${LOCK:-free}" >&2; false; }
+```
+
+- 성공 줄: `submission_release=unchanged release=<RELEASE>`
+- 잠금을 같이 보는 이유: 배포는 WebEdge·Services를 바꾼 **뒤에** `current.json`을 쓴다. 그래서 진행 중인 배포는 `current.json`만 봐서는 보이지 않는다. 배포 전체(그리고 `edge`)는 배포 잠금 안에서 돌므로, 잠금이 비어 있고 `current.json`이 같으면 그 순간 진행 중인 배포도 없다. **그 뒤의 배포까지 막는 장치는 없다.** 접수 완료까지 배포하지 않는 것은 사람이 지키는 규칙이다. 잠금 응답의 해석은 빈 응답·`{}`·`Item`이 있는 응답으로 로컬에서 쟀고, AWS 호출은 여기서 돌려 보지 않았다.
+- 멈춤: `changed-or-deploying`(exit 1)이면 `$DIR`의 산출물과 ①·②의 성공 줄을 버리고 새 release로 처음부터 다시 한다. 제출 입력 직전과 접수 완료 직후에도 같은 명령을 다시 돌린다. 접수 뒤에 `changed`가 나오면 제출된 URL이 검사한 release가 아니므로 [긴급 변경](#8-freeze-이후-긴급-변경)으로 다룬다.
+- 실패 분기는 `exit`가 아니라 `false`로 끝나므로, 대화형 셸을 닫지 않고 명령 자체가 exit 1이 된다(readiness와 ③ 모두).
+
+#### ledger 만들기
+
+- 무엇: 기능설명서의 기능 목록과 KTO API 목록을 data로 쓴 JSON이다. 형식은 `scripts/check_submission_inventory.py`의 docstring에 있고, 아직 **draft**다(오너·FE 합의 전).
+- 누가·언제: 단계 2에서 기능설명서의 "핵심 기능"·"데이터 활용" 목록을 동결하는 submission lead가 PDF를 동결할 때 **같이** 만든다. release가 바뀌면 `releaseVersion`과 KTO 목록을 다시 뽑는다. ledger가 없으면 ②는 제출일에도 돌지 못한다.
+- 초안: release와 KTO operation은 inventory 출력에서 뽑는다. 손으로 옮겨 적지 않는다.
+
+```bash
+python3 -c '
+import json, re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+release = re.search(r"^kto_inventory target=\S+ environment=\S+ release=(\S+)$", text, re.M).group(1)
+operations = [{"source": s, "endpoint": e, "pdfLabel": "", "usedBy": []}
+              for s, e in re.findall(r"^kto_operation source=(\S+) endpoint=(\S+) ", text, re.M)]
+print(json.dumps({"submissionInventory": {"releaseVersion": release, "features": [], "ktoOperations": operations}},
+                 ensure_ascii=False, indent=2))
+' "$DIR/kto-inventory.txt" > "$DIR/ledger.json"
+```
+
+- 뽑아 온 칸: `releaseVersion`, `ktoOperations[].source`·`endpoint`.
+- 오너가 채울 칸:
+  - `features[]`: PDF가 적는 기능마다 한 항목이다. `featureIds`는 [기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md)의 **P0** ID다. `pdfLabel`은 PDF의 문구를 그대로 쓴다. `capability`는 그 기능이 `live`·`replay`·`optimization` capability 없이 동작하지 않으면 그 이름, 아니면 `null`이다. `FR-OPT-*`는 `optimization`이다. `null`은 검사기가 믿는 값이므로 위 규칙대로 사람이 확인한다.
+  - `ktoOperations[].pdfLabel`: PDF의 문구를 그대로 쓴다.
+  - `ktoOperations[].usedBy`: 그 API를 쓰는 기능 ID다. `features`에 있는 것만 쓸 수 있다.
+- 채우지 않은 초안은 `ledger lists no features`와 `names no feature that uses it`로 실패한다(측정했다). 빈 칸이 조용히 통과하지 않는다.
+- 값표의 `ktoOperationsActuallyUsed`는 이 ledger의 `ktoOperations`와 같은 목록이다.
+
 ### 제출 입력 전
 
 - [ ] 공식 공지, 제출 매뉴얼, 기능설명서 양식 URL을 다시 확인한다.
@@ -194,7 +304,7 @@ catalog 게이트가 열린 뒤여야 실데이터가 나오므로 1·2·3·5번
 - [ ] 팀원 전원과 최종 팀/서비스/지정과제 정보를 확인한다.
 - [ ] 제출 화면의 exact 부문/유형/지정과제 label과 서비스 개요를 비공개 값표에 확정한다.
 - [ ] public URL·release와 PDF checksum이 code-freeze 기록과 같다.
-- [ ] KTO operation set과 최근 실제 호출을 다시 확인한다.
+- [ ] KTO operation set과 최근 실제 호출을 다시 확인한다([제출 release 대조 검사](#제출-release-대조-검사)의 ①·② 성공 줄).
 
 ### 제출 화면 입력
 
@@ -211,6 +321,7 @@ catalog 게이트가 열린 뒤여야 실데이터가 나오므로 1·2·3·5번
 ### 접수 완료 조건
 
 - [ ] 제출 완료/접수 상태가 화면에 보인다.
+- [ ] 접수 직후 [③](#③-같은-release였는지-확인)이 `submission_release=unchanged`다.
 - [ ] submission lead와 independent checker가 완료 시각을 서명했다.
 - [ ] PDF·URL·KTO API 목록·팀/서비스 개요/부문/유형/과제·운영계정 상태가 최종 ledger와 일치한다.
 - [ ] evidence backup이 두 담당자가 접근 가능한 보호된 위치에 있다.
