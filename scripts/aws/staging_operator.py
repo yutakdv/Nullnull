@@ -465,7 +465,20 @@ def guard_stateful(stack, assembly):
             candidate = resources.get(logical_id)
             require(candidate is not None, 'stateful-resource-removal-forbidden')
             for key in ['Type', 'Properties', 'DeletionPolicy', 'UpdateReplacePolicy']:
-                require(resource.get(key) == candidate.get(key), 'stateful-change-requires-separate-review')
+                require(without_cdk_ownership_tags(resource.get(key)) == without_cdk_ownership_tags(candidate.get(key)),
+                        'stateful-change-requires-separate-review')
+
+# The one change to a stateful resource that is not a change to what it holds: each CDK BucketDeployment marks the
+# bucket it writes into with an `aws-cdk:cr-owned:<prefix>:<hash>` tag, so adding one (the curated covers, #300) adds a
+# tag to the web bucket. Run 35461072422 stopped there. Only that key family is ignored, and only under Tags; every
+# other tag and property still stops the deploy.
+CDK_OWNERSHIP_TAG = 'aws-cdk:cr-owned:'
+
+def without_cdk_ownership_tags(properties):
+    if not isinstance(properties, dict) or not isinstance(properties.get('Tags'), list):
+        return properties
+    tags = [t for t in properties['Tags'] if not (isinstance(t, dict) and str(t.get('Key', '')).startswith(CDK_OWNERSHIP_TAG))]
+    return {**properties, 'Tags': tags}
 
 def verify_images(manifest):
     tag = image_tag(manifest)
