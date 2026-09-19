@@ -227,7 +227,7 @@ rollback도 manifest validator, 승인 hash와 smoke를 통과해야 한다. DB/
 
 ## 9. Alarm, 비용과 종료
 
-primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator는 ignored `.env.aws-staging.local`의 `NULLNULL_ALARM_PRIMARY_EMAIL`을 사용하고, CI는 GitHub `staging` environment의 보호된 변수/secret을 사용한다. secondary가 없으면 인프라 bootstrap은 가능하지만 `release-ready`와 BA-072-T3는 실패다.
+primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator는 ignored `.env.aws-staging.local`의 `NULLNULL_ALARM_PRIMARY_EMAIL`을 사용하고, CI는 GitHub `staging` environment의 보호된 변수/secret을 사용한다. secondary 수신자는 두지 않는다(A-043). 수신자가 한 명이라 부재 대응은 아래 tabletop의 시나리오 1이 전부다.
 
 | Signal | 기준/행동 |
 | --- | --- |
@@ -307,6 +307,35 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 | **합계** | **168~178** |
 
 운영 계획값은 `$180`, 비상 여유는 `$20`이다. 세금과 비정상적인 대규모 egress는 별도 위험이다.
+
+### BA-072-T3 tabletop (A-049)
+
+**증거 등급은 tabletop이다 — 사고를 일으키지 않고 판단을 따라가 본 기록이지 재현이 아니다.** 각 시나리오의 *오너 판단* 줄을 오너가 확인하거나 고쳐 쓰면 그것이 증거다. 전제: alarm 메일은 topic policy 수정(#306) 배포와 BA-072-T7 drill 재실행으로 도달이 확인된 뒤에만 신호로 센다 — 그 전에는 어떤 alarm도 사람에게 닿지 않았다.
+
+**시나리오 1 — 수신자 부재.** 심사 기간에 alarm이 울렸는데 수신자(A-043, 한 명)가 하루 동안 메일을 못 본다.
+
+- 그동안의 상태: 어느 신호도 스스로 서비스를 바꾸지 않는다. 예보 재적재가 멈추면 예보 set은 `PT24H` 뒤 stale이 되고 화면은 그것을 live가 아니라 stale로 표시한다(불변식 — 결측을 보통으로 채우지 않는다). 삭제 job은 lease·attempt로 재시도하고 끝내 실패하면 `FAILED`와 `ops.alarm name=DELETION_FAILED`를 남긴다 — 삭제 요청은 사라지지 않는다. ECS는 circuit breaker와 health check로 task를 다시 띄운다.
+- 사용자에게 잘못 나가는 것: 없다고 판단한다. 늦어지는 것은 예보의 신선도와 삭제 완료 시각이고, 둘 다 화면·receipt가 사실대로 말한다.
+- 돌아와서 보는 순서: alarm 메일 제목 → `DemoRefreshFailed`·`ForecastRefreshMissing`이면 `kto-demo-detail` → `kto-demo-forecast` 수동 실행, `OpsAlarm*`이면 API 로그에서 `ops.alarm` 줄의 jobId, `ApiUnhealthy`이면 아래 시나리오 3.
+- 오너 판단: 심사 기간 메일 확인 주기 ____ (제안: 하루 두 번). 대리 수신자 없음을 받아들인다 □
+
+**시나리오 2 — 예산·쿼터.** ① AWS 비용이 계획을 넘는다. ② KTO 호출이 하루 한도에 가까워진다.
+
+- ① 신호: 없다. 조직 SCP가 `budgets:*`·Cost Explorer를 거부해 자동 경보를 만들 수 없다. 계획은 42일 `$180`(비상 여유 `$20`, 위 표)이다. 오너가 조직 청구 화면에서 본다. 넘으면 끄는 순서: 공개 edge를 닫고(`edge --state closed`) 부가 비용부터 줄인다. RDS·데이터는 운영 종료일(`EXPIRY`, 2026-10-25 KST 종료) 전에는 지우지 않는다.
+- ② 신호: task마다 `KTO_DEMO_REFRESH_QUOTA … planned_calls=… per_day=1000 planned_ratio=…` 줄과 실패 시 `DemoRefreshFailed`. schedule은 예보 12시간·detail 5일 간격에 장소 목록이 고정돼(A-044) 하루 호출이 한 자릿수다. 한도에 가까워질 경로는 사람이 돌리는 `kto-smoke`·수동 재적재뿐이다. 멈출 기준(조율자 제안, 오너 판단 대상)은 `planned_ratio`가 0.5를 넘는 것, 방법은 schedule을 끄는 것(operator에 scheduler 권한이 없어 관리자 권한으로 한다).
+- 오너 판단: 청구 화면 확인 주기 ____ (제안: 주 1회와 edge를 연 날). 초과 시 edge를 먼저 닫는다 □
+
+**시나리오 3 — 배포 실패와 rollback 판단.** 이 날 배포 실패 셋이 실제 사례다.
+
+| run | 멈춘 곳 | 서빙 중이던 release | 판단 |
+| --- | --- | --- | --- |
+| `35426407975` | API health check grace 120초 부족, ECS circuit breaker가 되돌림 | 이전 release 그대로(자동 복귀) | 수정 배포(grace 300초, #285) |
+| `35457509371` | Migration stack: schedule 입력 camelCase 거절, stack rollback | 이전 release 그대로 | 수정 배포(PascalCase, #302) |
+| `35461072422` | WebEdge 앞 stateful 가드: CDK 소유 태그 | Migration만 새 release, WebEdge·Services는 이전 | 수정 배포(가드 예외, #304) |
+
+- 기준: **서빙 중인 release가 사용자에게 깨졌으면 rollback, 배포만 멈추고 서빙 중인 release가 온전하면 원인을 고쳐 다시 배포한다.** 셋 다 뒤쪽이었다 — CloudFormation·ECS가 스스로 되돌렸거나 app stack에 닿기 전에 멈췄다. 매번 잠금이 남았고(`manual_recovery_required=true`) stack 종료를 확인한 뒤 `unlock`했다.
+- rollback이 맞는 경우: 배포 뒤 smoke·flows가 실패하거나, 배포 뒤 `ApiUnhealthy`·5xx 증가가 나고 원인이 새 release에 있을 때. 방법은 §8이고 DB는 되돌리지 않는다 — 옛 binary가 새 schema를 받아들이는지(`--accept-newer-schema`)가 판단의 핵심이다.
+- 오너 판단: 위 기준에 동의한다 □ / 다르게 판단할 경우 ____
 
 ## 10. Backup/restore와 삭제 재적용
 
