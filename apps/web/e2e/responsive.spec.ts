@@ -18,9 +18,11 @@ import { SCREENS } from './screens.js';
 // ("keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion"),
 // and this spec proves three of them for every screen in SCREENS: 360px here,
 // 200% zoom below, and the accessible name of whatever takes focus. The other
-// three are FE-104-T4 / FE-203-T4 and have no test yet — reduced motion runs
-// once against /language rather than per screen (see the block below), and
-// nothing here asserts focus returning to a trigger.
+// three are FE-104-T4 / FE-203-T4, and two of them are now proven elsewhere:
+// reduced motion by the per-screen block at the bottom of this file, which
+// walks the same SCREENS list so each card's own screen is measured, and focus
+// return by e2e/focus-restore.spec.ts. Neither is asserted in the three
+// describes below, which is why the T4 ids are not on them.
 //
 // The ids are split rather than attached whole because the aggregator only
 // checks that an id APPEARS in a testcase name: one id covering six clauses is
@@ -102,7 +104,10 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // They are NOT for reduced motion, which is why `honours prefers-reduced-motion`
 // now lives in its own describe below rather than in this one: it visits
 // /language alone and says nothing about the paste screen or the trip picker.
-// The reduced-motion clause is FE-104-T4 / FE-203-T4, still unproven.
+// The reduced-motion clause is FE-104-T4 / FE-203-T4, and it is proven by the
+// `reduced motion, per screen` describe at the bottom of this file — that one
+// carries the T4 ids because it walks SCREENS, so the paste screen and the
+// saved-places screen are each measured rather than stood in for.
 test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
     test(`BA-070-T5 ${screen.name} puts focus on something visible`, async ({ page }) => {
