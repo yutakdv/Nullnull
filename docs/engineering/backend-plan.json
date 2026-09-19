@@ -420,18 +420,18 @@
         },
         {
           "id": "BA-006-T2",
-          "assertion": "frontend bundle·image layer·log에 secret이 없다"
+          "assertion": "frontend bundle·image layer·log에 operator가 읽을 수 있는 secret(KTO key·verifier token)이 없다"
         },
         {
           "id": "BA-006-T3",
-          "assertion": "OIDC의 잘못된 repo/environment subject가 거부된다"
+          "assertion": "다른 environment의 OIDC subject가 실제 AssumeRole에서 거부된다"
         }
       ],
       "handoff": "로컬 URL·seed·staging environment 준비 상태와 안전한 public config 목록.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006",
-      "reason": "main d988123의 Staging release가 성공했고 배포 뒤 smoke가 public API edge closed, internal ALB, private S3, private Multi-AZ RDS와 live GitHub role trust의 exact subject 집합을 관측했다. T1은 full Docker와 outbound-deny report로 증명됐다. T2는 browser build에 credential을 건네지 않는 입력 경계까지만 증명됐고 실제 secret 값으로 log를 검사한 report가 없다. T3는 구조 test와 live trust의 exact 집합 관측만 있으며 잘못된 repo/environment subject의 실제 AssumeRole 거부 기록이 없다. 따라서 in-progress를 유지한다."
+      "reason": "T1은 full Docker와 outbound-deny report로 증명됐다. T2는 A-045로 operator가 읽을 수 있는 secret으로 좁혔고 release v0.1.0-rc.9의 secret-scan이 clean-partial(누출 0)로 증명했다. T3는 A-046으로 다른 environment의 subject로 좁혔고 staging-oidc-negative workflow의 실제 AssumeRole 거부 기록이 들어오기 전까지 증명되지 않았다. staging 절은 JUnit으로 집계되지 않으므로 integration-ready로 올리지 않고 in-progress를 유지한다."
     },
     {
       "id": "BA-010",
@@ -2584,7 +2584,7 @@
         },
         {
           "id": "BA-071-T3",
-          "assertion": "같은 manifest artifact만 승격된다"
+          "assertion": "배포는 release manifest가 지목한 digest만 실행한다"
         },
         {
           "id": "BA-071-T4",
@@ -2595,7 +2595,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-071",
-      "reason": "첫 CD run 35426407975는 ALB grace 부족으로 circuit breaker rollback됐고 AWS 쓰기 뒤 배포 잠금을 유지해 오너 승인 unlock을 거쳤다. PR #285의 grace 수정 뒤 staging release run 35438236057(d988123)·35442212073(04f79d3)·35444320116(a60e29d)이 성공했다. T1(ALB·S3·RDS의 공개 경로 부재)은 run 35444320116의 smoke가 alb_internal·s3_private·rds_private_multi_az로 증명했다. 잘못된 OIDC subject의 거부는 BA-006-T3과 같은 절이라 이 카드에서 뺐고, 실제 AssumeRole 거부 기록이 없다는 공백은 BA-006-T3에 그대로 남는다. T2는 잠금의 모양(단위 test)과 실패 뒤 잠금 유지·승인 해제까지 관측했지만 두 deploy/migration의 동시 진입 거부를 재현하지 않았다. 재현 절차는 카드에 있다. T3는 배포가 manifest digest만 실행하는 것까지 관측했고 production이 없어 staging→production 승격은 관측하지 않았다. T4(rollback 뒤 smoke)는 실행하지 않았다. 09-21 오전 제출 release를 고정한 직후 하는 안이 오너에게 제안돼 있을 뿐 증명이 아니다."
+      "reason": "T1은 staging smoke(alb_internal·s3_private·rds_private_multi_az)가 증명했다. T2는 migration 층(다)을 로컬 Flyway 동시 실행으로 재현했고 DynamoDB 잠금 층(나)의 실계정 이중 획득 거부 기록을 기다린다. T3는 A-047로 manifest digest만 실행하는 절로 좁혔고 manifest·digest 거부 test와 staging release run들이 증명했다. T4(rollback 뒤 smoke)는 마지막 배포 전 연습으로 남았다. staging 절은 JUnit으로 집계되지 않으므로 in-progress를 유지한다."
     },
     {
       "id": "BA-072",
@@ -2663,7 +2663,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-072",
-      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 삭제 원장이 미구현이고 A-039가 심사 기간 restore를 금지해 restore drill과 복원 뒤 비노출 evidence가 없다. T3는 primary 실제 alarm 수신과 quota/budget/rollback tabletop을 재현하지 않았고 조직 SCP 때문에 자동 Budget 신호도 없다. T7도 metric filter·alarm 발화와 primary 도달을 staging에서 아직 재현하지 않았다. secondary 수신자는 A-043으로 범위 밖이다."
+      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049로 tabletop 등급 증거를 기다린다. T7은 staging에서 다섯 ops.alarm 이름의 로그 줄을 넣어 metric filter·alarm·primary 수신을 재현하는 기록을 기다린다. secondary 수신자는 A-043으로 범위 밖이다."
     },
     {
       "id": "BA-073",

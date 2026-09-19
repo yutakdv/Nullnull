@@ -377,18 +377,18 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 실패·안전 경계: 실제 secret 값 기반 bundle·image layer·log scan과 잘못된 OIDC subject의 AssumeRole 거부 기록이 없으면 integration-ready가 아니다. 실제 설정·배포 완료를 문서와 구조 test만으로 표시하지 않는다.
 
-로컬 통합과 staging 배포·CD 실행은 끝났지만 T2·T3의 남은 절 때문에 `in-progress`다:
+로컬 통합과 staging 배포·CD 실행은 끝났지만 T3의 실제 거부 기록 때문에 `in-progress`다:
 
 - 증명됨(T1): 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper가 있고, required Docker gate가 정규화 Compose의 internal network와 판정 token을 내는 `egress-denied` probe를 실행한다.
-- 부분(T2): browser-facing build에 credential 또는 `VITE_*` secret을 건네지 않는 입력 경계는 gate가 고정한다. 그러나 실제 secret 값을 `check_secret_exposure.py`에 주어 frontend bundle·image layer·log를 함께 검사한 report는 없다. 입력 경계만으로 log 부재까지 증명했다고 쓰지 않는다.
-- 부분(T3): CDK 구조 test와 배포 뒤 smoke는 live GitHub role trust가 deploy·publish role의 exact subject 집합과 일치함을 관측했다. 잘못된 repo/environment subject로 실제 AssumeRole을 시도해 거부된 기록은 없다.
+- 증명(T2, [A-045](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): browser-facing build에 credential 또는 `VITE_*` secret을 건네지 않는 입력 경계는 gate가 고정한다. 값 스캔은 operator 명령 `staging_operator.py secret-scan`이 release `v0.1.0-rc.9`에서 `secret_exposure=clean-partial`로 냈다 — release 6개의 bundle, api·ai image(layer와 jar까지 풀어 blob 5,910개·archive 항목 56,161개), log event 17,848건을 KTO key·verifier token의 실제 값(인코딩 형태 포함)으로 훑었고 누출 0이다. `partial`은 DB 계정·비밀번호·cursor·deletion token secret을 스캔하지 않았다는 뜻이고 A-045가 그것을 이 절 밖으로 뺐다. evidence는 release bucket `evidence/secret-exposure/v0.1.0-rc.9/`에 값 없이 있다.
+- 대기(T3, [A-046](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): CDK 구조 test와 배포 뒤 smoke는 live GitHub role trust가 deploy·publish role의 exact subject 집합과 일치함을 관측했다. 실제 거부는 `staging-oidc-negative` workflow(`scripts/aws/oidc-negative-probe.sh`)가 잰다 — `staging-build` token이 deploy role에, `staging` token이 publish role에 `AccessDenied`를 받고, 같은 token이 자기 role에는 받아들여지는 대조군이 먼저 통과해야 판정이다. 그 run이 돌기 전까지 이 절은 증명되지 않았다. 다른 repository의 subject는 이 저장소에서 token을 만들 수 없어 A-046이 절 밖으로 뺐다.
 - 배포 사실: main `d988123`의 Staging release가 성공했고 배포 뒤 smoke에서 `public_api_edge=closed`, `alb_internal=true`, `s3_private=true`, `rds_private_multi_az=true`를 관측했다. 이 사실은 과거의 *infra/CDK와 실제 AWS evidence가 없다*는 서술을 대체하지만 T2·T3의 빈 증거를 채우지는 않는다.
 
 필수 검증:
 
 - `BA-006-T1`: 정규화 Compose의 internal network와 outbound-deny probe가 통과한다
-- `BA-006-T2`: frontend bundle·image layer·log에 secret이 없다
-- `BA-006-T3`: OIDC의 잘못된 repo/environment subject가 거부된다
+- `BA-006-T2`: frontend bundle·image layer·log에 operator가 읽을 수 있는 secret(KTO key·verifier token)이 없다
+- `BA-006-T3`: 다른 environment의 OIDC subject가 실제 AssumeRole에서 거부된다
 
 FE 인계·완료 증거: 로컬 URL·seed·staging environment 준비 상태와 안전한 public config 목록. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1941,15 +1941,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - 증명(T1): staging release run `35444320116`(`a60e29d`)의 배포 뒤 smoke가 `alb_internal=true s3_private=true rds_private_multi_az=true`를 찍었다. 같은 줄의 `public_api_edge=closed`는 공개 API edge가 익명 요청에 `503 application/problem+json`으로 답했다는 뜻이다. **절은 공개 경로가 없다는 것이다.** 밖에서 ALB·S3·RDS에 직접 요청을 보내 거절을 받아 본 것은 아니다. internal ALB와 `PubliclyAccessible=false`인 RDS는 밖에서 닿을 주소가 없고, S3는 public access block과 비공개 policy가 익명 읽기를 막는다.
 - 옮김(원래 T1의 OIDC 절): *"잘못된 OIDC subject가 거부된다"* 는 [BA-006](#ba-006)의 `BA-006-T3`과 같은 절이다. 그래서 여기서 뺐고 좁혀서 증명된 것으로 쓰지도 않았다. 그 카드의 실패·안전 경계가 *"구조 test와 trust 관측만으로는 부족하고 실제 AssumeRole 거부 기록이 필요하다"* 고 기준을 정해 두었다. 지금 있는 것은 CDK 구조 test(`infra/test/staging.test.ts`의 "OIDC exact subject…"), 검사기 `validate-oidc-trust.mjs`와 그 거부 case들(`test_aws_staging_scripts.py`의 `test_subset_or_extra_subject_is_rejected`·`test_wildcard_subject_is_rejected`·`test_legacy_name_only_subject_is_rejected`, `test_aws_operator.py`의 `test_extra_unrestricted_allow_is_rejected`), 그리고 run `35444320116`의 `oidc_trust=pass kind=deploy subjects=2`·`kind=publish subjects=1`이다. 거부 기록을 얻으려면 목록에 없는 subject로 OIDC token을 받는 GitHub job이 그 role을 요청해 `sts:AssumeRoleWithWebIdentity` 거부를 받아야 한다. 예를 들어 environment 없는 `pull_request` job이면 subject가 `…:pull_request`가 된다. token은 GitHub Actions만 발급하므로 workflow를 하나 더 돌려야 한다.
-- 부분(T2): 동시 실행을 막는 층은 셋이다. **(가)** `staging-release.yml`의 `concurrency: nullnull-staging-release`(`cancel-in-progress: false`)는 GitHub run끼리를 줄 세운다. **(나)** DynamoDB 잠금(`staging_operator.DeploymentLock`)은 local operator와 GitHub가 함께 쓰는 유일한 층이다. `attribute_not_exists(LockId)` 조건부 put이라 둘째 획득은 어떤 AWS 쓰기보다 먼저 `aws-failed-dynamodb-put-item`으로 끝난다. **(다)** migration은 잠금 안에서 task 하나로만 뜬다(`clientToken`=잠금 owner). DB 쪽 직렬화는 runbook이 Flyway의 PostgreSQL advisory lock이라고 적고 있는데 아직 재지 않았다. 단위로 증명된 것은 잠금의 **모양**이다: `test_aws_operator.py`의 `test_lock_is_conditional_and_not_released_on_unknown_result`, `test_lock_release_requires_matching_owner`, `test_standalone_migration_cannot_bypass_lock`. 첫 CD run `35426407975`가 circuit breaker rollback된 뒤 잠금이 유지됐고 오너 승인으로 unlock했으니 잠금 수명주기도 관측했다. **둘이 동시에 진입해 둘째가 거부되는 장면은 재현하지 않았다.** 재현하려면 층마다 다음이 필요하다. (가) `staging-release`를 연달아 두 번 dispatch하고, 둘째 run이 첫째가 끝날 때까지 `pending`이며 두 run의 job 시각이 겹치지 않는 것을 `gh run list`로 본다(실제 release 두 번). (나) release 하나가 잠금을 쥔 동안 로컬 operator로 배포를 하나 더 시작하고, `aws-failed-dynamodb-put-item`으로 끝나고 AWS 쓰기가 없으며 잠금 item의 `Owner`가 첫 실행의 것 그대로인지 본다. (가)는 local operator를 모르므로 (나)가 따로 필요하다. (다) 빈 PostgreSQL 하나에 app의 Flyway migrate 둘을 동시에 돌려 한쪽이 기다리고 `flyway_schema_history` 행 수가 migration 수와 같은지 본다. 로컬에서 되고 AWS가 필요 없다.
-- 부분(T3): 배포는 release manifest가 지목한 digest만 실행한다. `test_aws_operator.py`의 `test_manifest_image_mismatch_blocks_run_task`(task의 image가 manifest digest가 아니면 RunTask 전에 거부), `test_digest_without_the_source_tag_is_refused`(digest가 source tag에 묶여 있지 않으면 거부), `test_invalid_manifest_types_and_extra_fields_rejected`가 이것을 잰다. staging release run `35438236057`(`d988123`)·`35442212073`(`04f79d3`)·`35444320116`(`a60e29d`)이 manifest로 성공했다. **staging→production 승격은 production 환경이 없어 관측하지 않았다**(실패·안전 경계가 승인 없는 production 배포를 금지한다).
+- 부분(T2): 동시 실행을 막는 층은 셋이다. **(가)** `staging-release.yml`의 `concurrency: nullnull-staging-release`(`cancel-in-progress: false`)는 GitHub run끼리를 줄 세운다. **(나)** DynamoDB 잠금(`staging_operator.DeploymentLock`)은 local operator와 GitHub가 함께 쓰는 유일한 층이다. `attribute_not_exists(LockId)` 조건부 put이라 둘째 획득은 어떤 AWS 쓰기보다 먼저 `aws-failed-dynamodb-put-item`으로 끝난다. **(다)** migration은 잠금 안에서 task 하나로만 뜬다(`clientToken`=잠금 owner). DB 쪽 직렬화는 runbook이 Flyway의 PostgreSQL advisory lock이라고 적고 있는데 아직 재지 않았다. 단위로 증명된 것은 잠금의 **모양**이다: `test_aws_operator.py`의 `test_lock_is_conditional_and_not_released_on_unknown_result`, `test_lock_release_requires_matching_owner`, `test_standalone_migration_cannot_bypass_lock`. 첫 CD run `35426407975`가 circuit breaker rollback된 뒤 잠금이 유지됐고 오너 승인으로 unlock했으니 잠금 수명주기도 관측했다. **둘이 동시에 진입해 둘째가 거부되는 장면은 재현하지 않았다.** 재현하려면 층마다 다음이 필요하다. (가) `staging-release`를 연달아 두 번 dispatch하고, 둘째 run이 첫째가 끝날 때까지 `pending`이며 두 run의 job 시각이 겹치지 않는 것을 `gh run list`로 본다(실제 release 두 번). (나) release 하나가 잠금을 쥔 동안 로컬 operator로 배포를 하나 더 시작하고, `aws-failed-dynamodb-put-item`으로 끝나고 AWS 쓰기가 없으며 잠금 item의 `Owner`가 첫 실행의 것 그대로인지 본다. (가)는 local operator를 모르므로 (나)가 따로 필요하다. (다) 빈 PostgreSQL 하나에 app의 Flyway migrate 둘을 동시에 돌려 한쪽이 기다리고 `flyway_schema_history` 행 수가 migration 수와 같은지 본다. 로컬에서 되고 AWS가 필요 없다. **(다)는 재현했다**: 빈 PostgreSQL 하나에 app과 같은 Flyway `12.4.0`으로 migrate 둘을 3초 간격으로 띄우고, 첫째가 10초 동안 잠금을 쥐도록 맨 뒤에 `pg_sleep(10)` migration을 하나 더한 사본을 썼다. 둘째는 첫째의 migration 도중에 시작해 첫째가 끝난 같은 초에 *"up to date. No migration necessary"* 로 끝났고(둘 다 exit 0), `flyway_schema_history`는 37행·37 version·전부 success였다. 잠금이 없었다면 둘째가 같은 version을 다시 적용하다 죽었어야 한다. 대기 없이 돌린 첫 시도는 migration이 0.1초라 두 실행이 겹쳤는지를 말하지 못했다.
+- 증명(T3, [A-047](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): 배포는 release manifest가 지목한 digest만 실행한다. `test_aws_operator.py`의 `test_manifest_image_mismatch_blocks_run_task`(task의 image가 manifest digest가 아니면 RunTask 전에 거부), `test_digest_without_the_source_tag_is_refused`(digest가 source tag에 묶여 있지 않으면 거부), `test_invalid_manifest_types_and_extra_fields_rejected`가 이것을 잰다. staging release run `35438236057`(`d988123`)·`35442212073`(`04f79d3`)·`35444320116`(`a60e29d`)이 manifest로 성공했다. **staging→production 승격은 production 환경이 없어 관측하지 않았다**(실패·안전 경계가 승인 없는 production 배포를 금지한다). A-047이 승격 절을 이 제출 범위에서 뺐고 production을 만드는 날 되살린다.
 - 예정(T4): rollback 뒤 smoke drill은 실행하지 않았다. rollback이 catalog·최적화를 끄므로 처음에는 제출 뒤로 미뤘다. 지금은 09-21 오전 제출 release를 고정한 직후 *"이전 release로 rollback → 핵심 smoke → 제출 release로 재배포"* 로 하는 안을 조율자가 오너에게 제안하고 있다. **실행 전까지 이 절은 증명되지 않았다.**
 
 필수 검증:
 
 - `BA-071-T1`: ALB·S3·RDS는 공개 접근 경로를 갖지 않는다 — `scripts/aws/staging-smoke.sh`가 라이브 자원에서 판정한다: `alb_internal=true`(ALB scheme `internal`), `s3_private=true`(public access block 네 항목과 bucket policy 비공개), `rds_private_multi_az=true`(`PubliclyAccessible=false`). 하나라도 어긋나면 smoke가 그 자리에서 실패한다. staging release run `35444320116`(`a60e29d`)이 셋을 모두 찍었다
 - `BA-071-T2`: 동시에 두 deploy/migration이 실행되지 않는다
-- `BA-071-T3`: 같은 manifest artifact만 승격된다
+- `BA-071-T3`: 배포는 release manifest가 지목한 digest만 실행한다
 - `BA-071-T4`: rollback 뒤 핵심 smoke가 통과한다
 
 FE 인계·완료 증거: 공개 config·release/contract SHA·이전 rollback target과 staging acceptance URL. UI artifact 확인은 FE 담당. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
@@ -1991,8 +1991,8 @@ T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident
 상태 판정은 절별 증거를 합치지 않는다:
 
 - 증명됨: `api-quality`에 등록된 `DeletionIncidentSignalIT`·`JobCrashRetryIT`·`DeletionReceiptExpiryIT`가 T2·T4·T5·T6·T8·T9를 실제 testcase 이름으로 보고한다.
-- 미증명(T1): 삭제 원장이 구현되지 않아 복원 뒤 접수된 삭제를 재적용할 수 없다. A-039는 심사 기간 restore를 금지하며, restore drill과 복원 뒤 owner 비노출 evidence가 없다.
-- 미증명(T3): primary 실제 alarm 수신과 quota/budget/rollback 판단 tabletop을 재현하지 않았다. 조직 SCP 때문에 자동 Budget 신호도 없으며 오너가 조직 billing 화면에서 확인한다.
+- 제출 범위 밖(T1, [A-048](../project/DECISIONS_AND_RISKS.md)): 삭제 원장이 구현되지 않아 복원 뒤 접수된 삭제를 재적용할 수 없다. A-039는 심사 기간 restore를 금지하며, restore drill과 복원 뒤 owner 비노출 evidence가 없다.
+- 대기(T3, [A-049](../project/DECISIONS_AND_RISKS.md)): 증거 등급은 **tabletop**이다 — 실제 재현이 아니다. 조직 SCP 때문에 자동 Budget 신호가 없어 오너가 조직 billing 화면에서 확인하고, 수신자는 A-043으로 한 명이다. tabletop 기록이 들어오기 전까지 증명되지 않았다.
 - 미증명(T7): metric filter·alarm 발화와 primary 수신자 도달을 staging에서 재현하지 않았다. A-043에 따라 secondary 수신자는 두지 않으므로 secondary 절은 범위 밖이고 acceptance 문구에서도 제거했다.
 
 FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
