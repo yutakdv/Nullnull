@@ -15,8 +15,27 @@
   background: var(--color-action-subtle);
 }
 
+/* `flex-wrap` because the badge beside the summary cannot shrink.
+   At 200% zoom (a 180px viewport, which is how responsive.spec models it) the
+   nowrap pill took the whole row and `.result` — `flex: 1 0 0`, so it yields
+   everything — was computed to `clientWidth: 0`. Measured in the browser, not
+   reasoned: the node reported `scrollWidth 12 / clientWidth 0`, which is what
+   `overflow.ts` reports as "is cut off". `min-width: 0` and
+   `overflow-wrap: anywhere` were already here and neither helps, because
+   there is no width left to wrap inside.
+
+   Wrapping rather than shrinking the pill or restructuring the row: at 393px
+   the row still lays out exactly as the frames draw it (`724:4608`
+   result 255 + revert-state 70, `724:4864` result 266 + revert-state 59), so
+   this changes nothing at the designed width and only acts where the design
+   has no frame at all. Figma draws this panel at 393px only — there is no
+   narrow variant to follow — but it does already let the panel grow a line
+   when text needs one: `724:4868` revision-line is 26px where `724:4612` is
+   13px. A second line is in the design's vocabulary; a clipped sentence is
+   not. */
 .resultRow {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
   margin: 0;
