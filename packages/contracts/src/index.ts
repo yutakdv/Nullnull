@@ -59,6 +59,7 @@ import placeDetail from "../fixtures/places/place-detail.json" with { type: "jso
 import crowdSeriesForecast from "../fixtures/crowd/series-forecast.json" with { type: "json" };
 import crowdSeriesStale from "../fixtures/crowd/series-stale.json" with { type: "json" };
 import crowdSeriesUnavailable from "../fixtures/crowd/series-unavailable.json" with { type: "json" };
+import crowdForecastQuery from "../fixtures/crowd/forecast-query.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
@@ -363,4 +364,9 @@ export const crowdFixtures = {
   seriesStale: crowdSeriesStale as components["schemas"]["CrowdSeries"],
   seriesUnavailable:
     crowdSeriesUnavailable as components["schemas"]["CrowdSeries"],
+  // queryPlaceCrowdForecasts' response example (#105): four cards in request order - fresh,
+  // STALE fallback, NO_COVERAGE, and an id no place has (PLACE_UNAVAILABLE). items[i] answers
+  // placeIds[i]; pinned like the three above, shape compared by CrowdForecastQueryIT.
+  forecastQuery:
+    crowdForecastQuery as components["schemas"]["PlaceCrowdForecastQueryResult"],
 };
