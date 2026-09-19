@@ -109,19 +109,27 @@ export function ProfileScreen() {
             <span className={styles.guestNote}>{t('profile.guest.note')}</span>
           </span>
         </div>
-        {/* Now a link, where P0 had inert text and a `준비 중` badge (FCR-006).
-            The owner moved sign-in into P0 (#264, #265), so this row has a
-            destination.
+        {/* Inert text with a `준비 중` badge, which is what FCR-006 asks for.
+            This row has been flipped twice, so the reason is recorded rather
+            than the conclusion: the owner briefly moved sign-in into P0 (#264,
+            #265) and it was a `<Link to="/sign-in">` for a day, then reverted
+            it on 2026-09-19 and login is P1 again.
 
-            It still sends nothing. /sign-in has no contract behind it — there
-            is no auth operation in docs/api/openapi.yaml — so the screen it
-            opens tells the traveller that rather than posting to a guessed
-            path. profile.test.tsx keeps asserting no auth request leaves the
-            app, and that assertion is what holds this line honest. */}
+            The revert is not a scope trim. `owners.account_id` is unique, so
+            several judges signing in with the one official test account would
+            share a single owner and see each other's edits and deletions — an
+            anonymous session gives each browser its own owner (#264). Until
+            that is solved, an account is worse than no account here.
+
+            So do not make this a link again without reading #264 first. The
+            canonical sources all say the same thing: CLAUDE.md's P0 decisions,
+            AGENTS.md principles 13-14, docs/contest's `로그인 불필요`, and
+            FCR-006. A link here contradicts four of them at once.
+
+            /sign-in and its route stay for P1. Nothing navigates there now. */}
         <p className={styles.loginRow}>
-          <Link className={styles.loginLabel} to="/sign-in">
-            {t('profile.login')}
-          </Link>
+          <span className={styles.loginLabel}>{t('profile.login')}</span>
+          <span className={styles.badge}>{t('profile.comingSoon')}</span>
         </p>
       </div>
 

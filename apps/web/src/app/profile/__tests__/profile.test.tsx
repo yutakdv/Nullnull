@@ -72,14 +72,30 @@ describe('S14 profile shows the anonymous guest state', () => {
     expect(await screen.findByText(copy['profile.guest.note'])).toBeInTheDocument();
   });
 
-  it('offers sign-in as a link to the sign-in screen', async () => {
-    // This used to assert the opposite — that the row was inert text with a
-    // `준비 중` badge, and neither a button nor a link. The owner moved sign-in
-    // into P0 (#264, #265), so the clause is inverted rather than deleted: the
-    // row now has to BE a control, and something has to say so.
+  it('shows sign-in as inert `준비 중` text, not a control', async () => {
+    // THIRD spelling of this clause, so the history matters more than the
+    // assertion. It began as inert text with a `준비 중` badge, was inverted to
+    // a link when login went into P0 (#264, #265), and is back because the
+    // owner reverted login to P1 on 2026-09-19.
+    //
+    // The revert has a reason worth knowing before anyone flips it a fourth
+    // time: `owners.account_id` is unique, so several judges signing in with
+    // the one official test account would share a single owner and see each
+    // other's edits and deletions. An anonymous session gives each browser its
+    // own owner, which is why `로그인 불필요` is the safer submission profile.
+    //
+    // Asserted as an absence AND a presence. "No link" alone passes if the row
+    // vanishes entirely, which would break FCR-006 the other way — it asks for
+    // a disabled affordance that says why, not for silence.
     renderProfile();
-    const link = await screen.findByRole('link', { name: copy['profile.login'] });
-    expect(link).toHaveAttribute('href', '/sign-in');
+    expect(await screen.findByText(copy['profile.login'])).toBeInTheDocument();
+    expect(screen.getByText(copy['profile.comingSoon'])).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: copy['profile.login'] }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: copy['profile.login'] }),
+    ).not.toBeInTheDocument();
   });
 
   it('sends no auth request while rendering the profile', async () => {
@@ -450,13 +466,15 @@ describe('the profile is reachable by keyboard', () => {
       name: new RegExp(tripFixtures.page.items[0]?.title ?? ''),
     });
 
-    // Sign-in now sits above the trip list and is the first link on the screen
-    // (#265). Asserting the order rather than just "a trip link gets focus"
-    // keeps this honest: a second tab has to reach the list, so a control
-    // inserted between them would still be caught.
-    await user.tab();
-    expect(screen.getByRole('link', { name: copy['profile.login'] })).toHaveFocus();
-
+    // The FIRST tab reaches the trip list, because the sign-in row above it is
+    // inert `준비 중` text and not in the tab order at all. For a day it was a
+    // link and took this position (#264, #265); the owner reverted login to P1
+    // on 2026-09-19, so the row is skipped again.
+    //
+    // Asserting the position rather than just "a trip link gets focus" is what
+    // makes this catch a regression in either direction: a control inserted
+    // above the list fails here, and so does the sign-in row becoming focusable
+    // again — which is the exact change the owner reverted.
     await user.tab();
     const firstTrip = screen
       .getAllByRole('link')

@@ -85,7 +85,24 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
       page.getByRole('button', { name: `Move ${FIRST_ITEM} up` }),
     ).toBeDisabled();
 
-    await down.focus();
+    // Tab, not `down.focus()` — the same reason the tab bar walk below gives.
+    // `focus()` succeeds on a control the keyboard cannot reach, so the
+    // "reachable by Tab" half of this title was unfalsifiable: measured, giving
+    // this button `tabindex="-1"` left the old version green (#233).
+    //
+    // Bounded rather than a guess at the order: the trip screen renders the
+    // header and day nav before the rows, so the walk passes through them
+    // first and stops as soon as it arrives.
+    const label = `Move ${FIRST_ITEM} down`;
+    let reached = false;
+    for (let i = 0; i < 60 && !reached; i += 1) {
+      await page.keyboard.press('Tab');
+      reached = await page.evaluate(
+        (name) => (document.activeElement?.getAttribute('aria-label') ?? '') === name,
+        label,
+      );
+    }
+    expect(reached, 'the move-down control should be reachable by Tab').toBe(true);
     await expect(down).toBeFocused();
     await page.keyboard.press('Enter');
 
@@ -122,9 +139,45 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     });
     expect(inside, 'focus should be inside the open sheet').toBe(true);
 
+    // The TRAP, which the assertion above does not reach. "Focus is inside"
+    // is true of a non-modal dialog too: MoveDaySheet focuses a control of its
+    // own on open, so replacing `showModal()` with `show()` left every
+    // assertion here green while the sheet stopped being modal at all
+    // (measured: `dialog.matches(':modal')` went false, radius 0). The title
+    // says "traps", and trapping is about what happens when focus tries to
+    // LEAVE.
+    //
+    // Escape attempt rather than a Tab walk. A Tab walk cannot tell the two
+    // apart here — measured: on the real, modal sheet the fourth Tab already
+    // reports focus outside the <dialog> (the browser passes through the
+    // document before cycling back), so "some Tab lands outside" is true of
+    // the healthy sheet as well and an assertion built on it fails on correct
+    // code. Focusing an outside control is what modality actually forbids:
+    // elements outside the top layer are inert, so the call is a no-op and
+    // focus stays put. Measured both ways — modal: STAYED-IN, non-modal:
+    // ESCAPED-TO the itinerary behind the sheet.
+    const escaped = await page.evaluate(() => {
+      const open = Array.from(document.querySelectorAll('dialog')).find((d) => d.open);
+      const outside = Array.from(document.querySelectorAll<HTMLElement>('button')).find(
+        (button) => !open?.contains(button) && !(button as HTMLButtonElement).disabled,
+      );
+      if (!outside) return 'no control outside the sheet to try';
+      outside.focus();
+      return (open?.contains(document.activeElement) ?? false)
+        ? null
+        : `focus escaped to "${(document.activeElement?.textContent ?? '').trim().slice(0, 24)}"`;
+    });
+    expect(escaped, 'the sheet should hold focus against a control behind it').toBeNull();
+
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
 
+    // HALF OF THIS TITLE IS MEASURED, half is not, on purpose. "traps focus"
+    // is now the escape attempt above; "returns it to the trigger" stays
+    // unasserted for the reason below, and whether the title should drop that
+    // clause is BE's call, asked on #233. Left deliberately rather than
+    // overlooked.
+    //
     // NOT asserted here: "focus returns to the trigger". MoveDaySheet does
     // restore it (restoreTo, :67-72) and a unit test covers that, but no
     // assertion I could write in a browser DISTINGUISHES it — deleting
@@ -135,53 +188,76 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     // rather than restated here in a form that cannot fail.
   });
 
-  // REMOVED, NOT FORGOTTEN: 'BA-040-T4 a completed move leaves focus somewhere,
-  // not on the document' lived here and found a REAL defect — focus falls to
-  // <body> after a move completes through the DATE-lock confirm, so the next Tab
-  // restarts at the top of the page.
-  //
-  // It is out of the suite rather than skipped because skipping is not available
-  // here: check_test_reports.py fails the gate on `skipped != 0` and on any
-  // <skipped> child (scripts/check_test_reports.py:77-99), so `test.fixme` would
-  // turn one honest red into a gate that cannot go green at all.
-  //
-  // What was measured, so nobody re-derives it. Two of these corrected an
-  // earlier reading in this same comment; the wrong versions are named because
-  // the way they were wrong is the useful part.
-  //
-  //   - The defect is real and it is in app code: ConfirmDialog's restore
-  //     fallback picks `Replace 경복궁`, which lives inside the SAME <article>
-  //     as the item being moved. The move unmounts that article, so the
-  //     fallback focuses a node that the very change which triggered it is
-  //     about to destroy. `previous?.focus()` then lands nowhere and no
-  //     `focusin` for it appears in any run (8/8 event traces).
-  //   - So the assertion is a coin flip, not an order dependency: 24 samples
-  //     came out 12 onBody=true / 12 false. Runs that passed sampled the
-  //     transient window before the last `focusout`.
-  //   - WRONG, FIRST READING: "alone it passes, only the three together fail."
-  //     Running it alone 8 times gave 7 failed / 1 passed. One passing run was
-  //     read as a property of running alone.
-  //   - WRONG, SECOND READING: "msw's fixed createTrip id makes the three
-  //     siblings share one trip." The fixed id is real (handlers.ts:791) but
-  //     `tripState` lives in the page heap, not the service worker, and each
-  //     test gets a fresh context — measured: test 1 left version 4, test 3
-  //     started at version 3. There is no cross-test channel.
-  //   - Closed-sibling-dialog exclusion (ConfirmDialog.tsx, this branch) is a
-  //     real and separate fix — it is what stops an unfocusable button being
-  //     chosen, and confirm-dialog.test.tsx proves it (mutation: radius 1).
-  //     It is not sufficient for this test, because the target it now picks
-  //     correctly is the one that unmounts.
-  //   - The gate would not even reach the focus assertion. `seeded-trip.ts:66`
-  //     sends NO constraints for 경복궁, and `reorder.ts:124` returns
-  //     'date-lock' only for DATE — so against a real API no confirm opens and
-  //     the test dies at `expect(confirm).toBeVisible()`. The DATE lock this
-  //     test depends on comes from the msw fixture, not from the server. The
-  //     removed body's own comment claimed the opposite ("the SERVER attaches
-  //     it, not seeded-trip.ts"); that claim was wrong.
-  //
-  // So restoring it needs two things, not one: a fallback that looks outside
-  // the moved item's subtree AND a lock the real API actually attaches. The
-  // full text of the removed test is in the issue filed for it.
+  test('BA-040-T4 a completed move leaves focus somewhere, not on the document', async ({
+    page,
+  }) => {
+    // The clause the test above could not reach. Closing the sheet by Escape or
+    // Cancel is restored by the browser itself, so deleting our own restore left
+    // that assertion green — but there is a third way out, and it is the one a
+    // traveller actually takes: pick a day and complete the move.
+    //
+    // That path chains two dialogs. The first stop carries a DATE lock, so
+    // picking a day closes the sheet and opens a confirm. The confirm captured
+    // its restore target while the sheet was still open, which makes it a button
+    // inside the sheet, and that button is gone by the time the confirm closes.
+    //
+    // WHERE THE LOCK COMES FROM, because this test dies without it and the two
+    // sources differ. seeded-trip.ts sends it (a DATE constraint in seedItems);
+    // the SERVER does not attach it. An earlier version of this comment said the
+    // opposite and that was wrong — TripService only turns a CANDIDATE's
+    // MUST_VISIT into a lock, and these items come from seedItems. The msw
+    // fixture also carries DATE on 경복궁, which is why this test could pass
+    // locally while the gate never opened a confirm at all (#272).
+    //
+    // That difference outlives this comment: msw's createTrip ignores the request
+    // body and getTrip always answers trip-detail-scheduled.json, so LOCALLY this
+    // test is green whatever seeded-trip.ts sends. Only the gate reads the
+    // constraint this test depends on.
+    //
+    // Measured before the fix: focus fell to document.body and the next Tab
+    // restarted at the top of the page, dropping a keyboard user out of the
+    // itinerary they were editing. 24 samples came out 12 onBody=true / 12
+    // false — a coin flip, because a passing run sampled the transient window
+    // before the last focusout.
+    //
+    // Asserted in a browser because it cannot be asserted anywhere else:
+    // happy-dom lets .focus() succeed inside a CLOSED <dialog> (measured), so the
+    // node this used to pick reads as focused there and the defect is invisible.
+    const trigger = page.getByRole('button', {
+      name: `Move ${FIRST_ITEM} to another day`,
+    });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole('button', { name: /Day 3/ }).first().click();
+
+    // The DATE lock turns the pick into a question rather than a move.
+    const confirm = page.getByRole('dialog').getByRole('button', {
+      name: /Release and move/i,
+    });
+    await expect(confirm).toBeVisible();
+    await confirm.click();
+
+    // Both surfaces are gone and the move has landed.
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+
+    const landed = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      return {
+        onBody: el === document.body,
+        connected: el?.isConnected ?? false,
+      };
+    });
+    expect(
+      landed.onBody,
+      'focus fell to <body>: the next Tab restarts at the top of the page',
+    ).toBe(false);
+    expect(landed.connected, 'focus is on a node that is no longer in the page').toBe(
+      true,
+    );
+  });
 
   test('BA-040-T4 a lock confirm can be answered and cancelled by keyboard', async ({
     page,
@@ -201,6 +277,38 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     // for a lock — leaves the lock alone.
     await expect(release).toBeFocused();
     await expect(release).toBeVisible();
+
+    // ANSWERED, the other half of this title. Cancelling was the only path this
+    // test walked, so "answered" was a promise the body never kept: every
+    // assertion above passes on a dialog whose confirm button does nothing.
+    //
+    // The lock going away is the assertion, not the dialog closing. Escape
+    // already closes it, so "the dialog is hidden" cannot tell confirming from
+    // cancelling — and invariant 7 is about the lock, not the dialog. The
+    // control is rendered from `activeLocks(item)` (LockRow.tsx:66), so it
+    // disappears exactly when the release actually landed on the trip.
+    await release.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeVisible();
+
+    // Reached by Tab rather than by `focus()`: this is a keyboard test and the
+    // confirm of a destructive action is precisely where a control that takes
+    // focus only programmatically would strand someone (#233).
+    const confirm = dialog.getByRole('button', { name: 'Release and continue' });
+    await expect(confirm).toBeVisible();
+    let onConfirm = false;
+    for (let i = 0; i < 20 && !onConfirm; i += 1) {
+      await page.keyboard.press('Tab');
+      onConfirm = await confirm.evaluate((el) => el === document.activeElement);
+    }
+    expect(onConfirm, 'the confirm button should be reachable by Tab').toBe(true);
+
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(
+      release,
+      'the Must visit lock should be gone once the release is confirmed',
+    ).toBeHidden();
   });
 });
 

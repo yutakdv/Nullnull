@@ -337,25 +337,29 @@ describe('A-3 intro completes onboarding', () => {
     expect(await screen.findByText(copy['intro.noLogin'])).toBeInTheDocument();
   });
 
-  it('leads to sign-in, and from there on to the feed', async () => {
-    // Owner decision (#265): intro no longer lands on the feed directly.
-    // sign-in.test.tsx covers what the sign-in screen does on its own; this
-    // test is the one that would catch a break in the link between the two
-    // screens, which neither file alone can see.
+  it('lands on the feed without passing through sign-in', async () => {
+    // This asserted the opposite for a day. Login was briefly in P0 (#264,
+    // #265) and intro routed through /sign-in; the owner reverted it to P1 on
+    // 2026-09-19 because `owners.account_id` is unique, so several judges on
+    // the one official test account would share an owner and see each other's
+    // edits. An anonymous session gives each browser its own.
+    //
+    // Two clauses, because they fail differently. Landing on the feed says the
+    // flow completes; the absence of the sign-in heading says it completes
+    // WITHOUT an account step, which is what `로그인 불필요` means and what the
+    // test above ('states that no sign-in is needed') promises on the intro
+    // screen itself. A traveller could reach the feed via a sign-in screen they
+    // dismissed, and that would satisfy the first clause while breaking the
+    // promise.
     const user = userEvent.setup();
     renderAt('/intro');
     await user.click(await screen.findByRole('button', { name: copy['intro.start'] }));
 
     expect(
-      await screen.findByRole('heading', { name: copy['signIn.title'] }),
-    ).toBeInTheDocument();
-
-    await user.type(screen.getByLabelText(copy['signIn.id.label']), 'traveller');
-    await user.type(screen.getByLabelText(copy['signIn.password.label']), 'hunter2');
-    await user.click(screen.getByRole('button', { name: copy['signIn.submit'] }));
-
-    expect(
       await screen.findByRole('heading', { name: copy['feed.title'] }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: copy['signIn.title'] }),
+    ).not.toBeInTheDocument();
   });
 });

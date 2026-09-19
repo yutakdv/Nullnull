@@ -76,17 +76,19 @@ test.describe('onboarding and profile in a real browser', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR');
   });
 
-  test('profile offers sign-in as a link, and it still sends nothing', async ({
+  test('profile shows sign-in as inert `준비 중`, and sends nothing', async ({
     page,
   }) => {
-    // This used to assert the opposite — that the row was inert text and
-    // neither a button nor a link. The owner moved sign-in into P0 (#264,
-    // #265), so the clause is inverted rather than deleted.
+    // THIRD spelling. It began as inert text, became a link when login went
+    // into P0 (#264, #265), and is back because the owner reverted login to P1
+    // on 2026-09-19 — `owners.account_id` is unique, so several judges on the
+    // one official test account would share an owner and see each other's
+    // edits. An anonymous session gives each browser its own.
     //
-    // The unit test in profile.test.tsx was inverted in the same commit that
-    // added the link; this one was not, and the gate caught it. Inverting an
-    // assertion in one layer and not the other is how a promise quietly stops
-    // being checked where it matters most.
+    // The lesson this test recorded the last time still applies, now to the
+    // revert: profile.test.tsx was inverted in the same commit that added the
+    // link and THIS file was not, so the gate caught it. Both layers move
+    // together or the promise stops being checked where it matters most.
     const writes: string[] = [];
     page.on('request', (request) => {
       if (request.method() !== 'GET') writes.push(request.url());
@@ -98,18 +100,16 @@ test.describe('onboarding and profile in a real browser', () => {
       'profile-heading',
     );
 
-    const link = page.getByRole('link', { name: /로그인|Sign in/ });
-    await expect(link).toHaveCount(1);
-    await expect(link).toHaveAttribute('href', '/sign-in');
+    // Present but not a control. Both halves are asserted because they fail
+    // differently: the text going missing would break FCR-006 the other way
+    // (it asks for a disabled affordance that says why, not for silence), and
+    // the row becoming focusable again is the change the owner reverted.
+    await expect(page.getByText(/로그인|Sign in/).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /로그인|Sign in/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /로그인|Sign in/ })).toHaveCount(0);
 
-    // The screen it opens has no contract behind it yet (#264), so following
-    // the link must not produce an auth request. That is the promise the
-    // sign-in screen carries, checked here in a real browser.
-    await link.click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveAttribute(
-      'id',
-      'signin-heading',
-    );
+    // No auth request, which is the invariant that outlived both flips: it was
+    // true when this row was inert, true while it was a link, and true now.
     expect(writes.filter((url) => /login|auth|sign-?in|account/i.test(url))).toEqual([]);
   });
 });

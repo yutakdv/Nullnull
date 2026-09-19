@@ -1,0 +1,27 @@
+// e2e/ is not in tsconfig.json's `include`, so `tsc --noEmit` never saw it: a
+// spec could read a property that does not exist and the gate stayed green
+// until Playwright hit `undefined` at runtime. That happened -- overflow.ts's
+// return property was renamed and the four call sites in responsive.spec.ts
+// and sheet-responsive.spec.ts were not, `typecheck` passed, and 34 e2e
+// checks failed in the browser (#266).
+//
+// A second program rather than adding "e2e" to the main `include`: the specs
+// need Node types (process.env in session.spec.ts) that app code must not
+// have, and widening the app program to get them would hand `process` to
+// every module under src/ -- the app bundle has no Node, so those types would
+// only ever be wrong there.
+//
+// `extends` rather than a standalone config so strict, noUncheckedIndexedAccess
+// and noUnusedLocals stay in one place. They are load-bearing here: a config
+// that merely parsed the directory would add a passing step and catch nothing.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // DOM comes from the base `lib` and is needed inside page.evaluate, whose
+    // callback really does run in the browser. "node" replaces the base's
+    // vitest/globals, which the specs do not use -- Playwright's `test` and
+    // `expect` are imported, not global.
+    "types": ["node"]
+  },
+  "include": ["e2e"]
+}
