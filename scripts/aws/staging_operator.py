@@ -2,8 +2,10 @@
 """BA-071: immutable local plans and guarded AWS execution. Never prints AWS error bodies or secret values."""
 from __future__ import annotations
 import argparse
+import base64
 import datetime as dt
 import difflib
+import gzip
 import hashlib
 import json
 import os
@@ -53,7 +55,25 @@ OPS_TASKS = {
                         {'NULLNULL_DEMO_PLACES': 'places'}),
     'kto-demo-forecast': ('io.nullnull.catalog.infrastructure.kto.KtoDemoForecastRefreshMain',
                           'NULLNULL_KTO_FORECAST_SMOKE_APPROVED', {'NULLNULL_DEMO_PLACES': 'places'}),
+    # Curated opening hours (A-031/A-032). No KTO call, so no KTO approval variable: the owner approves the exact
+    # plan bytes instead (CURATION_PLANS below), and records who did with --owner-approval.
+    'curate-hours': ('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain', None, {}),
 }
+# A curate task's plan cannot be a file in the task: it runs the release's image with a read-only root, and baking
+# the plan into the image would make every plan edit a release (the hours re-observation before 2026-10-13 falls in
+# judging, and each release closes the edge). So the operator reads the local plan file, the owner approves its
+# sha256, and the exact bytes travel gzip+base64 in one override variable with that sha; the main refuses any other
+# bytes (io.nullnull.OperationsPlan) and prints the sha it imported, which is compared here after the task stops.
+# The override is visible to anyone who can describe the task and is kept by CloudTrail, so a plan must never carry
+# anything sensitive; an hours plan holds public notice URLs, place ids and opening times.
+CURATION_PLANS = {'curate-hours': {'inline': 'NULLNULL_HOURS_PLAN_GZIP_BASE64', 'sha256': 'NULLNULL_HOURS_PLAN_SHA256',
+                                   'echo': 'curated_hours_plan'}}
+PLAN_MAX_BYTES = 1 << 20  # io.nullnull.OperationsPlan.MAX_BYTES
+# RunTask refuses overrides past a size AWS documents as 8192 characters for the whole overrides object; that figure is
+# not recorded in this repository and was not measured, so these bounds keep well under it rather than at it.
+PLAN_INLINE_MAX_CHARS = 6000
+OVERRIDES_MAX_CHARS = 7500
+PLACE_ID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
 # Input shapes per ops argument. A demo place list is `contentId:contentTypeId`, comma separated.
 OPS_INPUT = {'content_id': r'[0-9a-f-]{1,40}', 'content_type_id': r'[0-9a-f-]{1,40}', 'place_id': r'[0-9a-f-]{1,40}',
              'places': r'[1-9][0-9]{0,29}:[1-9][0-9]{0,29}(,[1-9][0-9]{0,29}:[1-9][0-9]{0,29})*'}
@@ -63,6 +83,12 @@ OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
 # Log lines an ops task may echo: the mains' own redacted evidence and settings-origin lines, OperationsContext's
 # target line (no user, password or query), and the failure code they throw. Anything else stays in CloudWatch.
 OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
+                          # The hours import (CuratedHoursImportMain): the sha it imported, ids and counts, a failure's
+                          # code. Never the evidence URL, which stays in the plan file (CuratedHoursImportMainTest mirrors
+                          # these four and prints the lines the tests below feed back).
+                          r'|curated_hours_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
+                          r'|curated_hours [0-9a-f-]{36} (RECORDED|REPLACED) \(windows=[0-9]{1,4}\)'
+                          r'|curated_hours_recorded=[0-9]{1,4}|curated_hours_failed reason=[A-Za-z_]{1,80}'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
 
@@ -664,9 +690,41 @@ def provision_secrets(args):
     require_kto_secret_provisioned()
     print(f'kto_secret=provisioned changed={str(changed).lower()} value_printed=false')
 
+def curation_plan(args):
+    """The local plan file a curate task imports, checked and approved before any AWS call.
+
+    The owner approves the sha256 printed here (--approved-plan-sha256) and names who approved (--owner-approval);
+    the file is read once and the sha, the checks and the encoded value all come from those bytes.
+    """
+    path = Path(getattr(args, 'plan_file', None) or '')
+    require(bool(getattr(args, 'plan_file', None)) and path.is_file(), 'plan-file-required')
+    data = path.read_bytes()
+    require(len(data) <= PLAN_MAX_BYTES, 'plan-file-too-large')
+    try:
+        text = data.decode('utf-8')
+        plan = json.loads(text)
+    except (UnicodeDecodeError, ValueError):
+        raise OpsError('plan-file-not-json') from None
+    # The committed templates carry '<BE: ...>' placeholders; a plan still holding one is not a plan yet.
+    require('<BE:' not in text, 'plan-file-has-placeholders')
+    places = plan.get('places') if isinstance(plan, dict) else None
+    require(isinstance(places, list) and len(places) > 0, 'plan-file-has-no-places')
+    require(all(isinstance(p, dict) and PLACE_ID.fullmatch(str(p.get('placeId', ''))) for p in places),
+            'plan-file-place-id-not-a-uuid')
+    sha = hashlib.sha256(data).hexdigest()
+    print(f'plan_sha256={sha} bytes={len(data)} places={len(places)} place_ids=' + ','.join(p['placeId'] for p in places))
+    require(getattr(args, 'approved_plan_sha256', None) == sha, 'plan-sha256-not-approved')
+    require(bool(args.owner_approval) and len(args.owner_approval) >= 10, 'owner-approval-record-required')
+    encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode('ascii')
+    require(len(encoded) <= PLAN_INLINE_MAX_CHARS, 'plan-too-large-for-task-overrides')
+    return {'data': data, 'sha256': sha, 'encoded': encoded}
+
 def ops_task(args):
     """Run one allowlisted operator command in the VPC with the deployed API image."""
     require(auth_mode() == 'profile', 'ops-tasks-are-local-only')
+    # Local inputs are settled before any AWS call, as the task inputs below are.
+    plan = curation_plan(args) if args.task in CURATION_PLANS else None
+    require(plan is not None or not getattr(args, 'plan_file', None), 'plan-file-not-accepted')
     identity(os.environ.get('NULLNULL_AWS_ACCOUNT_ID', ''))
     main_class, approval, inputs = OPS_TASKS[args.task]
     environment = [{'name': 'LOADER_MAIN', 'value': main_class}]
@@ -696,23 +754,32 @@ def ops_task(args):
         print(f'operations_target_required={OPERATIONS_TARGET}={database}')
         require(False, 'operations-target-not-set-by-caller' if not stated else 'operations-target-not-the-staging-database')
     environment.append({'name': OPERATIONS_TARGET, 'value': stated})
+    if plan:
+        spec = CURATION_PLANS[args.task]
+        environment += [{'name': spec['inline'], 'value': plan['encoded']}, {'name': spec['sha256'], 'value': plan['sha256']}]
+    overrides = {'containerOverrides': [{'name': 'ops', 'environment': environment}]}
+    require(len(json.dumps(overrides)) <= OVERRIDES_MAX_CHARS, 'task-overrides-too-large')
     cluster = output('Platform', 'ClusterName')
     with DeploymentLock() as lock:
         # Read under the lock, so no release can land between this read and the task.
         definition_arn = output('Migration', 'OpsTaskDefinitionArn')
         definition = aws('ecs', 'describe-task-definition', taskDefinition=definition_arn)['taskDefinition']
-        current, expected_digest = smoke_release_binding(definition) if args.task == 'kto-smoke' else (None, None)
+        # The smoke's report names a release, and a curate task needs an image that reads an inline plan: both run
+        # only on the recorded release's own definition and image.
+        bound = args.task == 'kto-smoke' or plan is not None
+        current, expected_digest = release_binding(definition) if bound else (None, None)
         lock.mutating()
         result = aws('ecs', 'run-task', cluster=cluster, taskDefinition=definition_arn, launchType='FARGATE', count=1,
                      clientToken=lock.owner, startedBy='nullnull-stg-ops',
-                     overrides={'containerOverrides': [{'name': 'ops', 'environment': environment}]},
+                     overrides=overrides,
                      networkConfiguration={'awsvpcConfiguration': {
                          'subnets': output('Platform', 'AppSubnetIds').split(','),
                          'securityGroups': [output('Platform', 'MigrationSecurityGroupId')], 'assignPublicIp': 'ENABLED'}})
         require(not result.get('failures') and len(result.get('tasks', [])) == 1, 'ops-task-did-not-start')
         arn = result['tasks'][0]['taskArn']
         print('ops_task=' + args.task + ' task_id=' + arn.rsplit('/', 1)[1]
-              + (' owner_approval=' + re.sub(r'[^A-Za-z0-9 _:.-]', '', args.owner_approval) if approval else ''))
+              + (' owner_approval=' + re.sub(r'[^A-Za-z0-9 _:.-]', '', args.owner_approval) if approval or plan else '')
+              + (' approved_plan_sha256=' + plan['sha256'] if plan else ''))
         failure = None
         try:
             wait_task(cluster, arn, lock, definition, 'ops', expected_digest)
@@ -721,23 +788,43 @@ def ops_task(args):
         stream = 'ops/ops/' + arn.rsplit('/', 1)[1]
         log = aws('logs', 'get-log-events', logGroupName=output('Platform', 'MigrationLogGroupName'),
                   logStreamName=stream, startFromHead=True, limit=500)
-        evidence = []
+        evidence, echoed = [], []
         for event in log.get('events', []):
             line = event.get('message', '').strip()
             if OPS_LOG_LINE.match(line):
                 print('ops_log ' + line)
                 if line.startswith('KTO_SMOKE_OK '):
                     evidence.append(line)
+                if plan and line.startswith(CURATION_PLANS[args.task]['echo'] + ' '):
+                    echoed.append(line)
         if failure:
             raise failure
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
+        if plan:
+            record_curation(args.task, plan, echoed, current)
     print('ops_task=' + args.task + ' result=succeeded')
 
-def smoke_release_binding(definition):
-    """The release the smoke's report will name, and the image digest the task must run.
+def record_curation(task, plan, echoed, current):
+    """The task imported the approved bytes (its own echoed sha), and those bytes are kept where the release's
+    evidence is. A plan file on the operator's machine is not a record; this copy and its sha are."""
+    expected = f"{CURATION_PLANS[task]['echo']} sha256={plan['sha256']} bytes={len(plan['data'])}"
+    require(echoed == [expected], 'curation-plan-echo-mismatch')
+    path = ROOT/'.artifacts/aws/evidence'/f"curation-{plan['sha256']}.json"
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(plan['data'])
+    key = f"evidence/curation/{current['releaseVersion']}/{plan['sha256']}.json"
+    require(aws_cli(['s3', 'cp', path, f's3://{release_bucket()}/{key}', '--only-show-errors']).returncode == 0,
+            'curation-evidence-upload-failed')
+    print(f"curation_plan=recorded task={task} sha256={plan['sha256']} key={key}")
 
-    The report credits current.json's release, so the task has to be that release's. After a failed deploy the ops
+def release_binding(definition):
+    """The recorded release a bound task runs as, and the image digest it must run.
+
+    The smoke's report credits current.json's release, and a curate task needs the image that reads an inline plan,
+    so either task has to be that release's. After a failed deploy the ops
     definition (Migration stack) can already be the next release's while current.json still names the previous one,
     and two releases can share one API digest (rc.1000 and rc.1001 did), so the digest alone does not name a
     release: the definition's APP_RELEASE_VERSION has to be current.json's as well. Checked before the task starts,
@@ -819,7 +906,7 @@ def main():
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')
     parser.add_argument('--task',choices=sorted(OPS_TASKS));parser.add_argument('--content-id')
     parser.add_argument('--content-type-id');parser.add_argument('--place-id');parser.add_argument('--owner-approval')
-    parser.add_argument('--places')
+    parser.add_argument('--places');parser.add_argument('--plan-file')
     parser.add_argument('--owner');parser.add_argument('--accept-newer-schema',action='store_true')
     args=parser.parse_args()
     os.umask(0o077)

@@ -626,6 +626,123 @@ class SmokeImageBindingRegressions(unittest.TestCase):
         self.assertNotIn(('ecs','run-task'),calls)
         report.assert_not_called()
 
+class CurationTaskRegressions(unittest.TestCase):
+    """curate-hours: the owner approves the exact plan bytes, and the task imports those bytes or nothing."""
+    DIGEST='sha256:'+'a'*64
+    RELEASE='v0.1.0-rc.2'
+    PLACE='01a0b825-4f15-7e7b-b30c-87cf71861c9c'
+    # Verbatim what CuratedHoursImportMainTest shows CuratedHoursImportMain printing.
+    JAVA_LINES=['curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c RECORDED (windows=48)',
+                'curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c REPLACED (windows=48)',
+                'curated_hours_recorded=2','curated_hours_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED',
+                'curated_hours_failed reason=IllegalStateException']
+    def plan(self, **overrides):
+        place={'placeId':self.PLACE,'evidenceUrl':'https://royal.khs.go.kr/ROYAL/contents/R702000000.do',
+               'observedAt':'2026-09-13T18:40:00Z','outcome':'OBSERVED',
+               'windows':[{'date':'2026-10-01','state':'OPEN','opensAt':'09:00:00','closesAt':'18:00:00'}]}
+        place.update(overrides)
+        return json.dumps({'places':[place]},ensure_ascii=False,indent=2).encode()
+    def run_curate(self, data, approved=None, owner='owner approved in session', log=None, plan_file=True):
+        import contextlib, gzip as gz, hashlib, io
+        from types import SimpleNamespace
+        sha=hashlib.sha256(data).hexdigest()
+        calls=[]
+        if log is None: log=[f'curated_hours_plan sha256={sha} bytes={len(data)}']+self.JAVA_LINES[:1]+['curated_hours_recorded=1']
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if (service,operation)==('rds','describe-db-instances'):
+                return {'DBInstances':[{'Endpoint':{'Address':OperationsTargetRegressions.HOST,'Port':5432},'DBName':'nullnull'}]}
+            if (service,operation)==('ecs','describe-task-definition'):
+                return {'taskDefinition':{'containerDefinitions':[{'name':'ops','image':'1.dkr.ecr/nullnull-api@'+self.DIGEST,
+                        'environment':[{'name':'APP_RELEASE_VERSION','value':self.RELEASE}]}]}}
+            if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
+            if (service,operation)==('logs','get-log-events'): return {'events':[{'message':m} for m in log]}
+            raise AssertionError((service,operation))
+        record={'releaseVersion':self.RELEASE,'gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
+             ops.OPERATIONS_TARGET:OperationsTargetRegressions.TARGET}
+        out=io.StringIO()
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'hours.json';path.write_bytes(data)
+            with patch.dict(os.environ,env),patch.object(ops,'identity') as ident,patch.object(ops,'aws',side_effect=fake),\
+                 patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+                 patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),patch.object(ops,'wait_task'),\
+                 patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
+                 patch.object(ops,'ROOT',Path(d)),patch.object(ops,'aws_cli',return_value=subprocess.CompletedProcess([],0,'','')) as upload,\
+                 contextlib.redirect_stdout(out):
+                error=None
+                try:
+                    ops.ops_task(SimpleNamespace(task='curate-hours',content_id=None,content_type_id=None,place_id=None,
+                                                 owner_approval=owner,places=None,plan_file=str(path) if plan_file else None,
+                                                 approved_plan_sha256=sha if approved is None else approved))
+                except ops.OpsError as e:
+                    error=str(e)
+                kept=(Path(d)/'.artifacts/aws/evidence'/f'curation-{sha}.json')
+                kept=kept.read_bytes() if kept.exists() else None
+        run=[kw for s_,o,kw in calls if (s_,o)==('ecs','run-task')]
+        return {'error':error,'calls':[(s_,o) for s_,o,_ in calls],'run':run,'out':out.getvalue(),'sha':sha,
+                'upload':upload,'identity':ident,'kept':kept}
+    def test_the_approved_bytes_travel_to_the_task_and_are_kept_as_evidence(self):
+        import gzip as gz, base64 as b64
+        data=self.plan()
+        r=self.run_curate(data)
+        self.assertIsNone(r['error'],r['out'])
+        env={e['name']:e['value'] for e in r['run'][0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain',env['LOADER_MAIN'])
+        self.assertEqual(data,gz.decompress(b64.b64decode(env['NULLNULL_HOURS_PLAN_GZIP_BASE64'])))
+        self.assertEqual(r['sha'],env['NULLNULL_HOURS_PLAN_SHA256'])
+        self.assertEqual(OperationsTargetRegressions.TARGET,env[ops.OPERATIONS_TARGET])
+        self.assertNotIn('APP_CONTEST_PROFILE',env)
+        self.assertIn(f'plan_sha256={r["sha"]} bytes={len(data)} places=1 place_ids={self.PLACE}',r['out'])
+        self.assertIn('approved_plan_sha256='+r['sha'],r['out'])
+        self.assertEqual(data,r['kept'])
+        key=f'evidence/curation/{self.RELEASE}/{r["sha"]}.json'
+        self.assertIn(f's3://b/{key}',[str(a) for a in r['upload'].call_args.args[0]])
+        self.assertIn('curation_plan=recorded task=curate-hours sha256='+r['sha'],r['out'])
+    def test_a_plan_that_is_not_approved_or_not_a_plan_stops_before_any_aws_call(self):
+        import random
+        rng=random.Random(7)  # one generator: a fresh seed per character repeats one character and compresses away
+        noise=''.join(rng.choice('0123456789abcdef') for _ in range(12000))
+        cases=[(self.plan(),{'plan_file':False},'plan-file-required'),
+               (b'not json',{},'plan-file-not-json'),
+               (self.plan(placeId='<BE: staging UUID>'),{},'plan-file-has-placeholders'),
+               (json.dumps({'places':[]}).encode(),{},'plan-file-has-no-places'),
+               (self.plan(placeId='not-a-uuid'),{},'plan-file-place-id-not-a-uuid'),
+               (self.plan(),{'approved':'0'*64},'plan-sha256-not-approved'),
+               (self.plan(),{'owner':'short'},'owner-approval-record-required'),
+               (self.plan(evidenceUrl='https://example.test/'+noise),{},'plan-too-large-for-task-overrides')]
+        for data,kw,reason in cases:
+            with self.subTest(reason=reason):
+                r=self.run_curate(data,**kw)
+                self.assertIn(reason,r['error'] or '',r['out'])
+                self.assertEqual([],r['calls']);r['identity'].assert_not_called()
+    def test_a_plan_file_is_refused_for_a_task_that_imports_no_plan(self):
+        from types import SimpleNamespace
+        with patch.dict(os.environ,{'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}),\
+             patch.object(ops,'identity') as ident,patch.object(ops,'aws') as aws:
+            with self.assertRaisesRegex(ops.OpsError,'plan-file-not-accepted'):
+                ops.ops_task(SimpleNamespace(task='kto-ingest',content_id='126508',content_type_id='12',place_id=None,
+                                             owner_approval=None,places=None,plan_file='/tmp/x.json',approved_plan_sha256=None))
+            aws.assert_not_called();ident.assert_not_called()
+    def test_a_task_that_did_not_echo_the_approved_sha_records_nothing(self):
+        data=self.plan()
+        for log in [[],['curated_hours_plan sha256='+'0'*64+f' bytes={len(data)}'],
+                    [f'curated_hours_plan sha256={__import__("hashlib").sha256(data).hexdigest()} bytes=1']]:
+            with self.subTest(log=log):
+                r=self.run_curate(data,log=log)
+                self.assertIn('curation-plan-echo-mismatch',r['error'] or '')
+                r['upload'].assert_not_called();self.assertIsNone(r['kept'])
+    def test_the_lines_the_hours_import_prints_pass_and_nothing_that_carries_more(self):
+        sha='b'*64
+        allowed=[f'curated_hours_plan sha256={sha} bytes=34930']+self.JAVA_LINES
+        refused=['curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c RECORDED (windows=48) https://royal.khs.go.kr/x',
+                 f'curated_hours_plan sha256={sha} bytes=13 title=경복궁',
+                 'curated_hours_failed reason=IllegalStateException: no curated hours plan at /tmp/x',
+                 'curated_hours_recorded='+'9'*500,
+                 'curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c DELETED (windows=48)']
+        for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
+        for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
 class WaitTaskRegressions(unittest.TestCase):
     """The executed-image comparison itself, which every ops_task test patches away with a Mock."""
     class Lock:
