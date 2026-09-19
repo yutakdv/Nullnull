@@ -1046,6 +1046,14 @@
         {
           "id": "BA-030-T4",
           "assertion": "catalog 공개 게이트가 닫히면 item 없는 trip은 답하고 item 있는 trip과 seedItems create는 503 SOURCE_UNAVAILABLE로 거절한다"
+        },
+        {
+          "id": "BA-030-T5",
+          "assertion": "getTrip은 외부 출처가 있는 장소에 source registry revision이 기록한 그대로의 provider 출처(sourceAttribution)를 싣는다"
+        },
+        {
+          "id": "BA-030-T6",
+          "assertion": "getTrip은 외부 출처가 없는 장소에 출처를 싣지 않는다(null, 기본 출처 없음)"
         }
       ],
       "handoff": "수동 wizard·최종 확인·empty trip·generated draft 구분 예시. 새 draft API 필요 시 BA-000 계약 검토를 선행한다.",

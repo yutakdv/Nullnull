@@ -181,9 +181,10 @@ if [[ ! -f "${npm_audit_report}" ]]; then
 fi
 python3 "${npm_audit_report_checker}" "${npm_audit_report}"
 
-# infra:check cannot fail the build yet (infra/ is not scaffolded, BA-006 is blocked), so its exit
-# code says nothing. Capture what it stated and let the checker decide: blocked is recorded as
-# blocked and never counted as a pass, and a run that states no outcome at all fails here.
+# infra:check runs the offline CDK synth and assertions in infra/ (BA-006) and exits non-zero when
+# they fail, which stops the run here. A zero exit is still not taken as the answer: capture what
+# it stated and let the checker decide, so a run that states no outcome at all fails, and blocked
+# (infra/ absent) is recorded as blocked and never counted as a pass.
 readonly infra_report="${artifact_dir}/infra-check.txt"
 rm -f "${infra_report}"
 "${compose[@]}" run --rm infra-plan >"${infra_report}" 2>&1 || {
