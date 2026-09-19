@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Fail-closed judgement of what `infra:check` actually did.
 
-`scripts/infra-check.mjs` cannot fail the build today: `infra/` is not scaffolded and BA-006 is
-blocked, so a hard exit 1 would red the default branch for a gap nobody can close yet. It
-therefore exits 0 - and that is exactly the shape this repository keeps catching, where a run
-that did nothing is indistinguishable from a run that passed. `docker-integration` counted
-`infra-plan` as green while its own output said "Not a passing check".
+`scripts/infra-check.mjs` runs the offline CDK synth and assertions in `infra/` (BA-006) and
+exits 1 when they fail or the lockfile is missing. When `infra/` is absent it states `blocked`
+and exits 0 - and a zero exit is exactly the shape this repository keeps catching, where a run
+that did nothing is indistinguishable from a run that passed. Before `infra/` existed,
+`docker-integration` counted `infra-plan` as green while its own output said "Not a passing
+check".
 
-So the exit code stops being the answer. The script states its outcome as a single machine token
+So the exit code is not the answer. The script states its outcome as a single machine token
 and this checker decides what that token means:
 
-* `infra_check=pass`    - a real synth/diff ran and agreed. Counted as a pass.
+* `infra_check=pass`    - the offline synth and assertions ran and passed (no live AWS call).
+                          Counted as a pass.
 * `infra_check=blocked` - nothing ran. Recorded as blocked; NEVER counted as a pass.
 * anything else, including no token at all, an empty capture, or two different tokens - failure.
 

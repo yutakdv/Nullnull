@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.nullnull.identity.application.SessionService;
 import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
+import io.nullnull.testsupport.OwnedRows;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -41,6 +42,9 @@ import tools.jackson.databind.JsonNode;
  * <p>The paste is synthetic, and none of it is in a fixture: the server stores no line of it and sends
  * none back (the question carries its line number and an empty label), so the fixtures hold only what
  * was sent back.
+ *
+ * <p>Every place is referenced to the KTO source the way the canonical ingest writes one, so the fixtures
+ * carry the provider credit, as the trip fixtures do (TripMutationFixtureIT).
  */
 @SpringBootTest(properties = {
         "nullnull.catalog.public-enabled=true",
@@ -75,10 +79,8 @@ class TripImportFixtureIT {
             jdbc.update("DELETE FROM trips WHERE owner_id = ?", owner);
             jdbc.update("DELETE FROM idempotency_records WHERE owner_id = ?", owner);
         });
-        seededPlaces.forEach(place -> {
-            jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", place);
-            jdbc.update("DELETE FROM places WHERE id = ?", place);
-        });
+        // With their localizations and external references, which do not cascade.
+        OwnedRows.remove(jdbc, "places", seededPlaces);
     }
 
     @Test
@@ -159,6 +161,9 @@ class TripImportFixtureIT {
                 id, name, now, now);
         jdbc.update("INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)"
                 + " VALUES (?, ?, 'ko-KR', ?, NULL, ?)", UUID.randomUUID(), id, name, now);
+        jdbc.update("INSERT INTO place_external_refs (id, place_id, source_code, source_registry_version,"
+                + " external_id, external_type, verified_at) VALUES (?, ?, 'KTO_KOR_SERVICE_2', 4, ?,"
+                + " 'KTO_CONTENT_TYPE:12', ?)", UUID.randomUUID(), id, "fixture-" + id, now);
         return id;
     }
 
@@ -169,6 +174,20 @@ class TripImportFixtureIT {
     private static void assertShape(JsonNode body, String fixture) {
         // The fixture Frontend mocks this step against has the keys the server sends, everywhere.
         assertThat(JsonShape.of(body)).as(fixture).isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
+        assertEveryPlaceCredited(body);
+    }
+
+    /** Every seeded place is referenced, and JsonShape merges array elements, so a lost credit is checked here. */
+    private static void assertEveryPlaceCredited(JsonNode node) {
+        if (node.isObject()) {
+            if (node.has("sourceAttribution")) {
+                assertThat(node.get("sourceAttribution").isObject())
+                        .as("the credit of %s", node.get("name")).isTrue();
+            }
+            node.properties().forEach(field -> assertEveryPlaceCredited(field.getValue()));
+        } else if (node.isArray()) {
+            node.forEach(TripImportFixtureIT::assertEveryPlaceCredited);
+        }
     }
 
     private static Cookie cookie(SessionService.Bootstrap owner) {
