@@ -393,7 +393,7 @@ describe('FE-303 removing a saved place (FR-CAN-06)', () => {
   it('offers a remove action named after the place', async () => {
     renderPanel();
     await loaded();
-    // Named, not a bare "제거": three identical buttons in a list tell a screen
+    // Named, not a bare "제거": identical buttons in a list tell a screen
     // reader nothing about which place they act on.
     expect(
       screen.getByRole('button', {
@@ -595,11 +595,33 @@ describe('FE-303 credits each source the way the server named it', () => {
     const unattributedItems = page.items.filter((item) => !item.place.sourceAttribution);
     expect(unattributedItems).toHaveLength(1);
     const unattributed = unattributedItems[0];
-    expect(unattributed).toBeDefined();
+    expect(unattributed).toMatchObject({
+      status: 'ACTIVE',
+      scheduledTripItemId: null,
+      place: {
+        id: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b05',
+        name: '외부 출처가 없는 장소',
+        sourceAttribution: null,
+      },
+    });
     const card = screen
       .getByRole('heading', { level: 2, name: unattributed?.place.name ?? '' })
       .closest('article') as HTMLElement;
     expect(within(card).queryByText(/한국관광공사/)).not.toBeInTheDocument();
+  });
+
+  it('restores the KTO credit on the Myeongdong fixture that previously contradicted it', async () => {
+    const myeongdong = page.items.find(
+      (item) => item.place.id === '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02',
+    );
+    expect(myeongdong?.place.sourceAttribution?.attribution).toBe('출처: ⓒ한국관광공사');
+
+    renderPanel();
+    await loaded();
+    const card = screen
+      .getByRole('heading', { level: 2, name: myeongdong?.place.name ?? '' })
+      .closest('article') as HTMLElement;
+    expect(within(card).getByText('출처: ⓒ한국관광공사')).toBeInTheDocument();
   });
 
   it('prints no credit the response did not supply', async () => {
