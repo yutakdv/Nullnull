@@ -469,7 +469,7 @@ describe('FE-303-T3 the panel is reachable and named', () => {
     // page. This asserted the literal '3' (the page's length) while TripScreen
     // labelled its link with `candidateCount`, so the two screens reported
     // different totals for the same set one tap apart. The fixtures carry that
-    // disagreement: candidateCount is 5, the page holds 3.
+    // disagreement: candidateCount is greater than the bounded page length.
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
       copy['candidates.open'].replace(
         '{count}',
@@ -487,7 +487,7 @@ describe('FE-303-T3 the panel is reachable and named', () => {
     );
     renderPanel();
     const heading = await screen.findByRole('heading', { level: 1 });
-    // "0" here reads as data loss to someone who saved three places.
+    // "0" here reads as data loss to someone who saved places.
     expect(heading).not.toHaveTextContent(
       copy['candidates.open'].replace('{count}', '0'),
     );
@@ -551,7 +551,12 @@ describe('FE-303 credits each source the way the server named it', () => {
     // sourceAttribution is null for a record with no external source. Printing
     // a provider there would imply an origin that was never granted, which is
     // what CMP-ATT-003 forbids.
-    const unattributed = page.items.find((item) => !item.place.sourceAttribution);
+    // Exactly one row owns the unattributed-card role. #287 moves that role
+    // from the scheduled 명동 fixture to a new ACTIVE place; this assertion is
+    // deliberately about the response meaning rather than either row's index.
+    const unattributedItems = page.items.filter((item) => !item.place.sourceAttribution);
+    expect(unattributedItems).toHaveLength(1);
+    const unattributed = unattributedItems[0];
     expect(unattributed).toBeDefined();
     const card = screen
       .getByRole('heading', { level: 2, name: unattributed?.place.name ?? '' })
@@ -705,7 +710,7 @@ describe('the saved-places count agrees with the screen that links here', () => 
   // field, and says why in a comment (TripScreen.tsx:150). This screen counted
   // `items.length` instead — one PAGE of the candidates — so the two screens
   // reported different totals for the same set, one tap apart. The fixtures
-  // make it visible: candidateCount is 5 and the page holds 3.
+  // make it visible: candidateCount is larger than the bounded page.
   it('reports the trip total, not the length of one page', async () => {
     renderPanel();
     await loaded();
