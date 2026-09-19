@@ -1,5 +1,12 @@
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
+import { usePlaceCrowdForecast } from '../../shared/api/index.js';
+import {
+  CrowdForecastQueryState,
+  CrowdForecastReading,
+} from '../../shared/crowd/CrowdForecastReading.js';
+import { crowdPointForDate } from '../../shared/crowd/forecast.js';
 import { BottomCta, IconPinVisit, IconPinVisitFilled } from '../../shared/ui/index.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './ConfirmStopsStep.module.css';
@@ -19,17 +26,10 @@ import { stopsOn, tripDays, type DraftStop, type WizardDraft } from './wizard.js
 // has a `trip_item_id` to point at. It all goes in the one createTrip call, so
 // #185's partial-failure question does not arise (invariant 5).
 //
-// NO CROWD FIGURE, though the frame draws one on every card (`4 · 혼잡`, a
-// CrowdBar and the ⓒ한국관광공사 source line). Verified rather than assumed:
-// PlaceSummary — which is what this screen holds, straight from searchPlaces —
-// has no crowd field, and `CrowdLevel` needs a `CrowdMetric` that nothing here
-// can supply. BA-023 made crowd a separate dated series per place
-// (getPlaceCrowdForecast), deliberately not a scalar, so showing one number per
-// stop would mean picking a value nobody measured (invariant 8). The same line
-// is left empty for the same reason in MoveDaySheet.tsx and
-// ScheduleCandidateSheet.tsx; #105 (FCR-029) tracks it. The source line goes
-// with it: CMP-ATT-003 forbids implying a source that was not granted, and
-// crediting KTO for a figure not shown would do exactly that.
+// Each visible stop lazily reads its own exact date. This screen can hold up to
+// 100 draft stops, above the batch endpoint's 50-place cap, so eager fan-out or
+// one oversized batch are both wrong. IntersectionObserver keeps off-screen
+// cards quiet; the request starts when a card approaches the viewport.
 //
 // The hint copy IS contract-backed and ships. "고른 곳은 다른 장소로 바꾸자고
 // 하지 않아요 / 대신 덜 붐비는 날짜를 알려드려요" is what MUST_VISIT does:
@@ -44,6 +44,46 @@ export interface ConfirmStopsStepProps {
   /** Back to the manual entry step to change what was typed. */
   onEdit: () => void;
   isSubmitting: boolean;
+}
+
+function LazyStopCrowd({ placeId, date }: { placeId: string; date: string }) {
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const node = anchor.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      // Progressive fallback for older browsers. Supported browsers take the
+      // lazy path; an unsupported one still gets truthful data.
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: '160px 0px' },
+    );
+    observer.observe(node.closest('[data-crowd-stop]') ?? node);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  const forecast = usePlaceCrowdForecast(placeId, date, date, visible);
+  return (
+    <span ref={anchor}>
+      <CrowdForecastQueryState
+        failed={forecast.isError}
+        loading={forecast.isFetching}
+        series={forecast.data}
+      />
+      <CrowdForecastReading point={crowdPointForDate(forecast.data, date)} />
+    </span>
+  );
 }
 
 export function ConfirmStopsStep({
@@ -117,7 +157,11 @@ export function ConfirmStopsStep({
                   >
                     {index + 1}
                   </span>
-                  <div className={styles.card} data-picked={stop.mustVisit}>
+                  <div
+                    className={styles.card}
+                    data-crowd-stop
+                    data-picked={stop.mustVisit}
+                  >
                     <span className={styles.text}>
                       <span className={styles.row1}>
                         <span className={styles.name}>{stop.place.name}</span>
@@ -128,6 +172,7 @@ export function ConfirmStopsStep({
                       {meta(stop) ? (
                         <span className={styles.meta}>{meta(stop)}</span>
                       ) : null}
+                      <LazyStopCrowd date={date} placeId={stop.place.id} />
                     </span>
                     {/* A toggle, so it announces its own state rather than
                         relying on the pin glyph — which is colour-and-shape

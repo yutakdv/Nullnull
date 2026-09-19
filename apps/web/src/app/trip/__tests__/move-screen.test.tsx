@@ -17,7 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { tripFixtures } from '@nullnull/contracts';
+import { crowdFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -47,10 +47,15 @@ interface Sent {
 }
 
 let sent: Sent[] = [];
+let crowdRequests: URL[] = [];
 
 beforeEach(() => {
   sent = [];
+  crowdRequests = [];
   server.events.on('request:start', ({ request }) => {
+    if (request.url.includes('/crowd-forecast')) {
+      crowdRequests.push(new URL(request.url));
+    }
     if (!request.url.includes('/items/reorder')) return;
     const clone = request.clone();
     const base = {
@@ -66,6 +71,58 @@ beforeEach(() => {
         sent.push({ ...base, body: null });
       },
     );
+  });
+});
+
+describe('#105 FCR-029 the move sheet reads dated crowd only when opened', () => {
+  it('makes no mounted-sheet requests, then one exact KST-window request', async () => {
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('인사동');
+    expect(crowdRequests).toHaveLength(0);
+
+    await user.click(within(card).getByRole('button', { name: moveName('인사동') }));
+    const sheet = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
+    await waitFor(() => {
+      expect(crowdRequests).toHaveLength(1);
+    });
+
+    expect(crowdRequests[0]?.pathname).toContain(
+      `/places/${insadong.place.id}/crowd-forecast`,
+    );
+    expect(crowdRequests[0]?.searchParams.get('from')).toBe('2026-10-03T15:00:00.000Z');
+    expect(crowdRequests[0]?.searchParams.get('to')).toBe('2026-10-07T14:59:59.999999Z');
+    expect(within(sheet).getByText('Relative concentration 34')).toBeInTheDocument();
+    expect(within(sheet).getAllByText('Official crowd forecast').length).toBeGreaterThan(
+      0,
+    );
+    expect(within(sheet).getAllByText('출처: ⓒ한국관광공사').length).toBeGreaterThan(0);
+    // The 10/4 row has no exact KST target point. It stays without a made-up
+    // number or provider credit instead of borrowing 10/5's reading.
+    const dayOne = within(sheet).getByRole('button', { name: /Day 1/ }).closest('li');
+    expect(dayOne).not.toBeNull();
+    expect(
+      within(dayOne as HTMLElement).queryByText(/Relative concentration/),
+    ).toBeNull();
+    expect(within(dayOne as HTMLElement).queryByText(/한국관광공사/)).toBeNull();
+  });
+
+  it('states NO_COVERAGE instead of making an unavailable series look empty', async () => {
+    server.use(
+      http.get(`${API_BASE}/places/:placeId/crowd-forecast`, () =>
+        HttpResponse.json({
+          ...crowdFixtures.seriesUnavailable,
+          unavailableReason: 'NO_COVERAGE',
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('인사동');
+    await user.click(within(card).getByRole('button', { name: moveName('인사동') }));
+    expect(
+      await screen.findByText('No crowd forecast for these dates'),
+    ).toBeInTheDocument();
   });
 });
 

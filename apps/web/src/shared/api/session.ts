@@ -17,6 +17,7 @@ import {
 } from '@tanstack/react-query';
 import { createApiClient, type components } from '@nullnull/api-client';
 import { isProblem, toProblem, type Problem } from './problem.js';
+import { crowdWindow } from '../crowd/forecast.js';
 
 type SessionBootstrap = components['schemas']['SessionBootstrap'];
 type OwnerProfile = components['schemas']['OwnerProfile'];
@@ -524,6 +525,92 @@ export function useFeed(tripId: string | null = null, enabled = true) {
 
 type PlaceSearchPage = components['schemas']['PlaceSearchPage'];
 type PlaceSearchRequest = components['schemas']['PlaceSearchRequest'];
+type CrowdSeries = components['schemas']['CrowdSeries'];
+type PlaceCrowdForecastQueryResult =
+  components['schemas']['PlaceCrowdForecastQueryResult'];
+
+/**
+ * One place's dated crowd series.
+ *
+ * `enabled` is intentionally explicit. Screens can mount hundreds of closed
+ * sheets, and mounting one must not turn into a request for data the traveller
+ * has not opened. The caller enables this only while its sheet is visible.
+ */
+export function usePlaceCrowdForecast(
+  placeId: string | null,
+  startDate: string | null,
+  endDate: string | null,
+  enabled: boolean,
+): UseQueryResult<CrowdSeries, Problem | Error> {
+  const window =
+    startDate === null || endDate === null ? null : crowdWindow(startDate, endDate);
+
+  return useQuery({
+    queryKey: [
+      'places',
+      placeId ?? '',
+      'crowd-forecast',
+      window?.from ?? '',
+      window?.to ?? '',
+    ],
+    enabled: enabled && placeId !== null && window !== null,
+    queryFn: async () => {
+      if (placeId === null || window === null) {
+        throw new Error('Crowd forecast query is missing its place or date window');
+      }
+      const { data, error, response } = await getApiClient().GET(
+        '/places/{placeId}/crowd-forecast',
+        {
+          params: {
+            path: { placeId },
+            query: window,
+          },
+        },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    // The contract response is private, no-store. A query already in flight is
+    // shared by React Query, but reopening asks the server for current data.
+    staleTime: 0,
+  });
+}
+
+/**
+ * Dated crowd series for a visible list of place cards.
+ *
+ * The contract defines `items[i]` as the answer for `placeIds[i]`, including
+ * when a deprecated id resolves to a different canonical id. Callers must keep
+ * this array order and join by index; they must never sort by the relative
+ * values, which are normalized independently for each place.
+ */
+export function usePlaceCrowdForecasts(
+  placeIds: readonly string[],
+  startDate: string | null,
+  endDate: string | null,
+  enabled = true,
+): UseQueryResult<PlaceCrowdForecastQueryResult, Problem | Error> {
+  const window =
+    startDate === null || endDate === null ? null : crowdWindow(startDate, endDate);
+  const ids = [...placeIds];
+
+  return useQuery({
+    queryKey: ['places', 'crowd-forecasts', ids, window?.from ?? '', window?.to ?? ''],
+    enabled: enabled && ids.length > 0 && ids.length <= 50 && window !== null,
+    queryFn: async () => {
+      if (ids.length === 0 || ids.length > 50 || window === null) {
+        throw new Error('Crowd forecast batch is missing a valid place or date window');
+      }
+      const { data, error, response } = await getApiClient().POST(
+        '/places/crowd-forecasts/query',
+        { body: { placeIds: ids, ...window } },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    staleTime: 0,
+  });
+}
 
 /**
  * Canonical place search.

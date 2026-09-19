@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import { usePlaceSearch } from '../../shared/api/index.js';
+import { usePlaceCrowdForecasts, usePlaceSearch } from '../../shared/api/index.js';
 import {
   BottomCta,
   DataAttribution,
@@ -9,6 +9,10 @@ import {
   PlaceThumbnail,
   SearchField,
 } from '../../shared/ui/index.js';
+import {
+  CrowdForecastCardReading,
+  CrowdForecastQueryState,
+} from '../../shared/crowd/CrowdForecastReading.js';
 import styles from './MustVisitScreen.module.css';
 
 type PlaceSummary = components['schemas']['PlaceSummary'];
@@ -57,13 +61,10 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // is a schema-valid guess (packages/contracts). The screen calls the real
 // generated client, so BA-022 landing removes the fixture and handler only.
 //
-// Waiting on the contract, not missed: the Figma card shows a crowd level, a
-// "공식 혼잡 예측" badge and a source line, but neither PlaceSummary nor
-// PlaceDetail carries a crowd field yet. Backend/AI confirmed crowd is not
-// implemented and is planned, so the Figma design stands and this card ships
-// without it -- rendering a number the contract cannot source is what
-// invariant 8 forbids. Add it here once PlaceSummary gains crowd with its
-// provenance and comparison eligibility (FCR-029).
+// The Figma card's crowd reading comes from queryPlaceCrowdForecasts, not from
+// PlaceSummary. The ordered response is joined to search results by index and
+// preserves the chosen point's own provenance; no ordinal is derived from the
+// KTO relative index (FCR-029).
 
 export interface MustVisitStepProps {
   /** The places chosen so far, held by the wizard so going back keeps them. */
@@ -77,6 +78,8 @@ export interface MustVisitStepProps {
   onSkip: () => void;
   /** True while createTrip is in flight, so neither exit fires twice. */
   isSubmitting: boolean;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 export function MustVisitStep({
@@ -86,10 +89,18 @@ export function MustVisitStep({
   onSubmit,
   onSkip,
   isSubmitting,
+  startDate,
+  endDate,
 }: MustVisitStepProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const search = usePlaceSearch(query);
+  const searchResults = search.data?.items ?? [];
+  const forecasts = usePlaceCrowdForecasts(
+    searchResults.map((place) => place.id),
+    startDate,
+    endDate,
+  );
 
   const pickedIds = new Set(picked.map((place) => place.id));
 
@@ -147,9 +158,16 @@ export function MustVisitStep({
           {search.isSuccess && search.data.items.length === 0 ? (
             <p className={styles.state}>{t('mustVisit.noResults')}</p>
           ) : null}
+          {searchResults.length > 0 ? (
+            <CrowdForecastQueryState
+              failed={forecasts.isError}
+              loading={forecasts.isFetching}
+              series={undefined}
+            />
+          ) : null}
           {search.isSuccess && search.data.items.length > 0 ? (
             <ul className={styles.list} aria-labelledby="search-results">
-              {search.data.items.map((place) => (
+              {search.data.items.map((place, index) => (
                 <li className={styles.card} key={place.id}>
                   {/* 438:3171: a 66px thumbnail. Decorative — the name beside
                       it is the accessible content. */}
@@ -169,6 +187,7 @@ export function MustVisitStep({
                     {place.sourceAttribution ? (
                       <DataAttribution compact provenance={place.sourceAttribution} />
                     ) : null}
+                    <CrowdForecastCardReading series={forecasts.data?.items[index]} />
                   </span>
                   <button
                     type="button"

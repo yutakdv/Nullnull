@@ -133,7 +133,7 @@ Figma 최상위 node 수에 포함하지 않으며 출처 문구·link·source s
 | --- | --- |
 | `Data / StateLabel` | 6개 state 나열, REPLAY 단독, UNAVAILABLE |
 | `Data / MetricDelta` | 개선, 변화 없음, 비교 불가, 긴 사유 |
-| `CrowdLevel` | 1~4단계, 데이터 없음, 척도 밖 |
+| `CrowdLevel` | 1~5단계(`매우 여유`·`여유`·`보통`·`혼잡`·`매우 혼잡`), 데이터 없음, 척도 밖 |
 | `Action / DecisionBar` | preview, applying, applied, stale, failed |
 | `Action / TripAddButton` | 6개 state 나열, loading, error |
 | `Form / LockControl` | 잠금 독립, 예약 잠금, disabled |

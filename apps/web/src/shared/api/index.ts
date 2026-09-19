@@ -46,6 +46,8 @@ export {
   useTripOptimizationHistory,
   useRevertOptimizationDecision,
   usePlaceSearch,
+  usePlaceCrowdForecast,
+  usePlaceCrowdForecasts,
   usePost,
   useSavePost,
   useUnsavePost,

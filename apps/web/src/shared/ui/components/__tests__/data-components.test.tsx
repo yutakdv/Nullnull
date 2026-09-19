@@ -80,12 +80,14 @@ describe('CrowdLevel', () => {
           provenance: {} as never,
         }}
         levelLabel="Level 4 of 5"
+        levelLabels={{ 4: 'Crowded' }}
         stateLabels={{ LIVE: 'Observed live' }}
       />,
     );
     expect(screen.getByText('Observed live')).toBeInTheDocument();
     expect(screen.queryByText('실시간 관측')).toBeNull();
     expect(screen.getByRole('img', { name: 'Level 4 of 5' })).toBeInTheDocument();
+    expect(screen.getByText('4 · Crowded')).toBeInTheDocument();
   });
 
   it('says data is missing instead of drawing an empty bar', () => {
@@ -107,12 +109,9 @@ describe('CrowdLevel', () => {
         }}
       />,
     );
-    // The words come from the data state, not from `label`. The contract calls
-    // label "diagnostic, not display copy: it is not localized", and says to
-    // build user-facing wording from `state` and `provenance.metricDefinition`
-    // — so rendering it was showing the user an internal metric name in the
-    // source's language whatever locale they chose.
-    expect(screen.queryByText('4 · 혼잡')).toBeNull();
+    // The words come from the FE-owned five-stage vocabulary, not `label`.
+    // The contract calls label diagnostic and it may be in the source locale.
+    expect(screen.getByText('4 · 혼잡')).toBeInTheDocument();
     expect(screen.getByText('실시간 관측')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: '5단계 중 4번째' })).toBeInTheDocument();
   });
@@ -132,6 +131,7 @@ describe('CrowdLevel', () => {
     );
 
     expect(screen.getByRole('img', { name: '5단계 중 5번째' })).toBeInTheDocument();
+    expect(screen.getByText('5 · 매우 혼잡')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-filled]')).toHaveLength(5);
   });
 

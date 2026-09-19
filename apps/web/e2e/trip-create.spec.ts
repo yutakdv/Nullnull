@@ -224,6 +224,33 @@ test.describe('FE-103 the confirm step is operable by keyboard', () => {
     await expect(pick).toHaveAttribute('aria-pressed', 'true');
   });
 
+  test('#105 loads crowd only when a stop approaches the viewport', async ({ page }) => {
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/crowd-forecast')) requests.push(request.url());
+    });
+
+    await openWizard(page);
+    // A stable off-screen position before the card is mounted. The production
+    // observer watches the card itself with a 160px preload margin; 1000px is
+    // deliberately beyond that boundary on the 800px test viewport.
+    await page.addStyleTag({ content: '[data-crowd-stop]{margin-top:1000px}' });
+    await pickRange(page);
+    await reachInputMethod(page);
+    await page.getByRole('button', { name: /Enter it yourself/ }).click();
+    await addFirstPlace(page);
+    await advance(page);
+    await expect(page.getByRole('heading', { name: CONFIRM_TITLE })).toBeVisible();
+
+    const card = page.locator('[data-crowd-stop]').first();
+    await expect(card).not.toBeInViewport();
+    expect(requests).toHaveLength(0);
+
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toBeInViewport();
+    await expect.poll(() => requests.length).toBe(1);
+  });
+
   test('going back to fix the itinerary keeps the picks', async ({ page }) => {
     // 다시 고칠래요 is not a cancel. Asserted in a browser as well as in the
     // component test because this is the step where a user would lose work.
@@ -240,15 +267,16 @@ test.describe('FE-103 the confirm step is operable by keyboard', () => {
     );
   });
 
-  test('shows no crowd figure and credits no source it cannot show', async ({ page }) => {
-    // The frame draws `4 · 혼잡`, a CrowdBar and ⓒ한국관광공사 on every card.
-    // PlaceSummary carries no crowd field, so a number would be one nobody
-    // measured (invariant 8) and the credit would imply a source that was not
-    // granted (CMP-ATT-003). Checked in the browser too because this is the
-    // rendered surface a judge reads.
+  test('does not borrow another date point or its source', async ({ page }) => {
+    // The default single-place fixture has October points while this draft is
+    // in September. An exact-date card must stay without a figure/credit; it
+    // must not borrow the first or maximum point from another date.
     await reachConfirm(page);
+    await page.locator('[data-crowd-stop]').first().scrollIntoViewIfNeeded();
+    await expect(page.getByText('Loading crowd forecast')).not.toBeVisible();
     const body = (await page.locator('body').textContent()) ?? '';
-    expect(body).not.toMatch(/혼잡/);
+    expect(body).not.toMatch(/Relative concentration/);
+    expect(body).not.toMatch(/Level \d/);
     expect(body).not.toMatch(/한국관광공사/);
   });
 });

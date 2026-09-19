@@ -69,6 +69,12 @@
   overflow-y: auto;
 }
 
+.dayRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 /* 522:4075: px14 py12, r12. */
 .day {
   display: flex;

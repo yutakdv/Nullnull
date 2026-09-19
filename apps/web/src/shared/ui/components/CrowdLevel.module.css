@@ -28,6 +28,11 @@
   font-weight: 500;
 }
 
+.levelText {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
 .reason {
   color: var(--color-text-secondary);
 }

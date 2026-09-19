@@ -195,6 +195,7 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join(' · ');
   const match = matches.data;
+  const tripDates = (trip.data?.trip.days ?? []).map((day) => day.date).sort();
 
   /**
    * Which day of the trip a date is, so the sheet can say `day 2` the way the
@@ -328,7 +329,10 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
               schedule(slot.date, slot.suggestedTime);
             }}
             open={open}
+            placeId={candidate.place.id}
             placeName={candidate.place.name}
+            startDate={tripDates[0] ?? null}
+            endDate={tripDates.at(-1) ?? null}
           />
 
           {/* Kept on the card rather than inside the sheet: the sheet closes on
