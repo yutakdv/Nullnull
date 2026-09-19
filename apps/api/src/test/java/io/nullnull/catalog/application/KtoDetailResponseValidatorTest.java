@@ -16,7 +16,7 @@ class KtoDetailResponseValidatorTest {
     private final KtoPlaceRequest request = new KtoPlaceRequest("126508", "12");
 
     @Test
-    @DisplayName("BA-021-T1 retains only the normalized fields from one matching KTO detail response")
+    @DisplayName("BA-021-T6 retains only the normalized fields from one matching KTO detail response")
     void acceptsMatchingDetailAndExcludesOverview() {
         KtoDetailResponseValidator.Validation result = validate(valid("126508", "12", "37.566535", "126.978001"));
 
@@ -32,7 +32,7 @@ class KtoDetailResponseValidatorTest {
     }
 
     @Test
-    @DisplayName("BA-021-T1 accepts the current one-item array envelope before normalizing it")
+    @DisplayName("BA-021-T6 accepts the current one-item array envelope before normalizing it")
     void acceptsOneItemArray() {
         KtoDetailResponseValidator.Validation result = validate(validArray("126508", "12", "37.566535", "126.978001"));
 
@@ -42,7 +42,7 @@ class KtoDetailResponseValidatorTest {
     }
 
     @Test
-    @DisplayName("BA-021-T1 provider errors and mismatched identifiers are quarantined before persistence")
+    @DisplayName("BA-021-T7 provider errors and mismatched identifiers are quarantined before persistence")
     void rejectsProviderErrorAndMismatchedItem() {
         KtoDetailResponseValidator.Validation providerError = validate("""
                 {"response":{"header":{"resultCode":"22"},"body":{}}}
@@ -66,7 +66,7 @@ class KtoDetailResponseValidatorTest {
      * had left every real place unclassified, so a response that only carries them must quarantine.
      */
     @Test
-    @DisplayName("BA-021-T1 a response carrying only the retired identifiers is drift, not a remap")
+    @DisplayName("BA-021-T7 a response carrying only the retired identifiers is drift, not a remap")
     void rejectsLegacyOnlyIdentifiers() {
         KtoDetailResponseValidator.Validation legacyOnly = validate("""
                 {"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{
@@ -82,7 +82,7 @@ class KtoDetailResponseValidatorTest {
 
     /** Neither identifier set is present: legitimate for an unclassified KTO place, not provider drift. */
     @Test
-    @DisplayName("BA-021-T1 a place with no classification at all is accepted without inventing one")
+    @DisplayName("BA-021-T6 a place with no classification at all is accepted without inventing one")
     void acceptsAnUnclassifiedPlaceWithNullCodes() {
         KtoDetailResponseValidator.Validation result = validate("""
                 {"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{
@@ -99,7 +99,7 @@ class KtoDetailResponseValidatorTest {
     }
 
     @Test
-    @DisplayName("BA-021-T1 incomplete or out-of-range map coordinates cannot become a snapshot")
+    @DisplayName("BA-021-T7 incomplete or out-of-range map coordinates cannot become a snapshot")
     void rejectsUnsafeCoordinates() {
         KtoDetailResponseValidator.Validation incomplete = validate(valid("126508", "12", "", "126.9"));
         KtoDetailResponseValidator.Validation outOfRange = validate(valid("126508", "12", "91", "126.9"));

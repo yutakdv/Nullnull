@@ -190,8 +190,16 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 - `BA-003-T4`: DB에 닿지 못하면(이름 해석 실패·연결 거부·무응답) getReadiness는 500이 아니라 503이다 — `ReadinessOutageIT` 세 case. app의 DataSource를 감싸 context가 뜬 **뒤에** 장애 pool로 돌리므로, `T1`이 적은 *"DataSource를 깨면 context가 뜨지 않는다"* 를 피한다. 진짜 Hikari·PG driver가 각 모양의 예외(UnknownHost·ConnectException·SQLTransientConnection)를 내고, case마다 그 모양을 먼저 증명한다
 - `BA-003-T5`: probe가 던지는 예외는 그 probe의 UNAVAILABLE이 되고 readiness 밖으로 나가지 않는다 — `ReadinessQueryTest`의 던지는 필수·선택 probe 두 case(detail은 예외 메시지가 아니라 `probe failed`)
 - `BA-003-T6`: 필수 probe가 UNAVAILABLE이면 선택 probe를 돌리지 않는다 — `ReadinessQueryTest.optionalProbesDoNotRunOnceARequiredOneIsUnavailable`, `ReadinessOutageIT`의 "장애 DB에 대한 연결 시도 1회" 단언
+- `BA-003-T7`: 구현된 operation은 모두 catch-all Problem 응답(`default`)을 선언한다 — `ProblemResponseCoverageTest.everyImplementedOperationDeclaresDefault`(`GlobalExceptionHandler`가 `@RestControllerAdvice`라 어느 route든 답할 수 있다. 구현 operation이 20개를 넘는지 먼저 단언해 빈 registry가 통과하지 못한다)
+- `BA-003-T8`: 계약의 모든 operation이 선언한 401·403은 그 operation의 security와 method가 도달 가능하게 만드는 것과 같다 — `ProblemResponseCoverageTest.securityRequirementsAndDeclaredStatusesAgree`(양방향이다: 빠지면 client가 실제로 올 답의 타입을 갖지 못하고, 남으면 아무것도 내지 않는 실패를 광고한다. 403의 생산자가 CSRF token 검사와 비안전 method의 origin 검사 둘인 이유는 test 주석에 있다, #170)
+- `BA-003-T9`: 503을 보내는 operation은 그 503을 오는 code를 명명한 응답으로 선언한다 — `ServiceUnavailableContractTest.everyProducedFiveOhThreeNamesItsCode`(생산 목록에는 live 응답의 `$.code`를 단언하는 test가 있는 operation만 넣는다)
+- `BA-003-T10`: 구현된 operation이 선언한 503은 모두 오는 code를 명명한다 — `ServiceUnavailableContractTest.everyImplementedFiveOhThreeIsNamed`(parser가 이름 붙은 두 component만 기록하던 동안에는 빨개질 수 없었다. 지금은 모든 503을 기록하고, `getTrip`의 503을 이름 없는 component로 바꾸면 이 case만 빨개진다)
+- `BA-003-T11`: source가 없는 capability는 준비 완료로 광고되지 않는다 — `DemoReadinessContractTest.nothingIsAdvertisedWithoutASource`(flag가 전부 꺼진 유일한 기동 구성에서 READY인 capability가 없고 overall은 `NOT_READY`)
+- `BA-003-T12`: demo readiness fixture는 `DemoCapabilityQuery`의 실제 출력과 같다 — `DemoReadinessContractTest.fixtureMatchesTheService`
 - 그 밖의 검증: `HttpPolicyIT.cursorFailuresKeepTheirOwnCodes`(`CURSOR_INVALID` 400 / `CURSOR_EXPIRED` 410), `HttpPolicyIT.aServiceConstraintViolationIsUnprocessable`(422 `VALIDATION_FAILED`, `fieldErrors[].field`가 내부 경로가 아닌 parameter 이름), `HttpPolicyIT.exhaustedOwnerCommandContentionIsInternalError`, `HttpPolicyIT.theAccessLogLineIsTheAllowedFieldsOnly`(허용 필드만·query 없음·MDC pattern이 console line에 requestId를 찍는다), `HttpPolicyIT.anUnmatchedRouteIsLoggedWithoutItsUri`, `HttpPolicyIT.aBodyUnderTheBoundIsAccepted`, `RequestBodyLimitIT.aChunkedBodyUnderTheBoundIsAccepted`, `OwnerCommandContentionIT`(흡수되는 경합과 소진되는 경합), `SystemEndpointsIT.demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes`, `SystemContractTest.demoReadinessMatchesDemoReadinessSchema`(`DemoReadiness` schema 검증과 capability 이름)
 - 단위 검증: `DemoCapabilityQueryTest`(vocabulary 고정, 두 namespace가 이름을 공유하지 않음, source 없는 capability는 UNAVAILABLE, overall 집계), `AccessLogFilterTest`, `RequestSizeLimitFilterTest`(설정 하한) — 모두 `test` suite
+
+**`T7`~`T12`는 #195다.** 공통 HTTP 선언을 재는 test 넷이 `BA-003-T1`(health 범위)과 `BA-032-T1`(feed 페이지 일관성)을 빌려 달고 있었다. 그 작업의 소유 단위(`CON-006`·#170, #162)에는 test ID를 둘 자리가 없어서다. `DemoReadinessContractTest`의 둘도 장애를 만들지 않으면서 `T1`을 달고 있었다. 이 카드가 HTTP 공통 정책과 capability의 주인이므로 절을 여기에 더하고 이름을 옮겼다. 세 test class가 각각 두 절을 재므로 ID도 여섯이다(규칙 3). 옮긴 뒤 `T1`을 다는 것은 `HealthScopeIT` 셋이다.
 
 **`T4`~`T6`은 #258이다 — `T1`이 초록인 채로 DB 장애가 500이었다.** `T1`의 test는 probe를 교체해 database probe만 실패시켰다. 실제 장애에서는 DB를 읽는 선택 probe(`SourceHealth`, 6개 등록)도 같은 장애에서 던졌고, 그 예외가 답 전체를 500으로 만들었다. staging 리허설은 이름 해석 실패만 재현했는데, 수정 전 코드에서는 연결 거부·무응답도 500이었다. 세 절은 변이로 갈린다: 예외 가드를 지우면 `T5`만, 필수 probe 선판정을 지우면 `T6`만 빨개지고, 둘 다 지워야 `T4`가 다시 500이 된다. DB 장애 중에는 선판정이 먼저 반환해 던지는 probe가 돌지 않기 때문이다.
 
@@ -598,6 +606,12 @@ FE 인계·완료 증거: source 상태·quota·운영 실패 fixture와 승인 
 - `BA-021-T1`: 외부 key가 브라우저·log·artifact에 노출되지 않는다
 - `BA-021-T2`: 동일 요청 coalescing과 cache expiry 때 실제 refresh 경로를 fixture로 확인한다
 - `BA-021-T3`: staging 실제 KTO 성공 이력과 공개 응답 provenance가 연결되며 mock-only 증거는 release에서 실패한다
+- `BA-021-T4`: A-027 detailIntro2 탐색 보고는 item 필드의 값을 판단 필드(`usetime`·`restdate`)의 40자 preview로만 싣는다 — `KtoIntroProbeMainTest`의 `reportsShapeWithoutCopyingTheBody`(질문 밖 필드는 이름과 길이만 남고 canary가 없으며, preview가 붙는 줄은 두 판단 필드의 것뿐이다), `previewDistinguishesStructureFromProse`(긴 산문은 앞 40자와 `…`로 잘린다. 한도는 `KtoIntroProbeMain.PREVIEW`다), `multiLineValuesAreFlattened`(값 안의 줄바꿈이 보고 줄을 늘리지 못한다), `nonJsonIsNamedNotDumped`
+- `BA-021-T5`: A-027 탐색 보고는 provider 오류·JSON이 아닌 답·빈 목록을 관측으로 판정하지 않는다 — `KtoIntroProbeMainTest`의 `providerErrorIsNotAnObservation`(`PROVIDER_ERROR`), `nonJsonIsNamedNotDumped`(`NOT_JSON`), `emptyItemsAreReported`(`NO_ITEM`)
+- `BA-021-T6`: 유효한 detailCommon2 응답은 provider가 준 값만으로 정규화된 필드가 된다 — `KtoDetailResponseValidatorTest`의 `acceptsMatchingDetailAndExcludesOverview`, `acceptsOneItemArray`, `acceptsAnUnclassifiedPlaceWithNullCodes`(분류가 없으면 null이고 지어내지 않는다)
+- `BA-021-T7`: provider 오류·식별자 불일치·폐기된 식별자만 가진 응답·불완전하거나 범위 밖 좌표는 snapshot이 되지 않는다 — `KtoDetailResponseValidatorTest`의 `rejectsProviderErrorAndMismatchedItem`, `rejectsLegacyOnlyIdentifiers`, `rejectsUnsafeCoordinates`
+
+**`T4`~`T7`은 #195다.** A-027 탐색 보고의 test 여섯과 detailCommon2 응답 검증 test 여섯이 `BA-021-T1`(외부 key 비노출)을 빌려 달고 있었다. 둘 다 이 카드의 일이라 절을 더하고 이름을 옮겼다. `nonJsonIsNamedNotDumped`는 `T4`와 `T5`를 함께 단다. 원문을 싣지 않는 것과 판정을 `NOT_JSON`으로 내는 것을 한 case가 모두 잰다. `T4`의 범위는 item 필드다. envelope 줄은 `resultCode`·`totalCount`와 item 수를 그대로 싣는다(판정에 필요한 provider 메타데이터다).
 
 FE 인계·완료 증거: 승인된 출처 텍스트·공식 URL·license URL·null 시각·provider별 field 설명, 실제 호출 증거 위치. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

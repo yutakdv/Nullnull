@@ -79,7 +79,7 @@ class ProblemResponseCoverageTest {
     }
 
     @Test
-    @DisplayName("BA-003-T1 every implemented operation declares the catch-all Problem response")
+    @DisplayName("BA-003-T7 every implemented operation declares the catch-all Problem response")
     void everyImplementedOperationDeclaresDefault() {
         Map<String, List<String>> declared = declaredResponses();
         assertThat(declared).as("the parser found operations at all").isNotEmpty();
@@ -161,7 +161,7 @@ class ProblemResponseCoverageTest {
     }
 
     @Test
-    @DisplayName("BA-003-T1 every implemented operation declares the statuses its own security makes reachable")
+    @DisplayName("BA-003-T8 every operation declares the 401 and 403 its own security and method make reachable")
     void securityRequirementsAndDeclaredStatusesAgree() {
         // PM-019 answered: Frontend branches on `code`, never on `status` (PROBLEM_POLICY is keyed by
         // code and problem.ts only type-checks status as a number), so this is not about giving the
