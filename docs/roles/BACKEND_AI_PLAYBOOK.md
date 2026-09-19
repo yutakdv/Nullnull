@@ -1742,6 +1742,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-053-T9`: KEEP과 REVERT 결정은 되돌릴 수 없다
 - `BA-053-T10`: 만료된 history cursor는 410 CURSOR_EXPIRED로 거절된다
 - `BA-053-T11`: REVERT는 기록된 일정 변경만 되돌리고 후보의 ACTIVE·DISMISSED 상태를 바꾸지 않는다
+- `BA-053-T12`: APPLY와 REVERT가 기록된 trip의 deleteTrip은 500이 아니라 204다 — `OptimizeRevertIT.aTripWithDecisionsIsDeleted`. staging rc.6에서 나온 결함이고, 수정 전에 로컬에서 500을 재현했다.
+- `BA-053-T13`: 다른 trip의 revision을 가리키는 run이 있으면 그 revision이 속한 trip의 삭제가 거절된다 — `OptimizeRevertIT.aMisalignedRevisionReferenceStillRefusesTheDelete`(이 test의 `@DisplayName`은 "delete from"이라는 낱말을 피한다 — `check_test_row_ownership.py`가 산문 속 그 두 낱말을 SQL로 읽는다). V036이 CASCADE가 아니라 지연 검사인 이유를 고정한다: CASCADE로 바꾸면 `T12`는 초록이고 이 test만 빨갛다.
 
 **원래 세 절을 열로 나눈 이유.** `T1`은 창 경계 셋·경쟁·replay를, `T3`은 cursor 만료를 함께 묶고 있었고 그 ID들을 단 test는 절의 일부만 쟀다 — 정각 경계·경쟁·cursor 만료를 재는 case가 없었다. 등록 규칙 3의 모양이라 승격 전에 기제별로 나눴다. `T2`는 나누지 않는다: item·metadata·관심사 편집은 모두 `resultingTripVersion` 비교 **한 기제**를 때리는 입력이고, 세 입력마다 case가 있다.
 

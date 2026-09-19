@@ -85,7 +85,15 @@
         "address": null,
         "categoryName": null,
         "regionName": null,
-        "sourceAttribution": null
+        "sourceAttribution": {
+          "source": "KTO_KOR_SERVICE_2",
+          "sourceDisplayName": "한국관광공사 국문 관광정보",
+          "sourceRegistryVersion": 4,
+          "attribution": "출처: ⓒ한국관광공사",
+          "officialUrl": "https://www.data.go.kr/data/15101578/openapi.do",
+          "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
+          "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+        }
       },
       "status": "SCHEDULED",
       "scheduledTripItemId": "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03",
@@ -99,6 +107,34 @@
         }
       ],
       "createdAt": "2026-09-08T04:00:00Z"
+    },
+    {
+      "id": "018f4d40-1122-7a33-9b44-000000000004",
+      "tripId": "018f4a10-2c31-7d42-9a55-6b1f0c3e8a01",
+      "place": {
+        "id": "018f4b20-1a44-7e11-9c02-5d7e3f1a2b05",
+        "name": "외부 출처가 없는 장소",
+        "categoryCode": "HS",
+        "regionCode": "11",
+        "thumbnailUrl": null,
+        "thumbnailAttribution": null,
+        "address": null,
+        "categoryName": null,
+        "regionName": null,
+        "sourceAttribution": null
+      },
+      "status": "ACTIVE",
+      "scheduledTripItemId": null,
+      "note": null,
+      "mustVisit": false,
+      "sources": [
+        {
+          "type": "SEARCH",
+          "postId": null,
+          "createdAt": "2026-09-08T05:00:00Z"
+        }
+      ],
+      "createdAt": "2026-09-08T05:00:00Z"
     }
   ],
   "page": {

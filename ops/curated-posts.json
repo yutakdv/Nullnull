@@ -12,11 +12,11 @@
       },
       "places": [
         {
-          "placeId": "<BE: 경복궁 의 카탈로그 UUID>",
+          "placeId": "01a0b825-4f15-7e7b-b30c-87cf71861c9c",
           "primary": true
         },
         {
-          "placeId": "<BE: 북촌한옥마을 의 카탈로그 UUID>",
+          "placeId": "01a0b9f7-8138-7051-bfbb-0a6420647c52",
           "primary": false
         }
       ],
@@ -34,11 +34,11 @@
       },
       "places": [
         {
-          "placeId": "<BE: 창덕궁 의 카탈로그 UUID>",
+          "placeId": "01a0b9f7-81cd-7488-9a1d-dbfffea6c60f",
           "primary": true
         },
         {
-          "placeId": "<BE: 경복궁 의 카탈로그 UUID>",
+          "placeId": "01a0b825-4f15-7e7b-b30c-87cf71861c9c",
           "primary": false
         }
       ],
@@ -56,11 +56,11 @@
       },
       "places": [
         {
-          "placeId": "<BE: 북촌한옥마을 의 카탈로그 UUID>",
+          "placeId": "01a0b9f7-8138-7051-bfbb-0a6420647c52",
           "primary": true
         },
         {
-          "placeId": "<BE: 창덕궁 의 카탈로그 UUID>",
+          "placeId": "01a0b9f7-81cd-7488-9a1d-dbfffea6c60f",
           "primary": false
         }
       ],
@@ -78,11 +78,11 @@
       },
       "places": [
         {
-          "placeId": "<BE: 덕수궁 의 카탈로그 UUID>",
+          "placeId": "01a0b9f7-8020-74c6-bdca-dac05aadc82e",
           "primary": true
         },
         {
-          "placeId": "<BE: 서울숲 의 카탈로그 UUID>",
+          "placeId": "01a0b9d9-c30f-71c3-b67d-07d9252c563a",
           "primary": false
         }
       ],
@@ -100,11 +100,11 @@
       },
       "places": [
         {
-          "placeId": "<BE: 서울숲 의 카탈로그 UUID>",
+          "placeId": "01a0b9d9-c30f-71c3-b67d-07d9252c563a",
           "primary": true
         },
         {
-          "placeId": "<BE: 덕수궁 의 카탈로그 UUID>",
+          "placeId": "01a0b9f7-8020-74c6-bdca-dac05aadc82e",
           "primary": false
         }
       ],
