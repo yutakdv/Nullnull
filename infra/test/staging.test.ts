@@ -198,6 +198,21 @@ test("non-root containers on a read-only root get a writable /tmp before they st
     assert.deepEqual(main.DependsOn, [{ ContainerName: "tmp-permissions", Condition: "SUCCESS" }]);
   }
 });
+test("the API grace period outlasts a start whose first health checks fail", () => {
+  // 74 s from task start to a listening app: measured on the 2026-09-19 release (ECS events, app log).
+  const startToListening = 74;
+  const targetGroup = Object.values(templates.platform.findResources("AWS::ElasticLoadBalancingV2::TargetGroup"));
+  assert.equal(targetGroup.length, 1);
+  const check = targetGroup[0].Properties;
+  // CloudFormation defaults when the template leaves them out (HTTP target groups: 5 checks, 30 s apart).
+  const recovery = (check.HealthyThresholdCount ?? 5) * (check.HealthCheckIntervalSeconds ?? 30);
+  const behindTheAlb = Object.values(templates.services.findResources("AWS::ECS::Service")).filter(
+    (s) => (s.Properties.LoadBalancers ?? []).length > 0,
+  );
+  assert.equal(behindTheAlb.length, 1);
+  const grace = behindTheAlb[0].Properties.HealthCheckGracePeriodSeconds;
+  assert.ok(grace >= startToListening + recovery, `grace ${grace}s < ${startToListening}s start + ${recovery}s recovery`);
+});
 test("DB storage autoscaling stays off without an invalid ceiling", () => {
   // RDS rejects MaxAllocatedStorage that does not exceed AllocatedStorage; omission is 'off'.
   templates.data.hasResourceProperties("AWS::RDS::DBInstance", {
