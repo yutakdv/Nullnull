@@ -331,6 +331,14 @@
         {
           "id": "BA-005-T4",
           "assertion": "job의 dead letter는 handler의 dead-letter 처리와 함께만 기록된다"
+        },
+        {
+          "id": "BA-005-T5",
+          "assertion": "handler가 필요한 식별자를 읽을 수 없는 payload의 삭제 job은 재시도 없이 첫 attempt에서 dead letter가 된다"
+        },
+        {
+          "id": "BA-005-T6",
+          "assertion": "handler가 필요한 식별자를 읽을 수 없는 payload의 최적화 job은 재시도 없이 첫 attempt에서 dead letter가 된다"
         }
       ],
       "handoff": "QUEUED/RUNNING/FAILED 예시와 retryable 의미, polling·timeout은 취소가 아니라는 인계 설명.",
@@ -553,6 +561,14 @@
         {
           "id": "BA-012-T3",
           "assertion": "backup 복원 뒤 tombstone 재적용 전 public traffic이 열리지 않는다"
+        },
+        {
+          "id": "BA-012-T4",
+          "assertion": "dead letter가 된 삭제 job의 요청은 진행 중(ACCEPTED·RUNNING·PARTIAL_FAILED)으로 남지 않고 FAILED로 끝난다"
+        },
+        {
+          "id": "BA-012-T5",
+          "assertion": "job 행 잠금 경합으로 멈춘 삭제 attempt는 삭제 실패(PARTIAL_FAILED)로 기록되지 않는다"
         }
       ],
       "handoff": "S14 삭제 확인·상태 polling·receipt 분실/만료·부분 실패 예시. 보존 기간 안내는 privacy 문서와 동일하게 전달한다.",
@@ -2488,6 +2504,10 @@
         {
           "id": "BA-072-T8",
           "assertion": "삭제 attempt가 잡고 있는 receipt는 만료 sweep이 기다리지 않고 건너뛰며 다음 sweep이 보고한다"
+        },
+        {
+          "id": "BA-072-T9",
+          "assertion": "dead letter가 된 삭제 job의 hook이 요청을 FAILED로 끝낼 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다"
         }
       ],
       "handoff": "복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다.",
