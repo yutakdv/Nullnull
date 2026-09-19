@@ -254,6 +254,28 @@ test("AI task carries the catalog version apps/ai requires in staging", () => {
     { Name: "NULLNULL_CATALOG_VERSION", Value: "KTO_KOR_SERVICE_2:4" },
   );
 });
+test("only the API runs ITEM optimization, and no service turns on a capability that has no source", () => {
+  // Owner decision 2026-09-19: the submission build runs ITEM optimization. The value is a literal here so
+  // that re-reading staging.ts cannot make this test agree with whatever the file says.
+  const containers = [templates.services, templates.migration].flatMap((t) =>
+    (Object.values(t.findResources("AWS::ECS::TaskDefinition")) as any[]).flatMap(
+      (d) => d.Properties.ContainerDefinitions as any[],
+    ),
+  );
+  const env = (name: string) =>
+    containers.find((c) => c.Name === name)?.Environment ?? assert.fail(`no ${name} container`);
+  assert.deepEqual(
+    env("api").filter((e: any) => e.Name === "FEATURE_OPTIMIZATION_ITEM"),
+    [{ Name: "FEATURE_OPTIMIZATION_ITEM", Value: "true" }],
+  );
+  // The worker runs in the API task; ops, migration and ai never read the capability.
+  for (const name of ["ai", "ops", "migration"])
+    assert(!env(name).some((e: any) => e.Name === "FEATURE_OPTIMIZATION_ITEM"), name);
+  // live and replay have no source yet, and DemoCapabilityQuery refuses to start with either ON.
+  for (const c of containers)
+    for (const flag of ["FEATURE_LIVE_DATA", "FEATURE_REPLAY_MODE"])
+      assert(!(c.Environment ?? []).some((e: any) => e.Name === flag && e.Value === "true"), `${c.Name} ${flag}`);
+});
 test("existing GitHub OIDC provider is referenced, never created", () => {
   for (const t of Object.values(templates))
     for (const type of ["AWS::IAM::OIDCProvider", "Custom::AWSCDKOpenIdConnectProvider"])

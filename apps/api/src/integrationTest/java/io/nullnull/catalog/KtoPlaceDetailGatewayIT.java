@@ -6,10 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.nullnull.catalog.application.KtoGatewayException;
 import io.nullnull.catalog.application.KtoPlaceDetailFetcher;
 import io.nullnull.catalog.application.KtoPlaceDetailGateway;
+import io.nullnull.catalog.application.KtoPlaceRequest;
 import io.nullnull.catalog.application.KtoPlaceSnapshotStore;
 import io.nullnull.catalog.domain.KtoPlaceSnapshot;
 import io.nullnull.catalog.infrastructure.kto.KtoKorServiceClient;
 import io.nullnull.catalog.infrastructure.kto.KtoKorServiceProperties;
+import io.nullnull.catalog.infrastructure.kto.KtoSmokeMain;
 import io.nullnull.crowd.application.CollectorRunRecorder;
 import io.nullnull.crowd.application.SourceQuotaGuard;
 import io.nullnull.crowd.application.SourceQuotaStore;
@@ -124,6 +126,32 @@ class KtoPlaceDetailGatewayIT {
             assertThat(jdbc.queryForObject(
                     "SELECT count(*) FROM kto_place_snapshots WHERE content_id = ?", Integer.class, "126509"))
                     .isEqualTo(2);
+        }
+    }
+
+    @Test
+    @DisplayName("BA-021 the operator smoke calls the provider even while a stored snapshot is fresh")
+    void theSmokeCallsEvenWhenAFreshSnapshotIsStored() {
+        // The staging operator turns the smoke's line into the release's actual-call evidence. A place loaded
+        // within P7D (126508 was, on 2026-09-19) must still produce a call of this run, not the stored row.
+        MutableClock clock = MutableClock.at(Instant.parse("2026-09-10T00:00:00Z"));
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(200, response("126510", "먼저 적재")))
+                .enqueue(new StubProviderServer.Response(200, response("126510", "smoke 호출")))) {
+            KtoPlaceDetailGateway gateway = gateway(stub, clock);
+            KtoPlaceSnapshot stored = gateway.detail("126510", "12").join();
+            clock.advance(Duration.ofHours(1));
+            assertThat(gateway.detail("126510", "12").join().collectorRunId()).isEqualTo(stored.collectorRunId());
+            assertThat(stub.calls()).isEqualTo(1);
+
+            KtoSmokeMain.Call call = KtoSmokeMain.call(gateway, clock, new KtoPlaceRequest("126510", "12"));
+
+            assertThat(stub.calls()).isEqualTo(2);
+            assertThat(call.snapshot().collectorRunId()).isNotEqualTo(stored.collectorRunId());
+            assertThat(call.snapshot().title()).isEqualTo("smoke 호출");
+            assertThat(KtoSmokeMain.calledByThisRun(call.snapshot(), call.startedAt())).isTrue();
+            // The stored row, judged against the same run, is what the smoke refuses to call a call.
+            assertThat(KtoSmokeMain.calledByThisRun(stored, call.startedAt())).isFalse();
         }
     }
 
