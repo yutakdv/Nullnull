@@ -285,6 +285,77 @@ describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so
   });
 });
 
+// FE-505-T3's accessible-name half. The clause is "keyboard 이동·접근성 이름과
+// 360px·200% zoom", and the name half had no test anywhere: the only block
+// carrying FE-505-T3 is in optimization-run.test.tsx, whose comment forwards
+// accessible names to responsive.spec.ts — and that walk reads
+// `document.activeElement`, so a <section> with no tabindex never enters its
+// `stops` and can never be judged. Measured here rather than argued: deleting
+// `aria-label` from the panel left all ten cases of the describe above green.
+//
+// `getByRole('region', …)` rather than an attribute check, because the defect
+// is not a missing string — it is the panel ceasing to be a landmark at all.
+// Measured: a <section> WITH an accessible name resolves as `region`, and the
+// same <section> without one resolves to nothing (queryAllByRole('region')
+// returns 0). So this assertion fails on the real failure mode, and it fails
+// for the reason a screen-reader user would notice.
+//
+// The badge's data-state is checked in the same walk because it is the other
+// slot nothing reads. AppliedPanel.module.css:49-50 selects
+// `.badge[data-state='available'|'submitting']` for the active blue treatment,
+// so pinning the attribute paints EXPIRED, REVERTED and a failed revert as
+// though the undo were live. Measured: red=0 before this test.
+//
+// `closest('[data-state]')` resolves to the badge itself — `closest` starts at
+// the element — which matters because the <section> carries the same attribute
+// and matching it instead would read `frame` twice and prove nothing.
+describe('FE-505-T3 the panel is a named landmark in every state', () => {
+  const STATES = [
+    { name: 'AVAILABLE', props: {}, badge: LABELS.badgeAvailable, state: 'available' },
+    {
+      name: 'submitting',
+      props: { submitting: true },
+      badge: LABELS.badgeSubmitting,
+      state: 'submitting',
+    },
+    {
+      name: 'a failed revert',
+      props: { failure: { message: 'M', retryable: true } },
+      badge: LABELS.badgeFailed,
+      state: 'failed',
+    },
+    {
+      name: 'REVERTED',
+      props: { availability: 'REVERTED' as const },
+      badge: LABELS.badgeReverted,
+      state: 'reverted',
+    },
+    {
+      name: 'EXPIRED',
+      props: { availability: 'EXPIRED' as const },
+      badge: LABELS.badgeExpired,
+      state: 'expired',
+    },
+  ];
+
+  for (const { name, props, badge, state } of STATES) {
+    it(`names the panel and marks the badge on ${name}`, () => {
+      panel(props);
+
+      // The landmark, named by the badge — the panel's only accessible name.
+      // There is no heading and no aria-labelledby, so without this the region
+      // is unreachable by name and does not exist as a landmark.
+      expect(screen.getByRole('region', { name: badge })).toBeInTheDocument();
+
+      // The state the stylesheet reads, on the node it reads it from.
+      expect(screen.getByText(badge).closest('[data-state]')).toHaveAttribute(
+        'data-state',
+        state,
+      );
+    });
+  }
+});
+
 describe('the panel states the server sentence rather than composing one', () => {
   it('renders the summary verbatim', () => {
     // Invariant 9: the panel does not decide what changed. A sentence built
