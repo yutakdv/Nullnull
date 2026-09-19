@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
+import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import styles from './MoveDaySheet.module.css';
 import { currentDate } from './reorder.js';
 
@@ -70,11 +71,42 @@ export function MoveDaySheet({
     }
   }, [open]);
 
+  // `restoreFocusTo` rather than `isConnected` + `.focus()`: picking a day
+  // closes this sheet and starts the reorder IN THE SAME HANDLER
+  // (ItemMoveControls.tsx:245-254 — setSheetOpen(false) then commitMove), and
+  // the trigger that opened it is `disabled={busy || ...}` with
+  // `busy = reorder.isPending` (ItemMoveControls.tsx:99,209). So the restore
+  // target is connected AND disabled, `.focus()` fails silently, and focus
+  // falls to <body> where the next Tab restarts at the top of the document.
+  // That is #272 cause ④, reached through this sheet. The shared helper
+  // declines a target that cannot hold focus and falls back to the <main>
+  // landmark.
+  //
+  // NO TEST FAILS IF THIS LINE IS REVERTED, and that is recorded rather than
+  // papered over:
+  //
+  //   - A unit test cannot see it. happy-dom lets `.focus()` succeed inside a
+  //     CLOSED <dialog> (focus-restore.spec.ts:23-27 records the measurement),
+  //     so the restored and the lost case are the same observation there. One
+  //     was written against this path and went green with the defect in place;
+  //     a probe showed the condition reproducing exactly — trigger
+  //     `disabled=true connected=true` — while focus stayed on the day button
+  //     inside the closed dialog. It was deleted rather than kept.
+  //   - The existing browser test does not reach this line. BA-040-T4
+  //     (keyboard-flow.spec.ts:191) moves FIRST_ITEM, which carries a DATE
+  //     lock (seeded-trip.ts:84), so `onPick` leaves through
+  //     `setPendingDate(date); return;` and a ConfirmDialog does the restore —
+  //     and ConfirmDialog was already fixed.
+  //
+  // The path where this line is the only guard is a move of an item with NO
+  // DATE lock, and nothing walks it today. Same shape as the gap
+  // keyboard-flow.spec.ts:175 leaves deliberately: an assertion that passes
+  // with its subject deleted reads as coverage and is worse than none.
   useEffect(() => {
     if (open) return;
     const target = restoreTo.current;
     restoreTo.current = null;
-    if (target?.isConnected) target.focus();
+    restoreFocusTo(target);
   }, [open]);
 
   function dayLabel(index: number) {
