@@ -42,7 +42,8 @@ Backend/AI가 `id`·`publishedAt`을 채운 것이고, `placeId`·`cover.url`은
    `NULLNULL_KTO_SMOKE_CONTENT_TYPE_ID`)로 snapshot을 저장하고 `ktoCanonicalIngest`(입력
    `NULLNULL_KTO_INGEST_CONTENT_ID`·`NULLNULL_KTO_INGEST_CONTENT_TYPE_ID`)로 canonical 행을 만든다.
    **실제 호출 승인 flag `NULLNULL_KTO_SMOKE_APPROVED=true`는 오너가 자기 셸에서 직접 켠다** — 세션이
-   대신 켜지 않는다. 장소별 KTO contentId는 이 문서가 정하지 않는다.
+   대신 켜지 않는다. 장소별 KTO contentId는 이 문서가 정하지 않는다. 두 도구도 DB에 쓰므로 5의 대상
+   확인 규칙(`NULLNULL_ENV`·`NULLNULL_OPERATIONS_TARGET`)을 똑같이 따른다.
 2. **`placeId`를 채운다.** `ktoCanonicalIngest`가 출력한 place ID를 `ops/curated-posts.json`의
    자리표시자에 넣는다. `ops/curated-hours.json`도 같은 다섯 장소를 가리키므로 같은 ID로 맞춘다 —
    그 파일의 현재 ID가 어느 카탈로그에서 나왔는지는 기록이 없다.
@@ -50,10 +51,16 @@ Backend/AI가 `id`·`publishedAt`을 채운 것이고, `placeId`·`cover.url`은
    `shasum -a 256` 값이 `cover.checksum`과 같은지 확인한다. 도메인과 저장 위치는 staging 담당이 정한다.
 4. **`cover.url`을 채운다.** 올린 주소만 넣는다(https만, [#182](https://github.com/yutakdv/Nullnull/issues/182)).
 5. **import한다.** `NULLNULL_CURATION_PLAN=ops/curated-posts.json ./gradlew curatePosts`
-   (영업시간은 `NULLNULL_HOURS_PLAN=ops/curated-hours.json ./gradlew curateHours`). 이 스크립트에는
-   대상 DB를 가리는 가드가 **없다** — `CuratedPostImportMain`의 javadoc은 ktoSmoke와 같은 가드가
-   있다고 적지만 코드에는 없다. 그래서 실행 전에 datasource가 staging을 가리키는지 사람이 확인한다.
-   staging DB에 닿는 경로는 staging runbook이 정한다.
+   (영업시간은 `NULLNULL_HOURS_PLAN=ops/curated-hours.json ./gradlew curateHours`). **셸에
+   `NULLNULL_ENV=staging`이 있어야 한다** — 이 라벨이 없으면 기본값 `local`로 읽혀, 아래 확인 없이
+   가리킨 DB를 local처럼 migrate하고 쓴다. 두 스크립트는 DB에 연결하기 전에
+   `operations target=<DB> environment=<env> access=write schema=<…>`를 찍고, staging·production에서는
+   셸의 `NULLNULL_OPERATIONS_TARGET`이 그 target과 같을 때만 연결한다 — 없거나 다르면 아무것도 쓰지 않고
+   멈춘다. 그래서 한 번 돌려 찍힌 target이 staging인지 보고, 맞으면 그 값을 붙여 다시 실행한다. Flyway가
+   켜진 환경에서는 migrate하지 않고, 이 checkout에 있는 migration이 DB에 없으면 멈춘다(`OperationsContext`).
+   staging의 app role은 migration 이력을 읽지 못하므로 그 자격으로 돌 때는 staging API처럼
+   `SPRING_FLYWAY_ENABLED=false`로 돌고 `schema=unchecked`가 찍힌다. staging DB에 닿는 경로는 staging runbook이
+   정한다.
 6. **`/feed`를 확인한다.** 다섯 건이 파일 순서(첫 게시물이 맨 위)대로 보이고 표지가 뜨는지 본다.
 
 ## 한 건의 서식

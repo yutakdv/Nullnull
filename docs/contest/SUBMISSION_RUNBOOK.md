@@ -133,7 +133,7 @@ catalog 게이트가 열린 뒤여야 실데이터가 나오므로 1·2·3·5번
 ### 데이터 활용
 
 - [ ] 한국관광공사 API 목록은 call-audit에서 실제 성공한 operation set과 정확히 일치한다.
-  그 set은 staging API와 같은 환경(`SPRING_PROFILES_ACTIVE`·`NULLNULL_ENV=staging`·datasource, 자격 증명은 URL이 아니라 `SPRING_DATASOURCE_USERNAME`/`PASSWORD`)에서 `NULLNULL_INVENTORY_RELEASE=<releaseVersion> ./gradlew ktoCallInventory`(`apps/api`, 읽기 전용 — job worker·Flyway를 끈 채 뜬다)로 뽑고, `counts_as_evidence=true`인 출력의 `kto_` 줄만 `ktoOperationsActuallyUsed`에 옮긴다.
+  그 set은 staging API와 같은 환경(`SPRING_PROFILES_ACTIVE`·`NULLNULL_ENV=staging`·`SPRING_FLYWAY_ENABLED=false`·datasource, 자격 증명은 URL이 아니라 `SPRING_DATASOURCE_USERNAME`/`PASSWORD`)에서 `NULLNULL_INVENTORY_RELEASE=<releaseVersion> ./gradlew ktoCallInventory`(`apps/api`, call-audit만 읽는다 — job worker를 끄고 배포 환경에서는 migrate하지 않으며, 기동할 때 앱이 늘 하는 삭제 tombstone 재적용만 멱등으로 쓴다. app role은 migration 이력을 읽지 못하므로 Flyway를 끄고 돌며 `schema=unchecked`가 찍힌다)로 뽑고, `counts_as_evidence=true`인 출력의 `kto_` 줄만 `ktoOperationsActuallyUsed`에 옮긴다.
 - [ ] API마다 서비스의 어느 기능/화면/field에 사용되는지 적는다.
 - [ ] service key, encoded/decoded 인증정보, 전체 호출 URL을 PDF에 넣지 않는다.
 - [ ] 기타 데이터도 실제 사용한 것만 적고 source·용도·기준시각·출처를 구분한다.

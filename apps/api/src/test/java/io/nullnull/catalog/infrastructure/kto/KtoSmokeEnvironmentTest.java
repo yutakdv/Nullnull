@@ -1,5 +1,6 @@
 package io.nullnull.catalog.infrastructure.kto;
 
+import io.nullnull.OperationsContext;
 import io.nullnull.catalog.application.KtoGatewayException;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -112,5 +113,15 @@ class KtoSmokeEnvironmentTest {
         assertThat(KtoSmokeEnvironment.failureCode(new KtoGatewayException(
                 KtoGatewayException.Code.KTO_INTERNAL_FAILURE, NullPointerException.class)))
                 .isEqualTo("KTO_INTERNAL_FAILURE (NullPointerException)");
+    }
+
+    @Test
+    @DisplayName("#183 a refusal from OperationsContext is named by its code, even wrapped by the context start")
+    void anOperationsRefusalKeepsItsCode() {
+        for (OperationsContext.Refused.Code code : OperationsContext.Refused.Code.values()) {
+            assertThat(KtoSmokeEnvironment.failureCode(new IllegalStateException("context start",
+                    new OperationsContext.Refused(code, "environment=staging: postgresql://db.internal:5432/x"))))
+                    .isEqualTo(code.name());
+        }
     }
 }

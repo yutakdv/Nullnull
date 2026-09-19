@@ -335,7 +335,7 @@ tasks.register<JavaExec>("curatePosts") {
 
 tasks.register<JavaExec>("ktoCallInventory") {
     group = "verification"
-    description = "Lists the KTO operations one release actually used, from the call-audit (CMP-KTO-006); read-only"
+    description = "Lists the KTO operations one release actually used, from the call-audit (CMP-KTO-006); reads the call-audit only, though starting the application re-applies retained deletions"
     dependsOn(tasks.named("classes"))
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("io.nullnull.crowd.infrastructure.audit.KtoCallInventoryMain")

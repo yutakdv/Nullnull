@@ -112,7 +112,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_PROVIDER_CIRCUIT_FAILURE_WINDOW` | 아니오 | `PT30S` | 위 실패 횟수를 세는 창 |
 | `NULLNULL_PROVIDER_CIRCUIT_OPEN_DURATION` | 아니오 | `PT60S` | 열린 circuit이 빠른 안전 실패를 반환하는 기간 |
 | `SPRING_PROFILES_ACTIVE` | 아니오 | `local` | profile |
-| `SPRING_DATASOURCE_URL` | 아니오/민감 | JDBC URL | host는 내부 정보로 log redaction |
+| `SPRING_DATASOURCE_URL` | 아니오/민감 | JDBC URL | host는 내부 정보로 log redaction. 연결에 성공한 기동에서 URL을 그대로 찍는 로그(Hibernate·Flyway·PostgreSQL driver)는 `application.yaml`이 끈다(`DatasourceUrlLogRedactionIT`). 남는 것: 운영 도구는 대상 확인을 위해 target(host·port·db, 자격·query 없음)을 `operations target=` 줄과 거절 메시지에 찍고, 기동이 실패하면 그 오류가 host:port를, 모양이 틀린 URL이면 URL 전체(`password=` 값만 가림)를 싣는다. 그래서 자격 증명은 URL이 아니라 `SPRING_DATASOURCE_USERNAME`/`PASSWORD`로 넘긴다 |
 | `SPRING_DATASOURCE_USERNAME` | 예 | runtime | DB app role |
 | `SPRING_DATASOURCE_PASSWORD` | 예 | runtime | Secrets Manager |
 | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | 아니오 | `health,prometheus` 내부만 | public actuator 제한 |
@@ -274,6 +274,7 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 - 실제 KTO 호출 증거를 만드는 operator smoke는 별도 승인 변수가 있어야 한다. C2 `ktoSmoke`는 `NULLNULL_KTO_SMOKE_APPROVED=true`(+`NULLNULL_KTO_SMOKE_CONTENT_ID`/`_CONTENT_TYPE_ID`), C4 `ktoForecastSmoke`는 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`(+`NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID`)가 필요하며 둘 다 redacted ID만 출력한다. CI와 PR gate는 이 변수를 설정하지 않는다.
 - **승인 변수는 `.env.local`에서 읽히지 않는다.** `KtoSmokeEnvironment.ALLOWED_NAMES`에 없고 두 main이 `System.getenv()`로만 읽으므로, **승인은 명령을 실행하는 사람의 shell이 갖는다.** 파일에 적어도 승인이 되지 않는 것이 설계다 — 감사 기록의 출처가 사람이어야 하기 때문이다.
 - **세 단계이며 순서가 있다.** `ktoForecastSmoke`는 `place_external_refs`를 join하는데 그 행은 canonical ingest만 만든다. C2 gateway는 자기 snapshot을 스스로 매핑하지 않으므로(의도된 분리), 가운데 단계 없이 C4를 돌리면 `NoVerifiedKtoMappingException`으로 끝난다.
+- **운영 도구는 `OperationsContext`로만 뜬다**(`ktoSmoke`·`ktoCanonicalIngest`·`ktoForecastSmoke`·`ktoDemoDetailRefresh`·`ktoDemoForecastRefresh`·`curatePosts`·`curateHours`·`deriveRelations`·`ktoCallInventory`). job worker는 command line에서 꺼지고, DB에 연결하기 전에 `operations target=<DB> environment=<env> access=<read|write> schema=<migrate|validate|unchecked>`가 찍힌다. `local`/`test`에서는 아래 절차대로 migrate한다(`ktoCallInventory`·`ktoDemo*Refresh`는 전에는 Flyway를 끄고 돌았으므로 local DB를 migrate하는 것은 새 동작이다). `staging`/`production`에서는 migrate하지 않고, Flyway가 켜져 있으면 validate해 이 checkout에 있는 migration이 DB에 없거나 적용된 migration이 바뀌었으면 멈춘다(DB가 더 새로운 것은 rollback 호환이라 통과한다). 환경이 Flyway를 끄면(staging API·ops task — app role은 `flyway_schema_history`를 읽지 못한다) `schema=unchecked`이고 Hibernate의 `ddl-auto: validate`만 남는다. Flyway를 켠 채 그 role로 돌면 `SCHEMA_UNCHECKABLE`로 멈춘다. 쓰는 도구는 셸의 `NULLNULL_OPERATIONS_TARGET`이 찍힌 target과 같아야 연결한다. 승인 변수처럼 `.env.local`에서 읽히지 않는다. **이 확인은 `NULLNULL_ENV` 라벨에 달려 있다** — 네 값(`local`·`test`·`staging`·`production`, 대소문자 그대로) 밖이면 거절하지만, 배포 DB를 가리키면서 라벨을 `local`로 두면 local로 다룬다. KTO 도구는 거절도 `KTO … failed: <코드>` 한 줄로 끝난다(`ENVIRONMENT_UNKNOWN`·`OPERATIONS_TARGET_NOT_CONFIRMED`·`OPERATIONS_TARGET_UNREADABLE`·`SCHEMA_NOT_THIS_CHECKOUT`·`SCHEMA_UNCHECKABLE`). 그 줄 앞에 Spring의 `Application run failed` stack trace가 이유를 담아 찍힌다.
 
 **선행 조건 넷.** 하나라도 빠지면 실패 메시지가 원인을 가리키지 않는다.
 

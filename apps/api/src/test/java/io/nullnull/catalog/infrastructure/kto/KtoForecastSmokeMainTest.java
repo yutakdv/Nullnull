@@ -3,6 +3,7 @@ package io.nullnull.catalog.infrastructure.kto;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
+import io.nullnull.OperationsContext;
 import io.nullnull.crowd.application.KtoCrowdForecastGateway;
 import io.nullnull.crowd.application.KtoForecastSnapshotSet;
 import java.math.BigDecimal;
@@ -39,5 +40,12 @@ class KtoForecastSmokeMainTest {
         assertThat(output).contains("KTO_FORECAST_SMOKE_OK", "source=KTO_CONCENTRATION_FORECAST", "coverage=1",
                 "snapshotSetId=018f3f8e-9b67-7a21-8d31-31d315b94002", "payloadHash=")
                 .doesNotContain("serviceKey", "tAtsNm", "rawBody");
+    }
+
+    @Test
+    void anOperationsRefusalIsNamedByItsCodeNotAsUnexpected() {
+        assertThat(KtoForecastSmokeMain.safeFailureCode(new IllegalStateException("context start",
+                new OperationsContext.Refused(OperationsContext.Refused.Code.SCHEMA_NOT_THIS_CHECKOUT, "x"))))
+                .isEqualTo("SCHEMA_NOT_THIS_CHECKOUT");
     }
 }

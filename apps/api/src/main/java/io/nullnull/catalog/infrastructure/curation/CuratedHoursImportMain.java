@@ -1,14 +1,12 @@
 package io.nullnull.catalog.infrastructure.curation;
 
-import io.nullnull.NullnullApplication;
+import io.nullnull.OperationsContext;
 import io.nullnull.catalog.application.CuratedHoursImporter;
 import io.nullnull.catalog.application.CuratedHoursImporter.ImportReport;
 import io.nullnull.catalog.application.CuratedHoursPlan;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -39,10 +37,7 @@ public final class CuratedHoursImportMain {
     public static void main(String[] args) {
         Path plan = planPath(System.getenv(), args);
         CuratedHoursPlan parsed = read(plan);
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
-                .web(WebApplicationType.NONE)
-                .registerShutdownHook(false)
-                .run()) {
+        try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
             ImportReport report = context.getBean(CuratedHoursImporter.class).importPlan(parsed);
             System.out.println(summary(report));
         }
