@@ -743,7 +743,13 @@ export function createStacks(
     circuitBreaker: { rollback: true },
     minHealthyPercent: 100,
     maxHealthyPercent: 200,
-    healthCheckGracePeriod: cdk.Duration.seconds(120),
+    // ECS ignores the target's ALB health for this long, so it must cover the slowest path to healthy.
+    // The target is registered before the JVM listens: the first checks fail, the target turns unhealthy,
+    // and it recovers only after HealthyThresholdCount x interval (target group defaults, 5 x 30 s).
+    // Measured on the 2026-09-19 release of 812f2cb (ECS service events and the app log): task start to a
+    // listening app took 74 s and the target would have been healthy at about 215 s. At 120 s ECS stopped
+    // three tasks shortly before they recovered and the circuit breaker rolled the release back.
+    healthCheckGracePeriod: cdk.Duration.seconds(300),
   });
   apiService.attachToApplicationTargetGroup(targets);
   services.addStackDependency(platform);
