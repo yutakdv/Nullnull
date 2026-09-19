@@ -127,8 +127,11 @@ try {
       const place = search.json?.items?.[0];
       check("catalog.search", search.status === 200 && Array.isArray(search.json?.items), `status=${search.status} items=${search.json?.items?.length}`);
       if (place) {
-        check("catalog.provenance", typeof place.sourceState === "string" || typeof place.source === "object",
-          `sourceState=${place.sourceState ?? "n/a"}`);
+        const attribution = place.sourceAttribution;
+        check("catalog.provenance", typeof attribution?.source === "string" && attribution.source.length > 0
+          && typeof attribution.attribution === "string" && attribution.attribution.length > 0
+          && Number.isInteger(attribution.sourceRegistryVersion) && attribution.sourceRegistryVersion >= 1,
+          `sourceAttribution=${attribution ? "present" : "missing"}`);
         const before = (await call("GET", `/api/v1/trips/${tripId}`)).json?.version;
         const candidate = await call("POST", `/api/v1/trips/${tripId}/candidates`, { headers: mutation(),
           body: { placeId: place.id, source: { type: "SEARCH" } } });
