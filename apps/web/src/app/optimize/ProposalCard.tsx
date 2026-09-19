@@ -1,6 +1,6 @@
 import type { components } from '@nullnull/api-client';
 import { DataAttribution, MetricDelta } from '../../shared/ui/index.js';
-import { changeRows, crowdComparison, type ChangeRow } from './preview.js';
+import { changeRows, crowdComparison, moveKind, type ChangeRow } from './preview.js';
 import styles from './ProposalCard.module.css';
 
 // One proposal from a READY optimization run (S12, FE-503, FR-OPT-04).
@@ -33,12 +33,28 @@ export interface ProposalCardProps {
   /** Localized copy from the caller; the shared components keep Korean defaults. */
   labels: {
     crowdLabel: string;
+    /**
+     * "감소"/"증가", read after the figure by a screen reader (#279 하2).
+     *
+     * Not decoration: the arrow is `aria-hidden` and the figure lost its sign,
+     * so these two words are the whole of the direction for anyone not seeing
+     * the glyph. `unchanged` needs none — there is no direction to name.
+     */
+    crowdDown: string;
+    crowdUp: string;
     /** Shown when the comparison is blocked. One sentence for every reason. */
     comparisonUnavailable: string;
     changesTitle: string;
     /** `{count}` is replaced with the number of changes. */
     changeCount: string;
-    move: string;
+    /**
+     * One per kind of move (#279 하3). A single `move` label said "시간 변경"
+     * for a change of day; which one a row gets is decided by `moveKind` from
+     * the two sides, not by the server's `operation`.
+     */
+    moveDate: string;
+    moveTime: string;
+    moveOrder: string;
     add: string;
     remove: string;
     constraintsOk: string;
@@ -68,36 +84,45 @@ function ChangeList({
   labels,
 }: {
   rows: ChangeRow[];
-  labels: Pick<ProposalCardProps['labels'], 'move' | 'add' | 'remove'>;
+  labels: Pick<
+    ProposalCardProps['labels'],
+    'moveDate' | 'moveTime' | 'moveOrder' | 'add' | 'remove'
+  >;
 }) {
   return (
     <ul className={styles.changes}>
-      {rows.map((row) => (
-        <li className={styles.change} key={`${row.kind}-${row.itemId}`}>
-          <span className={styles.changeKind} data-kind={row.kind}>
-            {labels[row.kind]}
-          </span>
-          {/* Each row draws only the sides it has. `changeRows` already dropped
+      {rows.map((row) => {
+        // A move names the field that moved; add and remove name themselves.
+        // `data-kind` stays the row's shape, because the CSS styles the three
+        // shapes and a move looks the same whichever field it moved.
+        const kind = row.kind === 'move' ? moveKind(row.before, row.after) : row.kind;
+        return (
+          <li className={styles.change} key={`${row.kind}-${row.itemId}`}>
+            <span className={styles.changeKind} data-kind={row.kind}>
+              {labels[kind]}
+            </span>
+            {/* Each row draws only the sides it has. `changeRows` already dropped
               the nulls the contract fixes for ADD and REMOVE, so there is no
               `before ?? '—'` here inventing a value for a side that does not
               exist. */}
-          {row.kind === 'move' ? (
-            <span className={styles.changeWhen}>
-              <span className={styles.before}>{whenLabel(row.before)}</span>
-              <span aria-hidden="true">→</span>
-              <span className={styles.after}>{whenLabel(row.after)}</span>
-            </span>
-          ) : row.kind === 'add' ? (
-            <span className={styles.changeWhen}>
-              <span className={styles.after}>{whenLabel(row.after)}</span>
-            </span>
-          ) : (
-            <span className={styles.changeWhen}>
-              <span className={styles.before}>{whenLabel(row.before)}</span>
-            </span>
-          )}
-        </li>
-      ))}
+            {row.kind === 'move' ? (
+              <span className={styles.changeWhen}>
+                <span className={styles.before}>{whenLabel(row.before)}</span>
+                <span aria-hidden="true">→</span>
+                <span className={styles.after}>{whenLabel(row.after)}</span>
+              </span>
+            ) : row.kind === 'add' ? (
+              <span className={styles.changeWhen}>
+                <span className={styles.after}>{whenLabel(row.after)}</span>
+              </span>
+            ) : (
+              <span className={styles.changeWhen}>
+                <span className={styles.before}>{whenLabel(row.before)}</span>
+              </span>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -168,13 +193,18 @@ export function ProposalCard({
           the credit. That is why this file never touches `proposal.metrics`. */}
       {comparison.kind === 'shown' ? (
         <div className={styles.section}>
+          {/* Arrow, word and figure all come off the same sign, read once. The
+              word is what a screen reader gets in place of the arrow, so a
+              second reading of `delta` here could put them out of step — the
+              glyph saying down while the announcement said up. */}
           <MetricDelta
-            direction={
+            direction={deltaDirection(comparison.delta)}
+            directionLabel={
               comparison.delta < 0
-                ? 'improved'
+                ? labels.crowdDown
                 : comparison.delta > 0
-                  ? 'worsened'
-                  : 'unchanged'
+                  ? labels.crowdUp
+                  : undefined
             }
             eligible
             label={labels.crowdLabel}
@@ -224,13 +254,40 @@ export function ProposalCard({
 }
 
 /**
- * The delta as a signed figure.
+ * The delta as a magnitude. The direction is the arrow's job, and the
+ * `directionLabel`'s.
  *
- * Signed rather than an absolute value with a word: the arrow beside it says
- * the direction, and a bare "47" next to a down arrow reads as "47 less" only
- * if you already know the unit. Zero keeps no sign.
+ * THIS USED TO BE SIGNED, and the reason it gave was:
+ *
+ *   "Signed rather than an absolute value with a word: the arrow beside it says
+ *    the direction, and a bare 47 next to a down arrow reads as 47 less only if
+ *    you already know the unit."
+ *
+ * That sentence names the arrow as the thing that carries direction and then
+ * adds a sign that carries it again — a rehearsal read the result as "↓ -55"
+ * and reported the two as colliding (#279 하2). The premise was right and the
+ * conclusion did not follow from it. It is quoted rather than deleted because
+ * the half that IS right still binds: something has to say the direction, so
+ * dropping the sign is only safe together with the word that replaces it.
+ *
+ * That word is `directionLabel` on MetricDelta. The arrow is `aria-hidden`, so
+ * before this change the minus sign was the only direction a screen reader
+ * got; removing it alone would have taken direction away from exactly the
+ * readers who could not see the arrow. The two edits are one change.
  */
 function formatDelta(delta: number): string {
-  if (delta > 0) return `+${String(delta)}`;
-  return String(delta);
+  return String(Math.abs(delta));
+}
+
+/**
+ * Which way the figure moved, for the arrow and for the announced word.
+ *
+ * A lower crowd reading is an improvement, which is why a negative delta is
+ * `improved` rather than `worsened` — the sign is about the metric, the name is
+ * about the traveller.
+ */
+function deltaDirection(delta: number): 'improved' | 'worsened' | 'unchanged' {
+  if (delta < 0) return 'improved';
+  if (delta > 0) return 'worsened';
+  return 'unchanged';
 }

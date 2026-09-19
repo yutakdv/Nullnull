@@ -16,6 +16,19 @@ export interface MetricDeltaProps {
   /** Shown when eligible. Pre-formatted by the caller, e.g. "4 · 혼잡 → 1 · 매우 여유". */
   value?: string;
   direction?: 'improved' | 'worsened' | 'unchanged';
+  /**
+   * The direction as a WORD, for anyone who cannot see the arrow (#279 하2).
+   *
+   * The arrow is `aria-hidden` — it is a glyph, and a screen reader saying
+   * "down arrow 55" is worse than it not saying it. That was survivable while
+   * `value` carried a minus sign, because the sign said the direction out loud.
+   * Now that the sign is gone (the arrow and the "-" were the same word twice),
+   * this is the ONLY thing left that tells a non-sighted reader which way the
+   * number went, so it is rendered visually-hidden beside the figure.
+   *
+   * Localized by the caller, like every other string here.
+   */
+  directionLabel?: string;
   /** Why the comparison is unavailable. Required when eligible is false. */
   reason?: string;
 }
@@ -27,6 +40,7 @@ export function MetricDelta({
   eligible,
   value,
   direction = 'unchanged',
+  directionLabel,
   reason,
 }: MetricDeltaProps) {
   return (
@@ -36,6 +50,13 @@ export function MetricDelta({
         <span className={styles.value} data-direction={direction}>
           {ARROWS[direction] ? <span aria-hidden="true">{ARROWS[direction]}</span> : null}
           {value}
+          {/* After the number, so it reads "55 감소" rather than "감소 55".
+              Rendered only when the caller supplies one: an omitted label is a
+              silent regression to the arrow-only state, which the card's own
+              test asserts against. */}
+          {directionLabel ? (
+            <span className={styles.srOnly}>{directionLabel}</span>
+          ) : null}
         </span>
       ) : (
         <span className={styles.unavailable}>{reason ?? '확인 불가'}</span>

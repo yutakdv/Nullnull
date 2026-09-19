@@ -149,12 +149,32 @@ export type DecisionPhase = { kind: 'none' } | { kind: 'bar'; state: DecisionSta
  * values today, and a ninth should fail to compile here rather than fall
  * through to whatever the `default` happened to be.
  */
+/**
+ * Refusals that mean "recompute", not "try again" (#279 중1).
+ *
+ * Both are the preview having gone out of date: DATA_CHANGED is the inputs
+ * moving under it, PREVIEW_EXPIRED is the 15-minute window lapsing. Neither is
+ * retryable and the contract says so, so the bar sends the user to a fresh
+ * calculation instead of back to the same request.
+ */
+const STALE_REFUSALS = new Set(['DATA_CHANGED', 'PREVIEW_EXPIRED']);
+
 export function decisionPhase(input: {
   status: OptimizationStatus;
   hasProposals: boolean;
   stale: boolean;
   pending: boolean;
-  errored: boolean;
+  /**
+   * The code the decision was refused with, or null when it was not refused.
+   *
+   * A code rather than a boolean, and that is #279 중1. The caller used to pass
+   * `errored: decide.isError`, so every refusal became `failed` — whose copy
+   * names a network problem and whose button repeats the request. A 409
+   * DATA_CHANGED is neither: nothing is wrong with the network and pressing
+   * again returns 409 forever. BE walked into that dead end rehearsing the
+   * judging flow with a lapsed preview.
+   */
+  refusedWith: string | null;
 }): DecisionPhase {
   switch (input.status) {
     case 'QUEUED':
@@ -166,11 +186,25 @@ export function decisionPhase(input: {
       if (!input.hasProposals) return { kind: 'none' };
       // Order is the point. A stale run that is also mid-request must read as
       // stale: applying it is the thing we are trying to stop, so that state
-      // outranks the spinner. `errored` comes last of the three because a
+      // outranks the spinner. A refusal comes last of the three because a
       // failure against a stale run is still, first, a stale run.
       if (input.stale) return { kind: 'bar', state: 'stale' };
       if (input.pending) return { kind: 'bar', state: 'applying' };
-      if (input.errored) return { kind: 'bar', state: 'failed' };
+      if (input.refusedWith !== null) {
+        // Two refusals say the same thing to the user — what you are looking at
+        // is out of date — and `stale` already carries that sentence and the
+        // 다시 계산 button the matrix asks for. Routing them there rather than
+        // growing a fourth state keeps one copy of one message.
+        //
+        // The other refusals keep `failed`, and that distinction is the fix
+        // rather than a detail of it: APPLY_FAILED is `retryable: true` in the
+        // contract, so it must keep the retry it has. Sending every refusal to
+        // `stale` would fix the dead end by taking recovery away from the one
+        // case that can genuinely be retried.
+        return STALE_REFUSALS.has(input.refusedWith)
+          ? { kind: 'bar', state: 'stale' }
+          : { kind: 'bar', state: 'failed' };
+      }
       return { kind: 'bar', state: 'preview' };
     }
     case 'APPLIED':
@@ -196,6 +230,34 @@ export type ChangeRow =
   | { kind: 'move'; itemId: string; before: TripItemState; after: TripItemState }
   | { kind: 'add'; itemId: string; after: TripItemState }
   | { kind: 'remove'; itemId: string; before: TripItemState };
+
+/** Which chip a `move` row is labelled with. */
+export type MoveKind = 'moveDate' | 'moveTime' | 'moveOrder';
+
+/**
+ * What a move row actually moved, so the chip can say so (#279 하3).
+ *
+ * All three of MOVE, REORDER and REPLACE become one `move` row because they
+ * share a SHAPE — both sides present — but the chip was reading that shape as a
+ * meaning and calling every one of them "시간 변경". A rehearsal moved a stop to
+ * another DAY and the card said the time had changed.
+ *
+ * Decided from the two sides rather than from `operation`: the server may send
+ * MOVE for a change of day, of time, or of both, so the operation name cannot
+ * answer this. `date` is required on TripItemState and `startTime` is not, so
+ * the date comparison is total and the time one has to treat absent and null
+ * alike — "no time set" on both sides is not a time change.
+ *
+ * Date wins when both moved: the day is the bigger fact, and the row already
+ * prints both sides in full underneath, so the chip is a summary rather than
+ * the whole account.
+ */
+export function moveKind(before: TripItemState, after: TripItemState): MoveKind {
+  if (before.date !== after.date) return 'moveDate';
+  if ((before.startTime ?? null) !== (after.startTime ?? null)) return 'moveTime';
+  // Same day, same clock time: what is left is where it sits in that day.
+  return 'moveOrder';
+}
 
 /**
  * The rows to draw for a proposal's changes.

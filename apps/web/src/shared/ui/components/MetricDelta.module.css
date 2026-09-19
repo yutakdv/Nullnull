@@ -9,6 +9,35 @@
 
 .label {
   color: var(--color-text-secondary);
+  /* The label is a flex item, and a flex item's default `min-width: auto`
+     refuses to shrink below its content — so a long label pushes the value out
+     of the card instead of wrapping. `상대 집중률` is twice the length of the
+     `혼잡도` it replaced (#279 하2), and other labels may be longer again.
+     These two lines make the row survive any length rather than a measured one.
+
+     NOT MEASURED: whether this label actually wraps at 360px. Nothing in this
+     repo can currently tell us — responsive.spec never renders a proposal card
+     (its fixed run id is not the E2E session's, so the route ends on "No such
+     optimization"), that spec runs in en-US where the Korean string is not the
+     rendered text anyway, and the unit runner sets `css: false`
+     (vitest.config.ts:54) so it computes no layout at all. This is written to
+     make the width irrelevant, which is why no number is asserted anywhere. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Visually hidden, still announced. Same rule as ManualStopsStep and
+   TripEditForm use; kept local because this package has no shared stylesheet
+   and a third copy is cheaper than a new import boundary. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .value {

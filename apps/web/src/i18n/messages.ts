@@ -169,7 +169,7 @@ export const messages = {
       '{name}과(와) 그 안의 일정·담아둔 곳이 모두 지워져요. 되돌릴 수 없어요.',
     'trip.delete.confirm': '삭제할게요',
     'trip.delete.cancel': '취소',
-    'trip.delete.deleted': '{name}을(를) 삭제했어요',
+    'trip.delete.deleted': '{name:을} 삭제했어요',
     'trip.delete.failed': '삭제하지 못했어요',
     // 409: 다른 곳에서 바뀐 여행을 지우려 한 것이므로 목록을 다시 불러온다.
     'trip.delete.conflict': '이 여행이 다른 곳에서 바뀌었어요. 목록을 새로 불러왔어요.',
@@ -461,6 +461,11 @@ export const messages = {
     'optimize.target': '바꿔볼 장소',
     'optimize.targetEmpty': '일정에 장소가 없어요. 먼저 장소를 담아주세요',
     'optimize.includeCandidates': '후보로 담아둔 장소도 후보에 넣기',
+    // Its own reason, not `optimize.scope.comingSoon`: that one explains why
+    // only one stop can be optimized, which says nothing about candidates and
+    // would put a true sentence under the wrong control (#279 중4).
+    'optimize.includeCandidates.comingSoon':
+      '준비 중이에요. P0에서는 일정에 있는 장소만 살펴봐요',
     'optimize.submit': '대안 찾아보기',
     'optimize.submitting': '찾는 중이에요',
     // 불변식 3: 승인 전에는 일정이 바뀌지 않는다.
@@ -495,6 +500,16 @@ export const messages = {
     'run.kept': '현재 일정을 유지했어요',
     'run.reverted': '적용을 되돌렸어요',
     'run.expiredStatus': '제안이 만료됐어요',
+    // 제목 6종 (#279 하1). 위의 `run.*`는 live region이 읽는 문장이고 이것은
+    // 화면 제목이라 같은 상태라도 문구가 다르다 — 제목이 "대안이 준비됐어요"로
+    // 읽히면 안내문이지 제목이 아니다. QUEUED·RUNNING은 실제로 찾는 중이라
+    // `run.title`을 그대로 쓴다.
+    'run.title.ready': '대안을 확인해 주세요',
+    'run.title.applied': '적용한 대안',
+    'run.title.kept': '유지한 일정',
+    'run.title.reverted': '되돌린 최적화',
+    'run.title.expired': '만료된 제안',
+    'run.title.failed': '찾지 못한 대안',
     // BA-051이 제안을 만들기 전까지는 결과 본문을 보여줄 수 없다. 없는 수치를
     // 만들지 않는다(불변식 8).
     'run.readyPending': '결과 화면은 준비 중이에요',
@@ -513,11 +528,30 @@ export const messages = {
     // the comparison IS allowed, so a code-to-copy map would have a slot for
     // putting a negative sentence under a positive reason. ReplaceSheet took
     // the same decision for the same field.
-    'run.proposal.crowd': '혼잡도',
-    'run.proposal.comparisonUnavailable': '두 시간대의 혼잡도는 비교할 수 없어요',
+    // "상대 집중률", not "혼잡도" (#279 하2). The value behind this label is
+    // KTO_CONCENTRATION_FORECAST, which SOURCE_CATALOG.md:25 defines as "방문자
+    // 수가 아닌 상대 집중률 예측 … 가장 붐비는 시기를 100으로 둔 날짜 단위
+    // 상대값": each place is scored against ITS OWN busiest period, so 60 at one
+    // place and 60 at another are not the same crowd. "혼잡도" reads as an
+    // absolute level and invites exactly the cross-place comparison invariant 8
+    // forbids — and the server's own explanation sentence already says "상대
+    // 집중률", so the card was contradicting the paragraph beside it.
+    'run.proposal.crowd': '상대 집중률',
+    // Read after the figure by a screen reader, never shown (#279 하2). The
+    // arrow is aria-hidden and the number no longer carries a sign, so these
+    // two words are the only direction a non-sighted reader gets.
+    'run.proposal.crowdDown': '감소',
+    'run.proposal.crowdUp': '증가',
+    'run.proposal.comparisonUnavailable': '두 시간대의 상대 집중률은 비교할 수 없어요',
     'run.proposal.changes': '바뀌는 것',
     'run.proposal.changeCount': '변경 {count}개',
-    'run.proposal.move': '시간 변경',
+    // One chip per kind of move (#279 하3). `move` was the only one of these
+    // and it said "시간 변경" for a change of DAY, which a rehearsal caught.
+    // The row prints both sides underneath, so these only have to name the
+    // field that moved.
+    'run.proposal.moveDate': '날짜 변경',
+    'run.proposal.moveTime': '시간 변경',
+    'run.proposal.moveOrder': '순서 변경',
     'run.proposal.add': '추가',
     'run.proposal.remove': '제외',
     'run.proposal.constraintsOk': '잠금과 제약은 그대로예요',
@@ -540,7 +574,7 @@ export const messages = {
     'trip.applied.revision.expired':
       '일정 v{from} → v{to} · {appliedAt} 적용 · 되돌리기 기한({revertUntil})이 지났어요',
     'trip.applied.revision.reverted':
-      '일정 v{from} → v{to} · {revertedAt} 되돌림 · v{restored}와 같은 일정이에요',
+      '일정 v{from} → v{to} · {revertedAt} 되돌림 · v{restored:와} 같은 일정이에요',
     'trip.applied.revert': '이전 일정(v{from})으로 되돌리기',
     'trip.applied.reverting': '되돌리는 중…',
     'trip.applied.expired': '되돌릴 수 없어요 · 일정 편집에서 직접 바꿔요',
@@ -647,12 +681,12 @@ export const messages = {
     'trip.remove.open': '{name} 일정에서 빼기',
     'trip.remove.title': '일정에서 뺄까요?',
     'trip.remove.body':
-      '{name}을(를) 이 날짜에서 뺍니다. 나중에 다시 담을 수 있게 후보로 남겨둘까요?',
+      '{name:을} 이 날짜에서 뺍니다. 나중에 다시 담을 수 있게 후보로 남겨둘까요?',
     'trip.remove.keepCandidate': '후보로 남기기',
     'trip.remove.discard': '완전히 빼기',
     'trip.remove.cancel': '취소',
-    'trip.remove.keptAsCandidate': '{name}을(를) 후보로 남겼어요',
-    'trip.remove.removed': '{name}을(를) 일정에서 뺐어요',
+    'trip.remove.keptAsCandidate': '{name:을} 후보로 남겼어요',
+    'trip.remove.removed': '{name:을} 일정에서 뺐어요',
     'trip.remove.failed': '빼지 못했어요',
     'trip.move.title': '어느 날로 옮길까요?',
     'trip.move.cancel': '취소',
@@ -661,7 +695,7 @@ export const messages = {
     'trip.move.current': '지금 이 날짜예요',
     'trip.move.keepsTime': '옮기면 시작 시간은 그대로 이어받아요',
     'trip.move.moving': '옮기는 중이에요',
-    'trip.move.moved': '{name}을 {day}로 옮겼어요',
+    'trip.move.moved': '{name:을} {day:로} 옮겼어요',
     'trip.move.failed': '옮기지 못했어요',
     // A DATE lock pins the item to its day, so moving it releases that lock —
     // never silently (invariant 7).
@@ -676,7 +710,7 @@ export const messages = {
     // Card/TripItem spec.
     'trip.reorder.up': '{name} 위로 옮기기',
     'trip.reorder.down': '{name} 아래로 옮기기',
-    'trip.reorder.moved': '{name}을 {position}번째로 옮겼어요',
+    'trip.reorder.moved': '{name:을} {position}번째로 옮겼어요',
 
     // S07-3 place search `476:3409` (FE-305).
     'addPlace.title': '장소 추가',
@@ -695,8 +729,8 @@ export const messages = {
     'addPlace.onDay': '{day}에 이미 있어요',
     // The frame's own footnote: what each action means.
     'addPlace.note': '추가는 새 일정으로, 미정은 담아둔 장소로 저장돼요',
-    'addPlace.addedItem': '{name}을 {day}에 추가했어요',
-    'addPlace.addedCandidate': '{name}을 담아둔 장소에 저장했어요',
+    'addPlace.addedItem': '{name:을} {day}에 추가했어요',
+    'addPlace.addedCandidate': '{name:을} 담아둔 장소에 저장했어요',
     'addPlace.duplicate': '{name}은 이미 담아둔 장소에 있어요',
     'addPlace.failed': '추가하지 못했어요',
 
@@ -708,7 +742,7 @@ export const messages = {
     'replace.instead': '이 후보로 바꾸면',
     'replace.confirm': '이 장소로 교체',
     'replace.replacing': '교체하는 중이에요',
-    'replace.replaced': '{from}을 {to}로 교체했어요',
+    'replace.replaced': '{from:을} {to:로} 교체했어요',
     'replace.failed': '교체하지 못했어요',
     'replace.loading': '바꿀 수 있는 장소를 찾는 중이에요',
     'replace.error': '바꿀 수 있는 장소를 불러오지 못했어요',
@@ -1265,6 +1299,8 @@ export const messages = {
     'optimize.target': 'Which stop',
     'optimize.targetEmpty': 'This trip has no stops yet. Add one first',
     'optimize.includeCandidates': 'Also consider places saved to this trip',
+    'optimize.includeCandidates.comingSoon':
+      'Coming soon. For now this looks at stops already in the trip',
     'optimize.submit': 'Find alternatives',
     'optimize.submitting': 'Looking',
     'optimize.previewNote':
@@ -1291,16 +1327,30 @@ export const messages = {
     'run.kept': 'You kept your current plan',
     'run.reverted': 'You undid this change',
     'run.expiredStatus': 'This suggestion expired',
+    // Headings, not announcements — see the ko note (#279 하1).
+    'run.title.ready': 'Review the alternatives',
+    'run.title.applied': 'Applied alternative',
+    'run.title.kept': 'Kept itinerary',
+    'run.title.reverted': 'Undone optimization',
+    'run.title.expired': 'Expired suggestion',
+    'run.title.failed': 'No alternative found',
     'run.readyPending': 'The result screen is still being built',
     'run.loading': 'Loading',
     'run.error': "We couldn't load the status",
     'run.sourceUnavailable': "We can't load crowd information right now",
-    'run.proposal.crowd': 'Crowding',
+    // "Relative concentration", not "Crowding" — see the ko note (#279 하2).
+    // The source scores each place against its own busiest period, so the
+    // number is not an absolute crowd level and must not read as one.
+    'run.proposal.crowd': 'Relative concentration',
+    'run.proposal.crowdDown': 'lower',
+    'run.proposal.crowdUp': 'higher',
     'run.proposal.comparisonUnavailable':
-      "These two times can't be compared for crowding",
+      "These two times can't be compared for relative concentration",
     'run.proposal.changes': 'What changes',
     'run.proposal.changeCount': '{count} changes',
-    'run.proposal.move': 'Time change',
+    'run.proposal.moveDate': 'Date change',
+    'run.proposal.moveTime': 'Time change',
+    'run.proposal.moveOrder': 'Order change',
     'run.proposal.add': 'Added',
     'run.proposal.remove': 'Removed',
     'run.proposal.constraintsOk': 'Your locks and constraints are kept',

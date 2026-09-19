@@ -242,12 +242,77 @@ describe('FE-502-T1 FE-504-T1 nothing here changes the itinerary', () => {
   });
 });
 
-describe('FE-502-T2 FE-504-T2 the screen renders each of its states', () => {
+// FE-503-T2 joins the two card IDs already here: its clause is the same state
+// matrix on the same screen, and the READY branch these tests exercise is the
+// one FE-503's preview lives on.
+//
+// OFFLINE, the sixth state in that clause, is NOT measured in this file and is
+// not measured per screen anywhere. The app answers it in the service worker,
+// and `shared/testing/__tests__/offline-shell.test.ts` is what holds that
+// boundary — it reads the shipped sw.js and the built output and fails if a
+// cached /api/v1 response could be served as live. Naming the layer here rather
+// than leaving the word unclaimed: the clause is met, by a test one directory
+// over, and a reader who greps this file for "offline" should find out where it
+// went instead of finding nothing.
+describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', () => {
   it('shows a queued run as waiting, not as finished', async () => {
     runIs('QUEUED');
     renderRun();
     expect(await screen.findByText(copy['run.queued'])).toBeInTheDocument();
     expect(screen.queryByText(copy['run.ready'])).toBeNull();
+  });
+
+  // #279 하1: the heading said "대안을 찾고 있어요" over a finished run.
+  //
+  // `statusMessage` already names all eight statuses for the live region, and
+  // its comment records that an APPLIED or KEPT run once ANNOUNCED "대안이
+  // 준비됐어요". The heading kept doing it, so a rehearsal reached APPLIED, KEPT
+  // and FAILED and read "still searching" over all three — the screen reader
+  // heard the right state and the screen showed the wrong one.
+  //
+  // Each case asserts the searching title is ABSENT as well as the right title
+  // present. Presence alone passes for a screen that draws both.
+  describe('#279 하1 the heading says which state the run is in', () => {
+    it.each([
+      ['READY', 'run.title.ready'],
+      ['APPLIED', 'run.title.applied'],
+      ['KEPT', 'run.title.kept'],
+      ['REVERTED', 'run.title.reverted'],
+      ['EXPIRED', 'run.title.expired'],
+    ] as const)('a %s run is not titled as still searching', async (status, key) => {
+      runIs(status);
+      renderRun();
+
+      expect(
+        await screen.findByRole('heading', { level: 1, name: copy[key] }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(copy['run.title'])).toBeNull();
+    });
+
+    it('a FAILED run is titled as failed', async () => {
+      // Given a failure so the screen takes the failure branch rather than the
+      // bare-FAILED one; the heading is decided by status either way.
+      runIs('FAILED', {
+        failure: { code: 'NO_IMPROVEMENT', message: 'none', retryable: false },
+      });
+      renderRun();
+
+      expect(
+        await screen.findByRole('heading', { level: 1, name: copy['run.title.failed'] }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(copy['run.title'])).toBeNull();
+    });
+
+    it('keeps the searching title while the run is actually searching', async () => {
+      // The control. Without it "never show run.title" would pass by deleting
+      // the string everywhere, which would be wrong for the state it describes.
+      runIs('RUNNING');
+      renderRun();
+
+      expect(
+        await screen.findByRole('heading', { level: 1, name: copy['run.title'] }),
+      ).toBeInTheDocument();
+    });
   });
 
   it('names the two things it is actually checking', async () => {
@@ -382,10 +447,11 @@ describe('FE-502-T2 FE-504-T2 the screen renders each of its states', () => {
   });
 });
 
-// FE-504-T3's keyboard half lives here ("reaches the back control by
-// keyboard"); its 360px/200%-zoom half is responsive.spec.ts, whose SCREENS
-// list carries this route as "optimization run". Both halves exist, so the ID
-// goes on the block that holds the part living in this file.
+// FE-504-T3's keyboard half is the block BELOW this one ("the controls answer
+// to the keyboard"), split out so its IDs do not land on these three; its
+// 360px/200%-zoom half is responsive.spec.ts, whose SCREENS list carries this
+// route as "optimization run". All halves exist, so the ID sits on each block
+// that holds one of them.
 describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
   it('says the run continues when the user goes back', async () => {
     // FCR-014: P0 has no cancel operation, so the screen must not imply one.
@@ -414,7 +480,39 @@ describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
       );
     });
   });
+});
 
+// Its own block rather than a fourth test in the one above, and the reason is
+// mechanical: a JUnit testcase is named "<describe title> <test title>", so
+// every ID on a describe lands on every test inside it. Leaving this here would
+// stamp FE-503-T3 and FE-505-T3 — clauses about keyboard reach — onto three
+// tests that measure whether the screen implies a cancel operation. A comment
+// saying "these IDs are for the last one only" would not help; the aggregator
+// reads names, not prose.
+//
+// FE-502-T3 and FE-504-T3 keep their place on the block above AND appear here,
+// because their clause has both halves: "leaving is navigation" is measured
+// there, and their keyboard half is this test. FE-503-T3 and FE-505-T3 appear
+// only here — their clause is keyboard, focus and accessible names, and none of
+// them is about leaving the screen.
+//
+// WHAT FE-503-T3 AND FE-505-T3 DO NOT COVER, named so the gap has an owner.
+// Their cards originally bundled six things into one clause; four are proven —
+// keyboard reach here, accessible names and 360px and 200% zoom in
+// responsive.spec.ts, whose SCREENS list carries both optimize routes. The
+// remaining two are FE-503-T4 / FE-505-T4 and have NO test:
+//
+//   - focus restore: nothing here asserts where focus lands after a dialog or
+//     sheet on these screens closes.
+//   - reduced motion: responsive.spec.ts measures it on /language alone, from
+//     outside the SCREENS loop, so it says nothing about either optimize route.
+//     That is the same gap FE-104-T4 / FE-203-T4 name (responsive.spec.ts:104),
+//     one cause with four cards downstream of it.
+//
+// The IDs exist so the gap is countable. Attaching them to a passing test would
+// make an unmeasured clause read as met, which is the failure this whole ID
+// exercise is meant to prevent.
+describe('FE-502-T3 FE-504-T3 FE-503-T3 FE-505-T3 the controls answer to the keyboard', () => {
   it('reaches the back control by keyboard', async () => {
     runIs('RUNNING');
     renderRun();
