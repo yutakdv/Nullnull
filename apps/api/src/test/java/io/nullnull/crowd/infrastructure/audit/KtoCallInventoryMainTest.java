@@ -16,17 +16,6 @@ class KtoCallInventoryMainTest {
             Instant.parse("2026-09-20T01:00:00Z"), Instant.parse("2026-09-20T02:00:00Z"));
 
     @Test
-    @DisplayName("the target names the database without its user, password or query")
-    void theTargetCarriesNoCredential() {
-        assertThat(KtoCallInventoryMain.target(
-                "jdbc:postgresql://reader:hunter2@db.internal:5432/nullnull?password=hunter2&sslmode=require"))
-                .isEqualTo("postgresql://db.internal:5432/nullnull");
-        assertThat(KtoCallInventoryMain.target("jdbc:postgresql://localhost/nullnull"))
-                .isEqualTo("postgresql://localhost/nullnull");
-        assertThat(KtoCallInventoryMain.target("")).isEqualTo("unknown");
-    }
-
-    @Test
     @DisplayName("only a deployed environment's list with at least one usable call counts as evidence")
     void evidenceFollowsTheActualCallRule() {
         KtoCallInventory used = new KtoCallInventory("r1", List.of(DETAIL), 0, 0);

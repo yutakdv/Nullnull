@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.nullnull.OperationsContext;
 import io.nullnull.catalog.application.KtoGatewayException;
 import io.nullnull.catalog.application.KtoPlaceRequest;
 import java.util.List;
@@ -101,7 +102,11 @@ class KtoDemoRefreshCommandTest {
                 "KTO demo refresh failed: INVALID_PLACE_LIST", "KTO demo refresh failed: PLACE_FAILED",
                 "KTO demo refresh failed: " + KtoDemoRefreshCommand.code(
                         new KtoGatewayException(KtoGatewayException.Code.KTO_QUOTA_EXHAUSTED)),
-                "KTO demo refresh failed: " + KtoDemoRefreshCommand.code(new IllegalStateException("x9")))) {
+                "KTO demo refresh failed: " + KtoDemoRefreshCommand.code(new IllegalStateException("x9")),
+                "KTO demo refresh failed: " + KtoDemoRefreshCommand.code(new OperationsContext.Refused(
+                        OperationsContext.Refused.Code.OPERATIONS_TARGET_NOT_CONFIRMED, "postgresql://db:5432/x")),
+                "KTO demo refresh failed: " + KtoDemoRefreshCommand.code(new OperationsContext.Refused(
+                        OperationsContext.Refused.Code.SCHEMA_NOT_THIS_CHECKOUT, "035")))) {
             assertThat(FAILURE_LINE.matcher("java.lang.IllegalStateException: " + message).matches())
                     .as(message).isTrue();
         }

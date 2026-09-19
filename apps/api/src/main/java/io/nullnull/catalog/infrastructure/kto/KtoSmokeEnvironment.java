@@ -1,5 +1,6 @@
 package io.nullnull.catalog.infrastructure.kto;
 
+import io.nullnull.OperationsContext;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -131,6 +132,9 @@ final class KtoSmokeEnvironment {
      */
     static String failureCode(Throwable failure) {
         for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof OperationsContext.Refused refused) {
+                return refused.code().name();
+            }
             if (current instanceof KtoGatewayException gateway) {
                 return gateway.failureType() == null
                         ? gateway.code().name()

@@ -1,14 +1,12 @@
 package io.nullnull.social.infrastructure.curation;
 
-import io.nullnull.NullnullApplication;
+import io.nullnull.OperationsContext;
 import io.nullnull.social.application.CuratedPostImporter;
 import io.nullnull.social.application.CuratedPostImporter.ImportReport;
 import io.nullnull.social.application.CuratedPostPlan;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,14 +26,12 @@ import tools.jackson.databind.json.JsonMapper;
  * diffed and approved before anything runs, which is the property a migration and a writing endpoint
  * both lack - one buries editorial content in the schema, the other has no reviewer at all.
  *
- * <p>There is no environment guard. This comment used to say there was the one {@code ktoSmoke}
- * uses; there never was - neither this class nor {@link CuratedPostImporter} reads
- * {@code NULLNULL_ENV} or {@code KtoSmokeEnvironment}, and the script writes to whichever datasource
- * is configured. So the operator confirms the target database before running it: step 5 of
- * "staging이 선 날의 순서" in {@code docs/contest/CURATED_POSTS_TEMPLATE.md}.
- * {@code CuratedHoursImportMain} and {@code CatalogRelationDeriveMain} are in the same state. A guard
- * needs a decided set of allowed environments - staging has to be one - and that is recorded as an
- * open gap on #183 rather than invented here.
+ * <p>It starts through {@link io.nullnull.OperationsContext} (#183) as a writing tool, like every operations
+ * tool; the rules are written there. In staging or production it runs only when
+ * {@code NULLNULL_OPERATIONS_TARGET} names the database it printed - step 5 of "staging이 선 날의 순서" in
+ * {@code docs/contest/CURATED_POSTS_TEMPLATE.md}, made a check instead of a look. That holds only when
+ * {@code NULLNULL_ENV} says staging or production; a deployed database reached with the label left at local is
+ * treated as local. This comment once claimed the guard {@code ktoSmoke} uses; there was none until this.
  */
 public final class CuratedPostImportMain {
 
@@ -47,10 +43,7 @@ public final class CuratedPostImportMain {
     public static void main(String[] args) {
         Path plan = planPath(System.getenv(), args);
         CuratedPostPlan parsed = read(plan);
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
-                .web(WebApplicationType.NONE)
-                .registerShutdownHook(false)
-                .run()) {
+        try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
             ImportReport report = context.getBean(CuratedPostImporter.class).importPlan(parsed);
             System.out.println(summary(report));
         }

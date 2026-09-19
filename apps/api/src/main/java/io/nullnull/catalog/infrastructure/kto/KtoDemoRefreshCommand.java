@@ -1,6 +1,6 @@
 package io.nullnull.catalog.infrastructure.kto;
 
-import io.nullnull.NullnullApplication;
+import io.nullnull.OperationsContext;
 import io.nullnull.catalog.application.CanonicalCatalogStore;
 import io.nullnull.catalog.application.CatalogIngest;
 import io.nullnull.catalog.application.KtoPlaceDetailGateway;
@@ -14,18 +14,16 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
 /**
  * What the two ktoDemoRefresh mains share: read the place list, check the approval and environment, run
  * one mode, and fail the process if any place failed.
  *
- * <p>The job worker and Flyway are turned off on the command line, which outranks the environment, as
- * KtoCallInventoryMain does: pointed at staging, a second worker would claim that environment's jobs, and
- * a checkout newer than the deployed release would migrate its database. The ops task definition sets both
- * off as well; this does not rely on it.
+ * <p>It starts through {@link OperationsContext} as a writing tool, like every operations tool; the worker,
+ * migration, schema check and target rules are written there, not repeated here. The ops task definition turns
+ * the worker off as well; this does not rely on it. A refusal there ends as "failed: " plus its code, like any
+ * other failure.
  *
  * <p>Every failure ends in an exception whose message is "KTO demo refresh failed: CODE", and a failed
  * place is one: the others still run, and the process then exits 1 so the schedule's alarm sees it. The
@@ -50,11 +48,8 @@ final class KtoDemoRefreshCommand {
                 .forEach(line -> System.out.println("KTO_DEMO_REFRESH_SETTINGS " + line));
         requirePermittedEnvironment(requestedEnvironment);
         KtoDemoRefresh.Report report;
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(NullnullApplication.class)
-                .web(WebApplicationType.NONE)
-                .initializers(KtoSmokeEnvironment.applying(settings))
-                .registerShutdownHook(false)
-                .run("--nullnull.jobs.enabled=false", "--spring.flyway.enabled=false")) {
+        try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE,
+                KtoSmokeEnvironment.applying(settings))) {
             String effective = context.getEnvironment().getProperty("nullnull.env", requestedEnvironment);
             requirePermittedEnvironment(effective);
             KtoKorServiceProperties properties = context.getBean(KtoKorServiceProperties.class);
