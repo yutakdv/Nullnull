@@ -1993,7 +1993,7 @@ T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident
 - 증명됨: `api-quality`에 등록된 `DeletionIncidentSignalIT`·`JobCrashRetryIT`·`DeletionReceiptExpiryIT`가 T2·T4·T5·T6·T8·T9를 실제 testcase 이름으로 보고한다.
 - 제출 범위 밖(T1, [A-048](../project/DECISIONS_AND_RISKS.md)): 삭제 원장이 구현되지 않아 복원 뒤 접수된 삭제를 재적용할 수 없다. A-039는 심사 기간 restore를 금지하며, restore drill과 복원 뒤 owner 비노출 evidence가 없다.
 - 대기(T3, [A-049](../project/DECISIONS_AND_RISKS.md)): 증거 등급은 **tabletop**이다 — 실제 재현이 아니다. 조직 SCP 때문에 자동 Budget 신호가 없어 오너가 조직 billing 화면에서 확인하고, 수신자는 A-043으로 한 명이다. tabletop 기록이 들어오기 전까지 증명되지 않았다.
-- 부분(T7): staging API 로그 그룹에 다섯 이름의 `ops.alarm name=<NAME> drill=BA-072-T7` 줄을 넣었고(관리자 profile, 거절 0건), 배포된 metric filter 다섯이 그 문구를 그대로 인용하며 `OpsAlarmDeletionFailed` metric이 그 분에 1을 기록했다. **metric filter까지는 증명됐다.** alarm의 ALARM 전환 이력과 primary 수신자의 메일 도달은 확인하지 못했다 — 다섯 alarm이 그 뒤 평가 구간에서 `OK`였고 메일이 보이지 않았다. A-043에 따라 secondary 수신자는 두지 않으므로 secondary 절은 범위 밖이다.
+- 부분(T7): staging API 로그 그룹에 다섯 이름의 `ops.alarm name=<NAME> drill=BA-072-T7` 줄을 넣었다(관리자 profile, 거절 0건). 배포된 metric filter 다섯이 그 문구를 그대로 인용하고 `OpsAlarmDeletionFailed` metric이 그 분에 1을 기록했으며, **다섯 alarm 모두 `OK → ALARM`으로 전환했다**(alarm history). 그런데 다섯 모두 SNS action이 `Failed to execute action`이었다 — **이 drill이 없었으면 어떤 alarm도 사람에게 닿지 않는다는 것을 몰랐다.** 원인은 topic의 `enforceSSL`이 Deny 한 줄짜리 topic policy로 기본 policy를 **교체**해 CloudWatch 서비스 주체의 Allow가 사라진 것이다(구독 script의 test 메일은 IAM 주체의 identity policy로 나가서 도착했다). 이 계정의 alarm만 publish하게 하는 Allow를 더했고(`infra/test/staging.test.ts`의 topic policy test, Allow를 지우면 그것만 빨갛다) **배포 뒤 drill을 다시 돌려 메일 도달을 봐야 이 절이 증명된다.** A-043에 따라 secondary 수신자는 두지 않는다.
 
 FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

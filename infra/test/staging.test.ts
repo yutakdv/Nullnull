@@ -587,6 +587,26 @@ test("every ops.alarm name has a metric filter and an alarm that notifies", () =
     });
   }
 });
+test("the topic policy lets this account's CloudWatch alarms publish (enforceSSL replaces the default policy)", () => {
+  // BA-072-T7 drill: five alarms reached ALARM and every SNS action failed, because the enforceSSL policy
+  // left no Allow for the cloudwatch service principal. Nothing else in the template grants it.
+  const policies = Object.values(templates.obs.findResources("AWS::SNS::TopicPolicy")) as any[];
+  const statements = policies.flatMap((p) => p.Properties.PolicyDocument.Statement);
+  const allow = statements.filter(
+    (s: any) =>
+      s.Effect === "Allow" &&
+      s.Principal?.Service === "cloudwatch.amazonaws.com" &&
+      ([] as string[]).concat(s.Action).includes("sns:Publish"),
+  );
+  assert.equal(allow.length, 1, "exactly one Allow for CloudWatch to publish");
+  const c = allow[0].Condition ?? {};
+  assert(c.StringEquals?.["aws:SourceAccount"], "scoped to this account");
+  assert.match(JSON.stringify(c.ArnLike?.["aws:SourceArn"] ?? ""), /:alarm:\*/, "scoped to alarms");
+  assert(
+    statements.some((s: any) => s.Effect === "Deny" && JSON.stringify(s.Condition ?? {}).includes("aws:SecureTransport")),
+    "the SSL-only deny stays",
+  );
+});
 test("every alarm publishes to the one topic the subscribe script subscribes, and no address is in the template", () => {
   // An alarm with no action is the exact failure this work exists to remove: it fires, and the firing
   // is indistinguishable from silence. Who receives the topic is decided by

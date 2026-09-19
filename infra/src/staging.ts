@@ -975,6 +975,23 @@ export function createStacks(
   out(services, "InternalAlbArn", alb.loadBalancerArn);
   const obs = stack("Observability");
   const topic = new sns.Topic(obs, "Alarms", { enforceSSL: true });
+  // enforceSSL writes a topic policy, and a topic policy REPLACES the default one - the default was what let
+  // CloudWatch publish. An IAM principal still publishes on its own identity policy (the subscribe script's
+  // test mail arrived), but CloudWatch is a service principal with no identity policy here, so every alarm
+  // action failed: run of the BA-072-T7 drill, five alarms went OK -> ALARM and each logged "Failed to execute
+  // action" on this topic. Only this account's alarms may publish.
+  topic.addToResourcePolicy(
+    new iam.PolicyStatement({
+      sid: "CloudWatchAlarmsPublish",
+      principals: [new iam.ServicePrincipal("cloudwatch.amazonaws.com")],
+      actions: ["sns:Publish"],
+      resources: [topic.topicArn],
+      conditions: {
+        ArnLike: { "aws:SourceArn": `arn:aws:cloudwatch:${region}:${config.account}:alarm:*` },
+        StringEquals: { "aws:SourceAccount": config.account },
+      },
+    }),
+  );
   // Who receives this topic is not decided here. scripts/aws/staging-alarm-subscribe.sh subscribes the
   // primary (and secondary) address from the operator's ignored local settings, checks that the
   // subscription was confirmed, and can publish the BA-072-T3 test; a CloudFormation subscription could
