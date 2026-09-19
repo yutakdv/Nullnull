@@ -770,7 +770,8 @@
         "BA-022"
       ],
       "operations": [
-        "getPlaceCrowdForecast"
+        "getPlaceCrowdForecast",
+        "queryPlaceCrowdForecasts"
       ],
       "featureIds": [
         "FR-DAT-01",
@@ -781,9 +782,12 @@
         "NFR-DATA-01"
       ],
       "figmaNodes": [
-        "423:2967"
+        "423:2967",
+        "438:3158"
       ],
-      "designRequests": [],
+      "designRequests": [
+        "FCR-029"
+      ],
       "entities": "crowd_snapshots · snapshot_sets · crowd_comparisons · source registry · crowd snapshot 보존 정리(retention sweep)는 아직 생산자가 없다. 만들 때는 optimization 제안이 가리키는 point를 지우지 않거나 지운 run의 읽기 계약을 먼저 정한다(#259, BA-052-T5)",
       "steps": [
         "LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE와 freshness를 서로 다른 타입으로 매핑한다",
@@ -816,9 +820,65 @@
         {
           "id": "BA-023-T6",
           "assertion": "incident pair는 비교 자격이 없다"
+        },
+        {
+          "id": "BA-023-T7",
+          "assertion": "배치 응답의 items는 요청 placeIds와 길이가 같고 i번째 item이 i번째 id에 답한다"
+        },
+        {
+          "id": "BA-023-T8",
+          "assertion": "배치의 각 item은 같은 장소·같은 기간의 getPlaceCrowdForecast 응답과 같다"
+        },
+        {
+          "id": "BA-023-T9",
+          "assertion": "조회할 수 없는 장소 id는 요청을 실패시키지 않고 그 id의 item만 UNAVAILABLE(PLACE_UNAVAILABLE)로 답한다"
+        },
+        {
+          "id": "BA-023-T10",
+          "assertion": "placeIds 51개 요청은 422 VALIDATION_FAILED로 거절된다"
+        },
+        {
+          "id": "BA-023-T11",
+          "assertion": "빈 placeIds 요청은 422 VALIDATION_FAILED로 거절된다"
+        },
+        {
+          "id": "BA-023-T12",
+          "assertion": "중복 placeIds 요청은 422 VALIDATION_FAILED로 거절된다"
+        },
+        {
+          "id": "BA-023-T13",
+          "assertion": "공개 게이트가 닫히면 배치는 503 SOURCE_UNAVAILABLE로 답한다"
+        },
+        {
+          "id": "BA-023-T14",
+          "assertion": "배치의 statement 수와 connection 수는 placeIds 수에 따라 자라지 않는다"
+        },
+        {
+          "id": "BA-023-T15",
+          "assertion": "공개 crowd 읽기 경로와 그 port 구현은 provider 호출·수집 예약 경로에 전이적으로도 의존하지 않는다"
+        },
+        {
+          "id": "BA-023-T16",
+          "assertion": "placeIds가 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다"
+        },
+        {
+          "id": "BA-023-T17",
+          "assertion": "placeIds에 null이 든 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다"
+        },
+        {
+          "id": "BA-023-T18",
+          "assertion": "from이 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다"
+        },
+        {
+          "id": "BA-023-T19",
+          "assertion": "to가 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다"
+        },
+        {
+          "id": "BA-023-T20",
+          "assertion": "연도가 0001~9999 밖인 from·to는 500이 아니라 422 VALIDATION_FAILED로 거절된다"
         }
       ],
-      "handoff": "V011은 immutable `snapshot_sets`/`crowd_snapshots`와 KTO_CONCENTRATION_FORECAST registry revision 2(`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw body·request URL·key column은 schema에 없고, set 대비 snapshot provenance 불일치와 모든 UPDATE는 trigger가 거부한다. `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하며 절대 provider를 호출하지 않는다. collector `KtoCrowdForecastGateway`는 operator/background 전용이고 source health·quota·collector run·ingest audit을 거친다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값에서 fail-closed다. observedAt은 provider 발표 시각이 없으면 null로 남고 fetchedAt으로 대체하지 않으며, FORECAST/LIVE가 stale 경계를 넘으면 응답 state가 STALE로 바뀌고 freshness가 분리된다. 비교는 저장하지 않는다(`crowd_comparisons` table 없음). 공개 응답은 `TemporalComparisonPolicy.eligibility(point)`만 쓰고 pair 판정 `evaluate`는 optimization preview용으로 domain에 남겨 둔다. 격리는 저장된 row가 가질 수 없는 flag이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(`QUARANTINE`)로 계산해 `PROVIDER_INCIDENT`를 붙이고 비교 자격을 false로 만든다. 검증: `CrowdProvenanceProjectionTest`(BA-023-T1 6-state·null provenance matrix), `CrowdForecastApiIT`(BA-023-T1 fresh/stale/invalid range, BA-023-T3 새 set이 저장된 snapshot을 덮지 않음), `KtoCrowdForecastGatewayIT`(BA-023-T1 normalized provenance·raw redaction·no-coverage·range quarantine), `CrowdProvenanceProjectionTest`·`CrowdForecastApiIT`(BA-023-T2 격리된 source는 값을 유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`; 수집 이후 선언된 QUARANTINE incident가 저장된 snapshot의 HTTP 응답에서도 같은 결과), `KtoForecastResponseValidatorTest`, `FlywayMigrationIT`(populated V010→V011 upgrade). report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}`이며 local Temurin 21 run과 full Docker gate(`integration_mode=full-docker`, exit 0)가 모두 `320/153/13/19`, failures/errors/skipped 0이다. AI pytest 410, web unit 224, Playwright 36, test_reports/evaluation_report valid, npm audit clean, egress-denied도 통과했다. `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 지우면 BA-023-T2 두 건이 RED이고 복원 SHA가 일치한다. 적대적 검토에서 production 호출자가 없는 `CrowdComparisonService`가 BA-023-T2 증거로 등록돼 있었다는 지적이 확정돼 service/test를 삭제하고 실제 경로 격리 가드 검증으로 교체했다. **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거는 이 저장소에서 아직 만들지 않았다. opt-in `actualKtoSmoke`/`ktoForecastSmoke`는 `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구하며, BA-021-T3의 staging actual-success→public provenance가 남아 있는 동안에는 BA-023도 `verified`가 아니고 flag를 켜거나 외부에 공개하지 않는다. fail-closed 응답 code를 `ROUTE_UNAVAILABLE`(최적화 run 실패용 문구)에서 `SOURCE_UNAVAILABLE`로 정정했으므로 catalog·crowd 경로를 쓰는 FE fixture는 기대 code를 바꿔야 한다. FE에는 `getPlaceCrowdForecast`만 제공하며 `PlaceSummary`/`PlaceDetail`에는 crowd field가 없다(FCR-029·#105). **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`의 지역 코드 체계는 실호출로 확정됐다 — `areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리이며, `11`+`110`의 `totalCount 0`은 형식 오류가 아니라 `signguCd` 자릿수 문제였다(`11`+`11110`은 한 장소에 30건). `KtoForecastRequest.signguRequestCode()`가 그 값을 만들고 `KtoCrowdForecastGatewayIT`가 나간 요청의 두 코드를 단언한다. #109는 닫혔다.",
+      "handoff": "V011은 immutable `snapshot_sets`/`crowd_snapshots`와 KTO_CONCENTRATION_FORECAST registry revision 2(`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw body·request URL·key column은 schema에 없고, set 대비 snapshot provenance 불일치와 모든 UPDATE는 trigger가 거부한다. `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하며 절대 provider를 호출하지 않는다. collector `KtoCrowdForecastGateway`는 operator/background 전용이고 source health·quota·collector run·ingest audit을 거친다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값에서 fail-closed다. observedAt은 provider 발표 시각이 없으면 null로 남고 fetchedAt으로 대체하지 않으며, FORECAST/LIVE가 stale 경계를 넘으면 응답 state가 STALE로 바뀌고 freshness가 분리된다. 비교는 저장하지 않는다(`crowd_comparisons` table 없음). 공개 응답은 `TemporalComparisonPolicy.eligibility(point)`만 쓰고 pair 판정 `evaluate`는 optimization preview용으로 domain에 남겨 둔다. 격리는 저장된 row가 가질 수 없는 flag이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(`QUARANTINE`)로 계산해 `PROVIDER_INCIDENT`를 붙이고 비교 자격을 false로 만든다. 검증: `CrowdProvenanceProjectionTest`(BA-023-T1 6-state·null provenance matrix), `CrowdForecastApiIT`(BA-023-T1 fresh/stale/invalid range, BA-023-T3 새 set이 저장된 snapshot을 덮지 않음), `KtoCrowdForecastGatewayIT`(BA-023-T1 normalized provenance·raw redaction·no-coverage·range quarantine), `CrowdProvenanceProjectionTest`·`CrowdForecastApiIT`(BA-023-T2 격리된 source는 값을 유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`; 수집 이후 선언된 QUARANTINE incident가 저장된 snapshot의 HTTP 응답에서도 같은 결과), `KtoForecastResponseValidatorTest`, `FlywayMigrationIT`(populated V010→V011 upgrade). report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}`이며 local Temurin 21 run과 full Docker gate(`integration_mode=full-docker`, exit 0)가 모두 `320/153/13/19`, failures/errors/skipped 0이다. AI pytest 410, web unit 224, Playwright 36, test_reports/evaluation_report valid, npm audit clean, egress-denied도 통과했다. `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 지우면 BA-023-T2 두 건이 RED이고 복원 SHA가 일치한다. 적대적 검토에서 production 호출자가 없는 `CrowdComparisonService`가 BA-023-T2 증거로 등록돼 있었다는 지적이 확정돼 service/test를 삭제하고 실제 경로 격리 가드 검증으로 교체했다. **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거는 이 저장소에서 아직 만들지 않았다. opt-in `actualKtoSmoke`/`ktoForecastSmoke`는 `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구하며, BA-021-T3의 staging actual-success→public provenance가 남아 있는 동안에는 BA-023도 `verified`가 아니고 flag를 켜거나 외부에 공개하지 않는다. fail-closed 응답 code를 `ROUTE_UNAVAILABLE`(최적화 run 실패용 문구)에서 `SOURCE_UNAVAILABLE`로 정정했으므로 catalog·crowd 경로를 쓰는 FE fixture는 기대 code를 바꿔야 한다. FE에는 별도 operation으로만 제공하며(한 장소는 `getPlaceCrowdForecast`, 카드가 여럿인 화면은 `queryPlaceCrowdForecasts`) `PlaceSummary`/`PlaceDetail`에는 crowd field가 없다(FCR-029·#105). **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`의 지역 코드 체계는 실호출로 확정됐다 — `areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리이며, `11`+`110`의 `totalCount 0`은 형식 오류가 아니라 `signguCd` 자릿수 문제였다(`11`+`11110`은 한 장소에 30건). `KtoForecastRequest.signguRequestCode()`가 그 값을 만들고 `KtoCrowdForecastGatewayIT`가 나간 요청의 두 코드를 단언한다. #109는 닫혔다. **배치 조회(#105):** `queryPlaceCrowdForecasts`(`POST /places/crowd-forecasts/query`)는 `placeIds[1..50]`와 공유 `from`/`to` 하나를 받아 `items[i]`가 `placeIds[i]`에 답하는 목록을 요청 순서대로 돌려준다. 조립은 요청을 순회해서 하고 SQL 결과 순서에 기대지 않는다. 읽을 수 있는 장소의 item은 같은 장소·기간의 `getPlaceCrowdForecast` 응답과 같고(canonical `placeId`, deprecated id도 수렴), 단건이 404로 답할 id(없음·비활성·좌표 없음)는 그 item만 `UNAVAILABLE`·`PLACE_UNAVAILABLE`(`placeId`=요청 id)로 답한다. 문장 구조는 id 수와 무관하다: catalog `readableCanonicalIds` 1문장(`find`와 같은 join·필터), fresh set 선택 1문장(`DISTINCT ON`, 단건 `latest`와 같은 ORDER BY), fresh가 없는 장소가 있을 때만 stale 선택 1문장, set이 있을 때만 (set, place) 쌍 point 1문장. 쌍으로 묻는 것은 `snapshot_sets`에 장소 열이 없어 한 set이 여러 장소를 담을 수 있기 때문이다. fresh와 stale을 한 문장으로 합치지 않는다(`stale_at` NULL set이 DESC에서 앞에 온다). `now`는 요청당 한 번 읽는다. 검증(422)이 공개 게이트(503)보다 먼저이고, body의 null이 `CrowdForecastProperties.accepts`에 닿으면 500이던 것을 422로 막는다. 같은 자리에 절대 범위(0001~9999년)를 더했다 — `+300000-01-01T00:00:00Z`가 Instant로 읽혀 PostgreSQL timestamptz 범위 밖에서 500이 되던 것은 **단건 route에도 있던 결함**이라 두 route가 함께 422가 된다. 공유 스키마(`CrowdSeries` 등)는 바꾸지 않았고 새 경로와 두 이름 있는 스키마만 더했다(oasdiff breaking: 0 error, 0 warning, info 1 `endpoint-added`). item끼리 정렬·비교 금지는 계약 description에 적는다. provider 호출·수집 예약이 없다는 것은 `ArchitectureRulesTest`(BA-023-T15)가 읽기 경로와 **두 port의 구현체**(`CrowdForecastQuery`·`CatalogPlaceQuery`)에 대해 transitive로 고정한다 — 금지 대상은 KTO gateway·fetcher 넷, `ProviderHttpClient`, `JobQueue`, `java.net.http`·Spring web client다. 같은 class라 단건 route도 묶인다. KTO point의 `ordinalLevel`은 늘 null이라 Figma `438:3158`의 단계 표시는 이 operation으로 생기지 않는다(FCR-029). 검증: `CrowdForecastQueryIT`(T7~T12·T16~T20, T8은 단건 응답 JSON 전체와 대조하고 fixture `crowd/forecast-query.json`과 key shape를 대조한다), `CrowdForecastQueryFailsClosedIT`(T13), `QueryBudgetIT`(T14, fresh·stale·no-coverage·merged·unresolved 다섯 branch를 각각 5 대 45로 잰다), `ArchitectureRulesTest`(T15).",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-023"

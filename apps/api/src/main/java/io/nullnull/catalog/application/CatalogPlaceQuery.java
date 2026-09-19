@@ -3,6 +3,7 @@ package io.nullnull.catalog.application;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +32,18 @@ public interface CatalogPlaceQuery {
     record PageKey(String sortName, UUID placeId) { }
 
     Optional<CatalogPlaceDetail> find(UUID requestedPlaceId, String locale, Instant observedAt);
+
+    /**
+     * Requested id to the canonical place {@link #find} would answer for it, for every requested id
+     * that {@code find} would answer at all - one statement for the whole list.
+     *
+     * <p>The filter is {@code find}'s: one hop through {@code canonical_place_id}, then ACTIVE and
+     * coordinate-complete. A requested id that {@code find} would not answer is absent, and so is
+     * the reason: unknown, not active and without coordinates are one answer here, as they are one
+     * 404 there. Nothing else of the place is read, because a caller that only needs to know which
+     * place an id means should not pay for its localized name, references and media.
+     */
+    Map<UUID, UUID> readableCanonicalIds(List<UUID> requestedPlaceIds);
 
     /**
      * Active canonical summaries for the given ids, for callers that embed places in another

@@ -8,12 +8,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -70,6 +76,72 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
             return Optional.empty();
         }
         return frozenSet(ids.get(0), placeId, from, to);
+    }
+
+    @Override
+    public Map<UUID, UUID> latestFreshSetIds(Collection<UUID> placeIds, Instant from, Instant to, Instant now) {
+        return latestSetIds(placeIds, from, to, now, true);
+    }
+
+    @Override
+    public Map<UUID, UUID> latestStaleSetIds(Collection<UUID> placeIds, Instant from, Instant to, Instant now) {
+        return latestSetIds(placeIds, from, to, now, false);
+    }
+
+    /**
+     * {@link #latest}'s question for many places in one statement: per place, the newest FORECAST set
+     * on this side of {@code stale_at} that holds a point for it in the window, ties broken by id.
+     * DISTINCT ON keeps each place's first row in exactly latest's ORDER BY, so the two choose the same
+     * set. Fresh and stale stay two statements, as there: folding them into one ORDER BY on
+     * {@code stale_at > now} would put a set whose {@code stale_at} is NULL first under DESC, a set
+     * both of latest's comparisons refuse today.
+     */
+    private Map<UUID, UUID> latestSetIds(Collection<UUID> placeIds, Instant from, Instant to, Instant now,
+            boolean fresh) {
+        if (placeIds.isEmpty()) {
+            return Map.of();
+        }
+        String freshnessOperator = fresh ? ">" : "<=";
+        String latestSetsSql = """
+                SELECT DISTINCT ON (point.place_id) point.place_id, ss.id AS set_id
+                  FROM snapshot_sets ss
+                  JOIN crowd_snapshots point ON point.snapshot_set_id = ss.id
+                 WHERE ss.source_state = 'FORECAST'
+                   AND ss.stale_at %s ?
+                   AND point.place_id = ANY (?)
+                   AND point.target_at >= ?
+                   AND point.target_at <= ?
+                 ORDER BY point.place_id, ss.fetched_at DESC, ss.id DESC
+                """.formatted(freshnessOperator);
+        Map<UUID, UUID> chosen = new HashMap<>();
+        jdbc.query(latestSetsSql, (RowCallbackHandler) result -> chosen.put(
+                        result.getObject("place_id", UUID.class), result.getObject("set_id", UUID.class)),
+                Timestamp.from(now), placeIds.toArray(UUID[]::new), Timestamp.from(from), Timestamp.from(to));
+        return Map.copyOf(chosen);
+    }
+
+    @Override
+    public Map<UUID, SnapshotSet> sets(Map<UUID, UUID> setIdByPlace, Instant from, Instant to) {
+        if (setIdByPlace.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> places = List.copyOf(setIdByPlace.keySet());
+        // Pairs, not two independent lists: snapshot_sets has no place column, so nothing ties a set
+        // to one place, and a place's points in the set chosen for ANOTHER place are not its answer.
+        List<Snapshot> points = jdbc.query(POINT + """
+                 WHERE (point.snapshot_set_id, point.place_id) IN (SELECT * FROM unnest(?::uuid[], ?::uuid[]))
+                   AND point.target_at >= ?
+                   AND point.target_at <= ?
+                 ORDER BY point.place_id, point.target_at ASC, point.id ASC
+                """, this::snapshot, places.stream().map(setIdByPlace::get).toArray(UUID[]::new),
+                places.toArray(UUID[]::new), Timestamp.from(from), Timestamp.from(to));
+        Map<UUID, List<Snapshot>> byPlace = new LinkedHashMap<>();
+        for (Snapshot point : points) {
+            byPlace.computeIfAbsent(point.placeId(), place -> new ArrayList<>()).add(point);
+        }
+        Map<UUID, SnapshotSet> sets = new HashMap<>();
+        byPlace.forEach((place, held) -> sets.put(place, new SnapshotSet(setIdByPlace.get(place), held)));
+        return Map.copyOf(sets);
     }
 
     /**

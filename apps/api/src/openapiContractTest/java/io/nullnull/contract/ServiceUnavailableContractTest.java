@@ -48,7 +48,9 @@ class ServiceUnavailableContractTest {
             // OptimizationFailsClosedIT asserts $.code on both: a run holding proposals while the
             // catalog is closed, read directly and through a replayed create.
             "getOptimization", "SOURCE_UNAVAILABLE",
-            "createOptimization", "SOURCE_UNAVAILABLE"));
+            "createOptimization", "SOURCE_UNAVAILABLE",
+            // CrowdForecastQueryFailsClosedIT asserts $.code with the catalog closed (BA-023-T13).
+            "queryPlaceCrowdForecasts", "SOURCE_UNAVAILABLE"));
 
     private static final Pattern OPERATION = Pattern.compile("^\\s+operationId: (\\w+)\\s*$");
 
