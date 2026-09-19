@@ -48,6 +48,27 @@ interface Coverage {
   /** file:line of the `as MessageKey` this row covers. */
   site: string;
   values: readonly string[];
+  /**
+   * For a key built as prefix + value + suffix, the suffixes the screen asks
+   * for. `wizard.planning.${level}.title` and `.body` are one value set read
+   * twice, and a level with a title but no body goes blank in exactly the way
+   * the single-segment rows do.
+   *
+   * Written out per row rather than discovered from the key table: a suffix
+   * scanner would infer the set from whatever keys happen to exist, which
+   * cannot fail when a suffix is missing everywhere — the shape that made the
+   * three false positives above pass quietly.
+   */
+  suffixes?: readonly string[];
+}
+
+/** The full keys one row claims: prefix + value, times its suffixes. */
+function keysOf({ prefix, values, suffixes }: Coverage): string[] {
+  return values.flatMap((value) =>
+    suffixes === undefined
+      ? [`${prefix}${value}`]
+      : suffixes.map((suffix) => `${prefix}${value}${suffix}`),
+  );
 }
 
 // `error.*.message` is deliberately absent from this table. 17 of the 23
@@ -173,6 +194,53 @@ const COVERAGE: readonly Coverage[] = [
     // trip-edit.ts draftError(), which returns one of exactly these or null.
     values: ['title-empty', 'title-too-long', 'range-reversed', 'range-too-long'],
   },
+  {
+    prefix: 'wizard.planning.',
+    site: 'TripWizardScreen.tsx:434,437',
+    // Two reads of one value set, so a level needs BOTH keys. The same
+    // PlanningLevel as `trip.planning.` above, which reads it without a suffix.
+    values: [
+      'NOTHING',
+      'MUST_VISIT_ONLY',
+      'MOSTLY_PLANNED',
+    ] satisfies readonly Schemas['PlanningLevel'][],
+    suffixes: ['.title', '.body'],
+  },
+  {
+    prefix: 'error.',
+    site: 'problem-message.ts:61',
+    // `.cta` only. `error.<code>.message` is NOT here and must not be added:
+    // problem-message.ts:55 gates it on HAS_FIGMA_COPY and falls back to the
+    // server's `problem.detail`, so 17 of the 23 codes have no `.message` key
+    // by design. `.cta` has no such gate, so a code without one renders an
+    // empty button label.
+    values: [
+      'INVALID_REQUEST',
+      'UNAUTHORIZED',
+      'FORBIDDEN',
+      'NOT_FOUND',
+      'VALIDATION_FAILED',
+      'CSRF_INVALID',
+      'CURSOR_INVALID',
+      'CURSOR_EXPIRED',
+      'TRIP_CHANGED',
+      'DATA_CHANGED',
+      'LOCK_CONFLICT',
+      'ROUTE_UNAVAILABLE',
+      'NO_IMPROVEMENT',
+      'APPLY_FAILED',
+      'IDEMPOTENCY_KEY_REUSED',
+      'IMPORT_DRAFT_EXPIRED',
+      'IMPORT_DRAFT_CHANGED',
+      'PREVIEW_EXPIRED',
+      'REVERT_WINDOW_EXPIRED',
+      'DELETION_STATUS_EXPIRED',
+      'SOURCE_UNAVAILABLE',
+      'RATE_LIMITED',
+      'INTERNAL_ERROR',
+    ] satisfies readonly Schemas['Problem']['code'][],
+    suffixes: ['.cta'],
+  },
 ];
 
 const LOCALES = ['ko-KR', 'en-US'] as const;
@@ -194,11 +262,9 @@ describe('every assembled message key resolves', () => {
   it.each(LOCALES)('%s has a key for every value a screen can assemble', (locale) => {
     const table = messages[locale] as Record<string, string | undefined>;
     const missing: string[] = [];
-    for (const { prefix, values, site } of COVERAGE) {
-      for (const value of values) {
-        if (table[`${prefix}${value}`] === undefined) {
-          missing.push(`${prefix}${value} (${site})`);
-        }
+    for (const row of COVERAGE) {
+      for (const key of keysOf(row)) {
+        if (table[key] === undefined) missing.push(`${key} (${row.site})`);
       }
     }
     // A missing key renders as nothing at all, so this is the direction that
@@ -209,11 +275,7 @@ describe('every assembled message key resolves', () => {
   it.each(LOCALES)(
     '%s has no key under these prefixes that no value reaches',
     (locale) => {
-      const declared = new Set(
-        COVERAGE.flatMap(({ prefix, values }) =>
-          values.map((value) => `${prefix}${value}`),
-        ),
-      );
+      const declared = new Set(COVERAGE.flatMap(keysOf));
       // Longest prefix first: `profile.history.decision.APPLY` also starts with
       // `profile.history.`, and attributing it to the shorter row would report it
       // as dead copy.
@@ -226,7 +288,17 @@ describe('every assembled message key resolves', () => {
         // belongs to the scope row, while `profile.history.title` is ordinary
         // copy that happens to share a prefix with no value behind it.
         const rest = key.slice(owner.prefix.length);
-        if (rest.includes('.')) continue;
+        // A suffixed row owns two segments (`NOTHING` + `.title`), so strip a
+        // declared suffix before the single-segment rule below. Without this the
+        // `.` test skips every suffixed key and that row is checked in one
+        // direction only — measured: a `wizard.planning.FAKE_LEVEL.title`
+        // planted while this read `rest.includes('.')` passed six green.
+        const suffix = owner.suffixes?.find((candidate) => rest.endsWith(candidate));
+        const value = suffix === undefined ? rest : rest.slice(0, -suffix.length);
+        // A suffixed row only claims keys that actually carry one of its
+        // suffixes; `wizard.planning.heading` is ordinary copy, not a value.
+        if (owner.suffixes !== undefined && suffix === undefined) continue;
+        if (value.includes('.')) continue;
         // ...and it has to LOOK like a value slot. These prefixes are also used
         // for ordinary literal copy: `t('trip.lock.apply', { lock })` and
         // `t('candidates.match.error')` are direct calls with a written-out key,
@@ -239,7 +311,7 @@ describe('every assembled message key resolves', () => {
         // SCREAMING_CASE, while hand-written sibling copy is camelCase. The one
         // row whose values are not (`trip.error.*`, kebab-case from draftError)
         // has no sibling copy under its prefix, so nothing is skipped by this.
-        if (!/^[A-Z][A-Z0-9_]*$/.test(rest) && !owner.prefix.startsWith('trip.error.')) {
+        if (!/^[A-Z][A-Z0-9_]*$/.test(value) && !owner.prefix.startsWith('trip.error.')) {
           continue;
         }
         if (!declared.has(key)) dead.push(`${key} (${owner.prefix} in ${owner.site})`);
