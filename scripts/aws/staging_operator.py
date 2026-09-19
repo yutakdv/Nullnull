@@ -674,12 +674,21 @@ def deploy_approved_stack(directory, data, name, lock=None, parameters=None):
         cdk(command, log=Path(directory)/f'cdk-{name}.log')
 
 EDGE_STATES = {'open': 'true', 'closed': 'false'}
-EDGE_PUBLIC_STATUS = {'open': 200, 'closed': 503}
+# What an anonymous request to /api/v1/health/live answers through the edge: the API's own JSON when the gate
+# passes it, the gate's problem+json when it does not. An ALB 503 (no healthy targets) is text/html, not closed.
+EDGE_PUBLIC_ANSWER = {'open': (200, 'application/json'), 'closed': (503, 'application/problem+json')}
 
 def verify_deployed_plan(path, approved):
-    """The deployed release's own approved plan, unchanged, for edge: the same integrity checks as verify_plan,
-    but not its 24-hour freshness, because edge redeploys exactly what is deployed (one parameter differs) and has
-    to be usable during judging, days after the release. The staging lifetime still bounds it."""
+    """The deployed release's own approved plan, unchanged, for edge.
+
+    It makes the same hash checks as verify_plan: the plan file, release.json, cost basis, assembly, and this
+    checkout's infra/package-lock.json (the CDK toolchain that will deploy it, so run edge from a checkout whose
+    lock matches the release's, with infra dependencies installed). It does not make verify_plan's time checks - the
+    24-hour freshness and the plan's own expiresAt window - because edge redeploys exactly what is deployed, with one
+    parameter changed, and has to work during judging, days after the release; only the staging end (EXPIRY) bounds
+    it. It does not re-evaluate the cost plan either: that plan was approved when the release was deployed, and edge
+    changes no resource that costs anything.
+    """
     path = Path(path).resolve()
     require(approved and digest(path)==approved, 'reviewed-plan-does-not-match')
     data = json.loads(path.read_text())
@@ -694,67 +703,84 @@ def verify_deployed_plan(path, approved):
     require(dt.datetime.now(dt.timezone.utc) < EXPIRY, 'staging-expired')
     return data
 
-def public_health_status(url, attempts=40, pause=15):
-    """GET /api/v1/health/live through the edge without the verifier, until the gate answers as it is now set.
-    CloudFront takes minutes to carry a function change to every edge location, so this retries."""
+def edge_traffic_enabled():
+    """The WebEdge stack's live TrafficEnabled parameter, refusing while the stack is mid-operation."""
+    stack = aws('cloudformation', 'describe-stacks', StackName=PREFIX+'WebEdge')['Stacks'][0]
+    require(not stack.get('StackStatus', '').endswith('_IN_PROGRESS'), 'webedge-stack-busy')
+    parameters = {p.get('ParameterKey'): p.get('ParameterValue') for p in stack.get('Parameters', [])}
+    require(parameters.get('TrafficEnabled') in ('true', 'false'), 'webedge-traffic-parameter-unreadable')
+    return parameters['TrafficEnabled']
+
+def public_health_answers(url, attempts=40, pause=15):
+    """GET /api/v1/health/live through the edge without the verifier, until the caller has what it waits for.
+    CloudFront takes minutes to carry a function change to every edge location, so this retries. Yields
+    (status, content type, error class) - the class of a local failure, never its message."""
     import urllib.error, urllib.request
-    status = None
     for attempt in range(attempts):
         try:
             with urllib.request.urlopen(url.rstrip('/') + '/api/v1/health/live', timeout=10) as response:
-                status = response.status
+                answer = (response.status, response.headers.get_content_type(), None)
         except urllib.error.HTTPError as error:
-            status = error.code
-        except OSError:
-            status = None
-        yield status
+            answer = (error.code, error.headers.get_content_type() if error.headers else None, None)
+        except OSError as error:
+            answer = (None, None, type(error).__name__)
+        yield answer
         if attempt + 1 < attempts:
             time.sleep(pause)
 
 def edge(args):
-    """Open or close the public API edge of the deployed release, and nothing else (owner decision 2026-09-19, A-039).
+    """Open or close the public API edge of the deployed release, and nothing else (owner decision A-039).
 
-    Every deploy and rollback sets TrafficEnabled=false again (execute), so this is run after each release that
-    should be public. It redeploys WebEdge alone, from the deployed release's own approved plan and assembly, with
-    TrafficEnabled changed: the owner approves that plan's sha256, which current.json already records. Opening
-    requires the verifier-path flows to pass first; closing does not wait for anything. Without --execute it plans.
+    A-039: open only once the release carries the FE login-imitation screen; open without the deletion ledger, so no
+    DB snapshot is restored while it is open - close it first. Every deploy and rollback sets TrafficEnabled=false
+    again (execute), so this runs after each release that should be public.
+
+    It redeploys WebEdge alone, from the deployed release's own approved plan and assembly, with TrafficEnabled
+    changed; the owner approves that plan's sha256, which current.json records. Everything that decides whether to
+    deploy is read under the deployment lock, so no release can land between the check and the deploy (as ops_task).
+    Opening first runs the checks CD runs after a deploy (staging-smoke.sh, then staging-flows.mjs through the
+    verifier path). An edge already in the asked state is only verified. Without --execute it plans.
     """
     require(auth_mode() == 'profile', 'edge-is-local-only')
     require(args.state in EDGE_STATES, 'edge-state-must-be-open-or-closed')
     require(bool(args.plan), 'edge-requires-the-deployed-release-plan')
     data = verify_deployed_plan(args.plan, args.approved_plan_sha256)
     identity(data['account'])
-    current = read_current_release(release_bucket())
-    require(current is not None, 'no-deployed-release-record')
-    require(current.get('planSha256') == args.approved_plan_sha256, 'plan-is-not-the-deployed-release')
-    release = current['releaseVersion']
     url = output('WebEdge', 'PublicUrl')
     enabled = EDGE_STATES[args.state]
-    print(f'edge_action={"execute" if args.execute else "plan"} state={args.state} release={release} '
-          f'stack=WebEdge TrafficEnabled={enabled}')
-    print('edge_note=every deploy and rollback sets TrafficEnabled=false again; open the edge again after each release')
-    if args.state == 'open':
-        # The same checks CD runs after a deploy, through the verifier path, before anyone else can reach the API.
-        require(len(os.environ.get('NULLNULL_VERIFIER_TOKEN', '')) >= 43, 'edge-open-requires-verifier-token')
-        log = ROOT/'.artifacts/aws/edge-precheck.log'
-        log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        run(['node', ROOT/'scripts/aws/staging-flows.mjs', '--url', url], log=log)
-        print('edge_precheck=staging-flows-pass')
-    if not args.execute:
-        print('edge_action=plan aws_writes=0')
-        return
-    waf_arn = output('GlobalWaf', 'WebAclArn', 'us-east-1')
     with DeploymentLock() as lock:
-        deploy_approved_stack(Path(args.plan).resolve().parent, data, 'WebEdge', lock,
-                              ['NullnullStgWebEdge:GlobalWebAclArn='+waf_arn, 'NullnullStgWebEdge:TrafficEnabled='+enabled,
-                               'NullnullStgWebEdge:VerifierTokenSha256='+data['verifierTokenSha256']])
-    expected = EDGE_PUBLIC_STATUS[args.state]
-    status = None
-    for status in public_health_status(url):
-        if status == expected:
+        current = read_current_release(release_bucket())
+        require(current is not None, 'no-deployed-release-record')
+        require(current.get('planSha256') == args.approved_plan_sha256, 'plan-is-not-the-deployed-release')
+        release = current['releaseVersion']
+        live = edge_traffic_enabled()
+        print(f'edge_action={"execute" if args.execute else "plan"} state={args.state} release={release} '
+              f'stack=WebEdge TrafficEnabled={live}->{enabled}')
+        print('edge_note=every deploy and rollback sets TrafficEnabled=false again; open the edge again after each release')
+        if live == enabled:
+            print(f'edge_action=none reason=already-{args.state}')
+        else:
+            if args.state == 'open':
+                require(len(os.environ.get('NULLNULL_VERIFIER_TOKEN', '')) >= 43, 'edge-open-requires-verifier-token')
+                log = ROOT/'.artifacts/aws/edge-precheck.log'
+                log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                run(['bash', ROOT/'scripts/aws/staging-smoke.sh', '--url', url], log=log)
+                run(['node', ROOT/'scripts/aws/staging-flows.mjs', '--url', url], log=log)
+                print('edge_precheck=staging-smoke-and-flows-pass')
+            if not args.execute:
+                print('edge_action=plan aws_writes=0')
+                return
+            waf_arn = output('GlobalWaf', 'WebAclArn', 'us-east-1')
+            deploy_approved_stack(Path(args.plan).resolve().parent, data, 'WebEdge', lock,
+                                  ['NullnullStgWebEdge:GlobalWebAclArn='+waf_arn, 'NullnullStgWebEdge:TrafficEnabled='+enabled,
+                                   'NullnullStgWebEdge:VerifierTokenSha256='+data['verifierTokenSha256']])
+    expected = EDGE_PUBLIC_ANSWER[args.state]
+    answer = (None, None, 'not-asked')
+    for answer in public_health_answers(url):
+        if answer[:2] == expected:
             break
-    require(status == expected, f'edge-not-{args.state}-after-deploy')
-    print(f'edge={args.state} release={release} public_health_status={status}')
+    require(answer[:2] == expected, f'edge-not-{args.state}-after-deploy-last-{answer[0]}-{answer[2] or answer[1]}')
+    print(f'edge={args.state} release={release} public_health_status={answer[0]} content_type={answer[1]}')
 
 def read_dotenv(path):
     values = {}
@@ -804,7 +830,7 @@ def curation_plan(args):
     require(bool(args.owner_approval) and len(args.owner_approval) >= 10, 'owner-approval-record-required')
     encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode('ascii')
     require(len(encoded) <= PLAN_INLINE_MAX_CHARS, 'plan-too-large-for-task-overrides')
-    return {'data': data, 'sha256': sha, 'encoded': encoded}
+    return {'data': data, 'sha256': sha, 'encoded': encoded, 'places': len(places)}
 
 def ops_task(args):
     """Run one allowlisted operator command in the VPC with the deployed API image."""
@@ -882,7 +908,7 @@ def ops_task(args):
                 print('ops_log ' + line)
                 if line.startswith('KTO_SMOKE_OK '):
                     evidence.append(line)
-                if plan and line.startswith(CURATION_PLANS[args.task]['echo'] + ' '):
+                if plan and line.startswith('curated_hours'):
                     echoed.append(line)
         if failure:
             raise failure
@@ -893,10 +919,17 @@ def ops_task(args):
     print('ops_task=' + args.task + ' result=succeeded')
 
 def record_curation(task, plan, echoed, current):
-    """The task imported the approved bytes (its own echoed sha), and those bytes are kept where the release's
-    evidence is. A plan file on the operator's machine is not a record; this copy and its sha are."""
+    """The task imported the approved bytes, all of them, and those bytes are kept where the release's evidence is.
+
+    Three of the task's own lines prove it, not its exit code alone: the sha it read (printed before the import),
+    the count it recorded (printed after), and no failure line. A plan file on the operator's machine is not a
+    record; this copy and its sha are.
+    """
     expected = f"{CURATION_PLANS[task]['echo']} sha256={plan['sha256']} bytes={len(plan['data'])}"
-    require(echoed == [expected], 'curation-plan-echo-mismatch')
+    require([line for line in echoed if line.startswith(CURATION_PLANS[task]['echo'] + ' ')] == [expected],
+            'curation-plan-echo-mismatch')
+    require(not any(line.startswith('curated_hours_failed ') for line in echoed), 'curation-import-failed')
+    require(f"curated_hours_recorded={plan['places']}" in echoed, 'curation-not-all-places-recorded')
     path = ROOT/'.artifacts/aws/evidence'/f"curation-{plan['sha256']}.json"
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -911,7 +944,9 @@ def release_binding(definition):
     """The recorded release a bound task runs as, and the image digest it must run.
 
     The smoke's report credits current.json's release, and a curate task needs the image that reads an inline plan,
-    so either task has to be that release's. After a failed deploy the ops
+    so either task has to be that release's. This cannot tell whether that release's image reads an inline plan: a
+    release older than the curate-hours change (rc.1001) passes here and then fails in the task, with only
+    task-failed to show for it, because its main knows only a plan file. After a failed deploy the ops
     definition (Migration stack) can already be the next release's while current.json still names the previous one,
     and two releases can share one API digest (rc.1000 and rc.1001 did), so the digest alone does not name a
     release: the definition's APP_RELEASE_VERSION has to be current.json's as well. Checked before the task starts,
@@ -931,9 +966,10 @@ def write_actual_call_report(lines, current):
     """CMP-KTO-003 evidence: the staging service's own call, as its smoke main reported it (redacted fields only).
 
     `called=true` is the smoke's own statement that this run's request produced the snapshot (KtoSmokeMain derives
-    it from the gateway's fetchedAt on one clock). A stored snapshot handed back without a call prints
-    KTO_SMOKE_CACHED instead, and an image older than that rule prints no `called` at all; both stop here, because
-    a report without a call is exactly the evidence CMP-KTO-003 must not accept. `current` is the release record
+    it from the gateway's fetchedAt on one clock). A stored snapshot handed back without a call never gets here: the
+    smoke prints KTO_SMOKE_CACHED and fails, so the task ends task-failed before any report. What stops here is an
+    image older than that rule, which prints an OK line with no `called`, and any OK line whose `called` is not
+    true - a report without a call is exactly the evidence CMP-KTO-003 must not accept. `current` is the release record
     the caller already checked the image against.
     """
     require(len(lines) == 1, 'kto-smoke-evidence-line-missing')

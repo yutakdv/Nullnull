@@ -5,6 +5,7 @@ import io.nullnull.OperationsPlan;
 import io.nullnull.catalog.application.CuratedHoursImporter;
 import io.nullnull.catalog.application.CuratedHoursImporter.ImportReport;
 import io.nullnull.catalog.application.CuratedHoursPlan;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.Map;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -15,10 +16,11 @@ import tools.jackson.databind.json.JsonMapper;
  * BA-025's operations script: records the curated opening hours written in a plan file.
  *
  * <pre>
- * NULLNULL_HOURS_PLAN=$PWD/ops/curated-hours.json ./gradlew curateHours
+ * cd apps/api && NULLNULL_HOURS_PLAN="$(git rev-parse --show-toplevel)/ops/curated-hours.json" ./gradlew curateHours
  * </pre>
  *
- * <p>The path is read from {@code apps/api} (the Gradle task's working directory), hence the absolute one. In staging
+ * <p>The only Gradle wrapper and the task's working directory are {@code apps/api}, and {@code ops/} is at the
+ * repository root, hence the absolute path. In staging
  * the plan cannot be a file: the ops task runs the release's image, so the staging operator sends the owner-approved
  * bytes inline with their sha256 ({@code NULLNULL_HOURS_PLAN_GZIP_BASE64}, {@code NULLNULL_HOURS_PLAN_SHA256}; see
  * {@link OperationsPlan}). Either way the first line printed is the sha256 of the exact bytes imported, which the
@@ -43,17 +45,25 @@ public final class CuratedHoursImportMain {
     }
 
     public static void main(String[] args) {
+        run(System.getenv(), args, System.out);
+    }
+
+    /**
+     * The whole command. A failure prints one line the staging operator's log allowlist passes - so it is not silent
+     * there - and is then rethrown, so the process exits non-zero: the operator reads success from the exit code as
+     * well as from these lines, and a failure that returned normally would read as an import.
+     */
+    static void run(Map<String, String> environment, String[] args, PrintStream out) {
         try {
-            OperationsPlan.Text plan = OperationsPlan.read(System.getenv(), args, PLAN);
-            System.out.println(planLine(plan));
+            OperationsPlan.Text plan = OperationsPlan.read(environment, args, PLAN);
+            out.println(planLine(plan));
             CuratedHoursPlan parsed = parse(plan.json(), plan.origin());
             try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
                 ImportReport report = context.getBean(CuratedHoursImporter.class).importPlan(parsed);
-                System.out.println(summary(report));
+                out.println(summary(report));
             }
         } catch (RuntimeException failure) {
-            // One line the staging operator's log allowlist passes, so a failed import is not silent there.
-            System.out.println(failureLine(failure));
+            out.println(failureLine(failure));
             throw failure;
         }
     }

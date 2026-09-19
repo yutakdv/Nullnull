@@ -59,6 +59,14 @@ class StubApi:
         self.keep_moves = False
         self.revert_restores = True
         self.foreign_origin_status = 403
+        self.edge_open = False  # what an anonymous /api/v1/health/live gets: the API (open) or the gate's 503
+        self.evaluator_unanswered = False  # getCandidateTripMatches' fallback when apps/ai did not answer
+        self.apply_moves = True
+        self.apply_bumps_version = True
+        self.keep_etag_offset = 0
+        self.revert_window_hours = 24
+        self.keep_run_status = "KEPT"
+        self.reverted_availability = "REVERTED"
         for name, value in knobs.items():
             assert hasattr(self, name), name
             setattr(self, name, value)
@@ -173,6 +181,16 @@ class Handler(BaseHTTPRequestHandler):
         if (method, path) == ("GET", "/api/v1/health/ready"):
             return self.send(200, {"status": "READY", "checks": [{"name": "database", "status": "READY"},
                                                                 {"name": "recommendation", "status": "READY"}]})
+        if (method, path) == ("GET", "/api/v1/health/live") and not self.headers.get("cookie"):
+            if api.edge_open:
+                return self.send(200, {"status": "UP"})
+            payload = json.dumps({"status": 503, "title": "Staging verification pending"}).encode()
+            self.send_response(503)
+            self.send_header("content-type", "application/problem+json")
+            self.send_header("content-length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return None
         if (method, path) == ("POST", "/api/v1/demo/sessions"):
             if self.headers.get("origin") == "https://attacker.invalid":
                 return self.send(api.foreign_origin_status, {"code": "FORBIDDEN"})
@@ -215,6 +233,8 @@ class Handler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/api/v1/trips/([^/]+)/candidates/([^/]+)/matches", path)
         if match and method == "GET":
             trip = api.trips[match.group(1)]
+            if api.evaluator_unanswered:
+                return self.send(200, {"candidateId": match.group(2), "state": "UNKNOWN", "slots": []})
             slots = [{"date": d, "suggestedTime": None, "eligible": d not in api.hours, "reasonCode": api.hours.get(d)}
                      for d in api.days(trip)]
             return self.send(200, {"candidateId": match.group(2), "state": "SIMILAR", "slots": slots})
@@ -272,17 +292,19 @@ class Handler(BaseHTTPRequestHandler):
             item = next(i for i in trip["items"] if i["id"] == run["itemId"])
             decided_against = trip["version"]
             if body["decision"] == "KEEP":
-                run["status"] = "KEPT"
+                run["status"] = api.keep_run_status
                 if api.keep_moves:
                     item["date"] = proposal["changes"][0]["after"]["date"]
                     trip["version"] += 1
-                etag_out = f'"{decided_against}"'
+                etag_out = f'"{decided_against + api.keep_etag_offset}"'
             else:
-                item["date"] = proposal["changes"][0]["after"]["date"]
-                trip["version"] += 1
+                if api.apply_moves:
+                    item["date"] = proposal["changes"][0]["after"]["date"]
+                if api.apply_bumps_version:
+                    trip["version"] += 1
                 decision.update({"resultingTripVersion": trip["version"], "beforeRevisionId": str(uuid.uuid4()),
                                  "afterRevisionId": str(uuid.uuid4()),
-                                 "revertUntil": (decided + timedelta(hours=24)).isoformat().replace("+00:00", "Z")})
+                                 "revertUntil": (decided + timedelta(hours=api.revert_window_hours)).isoformat().replace("+00:00", "Z")})
                 run["status"] = "APPLIED"
                 run["revertAvailability"] = "AVAILABLE"
                 etag_out = f'"{trip["version"]}"'
@@ -307,7 +329,7 @@ class Handler(BaseHTTPRequestHandler):
                       "decidedAt": "2099-01-01T01:00:00Z"}
             run["decisions"].append(revert)
             run["status"] = "REVERTED"
-            run["revertAvailability"] = "REVERTED"
+            run["revertAvailability"] = api.reverted_availability
             return self.send(200, revert, {"etag": f'"{trip["version"]}"'})
         return self.send(404, {"code": "NOT_FOUND"})
 
@@ -464,6 +486,47 @@ class StagingFlowsScript(unittest.TestCase):
                 result, _ = self.run_flows(api, *self.optimize("--decision", mode))
                 self.assert_outcome(result, 1, line)
                 self.assertEqual({}, api.trips)
+
+    def test_every_effect_the_decision_claims_is_checked_against_the_server(self):
+        for knobs, mode, line in [
+            (dict(apply_moves=False), "apply", "FAIL optimization.apply.moved-item"),
+            (dict(apply_bumps_version=False), "apply", "FAIL optimization.apply.new-version"),
+            (dict(revert_window_hours=23), "apply", "FAIL optimization.apply.revert-window"),
+            (dict(reverted_availability="AVAILABLE"), "apply", "FAIL optimization.apply.run-reverted"),
+            (dict(keep_etag_offset=1), "keep", "FAIL optimization.keep.no-new-version"),
+            (dict(keep_run_status="READY"), "keep", "FAIL optimization.keep.run-kept"),
+        ]:
+            with self.subTest(line=line):
+                api = StubApi(**knobs)
+                result, _ = self.run_flows(api, *self.optimize("--decision", mode))
+                self.assert_outcome(result, 1, line)
+                self.assertEqual({}, api.trips)
+
+    def test_an_evaluator_that_did_not_answer_is_a_failure_not_unknown_hours(self):
+        # Spring answers getCandidateTripMatches with {UNKNOWN, []} when apps/ai did not answer; unknown hours would
+        # still come back as one slot per day. Reading the fallback as unknown hours sends the operator to re-import.
+        for step in (self.optimize(), ["--survey"]):
+            with self.subTest(step=step[0]):
+                api = StubApi(evaluator_unanswered=True)
+                result, _ = self.run_flows(api, *step)
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                self.assertRegex(result.stdout, r"FAIL (optimization|survey)\.hours-read status=200 state=UNKNOWN slots=0 days=\d+")
+                self.assertEqual({}, api.trips)
+
+    def test_the_edge_state_can_be_expected_open_once_judging_has_opened_it(self):
+        result, requests = self.run_flows(StubApi(edge_open=True), "--expect-edge", "open")
+        self.assert_outcome(result, 0, "pass edge.public-api-open status=200")
+        self.assertIn(("GET", "/api/v1/health/live"), requests)
+        result, _ = self.run_flows(StubApi(edge_open=False), "--expect-edge", "open")
+        self.assert_outcome(result, 1, "FAIL edge.public-api-open status=503")
+        result, _ = self.run_flows(StubApi(edge_open=False), "--expect-edge", "closed")
+        self.assert_outcome(result, 0, "pass edge.public-api-closed status=503")
+        result, _ = self.run_flows(StubApi(edge_open=True), "--expect-edge", "closed")
+        self.assert_outcome(result, 1, "FAIL edge.public-api-closed status=200")
+        result, requests = self.run_flows(StubApi(), "--expect-edge", "ajar")
+        self.assertEqual(2, result.returncode)
+        self.assertIn("staging_flows=failed reason=expect-edge-must-be-open-or-closed", result.stderr)
+        self.assertEqual([], requests)
 
     def test_a_failure_outranks_a_step_that_did_not_run(self):
         result, _ = self.run_flows(StubApi(foreign_origin_status=201, capability="UNAVAILABLE"), *self.optimize())

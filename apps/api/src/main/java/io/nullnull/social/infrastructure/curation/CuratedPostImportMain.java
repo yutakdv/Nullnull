@@ -17,7 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Run it with the path to the plan:
  *
  * <pre>
- * NULLNULL_CURATION_PLAN=ops/curated-posts.json ./gradlew curatePosts
+ * cd apps/api && NULLNULL_CURATION_PLAN="$(git rev-parse --show-toplevel)/ops/curated-posts.json" ./gradlew curatePosts
  * </pre>
  *
  * <p>It makes no external request and creates no catalog row. Everything it writes is either the

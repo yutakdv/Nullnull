@@ -1,6 +1,7 @@
 package io.nullnull.catalog.infrastructure.curation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import io.nullnull.OperationsContext;
 import io.nullnull.OperationsPlan;
@@ -54,6 +55,23 @@ class CuratedHoursImportMainTest {
                 "curated_hours_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED",
                 "curated_hours_failed reason=IllegalStateException");
         assertThat(lines).allSatisfy(line -> assertThat(OPS_LOG_LINE.matcher(line).matches()).as(line).isTrue());
+    }
+
+    @Test
+    void aRefusedPlanPrintsItsFailureLineAndStillFailsTheProcess() throws Exception {
+        // Neither source, then bytes that are not the approved ones: both stop before any database, print the one line
+        // the operator's allowlist passes, and are rethrown so the task exits non-zero.
+        for (java.util.Map<String, String> environment : List.of(java.util.Map.<String, String>of(),
+                java.util.Map.of("NULLNULL_HOURS_PLAN_GZIP_BASE64", "H4sIAAAAAAAA/6uuBQBDv6ajAgAAAA==",
+                        "NULLNULL_HOURS_PLAN_SHA256", "0".repeat(64)))) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            java.io.PrintStream out = new java.io.PrintStream(bytes, true, java.nio.charset.StandardCharsets.UTF_8);
+
+            assertThatIllegalStateException().isThrownBy(() -> CuratedHoursImportMain.run(environment, null, out));
+
+            assertThat(bytes.toString(java.nio.charset.StandardCharsets.UTF_8).lines().toList())
+                    .containsExactly("curated_hours_failed reason=IllegalStateException");
+        }
     }
 
     @Test

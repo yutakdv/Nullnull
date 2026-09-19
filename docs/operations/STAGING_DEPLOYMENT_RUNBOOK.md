@@ -26,7 +26,7 @@ tags:
 
 개인 이메일과 account ID는 Git에 기록하지 않는다. primary 주소는 ignored local 설정의 `NULLNULL_ALARM_PRIMARY_EMAIL`과 GitHub/AWS 보호 설정으로만 전달한다. 스크립트는 값의 존재만 검사하고 출력하지 않는다.
 
-> 2026-09-15 오너 결정: 총비용 USD 200을 유지하고 운영 기간은 조정할 수 있다. 가동은 plan마다 최대 14일이고 최종 종료 한계는 2026-10-25이며 자동 연장하지 않는다(operator가 plan에서 강제한다). 삭제 원장은 아직 구현되지 않았고 공개 edge를 여는 조건이다(§10).
+> 2026-09-15 오너 결정: 총비용 USD 200을 유지하고 운영 기간은 조정할 수 있다. 가동은 plan마다 최대 14일이고 최종 종료 한계는 2026-10-25이며 자동 연장하지 않는다(operator가 plan에서 강제한다). 삭제 원장은 아직 구현되지 않았다. 오너 결정 A-039(2026-09-19)로 공개 edge는 원장 없이, FE 로그인 흉내 화면이 들어간 release에서 연다. 심사 기간(2026-10-25까지)에는 DB snapshot 복원을 하지 않고, 복원이 필요하면 edge를 먼저 닫는다(§10·§11).
 
 ## 1. 확정 아키텍처
 
@@ -279,7 +279,7 @@ BA-072 완료 전 다음 rehearsal을 실제 AWS에서 한 번 수행한다.
 
 목표는 RPO 15분 이하, RTO 2시간 이하다. 실측값이 목표를 넘으면 문서를 고치는 것이 아니라 원인과 개선을 기록한다.
 
-삭제 원장(미구현, 공개 edge를 여는 조건). DB snapshot을 복원해도 이미 접수한 삭제가 되감기지 않게 하는 장치다.
+삭제 원장(미구현). DB snapshot을 복원해도 이미 접수한 삭제가 되감기지 않게 하는 장치다. A-039 전에는 공개 edge를 여는 조건이었다. 지금은 복원을 하지 않는 동안에만 원장 없이 연다. 위 PITR을 포함해 복원이 필요하면 `staging_operator.py edge --state closed`로 먼저 닫는다.
 
 - 복원 대상 RDS 밖의 private·암호화·versioned S3에 둔다. 삭제 대상 식별자·범위·순서·보존 기한만 담고, API 응답·log·evidence에는 식별자를 내지 않는다. runtime writer는 원장을 지울 수 없고 verifier는 읽기만 한다.
 - 삭제 요청은 DB에 revoke/pending을 기록하고 원장에 내구성 있게 쓴 뒤에야 202 receipt를 준다. 원장 기록은 DB transaction 밖에서 하고, 실패는 멱등하게 재시도하며 성공으로 위장하지 않는다.
@@ -328,13 +328,14 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-hours --plan-file <plan.json> \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
-# INT-04 확인(verifier 경로). 먼저 날짜 쌍을 찾고, 예보 적재 뒤 24시간 안에 돌린다.
+# verifier token(Secrets Manager nullnull-stg/verifier-token)은 history에 남지 않게 읽는다. 아래 flows와 edge open이 쓴다.
+read -rs NULLNULL_VERIFIER_TOKEN && export NULLNULL_VERIFIER_TOKEN
+# INT-04 확인(verifier 경로). 먼저 날짜 쌍을 찾고, 예보 적재 뒤 24시간 안에 돌린다. edge를 연 뒤에는 --expect-edge open.
 node scripts/aws/staging-flows.mjs --url https://<cloudfront-domain> --survey
 node scripts/aws/staging-flows.mjs --url https://<cloudfront-domain> --optimize-item --item-day <D1> --better-day <D2>
 # 공개 edge(local 전용, 오너 결정 A-039). 배포된 release의 plan(deployed/current.json의 planSha256)으로 WebEdge만 다시
 # 배포한다. plan 디렉터리는 release bucket의 releases/<planSha256>/plan.tgz를 내려받아 푼다. --execute 없이 먼저 본다.
-NULLNULL_VERIFIER_TOKEN=<token> python3 scripts/aws/staging_operator.py edge --state open \
-  --plan <풀어 둔 plan.json> --approved-plan-sha256 <planSha256> --execute
+python3 scripts/aws/staging_operator.py edge --state open --plan <풀어 둔 plan.json> --approved-plan-sha256 <planSha256> --execute
 python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 plan.json> --approved-plan-sha256 <planSha256> --execute
 ```
 
@@ -346,9 +347,13 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - alarm subscription과 synthetic test는 별도 스크립트이며 이메일 값을 출력하지 않는다.
 - restore drill은 plan이 기본이며 `--execute` 뒤에도 restore DB를 자동 삭제하거나 공개 연결하지 않는다.
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
-- `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 `kto-smoke-did-not-call`이다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
+- `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
 - `curate-hours`는 승인한 plan 바이트를 gzip+base64로 task override에 싣는다. override는 `describe-tasks`와 CloudTrail에 남으므로 plan에 민감한 값을 넣지 않는다. task가 출력한 sha가 승인값과 같을 때만 성공이고, 그 바이트는 release bucket `evidence/curation/<release>/<sha>.json`에 남는다.
-- `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. plan이 `deployed/current.json`의 `planSha256`이 아니면 거부한다. 24시간 신선도는 보지 않지만(심사 기간에 다시 열 수 있어야 한다) hash 검사는 모두 한다. 열기 전에는 verifier 경로 `staging-flows.mjs`가 통과해야 하고, 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 200(열림) 또는 503(닫힘)이 될 때까지 확인한다. **모든 deploy·rollback은 edge를 다시 닫는다** — 공개가 필요한 release마다 다시 연다. 이 명령은 AWS에서 아직 한 번도 돌지 않았다. 첫 사용은 `--execute` 없이 계획부터 본다.
+- `edge`는 A-039의 전제를 운영자가 지킬 때만 쓴다. 전제는 둘이다. 배포된 release에 FE 로그인 흉내 화면이 들어 있어야 하고, 열려 있는 동안에는 DB 복원을 하지 않는다(복원 전에 닫는다). 명령은 이 전제를 검사하지 않는다.
+- `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. release 확인은 배포 잠금 안에서 한다. plan이 `deployed/current.json`의 `planSha256`이 아니거나 WebEdge stack이 진행 중이면 거부한다. hash 검사는 모두 하지만 시간 검사는 하지 않는다. 24시간 신선도와 plan의 `expiresAt` 가동 창을 보지 않고(심사 기간에 다시 열 수 있어야 한다) staging 종료 한계만 본다. 비용 plan도 다시 평가하지 않는다. `infra/package-lock.json`이 release의 것과 같은 checkout에서, `npm --prefix infra ci`를 한 뒤 돌린다(`toolchain-changed`).
+- 열기 전에는 CD가 배포 뒤 돌리는 `staging-smoke.sh`와 verifier 경로 `staging-flows.mjs`가 통과해야 한다. 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 `200 application/json`(열림) 또는 `503 application/problem+json`(닫힘)이 될 때까지 확인한다. ALB의 `503 text/html`은 닫힘이 아니다. 이미 그 상태면 다시 배포하지 않고 확인만 한다.
+- **모든 deploy·rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 이 명령은 AWS에서 아직 한 번도 돌지 않았다. 첫 사용은 `--execute` 없이 계획부터 본다.
+- edge를 연 뒤 `staging-flows.mjs`는 `--expect-edge open`으로 돌린다. 기본값(closed)은 CD가 새 release에 기대하는 상태다.
 - `staging-flows.mjs`의 `--survey`와 `--optimize-item`은 opt-in이라 CD(`--url`만 넘김)의 요청과 verdict는 그대로다. 전제가 없으면 `NOT-RUN`과 `staging_flows=incomplete`(exit 3, pass 아님)이고, 전제를 갖춘 한 곳짜리 여행이 낼 수 없는 결과만 `FAIL`이다.
 
 ## 12. Acceptance와 evidence

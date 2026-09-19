@@ -11,6 +11,10 @@
 // Both steps below are opt-in, so CD, which passes only --url, sends exactly the requests it sent before and prints
 // exactly the same verdict. Each works on a trip of its own, which it deletes.
 //
+// --expect-edge open|closed (default closed, which is what CD expects of a fresh release) says what an anonymous
+// /api/v1/health/live should get: the gate's 503 while the edge is closed, the API's 200 once it is open
+// (staging_operator.py edge). Without it the flows cannot run while judging keeps the edge open.
+//
 // --survey prints, for the next 29 days (KST), the --place-query place's forecast (default 경복궁) and whether it
 // is open, and suggests an --item-day/--better-day pair for --optimize-item: the busiest open day and the quietest.
 //
@@ -36,6 +40,11 @@ const placeQuery = option("--place-query");
 const verifier = process.env.NULLNULL_VERIFIER_TOKEN ?? "";
 if (!/^https?:\/\/[^/]+$/.test(base) || (!local && !base.startsWith("https://"))) {
   console.error("staging_flows=failed reason=url-must-be-an-https-origin");
+  process.exit(2);
+}
+const expectEdge = option("--expect-edge");
+if (expectEdge !== undefined && !["open", "closed"].includes(expectEdge)) {
+  console.error("staging_flows=failed reason=expect-edge-must-be-open-or-closed");
   process.exit(2);
 }
 const optimizeItem = args.includes("--optimize-item");
@@ -121,12 +130,12 @@ try {
     check("web.hsts", /max-age=/.test(page.headers.get("strict-transport-security") ?? ""));
     const route = await call("GET", "/trips", { withVerifier: false, withCookie: false });
     check("web.spa-route", route.status === 200, `status=${route.status}`);
-    const closed = await call("GET", "/api/v1/health/live", { withVerifier: false, withCookie: false });
-    check("edge.public-api-closed", closed.status === 503 && /problem\+json/.test(closed.headers.get("content-type") ?? ""),
-      `status=${closed.status}`);
+    await edgeCheck();
     if (!check("edge.verifier-present", verifier.length >= 43)) throw new Error("no verifier token");
   }
 
+  // A local rehearsal has no gate; asked explicitly, it can still check what the stack answers anonymously.
+  if (local && expectEdge) await edgeCheck();
   const ready = await call("GET", "/api/v1/health/ready", { withCookie: false });
   const database = ready.json?.checks?.find((c) => c.name === "database")?.status;
   check("api.ready", ready.status === 200 && ["READY", "DEGRADED"].includes(ready.json?.status) && database === "READY",
@@ -233,6 +242,17 @@ console.log(`staging_flows=${verdict} checks=${checked} failures=${failures} not
 if (verdict === "incomplete") console.log("staging_flows_counts_as_pass=false");
 process.exit(verdict === "pass" ? 0 : verdict === "failed" ? 1 : 3);
 
+/** What an anonymous request gets from the API through the edge, against --expect-edge (default closed). */
+async function edgeCheck() {
+  const closed = await call("GET", "/api/v1/health/live", { withVerifier: false, withCookie: false });
+  if (expectEdge === "open")
+    check("edge.public-api-open", closed.status === 200 && /json/.test(closed.headers.get("content-type") ?? ""),
+      `status=${closed.status}`);
+  else
+    check("edge.public-api-closed", closed.status === 503 && /problem\+json/.test(closed.headers.get("content-type") ?? ""),
+      `status=${closed.status}`);
+}
+
 function kstMidnight(day) {
   return `${day}T00:00:00+09:00`;
 }
@@ -288,14 +308,18 @@ async function withOwnTrip(step, firstDay, lastDay, body) {
  * Which of the trip's days the place is open, from getCandidateTripMatches: its slots are the evaluator's per-date
  * verdicts on the catalog's verified hours, so CLOSED and OPENING_HOURS_UNKNOWN are the run's own reasons.
  */
-async function openDays(step, trip, place) {
+async function openDays(step, trip, place, days) {
   const saved = await call("POST", `/api/v1/trips/${trip.id}/candidates`, { headers: mutation(),
     body: { placeId: place.id, source: { type: "SEARCH" } } });
   const candidateId = saved.json?.candidate?.id;
   if (!check(`${step}.candidate-saved`, [200, 201].includes(saved.status) && typeof candidateId === "string", `status=${saved.status}`)) return null;
   const matches = await call("GET", `/api/v1/trips/${trip.id}/candidates/${candidateId}/matches`);
-  if (!check(`${step}.hours-read`, matches.status === 200, `status=${matches.status} state=${matches.json?.state}`)) return null;
-  const byDay = new Map((matches.json?.slots ?? []).map((slot) => [slot.date,
+  // One slot per trip day: the evaluator answers every date of a trip this short. Fewer - in practice none, with
+  // state UNKNOWN - is Spring's fallback when apps/ai did not answer, which is a service failure, not unknown hours.
+  const slots = matches.json?.slots ?? [];
+  if (!check(`${step}.hours-read`, matches.status === 200 && slots.length === days,
+    `status=${matches.status} state=${matches.json?.state} slots=${slots.length} days=${days}`)) return null;
+  const byDay = new Map(slots.map((slot) => [slot.date,
     slot.eligible ? "OPEN" : slot.reasonCode === "CLOSED" ? "CLOSED"
       : slot.reasonCode === "OPENING_HOURS_UNKNOWN" ? "UNKNOWN" : (slot.reasonCode ?? "UNKNOWN")]));
   return { candidateId, byDay };
@@ -309,7 +333,7 @@ async function surveyStep() {
   if (!found) return;
   const { place, values } = found;
   await withOwnTrip("survey", firstDay, lastDay, async (trip) => {
-    const hours = await openDays("survey", trip, place);
+    const hours = await openDays("survey", trip, place, dayNumber(lastDay) - dayNumber(firstDay) + 1);
     if (!hours) return;
     for (let day = firstDay; day <= lastDay; day = dayAfter(day))
       info(`survey date=${day} value=${values.get(day) ?? "none"} hours=${hours.byDay.get(day) ?? "UNKNOWN"}`);
@@ -340,7 +364,7 @@ async function optimizeItemStep() {
   if (!(delta > 25)) return skipped("optimization", "forecast-delta-too-small", `delta=${delta}`);
 
   await withOwnTrip("optimization", firstDay, lastDay, async (trip) => {
-    const hours = await openDays("optimization", trip, place);
+    const hours = await openDays("optimization", trip, place, dayNumber(lastDay) - dayNumber(firstDay) + 1);
     if (!hours) return;
     const betterHours = hours.byDay.get(betterDay) ?? "UNKNOWN";
     if (betterHours !== "OPEN")

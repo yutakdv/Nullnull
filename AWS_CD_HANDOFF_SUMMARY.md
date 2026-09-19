@@ -171,7 +171,7 @@ N2 게이트는 오너가 (a)로 정했다(2026-09-19). AWS·CD 경로를 바꾸
 
 - 수동 배포(local): runbook §11 순서를 따른다. plan → classify(검토 diff) → `--execute --kind app|infra`. 승인 단위는 plan SHA-256이고 24시간 뒤 만료된다. 비용 추정 상한은 180에 예비 20이다.
 - 수동 배포(CI, workflow가 main에 들어간 뒤): Actions → Staging release → `deploy`를 실행하고 `expected_sha`에 main HEAD를 넣는다. infra 판정이면 `staging-infra` reviewer가 plan summary의 diff를 보고 승인한다.
-- 자동 배포: repository variable `STAGING_AUTO_DEPLOY=true`로 켠다. reconciler가 15분마다 main HEAD의 required 검사를 dispatch하고, 둘 다 성공한 그 SHA만 release한다.
+- 자동 배포: repository variable `STAGING_AUTO_DEPLOY=true`로 켠다. reconciler가 15분마다 main HEAD의 required 검사를 dispatch하고, 둘 다 성공한 그 SHA만 release한다. 모든 release는 공개 edge를 다시 닫는다(`TrafficEnabled=false`). 공개 중이면 release 뒤에 `edge --state open`을 다시 한다.
 - rollback: 대상을 비우면 `deployed/previous.json`을 쓴다. DB는 되돌리지 않는다. 더 새로운 schema에서 옛 binary를 돌리려면 `accept_newer_schema`가 필요하고, 그 경우 reviewer 경로다.
 - ops task(local 전용): 승인 변수와 `NULLNULL_OPERATIONS_TARGET`을 호출자 환경에 두고 실행한다. 명령은 runbook §11에 있다. task는 `kto-smoke`·`kto-ingest`·`kto-forecast-smoke`·`kto-demo-detail`·`kto-demo-forecast`·`curate-hours`다. `kto-smoke`와 `curate-hours`는 `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 같을 때만 뜬다.
 - 잠금 복구: 쓰기 뒤에 실패하면 잠금이 남는다. CloudFormation·ECS 종료를 확인한 뒤 local에서 `staging_operator.py unlock --owner <id>`를 실행한다.
@@ -187,7 +187,7 @@ PR #277이 main에 머지됐다(2026-09-19T04:09Z, main `1c94ec8`). 다음 relea
 
 옆 세션이 알려 온 운영 일정이다. 등급은 코드 읽기와 로컬 리허설이며, staging에서는 재지 않았다.
 
-- 영업시간 만료: `ops/curated-hours.json`의 영업시간이 2026-10-13T18:40Z에 일괄 만료된다. 그 뒤로는 모든 최적화가 `DATA_INSUFFICIENT`다. 심사가 10-25까지 이어지므로 10-13 전에 재관측·재적재해야 한다. 재적재는 `curate-hours` ops task로 하며 release가 필요 없다.
+- 영업시간 만료: `ops/curated-hours.json`의 영업시간이 2026-10-13T18:40Z에 일괄 만료된다. 그 뒤로는 모든 최적화가 `DATA_INSUFFICIENT`다. 심사가 10-25까지 이어지므로 10-13 전에 재관측·재적재해야 한다. 재적재는 `curate-hours` ops task로 하며 release가 필요 없다. 단, curate-hours가 들어간 release가 배포돼 있어야 한다. rc.1001이나 그 rollback 상태에서는 옛 main이 inline plan을 읽지 못해 이유가 찍히지 않는 `task-failed`로 끝난다.
 - 최적화 시연 조건: READY 제안이 나오려면 대상 장소의 예보가 여행 안 빈 날보다 25 넘게 높아야 한다(Δ25는 `NO_IMPROVEMENT`, Δ26은 READY). forecast를 적재한 뒤, 데모 장소별로 향후 30일 예보에 그런 날짜 쌍이 있는지 읽어 봐야 한다. `staging-flows.mjs --survey`가 향후 29일의 예보와 영업 여부를 찍고 날짜 쌍을 제안한다. `--optimize-item`은 INT-04(KEEP, APPLY→REVERT)를 verifier 경로로 확인한다. 예보는 PT24H 뒤 stale이므로 확인은 예보 적재 뒤 24시간 안에 한다.
 
 ## 12. 비용과 종료
@@ -214,4 +214,4 @@ PR #277이 main에 머지됐다(2026-09-19T04:09Z, main `1c94ec8`). 다음 relea
 - Secrets Manager: secret 6개는 삭제해도 복구 대기 기간 동안 과금된다.
 - ECR 이미지, release S3 bucket, CloudWatch log는 RETAIN이다.
 - stack 종료 보호는 Foundation·Data에만 걸려 있다. 그 둘은 삭제 전에 해제해야 한다.
-- 공개 API edge를 여는 조건(삭제 원장, BA-072 증거, secondary alarm 연락처)은 아직 충족되지 않았다.
+- 공개 API edge: 오너 결정 A-039로 삭제 원장 없이, FE 로그인 흉내 화면이 들어간 release에서 연다. 심사 기간에는 DB 복원을 하지 않고, 복원 전에 edge를 닫는다. secondary alarm 연락처는 A-043으로 두지 않는다. 여는 명령은 `staging_operator.py edge`(runbook §11)이고, AWS에서는 아직 돌지 않았다.
