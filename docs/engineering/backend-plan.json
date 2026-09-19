@@ -2576,7 +2576,7 @@
       "tests": [
         {
           "id": "BA-071-T1",
-          "assertion": "직접 ALB/S3/RDS 접근과 잘못된 OIDC subject가 거부된다"
+          "assertion": "ALB·S3·RDS는 공개 접근 경로를 갖지 않는다"
         },
         {
           "id": "BA-071-T2",
@@ -2584,14 +2584,18 @@
         },
         {
           "id": "BA-071-T3",
-          "assertion": "같은 manifest artifact만 승격되고 rollback 뒤 핵심 smoke가 통과한다"
+          "assertion": "같은 manifest artifact만 승격된다"
+        },
+        {
+          "id": "BA-071-T4",
+          "assertion": "rollback 뒤 핵심 smoke가 통과한다"
         }
       ],
       "handoff": "공개 config·release/contract SHA·이전 rollback target과 staging acceptance URL. UI artifact 확인은 FE 담당.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-071",
-      "reason": "첫 CD run 35426407975는 ALB grace 부족으로 circuit breaker rollback됐고 AWS 쓰기 뒤 배포 잠금을 유지해 오너 승인 unlock을 거쳤다. PR #285의 grace 수정 뒤 main d988123 Staging release는 성공했다. T1은 internal ALB·private S3·private Multi-AZ RDS와 live OIDC trust exact 집합까지 관측했지만 wrong-subject 실제 거부가 없다. T2는 실패 뒤 잠금 유지·승인 해제까지 관측했지만 두 deploy/migration의 동시 진입 거부를 실제로 재현하지 않았다. T3는 성공 release의 manifest 승격까지만 관측했고 rollback 뒤 smoke drill은 오너 결정으로 제출 뒤에 수행한다."
+      "reason": "첫 CD run 35426407975는 ALB grace 부족으로 circuit breaker rollback됐고 AWS 쓰기 뒤 배포 잠금을 유지해 오너 승인 unlock을 거쳤다. PR #285의 grace 수정 뒤 staging release run 35438236057(d988123)·35442212073(04f79d3)·35444320116(a60e29d)이 성공했다. T1(ALB·S3·RDS의 공개 경로 부재)은 run 35444320116의 smoke가 alb_internal·s3_private·rds_private_multi_az로 증명했다. 잘못된 OIDC subject의 거부는 BA-006-T3과 같은 절이라 이 카드에서 뺐고, 실제 AssumeRole 거부 기록이 없다는 공백은 BA-006-T3에 그대로 남는다. T2는 잠금의 모양(단위 test)과 실패 뒤 잠금 유지·승인 해제까지 관측했지만 두 deploy/migration의 동시 진입 거부를 재현하지 않았다. 재현 절차는 카드에 있다. T3는 배포가 manifest digest만 실행하는 것까지 관측했고 production이 없어 staging→production 승격은 관측하지 않았다. T4(rollback 뒤 smoke)는 실행하지 않았다. 09-21 오전 제출 release를 고정한 직후 하는 안이 오너에게 제안돼 있을 뿐 증명이 아니다."
     },
     {
       "id": "BA-072",
@@ -2699,11 +2703,19 @@
         },
         {
           "id": "BA-073-T2",
-          "assertion": "mock-only KTO audit·출처 누락·위치 요청이 release gate에서 실패한다"
+          "assertion": "mock-only KTO audit는 release gate에서 실패한다"
         },
         {
           "id": "BA-073-T3",
           "assertion": "PDF actual feature/API 목록과 runtime capability가 일치한다"
+        },
+        {
+          "id": "BA-073-T4",
+          "assertion": "화면의 출처 누락은 release gate에서 실패한다"
+        },
+        {
+          "id": "BA-073-T5",
+          "assertion": "위치 요청은 release gate에서 실패한다"
         }
       ],
       "handoff": "검증된 화면·호출 operation·evidence ID·미완성 기능 목록. 최종 제출 go/no-go는 Live 이후 공동 확인한다.",

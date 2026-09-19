@@ -422,15 +422,18 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 | `BA-006-T1` | full Docker report와 egress-denied probe |
 | `BA-006-T2` | frontend bundle, image layer, log secret scan report |
 | `BA-006-T3` | exact OIDC trust validator와 wrong subject AssumeRole 거부 기록 |
-| `BA-071-T1` | internal ALB, private S3/RDS, OIDC negative 검사 report |
-| `BA-071-T2` | local/GitHub deploy lock과 DB advisory lock 동시 실행 test |
-| `BA-071-T3` | current/previous manifest, rollback task definition, 외부 smoke |
+| `BA-071-T1` | `staging-smoke.sh`의 `alb_internal=true`·`s3_private=true`·`rds_private_multi_az=true`(OIDC 거부는 `BA-006-T3`이다) |
+| `BA-071-T2` | local/GitHub deploy lock과 DB advisory lock 동시 실행 test(재현 절차는 카드에 있다) |
+| `BA-071-T3` | release manifest digest 검사(operator)와 manifest로 성공한 release run |
+| `BA-071-T4` | 이전 release로 rollback한 뒤의 외부 smoke(rollback task definition, current/previous manifest) |
 | `BA-072-T1` | 격리 PITR restore에서 tombstone 재적용 후 owner 비노출 report |
 | `BA-072-T2` | 부분 삭제/lease/receipt incident exercise |
 | `BA-072-T3` | primary/secondary 실제 alarm 수신과 비용/쿼터 tabletop |
 | `BA-073-T1` | 새 browser profile, 외부망, anonymous HTTPS journey |
-| `BA-073-T2` | actual KTO call audit, 화면 attribution, location OFF negative gate |
-| `BA-073-T3` | 같은 release의 PDF feature/API 목록과 runtime capability diff 0 |
+| `BA-073-T2` | 제출 release의 actual-call 증거에 `check_actual_call_evidence.py --require-verified`를 돌린 기록 |
+| `BA-073-T4` | `BA-073-T4`를 단 testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T4(`attribution-coverage.test.ts`, vitest)만 있고 vitest report는 집계되지 않는다(부분) |
+| `BA-073-T5` | `BA-073-T5`를 단 E2E testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T1(`location-off.spec.ts`) 제목에 그 ID가 없다(부분) |
+| `BA-073-T3` | 같은 release의 ledger·readiness·KTO inventory에 `check_submission_inventory.py`를 돌린 출력(diff 0) |
 
 `BA-073`은 기능 선행 카드가 끝나기 전에는 harness만 준비한다. mock-only, 문서-only, 로컬-only 결과로 완료 처리하지 않는다.
 

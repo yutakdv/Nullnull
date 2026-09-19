@@ -1939,15 +1939,18 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 진행 상태:
 
-- 부분(T1): 배포 뒤 smoke가 `public_api_edge=closed`, internal ALB, private S3, private Multi-AZ RDS와 live GitHub role trust의 exact subject 집합을 관측했다. 잘못된 subject의 실제 AssumeRole 거부는 관측하지 않았다.
-- 부분(T2): 첫 CD run `35426407975`가 ALB grace 부족으로 circuit breaker rollback된 뒤 배포 잠금이 유지됐고, 오너 승인으로 안전 조건을 확인한 뒤 unlock했다. 잠금 수명주기는 관측했지만 두 deploy/migration을 동시에 진입시켜 둘째가 거부되는 장면은 재현하지 않았다.
-- 부분(T3): PR `#285`의 grace 수정 뒤 main `d988123` Staging release가 같은 release manifest artifact로 성공했다. rollback 뒤 핵심 smoke drill은 실행하지 않았고, rollback이 catalog·최적화를 끄므로 오너 결정에 따라 제출 뒤로 미뤘다.
+- 증명(T1): staging release run `35444320116`(`a60e29d`)의 배포 뒤 smoke가 `alb_internal=true s3_private=true rds_private_multi_az=true`를 찍었다. 같은 줄의 `public_api_edge=closed`는 공개 API edge가 익명 요청에 `503 application/problem+json`으로 답했다는 뜻이다. **절은 공개 경로가 없다는 것이다.** 밖에서 ALB·S3·RDS에 직접 요청을 보내 거절을 받아 본 것은 아니다. internal ALB와 `PubliclyAccessible=false`인 RDS는 밖에서 닿을 주소가 없고, S3는 public access block과 비공개 policy가 익명 읽기를 막는다.
+- 옮김(원래 T1의 OIDC 절): *"잘못된 OIDC subject가 거부된다"* 는 [BA-006](#ba-006)의 `BA-006-T3`과 같은 절이다. 그래서 여기서 뺐고 좁혀서 증명된 것으로 쓰지도 않았다. 그 카드의 실패·안전 경계가 *"구조 test와 trust 관측만으로는 부족하고 실제 AssumeRole 거부 기록이 필요하다"* 고 기준을 정해 두었다. 지금 있는 것은 CDK 구조 test(`infra/test/staging.test.ts`의 "OIDC exact subject…"), 검사기 `validate-oidc-trust.mjs`와 그 거부 case들(`test_aws_staging_scripts.py`의 `test_subset_or_extra_subject_is_rejected`·`test_wildcard_subject_is_rejected`·`test_legacy_name_only_subject_is_rejected`, `test_aws_operator.py`의 `test_extra_unrestricted_allow_is_rejected`), 그리고 run `35444320116`의 `oidc_trust=pass kind=deploy subjects=2`·`kind=publish subjects=1`이다. 거부 기록을 얻으려면 목록에 없는 subject로 OIDC token을 받는 GitHub job이 그 role을 요청해 `sts:AssumeRoleWithWebIdentity` 거부를 받아야 한다. 예를 들어 environment 없는 `pull_request` job이면 subject가 `…:pull_request`가 된다. token은 GitHub Actions만 발급하므로 workflow를 하나 더 돌려야 한다.
+- 부분(T2): 동시 실행을 막는 층은 셋이다. **(가)** `staging-release.yml`의 `concurrency: nullnull-staging-release`(`cancel-in-progress: false`)는 GitHub run끼리를 줄 세운다. **(나)** DynamoDB 잠금(`staging_operator.DeploymentLock`)은 local operator와 GitHub가 함께 쓰는 유일한 층이다. `attribute_not_exists(LockId)` 조건부 put이라 둘째 획득은 어떤 AWS 쓰기보다 먼저 `aws-failed-dynamodb-put-item`으로 끝난다. **(다)** migration은 잠금 안에서 task 하나로만 뜬다(`clientToken`=잠금 owner). DB 쪽 직렬화는 runbook이 Flyway의 PostgreSQL advisory lock이라고 적고 있는데 아직 재지 않았다. 단위로 증명된 것은 잠금의 **모양**이다: `test_aws_operator.py`의 `test_lock_is_conditional_and_not_released_on_unknown_result`, `test_lock_release_requires_matching_owner`, `test_standalone_migration_cannot_bypass_lock`. 첫 CD run `35426407975`가 circuit breaker rollback된 뒤 잠금이 유지됐고 오너 승인으로 unlock했으니 잠금 수명주기도 관측했다. **둘이 동시에 진입해 둘째가 거부되는 장면은 재현하지 않았다.** 재현하려면 층마다 다음이 필요하다. (가) `staging-release`를 연달아 두 번 dispatch하고, 둘째 run이 첫째가 끝날 때까지 `pending`이며 두 run의 job 시각이 겹치지 않는 것을 `gh run list`로 본다(실제 release 두 번). (나) release 하나가 잠금을 쥔 동안 로컬 operator로 배포를 하나 더 시작하고, `aws-failed-dynamodb-put-item`으로 끝나고 AWS 쓰기가 없으며 잠금 item의 `Owner`가 첫 실행의 것 그대로인지 본다. (가)는 local operator를 모르므로 (나)가 따로 필요하다. (다) 빈 PostgreSQL 하나에 app의 Flyway migrate 둘을 동시에 돌려 한쪽이 기다리고 `flyway_schema_history` 행 수가 migration 수와 같은지 본다. 로컬에서 되고 AWS가 필요 없다.
+- 부분(T3): 배포는 release manifest가 지목한 digest만 실행한다. `test_aws_operator.py`의 `test_manifest_image_mismatch_blocks_run_task`(task의 image가 manifest digest가 아니면 RunTask 전에 거부), `test_digest_without_the_source_tag_is_refused`(digest가 source tag에 묶여 있지 않으면 거부), `test_invalid_manifest_types_and_extra_fields_rejected`가 이것을 잰다. staging release run `35438236057`(`d988123`)·`35442212073`(`04f79d3`)·`35444320116`(`a60e29d`)이 manifest로 성공했다. **staging→production 승격은 production 환경이 없어 관측하지 않았다**(실패·안전 경계가 승인 없는 production 배포를 금지한다).
+- 예정(T4): rollback 뒤 smoke drill은 실행하지 않았다. rollback이 catalog·최적화를 끄므로 처음에는 제출 뒤로 미뤘다. 지금은 09-21 오전 제출 release를 고정한 직후 *"이전 release로 rollback → 핵심 smoke → 제출 release로 재배포"* 로 하는 안을 조율자가 오너에게 제안하고 있다. **실행 전까지 이 절은 증명되지 않았다.**
 
 필수 검증:
 
-- `BA-071-T1`: 직접 ALB/S3/RDS 접근과 잘못된 OIDC subject가 거부된다
+- `BA-071-T1`: ALB·S3·RDS는 공개 접근 경로를 갖지 않는다 — `scripts/aws/staging-smoke.sh`가 라이브 자원에서 판정한다: `alb_internal=true`(ALB scheme `internal`), `s3_private=true`(public access block 네 항목과 bucket policy 비공개), `rds_private_multi_az=true`(`PubliclyAccessible=false`). 하나라도 어긋나면 smoke가 그 자리에서 실패한다. staging release run `35444320116`(`a60e29d`)이 셋을 모두 찍었다
 - `BA-071-T2`: 동시에 두 deploy/migration이 실행되지 않는다
-- `BA-071-T3`: 같은 manifest artifact만 승격되고 rollback 뒤 핵심 smoke가 통과한다
+- `BA-071-T3`: 같은 manifest artifact만 승격된다
+- `BA-071-T4`: rollback 뒤 핵심 smoke가 통과한다
 
 FE 인계·완료 증거: 공개 config·release/contract SHA·이전 rollback target과 staging acceptance URL. UI artifact 확인은 FE 담당. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2013,11 +2016,22 @@ FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status
 
 실패·안전 경계: 공모전 profile geolocation은 OFF다. 아직 꺼진 Live·P1·모델을 구현/분산효과 성과로 제출하지 않는다. 공식 일정은 최신 공지 재확인 대상이다.
 
+진행 상태(대조, `planned` 그대로):
+
+- `T2`·`T4`·`T5`는 원래 한 절이었다(*"mock-only KTO audit·출처 누락·위치 요청이 release gate에서 실패한다"*). 셋을 막는 장치가 달라서 규칙 3에 따라 나눴다.
+- **release gate가 무엇인가**: `staging-release.yml`의 `verify` job이 `ci_reconcile.py verify`로 **그 SHA가 main이고 required 두 workflow(`docs-contract`·`docker-integration`)가 정확히 그 SHA에서 성공했는지**를 요구한다. 이것을 재는 test는 `test_aws_ci_reconcile.py`의 `test_deploy_requires_this_runs_commit_and_both_checks`와 `test_only_main_may_release`다. 그래서 `docker-integration` 안의 검사는 사슬로 release를 막는다. 다만 빨간 SHA를 실제 release가 거부하는 것을 끝에서 끝까지 잰 적은 없다.
+- 미증명(`T2`): `check_actual_call_evidence.py`의 판정 논리는 `test_actual_call_evidence.py` 14건이 잰다. `mock`·`replay`·`fixture` source(`test_file_data_cannot_satisfy_an_exclusion_about_file_data`), local 실행, 다른 release의 증거, 호출 0건, 거절된 호출, 보고서 없음이 `--require-verified`에서 release를 막는 것(`test_a_missing_report_blocks_the_release_when_verification_is_required`)이 여기 들어간다. **그러나 release를 막는 자리에서 돌지 않는다.** `--require-verified`로 도는 곳은 operator의 `write_actual_call_report` 하나다. 방금 실제 smoke로 만든 보고서를 스스로 검사하는 자리다. release deploy는 이것을 부르지 않고, `docs-contract`는 require 없이 판정만 남긴다. [SUBMISSION_RUNBOOK](../contest/SUBMISSION_RUNBOOK.md) 16행은 이것을 제출 전 **사람이 하는 단계**로 적는다. 모자란 것은 제출 release의 증거(release bucket `evidence/actual-call-<release>.json`)에 이 검사를 `--release <제출 release> --require-verified`로 돌린 기록이다. 가능하면 사람 단계가 아니라 제출 release를 확정하는 명령 안에서 돌린다.
+- 부분(`T4`): 막는 장치는 있고 release의 사슬 안에서 돈다 — `apps/web/src/shared/ui/__tests__/attribution-coverage.test.ts`(FE-603-T4)의 "renders a credit in every file that reads one"과 0건 가드 "has targets to measure at all"이 `docker-integration`의 web suite에서 돈다. FE 기록에 변이 측정이 있다(`DataAttribution` 제거에 반경 1, 파일 0개에 0건 가드). 서버 쪽 값은 `BA-030-T5`(trip 장소의 credit 값)가 같은 게이트에서 잰다. **이 절의 ID를 단 수집된 testcase가 없어 증명으로 세지 않는다.** vitest report는 `check_test_reports.py`가 읽지 않으므로 ID를 test 이름에 다는 것만으로는 부족하다. vitest JUnit을 집계에 넣거나 게이트 판정으로 기록해야 한다.
+- 부분(`T5`): 막는 장치는 있고 release의 사슬 안에서 돈다 — `apps/web/e2e/location-off.spec.ts`(FE-603-T1)가 여덟 화면마다 geolocation 호출·권한 dialog·나가는 요청의 좌표를 보고 "no screen registers a geolocation permission at all"을 단언한다. `docker-integration`의 E2E에서 돈다. **이 절의 ID를 단 testcase가 없어 증명으로 세지 않는다.** E2E JUnit은 `--e2e-junit-dir`로 집계되므로 FE가 그 제목에 `BA-073-T5`를 달면 된다.
+- 미증명(`T3`): `scripts/check_submission_inventory.py`가 이 절의 검사기다. ledger(PDF 목록을 data로 쓴 것)·제출 release에서 받은 `getDemoReadiness` 답·같은 release의 `ktoCallInventory`(`counts_as_evidence=true`)를 양방향으로 대조한다. 판정 논리는 `test_check_submission_inventory.py` 9건이 **합성 입력으로** 잰다. script suite에 찍히는 `submission_inventory=verified release=2026.09.21-1`은 그 test fixture의 출력이고 실제 release의 증거가 아니다. **실제 release에 돌린 적이 없다.** 모자란 것은 넷이다. (1) ledger가 없다. 형식은 검사기 docstring에 *"draft, pending owner/FE agreement"* 로만 있다. (2) 제출 release에서 readiness를 받는 단계가 없다. 검사기 docstring은 그 단계가 SUBMISSION_RUNBOOK에 있다고 하지만 **runbook은 이 검사기를 언급하지 않는다.** runbook의 대조는 30행의 *"소리 내어 대조"* 뿐이다. (3) `ktoCallInventory` 실행은 runbook 136행에 있다. (4) 셋을 모은 뒤 검사기를 돌린 출력이 없다.
+
 필수 검증:
 
 - `BA-073-T1`: 외부망 익명창에서 로그인 없이 핵심 흐름이 완결된다
-- `BA-073-T2`: mock-only KTO audit·출처 누락·위치 요청이 release gate에서 실패한다
+- `BA-073-T2`: mock-only KTO audit는 release gate에서 실패한다
 - `BA-073-T3`: PDF actual feature/API 목록과 runtime capability가 일치한다
+- `BA-073-T4`: 화면의 출처 누락은 release gate에서 실패한다
+- `BA-073-T5`: 위치 요청은 release gate에서 실패한다
 
 FE 인계·완료 증거: 검증된 화면·호출 operation·evidence ID·미완성 기능 목록. 최종 제출 go/no-go는 Live 이후 공동 확인한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
