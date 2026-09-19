@@ -960,6 +960,10 @@ FE 인계·완료 증거: 규칙 후보가 있는 장소와 없는 장소의 `li
 - `BA-030-T2`: 중복 create가 한 trip만 만들고 실패 시 부분 item/revision이 없다
 - `BA-030-T3`: owner 목록·complete view·wizard client-only 복구가 같은 계약을 따른다
 - `BA-030-T4`: catalog 공개 게이트가 닫히면 item 없는 trip은 답하고 item 있는 trip과 seedItems create는 503 SOURCE_UNAVAILABLE로 거절한다
+- `BA-030-T5`: getTrip은 외부 출처가 있는 장소에 source registry revision이 기록한 그대로의 provider 출처(sourceAttribution)를 싣는다
+- `BA-030-T6`: getTrip은 외부 출처가 없는 장소에 출처를 싣지 않는다(null, 기본 출처 없음)
+
+T5·T6의 증거는 `TripMutationFixtureIT`다(#16). trip fixture가 `sourceAttribution`을 전부 null로 싣던 것은 서버 결함이 아니었다. test 장소에 `place_external_refs`가 없었을 뿐이고, trip 경로는 candidate·related·feed·search와 같은 `SUMMARY_PROJECTION`으로 출처를 채운다. 다만 그 사실을 증명하는 test가 없었다. 측정으로 확인했다: 그 projection의 출처 조회를 끄는 변이에서 전체 suite가 초록이었다. 지금은 같은 변이에서 T5와 fixture shape 비교가 빨갛고, 모든 장소에 출처를 붙이는 변이에서는 T6만 빨갛다.
 
 FE 인계·완료 증거: 수동 wizard·최종 확인·empty trip·generated draft 구분 예시. 새 draft API 필요 시 BA-000 계약 검토를 선행한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
