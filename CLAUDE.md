@@ -23,7 +23,7 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 - 동작 정본: `docs/api/openapi.yaml`, `docs/contracts/`, `docs/architecture/ERD.md`.
 - 화면-node-state 연결: `docs/design/FIGMA_HANDOFF.md`, `COMPONENT_CATALOG.md`.
 - 기능 추적: `docs/product/FUNCTIONAL_INVENTORY.md`의 기능 ID.
-- 현재 존재: `apps/api`(Spring Boot 4.1.1, Java 21), `apps/ai`(Python 3.13 추천 서비스), `apps/web`, `packages/api-client`, `packages/contracts`, `.nullnull-target-stack`, `compose.yml`. 아직 없음: `infra`.
+- 현재 존재: `apps/api`(Spring Boot 4.1.1, Java 21), `apps/ai`(Python 3.13 추천 서비스), `apps/web`, `packages/api-client`, `packages/contracts`, `.nullnull-target-stack`, `compose.yml`, `infra`(AWS CDK, #280).
 - 이 줄은 **한 번 낡아서 사람을 틀리게 했다.** FE scaffold가 들어온 뒤에도 `apps/web`이 *아직 없음*에 남아 있었고, 그것을 읽은 세션이 *"E2E를 돌릴 대상이 없다"* 를 카드에 적을 뻔했다. **존재 여부를 주장하기 전에 `git ls-tree -d --name-only origin/main`으로 본다** — 산문은 상하고 tree는 안 상한다.
 - 추천 계산은 `apps/ai`, hydration·재검증·저장은 `apps/api`다(ADR-0006, `docs/decisions/ARCHITECTURE_DECISIONS.md`). 관련 장소의 병합·정렬만 Spring이 한다(같은 문서의 ADR-0006 · 예외). 실행 계획: `docs/superpowers/plans/2026-09-07-recommendation-python-service.md`.
 - 앱별 module 지도·검증 명령·함정은 `apps/api/CLAUDE.md`, `apps/ai/CLAUDE.md`에 있다(해당 경로 작업 시 함께 적용).
