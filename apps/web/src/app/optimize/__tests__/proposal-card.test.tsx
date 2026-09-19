@@ -5,6 +5,7 @@ import type { components } from '@nullnull/api-client';
 import { ProposalCard } from '../ProposalCard.js';
 
 type OptimizationProposal = components['schemas']['OptimizationProposal'];
+type TripItemState = components['schemas']['TripItemState'];
 
 const RUN = JSON.parse(
   readFileSync('../../packages/contracts/fixtures/optimizations/run-ready.json', 'utf8'),
@@ -21,10 +22,18 @@ function proposal(): OptimizationProposal {
 // distinctive so an assertion cannot pass on some other element's text.
 const LABELS = {
   crowdLabel: 'CROWD_LABEL',
+  // The direction as a word, which is all a screen reader gets now that the
+  // figure is unsigned and the arrow is aria-hidden (#279 하2).
+  crowdDown: 'CROWD_DOWN',
+  crowdUp: 'CROWD_UP',
   comparisonUnavailable: 'COMPARISON_UNAVAILABLE',
   changesTitle: 'CHANGES_TITLE',
   changeCount: 'CHANGES_{count}',
-  move: 'MOVE_LABEL',
+  // Three, not one: the chip names the field that moved (#279 하3). Distinct
+  // strings so a test cannot pass by finding the wrong one.
+  moveDate: 'MOVE_DATE_LABEL',
+  moveTime: 'MOVE_TIME_LABEL',
+  moveOrder: 'MOVE_ORDER_LABEL',
   add: 'ADD_LABEL',
   remove: 'REMOVE_LABEL',
   constraintsOk: 'CONSTRAINTS_OK',
@@ -62,17 +71,190 @@ describe('FE-503 the proposal card previews a change set', () => {
   it('names the operation in words, not colour alone', () => {
     render(<ProposalCard labels={LABELS} proposal={proposal()} />);
 
-    // The fixture's single change is a MOVE.
-    expect(screen.getByText('MOVE_LABEL')).toBeInTheDocument();
+    // The fixture's single change is a MOVE, and what it moves is the DAY
+    // (10-04 → 10-07 at the same 13:00), so the chip is the date one.
+    expect(screen.getByText('MOVE_DATE_LABEL')).toBeInTheDocument();
+  });
+
+  // #279 하2: "↓ -55" said the direction twice — once as a glyph, once as a
+  // sign — and a rehearsal read the two as colliding.
+  //
+  // The sign is gone, which is only safe because a WORD replaced it. The arrow
+  // is `aria-hidden`, so before this the minus was the whole of the direction
+  // for a screen reader; dropping it alone would have taken direction away from
+  // exactly the people who cannot see the arrow. Both halves are asserted here,
+  // because a card that did one and not the other passes either test alone.
+  describe('#279 하2 the figure is a magnitude and the direction is a word', () => {
+    function withDelta(delta: number) {
+      const next = proposal();
+      next.metrics.crowdDelta = delta;
+      return next;
+    }
+
+    it('prints no sign on a fall, and says it fell', () => {
+      render(<ProposalCard labels={LABELS} proposal={withDelta(-55)} />);
+
+      expect(screen.getByText('55')).toBeInTheDocument();
+      expect(screen.queryByText('-55')).toBeNull();
+      // The half a sign-only fix would miss.
+      expect(screen.getByText('CROWD_DOWN')).toBeInTheDocument();
+      expect(screen.queryByText('CROWD_UP')).toBeNull();
+    });
+
+    it('prints no sign on a rise either, and says it rose', () => {
+      // The `+` was the other half of the old spelling. A fix that only
+      // stripped the minus would leave "↑ +12" saying it twice.
+      render(<ProposalCard labels={LABELS} proposal={withDelta(12)} />);
+
+      expect(screen.getByText('12')).toBeInTheDocument();
+      expect(screen.queryByText('+12')).toBeNull();
+      expect(screen.getByText('CROWD_UP')).toBeInTheDocument();
+      expect(screen.queryByText('CROWD_DOWN')).toBeNull();
+    });
+
+    it('names no direction when nothing moved', () => {
+      // Zero has no direction to announce, and the arrow is empty for it too.
+      // Announcing "0 감소" would state a fall that did not happen.
+      render(<ProposalCard labels={LABELS} proposal={withDelta(0)} />);
+
+      expect(screen.getByText('0')).toBeInTheDocument();
+      expect(screen.queryByText('CROWD_DOWN')).toBeNull();
+      expect(screen.queryByText('CROWD_UP')).toBeNull();
+    });
+
+    it('keeps the direction word out of sight but in the accessibility tree', () => {
+      // Visually hidden, not `aria-hidden` and not display:none — the point is
+      // that it IS announced. `toBeVisible` would pass for a word that was
+      // simply printed next to the figure, which is not what was asked for, so
+      // this asserts the class the stylesheet hides rather than visibility
+      // (jsdom does not apply CSS modules' rules).
+      render(<ProposalCard labels={LABELS} proposal={withDelta(-55)} />);
+
+      const word = screen.getByText('CROWD_DOWN');
+      expect(word.className).toMatch(/srOnly/);
+      expect(word.getAttribute('aria-hidden')).toBeNull();
+    });
+  });
+
+  // #279 하2: the chip named the wrong field.
+  //
+  // A rehearsal moved a stop to another day and the card said "시간 변경". All
+  // three of MOVE, REORDER and REPLACE become one `move` ROW because they share
+  // a shape, and the chip was reading that shape as a meaning.
+  //
+  // Each case asserts the other two chips are ABSENT as well as the right one
+  // present: asserting only presence passes for a card that draws all three.
+  describe('#279 하3 the move chip names the field that actually moved', () => {
+    function withMove(before: Partial<TripItemState>, after: Partial<TripItemState>) {
+      const next = proposal();
+      const change = next.changes[0];
+      if (!change?.before || !change.after) throw new Error('fixture lost its move');
+      Object.assign(change.before, before);
+      Object.assign(change.after, after);
+      return next;
+    }
+
+    it('says date when the day changes', () => {
+      render(
+        <ProposalCard
+          labels={LABELS}
+          proposal={withMove(
+            { date: '2026-10-04', startTime: '13:00:00' },
+            { date: '2026-10-07', startTime: '13:00:00' },
+          )}
+        />,
+      );
+
+      expect(screen.getByText('MOVE_DATE_LABEL')).toBeInTheDocument();
+      expect(screen.queryByText('MOVE_TIME_LABEL')).not.toBeInTheDocument();
+      expect(screen.queryByText('MOVE_ORDER_LABEL')).not.toBeInTheDocument();
+    });
+
+    it('says time when the day is the same and the clock moves', () => {
+      render(
+        <ProposalCard
+          labels={LABELS}
+          proposal={withMove(
+            { date: '2026-10-04', startTime: '13:00:00' },
+            { date: '2026-10-04', startTime: '09:30:00' },
+          )}
+        />,
+      );
+
+      expect(screen.getByText('MOVE_TIME_LABEL')).toBeInTheDocument();
+      expect(screen.queryByText('MOVE_DATE_LABEL')).not.toBeInTheDocument();
+    });
+
+    it('says date when both the day and the clock move', () => {
+      // The day is the bigger fact and the row prints both sides underneath,
+      // so the chip summarises rather than trying to say everything.
+      render(
+        <ProposalCard
+          labels={LABELS}
+          proposal={withMove(
+            { date: '2026-10-04', startTime: '13:00:00' },
+            { date: '2026-10-07', startTime: '09:30:00' },
+          )}
+        />,
+      );
+
+      expect(screen.getByText('MOVE_DATE_LABEL')).toBeInTheDocument();
+      expect(screen.queryByText('MOVE_TIME_LABEL')).not.toBeInTheDocument();
+    });
+
+    it('says order when neither the day nor the clock moves', () => {
+      // A REORDER within one day: same date, no time on either side.
+      render(
+        <ProposalCard
+          labels={LABELS}
+          proposal={withMove(
+            { date: '2026-10-04', startTime: null },
+            { date: '2026-10-04', startTime: null },
+          )}
+        />,
+      );
+
+      expect(screen.getByText('MOVE_ORDER_LABEL')).toBeInTheDocument();
+      expect(screen.queryByText('MOVE_TIME_LABEL')).not.toBeInTheDocument();
+    });
+
+    it('treats an absent time and a null time as the same untimed stop', () => {
+      // `startTime` is BOTH optional and nullable in the contract (not in
+      // `required`, type `["string","null"]`), so one side can arrive absent
+      // and the other explicitly null for a stop that never had a time. A raw
+      // `!==` calls that a time change and the chip says the clock moved when
+      // nothing did.
+      //
+      // Written after measuring: the previous case set null on both sides, so
+      // dropping the `?? null` normalisation in `moveKind` left every test
+      // green. This is the case that fails without it.
+      const next = proposal();
+      const change = next.changes[0];
+      if (!change?.before || !change.after) throw new Error('fixture lost its move');
+      Object.assign(change.before, { date: '2026-10-04', startTime: null });
+      Object.assign(change.after, { date: '2026-10-04' });
+      delete (change.after as { startTime?: unknown }).startTime;
+
+      render(<ProposalCard labels={LABELS} proposal={next} />);
+
+      expect(screen.getByText('MOVE_ORDER_LABEL')).toBeInTheDocument();
+      expect(screen.queryByText('MOVE_TIME_LABEL')).not.toBeInTheDocument();
+    });
   });
 });
 
-describe('FE-503 invariant 8: a crowd figure never appears without its credit', () => {
+// FE-503-T1 — "before/after 비교가 provenance 없는 수치를 만들지 않는다".
+// All five tests below measure that one clause: the number and its credit
+// appear together, or neither appears. Nothing else lives in this block, which
+// is what lets the ID sit on the describe (a JUnit name is "<describe> <test>",
+// so an ID here lands on every test inside).
+describe('FE-503-T1 invariant 8: a crowd figure never appears without its credit', () => {
   it('draws the delta and the attribution together', () => {
     const { container } = render(<ProposalCard labels={LABELS} proposal={proposal()} />);
 
-    // -47 in the fixture, rendered with its sign.
-    expect(screen.getByText('-47')).toBeInTheDocument();
+    // 47 in the fixture, which holds -47: the figure is a magnitude now and
+    // the arrow plus `crowdDown` carry the direction (#279 하2).
+    expect(screen.getByText('47')).toBeInTheDocument();
     // Scoped to the comparison block, not the whole card: the server's own
     // `summary` sentence ALSO ends with '출처: ⓒ한국관광공사', so a card-wide
     // query matches even when the card renders no attribution element at all.
@@ -118,7 +300,7 @@ describe('FE-503 invariant 8: a crowd figure never appears without its credit', 
     render(<ProposalCard labels={LABELS} proposal={input} />);
 
     expect(screen.getByText('COMPARISON_UNAVAILABLE')).toBeInTheDocument();
-    expect(screen.queryByText('-47')).toBeNull();
+    expect(screen.queryByText('47')).toBeNull();
   });
 
   it('never prints the server’s reason code to the user', () => {

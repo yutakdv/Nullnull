@@ -156,7 +156,7 @@ describe('decisionPhase maps every run status', () => {
     hasProposals: true,
     stale: false,
     pending: false,
-    errored: false,
+    refusedWith: null,
   };
 
   // The table from the design, run as data so a missing row is visible rather
@@ -189,8 +189,24 @@ describe('decisionPhase maps every run status', () => {
     },
     {
       name: 'READY after a failed apply',
-      input: { ...base, status: 'READY', errored: true },
+      // A refusal the contract marks retryable keeps the retry it had.
+      input: { ...base, status: 'READY', refusedWith: 'APPLY_FAILED' },
       expected: { kind: 'bar', state: 'failed' },
+    },
+    {
+      // #279 중1. These two refusals are not retryable and pressing again
+      // returns the same code, so the bar sends the user to a recompute — the
+      // sentence and the CTA `stale` already carries. The row above is the
+      // control: if every refusal routed here, that one would break and this
+      // table would say so.
+      name: 'READY after the inputs moved under the preview',
+      input: { ...base, status: 'READY', refusedWith: 'DATA_CHANGED' },
+      expected: { kind: 'bar', state: 'stale' },
+    },
+    {
+      name: 'READY after the preview lapsed',
+      input: { ...base, status: 'READY', refusedWith: 'PREVIEW_EXPIRED' },
+      expected: { kind: 'bar', state: 'stale' },
     },
     {
       name: 'READY, decision open',
@@ -257,7 +273,9 @@ describe('decisionPhase maps every run status', () => {
   it('does not offer an apply retry for a run that itself failed', () => {
     // `status: FAILED` and `state: failed` are different axes. The first has
     // no proposal to retry.
-    expect(decisionPhase({ ...base, status: 'FAILED', errored: true })).toEqual({
+    expect(
+      decisionPhase({ ...base, status: 'FAILED', refusedWith: 'APPLY_FAILED' }),
+    ).toEqual({
       kind: 'none',
     });
   });

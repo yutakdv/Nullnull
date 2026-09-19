@@ -22,6 +22,7 @@ import {
   toggleStopMustVisit,
   type WizardDraft,
 } from './wizard.js';
+import { clearSnapshot, readSnapshot, writeSnapshot } from './wizard-storage.js';
 import { ConfirmStopsStep } from './ConfirmStopsStep.js';
 import { InputMethodStep } from './InputMethodStep.js';
 import { ManualStopsStep } from './ManualStopsStep.js';
@@ -67,8 +68,14 @@ function isoDate(year: number, month: number, day: number): string {
 export function TripWizardScreen() {
   const { locale, t } = useI18n();
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [draft, setDraft] = useState<WizardDraft>(EMPTY_DRAFT);
+  // Restored from sessionStorage on the first render, not in an effect
+  // (FR-TRC-12). An effect would paint step 1 with empty dates first and then
+  // replace it, which is a visible flash of the exact state the recovery exists
+  // to prevent — and on the calendar step it would also reset the month.
+  // `useState`'s initializer runs once, before the first paint.
+  const restored = useRef(readSnapshot()).current;
+  const [step, setStep] = useState(restored?.step ?? 1);
+  const [draft, setDraft] = useState<WizardDraft>(restored?.draft ?? EMPTY_DRAFT);
   // The step the heading was last moved to, so focus follows a CHANGE rather
   // than a render.
   //
@@ -81,8 +88,23 @@ export function TripWizardScreen() {
   // pass and the second pass then reads it as a real step change and takes
   // focus. Measured — the heading was focused on mount with the boolean
   // version. Comparing the step survives any number of extra runs.
-  const focusedStep = useRef(1);
+  // Seeded with the RESTORED step, not 1: after a reload the heading must not
+  // be focused on the first paint, and `focusedStep` is what distinguishes a
+  // step CHANGE from a render. Hardcoding 1 here would make a recovery onto
+  // step 3 look like a move from 1 to 3 and steal focus on load — the thing the
+  // comment below says must not happen.
+  const focusedStep = useRef(restored?.step ?? 1);
   const [month, setMonth] = useState(() => new Date());
+
+  // One effect rather than a write beside each of the fifteen setStep/setDraft
+  // call sites: a rule enforced in one place cannot be forgotten at the
+  // sixteenth, and this runs after the state it saves is the state on screen.
+  // The pasted itinerary is not here to exclude — it never enters this
+  // component (ImportPasteScreen holds it, on its own route), which is why the
+  // canary test checks every Storage rather than trusting that shape.
+  useEffect(() => {
+    writeSnapshot({ step, draft });
+  }, [step, draft]);
   const createTrip = useCreateTrip();
   // Points the owner's 내 여행 tab at whatever this wizard creates (BA-011).
   const setActiveTrip = useUpdatePreferences();
@@ -133,6 +155,10 @@ export function TripWizardScreen() {
       {
         onSuccess: (trip) => {
           submitKey.current = null;
+          // The draft became a trip, so it stops being a draft. Without this,
+          // starting a second trip would reopen the finished one and the new
+          // trip would inherit the first one's dates.
+          clearSnapshot();
           // The trip just created becomes the owner's active one, which is what
           // the 내 여행 tab resolves to (AppShell). BA-011 stores the pointer
           // but never sets it on its own — `owners.active_trip_id` is only ever

@@ -53,7 +53,16 @@ function revertButton() {
   return screen.queryByRole('button');
 }
 
-describe('the panel offers undo only when the server says so', () => {
+// FE-505-T1's second half — "undo가 24시간 창을 벗어나면 명시적으로 거부된다".
+// The EXPIRED case below is that clause: the button stays on screen and
+// disabled rather than vanishing, so the window having closed is something the
+// user can see rather than infer from an absence.
+//
+// FE-505-T2 as well: these six cases ARE the state matrix for this panel
+// (absent, NOT_APPLICABLE, AVAILABLE, submitting, REVERTED, EXPIRED). Offline
+// is the service worker's, as optimization-run.test.tsx explains at its own T2
+// block — `shared/testing/__tests__/offline-shell.test.ts` holds it.
+describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so', () => {
   it('renders nothing at all when revertAvailability is absent', async () => {
     // The contract case: the field is optional, and its absence means "unknown
     // support". The panel has `revertUntil` in hand here — a panel that

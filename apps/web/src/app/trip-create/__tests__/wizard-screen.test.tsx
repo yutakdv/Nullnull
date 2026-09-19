@@ -49,6 +49,12 @@ beforeEach(() => {
 });
 afterEach(() => {
   server.events.removeAllListeners();
+  // The wizard persists its draft now (FR-TRC-12), and happy-dom keeps one
+  // Storage for the whole file. Without this every test after the first would
+  // start on whatever step its predecessor reached — the tests would pass or
+  // fail depending on their order, which is the bug this line prevents rather
+  // than a tidiness habit.
+  sessionStorage.clear();
 });
 
 function renderWizard() {
@@ -796,5 +802,123 @@ describe('a created trip becomes the owner active trip (BA-011)', () => {
     await waitFor(() => {
       expect(screen.queryByText(`${copy['wizard.step']} 3`)).toBeNull();
     });
+  });
+});
+
+// FR-TRC-12: the draft survives a reload and a browser Back.
+//
+// The steps are component state rather than routes, so leaving /start threw the
+// draft away — TripWizardScreen's `goBack` comment recorded the repro months
+// before anything acted on it, and a judge who reloads mid-wizard starts over.
+// FIGMA_HANDOFF:165 is the rule: "step별 입력은 sessionStorage/local state에
+// 복구 가능하게 저장한다. 붙여넣기 원문은 persistence 대상에서 제외한다."
+//
+// Unmounting and rendering again is what a reload does to this component: the
+// module-level state goes, the Storage stays. It is the closest thing to F5
+// that a jsdom-family environment offers.
+describe('FR-TRC-12 the wizard recovers a draft it was interrupted in', () => {
+  it('reopens on the step the user reached, with the dates still chosen', async () => {
+    const user = userEvent.setup();
+    const first = renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await screen.findByText(`${copy['wizard.step']} 2`);
+
+    first.unmount();
+    renderWizard();
+
+    // Step 2, not step 1: the screen came back where it was left.
+    expect(await screen.findByText(`${copy['wizard.step']} 2`)).toBeInTheDocument();
+    // And the dates came with it — going back shows them still selected, which
+    // is the half a "step number survived" assertion would miss entirely.
+    await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
+    expect(await screen.findByRole('button', { name: /–/ })).toBeEnabled();
+  });
+
+  it('starts fresh once the draft has become a trip', async () => {
+    const user = userEvent.setup();
+    const first = renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.NOTHING.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+
+    first.unmount();
+    renderWizard();
+
+    // Step 1 again. Keeping the snapshot here would make the NEXT trip inherit
+    // this one's dates, which is worse than losing the draft.
+    expect(await screen.findByText(`${copy['wizard.step']} 1`)).toBeInTheDocument();
+  });
+
+  // A draft is a convenience, not a record. An older build's shape, or a
+  // hand-edited value, must not make /start unreachable — so a bad snapshot is
+  // the same answer as no snapshot.
+  //
+  // One case per reason, and each case is valid in every OTHER way, because a
+  // fixture that is invalid for two reasons only proves whichever check runs
+  // first. Measured twice: `{"step":99,"draft":null}` stayed green with the
+  // step-range check deleted (the null draft was caught a line later), and so
+  // did `{"step":99,"draft":{}}` — an empty draft fails the date check, since
+  // `undefined` is neither null nor a string. The step case below therefore
+  // carries a fully-formed draft and differs from a usable snapshot only in its
+  // step number.
+  const VALID_DRAFT =
+    '{"startDate":null,"endDate":null,"interests":[],"planningLevel":null,"stops":[],"mustVisit":[]}';
+  it.each([
+    ['a step the wizard does not have', `{"step":99,"draft":${VALID_DRAFT}}`],
+    ['a draft that is not an object', '{"step":2,"draft":null}'],
+    ['a draft whose fields are the wrong type', '{"step":2,"draft":{"interests":7}}'],
+    ['a value that is not JSON at all', 'not json'],
+  ])('ignores %s instead of failing to open', async (_reason, stored) => {
+    sessionStorage.setItem('nullnull.wizard.v1', stored);
+    renderWizard();
+    expect(await screen.findByText(`${copy['wizard.step']} 1`)).toBeInTheDocument();
+  });
+
+  it('keeps no pasted itinerary text in any storage the page has', async () => {
+    // Invariant 10. The canary is checked against EVERY Storage rather than
+    // against sessionStorage by name: naming the storages that exist today is
+    // the same shape as a check that lists today's columns and keeps passing
+    // when someone adds one. The pasted text should never reach any of them —
+    // it lives in ImportPasteScreen's own state, on a different route.
+    const canary = 'CANARY-9/15 경복궁 10:00 인사동 14:00';
+    const user = userEvent.setup();
+    renderWizard();
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await screen.findByText(`${copy['wizard.step']} 3`);
+    await user.click(screen.getByRole('button', { name: copy['import.start'] }));
+    await user.type(await screen.findByLabelText(copy['import.label']), canary);
+
+    const dumps = [sessionStorage, localStorage].map((store) =>
+      Object.keys(store)
+        .map((k) => `${k}=${store.getItem(k) ?? ''}`)
+        .join('\n'),
+    );
+
+    // NOT VACUOUS: the wizard really did persist something on the way here.
+    // Measured — with `writeSnapshot` deleted this test stayed green, because
+    // "the canary is absent" is trivially true of empty storage, and a broken
+    // feature would have read as proof of invariant 10. The dates are the part
+    // that IS supposed to be stored, so finding them is what makes the absence
+    // of the pasted text mean anything.
+    expect(dumps[0], 'the wizard should have persisted its draft').toContain(
+      'nullnull.wizard.v1',
+    );
+
+    for (const dump of dumps) {
+      expect(dump).not.toContain('경복궁');
+      expect(dump).not.toContain('CANARY');
+    }
   });
 });

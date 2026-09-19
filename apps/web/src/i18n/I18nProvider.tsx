@@ -14,6 +14,7 @@ import {
   type SupportedLocale,
 } from './locales.js';
 import { messages, type MessageKey } from './messages.js';
+import { PARTICLES } from './particles.js';
 
 // The locale lives here as a local draft. getCurrentOwner supplies the stored
 // value once bootstrap lands and updatePreferences writes it back (BA-011);
@@ -43,11 +44,21 @@ interface I18nValue {
 }
 
 /**
- * Replaces `{name}` with the supplied value.
+ * Replaces `{name}` with the supplied value, and `{name:을}` with the value
+ * followed by the particle its sound takes (#279 하6).
  *
  * A placeholder with no value is left as written rather than replaced with
  * `undefined`: a visible `{count}` is a bug report, while "undefined" reads as
- * real copy to a user and can ship unnoticed.
+ * real copy to a user and can ship unnoticed. A particle on a missing value is
+ * left written too, for the same reason.
+ *
+ * The particle is decided HERE rather than at the call site because it depends
+ * on the value that actually lands in the slot — the same template renders
+ * 경복궁을 and 제주를. Deciding it in the screen would mean every caller
+ * remembering to, and the ones that forgot are what this is fixing.
+ *
+ * Korean only by construction: the en templates carry no markers, so the
+ * replacement never fires for them.
  */
 function interpolate(
   template: string,
@@ -55,13 +66,23 @@ function interpolate(
   locale: SupportedLocale,
 ): string {
   if (!values) return template;
-  return template.replace(/\{(\w+)\}/g, (whole, name: string) => {
-    const value = values[name];
-    if (value === undefined) return whole;
-    return typeof value === 'number'
-      ? new Intl.NumberFormat(locale).format(value)
-      : value;
-  });
+  // `[^}]` for the marker, not `\w`: JavaScript's `\w` is ASCII-only and would
+  // not match 을, so `{name:을}` would fall through as a literal.
+  return template.replace(
+    /\{(\w+)(?::([^}]+))?\}/g,
+    (whole, name: string, particle?: string) => {
+      const value = values[name];
+      if (value === undefined) return whole;
+      const text =
+        typeof value === 'number' ? new Intl.NumberFormat(locale).format(value) : value;
+      if (particle === undefined) return text;
+      const choose = PARTICLES[particle];
+      // An unknown marker is left as written, like an unknown placeholder: a
+      // visible `{name:xx}` is a bug report, and silently dropping it would ship
+      // a sentence missing its particle.
+      return choose ? `${text}${choose(text)}` : whole;
+    },
+  );
 }
 
 const I18nContext = createContext<I18nValue | null>(null);

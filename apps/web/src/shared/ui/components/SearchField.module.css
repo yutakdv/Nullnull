@@ -30,7 +30,25 @@
   color: var(--color-text-primary);
   font-family: inherit;
   font-size: var(--font-body-md);
+  /* `outline: none` with nothing put back left this field focusable but
+     invisible to a keyboard user: measured, the focused input reported
+     outlineStyle `none`, boxShadow `none` and no border, while every other
+     control in the app showed the browser's default ring. Nothing replaced it
+     — the repo has no `focus-visible` rule anywhere and the wrapper has no
+     `:focus-within` — so the three screens that use this field (add place,
+     must-visit, manual stops) gave no sign of where focus had landed.
+     responsive.spec.ts's own comment names this exact trap.
+     The ring is restored on the WRAPPER rather than the input because the
+     input is a transparent flex child of the 48px pill: an outline drawn on it
+     would trace the text box inside the pill rather than the control the user
+     sees. `:focus-within` puts it on the pill, which is the affordance.
+     `outline: none` stays on the input so the two do not double up. */
   outline: none;
+}
+
+.field:focus-within {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
 }
 
 .visuallyHidden {

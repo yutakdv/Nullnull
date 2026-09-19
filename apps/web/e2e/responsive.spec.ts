@@ -13,7 +13,20 @@ import { SCREENS } from './screens.js';
 // `body { min-width: 360px }` floor -- which forced a horizontal scrollbar at
 // exactly the zoom level the accessibility rule requires us to support.
 
-test.describe('FE-601-T1 at 360px, the narrowest designed width', () => {
+// FE-104-T3 and FE-203-T3 ride along on the three describes below, and only
+// on those three. Both clauses were originally written as six things at once
+// ("keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion"),
+// and this spec proves three of them for every screen in SCREENS: 360px here,
+// 200% zoom below, and the accessible name of whatever takes focus. The other
+// three are FE-104-T4 / FE-203-T4 and have no test yet — reduced motion runs
+// once against /language rather than per screen (see the block below), and
+// nothing here asserts focus returning to a trigger.
+//
+// The ids are split rather than attached whole because the aggregator only
+// checks that an id APPEARS in a testcase name: one id covering six clauses is
+// satisfied by a test proving any one of them, and the rest become invisible
+// (AGENTS.md registration rule 3).
+test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} fits`, async ({ page }) => {
       await page.goto(screen.path);
@@ -27,7 +40,7 @@ test.describe('FE-601-T1 at 360px, the narrowest designed width', () => {
   }
 });
 
-test.describe('at 200% zoom, where the viewport halves', () => {
+test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () => {
   test.use({ viewport: { width: 180, height: 500 } });
   for (const screen of SCREENS) {
     test(`${screen.name} reflows instead of scrolling sideways`, async ({ page }) => {
@@ -81,65 +94,159 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // The scaffold cards own no screen of their own - FE-001 is the router shell,
 // FE-002 the tokens, FE-003 the error mapper, FE-004 the offline shell - so
 // their keyboard-and-reflow clause can only be shown across the whole set.
-test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 keyboard and motion', () => {
+// FE-104-T3 / FE-203-T3 are here for the accessible-name half only: the
+// per-screen test below walks eight Tab presses and requires that whatever
+// takes focus is on screen, has a name, and shows a ring. That is the
+// "접근성 이름" clause.
+//
+// They are NOT for reduced motion, which is why `honours prefers-reduced-motion`
+// now lives in its own describe below rather than in this one: it visits
+// /language alone and says nothing about the paste screen or the trip picker.
+// The reduced-motion clause is FE-104-T4 / FE-203-T4, still unproven.
+test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
-      await page.keyboard.press('Tab');
 
-      const focused = await page.evaluate(() => {
-        const el = document.activeElement as HTMLElement | null;
-        if (!el || el === document.body) return null;
-        const box = el.getBoundingClientRect();
-        const style = getComputedStyle(el);
-        return {
-          tag: el.tagName.toLowerCase(),
-          // An <input> has no textContent, and its name usually comes from the
-          // <label> around it or from aria-labelledby. Reading only aria-label
-          // and textContent reported "no name" for a correctly labelled field
-          // — which flagged the product for a gap in this check. The order
-          // below follows the accessible-name computation as far as it matters
-          // here: aria-label, then aria-labelledby, then the associated label,
-          // then the element's own text.
-          name: (() => {
-            const aria = el.getAttribute('aria-label');
-            if (aria?.trim()) return aria.trim().slice(0, 40);
-            const labelledBy = el.getAttribute('aria-labelledby');
-            if (labelledBy) {
-              const text = labelledBy
-                .split(/\s+/)
-                .map((id) => document.getElementById(id)?.textContent ?? '')
-                .join(' ')
-                .trim();
-              if (text) return text.slice(0, 40);
-            }
-            const labels = (el as HTMLInputElement).labels;
-            if (labels?.length) {
-              const text = Array.from(labels)
-                .map((l) => l.textContent ?? '')
-                .join(' ')
-                .trim();
-              if (text) return text.slice(0, 40);
-            }
-            return (el.textContent ?? '').trim().slice(0, 40);
-          })(),
-          onScreen: box.width > 0 && box.height > 0 && box.right <= window.innerWidth + 1,
-          // A focus ring the browser removed with nothing put back is a trap
-          // for keyboard users even though the element is technically focused.
-          hasIndicator: style.outlineStyle !== 'none' || style.boxShadow !== 'none',
-        };
-      });
+      // EIGHT presses, not one. One press only ever measured each screen's
+      // first stop, and the defect this exists to catch was on the SECOND:
+      // SearchField set `outline: none` with nothing put back, so the add-place
+      // search box took focus while showing no ring at all, and this test was
+      // green the whole time (measured, #279).
+      //
+      // Eight rather than "until it wraps": every screen in SCREENS reaches its
+      // own wrap point within eight, and a fixed bound cannot hang on a screen
+      // whose order never repeats.
+      //
+      // Landing on <body> is NOT a failure. Measured on normal code: nine of
+      // these screens hand focus back to the document between cycles, and
+      // splash has no interactive content at all, so requiring an element on
+      // every press would reject correct code rather than find a defect. Each
+      // press is judged only when something took focus.
+      const stops: Array<{
+        tag: string;
+        name: string;
+        onScreen: boolean;
+        hasIndicator: boolean;
+      }> = [];
+      for (let press = 0; press < 8; press += 1) {
+        await page.keyboard.press('Tab');
+        const stop = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || el === document.body) return null;
+          const box = el.getBoundingClientRect();
+          return {
+            tag: el.tagName.toLowerCase(),
+            // An <input> has no textContent, and its name usually comes from the
+            // <label> around it or from aria-labelledby. Reading only aria-label
+            // and textContent reported "no name" for a correctly labelled field
+            // — which flagged the product for a gap in this check. The order
+            // below follows the accessible-name computation as far as it matters
+            // here: aria-label, then aria-labelledby, then the associated label,
+            // then the element's own text.
+            name: (() => {
+              const aria = el.getAttribute('aria-label');
+              if (aria?.trim()) return aria.trim().slice(0, 40);
+              const labelledBy = el.getAttribute('aria-labelledby');
+              if (labelledBy) {
+                const text = labelledBy
+                  .split(/\s+/)
+                  .map((id) => document.getElementById(id)?.textContent ?? '')
+                  .join(' ')
+                  .trim();
+                if (text) return text.slice(0, 40);
+              }
+              const labels = (el as HTMLInputElement).labels;
+              if (labels?.length) {
+                const text = Array.from(labels)
+                  .map((l) => l.textContent ?? '')
+                  .join(' ')
+                  .trim();
+                if (text) return text.slice(0, 40);
+              }
+              return (el.textContent ?? '').trim().slice(0, 40);
+            })(),
+            onScreen:
+              box.width > 0 && box.height > 0 && box.right <= window.innerWidth + 1,
+            // A focus ring the browser removed with nothing put back is a trap
+            // for keyboard users even though the element is technically focused.
+            //
+            // What counts is a style that CHANGES when focus arrives, not any
+            // outline or shadow present on the node. Ancestors have to be
+            // considered, because the ring does not have to sit on the focused
+            // element: SearchField draws it on the 48px pill with
+            // `:focus-within`, since an outline on the transparent <input>
+            // inside would trace the text box rather than the control the user
+            // sees. But accepting any ancestor shadow is how the first version
+            // of this check passed on the very defect it was written for — the
+            // pill carries a decorative `--elevation-subtle` shadow at rest, so
+            // "the label has a box-shadow" was true with the focus ring deleted
+            // (measured: the mutation was live and all 16 screens stayed green).
+            //
+            // So each candidate is compared against its own resting style,
+            // captured while focus is elsewhere. Bounded at four levels up so
+            // this stays a local check.
+            hasIndicator: (() => {
+              const focusStyles: string[] = [];
+              const nodes: HTMLElement[] = [];
+              let node: HTMLElement | null = el;
+              for (let up = 0; node && up < 4; up += 1) {
+                const s = getComputedStyle(node);
+                nodes.push(node);
+                focusStyles.push(`${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`);
+                node = node.parentElement;
+              }
+              // Move focus away and re-read the same nodes. `blur()` is enough:
+              // it drops :focus and :focus-within without scrolling the page or
+              // disturbing the tab order the caller is walking.
+              el.blur();
+              const restStyles = nodes.map((n) => {
+                const s = getComputedStyle(n);
+                return `${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`;
+              });
+              // Put focus back so the next Tab continues from here.
+              el.focus();
+              return focusStyles.some((f, i) => f !== restStyles[i]);
+            })(),
+          };
+        });
+        if (stop) stops.push(stop);
+      }
 
       // A screen with no interactive content is allowed to have nothing to
       // focus; one that does must show where focus went, and name it.
-      if (focused) {
-        expect(focused.onScreen, `${screen.name}: focus is off-screen`).toBe(true);
-        expect(focused.name, `${screen.name}: focused element has no name`).not.toBe('');
+      for (const [i, stop] of stops.entries()) {
+        expect(stop.onScreen, `${screen.name}: focus is off-screen (stop ${i})`).toBe(
+          true,
+        );
+        expect(
+          stop.name,
+          `${screen.name}: focused <${stop.tag}> has no name (stop ${i})`,
+        ).not.toBe('');
+        expect(
+          stop.hasIndicator,
+          `${screen.name}: focused <${stop.tag}> "${stop.name}" shows no focus ring (stop ${i})`,
+        ).toBe(true);
       }
     });
   }
+});
 
+// Its own describe, and deliberately so. A testcase's JUnit name is its
+// describe title plus its own, so while this test lived in the block above it
+// spelled every id in that title — including FE-104-T3 and FE-203-T3, which it
+// does not earn: it emulates `reduce` on /language alone and never visits the
+// paste screen or opens the trip picker. Measured after attaching those ids:
+// the JUnit name came out `… FE-104-T3 FE-203-T3 keyboard and motion › honours
+// prefers-reduced-motion`, and check_test_reports.py matches on the name, so a
+// comment saying "not this one" changes nothing. Splitting the block is what
+// actually keeps the claim off it.
+//
+// It keeps the FE-601/FE-602/FE-00x ids because those cards ask for
+// reduced-motion as a property of the app, which one screen can show; FE-104
+// and FE-203 ask for it on THEIR screen, which this does not measure.
+test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motion', () => {
   test('honours prefers-reduced-motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/language');

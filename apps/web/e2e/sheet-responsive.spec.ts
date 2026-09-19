@@ -46,7 +46,16 @@ const SHEETS = [
     shows: 'Which day should it move to?',
   },
   {
-    name: 'trip picker',
+    // The id rides on the NAME rather than on the describe title, because the
+    // title is a template over both sheets and the move-day sheet is not
+    // FE-203's surface. Carried here, only the picker's two testcases spell
+    // the id, which is the string check_test_reports.py reads.
+    //
+    // It covers the 360px and 200% zoom halves of FE-203-T3 and no more — the
+    // clause's reduced-motion and focus-return halves are FE-203-T4, and
+    // nothing in this file measures either (grep: 0 hits for reducedMotion and
+    // for any focus-restore assertion).
+    name: 'FE-203-T3 trip picker',
     path: '/feed',
     // The `+` on a feed card files the place into a trip; the picker asks
     // which one (FR-CAN-01). It only CHOOSES, so opening it writes nothing.

@@ -83,6 +83,42 @@ function statusMessage(status: OptimizationStatus, failed: boolean): MessageKey 
   }
 }
 
+/**
+ * What the HEADING says for each run status (#279 하1).
+ *
+ * Separate from `statusMessage` rather than reusing it: that one is a sentence
+ * for a live region ("대안이 준비됐어요"), this one is a page title, and the two
+ * are not interchangeable copy even where they agree on the state. Sharing one
+ * key would make the heading read as an announcement.
+ *
+ * QUEUED and RUNNING keep the searching title — that is what the screen is
+ * genuinely doing. The rest name the state the run finished in, because a
+ * decided run is not still being searched for.
+ */
+function titleMessage(status: OptimizationStatus): MessageKey {
+  switch (status) {
+    case 'QUEUED':
+    case 'RUNNING':
+      return 'run.title';
+    case 'READY':
+      return 'run.title.ready';
+    case 'APPLIED':
+      return 'run.title.applied';
+    case 'KEPT':
+      return 'run.title.kept';
+    case 'REVERTED':
+      return 'run.title.reverted';
+    case 'EXPIRED':
+      return 'run.title.expired';
+    case 'FAILED':
+      return 'run.title.failed';
+    default:
+      // As in `statusMessage`: a status this build does not know keeps the
+      // neutral title rather than borrowing another state's.
+      return 'run.title';
+  }
+}
+
 type OptimizationFailure = components['schemas']['OptimizationFailure'];
 
 /**
@@ -155,11 +191,25 @@ export function OptimizationRunScreen() {
     void navigate(tripId === null ? '/feed' : `/trip/${tripId}`);
   }
 
-  const frame = (body: React.ReactNode) => (
+  /**
+   * The screen, titled for what it is showing (#279 하1).
+   *
+   * `titleKey` defaults to the searching title because the two callers that
+   * omit it are the states before a run has been read — pending, and the error
+   * branch where `detail` never arrived. Once there IS a run, its status
+   * decides, which is why the last caller passes one.
+   *
+   * This is the same fix `statusMessage` above already made for the live
+   * region, and its comment records that an APPLIED or KEPT run once announced
+   * "대안이 준비됐어요". The heading kept doing it: a rehearsal reached APPLIED,
+   * KEPT and FAILED and read "대안을 찾고 있어요" over all three. A screen reader
+   * heard the right sentence and the screen showed the wrong one.
+   */
+  const frame = (body: React.ReactNode, titleKey: MessageKey = 'run.title') => (
     <section aria-labelledby="run-heading" className={styles.screen}>
       <NavBar backLabel={t('run.leave')} onBack={back} />
       <h1 className={styles.title} id="run-heading">
-        {t('run.title')}
+        {t(titleKey)}
       </h1>
       {body}
     </section>
@@ -264,15 +314,23 @@ export function OptimizationRunScreen() {
     hasProposals: proposals.length > 0,
     stale,
     pending: decide.isPending,
-    errored: decide.isError,
+    // The CODE, not just the fact of a failure. The run query above already
+    // reads `problem.code` to tell an expiry from a generic error; this path
+    // used to pass a bare boolean and lost that distinction, which is what
+    // left a refused APPLY offering a retry that could never succeed (#279).
+    refusedWith: isProblem(decide.error) ? decide.error.code : null,
   });
 
   const proposalLabels = {
     crowdLabel: t('run.proposal.crowd'),
+    crowdDown: t('run.proposal.crowdDown'),
+    crowdUp: t('run.proposal.crowdUp'),
     comparisonUnavailable: t('run.proposal.comparisonUnavailable'),
     changesTitle: t('run.proposal.changes'),
     changeCount: t('run.proposal.changeCount'),
-    move: t('run.proposal.move'),
+    moveDate: t('run.proposal.moveDate'),
+    moveTime: t('run.proposal.moveTime'),
+    moveOrder: t('run.proposal.moveOrder'),
     add: t('run.proposal.add'),
     remove: t('run.proposal.remove'),
     constraintsOk: t('run.proposal.constraintsOk'),
@@ -446,5 +504,6 @@ export function OptimizationRunScreen() {
           the URL brings the user back to it. */}
       {working ? <p className={styles.note}>{t('run.keepsRunning')}</p> : null}
     </>,
+    titleMessage(detail.status),
   );
 }

@@ -14,7 +14,7 @@ import { EMPTY_DRAFT, toCreateRequest, type WizardDraft } from './wizard.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './ImportPasteScreen.module.css';
 
-// Figma: S02-4C-A 붙여넣기 `401:1221` (FE-104, FR-TRC-08).
+// Figma: S02-4C-A 붙여넣기 `401:1221` (FE-104, FR-TRC-06).
 //
 // Paste an itinerary, let the server read it, fix what it could not place,
 // then turn it into a trip.

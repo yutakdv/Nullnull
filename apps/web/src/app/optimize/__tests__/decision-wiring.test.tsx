@@ -13,11 +13,15 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { optimizationFixtures, tripFixtures } from '@nullnull/contracts';
+import { optimizationFixtures, problemFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
-import { API_BASE, MOCK_RUN_ID } from '../../../shared/testing/msw/handlers.js';
+import {
+  API_BASE,
+  MOCK_RUN_ID,
+  problemResponse,
+} from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
 import { routes } from '../../routes.js';
 
@@ -66,6 +70,19 @@ function recordWrites() {
     }),
   );
 }
+
+// Refusals come from the shared `problemResponse` (msw/handlers.ts), not from
+// bodies written out here, and that is not tidiness. `Problem` requires eight
+// fields (openapi.yaml:8390) and `isProblem` rejects a body missing any of
+// them, so a hand-written body that omits `detail`/`instance`/`requestId` is
+// NOT a Problem to this client — the screen falls back to "cause unknown" and
+// the code never reaches the policy table.
+//
+// Four bodies in this file had drifted that way. They stayed green because the
+// old wiring passed a bare `errored` boolean that never looked at the body;
+// reading the code (#279) is what made them fail, and they were wrong before
+// that change rather than because of it. Two also disagreed with the fixture
+// on `status` and `retryable`.
 
 /** A READY run carrying the approved proposal fixture. */
 function readyRun(extra: Record<string, unknown> = {}) {
@@ -118,7 +135,11 @@ function renderRun() {
   );
 }
 
-describe('FE-503 invariant 3: nothing writes before the user decides', () => {
+// FE-505-T1's first half — "APPLY 전에는 일정이 바뀌지 않는다". Its second half
+// (undo refused outside the 24h window) is applied-panel.test.tsx, which holds
+// the EXPIRED state; both halves carry the ID so neither is invisible to the
+// aggregator.
+describe('FE-505-T1 FE-503 invariant 3: nothing writes before the user decides', () => {
   it('sends no mutation on opening a READY run', async () => {
     recordWrites();
     readyRun();
@@ -176,19 +197,7 @@ describe('FE-505 the decision carries the guards the contract requires', () => {
     readyRun();
     // 503 APPLY_FAILED: the contract says a failed APPLY "records no decision",
     // so the retry must be a replay of the first command.
-    decisionAnswers(
-      () =>
-        new HttpResponse(
-          JSON.stringify({
-            type: 'https://nullnull.app/problems/apply-failed',
-            title: 'Apply failed',
-            status: 503,
-            code: 'APPLY_FAILED',
-            retryable: true,
-          }),
-          { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
-        ),
-    );
+    decisionAnswers(() => problemResponse('APPLY_FAILED'));
     renderRun();
 
     await user.click(await screen.findByRole('button', { name: copy['decision.apply'] }));
@@ -217,19 +226,7 @@ describe('FE-505 invariant 4: a retry never changes what was decided', () => {
     const user = userEvent.setup();
     recordWrites();
     readyRun();
-    decisionAnswers(
-      () =>
-        new HttpResponse(
-          JSON.stringify({
-            type: 'https://nullnull.app/problems/apply-failed',
-            title: 'Apply failed',
-            status: 503,
-            code: 'APPLY_FAILED',
-            retryable: true,
-          }),
-          { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
-        ),
-    );
+    decisionAnswers(() => problemResponse('APPLY_FAILED'));
     renderRun();
 
     await user.click(await screen.findByRole('button', { name: copy['decision.keep'] }));
@@ -431,19 +428,7 @@ describe('FE-503 choosing between proposals', () => {
     const user = userEvent.setup();
     recordWrites();
     renderTwo();
-    decisionAnswers(
-      () =>
-        new HttpResponse(
-          JSON.stringify({
-            type: 'https://nullnull.app/problems/apply-failed',
-            title: 'Apply failed',
-            status: 503,
-            code: 'APPLY_FAILED',
-            retryable: true,
-          }),
-          { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
-        ),
-    );
+    decisionAnswers(() => problemResponse('APPLY_FAILED'));
 
     // Apply the default (rank 1), which fails.
     await user.click(await screen.findByRole('button', { name: copy['decision.apply'] }));
@@ -499,5 +484,90 @@ describe('FE-503 choosing between proposals', () => {
     expect(writes[0]?.body).toMatchObject({
       proposalId: '018f6d00-0000-7000-8000-000000000002',
     });
+  });
+});
+
+// #279 중1: a decision refused because the preview no longer matches the world.
+//
+// BE rehearsed the judging flow with optimization ON and walked into a dead
+// end: let the 15-minute preview lapse, press APPLY, and the server answers
+// 409 DATA_CHANGED — but the bar showed "네트워크 상태를 확인하고 다시
+// 시도해주세요" and its 다시 시도 button sent the same doomed request again.
+// The heading still read 대안이 준비됐어요. There was no way out of the screen.
+//
+// The cause is a boolean. `decisionPhase` was handed `errored: decide.isError`,
+// so every refusal became `state: 'failed'` whatever the Problem said, and that
+// state's copy names a network problem and offers a retry. A 409 is not a
+// network problem and retrying it returns 409 forever.
+//
+// The same file already knew better on the other path: the run QUERY reads
+// `problem.code` and branches on PREVIEW_EXPIRED and NOT_FOUND. The decision
+// path threw the code away. That asymmetry is the whole defect — the same
+// shape as ConfirmDialog's search and restore paths asking different questions
+// about focusability (#272 cause ④).
+//
+// Both codes mean the same thing to a user: what you are looking at is out of
+// date, and the way forward is to recompute rather than to press again. That is
+// what `stale` already says, with the copy and the CTA the matrix asks for, so
+// these route there rather than growing a fourth state.
+describe('FE-503 a refused decision says what can actually be done (#279)', () => {
+  for (const refusal of [
+    { code: 'DATA_CHANGED', status: 409, label: 'the inputs moved under the preview' },
+    { code: 'PREVIEW_EXPIRED', status: 410, label: 'the preview lapsed' },
+  ] as const) {
+    it(`offers a recompute, not a retry, when ${refusal.label}`, async () => {
+      const user = userEvent.setup();
+      recordWrites();
+      readyRun();
+      // The status the case is named for is the fixture's own, so the table
+      // above cannot claim a code arrives as a 409 while the approved fixture
+      // says otherwise.
+      expect(problemFixtures[refusal.code].status).toBe(refusal.status);
+      decisionAnswers(() => problemResponse(refusal.code));
+      renderRun();
+
+      await user.click(
+        await screen.findByRole('button', { name: copy['decision.apply'] }),
+      );
+      // The request really was refused — without this the assertions below
+      // could pass on a screen that never sent anything.
+      await waitFor(() => {
+        expect(writes).toHaveLength(1);
+      });
+
+      // What the user is told, and what they are offered.
+      expect(await screen.findByText(copy['decision.staleMessage'])).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: copy['decision.staleAction'] }),
+      ).toBeInTheDocument();
+
+      // Not the network line, and not a button that sends the same refused
+      // command again. Naming both is deliberate: asserting only the absence of
+      // the message would pass while the 다시 시도 button remained.
+      expect(screen.queryByText(copy['decision.failedMessage'])).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: copy['decision.failedAction'] }),
+      ).toBeNull();
+    });
+  }
+
+  it('still calls a genuine failure a failure', async () => {
+    // The other half of the fix, and the one a careless version breaks: a 503
+    // APPLY_FAILED IS retryable, so it must keep the retry it always had.
+    // Routing every refusal to `stale` would pass the two cases above while
+    // taking recovery away from the case that can actually be retried.
+    const user = userEvent.setup();
+    recordWrites();
+    readyRun();
+    decisionAnswers(() => problemResponse('APPLY_FAILED'));
+    renderRun();
+
+    await user.click(await screen.findByRole('button', { name: copy['decision.apply'] }));
+    await waitFor(() => {
+      expect(writes).toHaveLength(1);
+    });
+
+    expect(await screen.findByText(copy['decision.failedMessage'])).toBeInTheDocument();
+    expect(screen.queryByText(copy['decision.staleMessage'])).toBeNull();
   });
 });

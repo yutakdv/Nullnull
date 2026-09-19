@@ -444,10 +444,48 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     // Escape handler would strand someone.
     await openTrip(page);
 
-    const trigger = page.getByRole('button', {
-      name: `Move ${FIRST_ITEM} to another day`,
-    });
-    await trigger.click();
+    // The rows have to be on screen before the walk starts. `openTrip` waits
+    // for networkidle, which is when the REQUEST settled, not when React has
+    // rendered what came back — measured: at that moment not one button on the
+    // page had an aria-label yet, so the walk below ran past a screen with no
+    // move controls in it and reported the trigger unreachable. The sibling
+    // describe waits for the heading in its beforeEach for this reason; this
+    // one has no beforeEach, so the wait is stated here.
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: `Move ${FIRST_ITEM} to another day` }),
+    ).toBeVisible();
+
+    // Opened by keyboard, not `trigger.click()`. The clause is that a sheet a
+    // KEYBOARD user opened answers Escape, and a click opens it from a state no
+    // keyboard user is ever in — the pointer path leaves focus wherever it was,
+    // so the sheet that Escape then closes is not the one under test. Same
+    // reason the reachability test above walks with Tab (#233).
+    //
+    // Bound 40, not the 60 the tests above use: measured, this trigger is the
+    // 14th stop on this screen, and those 60s were sized for their own screens.
+    const label = `Move ${FIRST_ITEM} to another day`;
+    let reached = false;
+    const walked: string[] = [];
+    for (let i = 0; i < 40 && !reached; i += 1) {
+      await page.keyboard.press('Tab');
+      const here = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        return (el?.getAttribute('aria-label') ?? el?.textContent ?? '')
+          .trim()
+          .slice(0, 24);
+      });
+      walked.push(here);
+      reached = here === label;
+    }
+    // Names where the walk went, not just that it failed: "unreachable" alone
+    // cannot tell a missing control from a walk that started on a screen which
+    // had not rendered yet, and this test hit the second case once already.
+    expect(
+      reached,
+      `the move trigger should be reachable by Tab; walked ${walked.join(' → ')}`,
+    ).toBe(true);
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog')).toBeVisible();
 
     await page.keyboard.press('Escape');
@@ -507,5 +545,76 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     const heading = page.getByRole('heading', { level: 1 });
     await expect(heading).toBeFocused();
     expect((await heading.textContent())?.trim()).not.toBe(forwardTitle);
+  });
+
+  test('BA-070-T5 a trip can be created from start to itinerary by keyboard alone', async ({
+    page,
+  }) => {
+    // The clause BE settled #233 on: not "each step announces itself" but the
+    // walk-through finishing. The two tests above prove one transition each and
+    // both stop at step 2 — a wizard that moves correctly from 1 to 2 and then
+    // strands a keyboard user on step 3 satisfies them and fails the judged
+    // demo, which is the run this card exists for.
+    //
+    // Every step waits on the thing that step produces rather than on a
+    // duration: a `waitForTimeout` here would pass whenever the machine was
+    // fast and fail whenever it was loaded, and #272 spent a day on exactly
+    // that shape.
+    await openWithSession(page, '/start');
+
+    // Step 1 → 2. Dates, then the CTA that names the range back.
+    await pickRangeByKeyboard(page);
+    const heading = page.getByRole('heading', { level: 1 });
+    await expect(heading).toBeFocused();
+
+    // Tab to a button whose accessible name starts with `want`, then Enter.
+    // Matched on the button's OWN name: an earlier version compared the
+    // focused element's textContent, which on this screen matched the <main>
+    // wrapper (its text contains every child's), so Enter fired on a container
+    // and the walk sat on step 3 forever.
+    const pressButton = async (want: string) => {
+      for (let i = 0; i < 80; i += 1) {
+        await page.keyboard.press('Tab');
+        const name = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || el.tagName !== 'BUTTON') return '';
+          return (el.getAttribute('aria-label') ?? el.textContent ?? '').trim();
+        });
+        if (name.startsWith(want)) {
+          await page.keyboard.press('Enter');
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Step 2 → 3. Interests are optional, so Next alone carries the step.
+    expect(await pressButton('Next'), 'step 2 should offer Next to a keyboard').toBe(
+      true,
+    );
+    await expect(heading).toHaveText(/planned already/i);
+
+    // Step 3 → creation. "Nothing yet" is the branch that needs no further
+    // input, so it is the shortest honest path through the wizard; picking it
+    // does not advance on its own, Next does.
+    expect(
+      await pressButton('Nothing yet'),
+      'step 3 should offer its planning levels to a keyboard',
+    ).toBe(true);
+    expect(
+      await pressButton('Next'),
+      'step 3 should offer Next once a level is picked',
+    ).toBe(true);
+
+    // Arrived: the wizard handed off to a trip of its own making.
+    await page.waitForURL(/\/trip\/[^/]+$/, { timeout: 15_000 });
+    // The itinerary itself, not the loading state that precedes it — the route
+    // renders "Loading your itinerary" under the same <h1> first, so asserting
+    // on the URL alone would call a spinner a finished trip.
+    await expect(heading).not.toHaveText(/loading/i, { timeout: 15_000 });
+    // A control the itinerary only renders once it has one: the day filters.
+    // "Add a place" was the first choice and it is a <Link>, not a button — a
+    // reminder that the role belongs to the element, not to how the thing reads.
+    await expect(page.getByRole('button', { name: 'Day 1' })).toBeVisible();
   });
 });

@@ -38,6 +38,24 @@ afterEach(() => {
   // The locale is stored, so a test that sets it must put it back or every
   // later test inherits it.
   localStorage.clear();
+  // And the wizard's snapshot, for a sharper reason: the screen restores its
+  // step in `useState`'s initializer (FR-TRC-12), so a case that walks to step 4
+  // leaves the next one starting THERE while `renderStep4` walks from step 1.
+  // Twenty of these 21 cases failed on `Unable to find role="button"`, which
+  // reads like a broken selector and was really the previous case's state.
+  //
+  // Within this file, not across files: vitest isolates per file (no `isolate`
+  // override in vite.config.ts, and `test` is a bare `vitest run`), so storage
+  // never reaches the next suite. So the exposure is not "renders the wizard" —
+  // it is "has two or more cases that advance the wizard", which is why
+  // wizard-screen.test.tsx needed the same clear and app-shell did not.
+  //
+  // Cleared here rather than in vitest.setup.ts on purpose: storage is an input
+  // channel for other suites (wizard-screen seeds corrupt snapshots;
+  // data-guide and profile seed the locale precisely to exercise the real
+  // resolution path), and a global clear would be a trap for them the day one
+  // moves its seed into `beforeEach`.
+  sessionStorage.clear();
   server.events.removeAllListeners();
 });
 
