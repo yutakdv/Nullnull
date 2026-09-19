@@ -137,7 +137,7 @@ inventory를 같은 change set에서 갱신한다.
 2. `388:294` 日本語, `388:299` 中文의 lang-main fill을 semantic variable `color/text/disabled`(→ `wf/gray-300`)에 바인딩했다. 부제의 `준비 중` label은 유지해 색만으로 상태를 전달하지 않는다.
 3. title 아래 `643:4040` helper text 추가: `한국어와 English를 지원해요. 日本語와 中文은 준비 중이에요.` (`color/text/secondary`, 13px). title과 helper는 `643:4041` `head` auto-layout(gap 8)으로 묶었다.
 4. `643:4088` EN selected variant: English row가 `brand/blue-soft` 배경·`brand/blue` 텍스트·check, 한국어 row는 기본 스타일. UI copy는 English(`Korean`, `English`, `Japanese · Coming soon`, `Chinese · Coming soon`, helper 영문, CTA `Next`). title은 원본과 같은 이중 언어 그대로다.
-5. 구현 acceptance: KO/EN은 `updatePreferences(locale)`로 저장 후 새로고침 복구, JA/ZH row는 focus 가능하지만 `aria-disabled`이며 선택·저장·API 호출 0건. 360px에서 helper 2줄 wrap을 확인했다.
+5. 구현 acceptance: KO/EN은 `updatePreferences(locale)`로 저장 후 새로고침 복구한다. JA/ZH row는 native `disabled`라 keyboard 순서에서 건너뛰며, 이름과 `준비 중` 설명은 접근성 tree에 남고 선택·저장·API 호출은 0건이다. 360px에서 helper 2줄 wrap을 확인했다.
 
 top-level frame이 1개 늘어 `02 UI Design` 구현 frame은 53개다. [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 53으로 갱신했다.
 
@@ -345,7 +345,7 @@ breaking 변경이고, PM-011이 답하는 날 구현만 움직이면 되게 한
 
 1. guest 카드 부제 `로그인하면 일정을 저장할 수 있어요`(brand blue, 활성 링크처럼 보임) → `로그인 없이 시작했어요 · 여행은 이 기기의 익명 세션에 저장돼요`(`color/text/secondary`, 중립 톤). 실제로 이미 저장되고 있는 사실을 설명하며 로그인을 저장의 전제 조건처럼 보이게 하지 않는다.
 2. 같은 카드 안에 `로그인` 라벨과 `Data / Badge`(`tone=외곽선`) `준비 중`을 새 row로 추가했다. row 전체를 `opacity 0.55`로 흐리게 표시해 비활성 상태를 시각적으로도 전달한다. 새 컴포넌트를 만들지 않고 기존 `Data / Badge`를 재사용했다.
-3. 구현 acceptance: 이 row는 keyboard focus를 받을 수 있지만 클릭·Enter로도 route 이동이나 API 호출을 만들지 않는다(`FR-PRO-02`, `client capability accountAuth=false`). `getCurrentOwner` 응답에 로그인 상태 필드가 없어도 이 화면은 항상 guest로 렌더링된다.
+3. 구현 acceptance: 이 row는 로그인 동작을 약속하는 control이 아니라 `로그인`과 `준비 중`을 읽는 inert text다. keyboard focus를 받지 않고 클릭·Enter로 route 이동이나 API 호출을 만들지 않는다(`FR-PRO-02`, `client capability accountAuth=false`). `getCurrentOwner` 응답에 로그인 상태 필드가 없어도 이 화면은 항상 guest로 렌더링된다.
 
 ## FCR-007 증거
 
@@ -595,6 +595,39 @@ top-level frame이 5개 늘어 `02 UI Design` 구현 frame은 63개다(FCR-008�
 6. 새 컴포넌트를 만들지 않았다. 배지·버튼은 이 화면 전용 auto-layout이며, 반복 사용이 확인되면 `COMPONENT_CATALOG` 검토 시 `Data / Badge` variant로 승격할지 결정한다.
 
 top-level frame이 3개 늘어 `02 UI Design` 구현 frame은 66개다(FCR-012까지 63 → 66). [Figma 핸드오프](./FIGMA_HANDOFF.md)와 `scripts/validate_docs.py`의 inventory를 같은 change set에서 갱신했다.
+
+## FCR-001~015 구현 검증 매핑
+
+2026-09-20에 현재 구현을 다시 대조했다. 아래 `FE-*`는
+`frontend-plan.json`과 CI가 집계하는 등록 acceptance ID이고, 이 표는 그 ID를 실행하는
+Vitest 구현 증거를 연결한다. test 이름의 `FCR-* trace`는 디자인 요청으로 역추적하기
+위한 보조 표기일 뿐 별도 acceptance ID가 아니다. 부재를 요구하는 FCR은 실제 화면
+데이터가 렌더된 뒤 금지 control·문구·수치와 wire 호출이 없는지 검사해, 빈 화면이
+공허하게 통과하지 못하게 했다. 이 표는 종료 조건 5의 Storybook/Playwright 증거를
+대체하지 않는다.
+
+| FCR | 등록 test ID · 구현 증거 | 상태 |
+| --- | --- | --- |
+| FCR-001 | `FE-101-T1` (`onboarding.test.tsx`) | KO/EN PATCH body·선택·복구와 JA/ZH 요청 0건·native disabled 증명 완료 |
+| FCR-002 | `FE-201-T2`, `FE-202-T2` (`feed.test.tsx`, `post.test.tsx`) | 실제 feed/post를 먼저 렌더한 뒤 검색·알림·팔로우 control/호출 부재 증명 완료 |
+| FCR-003 | `FE-201-T2` (`feed.test.tsx`) | 실제 feed와 `listFeed` wire를 기준으로 정렬·filter control/parameter 부재 증명 완료 |
+| FCR-004 | `FE-503-T1`, `FE-505-T1` (`proposal-card.test.tsx`, `decision-wiring.test.tsx`) | before/after, provenance+eligible metric, 집계·개별 lock validation, 승인 전 쓰기 0건과 APPLY/KEEP 경계 증명 완료 |
+| FCR-005 | `FE-502-T2`, `FE-301-T1` (`optimization-run.test.tsx`, `trip-screen.test.tsx`) | optimization/trip의 route 문구·수치 부재 완료. Live 절은 FE-401 대기 |
+| FCR-006 | `FE-105-T1` (`profile.test.tsx`) | 익명 저장 설명·inert login text·route/요청 0건 증명 완료 |
+| FCR-007 | `FE-404-T1` (`data-guide.test.tsx`) | 계약 `SourceState` 전체 순회와 REPLAY≠LIVE 증명 완료 |
+| FCR-008 | — | FE-401/402와 승인 Live fixture 대기 |
+| FCR-009 | `FE-201-T2`, `FE-202-T2` (`feed.test.tsx`, `post.test.tsx`) | 실제 card/place row에 계약 없는 거리·기준을 만들지 않음 증명 완료 |
+| FCR-010 | `FE-501-T1` (`optimize-setup.test.tsx`) | ITEM만 wire에 도달하고 DAY/TRIP·DATE lock은 요청 0건 증명 완료 |
+| FCR-011 | `FE-201-T2`, `FE-202-T2` (`card-components.test.tsx`, `data-components.test.tsx`, `post.test.tsx`) | state/credit 분리, 서버 원문·short fallback, Seoul/KTO 동시 표시 primitive 완료. Seoul/KTO 혼합 case의 Seoul provenance는 승인 Live fixture가 없어 test-local 합성이며 Live 사용처는 FE-402 대기 |
+| FCR-012 | — | FE-401 list-first 화면과 승인 Live fixture 대기 |
+| FCR-013 | `FE-301-T1` (`trip-screen.test.tsx`) | 실제 trip 화면에서 지원되는 최적화 진입은 남고 계약 없는 비교 banner/control은 없음 증명 완료 |
+| FCR-014 | `FE-502-T3`, `FE-504-T3` (`optimization-run.test.tsx`) | 이탈은 navigation이고 cancel control/요청이 아님을 증명 완료 |
+| FCR-015 | `FE-505-T1`·`T2` (`applied-panel.test.tsx`, `applied-revert.test.ts`, `trip-applied-panel.test.tsx`) | persistent panel 상태, version·deadline 규칙, wrapper의 실제 read→render·실패 경로 증명 완료 |
+
+따라서 Live와 무관한 구현과 Vitest 증거까지 완료됐다. 전체 종료는 종료 조건 5의
+Storybook/Playwright ID 연결, `FCR-008`·`FCR-012`와 `FCR-005`·`FCR-011`의 Live 절,
+그리고 이 문서가 별도로 요구하는 PM 범위·문구 승인을 기다린다. 대기 중인 조건을
+별도 이슈로 명시적으로 이관하기 전에는 이 표만으로 #13을 닫지 않는다.
 
 ## #11 계약 packet 검토 결과
 

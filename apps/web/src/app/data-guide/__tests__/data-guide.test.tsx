@@ -71,7 +71,7 @@ describe('the screen speaks one language at a time', () => {
   });
 });
 
-describe('the data guide explains every state the contract can return', () => {
+describe('FE-404-T1 data guide source states (FCR-007 trace)', () => {
   it('covers each SourceState in the OpenAPI enum', () => {
     renderGuide();
     // Six in the contract today; the assertion is on the contract, not the six.

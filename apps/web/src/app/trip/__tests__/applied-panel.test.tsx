@@ -116,7 +116,7 @@ function revertButton() {
 // `shared/testing/__tests__/offline-shell.test.ts`. That file carries only
 // FE-004-T1 and renders nothing — see optimization-run.test.tsx's T2 block,
 // which carried the same pointer and now explains why it did not hold.
-describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so', () => {
+describe('FE-505-T1 FE-505-T2 persistent server undo state (FCR-015 trace)', () => {
   it('renders nothing at all when revertAvailability is absent', async () => {
     // The contract case: the field is optional, and its absence means "unknown
     // support". The panel has `revertUntil` in hand here — a panel that

@@ -77,6 +77,10 @@ export function OptimizeSetupScreen() {
   const etag = trip.data?.etag ?? null;
   const items = detail?.days.flatMap((day) => day.items) ?? [];
 
+  function hasDateLock(item: (typeof items)[number]) {
+    return item.constraints.some((constraint) => constraint.type === 'DATE');
+  }
+
   function back() {
     void navigate(tripId === null ? '/feed' : `/trip/${tripId}`);
   }
@@ -85,7 +89,9 @@ export function OptimizeSetupScreen() {
   // background refetch can remove it — another device edits the trip, the
   // window regains focus, the list re-renders without it — and the id would
   // otherwise stay selected and be sent for a stop that no longer exists.
-  const selected = items.some((item) => item.id === targetItemId) ? targetItemId : null;
+  const selected = items.some((item) => item.id === targetItemId && !hasDateLock(item))
+    ? targetItemId
+    : null;
 
   function submit() {
     if (detail === undefined) return;
@@ -219,35 +225,46 @@ export function OptimizeSetupScreen() {
           <p className={styles.state}>{t('optimize.targetEmpty')}</p>
         ) : (
           <ul className={styles.items}>
-            {items.map((item) => (
-              <li key={item.id}>
-                <button
-                  aria-pressed={selected === item.id}
-                  className={styles.item}
-                  data-selected={selected === item.id || undefined}
-                  onClick={() => {
-                    setTargetItemId(item.id);
-                    setMissingTarget(false);
-                    // A different stop is a different command.
-                    idempotencyKey.current = null;
-                  }}
-                  type="button"
-                >
-                  <span className={styles.itemName}>{item.place.name}</span>
-                  <span className={styles.itemMeta}>
-                    {formatTime(item.startTime, locale) ?? t('trip.timeUnset')}
-                  </span>
-                </button>
-                {/* CMP-ATT-001: these rows are KTO place records, and this
+            {items.map((item) => {
+              const dateLocked = hasDateLock(item);
+              const reasonId = `optimize-target-${item.id}-reason`;
+              return (
+                <li key={item.id}>
+                  <button
+                    aria-describedby={dateLocked ? reasonId : undefined}
+                    aria-pressed={selected === item.id}
+                    className={styles.item}
+                    data-selected={selected === item.id || undefined}
+                    disabled={dateLocked}
+                    onClick={() => {
+                      setTargetItemId(item.id);
+                      setMissingTarget(false);
+                      // A different stop is a different command.
+                      idempotencyKey.current = null;
+                    }}
+                    type="button"
+                  >
+                    <span className={styles.itemName}>{item.place.name}</span>
+                    <span className={styles.itemMeta}>
+                      {formatTime(item.startTime, locale) ?? t('trip.timeUnset')}
+                    </span>
+                  </button>
+                  {dateLocked ? (
+                    <span className={styles.itemMeta} id={reasonId}>
+                      {t('optimize.targetDateLocked')}
+                    </span>
+                  ) : null}
+                  {/* CMP-ATT-001: these rows are KTO place records, and this
                     route is submission screenshot #5. The credit sits outside
                     the button rather than inside it — DataAttribution renders
                     the text as a link to the source, and a link nested in a
                     button is neither valid nor operable. */}
-                {item.place.sourceAttribution ? (
-                  <DataAttribution compact provenance={item.place.sourceAttribution} />
-                ) : null}
-              </li>
-            ))}
+                  {item.place.sourceAttribution ? (
+                    <DataAttribution compact provenance={item.place.sourceAttribution} />
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </fieldset>

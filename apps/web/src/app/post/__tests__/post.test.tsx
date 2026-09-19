@@ -30,12 +30,13 @@ const copy = messages['en-US'];
 const post = postFixtures.detail;
 
 /** Every request the server saw, so a stray trip write cannot hide. */
-let seen: { method: string; path: string }[] = [];
+let seen: { method: string; path: string; search: string }[] = [];
 
 beforeEach(() => {
   seen = [];
   server.events.on('request:start', ({ request }) => {
-    seen.push({ method: request.method, path: new URL(request.url).pathname });
+    const url = new URL(request.url);
+    seen.push({ method: request.method, path: url.pathname, search: url.search });
   });
 });
 
@@ -216,7 +217,56 @@ describe('FE-202-T2 the screen renders each of its states', () => {
   });
 });
 
-describe('FE-202 the places are credited', () => {
+describe('FE-202-T2 populated post boundaries (FCR-002/009 trace)', () => {
+  it('renders the real post but no search, notification or follow affordance', async () => {
+    renderPost();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: post.title }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    expect(
+      screen.queryByRole('button', {
+        name: /search|검색|notification|알림|follow|팔로우/i,
+      }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('link', {
+        name: /search|검색|notification|알림|follow|팔로우/i,
+      }),
+    ).toBeNull();
+    expect(
+      seen.filter((request) =>
+        /search|notifications?|follows?|filters?|sort|rank/i.test(
+          `${request.path}${request.search}`,
+        ),
+      ),
+    ).toEqual([]);
+
+    const productRequests = seen.filter(
+      (request) =>
+        !request.path.startsWith('/api/v1/session') &&
+        !request.path.startsWith('/api/v1/demo'),
+    );
+    expect(productRequests).toEqual([
+      { method: 'GET', path: `/api/v1/posts/${post.id}`, search: '' },
+    ]);
+  });
+
+  it('renders real place rows without inventing a distance or basis', async () => {
+    renderPost();
+    await screen.findByRole('heading', { level: 1, name: post.title });
+    expect(post.places.length).toBeGreaterThan(0);
+
+    for (const place of post.places) {
+      const row = screen.getByText(place.name).closest('li');
+      expect(row).not.toBeNull();
+      expect(row).not.toHaveTextContent(/\b\d+(?:\.\d+)?\s*(?:km|mi|miles?)\b/i);
+      expect(within(row as HTMLElement).queryByText(/distance|거리|도보/i)).toBeNull();
+    }
+  });
+});
+
+describe('FE-202-T2 the places are credited (FCR-011 trace)', () => {
   it('shows the source the server named for each place', async () => {
     renderPost();
     await screen.findByRole('heading', { level: 1, name: post.title });

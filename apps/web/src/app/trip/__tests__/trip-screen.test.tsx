@@ -205,7 +205,7 @@ describe('FE-301-T1 locks are shown as status, not as controls', () => {
   });
 });
 
-describe('FE-301 renders no value the contract does not carry', () => {
+describe('FE-301-T1 renders no value the contract does not carry', () => {
   it('shows no crowd level, because every fixture crowd is null', async () => {
     renderTrip();
     await loaded();
@@ -231,10 +231,24 @@ describe('FE-301 renders no value the contract does not carry', () => {
     expect(screen.queryByText('STREET')).not.toBeInTheDocument();
   });
 
-  it('shows no route distance or travel time (FCR-005)', async () => {
+  it('shows real stops without route distance or travel-time claims (FCR-005 trace)', async () => {
     renderTrip();
     await loaded();
-    expect(screen.queryByText(/km|도보|徒歩/)).not.toBeInTheDocument();
+    const firstItem = trip.days.flatMap((day) => day.items)[0];
+    expect(firstItem).toBeDefined();
+    expect(screen.getAllByText(firstItem?.place.name ?? '').length).toBeGreaterThan(0);
+    expect(document.body).not.toHaveTextContent(
+      /↓\s*\d+(?:\.\d+)?\s*(?:km|mi|miles?)|(?:walking|walk|travel time|route time|도보|이동 시간|徒歩)[^\n·]{0,24}\d+\s*(?:min|minutes?|분)|\b\d+(?:\.\d+)?\s*(?:km|mi|miles?)\b/i,
+    );
+  });
+
+  it('keeps the supported optimization entry without a quieter-date banner (FCR-013 trace)', async () => {
+    renderTrip();
+    await loaded();
+    expect(screen.getByRole('link', { name: copy['trip.optimize'] })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /compare|비교/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /compare|비교/i })).toBeNull();
+    expect(screen.queryByText(/더 여유로운 날짜|quieter date/i)).toBeNull();
   });
 });
 

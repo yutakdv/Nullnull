@@ -53,7 +53,7 @@ function attributionIn(container: HTMLElement): Element | null {
   return container.querySelector('[class*="attribution"]');
 }
 
-describe('FE-503 the proposal card previews a change set', () => {
+describe('FE-503 proposal card summary (FCR-004 trace)', () => {
   it('shows the optimizer’s own summary rather than one of ours', () => {
     render(<ProposalCard labels={LABELS} proposal={proposal()} />);
 
@@ -248,7 +248,7 @@ describe('FE-503 the proposal card previews a change set', () => {
 // appear together, or neither appears. Nothing else lives in this block, which
 // is what lets the ID sit on the describe (a JUnit name is "<describe> <test>",
 // so an ID here lands on every test inside).
-describe('FE-503-T1 invariant 8: a crowd figure never appears without its credit', () => {
+describe('FE-503-T1 eligible metrics keep provenance (FCR-004 trace)', () => {
   it('draws the delta and the attribution together', () => {
     const { container } = render(<ProposalCard labels={LABELS} proposal={proposal()} />);
 
@@ -317,7 +317,7 @@ describe('FE-503-T1 invariant 8: a crowd figure never appears without its credit
   });
 });
 
-describe('FE-503 each change row draws only the sides it has', () => {
+describe('FE-503-T1 each change row draws its before/after sides (FCR-004 trace)', () => {
   it('shows both ends of a move', () => {
     const input = proposal();
     const list = render(<ProposalCard labels={LABELS} proposal={input} />);
@@ -379,16 +379,28 @@ describe('FE-503 each change row draws only the sides it has', () => {
   });
 });
 
-describe('FE-503 validation is stated, not implied', () => {
+describe('FE-503-T1 lock validation is stated, not implied (FCR-004 trace)', () => {
   it('says the constraints held when every check passed', () => {
     render(<ProposalCard labels={LABELS} proposal={proposal()} />);
 
     expect(screen.getByText('CONSTRAINTS_OK')).toBeInTheDocument();
   });
 
-  it('says so when a check failed', () => {
+  it('reports a failed aggregate even when every individual check passed', () => {
     const input = proposal();
     input.validation.allConstraintsPreserved = false;
+
+    expect(input.validation.checks.every((check) => check.passed)).toBe(true);
+
+    render(<ProposalCard labels={LABELS} proposal={input} />);
+
+    expect(screen.getByText('CONSTRAINTS_BROKEN')).toBeInTheDocument();
+    expect(screen.queryByText('CONSTRAINTS_OK')).toBeNull();
+  });
+
+  it('reports an individual failed check even when the aggregate says true', () => {
+    const input = proposal();
+    input.validation.allConstraintsPreserved = true;
     const check = input.validation.checks[0];
     if (!check) throw new Error('fixture no longer has a validation check');
     check.passed = false;

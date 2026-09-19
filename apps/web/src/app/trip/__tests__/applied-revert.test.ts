@@ -53,7 +53,7 @@ function historyItem(
   };
 }
 
-describe('panelVersions prints the pair the state actually moved between', () => {
+describe('FE-505-T1 panelVersions prints the actual revision pair (FCR-015 trace)', () => {
   it('reads the apply as input → resulting while it stands', () => {
     // run-applied.json: inputTripVersion 2, the APPLY's resultingTripVersion 3.
     const versions = panelVersions(run().decisions, run().inputTripVersion);
@@ -116,7 +116,7 @@ describe('panelVersions prints the pair the state actually moved between', () =>
   });
 });
 
-describe('shouldReadRun spends a request, and only that', () => {
+describe('FE-505-T1 shouldReadRun spends only the required request (FCR-015 trace)', () => {
   // The window's own boundary. `decidedAt` is 01:13:40 on 10-02.
   const decidedAt = Date.parse('2026-10-02T01:13:40Z');
   const DAY = 24 * 60 * 60 * 1000;
@@ -183,7 +183,7 @@ describe('shouldReadRun spends a request, and only that', () => {
   });
 });
 
-describe('formatInstant', () => {
+describe('FE-505-T1 formatInstant keeps the undo deadline (FCR-015 trace)', () => {
   it('carries the time, which the panel needs for a deadline', () => {
     // `ProfileScreen`'s runDate gives the day alone; a deadline of "10/8" does
     // not tell a traveller whether they have an hour or a day.
@@ -204,7 +204,7 @@ describe('formatInstant', () => {
 // first. `limit: 1` + "newest-first" read "the last run" as "the last DECIDED
 // run", and those are the same sentence only while nothing has happened since
 // the apply — which is not the state a traveller with a live undo is in.
-describe('latestDecidedRun finds the run the panel is about', () => {
+describe('FE-505-T1 latestDecidedRun finds the panel run (FCR-015 trace)', () => {
   const decidedAt = Date.parse('2026-10-02T01:13:40Z');
   const soon = decidedAt + 1000;
 

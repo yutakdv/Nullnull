@@ -138,6 +138,8 @@ export function ProposalCard({
   const failed = proposal.validation.checks.filter(
     (check: ValidationCheck) => !check.passed,
   );
+  const constraintsPreserved =
+    proposal.validation.allConstraintsPreserved && failed.length === 0;
   const selectable = onSelect !== undefined;
 
   return (
@@ -246,8 +248,8 @@ export function ProposalCard({
         </div>
       )}
 
-      <p className={styles.validation} data-ok={failed.length === 0}>
-        {failed.length === 0 ? labels.constraintsOk : labels.constraintsBroken}
+      <p className={styles.validation} data-ok={constraintsPreserved}>
+        {constraintsPreserved ? labels.constraintsOk : labels.constraintsBroken}
       </p>
     </article>
   );
