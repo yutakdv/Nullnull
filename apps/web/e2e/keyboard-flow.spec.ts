@@ -139,9 +139,45 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     });
     expect(inside, 'focus should be inside the open sheet').toBe(true);
 
+    // The TRAP, which the assertion above does not reach. "Focus is inside"
+    // is true of a non-modal dialog too: MoveDaySheet focuses a control of its
+    // own on open, so replacing `showModal()` with `show()` left every
+    // assertion here green while the sheet stopped being modal at all
+    // (measured: `dialog.matches(':modal')` went false, radius 0). The title
+    // says "traps", and trapping is about what happens when focus tries to
+    // LEAVE.
+    //
+    // Escape attempt rather than a Tab walk. A Tab walk cannot tell the two
+    // apart here — measured: on the real, modal sheet the fourth Tab already
+    // reports focus outside the <dialog> (the browser passes through the
+    // document before cycling back), so "some Tab lands outside" is true of
+    // the healthy sheet as well and an assertion built on it fails on correct
+    // code. Focusing an outside control is what modality actually forbids:
+    // elements outside the top layer are inert, so the call is a no-op and
+    // focus stays put. Measured both ways — modal: STAYED-IN, non-modal:
+    // ESCAPED-TO the itinerary behind the sheet.
+    const escaped = await page.evaluate(() => {
+      const open = Array.from(document.querySelectorAll('dialog')).find((d) => d.open);
+      const outside = Array.from(document.querySelectorAll<HTMLElement>('button')).find(
+        (button) => !open?.contains(button) && !(button as HTMLButtonElement).disabled,
+      );
+      if (!outside) return 'no control outside the sheet to try';
+      outside.focus();
+      return (open?.contains(document.activeElement) ?? false)
+        ? null
+        : `focus escaped to "${(document.activeElement?.textContent ?? '').trim().slice(0, 24)}"`;
+    });
+    expect(escaped, 'the sheet should hold focus against a control behind it').toBeNull();
+
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
 
+    // HALF OF THIS TITLE IS MEASURED, half is not, on purpose. "traps focus"
+    // is now the escape attempt above; "returns it to the trigger" stays
+    // unasserted for the reason below, and whether the title should drop that
+    // clause is BE's call, asked on #233. Left deliberately rather than
+    // overlooked.
+    //
     // NOT asserted here: "focus returns to the trigger". MoveDaySheet does
     // restore it (restoreTo, :67-72) and a unit test covers that, but no
     // assertion I could write in a browser DISTINGUISHES it — deleting
