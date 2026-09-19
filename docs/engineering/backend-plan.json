@@ -2403,7 +2403,7 @@
           "assertion": "핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright): tab bar를 Tab으로 순회·Enter로 이동, focus ring이 여러 Tab에 걸쳐 보인다, 키보드로 연 sheet를 Escape로 닫는다, 여행 생성을 키보드만으로 완주한다. 후보 저장과 최적화의 키보드 흐름은 이 카드의 범위 밖이다",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하고 tab bar 순회·Enter 이동·Escape·wizard 단계 안내 test는 #276으로 잡히지만, focus ring을 여러 Tab에 걸쳐 확인하기·Escape test의 sheet를 키보드로 열기·여행 생성을 키보드만으로 완주하기 셋이 아직 없다. 셋이 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하며, #282의 keyboard-flow.spec.ts로 tab bar 순회·Enter 이동, 키보드로 연 sheet의 Escape, 여행 생성 키보드 완주가 BA-070-T5 이름으로 잡혔다. 남은 절은 focus ring을 여러 Tab에 걸쳐 확인하기 하나다: BA-070-T5 이름의 focus test는 Tab을 한 번만 누르고 outline·shadow의 존재만 본다. 여러 Tab과 쉴 때 스타일 대조로 이 절을 재는 test는 responsive.spec.ts에 있으나 FE ID만 달고 있다. 그 절을 재는 testcase가 BA-070-T5 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
             "issue": "#233"
           }
         }
