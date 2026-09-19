@@ -12,9 +12,16 @@ import styles from './IntroScreen.module.css';
 // means "skip reading", not "skip recording". The icons are decorative — the
 // adjacent text is the label.
 //
-// Continue and skip now both land on /sign-in rather than /feed (#265). The
-// traveller can still go on without an account — the sign-in screen offers
-// that — so this is one more step in the path, not a gate in front of it.
+// Both land on /feed. They routed through /sign-in for a while, when login was
+// briefly in P0 (#264, #265) — the owner reverted that on 2026-09-19 and login
+// is P1 again. The reason is recorded on #264 and is a real one rather than a
+// scope trim: `owners.account_id` is unique, so several judges signing in with
+// the one official test account would share a single owner and see each other's
+// edits and deletions. An anonymous session gives each browser its own owner.
+//
+// So the judged walk-through is anonymous end to end, which is what
+// docs/contest and AGENTS.md principles 13-14 have said all along. /sign-in
+// still exists for P1 but nothing routes to it.
 
 const POINTS: { Icon: typeof IconHeart; titleKey: MessageKey; bodyKey: MessageKey }[] = [
   { Icon: IconHeart, titleKey: 'intro.point1.title', bodyKey: 'intro.point1.body' },
@@ -31,7 +38,7 @@ export function IntroScreen() {
     // Best effort until BA-011 opens: onboarding must not stall on a request
     // the server does not answer yet.
     updatePreferences.mutate({ onboardingCompleted: true });
-    void navigate('/sign-in', { replace: true });
+    void navigate('/feed', { replace: true });
   }
 
   return (

@@ -232,9 +232,13 @@ export function ImportPasteScreen() {
             {current.items.map((item) => (
               <li className={styles.row} key={item.clientKey}>
                 <span className={styles.rowText}>
-                  <span className={styles.rowTitle}>
-                    {item.place?.name ?? item.originalLabel ?? ''}
-                  </span>
+                  {/* No `?? item.originalLabel`: the server never sends that
+                      field (TripImportController.ImportDraftItemResponse
+                      declares it NON_NULL and the parser never fills it), so
+                      that term could not run. `?? ''` stays, because `place`
+                      IS nullable in the schema — an item whose token resolved
+                      to nothing still renders a row. */}
+                  <span className={styles.rowTitle}>{item.place?.name ?? ''}</span>
                   <span className={styles.note}>
                     {item.date ?? t('import.item.noDate')}
                     {/* `startTime` is nullable AND optional in the schema, so
@@ -246,7 +250,7 @@ export function ImportPasteScreen() {
                 </span>
                 <button
                   aria-label={t('import.item.dismiss', {
-                    name: item.place?.name ?? item.originalLabel ?? '',
+                    name: item.place?.name ?? '',
                   })}
                   className={styles.drop}
                   disabled={remap.isPending}
