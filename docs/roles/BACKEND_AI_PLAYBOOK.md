@@ -1338,7 +1338,7 @@ swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있�
 - `BA-040-T1`: 한 요청 안의 자리 교환이 position unique 경쟁을 통과한다
 - `BA-040-T2`: candidate schedule/RESTORE_CANDIDATE 전이가 item과 동시에 반영된다
 - `BA-040-T3`: merge-patch의 null과 absent를 구분한다
-- `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
+- `BA-040-T4`: 일정 편집의 keyboard/focus E2E를 통과한다(FE 소유, Playwright). sheet를 닫을 때 focus가 trigger로 돌아오는 절은 뺀다: 브라우저가 스스로 복원해 E2E에서는 발화할 수 없고, unit `move-screen.test.tsx`의 returns focus to the control that opened it가 덮는다
 - `BA-040-T5`: reorder가 item을 다른 날로 옮긴다
 - `BA-040-T6`: 요청의 한 entry가 거절되면 어떤 item도 움직이지 않는다
 - `BA-040-T7`: 모든 command가 여행 기간 밖의 날짜를 거절한다
@@ -1349,12 +1349,13 @@ swap 하나가, `T3`은 **merge-patch의 absent와 null 구분**이 달고 있�
 `T7`~`T9`는 `TripScheduleBoundaryIT`에 있다(`apps/api/src/integrationTest/java/io/nullnull/trip/`). `f3bd262` 위의 격리 worktree에서 `test`(417)·`integrationTest`(391)·
 `openapiContractTest`(39)·`recommendationTest`(19) 전부 0 failures다.
 
-**`T4`는 이 카드의 `integration-ready` 조건에서 제외한다.** 소유자 FE. 집계기는 #233부터 Playwright report를
-읽지만 이 절을 증명할 E2E가 아직 없으므로 이 카드의 `integration-ready` 조건에서 제외한다. FE plan으로 옮기는 것은 답이 아니다
-(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는
-ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. 그래서 **이 카드는
-`T4` 하나만 남기고 전부 증명된 상태이고, 그 하나 때문에 `planned`에 머문다** — 올릴 수 없는 것을
-올리지 않고, 왜 못 올리는지를 기계가 아니라 사람이 읽는 자리에 둔다.
+**`T4`는 소유자가 FE이고, #276부터 다시 이 카드의 `integration-ready` 조건이다.** 집계기는 #233부터
+`--e2e-junit-dir`로 Playwright report를 읽고, #276 head의 `docker-integration` report(`playwright/e2e/results.xml`)에서
+`keyboard-flow.spec.ts`의 testcase 넷이 이 ID로 잡혔다(136건 중 실패 0). 그 전에는 이 절을 증명할 E2E가 없어 조건에서
+빼 두었고, FE plan으로 옮기는 것은 답이 아니었다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는
+ID"가 "아무것도 검증하지 않는 ID"가 된다). 절에서 뺀 하나는 **sheet를 닫을 때 focus가 trigger로 돌아오는 것**이다.
+native dialog가 스스로 복원하므로 구현을 지워도 E2E는 초록이었다(그 spec 주석의 측정). 그래서 E2E에서는 발화할 수 없는
+단언이 되고, unit `move-screen.test.tsx`가 덮는다(#233).
 
 FE 인계·완료 증거: 편집 명령별 before/after·new ETag·empty day·충돌 payload; 키보드/취소 UI는 FE 구현. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1803,7 +1804,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다. 그래서 `T3`는 **시간을 재지 않는다** — 이 칸이 금지하는 것이 정확히 그것이다. CI가 정직하게 잴 수 있는 것은 구조이고(`JobConnectionBudget`이 선례다), p95는 staging의 질문이다.
 
-`T5`는 **소유자가 FE다.** 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어오지만 이 절을 증명할 E2E가 아직 없다. **그래서 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). FE가 E2E를 쓰면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`와 같은 처리다.
+`T5`는 **소유자가 FE다.** 범위는 여행 생성 완주까지로 좁혔다(#233): 후보 저장과 최적화의 키보드 흐름은 이 카드 밖이며 제출 뒤 후속으로 남긴다. 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어온다. #276으로 tab bar 순회·Enter 이동·Escape·wizard 단계 안내가 잡혔지만 셋이 아직 없다: focus ring을 여러 Tab에 걸쳐 확인하기, Escape test의 sheet를 키보드로 열기, 여행 생성을 키보드만으로 완주하기. **그래서 아직 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). 셋이 게이트 JUnit에 잡히면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`는 그렇게 복원됐다.
 
 필수 검증:
 
@@ -1811,7 +1812,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-070-T2`: redaction canary와 API 응답 PII·secret denylist가 0이다
 - `BA-070-T3`: 고정 크기 입력의 쿼리 수와 connection 수에 상한이 있다
 - `BA-070-T4`: P1 capability가 꺼진 목록과 실제로 꺼진 동작이 같은 집합이다
-- `BA-070-T5`: 핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright)
+- `BA-070-T5`: 핵심 흐름의 keyboard/focus E2E를 통과한다(FE 소유, Playwright): tab bar를 Tab으로 순회·Enter로 이동, focus ring이 여러 Tab에 걸쳐 보인다, 키보드로 연 sheet를 Escape로 닫는다, 여행 생성을 키보드만으로 완주한다. 후보 저장과 최적화의 키보드 흐름은 이 카드의 범위 밖이다
 
 FE 인계·완료 증거: 오류/지연/접근성 회귀 report, 성능 fixture 규모·runner·원시 지표, 고칠 항목과 재현 경로. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
