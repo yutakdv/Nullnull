@@ -3,7 +3,28 @@
 // One list, imported by responsive.spec.ts and location-off.spec.ts. Playwright
 // refuses to let one spec import another, and two copies would drift — the
 // screen that drifted out would be the one nobody checked.
-export const SCREENS = [
+
+/**
+ * Whether the path is expected to resolve to its screen or to a not-found one.
+ *
+ * Omitted means `'rendered'`, which is 16 of the 17 entries; only the exception
+ * is written, the way NOT_WALKED in route-parity.test.ts names only exemptions.
+ *
+ * This exists because a path cannot say it on its own. Two entries here carried
+ * ids that resolved to nothing — `/posts/018f4c30-…` rendered "That post does
+ * not exist" and an optimizations id rendered "No such optimization" — while
+ * their names claimed the post and the run. Both were mistakes. The remaining
+ * `'missing'` entry is not, and nothing in the path distinguishes the two
+ * cases: `018f4d40-…` and `018f5b00-…` are the same shape. The author knows
+ * which was meant; the check cannot infer it, so the author declares it.
+ */
+type Reach = 'rendered' | 'missing';
+
+export const SCREENS: ReadonlyArray<{
+  path: string;
+  name: string;
+  expect?: Reach;
+}> = [
   { path: '/', name: 'splash' },
   // The first screen a user sees, and the one with the most content per card.
   // It was absent from this list, so the feed card's controls were never
@@ -79,6 +100,7 @@ export const SCREENS = [
   {
     path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimizations/018f4d40-4e63-7a74-9c77-8d3f2e5a0c03',
     name: 'optimization run (missing)',
+    expect: 'missing',
   },
   { path: '/live', name: 'live' },
 ];
