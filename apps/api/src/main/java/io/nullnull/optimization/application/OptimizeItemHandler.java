@@ -440,8 +440,10 @@ public class OptimizeItemHandler implements JobHandler {
         try {
             return UUID.fromString(context.payload().get("runId"));
         } catch (RuntimeException invalid) {
+            // Not retryable: the next attempt would read the same payload, so the job ends now. No cause:
+            // its message would carry the payload value into the worker's log line.
             throw new JobExecutionException("INVALID_JOB_PAYLOAD",
-                    "The optimization job payload is invalid.");
+                    "The optimization job payload is invalid.", null, false);
         }
     }
 }

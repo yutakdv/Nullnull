@@ -332,6 +332,25 @@ class OptimizeGatewayFailureIT {
     }
 
     @Test
+    @DisplayName("BA-005-T6 an optimize-item job whose payload names no run is dead-lettered on its first attempt, not retried")
+    void anUnreadablePayloadIsNotRetried() {
+        // Registered as a run id so the cleanup, which removes jobs by their deduplication key, takes it.
+        UUID key = UUID.randomUUID();
+        runIds.add(key);
+        java.sql.Timestamp now = java.sql.Timestamp.from(java.time.Instant.now());
+        jdbc.update("""
+                INSERT INTO background_jobs (id, type, deduplication_key, status, payload_reference,
+                    attempt_count, max_attempts, next_attempt_at, created_at)
+                VALUES (?, 'optimize-item', ?, 'READY', '{"runId":"not-a-run"}'::jsonb, 0, 3, ?, ?)
+                """, UUID.randomUUID(), "optimization:" + key, now, now);
+        org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS)
+                .pollInterval(50, TimeUnit.MILLISECONDS)
+                .until(() -> "FAILED".equals(jobColumn(key, "status")));
+        assertThat(jobColumn(key, "last_error_code")).isEqualTo("INVALID_JOB_PAYLOAD");
+        assertThat(jobColumn(key, "attempt_count")).as("the next attempt would read the same payload").isEqualTo("1");
+    }
+
+    @Test
     @DisplayName("BA-051-T18 a run whose proposal or explanation is unusable fails its job on the first attempt too")
     void everyCallOfTheRunIsJudgedTheSameWay() throws Exception {
         // The handler makes three calls, and only policy() goes over the wire above. The other two are

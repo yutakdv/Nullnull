@@ -15,6 +15,7 @@ import io.nullnull.operations.application.StaleLeaseException;
 import io.nullnull.operations.application.TtlSweep;
 import io.nullnull.operations.domain.AbandonedJob;
 import io.nullnull.operations.domain.ClaimedJob;
+import io.nullnull.operations.domain.DeadLetter;
 import io.nullnull.operations.domain.JobLease;
 import io.nullnull.shared.ids.UuidV7;
 import java.sql.SQLException;
@@ -299,7 +300,8 @@ public class JobWorker implements SmartLifecycle {
                 // it in this transaction, so neither can be written without the other.
                 transactions.executeWithoutResult(status -> {
                     queue.deadLetter(lease, errorCode, now);
-                    handler.onDeadLetter(job.payload(), errorCode);
+                    handler.onDeadLetter(new DeadLetter(lease.jobId(), lease.type(), lease.attempt(),
+                            job.payload(), errorCode));
                 });
                 // The dead-letter line an operator alerts on, after the commit: identifiers and a code.
                 OpsAlarm.emit(OpsAlarm.jobDeadLetter(lease.type(), lease.jobId(), lease.attempt(), errorCode));
@@ -357,7 +359,8 @@ public class JobWorker implements SmartLifecycle {
             abandoned = transactions.execute(status -> {
                 List<AbandonedJob> ended = queue.failAbandoned(type, clock.instant());
                 for (AbandonedJob job : ended) {
-                    handler.onDeadLetter(job.payload(), JobQueue.LEASE_EXPIRED_ERROR_CODE);
+                    handler.onDeadLetter(new DeadLetter(job.jobId(), job.type(), job.attempts(), job.payload(),
+                            JobQueue.LEASE_EXPIRED_ERROR_CODE));
                 }
                 return ended;
             });

@@ -73,6 +73,18 @@ public class JdbcDeletionStore implements DeletionStore {
                 status, attempt, code, status, Timestamp.from(now), Timestamp.from(now), id);
     }
 
+    /**
+     * Only from a status that has not ended, so a request its last attempt already recorded as FAILED, or
+     * one that COMPLETED before its job was dead-lettered, is left as it is - which also makes a second call
+     * for the same request write nothing.
+     */
+    @Override
+    public boolean failUnfinished(UUID id, int attempt, String code, Instant now) {
+        return jdbc.update("UPDATE deletion_requests SET status='FAILED',attempt_count=?,failure_code=?,"
+                + "completed_at=?,updated_at=? WHERE id=? AND status IN ('ACCEPTED','RUNNING','PARTIAL_FAILED')",
+                attempt, code, Timestamp.from(now), Timestamp.from(now), id) == 1;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<UUID> tombstonedOwners() {

@@ -7,19 +7,25 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.nullnull.operations.application.JobContext;
 import io.nullnull.operations.application.JobExecutionException;
+import io.nullnull.operations.application.JobLockTimeoutException;
 import io.nullnull.operations.application.JobQueue;
 import io.nullnull.operations.application.JobUnitOfWorkGuard;
 import io.nullnull.operations.application.OpsAlarm;
 import io.nullnull.operations.application.StaleLeaseException;
 import io.nullnull.operations.domain.ClaimedJob;
+import io.nullnull.operations.domain.DeadLetter;
 import io.nullnull.operations.domain.JobLease;
 import io.nullnull.operations.domain.JobPayload;
 import java.time.Clock;
@@ -40,13 +46,18 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronizationUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * The two decisions the deletion handler's alarm rests on, without a database: the line comes only after
- * the failure it reports committed, and FAILED follows the row's attempt ceiling, which is the worker's own
- * dead-letter test. DeletionIncidentSignalIT shows the lines a real failure produces; neither of these
- * orderings can be produced there on purpose.
+ * The deletion handler's decisions that a real worker cannot be made to show on purpose, without a
+ * database: an alarm line comes only after the failure it reports committed; FAILED follows the row's
+ * attempt ceiling, which is the worker's own dead-letter test; contention and a lease that moved on are
+ * rethrown, not recorded; an attempt whose start could not be written is recorded as failed; and the
+ * dead-letter hook ends only an unfinished request, logging after the commit. DeletionIncidentSignalIT
+ * shows what a real worker produces.
  */
 @DisplayName("BA-072 deletion handler alarm ordering")
 class DeleteOwnerDataHandlerTest {
@@ -122,12 +133,104 @@ class DeleteOwnerDataHandlerTest {
                 OpsAlarm.deletionPartialFailed(jobId, 2, FAILURE).line());
     }
 
+    @Test
+    @DisplayName("BA-012-T5 a unit of work that lost the race for its job row is not recorded as a deletion failure")
+    void contentionIsNotADeletionFailure() {
+        DeletionStore store = mock(DeletionStore.class);
+        RuntimeException contention = new JobLockTimeoutException("the job row is held elsewhere", null);
+
+        assertThatThrownBy(() -> handler(store, contention).handle(context(mock(JobQueue.class), 2, 5)))
+                .as("the worker's contention path, which charges no failure").isSameAs(contention);
+        verify(store, never()).markFailed(any(), anyInt(), anyString(), anyString(), any());
+        assertThat(alarms.list).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a unit of work refused because another worker holds the lease is not recorded as a deletion failure")
+    void aLeaseThatMovedOnIsNotADeletionFailure() {
+        DeletionStore store = mock(DeletionStore.class);
+        RuntimeException stale = new StaleLeaseException(
+                new JobLease(jobId, DeletionService.JOB_TYPE, "w1:token", 2), "unit of work");
+
+        assertThatThrownBy(() -> handler(store, stale).handle(context(mock(JobQueue.class), 2, 5)))
+                .isSameAs(stale);
+        verify(store, never()).markFailed(any(), anyInt(), anyString(), anyString(), any());
+        assertThat(alarms.list).isEmpty();
+    }
+
+    @Test
+    @DisplayName("an attempt whose start could not be recorded is recorded as a failed attempt like any other")
+    void aFailedStartIsRecordedAsAFailedAttempt() {
+        DeletionStore store = mock(DeletionStore.class);
+        doThrow(new IllegalStateException("synthetic write failure")).when(store).markRunning(any(), anyInt(), any());
+
+        assertThatThrownBy(() -> handler(store).handle(context(mock(JobQueue.class), 2, 5)))
+                .isInstanceOf(JobExecutionException.class);
+        verify(store).markFailed(eq(request), eq(2), eq("PARTIAL_FAILED"), eq(FAILURE), any());
+        assertThat(alarms.list).extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly(OpsAlarm.deletionPartialFailed(jobId, 2, FAILURE).line());
+    }
+
+    @Test
+    @DisplayName("the dead-letter hook's DELETION_FAILED line waits for the dead letter to commit, and a rollback has none")
+    void theDeadLetterLineFollowsTheCommit() {
+        DeletionStore store = mock(DeletionStore.class);
+        when(store.failUnfinished(eq(request), eq(1), eq(FAILURE), any())).thenReturn(true);
+        DeadLetter deadLetter = new DeadLetter(jobId, DeletionService.JOB_TYPE, 1,
+                JobPayload.of(Map.of("ownerId", owner.toString(), "requestId", request.toString())), "LEASE_EXPIRED");
+
+        inATransaction(() -> handler(store).onDeadLetter(deadLetter), false);
+        assertThat(alarms.list).as("rolled back: the request was never ended").isEmpty();
+
+        inATransaction(() -> {
+            handler(store).onDeadLetter(deadLetter);
+            assertThat(alarms.list).as("not before the commit").isEmpty();
+        }, true);
+        assertThat(alarms.list).extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly(OpsAlarm.deletionFailed(jobId, 1, "LEASE_EXPIRED").line());
+    }
+
+    @Test
+    @DisplayName("the dead-letter hook leaves an ended request alone and logs nothing, and ignores a payload with no request")
+    void theDeadLetterHookEndsOnlyAnUnfinishedRequest() {
+        DeletionStore ended = mock(DeletionStore.class);
+        when(ended.failUnfinished(any(), anyInt(), anyString(), any())).thenReturn(false);
+        inATransaction(() -> handler(ended).onDeadLetter(new DeadLetter(jobId, DeletionService.JOB_TYPE, 5,
+                JobPayload.of(Map.of("requestId", request.toString())), FAILURE)), true);
+        assertThat(alarms.list).isEmpty();
+
+        DeletionStore untouched = mock(DeletionStore.class);
+        inATransaction(() -> handler(untouched).onDeadLetter(new DeadLetter(jobId, DeletionService.JOB_TYPE, 1,
+                JobPayload.empty(), "INVALID_JOB_PAYLOAD")), true);
+        verifyNoInteractions(untouched);
+        assertThat(alarms.list).isEmpty();
+    }
+
+    /** What the worker's TransactionTemplate does around the hook: synchronization, then commit or rollback. */
+    private static void inATransaction(Runnable work, boolean commits) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            work.run();
+            if (commits) {
+                TransactionSynchronizationUtils.triggerAfterCommit();
+            }
+            TransactionSynchronizationUtils.triggerAfterCompletion(commits
+                    ? TransactionSynchronization.STATUS_COMMITTED : TransactionSynchronization.STATUS_ROLLED_BACK);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     private DeleteOwnerDataHandler handler(DeletionStore store) {
+        return handler(store, new IllegalStateException("synthetic erase failure"));
+    }
+
+    private DeleteOwnerDataHandler handler(DeletionStore store, RuntimeException eraseFailure) {
         OwnerDataEraser failing = new OwnerDataEraser() {
             @Override public String name() { return "failing"; }
             @Override public Set<String> ownerIdTables() { return Set.of(); }
             @Override public void erase(UUID ownerId, Instant deleteBefore) {
-                throw new IllegalStateException("synthetic erase failure");
+                throw eraseFailure;
             }
         };
         return new DeleteOwnerDataHandler(store, List.of(failing), CLOCK);
