@@ -59,7 +59,9 @@ test.describe('app shell', () => {
 // unit suite covers behaviour; what only this environment can prove is that the
 // screens survive a server that answers for real (FE-101, FE-105).
 test.describe('onboarding and profile in a real browser', () => {
-  test('language screen selects Korean and English, never JA or ZH', async ({ page }) => {
+  test('FE-101-T1 language screen selects Korean and English, never JA or ZH (FCR-001 trace)', async ({
+    page,
+  }) => {
     await page.goto('/language');
     const japanese = page.getByRole('button', { name: /日本語/ });
     await expect(japanese).toBeDisabled();
@@ -76,7 +78,7 @@ test.describe('onboarding and profile in a real browser', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR');
   });
 
-  test('profile shows sign-in as inert `준비 중`, and sends nothing', async ({
+  test('FE-105-T1 profile sign-in is inert and sends nothing (FCR-006 trace)', async ({
     page,
   }) => {
     // THIRD spelling. It began as inert text, became a link when login went
@@ -89,9 +91,9 @@ test.describe('onboarding and profile in a real browser', () => {
     // revert: profile.test.tsx was inverted in the same commit that added the
     // link and THIS file was not, so the gate caught it. Both layers move
     // together or the promise stops being checked where it matters most.
-    const writes: string[] = [];
+    const requests: string[] = [];
     page.on('request', (request) => {
-      if (request.method() !== 'GET') writes.push(request.url());
+      requests.push(`${request.method()} ${request.url()}`);
     });
 
     await page.goto('/profile');
@@ -104,12 +106,19 @@ test.describe('onboarding and profile in a real browser', () => {
     // differently: the text going missing would break FCR-006 the other way
     // (it asks for a disabled affordance that says why, not for silence), and
     // the row becoming focusable again is the change the owner reverted.
-    await expect(page.getByText(/로그인|Sign in/).first()).toBeVisible();
+    const login = page.getByText(/로그인|Sign in/).first();
+    await expect(login).toBeVisible();
     await expect(page.getByRole('link', { name: /로그인|Sign in/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /로그인|Sign in/ })).toHaveCount(0);
 
-    // No auth request, which is the invariant that outlived both flips: it was
-    // true when this row was inert, true while it was a link, and true now.
-    expect(writes.filter((url) => /login|auth|sign-?in|account/i.test(url))).toEqual([]);
+    await page.waitForLoadState('networkidle');
+    const requestCount = requests.length;
+    await login.click();
+    await login.dispatchEvent('keydown', { key: 'Enter' });
+    await expect(page).toHaveURL(/\/profile$/);
+    await page.waitForTimeout(50);
+    expect(requests).toHaveLength(requestCount);
+
+    // No request at all, which is stronger than checking one guessed auth path.
   });
 });

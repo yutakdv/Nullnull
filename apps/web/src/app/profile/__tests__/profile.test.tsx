@@ -12,7 +12,7 @@
 // itinerary content for history, so a test checks the screen shows status and
 // target only, rather than trusting the fixture to stay thin.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -42,13 +42,16 @@ afterEach(() => {
 
 function renderProfile() {
   const router = createMemoryRouter(routes, { initialEntries: ['/profile'] });
-  return render(
-    <QueryClientProvider client={createQueryClient()}>
-      <I18nProvider>
-        <RouterProvider router={router} />
-      </I18nProvider>
-    </QueryClientProvider>,
-  );
+  return {
+    ...render(
+      <QueryClientProvider client={createQueryClient()}>
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    ),
+    router,
+  };
 }
 
 /**
@@ -66,7 +69,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe('S14 profile shows the anonymous guest state', () => {
+describe('FE-105-T1 S14 anonymous guest state (FCR-006 trace)', () => {
   it('explains where trips are stored', async () => {
     renderProfile();
     expect(await screen.findByText(copy['profile.guest.note'])).toBeInTheDocument();
@@ -103,6 +106,33 @@ describe('S14 profile shows the anonymous guest state', () => {
     await screen.findByText(copy['profile.guest.note']);
     const authCalls = requests.filter((r) => /login|auth|session\/account/i.test(r.url));
     expect(authCalls).toEqual([]);
+  });
+
+  it('does not navigate or request auth when the inert text is clicked or sent Enter', async () => {
+    const user = userEvent.setup();
+    const { router } = renderProfile();
+    const login = await screen.findByText(copy['profile.login']);
+    await screen.findByText(copy['profile.guest.note']);
+    await waitFor(() => {
+      expect(requests.some((request) => request.url.endsWith('/trips'))).toBe(true);
+      expect(requests.some((request) => request.url.includes('/optimizations'))).toBe(
+        true,
+      );
+      expect(
+        requests.some((request) =>
+          request.url.endsWith(`/trips/${tripFixtures.page.items[0]?.id ?? ''}`),
+        ),
+      ).toBe(true);
+    });
+    const requestCount = requests.length;
+
+    expect(login).not.toHaveAttribute('tabindex');
+    await user.click(login);
+    fireEvent.keyDown(login, { key: 'Enter' });
+
+    expect(router.state.location.pathname).toBe('/profile');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(requests).toHaveLength(requestCount);
   });
 });
 

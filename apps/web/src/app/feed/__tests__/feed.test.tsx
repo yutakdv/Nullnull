@@ -426,6 +426,104 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
   });
 });
 
+describe('FE-201-T2 populated feed boundaries (FCR-002/003/009 trace)', () => {
+  it('renders real cards but no search, notification, follow or ranking controls', async () => {
+    renderFeed();
+    const title = await screen.findByText(firstTitle);
+    expect(firstTitle).not.toBe('');
+    expect(title.closest('article')).not.toBeNull();
+
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    expect(
+      screen.queryByRole('button', {
+        name: /search|검색|notification|알림|follow|팔로우|following|팔로잉|latest|최신|recommended|추천|filter|필터/i,
+      }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('link', {
+        name: /search|검색|notification|알림|follow|팔로우|following|팔로잉|latest|최신|recommended|추천|filter|필터|혼잡도 낮은 순|지금 가기 좋아요|crowd.*sort|best time/i,
+      }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', {
+        name: /filter|필터|혼잡도 낮은 순|지금 가기 좋아요|crowd.*sort|best time/i,
+      }),
+    ).toBeNull();
+    for (const role of ['button', 'link', 'tab'] as const) {
+      expect(
+        screen.queryByRole(role, {
+          name: /^(?:recommended|추천|all|전체|seoul|서울)$/i,
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it('sends no unsupported search, notification, follow, filter or sort request', async () => {
+    const requests: URL[] = [];
+    const record = ({ request }: { request: Request }) => {
+      requests.push(new URL(request.url));
+    };
+    server.events.on('request:start', record);
+    try {
+      renderFeed();
+      await screen.findByText(firstTitle);
+
+      expect(requests.length).toBeGreaterThan(0);
+      expect(
+        requests.filter((url) =>
+          /search|notifications?|follows?|filters?|sort|rank/i.test(
+            `${url.pathname}?${url.searchParams.toString()}`,
+          ),
+        ),
+      ).toEqual([]);
+
+      const productPaths = requests
+        .map((url) => url.pathname)
+        .filter(
+          (path) =>
+            !path.startsWith(`${API_BASE}/session`) &&
+            !path.startsWith(`${API_BASE}/demo`),
+        );
+      expect(productPaths.length).toBeGreaterThan(0);
+      expect(
+        productPaths.every(
+          (path) => path === `${API_BASE}/feed` || path === `${API_BASE}/trips`,
+        ),
+      ).toBe(true);
+
+      const feedRequests = requests.filter((url) => url.pathname.endsWith('/feed'));
+      expect(feedRequests.length).toBeGreaterThan(0);
+      for (const url of feedRequests) {
+        const allowed = new Set(['cursor', 'limit', 'tripId']);
+        expect([...url.searchParams.keys()].every((key) => allowed.has(key))).toBe(true);
+        expect(
+          [...url.searchParams.keys()].filter((key) =>
+            /filter|sort|rank|search/i.test(key),
+          ),
+        ).toEqual([]);
+      }
+    } finally {
+      server.events.removeListener('request:start', record);
+    }
+  });
+
+  it('renders every real card without inventing a distance the contract does not carry', async () => {
+    renderFeed();
+    await screen.findByText(firstTitle);
+
+    for (const item of feedFixtures.page.items) {
+      const card = screen.getByText(item.post.title).closest('article');
+      expect(card).not.toBeNull();
+      expect(card).not.toHaveTextContent(
+        /\b\d+(?:[.,]\d+)?\s*(?:m|km|mi|miles?|meters?|metres?)\b/i,
+      );
+      expect(
+        within(card as HTMLElement).queryByText(/^(?:distance|거리|도보)(?:\s|$)/i),
+      ).toBeNull();
+    }
+  });
+});
+
 describe('FE-201 the card shows only what the contract supplies', () => {
   it('credits the source the server named on a card that has one', async () => {
     renderFeed();

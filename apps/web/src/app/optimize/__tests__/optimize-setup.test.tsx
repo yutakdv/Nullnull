@@ -27,7 +27,13 @@ import { routes } from '../../routes.js';
 
 const copy = messages['en-US'];
 const trip = tripFixtures.detailScheduled;
-const first = trip.days[0]?.items[0];
+const items = trip.days.flatMap((day) => day.items);
+const first = items.find(
+  (item) => !item.constraints.some((constraint) => constraint.type === 'DATE'),
+);
+const dateLocked = items.find((item) =>
+  item.constraints.some((constraint) => constraint.type === 'DATE'),
+);
 
 interface Sent {
   body: unknown;
@@ -77,7 +83,7 @@ function renderSetup() {
   );
 }
 
-/** Renders and picks the first stop, which is the only way to enable submit. */
+/** Renders and picks the first movable stop, which is the only way to enable submit. */
 async function pickFirstStop(user: ReturnType<typeof userEvent.setup>) {
   renderSetup();
   // The heading renders in the loading branch too, so this waits for a
@@ -90,7 +96,7 @@ async function pickFirstStop(user: ReturnType<typeof userEvent.setup>) {
   );
 }
 
-describe('FE-501-T1 only ITEM is offered, and the others send nothing', () => {
+describe('FE-501-T1 only ITEM is offered (FCR-010 trace)', () => {
   it('enables ITEM and disables DAY and TRIP', async () => {
     renderSetup();
     expect(
@@ -175,6 +181,25 @@ describe('FE-501-T1 only ITEM is offered, and the others send nothing', () => {
     expect(sent[0]?.ifMatch).not.toBeNull();
     // Minted per submit: a retry must replay the run, not queue a second.
     expect(sent[0]?.idempotencyKey).not.toBeNull();
+  });
+
+  it('keeps a DATE-locked stop visible but disabled and sends nothing for it', async () => {
+    expect(dateLocked).toBeDefined();
+    if (!dateLocked) return;
+
+    const user = userEvent.setup();
+    renderSetup();
+    await screen.findByRole('button', { name: copy['optimize.scope.ITEM'] });
+    const locked = screen.getByRole('button', {
+      name: new RegExp(dateLocked.place.name),
+    });
+    expect(locked).toBeDisabled();
+    expect(locked).toHaveAccessibleDescription(copy['optimize.targetDateLocked']);
+
+    await user.click(locked);
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+    expect(await screen.findByText(copy['optimize.needTarget'])).toBeInTheDocument();
+    expect(sent).toHaveLength(0);
   });
 
   it('replays the same key when the user retries a failed submit', async () => {

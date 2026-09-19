@@ -325,7 +325,7 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
     });
   });
 
-  it('names the two things it is actually checking', async () => {
+  it('names the two things it is actually checking (FCR-005 trace)', async () => {
     // FCR-005: P0 has no route provider, so route and travel-time copy was
     // removed from this frame. A `경로 계산` step would describe work that
     // nothing performs.
@@ -474,7 +474,7 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
 // 360px/200%-zoom half is responsive.spec.ts, whose SCREENS list carries this
 // route as "optimization run". All halves exist, so the ID sits on each block
 // that holds one of them.
-describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
+describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation (FCR-014 trace)', () => {
   it('says the run continues when the user goes back', async () => {
     // FCR-014: P0 has no cancel operation, so the screen must not imply one.
     runIs('RUNNING');
@@ -490,17 +490,29 @@ describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
   });
 
   it('returns to the trip without waiting for the run', async () => {
+    const writes: string[] = [];
+    const record = ({ request }: { request: Request }) => {
+      if (request.method !== 'GET') writes.push(`${request.method} ${request.url}`);
+    };
+    server.events.on('request:start', record);
     runIs('RUNNING');
     const user = userEvent.setup();
-    renderRun();
-    const [back] = await screen.findAllByRole('button', { name: copy['run.leave'] });
-    await user.click(back as HTMLElement);
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
-        'id',
-        'trip-heading',
-      );
-    });
+    try {
+      renderRun();
+      const [back] = await screen.findAllByRole('button', { name: copy['run.leave'] });
+      await user.click(back as HTMLElement);
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+          'id',
+          'trip-heading',
+        );
+      });
+      expect(
+        writes.filter((write) => !write.includes('/session') && !write.includes('/demo')),
+      ).toEqual([]);
+    } finally {
+      server.events.removeListener('request:start', record);
+    }
   });
 });
 

@@ -481,6 +481,7 @@ export const messages = {
     'optimize.scope.comingSoon': '준비 중이에요. P0에서는 장소 하나만 바꿔볼 수 있어요',
     'optimize.target': '바꿔볼 장소',
     'optimize.targetEmpty': '일정에 장소가 없어요. 먼저 장소를 담아주세요',
+    'optimize.targetDateLocked': '날짜 고정이라 옮길 수 없어요',
     'optimize.includeCandidates': '후보로 담아둔 장소도 후보에 넣기',
     // Its own reason, not `optimize.scope.comingSoon`: that one explains why
     // only one stop can be optimized, which says nothing about candidates and
@@ -1347,6 +1348,7 @@ export const messages = {
     'optimize.scope.comingSoon': 'Coming soon. For now you can change one stop',
     'optimize.target': 'Which stop',
     'optimize.targetEmpty': 'This trip has no stops yet. Add one first',
+    'optimize.targetDateLocked': "Can't move this stop because its date is locked",
     'optimize.includeCandidates': 'Also consider places saved to this trip',
     'optimize.includeCandidates.comingSoon':
       'Coming soon. For now this looks at stops already in the trip',

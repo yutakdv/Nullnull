@@ -99,6 +99,16 @@ tags:
 
 -
 
+## 이슈 종료 gate
+
+<!-- 미완료 handoff가 하나라도 있으면 `Closes`/`Fixes`/`Resolves` 대신 `Refs`만 사용한다. -->
+
+- [ ] 종료 키워드로 연결한 이슈는 이 PR만 머지되면 acceptance 전체가 충족된다.
+- [ ] 상대 역할의 미병합 계약·fixture·구현·검증 handoff가 남아 있지 않다.
+- [ ] `serverVerified: false`, provisional mock, capability OFF 또는 staging/실호출 증거 대기 조건을 확인했다. 남아 있다면 담당 이슈와 종료 조건으로 명시적으로 이관했다.
+- [ ] 머지 전에 GitHub의 `closingIssuesReferences`가 의도한 이슈만 가리키는지 확인했다.
+- [ ] 미완료 조건이 하나라도 있으면 PR 본문은 `Refs #…`로 작성하고, 남은 담당자·작업·검증·종료 조건을 해당 이슈에 코멘트했다.
+
 ## 공모전 제출 증거
 
 <!-- 제출 후보 PR만 작성. 미구현/P1은 구현 완료로 표시하지 않는다. -->

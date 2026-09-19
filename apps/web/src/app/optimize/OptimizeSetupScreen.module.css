@@ -64,6 +64,11 @@
   border-width: 2px;
 }
 
+.item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .itemName {
   color: var(--color-text-primary);
   font-size: var(--font-body-sm);

@@ -975,25 +975,40 @@ export const handlers = [
     });
   }),
 
-  // queryPlaceCrowdForecasts (#105). Until the approved forecast-query fixture
-  // is exported from @nullnull/contracts, the default mock uses the approved
-  // single-place NO_COVERAGE fixture for every requested id. That is an honest
-  // common response (most catalog places have no stored forecast), preserves
-  // the contract's same-length/same-order rule and invents no number or source.
-  // Screen tests override this handler with mixed forecast/unavailable items
-  // to prove index joins and rich rendering. Once BE exports the batch fixture,
-  // this body can be replaced directly without changing a screen.
+  // queryPlaceCrowdForecasts (#105). Every item comes from the approved batch
+  // response fixture. Its canonical-id order differs from the place-search
+  // fixture, so returning it wholesale would attach 명동's reading to 경복궁
+  // and violate the same-length/same-order contract. Reorder the approved
+  // canonical items to the request; screen code still joins by index because
+  // a real response may canonicalize a deprecated request id.
+  //
+  // An id outside the fixture uses its approved PLACE_UNAVAILABLE item as a
+  // template. Only the requested id changes, exactly as the contract requires;
+  // no crowd value, state, provenance or display text is invented here.
+  // The response-only fixture does not publish the deprecated request alias
+  // used by its first example, so this default handler cannot reproduce that
+  // alias honestly. Screen tests use a mismatched response placeId to prove the
+  // production join-by-index behavior; default-handler alias parity remains a
+  // BE request-fixture handoff on #105.
   http.post(`${API_BASE}/places/crowd-forecasts/query`, async ({ request }) => {
     const body = (await request.json()) as { placeIds?: unknown };
     const placeIds = Array.isArray(body.placeIds)
       ? body.placeIds.filter((id): id is string => typeof id === 'string')
       : [];
+    const byPlaceId = new Map(
+      crowdFixtures.forecastQuery.items.map((item) => [item.placeId, item] as const),
+    );
+    const unavailable = crowdFixtures.forecastQuery.items.find(
+      (item) => item.unavailableReason === 'PLACE_UNAVAILABLE',
+    );
+    if (!unavailable) throw new Error('forecast-query fixture needs PLACE_UNAVAILABLE');
+
     return HttpResponse.json(
       {
-        items: placeIds.map((placeId) => ({
-          ...crowdFixtures.seriesUnavailable,
-          placeId,
-        })),
+        ...crowdFixtures.forecastQuery,
+        items: placeIds.map(
+          (placeId) => byPlaceId.get(placeId) ?? { ...unavailable, placeId },
+        ),
       },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );

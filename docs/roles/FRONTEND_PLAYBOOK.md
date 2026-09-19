@@ -114,6 +114,19 @@ frame의 UI/server 책임은 [소유권 매트릭스](../engineering/OWNERSHIP_M
 5. PR의 `docker-integration`이 candidate merge ref를 실제 API·DB와 함께 검증하고, 두 required check가 green이면 auto-merge한다.
 6. merge 후 `frontend`를 `main`으로 fast-forward하고 merged branch를 삭제하지 않는다.
 
+이슈 종료 키워드는 완료 증거와 별도로 다룬다. PR 본문은 기본적으로 `Refs #…`를
+사용한다. `Closes`·`Fixes`·`Resolves`는 해당 PR의 merge만으로 이슈의 acceptance가
+전부 충족되고, 상대 역할의 미병합 계약·fixture·구현·검증 handoff가 없을 때만 쓴다.
+`serverVerified: false`, provisional mock, capability OFF, staging 또는 실제 호출 증거
+대기가 하나라도 남으면 종료 키워드를 쓰지 않는다. 잔여 작업을 별도 이슈로 넘길 때는
+담당자, 작업, 검증과 종료 조건을 원래 이슈에 기록하고 새 이슈가 실제로 존재하는지
+확인한 뒤에만 이관 완료로 본다.
+
+PR을 연 뒤에는 GitHub의 `closingIssuesReferences`를 확인해 의도하지 않은 자동 종료가
+없는지 검증한다. merge 뒤에는 연결한 이슈의 실제 상태를 다시 확인한다. 미완료 이슈가
+닫혔다면 즉시 reopen하고 PR의 종료 키워드를 `Refs`로 정정하며, 완료 이슈가 자동으로
+닫히지 않았다면 검증 근거를 코멘트한 뒤 수동 종료한다.
+
 두 역할 브랜치 사이의 PR이나 cherry-pick은 금지한다. 교차 기능은 `backend`의 contract-only PR → `main` merge → 두 역할 branch의 `main` 동기화 → backward-compatible Backend PR → Frontend PR 순서로 합친다. capability가 양쪽에서 준비되기 전에는 켜지 않아 반쪽 구현을 노출하지 않는다. Frontend PR 뒤 server-owned capability를 켤 때는 Backend/AI의 별도 flag/config PR, FE 승인, 두 required status와 staging acceptance가 필요하다.
 
 ## 6. Definition of Ready
