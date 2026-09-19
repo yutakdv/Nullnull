@@ -86,6 +86,27 @@ export function ScheduleCandidateSheet({
     if (open) return;
     const target = restoreTo.current;
     restoreTo.current = null;
+    // LATENT, recorded rather than fixed (#272 cause 4). `isConnected` asks
+    // whether the node is in the page, not whether it can HOLD focus: focusing
+    // a disabled button is a silent no-op and leaves focus on <body>.
+    // TripPicker had exactly that defect -- picking a trip re-rendered its
+    // trigger into TripAddButton's `loading` state, which is `disabled` -- and
+    // now routes through `restoreFocusTo`
+    // (shared/ui/components/focus-restore.ts), which also falls back to <main>.
+    //
+    // UNREACHABLE here today: this sheet's trigger (CandidatesScreen.tsx:343)
+    // carries no `disabled` at all. It is conditionally RENDERED instead
+    // (`{scheduled ? null : ...}`), so on the path that removes it the node is
+    // gone rather than present-but-disabled, `isConnected` correctly says no,
+    // and CandidatesScreen does its own restore to the row's Remove control.
+    // That path is pinned by the saved-places test in
+    // e2e/focus-restore.spec.ts (which carries no acceptance ID -- that file
+    // says why).
+    //
+    // Switching now would be a radius-0 change -- no test could tell it apart
+    // -- so this note stands in for it: if a `disabled` is ever added to that
+    // trigger (a pending schedule is the obvious one), this line starts
+    // dropping focus to <body> silently, and the fix is `restoreFocusTo`.
     if (target?.isConnected) target.focus();
   }, [open]);
 

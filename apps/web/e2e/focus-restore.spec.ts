@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-// FE-305 `T4`, the "focus 복귀" clause: where focus lands after the saved-places
-// sheet closes.
+// The "focus 복귀" clause on the saved-places sheet: where focus lands after
+// it closes. Carries no acceptance ID -- see WHY THIS TEST CARRIES NO
+// ACCEPTANCE ID below.
 //
 // WHY THIS SCREEN AND NOT THE OTHER THREE the clause names. Of the four screens
 // (FE-104 paste import, FE-203 saved places, FE-503/FE-505 optimize setup and
@@ -12,13 +13,31 @@ import { expect, test } from '@playwright/test';
 // nothing to close, so there is no focus to return -- the clause is vacuously
 // satisfied there and asserting it would measure nothing.
 //
-// WHY FE-305 AND NOT FE-203, which is the card the screen's name suggests.
-// FE-203 owns the 담기 sheet -- `399:658` S03-C1 and `409:1595` S06-1, both
-// TripPicker.tsx on the feed (NIGHT_PLAN_2026-09-17.md:93-99). The sheet this
-// spec opens is the 후보 일정화 날짜 선택, node `527:4695`, and
-// FIGMA_HANDOFF.md:188 plus NIGHT_PLAN_2026-09-17.md:128 put that node under
-// FE-305. The two sheets look alike and sit one route apart, so the name is the
-// wrong guide here and the node is the right one.
+// WHY THIS TEST CARRIES NO ACCEPTANCE ID, deliberately rather than by
+// oversight (#195: there is no place to give a test ID to a unit of work that
+// is not a card).
+//
+// The screen is FE-303 -- CandidatesScreen.tsx:24 declares `S07-8 candidate
+// panel 412:1912`, and IMPLEMENTATION_PLAN.md:268 gives that node to FE-303
+// ("S07-8 후보 panel과 일정화 flow"). It is NOT FE-305, which an earlier
+// version of this file claimed: FE-305 is "검색/추가/교체/날짜·시간 이동
+// variant" (:270) and merely LISTS this sheet's node among nine others. The
+// node `527:4695` is cited by both cards, so a node alone does not decide a
+// card -- how many cards cite it has to be counted too.
+//
+// And the `T4` clause it was tagged with (focus restore, split off from `T3`
+// by the owner) exists in the issue body but was never written into the
+// frontend plan, which is what validate_frontend_plan.py:179 compares a card's
+// `evidence.testIds` against. An ID that no card declares is matched by
+// nothing, so tagging this test would read as coverage while being checked by
+// no one. The behaviour below is measured either way; only the label is
+// missing, and an absent label is the honest form of that.
+//
+// Also worth the next reader's time: this file's subject cites a node that the
+// canon does not have. ScheduleCandidateSheet.tsx:7 and CandidatesScreen.tsx:315
+// both say `527:4732`, which appears nowhere in docs/; FIGMA_HANDOFF.md:188
+// calls this sheet `527:4695`. Trusting that source comment is what sent the
+// first version of this header to the wrong card. Raised for an owner ruling.
 
 // WHY A BROWSER. ConfirmDialog.tsx:306 records the measurement: in happy-dom
 // every candidate accepts focus (hidden and `inert` elements both became
@@ -43,8 +62,8 @@ import { expect, test } from '@playwright/test';
 // on <body>, which is what makes this assertion able to fail.
 const CANDIDATES = '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/candidates';
 
-test.describe('FE-305-T4 closing the saved-places sheet leaves focus somewhere usable', () => {
-  test('FE-305-T4 a completed schedule moves focus to the row, not the document', async ({
+test.describe('closing the saved-places sheet leaves focus somewhere usable', () => {
+  test('a completed schedule moves focus to the row, not the document', async ({
     page,
   }) => {
     await page.goto('/');
