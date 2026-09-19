@@ -2584,7 +2584,7 @@
         },
         {
           "id": "BA-071-T3",
-          "assertion": "배포는 release manifest가 지목한 digest만 실행한다"
+          "assertion": "staging 배포는 release manifest에 묶인 산출물 전체와 승인된 CDK assembly만 실행한다"
         },
         {
           "id": "BA-071-T4",
@@ -2595,7 +2595,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-071",
-      "reason": "T1은 staging smoke(alb_internal·s3_private·rds_private_multi_az)가 증명했다. T2는 migration 층(다)을 로컬 Flyway 동시 실행으로 재현했고 DynamoDB 잠금 층(나)의 실계정 이중 획득 거부 기록을 기다린다. T3는 A-047로 manifest digest만 실행하는 절로 좁혔고 manifest·digest 거부 test와 staging release run들이 증명했다. T4(rollback 뒤 smoke)는 마지막 배포 전 연습으로 남았다. staging 절은 JUnit으로 집계되지 않으므로 in-progress를 유지한다."
+      "reason": "T1은 staging smoke(alb_internal·s3_private·rds_private_multi_az)가 증명했다. T2는 실제 DynamoDB 잠금의 이중 획득 거부(나)와 로컬 Flyway 동시 실행의 대기(다)로 증명했다. T3는 A-047로 승격 절을 빼고 manifest에 묶인 산출물 전체의 대조 test와 staging release run들이 증명했다. T4(rollback 뒤 smoke)는 #305의 마지막 배포 전 연습으로 남았다. staging 절은 JUnit으로 집계되지 않으므로 in-progress를 유지한다."
     },
     {
       "id": "BA-072",
@@ -2632,7 +2632,7 @@
         },
         {
           "id": "BA-072-T3",
-          "assertion": "수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 재현한다"
+          "assertion": "수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 tabletop으로 검토한다"
         },
         {
           "id": "BA-072-T4",
@@ -2663,7 +2663,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-072",
-      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049로 tabletop 등급 증거를 기다린다. T7은 staging에서 다섯 ops.alarm 이름의 로그 줄을 넣어 metric filter·alarm·primary 수신을 재현하는 기록을 기다린다. secondary 수신자는 A-043으로 범위 밖이다."
+      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049로 tabletop 등급 증거를 기다린다. T7은 staging에 넣은 다섯 ops.alarm 줄로 metric filter까지 증명했고 alarm 전환과 primary 메일 도달은 확인하지 못했다. secondary 수신자는 A-043으로 범위 밖이다."
     },
     {
       "id": "BA-073",

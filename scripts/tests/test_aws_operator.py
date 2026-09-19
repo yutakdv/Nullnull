@@ -172,6 +172,28 @@ class OperatorRegressions(unittest.TestCase):
                 ops.migration({'apiImageDigest':'sha256:'+'a'*64},SimpleNamespace(check=lambda:None))
             self.assertEqual(1,aws.call_count)
 
+    def test_every_manifest_bound_artifact_is_compared_before_it_is_used(self):
+        # BA-071-T3 (A-047): the deployed set is the manifest's whole set, not only its image digests.
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d); (root/'docs/api').mkdir(parents=True); (root/'docs/contracts').mkdir(parents=True)
+            (root/'apps/api/src/main/resources/db/migration').mkdir(parents=True); web=root/'web'; web.mkdir()
+            (root/'docs/api/openapi.yaml').write_text('openapi')
+            (root/'docs/contracts/events.schema.json').write_text('{}')
+            (root/'apps/api/src/main/resources/db/migration/V001__a.sql').write_text('select 1;')
+            (web/'index.html').write_text('<p>')
+            with patch.object(ops,'ROOT',root):
+                good={'openApiSha256':'sha256:'+ops.digest(root/'docs/api/openapi.yaml'),
+                      'eventSchemaSha256':'sha256:'+ops.digest(root/'docs/contracts/events.schema.json'),
+                      'webArtifactSha256':'sha256:'+ops.tree_digest(web),
+                      'flywayChecksums':['V001__a.sql:'+ops.digest(root/'apps/api/src/main/resources/db/migration/V001__a.sql')]}
+                ops.check_artifacts(good,web)
+                for field,bad,reason in [('openApiSha256','sha256:'+'0'*64,'artifact-mismatch-openApiSha256'),
+                                         ('eventSchemaSha256','sha256:'+'0'*64,'artifact-mismatch-eventSchemaSha256'),
+                                         ('webArtifactSha256','sha256:'+'0'*64,'web-artifact-mismatch'),
+                                         ('flywayChecksums',[],'migration-checksum-mismatch')]:
+                    with self.subTest(field=field),self.assertRaisesRegex(ops.OpsError,reason):
+                        ops.check_artifacts({**good,field:bad},web)
+
     def test_stateful_property_change_is_blocked(self):
         old={'Resources':{'Db':{'Type':'AWS::RDS::DBInstance','Properties':{'DBInstanceClass':'db.t4g.micro'}}}}
         with tempfile.TemporaryDirectory() as d:

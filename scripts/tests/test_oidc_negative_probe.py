@@ -20,6 +20,7 @@ key="FAKE_$(tr 'a-z-' 'A-Z_' <<<"$role")"
 case "${!key}" in
   accept) echo AROAEXAMPLE:session ;;
   deny) echo "An error occurred (AccessDenied) when calling the AssumeRoleWithWebIdentity operation: Not authorized" >&2; exit 254 ;;
+  lookalike) echo "An error occurred (AccessDeniedException) when calling the GetRole operation" >&2; exit 254 ;;
   *) echo "An error occurred (ExpiredTokenException) when calling the AssumeRoleWithWebIdentity operation" >&2; exit 254 ;;
 esac
 """
@@ -32,7 +33,7 @@ def token(environment):
 
 
 class OidcNegativeProbe(unittest.TestCase):
-    def run_probe(self, own, other, environment='staging-build'):
+    def run_probe(self, own, other, environment='staging-build', env_name='staging-build'):
         with tempfile.TemporaryDirectory() as d:
             for name, body in [('curl', FAKE_CURL), ('aws', FAKE_AWS)]:
                 p = Path(d) / name
@@ -41,8 +42,7 @@ class OidcNegativeProbe(unittest.TestCase):
             env = {**os.environ, 'PATH': f"{d}:{os.environ['PATH']}",
                    'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://example.invalid/?x=1',
                    'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 'request-token', 'ACCOUNT': '000000000000',
-                   'OWN_ROLE': 'nullnull-stg-github-publish', 'OTHER_ROLE': 'nullnull-stg-github-deploy',
-                   'ENVIRONMENT': 'staging-build', 'FAKE_TOKEN': token(environment),
+                   'ENVIRONMENT': env_name, 'FAKE_TOKEN': token(environment),
                    'FAKE_NULLNULL_STG_GITHUB_PUBLISH': own, 'FAKE_NULLNULL_STG_GITHUB_DEPLOY': other}
             result = subprocess.run(['bash', str(PROBE)], env=env, capture_output=True, text=True)
         return result.returncode, result.stdout
@@ -74,6 +74,16 @@ class OidcNegativeProbe(unittest.TestCase):
         code, out = self.run_probe('accept', 'deny', environment='staging')
         self.assertEqual(1, code)
         self.assertIn('reason=token-not-from-environment-staging-build', out)
+
+    def test_an_access_denied_lookalike_from_another_operation_is_no_verdict(self):
+        code, out = self.run_probe('accept', 'lookalike')
+        self.assertEqual(1, code)
+        self.assertNotIn('oidc_negative=rejected', out)
+
+    def test_an_unknown_environment_names_no_roles(self):
+        code, out = self.run_probe('accept', 'deny', environment='prod', env_name='prod')
+        self.assertEqual(1, code)
+        self.assertIn('reason=unknown-environment-prod', out)
 
 
 if __name__ == '__main__':

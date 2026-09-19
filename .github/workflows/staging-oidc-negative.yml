@@ -19,6 +19,9 @@ env:
 jobs:
   from-staging-build:
     name: staging-build token asks for the deploy role
+    # A dispatch can name any branch, and the job below receives a trusted environment token and runs the
+    # checked-out code. Only the default branch may start it; the environment's branch policy is the second line.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -38,13 +41,14 @@ jobs:
       - name: Own role accepts, deploy role refuses
         env:
           ACCOUNT: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
-          OWN_ROLE: nullnull-stg-github-publish
-          OTHER_ROLE: nullnull-stg-github-deploy
           ENVIRONMENT: staging-build
         run: bash scripts/aws/oidc-negative-probe.sh
 
   from-staging:
     name: staging token asks for the publish role
+    # A dispatch can name any branch, and the job below receives a trusted environment token and runs the
+    # checked-out code. Only the default branch may start it; the environment's branch policy is the second line.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -64,7 +68,5 @@ jobs:
       - name: Own role accepts, publish role refuses
         env:
           ACCOUNT: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
-          OWN_ROLE: nullnull-stg-github-deploy
-          OTHER_ROLE: nullnull-stg-github-publish
           ENVIRONMENT: staging
         run: bash scripts/aws/oidc-negative-probe.sh

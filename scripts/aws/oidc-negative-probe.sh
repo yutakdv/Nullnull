@@ -2,14 +2,21 @@
 # BA-006-T3: a GitHub OIDC token from the wrong environment is refused by the other environment's role.
 #
 # Run inside a GitHub Actions job that has `id-token: write` and a deployment environment. The job's own role
-# (OWN_ROLE) must accept the token - that control is what makes the refusal mean "wrong subject" and not
+# must accept the token - that control is what makes the refusal mean "wrong subject" and not
 # "the token or the call was broken" - and the other environment's role (OTHER_ROLE) must answer AccessDenied.
 # Any other outcome is no verdict and fails. No credential is printed: only the call's exit and error code.
 set -euo pipefail
 
 : "${ACTIONS_ID_TOKEN_REQUEST_URL:?the job needs permissions: id-token: write}"
 : "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:?the job needs permissions: id-token: write}"
-: "${ACCOUNT:?}" "${OWN_ROLE:?}" "${OTHER_ROLE:?}" "${ENVIRONMENT:?}"
+: "${ACCOUNT:?}" "${ENVIRONMENT:?}"
+# The roles come from the environment, not from inputs: a mistyped or stale role name answers AccessDenied too,
+# and would read as a refusal. Each environment's own role and the other one are the two real GitHub roles.
+case "$ENVIRONMENT" in
+  staging-build) OWN_ROLE=nullnull-stg-github-publish; OTHER_ROLE=nullnull-stg-github-deploy ;;
+  staging) OWN_ROLE=nullnull-stg-github-deploy; OTHER_ROLE=nullnull-stg-github-publish ;;
+  *) echo "oidc_probe=no-verdict reason=unknown-environment-${ENVIRONMENT}"; exit 1 ;;
+esac
 
 token="$(curl --fail --silent --show-error \
   -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
@@ -31,7 +38,7 @@ assume() {
       --role-session-name "oidc-negative-${GITHUB_RUN_ID:-local}" --web-identity-token "$token" \
       --duration-seconds 900 --query 'AssumedRoleUser.AssumedRoleId' --output text >/dev/null 2>"$err"; then
     echo accepted
-  elif grep -q 'AccessDenied' "$err"; then
+  elif grep -q '(AccessDenied) when calling the AssumeRoleWithWebIdentity operation' "$err"; then
     echo denied
   else
     echo "other:$(grep -oE '\(([A-Za-z]+)\)' "$err" | head -1 | tr -d '()')"
