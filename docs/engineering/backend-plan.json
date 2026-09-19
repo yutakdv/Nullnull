@@ -431,7 +431,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006",
-      "reason": "T1은 full Docker와 outbound-deny report로 증명됐다. T2는 A-045로 operator가 읽을 수 있는 secret으로 좁혔고 release v0.1.0-rc.9의 secret-scan이 clean-partial(누출 0)로 증명했다. T3는 A-046으로 다른 environment의 subject로 좁혔고 staging-oidc-negative workflow의 실제 AssumeRole 거부 기록이 들어오기 전까지 증명되지 않았다. staging 절은 JUnit으로 집계되지 않으므로 integration-ready로 올리지 않고 in-progress를 유지한다."
+      "reason": "T1은 full Docker와 outbound-deny report로 증명됐다. T2는 A-045로 operator가 읽을 수 있는 secret으로 좁혔고 release v0.1.0-rc.9의 secret-scan이 clean-partial(누출 0)로 증명했다. T3는 A-046으로 다른 environment의 subject로 좁혔고 staging-oidc-negative run 35471139893의 두 job이 대조군 수락과 AccessDenied 거부를 함께 찍어 증명했다. staging 절은 JUnit으로 집계되지 않으므로 integration-ready로 올리지 않고 in-progress를 유지한다."
     },
     {
       "id": "BA-010",

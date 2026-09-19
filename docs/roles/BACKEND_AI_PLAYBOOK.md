@@ -377,11 +377,11 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 실패·안전 경계: 실제 secret 값 기반 bundle·image layer·log scan과 잘못된 OIDC subject의 AssumeRole 거부 기록이 없으면 integration-ready가 아니다. 실제 설정·배포 완료를 문서와 구조 test만으로 표시하지 않는다.
 
-로컬 통합과 staging 배포·CD 실행은 끝났지만 T3의 실제 거부 기록 때문에 `in-progress`다:
+로컬 통합·staging 배포·CD와 세 절의 증거가 모두 있다. staging 절은 JUnit으로 집계되지 않아 status는 `in-progress`로 남는다:
 
 - 증명됨(T1): 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper가 있고, required Docker gate가 정규화 Compose의 internal network와 판정 token을 내는 `egress-denied` probe를 실행한다.
 - 증명(T2, [A-045](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): browser-facing build에 credential 또는 `VITE_*` secret을 건네지 않는 입력 경계는 gate가 고정한다. 값 스캔은 operator 명령 `staging_operator.py secret-scan`이 release `v0.1.0-rc.9`에서 `secret_exposure=clean-partial`로 냈다 — release 6개의 bundle, api·ai image(layer와 jar까지 풀어 blob 5,910개·archive 항목 56,161개), log event 17,848건을 KTO key·verifier token의 실제 값(인코딩 형태 포함)으로 훑었고 누출 0이다. `partial`은 DB 계정·비밀번호·cursor·deletion token secret을 스캔하지 않았다는 뜻이고 A-045가 그것을 이 절 밖으로 뺐다. evidence는 release bucket `evidence/secret-exposure/v0.1.0-rc.9/`에 값 없이 있다.
-- 대기(T3, [A-046](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): CDK 구조 test와 배포 뒤 smoke는 live GitHub role trust가 deploy·publish role의 exact subject 집합과 일치함을 관측했다. 실제 거부는 `staging-oidc-negative` workflow(`scripts/aws/oidc-negative-probe.sh`)가 잰다 — `staging-build` token이 deploy role에, `staging` token이 publish role에 `AccessDenied`를 받고, 같은 token이 자기 role에는 받아들여지는 대조군이 먼저 통과해야 판정이다. 그 run이 돌기 전까지 이 절은 증명되지 않았다. 다른 repository의 subject는 이 저장소에서 token을 만들 수 없어 A-046이 절 밖으로 뺐다.
+- 증명(T3, [A-046](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): `staging-oidc-negative` run `35471139893`(main)에서 두 job이 모두 통과했다 — `staging-build` token은 `oidc_control=accepted role=nullnull-stg-github-publish` 뒤에 `oidc_negative=rejected role=nullnull-stg-github-deploy`, `staging` token은 그 반대(`oidc_control=accepted role=nullnull-stg-github-deploy`, `oidc_negative=rejected role=nullnull-stg-github-publish`)다. 거부는 `AssumeRoleWithWebIdentity`의 `AccessDenied`만 센다. 대조군이 먼저 통과했으므로 거부가 token·호출의 고장이 아니다. CDK 구조 test와 배포 뒤 smoke의 live trust 관측은 그대로다. 다른 repository의 subject는 이 저장소에서 token을 만들 수 없어 A-046이 절 밖으로 뺐다.
 - 배포 사실: main `d988123`의 Staging release가 성공했고 배포 뒤 smoke에서 `public_api_edge=closed`, `alb_internal=true`, `s3_private=true`, `rds_private_multi_az=true`를 관측했다. 이 사실은 과거의 *infra/CDK와 실제 AWS evidence가 없다*는 서술을 대체하지만 T2·T3의 빈 증거를 채우지는 않는다.
 
 필수 검증:
