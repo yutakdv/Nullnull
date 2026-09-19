@@ -71,6 +71,28 @@ function keysOf({ prefix, values, suffixes }: Coverage): string[] {
   );
 }
 
+// NOT IN THIS TABLE, and each for a reason that has been measured rather than
+// assumed. A row here is worth adding only where a value can arrive that the
+// copy does not have; these four cannot reach that state.
+//
+//   `dataGuide.rule${n}`  — the range is `RULES = [1, 2, 3, 4, 5] as const` in
+//     the component. A sixth rule is a code edit, and the copy lands in the
+//     same edit, so nothing arrives from outside.
+//   `run.failure.${code}` — guarded at the call site:
+//     OptimizationRunScreen.tsx:149 tests `key in messages` and falls back to
+//     `run.failure.unknown`, so an unknown code renders a sentence, not a blank.
+//   `replace.state.${state}` — ReplaceSheet.tsx:185 folds EXACT and SIMILAR to
+//     NONE, so the reachable set is NONE/CHECKING/UNKNOWN and all three have
+//     copy. A sixth RelationState would fall through the ternary's else and
+//     assemble a key that does not exist — but it cannot appear unnoticed:
+//     RelationState is a closed contract enum, and BA-024-T7
+//     (RelationStateCoverageTest) asserts the server enum EQUALS the published
+//     one, so adding a value fails that test until BE accounts for it. The
+//     domain is also not expressible here: it is RelationState minus the two
+//     folded values, a difference no contract type names, and hand-writing it
+//     would put a value set in this table that did not come from the contract.
+//   `error.${code}.message` — see below.
+//
 // `error.*.message` is deliberately absent from this table. 17 of the 23
 // ProblemCodes have no `.message` key, and that is the design rather than a
 // gap: problem-message.ts:55 gates on HAS_FIGMA_COPY and falls back to the
@@ -121,6 +143,32 @@ const COVERAGE: readonly Coverage[] = [
       'PARTIAL_FAILED',
       'FAILED',
     ] satisfies readonly Schemas['DeletionRequestStatus']['status'][],
+  },
+  {
+    prefix: 'profile.history.',
+    site: 'ProfileScreen.tsx:294',
+    // OptimizationStatus, read through rowState(): history.ts:50 returns
+    // `{ kind: 'status', value: item.status }` and this prefix renders that
+    // value. `rowState` widens it to `string`, so the domain is the contract
+    // field rather than the helper's return type.
+    //
+    // Unlike `dataGuide.rule${n}` — whose range is a literal array in the
+    // component, so a sixth rule and its copy land in one edit — this set can
+    // grow server-side. A new status arrives in a response with no FE change
+    // beside it, and the row goes blank with nothing in the console.
+    //
+    // The two longer rows below (`.scope.` / `.decision.`) are matched first by
+    // the longest-prefix rule, so they keep their own keys.
+    values: [
+      'QUEUED',
+      'RUNNING',
+      'READY',
+      'APPLIED',
+      'KEPT',
+      'REVERTED',
+      'FAILED',
+      'EXPIRED',
+    ] satisfies readonly Schemas['OptimizationStatus'][],
   },
   {
     prefix: 'profile.history.scope.',
