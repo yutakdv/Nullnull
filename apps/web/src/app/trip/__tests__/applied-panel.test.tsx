@@ -160,6 +160,16 @@ describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so
     const button = screen.getByRole('button', { name: LABELS.reverting });
     expect(button).toBeDisabled();
 
+    // The revision line still describes what the APPLY did, and submitting
+    // shares that string with `available`. Sharing is why the badge's own
+    // cross-detection does not reach here: every other slot differs per frame,
+    // so a wrong value shows up as some other case's string, but three frames
+    // read the same revision. Measured: with the submitting frame's revision
+    // switched to the EXPIRED wording, all ten cases of this describe stayed
+    // green — a panel mid-revert could say the 24h window had closed.
+    expect(screen.getByText(LABELS.revisionAvailable)).toBeInTheDocument();
+    expect(screen.queryByText(LABELS.revisionExpired)).not.toBeInTheDocument();
+
     await user.click(button);
     expect(onRevert).not.toHaveBeenCalled();
   });
@@ -219,6 +229,14 @@ describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so
     // Announced rather than merely present: the failure lands after a press,
     // so a screen-reader user has to be told the schedule did not change.
     expect(screen.getByRole('alert')).toHaveTextContent('FAILURE_MESSAGE');
+    // The revision line describes the APPLY, not the failed undo, so it keeps
+    // the `available` wording — and shares that string with two other frames,
+    // which is why nothing here caught it being wrong. Measured: with the
+    // failed frame's revision switched to the EXPIRED wording, every case in
+    // this file stayed green, so a retryable failure could tell the traveller
+    // the window had closed while offering them a retry.
+    expect(screen.getByText(LABELS.revisionAvailable)).toBeInTheDocument();
+    expect(screen.queryByText(LABELS.revisionExpired)).not.toBeInTheDocument();
 
     const button = screen.getByRole('button', { name: LABELS.retry });
     expect(button).toBeEnabled();
