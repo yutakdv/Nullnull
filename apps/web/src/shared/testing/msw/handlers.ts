@@ -78,6 +78,67 @@ function currentTrip() {
 }
 
 /**
+ * A place by id, from every fixture that carries one.
+ *
+ * `placeFixtures.searchPage` alone is not enough, and the gap was invisible
+ * until the mutation examples were compared against these replies (#16):
+ * `mutation-replace.json` swaps in 연희동 카페거리 and `mutation-add.json` adds
+ * 서울숲, and NEITHER is in the search page — they live in candidate-page.json
+ * and related-page.json. A handler that could only find search results
+ * answered with whatever place it already had, so a replace returned the place
+ * it was asked to replace.
+ *
+ * Returns undefined rather than a stand-in: a caller that cannot find its
+ * place should refuse, not quietly substitute one, which is the behaviour that
+ * hid this.
+ */
+function findPlace(placeId: string | undefined) {
+  if (placeId === undefined) return undefined;
+  return (
+    placeFixtures.searchPage.items.find((p) => p.id === placeId) ??
+    currentCandidates().items.find((c) => c.place.id === placeId)?.place ??
+    relatedFixtures.page.items.find((p) => p.place.id === placeId)?.place
+  );
+}
+
+/**
+ * The trip as an item MUTATION answers it (#16).
+ *
+ * `crowd` is dropped, and that is not cosmetic tidying: `TripItemResponse` has
+ * eight record components — id, place, date, position, startTime,
+ * durationMinutes, note, constraints — and `crowd` is not among them, so the
+ * server cannot emit it on this path whatever the stored item holds. A record
+ * component that does not exist is not something `@JsonInclude` can restore,
+ * which is why reading the controller settled this without a running server.
+ *
+ * The input keeps it. `trip-detail-scheduled.json` carries `crowd: null` on
+ * every item because `getTrip` DOES answer that field, and that fixture is
+ * BE's. Input and output differing is the correct shape here rather than an
+ * inconsistency to paper over — the mutation projection is narrower than the
+ * detail one.
+ *
+ * Applied at the response boundary rather than to `tripState`, so the stored
+ * trip stays exactly what the detail endpoint would serve and only the
+ * mutation reply is narrowed.
+ */
+function asMutationTrip<T extends { days: { items: unknown[] }[] }>(trip: T): T {
+  return {
+    ...trip,
+    days: trip.days.map((day) => ({
+      ...day,
+      items: day.items.map((item) => {
+        // Rebuilt without the key rather than destructured: a `{ crowd, ...rest }`
+        // binding is an unused variable, which this project's lint rejects and
+        // has no ignore pattern for.
+        const rest = { ...(item as Record<string, unknown>) };
+        delete rest.crowd;
+        return rest;
+      }),
+    })),
+  };
+}
+
+/**
  * FE-104's trip LIST state, separate from the detail state above.
  *
  * deleteTrip removes a row, so the list has to be able to lose one. Serving
@@ -935,7 +996,7 @@ export const handlers = [
     } as typeof trip;
     tripState = next;
     return HttpResponse.json(
-      { trip: next, changedItemIds: [itemId] },
+      { trip: asMutationTrip(next), changedItemIds: [itemId] },
       { headers: { ETag: `"${String(next.version)}"` } },
     );
   }),
@@ -967,7 +1028,10 @@ export const handlers = [
     } as typeof trip;
     tripState = next;
     return HttpResponse.json(
-      { trip: next, changedItemIds: body.items.map((entry) => entry.itemId) },
+      {
+        trip: asMutationTrip(next),
+        changedItemIds: body.items.map((entry) => entry.itemId),
+      },
       { headers: { ETag: `"${String(next.version)}"` } },
     );
   }),
@@ -1007,12 +1071,15 @@ export const handlers = [
       if (violated.length > 0) {
         return problemResponse('LOCK_CONFLICT');
       }
-      const replacement = placeFixtures.searchPage.items.find(
-        (place) => place.id === body.replacementPlaceId,
-      );
+      const replacement = findPlace(body.replacementPlaceId);
       const next = {
         ...trip,
         version: trip.version + 1,
+        // The place that leaves the itinerary goes back to the candidates, so
+        // the count rises by one. The mock did not model this at all until the
+        // approved example was compared against it: mutation-replace.json goes
+        // 5 → 6 and every reply here stayed at 5 (#16).
+        candidateCount: trip.candidateCount + (replacement ? 1 : 0),
         days: trip.days.map((day) => ({
           ...day,
           items: day.items.map((item) =>
@@ -1032,7 +1099,7 @@ export const handlers = [
       } as typeof trip;
       tripState = next;
       return HttpResponse.json(
-        { trip: next, changedItemIds: [itemId] },
+        { trip: asMutationTrip(next), changedItemIds: [itemId] },
         { headers: { ETag: `"${String(next.version)}"` } },
       );
     },
@@ -1073,7 +1140,7 @@ export const handlers = [
       };
     }
     return HttpResponse.json(
-      { trip: next, changedItemIds: [itemId] },
+      { trip: asMutationTrip(next), changedItemIds: [itemId] },
       { headers: { ETag: `"${String(next.version)}"` } },
     );
   }),
@@ -1110,7 +1177,7 @@ export const handlers = [
       } as typeof trip;
       tripState = next;
       return HttpResponse.json(
-        { trip: next, changedItemIds: [itemId] },
+        { trip: asMutationTrip(next), changedItemIds: [itemId] },
         { headers: { ETag: `"${String(next.version)}"` } },
       );
     },
@@ -1154,7 +1221,7 @@ export const handlers = [
       } as typeof trip;
       tripState = next;
       return HttpResponse.json(
-        { trip: next, changedItemIds: [itemId] },
+        { trip: asMutationTrip(next), changedItemIds: [itemId] },
         { headers: { ETag: `"${String(next.version)}"` } },
       );
     },
@@ -1187,13 +1254,22 @@ export const handlers = [
                 ...day.items,
                 {
                   id: itemId,
-                  place: candidate?.place ?? trip.days[0]?.items[0]?.place,
+                  // `placeId` is what the contract requires; `candidateId`
+                  // is optional. Preferring the candidate keeps the
+                  // save-then-schedule flow intact, but falling back to the
+                  // first item's place made an add of any other place answer
+                  // with the wrong one (#16).
+                  place: candidate?.place ?? findPlace(body.placeId),
                   date: body.date,
                   position: body.position,
                   startTime: body.startTime ?? null,
                   durationMinutes: null,
                   note: null,
                   constraints: [],
+                  // Kept even though the mutation reply drops it: this object
+                  // becomes `tripState`, and `getTrip` DOES answer `crowd`.
+                  // Removing it here would make the stored trip narrower than
+                  // the detail response it has to serve next.
                   crowd: null,
                 },
               ],
@@ -1211,7 +1287,7 @@ export const handlers = [
       ),
     };
     return HttpResponse.json(
-      { trip: nextTrip, changedItemIds: [itemId] },
+      { trip: asMutationTrip(nextTrip), changedItemIds: [itemId] },
       { status: 201, headers: { ETag: `"${String(nextTrip.version)}"` } },
     );
   }),
