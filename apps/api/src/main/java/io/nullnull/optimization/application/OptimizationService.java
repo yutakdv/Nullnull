@@ -2,6 +2,7 @@ package io.nullnull.optimization.application;
 
 import io.nullnull.catalog.application.CatalogHoursQuery;
 import io.nullnull.crowd.application.CrowdForecastQuery;
+import io.nullnull.crowd.application.ForecastDays;
 import io.nullnull.identity.application.IdempotencyGuard;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.identity.domain.RequestFingerprint;
@@ -38,7 +39,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
@@ -418,7 +418,7 @@ public class OptimizationService {
      * valid applies for a reason that is not the one the code claims.
      */
     /** What the run froze, as it reads now, and the trip it is about. */
-    private record FrozenEvidence(ZoneId zone, TripItem target, List<TripItem> items,
+    private record FrozenEvidence(TripItem target, List<TripItem> items,
             List<CrowdForecastQuery.Snapshot> snapshots) {
 
         TripItem item(UUID id) {
@@ -441,9 +441,9 @@ public class OptimizationService {
                 .findFirst()
                 .orElseThrow(() -> new ApiException(ProblemCode.DATA_CHANGED,
                         "The item this preview is about is no longer in the trip."));
-        ZoneId zone = trip.range().timezone();
-        Instant from = trip.range().startDate().atStartOfDay(zone).toInstant();
-        Instant to = trip.range().endDate().plusDays(1).atStartOfDay(zone).toInstant();
+        // The trip's dates as the forecast source dates them (ForecastDays), the window the handler read.
+        Instant from = ForecastDays.startOf(trip.range().startDate());
+        Instant to = ForecastDays.endOf(trip.range().endDate());
         List<CrowdForecastQuery.Snapshot> snapshots = new java.util.ArrayList<>();
         for (UUID setId : run.snapshotSetIds()) {
             CrowdForecastQuery.SnapshotSet set = forecasts.frozenSet(setId, target.placeId(), from, to)
@@ -451,7 +451,7 @@ public class OptimizationService {
                             "The forecast evidence this preview was judged against is no longer stored."));
             snapshots.addAll(set.snapshots());
         }
-        return new FrozenEvidence(zone, target, items, List.copyOf(snapshots));
+        return new FrozenEvidence(target, items, List.copyOf(snapshots));
     }
 
     /**
@@ -473,7 +473,7 @@ public class OptimizationService {
         moves.forEach(move -> compared.add(move.date()));
         Set<LocalDate> quarantined = new java.util.HashSet<>();
         evidence.snapshots().stream().filter(CrowdForecastQuery.Snapshot::incidentActive)
-                .forEach(point -> quarantined.add(LocalDate.ofInstant(point.targetAt(), evidence.zone())));
+                .forEach(point -> quarantined.add(ForecastDays.dayOf(point)));
         if (comparisonWithdrawn(proposal.comparisonEligible(), compared, quarantined)) {
             throw new ApiException(ProblemCode.DATA_CHANGED,
                     "The forecast this preview compared has since been quarantined by a source incident.");

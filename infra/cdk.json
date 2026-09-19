@@ -1,0 +1,10 @@
+{
+  "app": "node dist/src/app.js",
+  "versionReporting": false,
+  "analyticsReporting": false,
+  "toolkitStackName": "NullnullStgCDKToolkit",
+  "context": {
+    "@aws-cdk/aws-ec2:restrictDefaultSecurityGroup": false,
+    "@aws-cdk/core:bootstrapQualifier": "nnstg"
+  }
+}

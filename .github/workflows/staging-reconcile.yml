@@ -1,0 +1,41 @@
+name: Staging reconcile
+
+# Automatic staging deploys of main, switched on by the repository variable STAGING_AUTO_DEPLOY=true
+# (set only after a manual staging-release run has been verified).
+#
+# Why a reconciler and not `workflow_run`: main is merged by auto-merge with GITHUB_TOKEN, and events
+# made with GITHUB_TOKEN start no push workflow, so merge commits are never tested and nothing fires.
+# workflow_dispatch is the exception, so this dispatches the two required checks for main HEAD, waits
+# for them, and dispatches staging-release for that exact SHA once both succeeded. It never re-dispatches
+# a SHA whose release already ran, and never cancels anything.
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nullnull-staging-reconcile
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    name: reconcile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Test main HEAD if untested, release it if tested
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGING_AUTO_DEPLOY: ${{ vars.STAGING_AUTO_DEPLOY }}
+        run: python3 scripts/aws/ci_reconcile.py reconcile

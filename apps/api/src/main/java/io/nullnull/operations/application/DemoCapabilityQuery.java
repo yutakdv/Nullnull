@@ -21,12 +21,11 @@ import org.springframework.stereotype.Service;
  * {@code replay} still have no source: their flags remain refused at startup, because turning one on
  * would advertise something nothing can answer.
  *
- * <p>A flag that may be turned on is not a flag that should be. ENVIRONMENT.md §6 says the
- * optimization flag may be enabled only by a slice that passes the B06 safety gate, and BA-050 is not
- * the whole of that gate: it queues runs, freezes their evidence and refuses the ones whose input
- * moved, but the slice that writes a preview is BA-051. Enabling it before then gives a visitor an
- * optimization that never answers, which is why the default is OFF in every environment and the
- * contest profile leaves it there.
+ * <p>A flag that may be turned on is not a flag that should be, and where it is turned on is a
+ * deployment decision, not this class's. BA-050 queues runs, freezes their evidence and refuses the ones
+ * whose input moved, and BA-051 writes the preview, so the flag now has something behind it. The default
+ * stays OFF; the submission build turns it ON in its deployment settings (owner decision, 2026-09-19).
+ * Nothing here enforces either, and the contest profile does not touch it.
  *
  * <p>The flags are wired in the only direction that is safe. A {@code FEATURE_*} flag may turn a
  * feature OFF; it may never turn ON something the server cannot do, because that would advertise a

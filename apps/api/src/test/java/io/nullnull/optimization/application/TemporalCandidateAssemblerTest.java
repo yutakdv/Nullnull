@@ -1,9 +1,12 @@
 package io.nullnull.optimization.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.crowd.application.CrowdForecastQuery;
 import io.nullnull.crowd.application.CrowdProvenanceProjection;
+import io.nullnull.crowd.application.ForecastDays;
+import io.nullnull.crowd.application.KtoForecastSnapshotSet;
 import io.nullnull.crowd.domain.ComparisonScope;
 import io.nullnull.crowd.domain.QualityFlag;
 import io.nullnull.crowd.domain.SourceState;
@@ -11,7 +14,6 @@ import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +33,6 @@ import org.junit.jupiter.api.Test;
 @DisplayName("temporal candidate assembly")
 class TemporalCandidateAssemblerTest {
 
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final UUID PLACE = UUID.randomUUID();
     private static final LocalDate START = LocalDate.of(2026, 10, 5);
     private static final LocalDate END = LocalDate.of(2026, 10, 8);
@@ -133,7 +134,7 @@ class TemporalCandidateAssemblerTest {
             }
         };
         return new TemporalCandidateAssembler(query, new CrowdProvenanceProjection())
-                .candidatesFor(List.of(frozen), PLACE, CURRENT, START, END, SEOUL, NOW);
+                .candidatesFor(List.of(frozen), PLACE, CURRENT, START, END, NOW);
     }
 
     @Test
@@ -180,11 +181,21 @@ class TemporalCandidateAssemblerTest {
         // The fingerprint pins these, and the explanation names the metric and the source line. All
         // describe ONE set, so a caller that went back for them would be reading a second moment.
         assertThat(candidates.snapshotIds()).hasSize(2);
-        assertThat(candidates.sourceRegistryVersions()).isEqualTo(Map.of("KTO_TARRLTVL", 1));
+        assertThat(candidates.sourceRegistryVersions()).isEqualTo(Map.of(KtoForecastSnapshotSet.SOURCE_CODE, 1));
         assertThat(candidates.normalizationVersion()).isEqualTo("v1");
         assertThat(candidates.forecastIssueId()).isEqualTo(ISSUE);
         assertThat(candidates.metricCode()).isEqualTo("KTO_RELATIVE_CONCENTRATION_INDEX");
         assertThat(candidates.attribution()).isEqualTo("한국관광공사");
+    }
+
+    @Test
+    @DisplayName("a FORECAST point from a source whose day zone is unknown is refused, not read as KST")
+    void aPointFromAnUnknownForecastSourceIsRefused() {
+        CrowdForecastQuery.SnapshotSet set = set(
+                snapshotFrom("SOME_OTHER_FORECAST", CURRENT, "80", ISSUE, "v1", Set.of()),
+                snapshotFrom("SOME_OTHER_FORECAST", END, "20", ISSUE, "v1", Set.of()));
+        assertThatThrownBy(() -> assembled(set))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("SOME_OTHER_FORECAST");
     }
 
     @Test
@@ -205,11 +216,16 @@ class TemporalCandidateAssemblerTest {
 
     private static CrowdForecastQuery.Snapshot snapshot(LocalDate date, String value, String issueId,
             String normalizationVersion, Set<QualityFlag> flags) {
+        return snapshotFrom(KtoForecastSnapshotSet.SOURCE_CODE, date, value, issueId, normalizationVersion, flags);
+    }
+
+    private static CrowdForecastQuery.Snapshot snapshotFrom(String sourceCode, LocalDate date, String value,
+            String issueId, String normalizationVersion, Set<QualityFlag> flags) {
         return new CrowdForecastQuery.Snapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 PLACE,
-                new CrowdForecastQuery.SourceDescriptor("KTO_TARRLTVL", "KTO", 1L, "OGL", "https://kto",
+                new CrowdForecastQuery.SourceDescriptor(sourceCode, "KTO", 1L, "OGL", "https://kto",
                         "https://kto/license", "한국관광공사", "relative concentration"),
-                SourceState.FORECAST, NOW, date.atStartOfDay(SEOUL).toInstant(), NOW,
+                SourceState.FORECAST, NOW, ForecastDays.startOf(date), NOW,
                 NOW.plusSeconds(86_400 * 30), "KTO_RELATIVE_CONCENTRATION_INDEX", new BigDecimal(value),
                 "index", null, new BigDecimal("0.8"), flags, issueId, "group-1", normalizationVersion,
                 0, ComparisonScope.PLACE, "place", "EXACT", false, false);

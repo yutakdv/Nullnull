@@ -241,7 +241,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
 | `FEATURE_LIVE_DATA` | OFF (모든 환경) | B10이 live source를 붙이는 slice에서만 ON 가능. source 불가 시 replay/empty |
 | `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |
-| `FEATURE_OPTIMIZATION_ITEM` | OFF (모든 환경) | B06 safety gate를 통과하는 slice에서만 ON 가능 |
+| `FEATURE_OPTIMIZATION_ITEM` | OFF (기본값) | 제출 빌드(staging)는 ON이다 — 오너 결정(2026-09-19)이고 설정은 staging 담당이 한다. BA-050·BA-051이 source라 ON이어도 startup을 막지 않는다 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
 | `FEATURE_OPTIMIZATION_TRIP` | OFF | P1 |
 | `FEATURE_NOTIFICATIONS` | OFF | P1 |
@@ -254,7 +254,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 
 flag는 backend capability response가 정본이다. frontend build flag만으로 권한/안전 기능을 제어하지 않는다.
 
-BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. P0에는 셋 다 server-side source가 없어 응답은 `UNAVAILABLE`이고, `true`로 켜면 9절의 "LIVE feature가 ON이면 source registry/key/readiness 설정 존재" 규칙에 따라 startup이 실패한다. source를 만드는 slice(B03 replay, B06 optimization, B10 live)가 그 flag를 켤 수 있게 된다.
+BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. `live`·`replay`는 아직 server-side source가 없어 응답이 `UNAVAILABLE`이고, `true`로 켜면 9절의 "LIVE feature가 ON이면 source registry/key/readiness 설정 존재" 규칙에 따라 startup이 실패한다. source를 만드는 slice(B03 replay, B10 live)가 그 flag를 켤 수 있게 된다. `optimization`은 BA-050·BA-051이 source라 이미 켤 수 있고(`DemoCapabilityQuery`), 켜면 `READY`로 나타난다.
 
 공모전 profile `2026_KTO_WEBAPP`은 다음 startup invariant를 추가한다.
 

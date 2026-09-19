@@ -68,10 +68,14 @@ class InfraCheckScript(unittest.TestCase):
         )
 
     def test_states_blocked_when_infra_is_absent(self) -> None:
-        result = subprocess.run(['node', str(INFRA_CHECK)], capture_output=True, text=True, check=False)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'scripts').mkdir()
+            script = root / 'scripts' / 'infra-check.mjs'
+            script.write_text(INFRA_CHECK.read_text())
+            result = subprocess.run(['node', str(script)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        status, errors = judge(result.stdout + result.stderr)
-        self.assertEqual(status, 'blocked', errors)
+        self.assertEqual(judge(result.stdout + result.stderr)[0], 'blocked')
 
     def test_fails_when_infra_exists_without_a_synth(self) -> None:
         # infra/ appearing means the gap is supposed to be closed, so blocked stops being allowed.

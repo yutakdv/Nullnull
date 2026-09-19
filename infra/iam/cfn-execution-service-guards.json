@@ -1,0 +1,257 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "NoChangingOtherProjectsDatabases",
+      "Effect": "Deny",
+      "Action": [
+        "rds:ModifyDBInstance",
+        "rds:RebootDBInstance",
+        "rds:StartDBInstance",
+        "rds:CreateDBSnapshot",
+        "rds:AddRoleToDBInstance",
+        "rds:RemoveRoleFromDBInstance",
+        "rds:PromoteReadReplica",
+        "rds:SwitchoverReadReplica"
+      ],
+      "Resource": "arn:aws:rds:*:${Account}:db:*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoCopyingOrSharingData",
+      "Effect": "Deny",
+      "Action": [
+        "rds:CreateDBInstanceReadReplica",
+        "rds:RestoreDBInstanceFromDBSnapshot",
+        "rds:RestoreDBInstanceToPointInTime",
+        "rds:RestoreDBInstanceFromS3",
+        "rds:RestoreDBClusterFromSnapshot",
+        "rds:RestoreDBClusterToPointInTime",
+        "rds:RestoreDBClusterFromS3",
+        "rds:CopyDBSnapshot",
+        "rds:CopyDBClusterSnapshot",
+        "rds:ModifyDBSnapshotAttribute",
+        "rds:ModifyDBClusterSnapshotAttribute",
+        "rds:StartExportTask",
+        "rds:StartDBInstanceAutomatedBackupsReplication",
+        "rds:CreateBlueGreenDeployment",
+        "rds:CreateIntegration",
+        "rds:CreateDBCluster"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "NoChangingOtherProjectsLoadBalancers",
+      "Effect": "Deny",
+      "Action": [
+        "elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "elasticloadbalancing:ModifyListener",
+        "elasticloadbalancing:ModifyListenerAttributes",
+        "elasticloadbalancing:ModifyRule",
+        "elasticloadbalancing:ModifyTargetGroup",
+        "elasticloadbalancing:ModifyTargetGroupAttributes",
+        "elasticloadbalancing:ModifyCapacityReservation",
+        "elasticloadbalancing:ModifyIpPools",
+        "elasticloadbalancing:SetSecurityGroups",
+        "elasticloadbalancing:SetSubnets",
+        "elasticloadbalancing:SetIpAddressType",
+        "elasticloadbalancing:SetRulePriorities",
+        "elasticloadbalancing:RegisterTargets",
+        "elasticloadbalancing:DeregisterTargets",
+        "elasticloadbalancing:AddListenerCertificates",
+        "elasticloadbalancing:RemoveListenerCertificates"
+      ],
+      "Resource": [
+        "arn:aws:elasticloadbalancing:*:${Account}:loadbalancer/*",
+        "arn:aws:elasticloadbalancing:*:${Account}:listener/*",
+        "arn:aws:elasticloadbalancing:*:${Account}:listener-rule/*",
+        "arn:aws:elasticloadbalancing:*:${Account}:targetgroup/*"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoListenersOnOtherProjectsLoadBalancers",
+      "Effect": "Deny",
+      "Action": "elasticloadbalancing:CreateListener",
+      "Resource": "arn:aws:elasticloadbalancing:*:${Account}:loadbalancer/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoRulesOnOtherProjectsListeners",
+      "Effect": "Deny",
+      "Action": "elasticloadbalancing:CreateRule",
+      "Resource": "arn:aws:elasticloadbalancing:*:${Account}:listener/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoWebAclOnLoadBalancers",
+      "Effect": "Deny",
+      "Action": "elasticloadbalancing:SetWebAcl",
+      "Resource": "*"
+    },
+    {
+      "Sid": "NoRetaggingOtherProjectsLoadBalancers",
+      "Effect": "Deny",
+      "Action": "elasticloadbalancing:AddTags",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        },
+        "Null": {
+          "elasticloadbalancing:CreateAction": "true"
+        }
+      }
+    },
+    {
+      "Sid": "NoRetaggingOtherProjectsEcs",
+      "Effect": "Deny",
+      "Action": "ecs:TagResource",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        },
+        "Null": {
+          "ecs:CreateAction": "true"
+        }
+      }
+    },
+    {
+      "Sid": "OnlyServicesInTheNullnullCluster",
+      "Effect": "Deny",
+      "Action": [
+        "ecs:CreateService",
+        "ecs:UpdateService",
+        "ecs:UpdateServicePrimaryTaskSet"
+      ],
+      "NotResource": "arn:aws:ecs:*:${Account}:service/nullnull-stg/*"
+    },
+    {
+      "Sid": "NoTasksFromCloudFormation",
+      "Effect": "Deny",
+      "Action": [
+        "ecs:RunTask",
+        "ecs:StartTask",
+        "ecs:ExecuteCommand"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "NoChangingOtherProjectsClusters",
+      "Effect": "Deny",
+      "Action": [
+        "ecs:UpdateCluster",
+        "ecs:UpdateClusterSettings",
+        "ecs:PutClusterCapacityProviders"
+      ],
+      "Resource": "arn:aws:ecs:*:${Account}:cluster/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoChangingOtherProjectsDistributions",
+      "Effect": "Deny",
+      "Action": [
+        "cloudfront:UpdateDistribution",
+        "cloudfront:UpdateDistributionWithStagingConfig",
+        "cloudfront:CopyDistribution",
+        "cloudfront:CreateInvalidation",
+        "cloudfront:AssociateDistributionWebACL",
+        "cloudfront:UpdateVpcOrigin"
+      ],
+      "Resource": [
+        "arn:aws:cloudfront::${Account}:distribution/*",
+        "arn:aws:cloudfront::${Account}:vpcorigin/*"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoMovingAliases",
+      "Effect": "Deny",
+      "Action": "cloudfront:AssociateAlias",
+      "Resource": "*"
+    },
+    {
+      "Sid": "NoChangingOtherProjectsWebAcls",
+      "Effect": "Deny",
+      "Action": [
+        "wafv2:UpdateWebACL",
+        "wafv2:AssociateWebACL",
+        "wafv2:PutLoggingConfiguration",
+        "wafv2:DeleteLoggingConfiguration"
+      ],
+      "Resource": "arn:aws:wafv2:*:${Account}:*/webacl/*/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoWebAclsOnOtherResources",
+      "Effect": "Deny",
+      "Action": [
+        "wafv2:AssociateWebACL",
+        "wafv2:DisassociateWebACL"
+      ],
+      "NotResource": "arn:aws:wafv2:*:${Account}:*/webacl/*/*"
+    },
+    {
+      "Sid": "NoChangingOtherProjectsServiceDiscovery",
+      "Effect": "Deny",
+      "Action": [
+        "servicediscovery:CreateService",
+        "servicediscovery:UpdatePrivateDnsNamespace",
+        "servicediscovery:UpdateHttpNamespace",
+        "servicediscovery:UpdatePublicDnsNamespace"
+      ],
+      "Resource": "arn:aws:servicediscovery:*:${Account}:namespace/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoChangingOtherProjectsCloudMapServices",
+      "Effect": "Deny",
+      "Action": [
+        "servicediscovery:UpdateService",
+        "servicediscovery:RegisterInstance",
+        "servicediscovery:DeregisterInstance",
+        "servicediscovery:UpdateInstanceCustomHealthStatus",
+        "servicediscovery:UpdateServiceAttributes"
+      ],
+      "Resource": "arn:aws:servicediscovery:*:${Account}:service/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    }
+  ]
+}

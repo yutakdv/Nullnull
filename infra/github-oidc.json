@@ -1,0 +1,11 @@
+{
+  "provider": "token.actions.githubusercontent.com",
+  "audience": "sts.amazonaws.com",
+  "deploySubjects": [
+    "repo:yutakdv@98016178/Nullnull@1348534580:environment:staging",
+    "repo:yutakdv@98016178/Nullnull@1348534580:environment:staging-infra"
+  ],
+  "publishSubjects": [
+    "repo:yutakdv@98016178/Nullnull@1348534580:environment:staging-build"
+  ]
+}

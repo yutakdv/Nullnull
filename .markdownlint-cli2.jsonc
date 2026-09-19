@@ -9,6 +9,9 @@
   ],
   "globs": [
     "README.md",
+    "AWS_CD_HANDOFF_SUMMARY.md",
+    "infra/cost-basis.md",
+    "scripts/aws/README.md",
     "AGENTS.md",
     "CLAUDE.md",
     "apps/*/CLAUDE.md",

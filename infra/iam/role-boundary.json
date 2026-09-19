@@ -1,0 +1,149 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AssumeNullnullCdkRoles",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": [
+        "arn:aws:iam::${Account}:role/cdk-nnstg-deploy-role-*",
+        "arn:aws:iam::${Account}:role/cdk-nnstg-file-publishing-role-*"
+      ]
+    },
+    {
+      "Sid": "DeploymentLock",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-northeast-2:${Account}:table/nullnull-stg-*"
+    },
+    {
+      "Sid": "ReadNullnullStacks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:GetTemplate",
+        "cloudformation:DescribeStackEvents"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:ap-northeast-2:${Account}:stack/NullnullStg*/*",
+        "arn:aws:cloudformation:us-east-1:${Account}:stack/NullnullStg*/*"
+      ]
+    },
+    {
+      "Sid": "RunNullnullTasks",
+      "Effect": "Allow",
+      "Action": "ecs:RunTask",
+      "Resource": "arn:aws:ecs:ap-northeast-2:${Account}:task-definition/nullnull-stg-*"
+    },
+    {
+      "Sid": "ReadNullnullTasks",
+      "Effect": "Allow",
+      "Action": "ecs:DescribeTasks",
+      "Resource": "arn:aws:ecs:ap-northeast-2:${Account}:task/nullnull-stg/*"
+    },
+    {
+      "Sid": "NoResourceLevelSupport",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:DescribeTaskDefinition",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadNullnullDatabase",
+      "Effect": "Allow",
+      "Action": "rds:DescribeDBInstances",
+      "Resource": "arn:aws:rds:ap-northeast-2:${Account}:db:*"
+    },
+    {
+      "Sid": "InvalidateOwnDistributions",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateInvalidation",
+        "cloudfront:GetInvalidation"
+      ],
+      "Resource": "arn:aws:cloudfront::${Account}:distribution/*"
+    },
+    {
+      "Sid": "PassNullnullTaskRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${Account}:role/NullnullStg*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ecs-tasks.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "ReadNullnullRoles",
+      "Effect": "Allow",
+      "Action": "iam:GetRole",
+      "Resource": "arn:aws:iam::${Account}:role/nullnull-stg-*"
+    },
+    {
+      "Sid": "NullnullRepositories",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:DescribeImages",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage"
+      ],
+      "Resource": "arn:aws:ecr:ap-northeast-2:${Account}:repository/nullnull-stg-*"
+    },
+    {
+      "Sid": "NullnullBuckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject*",
+        "s3:PutObject*",
+        "s3:DeleteObject*",
+        "s3:Abort*",
+        "s3:List*",
+        "s3:GetBucket*"
+      ],
+      "Resource": [
+        "arn:aws:s3:::nullnullstg*",
+        "arn:aws:s3:::nullnullstg*/*",
+        "arn:aws:s3:::cdk-nnstg-assets-${Account}-*",
+        "arn:aws:s3:::cdk-nnstg-assets-${Account}-*/*"
+      ]
+    },
+    {
+      "Sid": "NullnullSecrets",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:ap-northeast-2:${Account}:secret:nullnull-stg/*"
+    },
+    {
+      "Sid": "NullnullLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:GetLogEvents"
+      ],
+      "Resource": [
+        "arn:aws:logs:ap-northeast-2:${Account}:log-group:NullnullStg*",
+        "arn:aws:logs:ap-northeast-2:${Account}:log-group:NullnullStg*:*",
+        "arn:aws:logs:ap-northeast-2:${Account}:log-group:/aws/lambda/NullnullStg*",
+        "arn:aws:logs:ap-northeast-2:${Account}:log-group:/aws/lambda/NullnullStg*:*"
+      ]
+    }
+  ]
+}
