@@ -151,3 +151,87 @@ test.describe('FE-505-T3 the undo control is reachable by keyboard', () => {
     ).toBeFocused();
   });
 });
+
+// FE-505-T3's reflow half: 360px and 200% zoom.
+//
+// WHY HERE AND NOT IN responsive.spec.ts, which already walks the trip route at
+// both widths and DOES measure this panel — that was established by mutation:
+// adding `flex-wrap: wrap` to `.resultRow` flipped
+// "trip reflows instead of scrolling sideways" from red to green, so the walk
+// sees the panel and the clause is covered there in substance.
+//
+// What it cannot do is carry the ID. Those titles are built from a `SCREENS`
+// loop, so a `FE-505-T3` put on them lands on all seventeen routes, and sixteen
+// have no panel — the same "passes on absence" this file's header rejects for
+// the keyboard clause. Tagging only the trip case would work mechanically
+// (the title is a template literal) but would leave the id on a test whose
+// subject is the whole screen: it fails for a spilling day chip as readily as
+// for the panel, and the next person reading the card would be sent to a case
+// that is mostly about something else.
+//
+// So the panel is measured as the panel, and the guard below is what keeps that
+// honest — without it "no element of the panel overflows" is vacuously true of
+// a screen with no panel.
+//
+// The clipping test is the same one `overflow.ts` applies to the document — a
+// leaf whose scrollWidth exceeds its clientWidth — run over the panel subtree
+// instead. It is repeated here rather than by widening `overflow()` with a
+// scope argument: that helper is shared by three specs, and giving it a new
+// parameter to serve one caller changes the thing every other caller depends
+// on. The duplicated predicate is four lines and it is pinned by the mutation
+// below.
+test.describe('FE-505-T3 the undo panel survives the narrow widths', () => {
+  for (const [label, width] of [
+    ['360px, the narrowest designed width', 360],
+    // 200% zoom modelled as a 180px viewport, as responsive.spec.ts models it:
+    // doubling the text size halves the space. This is the width that caught
+    // the real defect — the nowrap badge took the whole row and the summary was
+    // computed to clientWidth 0, which reads on screen as a cut-off sentence.
+    ['200% zoom, where the viewport halves', 180],
+  ] as const) {
+    test(`at ${label} the panel neither spills nor clips`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const tripPath = await createSeededTrip(page);
+      await page.goto(tripPath);
+      await page.waitForLoadState('networkidle');
+
+      // THE NON-VACUITY GUARD. Every assertion below is about the panel, and
+      // all of them hold trivially when it is absent.
+      const panel = page.getByRole('region', { name: /undone|되돌/i });
+      await expect(
+        panel,
+        'the applied panel is not on the trip screen, so there is nothing to reflow',
+      ).toBeVisible();
+
+      const found = await page.evaluate((limit) => {
+        const root = document.querySelector<HTMLElement>('section[data-state]');
+        if (!root) return { clipped: ['no panel'], spilling: ['no panel'] };
+        const clipped: string[] = [];
+        const spilling: string[] = [];
+        for (const node of root.querySelectorAll<HTMLElement>('*')) {
+          const style = getComputedStyle(node);
+          if (node.children.length === 0 && style.overflowX === 'visible') {
+            if (node.scrollWidth > node.clientWidth + 1) {
+              clipped.push(
+                `"${(node.textContent ?? '').trim().slice(0, 24)}" is cut off`,
+              );
+            }
+          }
+          const box = node.getBoundingClientRect();
+          if (box.width > 0 && box.right > limit + 1) {
+            spilling.push(
+              `<${node.tagName.toLowerCase()}> reaches ${String(Math.round(box.right))}px`,
+            );
+          }
+        }
+        return { clipped, spilling };
+      }, width);
+
+      expect(found.clipped, `the panel clips text at ${String(width)}px`).toEqual([]);
+      expect(
+        found.spilling,
+        `the panel has content past the viewport at ${String(width)}px`,
+      ).toEqual([]);
+    });
+  }
+});
