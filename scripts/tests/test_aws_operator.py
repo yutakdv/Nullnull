@@ -535,16 +535,377 @@ class SecretProvisioningRegressions(unittest.TestCase):
 
 class EvidenceRegressions(unittest.TestCase):
     LINE=('KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 snapshotId=s-1 '
-          'collectorRunId=c-1 sourceRegistryVersion=4 payloadHash=abc fetchedAt=2026-09-18T13:00:00Z')
+          'collectorRunId=c-1 sourceRegistryVersion=4 payloadHash=abc fetchedAt=2026-09-18T13:00:00Z called=true')
+    RECORD={'releaseVersion':'v0.1.0-rc.1','gitSha':'a'*40}
     def test_report_is_what_the_repository_gate_accepts_for_this_release(self):
         with tempfile.TemporaryDirectory() as d:
-            record={'releaseVersion':'v0.1.0-rc.1','gitSha':'a'*40}
-            with patch.object(ops,'ROOT',Path(d)),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'aws_cli',return_value=subprocess.CompletedProcess([],0,'','')),patch.object(ops,'run') as run:
-                ops.write_actual_call_report([self.LINE])
+            with patch.object(ops,'ROOT',Path(d)),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'aws_cli',return_value=subprocess.CompletedProcess([],0,'','')),patch.object(ops,'run') as run:
+                ops.write_actual_call_report([self.LINE],self.RECORD)
             report=json.loads((Path(d)/'.artifacts/aws/evidence/actual-call-v0.1.0-rc.1.json').read_text())
             gate=subprocess.run(['python3',str(ROOT/'scripts/check_actual_call_evidence.py'),str(Path(d)/'.artifacts/aws/evidence/actual-call-v0.1.0-rc.1.json'),'--release','v0.1.0-rc.1','--require-verified'],capture_output=True,text=True)
             self.assertEqual(0,gate.returncode,gate.stderr)
             self.assertEqual('staging',report['environment']);self.assertEqual('OK',report['calls'][0]['outcome'])
             self.assertIn('--require-verified',[str(a) for a in run.call_args.args[0]])
     def test_no_evidence_line_means_no_report(self):
-        with self.assertRaisesRegex(ops.OpsError,'kto-smoke-evidence-line-missing'):ops.write_actual_call_report([])
+        with self.assertRaisesRegex(ops.OpsError,'kto-smoke-evidence-line-missing'):ops.write_actual_call_report([],self.RECORD)
+    def test_a_line_that_does_not_say_this_run_called_writes_no_report(self):
+        # An image older than the forced smoke prints no `called`; a stored snapshot handed back prints called=false.
+        # Either would otherwise become this release's CMP-KTO-003 evidence for a call it never made.
+        old_image=self.LINE.replace(' called=true','')
+        for line,reason in [(old_image,'kto-smoke-evidence-field-missing-called'),
+                            (self.LINE.replace('called=true','called=false'),'kto-smoke-did-not-call'),
+                            (self.LINE.replace('called=true','called=yes'),'kto-smoke-did-not-call')]:
+            with self.subTest(line=line[-24:]),patch.object(ops,'write_private') as write,patch.object(ops,'aws_cli') as upload:
+                with self.assertRaisesRegex(ops.OpsError,reason):ops.write_actual_call_report([line],self.RECORD)
+                write.assert_not_called();upload.assert_not_called()
+    def test_the_cached_line_passes_the_log_allowlist_so_the_owner_sees_why_it_stopped(self):
+        cached=self.LINE.replace('KTO_SMOKE_OK','KTO_SMOKE_CACHED').replace('called=true','called=false')
+        self.assertTrue(ops.OPS_LOG_LINE.match(cached))
+        longest=('KTO_SMOKE_CACHED source=KTO_KOR_SERVICE_2 contentId='+'9'*30+' contentTypeId='+'9'*30
+                 +' snapshotId='+'f'*36+' collectorRunId='+'f'*36+' sourceRegistryVersion=99 payloadHash='+'f'*64
+                 +' fetchedAt=2026-09-18T13:00:00.123456Z called=false')
+        self.assertTrue(ops.OPS_LOG_LINE.match(longest),len(longest))
+
+class SmokeImageBindingRegressions(unittest.TestCase):
+    """The smoke's report names the deployed release, so it must run that release's image (checked twice)."""
+    DIGEST='sha256:'+'a'*64
+    TARGET=OperationsTargetRegressions.TARGET
+    LINE=EvidenceRegressions.LINE
+    def run_smoke(self, record, ops_image, ops_release='v0.1.0-rc.2'):
+        import contextlib, io
+        from types import SimpleNamespace
+        calls=[]
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if (service,operation)==('rds','describe-db-instances'):
+                return {'DBInstances':[{'Endpoint':{'Address':OperationsTargetRegressions.HOST,'Port':5432},'DBName':'nullnull'}]}
+            if (service,operation)==('ecs','describe-task-definition'):
+                return {'taskDefinition':{'containerDefinitions':[{'name':'ops','image':ops_image,
+                        'environment':[{'name':'APP_RELEASE_VERSION','value':ops_release}]}]}}
+            if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
+            if (service,operation)==('logs','get-log-events'): return {'events':[{'message':self.LINE}]}
+            raise AssertionError((service,operation))
+        env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
+             'NULLNULL_KTO_SMOKE_APPROVED':'true',ops.OPERATIONS_TARGET:self.TARGET}
+        with patch.dict(os.environ,env),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),\
+             patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+             patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),patch.object(ops,'wait_task') as wait,\
+             patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
+             patch.object(ops,'write_actual_call_report') as report,contextlib.redirect_stdout(io.StringIO()):
+            error=None
+            try:
+                ops.ops_task(SimpleNamespace(task='kto-smoke',content_id='126508',content_type_id='12',place_id=None,
+                                             owner_approval='owner approved in session',places=None))
+            except ops.OpsError as e:
+                error=str(e)
+        return error,[(s,o) for s,o,_ in calls],wait,report
+    def test_the_executed_image_is_checked_against_the_deployed_release_and_the_same_record_is_reported(self):
+        record={'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        error,calls,wait,report=self.run_smoke(record,'1.dkr.ecr/nullnull-api@'+self.DIGEST)
+        self.assertIsNone(error)
+        self.assertEqual(self.DIGEST,wait.call_args.args[5])
+        report.assert_called_once_with([self.LINE],record)
+    def test_a_smoke_that_would_run_another_image_or_has_no_release_stops_before_the_task(self):
+        other='1.dkr.ecr/nullnull-api@sha256:'+'b'*64
+        for record,image,reason in [
+                (None,other,'no-deployed-release-record'),
+                ({'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{}},other,'deployed-release-has-no-api-digest'),
+                ({'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}},other,
+                 'ops-image-not-the-deployed-release')]:
+            with self.subTest(reason=reason):
+                error,calls,wait,report=self.run_smoke(record,image)
+                self.assertIn(reason,error or '')
+                self.assertNotIn(('ecs','run-task'),calls)
+                report.assert_not_called()
+    def test_one_digest_shared_by_two_releases_is_not_enough_to_name_the_release(self):
+        # rc.1000 and rc.1001 shared an API digest; a failed deploy of the next release can leave its ops definition
+        # behind while current.json still names the previous one.
+        record={'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        error,calls,wait,report=self.run_smoke(record,'1.dkr.ecr/nullnull-api@'+self.DIGEST,ops_release='v0.1.0-rc.3')
+        self.assertIn('ops-definition-not-the-deployed-release',error or '')
+        self.assertNotIn(('ecs','run-task'),calls)
+        report.assert_not_called()
+
+class CurationTaskRegressions(unittest.TestCase):
+    """curate-hours: the owner approves the exact plan bytes, and the task imports those bytes or nothing."""
+    DIGEST='sha256:'+'a'*64
+    RELEASE='v0.1.0-rc.2'
+    PLACE='01a0b825-4f15-7e7b-b30c-87cf71861c9c'
+    # Verbatim what CuratedHoursImportMainTest shows CuratedHoursImportMain printing.
+    JAVA_LINES=['curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c RECORDED (windows=48)',
+                'curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c REPLACED (windows=48)',
+                'curated_hours_recorded=2','curated_hours_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED',
+                'curated_hours_failed reason=IllegalStateException']
+    def plan(self, **overrides):
+        place={'placeId':self.PLACE,'evidenceUrl':'https://royal.khs.go.kr/ROYAL/contents/R702000000.do',
+               'observedAt':'2026-09-13T18:40:00Z','outcome':'OBSERVED',
+               'windows':[{'date':'2026-10-01','state':'OPEN','opensAt':'09:00:00','closesAt':'18:00:00'}]}
+        place.update(overrides)
+        return json.dumps({'places':[place]},ensure_ascii=False,indent=2).encode()
+    def run_curate(self, data, approved=None, owner='owner approved in session', log=None, plan_file=True,
+                   image=None, release=None, task_failure=None):
+        import contextlib, gzip as gz, hashlib, io
+        from types import SimpleNamespace
+        sha=hashlib.sha256(data).hexdigest()
+        calls=[]
+        if log is None: log=[f'curated_hours_plan sha256={sha} bytes={len(data)}']+self.JAVA_LINES[:1]+['curated_hours_recorded=1']
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if (service,operation)==('rds','describe-db-instances'):
+                return {'DBInstances':[{'Endpoint':{'Address':OperationsTargetRegressions.HOST,'Port':5432},'DBName':'nullnull'}]}
+            if (service,operation)==('ecs','describe-task-definition'):
+                return {'taskDefinition':{'containerDefinitions':[{'name':'ops','image':image or '1.dkr.ecr/nullnull-api@'+self.DIGEST,
+                        'environment':[{'name':'APP_RELEASE_VERSION','value':release or self.RELEASE}]}]}}
+            if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
+            if (service,operation)==('logs','get-log-events'): return {'events':[{'message':m} for m in log]}
+            raise AssertionError((service,operation))
+        record={'releaseVersion':self.RELEASE,'gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
+             ops.OPERATIONS_TARGET:OperationsTargetRegressions.TARGET}
+        out=io.StringIO()
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'hours.json';path.write_bytes(data)
+            with patch.dict(os.environ,env),patch.object(ops,'identity') as ident,patch.object(ops,'aws',side_effect=fake),\
+                 patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+                 patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),\
+                 patch.object(ops,'wait_task',side_effect=task_failure),\
+                 patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
+                 patch.object(ops,'ROOT',Path(d)),patch.object(ops,'aws_cli',return_value=subprocess.CompletedProcess([],0,'','')) as upload,\
+                 contextlib.redirect_stdout(out):
+                error=None
+                try:
+                    ops.ops_task(SimpleNamespace(task='curate-hours',content_id=None,content_type_id=None,place_id=None,
+                                                 owner_approval=owner,places=None,plan_file=str(path) if plan_file else None,
+                                                 approved_plan_sha256=sha if approved is None else approved))
+                except ops.OpsError as e:
+                    error=str(e)
+                kept=(Path(d)/'.artifacts/aws/evidence'/f'curation-{sha}.json')
+                kept=kept.read_bytes() if kept.exists() else None
+        run=[kw for s_,o,kw in calls if (s_,o)==('ecs','run-task')]
+        return {'error':error,'calls':[(s_,o) for s_,o,_ in calls],'run':run,'out':out.getvalue(),'sha':sha,
+                'upload':upload,'identity':ident,'kept':kept}
+    def test_the_approved_bytes_travel_to_the_task_and_are_kept_as_evidence(self):
+        import gzip as gz, base64 as b64
+        data=self.plan()
+        r=self.run_curate(data)
+        self.assertIsNone(r['error'],r['out'])
+        env={e['name']:e['value'] for e in r['run'][0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain',env['LOADER_MAIN'])
+        self.assertEqual(data,gz.decompress(b64.b64decode(env['NULLNULL_HOURS_PLAN_GZIP_BASE64'])))
+        self.assertEqual(r['sha'],env['NULLNULL_HOURS_PLAN_SHA256'])
+        self.assertEqual(OperationsTargetRegressions.TARGET,env[ops.OPERATIONS_TARGET])
+        self.assertNotIn('APP_CONTEST_PROFILE',env)
+        self.assertIn(f'plan_sha256={r["sha"]} bytes={len(data)} places=1 place_ids={self.PLACE}',r['out'])
+        self.assertIn('approved_plan_sha256='+r['sha'],r['out'])
+        self.assertEqual(data,r['kept'])
+        key=f'evidence/curation/{self.RELEASE}/{r["sha"]}.json'
+        self.assertIn(f's3://b/{key}',[str(a) for a in r['upload'].call_args.args[0]])
+        self.assertIn('curation_plan=recorded task=curate-hours sha256='+r['sha'],r['out'])
+    def test_a_plan_that_is_not_approved_or_not_a_plan_stops_before_any_aws_call(self):
+        import random
+        rng=random.Random(7)  # one generator: a fresh seed per character repeats one character and compresses away
+        noise=''.join(rng.choice('0123456789abcdef') for _ in range(12000))
+        cases=[(self.plan(),{'plan_file':False},'plan-file-required'),
+               (b'not json',{},'plan-file-not-json'),
+               (self.plan(placeId='<BE: staging UUID>'),{},'plan-file-has-placeholders'),
+               (json.dumps({'places':[]}).encode(),{},'plan-file-has-no-places'),
+               (self.plan(placeId='not-a-uuid'),{},'plan-file-place-id-not-a-uuid'),
+               (self.plan(),{'approved':'0'*64},'plan-sha256-not-approved'),
+               (self.plan(),{'owner':'short'},'owner-approval-record-required'),
+               (self.plan(evidenceUrl='https://example.test/'+noise),{},'plan-too-large-for-task-overrides')]
+        for data,kw,reason in cases:
+            with self.subTest(reason=reason):
+                r=self.run_curate(data,**kw)
+                self.assertIn(reason,r['error'] or '',r['out'])
+                self.assertEqual([],r['calls']);r['identity'].assert_not_called()
+    def test_a_plan_file_is_refused_for_a_task_that_imports_no_plan(self):
+        from types import SimpleNamespace
+        with patch.dict(os.environ,{'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}),\
+             patch.object(ops,'identity') as ident,patch.object(ops,'aws') as aws:
+            with self.assertRaisesRegex(ops.OpsError,'plan-file-not-accepted'):
+                ops.ops_task(SimpleNamespace(task='kto-ingest',content_id='126508',content_type_id='12',place_id=None,
+                                             owner_approval=None,places=None,plan_file='/tmp/x.json',approved_plan_sha256=None))
+            aws.assert_not_called();ident.assert_not_called()
+    def test_a_task_that_did_not_echo_the_approved_sha_records_nothing(self):
+        data=self.plan()
+        for log in [[],['curated_hours_plan sha256='+'0'*64+f' bytes={len(data)}'],
+                    [f'curated_hours_plan sha256={__import__("hashlib").sha256(data).hexdigest()} bytes=1']]:
+            with self.subTest(log=log):
+                r=self.run_curate(data,log=log)
+                self.assertIn('curation-plan-echo-mismatch',r['error'] or '')
+                r['upload'].assert_not_called();self.assertIsNone(r['kept'])
+    def test_success_is_read_from_the_imports_own_lines_not_from_the_exit_code_alone(self):
+        import hashlib
+        data=self.plan();sha=hashlib.sha256(data).hexdigest();plan_line=f'curated_hours_plan sha256={sha} bytes={len(data)}'
+        for log,reason in [([plan_line,'curated_hours_failed reason=DataIntegrityViolationException'],'curation-import-failed'),
+                           ([plan_line],'curation-not-all-places-recorded'),
+                           ([plan_line,'curated_hours_recorded=0'],'curation-not-all-places-recorded')]:
+            with self.subTest(reason=reason):
+                r=self.run_curate(data,log=log)
+                self.assertIn(reason,r['error'] or '')
+                r['upload'].assert_not_called();self.assertIsNone(r['kept'])
+    def test_a_curate_task_runs_only_on_the_recorded_releases_image_and_a_failed_one_records_nothing(self):
+        for kw,reason in [({'image':'1.dkr.ecr/nullnull-api@sha256:'+'b'*64},'ops-image-not-the-deployed-release'),
+                          ({'release':'v0.1.0-rc.1'},'ops-definition-not-the-deployed-release')]:
+            with self.subTest(reason=reason):
+                r=self.run_curate(self.plan(),**kw)
+                self.assertIn(reason,r['error'] or '')
+                self.assertNotIn(('ecs','run-task'),r['calls'])
+        r=self.run_curate(self.plan(),task_failure=ops.OpsError('task-failed'))
+        self.assertIn('task-failed',r['error'] or '')
+        r['upload'].assert_not_called();self.assertIsNone(r['kept'])
+    def test_the_lines_the_hours_import_prints_pass_and_nothing_that_carries_more(self):
+        sha='b'*64
+        allowed=[f'curated_hours_plan sha256={sha} bytes=34930']+self.JAVA_LINES
+        refused=['curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c RECORDED (windows=48) https://royal.khs.go.kr/x',
+                 f'curated_hours_plan sha256={sha} bytes=13 title=경복궁',
+                 'curated_hours_failed reason=IllegalStateException: no curated hours plan at /tmp/x',
+                 'curated_hours_recorded='+'9'*500,
+                 'curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c DELETED (windows=48)']
+        for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
+        for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
+class EdgeRegressions(unittest.TestCase):
+    """edge opens or closes the public API of the deployed release by redeploying WebEdge alone from its own plan."""
+    PLAN_SHA='p'*64
+    RECORD={'releaseVersion':'v0.1.0-rc.2','planSha256':'p'*64,'gitSha':'a'*40}
+    DATA={'account':'1'*12,'action':'deploy','verifierTokenSha256':'c'*64,'assemblySha256':'x'}
+    OPEN=(200,'application/json',None);CLOSED=(503,'application/problem+json',None)
+    def run_edge(self, state, execute, record=None, live='false', answers=(OPEN,), env=None):
+        import contextlib, io
+        from types import SimpleNamespace
+        events=[]
+        class Lock:
+            def __enter__(inner): events.append('lock-enter'); return inner
+            def __exit__(inner,*a): events.append('lock-exit'); return False
+            def mutating(inner): events.append('mutating')
+        base={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
+              'NULLNULL_VERIFIER_TOKEN':'t'*43}
+        def current(*a):
+            events.append('read-current'); return self.RECORD if record is None else record
+        def traffic():
+            events.append('read-traffic')
+            if live=='busy': raise ops.OpsError('webedge-stack-busy')
+            return live
+        out=io.StringIO()
+        with patch.dict(os.environ,{**base,**(env or {})}),patch.object(ops,'verify_deployed_plan',return_value=self.DATA),\
+             patch.object(ops,'identity'),patch.object(ops,'release_bucket',return_value='b'),\
+             patch.object(ops,'read_current_release',side_effect=current),patch.object(ops,'edge_traffic_enabled',side_effect=traffic),\
+             patch.object(ops,'output',side_effect=lambda stack,key,*a,**kw:{'PublicUrl':'https://d.example','WebAclArn':'arn:waf'}[key]),\
+             patch.object(ops,'run',side_effect=lambda cmd,**kw:events.append('run:'+Path(str(cmd[1])).name)) as run,\
+             patch.object(ops,'deploy_approved_stack',side_effect=lambda *a,**kw:events.append('deploy:'+a[2])) as deploy,\
+             patch.object(ops,'DeploymentLock',Lock),\
+             patch.object(ops,'public_health_answers',return_value=iter(answers)),contextlib.redirect_stdout(out):
+            if env and env.get('NULLNULL_VERIFIER_TOKEN')=='':os.environ.pop('NULLNULL_VERIFIER_TOKEN')
+            error=None
+            try:
+                ops.edge(SimpleNamespace(state=state,execute=execute,plan='/plans/p/plan.json',approved_plan_sha256=self.PLAN_SHA))
+            except ops.OpsError as e:
+                error=str(e)
+        return error,run,deploy,out.getvalue(),events
+    def test_planning_to_open_checks_under_the_lock_runs_the_cd_checks_and_writes_nothing(self):
+        error,run,deploy,out,events=self.run_edge('open',False)
+        self.assertIsNone(error,out)
+        # Every read that decides the deploy happens under the lock (a release cannot land in between).
+        self.assertEqual(['lock-enter','read-current','read-traffic','run:staging-smoke.sh','run:staging-flows.mjs','lock-exit'],events)
+        deploy.assert_not_called()
+        self.assertIn('edge_action=plan aws_writes=0',out)
+        self.assertIn('every deploy and rollback sets TrafficEnabled=false again',out)
+    def test_opening_redeploys_webedge_alone_under_the_lock_and_waits_for_the_apis_answer(self):
+        error,run,deploy,out,events=self.run_edge('open',True,answers=(self.CLOSED,(503,'text/html',None),self.OPEN))
+        self.assertIsNone(error,out)
+        self.assertEqual(['lock-enter','read-current','read-traffic','run:staging-smoke.sh','run:staging-flows.mjs','deploy:WebEdge','lock-exit'],events)
+        deploy.assert_called_once()
+        self.assertEqual(['NullnullStgWebEdge:GlobalWebAclArn=arn:waf','NullnullStgWebEdge:TrafficEnabled=true',
+                          'NullnullStgWebEdge:VerifierTokenSha256='+'c'*64],deploy.call_args.args[4])
+        self.assertIn('edge=open release=v0.1.0-rc.2 public_health_status=200 content_type=application/json',out)
+    def test_closing_needs_no_precheck_and_an_alb_503_is_not_a_closed_gate(self):
+        error,run,deploy,out,events=self.run_edge('closed',True,live='true',env={'NULLNULL_VERIFIER_TOKEN':''},
+                                                  answers=(self.OPEN,(503,'text/html',None),self.CLOSED))
+        self.assertIsNone(error,out)
+        self.assertEqual(['lock-enter','read-current','read-traffic','deploy:WebEdge','lock-exit'],events)
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=false',deploy.call_args.args[4])
+        self.assertIn('edge=closed release=v0.1.0-rc.2 public_health_status=503 content_type=application/problem+json',out)
+    def test_an_edge_already_in_the_asked_state_is_only_verified(self):
+        error,run,deploy,out,events=self.run_edge('open',True,live='true')
+        self.assertIsNone(error,out)
+        self.assertNotIn('run:staging-flows.mjs',events);deploy.assert_not_called()
+        self.assertIn('edge_action=none reason=already-open',out)
+        self.assertIn('edge=open release=v0.1.0-rc.2 public_health_status=200',out)
+    def test_what_must_not_open_the_edge_is_refused_before_any_deploy(self):
+        other={**self.RECORD,'planSha256':'q'*64}
+        for kw,reason in [({'record':other},'plan-is-not-the-deployed-release'),
+                          ({'env':{'NULLNULL_VERIFIER_TOKEN':''}},'edge-open-requires-verifier-token'),
+                          ({'live':'busy'},'webedge-stack-busy')]:
+            with self.subTest(reason=reason):
+                error,run,deploy,out,events=self.run_edge('open',True,**kw)
+                self.assertIn(reason,error or '')
+                deploy.assert_not_called();self.assertNotIn('run:staging-flows.mjs',events)
+        error,run,deploy,out,events=self.run_edge('open',True,answers=(self.CLOSED,(None,None,'URLError')))
+        self.assertIn('edge-not-open-after-deploy-last-None-URLError',error or '')
+        with patch.dict(os.environ,AuthModeRegressions.AMBIENT):
+            with self.assertRaisesRegex(ops.OpsError,'edge-is-local-only'):
+                ops.edge(__import__('types').SimpleNamespace(state='open',execute=True,plan='x',approved_plan_sha256='y'))
+    def test_the_live_traffic_parameter_is_read_only_from_a_settled_stack(self):
+        def stack(status, value):
+            params=[] if value is None else [{'ParameterKey':'TrafficEnabled','ParameterValue':value},
+                                              {'ParameterKey':'VerifierTokenSha256','ParameterValue':'c'*64}]
+            return {'Stacks':[{'StackStatus':status,'Parameters':params}]}
+        with patch.object(ops,'aws',return_value=stack('UPDATE_COMPLETE','true')):
+            self.assertEqual('true',ops.edge_traffic_enabled())
+        for answer,reason in [(stack('UPDATE_IN_PROGRESS','false'),'webedge-stack-busy'),
+                              (stack('UPDATE_COMPLETE',None),'webedge-traffic-parameter-unreadable')]:
+            with self.subTest(reason=reason),patch.object(ops,'aws',return_value=answer):
+                with self.assertRaisesRegex(ops.OpsError,reason):ops.edge_traffic_enabled()
+    def deployed_plan(self, root, **changes):
+        import datetime as dt
+        (root/'assembly').mkdir(exist_ok=True);(root/'assembly'/'x.json').write_text('{}')
+        (root/'release.json').write_text('{}');(root/'cost-basis.txt').write_text('basis')
+        now=dt.datetime.now(dt.timezone.utc)
+        data={'version':1,'region':ops.REGION,'account':'1'*12,'action':'deploy',
+              'createdAt':(now-dt.timedelta(days=3)).isoformat(),'expiresAt':(now+dt.timedelta(days=5)).isoformat(),
+              'releaseSha256':ops.digest(root/'release.json'),'assemblySha256':ops.tree_digest(root/'assembly'),
+              'costBasisSha256':ops.digest(root/'cost-basis.txt'),'toolchainSha256':ops.digest(ROOT/'infra/package-lock.json'),
+              'verifierTokenSha256':'c'*64,'estimateUsd':80,'reserveUsd':20,**changes}
+        (root/'plan.json').write_text(json.dumps(data))
+        return root/'plan.json',ops.digest(root/'plan.json')
+    def test_the_deployed_plan_is_usable_days_later_but_every_hash_still_has_to_hold(self):
+        with tempfile.TemporaryDirectory() as d,patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}):
+            root=Path(d)
+            plan,sha=self.deployed_plan(root)
+            self.assertEqual('deploy',ops.verify_deployed_plan(plan,sha)['action'])
+            # The contrast: the same plan, three days old but inside its window, is refused by verify_plan's
+            # freshness rule alone.
+            with self.assertRaisesRegex(ops.OpsError,'plan-older-than-24-hours'):ops.verify_plan(plan,sha)
+            for changes,reason in [({'account':'2'*12},'plan-account-mismatch'),({'action':'bootstrap'},'edge-requires-a-release-plan'),
+                                   ({'verifierTokenSha256':'v'*64},'invalid-verifier-hash'),({'region':'us-east-1'},'invalid-plan')]:
+                with self.subTest(reason=reason):
+                    plan,sha=self.deployed_plan(root,**changes)
+                    with self.assertRaisesRegex(ops.OpsError,reason):ops.verify_deployed_plan(plan,sha)
+            for name,reason in [('release.json','release-changed'),('cost-basis.txt','cost-basis-changed'),
+                                ('assembly/x.json','assembly-changed')]:
+                with self.subTest(reason=reason):
+                    plan,sha=self.deployed_plan(root)
+                    (root/name).write_text('{"changed":true}')
+                    with self.assertRaisesRegex(ops.OpsError,reason):ops.verify_deployed_plan(plan,sha)
+            plan,sha=self.deployed_plan(root)
+            with self.assertRaisesRegex(ops.OpsError,'reviewed-plan-does-not-match'):ops.verify_deployed_plan(plan,'0'*64)
+            other=Path(d)/'other-root';(other/'infra').mkdir(parents=True);(other/'infra'/'package-lock.json').write_text('{}')
+            with patch.object(ops,'ROOT',other),self.assertRaisesRegex(ops.OpsError,'toolchain-changed'):
+                ops.verify_deployed_plan(plan,sha)
+
+class WaitTaskRegressions(unittest.TestCase):
+    """The executed-image comparison itself, which every ops_task test patches away with a Mock."""
+    class Lock:
+        def check(self): pass
+    def wait(self, ran_digest, expected):
+        stopped={'tasks':[{'lastStatus':'STOPPED','stopCode':'EssentialContainerExited',
+                           'containers':[{'name':'ops','exitCode':0,'imageDigest':ran_digest}]}]}
+        definition={'containerDefinitions':[{'name':'ops','essential':True}]}
+        with patch.object(ops,'aws',return_value=stopped):
+            return ops.wait_task('c','arn',self.Lock(),definition,'ops',expected)
+    def test_a_task_that_ran_another_image_is_refused_after_it_stops(self):
+        digest='sha256:'+'a'*64
+        with self.assertRaisesRegex(ops.OpsError,'executed-image-mismatch'):self.wait('sha256:'+'b'*64,digest)
+        self.assertEqual('STOPPED',self.wait(digest,digest)['lastStatus'])
+        self.assertEqual('STOPPED',self.wait('sha256:'+'b'*64,None)['lastStatus'])

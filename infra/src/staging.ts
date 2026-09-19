@@ -710,6 +710,9 @@ export function createStacks(
       APP_CONTEST_PROFILE: "NONE",
       // C3 place reads stay 503 until the operator records staging KTO provenance and flips this file.
       NULLNULL_CATALOG_PUBLIC_ENABLED: String(stagingConfig.catalogPublicEnabled),
+      // The submission build runs ITEM optimization (owner decision 2026-09-19, docs/operations/ENVIRONMENT.md).
+      // A settled product decision rather than an operator gate, so it is fixed here and not in staging.config.json.
+      FEATURE_OPTIMIZATION_ITEM: "true",
     },
     secrets: {
       SPRING_DATASOURCE_USERNAME: ecs.Secret.fromSecretsManager(

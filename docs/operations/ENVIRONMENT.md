@@ -241,7 +241,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
 | `FEATURE_LIVE_DATA` | OFF (모든 환경) | B10이 live source를 붙이는 slice에서만 ON 가능. source 불가 시 replay/empty |
 | `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |
-| `FEATURE_OPTIMIZATION_ITEM` | OFF (기본값) | 제출 빌드(staging)는 ON이다 — 오너 결정(2026-09-19)이고 설정은 staging 담당이 한다. BA-050·BA-051이 source라 ON이어도 startup을 막지 않는다 |
+| `FEATURE_OPTIMIZATION_ITEM` | OFF (기본값) | 제출 빌드(staging)는 ON이다 — 오너 결정(2026-09-19). `infra/src/staging.ts`가 staging API task에만 켠다(ops·migration·ai task에는 없다. `infra/test/staging.test.ts`가 고정한다). BA-050·BA-051이 source라 ON이어도 startup을 막지 않는다 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
 | `FEATURE_OPTIMIZATION_TRIP` | OFF | P1 |
 | `FEATURE_NOTIFICATIONS` | OFF | P1 |
@@ -272,9 +272,11 @@ BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_
 - test는 fake key와 network stub을 사용한다.
 - debug log level에서도 configuration value를 전체 출력하지 않는다.
 - 실제 KTO 호출 증거를 만드는 operator smoke는 별도 승인 변수가 있어야 한다. C2 `ktoSmoke`는 `NULLNULL_KTO_SMOKE_APPROVED=true`(+`NULLNULL_KTO_SMOKE_CONTENT_ID`/`_CONTENT_TYPE_ID`), C4 `ktoForecastSmoke`는 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`(+`NULLNULL_KTO_FORECAST_SMOKE_PLACE_ID`)가 필요하며 둘 다 redacted ID만 출력한다. CI와 PR gate는 이 변수를 설정하지 않는다.
+  `ktoSmoke`는 저장된 snapshot이 아직 신선해도 **항상 KTO를 새로 부른다**. 그 줄이 staging operator가 쓰는 release별 CMP-KTO-003 증거가 되므로, 저장본을 돌려받고 그것을 호출로 적으면 안 된다. 이번 실행의 호출로 만든 snapshot일 때만 `KTO_SMOKE_OK … called=true`를 찍고, 아니면 `KTO_SMOKE_CACHED … called=false`와 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝난다. staging에서는 그 task가 `task-failed`가 되고 배포 잠금이 남는다. operator는 `called=true` 줄로만 report를 쓴다. 강제 호출이라 validator 거절 한 번이 곧 `KTO_KOR_SERVICE_2` source 격리이고 해제 도구가 없다. 그래서 release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
 - **승인 변수는 `.env.local`에서 읽히지 않는다.** `KtoSmokeEnvironment.ALLOWED_NAMES`에 없고 두 main이 `System.getenv()`로만 읽으므로, **승인은 명령을 실행하는 사람의 shell이 갖는다.** 파일에 적어도 승인이 되지 않는 것이 설계다 — 감사 기록의 출처가 사람이어야 하기 때문이다.
 - **세 단계이며 순서가 있다.** `ktoForecastSmoke`는 `place_external_refs`를 join하는데 그 행은 canonical ingest만 만든다. C2 gateway는 자기 snapshot을 스스로 매핑하지 않으므로(의도된 분리), 가운데 단계 없이 C4를 돌리면 `NoVerifiedKtoMappingException`으로 끝난다.
 - **운영 도구는 `OperationsContext`로만 뜬다**(`ktoSmoke`·`ktoCanonicalIngest`·`ktoForecastSmoke`·`ktoDemoDetailRefresh`·`ktoDemoForecastRefresh`·`curatePosts`·`curateHours`·`deriveRelations`·`ktoCallInventory`). job worker는 command line에서 꺼지고, DB에 연결하기 전에 `operations target=<DB> environment=<env> access=<read|write> schema=<migrate|validate|unchecked>`가 찍힌다. `local`/`test`에서는 아래 절차대로 migrate한다(`ktoCallInventory`·`ktoDemo*Refresh`는 전에는 Flyway를 끄고 돌았으므로 local DB를 migrate하는 것은 새 동작이다). `staging`/`production`에서는 migrate하지 않고, Flyway가 켜져 있으면 validate해 이 checkout에 있는 migration이 DB에 없거나 적용된 migration이 바뀌었으면 멈춘다(DB가 더 새로운 것은 rollback 호환이라 통과한다). 환경이 Flyway를 끄면(staging API·ops task — app role은 `flyway_schema_history`를 읽지 못한다) `schema=unchecked`이고 Hibernate의 `ddl-auto: validate`만 남는다. Flyway를 켠 채 그 role로 돌면 `SCHEMA_UNCHECKABLE`로 멈춘다. 쓰는 도구는 셸의 `NULLNULL_OPERATIONS_TARGET`이 찍힌 target과 같아야 연결한다. 승인 변수처럼 `.env.local`에서 읽히지 않는다. **이 확인은 `NULLNULL_ENV` 라벨에 달려 있다** — 네 값(`local`·`test`·`staging`·`production`, 대소문자 그대로) 밖이면 거절하지만, 배포 DB를 가리키면서 라벨을 `local`로 두면 local로 다룬다. KTO 도구는 거절도 `KTO … failed: <코드>` 한 줄로 끝난다(`ENVIRONMENT_UNKNOWN`·`OPERATIONS_TARGET_NOT_CONFIRMED`·`OPERATIONS_TARGET_UNREADABLE`·`SCHEMA_NOT_THIS_CHECKOUT`·`SCHEMA_UNCHECKABLE`). 그 줄 앞에 Spring의 `Application run failed` stack trace가 이유를 담아 찍힌다.
+- `curateHours`는 plan을 파일(`NULLNULL_HOURS_PLAN`)로 받거나, staging ops task에서는 inline으로 받는다(`NULLNULL_HOURS_PLAN_GZIP_BASE64`와 `NULLNULL_HOURS_PLAN_SHA256`). 둘 중 정확히 하나여야 하고, 승인 sha가 주어지면 그 바이트여야 한다(`io.nullnull.OperationsPlan`). 첫 줄은 들여온 바이트의 `curated_hours_plan sha256=… bytes=…`이고, 실패는 `curated_hours_failed reason=<코드>` 한 줄로 남는다. Gradle task는 `apps/api`에서 돌므로 파일 경로는 절대 경로로 준다.
 
 **선행 조건 넷.** 하나라도 빠지면 실패 메시지가 원인을 가리키지 않는다.
 
@@ -356,7 +358,7 @@ while IFS='=' read -r k v; do [ -n "$v" ] && export "$k=$v"; done < .env.local
 
   **이름과 출처만 찍고 값은 절대 찍지 않는다** — 이 목록에는 `KTO_SERVICE_KEY`와 `SPRING_DATASOURCE_PASSWORD`가 들어 있고, 값이 새면 진단이 제거하는 혼란보다 나쁘다. `KtoSmokeEnvironmentTest`가 그 부재를 변이로 고정한다.
 
-  `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
+  `NULLNULL_ENV`는 `local` 또는 `staging`이어야 하고(두 번 검사한다), `KTO_FORECAST_BASE_URL`은 `.env.local`에 있어야 한다(allowlist 값이고 어긋나면 startup이 실패한다). 성공 표식은 `KTO_SMOKE_OK … called=true`·`KTO_CANONICAL_INGEST_OK`·`KTO_FORECAST_SMOKE_OK`이고, 남는 증거는 `api_ingest_logs` 행·`collector_runs` outcome·`kto_place_snapshots`·`places`/`place_external_refs`·`crowd_snapshots`다. **`coverage=0`은 실패가 아니라 "그 장소에 예보 행이 없었다"는 뜻이므로 호출 증거로는 유효하되 예보 증거로는 쓰지 않는다.**
 
 - B01 scaffold는 `apps/api/.env.example`을 새 계약에서 생성한다. 과거 prototype의 environment 변수는 이식하지 않는다. **`apps/web/.env.example`은 이 문장이 오래 함께 적어 왔지만 존재한 적이 없다** — git 이력에도 없다. `apps/web/**`는 Frontend 소유 경로이므로 그 파일이 필요한지는 Frontend가 정하며, 여기서 만들지 않는다. 지금 FE가 실제로 읽는 유일한 `VITE_` 변수는 이 문서의 2절 표에 없는 `VITE_API_MOCKING`이고, 표가 *필수*로 적은 다섯은 읽는 코드가 없다.
 
