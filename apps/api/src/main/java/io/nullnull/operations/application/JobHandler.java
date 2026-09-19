@@ -1,5 +1,6 @@
 package io.nullnull.operations.application;
 
+import io.nullnull.operations.domain.DeadLetter;
 import io.nullnull.operations.domain.JobPayload;
 
 /**
@@ -56,5 +57,14 @@ public interface JobHandler {
      *                  {@link JobExecutionException} code, or {@link JobQueue#LEASE_EXPIRED_ERROR_CODE}
      */
     default void onDeadLetter(JobPayload payload, String errorCode) {
+    }
+
+    /**
+     * The same hook with the job's identity and the attempt it ended on, which is what a handler needs to
+     * name the job in an operator line (OpsAlarm) - emitted after the dead letter commits, never inside it.
+     * The worker calls this one; by default it hands the payload and code to the two-argument form.
+     */
+    default void onDeadLetter(DeadLetter deadLetter) {
+        onDeadLetter(deadLetter.payload(), deadLetter.errorCode());
     }
 }

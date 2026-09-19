@@ -13,6 +13,8 @@ public interface DeletionStore {
     void markRunning(UUID requestId, int attempt, Instant now);
     void markCompleted(UUID requestId, Instant now);
     void markFailed(UUID requestId, int attempt, String status, String failureCode, Instant now);
+    /** FAILED for a request that has not ended; false, and nothing written, for one that has. */
+    boolean failUnfinished(UUID requestId, int attempt, String failureCode, Instant now);
     List<UUID> tombstonedOwners();
     /** Clears every due status token and answers what each of those rows was when it was cleared. */
     List<ExpiredReceipt> expireStatusTokens(Instant now);
