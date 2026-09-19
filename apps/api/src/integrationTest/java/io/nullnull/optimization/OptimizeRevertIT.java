@@ -20,6 +20,7 @@ import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.MutableClock;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
@@ -401,6 +402,7 @@ class OptimizeRevertIT {
                 .andExpect(status().isOk());
         UUID kept = decisionIdOf(keep);
         // The fixture Frontend mocks a KEEP against has the keys the server sends (#16).
+        ContractResponse.assertValid("decideOptimization", 200, bodyOf(keep));
         assertThat(JsonShape.of(bodyOf(keep)))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/decision-keep.json")));
 
@@ -863,6 +865,7 @@ class OptimizeRevertIT {
         ResultActions applying = decide(fixture, runId, proposalId, "APPLY", "\"1\"")
                 .andExpect(status().isOk());
         UUID applied = decisionIdOf(applying);
+        ContractResponse.assertValid("decideOptimization", 200, bodyOf(applying));
         assertThat(JsonShape.of(bodyOf(applying)))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/decision-apply.json")));
 
@@ -880,12 +883,14 @@ class OptimizeRevertIT {
         assertThat(afterApply.get("proposals").get(0).get("id").asString()).isEqualTo(proposalId.toString());
         assertThat(afterApply.get("proposals").get(0).get("dataProvenance")).hasSize(2);
         // The fixture Frontend mocks the APPLIED face against has the keys the server sends, everywhere.
+        ContractResponse.assertValid("getOptimization", 200, afterApply);
         assertThat(JsonShape.of(afterApply))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-applied.json")));
 
         ResultActions undo = revert(fixture, applied, "\"2\"", "revert-" + UUID.randomUUID())
                 .andExpect(status().isOk());
         UUID reverted = decisionIdOf(undo);
+        ContractResponse.assertValid("revertOptimizationDecision", 200, bodyOf(undo));
         assertThat(JsonShape.of(bodyOf(undo)))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/decision-revert.json")));
 

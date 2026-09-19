@@ -33,12 +33,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -227,10 +225,14 @@ class OptimizeDecisionIT {
      * row cannot be the thing held here: both requests would stop before reading the run.
      *
      * <p>So the table is held instead. Both requests pass the session check and wait to read the run;
-     * the table is released and both read READY. Whichever takes the owner lock first is paused inside
-     * its transaction (in the policy lookup record() makes) until the other is seen queued on the
-     * owner row - by then it has read READY for certain - and only then let go. Which of the two wins
-     * is the lock queue's choice; the assertions hold for either.
+     * the table is released and both read READY. The policy lookup comes after that read and before the
+     * guard (#271), so each request is held there until the other has arrived too - by then both have
+     * read READY for certain - and then both go on to the owner lock, which orders their writes. Which
+     * of the two wins is the lock queue's choice; the assertions hold for either.
+     *
+     * <p>Before #271 the lookup ran inside the guard, and this paused the first request there, holding
+     * the owner lock, until the second was seen queued on the owner row. That no longer happens, which is
+     * the point of #271: no request holds the owner while it waits for apps/ai.
      */
     private Raced race(String firstKind, String secondKind) throws Exception {
         Fixture fixture = fixture();
@@ -239,15 +241,11 @@ class OptimizeDecisionIT {
 
         PolicyDescriptor policy = new PolicyDescriptor(PolicyPins.V1.policyVersion(),
                 PolicyPins.V1.policyHash(), PolicyPins.V1.pipelineVersion(), "test-service");
-        AtomicBoolean armed = new AtomicBoolean(true);
-        CountDownLatch paused = new CountDownLatch(1);
-        CountDownLatch resume = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger lookups = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.CyclicBarrier bothRead = new java.util.concurrent.CyclicBarrier(2);
         org.mockito.Mockito.doAnswer(call -> {
-            if (armed.compareAndSet(true, false)) {
-                paused.countDown();
-                if (!resume.await(30, TimeUnit.SECONDS)) {
-                    throw new AssertionError("the race was never let go");
-                }
+            if (lookups.incrementAndGet() <= 2) {
+                bothRead.await(30, TimeUnit.SECONDS);
             }
             return policy;
         }).when(recommendations).policy();
@@ -273,16 +271,10 @@ class OptimizeDecisionIT {
                             + " AND query ILIKE '%requested_by_owner_id%'", Integer.class, holderPid) == 2);
             holder.rollback();
 
-            assertThat(paused.await(30, TimeUnit.SECONDS)).as("one decision is inside its transaction").isTrue();
-            // The other has read READY and is queued on the owner row the first one holds.
-            org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> jdbc.queryForObject(
-                    "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
-                            + " AND query ILIKE '%from owners%'", Integer.class) == 1);
-            resume.countDown();
-
-            return new Raced(fixture, runId, first.get(60, TimeUnit.SECONDS), second.get(60, TimeUnit.SECONDS));
+            Raced raced = new Raced(fixture, runId, first.get(60, TimeUnit.SECONDS), second.get(60, TimeUnit.SECONDS));
+            assertThat(lookups.get()).as("both decisions read READY and looked the policy up").isEqualTo(2);
+            return raced;
         } finally {
-            resume.countDown();
             callers.shutdownNow();
         }
     }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import io.nullnull.identity.application.DeletionStore;
 import io.nullnull.identity.application.SessionService;
 import io.nullnull.identity.application.TombstoneReapplier;
 import io.nullnull.identity.application.OwnerDataEraser;
@@ -32,6 +33,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -55,6 +57,8 @@ class DeletionIT {
     @Autowired DeletionTtlEraser deletionTtl;
     @Autowired SessionTtlEraser sessionTtl;
     @Autowired ExpiredIdempotencyRecordEraser idempotencyTtl;
+    @Autowired DeletionStore deletions;
+    @Autowired TransactionTemplate transactions;
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
@@ -224,6 +228,41 @@ class DeletionIT {
         deletionTtl.erase(accepted.plus(Duration.ofDays(30)));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM owners WHERE id=?", Integer.class,
                 bootstrap.owner.id())).isZero();
+    }
+
+    @Test
+    @DisplayName("a retried deletion reads RUNNING without the failure code of the attempt before it")
+    void aRetriedAttemptDoesNotCarryTheLastFailureCode() throws Exception {
+        var bootstrap = sessions.bootstrap(null, null, null);
+        JsonNode body = json.readTree(mvc.perform(delete("/api/v1/session")
+                        .cookie(new Cookie("__Host-nullnull_session", bootstrap.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", bootstrap.csrf.token)
+                        .header("Idempotency-Key", "delete-" + UUID.randomUUID()))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
+        UUID requestId = UUID.fromString(body.get("requestId").asString());
+        String token = body.get("statusToken").asString();
+        // What the deletion job writes when attempt 1 fails and attempt 2 starts (DeleteOwnerDataHandler).
+        transactions.executeWithoutResult(status -> deletions.markFailed(requestId, 1, "PARTIAL_FAILED",
+                "OWNER_DATA_ERASE_FAILED", clock.instant()));
+        mvc.perform(get("/api/v1/deletion-requests/{id}", requestId).header("X-Deletion-Status-Token", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PARTIAL_FAILED"))
+                .andExpect(jsonPath("$.failureCode").value("OWNER_DATA_ERASE_FAILED"));
+        transactions.executeWithoutResult(status -> deletions.markRunning(requestId, 2, clock.instant()));
+        mvc.perform(get("/api/v1/deletion-requests/{id}", requestId).header("X-Deletion-Status-Token", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RUNNING"))
+                .andExpect(jsonPath("$.failureCode").value(org.hamcrest.Matchers.nullValue()));
+
+        // A RUNNING request with no job would never finish; this test's rows go with it.
+        UUID ownerId = bootstrap.owner.id();
+        jdbc.update("DELETE FROM background_jobs WHERE deduplication_key=?", "owner:" + ownerId);
+        jdbc.update("DELETE FROM idempotency_records WHERE owner_id=?", ownerId);
+        jdbc.update("DELETE FROM demo_sessions WHERE owner_id=?", ownerId);
+        jdbc.update("DELETE FROM deletion_tombstones WHERE owner_id=?", ownerId);
+        jdbc.update("DELETE FROM deletion_requests WHERE owner_id=?", ownerId);
+        jdbc.update("DELETE FROM owners WHERE id=?", ownerId);
     }
 
     @Test

@@ -1896,6 +1896,18 @@
         {
           "id": "BA-052-T18",
           "assertion": "apps/ai 장애로 실패한 결정은 아무것도 쓰지 않아서, 복구 뒤 같은 key의 재시도가 200이다"
+        },
+        {
+          "id": "BA-052-T19",
+          "assertion": "apps/ai가 멈춘 APPLY 동안에도 같은 owner의 다른 요청은 답을 받는다"
+        },
+        {
+          "id": "BA-052-T20",
+          "assertion": "답한 APPLY의 replay는 apps/ai에 묻지 않는다"
+        },
+        {
+          "id": "BA-052-T21",
+          "assertion": "더는 결정할 수 없는 run의 결정은 apps/ai에 묻지 않고 거절된다"
         }
       ],
       "handoff": "APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures.",
@@ -2456,11 +2468,31 @@
         },
         {
           "id": "BA-072-T2",
-          "assertion": "부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다"
+          "assertion": "부분 삭제 실패(PARTIAL_FAILED)가 기록될 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_PARTIAL_FAILED` 한 줄을 남긴다"
         },
         {
           "id": "BA-072-T3",
           "assertion": "수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 재현한다"
+        },
+        {
+          "id": "BA-072-T4",
+          "assertion": "최종 삭제 실패(FAILED, 판정은 job 행의 attempt 상한)가 기록될 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다"
+        },
+        {
+          "id": "BA-072-T5",
+          "assertion": "lease 재시도, 즉 lease가 만료된 RUNNING job을 다시 claim할 때마다 `ops.alarm name=JOB_LEASE_RETAKEN` 한 줄을 남긴다"
+        },
+        {
+          "id": "BA-072-T6",
+          "assertion": "receipt 만료, 즉 삭제가 끝나기 전(ACCEPTED·RUNNING·PARTIAL_FAILED)에 status token이 만료된 요청마다 id 없는 `ops.alarm name=DELETION_RECEIPT_EXPIRED_UNFINISHED` 한 줄을 한 번 남긴다"
+        },
+        {
+          "id": "BA-072-T7",
+          "assertion": "staging에서 위 `ops.alarm` 이름들의 metric filter와 alarm이 발화해 primary/secondary 수신자에게 도달한다"
+        },
+        {
+          "id": "BA-072-T8",
+          "assertion": "삭제 attempt가 잡고 있는 receipt는 만료 sweep이 기다리지 않고 건너뛰며 다음 sweep이 보고한다"
         }
       ],
       "handoff": "복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다.",

@@ -3,6 +3,7 @@ package io.nullnull.contract;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.nullnull.shared.http.NullnullOperation;
+import io.nullnull.testsupport.OpenApiDocument;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.lang.reflect.RecordComponent;

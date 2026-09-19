@@ -163,6 +163,7 @@ Third-party analytics를 도입하려면 processor, 저장 region, cookie, DPA, 
 - route template, method, status, duration
 - error code, retryable
 - source code, collector run, count/freshness
+- background job id·type·attempt(client에 나가지 않는 UUID다. payload·deduplication key·owner id는 같은 줄에 싣지 않는다. 운영 alarm 줄 `ops.alarm`이 싣는 유일한 식별자다)
 - irreversible owner hash(필요한 기간/환경만)
 
 금지:

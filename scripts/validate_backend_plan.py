@@ -253,6 +253,16 @@ def validate_plan(data: dict, operations: set[str], features: set[str],
             row = next((line for line in lines if line.startswith(prefix)), '')
             if set(re.findall(pattern, row)) != set(expected):
                 problems.append(f'{tid}: task card metadata differs for {prefix}')
+        # The 데이터·정책 row is compared as text. It is the one metadata row with no ID pattern to pull
+        # tokens from, so the loop above never covered it, and the only check on `entities` was that it
+        # was not empty - CLAUDE.md asks both files to change together and nothing compared them. Text,
+        # not a normalised bag: the row is prose, and one spelling is simpler to keep than two.
+        data_row = next((line for line in lines if line.startswith('- 데이터·정책:')), None)
+        if data_row is None:
+            problems.append(f'{tid}: card has no - 데이터·정책: row')
+        elif isinstance(task.get('entities'), str) and \
+                data_row[len('- 데이터·정책:'):].strip() != task['entities'].strip():
+            problems.append(f'{tid}: task card metadata differs for - 데이터·정책:')
         # Figma nodes and design requests share one row, split at "; FCR:". They are compared
         # separately because a node list that swallowed an FCR (or the reverse) would still match
         # if the row were read as one bag of tokens. "해당 없음" normalises to the empty set.

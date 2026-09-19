@@ -571,6 +571,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OwnerProfile"
+              examples:
+                preferencesUpdated:
+                  summary: "Onboarding completed, with a trip active"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. OwnerPreferencesIT compares
+                    its keys with a real response, which is also validated against OwnerProfile. It is
+                    the anonymous owner's profile after onboarding, with trip-detail-scheduled's trip active.
+                  value:
+                    id: 018f3f8e-9b67-7a21-8d31-31d315b93911
+                    kind: ANONYMOUS
+                    locale: 'ko-KR'
+                    timezone: 'Asia/Seoul'
+                    onboardingCompleted: true
+                    activeTripId: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
         "401":
@@ -1296,6 +1310,193 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CrowdSeries"
+              examples:
+                forecastFresh:
+                  summary: "명동's forecast while its set is fresh"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: CrowdForecastApiIT compares every level's keys with the server's.
+                    The three points are the snapshots optimizationApplied compared - the same set, issue and
+                    provenanceId - and their values are the ones its summaries quote. observedAt is null because a
+                    forecast has no publisher time.
+                  value:
+                    placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                    state: FORECAST
+                    points:
+                    - state: FORECAST
+                      value: 34
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-04T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e05
+                    - state: FORECAST
+                      value: 72.5
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-05T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e06
+                    - state: FORECAST
+                      value: 51
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: FORECAST
+                        observedAt: null
+                        targetAt: '2026-10-06T15:00:00Z'
+                        freshness: FRESH
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: true
+                        comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: false
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e07
+                    unavailableReason: null
+                forecastStale:
+                  summary: "The same forecast read after its staleAt"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: CrowdForecastApiIT compares every level's keys with the server's.
+                    The set expired and no newer one arrived, so the stored value is served as a labelled fallback:
+                    state and sourceState are STALE, fallbackUsed is true, and comparisonEligible is false
+                    (STALE_INPUT). A stale value may be shown; it is never compared.
+                  value:
+                    placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                    state: STALE
+                    points:
+                    - state: STALE
+                      value: 72.5
+                      unit: relative-index
+                      ordinalLevel: null
+                      label: '만료된 관광지 집중률 예측'
+                      provenance:
+                        source: KTO_CONCENTRATION_FORECAST
+                        sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                        sourceRegistryVersion: 2
+                        sourceState: STALE
+                        observedAt: null
+                        targetAt: '2026-10-05T15:00:00Z'
+                        freshness: STALE
+                        fetchedAt: '2026-10-02T00:00:00Z'
+                        staleAt: '2026-10-03T00:00:00Z'
+                        confidence: null
+                        license: '이용허락범위 제한 없음'
+                        officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                        licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                        attribution: '출처: ⓒ한국관광공사'
+                        attributionShort: null
+                        metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                        normalizationVersion: kto-tats-cnctr-rate-v4.1
+                        qualityFlags: []
+                        forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        comparisonAxis: TEMPORAL
+                        comparisonEligible: false
+                        comparisonReasonCode: STALE_INPUT
+                        comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                        collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                        snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                        observedAtSkewSeconds: null
+                        scope: PLACE
+                        scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                        mappingType: DIRECT
+                        fallbackUsed: true
+                        provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e06
+                    unavailableReason: null
+                forecastUnavailable:
+                  summary: "No stored forecast covers the window"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: CrowdForecastApiIT compares every level's keys with the server's.
+                    Neither a fresh nor a stale set has a point in the requested range, so the series says so
+                    instead of inventing a value: no points, and unavailableReason NO_COVERAGE.
+                  value:
+                    placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                    state: UNAVAILABLE
+                    points: []
+                    unavailableReason: NO_COVERAGE
         "401":
           $ref: "#/components/responses/Unauthorized"
         default:
@@ -1674,13 +1875,13 @@ paths:
                     planningLevel: "MUST_VISIT_ONLY"
                     interests:
                       -
-                        code: "FRIENDS"
+                        code: "CULTURE"
                         weight: 3
                       -
                         code: "FOOD"
                         weight: 5
                       -
-                        code: "CULTURE"
+                        code: "FRIENDS"
                         weight: 3
                     days:
                       -
@@ -1693,9 +1894,12 @@ paths:
                               name: "경복궁"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 0
                             startTime: "09:30:00"
@@ -1703,14 +1907,14 @@ paths:
                             note: null
                             constraints:
                               -
-                                type: "MUST_VISIT"
-                                locked: true
-                                source: "USER"
-                              -
                                 type: "DATE"
                                 locked: true
                                 source: "USER"
                                 date: "2026-10-04"
+                              -
+                                type: "MUST_VISIT"
+                                locked: true
+                                source: "USER"
                             crowd: null
                           -
                             id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02"
@@ -1719,9 +1923,12 @@ paths:
                               name: "인사동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 1
                             startTime: "13:00:00"
@@ -1745,9 +1952,12 @@ paths:
                               name: "명동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-05"
                             position: 0
                             startTime: "14:00:00"
@@ -1817,13 +2027,13 @@ paths:
                     planningLevel: "MUST_VISIT_ONLY"
                     interests:
                       -
-                        code: "FRIENDS"
+                        code: "CULTURE"
                         weight: 3
                       -
                         code: "FOOD"
                         weight: 5
                       -
-                        code: "CULTURE"
+                        code: "FRIENDS"
                         weight: 3
                     days:
                       -
@@ -1836,9 +2046,12 @@ paths:
                               name: "경복궁"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 0
                             startTime: "09:30:00"
@@ -1846,14 +2059,14 @@ paths:
                             note: null
                             constraints:
                               -
-                                type: "MUST_VISIT"
-                                locked: true
-                                source: "USER"
-                              -
                                 type: "DATE"
                                 locked: true
                                 source: "USER"
                                 date: "2026-10-04"
+                              -
+                                type: "MUST_VISIT"
+                                locked: true
+                                source: "USER"
                             crowd: null
                           -
                             id: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c02"
@@ -1862,9 +2075,12 @@ paths:
                               name: "인사동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-04"
                             position: 1
                             startTime: "13:00:00"
@@ -1888,9 +2104,12 @@ paths:
                               name: "명동"
                               categoryCode: "HS"
                               regionCode: "11"
+                              categoryName: null
+                              regionName: null
                               thumbnailUrl: null
                               thumbnailAttribution: null
                               address: null
+                              sourceAttribution: null
                             date: "2026-10-05"
                             position: 0
                             startTime: "14:00:00"
@@ -1995,13 +2214,13 @@ paths:
                     planningLevel: "MUST_VISIT_ONLY"
                     interests:
                       -
-                        code: "FRIENDS"
+                        code: "CULTURE"
                         weight: 3
                       -
                         code: "FOOD"
                         weight: 5
                       -
-                        code: "CULTURE"
+                        code: "FRIENDS"
                         weight: 3
                     days:
                       -
@@ -2219,6 +2438,100 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportDraft"
+              examples:
+                importNeedsReview:
+                  summary: "Three places resolved, one line left as a question"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripImportFixtureIT runs a synthetic paste through parse, remap and
+                    confirm over HTTP and compares every level's keys.
+                    None of the paste is here. The question carries its line number and an empty label, and no item
+                    carries originalLabel: the parser fills none, so the key is absent rather than a null the schema
+                    refuses. Positions are the draft's order across its days.
+                  value:
+                    id: 018f4a80-5e21-7a11-8b01-3c4d5e6f7a01
+                    version: 1
+                    status: NEEDS_REVIEW
+                    title: null
+                    dates:
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-05'
+                    items:
+                    - clientKey: i2
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                        name: '경복궁'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: null
+                      position: 0
+                      confidence: 1
+                    - clientKey: i3
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                        name: '인사동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: '13:00:00'
+                      position: 1
+                      confidence: 1
+                    - clientKey: i5
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                        name: '명동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-05'
+                      startTime: null
+                      position: 2
+                      confidence: 1
+                    unresolved:
+                    - clientKey: t6
+                      kind: PLACE
+                      line: 6
+                      label: ''
+                      suggestions:
+                      - id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b12
+                        name: '서울숲'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      - id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b13
+                        name: '서울숲 공원'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                    expiresAt: '2026-10-01T09:00:00Z'
         "422":
           $ref: "#/components/responses/Unprocessable"
         "401":
@@ -2262,6 +2575,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportDraft"
+              examples:
+                importReady:
+                  summary: "명동 given a time and the question dismissed"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripImportFixtureIT runs a synthetic paste through parse, remap and
+                    confirm over HTTP and compares every level's keys.
+                    The remap set 명동's startTime and dismissed the one question, so nothing blocks READY and the
+                    version is 2. A question can only be dismissed; picking one of its suggestions is not a remap.
+                  value:
+                    id: 018f4a80-5e21-7a11-8b01-3c4d5e6f7a01
+                    version: 2
+                    status: READY
+                    title: null
+                    dates:
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-05'
+                    items:
+                    - clientKey: i2
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                        name: '경복궁'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: null
+                      position: 0
+                      confidence: 1
+                    - clientKey: i3
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                        name: '인사동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-04'
+                      startTime: '13:00:00'
+                      position: 1
+                      confidence: 1
+                    - clientKey: i5
+                      place:
+                        id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                        name: '명동'
+                        categoryCode: HS
+                        regionCode: '11'
+                        categoryName: null
+                        regionName: null
+                        thumbnailUrl: null
+                        thumbnailAttribution: null
+                        address: null
+                        sourceAttribution: null
+                      date: '2026-10-05'
+                      startTime: '14:00:00'
+                      position: 2
+                      confidence: 1
+                    unresolved: []
+                    expiresAt: '2026-10-01T09:00:00Z'
         "404":
           $ref: "#/components/responses/NotFound"
         "410":
@@ -2309,6 +2690,87 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripDetail"
+              examples:
+                importConfirmed:
+                  summary: "The trip the READY draft became"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripImportFixtureIT runs a synthetic paste through parse, remap and
+                    confirm over HTTP and compares every level's keys.
+                    Title, planningLevel and interests come from the confirm request. The draft's positions are kept,
+                    so 명동 is alone on 10-05 at position 2: positions are unique within a day and gaps are allowed
+                    (TripScheduleRules).
+                  value:
+                    id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a0a
+                    title: '붙여넣은 서울 일정'
+                    startDate: '2026-10-04'
+                    endDate: '2026-10-05'
+                    timezone: 'Asia/Seoul'
+                    status: DRAFT
+                    version: 1
+                    candidateCount: 0
+                    planningLevel: NOTHING
+                    interests: []
+                    days:
+                    - date: '2026-10-04'
+                      items:
+                      - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c21
+                        place:
+                          id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                          name: '경복궁'
+                          categoryCode: HS
+                          regionCode: '11'
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          thumbnailAttribution: null
+                          address: null
+                          sourceAttribution: null
+                        date: '2026-10-04'
+                        position: 0
+                        startTime: null
+                        durationMinutes: null
+                        note: null
+                        constraints: []
+                      - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c22
+                        place:
+                          id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                          name: '인사동'
+                          categoryCode: HS
+                          regionCode: '11'
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          thumbnailAttribution: null
+                          address: null
+                          sourceAttribution: null
+                        date: '2026-10-04'
+                        position: 1
+                        startTime: '13:00:00'
+                        durationMinutes: null
+                        note: null
+                        constraints: []
+                    - date: '2026-10-05'
+                      items:
+                      - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c23
+                        place:
+                          id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                          name: '명동'
+                          categoryCode: HS
+                          regionCode: '11'
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          thumbnailAttribution: null
+                          address: null
+                          sourceAttribution: null
+                        date: '2026-10-05'
+                        position: 2
+                        startTime: '14:00:00'
+                        durationMinutes: null
+                        note: null
+                        constraints: []
+                    candidates: []
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -2734,6 +3196,130 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripMutationResult"
+              examples:
+                itemAdded:
+                  summary: "서울숲 scheduled from its candidate onto 10-06"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripMutationFixtureIT builds trip-detail-scheduled's trip over HTTP,
+                    makes this one change, and compares every level's keys. The trip is at version 4: version 3 plus
+                    this change.
+                    The candidate is now SCHEDULED and still counts, so candidateCount stays 5. No time was sent, so
+                    startTime and durationMinutes are null. changedItemIds names the new item.
+                  value:
+                    trip:
+                      id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                      title: '서울 가을 여행'
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-07'
+                      timezone: 'Asia/Seoul'
+                      status: ACTIVE
+                      version: 4
+                      candidateCount: 5
+                      planningLevel: MUST_VISIT_ONLY
+                      interests:
+                      - code: CULTURE
+                        weight: 3
+                      - code: FOOD
+                        weight: 5
+                      - code: FRIENDS
+                        weight: 3
+                      days:
+                      - date: '2026-10-04'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                            name: '경복궁'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 0
+                          startTime: '09:30:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: DATE
+                            locked: true
+                            source: USER
+                            date: '2026-10-04'
+                          - type: MUST_VISIT
+                            locked: true
+                            source: USER
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                            name: '인사동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                          durationMinutes: 90
+                          note: null
+                          constraints:
+                          - type: TIME
+                            locked: true
+                            source: USER
+                            startTime: '13:00:00'
+                            toleranceMinutes: 30
+                      - date: '2026-10-05'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                            name: '명동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-05'
+                          position: 0
+                          startTime: '14:00:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints: []
+                      - date: '2026-10-06'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c04
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b12
+                            name: '서울숲'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-06'
+                          position: 0
+                          startTime: null
+                          durationMinutes: null
+                          note: null
+                          constraints: []
+                      - date: '2026-10-07'
+                        items: []
+                      candidates: []
+                    changedItemIds:
+                    - 018f4c30-9b55-7f22-8d13-6e8f4a2b3c04
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -2777,6 +3363,111 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripMutationResult"
+              examples:
+                itemsReordered:
+                  summary: "명동 moved from 10-05 to 10-07"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripMutationFixtureIT builds trip-detail-scheduled's trip over HTTP,
+                    makes this one change, and compares every level's keys. The trip is at version 4: version 3 plus
+                    this change.
+                    10-05 is left with no item; the trip still lists every day of its range.
+                  value:
+                    trip:
+                      id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                      title: '서울 가을 여행'
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-07'
+                      timezone: 'Asia/Seoul'
+                      status: ACTIVE
+                      version: 4
+                      candidateCount: 5
+                      planningLevel: MUST_VISIT_ONLY
+                      interests:
+                      - code: CULTURE
+                        weight: 3
+                      - code: FOOD
+                        weight: 5
+                      - code: FRIENDS
+                        weight: 3
+                      days:
+                      - date: '2026-10-04'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                            name: '경복궁'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 0
+                          startTime: '09:30:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: DATE
+                            locked: true
+                            source: USER
+                            date: '2026-10-04'
+                          - type: MUST_VISIT
+                            locked: true
+                            source: USER
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                            name: '인사동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                          durationMinutes: 90
+                          note: null
+                          constraints:
+                          - type: TIME
+                            locked: true
+                            source: USER
+                            startTime: '13:00:00'
+                            toleranceMinutes: 30
+                      - date: '2026-10-05'
+                        items: []
+                      - date: '2026-10-06'
+                        items: []
+                      - date: '2026-10-07'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                            name: '명동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-07'
+                          position: 0
+                          startTime: '14:00:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints: []
+                      candidates: []
+                    changedItemIds:
+                    - 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -2820,6 +3511,111 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripMutationResult"
+              examples:
+                itemUpdated:
+                  summary: "명동's start time moved to 15:00"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripMutationFixtureIT builds trip-detail-scheduled's trip over HTTP,
+                    makes this one change, and compares every level's keys. The trip is at version 4: version 3 plus
+                    this change.
+                    The item has no lock, so nothing had to be released.
+                  value:
+                    trip:
+                      id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                      title: '서울 가을 여행'
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-07'
+                      timezone: 'Asia/Seoul'
+                      status: ACTIVE
+                      version: 4
+                      candidateCount: 5
+                      planningLevel: MUST_VISIT_ONLY
+                      interests:
+                      - code: CULTURE
+                        weight: 3
+                      - code: FOOD
+                        weight: 5
+                      - code: FRIENDS
+                        weight: 3
+                      days:
+                      - date: '2026-10-04'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                            name: '경복궁'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 0
+                          startTime: '09:30:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: DATE
+                            locked: true
+                            source: USER
+                            date: '2026-10-04'
+                          - type: MUST_VISIT
+                            locked: true
+                            source: USER
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                            name: '인사동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                          durationMinutes: 90
+                          note: null
+                          constraints:
+                          - type: TIME
+                            locked: true
+                            source: USER
+                            startTime: '13:00:00'
+                            toleranceMinutes: 30
+                      - date: '2026-10-05'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                            name: '명동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-05'
+                          position: 0
+                          startTime: '15:00:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints: []
+                      - date: '2026-10-06'
+                        items: []
+                      - date: '2026-10-07'
+                        items: []
+                      candidates: []
+                    changedItemIds:
+                    - 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -2862,6 +3658,94 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripMutationResult"
+              examples:
+                itemRemoved:
+                  summary: "명동 removed and restored to its candidate"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripMutationFixtureIT builds trip-detail-scheduled's trip over HTTP,
+                    makes this one change, and compares every level's keys. The trip is at version 4: version 3 plus
+                    this change.
+                    disposition=RESTORE_CANDIDATE: the candidate is ACTIVE again and still counts, so candidateCount
+                    stays 5. changedItemIds names the item that no longer exists.
+                  value:
+                    trip:
+                      id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                      title: '서울 가을 여행'
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-07'
+                      timezone: 'Asia/Seoul'
+                      status: ACTIVE
+                      version: 4
+                      candidateCount: 5
+                      planningLevel: MUST_VISIT_ONLY
+                      interests:
+                      - code: CULTURE
+                        weight: 3
+                      - code: FOOD
+                        weight: 5
+                      - code: FRIENDS
+                        weight: 3
+                      days:
+                      - date: '2026-10-04'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                            name: '경복궁'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 0
+                          startTime: '09:30:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: DATE
+                            locked: true
+                            source: USER
+                            date: '2026-10-04'
+                          - type: MUST_VISIT
+                            locked: true
+                            source: USER
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                            name: '인사동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                          durationMinutes: 90
+                          note: null
+                          constraints:
+                          - type: TIME
+                            locked: true
+                            source: USER
+                            startTime: '13:00:00'
+                            toleranceMinutes: 30
+                      - date: '2026-10-05'
+                        items: []
+                      - date: '2026-10-06'
+                        items: []
+                      - date: '2026-10-07'
+                        items: []
+                      candidates: []
+                    changedItemIds:
+                    - 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
         "409":
           $ref: "#/components/responses/Conflict"
         "401":
@@ -2923,6 +3807,110 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripMutationResult"
+              examples:
+                itemReplaced:
+                  summary: "경복궁 replaced by 연희동 카페거리"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripMutationFixtureIT builds trip-detail-scheduled's trip over HTTP,
+                    makes this one change, and compares every level's keys. The trip is at version 4: version 3 plus
+                    this change.
+                    The request named MUST_VISIT in releaseConstraints, so that lock is gone; the DATE lock stays
+                    because a replacement keeps the date and time. The item keeps its id and its slot. 경복궁 returns
+                    as a candidate, so candidateCount is 6.
+                  value:
+                    trip:
+                      id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                      title: '서울 가을 여행'
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-07'
+                      timezone: 'Asia/Seoul'
+                      status: ACTIVE
+                      version: 4
+                      candidateCount: 6
+                      planningLevel: MUST_VISIT_ONLY
+                      interests:
+                      - code: CULTURE
+                        weight: 3
+                      - code: FOOD
+                        weight: 5
+                      - code: FRIENDS
+                        weight: 3
+                      days:
+                      - date: '2026-10-04'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b11
+                            name: '연희동 카페거리'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 0
+                          startTime: '09:30:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: DATE
+                            locked: true
+                            source: USER
+                            date: '2026-10-04'
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                            name: '인사동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                          durationMinutes: 90
+                          note: null
+                          constraints:
+                          - type: TIME
+                            locked: true
+                            source: USER
+                            startTime: '13:00:00'
+                            toleranceMinutes: 30
+                      - date: '2026-10-05'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                            name: '명동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-05'
+                          position: 0
+                          startTime: '14:00:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints: []
+                      - date: '2026-10-06'
+                        items: []
+                      - date: '2026-10-07'
+                        items: []
+                      candidates: []
+                    changedItemIds:
+                    - 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -2971,6 +3959,116 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripMutationResult"
+              examples:
+                constraintSet:
+                  summary: "A TIME lock on 명동 at 14:00, 30 minutes either way"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripMutationFixtureIT builds trip-detail-scheduled's trip over HTTP,
+                    makes this one change, and compares every level's keys. The trip is at version 4: version 3 plus
+                    this change.
+                    The lock is true of the item when it is set: 명동 already starts at 14:00.
+                  value:
+                    trip:
+                      id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                      title: '서울 가을 여행'
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-07'
+                      timezone: 'Asia/Seoul'
+                      status: ACTIVE
+                      version: 4
+                      candidateCount: 5
+                      planningLevel: MUST_VISIT_ONLY
+                      interests:
+                      - code: CULTURE
+                        weight: 3
+                      - code: FOOD
+                        weight: 5
+                      - code: FRIENDS
+                        weight: 3
+                      days:
+                      - date: '2026-10-04'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                            name: '경복궁'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 0
+                          startTime: '09:30:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: DATE
+                            locked: true
+                            source: USER
+                            date: '2026-10-04'
+                          - type: MUST_VISIT
+                            locked: true
+                            source: USER
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                            name: '인사동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                          durationMinutes: 90
+                          note: null
+                          constraints:
+                          - type: TIME
+                            locked: true
+                            source: USER
+                            startTime: '13:00:00'
+                            toleranceMinutes: 30
+                      - date: '2026-10-05'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                            name: '명동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-05'
+                          position: 0
+                          startTime: '14:00:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: TIME
+                            locked: true
+                            source: USER
+                            startTime: '14:00:00'
+                            toleranceMinutes: 30
+                      - date: '2026-10-06'
+                        items: []
+                      - date: '2026-10-07'
+                        items: []
+                      candidates: []
+                    changedItemIds:
+                    - 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -3004,6 +4102,106 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripMutationResult"
+              examples:
+                constraintRemoved:
+                  summary: "인사동's TIME lock released"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. Its shape
+                    was taken from a real response: TripMutationFixtureIT builds trip-detail-scheduled's trip over HTTP,
+                    makes this one change, and compares every level's keys. The trip is at version 4: version 3 plus
+                    this change.
+                    경복궁's MUST_VISIT and DATE locks are untouched: each lock is its own row.
+                  value:
+                    trip:
+                      id: 018f4a10-2c31-7d42-9a55-6b1f0c3e8a01
+                      title: '서울 가을 여행'
+                      startDate: '2026-10-04'
+                      endDate: '2026-10-07'
+                      timezone: 'Asia/Seoul'
+                      status: ACTIVE
+                      version: 4
+                      candidateCount: 5
+                      planningLevel: MUST_VISIT_ONLY
+                      interests:
+                      - code: CULTURE
+                        weight: 3
+                      - code: FOOD
+                        weight: 5
+                      - code: FRIENDS
+                        weight: 3
+                      days:
+                      - date: '2026-10-04'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c01
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                            name: '경복궁'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 0
+                          startTime: '09:30:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints:
+                          - type: DATE
+                            locked: true
+                            source: USER
+                            date: '2026-10-04'
+                          - type: MUST_VISIT
+                            locked: true
+                            source: USER
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                            name: '인사동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-04'
+                          position: 1
+                          startTime: '13:00:00'
+                          durationMinutes: 90
+                          note: null
+                          constraints: []
+                      - date: '2026-10-05'
+                        items:
+                        - id: 018f4c30-9b55-7f22-8d13-6e8f4a2b3c03
+                          place:
+                            id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                            name: '명동'
+                            categoryCode: HS
+                            regionCode: '11'
+                            categoryName: null
+                            regionName: null
+                            thumbnailUrl: null
+                            thumbnailAttribution: null
+                            address: null
+                            sourceAttribution: null
+                          date: '2026-10-05'
+                          position: 0
+                          startTime: '14:00:00'
+                          durationMinutes: 120
+                          note: null
+                          constraints: []
+                      - date: '2026-10-06'
+                        items: []
+                      - date: '2026-10-07'
+                        items: []
+                      candidates: []
+                    changedItemIds:
+                    - 018f4c30-9b55-7f22-8d13-6e8f4a2b3c02
         "409":
           $ref: "#/components/responses/Conflict"
         "401":
@@ -3951,6 +5149,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventBatchReceipt"
+              examples:
+                eventsAccepted:
+                  summary: "A batch of one event, stored"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. AnalyticsIngestIT compares
+                    its keys with a real response, which is also validated against EventBatchReceipt.
+                  value:
+                    accepted: 1
+                    duplicates: 0
+                    rejected: 0
+                eventsResent:
+                  summary: "The same batch sent again"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against. AnalyticsIngestIT compares
+                    its keys with a real response. The client cannot know whether the first attempt landed, so
+                    the resend is counted as a duplicate rather than stored twice or refused.
+                  value:
+                    accepted: 0
+                    duplicates: 1
+                    rejected: 0
         "422":
           $ref: "#/components/responses/Unprocessable"
         "401":

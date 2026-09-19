@@ -76,10 +76,13 @@ import org.springframework.test.web.servlet.ResultActions;
  * 422 and an unparsable body actually become.
  */
 // The read timeout is shortened so a stall outlasts it without the suite waiting the production value.
+// The owner lock timeout is shortened with it, keeping production's proportion: 3s there is shorter than a
+// policy check's two 5s attempts, so a check made under the owner's lock outlasts it (#271, BA-052-T19).
 @SpringBootTest(properties = {"nullnull.catalog.public-enabled=true",
         "nullnull.capabilities.optimization=true", "nullnull.jobs.enabled=true",
         "nullnull.jobs.poll-interval=PT0.02S", "nullnull.jobs.retry-backoff=PT1S",
-        "nullnull.jobs.max-retry-backoff=PT1S", "nullnull.ai.read-timeout=PT1S"})
+        "nullnull.jobs.max-retry-backoff=PT1S", "nullnull.ai.read-timeout=PT1S",
+        "nullnull.idempotency.lock-timeout=PT0.5S"})
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 @DisplayName("#252 an apps/ai that cannot give a usable policy answer")
@@ -88,6 +91,8 @@ class OptimizeGatewayFailureIT {
     enum Mode { OK, DROP_CONNECTION, UNAVAILABLE_503, STALL, REJECT_422, BAD_HASH }
 
     private static final AtomicReference<Mode> MODE = new AtomicReference<>(Mode.OK);
+    /** How many policy requests the stub has started to stall, so a test can act while one is held. */
+    private static final java.util.concurrent.atomic.AtomicInteger STALLED = new java.util.concurrent.atomic.AtomicInteger();
     private static final HttpServer STUB = startStub();
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -202,8 +207,8 @@ class OptimizeGatewayFailureIT {
                 .andExpect(jsonPath("$.retryable").value(true));
         long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
         assertNothingWritten(fixture, runId, Mode.STALL);
-        // Two policy attempts, each bounded by the one-second read timeout. The check runs inside the
-        // decision's transaction, so this is also how long the owner's lock is held.
+        // Two policy attempts, each bounded by the one-second read timeout. The check runs before the
+        // decision's guard (#271), so none of this is time the owner's lock is held - BA-052-T19.
         assertThat(elapsed).as("elapsed ms").isBetween(1_500L, 6_000L);
         assertNoUnhandledFailure();
     }
@@ -225,6 +230,87 @@ class OptimizeGatewayFailureIT {
             assertNothingWritten(fixture, runId, mode);
         }
         assertNoUnhandledFailure();
+    }
+
+    @Test
+    @DisplayName("BA-052-T19 while apps/ai stalls during an APPLY, the owner's other requests are still answered")
+    void aStalledPolicyCheckDoesNotHoldTheOwner() throws Exception {
+        // Measured before #271 at production values: the APPLY took 10s, and the same owner's getTrip and
+        // createOptimization were each 500 INTERNAL_ERROR after the 3s lock timeout - resolving a session
+        // locks the owner, and the check was holding that lock while it waited for apps/ai.
+        answerFromTheRequest();
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        int stalledBefore = STALLED.get();
+        MODE.set(Mode.STALL);
+        java.util.concurrent.ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            java.util.concurrent.Future<org.springframework.test.web.servlet.MvcResult> apply = pool.submit(
+                    () -> decide(fixture, runId, proposalId, "decide-" + UUID.randomUUID()).andReturn());
+            org.awaitility.Awaitility.await().atMost(10, TimeUnit.SECONDS)
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .until(() -> STALLED.get() > stalledBefore);
+
+            mvc.perform(get("/api/v1/trips/" + fixture.tripId()).cookie(cookie(fixture.owner())))
+                    .andExpect(status().isOk());
+            assertThat(apply.isDone()).as("the read was answered while the APPLY was still waiting").isFalse();
+
+            org.springframework.test.web.servlet.MvcResult applied = apply.get(30, TimeUnit.SECONDS);
+            assertThat(applied.getResponse().getStatus()).isEqualTo(503);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertNothingWritten(fixture, runId, Mode.STALL);
+        assertNoUnhandledFailure();
+    }
+
+    @Test
+    @DisplayName("BA-052-T20 a replay of an APPLY that was answered does not ask apps/ai")
+    void aReplayOfAnAnsweredApplyNeedsNoAppsAi() throws Exception {
+        answerFromTheRequest();
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        String key = "decide-" + UUID.randomUUID();
+        decide(fixture, runId, proposalId, key).andExpect(status().isOk());
+
+        long before = policyCalls();
+        MODE.set(Mode.DROP_CONNECTION);
+        decide(fixture, runId, proposalId, key).andExpect(status().isOk());
+        assertThat(policyCalls() - before).as("the stored answer is replayed without apps/ai").isZero();
+        assertThat(tripVersion(fixture.tripId())).as("applied once").isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("BA-052-T21 a decision on a run no longer offering a preview is refused without asking apps/ai")
+    void aRunThatCannotBeDecidedIsRefusedWithoutAppsAi() throws Exception {
+        // #271 moved the policy check in front of the guard. The run the command will refuse is refused
+        // there too, as before: an apps/ai outage must not turn "already decided" into "try again".
+        answerFromTheRequest();
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        decide(fixture, runId, proposalId, "decide-" + UUID.randomUUID()).andExpect(status().isOk());
+
+        long before = policyCalls();
+        MODE.set(Mode.DROP_CONNECTION);
+        mvc.perform(post("/api/v1/optimizations/" + runId + "/decisions")
+                        .cookie(cookie(fixture.owner()))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", fixture.owner().csrf.token)
+                        .header("If-Match", "\"2\"")
+                        .header("Idempotency-Key", "decide-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"proposalId\":\"" + proposalId + "\",\"decision\":\"APPLY\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DATA_CHANGED"));
+        assertThat(policyCalls() - before).as("a run that cannot be decided needs no policy").isZero();
+    }
+
+    private long policyCalls() {
+        return org.mockito.Mockito.mockingDetails(recommendations).getInvocations().stream()
+                .filter(invocation -> invocation.getMethod().getName().equals("policy")).count();
     }
 
     // ------------------------------------------------------------------ worker
@@ -604,6 +690,7 @@ class OptimizeGatewayFailureIT {
             // apps/ai, or the load balancer in front of it during a rollout, saying it cannot answer now.
             case UNAVAILABLE_503 -> send(exchange, 503, "{\"detail\":\"restarting\"}");
             case STALL -> {
+                STALLED.incrementAndGet();
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, 0);
                 OutputStream out = exchange.getResponseBody();

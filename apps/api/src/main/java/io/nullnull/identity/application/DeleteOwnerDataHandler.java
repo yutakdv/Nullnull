@@ -3,6 +3,7 @@ package io.nullnull.identity.application;
 import io.nullnull.operations.application.JobContext;
 import io.nullnull.operations.application.JobExecutionException;
 import io.nullnull.operations.application.JobHandler;
+import io.nullnull.operations.application.OpsAlarm;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
@@ -15,14 +16,12 @@ public final class DeleteOwnerDataHandler implements JobHandler {
     private static final String FAILURE = "OWNER_DATA_ERASE_FAILED";
     private final DeletionStore deletions;
     private final List<OwnerDataEraser> erasers;
-    private final DeletionProperties properties;
     private final Clock clock;
 
-    public DeleteOwnerDataHandler(DeletionStore deletions, List<OwnerDataEraser> erasers,
-            DeletionProperties properties, Clock clock) {
+    public DeleteOwnerDataHandler(DeletionStore deletions, List<OwnerDataEraser> erasers, Clock clock) {
         this.deletions=deletions;
         this.erasers=erasers.stream().sorted(Comparator.comparing(OwnerDataEraser::name)).toList();
-        this.properties=properties; this.clock=clock;
+        this.clock=clock;
     }
     @Override public String type() { return DeletionService.JOB_TYPE; }
     @Override
@@ -37,9 +36,15 @@ public final class DeleteOwnerDataHandler implements JobHandler {
             }
             context.transactional(() -> deletions.markCompleted(request, clock.instant()));
         } catch (RuntimeException failure) {
-            String status = context.attempt() >= properties.retryLimit ? "FAILED" : "PARTIAL_FAILED";
-            context.transactional(() -> deletions.markFailed(request, context.attempt(), status,
-                    FAILURE, clock.instant()));
+            // The row's ceiling, which is the worker's dead-letter test too: a setting read here could
+            // have changed since enqueue and write FAILED on an attempt that is retried, or never.
+            boolean last = context.lastAttempt();
+            context.transactional(() -> deletions.markFailed(request, context.attempt(),
+                    last ? "FAILED" : "PARTIAL_FAILED", FAILURE, clock.instant()));
+            // Only once that write committed: a worker whose lease lapsed is refused at the commit and
+            // throws above, so every recorded failure has one line and a refused one has none.
+            OpsAlarm.emit(last ? OpsAlarm.deletionFailed(context.jobId(), context.attempt(), FAILURE)
+                    : OpsAlarm.deletionPartialFailed(context.jobId(), context.attempt(), FAILURE));
             throw new JobExecutionException(FAILURE, "Owner data erasure did not complete.");
         }
     }

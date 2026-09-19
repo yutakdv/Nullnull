@@ -5,6 +5,7 @@ import io.nullnull.operations.domain.JobPayload;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -75,6 +76,23 @@ public final class JobContext {
     /** 1 for the first attempt. Useful for a handler that logs or degrades on a late attempt. */
     public int attempt() {
         return job.lease().attempt();
+    }
+
+    /** The job row's id: never sent to a client, and the one identifier an {@link OpsAlarm} line carries. */
+    public UUID jobId() {
+        return job.lease().jobId();
+    }
+
+    /**
+     * True when this attempt is the last one the row allows ({@link ClaimedJob#lastAttempt}): a retryable
+     * failure of this attempt is the job's dead letter exactly when this is true. A non-retryable
+     * {@link JobExecutionException} is a dead letter on any attempt (JobWorker.recordFailure), so a handler
+     * that throws one must not read false here as "another attempt follows". The ceiling is the row's,
+     * fixed at enqueue, which is why a handler asks here rather than reading a setting that may have
+     * changed since.
+     */
+    public boolean lastAttempt() {
+        return job.lastAttempt();
     }
 
     public void transactional(Runnable unitOfWork) {

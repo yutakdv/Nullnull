@@ -19,6 +19,7 @@ import io.nullnull.recommendation.domain.item.ItemProposalOut;
 import io.nullnull.recommendation.domain.item.ItemProposeRequest;
 import io.nullnull.recommendation.domain.item.ItemProposeResponse;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
+import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -305,6 +306,7 @@ class OptimizeItemIT {
 
         assertThat(body.get("proposals").get(0).get("validation").get("checks").get(0)
                 .get("constraintType").asString()).isEqualTo("TIME");
+        ContractResponse.assertValid("getOptimization", 200, body);
         assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-ready.json")));
     }
 
@@ -433,12 +435,14 @@ class OptimizeItemIT {
 
         // The fixtures Frontend mocks the queued and failed faces against have the keys the server
         // sends, everywhere (#16).
+        ContractResponse.assertValid("createOptimization", 202, queuedBody);
         assertThat(JsonShape.of(JSON.readTree(queuedBody)))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-queued.json")));
         JsonNode failed = JSON.readTree(poll(fixture, runId)
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString());
         assertThat(failed.get("failure").get("code").asString()).isEqualTo("DATA_INSUFFICIENT");
+        ContractResponse.assertValid("getOptimization", 200, failed);
         assertThat(JsonShape.of(failed))
                 .isEqualTo(JsonShape.of(JsonShape.fixture("optimizations/run-failed.json")));
     }

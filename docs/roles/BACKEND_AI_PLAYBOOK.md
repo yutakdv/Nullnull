@@ -1616,6 +1616,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T16`: apps/ai가 답하지 못한 결정은 503 APPLY_FAILED(retryable)로 답한다
 - `BA-052-T17`: apps/ai가 계약 밖으로 답한 결정은 500 INTERNAL_ERROR(retryable 아님)로 답한다
 - `BA-052-T18`: apps/ai 장애로 실패한 결정은 아무것도 쓰지 않아서, 복구 뒤 같은 key의 재시도가 200이다
+- `BA-052-T19`: apps/ai가 멈춘 APPLY 동안에도 같은 owner의 다른 요청은 답을 받는다
+- `BA-052-T20`: 답한 APPLY의 replay는 apps/ai에 묻지 않는다
+- `BA-052-T21`: 더는 결정할 수 없는 run의 결정은 apps/ai에 묻지 않고 거절된다
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1864,8 +1867,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 필수 검증:
 
 - `BA-072-T1`: 삭제 이전 backup 복원 후 해당 owner가 재노출되지 않는다
-- `BA-072-T2`: 부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다
+- `BA-072-T2`: 부분 삭제 실패(PARTIAL_FAILED)가 기록될 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_PARTIAL_FAILED` 한 줄을 남긴다
 - `BA-072-T3`: 수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 재현한다
+- `BA-072-T4`: 최종 삭제 실패(FAILED, 판정은 job 행의 attempt 상한)가 기록될 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다
+- `BA-072-T5`: lease 재시도, 즉 lease가 만료된 RUNNING job을 다시 claim할 때마다 `ops.alarm name=JOB_LEASE_RETAKEN` 한 줄을 남긴다
+- `BA-072-T6`: receipt 만료, 즉 삭제가 끝나기 전(ACCEPTED·RUNNING·PARTIAL_FAILED)에 status token이 만료된 요청마다 id 없는 `ops.alarm name=DELETION_RECEIPT_EXPIRED_UNFINISHED` 한 줄을 한 번 남긴다
+- `BA-072-T7`: staging에서 위 `ops.alarm` 이름들의 metric filter와 alarm이 발화해 primary/secondary 수신자에게 도달한다
+- `BA-072-T8`: 삭제 attempt가 잡고 있는 receipt는 만료 sweep이 기다리지 않고 건너뛰며 다음 sweep이 보고한다
+
+T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다"* 였고 세 절이라 T2·T5·T6으로 나눴다. 로컬에서 증명할 수 있는 신호 줄과, staging에서만 증명할 수 있는 alarm·수신(T7)도 나눴다. 두 해석은 조율자가 승인했다. *lease 재시도*는 만료된 lease의 재인수로, *receipt 만료*는 끝나지 않은 삭제의 receipt 만료로 읽었다. 로컬 증거(`d044388`)는 T2·T4가 `DeletionIncidentSignalIT`, T5가 `JobCrashRetryIT`, T6·T8이 `DeletionReceiptExpiryIT`다. 줄 형식의 정본은 `OpsAlarm`이고 `OpsAlarmTest`가 리터럴로 고정한다. 조건 (3)은 sweep 건수 gauge가 아니라 전이 시점(`UPDATE … RETURNING`)에서 잡으므로 migration이 없다. commit과 log 사이의 crash로 줄을 잃으면 `status_token_hash IS NULL AND (completed_at IS NULL OR completed_at > status_token_expires_at)`로 복원한다. T5의 줄은 crash뿐 아니라 contention으로 포기한 attempt와 graceful stop 뒤에도 나므로, T7의 alarm은 1건이 아니라 임계값으로 건다. T1·T3·T7은 staging이 필요하므로 카드는 `planned`로 남는다.
 
 FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
