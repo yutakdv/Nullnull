@@ -212,6 +212,40 @@ class CrowdForecastApiIT {
                 snapshot)).isEqualTo("[]");
     }
 
+    /**
+     * Nothing writes a stage today - the KTO writer stores NULL - and no source has a mapping onto the
+     * five-step scale that anyone reviewed. So a stored stage is not served as one whatever it says:
+     * "3" is on the scale and still comes from a source that publishes no stages, and "6" is off it.
+     * The third point stores nothing and is the control: a read that dropped every stage would leave it
+     * unchanged, but it must not carry SCHEMA_DRIFT.
+     */
+    @Test
+    @DisplayName("BA-023-T23 a stored stage from a source with no reviewed scale is not served as a stage "
+            + "and is marked SCHEMA_DRIFT")
+    void aStageFromAnUnreviewedSourceIsNotServedAsOne() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID place = activePlace("C4 stage fixture");
+        Instant first = clock.instant().plus(Duration.ofDays(1));
+        List<Instant> targets = List.of(first, first.plus(Duration.ofDays(1)), first.plus(Duration.ofDays(2)));
+        insertForecastSet(place, "issue-stage", clock.instant().minus(Duration.ofMinutes(5)),
+                clock.instant().plus(Duration.ofHours(23)), targets, BigDecimal.valueOf(42.5),
+                java.util.Arrays.asList("3", "6", null));
+
+        MvcResult result = forecast(owner, place, targets.get(0), targets.get(2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points.length()").value(3))
+                .andExpect(jsonPath("$.points[0].ordinalLevel").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.points[0].provenance.qualityFlags[0]").value("SCHEMA_DRIFT"))
+                .andExpect(jsonPath("$.points[1].ordinalLevel").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.points[1].provenance.qualityFlags[0]").value("SCHEMA_DRIFT"))
+                .andExpect(jsonPath("$.points[2].ordinalLevel").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.points[2].provenance.qualityFlags").isEmpty())
+                // The value itself is untouched: the stage is what was unreviewed, not the measurement.
+                .andExpect(jsonPath("$.points[0].value").value(42.5))
+                .andReturn();
+        ContractResponse.assertValid("getPlaceCrowdForecast", 200, result.getResponse().getContentAsString());
+    }
+
     @Test
     @DisplayName("no local coverage remains an explicit unavailable series")
     void noCoverageDoesNotInventAForecast() throws Exception {
@@ -276,6 +310,13 @@ class CrowdForecastApiIT {
 
     private List<UUID> insertForecastSet(UUID place, String issue, Instant fetchedAt, Instant staleAt,
             List<Instant> targets, BigDecimal value) {
+        return insertForecastSet(place, issue, fetchedAt, staleAt, targets, value,
+                java.util.Collections.nCopies(targets.size(), null));
+    }
+
+    /** {@code ordinalLevels} lines up with {@code targets}: the stage stored for each point, or null. */
+    private List<UUID> insertForecastSet(UUID place, String issue, Instant fetchedAt, Instant staleAt,
+            List<Instant> targets, BigDecimal value, List<String> ordinalLevels) {
         long sourceVersion = sourceVersion(FORECAST_SOURCE);
         UUID run = UUID.randomUUID();
         collectorRuns.add(run);
@@ -296,7 +337,8 @@ class CrowdForecastApiIT {
                 """, set, FORECAST_SOURCE, sourceVersion, run, issue, issue, Timestamp.from(fetchedAt),
                 Timestamp.from(staleAt), Timestamp.from(fetchedAt));
         List<UUID> snapshots = new ArrayList<>();
-        for (Instant target : targets) {
+        for (int at = 0; at < targets.size(); at++) {
+            Instant target = targets.get(at);
             UUID snapshot = UUID.randomUUID();
             snapshots.add(snapshot);
             jdbc.update("""
@@ -306,10 +348,11 @@ class CrowdForecastApiIT {
                          confidence, quality_flags, forecast_issue_id, comparison_group_id, normalization_version,
                          observed_at_skew_seconds, scope, scope_label, mapping_type, fallback_used, created_at)
                     VALUES (?, ?, ?, ?, ?, 'FORECAST', NULL, ?, ?, ?, 'KTO_RELATIVE_CONCENTRATION_INDEX', ?,
-                            'relative-index', NULL, NULL, '[]'::jsonb, ?, ?, 'kto-tats-cnctr-rate-v4.1', NULL,
+                            'relative-index', ?, NULL, '[]'::jsonb, ?, ?, 'kto-tats-cnctr-rate-v4.1', NULL,
                             'PLACE', 'C4 fixture place', 'DIRECT', false, ?)
                     """, snapshot, set, FORECAST_SOURCE, sourceVersion, place, Timestamp.from(target),
-                    Timestamp.from(fetchedAt), Timestamp.from(staleAt), value, issue, issue, Timestamp.from(fetchedAt));
+                    Timestamp.from(fetchedAt), Timestamp.from(staleAt), value, ordinalLevels.get(at), issue, issue,
+                    Timestamp.from(fetchedAt));
         }
         return snapshots;
     }

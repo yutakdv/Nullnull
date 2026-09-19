@@ -1530,7 +1530,7 @@ paths:
 
         Nothing is fetched from a provider: the call reads stored snapshot sets only and never
         schedules collection, so a place nobody collected a forecast for answers `NO_COVERAGE`.
-        `unavailableReason` is an open string; treat a value you do not know as unavailable. `to` is
+        `unavailableReason` is a token from CrowdSeries' list, never display text. `to` is
         inclusive, and a point's day is the KST date of its `targetAt`: to read one KST date, send
         that date's KST start and its last microsecond (`…T14:59:59.999999Z`). The server compares at
         PostgreSQL's microsecond precision, so a `to` with more than six fractional digits can round up
@@ -6883,6 +6883,15 @@ components:
           type: [string, "null"]
         ordinalLevel:
           type: [string, "null"]
+          pattern: "^[1-5]$"
+          description: |
+            The crowd stage on the product's five-step scale, as a digit string: "1" is the least crowded
+            and "5" the most. It is what the source published on that scale and nothing else - it is
+            never derived from `value`. Null on every point today: no source has a mapping onto this
+            scale that anyone reviewed, and KTO publishes a relative index with no stages at all. A stage
+            a source stored without such a mapping is served as null with `SCHEMA_DRIFT` in
+            `provenance.qualityFlags`, rather than passed through as a stage nobody approved. The words
+            for each stage are Frontend copy.
         label:
           type: string
           description: |
@@ -6908,6 +6917,16 @@ components:
             $ref: "#/components/schemas/CrowdMetric"
         unavailableReason:
           type: [string, "null"]
+          x-extensible-enum: [NO_COVERAGE, PLACE_UNAVAILABLE]
+          description: |
+            Why the series has no points, as a token Frontend maps to its own copy - never display text.
+            Null unless `state` is UNAVAILABLE. `NO_COVERAGE`: nothing stored covers the window; most
+            places answer this and it is not an outage, so it should not read like one.
+            `PLACE_UNAVAILABLE`: the requested id cannot be read (unknown, not active, or without
+            coordinates); only queryPlaceCrowdForecasts sends it, where getPlaceCrowdForecast answers 404.
+            `x-extensible-enum` lists every token the server sends today. The list may grow, and a new
+            token is added there when it starts being sent, so render one you do not know as unavailable;
+            never print it.
     PlaceCrowdForecastQuery:
       type: object
       additionalProperties: false
