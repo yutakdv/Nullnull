@@ -1,4 +1,64 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { createSeededTrip } from './seeded-trip.js';
+
+// 서울숲, from scripts/e2e/catalog-seed.sql. Deliberately NOT one of the two
+// places createSeededTrip schedules: a candidate whose place is already on the
+// itinerary renders as scheduled, and CandidatesScreen.tsx:342 draws no
+// "Add to a day" button for one — the trigger this spec needs would be absent
+// for the same reason the gate failure had no trigger at all.
+const SEOUL_FOREST = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b04';
+
+/**
+ * Saves one unscheduled candidate onto `tripPath`'s trip, the way the product does.
+ *
+ * createSeededTrip builds an itinerary through `seedItems`; it has no candidate
+ * path and is not given one here, because two other specs already depend on it
+ * and widening it would move what they measure. `addTripCandidate` is a
+ * separate operation (openapi.yaml:3043) and a candidate carries no date, so
+ * this cannot disturb the schedule the helper just created —
+ * `tripScheduleChanged` is const false on both its answers.
+ */
+async function saveCandidate(page: Page, tripId: string): Promise<void> {
+  const result = await page.evaluate(
+    async ({ tripId, placeId }) => {
+      const csrf = await fetch('/api/v1/session/csrf', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (!csrf.ok) return { status: csrf.status, step: 'csrf', body: await csrf.text() };
+      const { csrfToken } = (await csrf.json()) as { csrfToken: string };
+      const saved = await fetch(`/api/v1/trips/${tripId}/candidates`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+        // SEARCH rather than POST: a POST source needs a postId, and this
+        // candidate comes from no post.
+        body: JSON.stringify({ placeId, source: { type: 'SEARCH' } }),
+      });
+      // 200 is "the same active candidate already existed", which is as good as
+      // 201 for a test that only needs one to exist.
+      if (saved.status !== 201 && saved.status !== 200) {
+        return { status: saved.status, step: 'addCandidate', body: await saved.text() };
+      }
+      return { status: saved.status, step: 'addCandidate', body: '' };
+    },
+    { tripId, placeId: SEOUL_FOREST },
+  );
+
+  // Thrown rather than asserted so the failure names the request that did not
+  // happen. A silent 4xx here would surface later as "no saved candidate offers
+  // a day to add it to", which is the message the gate actually printed — it
+  // describes the symptom, and this describes the cause.
+  if (result.status !== 201 && result.status !== 200) {
+    throw new Error(
+      `could not save the candidate: ${result.step} answered ${String(result.status)} ${result.body}`,
+    );
+  }
+}
 
 // The "focus 복귀" clause on the saved-places sheet: where focus lands after
 // it closes. Carries no acceptance ID -- see WHY THIS TEST CARRIES NO
@@ -60,18 +120,44 @@ import { expect, test } from '@playwright/test';
 // restore falls to `afterScheduleRef` (:235) instead. Measured both ways --
 // intact: focus on "Remove ... from saved"; with that one line removed: focus
 // on <body>, which is what makes this assertion able to fail.
-const CANDIDATES = '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/candidates';
 
 test.describe('closing the saved-places sheet leaves focus somewhere usable', () => {
   test('a completed schedule moves focus to the row, not the document', async ({
     page,
   }) => {
-    await page.goto('/');
-    // Splash redirects once the session bootstrap resolves; going straight to
-    // the trip would race it.
-    await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
-    await page.goto(CANDIDATES);
+    // A trip of this session's own, then a candidate saved onto it.
+    //
+    // The hardcoded /trip/018f4a10-… this used to open is the MSW FIXTURE's id.
+    // It works against the dev server, where the mock worker answers for it,
+    // and is nobody's trip against the real API the docker gate runs: every run
+    // starts a fresh anonymous session and a trip belongs to the session that
+    // created it, so the answer is 404 by design (invariant 11, BA-070-T1).
+    // The screen then had no saved candidate, no "Add to a day" button, and
+    // this spec died on the precondition below rather than on its assertion —
+    // seeded-trip.ts:3-14 records the same failure from #253, which is where
+    // createSeededTrip came from. This spec did not use it.
+    const tripPath = await createSeededTrip(page);
+    const tripId = tripPath.replace('/trip/', '');
+    await saveCandidate(page, tripId);
+
+    await page.goto(`${tripPath}/candidates`);
     await page.waitForLoadState('networkidle');
+
+    // The seeding landed, asserted before the trigger is looked for. Without
+    // this the next expectation still fails when the save 4xx'd, but it fails
+    // saying "no saved candidate offers a day" — which reads as a product
+    // defect on the screen rather than a setup that never ran. The two are
+    // different repairs, and the gate failure this spec is fixing was misread
+    // that way once already.
+    // The row's own heading, not `getByText`: the name also appears in a
+    // context line elsewhere on the card, and matching both is a strict-mode
+    // violation that fails as though the candidate were missing. Measured —
+    // the first version of this guard did exactly that while the seeding had
+    // in fact worked.
+    await expect(
+      page.getByRole('heading', { name: '서울숲' }),
+      'the seeded candidate is not on the screen, so the setup did not take',
+    ).toBeVisible();
 
     const trigger = page.locator('button[aria-expanded]').first();
     await expect(
@@ -194,10 +280,25 @@ test.describe('FE-203-T4 closing the 담기 sheet leaves focus somewhere usable'
   test('FE-203-T4 picking a trip leaves focus on a control, not the document', async ({
     page,
   }) => {
-    await page.goto('/');
-    await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
+    // The 담기 sheet asks WHICH trip, so it needs at least one to offer. On the
+    // dev server MSW supplies one; against the real API a fresh anonymous
+    // session owns none, and TripPicker had nothing to list — which is why the
+    // gate failed here on the precondition rather than on the focus assertion.
+    // createSeededTrip also settles the session bootstrap, so the goto below
+    // does not race it.
+    await createSeededTrip(page);
+
     await page.goto('/feed');
     await page.waitForLoadState('networkidle');
+
+    // Two preconditions, separated on purpose: the feed has cards at all, and
+    // one of them offers the 담기 control. A feed that rendered empty and a
+    // card that lost its button are different failures, and the message below
+    // named only the second.
+    await expect(
+      page.locator('article').first(),
+      'the feed drew no cards, so there is nothing to add from',
+    ).toBeVisible();
 
     const trigger = page.getByRole('button', { name: /Add to my trip/ }).first();
     await expect(
