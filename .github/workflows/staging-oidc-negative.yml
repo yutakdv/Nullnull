@@ -1,0 +1,70 @@
+name: Staging OIDC negative
+
+# BA-006-T3: the deploy and publish roles refuse a token from the other environment. Each job holds a token
+# for its own environment, proves that token is accepted by its own role (the control), then asks for the
+# other role and must get AccessDenied. Dispatch by hand; it deploys nothing and prints no credential.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nullnull-staging-oidc-negative
+  cancel-in-progress: false
+
+env:
+  AWS_CLI_VERSION: 2.34.59
+  AWS_CLI_SHA256: 968f9c7096a8a8de090cbd75cea26ea9791c46c7ef6de3b345668a515b43dd24
+
+jobs:
+  from-staging-build:
+    name: staging-build token asks for the deploy role
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: staging-build
+      deployment: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-aws-cli
+        with:
+          version: ${{ env.AWS_CLI_VERSION }}
+          sha256: ${{ env.AWS_CLI_SHA256 }}
+      - name: Own role accepts, deploy role refuses
+        env:
+          ACCOUNT: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+          OWN_ROLE: nullnull-stg-github-publish
+          OTHER_ROLE: nullnull-stg-github-deploy
+          ENVIRONMENT: staging-build
+        run: bash scripts/aws/oidc-negative-probe.sh
+
+  from-staging:
+    name: staging token asks for the publish role
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: staging
+      deployment: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-aws-cli
+        with:
+          version: ${{ env.AWS_CLI_VERSION }}
+          sha256: ${{ env.AWS_CLI_SHA256 }}
+      - name: Own role accepts, publish role refuses
+        env:
+          ACCOUNT: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+          OWN_ROLE: nullnull-stg-github-deploy
+          OTHER_ROLE: nullnull-stg-github-publish
+          ENVIRONMENT: staging
+        run: bash scripts/aws/oidc-negative-probe.sh
