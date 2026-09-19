@@ -539,6 +539,32 @@ describe('FE-201 the card shows only what the contract supplies', () => {
 });
 
 describe('FE-201-T3 keyboard and accessible names', () => {
+  it('announces all five crowd levels on a feed card', async () => {
+    const card = feedFixtures.page.items[0];
+    expect(card?.crowd).toBeDefined();
+    server.use(
+      http.get(`${API_BASE}/feed`, () =>
+        HttpResponse.json({
+          ...feedFixtures.page,
+          items: [
+            {
+              ...card,
+              crowd: { ...card?.crowd, ordinalLevel: '5' },
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderFeed();
+    const article = (await screen.findByText(card?.post.title ?? '')).closest(
+      'article',
+    ) as HTMLElement;
+    expect(
+      within(article).getByRole('img', { name: 'Level 5 of 5' }),
+    ).toBeInTheDocument();
+  });
+
   it('names the list after the screen heading', async () => {
     renderFeed();
     await screen.findByText(firstTitle);

@@ -16,12 +16,12 @@ export interface CrowdLevelProps {
   stateLabels?: Partial<Record<SourceState, string>>;
   /**
    * Accessible name for the bar, already interpolated by the caller — e.g.
-   * "4단계 중 2번째". The glyph row is meaningless without it.
+   * "5단계 중 2번째". The glyph row is meaningless without it.
    */
   levelLabel?: string;
 }
 
-const STEPS = 4;
+export const CROWD_LEVEL_STEPS = 5;
 
 export function CrowdLevel({
   crowd,
@@ -40,31 +40,21 @@ export function CrowdLevel({
     );
   }
 
-  // The 1..4 scale is documented, not invented: COMPONENT_CATALOG.md:136
-  // defines CrowdLevel as "1~4단계, 데이터 없음, 척도 밖" and
-  // FIGMA_CHANGE_REQUESTS.md:201 fixes the wording (1·매우 여유 … 4·혼잡).
-  //
-  // The server cannot fill it yet — JdbcKtoForecastSnapshotStore inserts
-  // ordinal_level as a NULL literal — so today every reading lands here as
-  // null and draws no bars. That is the agreed state, not a bug: FCR-029
-  // says the card ships without a crowd figure until the contract carries
-  // one. The remaining gap is the WORD, not the number: the design wants
-  // "4 · 혼잡" and `label` is diagnostic text we are forbidden to render, so
-  // there is nowhere to read "혼잡" from. Backend/AI is confirming the
-  // vocabulary against a real response before adding it to the contract.
-  const parsed = Number(crowd.ordinalLevel);
-  const level =
-    Number.isInteger(parsed) && parsed >= 1 && parsed <= STEPS ? parsed : null;
+  // The contract uses a 1..5 ordinal scale. Values outside it draw no bar
+  // rather than being clamped into a different crowd level.
+  const level = /^[1-5]$/.test(crowd.ordinalLevel ?? '')
+    ? Number(crowd.ordinalLevel)
+    : null;
 
   return (
     <span className={styles.row}>
       {level === null ? null : (
         <span
-          aria-label={levelLabel ?? `${STEPS}단계 중 ${level}번째`}
+          aria-label={levelLabel ?? `${CROWD_LEVEL_STEPS}단계 중 ${level}번째`}
           className={styles.bar}
           role="img"
         >
-          {Array.from({ length: STEPS }, (_, i) => (
+          {Array.from({ length: CROWD_LEVEL_STEPS }, (_, i) => (
             <span key={i} className={styles.step} data-filled={i < level || undefined} />
           ))}
         </span>
