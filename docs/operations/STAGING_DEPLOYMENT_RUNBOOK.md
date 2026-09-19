@@ -374,6 +374,11 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-hours --plan-file <plan.json> \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# 큐레이션 게시물(local 전용, #183). 커밋된 ops/curated-posts.json을 그대로 넘긴다(staging placeId와 표지 URL이 들어 있다).
+# 표지는 이 명령이 올리지 않는다: release plan이 docs/contest/covers의 jpg를 assembly에 넣고 WebEdge가 /covers/로 서빙한다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task curate-posts --plan-file ops/curated-posts.json \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
 # verifier token(Secrets Manager nullnull-stg/verifier-token)은 history에 남지 않게 읽는다. 아래 flows와 edge open이 쓴다.
 read -rs NULLNULL_VERIFIER_TOKEN && export NULLNULL_VERIFIER_TOKEN
 # INT-04 확인(verifier 경로). 먼저 날짜 쌍을 찾고, 예보 적재 뒤 24시간 안에 돌린다. edge를 연 뒤에는 --expect-edge open.
@@ -395,6 +400,8 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
 - `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
 - `curate-hours`는 승인한 plan 바이트를 gzip+base64로 task override에 싣는다. override는 `describe-tasks`와 CloudTrail에 남으므로 plan에 민감한 값을 넣지 않는다. task가 출력한 sha가 승인값과 같을 때만 성공이고, 그 바이트는 release bucket `evidence/curation/<release>/<sha>.json`에 남는다.
+- `curate-posts`도 같은 경로다. 성공은 sha 줄, 실패 줄 없음, 그리고 `curated_posts_published=<n> of <게시물 수>`의 **전체 수가 plan의 게시물 수와 같을 때**다. 다시 돌려 이미 있는 게시물은 `ALREADY_PRESENT`이고 그래도 성공이다(`0 of 5`). **두 전제가 있다**: 표지를 서빙하는 release(WebEdge의 `CuratedCovers` 배포)가 먼저 배포돼 있어야 게시물의 표지가 404가 되지 않고, `CuratedPostImportMain`이 inline plan을 읽는 release의 image에서만 task가 돈다 — 그 전 release에서는 main이 파일 경로만 알아서 task 안에서 실패한다. 이미 게시된 게시물은 다시 import해도 바뀌지 않으므로(`ALREADY_PRESENT`) 표지 URL을 고치려면 그 게시물을 먼저 지워야 한다.
+- `docs/contest/covers/`의 **모든 jpg가 공개로 배포된다.** plan 단계가 그 폴더의 jpg를 전부 assembly에 넣고 `prune: false`라 한 번 올라간 사진은 지워지지 않는다. 게시물이 쓰지 않는 사진을 두지 않는다(`scripts/tests/test_curated_post_covers.py`가 사진 목록과 게시물의 표지 목록이 같음을 확인한다).
 - `edge`는 A-039의 전제를 운영자가 지킬 때만 쓴다. 전제는 둘이다. 배포된 release에 FE 로그인 흉내 화면이 들어 있어야 하고, 열려 있는 동안에는 DB 복원을 하지 않는다(복원 전에 닫는다). 명령은 이 전제를 검사하지 않는다.
 - `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. release 확인은 배포 잠금 안에서 한다. plan이 `deployed/current.json`의 `planSha256`이 아니거나 WebEdge stack이 진행 중이면 거부한다. hash 검사는 모두 하지만 시간 검사는 하지 않는다. 24시간 신선도와 plan의 `expiresAt` 가동 창을 보지 않고(심사 기간에 다시 열 수 있어야 한다) staging 종료 한계만 본다. 비용 plan도 다시 평가하지 않는다. `infra/package-lock.json`이 release의 것과 같은 checkout에서, `npm --prefix infra ci`를 한 뒤 돌린다(`toolchain-changed`).
 - 열기 전에는 CD가 배포 뒤 돌리는 `staging-smoke.sh`와 verifier 경로 `staging-flows.mjs`가 통과해야 한다. 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 `200 application/json`(열림) 또는 `503 application/problem+json`(닫힘)이 될 때까지 확인한다. ALB의 `503 text/html`은 닫힘이 아니다. 이미 그 상태면 다시 배포하지 않고 확인만 한다.

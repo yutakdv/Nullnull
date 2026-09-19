@@ -12,6 +12,8 @@ writeFileSync(
   join(directory, "web", "index.html"),
   "<!doctype html><title>synthetic</title>",
 );
+mkdirSync(join(directory, "covers"));
+writeFileSync(join(directory, "covers", "01-synthetic.jpg"), "synthetic cover bytes");
 const app = new cdk.App({ outdir: join(directory, "assembly") });
 const stacks = createStacks(app, {
   account: "1".repeat(12),
@@ -22,6 +24,7 @@ const stacks = createStacks(app, {
     aiCatalogVersion: "KTO_KOR_SERVICE_2:4",
   },
   webDirectory: join(directory, "web"),
+  coversDirectory: join(directory, "covers"),
 });
 const templates = Object.fromEntries(
   Object.entries(stacks).map(([k, s]) => [k, Template.fromStack(s)]),
@@ -228,7 +231,7 @@ test("complete synthesis has no dependency cycle and no Services dependency in P
   );
   assert.equal(assembly.stacks.length, 9);
   const bootstrapApp = new cdk.App({outdir:join(directory,"bootstrap")});
-  createStacks(bootstrapApp,{account:"1".repeat(12),bootstrapOnly:true,webDirectory:"",
+  createStacks(bootstrapApp,{account:"1".repeat(12),bootstrapOnly:true,webDirectory:"",coversDirectory:"",
     release:{releaseVersion:"bootstrap",apiImageDigest:"",aiImageDigest:"",aiCatalogVersion:""}});
   assert.equal(bootstrapApp.synth().stacks.length,1);
   assert.equal((assembly.manifest.missing ?? []).length, 0);
@@ -354,7 +357,10 @@ test("every role the app creates carries the Nullnull permissions boundary", () 
   assert(roles >= 10, `expected the app's roles, saw ${roles}`);
   const customs = Object.values(templates).flatMap((t) =>
     Object.values(t.toJSON().Resources as Record<string, any>).map((r) => r.Type).filter((type: string) => type.startsWith("Custom::")));
-  assert.deepEqual(customs, ["Custom::CDKBucketDeployment"]);
+  // Two bucket deployments (the web bundle and the #183 covers) share CDK's one singleton handler, so the set of
+  // custom resource types is still exactly the one this app allows.
+  assert.deepEqual([...new Set(customs)], ["Custom::CDKBucketDeployment"]);
+  assert.equal(customs.length, 2, "the web bundle and the covers");
 });
 const {
   FORECAST_SCHEDULE_END,
@@ -594,5 +600,26 @@ test("every alarm publishes to the one topic the subscribe script subscribes, an
     /[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
     "the receiver's address belongs to the operator's ignored settings, not to this repository",
   );
+});
+test("the curated covers are served under /covers/ of the web distribution, kept, cached and invalidated alone", () => {
+  // #183. The URLs in ops/curated-posts.json are <PublicUrl>/covers/<file>; media_assets takes only absolute https.
+  const deployments = Object.values(
+    templates.web.findResources("Custom::CDKBucketDeployment"),
+  ) as any[];
+  const covers = deployments.filter(
+    (d) => d.Properties.DestinationBucketKeyPrefix === "covers/",
+  );
+  assert.equal(covers.length, 1, "one covers deployment");
+  const c = covers[0].Properties;
+  // A published post keeps pointing at its cover: nothing a later release does may delete one.
+  assert.equal(c.Prune, false);
+  assert.equal(c.RetainOnDelete, true);
+  assert.deepEqual(c.DistributionPaths, ["/covers/*"]);
+  assert.equal(c.SystemMetadata["cache-control"], "public, max-age=86400");
+  assert.deepEqual(c.DistributionId, deployments.find((d) => d !== covers[0]).Properties.DistributionId);
+  // The web bundle's own deployment is unchanged: no prefix, no-cache, the whole site invalidated.
+  const bundle = deployments.find((d) => d !== covers[0]).Properties;
+  assert.equal(bundle.DestinationBucketKeyPrefix, undefined);
+  assert.equal(bundle.SystemMetadata["cache-control"], "no-cache");
 });
 process.on("exit", () => rmSync(directory, { recursive: true, force: true }));

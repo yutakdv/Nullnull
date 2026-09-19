@@ -130,7 +130,14 @@ export const GATE_FUNCTION_CODE = [
 ].join("\n");
 export function createStacks(
   app: cdk.App,
-  config: { account: string; release: Release; webDirectory: string; bootstrapOnly?: boolean },
+  config: {
+    account: string;
+    release: Release;
+    webDirectory: string;
+    // #183 cover photos, staged by staging_operator.py plan from docs/contest/covers (jpg only).
+    coversDirectory: string;
+    bootstrapOnly?: boolean;
+  },
 ): Record<string, cdk.Stack> {
   const region = "ap-northeast-2";
   // Explicitly pin the approved two AZs so offline synth never requests account lookups.
@@ -830,6 +837,28 @@ export function createStacks(
     cacheControl: [deploy.CacheControl.noCache()],
     distribution: dist,
     distributionPaths: ["/*"],
+  });
+  // #183: the curated posts' cover photos, at <PublicUrl>/covers/<file>. They are the owner's own photographs
+  // (A-024), content rather than the app bundle - apps/web/public is pinned to an exact allowlist
+  // (image-assets.test.ts) and the web artifact to the release manifest's webArtifactSha256 - so they come from
+  // their own directory, which the operator's plan step copies out of the repository. Being an asset of this
+  // assembly, they are inside the sha the owner approves for the release, byte for byte, and ops/curated-posts.json
+  // names the same bytes by checksum (scripts/tests/test_curated_post_covers.py). media_assets refuses anything but
+  // an absolute https URL (V021), which is what this distribution serves; the default behaviour's rewrite
+  // leaves a path with a dot alone, so /covers/x.jpg reaches the bucket and not index.html.
+  new deploy.BucketDeployment(web, "CuratedCovers", {
+    destinationBucket: webBucket,
+    destinationKeyPrefix: "covers/",
+    sources: [deploy.Source.asset(config.coversDirectory)],
+    // Never removes a cover a published post may still point at; a replaced photo is a new file name.
+    prune: false,
+    retainOnDelete: true,
+    cacheControl: [
+      deploy.CacheControl.setPublic(),
+      deploy.CacheControl.maxAge(cdk.Duration.days(1)),
+    ],
+    distribution: dist,
+    distributionPaths: ["/covers/*"],
   });
   out(web, "PublicUrl", `https://${dist.distributionDomainName}`);
   out(web, "DistributionId", dist.distributionId);

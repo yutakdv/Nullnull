@@ -642,13 +642,16 @@ class CurationTaskRegressions(unittest.TestCase):
                'windows':[{'date':'2026-10-01','state':'OPEN','opensAt':'09:00:00','closesAt':'18:00:00'}]}
         place.update(overrides)
         return json.dumps({'places':[place]},ensure_ascii=False,indent=2).encode()
+    TASK='curate-hours'
+    def default_log(self, data, sha):
+        return [f'curated_hours_plan sha256={sha} bytes={len(data)}']+self.JAVA_LINES[:1]+['curated_hours_recorded=1']
     def run_curate(self, data, approved=None, owner='owner approved in session', log=None, plan_file=True,
                    image=None, release=None, task_failure=None):
         import contextlib, gzip as gz, hashlib, io
         from types import SimpleNamespace
         sha=hashlib.sha256(data).hexdigest()
         calls=[]
-        if log is None: log=[f'curated_hours_plan sha256={sha} bytes={len(data)}']+self.JAVA_LINES[:1]+['curated_hours_recorded=1']
+        if log is None: log=self.default_log(data, sha)
         def fake(service,operation,**kw):
             calls.append((service,operation,kw))
             if (service,operation)==('rds','describe-db-instances'):
@@ -674,7 +677,7 @@ class CurationTaskRegressions(unittest.TestCase):
                  contextlib.redirect_stdout(out):
                 error=None
                 try:
-                    ops.ops_task(SimpleNamespace(task='curate-hours',content_id=None,content_type_id=None,place_id=None,
+                    ops.ops_task(SimpleNamespace(task=self.TASK,content_id=None,content_type_id=None,place_id=None,
                                                  owner_approval=owner,places=None,plan_file=str(path) if plan_file else None,
                                                  approved_plan_sha256=sha if approved is None else approved))
                 except ops.OpsError as e:
@@ -764,6 +767,130 @@ class CurationTaskRegressions(unittest.TestCase):
                  'curated_hours 01a0b825-4f15-7e7b-b30c-87cf71861c9c DELETED (windows=48)']
         for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
         for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
+class CuratedPostsTaskRegressions(unittest.TestCase):
+    """curate-posts (#183): the same approved-bytes path as the hours, with the posts plan's own shape and lines.
+
+    The machinery is CurationTaskRegressions.run_curate, borrowed rather than inherited: inheriting would rerun every
+    hours assertion against the posts task.
+    """
+    POST='01a0b463-4600-7183-8000-000000000001'
+    # Verbatim what CuratedPostImportMainTest shows CuratedPostImportMain printing.
+    JAVA_LINES=['curated_post 01a0b463-4600-7183-8000-000000000001 PUBLISHED (2 place(s))',
+                'curated_post 01a0b463-4600-7183-8000-000000000001 ALREADY_PRESENT (left as it is)',
+                'curated_posts_published=1 of 2','curated_posts_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED',
+                'curated_posts_failed reason=IllegalStateException']
+    def plan(self, url='https://d54awmnmi4c3z.cloudfront.net/covers/01-gyeongbokgung.jpg', places=None):
+        post={'id':self.POST,'title':'담장을 따라 걷는 하루','body':'본문','publishedAt':'2026-09-18T03:00:00Z',
+              'cover':{'url':url,'alt':'근정전 앞 넓은 마당','checksum':'7'*64},
+              'places':places if places is not None else [{'placeId':CurationTaskRegressions.PLACE,'primary':True}],
+              '_source_file':'docs/contest/covers/01-gyeongbokgung.jpg'}
+        return json.dumps({'posts':[post]},ensure_ascii=False,indent=2).encode()
+    def run_curate(self, data, published='1', **kw):
+        import hashlib
+        runner=CurationTaskRegressions('run_curate')
+        runner.TASK='curate-posts'
+        runner.default_log=lambda d,sha:[f'curated_posts_plan sha256={sha} bytes={len(d)}',self.JAVA_LINES[0],
+                                         f'curated_posts_published={published} of 1']
+        return runner.run_curate(data,**kw)
+    def test_the_approved_posts_plan_travels_to_its_main_and_is_kept_as_evidence(self):
+        import gzip as gz, base64 as b64
+        data=self.plan()
+        r=self.run_curate(data)
+        self.assertIsNone(r['error'],r['out'])
+        env={e['name']:e['value'] for e in r['run'][0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('io.nullnull.social.infrastructure.curation.CuratedPostImportMain',env['LOADER_MAIN'])
+        self.assertEqual(data,gz.decompress(b64.b64decode(env['NULLNULL_POSTS_PLAN_GZIP_BASE64'])))
+        self.assertEqual(r['sha'],env['NULLNULL_POSTS_PLAN_SHA256'])
+        self.assertNotIn('NULLNULL_HOURS_PLAN_GZIP_BASE64',env)
+        self.assertIn(f'plan_sha256={r["sha"]} bytes={len(data)} posts=1 place_ids={CurationTaskRegressions.PLACE}',r['out'])
+        self.assertEqual(data,r['kept'])
+        self.assertIn('curation_plan=recorded task=curate-posts sha256='+r['sha'],r['out'])
+    def test_a_rerun_of_an_approved_plan_that_publishes_nothing_new_still_succeeds(self):
+        # ALREADY_PRESENT is the importer's idempotence, not a failure: "0 of 1" is every post accounted for.
+        r=self.run_curate(self.plan(),published='0')
+        self.assertIsNone(r['error'],r['out'])
+    def test_a_posts_plan_that_is_not_a_plan_stops_before_any_aws_call(self):
+        cases=[(json.dumps({'posts':[]}).encode(),'plan-file-has-no-posts'),
+               (self.plan(url='<BE: https://<도메인>/covers/01-gyeongbokgung.jpg>'),'plan-file-has-placeholders'),
+               (self.plan(url='http://d54awmnmi4c3z.cloudfront.net/covers/01-gyeongbokgung.jpg'),'plan-file-cover-url-not-https'),
+               (self.plan(places=[]),'plan-file-post-has-no-place'),
+               (self.plan(places=[{'placeId':'not-a-uuid','primary':True}]),'plan-file-place-id-not-a-uuid'),
+               # An hours plan handed to the posts task is refused for its shape, not imported as something else.
+               (CurationTaskRegressions().plan(),'plan-file-has-no-posts')]
+        for data,reason in cases:
+            with self.subTest(reason=reason):
+                r=self.run_curate(data)
+                self.assertIn(reason,r['error'] or '',r['out'])
+                self.assertEqual([],r['calls']);r['identity'].assert_not_called()
+    def test_success_is_read_from_the_publications_own_lines(self):
+        import hashlib
+        data=self.plan();sha=hashlib.sha256(data).hexdigest();plan_line=f'curated_posts_plan sha256={sha} bytes={len(data)}'
+        for log,reason in [([plan_line,'curated_posts_failed reason=CurationException'],'curation-import-failed'),
+                           ([plan_line],'curation-not-all-posts-published'),
+                           # The total names every post in the plan, or the run did not see them all.
+                           ([plan_line,'curated_posts_published=1 of 2'],'curation-not-all-posts-published'),
+                           # The hours' "done" line does not count for the posts.
+                           ([plan_line,'curated_hours_recorded=1'],'curation-not-all-posts-published'),
+                           ([f'curated_hours_plan sha256={sha} bytes={len(data)}','curated_posts_published=1 of 1'],
+                            'curation-plan-echo-mismatch')]:
+            with self.subTest(reason=reason,log=log[-1]):
+                r=self.run_curate(data,log=log)
+                self.assertIn(reason,r['error'] or '')
+                r['upload'].assert_not_called();self.assertIsNone(r['kept'])
+    def test_the_lines_the_posts_import_prints_pass_and_nothing_that_carries_more(self):
+        sha='b'*64
+        allowed=[f'curated_posts_plan sha256={sha} bytes=7021']+self.JAVA_LINES
+        refused=['curated_post 01a0b463-4600-7183-8000-000000000001 PUBLISHED (2 place(s)) 담장을 따라 걷는 하루',
+                 'curated_post 01a0b463-4600-7183-8000-000000000001 PUBLISHED (https://d54awmnmi4c3z.cloudfront.net/covers/x.jpg)',
+                 f'curated_posts_plan sha256={sha} bytes=13 title=담장',
+                 'curated_posts_failed reason=IllegalStateException: no curation plan at /tmp/x',
+                 'curated_posts_published='+'9'*500+' of 5',
+                 'curated_post 01a0b463-4600-7183-8000-000000000001 DELETED (left as it is)']
+        for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
+        for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
+class PlanStagesCoversRegressions(unittest.TestCase):
+    """#183: a release plan carries the cover photos into its assembly - only them, and never none."""
+    def run_plan(self, covers):
+        import contextlib, io
+        from types import SimpleNamespace
+        calls=[]
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            folder=root/'docs/contest/covers';folder.mkdir(parents=True)
+            for name,data in covers.items():(folder/name).write_bytes(data)
+            web=root/'web';web.mkdir();(web/'index.html').write_text('synthetic')
+            cost=root/'cost.txt';cost.write_text('estimate')
+            (root/'infra').mkdir();(root/'infra/package-lock.json').write_text('{}')
+            args=SimpleNamespace(action='deploy',manifest='m.json',web_dir=str(web),days=7,estimated_total=150,
+                                 cost_basis=str(cost))
+            out=io.StringIO()
+            with patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}),patch.object(ops,'ROOT',root),\
+                 patch.object(ops,'validate_manifest',return_value={'kind':'release'}),patch.object(ops,'check_artifacts'),\
+                 patch.object(ops,'run'),patch.object(ops,'cdk',side_effect=lambda command,**kw:calls.append(command)),\
+                 patch.object(ops,'verifier_hash',return_value='c'*64),patch.object(ops,'tree_digest',return_value='t'),\
+                 contextlib.redirect_stdout(out):
+                error=None
+                try:
+                    ops.plan(args)
+                except ops.OpsError as e:
+                    error=str(e)
+            staged={p.name:p.read_bytes() for p in (root/'.artifacts/aws/plans').glob('*/covers/*')}
+        return {'error':error,'cdk':calls,'staged':staged,'out':out.getvalue()}
+    def test_the_jpgs_and_nothing_else_reach_the_assembly_the_owner_approves(self):
+        r=self.run_plan({'01-a.jpg':b'first','02-b.jpg':b'second','README.md':b'not content'})
+        self.assertIsNone(r['error'],r['out'])
+        self.assertEqual({'01-a.jpg':b'first','02-b.jpg':b'second'},r['staged'])
+        synth=[str(a) for a in r['cdk'][0]]
+        covers=[a for a in synth if a.startswith('coversDirectory=')]
+        self.assertEqual(1,len(covers),synth)
+        self.assertTrue(covers[0].endswith('/covers'),covers)
+        self.assertIn('covers=01-a.jpg,02-b.jpg',r['out'])
+    def test_a_plan_with_no_cover_photo_stops_before_synth(self):
+        r=self.run_plan({'README.md':b'not content'})
+        self.assertIn('cover-photos-missing',r['error'] or '')
+        self.assertEqual([],r['cdk'])
 
 class EdgeRegressions(unittest.TestCase):
     """edge opens or closes the public API of the deployed release by redeploying WebEdge alone from its own plan."""

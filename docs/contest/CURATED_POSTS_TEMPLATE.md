@@ -26,7 +26,7 @@ tags:
 ### 계획 파일 — Backend/AI
 
 실제 계획 파일은 `ops/curated-posts.json`이다. FE 초안(`docs/contest/curated-posts.draft.json`)에
-Backend/AI가 `id`·`publishedAt`을 채운 것이고, `placeId`·`cover.url`은 아직 `<BE: …>` 자리표시자다.
+Backend/AI가 `id`·`publishedAt`을 채운 것이고, `placeId`(staging 카탈로그 id)와 `cover.url`(#183)까지 채워져 있다.
 자리표시자가 남아 있으면 `CuratedPostPlan`이 **파일 전체를 거절**한다(https·UUID 형식이 아니다) —
 채우기 전에 실수로 실행해도 아무것도 쓰이지 않는다. 두 칸만 형식에 맞게 채운 파일은 다섯 편 모두
 실제 리더(`CuratedPostImportMain.read`)를 통과한다.
@@ -50,9 +50,12 @@ Backend/AI가 `id`·`publishedAt`을 채운 것이고, `placeId`·`cover.url`은
    자리표시자에 넣는다. `ops/curated-hours.json`도 같은 다섯 장소를 가리키므로 같은 ID로 맞춘다 —
    그 파일의 현재 ID가 어느 카탈로그에서 나왔는지는 기록이 없다. staging용 영업시간 plan은 커밋하지 않고
    로컬 파일로 둔다(5의 staging 경로).
-3. **표지를 올린다.** `_source_file`이 가리키는 다섯 장을 배포 도메인에 올리고, 올린 파일의
-   `shasum -a 256` 값이 `cover.checksum`과 같은지 확인한다. 도메인과 저장 위치는 staging 담당이 정한다.
-4. **`cover.url`을 채운다.** 올린 주소만 넣는다(https만, [#182](https://github.com/yutakdv/Nullnull/issues/182)).
+3. **표지는 release가 서빙한다.** staging operator의 release plan이 `docs/contest/covers/*.jpg`를 assembly에 넣고
+   WebEdge distribution이 `<PublicUrl>/covers/<파일>`로 서빙한다. 따로 올리는 단계는 없고, 오너가 release plan의
+   sha를 승인하는 것이 곧 표지 바이트의 승인이다. `cover.checksum`이 그 파일의 sha256과 같은지는
+   `scripts/tests/test_curated_post_covers.py`가 확인한다.
+4. **`cover.url`은 채워져 있다** — `https://d54awmnmi4c3z.cloudfront.net/covers/<파일>`(https만,
+   [#182](https://github.com/yutakdv/Nullnull/issues/182)). 배포 도메인이 바뀌면 다섯 줄을 함께 고친다.
 5. **import한다.** `apps/api`에서
    `NULLNULL_CURATION_PLAN="$(git rev-parse --show-toplevel)/ops/curated-posts.json" ./gradlew curatePosts`
    (영업시간은 `NULLNULL_HOURS_PLAN="$(git rev-parse --show-toplevel)/ops/curated-hours.json" ./gradlew curateHours`).
@@ -67,7 +70,8 @@ Backend/AI가 `id`·`publishedAt`을 채운 것이고, `placeId`·`cover.url`은
    staging의 app role은 migration 이력을 읽지 못하므로 그 자격으로 돌 때는 staging API처럼
    `SPRING_FLYWAY_ENABLED=false`로 돌고 `schema=unchecked`가 찍힌다. staging에서 영업시간은 staging operator의
    `curate-hours` ops task로 넣는다(`STAGING_DEPLOYMENT_RUNBOOK.md` §11). staging placeId로 고친 plan 파일을
-   넘기고, operator가 출력한 sha256을 오너가 승인한다. 게시물(`curatePosts`)은 아직 staging ops task가 없다.
+   넘기고, operator가 출력한 sha256을 오너가 승인한다. 게시물은 `curate-posts` ops task로 같은 방식으로 넣는다(같은 §11).
+   **표지를 서빙하는 release가 먼저 배포돼 있어야 한다** — 그렇지 않으면 게시물이 404 표지를 가리킨 채 게시된다.
 6. **`/feed`를 확인한다.** 다섯 건이 파일 순서(첫 게시물이 맨 위)대로 보이고 표지가 뜨는지 본다.
 
 ## 한 건의 서식

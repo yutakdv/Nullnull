@@ -58,6 +58,8 @@ OPS_TASKS = {
     # Curated opening hours (A-031/A-032). No KTO call, so no KTO approval variable: the owner approves the exact
     # plan bytes instead (CURATION_PLANS below), and records who did with --owner-approval.
     'curate-hours': ('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain', None, {}),
+    # Curated feed posts (A-031, #183), the same way: no provider call, the owner approves the plan's bytes.
+    'curate-posts': ('io.nullnull.social.infrastructure.curation.CuratedPostImportMain', None, {}),
 }
 # A curate task's plan cannot be a file in the task: it runs the release's image with a read-only root, and baking
 # the plan into the image would make every plan edit a release (the hours re-observation before 2026-10-13 falls in
@@ -66,8 +68,17 @@ OPS_TASKS = {
 # bytes (io.nullnull.OperationsPlan) and prints the sha it imported, which is compared here after the task stops.
 # The override is visible to anyone who can describe the task and is kept by CloudTrail, so a plan must never carry
 # anything sensitive; an hours plan holds public notice URLs, place ids and opening times.
+# Per task: where the bytes travel, the sha line the main echoes, the prefix of every line it prints, the plan's list
+# of items, and the line that says all of them landed ({n} is the item count). The hours record every place; the posts
+# are published or were already there, so a rerun of an approved plan still succeeds with "0 of 5".
 CURATION_PLANS = {'curate-hours': {'inline': 'NULLNULL_HOURS_PLAN_GZIP_BASE64', 'sha256': 'NULLNULL_HOURS_PLAN_SHA256',
-                                   'echo': 'curated_hours_plan'}}
+                                   'echo': 'curated_hours_plan', 'lines': 'curated_hours', 'items': 'places',
+                                   'done': r'curated_hours_recorded={n}', 'failed': 'curated_hours_failed ',
+                                   'incomplete': 'curation-not-all-places-recorded'},
+                  'curate-posts': {'inline': 'NULLNULL_POSTS_PLAN_GZIP_BASE64', 'sha256': 'NULLNULL_POSTS_PLAN_SHA256',
+                                   'echo': 'curated_posts_plan', 'lines': 'curated_post', 'items': 'posts',
+                                   'done': r'curated_posts_published=[0-9]{{1,4}} of {n}', 'failed': 'curated_posts_failed ',
+                                   'incomplete': 'curation-not-all-posts-published'}}
 PLAN_MAX_BYTES = 1 << 20  # io.nullnull.OperationsPlan.MAX_BYTES
 # RunTask refuses overrides past a size AWS documents as 8192 characters for the whole overrides object; that figure is
 # not recorded in this repository and was not measured, so these bounds keep well under it rather than at it.
@@ -89,6 +100,11 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|curated_hours_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_hours [0-9a-f-]{36} (RECORDED|REPLACED) \(windows=[0-9]{1,4}\)'
                           r'|curated_hours_recorded=[0-9]{1,4}|curated_hours_failed reason=[A-Za-z_]{1,80}'
+                          # The posts import (CuratedPostImportMain), the same four shapes: ids, outcomes and counts, never
+                          # a title, body or cover URL (CuratedPostImportMainTest mirrors these four).
+                          r'|curated_posts_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
+                          r'|curated_post [0-9a-f-]{36} (PUBLISHED \([0-9]{1,3} place\(s\)\)|ALREADY_PRESENT \(left as it is\))'
+                          r'|curated_posts_published=[0-9]{1,4} of [0-9]{1,4}|curated_posts_failed reason=[A-Za-z_]{1,80}'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
 
@@ -269,6 +285,21 @@ def rollback_plan(args):
     print('plan_path='+str(directory/'plan.json'))
     print('approved_plan_sha256='+digest(directory/'plan.json'))
 
+def stage_covers(target):
+    """#183: copy the curated posts' cover photos into the plan, from the one place the repository keeps them.
+
+    They become an asset of the assembly, so the sha the owner approves for the release covers their bytes; there is
+    no separate upload to approve or to forget. Only the .jpg files - the README beside them is not content - and
+    nothing that is a link, for the same reason tree_digest refuses one.
+    """
+    files = sorted(p for p in (ROOT/'docs/contest/covers').glob('*.jpg'))
+    require(files, 'cover-photos-missing')
+    require(all(p.is_file() and not p.is_symlink() for p in files), 'cover-photo-not-a-file')
+    target.mkdir(mode=0o700)
+    for source in files:
+        shutil.copyfile(source, target/source.name)
+    return [p.name for p in files]
+
 def plan(args):
     if args.action=='rollback':
         return rollback_plan(args)
@@ -291,12 +322,14 @@ def plan(args):
     if not bootstrap:
         shutil.copytree(args.web_dir, directory/'web', symlinks=False)
         check_artifacts(manifest, directory/'web')
+        print('covers=' + ','.join(stage_covers(directory/'covers')))
     shutil.copyfile(args.cost_basis, directory/'cost-basis.txt')
     run(['npm','run','build'],cwd=ROOT/'infra')
     # Synth has no lookups and no diff/change-set/asset publishing in plan mode.
     cdk(['synth','--no-lookups','--quiet','--output',directory/'assembly',
          '--context','account='+account,'--context','releaseManifest='+str(directory/'release.json'),
-         '--context','webDirectory='+str(directory/'web'),'--context','phase='+('foundation' if bootstrap else 'runtime')])
+         '--context','webDirectory='+str(directory/'web'),'--context','coversDirectory='+str(directory/'covers'),
+         '--context','phase='+('foundation' if bootstrap else 'runtime')])
     data = {'version':1,'account':account,'region':REGION,'action':args.action,
             'createdAt':now.isoformat(),'expiresAt':ends.isoformat(),
             'estimateUsd':args.estimated_total,'reserveUsd':20,
@@ -466,7 +499,8 @@ def normalize_template(template):
         resource.pop('Metadata', None)
         properties = resource.get('Properties', {})
         if resource.get('Type') == 'Custom::CDKBucketDeployment':
-            # The web bundle is the app path by definition; everything else in WebEdge is infra.
+            # What a bucket deployment carries - the web bundle, and the #183 covers - is the app path by definition;
+            # adding or reshaping a deployment is still a template change, hence infra.
             properties.pop('SourceObjectKeys', None)
         if resource.get('Type') == 'AWS::ECS::TaskDefinition':
             for container in properties.get('ContainerDefinitions', []):
@@ -820,17 +854,28 @@ def curation_plan(args):
         raise OpsError('plan-file-not-json') from None
     # The committed templates carry '<BE: ...>' placeholders; a plan still holding one is not a plan yet.
     require('<BE:' not in text, 'plan-file-has-placeholders')
-    places = plan.get('places') if isinstance(plan, dict) else None
-    require(isinstance(places, list) and len(places) > 0, 'plan-file-has-no-places')
+    kind = CURATION_PLANS[args.task]['items']
+    items = plan.get(kind) if isinstance(plan, dict) else None
+    require(isinstance(items, list) and len(items) > 0, 'plan-file-has-no-' + kind)
+    require(all(isinstance(i, dict) for i in items), 'plan-file-has-no-' + kind)
+    if kind == 'posts':
+        # A post names places and a cover. The importer and V021 refuse a cover that is not an absolute https URL;
+        # caught here so the refusal costs no approval and no task.
+        require(all(isinstance(i.get('places'), list) and i['places'] for i in items), 'plan-file-post-has-no-place')
+        places = [p for i in items for p in i['places']]
+        require(all(isinstance(i.get('cover'), dict) and str(i['cover'].get('url', '')).startswith('https://')
+                    for i in items), 'plan-file-cover-url-not-https')
+    else:
+        places = items
     require(all(isinstance(p, dict) and PLACE_ID.fullmatch(str(p.get('placeId', ''))) for p in places),
             'plan-file-place-id-not-a-uuid')
     sha = hashlib.sha256(data).hexdigest()
-    print(f'plan_sha256={sha} bytes={len(data)} places={len(places)} place_ids=' + ','.join(p['placeId'] for p in places))
+    print(f'plan_sha256={sha} bytes={len(data)} {kind}={len(items)} place_ids=' + ','.join(p['placeId'] for p in places))
     require(getattr(args, 'approved_plan_sha256', None) == sha, 'plan-sha256-not-approved')
     require(bool(args.owner_approval) and len(args.owner_approval) >= 10, 'owner-approval-record-required')
     encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode('ascii')
     require(len(encoded) <= PLAN_INLINE_MAX_CHARS, 'plan-too-large-for-task-overrides')
-    return {'data': data, 'sha256': sha, 'encoded': encoded, 'places': len(places)}
+    return {'data': data, 'sha256': sha, 'encoded': encoded, 'items': len(items)}
 
 def ops_task(args):
     """Run one allowlisted operator command in the VPC with the deployed API image."""
@@ -908,7 +953,7 @@ def ops_task(args):
                 print('ops_log ' + line)
                 if line.startswith('KTO_SMOKE_OK '):
                     evidence.append(line)
-                if plan and line.startswith('curated_hours'):
+                if plan and line.startswith(CURATION_PLANS[args.task]['lines']):
                     echoed.append(line)
         if failure:
             raise failure
@@ -925,11 +970,13 @@ def record_curation(task, plan, echoed, current):
     the count it recorded (printed after), and no failure line. A plan file on the operator's machine is not a
     record; this copy and its sha are.
     """
-    expected = f"{CURATION_PLANS[task]['echo']} sha256={plan['sha256']} bytes={len(plan['data'])}"
-    require([line for line in echoed if line.startswith(CURATION_PLANS[task]['echo'] + ' ')] == [expected],
+    spec = CURATION_PLANS[task]
+    expected = f"{spec['echo']} sha256={plan['sha256']} bytes={len(plan['data'])}"
+    require([line for line in echoed if line.startswith(spec['echo'] + ' ')] == [expected],
             'curation-plan-echo-mismatch')
-    require(not any(line.startswith('curated_hours_failed ') for line in echoed), 'curation-import-failed')
-    require(f"curated_hours_recorded={plan['places']}" in echoed, 'curation-not-all-places-recorded')
+    require(not any(line.startswith(spec['failed']) for line in echoed), 'curation-import-failed')
+    done = re.compile(spec['done'].format(n=plan['items']))
+    require(any(done.fullmatch(line) for line in echoed), spec['incomplete'])
     path = ROOT/'.artifacts/aws/evidence'/f"curation-{plan['sha256']}.json"
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
