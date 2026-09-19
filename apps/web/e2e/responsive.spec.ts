@@ -13,7 +13,20 @@ import { SCREENS } from './screens.js';
 // `body { min-width: 360px }` floor -- which forced a horizontal scrollbar at
 // exactly the zoom level the accessibility rule requires us to support.
 
-test.describe('FE-601-T1 at 360px, the narrowest designed width', () => {
+// FE-104-T3 and FE-203-T3 ride along on the three describes below, and only
+// on those three. Both clauses were originally written as six things at once
+// ("keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion"),
+// and this spec proves three of them for every screen in SCREENS: 360px here,
+// 200% zoom below, and the accessible name of whatever takes focus. The other
+// three are FE-104-T4 / FE-203-T4 and have no test yet — reduced motion runs
+// once against /language rather than per screen (see the block below), and
+// nothing here asserts focus returning to a trigger.
+//
+// The ids are split rather than attached whole because the aggregator only
+// checks that an id APPEARS in a testcase name: one id covering six clauses is
+// satisfied by a test proving any one of them, and the rest become invisible
+// (AGENTS.md registration rule 3).
+test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} fits`, async ({ page }) => {
       await page.goto(screen.path);
@@ -27,7 +40,7 @@ test.describe('FE-601-T1 at 360px, the narrowest designed width', () => {
   }
 });
 
-test.describe('at 200% zoom, where the viewport halves', () => {
+test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () => {
   test.use({ viewport: { width: 180, height: 500 } });
   for (const screen of SCREENS) {
     test(`${screen.name} reflows instead of scrolling sideways`, async ({ page }) => {
@@ -81,7 +94,15 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // The scaffold cards own no screen of their own - FE-001 is the router shell,
 // FE-002 the tokens, FE-003 the error mapper, FE-004 the offline shell - so
 // their keyboard-and-reflow clause can only be shown across the whole set.
-test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 keyboard and motion', () => {
+// FE-104-T3 / FE-203-T3 are here for the accessible-name half only: the
+// per-screen test below presses Tab once and requires that whatever takes
+// focus is on screen and has a name. That is the "접근성 이름" clause.
+//
+// They are NOT for reduced motion, which is why `honours prefers-reduced-motion`
+// now lives in its own describe below rather than in this one: it visits
+// /language alone and says nothing about the paste screen or the trip picker.
+// The reduced-motion clause is FE-104-T4 / FE-203-T4, still unproven.
+test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
     test(`${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);
@@ -139,7 +160,22 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 keybo
       }
     });
   }
+});
 
+// Its own describe, and deliberately so. A testcase's JUnit name is its
+// describe title plus its own, so while this test lived in the block above it
+// spelled every id in that title — including FE-104-T3 and FE-203-T3, which it
+// does not earn: it emulates `reduce` on /language alone and never visits the
+// paste screen or opens the trip picker. Measured after attaching those ids:
+// the JUnit name came out `… FE-104-T3 FE-203-T3 keyboard and motion › honours
+// prefers-reduced-motion`, and check_test_reports.py matches on the name, so a
+// comment saying "not this one" changes nothing. Splitting the block is what
+// actually keeps the claim off it.
+//
+// It keeps the FE-601/FE-602/FE-00x ids because those cards ask for
+// reduced-motion as a property of the app, which one screen can show; FE-104
+// and FE-203 ask for it on THEIR screen, which this does not measure.
+test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motion', () => {
   test('honours prefers-reduced-motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/language');
