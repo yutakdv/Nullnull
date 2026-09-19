@@ -445,18 +445,18 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
   });
 
   it('does not offer a preview for a run that is already decided', async () => {
-    // run.readyPending explains that FE-503 has not built the preview yet.
-    // Showing it on an APPLIED run would promise a screen that is not coming
-    // for a decision already made.
+    // run.readyPending explains that this READY response has no proposals.
+    // Showing it on an APPLIED run would describe a decision already made as
+    // though its result were still pending.
     runIs('APPLIED');
     renderRun();
     await screen.findByText(copy['run.applied']);
     expect(screen.queryByText(copy['run.readyPending'])).toBeNull();
   });
 
-  it('does not claim a preview exists before FE-503 can show one', async () => {
-    // proposals is empty until BA-051 computes them. A before/after built from
-    // nothing would be the unsourced comparison invariant 8 forbids.
+  it('does not invent a preview when a READY response has no proposals', async () => {
+    // A before/after built from nothing would be the unsourced comparison
+    // invariant 8 forbids.
     runIs('READY');
     renderRun();
     expect(await screen.findByText(copy['run.readyPending'])).toBeInTheDocument();
@@ -518,22 +518,15 @@ describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation', () => {
 // only here — their clause is keyboard, focus and accessible names, and none of
 // them is about leaving the screen.
 //
-// WHAT FE-503-T3 AND FE-505-T3 DO NOT COVER, named so the gap has an owner.
-// Their cards originally bundled six things into one clause; four are proven —
+// WHAT FE-503-T3 AND FE-505-T3 COVER. Their cards originally bundled six
+// things into one clause; four are proven here and in the responsive suite —
 // keyboard reach here, accessible names and 360px and 200% zoom in
-// responsive.spec.ts, whose SCREENS list carries both optimize routes. The
-// remaining two are FE-503-T4 / FE-505-T4 and have NO test:
+// responsive.spec.ts, whose SCREENS list carries both optimize routes.
 //
-//   - focus restore: nothing here asserts where focus lands after a dialog or
-//     sheet on these screens closes.
-//   - reduced motion: responsive.spec.ts measures it on /language alone, from
-//     outside the SCREENS loop, so it says nothing about either optimize route.
-//     That is the same gap FE-104-T4 / FE-203-T4 name (responsive.spec.ts:104),
-//     one cause with four cards downstream of it.
-//
-// The IDs exist so the gap is countable. Attaching them to a passing test would
-// make an unmeasured clause read as met, which is the failure this whole ID
-// exercise is meant to prevent.
+// FE-503-T4 now names the READY route's reduced-motion case in that suite. Its
+// focus-return half is inapplicable because this screen mounts no dialog or
+// sheet. FE-505-T4 remains separate: the applied/undo panel is still excluded
+// from the integration gate while the optimization capability is off.
 describe('FE-502-T3 FE-504-T3 FE-503-T3 FE-505-T3 the controls answer to the keyboard', () => {
   it('reaches the back control by keyboard', async () => {
     runIs('RUNNING');

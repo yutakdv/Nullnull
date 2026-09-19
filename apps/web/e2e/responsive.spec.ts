@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 import { overflow } from './overflow.js';
 import { SCREENS } from './screens.js';
 
+const composedStack = Boolean(
+  process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL,
+);
+
 // FE-601: every built P0 screen must survive 360px, 200% zoom and long copy.
 //
 // These run in a real browser because the failures they look for are layout
@@ -279,7 +283,8 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
   });
 });
 
-// FE-104-T4 / FE-203-T4: reduced motion on EVERY screen, not just one.
+// FE-104-T4 / FE-203-T4 / FE-503-T4: reduced motion on EVERY screen, not just
+// one. FE-503-T4 is attached only to the optimization-run case below.
 //
 // The describe above measures reduced motion as a property of the app, which
 // one screen can show. FE-104 (paste import) and FE-203 (saved places) ask for
@@ -291,16 +296,12 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 // and T4 takes focus 복귀 plus this screen's reduced motion. Only the
 // reduced-motion half of T4 is proven here; focus 복귀 is focus-restore.spec.ts.
 //
-// FE-503-T4 and FE-505-T4 are deliberately NOT on this title, though SCREENS
-// does carry the two optimize routes. Those cards are the READY preview -
-// before/after, MetricDelta, the decision bar, the applied/undo panel - and
-// OptimizationRunScreen.tsx:39-43 records that none of it is built, because it
-// needs BA-051 to compute proposals and BA-052 to record a decision. A READY
-// run reports that the result arrived and stops. So there is no motion of
-// theirs on either route to collapse, and `optimization run` does not even
-// reach its own content here (it renders "No such optimization", measured).
-// Attaching their ids would claim a clause about a screen state this suite
-// never renders.
+// FE-503's READY preview is now implemented and SCREENS uses MOCK_RUN_ID, so
+// the local MSW run reaches the real proposal and decision bar. The screen has
+// no dialog or sheet, making the focus-return half of T4 inapplicable; this
+// case proves its remaining reduced-motion half. FE-505-T4 stays out because
+// its applied/undo panel is not reachable in the integration gate while that
+// capability is off (playwright.config.ts records that boundary).
 //
 // It does NOT reuse the assertion above, because that assertion cannot fail.
 // Measured: delete the `prefers-reduced-motion` block from styles.css and
@@ -320,21 +321,33 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 // makes the per-screen claim honest — and it is why the check does not depend
 // on a screen reaching its real content.
 //
-// Two of the sixteen reach an error state, because the fixture ids in
-// screens.ts are not this session's (screens.ts:21-23): `optimization run`
-// shows "No such optimization" and `post detail` likewise. They are kept in
-// the loop deliberately — an error screen must honour reduced motion too — but
-// nothing here claims to have measured those screens' real content. Notably
-// the app's one real animation lives on `optimization run` behind
-// `data-active`, so it is unreachable here; that is why the probe exists
-// rather than a query for the app's own animated nodes, which would find none
-// and pass over an empty set on all sixteen screens.
 test.describe('FE-104-T4 FE-203-T4 reduced motion, per screen', () => {
   for (const screen of SCREENS) {
-    test(`${screen.name} collapses motion under reduce`, async ({ page }) => {
+    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T4 ' : '';
+    test(`${acceptanceId}${screen.name} collapses motion under reduce`, async ({
+      page,
+    }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
+
+      if (screen.name === 'optimization run' && !composedStack) {
+        // The local MSW state machine reaches READY on its third read. Guard
+        // the real FE-503 content before crediting its ID: otherwise this case
+        // could pass on the route's not-found screen while measuring only the
+        // global stylesheet. The composed gate keeps the optimization
+        // capability off, so there the probe below is the honest boundary.
+        await expect(
+          page.getByRole('heading', {
+            level: 1,
+            name: /대안을 확인해 주세요|Review the alternatives/,
+          }),
+        ).toBeVisible({ timeout: 10_000 });
+        await expect(
+          page.getByRole('group', { name: /최적화 결정|Optimization decision/ }),
+        ).toBeVisible();
+        await expect(page.locator('dialog')).toHaveCount(0);
+      }
 
       const measured = await page.evaluate(() => {
         // The probe declares motion the reduce rule has to override. Inline

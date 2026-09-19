@@ -272,7 +272,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-307` | B05 | item 편집 시트에서 잠금 종류별 독립 설정 | `411:1837` |
 | `FE-501` | B06 | S09-0 scope/item setup, 미지원 P1 state | `415:2268` |
 | `FE-502` | B06 | S09-1 loading/polling/background resume | `415:2413` |
-| `FE-503` | B06 | before/after MetricDelta, 근거, decision bar | FCR-004 READY preview frame (병합 후 확정) |
+| `FE-503` | B06 | before/after MetricDelta, 근거, decision bar | `655:4067` |
 | `FE-504` | B06 | 오류 6종·stale·no improvement 상태 | `417:2567`, `485:3517` |
 | `FE-505` | B06 | applied/undo/recompute flow | `417:2412` |
 | `FE-506` | B06 | S14 최적화 이력 상태/scope/시각/decision과 상세 진입 | `422:2925` |

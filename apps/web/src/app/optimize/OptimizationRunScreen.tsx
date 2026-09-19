@@ -36,11 +36,10 @@ import styles from './OptimizationRunScreen.module.css';
 //   - No invented numbers. FCR-005 removed route/time copy while P0 has no
 //     route provider, so the steps name crowd and locks only.
 //
-// NOT BUILT HERE: the READY preview itself — before/after, metrics, the
-// decision bar — is FE-503/FE-505 and needs BA-051 to compute proposals and
-// BA-052 to record a decision. A READY run therefore reports that the result
-// arrived and stops. Rendering a preview from an empty proposals array would
-// mean inventing the comparison invariant 8 forbids.
+// The READY preview renders the server's proposals with before/after metrics,
+// provenance and an APPLY/KEEP decision bar. A READY run with no proposals
+// still reports that the result arrived and stops: rendering a comparison from
+// an empty array would invent the value invariant 8 forbids.
 
 type OptimizationStatus = components['schemas']['OptimizationStatus'];
 
