@@ -27,6 +27,7 @@ tags:
 | `main` | 두 사람 공동 | 배포 가능한 통합 기준선만 유지 | 변경 영향에 따라 상대 담당자가 비동기 검토 |
 
 - `main` direct push, force push와 branch deletion을 금지한다. PR은 최신 `main`의 두 required check가 green이면 상대 승인 대기 없이 auto-merge한다.
+- 예외(오너 결정 2026-09-19): AWS·CD 경로(`.github/workflows/staging-*`, `.github/workflows/auto-merge.yml`, `.github/actions/**`, `infra/**`, `scripts/aws/**`)를 바꾸는 PR은 auto-merge하지 않고 오너가 직접 merge한다. main에 병합된 코드는 staging에 배포되기 때문이다. `auto-merge.yml`이 PR 파일 목록으로 판정하며, 이미 켜진 auto-merge는 끈다.
 - 두 역할 브랜치는 재사용하는 장기 브랜치다. 별도 기능 브랜치를 기본 흐름으로 만들지 않는다.
 - 사람별 WIP는 역할 브랜치의 미병합 vertical slice 1개다.
 - 모든 commit은 추적 가능한 Work ID를 포함한 Conventional Commit을 사용한다.

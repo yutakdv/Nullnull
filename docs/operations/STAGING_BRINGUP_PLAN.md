@@ -2,16 +2,20 @@
 aliases:
   - "최소 staging 착수 계획"
 doc_type: decision
-status: proposed
+status: superseded
 area: operations
 tags:
   - nullnull/decision
   - nullnull/operations
 ---
 
-# 최소 staging 착수 계획 (승인 대기)
+# 최소 staging 착수 계획 (대체됨)
 
-- 상태: **제안**. 오너가 이 문서 하나를 읽고 승인/반려할 수 있도록 쓴다.
+> 이 문서의 `$150`, Single-AZ, public ALB, WAF 보류안은 과거 승인 요청 기록이다.
+> `2026-09-14`에 승인된 현재 실행 정본은
+> [STAGING_DEPLOYMENT_RUNBOOK.md](STAGING_DEPLOYMENT_RUNBOOK.md)다.
+
+- 상태: **대체됨**. 당시 판단 근거 보존용이며 새 구현 결정에 사용하지 않는다.
 - 범위: [AWS_DEPLOYMENT](AWS_DEPLOYMENT.md)의 목표 구조 중 **지금 켜야 하는 최소 부분**만.
 - 이 계획으로 **AWS에 아무것도 만들지 않았다.** 계정 생성·리소스 생성·비용 발생은 전부 승인 뒤다.
 - 연결: [BA-006](../roles/BACKEND_AI_PLAYBOOK.md#ba-006)(`blocked`) · [열린 결정](../project/DECISIONS_AND_RISKS.md#2-열린-결정) D-001·D-017·D-018·D-019·D-023.

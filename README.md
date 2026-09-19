@@ -115,7 +115,7 @@ Frontend 담당은 장기 `frontend`, Backend/AI 담당은 장기 `backend` 브�
 - [Frontend Claude Code 시작 안내서](docs/roles/FRONTEND_CLAUDE_CODE_START.md) · [Frontend 실행서](docs/roles/FRONTEND_PLAYBOOK.md) · [Backend/AI 실행서](docs/roles/BACKEND_AI_PLAYBOOK.md) · [브랜치·Docker 통합](docs/engineering/BRANCH_AND_INTEGRATION.md)
 - [공모전 준수 매트릭스](docs/contest/COMPETITION_COMPLIANCE_MATRIX.md) · [증거 원장 template](docs/contest/EVIDENCE_LEDGER_TEMPLATE.md) · [제출 runbook](docs/contest/SUBMISSION_RUNBOOK.md)
 - [외부 데이터 카탈로그](docs/data/SOURCE_CATALOG.md) · [개인정보](docs/security/PRIVACY_REQUIREMENTS.md) · [위협 모델](docs/security/THREAT_MODEL.md)
-- [AWS 배포](docs/operations/AWS_DEPLOYMENT.md) · [릴리스 운영](docs/operations/GITHUB_RELEASE_OPERATIONS.md) · [사고 대응](docs/operations/INCIDENT_RESPONSE.md)
+- [AWS 배포](docs/operations/AWS_DEPLOYMENT.md) · [staging 실행](docs/operations/STAGING_DEPLOYMENT_RUNBOOK.md) · [릴리스 운영](docs/operations/GITHUB_RELEASE_OPERATIONS.md) · [사고 대응](docs/operations/INCIDENT_RESPONSE.md)
 - [Claude Code 지침](CLAUDE.md) · [기여 안내](CONTRIBUTING.md)
 
 Claude Code에서는 저장소 루트에서 시작한 뒤 한 기능을 다음처럼 전달할 수 있다.

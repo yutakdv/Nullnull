@@ -1,0 +1,550 @@
+"""Offline regression tests for the AWS review findings; no AWS calls."""
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+import test_aws_staging_scripts as fixtures
+ROOT=Path(__file__).resolve().parents[2]
+spec=importlib.util.spec_from_file_location('nullnull_aws_operator',ROOT/'scripts/aws/staging_operator.py')
+ops=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ops)
+
+class ValidatorRegressions(unittest.TestCase):
+    def invoke(self,script,value,*args):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'input.json';p.write_text(json.dumps(value))
+            return subprocess.run(['node',str(ROOT/'scripts/aws'/script),str(p),*args],capture_output=True,text=True)
+    def test_extra_unrestricted_allow_is_rejected(self):
+        statement={'Effect':'Allow','Principal':{'Federated':'arn:aws:iam::'+'1'*12+':oidc-provider/token.actions.githubusercontent.com'},'Action':'sts:AssumeRoleWithWebIdentity','Condition':{'StringEquals':{'token.actions.githubusercontent.com:sub':'repo:yutakdv/Nullnull:environment:staging','token.actions.githubusercontent.com:aud':'sts.amazonaws.com'}}}
+        extra={**statement,'Action':['sts:AssumeRoleWithWebIdentity']};extra.pop('Condition')
+        self.assertNotEqual(0,self.invoke('validate-oidc-trust.mjs',{'Statement':[statement,extra]}).returncode)
+    def test_invalid_manifest_types_and_extra_fields_rejected(self):
+        for key,value in [('apiImageDigest',['sha256:'+'a'*64]),('flywayChecksums',[None]),('unknown',True)]:
+            with self.subTest(key=key):
+                manifest=fixtures.ReleaseManifestValidatorTest().valid_manifest();manifest[key]=value
+                self.assertNotEqual(0,self.invoke('validate-release-manifest.mjs',manifest).returncode)
+    def test_html_health_rejected_and_degraded_json_allowed(self):
+        self.assertNotEqual(0,self.invoke('validate-health.mjs',{'status':'READY'},'ready','text/html').returncode)
+        self.assertEqual(0,self.invoke('validate-health.mjs',{'status':'DEGRADED','checks':[{'name':'database','status':'READY'}]},'ready','application/json').returncode)
+    def test_standalone_migration_cannot_bypass_lock(self):
+        result=subprocess.run(['bash',str(ROOT/'scripts/aws/staging-migrate.sh'),'--execute'],capture_output=True,text=True)
+        self.assertNotEqual(0,result.returncode)
+        self.assertIn('locked-deploy-plan',result.stderr)
+
+class OperatorRegressions(unittest.TestCase):
+    def test_tree_digest_rejects_symlinks_and_detects_change(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);p=root/'asset';p.write_text('first');before=ops.tree_digest(root)
+            p.write_text('changed');self.assertNotEqual(before,ops.tree_digest(root))
+            (root/'link').symlink_to(p)
+            with self.assertRaisesRegex(ops.OpsError,'symlink'):ops.tree_digest(root)
+    def test_profile_clears_ambient_credentials(self):
+        with patch.dict(os.environ,{'AWS_ACCESS_KEY_ID':'synthetic','AWS_SESSION_TOKEN':'synthetic','AWS_PROFILE':'chosen'}):
+            env=ops.child_env();self.assertNotIn('AWS_ACCESS_KEY_ID',env);self.assertEqual('chosen',env['AWS_PROFILE'])
+    def test_lock_is_conditional_and_not_released_on_unknown_result(self):
+        with patch.object(ops,'aws',return_value={}) as aws:
+            with self.assertRaises(ops.OpsError):
+                # An AWS write was started and its outcome is unknown: the lock must stay.
+                with ops.DeploymentLock() as lock:lock.mutating();raise ops.OpsError('unknown')
+            self.assertEqual(1,aws.call_count)
+            self.assertEqual('attribute_not_exists(LockId)',aws.call_args.kwargs['ConditionExpression'])
+    def test_lock_release_requires_matching_owner(self):
+        with patch.object(ops,'aws',return_value={}) as aws:
+            with ops.DeploymentLock():pass
+            self.assertEqual('delete-item',aws.call_args.args[1])
+            self.assertIn('ConditionExpression',aws.call_args.kwargs)
+    PROFILE={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p'}
+    def run_execute(self, action, kind, live_change=None, deployed=None, target=None, accept=False, classification=True,
+                    stale_baseline=False, env=None, source_state='clean', fail_on=None, cli_writes=False):
+        """execute() with AWS replaced at its edges only: manifest validation (the real node validator), the live
+        classification and the lock logic run for real. Returns (cdk mock, migration mock); self.aws_ops lists
+        the lock's AWS operations."""
+        import argparse
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d);plan=directory/'plan.json';plan.write_text('{}');assembly=directory/'assembly';assembly.mkdir()
+            templates={s:{'Resources':{'R':{'Type':'AWS::SNS::Topic','Properties':{'TopicName':s}}}} for s in ops.STACKS}
+            for s,t in templates.items():(assembly/f'NullnullStg{s}.template.json').write_text(json.dumps(t))
+            live=json.loads(json.dumps(templates))
+            if live_change:live[live_change]['Resources']['R']['Properties']['TopicName']='changed'
+            manifest={**fixtures.ReleaseManifestValidatorTest().valid_manifest(),'flywayChecksums':target or ['V001:'+'a'*64],'sourceState':source_state}
+            if source_state=='overlay':manifest.update(sourceOverlaySha256='sha256:'+'e'*64,sourceOverlayPaths=['apps/api/x.java'])
+            (directory/'release.json').write_text(json.dumps(manifest))
+            data={'action':action,'account':'1'*12,'assemblySha256':ops.tree_digest(assembly),'verifierTokenSha256':'f'*64,'acceptNewerSchema':accept}
+            if classification:
+                (directory/'classification.json').write_text(json.dumps({'baselineSha256':ops.baseline_sha256(templates if stale_baseline else live)}))
+            record={'releaseManifest':{'flywayChecksums':deployed or ['V001:'+'a'*64]}}
+            self.aws_ops=[]
+            def fake_aws(service, operation, **kw):
+                self.aws_ops.append(operation);return {}
+            def fake_cdk(command, log=None):
+                if command[1]==fail_on:raise ops.OpsError('command-failed-cdk')
+                if cli_writes:
+                    # What the real CLI did on 2026-09-19: zip directory assets into <app>/.cache/.
+                    app=Path(command[command.index('--app')+1]);(app/'.cache').mkdir(exist_ok=True)
+                    (app/'.cache'/(command[1]+'.zip')).write_text('zip')
+            with patch.dict(os.environ,env or self.PROFILE),patch.object(ops,'verify_plan',return_value=data),patch.object(ops,'identity'),patch.object(ops,'verify_images'),patch.object(ops,'require_kto_secret_provisioned'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'live_bodies',return_value=live),patch.object(ops,'protected_templates',return_value={}),patch.object(ops,'guard_stateful'),patch.object(ops,'output',return_value='synthetic'),patch.object(ops,'aws',side_effect=fake_aws),patch.object(ops.DeploymentLock,'check'),patch.object(ops,'record_release'),patch.object(ops,'migration') as migration,patch.object(ops,'cdk',side_effect=fake_cdk) as cdk:
+                ops.execute(argparse.Namespace(plan=str(plan),approved_plan_sha256='synthetic',action=action,kind=kind))
+                self.approved_assembly_untouched=ops.tree_digest(assembly)==data['assemblySha256']
+                return cdk, migration
+    def deployed(self, cdk):
+        return [c.args[0][1] for c in cdk.call_args_list]
+    def test_rollback_never_migrates_or_deploys_protected_stacks(self):
+        cdk, migration = self.run_execute('rollback', 'app')
+        migration.assert_not_called()
+        self.assertEqual(['NullnullStgMigration','NullnullStgWebEdge','NullnullStgServices'],self.deployed(cdk))
+        self.assertTrue(all('--exclusively' in c.args[0] for c in cdk.call_args_list))
+    def test_ci_rollback_accepts_a_recorded_release_of_another_commit(self):
+        # F2: the deploy job exports this run's SHA; the recorded release is older by definition.
+        env={**AuthModeRegressions.AMBIENT,'NULLNULL_EXPECTED_GIT_SHA':'d'*40}
+        cdk,_=self.run_execute('rollback','app',env=env)
+        self.assertEqual(3,cdk.call_count)
+    def test_rollback_that_undoes_a_template_change_needs_the_infra_path(self):
+        with self.assertRaisesRegex(ops.OpsError,'rollback-requires-infra-approval'):
+            self.run_execute('rollback','app',live_change='Services')
+        self.assertIn('delete-item',self.aws_ops)
+        cdk,_=self.run_execute('rollback','infra',live_change='Services')
+        self.assertEqual(['NullnullStgMigration','NullnullStgWebEdge','NullnullStgServices'],self.deployed(cdk))
+    def test_rollback_ignores_protected_stacks_it_never_deploys(self):
+        cdk,_=self.run_execute('rollback','app',live_change='Data')
+        self.assertEqual(3,cdk.call_count)
+    def test_rollback_to_an_overlay_release_needs_the_infra_path(self):
+        with self.assertRaisesRegex(ops.OpsError,'rollback-requires-infra-approval'):
+            self.run_execute('rollback','app',source_state='overlay')
+    def test_app_release_never_deploys_protected_stacks_and_keeps_edge_closed(self):
+        cdk, migration = self.run_execute('deploy', 'app')
+        migration.assert_called_once()
+        self.assertEqual(['NullnullStgMigration','NullnullStgWebEdge','NullnullStgServices'],[c.args[0][1] for c in cdk.call_args_list])
+        web=[c.args[0] for c in cdk.call_args_list if c.args[0][1]=='NullnullStgWebEdge'][0]
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=false', web)
+        self.assertIn('NullnullStgWebEdge:VerifierTokenSha256='+'f'*64, web)
+        self.assertTrue(all('--toolkit-stack-name' in c.args[0] for c in cdk.call_args_list))
+    def test_app_release_with_infra_drift_is_refused_before_any_deploy(self):
+        with self.assertRaisesRegex(ops.OpsError,'infra-change-requires-infra-approval'):
+            self.run_execute('deploy', 'app', live_change='Data')
+    def test_a_check_that_fails_before_any_write_releases_the_lock(self):
+        with self.assertRaises(ops.OpsError):self.run_execute('deploy','app',live_change='Data')
+        self.assertEqual(['put-item','delete-item'],self.aws_ops)
+    def test_a_failure_after_a_write_keeps_the_lock(self):
+        with self.assertRaisesRegex(ops.OpsError,'command-failed-cdk'):
+            self.run_execute('deploy','app',fail_on='NullnullStgServices')
+        self.assertEqual(['put-item'],self.aws_ops)
+    def test_infra_release_deploys_protected_in_order_then_migrates(self):
+        cdk, migration = self.run_execute('deploy', 'infra')
+        self.assertEqual(['NullnullStg'+n for n in ['Foundation','Network','GlobalWaf','Data','Platform','Observability','Migration','WebEdge','Services']],
+                         self.deployed(cdk))
+        migration.assert_called_once()
+    def test_the_cli_deploys_a_copy_so_its_writes_never_touch_the_approved_assembly(self):
+        cdk,_=self.run_execute('deploy','infra',cli_writes=True)
+        self.assertEqual(9,cdk.call_count)
+        self.assertTrue(self.approved_assembly_untouched)
+    def test_infra_execute_requires_the_reviewed_classification(self):
+        with self.assertRaisesRegex(ops.OpsError,'infra-execute-requires-classification'):
+            self.run_execute('deploy','infra',classification=False)
+    def test_any_live_change_after_classification_voids_the_infra_approval(self):
+        with self.assertRaisesRegex(ops.OpsError,'live-stacks-changed-since-classification'):
+            self.run_execute('deploy','infra',live_change='Services',stale_baseline=True)
+    def test_rollback_onto_a_newer_schema_needs_the_recorded_decision(self):
+        newer=['V001:'+'a'*64,'V002:'+'b'*64]
+        with self.assertRaisesRegex(ops.OpsError,'requires-accept-newer-schema'):
+            self.run_execute('rollback', 'app', deployed=newer, target=newer[:1])
+        # Accepting the newer schema is itself a reviewed decision: it takes the infra path.
+        with self.assertRaisesRegex(ops.OpsError,'rollback-requires-infra-approval'):
+            self.run_execute('rollback', 'app', deployed=newer, target=newer[:1], accept=True)
+        cdk,_=self.run_execute('rollback', 'infra', deployed=newer, target=newer[:1], accept=True)
+        self.assertEqual(3, cdk.call_count)
+    def test_rollback_to_a_diverging_schema_is_always_refused(self):
+        with self.assertRaisesRegex(ops.OpsError,'rollback-target-schema-diverges'):
+            self.run_execute('rollback', 'infra', deployed=['V001:'+'a'*64], target=['V001:'+'c'*64], accept=True)
+    def test_execute_requires_explicit_kind(self):
+        for action in ['deploy','rollback']:
+            with self.subTest(action=action),self.assertRaisesRegex(ops.OpsError,'execute-requires-kind'):
+                self.run_execute(action, None)
+    def test_manifest_image_mismatch_blocks_run_task(self):
+        from types import SimpleNamespace
+        task={'taskDefinition':{'containerDefinitions':[{'name':'migration','image':'repo@sha256:'+'b'*64}]}}
+        with patch.object(ops,'output',return_value='synthetic'),patch.object(ops,'aws',return_value=task) as aws:
+            with self.assertRaisesRegex(ops.OpsError,'image-mismatch'):
+                ops.migration({'apiImageDigest':'sha256:'+'a'*64},SimpleNamespace(check=lambda:None))
+            self.assertEqual(1,aws.call_count)
+
+    def test_stateful_property_change_is_blocked(self):
+        old={'Resources':{'Db':{'Type':'AWS::RDS::DBInstance','Properties':{'DBInstanceClass':'db.t4g.micro'}}}}
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'NullnullStgData.template.json'
+            p.write_text(json.dumps({'Resources':{'Db':{'Type':'AWS::RDS::DBInstance','Properties':{'DBInstanceClass':'db.t4g.large'}}}}))
+            with patch.object(ops,'aws',return_value={'TemplateBody':old}):
+                with self.assertRaisesRegex(ops.OpsError,'stateful-change'):
+                    ops.guard_stateful('Data',Path(d))
+
+
+class AuthModeRegressions(unittest.TestCase):
+    AMBIENT={'NULLNULL_AWS_AUTH':'ambient','GITHUB_ACTIONS':'true','AWS_ACCESS_KEY_ID':'ASIASYNTHETIC',
+             'AWS_SECRET_ACCESS_KEY':'synthetic','AWS_SESSION_TOKEN':'synthetic','AWS_PROFILE':'stray'}
+    def test_ambient_keeps_session_credentials_and_drops_profiles(self):
+        with patch.dict(os.environ,self.AMBIENT):
+            env=ops.child_env()
+            self.assertEqual('ASIASYNTHETIC',env['AWS_ACCESS_KEY_ID']);self.assertNotIn('AWS_PROFILE',env)
+            self.assertNotIn('--profile',ops.aws_base())
+    def test_ambient_outside_github_actions_or_without_session_is_refused(self):
+        for drop in ['GITHUB_ACTIONS','AWS_SESSION_TOKEN']:
+            with self.subTest(drop=drop):
+                env={k:v for k,v in self.AMBIENT.items() if k!=drop}
+                with patch.dict(os.environ,env,clear=True):
+                    with self.assertRaises(ops.OpsError):ops.child_env()
+    def test_profile_mode_passes_the_profile(self):
+        with patch.dict(os.environ,{'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'nullnull-staging'}):
+            self.assertEqual(['--profile','nullnull-staging'],ops.aws_base()[4:6])
+    def test_unknown_mode_is_refused(self):
+        with patch.dict(os.environ,{'NULLNULL_AWS_AUTH':'sso'}):
+            with self.assertRaisesRegex(ops.OpsError,'invalid-NULLNULL_AWS_AUTH'):ops.child_env()
+    def test_identity_requires_the_expected_role_for_the_mode(self):
+        account='1'*12
+        cases=[('profile',f'arn:aws:sts::{account}:assumed-role/nullnull-stg-operator/s',True),
+               ('profile',f'arn:aws:iam::{account}:user/Yutak_trading',False),
+               ('profile',f'arn:aws:sts::{account}:assumed-role/nullnull-stg-github-deploy/s',False),
+               ('ambient',f'arn:aws:sts::{account}:assumed-role/nullnull-stg-github-deploy/s',True)]
+        for mode,arn,ok in cases:
+            with self.subTest(mode=mode,arn=arn),patch.dict(os.environ,{'NULLNULL_AWS_AUTH':mode}),patch.object(ops,'aws',return_value={'Account':account,'Arn':arn}):
+                if ok: ops.identity(account)
+                else:
+                    with self.assertRaisesRegex(ops.OpsError,'unexpected-aws-principal'):ops.identity(account)
+    def test_ci_requires_expected_sha_and_clean_source(self):
+        manifest=fixtures.ReleaseManifestValidatorTest().valid_manifest();manifest['sourceState']='clean'
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'release.json';path.write_text(json.dumps(manifest))
+            with patch.dict(os.environ,{**self.AMBIENT,'NULLNULL_EXPECTED_GIT_SHA':'b'*40}):
+                self.assertEqual('clean',ops.validate_manifest(path)['sourceState'])
+            with patch.dict(os.environ,self.AMBIENT):
+                os.environ.pop('NULLNULL_EXPECTED_GIT_SHA',None)
+                with self.assertRaisesRegex(ops.OpsError,'ci-requires-expected-git-sha'):ops.validate_manifest(path)
+            overlay={**manifest,'sourceState':'overlay','sourceOverlaySha256':'sha256:'+'e'*64,'sourceOverlayPaths':['x.java']};path.write_text(json.dumps(overlay))
+            with patch.dict(os.environ,{**self.AMBIENT,'NULLNULL_EXPECTED_GIT_SHA':'b'*40}):
+                with self.assertRaisesRegex(ops.OpsError,'ci-requires-clean-source'):ops.validate_manifest(path)
+    def test_a_recorded_release_is_validated_without_this_runs_sha(self):
+        # No patches: the real node validator runs with the deploy job's environment (F2).
+        manifest=fixtures.ReleaseManifestValidatorTest().valid_manifest()
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'release.json';path.write_text(json.dumps(manifest))
+            with patch.dict(os.environ,{**self.AMBIENT,'NULLNULL_EXPECTED_GIT_SHA':'d'*40}):
+                self.assertEqual('b'*40,ops.validate_manifest(path,recorded=True)['gitSha'])
+                with self.assertRaisesRegex(ops.OpsError,'command-failed-node'):ops.validate_manifest(path)
+
+class ClassificationRegressions(unittest.TestCase):
+    # 'web' stands for the asset hash CDK derives from the bundle - unrelated to the release identity.
+    OLD={'apiImageDigest':'sha256:'+'1'*64,'releaseVersion':'v0.1.0-rc.1','web':'e'*64}
+    NEW={'apiImageDigest':'sha256:'+'3'*64,'releaseVersion':'v0.1.0-rc.2','web':'f'*64}
+    def services(self, release, public='false', note=None):
+        # The shape CDK synthesizes: the digest is the last Fn::Join part of the ECR image URI.
+        image={'Fn::Join':['',[{'Fn::Select':[4,{'Fn::Split':[':',{'Fn::ImportValue':'repo-arn'}]}]},'.dkr.ecr.',{'Ref':'AWS::URLSuffix'},'/',
+                               {'Fn::ImportValue':'repo-name'},'@'+release['apiImageDigest']]]}
+        env=[{'Name':'APP_RELEASE_VERSION','Value':release['releaseVersion']},{'Name':'NULLNULL_CATALOG_PUBLIC_ENABLED','Value':public}]
+        if note:env.append({'Name':'NOTE','Value':note})
+        return {'Resources':{'CDKMetadata':{'Type':'AWS::CDK::Metadata','Properties':{'Analytics':'v2:deflate64:x'}},
+            'Task':{'Type':'AWS::ECS::TaskDefinition','Metadata':{'aws:cdk:path':'x'},'Properties':{'ContainerDefinitions':[{'Image':image,'Environment':env}]}},
+            'Web':{'Type':'Custom::CDKBucketDeployment','Properties':{'SourceObjectKeys':[release['web']+'.zip'],'DistributionPaths':['/*']}}},
+            'Parameters':{'BootstrapVersion':{'Type':'String'}},'Rules':{'CheckBootstrapVersion':{}}}
+    def test_release_identity_and_web_bundle_are_the_app_path(self):
+        self.assertEqual(ops.normalize_template(self.services(self.OLD)),ops.normalize_template(self.services(self.NEW)))
+    def test_any_other_change_is_infra(self):
+        self.assertNotEqual(ops.normalize_template(self.services(self.OLD)),ops.normalize_template(self.services(self.NEW,'true')))
+    def test_only_the_release_markers_are_masked_not_look_alikes(self):
+        # A digest or version string anywhere else is a real template change.
+        for old,new in [('@sha256:'+'1'*64,'@sha256:'+'2'*64),('v0.1.0-rc.1','v0.1.0-rc.2')]:
+            with self.subTest(old=old):
+                self.assertNotEqual(ops.normalize_template(self.services(self.OLD,note=old)),ops.normalize_template(self.services(self.OLD,note=new)))
+    def test_live_template_string_body_is_accepted(self):
+        self.assertEqual(ops.normalize_template(json.dumps(self.services(self.OLD))),ops.normalize_template(self.services(self.OLD)))
+    def test_the_infra_baseline_sees_digest_only_changes(self):
+        # Normalized equal (app path) yet a different baseline: an app release since classification voids it.
+        self.assertNotEqual(ops.baseline_sha256({'Services':self.services(self.OLD)}),ops.baseline_sha256({'Services':self.services(self.NEW)}))
+    def assembly(self, directory, template):
+        assembly=Path(directory)/'assembly';assembly.mkdir()
+        for stack in ops.STACKS:(assembly/f'NullnullStg{stack}.template.json').write_text(json.dumps(template))
+    def test_missing_previous_release_record_is_infra_and_still_diffed(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assembly(d,{'Resources':{}})
+            live={s:None for s in ops.STACKS};live['Foundation']={'Resources':{}}
+            with patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=None):
+                findings=ops.classify_findings(Path(d),{'flywayChecksums':['V001:'+'c'*64]},live)
+        self.assertEqual(['no-previous-release-record','migration-set-changed'],findings[:2])
+        self.assertIn('stack-missing-Data',findings);self.assertNotIn('template-changed-Foundation',findings)
+    def test_migration_set_change_is_infra_even_with_identical_templates(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assembly(d,{'Resources':{}})
+            live={s:{'Resources':{}} for s in ops.STACKS}
+            previous={'releaseManifest':{**self.OLD,'flywayChecksums':['V001__a.sql:'+'c'*64]}}
+            with patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=previous):
+                self.assertEqual([],ops.classify_findings(Path(d),{**self.NEW,'flywayChecksums':['V001__a.sql:'+'c'*64]},live))
+                self.assertEqual(['migration-set-changed'],ops.classify_findings(Path(d),{**self.NEW,'flywayChecksums':['V001__a.sql:'+'c'*64,'V002__b.sql:'+'d'*64]},live))
+    def test_the_reviewer_diff_shows_the_change_and_never_an_account_id(self):
+        account='123456789012'
+        with tempfile.TemporaryDirectory() as d:
+            self.assembly(d,{'Resources':{'Role':{'Type':'AWS::IAM::Role','Properties':{'Arn':f'arn:aws:iam::{account}:policy/Boundary','Max':2}}}})
+            live={s:{'Resources':{'Role':{'Type':'AWS::IAM::Role','Properties':{'Arn':f'arn:aws:iam::{account}:policy/Boundary','Max':1}}}} for s in ops.STACKS}
+            diff=ops.template_diff(Path(d),live,['template-changed-Services'],{'flywayChecksums':['V001:'+'a'*64]},
+                                   {'flywayChecksums':['V001:'+'a'*64,'V002:'+'b'*64]},account)
+        self.assertIn('migration added: V002',diff)
+        self.assertIn('+++ plan/NullnullStgServices',diff);self.assertRegex(diff,r'(?m)^\+\s+"Max": 2$')
+        self.assertNotIn(account,diff);self.assertNotIn('NullnullStgData',diff)
+
+class RollbackClassificationRegressions(unittest.TestCase):
+    def findings(self, manifest, data, change=None):
+        with tempfile.TemporaryDirectory() as d:
+            assembly=Path(d)/'assembly';assembly.mkdir()
+            for stack in ops.STACKS:(assembly/f'NullnullStg{stack}.template.json').write_text(json.dumps({'Resources':{'R':{'Type':'X','Properties':{'N':stack}}}}))
+            live={s:{'Resources':{'R':{'Type':'X','Properties':{'N':s}}}} for s in ops.STACKS}
+            if change:live[change]['Resources']['R']['Properties']['N']='changed'
+            return ops.rollback_findings(Path(d),manifest,data,live)
+    def test_a_clean_release_with_only_its_own_markers_is_an_app_rollback(self):
+        self.assertEqual([],self.findings({'sourceState':'clean'},{}))
+        self.assertEqual([],self.findings({'sourceState':'clean'},{},change='Data'))
+    def test_overlay_newer_schema_or_app_stack_drift_is_reviewed(self):
+        self.assertEqual(['rollback-target-is-not-a-clean-build'],self.findings({'sourceState':'overlay'},{}))
+        self.assertEqual(['rollback-accepts-newer-schema'],self.findings({'sourceState':'clean'},{'acceptNewerSchema':True}))
+        self.assertEqual(['template-changed-WebEdge'],self.findings({'sourceState':'clean'},{},change='WebEdge'))
+
+class AwsParameterNameRegressions(unittest.TestCase):
+    """`--cli-input-json` keys must be the API's own names. ECS/ECR/Logs use camelCase and CloudFormation/DynamoDB/
+    Secrets Manager/IAM use PascalCase. `TaskDefinition=` for ecs:DescribeTaskDefinition stopped the first real deploy
+    (2026-09-19) because every test patched aws(); checked here without the CLI."""
+    CASE = {'ecs': str.islower, 'ecr': str.islower, 'logs': str.islower, 'cloudformation': str.isupper,
+            'dynamodb': str.isupper, 'secretsmanager': str.isupper, 'iam': str.isupper, 'sts': str.isupper,
+            'rds': str.isupper}
+    def test_every_aws_call_uses_the_services_parameter_case(self):
+        import ast
+        seen = 0
+        for script in ['scripts/aws/staging_operator.py', 'scripts/aws/staging-iam.py']:
+            for node in ast.walk(ast.parse((ROOT/script).read_text())):
+                if not (isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'aws' and len(node.args) >= 2
+                        and isinstance(node.args[0], ast.Constant)):
+                    continue
+                service = node.args[0].value
+                self.assertIn(service, self.CASE, f'{script}: add the parameter case of {service}')
+                for keyword in node.keywords:
+                    if keyword.arg and keyword.arg != 'region':
+                        seen += 1
+                        with self.subTest(script=script, line=node.lineno, key=keyword.arg):
+                            self.assertTrue(self.CASE[service](keyword.arg[0]))
+        self.assertGreater(seen, 40)
+
+class ClassifyCommandRegressions(unittest.TestCase):
+    """The workflow routes the reviewer on classify()'s printed kind, so its deploy/rollback branch matters."""
+    def run_classify(self, action, drift=None, source_state='clean'):
+        import argparse, contextlib, io
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d);(directory/'assembly').mkdir();(directory/'plan.json').write_text('{}')
+            for s in ops.STACKS:(directory/'assembly'/f'NullnullStg{s}.template.json').write_text(json.dumps({'Resources':{'R':{'Type':'X','Properties':{'N':s}}}}))
+            live={s:{'Resources':{'R':{'Type':'X','Properties':{'N':s}}}} for s in ops.STACKS}
+            if drift:live[drift]['Resources']['R']['Properties']['N']='changed'
+            manifest={**fixtures.ReleaseManifestValidatorTest().valid_manifest(),'flywayChecksums':['V001:'+'a'*64],'sourceState':source_state}
+            if source_state=='overlay':manifest.update(sourceOverlaySha256='sha256:'+'e'*64,sourceOverlayPaths=['apps/api/x.java'])
+            (directory/'release.json').write_text(json.dumps(manifest))
+            record={'releaseManifest':{**manifest,'gitSha':'c'*40,'flywayChecksums':['V001:'+'a'*64]}}
+            out=io.StringIO()
+            with patch.dict(os.environ,OperatorRegressions.PROFILE),patch.object(ops,'verify_plan',return_value={'action':action,'account':'1'*12}),patch.object(ops,'identity'),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'live_bodies',return_value=live),contextlib.redirect_stdout(out):
+                ops.classify(argparse.Namespace(plan=str(directory/'plan.json'),approved_plan_sha256='x'))
+            return out.getvalue(), json.loads((directory/'classification.json').read_text())
+    def test_a_rollback_is_judged_on_the_stacks_it_deploys(self):
+        # Protected-stack drift is irrelevant to a rollback (it never deploys them), but not to a deploy.
+        text,recorded=self.run_classify('rollback',drift='Data')
+        self.assertIn('release_kind=app',text);self.assertEqual([],recorded['findings'])
+        text,recorded=self.run_classify('deploy',drift='Data')
+        self.assertIn('release_kind=infra',text);self.assertEqual(['template-changed-Data'],recorded['findings'])
+    def test_a_rollback_to_an_overlay_release_is_routed_to_the_reviewer(self):
+        text,recorded=self.run_classify('rollback',source_state='overlay')
+        self.assertIn('release_kind=infra',text);self.assertIn('rollback-target-is-not-a-clean-build',recorded['findings'])
+
+class VerifierTokenRegressions(unittest.TestCase):
+    def test_a_release_plan_without_the_token_is_refused(self):
+        with patch.dict(os.environ,{},clear=False):
+            os.environ.pop('NULLNULL_VERIFIER_TOKEN',None)
+            with self.assertRaisesRegex(ops.OpsError,'verifier-token-required'):ops.verifier_hash()
+        with patch.dict(os.environ,{'NULLNULL_VERIFIER_TOKEN':'short'}):
+            with self.assertRaisesRegex(ops.OpsError,'weak-or-malformed-verifier-token'):ops.verifier_hash()
+    def saved_plan(self, directory, action, verifier):
+        import datetime as dt, hashlib
+        d=Path(directory);(d/'assembly').mkdir();(d/'release.json').write_text('{}');(d/'cost-basis.txt').write_text('x')
+        now=dt.datetime.now(dt.timezone.utc)
+        data={'version':1,'region':ops.REGION,'account':'1'*12,'action':action,'createdAt':now.isoformat(),
+              'expiresAt':min(now+dt.timedelta(days=1),ops.EXPIRY).isoformat(),'estimateUsd':80,'reserveUsd':20,
+              'releaseSha256':ops.digest(d/'release.json'),'assemblySha256':ops.tree_digest(d/'assembly'),
+              'costBasisSha256':ops.digest(d/'cost-basis.txt'),'toolchainSha256':ops.digest(ROOT/'infra/package-lock.json'),
+              'verifierTokenSha256':verifier}
+        (d/'plan.json').write_text(json.dumps(data))
+        return d/'plan.json', hashlib.sha256((d/'plan.json').read_bytes()).hexdigest()
+    def test_only_the_bootstrap_plan_may_carry_no_verifier_hash(self):
+        # The staging window is pinned so this still runs (and means the same) after the real expiry.
+        with patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}),patch.object(ops,'EXPIRY',ops.dt.datetime(2099,1,1,tzinfo=ops.dt.timezone.utc)):
+            for action,verifier,ok in [('bootstrap','',True),('deploy','',False),('rollback','',False),('deploy','a'*64,True)]:
+                with self.subTest(action=action,verifier=verifier),tempfile.TemporaryDirectory() as d:
+                    path,sha=self.saved_plan(d,action,verifier)
+                    if ok:ops.verify_plan(path,sha)
+                    else:
+                        with self.assertRaisesRegex(ops.OpsError,'invalid-verifier-hash'):ops.verify_plan(path,sha)
+
+class ReleaseGateRegressions(unittest.TestCase):
+    MANIFEST={'gitSha':'a'*40,'sourceState':'overlay','sourceOverlaySha256':'sha256:'+'0123456789ab'+'f'*52,
+              'apiImageDigest':'sha256:'+'1'*64,'aiImageDigest':'sha256:'+'2'*64}
+    def test_image_tag_binds_overlay_builds_distinctly(self):
+        self.assertEqual('sha-'+'a'*40+'-ovl-0123456789ab',ops.image_tag(self.MANIFEST))
+        self.assertEqual('sha-'+'a'*40,ops.image_tag({**self.MANIFEST,'sourceState':'clean'}))
+    def test_digest_without_the_source_tag_is_refused(self):
+        # Each repository answers with ITS digest, so only the tag binding can fail here.
+        def fake(tags):
+            return lambda service, operation, **kw: {'imageDetails': [{'imageDigest': kw['imageIds'][0]['imageDigest'], 'imageTags': tags}]}
+        with patch.object(ops,'aws',side_effect=fake(['sha-'+'a'*40])):
+            with self.assertRaisesRegex(ops.OpsError,'release-image-not-bound-to-source'):ops.verify_images(self.MANIFEST)
+        with patch.object(ops,'aws',side_effect=fake([ops.image_tag(self.MANIFEST)])):
+            ops.verify_images(self.MANIFEST)
+    def test_placeholder_kto_secret_blocks_services(self):
+        with patch.object(ops,'aws',return_value={'VersionIdsToStages':{'v1':['AWSCURRENT']}}):
+            with self.assertRaisesRegex(ops.OpsError,'kto-secret-not-provisioned'):ops.require_kto_secret_provisioned()
+        with patch.object(ops,'aws',return_value={'VersionIdsToStages':{'v1':['AWSPREVIOUS'],'v2':['AWSCURRENT']}}):
+            ops.require_kto_secret_provisioned()
+
+class OpsTaskRegressions(unittest.TestCase):
+    def args(self, **overrides):
+        from types import SimpleNamespace
+        base={'task':'kto-smoke','content_id':'126508','content_type_id':'12','place_id':None,'owner_approval':None,'places':None}
+        return SimpleNamespace(**{**base,**overrides})
+    def test_actual_call_needs_the_callers_approval_and_a_record(self):
+        base={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
+        with patch.dict(os.environ,base),patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+            os.environ.pop('NULLNULL_KTO_SMOKE_APPROVED',None)
+            # A record string alone never becomes the approval variable.
+            with self.assertRaisesRegex(ops.OpsError,'nullnull-kto-smoke-approved-not-set-by-caller'):
+                ops.ops_task(self.args(owner_approval='owner approved in session'))
+            with patch.dict(os.environ,{'NULLNULL_KTO_SMOKE_APPROVED':'true'}):
+                with self.assertRaisesRegex(ops.OpsError,'owner-approval-record-required'):ops.ops_task(self.args())
+            aws.assert_not_called()
+    def test_ops_tasks_are_local_only(self):
+        with patch.dict(os.environ,AuthModeRegressions.AMBIENT):
+            with self.assertRaisesRegex(ops.OpsError,'ops-tasks-are-local-only'):ops.ops_task(self.args(owner_approval='owner approved in session'))
+    def test_inputs_are_validated_before_any_call(self):
+        with patch.dict(os.environ,{'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}),patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+            with self.assertRaisesRegex(ops.OpsError,'invalid-content-id'):ops.ops_task(self.args(task='kto-ingest',content_id='1; rm -rf /'))
+            aws.assert_not_called()
+    def test_a_demo_place_list_is_validated_before_any_call(self):
+        base={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
+        with patch.dict(os.environ,base),patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+            os.environ.pop('NULLNULL_KTO_SMOKE_APPROVED',None)
+            for bad,reason in [('','invalid-places'),('126508','invalid-places'),('126508:12,','invalid-places'),
+                               ('0126508:12','invalid-places'),('126508:12;rm -rf /','invalid-places'),
+                               ('126508:12,126508:12','duplicate-places')]:
+                with self.subTest(places=bad),self.assertRaisesRegex(ops.OpsError,reason):
+                    ops.ops_task(self.args(task='kto-demo-detail',places=bad))
+            # A valid list passes validation and then still needs the owner's own approval variable.
+            with self.assertRaisesRegex(ops.OpsError,'nullnull-kto-smoke-approved-not-set-by-caller'):
+                ops.ops_task(self.args(task='kto-demo-detail',places='126508:12,126509:12'))
+            aws.assert_not_called()
+    def test_only_redacted_evidence_lines_are_echoed(self):
+        allowed=['KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 payloadHash=abc',
+                 'KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- process env',
+                 'Exception in thread "main" java.lang.IllegalStateException: KTO smoke failed: PROVIDER_ERROR (AUTH)',
+                 'operations target=postgresql://db.example.rds.amazonaws.com:5432/nullnull environment=staging access=write schema=unchecked',
+                 'operations target=unknown environment=staging access=write schema=unchecked',
+                 'Exception in thread "main" java.lang.IllegalStateException: KTO smoke failed: OPERATIONS_TARGET_NOT_CONFIRMED']
+        refused=['serviceKey=abcdef KTO_SMOKE_OK','2026-09-18 INFO jdbc:postgresql://db:5432/nullnull user=nullnull_app',
+                 'KTO_SMOKE_OK '+'x'*500,
+                 'operations target=postgresql://nullnull_app:pw@db:5432/nullnull environment=staging access=write schema=unchecked',
+                 'operations target=postgresql://db:5432/nullnull?sslmode=require environment=staging access=write schema=unchecked',
+                 'operations target=postgresql://db:5432/nullnull environment=staging access=write schema=unchecked password=x']
+        for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
+        for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
+class OperationsTargetRegressions(unittest.TestCase):
+    """A writing ops task carries the database the caller named (OperationsContext, #183), checked against RDS first."""
+    HOST='db.example.ap-northeast-2.rds.amazonaws.com'
+    TARGET=f'postgresql://{HOST}:5432/nullnull'
+    class Lock:
+        owner='lock-owner'
+        def __enter__(self): return self
+        def __exit__(self,*a): return False
+        def mutating(self): pass
+    def run_ingest(self, stated, log=()):
+        import contextlib, io
+        from types import SimpleNamespace
+        calls=[]
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if (service,operation)==('rds','describe-db-instances'):
+                return {'DBInstances':[{'Endpoint':{'Address':self.HOST,'Port':5432},'DBName':'nullnull'}]}
+            if (service,operation)==('ecs','describe-task-definition'): return {'taskDefinition':{}}
+            if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
+            if (service,operation)==('logs','get-log-events'): return {'events':[{'message':m} for m in log]}
+            raise AssertionError((service,operation))
+        env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
+        if stated is not None: env[ops.OPERATIONS_TARGET]=stated
+        out=io.StringIO()
+        with patch.dict(os.environ,env),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),\
+             patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+             patch.object(ops,'DeploymentLock',self.Lock),patch.object(ops,'wait_task'),contextlib.redirect_stdout(out):
+            if stated is None: os.environ.pop(ops.OPERATIONS_TARGET,None)
+            error=None
+            try:
+                ops.ops_task(SimpleNamespace(task='kto-ingest',content_id='126508',content_type_id='12',place_id=None,
+                                             owner_approval=None,places=None))
+            except ops.OpsError as e:
+                error=str(e)
+        return error,calls,out.getvalue()
+    def test_unset_or_another_database_stops_before_a_task_starts(self):
+        for stated,reason in [(None,'operations-target-not-set-by-caller'),
+                              (f'postgresql://other.{self.HOST}:5432/nullnull','operations-target-not-the-staging-database'),
+                              (self.TARGET+'?sslmode=require','operations-target-not-the-staging-database')]:
+            with self.subTest(stated=stated):
+                error,calls,out=self.run_ingest(stated)
+                self.assertIn(reason,error)
+                self.assertNotIn(('ecs','run-task'),[(s,o) for s,o,_ in calls])
+                self.assertIn(f'operations_target_required={ops.OPERATIONS_TARGET}={self.TARGET}',out)
+    def test_the_named_database_travels_to_the_task_and_its_target_line_is_echoed(self):
+        line=f'operations target={self.TARGET} environment=staging access=write schema=unchecked'
+        error,calls,out=self.run_ingest(f'  {self.TARGET} ',log=[line,'2026 INFO jdbc:postgresql://x user=y'])
+        self.assertIsNone(error)
+        run=[kw for s,o,kw in calls if (s,o)==('ecs','run-task')]
+        self.assertEqual(1,len(run))
+        environment={e['name']:e['value'] for e in run[0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual(self.TARGET,environment[ops.OPERATIONS_TARGET])
+        self.assertIn('ops_log '+line,out);self.assertNotIn('jdbc:',out)
+        self.assertIn('ops_task=kto-ingest result=succeeded',out)
+
+class SecretProvisioningRegressions(unittest.TestCase):
+    def test_secret_value_never_reaches_stdout_or_argv(self):
+        import contextlib, io
+        key='SYNTHETICKEY/abc+def=='
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'apps/api').mkdir(parents=True);(root/'apps/api/.env.local').write_text('KTO_SERVICE_KEY='+key+'\n')
+            calls=[]
+            def fake(service,operation,**kw):
+                calls.append((service,operation,kw))
+                if operation=='get-secret-value':return {'SecretString':'placeholder'}
+                if operation=='describe-secret':return {'VersionIdsToStages':{'a':['AWSPREVIOUS'],'b':['AWSCURRENT']}}
+                return {}
+            out=io.StringIO()
+            with patch.object(ops,'ROOT',root),patch.dict(os.environ,{'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),contextlib.redirect_stdout(out):
+                ops.provision_secrets(None)
+            self.assertNotIn(key,out.getvalue());self.assertIn('changed=true',out.getvalue())
+            put=[c for c in calls if c[1]=='put-secret-value'][0]
+            self.assertEqual(key,put[2]['SecretString'])
+    def test_secret_provisioning_is_local_only(self):
+        with patch.dict(os.environ,AuthModeRegressions.AMBIENT):
+            with self.assertRaisesRegex(ops.OpsError,'secret-provisioning-is-local-only'):ops.provision_secrets(None)
+
+class EvidenceRegressions(unittest.TestCase):
+    LINE=('KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 snapshotId=s-1 '
+          'collectorRunId=c-1 sourceRegistryVersion=4 payloadHash=abc fetchedAt=2026-09-18T13:00:00Z')
+    def test_report_is_what_the_repository_gate_accepts_for_this_release(self):
+        with tempfile.TemporaryDirectory() as d:
+            record={'releaseVersion':'v0.1.0-rc.1','gitSha':'a'*40}
+            with patch.object(ops,'ROOT',Path(d)),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'aws_cli',return_value=subprocess.CompletedProcess([],0,'','')),patch.object(ops,'run') as run:
+                ops.write_actual_call_report([self.LINE])
+            report=json.loads((Path(d)/'.artifacts/aws/evidence/actual-call-v0.1.0-rc.1.json').read_text())
+            gate=subprocess.run(['python3',str(ROOT/'scripts/check_actual_call_evidence.py'),str(Path(d)/'.artifacts/aws/evidence/actual-call-v0.1.0-rc.1.json'),'--release','v0.1.0-rc.1','--require-verified'],capture_output=True,text=True)
+            self.assertEqual(0,gate.returncode,gate.stderr)
+            self.assertEqual('staging',report['environment']);self.assertEqual('OK',report['calls'][0]['outcome'])
+            self.assertIn('--require-verified',[str(a) for a in run.call_args.args[0]])
+    def test_no_evidence_line_means_no_report(self):
+        with self.assertRaisesRegex(ops.OpsError,'kto-smoke-evidence-line-missing'):ops.write_actual_call_report([])

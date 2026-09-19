@@ -259,8 +259,7 @@ public class OptimizeItemHandler implements JobHandler {
                 .orElseThrow(() -> new IllegalStateException("the run's target item is no longer in the trip"));
         Instant now = clock.instant();
         TemporalCandidateAssembler.Candidates offered = candidates.candidatesFor(frozen, target.placeId(),
-                target.date(), trip.range().startDate(), trip.range().endDate(),
-                trip.range().timezone(), now);
+                target.date(), trip.range().startDate(), trip.range().endDate(), now);
         if (offered.isEmpty()) {
             return new Prepared(null, offered, null, null, null, trip, target);
         }

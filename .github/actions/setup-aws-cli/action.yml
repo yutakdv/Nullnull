@@ -1,0 +1,29 @@
+name: Pinned AWS CLI
+description: >-
+  Installs one exact AWS CLI v2 build and refuses it unless its sha256 matches. The runner's
+  preinstalled CLI changes with every image update; the operator scripts are verified against 2.34.59.
+inputs:
+  version:
+    description: AWS CLI v2 version
+    required: true
+  sha256:
+    description: sha256 of awscli-exe-linux-x86_64-<version>.zip
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install AWS CLI ${{ inputs.version }}
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        EXPECTED: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/aws-cli-$VERSION"
+        curl --fail --silent --show-error --location --max-time 300 \
+          -o "$RUNNER_TEMP/awscli.zip" "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${VERSION}.zip"
+        echo "${EXPECTED}  $RUNNER_TEMP/awscli.zip" | sha256sum --check --strict -
+        unzip -q "$RUNNER_TEMP/awscli.zip" -d "$RUNNER_TEMP/awscli-src"
+        "$RUNNER_TEMP/awscli-src/aws/install" --install-dir "$dir/dist" --bin-dir "$dir/bin"
+        echo "$dir/bin" >> "$GITHUB_PATH"
+        "$dir/bin/aws" --version | grep -q "aws-cli/${VERSION} " || { echo "::error::unexpected aws-cli version"; exit 1; }

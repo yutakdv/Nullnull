@@ -351,7 +351,7 @@
       "phase": "B01",
       "priority": "P0",
       "title": "로컬 Docker와 최소 staging 기반",
-      "status": "deferred",
+      "status": "in-progress",
       "dependsOn": [
         "BA-001",
         "BA-002",
@@ -367,12 +367,12 @@
       "entities": "compose.integration.yml · ai service · infra/CDK · OIDC · immutable images",
       "steps": [
         "로컬 web→API→apps/ai→PostgreSQL hello와 seed를 단일 wrapper에 연결한다",
-        "승인된 계정·비용·domain(A-028·A-029·A-030)에 맞춰 CDK network/data/API/web edge의 최소 staging을 만든다. 계정은 하나이고 role 분리를 두지 않으므로 그 선택을 stack manifest에 근거와 함께 적는다",
+        "승인된 계정·비용·domain(A-028·A-029·A-030)에 맞춰 CDK network/data/API/web edge의 최소 staging을 만든다. 계정/environment는 하나지만 deploy/execution/task/migration IAM role은 최소 권한으로 분리하고 stack manifest에 근거를 적는다",
         "OIDC exact subject와 runtime secret 주입을 검증하고 deployment 역할과 관찰 역할을 나눈다",
         "09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
         "#10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다"
       ],
-      "safety": "계정·비용·secret 미확정은 외부 배포 blocker이며 로컬 구현까지 막지 않는다. 실제 설정·배포 완료를 문서만으로 표시하지 않는다.",
+      "safety": "account ID/secondary alarm/실제 resource·secret 주입 증거가 없으면 release-ready가 아니다. 실제 설정·배포 완료를 문서와 script만으로 표시하지 않는다.",
       "tests": [
         {
           "id": "BA-006-T1",
@@ -391,7 +391,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006",
-      "reason": "staging 절반(step 2·3)은 오너가 기능 개발 완료 뒤로 미뤘다(2026-09-13). 결정 3건은 A-028·A-029·A-030으로 닫혔으므로 더는 결정 대기가 아니다. step 1(로컬 Docker·full-docker wrapper)은 이미 서 있고, 그 위 카드들이 기다리는 것은 staging 실호출 증거뿐이다."
+      "reason": "2026-09-14 오너가 $200/2026-10-25/primary alarm을 확정해 staging 실행 계약과 plan-first AWS scripts를 만들기 시작했다. infra/CDK와 실제 AWS evidence는 아직 없으므로 in-progress이며 완료로 세지 않는다."
     },
     {
       "id": "BA-010",

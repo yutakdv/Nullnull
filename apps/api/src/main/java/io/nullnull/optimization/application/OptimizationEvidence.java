@@ -1,14 +1,12 @@
 package io.nullnull.optimization.application;
 
 import io.nullnull.crowd.application.CrowdForecastQuery;
+import io.nullnull.crowd.application.ForecastDays;
 import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.trip.application.TripService;
 import io.nullnull.trip.domain.Trip;
-import io.nullnull.trip.domain.TripItem;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,33 +60,17 @@ public class OptimizationEvidence {
             // that into the run's own answer rather than an exception from here.
             return List.of();
         }
-        ZoneId zone = trip.get().range().timezone();
         Instant now = clock.instant();
+        // The item's date as the forecast source dates it (KST), not in the trip's timezone: see
+        // ForecastDays. Read in the trip's zone, a date west of Seoul took the NEXT date's point.
         return trips.itemsOf(run.tripId()).stream()
                 .filter(item -> item.id().equals(run.targetItemId()))
                 .flatMap(item -> forecasts
-                        .latestFresh(item.placeId(), startOfDay(item, zone), endOfDay(item, zone), now)
+                        .latestFresh(item.placeId(), ForecastDays.startOf(item.date()),
+                                ForecastDays.endOf(item.date()), now)
                         .stream())
                 .map(CrowdForecastQuery.SnapshotSet::id)
                 .distinct()
                 .toList();
-    }
-
-    private static Instant startOfDay(TripItem item, ZoneId zone) {
-        return item.date().atStartOfDay(zone).toInstant();
-    }
-
-    /**
-     * The last instant of the item's day, not the first of the next (#259).
-     *
-     * <p>The set queries bound the window inclusively ({@code target_at <= to}), and the one forecast
-     * source P0 has files each point at local midnight. With the next midnight as the bound, a set
-     * holding only the NEXT day's point counted as covering this one, and the freeze took it as the
-     * newest - a set with nothing to compare the item's day against, so the run failed for want of
-     * evidence an older frozen-able set had. One microsecond is PostgreSQL's timestamptz resolution.
-     */
-    private static Instant endOfDay(TripItem item, ZoneId zone) {
-        LocalDate next = item.date().plusDays(1);
-        return next.atStartOfDay(zone).toInstant().minus(1, java.time.temporal.ChronoUnit.MICROS);
     }
 }

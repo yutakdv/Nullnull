@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -342,6 +344,28 @@ class OptimizeItemIT {
                 .containsExactly(frozen);
     }
 
+    /**
+     * BA-051-T22 west of Seoul. The freeze window is the item's date as KTO dates it; read in the trip's
+     * zone, a UTC day holds the NEXT date's KST midnight, so the freeze took the newest set holding only
+     * that next date and the run had nothing to compare the item's own date against.
+     */
+    @Test
+    @DisplayName("BA-051-T22 a trip west of Seoul freezes the set holding the item's KTO date, not the next date's")
+    void aTripWestOfSeoulFreezesTheItemsOwnDate() throws Exception {
+        Fixture fixture = fixtureWithoutForecasts("UTC");
+        Instant earlier = Instant.now().minus(Duration.ofHours(1));
+        UUID frozen = insertSet(fixture.placeId(), earlier, Map.of(DAY_ONE, CROWDED, DAY_TWO, QUIET));
+        insertSet(fixture.placeId(), Instant.now(), Map.of(DAY_TWO, new BigDecimal("50.0000")));
+        answerFromTheRequest(new AtomicReference<>(), new AtomicBoolean(), new AtomicBoolean());
+
+        UUID runId = queue(fixture);
+        awaitTerminal(runId);
+
+        assertThat(runColumn(runId, "failure_code")).isNull();
+        assertThat(jdbc.queryForList("SELECT snapshot_set_id FROM optimization_run_snapshot_sets WHERE run_id = ?",
+                UUID.class, runId)).containsExactly(frozen);
+    }
+
     @Test
     @DisplayName("BA-051-T4 no transaction is open when items/propose is called")
     void appsAiIsAskedOutsideTheUnitOfWork() throws Exception {
@@ -413,6 +437,38 @@ class OptimizeItemIT {
         assertThat(jdbc.queryForObject("SELECT after_value::text FROM optimization_changes c"
                 + " JOIN optimization_proposals p ON p.id = c.proposal_id WHERE p.run_id = ?",
                 String.class, runId)).contains(DAY_TWO.toString());
+    }
+
+    /**
+     * A trip's timezone says where the traveller's device is, not where the place is. The forecast
+     * source files one point per KST calendar date ({@code KtoForecastResponseValidator}: the date's
+     * Seoul midnight), so the forecast for a trip date is that date's KST point whatever the trip's zone.
+     * The FE sends the browser's zone; the rehearsal of 2026-09-19 measured a UTC trip failing
+     * DATA_INSUFFICIENT where the same trip in Asia/Seoul reached READY. A zone east of Seoul is the
+     * sharper case: the item's local day there also contains the NEXT date's KST midnight.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"UTC", "America/Los_Angeles", "Pacific/Auckland"})
+    @DisplayName("BA-051 a trip outside Seoul's timezone compares the KTO forecasts of its own dates")
+    void aTripOutsideSeoulComparesTheForecastsOfItsOwnDates(String timezone) throws Exception {
+        Fixture fixture = fixtureWithoutForecasts(timezone);
+        insertForecasts(fixture.placeId());
+        AtomicReference<ItemProposeRequest> asked = new AtomicReference<>();
+        answerFromTheRequest(asked, new AtomicBoolean(), new AtomicBoolean());
+
+        UUID runId = queue(fixture);
+        awaitTerminal(runId);
+
+        assertThat(runColumn(runId, "failure_code")).isNull();
+        assertThat(runColumn(runId, "status")).isEqualTo("READY");
+        // The pair compared is the item's date and the candidate's date as KTO filed them.
+        TemporalCandidateIn offered = asked.get().candidates().stream()
+                .filter(candidate -> candidate.date().equals(DAY_TWO)).findFirst().orElseThrow();
+        assertThat(offered.beforeSnapshotId()).isEqualTo(pointOn(fixture.placeId(), DAY_ONE));
+        assertThat(offered.afterSnapshotId()).isEqualTo(pointOn(fixture.placeId(), DAY_TWO));
+        assertThat(offered.beforeValue()).isEqualByComparingTo(CROWDED);
+        assertThat(offered.afterValue()).isEqualByComparingTo(QUIET);
+        assertThat(asked.get().candidates()).extracting(TemporalCandidateIn::date).containsExactly(DAY_TWO);
     }
 
     @Test
@@ -550,14 +606,18 @@ class OptimizeItemIT {
     }
 
     private Fixture fixtureWithoutForecasts() throws Exception {
+        return fixtureWithoutForecasts("Asia/Seoul");
+    }
+
+    private Fixture fixtureWithoutForecasts(String timezone) throws Exception {
         SessionService.Bootstrap owner = sessions.bootstrap(null, null, null);
-        UUID tripId = createTrip(owner);
+        UUID tripId = createTrip(owner, timezone);
         UUID placeId = insertPlace();
         UUID itemId = insertItem(tripId, placeId);
         return new Fixture(tripId, itemId, placeId, owner);
     }
 
-    private UUID createTrip(SessionService.Bootstrap owner) throws Exception {
+    private UUID createTrip(SessionService.Bootstrap owner, String timezone) throws Exception {
         String created = mvc.perform(post("/api/v1/trips")
                         .cookie(cookie(owner))
                         .header("Origin", "http://localhost:5173")
@@ -565,7 +625,7 @@ class OptimizeItemIT {
                         .header("Idempotency-Key", "trip-" + UUID.randomUUID())
                         .contentType("application/json")
                         .content("{\"startDate\":\"" + DAY_ONE + "\",\"endDate\":\"" + DAY_TWO + "\","
-                                + "\"timezone\":\"Asia/Seoul\",\"planningLevel\":\"NOTHING\","
+                                + "\"timezone\":\"" + timezone + "\",\"planningLevel\":\"NOTHING\","
                                 + "\"interests\":[]}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

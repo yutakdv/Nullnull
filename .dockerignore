@@ -1,0 +1,17 @@
+.git
+**/node_modules
+**/.venv
+**/.uv-bootstrap
+**/.gradle
+**/build
+**/dist
+**/__pycache__
+.artifacts
+.env*
+**/.env*
+!**/.env.example
+.aws
+**/*.pem
+**/*.key
+infra/cdk.out
+infra/cdk.context.json
