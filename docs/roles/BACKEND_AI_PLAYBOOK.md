@@ -367,14 +367,14 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 4. 09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 5. #10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다
 
-실패·안전 경계: account ID/secondary alarm/실제 resource·secret 주입 증거가 없으면 release-ready가 아니다. 실제 설정·배포 완료를 문서와 script만으로 표시하지 않는다.
+실패·안전 경계: 실제 secret 값 기반 bundle·image layer·log scan과 잘못된 OIDC subject의 AssumeRole 거부 기록이 없으면 integration-ready가 아니다. 실제 설정·배포 완료를 문서와 구조 test만으로 표시하지 않는다.
 
-이 카드의 로컬 절반은 끝났고 staging은 실행 계약까지 진행됐다:
+로컬 통합과 staging 배포·CD 실행은 끝났지만 T2·T3의 남은 절 때문에 `in-progress`다:
 
-- 완료: 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper. `scripts/integration-test.sh`가 `.nullnull-target-stack` marker를 확인한 뒤 `integration_mode=full-docker`로 실행되고 `compose.integration.yml`의 quality service와 `egress-denied` probe를 포함한다. T1의 internal network·outbound-deny probe는 이 경로에 있다.
-- 진행: [staging 배포 실행 계약](../operations/STAGING_DEPLOYMENT_RUNBOOK.md)이 A-029의 비용/종료일, CloudFront VPC origin/internal ALB, RDS Multi-AZ, OIDC exact subject, runtime size와 script/output 계약을 고정했다. `scripts/aws/`의 manifest/OIDC validator와 plan-first deploy/rollback/migration/smoke/alarm/restore script가 handoff 경계를 만든다.
-- 미착수: `infra/` CDK app과 실제 AWS resource는 없다. account ID와 secondary alarm recipient도 보호 설정에 아직 입력되지 않았다. 따라서 T2/T3와 staging acceptance는 아직 pass가 아니다.
-- 상태 원인: 막고 있던 D-001·D-017·D-018은 A-030·A-028·A-029로 닫혔고 AWS 구현을 시작했으므로 `deferred`에서 `in-progress`로 올렸다. 문서·script 존재를 실제 배포 완료로 세지 않는다.
+- 증명됨(T1): 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper가 있고, required Docker gate가 정규화 Compose의 internal network와 판정 token을 내는 `egress-denied` probe를 실행한다.
+- 부분(T2): browser-facing build에 credential 또는 `VITE_*` secret을 건네지 않는 입력 경계는 gate가 고정한다. 그러나 실제 secret 값을 `check_secret_exposure.py`에 주어 frontend bundle·image layer·log를 함께 검사한 report는 없다. 입력 경계만으로 log 부재까지 증명했다고 쓰지 않는다.
+- 부분(T3): CDK 구조 test와 배포 뒤 smoke는 live GitHub role trust가 deploy·publish role의 exact subject 집합과 일치함을 관측했다. 잘못된 repo/environment subject로 실제 AssumeRole을 시도해 거부된 기록은 없다.
+- 배포 사실: main `d988123`의 Staging release가 성공했고 배포 뒤 smoke에서 `public_api_edge=closed`, `alb_internal=true`, `s3_private=true`, `rds_private_multi_az=true`를 관측했다. 이 사실은 과거의 *infra/CDK와 실제 AWS evidence가 없다*는 서술을 대체하지만 T2·T3의 빈 증거를 채우지는 않는다.
 
 필수 검증:
 
@@ -1888,7 +1888,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-071
 
-**AWS 배포·불변 artifact·롤백** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**AWS 배포·불변 artifact·롤백** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-006](#ba-006), [BA-070](#ba-070)
 - 기능 ID: `FR-OPS-08`
@@ -1905,6 +1905,12 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: production 비용·계정·domain·상대 승인이 없는 실제 배포는 금지한다. destructive DB down migration을 자동 rollback으로 실행하지 않는다.
 
+진행 상태:
+
+- 부분(T1): 배포 뒤 smoke가 `public_api_edge=closed`, internal ALB, private S3, private Multi-AZ RDS와 live GitHub role trust의 exact subject 집합을 관측했다. 잘못된 subject의 실제 AssumeRole 거부는 관측하지 않았다.
+- 부분(T2): 첫 CD run `35426407975`가 ALB grace 부족으로 circuit breaker rollback된 뒤 배포 잠금이 유지됐고, 오너 승인으로 안전 조건을 확인한 뒤 unlock했다. 잠금 수명주기는 관측했지만 두 deploy/migration을 동시에 진입시켜 둘째가 거부되는 장면은 재현하지 않았다.
+- 부분(T3): PR `#285`의 grace 수정 뒤 main `d988123` Staging release가 같은 release manifest artifact로 성공했다. rollback 뒤 핵심 smoke drill은 실행하지 않았고, rollback이 catalog·최적화를 끄므로 오너 결정에 따라 제출 뒤로 미뤘다.
+
 필수 검증:
 
 - `BA-071-T1`: 직접 ALB/S3/RDS 접근과 잘못된 OIDC subject가 거부된다
@@ -1917,7 +1923,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-072
 
-**복원·삭제 재적용·alarm·사고 대응** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**복원·삭제 재적용·alarm·사고 대응** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-012](#ba-012), [BA-020](#ba-020), [BA-071](#ba-071)
 - 기능 ID: `FR-OPS-07`
@@ -1929,7 +1935,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 1. backup14일 기준과 RPO/RTO 목표를 실제 restore로 측정한다
 2. public traffic 전에 tombstone 재적용·삭제 검증을 수행하고 실패 시 닫힌 상태를 유지한다
-3. source/quota/queue/security/budget alarm의 실제 primary/secondary 수신과 tabletop을 검증한다
+3. source/quota/queue/security/budget alarm의 실제 primary 수신과 tabletop을 검증한다
 
 실패·안전 경계: 연락망·restore·alarm 수신 증거가 없는 상태를 운영 준비 완료로 표시하지 않는다. tombstone은 backup 최대 보존보다7일 이상 길게 보존한다.
 
@@ -1941,11 +1947,18 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-072-T4`: 최종 삭제 실패(FAILED, 판정은 job 행의 attempt 상한)가 기록될 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다
 - `BA-072-T5`: lease 재시도, 즉 lease가 만료된 RUNNING job을 다시 claim할 때마다 `ops.alarm name=JOB_LEASE_RETAKEN` 한 줄을 남긴다
 - `BA-072-T6`: receipt 만료, 즉 삭제가 끝나기 전(ACCEPTED·RUNNING·PARTIAL_FAILED)에 status token이 만료된 요청마다 id 없는 `ops.alarm name=DELETION_RECEIPT_EXPIRED_UNFINISHED` 한 줄을 한 번 남긴다
-- `BA-072-T7`: staging에서 위 `ops.alarm` 이름들의 metric filter와 alarm이 발화해 primary/secondary 수신자에게 도달한다
+- `BA-072-T7`: staging에서 위 `ops.alarm` 이름들의 metric filter와 alarm이 발화해 primary 수신자에게 도달한다
 - `BA-072-T8`: 삭제 attempt가 잡고 있는 receipt는 만료 sweep이 기다리지 않고 건너뛰며 다음 sweep이 보고한다
 - `BA-072-T9`: dead letter가 된 삭제 job의 hook이 요청을 FAILED로 끝낼 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다
 
-T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다"* 였고 세 절이라 T2·T5·T6으로 나눴다. 로컬에서 증명할 수 있는 신호 줄과, staging에서만 증명할 수 있는 alarm·수신(T7)도 나눴다. 두 해석은 조율자가 승인했다. *lease 재시도*는 만료된 lease의 재인수로, *receipt 만료*는 끝나지 않은 삭제의 receipt 만료로 읽었다. 로컬 증거(`d044388`)는 T2·T4가 `DeletionIncidentSignalIT`, T5가 `JobCrashRetryIT`, T6·T8이 `DeletionReceiptExpiryIT`다. T9는 dead letter hook이 요청을 끝낼 때의 줄이다. T4의 생산자(마지막 attempt의 handler)와 다르므로 ID를 나눴다. 증거는 `DeletionIncidentSignalIT`의 두 dead-letter 경로(abandoned sweep, worker의 실패 경로)다. 줄 형식의 정본은 `OpsAlarm`이고 `OpsAlarmTest`가 리터럴로 고정한다. 조건 (3)은 sweep 건수 gauge가 아니라 전이 시점(`UPDATE … RETURNING`)에서 잡으므로 migration이 없다. commit과 log 사이의 crash로 줄을 잃으면 `status_token_hash IS NULL AND (completed_at IS NULL OR completed_at > status_token_expires_at)`로 복원한다. T5의 줄은 crash뿐 아니라 contention으로 포기한 attempt와 graceful stop 뒤에도 나므로, T7의 alarm은 1건이 아니라 임계값으로 건다. T1·T3·T7은 staging이 필요하므로 카드는 `planned`로 남는다.
+T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident로 추적한다"* 였고 세 절이라 T2·T5·T6으로 나눴다. 로컬에서 증명할 수 있는 신호 줄과, staging에서만 증명할 수 있는 alarm·수신(T7)도 나눴다. *lease 재시도*는 만료된 lease의 재인수로, *receipt 만료*는 끝나지 않은 삭제의 receipt 만료로 읽었다. 로컬 증거(`d044388`)는 T2·T4가 `DeletionIncidentSignalIT`, T5가 `JobCrashRetryIT`, T6·T8이 `DeletionReceiptExpiryIT`다. T9는 dead letter hook이 요청을 끝낼 때의 줄이다. T4의 생산자(마지막 attempt의 handler)와 다르므로 ID를 나눴다. 증거는 `DeletionIncidentSignalIT`의 두 dead-letter 경로(abandoned sweep, worker의 실패 경로)다. 줄 형식의 정본은 `OpsAlarm`이고 `OpsAlarmTest`가 리터럴로 고정한다. 조건 (3)은 sweep 건수 gauge가 아니라 전이 시점(`UPDATE … RETURNING`)에서 잡으므로 migration이 없다. commit과 log 사이의 crash로 줄을 잃으면 `status_token_hash IS NULL AND (completed_at IS NULL OR completed_at > status_token_expires_at)`로 복원한다. T5의 줄은 crash뿐 아니라 contention으로 포기한 attempt와 graceful stop 뒤에도 나므로, T7의 alarm은 1건이 아니라 임계값으로 건다.
+
+상태 판정은 절별 증거를 합치지 않는다:
+
+- 증명됨: `api-quality`에 등록된 `DeletionIncidentSignalIT`·`JobCrashRetryIT`·`DeletionReceiptExpiryIT`가 T2·T4·T5·T6·T8·T9를 실제 testcase 이름으로 보고한다.
+- 미증명(T1): 삭제 원장이 구현되지 않아 복원 뒤 접수된 삭제를 재적용할 수 없다. A-039는 심사 기간 restore를 금지하며, restore drill과 복원 뒤 owner 비노출 evidence가 없다.
+- 미증명(T3): primary 실제 alarm 수신과 quota/budget/rollback 판단 tabletop을 재현하지 않았다. 조직 SCP 때문에 자동 Budget 신호도 없으며 오너가 조직 billing 화면에서 확인한다.
+- 미증명(T7): metric filter·alarm 발화와 primary 수신자 도달을 staging에서 재현하지 않았다. A-043에 따라 secondary 수신자는 두지 않으므로 secondary 절은 범위 밖이고 acceptance 문구에서도 제거했다.
 
 FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
