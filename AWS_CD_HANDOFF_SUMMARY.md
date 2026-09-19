@@ -173,7 +173,7 @@ N2 게이트는 오너가 (a)로 정했다(2026-09-19). AWS·CD 경로를 바꾸
 - 수동 배포(CI, workflow가 main에 들어간 뒤): Actions → Staging release → `deploy`를 실행하고 `expected_sha`에 main HEAD를 넣는다. infra 판정이면 `staging-infra` reviewer가 plan summary의 diff를 보고 승인한다.
 - 자동 배포: repository variable `STAGING_AUTO_DEPLOY=true`로 켠다. reconciler가 15분마다 main HEAD의 required 검사를 dispatch하고, 둘 다 성공한 그 SHA만 release한다.
 - rollback: 대상을 비우면 `deployed/previous.json`을 쓴다. DB는 되돌리지 않는다. 더 새로운 schema에서 옛 binary를 돌리려면 `accept_newer_schema`가 필요하고, 그 경우 reviewer 경로다.
-- ops task(local 전용): 승인 변수와 `NULLNULL_OPERATIONS_TARGET`을 호출자 환경에 두고 실행한다. 명령은 runbook §11에 있다.
+- ops task(local 전용): 승인 변수와 `NULLNULL_OPERATIONS_TARGET`을 호출자 환경에 두고 실행한다. 명령은 runbook §11에 있다. task는 `kto-smoke`·`kto-ingest`·`kto-forecast-smoke`·`kto-demo-detail`·`kto-demo-forecast`·`curate-hours`다. `kto-smoke`와 `curate-hours`는 `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 같을 때만 뜬다.
 - 잠금 복구: 쓰기 뒤에 실패하면 잠금이 남는다. CloudFormation·ECS 종료를 확인한 뒤 local에서 `staging_operator.py unlock --owner <id>`를 실행한다.
 
 ## 11. 다음 release에 필요한 것
@@ -181,14 +181,14 @@ N2 게이트는 오너가 (a)로 정했다(2026-09-19). AWS·CD 경로를 바꾸
 PR #277이 main에 머지됐다(2026-09-19T04:09Z, main `1c94ec8`). 다음 release를 main HEAD로 만들면 아래가 함께 들어가야 한다. AWS 쓰기가 필요한 것은 전부 오너 승인이 필요하다. 그 release를 배포한 뒤 `rc.1001`로 되돌리는 rollback drill을 한다.
 
 - 쓰기 대상 DB 확인: operator 쪽은 구현됐다(§6). 예정된 EventBridge schedule을 만들 때는 task override에 `NULLNULL_OPERATIONS_TARGET`을 고정값으로 넣는다. ops task는 지금처럼 `SPRING_FLYWAY_ENABLED=false`(`schema=unchecked`)로 둔다.
-- `FEATURE_OPTIMIZATION_ITEM`: `staging.config`에서 켠다. infra 경로이므로 reviewer 경로를 탄다.
+- `FEATURE_OPTIMIZATION_ITEM`: `infra/src/staging.ts`의 API task env에 고정으로 켠다(`staging.config.json`이 아니다). infra 경로이므로 reviewer 경로를 탄다. rc.1001로 rollback하면 다시 꺼진다.
 - 데모 장소 갱신 schedule은 **보류**한다. 옆 세션이 전한 오너 결정(2026-09-19)은 이렇다: 데모 장소 5곳을 쓰지 않고 실사용으로 가며(임의 장소를 KTO 공공데이터로), Live는 제출 뒤로 미룬다. 실사용 설계가 정해지면 ops task, schedule, quota 변경을 받아 반영한다. `kto-demo-*` ops task 두 개는 operator에 남아 있지만 실행 계획은 없다.
 - BA-072 T7: 삭제 실패·만료 미완료·삭제 job dead letter는 1건 alarm으로, 부분 실패와 lease 재획득은 metric만 둔다.
 
 옆 세션이 알려 온 운영 일정이다. 등급은 코드 읽기와 로컬 리허설이며, staging에서는 재지 않았다.
 
-- 영업시간 만료: `ops/curated-hours.json`의 영업시간이 2026-10-13T18:40Z에 일괄 만료된다. 그 뒤로는 모든 최적화가 `DATA_INSUFFICIENT`다. 심사가 10-25까지 이어지므로 10-13 전에 재관측·재적재해야 한다.
-- 최적화 시연 조건: READY 제안이 나오려면 대상 장소의 예보가 여행 안 빈 날보다 25 넘게 높아야 한다(Δ25는 `NO_IMPROVEMENT`, Δ26은 READY). forecast를 적재한 뒤, 데모 장소별로 향후 30일 예보에 그런 날짜 쌍이 있는지 읽어 봐야 한다. 지금 staging에는 DB를 읽기 전용으로 조회하는 운영 도구가 없다.
+- 영업시간 만료: `ops/curated-hours.json`의 영업시간이 2026-10-13T18:40Z에 일괄 만료된다. 그 뒤로는 모든 최적화가 `DATA_INSUFFICIENT`다. 심사가 10-25까지 이어지므로 10-13 전에 재관측·재적재해야 한다. 재적재는 `curate-hours` ops task로 하며 release가 필요 없다.
+- 최적화 시연 조건: READY 제안이 나오려면 대상 장소의 예보가 여행 안 빈 날보다 25 넘게 높아야 한다(Δ25는 `NO_IMPROVEMENT`, Δ26은 READY). forecast를 적재한 뒤, 데모 장소별로 향후 30일 예보에 그런 날짜 쌍이 있는지 읽어 봐야 한다. `staging-flows.mjs --survey`가 향후 29일의 예보와 영업 여부를 찍고 날짜 쌍을 제안한다. `--optimize-item`은 INT-04(KEEP, APPLY→REVERT)를 verifier 경로로 확인한다. 예보는 PT24H 뒤 stale이므로 확인은 예보 적재 뒤 24시간 안에 한다.
 
 ## 12. 비용과 종료
 

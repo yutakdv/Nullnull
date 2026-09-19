@@ -323,6 +323,14 @@ python3 scripts/aws/staging_operator.py unlock --owner <lockOwner>     # break-g
 NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task kto-smoke --content-id <id> --content-type-id <type> \
   --owner-approval '<누가·어디서 승인했는지>'
+# 영업시간(local 전용). staging placeId로 고친 plan 파일을 커밋하지 않고 넘긴다. 승인값 없이 먼저 돌리면
+# plan_sha256을 찍고 AWS 호출 없이 멈추므로, 파일을 확인한 뒤 그 값을 승인으로 붙여 다시 실행한다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task curate-hours --plan-file <plan.json> \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# INT-04 확인(verifier 경로). 먼저 날짜 쌍을 찾고, 예보 적재 뒤 24시간 안에 돌린다.
+node scripts/aws/staging-flows.mjs --url https://<cloudfront-domain> --survey
+node scripts/aws/staging-flows.mjs --url https://<cloudfront-domain> --optimize-item --item-day <D1> --better-day <D2>
 ```
 
 - `--kind infra` 실행은 같은 plan 디렉터리의 `classify` 결과(`classification.json`)가 있어야 하고, 분류 뒤 live stack이 하나라도 바뀌었으면 거부한다. `--kind app`은 실행 직전에 다시 분류해 차이가 있으면 거부한다.
@@ -333,6 +341,9 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 - alarm subscription과 synthetic test는 별도 스크립트이며 이메일 값을 출력하지 않는다.
 - restore drill은 plan이 기본이며 `--execute` 뒤에도 restore DB를 자동 삭제하거나 공개 연결하지 않는다.
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
+- `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 `kto-smoke-did-not-call`이다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
+- `curate-hours`는 승인한 plan 바이트를 gzip+base64로 task override에 싣는다. override는 `describe-tasks`와 CloudTrail에 남으므로 plan에 민감한 값을 넣지 않는다. task가 출력한 sha가 승인값과 같을 때만 성공이고, 그 바이트는 release bucket `evidence/curation/<release>/<sha>.json`에 남는다.
+- `staging-flows.mjs`의 `--survey`와 `--optimize-item`은 opt-in이라 CD(`--url`만 넘김)의 요청과 verdict는 그대로다. 전제가 없으면 `NOT-RUN`과 `staging_flows=incomplete`(exit 3, pass 아님)이고, 전제를 갖춘 한 곳짜리 여행이 낼 수 없는 결과만 `FAIL`이다.
 
 ## 12. Acceptance와 evidence
 
