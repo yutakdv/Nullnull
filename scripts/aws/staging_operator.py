@@ -603,22 +603,8 @@ def execute(args):
     directory=Path(args.plan).resolve().parent
     plan_sha=args.approved_plan_sha256
     manifest={} if args.action=='bootstrap' else validate_manifest(directory/'release.json', recorded=args.action=='rollback')
-    assembly=directory/'assembly'
     def deploy_stack(name,lock=None,parameters=None):
-        if lock:lock.check()
-        require(tree_digest(assembly)==data['assemblySha256'],'assembly-changed')
-        guard_stateful(name, assembly)
-        # The CDK CLI writes into the assembly it deploys (asset zips under .cache/, measured 2026-09-19), so it
-        # gets a verified copy: the approved assembly stays byte-identical for the next stack and the release record.
-        with tempfile.TemporaryDirectory(prefix='nullnull-assembly-') as scratch:
-            copy=Path(scratch)/'assembly'
-            shutil.copytree(assembly,copy,symlinks=False)
-            require(tree_digest(copy)==data['assemblySha256'],'assembly-changed')
-            command=['deploy',PREFIX+name,'--app',copy,'--exclusively','--concurrency','1','--require-approval','never',
-                     '--toolkit-stack-name',TOOLKIT_STACK]
-            for p in parameters or []:command+=['--parameters',p]
-            if lock:lock.mutating()
-            cdk(command, log=directory/f'cdk-{name}.log')
+        deploy_approved_stack(directory,data,name,lock,parameters)
     # Foundation is a separate explicit bootstrap entrypoint. Runtime execution never mutates it.
     if args.action=='bootstrap':
         deploy_stack('Foundation')
@@ -668,6 +654,107 @@ def execute(args):
         record_release(directory, data, manifest, plan_sha)
         write_private(directory/'execution.json',{'status':'deployed-edge-closed','lockOwner':lock.owner,'kind':kind})
     print('deployment_action=executed state=DEPLOYED_EDGE_CLOSED release_ready=false kind='+kind)
+
+def deploy_approved_stack(directory, data, name, lock=None, parameters=None):
+    """Deploy one stack from the approved assembly beside the plan (execute, and edge for WebEdge alone)."""
+    assembly=Path(directory)/'assembly'
+    if lock:lock.check()
+    require(tree_digest(assembly)==data['assemblySha256'],'assembly-changed')
+    guard_stateful(name, assembly)
+    # The CDK CLI writes into the assembly it deploys (asset zips under .cache/, measured 2026-09-19), so it
+    # gets a verified copy: the approved assembly stays byte-identical for the next stack and the release record.
+    with tempfile.TemporaryDirectory(prefix='nullnull-assembly-') as scratch:
+        copy=Path(scratch)/'assembly'
+        shutil.copytree(assembly,copy,symlinks=False)
+        require(tree_digest(copy)==data['assemblySha256'],'assembly-changed')
+        command=['deploy',PREFIX+name,'--app',copy,'--exclusively','--concurrency','1','--require-approval','never',
+                 '--toolkit-stack-name',TOOLKIT_STACK]
+        for p in parameters or []:command+=['--parameters',p]
+        if lock:lock.mutating()
+        cdk(command, log=Path(directory)/f'cdk-{name}.log')
+
+EDGE_STATES = {'open': 'true', 'closed': 'false'}
+EDGE_PUBLIC_STATUS = {'open': 200, 'closed': 503}
+
+def verify_deployed_plan(path, approved):
+    """The deployed release's own approved plan, unchanged, for edge: the same integrity checks as verify_plan,
+    but not its 24-hour freshness, because edge redeploys exactly what is deployed (one parameter differs) and has
+    to be usable during judging, days after the release. The staging lifetime still bounds it."""
+    path = Path(path).resolve()
+    require(approved and digest(path)==approved, 'reviewed-plan-does-not-match')
+    data = json.loads(path.read_text())
+    require(data.get('version')==1 and data.get('region')==REGION, 'invalid-plan')
+    require(data.get('action') in ('deploy', 'rollback'), 'edge-requires-a-release-plan')
+    require(data['account']==os.environ.get('NULLNULL_AWS_ACCOUNT_ID'), 'plan-account-mismatch')
+    require(digest(path.parent/'release.json')==data['releaseSha256'], 'release-changed')
+    require(tree_digest(path.parent/'assembly')==data['assemblySha256'], 'assembly-changed')
+    require(digest(path.parent/'cost-basis.txt')==data['costBasisSha256'], 'cost-basis-changed')
+    require(digest(ROOT/'infra/package-lock.json')==data['toolchainSha256'], 'toolchain-changed')
+    require(re.fullmatch(r'[a-f0-9]{64}', data.get('verifierTokenSha256', '')) is not None, 'invalid-verifier-hash')
+    require(dt.datetime.now(dt.timezone.utc) < EXPIRY, 'staging-expired')
+    return data
+
+def public_health_status(url, attempts=40, pause=15):
+    """GET /api/v1/health/live through the edge without the verifier, until the gate answers as it is now set.
+    CloudFront takes minutes to carry a function change to every edge location, so this retries."""
+    import urllib.error, urllib.request
+    status = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(url.rstrip('/') + '/api/v1/health/live', timeout=10) as response:
+                status = response.status
+        except urllib.error.HTTPError as error:
+            status = error.code
+        except OSError:
+            status = None
+        yield status
+        if attempt + 1 < attempts:
+            time.sleep(pause)
+
+def edge(args):
+    """Open or close the public API edge of the deployed release, and nothing else (owner decision 2026-09-19, A-039).
+
+    Every deploy and rollback sets TrafficEnabled=false again (execute), so this is run after each release that
+    should be public. It redeploys WebEdge alone, from the deployed release's own approved plan and assembly, with
+    TrafficEnabled changed: the owner approves that plan's sha256, which current.json already records. Opening
+    requires the verifier-path flows to pass first; closing does not wait for anything. Without --execute it plans.
+    """
+    require(auth_mode() == 'profile', 'edge-is-local-only')
+    require(args.state in EDGE_STATES, 'edge-state-must-be-open-or-closed')
+    require(bool(args.plan), 'edge-requires-the-deployed-release-plan')
+    data = verify_deployed_plan(args.plan, args.approved_plan_sha256)
+    identity(data['account'])
+    current = read_current_release(release_bucket())
+    require(current is not None, 'no-deployed-release-record')
+    require(current.get('planSha256') == args.approved_plan_sha256, 'plan-is-not-the-deployed-release')
+    release = current['releaseVersion']
+    url = output('WebEdge', 'PublicUrl')
+    enabled = EDGE_STATES[args.state]
+    print(f'edge_action={"execute" if args.execute else "plan"} state={args.state} release={release} '
+          f'stack=WebEdge TrafficEnabled={enabled}')
+    print('edge_note=every deploy and rollback sets TrafficEnabled=false again; open the edge again after each release')
+    if args.state == 'open':
+        # The same checks CD runs after a deploy, through the verifier path, before anyone else can reach the API.
+        require(len(os.environ.get('NULLNULL_VERIFIER_TOKEN', '')) >= 43, 'edge-open-requires-verifier-token')
+        log = ROOT/'.artifacts/aws/edge-precheck.log'
+        log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        run(['node', ROOT/'scripts/aws/staging-flows.mjs', '--url', url], log=log)
+        print('edge_precheck=staging-flows-pass')
+    if not args.execute:
+        print('edge_action=plan aws_writes=0')
+        return
+    waf_arn = output('GlobalWaf', 'WebAclArn', 'us-east-1')
+    with DeploymentLock() as lock:
+        deploy_approved_stack(Path(args.plan).resolve().parent, data, 'WebEdge', lock,
+                              ['NullnullStgWebEdge:GlobalWebAclArn='+waf_arn, 'NullnullStgWebEdge:TrafficEnabled='+enabled,
+                               'NullnullStgWebEdge:VerifierTokenSha256='+data['verifierTokenSha256']])
+    expected = EDGE_PUBLIC_STATUS[args.state]
+    status = None
+    for status in public_health_status(url):
+        if status == expected:
+            break
+    require(status == expected, f'edge-not-{args.state}-after-deploy')
+    print(f'edge={args.state} release={release} public_health_status={status}')
 
 def read_dotenv(path):
     values = {}
@@ -896,7 +983,8 @@ def unlock(args):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',choices=['deploy','rollback','bootstrap','classify','secrets','task','unlock'])
+    parser.add_argument('action',choices=['deploy','rollback','bootstrap','classify','secrets','task','unlock','edge'])
+    parser.add_argument('--state',choices=sorted(EDGE_STATES))
     parser.add_argument('--manifest');parser.add_argument('--web-dir');parser.add_argument('--plan')
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--approved-plan-sha256','--approved-diff-sha256',dest='approved_plan_sha256')
@@ -915,6 +1003,7 @@ def main():
         elif args.action=='secrets': provision_secrets(args)
         elif args.action=='task': ops_task(args)
         elif args.action=='unlock': unlock(args)
+        elif args.action=='edge': edge(args)
         elif args.execute: execute(args)
         else: plan(args)
     except (OpsError, OSError, KeyError, ValueError) as error:

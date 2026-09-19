@@ -743,6 +743,85 @@ class CurationTaskRegressions(unittest.TestCase):
         for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
         for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
 
+class EdgeRegressions(unittest.TestCase):
+    """edge opens or closes the public API of the deployed release by redeploying WebEdge alone from its own plan."""
+    PLAN_SHA='p'*64
+    RECORD={'releaseVersion':'v0.1.0-rc.2','planSha256':'p'*64,'gitSha':'a'*40}
+    DATA={'account':'1'*12,'action':'deploy','verifierTokenSha256':'v'*64,'assemblySha256':'x'}
+    def run_edge(self, state, execute, record=None, statuses=(200,), env=None):
+        import contextlib, io
+        from types import SimpleNamespace
+        base={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
+              'NULLNULL_VERIFIER_TOKEN':'t'*43}
+        out=io.StringIO()
+        with patch.dict(os.environ,{**base,**(env or {})}),patch.object(ops,'verify_deployed_plan',return_value=self.DATA),\
+             patch.object(ops,'identity'),patch.object(ops,'release_bucket',return_value='b'),\
+             patch.object(ops,'read_current_release',return_value=self.RECORD if record is None else record),\
+             patch.object(ops,'output',side_effect=lambda stack,key,*a,**kw:{'PublicUrl':'https://d.example','WebAclArn':'arn:waf'}[key]),\
+             patch.object(ops,'run') as run,patch.object(ops,'deploy_approved_stack') as deploy,\
+             patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),\
+             patch.object(ops,'public_health_status',return_value=iter(statuses)),contextlib.redirect_stdout(out):
+            if env and env.get('NULLNULL_VERIFIER_TOKEN')=='':os.environ.pop('NULLNULL_VERIFIER_TOKEN')
+            error=None
+            try:
+                ops.edge(SimpleNamespace(state=state,execute=execute,plan='/plans/p/plan.json',approved_plan_sha256=self.PLAN_SHA))
+            except ops.OpsError as e:
+                error=str(e)
+        return error,run,deploy,out.getvalue()
+    def test_planning_to_open_runs_the_verifier_flows_and_writes_nothing(self):
+        error,run,deploy,out=self.run_edge('open',False)
+        self.assertIsNone(error,out)
+        self.assertEqual('https://d.example',run.call_args.args[0][-1]);self.assertIn('staging-flows.mjs',str(run.call_args.args[0][1]))
+        deploy.assert_not_called()
+        self.assertIn('edge_action=plan aws_writes=0',out)
+        self.assertIn('every deploy and rollback sets TrafficEnabled=false again',out)
+    def test_opening_redeploys_webedge_alone_with_traffic_enabled_and_checks_the_public_gate(self):
+        error,run,deploy,out=self.run_edge('open',True,statuses=(503,200))
+        self.assertIsNone(error,out)
+        args=deploy.call_args.args
+        self.assertEqual(('WebEdge',),args[2:3])
+        self.assertEqual(['NullnullStgWebEdge:GlobalWebAclArn=arn:waf','NullnullStgWebEdge:TrafficEnabled=true',
+                          'NullnullStgWebEdge:VerifierTokenSha256='+'v'*64],args[4])
+        self.assertIn('edge=open release=v0.1.0-rc.2 public_health_status=200',out)
+    def test_closing_needs_no_precheck_and_expects_the_gate_closed(self):
+        error,run,deploy,out=self.run_edge('closed',True,statuses=(200,503),env={'NULLNULL_VERIFIER_TOKEN':''})
+        self.assertIsNone(error,out)
+        run.assert_not_called()
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=false',deploy.call_args.args[4])
+        self.assertIn('edge=closed release=v0.1.0-rc.2 public_health_status=503',out)
+    def test_an_edge_that_does_not_move_or_a_plan_that_is_not_deployed_is_refused(self):
+        error,run,deploy,out=self.run_edge('open',True,statuses=(503,503,503))
+        self.assertIn('edge-not-open-after-deploy',error or '')
+        other={**self.RECORD,'planSha256':'q'*64}
+        error,run,deploy,out=self.run_edge('open',True,record=other)
+        self.assertIn('plan-is-not-the-deployed-release',error or '');deploy.assert_not_called();run.assert_not_called()
+        error,run,deploy,out=self.run_edge('open',True,env={'NULLNULL_VERIFIER_TOKEN':''})
+        self.assertIn('edge-open-requires-verifier-token',error or '');deploy.assert_not_called()
+        with patch.dict(os.environ,AuthModeRegressions.AMBIENT):
+            with self.assertRaisesRegex(ops.OpsError,'edge-is-local-only'):
+                ops.edge(__import__('types').SimpleNamespace(state='open',execute=True,plan='x',approved_plan_sha256='y'))
+    def test_the_deployed_plan_is_usable_days_later_but_not_once_changed(self):
+        import datetime as dt
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            (root/'assembly').mkdir();(root/'assembly'/'x.json').write_text('{}')
+            (root/'release.json').write_text('{}');(root/'cost-basis.txt').write_text('basis')
+            old=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=3)).isoformat()
+            data={'version':1,'region':ops.REGION,'account':'1'*12,'action':'deploy','createdAt':old,'expiresAt':old,
+                  'releaseSha256':ops.digest(root/'release.json'),'assemblySha256':ops.tree_digest(root/'assembly'),
+                  'costBasisSha256':ops.digest(root/'cost-basis.txt'),'toolchainSha256':ops.digest(ROOT/'infra/package-lock.json'),
+                  'verifierTokenSha256':'c'*64,'estimateUsd':80,'reserveUsd':20}
+            (root/'plan.json').write_text(json.dumps(data))
+            sha=ops.digest(root/'plan.json')
+            with patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}):
+                self.assertEqual('deploy',ops.verify_deployed_plan(root/'plan.json',sha)['action'])
+                with self.assertRaisesRegex(ops.OpsError,'plan-older-than-24-hours|staging-expired'):
+                    ops.verify_plan(root/'plan.json',sha)
+                (root/'assembly'/'x.json').write_text('{"changed":true}')
+                with self.assertRaisesRegex(ops.OpsError,'assembly-changed'):ops.verify_deployed_plan(root/'plan.json',sha)
+                with self.assertRaisesRegex(ops.OpsError,'reviewed-plan-does-not-match'):
+                    ops.verify_deployed_plan(root/'plan.json','0'*64)
+
 class WaitTaskRegressions(unittest.TestCase):
     """The executed-image comparison itself, which every ops_task test patches away with a Mock."""
     class Lock:

@@ -331,6 +331,11 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
 # INT-04 확인(verifier 경로). 먼저 날짜 쌍을 찾고, 예보 적재 뒤 24시간 안에 돌린다.
 node scripts/aws/staging-flows.mjs --url https://<cloudfront-domain> --survey
 node scripts/aws/staging-flows.mjs --url https://<cloudfront-domain> --optimize-item --item-day <D1> --better-day <D2>
+# 공개 edge(local 전용, 오너 결정 A-039). 배포된 release의 plan(deployed/current.json의 planSha256)으로 WebEdge만 다시
+# 배포한다. plan 디렉터리는 release bucket의 releases/<planSha256>/plan.tgz를 내려받아 푼다. --execute 없이 먼저 본다.
+NULLNULL_VERIFIER_TOKEN=<token> python3 scripts/aws/staging_operator.py edge --state open \
+  --plan <풀어 둔 plan.json> --approved-plan-sha256 <planSha256> --execute
+python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 plan.json> --approved-plan-sha256 <planSha256> --execute
 ```
 
 - `--kind infra` 실행은 같은 plan 디렉터리의 `classify` 결과(`classification.json`)가 있어야 하고, 분류 뒤 live stack이 하나라도 바뀌었으면 거부한다. `--kind app`은 실행 직전에 다시 분류해 차이가 있으면 거부한다.
@@ -343,6 +348,7 @@ node scripts/aws/staging-flows.mjs --url https://<cloudfront-domain> --optimize-
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
 - `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 `kto-smoke-did-not-call`이다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
 - `curate-hours`는 승인한 plan 바이트를 gzip+base64로 task override에 싣는다. override는 `describe-tasks`와 CloudTrail에 남으므로 plan에 민감한 값을 넣지 않는다. task가 출력한 sha가 승인값과 같을 때만 성공이고, 그 바이트는 release bucket `evidence/curation/<release>/<sha>.json`에 남는다.
+- `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. plan이 `deployed/current.json`의 `planSha256`이 아니면 거부한다. 24시간 신선도는 보지 않지만(심사 기간에 다시 열 수 있어야 한다) hash 검사는 모두 한다. 열기 전에는 verifier 경로 `staging-flows.mjs`가 통과해야 하고, 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 200(열림) 또는 503(닫힘)이 될 때까지 확인한다. **모든 deploy·rollback은 edge를 다시 닫는다** — 공개가 필요한 release마다 다시 연다. 이 명령은 AWS에서 아직 한 번도 돌지 않았다. 첫 사용은 `--execute` 없이 계획부터 본다.
 - `staging-flows.mjs`의 `--survey`와 `--optimize-item`은 opt-in이라 CD(`--url`만 넘김)의 요청과 verdict는 그대로다. 전제가 없으면 `NOT-RUN`과 `staging_flows=incomplete`(exit 3, pass 아님)이고, 전제를 갖춘 한 곳짜리 여행이 낼 수 없는 결과만 `FAIL`이다.
 
 ## 12. Acceptance와 evidence
