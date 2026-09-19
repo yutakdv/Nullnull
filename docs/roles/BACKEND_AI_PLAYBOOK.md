@@ -780,6 +780,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-023-T18`: from이 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다
 - `BA-023-T19`: to가 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다
 - `BA-023-T20`: 연도가 0001~9999 밖인 from·to는 500이 아니라 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T21`: 계약이 공개한 unavailableReason token 목록과 서버가 보낼 수 있는 사유 집합이 같다 — `CrowdVocabularyContractTest.unavailableReasonTokensMatchTheServer`
+- `BA-023-T22`: 계약의 ordinalLevel pattern이 받는 값과 서버의 5단계 척도가 같다 — `CrowdVocabularyContractTest.ordinalLevelPatternMatchesTheServersScale`
+- `BA-023-T23`: 검토된 척도 매핑이 없는 source의 저장된 단계는 단계로 나가지 않고 SCHEMA_DRIFT로 표시된다 — `CrowdForecastApiIT.aStageOffTheScaleIsNotServedAsOne`
 
 구현 결과:
 
@@ -827,6 +830,19 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - **미완료**: 실제 KTO `tatsCnctrRatedList` 호출 증거는 아직 없다. opt-in `ktoForecastSmoke`·`actualKtoSmoke`는
   `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구한다. BA-021-T3의 staging
   actual-success→public provenance가 남아 있는 동안 BA-023도 `verified`가 아니며 공개 flag를 켜지 않는다.
+
+어휘(#105 FE 후속) 결과:
+
+- `unavailableReason`은 FE가 매핑하는 token이고 화면 문구가 아니다(FE 질문의 답). 서버가 낼 수 있는 값을 코드에서 전수로 찾으니 `NO_COVERAGE`·`PLACE_UNAVAILABLE` 둘뿐이라 Java enum으로 바꾸고 계약에 같은 둘을 실었다.
+- `ordinalLevel`은 5단계(FCR-035 오너 결정) 숫자 문자열이다. 생산자는 아직 없다 — KTO writer가 NULL을 쓰고 열에 CHECK가 없다. null의 뜻과 "value에서 유도하지 않는다"를 description에 적었다.
+- **`enum`을 쓰지 않은 것은 측정이다.** enum이 없던 응답 property에 enum을 더하면 oasdiff breaking이 **174 error**(`response-property-enum-value-added`, CrowdMetric을 품은 operation마다 값마다 한 건)다. `x-extensible-enum`(reason) + `pattern`(척도)은 **0 error·0 warning·28 info**다. 대가로 생성 client가 union type을 주지 못하므로(`x-nullnull-interest-codes`와 같은 자리) 계약↔서버 양방향 대조를 test로 둔다.
+- 저장된 단계는 읽기 경계에서 막는다(null + `SCHEMA_DRIFT`). 같은 mapper가 모르는 quality flag를 그렇게 다루던 선례다.
+  기준은 척도 안의 숫자인지가 아니라 **source에 검토된 매핑이 있는지**다(`CrowdStage.SOURCES_WITH_REVIEWED_SCALE`,
+  지금 비어 있다). 숫자만 보면 단계를 내지 않는 source에 저장된 `"3"`이 authoritative한 단계가 된다(Codex 지적).
+- 단계 생산자가 생기는 slice가 함께 해야 하는 둘: FE `CrowdLevel.STEPS`가 아직 4라 `"5"`는 화면에서 조용히
+  사라진다(FCR-035의 FE 몫). APPLY의 비교 철회 검사는 incident만 보므로, 저장된 단계가 drift가 되는 경로가 생기면
+  그 검사도 `SCHEMA_DRIFT`를 보게 넓혀야 한다(오늘은 생산자가 없어 도달 불가).
+- 변이 일곱이 각자 겨눈 절에서 발화했다: 가드 제거 → `T23`, 계약 pattern을 `^[1-4]$`로 → `T22`, 서버 enum에 값 추가 → `T21`, 계약 목록에서 token 제거 → `T21`, 가드가 값을 남기게 → `T23`, 가드가 flag를 안 붙이게 → `T23`, KTO를 검토된 source 목록에 넣기 → `T23`.
 
 배치 조회(#105) 구현 결과:
 

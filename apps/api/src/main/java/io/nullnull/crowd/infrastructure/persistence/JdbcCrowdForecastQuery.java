@@ -2,6 +2,7 @@ package io.nullnull.crowd.infrastructure.persistence;
 
 import io.nullnull.crowd.application.CrowdForecastQuery;
 import io.nullnull.crowd.domain.ComparisonScope;
+import io.nullnull.crowd.domain.CrowdStage;
 import io.nullnull.crowd.domain.QualityFlag;
 import io.nullnull.crowd.domain.SourceState;
 import java.sql.ResultSet;
@@ -208,6 +209,18 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
     }
 
     private Snapshot snapshot(ResultSet result, int row) throws SQLException {
+        String ordinalLevel = result.getString("ordinal_level");
+        Set<QualityFlag> flags = qualityFlags(result.getString("quality_flags"));
+        if (ordinalLevel != null && !CrowdStage.publishable(result.getString("source_code"), ordinalLevel)) {
+            // A stored stage from a source with no reviewed mapping onto the scale - today every source -
+            // is an unreviewed meaning, the same as an unknown flag below: it is not served as a stage,
+            // and the point says why (BA-023-T23). Being on the scale is not enough: a digit stored under
+            // a source that publishes no stages would otherwise become an authoritative one.
+            ordinalLevel = null;
+            EnumSet<QualityFlag> drifted = flags.isEmpty() ? EnumSet.noneOf(QualityFlag.class) : EnumSet.copyOf(flags);
+            drifted.add(QualityFlag.SCHEMA_DRIFT);
+            flags = Set.copyOf(drifted);
+        }
         SourceDescriptor source = new SourceDescriptor(result.getString("source_code"),
                 result.getString("source_display_name"), result.getLong("source_registry_version"),
                 result.getString("license_name"), result.getString("official_url"), result.getString("license_url"),
@@ -217,8 +230,8 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
                 SourceState.valueOf(result.getString("source_state")), instant(result, "observed_at"),
                 instant(result, "target_at"), instant(result, "fetched_at"), instant(result, "stale_at"),
                 result.getString("metric_code"), result.getBigDecimal("value"), result.getString("unit"),
-                result.getString("ordinal_level"), result.getBigDecimal("confidence"),
-                qualityFlags(result.getString("quality_flags")), result.getString("forecast_issue_id"),
+                ordinalLevel, result.getBigDecimal("confidence"),
+                flags, result.getString("forecast_issue_id"),
                 result.getString("comparison_group_id"), result.getString("normalization_version"),
                 (Integer) result.getObject("observed_at_skew_seconds"),
                 ComparisonScope.valueOf(result.getString("scope")), result.getString("scope_label"),
