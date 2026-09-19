@@ -121,6 +121,20 @@ describe('FE-201-T2 the feed renders each of its states', () => {
     for (const card of feedFixtures.page.items) {
       expect(screen.getByText(card.post.title)).toBeInTheDocument();
     }
+    // And says nothing about still loading. Presence alone passes for a screen
+    // that draws both, which is the trap `#279 하1` records on the optimize run
+    // screen. Measured: without this line, making the loading branch render
+    // unconditionally left this case green, and the only thing that caught it
+    // was "does not hang on loading when the trip list fails" below — a case
+    // about a different clause, catching this one by accident.
+    expect(screen.queryByText(copy['feed.loading'])).toBeNull();
+    // Nor that there is nothing to show. Measured the same way: relaxing the
+    // empty branch to `feed.isSuccess && !noTrip` renders that sentence over a
+    // full card list, and before this line every case in this block stayed
+    // green. The assertion belongs HERE rather than on the empty case: with an
+    // empty page `cards` is [], so no card can appear beside the sentence and
+    // an assertion there could never see the coexistence it was aimed at.
+    expect(screen.queryByText(copy['feed.empty'])).toBeNull();
   });
 
   it('shows a loading state before the answer arrives', async () => {
@@ -482,6 +496,45 @@ describe('FE-201 the card shows only what the contract supplies', () => {
     );
     expect(screen.getByText(saved?.post.title ?? '')).toBeInTheDocument();
     expect(screen.getByText(scheduled?.post.title ?? '')).toBeInTheDocument();
+  });
+
+  it("hands a STALE card the feed's own wording for STALE", async () => {
+    // Closes the gap recorded at the top of this file. It was measured, not
+    // suspected: this suite made 0 STALE assertions, no feed fixture could
+    // produce a STALE card, and deleting `STALE: t('state.STALE')` from
+    // FeedScreen's label map broke nothing.
+    //
+    // The assertion is on the EN copy on purpose. `stateLabels` is a
+    // Partial<Record<SourceState, string>>, so a missing key is legal to
+    // `tsc`, and StateLabel then falls back to its own hardcoded Korean
+    // (`LABELS[state]`). A card whose wiring dropped STALE still draws a
+    // plausible label — just the untranslated one — so a Korean assertion
+    // here could not tell a wired card from an unwired one.
+    //
+    // data-components.test.tsx proves StateLabel gives all six states
+    // distinct words, but it renders StateLabel DIRECTLY. This case is the
+    // only one that goes through the feed, which is the wiring that broke.
+    const stale = feedFixtures.pageTwo.items.find(
+      (card) => card.crowd?.state === 'STALE',
+    );
+    // Without this the lookup could go empty and the queries below would be
+    // made against '', which passes by matching nothing.
+    expect(stale).toBeDefined();
+
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    // The STALE card is on page two, so pagination has to run first.
+    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+
+    const card = (await screen.findByText(stale?.post.title ?? '')).closest(
+      'article',
+    ) as HTMLElement;
+    // Scoped to this card: every other card carries its own state label, so a
+    // document-wide query would pass while this one stayed unlabelled.
+    expect(within(card).getByText(copy['state.STALE'])).toBeInTheDocument();
+    // And it is the feed's label, not StateLabel's fallback.
+    expect(within(card).queryByText(messages['ko-KR']['state.STALE'])).toBeNull();
   });
 });
 
