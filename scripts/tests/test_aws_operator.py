@@ -181,6 +181,25 @@ class OperatorRegressions(unittest.TestCase):
                 with self.assertRaisesRegex(ops.OpsError,'stateful-change'):
                     ops.guard_stateful('Data',Path(d))
 
+    def guard(self, old_tags, new_tags, stack='WebEdge'):
+        def bucket(tags): return {'Resources':{'WebBucket':{'Type':'AWS::S3::Bucket','Properties':{'Tags':tags}}}}
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d)/f'NullnullStg{stack}.template.json').write_text(json.dumps(bucket(new_tags)))
+            with patch.object(ops,'aws',return_value={'TemplateBody':bucket(old_tags)}):
+                ops.guard_stateful(stack,Path(d))
+
+    def test_a_cdk_ownership_tag_added_by_a_new_bucket_deployment_passes(self):
+        # Run 35461072422: the covers BucketDeployment added aws-cdk:cr-owned:covers/:a11792fd to the web bucket.
+        base=[{'Key':'aws-cdk:cr-owned:89f9b8d0','Value':'true'},{'Key':'Project','Value':'Nullnull'}]
+        self.guard(base, base[:1]+[{'Key':'aws-cdk:cr-owned:covers/:a11792fd','Value':'true'}]+base[1:])
+
+    def test_any_other_tag_change_on_a_stateful_resource_is_still_blocked(self):
+        base=[{'Key':'Project','Value':'Nullnull'}]
+        for new in ([{'Key':'Project','Value':'Other'}], base+[{'Key':'Owner','Value':'x'}], [],
+                    base+[{'Key':'aws-cdk:cr-owned','Value':'true'}]):
+            with self.subTest(new=new),self.assertRaisesRegex(ops.OpsError,'stateful-change'):
+                self.guard(base,new)
+
 
 class AuthModeRegressions(unittest.TestCase):
     AMBIENT={'NULLNULL_AWS_AUTH':'ambient','GITHUB_ACTIONS':'true','AWS_ACCESS_KEY_ID':'ASIASYNTHETIC',
