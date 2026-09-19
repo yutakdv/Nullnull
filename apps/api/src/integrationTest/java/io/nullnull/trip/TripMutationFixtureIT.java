@@ -12,12 +12,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.nullnull.identity.application.SessionService;
 import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
+import io.nullnull.testsupport.OwnedRows;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +46,11 @@ import tools.jackson.databind.JsonNode;
  * candidates - makes the one change its fixture shows, and compares every level's keys. The getTrip cases
  * compare that trip itself with trip-detail-scheduled, and with trip-detail-reservation once 명동 holds the
  * RESERVATION lock instead.
+ *
+ * <p>Every place here is referenced to the KTO source the way the canonical ingest writes one, so the
+ * fixtures carry the provider credit a trip screen draws (CMP-ATT-001). A test place without that reference
+ * made every fixture say {@code sourceAttribution: null}, which is what the server sends only for a place
+ * with no external source.
  */
 @SpringBootTest(properties = "nullnull.catalog.public-enabled=true")
 @AutoConfigureMockMvc
@@ -52,6 +59,10 @@ import tools.jackson.databind.JsonNode;
 class TripMutationFixtureIT {
 
     private static final tools.jackson.databind.ObjectMapper JSON = new tools.jackson.databind.ObjectMapper();
+
+    /** The source and the registry revision the canonical ingest references KTO places to (V012). */
+    private static final String KTO = "KTO_KOR_SERVICE_2";
+    private static final int KTO_REVISION = 4;
 
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
@@ -67,9 +78,8 @@ class TripMutationFixtureIT {
         for (UUID tripId : trips) {
             jdbc.update("DELETE FROM trips WHERE id = ?", tripId);
         }
-        for (UUID placeId : places) {
-            jdbc.update("DELETE FROM places WHERE id = ?", placeId);
-        }
+        // With the external references hanging off them, which do not cascade.
+        OwnedRows.remove(jdbc, "places", places);
     }
 
     @Test
@@ -273,6 +283,61 @@ class TripMutationFixtureIT {
                 seoulForest, seoulForestCandidate);
     }
 
+    @Test
+    @DisplayName("BA-030-T5 getTrip gives a place with an external source its provider's credit as the source registry records it")
+    void aTripPlaceCarriesItsProvidersCredit() throws Exception {
+        Scheduled trip = scheduled(false);
+        JsonNode body = JSON.readTree(mvc.perform(get("/api/v1/trips/" + trip.tripId()).cookie(cookie(trip.owner())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        Map<String, Object> revision = jdbc.queryForMap("""
+                SELECT canonical_contract->>'displayName' AS display_name,
+                       canonical_contract->>'attributionTemplate' AS attribution,
+                       canonical_contract->>'officialUrl' AS official_url,
+                       canonical_contract->'license'->>'url' AS license_url,
+                       canonical_contract->'license'->>'name' AS license_name
+                  FROM source_registry_revisions WHERE source_code = ? AND version = ?
+                """, KTO, KTO_REVISION);
+
+        JsonNode credit = placeNamed(body, "경복궁").get("sourceAttribution");
+        assertThat(credit.get("source").asString()).isEqualTo(KTO);
+        assertThat(credit.get("sourceRegistryVersion").asInt()).isEqualTo(KTO_REVISION);
+        assertThat(credit.get("attribution").asString()).as("the text CMP-ATT-001 requires on a KTO screen")
+                .isEqualTo("출처: ⓒ한국관광공사").isEqualTo(revision.get("attribution"));
+        assertThat(credit.get("sourceDisplayName").asString()).isEqualTo(revision.get("display_name"));
+        assertThat(credit.get("officialUrl").asString()).isEqualTo(revision.get("official_url"));
+        assertThat(credit.get("licenseUrl").asString()).isEqualTo(revision.get("license_url"));
+        assertThat(credit.get("license").asString()).isEqualTo(revision.get("license_name"));
+    }
+
+    @Test
+    @DisplayName("BA-030-T6 getTrip gives a place with no external source no credit, not a default one")
+    void aPlaceWithoutASourceCarriesNoCredit() throws Exception {
+        Scheduled trip = scheduled(false);
+        UUID ownPlace = placeWithoutASource("외부 출처가 없는 장소");
+        send(trip, post(trip.items()), "\"4\"",
+                "{\"placeId\":\"" + ownPlace + "\",\"date\":\"2026-10-06\",\"position\":0}")
+                .andExpect(status().isCreated());
+
+        JsonNode body = JSON.readTree(mvc.perform(get("/api/v1/trips/" + trip.tripId()).cookie(cookie(trip.owner())))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(placeNamed(body, "외부 출처가 없는 장소").get("sourceAttribution").isNull()).isTrue();
+        // Not vacuous: the same response credits the referenced places around it.
+        assertThat(placeNamed(body, "경복궁").get("sourceAttribution").isObject()).isTrue();
+    }
+
+    private static JsonNode placeNamed(JsonNode trip, String name) {
+        List<JsonNode> found = new ArrayList<>();
+        trip.get("days").forEach(day -> day.get("items").forEach(item -> {
+            if (item.get("place").get("name").asString().equals(name)) {
+                found.add(item.get("place"));
+            }
+        }));
+        assertThat(found).as("items on %s", name).hasSize(1);
+        return found.get(0);
+    }
+
     private ResultActions send(Scheduled trip, MockHttpServletRequestBuilder request, String ifMatch, String body)
             throws Exception {
         return mvc.perform(request
@@ -305,7 +370,18 @@ class TripMutationFixtureIT {
                 .replaceFirst("(?s)^.*?\"id\":\"([^\"]+)\".*$", "$1"));
     }
 
+    /** A KTO place: the place and its external reference, as JdbcCanonicalCatalogStore writes the pair. */
     private UUID place(String name) {
+        UUID id = placeWithoutASource(name);
+        jdbc.update("""
+                INSERT INTO place_external_refs
+                    (id, place_id, source_code, source_registry_version, external_id, external_type, verified_at)
+                VALUES (?, ?, ?, ?, ?, 'KTO_CONTENT_TYPE:12', ?)
+                """, UUID.randomUUID(), id, KTO, KTO_REVISION, "fixture-" + id, OffsetDateTime.now());
+        return id;
+    }
+
+    private UUID placeWithoutASource(String name) {
         UUID id = UUID.randomUUID();
         places.add(id);
         OffsetDateTime now = OffsetDateTime.now();
@@ -352,6 +428,7 @@ class TripMutationFixtureIT {
         java.util.SortedSet<String> expected = JsonShape.of(onDisk);
         assertThat(expected.remove("$.days[].items[].crowd")).as("%s still holds items[].crowd", fixture).isTrue();
         assertThat(JsonShape.of(body)).isEqualTo(expected);
+        assertEveryPlaceCredited(body);
         // Order is not shape, and the fixture follows the server's: interests by code, each item's locks
         // by type (JdbcTripStore's ORDER BY). This trip holds the fixture's places and locks, so the two
         // lists must be the same lists.
@@ -373,6 +450,24 @@ class TripMutationFixtureIT {
         ContractResponse.assertValid(operationId, status, body);
         // The fixture Frontend mocks this mutation against has the keys the server sends, everywhere.
         assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
+        assertEveryPlaceCredited(body);
+    }
+
+    /**
+     * Every place this class seeds is referenced to KTO, so every summary in a response must carry the
+     * credit. The shape comparison cannot see one place losing it: JsonShape merges array elements, so a
+     * null next to a credited sibling leaves the key set unchanged.
+     */
+    private static void assertEveryPlaceCredited(JsonNode node) {
+        if (node.isObject()) {
+            if (node.has("sourceAttribution")) {
+                assertThat(node.get("sourceAttribution").isObject())
+                        .as("the credit of %s", node.get("name")).isTrue();
+            }
+            node.properties().forEach(field -> assertEveryPlaceCredited(field.getValue()));
+        } else if (node.isArray()) {
+            node.forEach(TripMutationFixtureIT::assertEveryPlaceCredited);
+        }
     }
 
     private static Cookie cookie(SessionService.Bootstrap owner) {
