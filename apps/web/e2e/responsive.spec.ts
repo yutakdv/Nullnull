@@ -6,17 +6,17 @@ const composedStack = Boolean(
   process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL,
 );
 
-function requireLocalOptimizationRun(screenName: string) {
-  if (screenName === 'optimization run') {
-    test.skip(
-      composedStack,
-      'the composed stack keeps optimization off, so it cannot prove FE-503-T3',
-    );
-  }
+// The composed stack keeps optimization off, so its optimization route cannot
+// prove FE-503-T3. Keep running the general responsive cases there, but attach
+// the acceptance ID and READY-content guard only to the local MSW run that can
+// render the real proposal and decision bar. Do not skip: the report gate
+// rejects any skipped E2E testcase and would discard the whole suite.
+function fe503T3AcceptanceId(screenName: string) {
+  return !composedStack && screenName === 'optimization run' ? 'FE-503-T3 ' : '';
 }
 
 async function expectOptimizationRunContent(page: Page, screenName: string) {
-  if (screenName !== 'optimization run') return;
+  if (composedStack || screenName !== 'optimization run') return;
 
   await expect(
     page.getByRole('heading', {
@@ -57,9 +57,8 @@ async function expectOptimizationRunContent(page: Page, screenName: string) {
 // (AGENTS.md registration rule 3).
 test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T3 ' : '';
+    const acceptanceId = fe503T3AcceptanceId(screen.name);
     test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
-      requireLocalOptimizationRun(screen.name);
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
       await expectOptimizationRunContent(page, screen.name);
@@ -75,11 +74,10 @@ test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed wi
 test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () => {
   test.use({ viewport: { width: 180, height: 500 } });
   for (const screen of SCREENS) {
-    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T3 ' : '';
+    const acceptanceId = fe503T3AcceptanceId(screen.name);
     test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
       page,
     }) => {
-      requireLocalOptimizationRun(screen.name);
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
       await expectOptimizationRunContent(page, screen.name);
@@ -145,11 +143,10 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // saved-places screen are each measured rather than stood in for.
 test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T3 ' : '';
+    const acceptanceId = fe503T3AcceptanceId(screen.name);
     test(`${acceptanceId}BA-070-T5 ${screen.name} puts focus on something visible`, async ({
       page,
     }) => {
-      requireLocalOptimizationRun(screen.name);
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
       await expectOptimizationRunContent(page, screen.name);
