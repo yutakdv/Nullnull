@@ -38,7 +38,7 @@ describe('StateLabel', () => {
   });
 });
 
-describe('DataAttribution', () => {
+describe('FE-201-T2 FE-202-T2 DataAttribution (FCR-011 trace)', () => {
   const base = {
     attribution: SEOUL_FULL,
     attributionShort: '출처: 서울특별시',

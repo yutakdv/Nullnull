@@ -139,7 +139,19 @@ function renderRun() {
 // (undo refused outside the 24h window) is applied-panel.test.tsx, which holds
 // the EXPIRED state; both halves carry the ID so neither is invisible to the
 // aggregator.
-describe('FE-505-T1 FE-503 invariant 3: nothing writes before the user decides', () => {
+describe('FE-505-T1 decision boundary (FCR-004 trace)', () => {
+  it('offers both APPLY and KEEP only after the READY preview is visible', async () => {
+    readyRun();
+    renderRun();
+
+    expect(
+      await screen.findByRole('button', { name: copy['decision.apply'] }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: copy['decision.keep'] }),
+    ).toBeInTheDocument();
+  });
+
   it('sends no mutation on opening a READY run', async () => {
     recordWrites();
     readyRun();

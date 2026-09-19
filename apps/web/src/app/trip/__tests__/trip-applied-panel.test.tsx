@@ -112,7 +112,7 @@ const revertedDetail = {
   ],
 };
 
-describe('TripAppliedPanel', () => {
+describe('FE-505-T2 TripAppliedPanel state derivation (FCR-015 trace)', () => {
   it('draws the applied panel from what the two reads return', async () => {
     serve(historyRow('APPLY', '2026-10-02T01:13:40Z'), run);
     renderPanel();

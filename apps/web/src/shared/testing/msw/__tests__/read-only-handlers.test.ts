@@ -69,6 +69,70 @@ describe('getPlaceCrowdForecast is mocked', () => {
   });
 });
 
+describe('queryPlaceCrowdForecasts is mocked from the approved batch fixture', () => {
+  async function query(placeIds: string[]) {
+    return fetch(`${API_BASE}/places/crowd-forecasts/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        placeIds,
+        from: '2026-10-04T15:00:00Z',
+        to: '2026-10-07T14:59:59.999999Z',
+      }),
+    });
+  }
+
+  it('serves the exported response fixture for its canonical item ids', async () => {
+    const placeIds = crowdFixtures.forecastQuery.items.map((item) => item.placeId);
+    const response = await query(placeIds);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(await response.json()).toEqual(crowdFixtures.forecastQuery);
+  });
+
+  it('keeps a different canonical-id request length and order with mixed states', async () => {
+    // This deliberately claims only canonical-id parity. The response fixture
+    // does not expose the deprecated request id behind its first canonical
+    // item, so inventing that alias here would make the mock a second contract.
+    // AddPlace/MustVisit separately return mismatched response ids to prove
+    // that shipped screen code joins by index rather than by item.placeId.
+    const fixtureItems = crowdFixtures.forecastQuery.items;
+    const placeIds = [
+      fixtureItems[1]?.placeId,
+      fixtureItems[0]?.placeId,
+      fixtureItems[2]?.placeId,
+    ].filter((id): id is string => id !== undefined);
+    const body = (await (
+      await query(placeIds)
+    ).json()) as typeof crowdFixtures.forecastQuery;
+
+    expect(body.items).toHaveLength(placeIds.length);
+    expect(body.items.map((item) => item.placeId)).toEqual(placeIds);
+    expect(body.items.map((item) => item.state)).toEqual([
+      'STALE',
+      'FORECAST',
+      'UNAVAILABLE',
+    ]);
+  });
+
+  it('uses the approved PLACE_UNAVAILABLE state for an id outside the fixture', async () => {
+    const placeId = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b98';
+    const body = (await (
+      await query([placeId])
+    ).json()) as typeof crowdFixtures.forecastQuery;
+
+    expect(body.items).toEqual([
+      expect.objectContaining({
+        placeId,
+        state: 'UNAVAILABLE',
+        points: [],
+        unavailableReason: 'PLACE_UNAVAILABLE',
+      }),
+    ]);
+  });
+});
+
 describe('previewTripDraft is mocked', () => {
   const body = { startDate: '2026-10-04', endDate: '2026-10-05', timezone: 'Asia/Seoul' };
 

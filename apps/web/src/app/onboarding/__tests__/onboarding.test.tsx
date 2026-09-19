@@ -231,7 +231,7 @@ describe('A-1 splash bootstraps the anonymous session', () => {
   });
 });
 
-describe('A-2 language selects Korean and English for real', () => {
+describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
   it('marks the active locale and switches copy when another is chosen', async () => {
     const user = userEvent.setup();
     renderAt('/language');
@@ -254,6 +254,28 @@ describe('A-2 language selects Korean and English for real', () => {
     expect(
       await screen.findByText(messages['ko-KR']['language.description']),
     ).toBeInTheDocument();
+  });
+
+  it('sends only the selected supported locale in each preference patch', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/language');
+
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'ko-KR' }]);
+    });
+
+    await user.click(screen.getByRole('button', { name: /English/ }));
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'ko-KR' }, { locale: 'en-US' }]);
+    });
   });
 
   it('shows Japanese and Chinese as disabled and sends nothing for them', async () => {

@@ -1,5 +1,6 @@
 import type { components } from '@nullnull/api-client';
-import { render, screen } from '@testing-library/react';
+import { feedFixtures } from '@nullnull/contracts';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { CandidateCard, FeedPostCard, TabBar, TripItemCard } from '../index.js';
 
@@ -21,6 +22,15 @@ const provenance = {
   officialUrl: null,
   licenseUrl: null,
   observedAt: null,
+} as components['schemas']['DataProvenance'];
+
+const seoulProvenance = {
+  ...provenance,
+  source: 'SEOUL_CITYDATA',
+  attribution:
+    '출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)',
+  attributionShort: '출처: 서울특별시',
+  observedAt: '2026-10-04T05:35:00Z',
 } as components['schemas']['DataProvenance'];
 
 const TAB_LABELS = {
@@ -64,10 +74,35 @@ describe('FeedPostCard', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the state label and the credit as separate pieces', () => {
+  it('FE-201-T2 FE-202-T2 shows the state label and credit separately (FCR-011 trace)', () => {
     render(<FeedPostCard card={card} />);
     expect(screen.getByText('실시간 관측')).toBeInTheDocument();
     expect(screen.getByText('출처: ⓒ한국관광공사')).toBeInTheDocument();
+  });
+
+  it('FE-201-T2 FE-202-T2 keeps Seoul and KTO credits separate (FCR-011 trace)', () => {
+    const sourcedPlace = feedFixtures.page.items.find(
+      (item) => item.primaryPlace.sourceAttribution !== null,
+    )?.primaryPlace;
+    const crowd = card.crowd;
+    expect(sourcedPlace?.sourceAttribution).toBeDefined();
+    expect(crowd).toBeDefined();
+    if (!sourcedPlace?.sourceAttribution || !crowd) return;
+
+    render(
+      <FeedPostCard
+        card={{
+          ...card,
+          primaryPlace: { ...place, sourceAttribution: sourcedPlace.sourceAttribution },
+          crowd: { ...crowd, provenance: seoulProvenance },
+        }}
+      />,
+    );
+
+    const article = screen.getByRole('article');
+    expect(within(article).getByText('출처: ⓒ한국관광공사')).toBeInTheDocument();
+    expect(within(article).getByText('출처: 서울특별시')).toBeInTheDocument();
+    expect(within(article).getByText('실시간 관측')).toBeInTheDocument();
   });
 });
 
