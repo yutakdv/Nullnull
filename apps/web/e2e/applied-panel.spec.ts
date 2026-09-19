@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createSeededTrip } from './seeded-trip.js';
 
-// THIS FILE DOES NOT RUN IN THE GATE, AND FE-505-T3 IS THEREFORE UNPROVEN THERE.
+// THIS FILE DOES NOT RUN IN THE GATE, SO FE-505-T3/T4 ARE UNPROVEN THERE.
 //
 // playwright.config.ts excludes it whenever PLAYWRIGHT_BASE_URL/WEB_BASE_URL
 // point at a composed stack, and that file carries the full reasoning. The one
@@ -10,21 +10,24 @@ import { createSeededTrip } from './seeded-trip.js';
 // optimization capability off (`optimization: ${FEATURE_OPTIMIZATION_ITEM:false}`,
 // apps/api application.yaml:129, and nothing in compose.integration.yml, the
 // workflows or integration-test.sh ever sets it), so the trip can never have a
-// decided run behind it and the panel never renders. Measured: all three cases
+// decided run behind it and the panel never renders. Measured: the original
+// three cases
 // died in their presence guard — "the applied panel is not on the trip screen"
 // — before reaching one real assertion.
 //
 // So every clause below is proven LOCALLY, against MSW, and that is a smaller
 // claim than the gate makes about anything else in e2e/. FE-505-T3's keyboard
-// and narrow-width clauses have never been proven in the docker-integration
-// gate, and this comment is the record of that gap rather than a footnote to
-// it. The exclusion did not create the gap — the panel was already unreachable
-// there — but it does stop the gate from saying so out loud.
+// and narrow-width clauses and FE-505-T4's overlay/motion clauses have never
+// been proven in the docker-integration gate, and this comment is the record of
+// that gap rather than a footnote to it. The exclusion did not create the gap —
+// the panel was already unreachable there — but it does stop the gate from
+// saying so out loud.
 //
 // The cases stay because they fire where they can. The two reflow cases pinned
 // the `.resultRow` wrap fix at a blast radius of 1 (b3d925b); the keyboard case
-// closes the #272 class, a control that takes focus while showing no ring. Both
-// keep running locally and in verify:ci.
+// closes the #272 class, a control that takes focus while showing no ring. They
+// keep running locally through the explicit Playwright suite; `verify:ci` does
+// not include E2E.
 //
 // `fixme` was measured and rejected: check_test_reports.py raises on a skipped
 // testcase (`skipped=1, expected 0` at :81-83, and the per-case check at
@@ -271,4 +274,79 @@ test.describe('FE-505-T3 the undo panel survives the narrow widths', () => {
       ).toEqual([]);
     });
   }
+});
+
+// FE-505-T4. The applied panel owns no dialog or sheet, so there is no closing
+// interaction whose trigger focus it could restore. Lock that boundary to the
+// actual AVAILABLE panel, then prove the remaining reduced-motion clause on
+// that panel rather than on a route that may have rendered an error instead.
+test.describe('FE-505-T4 the applied panel respects its motion boundary', () => {
+  test('the real available panel has no overlay and collapses motion under reduce', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const tripPath = await createSeededTrip(page);
+    await page.goto(tripPath);
+    await page.waitForLoadState('networkidle');
+
+    const panel = page.getByRole('region', { name: /undone|되돌/i });
+    await expect(
+      panel,
+      'the applied panel is absent, so this cannot prove FE-505-T4',
+    ).toBeVisible();
+    await expect(panel).toHaveAttribute('data-state', 'available');
+    const revert = panel.getByRole('button');
+    await expect(revert).toBeVisible();
+
+    const measured = await panel.evaluate((root) => {
+      const probe = document.createElement('div');
+      probe.setAttribute('data-nn-motion-probe', '');
+      probe.style.transitionProperty = 'opacity';
+      probe.style.transitionDuration = '600ms';
+      probe.style.animationName = 'nn-motion-probe';
+      probe.style.animationDuration = '900ms';
+      root.appendChild(probe);
+
+      const style = getComputedStyle(probe);
+      const probeResult = {
+        transitionDuration: style.transitionDuration,
+        animationDuration: style.animationDuration,
+      };
+      probe.remove();
+
+      const own = [root, ...root.querySelectorAll<HTMLElement>('*')]
+        .map((element) => getComputedStyle(element))
+        .filter(
+          (elementStyle) =>
+            elementStyle.animationDuration !== '0s' ||
+            elementStyle.transitionDuration !== '0s',
+        )
+        .map(
+          (elementStyle) =>
+            `${elementStyle.animationDuration}/${elementStyle.transitionDuration}`,
+        );
+
+      return { probeResult, own };
+    });
+
+    expect(measured.probeResult.transitionDuration).not.toBe('');
+    expect(measured.probeResult.animationDuration).not.toBe('');
+    for (const duration of [
+      measured.probeResult.transitionDuration,
+      measured.probeResult.animationDuration,
+      ...measured.own,
+    ]) {
+      expect(duration).not.toMatch(/(?:^|\/)(?:[1-9]\d*|0\.[1-9])s/);
+    }
+
+    // The action is direct: it does not open a portal/sibling confirmation
+    // overlay. Prove that behavior as well as the resulting server-backed
+    // state, so a future dialog cannot make the focus-restoration clause real
+    // while this test keeps calling it not applicable.
+    await revert.click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const failedPanel = page.locator('section[data-state="failed"]');
+    await expect(failedPanel).toBeVisible();
+    await expect(failedPanel.getByRole('alert')).toBeVisible();
+  });
 });

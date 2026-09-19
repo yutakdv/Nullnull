@@ -1230,7 +1230,7 @@
       "phase": "B06",
       "priority": "P0",
       "title": "applied/undo/recompute flow",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-503",
         "BA-052",
@@ -1263,10 +1263,14 @@
         },
         {
           "id": "FE-505-T3",
-          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+          "assertion": "keyboard 이동·접근성 이름과 360px·200% zoom을 검증한다"
+        },
+        {
+          "id": "FE-505-T4",
+          "assertion": "dialog·sheet가 없는 applied panel임을 확인하고 reduced motion을 이 화면에서 검증한다"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "FE-505-T1~T4는 unit과 local MSW Playwright에서 검증한다. composed stack은 optimization capability가 OFF라 applied-panel.spec.ts를 제외하며 gate 증거로 세지 않는다. capability가 ON이 되면 제외를 제거하고 같은 E2E를 gate에서 실행한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
