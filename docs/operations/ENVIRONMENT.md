@@ -112,7 +112,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `NULLNULL_PROVIDER_CIRCUIT_FAILURE_WINDOW` | 아니오 | `PT30S` | 위 실패 횟수를 세는 창 |
 | `NULLNULL_PROVIDER_CIRCUIT_OPEN_DURATION` | 아니오 | `PT60S` | 열린 circuit이 빠른 안전 실패를 반환하는 기간 |
 | `SPRING_PROFILES_ACTIVE` | 아니오 | `local` | profile |
-| `SPRING_DATASOURCE_URL` | 아니오/민감 | JDBC URL | host는 내부 정보로 log redaction |
+| `SPRING_DATASOURCE_URL` | 아니오/민감 | JDBC URL | host는 내부 정보로 log redaction. 연결에 성공한 기동에서 URL을 그대로 찍는 로그(Hibernate·Flyway·PostgreSQL driver)는 `application.yaml`이 끈다(`DatasourceUrlLogRedactionIT`). 남는 것: 운영 도구는 대상 확인을 위해 target(host·port·db, 자격·query 없음)을 `operations target=` 줄과 거절 메시지에 찍고, 기동이 실패하면 그 오류가 host:port를, 모양이 틀린 URL이면 URL 전체(`password=` 값만 가림)를 싣는다. 그래서 자격 증명은 URL이 아니라 `SPRING_DATASOURCE_USERNAME`/`PASSWORD`로 넘긴다 |
 | `SPRING_DATASOURCE_USERNAME` | 예 | runtime | DB app role |
 | `SPRING_DATASOURCE_PASSWORD` | 예 | runtime | Secrets Manager |
 | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | 아니오 | `health,prometheus` 내부만 | public actuator 제한 |
