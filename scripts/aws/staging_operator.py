@@ -63,6 +63,11 @@ OPS_TASKS = {
     'curate-hours': ('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain', None, {}),
     # Curated feed posts (A-031, #183), the same way: no provider call, the owner approves the plan's bytes.
     'curate-posts': ('io.nullnull.social.infrastructure.curation.CuratedPostImportMain', None, {}),
+    # The KTO operations the deployed release actually called, from the call-audit (CMP-KTO-006, BA-073-T3). It reads
+    # the audit and calls no provider (KtoCallInventoryMain starts OperationsContext with READ access and touches no
+    # gateway), so it takes no KTO approval. Its release has no input: it is the deployed one, set under the deployment
+    # lock, because an inventory of another release would pass check_submission_inventory against a ledger naming it.
+    'kto-call-inventory': ('io.nullnull.crowd.infrastructure.audit.KtoCallInventoryMain', None, {}),
 }
 # A curate task's plan cannot be a file in the task: it runs the release's image with a read-only root, and baking
 # the plan into the image would make every plan edit a release (the hours re-observation before 2026-10-13 falls in
@@ -111,6 +116,14 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|curated_posts_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_post [0-9a-f-]{36} (PUBLISHED \([0-9]{1,3} place\(s\)\)|ALREADY_PRESENT \(left as it is\))'
                           r'|curated_posts_published=[0-9]{1,4} of [0-9]{1,4}|curated_posts_failed reason=[A-Za-z_]{1,80}'
+                          # The call inventory (KtoCallInventoryMain.render), four shapes: its header, one line per operation,
+                          # what it excluded and the total with the evidence verdict. Only audit ids, counts and instants.
+                          r'|kto_inventory target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
+                          r' environment=[a-z]+ release=v0\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?'
+                          r'|kto_operation source=[A-Z0-9_]{2,100} endpoint=[A-Z0-9_:-]{2,100} calls=[0-9]{1,9}'
+                          r' first=[0-9T:.-]{10,40}Z last=[0-9T:.-]{10,40}Z'
+                          r'|kto_inventory_excluded rejected=[0-9]{1,9} replay=[0-9]{1,9}'
+                          r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
 
@@ -965,8 +978,12 @@ def ops_task(args):
         definition = aws('ecs', 'describe-task-definition', taskDefinition=definition_arn)['taskDefinition']
         # The smoke's report names a release, and a curate task needs an image that reads an inline plan: both run
         # only on the recorded release's own definition and image.
-        bound = args.task == 'kto-smoke' or plan is not None
+        bound = args.task in ('kto-smoke', 'kto-call-inventory') or plan is not None
         current, expected_digest = release_binding(definition) if bound else (None, None)
+        if args.task == 'kto-call-inventory':
+            # Read under the lock with the binding, so the release inventoried is the one this task definition is.
+            overrides['containerOverrides'][0]['environment'].append(
+                {'name': 'NULLNULL_INVENTORY_RELEASE', 'value': current['releaseVersion']})
         lock.mutating()
         result = aws('ecs', 'run-task', cluster=cluster, taskDefinition=definition_arn, launchType='FARGATE', count=1,
                      clientToken=lock.owner, startedBy='nullnull-stg-ops',
@@ -985,10 +1002,19 @@ def ops_task(args):
         except OpsError as error:
             failure = error
         stream = 'ops/ops/' + arn.rsplit('/', 1)[1]
-        log = aws('logs', 'get-log-events', logGroupName=output('Platform', 'MigrationLogGroupName'),
-                  logStreamName=stream, startFromHead=True, limit=500)
-        evidence, echoed = [], []
-        for event in log.get('events', []):
+        # Every page: a task that logs more than one page of startup before its own lines (the inventory prints last)
+        # would otherwise lose exactly the lines that are its result. The last page repeats the token it was given.
+        events, token = [], None
+        for _ in range(50):
+            page = aws('logs', 'get-log-events', logGroupName=output('Platform', 'MigrationLogGroupName'),
+                       logStreamName=stream, startFromHead=True, limit=500, **({'nextToken': token} if token else {}))
+            events += page.get('events', [])
+            following = page.get('nextForwardToken')
+            if not following or following == token:
+                break
+            token = following
+        evidence, echoed, inventory = [], [], []
+        for event in events:
             line = event.get('message', '').strip()
             if OPS_LOG_LINE.match(line):
                 print('ops_log ' + line)
@@ -996,13 +1022,45 @@ def ops_task(args):
                     evidence.append(line)
                 if plan and line.startswith(CURATION_PLANS[args.task]['lines']):
                     echoed.append(line)
+                if args.task == 'kto-call-inventory' and line.startswith(('kto_inventory', 'kto_operation ')):
+                    inventory.append(line)
         if failure:
             raise failure
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:
             record_curation(args.task, plan, echoed, current)
+        if args.task == 'kto-call-inventory':
+            record_inventory(inventory, current)
     print('ops_task=' + args.task + ' result=succeeded')
+
+def record_inventory(lines, current):
+    """The task's inventory lines, verbatim and in their order, as the file check_submission_inventory.py --inventory
+    reads, kept with the release's evidence.
+
+    Verbatim because that checker matches the lines themselves (^kto_inventory ... release=, ^kto_operation source=
+    endpoint=, counts_as_evidence=true): the ops_log prefix this operator prints would make every one of them miss. And
+    complete, or nothing: the total the main prints last must count exactly the operation lines read back, because an
+    inventory that lost a line to the log would list fewer APIs than were called and still read as a list.
+    """
+    release = current['releaseVersion']
+    headers = [line for line in lines if line.startswith('kto_inventory target=')]
+    require(len(headers) == 1, 'inventory-header-missing')
+    require(headers[0].endswith(' release=' + release), 'inventory-not-for-the-deployed-release')
+    totals = [line for line in lines if line.startswith('kto_inventory operations=')]
+    operations = [line for line in lines if line.startswith('kto_operation ')]
+    require(len(totals) == 1 and totals[0].split()[1] == f'operations={len(operations)}', 'inventory-incomplete')
+    stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    path = ROOT/'.artifacts/aws/evidence'/f'kto-inventory-{release}-{stamp}.txt'
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
+    key = f'evidence/kto-inventory/{release}/{path.name}'
+    require(aws_cli(['s3', 'cp', path, f's3://{release_bucket()}/{key}', '--only-show-errors']).returncode == 0,
+            'inventory-evidence-upload-failed')
+    verdict = totals[0].split(' ', 2)[2]
+    print(f'kto_inventory_file={path} release={release} operations={len(operations)} {verdict} evidence={key}')
 
 def record_curation(task, plan, echoed, current):
     """The task imported the approved bytes, all of them, and those bytes are kept where the release's evidence is.
@@ -1111,26 +1169,35 @@ def unlock(args):
         ExpressionAttributeValues={':owner': {'S': args.owner}})
     print('deployment_lock=released owner=' + args.owner)
 
-# BA-006-T2: the deployed release's bundle, images and logs hold none of the secrets the runtime is given. Only the two
-# secrets the operator may read (OperatorSecrets) are looked for: reading the database or signing secrets onto this
-# machine to prove they did not leak would itself be the leak, and infra/iam/operator.json has no room to grant it.
+# BA-006-T2: the bundles, images and logs of this staging hold none of the secrets the runtime is given. Only the two
+# secrets the operator may read (OperatorSecrets) are looked for; the others the tasks are given are named in the
+# evidence as not scanned and the verdict says partial - reading the database or signing secrets onto this machine to
+# prove they did not leak would itself be the leak, and infra/iam/operator.json has no room to grant it.
 SCAN_SECRETS = {'KTO_SERVICE_KEY': KTO_SECRET, 'VERIFIER_TOKEN': 'nullnull-stg/verifier-token'}
-# Every task family whose containers log. Their awslogs-group names the log groups: logs:DescribeLogGroups needs
-# Resource "*", which the operator is not granted (AccessDenied, measured 2026-09-19).
-SCAN_TASK_FAMILIES = ['nullnull-stg-api', 'nullnull-stg-ai', 'nullnull-stg-ops', 'nullnull-stg-migration']
+# The task secret each looked-for value is injected as (the verifier token is never given to a task: the edge strips it).
+SCAN_TASK_SECRET_NAMES = {'KTO_SERVICE_KEY'}
+# Where each task family's definition is read from. ops and migration are bound to the deployed revision through the
+# Migration stack outputs; api and ai have no such output and the operator cannot describe services, so their latest
+# ACTIVE revision is read - their log groups are Platform's and do not change with a revision.
+SCAN_TASK_DEFINITIONS = {'nullnull-stg-api': None, 'nullnull-stg-ai': None,
+                         'nullnull-stg-ops': 'OpsTaskDefinitionArn', 'nullnull-stg-migration': 'MigrationTaskDefinitionArn'}
 SCAN_IMAGES = {'api': ('nullnull-stg-api', 'apiImageDigest'), 'ai': ('nullnull-stg-ai', 'aiImageDigest')}
-GZIP_MAGIC, ZSTD_MAGIC = b'\x1f\x8b', b'\x28\xb5\x2f\xfd'
-ARCHIVE_SUFFIXES = ('.jar', '.war', '.zip')
-ARCHIVE_DEPTH = 3  # the Spring Boot jar, a library jar inside it, and one more for safety
+# Recognised by their bytes, not their names: a zip needs no .jar suffix and a gzip no .gz.
+MAGICS = [(b'PK\x03\x04', 'zip'), (b'\x1f\x8b', 'gzip'), (b'BZh', 'bzip2'), (b'\xfd7zXZ\x00', 'xz'),
+          (b'\x28\xb5\x2f\xfd', 'zstd')]
+EXPAND_DEPTH = 6        # a layer, the boot jar, a library jar, and room for what they hold
+EXPAND_MAX_BYTES = 512 << 20  # per inflated blob; beyond it the blob is counted as not expanded, never as clean
 
-def url_encoded_forms(value):
-    """How a value reads inside a URL. KtoKorServiceProperties sends serviceKey=URLEncoder.encode(key), so a request
-    line in a log holds this form, not the raw key: java.net.URLEncoder's (unreserved '.-*_', space as '+', uppercase
-    %XX of the UTF-8 bytes), and the same with lowercase hex, which another client or formatter may write instead."""
+def value_forms(value):
+    """Every way a value is likely to be written down. KtoKorServiceProperties sends serviceKey=URLEncoder(key), so a
+    request line holds java.net.URLEncoder's form (unreserved '.-*_', space as '+', uppercase %XX of the UTF-8 bytes);
+    another client or formatter may write lowercase hex; a JSON encoder may escape '/' with a backslash; and a header or config
+    may carry it base64-encoded."""
     upper = ''.join(c if (c.isascii() and c.isalnum()) or c in '.-*_' else '+' if c == ' '
                     else ''.join(f'%{b:02X}' for b in c.encode('utf-8')) for c in value)
-    lower = re.sub(r'%[0-9A-F]{2}', lambda m: m.group(0).lower(), upper)
-    return {'URLENCODED': upper, 'URLENCODED_LOWER': lower}
+    forms = {'URLENCODED': upper, 'URLENCODED_LOWER': re.sub(r'%[0-9A-F]{2}', lambda m: m.group(0).lower(), upper),
+             'JSON_ESCAPED': value.replace('/', '\\/'), 'BASE64': base64.b64encode(value.encode('utf-8')).decode('ascii')}
+    return {suffix: form for suffix, form in forms.items() if form != value}
 
 def scan_values():
     """name -> bytes to find, read from Secrets Manager. The values never leave this process or reach a line."""
@@ -1140,43 +1207,58 @@ def scan_values():
         # The scanner's own floor: shorter would match everywhere and prove nothing.
         require(len(value) >= 8, 'secret-unreadable-or-too-short-' + name.lower().replace('_', '-'))
         values[name] = value.encode('utf-8')
-        for suffix, form in url_encoded_forms(value).items():
-            if form != value:
-                values[f'{name}_{suffix}'] = form.encode('utf-8')
+        for suffix, form in value_forms(value).items():
+            values[f'{name}_{suffix}'] = form.encode('utf-8')
     return values
 
-def deployed_assembly(bucket, current, into):
-    """The assembly the deployed release was deployed from, proven by its recorded hashes, and the web bundle in it."""
-    archive = into/'plan.tgz'
-    require(aws_cli(['s3', 'cp', f"s3://{bucket}/{current['planKey']}", archive, '--only-show-errors']).returncode == 0,
-            'release-archive-unreadable')
-    plan = into/'plan'
-    with tarfile.open(archive) as tar:
-        tar.extractall(plan, filter='data')
-    require(digest(plan/'plan.json') == current['planSha256'], 'release-archive-not-the-deployed-plan')
-    data = json.loads((plan/'plan.json').read_text())
-    require(tree_digest(plan/'assembly') == data['assemblySha256'], 'assembly-changed')
-    # The archive keeps no web/ directory: the bundle is the assembly asset whose tree is the manifest's web artifact.
-    web = current['releaseManifest']['webArtifactSha256']
-    bundles = [d for d in sorted((plan/'assembly').iterdir())
-               if d.is_dir() and d.name.startswith('asset.') and 'sha256:' + tree_digest(d) == web]
-    require(len(bundles) == 1, 'deployed-web-bundle-not-in-assembly')
-    return plan/'assembly', bundles[0]
+def recorded_assemblies(bucket, current, into):
+    """Every release this operator ever deployed, from its record in the release bucket: the assembly and, proven by
+    tree digest, its web bundle. All of them, not only the current one: the web deployment never prunes, so the hashed
+    files of an old release are still served to anyone holding their URL."""
+    listing = aws_cli(['s3api', 'list-objects-v2', '--bucket', bucket, '--prefix', 'releases/', '--output', 'json'])
+    require(listing.returncode == 0, 'release-records-unlistable')
+    keys = sorted(o['Key'] for o in json.loads(listing.stdout or '{}').get('Contents', [])
+                  if re.fullmatch(r'releases/[a-f0-9]{64}/plan\.tgz', o['Key']))
+    require(current['planKey'] in keys, 'deployed-release-not-recorded')
+    found = []
+    for n, key in enumerate(keys):
+        archive = into/f'release-{n}.tgz'
+        require(aws_cli(['s3', 'cp', f's3://{bucket}/{key}', archive, '--only-show-errors']).returncode == 0,
+                'release-archive-unreadable')
+        plan = into/f'release-{n}'
+        with tarfile.open(archive) as tar:
+            tar.extractall(plan, filter='data')
+        archive.unlink()
+        require(digest(plan/'plan.json') == key.split('/')[1], 'release-archive-not-its-plan')
+        data = json.loads((plan/'plan.json').read_text())
+        require(tree_digest(plan/'assembly') == data['assemblySha256'], 'assembly-changed')
+        web = json.loads((plan/'release.json').read_text())['webArtifactSha256']
+        bundles = [d for d in sorted((plan/'assembly').iterdir())
+                   if d.is_dir() and d.name.startswith('asset.') and 'sha256:' + tree_digest(d) == web]
+        require(len(bundles) == 1, 'deployed-web-bundle-not-in-assembly')
+        found.append({'planSha256': key.split('/')[1], 'assembly': plan/'assembly', 'bundle': bundles[0],
+                      'current': key == current['planKey']})
+    return found
 
-def export_logs(since_ms, into):
-    """Every log event since the given instant, from every group the task definitions log to, one file per group."""
-    groups = set()
-    for family in SCAN_TASK_FAMILIES:
-        definition = aws('ecs', 'describe-task-definition', taskDefinition=family)['taskDefinition']
-        for container in definition.get('containerDefinitions', []):
-            group = ((container.get('logConfiguration') or {}).get('options') or {}).get('awslogs-group')
-            if group:
-                groups.add(group)
+def task_definitions():
+    """The definitions the scan reads log groups and injected secret names from."""
+    definitions = []
+    for family, output_key in SCAN_TASK_DEFINITIONS.items():
+        reference = output('Migration', output_key) if output_key else family
+        definitions.append(aws('ecs', 'describe-task-definition', taskDefinition=reference)['taskDefinition'])
+    return definitions
+
+def export_logs(definitions, since_ms, into):
+    """Every retained log event (or those after --since) of every group the task definitions log to, one file each."""
+    groups = sorted({((c.get('logConfiguration') or {}).get('options') or {}).get('awslogs-group')
+                     for d in definitions for c in d.get('containerDefinitions', [])} - {None})
     require(groups, 'no-log-groups-found')
     counts = {}
-    for n, group in enumerate(sorted(groups)):
-        p = aws_cli(['logs', 'filter-log-events', '--log-group-name', group, '--start-time', str(since_ms),
-                     '--output', 'json'])
+    for n, group in enumerate(groups):
+        command = ['logs', 'filter-log-events', '--log-group-name', group, '--output', 'json']
+        if since_ms is not None:
+            command += ['--start-time', str(since_ms)]
+        p = aws_cli(command)
         require(p.returncode == 0, 'log-events-unreadable')
         events = json.loads(p.stdout or '{}').get('events', [])
         with (into/f'group-{n}.log').open('w', encoding='utf-8') as out:
@@ -1188,95 +1270,117 @@ def export_logs(since_ms, into):
     return counts
 
 def export_images(manifest, account, into):
-    """Each release image, saved by digest from ECR. Needs docker on this machine; its login is ECR's 12-hour token."""
+    """Each release image, saved by digest from ECR, through a Docker config that exists only for this scan: the ECR
+    token lives 12 hours, and a check for leaked credentials must not leave one in the operator's own Docker config.
+    The config sits inside the scan's temporary directory, so it goes with it; the logout is for the token itself."""
     require(shutil.which('docker') is not None, 'docker-required-for-image-scan')
     registry = f'{account}.dkr.ecr.{REGION}.amazonaws.com'
+    config = into/'docker-config'
+    config.mkdir(mode=0o700)
+    env = {**os.environ, 'DOCKER_CONFIG': str(config)}
     token = aws_cli(['ecr', 'get-login-password'])
     require(token.returncode == 0 and token.stdout.strip(), 'ecr-login-unavailable')
-    login = subprocess.run(['docker', 'login', '--username', 'AWS', '--password-stdin', registry],
-                           input=token.stdout, text=True, capture_output=True, timeout=120)
-    require(login.returncode == 0, 'docker-login-failed')
-    saved = {}
-    for name, (repository, field) in SCAN_IMAGES.items():
-        reference = f'{registry}/{repository}@{manifest[field]}'
-        for command in (['docker', 'pull', '--quiet', reference],
-                        ['docker', 'save', '-o', str(into/f'{name}.tar'), reference]):
-            require(subprocess.run(command, capture_output=True, text=True, timeout=900).returncode == 0,
-                    'image-unavailable-' + name)
-        saved[name] = into/f'{name}.tar'
-    return saved
-
-def inflate(path):
-    """A gzip or zstd blob replaced by its content; anything else left as it is. True when it inflated."""
-    with path.open('rb') as f:
-        head = f.read(4)
-    if head[:2] == GZIP_MAGIC:
-        opener = gzip.open
-    elif head == ZSTD_MAGIC:
-        try:
-            from compression import zstd  # Python 3.14
-        except ImportError:
-            raise OpsError('zstd-layer-needs-python-3.14') from None
-        opener = zstd.open
-    else:
-        return False
-    target = path.with_name(path.name + '.inflated')
-    with opener(path) as source, target.open('wb') as out:
-        shutil.copyfileobj(source, out)
-    path.unlink()
-    return True
-
-def scan_archive_members(data, values, where, depth, hits, counts):
-    """The decompressed entries of a jar or zip - where a Spring Boot image keeps its resources, deflated - and of the
-    archives inside it. A byte scan of the layer sees none of this: the entries are compressed."""
     try:
-        archive = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile:
-        return
-    counts['archives'] += 1
-    for info in archive.infolist():
-        if info.is_dir():
-            continue
-        content = archive.read(info)
-        counts['entries'] += 1
-        for name, value in values.items():
-            if value in content:
-                hits.setdefault(name, set()).add(f'{where}!{info.filename}')
-        if depth < ARCHIVE_DEPTH and info.filename.lower().endswith(ARCHIVE_SUFFIXES):
-            scan_archive_members(content, values, f'{where}!{info.filename}', depth + 1, hits, counts)
+        login = subprocess.run(['docker', 'login', '--username', 'AWS', '--password-stdin', registry],
+                               input=token.stdout, text=True, capture_output=True, timeout=120, env=env)
+        require(login.returncode == 0, 'docker-login-failed')
+        saved = {}
+        for name, (repository, field) in SCAN_IMAGES.items():
+            reference = f'{registry}/{repository}@{manifest[field]}'
+            for command in (['docker', 'pull', '--quiet', reference],
+                            ['docker', 'save', '-o', str(into/f'{name}.tar'), reference]):
+                require(subprocess.run(command, capture_output=True, text=True, timeout=900, env=env).returncode == 0,
+                        'image-unavailable-' + name)
+            saved[name] = into/f'{name}.tar'
+        return saved
+    finally:
+        subprocess.run(['docker', 'logout', registry], capture_output=True, text=True, timeout=60, env=env)
 
-def expand_image(tar_path, values, hits, counts):
-    """The saved image unpacked, every compressed layer inflated, and every archive inside a layer opened. Returns the
-    files the byte scan then reads. A containerd image store saves layers as pulled - compressed - so a scan of the
-    saved tar alone would find nothing and read as clean."""
-    out = tar_path.with_suffix('')
-    with tarfile.open(tar_path) as outer:
-        outer.extractall(out, filter='data')
-    tar_path.unlink()
-    files = [p for p in sorted(out.rglob('*')) if p.is_file()]
-    layers = []
-    for blob in files:
-        if inflate(blob):
-            counts['inflated'] += 1
-            layers.append(blob.with_name(blob.name + '.inflated'))
+def magic(head):
+    return next((kind for prefix, kind in MAGICS if head.startswith(prefix)), None)
+
+def decompress(kind, data):
+    """The blob's content, or None when it would inflate past EXPAND_MAX_BYTES or cannot be read."""
+    import bz2, lzma
+    try:
+        if kind == 'zstd':
+            from compression import zstd  # Python 3.14
+            source = zstd.ZstdFile(io.BytesIO(data))
         else:
-            layers.append(blob)
-    for layer in layers:
-        if not tarfile.is_tarfile(layer):
-            continue
-        with tarfile.open(layer) as members:
-            for member in members:
-                if member.isfile() and member.name.lower().endswith(ARCHIVE_SUFFIXES):
-                    extracted = members.extractfile(member)
-                    if extracted is not None:
-                        scan_archive_members(extracted.read(), values, f'{out.name}/{layer.name}:{member.name}', 1,
-                                             hits, counts)
-    return layers
+            buffer = io.BytesIO(data)
+            source = gzip.GzipFile(fileobj=buffer) if kind == 'gzip' else bz2.BZ2File(buffer) if kind == 'bzip2' \
+                else lzma.LZMAFile(buffer)
+        with source:
+            content = source.read(EXPAND_MAX_BYTES + 1)
+    except (ImportError, OSError, EOFError, ValueError, lzma.LZMAError):
+        return None
+    return content if len(content) <= EXPAND_MAX_BYTES else None
+
+def scan_blob(data, values, where, depth, hits, counts):
+    """What a compressed or archived blob holds, found by its bytes and expanded until nothing is left compressed. A
+    blob this cannot open, or that goes deeper or larger than the bounds, is counted - it makes the verdict partial,
+    because a secret inside it would be invisible and the scan would otherwise read as clean."""
+    kind = magic(data[:8])
+    if kind is None:
+        if tarfile.is_tarfile(io.BytesIO(data)) if len(data) >= 512 else False:
+            with tarfile.open(fileobj=io.BytesIO(data)) as members:
+                for member in members:
+                    if member.isfile():
+                        extracted = members.extractfile(member)
+                        if extracted is not None:
+                            scan_blob(extracted.read(), values, f'{where}:{member.name}', depth + 1, hits, counts)
+        return
+    if depth >= EXPAND_DEPTH:
+        counts['unexpanded'] += 1
+        return
+    if kind == 'zip':
+        try:
+            archive = zipfile.ZipFile(io.BytesIO(data))
+        except zipfile.BadZipFile:
+            counts['unexpanded'] += 1
+            return
+        counts['archives'] += 1
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            if info.file_size > EXPAND_MAX_BYTES:
+                counts['unexpanded'] += 1
+                continue
+            content = archive.read(info)
+            counts['entries'] += 1
+            record_hits(content, values, f'{where}!{info.filename}', hits)
+            scan_blob(content, values, f'{where}!{info.filename}', depth + 1, hits, counts)
+        return
+    content = decompress(kind, data)
+    if content is None:
+        counts['unexpanded'] += 1
+        return
+    counts['inflated'] += 1
+    record_hits(content, values, f'{where}({kind})', hits)
+    scan_blob(content, values, f'{where}({kind})', depth + 1, hits, counts)
+
+def record_hits(content, values, where, hits):
+    for name, value in values.items():
+        if value in content:
+            hits.setdefault(name, set()).add(where)
+
+def scan_image(tar_path, values, hits, counts):
+    """A saved image: every blob in it expanded by scan_blob. A containerd image store saves layers as pulled -
+    compressed - so the saved tar's own bytes would show nothing."""
+    with tarfile.open(tar_path) as outer:
+        for member in outer:
+            if member.isfile():
+                extracted = outer.extractfile(member)
+                if extracted is not None:
+                    data = extracted.read()
+                    record_hits(data, values, f'{tar_path.stem}:{member.name}', hits)
+                    scan_blob(data, values, f'{tar_path.stem}:{member.name}', 0, hits, counts)
+    tar_path.unlink()
 
 def secret_scan(args):
-    """BA-006-T2 on the deployed release: its web bundle (and the rest of its assembly), its two images and its logs
-    hold neither secret the operator can read, in raw or URL-encoded form. The verdict and what was read go to the
-    release bucket as evidence; no value is ever printed or written."""
+    """BA-006-T2: every recorded release's web bundle (and the rest of its assembly), the deployed release's two
+    images, and the retained logs hold neither secret the operator can read, in any of the forms value_forms names. The
+    verdict and what was read go to the release bucket as evidence; no value is ever printed or written."""
     require(auth_mode() == 'profile', 'secret-scan-is-local-only')
     account = os.environ.get('NULLNULL_AWS_ACCOUNT_ID', '')
     identity(account)
@@ -1284,42 +1388,58 @@ def secret_scan(args):
     current = read_current_release(bucket)
     require(current is not None, 'no-deployed-release-record')
     manifest = current['releaseManifest']
-    since = dt.datetime.fromisoformat(args.since) if args.since else dt.datetime.fromisoformat(current['deployedAt'])
-    require(since.tzinfo is not None, 'since-needs-a-timezone')
+    since = dt.datetime.fromisoformat(args.since) if args.since else None
+    require(since is None or since.tzinfo is not None, 'since-needs-a-timezone')
     # The same scanner the repository tests (scripts/tests/test_secret_exposure.py), not a second copy of its loop.
     scanner_spec = importlib.util.spec_from_file_location('check_secret_exposure', ROOT/'scripts/check_secret_exposure.py')
     scanner = importlib.util.module_from_spec(scanner_spec)
     scanner_spec.loader.exec_module(scanner)
     values = scan_values()
-    hits, counts = {}, {'inflated': 0, 'archives': 0, 'entries': 0}
+    hits, counts = {}, {'inflated': 0, 'archives': 0, 'entries': 0, 'unexpanded': 0}
+    definitions = task_definitions()
+    injected = sorted({s['name'] for d in definitions for c in d.get('containerDefinitions', [])
+                       for s in c.get('secrets', []) or []})
+    not_scanned = [name for name in injected if name not in SCAN_TASK_SECRET_NAMES]
     with tempfile.TemporaryDirectory(prefix='nullnull-secret-scan-') as temp:
         temp = Path(temp)
-        assembly, bundle = deployed_assembly(bucket, current, temp)
+        (temp/'releases').mkdir()
+        releases = recorded_assemblies(bucket, current, temp/'releases')
         (temp/'logs').mkdir()
-        log_counts = export_logs(int(since.timestamp() * 1000), temp/'logs')
-        targets = [assembly, temp/'logs']
+        log_counts = export_logs(definitions, int(since.timestamp() * 1000) if since else None, temp/'logs')
         images = {}
         if not args.without_images:
             (temp/'images').mkdir()
             for name, tar_path in export_images(manifest, account, temp/'images').items():
                 images[name] = manifest[SCAN_IMAGES[name][1]]
-                targets.extend(expand_image(tar_path, values, hits, counts))
-        files = [p for target in targets for p in ([target] if target.is_file() else sorted(target.rglob('*')))
-                 if p.is_file()]
+                scan_image(tar_path, values, hits, counts)
+        files = [p for p in sorted(temp.rglob('*')) if p.is_file()]
         require(files, 'no-files-to-scan')
         for path in files:
+            relative = str(path.relative_to(temp))
             for name in scanner.scan_file(path, values):
-                hits.setdefault(name, set()).add(str(path.relative_to(temp)))
-        bundle_files = sum(1 for p in bundle.rglob('*') if p.is_file())
+                hits.setdefault(name, set()).add(relative)
+            # An assembly holds the covers and a bundle holds whatever it ships: expand what is compressed there too.
+            if path.parent != temp/'logs':
+                with path.open('rb') as f:
+                    head = f.read(8)
+                if magic(head):
+                    scan_blob(path.read_bytes(), values, relative, 0, hits, counts)
+        bundle_files = sum(1 for r in releases for p in r['bundle'].rglob('*') if p.is_file())
     leaked = {name: sorted(where) for name, where in sorted(hits.items())}
-    verdict = 'leaked' if leaked else 'clean' if images else 'clean-without-images'
+    partial = ([f'task secrets not scanned: {", ".join(not_scanned)}'] if not_scanned else []) + \
+              (['images not scanned'] if not images else []) + \
+              ([f'{counts["unexpanded"]} blobs not expanded'] if counts['unexpanded'] else [])
+    verdict = 'leaked' if leaked else 'clean-partial' if partial else 'clean'
     scanned_at = dt.datetime.now(dt.timezone.utc)
-    evidence = {'version': 1, 'check': 'BA-006-T2', 'verdict': verdict, 'release': current['releaseVersion'],
-                'planSha256': current['planSha256'], 'scannedAt': scanned_at.isoformat(),
-                'variables': sorted(values), 'files': len(files), 'webBundleFiles': bundle_files,
-                'logs': {'since': since.isoformat(), 'eventsByGroup': log_counts},
-                'images': images or 'not-scanned', 'layersInflated': counts['inflated'],
-                'archivesExpanded': counts['archives'], 'archiveEntries': counts['entries'], 'leaked': leaked}
+    evidence = {'version': 2, 'check': 'BA-006-T2', 'verdict': verdict, 'partialBecause': partial,
+                'release': current['releaseVersion'], 'planSha256': current['planSha256'],
+                'scannedAt': scanned_at.isoformat(), 'variables': sorted(values), 'taskSecretsNotScanned': not_scanned,
+                'releasesScanned': [r['planSha256'] for r in releases], 'files': len(files),
+                'webBundleFiles': bundle_files,
+                'logs': {'since': since.isoformat() if since else 'retention', 'eventsByGroup': log_counts},
+                'images': images or 'not-scanned', 'blobsInflated': counts['inflated'],
+                'archivesExpanded': counts['archives'], 'archiveEntries': counts['entries'],
+                'blobsNotExpanded': counts['unexpanded'], 'leaked': leaked}
     path = ROOT/'.artifacts/aws/evidence'/f"secret-exposure-{scanned_at.strftime('%Y%m%dT%H%M%SZ')}.json"
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     write_private(path, evidence)
@@ -1327,10 +1447,13 @@ def secret_scan(args):
     require(aws_cli(['s3', 'cp', path, f's3://{bucket}/{key}', '--only-show-errors']).returncode == 0,
             'secret-scan-evidence-upload-failed')
     print(f"secret_exposure={verdict} release={current['releaseVersion']} variables={len(values)} files={len(files)} "
-          f"web_bundle_files={bundle_files} log_events={sum(log_counts.values())} images={','.join(sorted(images)) or 'none'} "
-          f"layers_inflated={counts['inflated']} archive_entries={counts['entries']} evidence={key}")
+          f"releases={len(releases)} web_bundle_files={bundle_files} log_events={sum(log_counts.values())} "
+          f"images={','.join(sorted(images)) or 'none'} blobs_inflated={counts['inflated']} "
+          f"archive_entries={counts['entries']} blobs_not_expanded={counts['unexpanded']} evidence={key}")
+    for reason in partial:
+        print(f'secret_exposure_partial reason={reason}')
     for name, where in leaked.items():
-        # The variable and where, never the value.
+        # The variable and how many places, never the value.
         print(f'secret_exposure_leak variable={name} files={len(where)}')
     require(not leaked, 'secret-exposure-leaked')
 
