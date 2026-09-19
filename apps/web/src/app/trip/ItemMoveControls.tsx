@@ -253,6 +253,7 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
           commitMove(date);
         }}
         open={sheetOpen}
+        placeId={item.place.id}
       />
 
       <ReplaceSheet

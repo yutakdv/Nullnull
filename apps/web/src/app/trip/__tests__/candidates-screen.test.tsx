@@ -34,10 +34,15 @@ interface Sent {
 }
 
 let sent: Sent[] = [];
+let crowdRequests: URL[] = [];
 
 beforeEach(() => {
   sent = [];
+  crowdRequests = [];
   server.events.on('request:start', ({ request }) => {
+    if (request.url.includes('/crowd-forecast')) {
+      crowdRequests.push(new URL(request.url));
+    }
     if (request.method !== 'POST' || !request.url.includes('/items')) return;
     const clone = request.clone();
     void clone.json().then(
@@ -50,6 +55,39 @@ beforeEach(() => {
       },
       () => undefined,
     );
+  });
+});
+
+describe('#105 FCR-029 the schedule sheet reads dated crowd only when opened', () => {
+  it('keeps closed cards quiet and joins the opened place by KST date', async () => {
+    renderPanel();
+    await loaded();
+    expect(crowdRequests).toHaveLength(0);
+
+    const card = screen
+      .getByRole('heading', { level: 2, name: active?.place.name ?? '' })
+      .closest('article');
+    if (!card) throw new Error('card not found');
+    await userEvent
+      .setup()
+      .click(within(card).getByRole('button', { name: copy['candidates.add'] }));
+    const sheet = await within(card).findByRole('dialog', {
+      name: copy['candidates.sheet.title'],
+    });
+
+    await waitFor(() => {
+      expect(crowdRequests).toHaveLength(1);
+    });
+    expect(crowdRequests[0]?.pathname).toContain(
+      `/places/${active?.place.id ?? ''}/crowd-forecast`,
+    );
+    // The only eligible slot is 10/6 KST, which maps to the second point
+    // (2026-10-05T15:00Z), not the first point in response order.
+    expect(within(sheet).getByText('Relative concentration 72.5')).toBeInTheDocument();
+    expect(within(sheet).getAllByText('Official crowd forecast').length).toBeGreaterThan(
+      0,
+    );
+    expect(within(sheet).getAllByText('출처: ⓒ한국관광공사').length).toBeGreaterThan(0);
   });
 });
 

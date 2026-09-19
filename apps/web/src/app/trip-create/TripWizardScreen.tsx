@@ -580,6 +580,7 @@ export function TripWizardScreen() {
 
       {step === 4 && nextAfterPlanning(draft) === 'must-visit' ? (
         <MustVisitStep
+          endDate={draft.endDate}
           picked={draft.mustVisit}
           onAdd={(place) => {
             setDraft((current) => addMustVisit(current, place));
@@ -606,6 +607,7 @@ export function TripWizardScreen() {
             submit(cleared);
           }}
           isSubmitting={createTrip.isPending}
+          startDate={draft.startDate}
         />
       ) : null}
     </section>

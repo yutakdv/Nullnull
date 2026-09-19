@@ -29,6 +29,7 @@ export interface FeedPostCardProps {
   labels?: {
     add?: Partial<Record<TripAddState, string>>;
     state?: Partial<Record<SourceState, string>>;
+    crowdStages?: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
     crowdLevel?: string;
     licenseTerms?: string;
   };
@@ -70,6 +71,7 @@ export function FeedPostCard({
         <CrowdLevel
           crowd={crowd ?? null}
           levelLabel={labels?.crowdLevel}
+          levelLabels={labels?.crowdStages}
           stateLabels={labels?.state}
         />
         <h3 className={styles.title}>{post.title}</h3>

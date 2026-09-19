@@ -7,15 +7,15 @@
 // Two assertions carry most of the weight:
 //   - the query never reaches a URL, because searchPlaces is a read-only POST
 //     specifically so free-form text stays out of CDN, proxy and history logs;
-//   - the card shows no crowd figure, because the contract has no such field
-//     and inventing one is the unsourced comparison invariant 8 forbids.
+//   - the separate crowd batch stays in search-result order and retains each
+//     selected point's date, state and provenance.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { placeFixtures } from '@nullnull/contracts';
+import { crowdFixtures, placeFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -27,9 +27,28 @@ const copy = messages['en-US'];
 const [first, second] = placeFixtures.searchPage.items;
 
 let requests: { method: string; url: string }[] = [];
+let crowdBodies: { placeIds: string[] }[] = [];
 
 beforeEach(() => {
   requests = [];
+  crowdBodies = [];
+  server.use(
+    http.post(`${API_BASE}/places/crowd-forecasts/query`, async ({ request }) => {
+      const body = (await request.json()) as { placeIds: string[] };
+      crowdBodies.push(body);
+      return HttpResponse.json({
+        items: body.placeIds.map((id, index) =>
+          index === 0
+            ? { ...crowdFixtures.seriesForecast, placeId: body.placeIds[1] ?? id }
+            : {
+                ...crowdFixtures.seriesUnavailable,
+                placeId: body.placeIds[0] ?? id,
+                unavailableReason: 'PLACE_UNAVAILABLE' as const,
+              },
+        ),
+      });
+    }),
+  );
   server.events.on('request:start', ({ request }) => {
     requests.push({ method: request.method, url: request.url });
   });
@@ -229,17 +248,23 @@ describe('FE-103-T1 results and the kept list', () => {
 });
 
 describe('FE-103-T2 the card shows only what the contract supplies', () => {
-  it('renders no crowd figure, because PlaceSummary still has none', async () => {
+  it('renders the ordered crowd response without deriving a stage', async () => {
     await searchFor('서울');
     await screen.findByText(first?.name ?? '');
-
-    // FCR-029, still open. Figma shows "4 · 혼잡" and a forecast badge here.
-    // BA-023 added crowd as a separate dated series (getPlaceCrowdForecast),
-    // deliberately not as a scalar on PlaceSummary, so the card still has no
-    // single value to show and a number here would be invented.
-    const body = document.body.textContent ?? '';
-    expect(body).not.toMatch(/혼잡/);
-    expect(body).not.toMatch(/공식 혼잡 예측/);
+    await waitFor(() => {
+      expect(crowdBodies).toHaveLength(1);
+    });
+    expect(crowdBodies[0]?.placeIds).toEqual(
+      placeFixtures.searchPage.items.map((place) => place.id),
+    );
+    const firstCard = screen.getByText(first?.name ?? '').closest('li');
+    const secondCard = screen.getByText(second?.name ?? '').closest('li');
+    expect(firstCard as HTMLElement).toHaveTextContent('Relative concentration 72.5');
+    expect(firstCard as HTMLElement).toHaveTextContent('Official crowd forecast');
+    expect(firstCard as HTMLElement).not.toHaveTextContent(/Level \d/);
+    expect(secondCard as HTMLElement).toHaveTextContent(
+      'Crowd forecast is unavailable for this place',
+    );
   });
 
   it('credits the source the server named (FCR-031, CMP-ATT-001)', async () => {

@@ -239,6 +239,13 @@ export function FeedScreen() {
       UNAVAILABLE: t('state.UNAVAILABLE'),
       REPLAY: t('state.REPLAY'),
     },
+    crowdStages: {
+      1: t('crowd.stage.1'),
+      2: t('crowd.stage.2'),
+      3: t('crowd.stage.3'),
+      4: t('crowd.stage.4'),
+      5: t('crowd.stage.5'),
+    },
     licenseTerms: t('license.terms'),
   };
 

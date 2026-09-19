@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { placeFixtures, tripFixtures } from '@nullnull/contracts';
+import { crowdFixtures, placeFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -37,9 +37,30 @@ interface Sent {
 }
 
 let sent: Sent[] = [];
+let crowdBodies: { placeIds: string[] }[] = [];
 
 beforeEach(() => {
   sent = [];
+  crowdBodies = [];
+  server.use(
+    http.post(`${API_BASE}/places/crowd-forecasts/query`, async ({ request }) => {
+      const body = (await request.json()) as { placeIds: string[] };
+      crowdBodies.push(body);
+      return HttpResponse.json({
+        // Deliberately mismatched placeIds prove the screen follows the
+        // contract's index correspondence rather than joining by response id.
+        items: body.placeIds.map((id, index) =>
+          index === 0
+            ? { ...crowdFixtures.seriesForecast, placeId: body.placeIds[1] ?? id }
+            : {
+                ...crowdFixtures.seriesUnavailable,
+                placeId: body.placeIds[0] ?? id,
+                unavailableReason: 'NO_COVERAGE' as const,
+              },
+        ),
+      });
+    }),
+  );
   server.events.on('request:start', ({ request }) => {
     // searchPlaces is a POST too (the query rides in the body so it never
     // reaches a URL), so the capture is scoped to the two add endpoints.
@@ -59,6 +80,38 @@ beforeEach(() => {
       () => {
         sent.push({ ...base, body: null });
       },
+    );
+  });
+});
+
+describe('#105 FCR-029 crowd forecast cards', () => {
+  it('makes one ordered batch and keeps each result in its response position', async () => {
+    await searchFor('서울');
+    await screen.findByText(firstResult?.name ?? '');
+    await waitFor(() => {
+      expect(crowdBodies).toHaveLength(1);
+    });
+
+    expect(crowdBodies[0]?.placeIds).toEqual(
+      placeFixtures.searchPage.items.map((place) => place.id),
+    );
+    const firstRow = screen.getByText(firstResult?.name ?? '').closest('li');
+    const secondRow = screen.getByText(addable?.name ?? '').closest('li');
+    expect(firstRow).not.toBeNull();
+    expect(secondRow).not.toBeNull();
+    expect(firstRow as HTMLElement).toHaveTextContent('Relative concentration 72.5');
+    expect(secondRow as HTMLElement).toHaveTextContent(
+      'No crowd forecast for these dates',
+    );
+  });
+
+  it('reports a batch failure instead of making it look like ordinary no coverage', async () => {
+    server.use(
+      http.post(`${API_BASE}/places/crowd-forecasts/query`, () => HttpResponse.error()),
+    );
+    await searchFor('서울');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't load crowd forecast",
     );
   });
 });
@@ -105,6 +158,8 @@ describe('FE-305-T2 the screen renders each state', () => {
     expect(
       screen.getByRole('button', { name: copy['addPlace.someday'] }),
     ).toBeInTheDocument();
+    // No search results means the batch query is disabled, not loading.
+    expect(screen.queryByText('Loading crowd forecast')).toBeNull();
   });
 
   it('says so when nothing matches', async () => {

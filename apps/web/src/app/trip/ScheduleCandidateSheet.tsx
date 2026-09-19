@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
+import { usePlaceCrowdForecast } from '../../shared/api/index.js';
+import {
+  CrowdForecastQueryState,
+  CrowdForecastReading,
+} from '../../shared/crowd/CrowdForecastReading.js';
+import { crowdPointForDate } from '../../shared/crowd/forecast.js';
 import { blockedSlots, eligibleSlots, hasDecision } from './candidates.js';
 import styles from './ScheduleCandidateSheet.module.css';
 
@@ -22,20 +28,18 @@ import styles from './ScheduleCandidateSheet.module.css';
 // split TripPicker keeps, and what stops invariant 1 from being blurred across
 // two components.
 //
-// NOT BUILT, deliberately: the frame shows each day's crowd
-// (`2 · 여유 · 공식 혼잡 예측`) and a `출처: ⓒ한국관광공사 · 14:35 기준` line.
-// `CandidateMatchResult.slots` is `additionalProperties: false` and carries only
-// date, suggestedTime, eligible and reasonCode — there is no per-day crowd in
-// it. Crowd for a date comes from getPlaceCrowdForecast, a dated series per
-// place, and picking one place's value to stand for a whole day would be a
-// number nobody measured (invariant 8). MoveDaySheet omits the same two lines
-// for the same reason; both are tracked by FCR-029's open question on #105.
+// CandidateMatchResult still carries no crowd. The sheet therefore reads the
+// place's dated series separately and joins an exact point by KST target date.
+// It never derives an ordinal stage from KTO's relative index.
 
 type CandidateMatchResult = components['schemas']['CandidateMatchResult'];
 type CandidateSlot = CandidateMatchResult['slots'][number];
 
 export interface ScheduleCandidateSheetProps {
   open: boolean;
+  placeId: string;
+  startDate: string | null;
+  endDate: string | null;
   /** The place being scheduled, named so the user knows what they are placing. */
   placeName: string;
   /** The server's answer for this candidate, or null while it is being asked. */
@@ -53,6 +57,9 @@ export interface ScheduleCandidateSheetProps {
 
 export function ScheduleCandidateSheet({
   open,
+  placeId,
+  startDate,
+  endDate,
   placeName,
   match,
   loading = false,
@@ -67,6 +74,7 @@ export function ScheduleCandidateSheet({
   const ref = useRef<HTMLDialogElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const forecast = usePlaceCrowdForecast(placeId, startDate, endDate, open);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -150,7 +158,7 @@ export function ScheduleCandidateSheet({
   function dayRow(slot: CandidateSlot, usable: boolean) {
     const index = dayIndexOf(slot.date);
     return (
-      <li key={slot.date}>
+      <li className={styles.dayRow} key={slot.date}>
         <button
           className={usable ? styles.day : `${styles.day} ${styles.dayBlocked}`}
           disabled={!usable || busy}
@@ -188,6 +196,7 @@ export function ScheduleCandidateSheet({
             </span>
           ) : null}
         </button>
+        <CrowdForecastReading point={crowdPointForDate(forecast.data, slot.date)} />
       </li>
     );
   }
@@ -259,6 +268,12 @@ export function ScheduleCandidateSheet({
             {t('candidates.sheet.noDates')}
           </p>
         ) : null}
+
+        <CrowdForecastQueryState
+          failed={forecast.isError}
+          loading={forecast.isFetching}
+          series={forecast.data}
+        />
 
         {eligible.length > 0 || blocked.length > 0 ? (
           <>

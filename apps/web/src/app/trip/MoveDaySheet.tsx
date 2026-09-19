@@ -1,6 +1,12 @@
 import { useEffect, useId, useRef } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
+import { usePlaceCrowdForecast } from '../../shared/api/index.js';
+import {
+  CrowdForecastQueryState,
+  CrowdForecastReading,
+} from '../../shared/crowd/CrowdForecastReading.js';
+import { crowdPointForDate } from '../../shared/crowd/forecast.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import styles from './MoveDaySheet.module.css';
 import { currentDate } from './reorder.js';
@@ -19,17 +25,16 @@ import { currentDate } from './reorder.js';
 //     That is a promise about server behaviour, so it is copy the contract
 //     backs, not reassurance invented here.
 //
-// NOT BUILT: the frame shows each day's crowd (`2 · 여유 · 공식 혼잡 예측`) and a
-// source line. Crowd for a date comes from getPlaceCrowdForecast, a dated
-// series per place — there is no per-day trip crowd in the contract, and
-// picking one place's value to represent a whole day would be a number nobody
-// measured (invariant 8). Raised with FCR-029's open question on #105.
+// Each row now maps the place's dated forecast by its exact KST target date.
+// KTO's relative index has no approved ordinal mapping, so the row shows the
+// returned value/state/provenance and never invents the Figma's example stage.
 
 type TripDetail = components['schemas']['TripDetail'];
 type TripDay = TripDetail['days'][number];
 
 export interface MoveDaySheetProps {
   open: boolean;
+  placeId: string;
   itemId: string;
   itemName: string;
   days: readonly TripDay[];
@@ -40,6 +45,7 @@ export interface MoveDaySheetProps {
 
 export function MoveDaySheet({
   open,
+  placeId,
   itemId,
   itemName,
   days,
@@ -58,6 +64,13 @@ export function MoveDaySheet({
   const restoreTo = useRef<HTMLElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const here = currentDate(days, itemId);
+  const dates = days.map((day) => day.date).sort();
+  const forecast = usePlaceCrowdForecast(
+    placeId,
+    dates[0] ?? null,
+    dates.at(-1) ?? null,
+    open,
+  );
 
   useEffect(() => {
     const dialog = ref.current;
@@ -174,12 +187,17 @@ export function MoveDaySheet({
         </p>
 
         <p className={styles.pick}>{t('trip.move.pick')}</p>
+        <CrowdForecastQueryState
+          failed={forecast.isError}
+          loading={forecast.isFetching}
+          series={forecast.data}
+        />
 
         <ul className={styles.days}>
           {days.map((day, index) => {
             const isHere = day.date === here;
             return (
-              <li key={day.date}>
+              <li className={styles.dayRow} key={day.date}>
                 <button
                   className={isHere ? `${styles.day} ${styles.dayHere}` : styles.day}
                   // Shown, not hidden: the user needs to see where it is now.
@@ -204,6 +222,9 @@ export function MoveDaySheet({
                     </span>
                   )}
                 </button>
+                <CrowdForecastReading
+                  point={crowdPointForDate(forecast.data, day.date)}
+                />
               </li>
             );
           })}

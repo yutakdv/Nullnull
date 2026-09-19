@@ -950,11 +950,8 @@ export const handlers = [
     };
     return new HttpResponse(null, { status: 204 });
   }),
-  // getPlaceCrowdForecast (BA-023, #105). One place x one date range, which is
-  // what the two sheets and the confirm step already hold — the batch
-  // operation those screens will want for a LIST of cards
-  // (POST /places/crowd-forecasts:query) is not in the contract yet, so this
-  // covers the single-place reads that are possible today.
+  // getPlaceCrowdForecast (BA-023, #105). One place x one date range, used by
+  // the two sheets and the viewport-lazy confirm cards.
   //
   // All three fixtures are wired, not just the forecast: STALE and UNAVAILABLE
   // are half of what #105 has to answer, and a mock that only ever serves the
@@ -976,6 +973,30 @@ export const handlers = [
     return HttpResponse.json(series, {
       headers: { 'Cache-Control': 'private, no-store' },
     });
+  }),
+
+  // queryPlaceCrowdForecasts (#105). Until the approved forecast-query fixture
+  // is exported from @nullnull/contracts, the default mock uses the approved
+  // single-place NO_COVERAGE fixture for every requested id. That is an honest
+  // common response (most catalog places have no stored forecast), preserves
+  // the contract's same-length/same-order rule and invents no number or source.
+  // Screen tests override this handler with mixed forecast/unavailable items
+  // to prove index joins and rich rendering. Once BE exports the batch fixture,
+  // this body can be replaced directly without changing a screen.
+  http.post(`${API_BASE}/places/crowd-forecasts/query`, async ({ request }) => {
+    const body = (await request.json()) as { placeIds?: unknown };
+    const placeIds = Array.isArray(body.placeIds)
+      ? body.placeIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    return HttpResponse.json(
+      {
+        items: placeIds.map((placeId) => ({
+          ...crowdFixtures.seriesUnavailable,
+          placeId,
+        })),
+      },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
   }),
 
   // previewTripDraft (BA-055, FR-TRC-10). A read-only POST like searchPlaces:

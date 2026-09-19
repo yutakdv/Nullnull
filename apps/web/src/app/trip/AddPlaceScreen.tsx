@@ -5,6 +5,7 @@ import {
   isProblem,
   useAddTripCandidate,
   useAddTripItem,
+  usePlaceCrowdForecasts,
   usePlaceSearch,
   useTrip,
 } from '../../shared/api/index.js';
@@ -15,6 +16,10 @@ import {
   PlaceThumbnail,
   SearchField,
 } from '../../shared/ui/index.js';
+import {
+  CrowdForecastCardReading,
+  CrowdForecastQueryState,
+} from '../../shared/crowd/CrowdForecastReading.js';
 import styles from './AddPlaceScreen.module.css';
 import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.js';
 
@@ -34,10 +39,10 @@ import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.j
 // MOCK DATA: searchPlaces and addTripItem have no approved example (BA-022,
 // BA-040). The screen calls the real generated client.
 //
-// NOT BUILT: the frame shows a crowd reading and a 교체 action per result.
-// Crowd is a dated series per place (getPlaceCrowdForecast) rather than a
-// scalar on PlaceSummary — FCR-029, still open on #105. Replace is FR-ITM-08
-// and needs the comparison sheet (`414:2347`), which is the next slice.
+// The crowd reading is fetched in one ordered batch for the visible results.
+// The response is joined by index as the contract requires; cards are never
+// sorted by KTO's per-place relative value. Replace is FR-ITM-08 and needs the
+// comparison sheet (`414:2347`), which is a separate slice.
 
 export function AddPlaceScreen() {
   const { tripId } = useParams();
@@ -123,6 +128,12 @@ export function AddPlaceScreen() {
   }
 
   const results = search.data?.items ?? [];
+  const dates = days.map((day) => day.date).sort();
+  const forecasts = usePlaceCrowdForecasts(
+    results.map((place) => place.id),
+    dates[0] ?? null,
+    dates.at(-1) ?? null,
+  );
 
   return (
     <section className={styles.screen} aria-labelledby="add-place-heading">
@@ -184,8 +195,16 @@ export function AddPlaceScreen() {
       ) : null}
 
       {results.length > 0 ? (
+        <CrowdForecastQueryState
+          failed={forecasts.isError}
+          loading={forecasts.isFetching}
+          series={undefined}
+        />
+      ) : null}
+
+      {results.length > 0 ? (
         <ul className={styles.results}>
-          {results.map((place) => {
+          {results.map((place, index) => {
             const taken = alreadyOnDay(days, place.id, target);
             const meta = [place.categoryName, place.regionName, place.address]
               .filter(
@@ -205,6 +224,7 @@ export function AddPlaceScreen() {
                   {place.sourceAttribution ? (
                     <DataAttribution compact provenance={place.sourceAttribution} />
                   ) : null}
+                  <CrowdForecastCardReading series={forecasts.data?.items[index]} />
                 </span>
                 <button
                   // Named for the place: a column of identical "추가" buttons

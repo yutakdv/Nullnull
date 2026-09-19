@@ -7,12 +7,12 @@
 // moving between steps, that a submit cannot be fired twice, and that the
 // request carries an Idempotency-Key.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
-import { sessionFixtures } from '@nullnull/contracts';
+import { crowdFixtures, sessionFixtures } from '@nullnull/contracts';
 import { RouterProvider, createMemoryRouter } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -48,6 +48,7 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  vi.unstubAllGlobals();
   server.events.removeAllListeners();
   // The wizard persists its draft now (FR-TRC-12), and happy-dom keeps one
   // Storage for the whole file. Without this every test after the first would
@@ -719,18 +720,59 @@ describe('S02-5C the confirm step picks what must stay (FE-103, FR-TRC-05)', () 
     expect(body.seedItems?.[0]?.constraints).toBeUndefined();
   });
 
-  it('renders no crowd figure, because nothing here can source one', async () => {
-    // The frame draws `4 · 혼잡`, a CrowdBar and the ⓒ한국관광공사 source line
-    // on every card. PlaceSummary carries no crowd field, so a number here
-    // would be one nobody measured (invariant 8) — and crediting KTO for a
-    // figure not shown would imply a source that was not granted
-    // (CMP-ATT-003). #105 / FCR-029 tracks it.
+  it('loads an exact dated crowd point only when the stop approaches view', async () => {
+    let reveal: () => void = () => {
+      throw new Error('forecast observer was not created');
+    };
+    let observed: Element | null = null;
+    let requests = 0;
+    class Observer {
+      constructor(callback: IntersectionObserverCallback) {
+        reveal = () => {
+          callback([{ isIntersecting: true } as IntersectionObserverEntry], this);
+        };
+      }
+      observe(target: Element) {
+        observed = target;
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() {
+        return [];
+      }
+      readonly root = null;
+      readonly rootMargin = '160px 0px';
+      readonly thresholds = [0];
+    }
+    vi.stubGlobal('IntersectionObserver', Observer);
+    server.use(
+      http.get(`${API_BASE}/places/:placeId/crowd-forecast`, ({ request }) => {
+        requests += 1;
+        const targetAt = new URL(request.url).searchParams.get('from');
+        const point = crowdFixtures.seriesForecast.points[0];
+        if (!point || !targetAt) throw new Error('forecast fixture changed');
+        return HttpResponse.json({
+          ...crowdFixtures.seriesForecast,
+          points: [
+            { ...point, value: 61, provenance: { ...point.provenance, targetAt } },
+          ],
+        });
+      }),
+    );
     const user = userEvent.setup();
     await reachConfirm(user);
+    expect(requests).toBe(0);
+    expect(observed).toHaveAttribute('data-crowd-stop');
 
-    const body = document.body.textContent ?? '';
-    expect(body).not.toMatch(/혼잡/);
-    expect(body).not.toMatch(/한국관광공사/);
+    act(() => {
+      reveal();
+    });
+    expect(await screen.findByText('Relative concentration 61')).toBeInTheDocument();
+    expect(requests).toBe(1);
+    expect(screen.getByText('Official crowd forecast')).toBeInTheDocument();
+    expect(screen.getByText('출처: ⓒ한국관광공사')).toBeInTheDocument();
+    // KTO supplies no ordinal, so no stage is synthesized from 61.
+    expect(document.body).not.toHaveTextContent(/Level \d/);
   });
 
   it('keeps the picks when going back to fix the itinerary', async () => {
