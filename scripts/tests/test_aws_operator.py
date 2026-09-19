@@ -643,6 +643,9 @@ class CurationTaskRegressions(unittest.TestCase):
         place.update(overrides)
         return json.dumps({'places':[place]},ensure_ascii=False,indent=2).encode()
     TASK='curate-hours'
+    PUBLIC_URL='https://d54awmnmi4c3z.cloudfront.net'
+    def served(self, url):
+        raise AssertionError('the hours task fetches no cover: '+url)
     def default_log(self, data, sha):
         return [f'curated_hours_plan sha256={sha} bytes={len(data)}']+self.JAVA_LINES[:1]+['curated_hours_recorded=1']
     def run_curate(self, data, approved=None, owner='owner approved in session', log=None, plan_file=True,
@@ -669,7 +672,9 @@ class CurationTaskRegressions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'hours.json';path.write_bytes(data)
             with patch.dict(os.environ,env),patch.object(ops,'identity') as ident,patch.object(ops,'aws',side_effect=fake),\
-                 patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+                 patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds'
+                              else self.PUBLIC_URL if key=='PublicUrl' else key),\
+                 patch.object(ops,'fetch_public',side_effect=lambda url:self.served(url)),\
                  patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),\
                  patch.object(ops,'wait_task',side_effect=task_failure),\
                  patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
@@ -780,19 +785,29 @@ class CuratedPostsTaskRegressions(unittest.TestCase):
                 'curated_post 01a0b463-4600-7183-8000-000000000001 ALREADY_PRESENT (left as it is)',
                 'curated_posts_published=1 of 2','curated_posts_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED',
                 'curated_posts_failed reason=IllegalStateException']
-    def plan(self, url='https://d54awmnmi4c3z.cloudfront.net/covers/01-gyeongbokgung.jpg', places=None):
+    COVER=b'the approved cover bytes'
+    URL='https://d54awmnmi4c3z.cloudfront.net/covers/01-gyeongbokgung.jpg'
+    def plan(self, url=URL, places=None):
         post={'id':self.POST,'title':'담장을 따라 걷는 하루','body':'본문','publishedAt':'2026-09-18T03:00:00Z',
-              'cover':{'url':url,'alt':'근정전 앞 넓은 마당','checksum':'7'*64},
+              'cover':{'url':url,'alt':'근정전 앞 넓은 마당','checksum':__import__('hashlib').sha256(self.COVER).hexdigest()},
               'places':places if places is not None else [{'placeId':CurationTaskRegressions.PLACE,'primary':True}],
               '_source_file':'docs/contest/covers/01-gyeongbokgung.jpg'}
         return json.dumps({'posts':[post]},ensure_ascii=False,indent=2).encode()
-    def run_curate(self, data, published='1', **kw):
-        import hashlib
+    def run_curate(self, data, rerun=False, served=None, **kw):
         runner=CurationTaskRegressions('run_curate')
         runner.TASK='curate-posts'
-        runner.default_log=lambda d,sha:[f'curated_posts_plan sha256={sha} bytes={len(d)}',self.JAVA_LINES[0],
-                                         f'curated_posts_published={published} of 1']
-        return runner.run_curate(data,**kw)
+        runner.fetched=[]
+        def serve(url):
+            runner.fetched.append(url)
+            if isinstance(served,Exception): raise served
+            return self.COVER if served is None else served
+        runner.served=serve
+        runner.default_log=lambda d,sha:[f'curated_posts_plan sha256={sha} bytes={len(d)}',
+                                         self.JAVA_LINES[1] if rerun else self.JAVA_LINES[0],
+                                         f'curated_posts_published={0 if rerun else 1} of 1']
+        result=runner.run_curate(data,**kw)
+        result['fetched']=runner.fetched
+        return result
     def test_the_approved_posts_plan_travels_to_its_main_and_is_kept_as_evidence(self):
         import gzip as gz, base64 as b64
         data=self.plan()
@@ -806,9 +821,12 @@ class CuratedPostsTaskRegressions(unittest.TestCase):
         self.assertIn(f'plan_sha256={r["sha"]} bytes={len(data)} posts=1 place_ids={CurationTaskRegressions.PLACE}',r['out'])
         self.assertEqual(data,r['kept'])
         self.assertIn('curation_plan=recorded task=curate-posts sha256='+r['sha'],r['out'])
+        # The cover was fetched from the deployed edge and matched before the task was started.
+        self.assertEqual([self.URL],r['fetched'])
+        self.assertIn('covers_verified=1 origin=https://d54awmnmi4c3z.cloudfront.net/covers/',r['out'])
     def test_a_rerun_of_an_approved_plan_that_publishes_nothing_new_still_succeeds(self):
         # ALREADY_PRESENT is the importer's idempotence, not a failure: "0 of 1" is every post accounted for.
-        r=self.run_curate(self.plan(),published='0')
+        r=self.run_curate(self.plan(),rerun=True)
         self.assertIsNone(r['error'],r['out'])
     def test_a_posts_plan_that_is_not_a_plan_stops_before_any_aws_call(self):
         cases=[(json.dumps({'posts':[]}).encode(),'plan-file-has-no-posts'),
@@ -826,17 +844,36 @@ class CuratedPostsTaskRegressions(unittest.TestCase):
     def test_success_is_read_from_the_publications_own_lines(self):
         import hashlib
         data=self.plan();sha=hashlib.sha256(data).hexdigest();plan_line=f'curated_posts_plan sha256={sha} bytes={len(data)}'
-        for log,reason in [([plan_line,'curated_posts_failed reason=CurationException'],'curation-import-failed'),
+        published,present=self.JAVA_LINES[0],self.JAVA_LINES[1]
+        other='curated_post 01a0b463-4600-7183-8000-000000000009 PUBLISHED (1 place(s))'
+        for log,reason in [([plan_line,published,'curated_posts_failed reason=CurationException'],'curation-import-failed'),
                            ([plan_line],'curation-not-all-posts-published'),
-                           # The total names every post in the plan, or the run did not see them all.
-                           ([plan_line,'curated_posts_published=1 of 2'],'curation-not-all-posts-published'),
+                           # A total alone is not a post accounted for: the numerator is not checked by a regex.
+                           ([plan_line,'curated_posts_published=1 of 1'],'curation-not-all-posts-published'),
+                           ([plan_line,published,'curated_posts_published=9999 of 1'],'curation-not-all-posts-published'),
+                           # The published count is the PUBLISHED lines, not whatever the total claims.
+                           ([plan_line,present,'curated_posts_published=1 of 1'],'curation-not-all-posts-published'),
+                           # Every plan id once: not another post, not the same one twice.
+                           ([plan_line,other,'curated_posts_published=1 of 1'],'curation-not-all-posts-published'),
+                           ([plan_line,published,published,'curated_posts_published=2 of 1'],'curation-not-all-posts-published'),
+                           ([plan_line,published,'curated_posts_published=1 of 2'],'curation-not-all-posts-published'),
                            # The hours' "done" line does not count for the posts.
-                           ([plan_line,'curated_hours_recorded=1'],'curation-not-all-posts-published'),
-                           ([f'curated_hours_plan sha256={sha} bytes={len(data)}','curated_posts_published=1 of 1'],
+                           ([plan_line,published,'curated_hours_recorded=1'],'curation-not-all-posts-published'),
+                           ([f'curated_hours_plan sha256={sha} bytes={len(data)}',published,'curated_posts_published=1 of 1'],
                             'curation-plan-echo-mismatch')]:
             with self.subTest(reason=reason,log=log[-1]):
                 r=self.run_curate(data,log=log)
                 self.assertIn(reason,r['error'] or '')
+                r['upload'].assert_not_called();self.assertIsNone(r['kept'])
+    def test_a_cover_the_deployed_edge_does_not_serve_as_approved_stops_before_the_task(self):
+        for data,kw,reason in [(self.plan(url='https://dother123.cloudfront.net/covers/01-gyeongbokgung.jpg'),{},
+                                'cover-not-on-the-deployed-edge'),
+                               (self.plan(),{'served':b'a different photo'},'cover-not-served-as-approved'),
+                               (self.plan(),{'served':ops.OpsError('cover-not-served-as-approved')},'cover-not-served-as-approved')]:
+            with self.subTest(reason=reason,kw=kw):
+                r=self.run_curate(data,**kw)
+                self.assertIn(reason,r['error'] or '')
+                self.assertNotIn(('ecs','run-task'),r['calls'])
                 r['upload'].assert_not_called();self.assertIsNone(r['kept'])
     def test_the_lines_the_posts_import_prints_pass_and_nothing_that_carries_more(self):
         sha='b'*64
@@ -849,6 +886,43 @@ class CuratedPostsTaskRegressions(unittest.TestCase):
                  'curated_post 01a0b463-4600-7183-8000-000000000001 DELETED (left as it is)']
         for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
         for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
+class FetchPublicRegressions(unittest.TestCase):
+    """The one call in the posts path that reaches outside AWS: a 200 at the exact URL, or a refusal."""
+    def test_a_200_is_the_bytes_and_a_missing_or_moved_cover_is_refused(self):
+        import http.server, threading
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path=='/covers/ok.jpg':
+                    self.send_response(200);self.end_headers();self.wfile.write(b'cover bytes')
+                elif self.path=='/covers/moved.jpg':
+                    self.send_response(302);self.send_header('Location','/covers/ok.jpg');self.end_headers()
+                else:
+                    self.send_response(404);self.end_headers()
+            def log_message(self,*args):pass
+        server=http.server.HTTPServer(('127.0.0.1',0),Handler)
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        try:
+            base=f'http://127.0.0.1:{server.server_address[1]}'
+            self.assertEqual(b'cover bytes',ops.fetch_public(base+'/covers/ok.jpg'))
+            # A redirect lands somewhere the plan did not name; a 404 is a broken cover.
+            for path in ['/covers/moved.jpg','/covers/missing.jpg']:
+                with self.subTest(path=path):
+                    with self.assertRaisesRegex(ops.OpsError,'cover-not-served-as-approved'):
+                        ops.fetch_public(base+path)
+        finally:
+            server.shutdown();server.server_close()
+
+class CoverClassificationRegressions(unittest.TestCase):
+    """#183: a changed web bundle is an app release; a changed cover photo reaches the infra reviewer."""
+    def template(self, bundle_key, cover_key):
+        deployment=lambda prefix,key:{'Type':'Custom::CDKBucketDeployment','Properties':dict(
+            {'SourceObjectKeys':[key],'DestinationBucketName':{'Ref':'Web'}},**({'DestinationBucketKeyPrefix':prefix} if prefix else {}))}
+        return {'Resources':{'WebRelease':deployment(None,bundle_key),'CuratedCovers':deployment('covers/',cover_key)}}
+    def test_only_the_web_bundle_is_masked(self):
+        base=ops.normalize_template(self.template('bundle-1.zip','covers-1.zip'))
+        self.assertEqual(base,ops.normalize_template(self.template('bundle-2.zip','covers-1.zip')))
+        self.assertNotEqual(base,ops.normalize_template(self.template('bundle-1.zip','covers-2.zip')))
 
 class PlanStagesCoversRegressions(unittest.TestCase):
     """#183: a release plan carries the cover photos into its assembly - only them, and never none."""

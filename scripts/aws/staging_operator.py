@@ -75,9 +75,12 @@ CURATION_PLANS = {'curate-hours': {'inline': 'NULLNULL_HOURS_PLAN_GZIP_BASE64', 
                                    'echo': 'curated_hours_plan', 'lines': 'curated_hours', 'items': 'places',
                                    'done': r'curated_hours_recorded={n}', 'failed': 'curated_hours_failed ',
                                    'incomplete': 'curation-not-all-places-recorded'},
+                  # A post line per plan post, by id: the total alone would accept "9999 of 5" or a post the plan does
+                  # not name. The published count must then be exactly the PUBLISHED lines.
                   'curate-posts': {'inline': 'NULLNULL_POSTS_PLAN_GZIP_BASE64', 'sha256': 'NULLNULL_POSTS_PLAN_SHA256',
                                    'echo': 'curated_posts_plan', 'lines': 'curated_post', 'items': 'posts',
-                                   'done': r'curated_posts_published=[0-9]{{1,4}} of {n}', 'failed': 'curated_posts_failed ',
+                                   'entry': r'curated_post ([0-9a-f-]{36}) (PUBLISHED|ALREADY_PRESENT) \(',
+                                   'done': r'curated_posts_published={published} of {n}', 'failed': 'curated_posts_failed ',
                                    'incomplete': 'curation-not-all-posts-published'}}
 PLAN_MAX_BYTES = 1 << 20  # io.nullnull.OperationsPlan.MAX_BYTES
 # RunTask refuses overrides past a size AWS documents as 8192 characters for the whole overrides object; that figure is
@@ -498,9 +501,10 @@ def normalize_template(template):
     for resource in t.get('Resources', {}).values():
         resource.pop('Metadata', None)
         properties = resource.get('Properties', {})
-        if resource.get('Type') == 'Custom::CDKBucketDeployment':
-            # What a bucket deployment carries - the web bundle, and the #183 covers - is the app path by definition;
-            # adding or reshaping a deployment is still a template change, hence infra.
+        if resource.get('Type') == 'Custom::CDKBucketDeployment' and properties.get('DestinationBucketKeyPrefix') != 'covers/':
+            # The web bundle is the app path by definition. The #183 covers are not masked: a published post holds its
+            # cover's URL and checksum, so a photo changed under the same name would break posts already live, and
+            # that change must reach the infra reviewer's diff rather than ride an app release unseen.
             properties.pop('SourceObjectKeys', None)
         if resource.get('Type') == 'AWS::ECS::TaskDefinition':
             for container in properties.get('ContainerDefinitions', []):
@@ -875,7 +879,39 @@ def curation_plan(args):
     require(bool(args.owner_approval) and len(args.owner_approval) >= 10, 'owner-approval-record-required')
     encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode('ascii')
     require(len(encoded) <= PLAN_INLINE_MAX_CHARS, 'plan-too-large-for-task-overrides')
-    return {'data': data, 'sha256': sha, 'encoded': encoded, 'items': len(items)}
+    return {'data': data, 'sha256': sha, 'encoded': encoded, 'items': len(items),
+            'ids': [str(i.get('id', '')) for i in items]}
+
+COVER_MAX_BYTES = 20 << 20  # far above the five photos (2.4-2.9 MB each); bounds what a wrong URL could make us read
+
+def fetch_public(url):
+    """GET a public URL: the bytes, or a refusal. A redirect or a non-200 is a cover the post would not show."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            require(response.status == 200 and response.geturl() == url, 'cover-not-served-as-approved')
+            body = response.read(COVER_MAX_BYTES + 1)
+    except OSError:
+        raise OpsError('cover-not-served-as-approved') from None
+    require(len(body) <= COVER_MAX_BYTES, 'cover-not-served-as-approved')
+    return body
+
+def verify_served_covers(plan_bytes, public_url):
+    """Every cover the plan will publish is served, now, by the deployed edge, as exactly the approved bytes.
+
+    The repository's test compares the committed plan with the committed photos; this compares whatever plan is being
+    run with what the deployed release actually serves. Without it a plan naming another domain, or a release that does
+    not carry the photos, publishes posts whose covers are broken - and a published post is ALREADY_PRESENT to every
+    rerun, so the only repair is deleting it.
+    """
+    origin = public_url.rstrip('/') + '/covers/'
+    posts = json.loads(plan_bytes)['posts']
+    for post in posts:
+        cover = post['cover']
+        require(str(cover.get('url', '')).startswith(origin), 'cover-not-on-the-deployed-edge')
+        require(hashlib.sha256(fetch_public(cover['url'])).hexdigest() == cover.get('checksum'),
+                'cover-not-served-as-approved')
+    print(f'covers_verified={len(posts)} origin={origin}')
 
 def ops_task(args):
     """Run one allowlisted operator command in the VPC with the deployed API image."""
@@ -884,6 +920,8 @@ def ops_task(args):
     plan = curation_plan(args) if args.task in CURATION_PLANS else None
     require(plan is not None or not getattr(args, 'plan_file', None), 'plan-file-not-accepted')
     identity(os.environ.get('NULLNULL_AWS_ACCOUNT_ID', ''))
+    if args.task == 'curate-posts':
+        verify_served_covers(plan['data'], output('WebEdge', 'PublicUrl'))
     main_class, approval, inputs = OPS_TASKS[args.task]
     environment = [{'name': 'LOADER_MAIN', 'value': main_class}]
     for name, attribute in inputs.items():
@@ -975,7 +1013,13 @@ def record_curation(task, plan, echoed, current):
     require([line for line in echoed if line.startswith(spec['echo'] + ' ')] == [expected],
             'curation-plan-echo-mismatch')
     require(not any(line.startswith(spec['failed']) for line in echoed), 'curation-import-failed')
-    done = re.compile(spec['done'].format(n=plan['items']))
+    published = None
+    if 'entry' in spec:
+        entries = [m.groups() for m in (re.match(spec['entry'], line) for line in echoed) if m]
+        ids = [entry_id for entry_id, _ in entries]
+        require(len(ids) == len(set(ids)) and sorted(ids) == sorted(plan['ids']), spec['incomplete'])
+        published = sum(1 for _, outcome in entries if outcome == 'PUBLISHED')
+    done = re.compile(spec['done'].format(n=plan['items'], published=published))
     require(any(done.fullmatch(line) for line in echoed), spec['incomplete'])
     path = ROOT/'.artifacts/aws/evidence'/f"curation-{plan['sha256']}.json"
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
