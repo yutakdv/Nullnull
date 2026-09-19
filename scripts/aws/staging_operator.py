@@ -982,6 +982,7 @@ def ops_task(args):
         current, expected_digest = release_binding(definition) if bound else (None, None)
         if args.task == 'kto-call-inventory':
             # Read under the lock with the binding, so the release inventoried is the one this task definition is.
+            require_release_version_unique(current)
             overrides['containerOverrides'][0]['environment'].append(
                 {'name': 'NULLNULL_INVENTORY_RELEASE', 'value': current['releaseVersion']})
         lock.mutating()
@@ -1005,7 +1006,7 @@ def ops_task(args):
         # Every page: a task that logs more than one page of startup before its own lines (the inventory prints last)
         # would otherwise lose exactly the lines that are its result. The last page repeats the token it was given.
         events, token = [], None
-        for _ in range(50):
+        for _ in range(200):
             page = aws('logs', 'get-log-events', logGroupName=output('Platform', 'MigrationLogGroupName'),
                        logStreamName=stream, startFromHead=True, limit=500, **({'nextToken': token} if token else {}))
             events += page.get('events', [])
@@ -1013,6 +1014,9 @@ def ops_task(args):
             if not following or following == token:
                 break
             token = following
+        else:
+            # The bound is a safety stop, not an end: CloudWatch says the stream is read when the token stops moving.
+            raise OpsError('task-log-not-fully-read')
         evidence, echoed, inventory = [], [], []
         for event in events:
             line = event.get('message', '').strip()
@@ -1033,6 +1037,32 @@ def ops_task(args):
         if args.task == 'kto-call-inventory':
             record_inventory(inventory, current)
     print('ops_task=' + args.task + ' result=succeeded')
+
+def require_release_version_unique(current):
+    """The call-audit is keyed by the release version string, so an inventory is one artifact's only if no other
+    artifact ever deployed under that string. Nothing upstream guarantees it: CI names a release by its workflow run
+    number, which a re-run keeps while rebuilding the images, and a hand-made manifest names whatever it is given. Every
+    recorded release is read; one with this version but another git sha or image is a union the checker would accept as
+    one release's list. A rollback records the same manifest again under a new plan, which is the same artifact."""
+    bucket = release_bucket()
+    listing = aws_cli(['s3api', 'list-objects-v2', '--bucket', bucket, '--prefix', 'releases/', '--output', 'json'])
+    require(listing.returncode == 0, 'release-records-unlistable')
+    keys = sorted(o['Key'] for o in json.loads(listing.stdout or '{}').get('Contents', [])
+                  if re.fullmatch(r'releases/[a-f0-9]{64}/plan\.tgz', o['Key']))
+    require(current['planKey'] in keys, 'deployed-release-not-recorded')
+    mine = current['releaseManifest']
+    with tempfile.TemporaryDirectory(prefix='nullnull-releases-') as temp:
+        for key in keys:
+            archive = Path(temp)/'plan.tgz'
+            require(aws_cli(['s3', 'cp', f's3://{bucket}/{key}', archive, '--only-show-errors']).returncode == 0,
+                    'release-archive-unreadable')
+            with tarfile.open(archive) as tar:
+                member = tar.extractfile('release.json')
+                require(member is not None, 'release-archive-unreadable')
+                other = json.loads(member.read())
+            if other.get('releaseVersion') == current['releaseVersion']:
+                require(all(other.get(f) == mine.get(f) for f in ('gitSha', 'apiImageDigest', 'aiImageDigest')),
+                        'release-version-reused-by-another-artifact')
 
 def record_inventory(lines, current):
     """The task's inventory lines, verbatim and in their order, as the file check_submission_inventory.py --inventory

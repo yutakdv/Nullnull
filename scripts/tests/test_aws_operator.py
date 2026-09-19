@@ -1185,8 +1185,9 @@ class KtoCallInventoryRegressions(unittest.TestCase):
            'kto_operation source=KTO_CONCENTRATION_FORECAST endpoint=TATS_CNCTR_RATE_LIST calls=8 first=2026-09-19T06:00:00Z last=2026-09-20T02:00:00.5Z',
            'kto_inventory_excluded rejected=0 replay=1',
            'kto_inventory operations=2 counts_as_evidence=true']
-    def run_inventory(self, lines=None, pages=None, image=None, release=None):
-        import contextlib, io
+    MANIFEST={'releaseVersion':'v0.1.0-rc.9','gitSha':'a'*40,'apiImageDigest':'sha256:'+'a'*64,'aiImageDigest':'sha256:'+'b'*64}
+    def run_inventory(self, lines=None, pages=None, image=None, release=None, others=(), endless=False):
+        import contextlib, io, tarfile as tf
         from types import SimpleNamespace
         pages=pages if pages is not None else [['Starting NullnullApiApplication']+(self.LINES if lines is None else lines)]
         calls,uploads=[],[]
@@ -1199,15 +1200,26 @@ class KtoCallInventoryRegressions(unittest.TestCase):
                         'environment':[{'name':'APP_RELEASE_VERSION','value':release or self.RELEASE}]}]}}
             if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
             if (service,operation)==('logs','get-log-events'):
+                if endless:return {'events':[],'nextForwardToken':'f/'+str(int(kw.get('nextToken','f/0').split('/')[1])+1)}
                 # As CloudWatch answers: a token past the last page returns no events and that same token again.
                 n=int(kw.get('nextToken','f/0').split('/')[1])
                 if n>=len(pages):return {'events':[],'nextForwardToken':f'f/{n}'}
                 return {'events':[{'message':m} for m in pages[n]],'nextForwardToken':f'f/{n+1}'}
             raise AssertionError((service,operation))
+        plans={f'releases/{"c"*64}/plan.tgz':self.MANIFEST,
+               **{f'releases/{str(n)*64}/plan.tgz':m for n,m in enumerate(others)}}
         def fake_cli(args,**kw):
             args=[str(a) for a in args]
+            if args[:2]==['s3api','list-objects-v2']:
+                return subprocess.CompletedProcess(args,0,json.dumps({'Contents':[{'Key':k} for k in plans]}),'')
+            if args[:2]==['s3','cp'] and args[2].startswith('s3://'):
+                data=json.dumps(plans[args[2][len('s3://b/'):]]).encode()
+                with tf.open(args[3],'w:gz') as tar:
+                    info=tf.TarInfo('release.json');info.size=len(data);tar.addfile(info,io.BytesIO(data))
+                return subprocess.CompletedProcess(args,0,'','')
             uploads.append((args[3],Path(args[2]).read_text()));return subprocess.CompletedProcess(args,0,'','')
-        record={'releaseVersion':self.RELEASE,'gitSha':'a'*40,'releaseManifest':{'apiImageDigest':self.DIGEST}}
+        record={'releaseVersion':self.RELEASE,'gitSha':'a'*40,'planKey':f'releases/{"c"*64}/plan.tgz',
+                'releaseManifest':{**self.MANIFEST,'apiImageDigest':self.DIGEST}}
         env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12,
              ops.OPERATIONS_TARGET:OperationsTargetRegressions.TARGET}
         out=io.StringIO()
@@ -1273,6 +1285,20 @@ class KtoCallInventoryRegressions(unittest.TestCase):
                 r=self.run_inventory(**kw)
                 self.assertIn(reason,r['error'] or '')
                 self.assertEqual([],r['run'])
+    def test_a_version_another_artifact_deployed_under_is_refused(self):
+        # Same version, another build: the audit would add both artifacts' calls into one list.
+        for field in ['gitSha','apiImageDigest','aiImageDigest']:
+            with self.subTest(field=field):
+                r=self.run_inventory(others=[{**self.MANIFEST,field:self.MANIFEST[field][:-1]+'f'}])
+                self.assertIn('release-version-reused-by-another-artifact',r['error'] or '')
+                self.assertEqual([],r['run'])
+        # A rollback records the same manifest again under a new plan: the same artifact, allowed. Another version, too.
+        r=self.run_inventory(others=[dict(self.MANIFEST),{**self.MANIFEST,'releaseVersion':'v0.1.0-rc.8','gitSha':'e'*40}])
+        self.assertIsNone(r['error'],r['out'])
+    def test_a_log_stream_that_never_settles_is_not_read_as_complete(self):
+        r=self.run_inventory(endless=True)
+        self.assertIn('task-log-not-fully-read',r['error'] or '')
+        self.assertIsNone(r['kept'])
     def test_the_inventory_lines_pass_and_nothing_that_carries_more(self):
         allowed=self.LINES+['kto_inventory target=unknown environment=unset release=v0.1.0',
                             'kto_inventory operations=0 counts_as_evidence=false reason=environment-not-deployed']
