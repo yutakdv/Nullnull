@@ -22,6 +22,14 @@ type OptimizationScope = components['schemas']['OptimizationScope'];
 //     and says a failure "never mutates the trip". Nothing here writes to the
 //     trip cache; an itinerary changes on APPLY and nowhere else
 //     (invariants 3 and 4).
+//   - Candidates off. FIGMA_HANDOFF lists this frame as "후보 포함 OFF
+//     (FCR-010)", and the server refuses `includeCandidates: true`
+//     unconditionally — the check sits in CreateOptimizationCommand's compact
+//     constructor, ahead of every capability and state check, so there is no
+//     server, no trip and no moment where pressing it could work. It stays
+//     rendered and `disabled` for the same reason DAY and TRIP do: the option
+//     is real and is coming, and hiding it would make the frame disagree with
+//     the handoff. See INCLUDE_CANDIDATES below for why `false` is still sent.
 //
 // MOCK DATA: createOptimization does have an approved example, so the request
 // shape below matches it rather than being invented. The run it returns is
@@ -29,6 +37,26 @@ type OptimizationScope = components['schemas']['OptimizationScope'];
 
 /** The scopes the contract defines, in the order the frame lists them. */
 const SCOPES: OptimizationScope[] = ['ITEM', 'DAY', 'TRIP'];
+
+/**
+ * Sent, and never anything else.
+ *
+ * A constant rather than state, so that "the server is never asked to include
+ * candidates" is a property of the code and not a claim about the checkbox:
+ * disabling the input alone would leave a setter that a later edit could wire
+ * back up. There is nothing to wire back up here.
+ *
+ * It is still SENT, and false is not an omission. All three request variants
+ * list `includeCandidates` in `required` with `additionalProperties: false`,
+ * so a body without it is invalid against the contract — the generated client
+ * types it non-optional for exactly that reason. This is not the `live`
+ * capability rule ("P1 capability OFF means send no request"): the
+ * optimization capability itself is what that rule governs, and when it is off
+ * the server answers FORBIDDEN, which this screen already handles. Candidates
+ * are an option inside a capability that is on, so the request goes — carrying
+ * the value the contract calls the default.
+ */
+const INCLUDE_CANDIDATES = false;
 
 export function OptimizeSetupScreen() {
   const { locale, t } = useI18n();
@@ -43,7 +71,6 @@ export function OptimizeSetupScreen() {
   // run instead of queuing a second one; cleared whenever the request changes
   // or succeeds, so a genuinely different run gets a genuinely new key.
   const idempotencyKey = useRef<string | null>(null);
-  const [includeCandidates, setIncludeCandidates] = useState(false);
   const [missingTarget, setMissingTarget] = useState(false);
 
   const detail = trip.data?.trip;
@@ -79,7 +106,7 @@ export function OptimizeSetupScreen() {
           targetItemId: selected,
           // What the run is computed against, taken from the trip we loaded.
           inputTripVersion: detail.version,
-          includeCandidates,
+          includeCandidates: INCLUDE_CANDIDATES,
         },
         etag,
         // Reused across retries of this same request. Minting here would give
@@ -225,17 +252,16 @@ export function OptimizeSetupScreen() {
         )}
       </fieldset>
 
-      <label className={styles.toggle}>
-        <input
-          checked={includeCandidates}
-          onChange={(event) => {
-            setIncludeCandidates(event.target.checked);
-            // So is a different candidate setting.
-            idempotencyKey.current = null;
-          }}
-          type="checkbox"
-        />
+      {/* Disabled, not removed — see the header note. `checked` is the
+          constant the request carries, so the box shows the state the server
+          will actually be asked for rather than an empty box beside a label
+          that reads like a choice. The reason is beside it, not a `title`:
+          a disabled input gets no pointer events in most browsers, so a
+          tooltip on it is unreachable by hover and by keyboard alike. */}
+      <label className={styles.toggle} data-disabled>
+        <input checked={INCLUDE_CANDIDATES} disabled readOnly type="checkbox" />
         <span>{t('optimize.includeCandidates')}</span>
+        <span className={styles.badge}>{t('optimize.includeCandidates.comingSoon')}</span>
       </label>
 
       {/* Invariant 3, said plainly. A user pressing this is asking for

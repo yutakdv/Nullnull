@@ -97,11 +97,34 @@
    HIT area was already compliant — but the rendered box was the browser
    default 13x13, which is what a user aims at and what the audit measures.
    Sizing the control makes the thing you can see match the thing you can
-   press. */
+   press.
+
+   The box is `disabled` now (candidates are 준비 중), and responsive.spec's
+   walk skips disabled controls, so this no longer has a gate behind it. It
+   stays because the size is what makes the row legible next to its label, and
+   because the day this option turns on the box becomes pressable again and
+   the floor comes back with it — deleting it would leave that re-enabling
+   edit silently non-compliant. */
 .toggle input[type='checkbox'] {
   flex: none;
   width: 24px;
   height: 24px;
+}
+
+/* Inert, and says why. Matches the disabled scope chips above rather than the
+   profile sign-in row: that one is a <span> because a link would have lied
+   about something the traveller could follow, but this IS a control and will
+   be one again, so it keeps its shape and reads as unavailable. */
+.toggle[data-disabled] {
+  color: var(--color-text-disabled);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.badge {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  line-height: 16px;
 }
 
 .submit {

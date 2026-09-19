@@ -12,7 +12,7 @@
 // disabled `준비 중`이며 요청 0건" — a screen that merely greys the chips while
 // still building a DAY body would look right and break the rule.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -109,6 +109,52 @@ describe('FE-501-T1 only ITEM is offered, and the others send nothing', () => {
     expect(
       await screen.findByText(copy['optimize.scope.comingSoon']),
     ).toBeInTheDocument();
+  });
+
+  // The candidate option is 준비 중: the server refuses includeCandidates=true
+  // unconditionally (CreateOptimizationCommand's compact constructor, ahead of
+  // every capability and state check), so a pressable box here is a control
+  // whose every use is a 422.
+  //
+  // Three clauses, three tests, because each one alone passes for a screen
+  // that is wrong in a different way. "It is disabled" passes if the row is
+  // deleted — and deleting it would put the frame at odds with
+  // FIGMA_HANDOFF's "후보 포함 OFF". "It is present and says 준비 중" passes if
+  // the box is still pressable. And both pass while the request still carries
+  // whatever the box last held.
+  it('still shows the candidate option, and says it is 준비 중', async () => {
+    renderSetup();
+    await screen.findByRole('button', { name: copy['optimize.scope.ITEM'] });
+    expect(screen.getByText(copy['optimize.includeCandidates'])).toBeInTheDocument();
+    expect(
+      screen.getByText(copy['optimize.includeCandidates.comingSoon']),
+    ).toBeInTheDocument();
+  });
+
+  it('disables the candidate option, so there is nothing to press', async () => {
+    renderSetup();
+    await screen.findByRole('button', { name: copy['optimize.scope.ITEM'] });
+    expect(screen.getByRole('checkbox')).toBeDisabled();
+  });
+
+  it('sends includeCandidates false even after a click on the box', async () => {
+    // Clicked rather than merely read, because the failure this guards is a
+    // box that still toggles: `false` in the body proves nothing if nothing
+    // ever tried to make it true. userEvent refuses a disabled control, so
+    // the click goes through fireEvent to reach the element regardless.
+    //
+    // Sent rather than omitted: all three request variants list
+    // includeCandidates in `required` with additionalProperties: false, so a
+    // body without it is invalid against the contract.
+    const user = userEvent.setup();
+    await pickFirstStop(user);
+    fireEvent.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: copy['optimize.submit'] }));
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]?.body).toMatchObject({ includeCandidates: false });
   });
 
   it('sends an ITEM body with the chosen stop, version, ETag and key', async () => {
