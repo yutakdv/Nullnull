@@ -1,7 +1,9 @@
 name: Auto merge green role PRs
 
 on:
-  pull_request:
+  # pull_request_target runs this file as it is on main, so a PR cannot drop the gate below for itself.
+  # The job never checks out or runs the PR's code: it reads the PR's file list and sets auto-merge.
+  pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -19,8 +21,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Merge after required checks pass
+      - name: Merge after required checks pass, unless the PR changes what deploys to AWS
         env:
           GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge "$PR_URL" --auto --merge
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+        run: |
+          set -euo pipefail
+          # Owner decision N2 (2026-09-19): a PR that changes the AWS/CD path is merged by the owner, not here.
+          # A rename counts under both names. The files API lists at most 3,000 files, so a larger PR is gated too.
+          gated='^(\.github/workflows/(staging-[^/]+|auto-merge\.yml)|\.github/actions/.+|infra/.+|scripts/aws/.+)$'
+          files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)')"
+          if [ "$CHANGED_FILES" -gt 3000 ] || grep -Eq "$gated" <<<"$files"; then
+            echo 'auto_merge=skipped reason=aws-cd-path-needs-owner-merge'
+            if [ "$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest != null')" = true ]; then
+              gh pr merge "$PR_URL" --disable-auto
+            fi
+          else
+            gh pr merge "$PR_URL" --auto --merge
+          fi

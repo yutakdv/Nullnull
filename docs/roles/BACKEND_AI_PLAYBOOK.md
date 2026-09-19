@@ -346,7 +346,7 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 ### BA-006
 
-**로컬 Docker와 최소 staging 기반** — P0 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+**로컬 Docker와 최소 staging 기반** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-001](#ba-001), [BA-002](#ba-002), [BA-003](#ba-003), [BA-004](#ba-004)
 - 기능 ID: `NFR-OPS-01`
@@ -357,18 +357,19 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 구현 순서:
 
 1. 로컬 web→API→apps/ai→PostgreSQL hello와 seed를 단일 wrapper에 연결한다
-2. 승인된 계정·비용·domain(A-028·A-029·A-030)에 맞춰 CDK network/data/API/web edge의 최소 staging을 만든다. 계정은 하나이고 role 분리를 두지 않으므로 그 선택을 stack manifest에 근거와 함께 적는다
+2. 승인된 계정·비용·domain(A-028·A-029·A-030)에 맞춰 CDK network/data/API/web edge의 최소 staging을 만든다. 계정/environment는 하나지만 deploy/execution/task/migration IAM role은 최소 권한으로 분리하고 stack manifest에 근거를 적는다
 3. OIDC exact subject와 runtime secret 주입을 검증하고 deployment 역할과 관찰 역할을 나눈다
 4. 09-06 PM 검토 PM-022의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 5. #10 D5의 createDemoSession→issueCsrfToken→getCurrentOwner 실제 hello와 seed를 검증한다
 
-실패·안전 경계: 계정·비용·secret 미확정은 외부 배포 blocker이며 로컬 구현까지 막지 않는다. 실제 설정·배포 완료를 문서만으로 표시하지 않는다.
+실패·안전 경계: account ID/secondary alarm/실제 resource·secret 주입 증거가 없으면 release-ready가 아니다. 실제 설정·배포 완료를 문서와 script만으로 표시하지 않는다.
 
-이 카드의 절반은 끝났고 절반은 시작하지 않았다:
+이 카드의 로컬 절반은 끝났고 staging은 실행 계약까지 진행됐다:
 
 - 완료: 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper. `scripts/integration-test.sh`가 `.nullnull-target-stack` marker를 확인한 뒤 `integration_mode=full-docker`로 실행되고 `compose.integration.yml`의 quality service와 `egress-denied` probe를 포함한다. T1의 internal network·outbound-deny probe는 이 경로에 있다.
-- 미착수: staging 절반. `infra/`가 없고 CDK app, OIDC exact subject, runtime secret 주입이 모두 없다. 따라서 T2(bundle·image layer·log의 secret 부재)와 T3(잘못된 repo/environment subject 거부)는 착수하지 않았다.
-- 상태 원인: **결정이 아니라 순서다.** 막고 있던 D-001·D-017·D-018은 A-030·A-028·A-029로 닫혔다 — placeholder domain에 production deploy 없음, 오너 개인 계정 하나에 role 분리 없음, 월 $150 상한으로 평가 완료까지 약 1개월 운영. **staging 구축(step 2·3)은 오너가 기능 개발 완료 뒤에 직접 하거나 도움을 요청하기로 했다.** step 1은 이미 서 있다. 계정 분리를 두지 않는 것은 안전한 기본값에서 의도적으로 벗어난 선택이므로 stack manifest에 근거를 남긴다(A-028).
+- 진행: [staging 배포 실행 계약](../operations/STAGING_DEPLOYMENT_RUNBOOK.md)이 A-029의 비용/종료일, CloudFront VPC origin/internal ALB, RDS Multi-AZ, OIDC exact subject, runtime size와 script/output 계약을 고정했다. `scripts/aws/`의 manifest/OIDC validator와 plan-first deploy/rollback/migration/smoke/alarm/restore script가 handoff 경계를 만든다.
+- 미착수: `infra/` CDK app과 실제 AWS resource는 없다. account ID와 secondary alarm recipient도 보호 설정에 아직 입력되지 않았다. 따라서 T2/T3와 staging acceptance는 아직 pass가 아니다.
+- 상태 원인: 막고 있던 D-001·D-017·D-018은 A-030·A-028·A-029로 닫혔고 AWS 구현을 시작했으므로 `deferred`에서 `in-progress`로 올렸다. 문서·script 존재를 실제 배포 완료로 세지 않는다.
 
 필수 검증:
 

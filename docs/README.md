@@ -51,7 +51,7 @@ tags:
 | 실행 | [실행 순서](engineering/IMPLEMENTATION_PLAN.md), [BE/AI 작업](roles/BACKEND_AI_PLAYBOOK.md), [FE 실행서](roles/FRONTEND_PLAYBOOK.md), [FE Claude Code 시작 안내](roles/FRONTEND_CLAUDE_CODE_START.md) | 중복 없는 작업 계획 |
 | 개발·검토 | [브랜치·계약 인계](engineering/BRANCH_AND_INTEGRATION.md), [소유권](engineering/OWNERSHIP_MATRIX.md), [로컬 개발](engineering/LOCAL_DEVELOPMENT.md), [테스트](engineering/TEST_STRATEGY.md) | 두 역할 브랜치·CI·DoR/DoD |
 | 보안 | [Privacy](security/PRIVACY_REQUIREMENTS.md), [위협 모델](security/THREAT_MODEL.md), [신고 정책](../SECURITY.md) | 수집 최소화·권한·삭제 |
-| 배포·운영 | [AWS](operations/AWS_DEPLOYMENT.md), [환경](operations/ENVIRONMENT.md), [GitHub/릴리스](operations/GITHUB_RELEASE_OPERATIONS.md), [사고 대응](operations/INCIDENT_RESPONSE.md) | 비용·배포·restore·alarm |
+| 배포·운영 | [AWS](operations/AWS_DEPLOYMENT.md), [staging 실행](operations/STAGING_DEPLOYMENT_RUNBOOK.md), [환경](operations/ENVIRONMENT.md), [GitHub/릴리스](operations/GITHUB_RELEASE_OPERATIONS.md), [사고 대응](operations/INCIDENT_RESPONSE.md) | 비용·배포·restore·alarm |
 | 공모전 | [공식 기준](contest/2026-관광데이터-활용-공모전-공지-심사기준.md), [준수 매트릭스](contest/COMPETITION_COMPLIANCE_MATRIX.md), [증거 원장](contest/EVIDENCE_LEDGER_TEMPLATE.md), [제출 절차](contest/SUBMISSION_RUNBOOK.md) | 실제 기능/호출/출처/접수 증거 |
 | 결정 | [결정·위험·현재 상태](project/DECISIONS_AND_RISKS.md), [통합 ADR](decisions/ARCHITECTURE_DECISIONS.md) | 열린 질문·설계 근거·재검토 trigger |
 | 보관 | [이전 통합 기획안](archive/PRODUCT_BRIEF.md) | 배경 자료, 현재 실행 정본 아님 |

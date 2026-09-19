@@ -11,7 +11,7 @@ tags:
 
 # AWS 배포 아키텍처와 런북
 
-- 상태: Accepted baseline; 실제 계정/도메인/예산 확정 전 값은 placeholder
+- 상태: Accepted baseline; staging 실행값은 확정, production은 placeholder
 - 기본 region: `ap-northeast-2` (서울)
 - IaC: AWS CDK v2 TypeScript
 - 환경: local / staging / production
@@ -19,6 +19,10 @@ tags:
 실제 AWS account ID, domain, GitHub handle, alarm destination은 repository에 기록하지 않고 승인된 parameter store/GitHub environment 설정으로 주입한다. 단, 어떤 account/stack/role이 사용되는지는 release manifest에 비밀값 없이 식별 가능해야 한다.
 
 > 구현 순서: [B00~B10 실행 계획](../engineering/IMPLEMENTATION_PLAN.md)을 따른다. 공통 KTO·장소·forecast·비교·relation은 B03, Live 전용 서울 연동·area/API/탭은 B10 마지막이다. Live 이전 검수는 핵심 흐름의 중간 gate이며 전체 P0 완료가 아니다.
+
+## 0. 2026-09-14 staging 확정 profile
+
+이 문서의 production 일반 원칙보다 [staging 배포 실행 계약](STAGING_DEPLOYMENT_RUNBOOK.md)이 staging에 우선한다. 확정값은 총비용 상한 `$200`, 종료일 `2026-10-25`, CloudFront 기본 domain, CloudFront VPC origin + internal ALB, NAT 없음, ECS api 1/ai 1, RDS PostgreSQL Multi-AZ다. primary alarm destination은 보호 설정으로 확정됐고 secondary와 실제 수신/tabletop은 아직 열려 있다.
 
 ## 1. 목표 구조
 
@@ -99,7 +103,7 @@ Fallback은 internet-facing ALB inbound를 CloudFront managed prefix list로 제
 ### Egress
 
 - production: AZ 장애 격리가 필요하면 AZ별 NAT gateway.
-- staging: 비용 절감을 위해 NAT 1개를 허용하되 production parity 차이를 문서화.
+- staging: NAT를 만들지 않는다. api/ai task를 public subnet에 public IP로 두되 inbound 0건과 SG 간 통신만 허용한다. CloudFront VPC origin의 ALB와 RDS는 private/isolated다.
 - ECR/S3/CloudWatch/Secrets Manager VPC endpoint는 NAT traffic과 비용 측정 뒤 추가.
 - 외부 API는 HTTPS 443만 허용하되 domain 기반 egress 제어가 필요하면 별도 proxy/firewall ADR을 연다.
 
@@ -141,8 +145,8 @@ Fallback은 internet-facing ALB inbound를 CloudFront managed prefix list로 제
 
 ### ECS service
 
-- staging desired count 1, production 최소 2(예산/가용성 승인 후).
-- Fargate task는 private app subnet에 둔다.
+- staging desired count 1, 심사/리허설 창에만 2, production 최소 2(예산/가용성 승인 후).
+- production Fargate task는 private app subnet이 원칙이다. NAT를 쓰지 않는 현재 staging만 public subnet/public IP 예외이며 inbound를 열지 않는다.
 - deployment circuit breaker와 automatic rollback.
 - health check grace period는 실제 startup/migration 시간으로 측정한다.
 - rolling deploy 기본 `minimumHealthyPercent=100`, `maximumPercent=200`.
@@ -185,7 +189,7 @@ RDS encryption은 storage뿐 아니라 logs, automated backups, read replicas, s
 | 환경 | DB | API | 목적 |
 | --- | --- | --- | --- |
 | local | Docker PostgreSQL | local process | 개발 |
-| staging | 작은 Single-AZ RDS | task 1 | 통합/비용 절감 |
+| staging | `db.t4g.micro` Multi-AZ RDS | task 1, 심사 시 2 | 42일 심사 운영 안정성 |
 | production launch | Multi-AZ 권장 | task 2+ | 실제 사용자/공모전 시연 안정성 |
 
 Multi-AZ production 여부는 예상 트래픽이 아니라 허용 downtime과 예산으로 결정한다. Multi-AZ cluster는 자동 backup, encryption, deletion protection 등의 설정을 제공한다. [RDS Multi-AZ 공식 문서](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/create-multi-az-db-cluster.html)
@@ -205,7 +209,7 @@ Multi-AZ production 여부는 예상 트래픽이 아니라 허용 downtime과 �
 - CloudFront certificate는 AWS 요구 region에 두는 CDK stack으로 관리한다.
 - TLS 1.2 이상 policy.
 - WAF managed core rules + known bad inputs + rate-based rule.
-- login/session/import/optimization mutation은 더 낮은 application rate limit을 둔다.
+- login/session/import/optimization mutation의 추가 제한은 edge에서만 둔다. application은 A-025에 따라 P0에서 429를 생산하지 않는다.
 - WAF count mode로 staging 관찰 후 production block으로 전환한다.
 - AWS는 rate-based rule을 request flood의 1차 방어로 설명한다. [AWS WAF rate protection](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-app-layer-web-ACL-and-rbr.html)
 - security headers: HSTS, CSP, Referrer-Policy, X-Content-Type-Options, Permissions-Policy.
@@ -311,9 +315,9 @@ cookie, Authorization, CSRF, raw itinerary, request/response body, exact locatio
 | source quota | 60/80/90% | cache/throttle/기능 축소 |
 | optimization queue | p95 30초 초과 | worker scale/분리 검토 |
 | WAF block spike | baseline 대비 급증 | 공격/오탐 점검 |
-| billing | 월 budget 50/80/100% | resource/cost review |
+| billing | staging 총액 `$200`, actual/forecast 50/75/80/90/97.5/100% | resource/cost review |
 
-Alarm routing은 `warning`, `action`, `critical/security` channel을 분리한다. 실제 수신 채널과 연락처는 AWS/GitHub의 보호된 설정에 두고 repository에는 role key만 기록한다.
+Alarm routing은 `warning`, `action`, `critical/security` channel을 분리한다. 실제 수신 채널과 연락처는 AWS/GitHub의 보호된 설정에 두고 repository에는 role key만 기록한다. staging primary는 확정됐고 secondary는 미정이므로 bootstrap은 가능하지만 release-ready 표시는 금지한다.
 
 | Alarm class | Primary | Secondary/승격 | Ack 목표 | 기본 행동 |
 | --- | --- | --- | --- | --- |
@@ -412,11 +416,13 @@ destroy/diff에 stateful replacement 또는 broad IAM change가 보이면 workfl
 
 ### Staging 비용 guardrail
 
-B01에서 월 staging 비용 상한과 예산 owner를 실제 금액으로 결정 대장에 기록한다. 값이 확정되기 전 staging을 무제한 상시 운영하지 않는다. 그 승인을 받기 위한 최소 구성·소비 모형·닫아야 할 결정은 [최소 staging 착수 계획](STAGING_BRINGUP_PLAN.md)에 모았다.
+B01의 staging 총비용 상한은 `$200`, 종료일은 `2026-10-25`로 확정됐다. 상세 소비 모형과 종료 절차는 [staging 배포 실행 계약](STAGING_DEPLOYMENT_RUNBOOK.md)을 따른다. 과거 승인 요청은 [최소 staging 착수 계획](STAGING_BRINGUP_PLAN.md)에 이력으로 남긴다.
 
-- Budget 50%: 추세 확인과 anomalous resource/tag 누락 점검.
-- Budget 80%: 신규 비용 resource 배포 중지, NAT/log/RDS/ECS 사용 검토.
-- Budget 100%: 공동 승인 없는 scale-up/preview 환경 금지, 핵심 demo 시간을 제외한 schedule-down 검토.
+- Budget 50/75%: 추세 확인과 anomalous resource/tag 누락 점검.
+- Budget 80%(`$160`): 신규 비용 증가 변경 중지, log/RDS/ECS 사용 검토.
+- Budget 90%(`$180`): 심사 기간 밖 API 두 번째 task 제거와 비필수 운영 중지.
+- Budget 97.5%(`$195`): evidence/final snapshot과 비상 종료 판단.
+- Budget 100%: 자동 stateful 삭제는 하지 않고 incident 절차로 전환한다.
 - staging ECS desired count 0/1 schedule은 수집·통합 시간과 충돌하지 않게 명시한다.
 - RDS stop 가능 기간/제약을 확인하고 자동 start로 비용이 재개되는 점을 monitor한다.
 - PR preview 인프라는 기본 생성하지 않는다. 만들면 `Owner`, `Expiry`, max TTL과 cleanup alarm이 필수다.

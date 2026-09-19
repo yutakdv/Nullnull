@@ -1,0 +1,521 @@
+name: Staging release
+
+# Deploy (or roll back) staging from main. Started by hand (workflow_dispatch) or by the reconciler
+# (staging-reconcile.yml) once both required checks passed on exactly this commit.
+#
+#   verify -> web -> build (staging-build) -> plan (staging) -> deploy-app (staging)          app-only
+#                                                            \-> deploy-infra (staging-infra) needs a reviewer
+#
+# deploy-infra takes infra/DB changes and every rollback that would undo more than a release's own images,
+# version and web bundle; the reviewer approves the diff printed in the plan job summary.
+#
+# Build and deploy are separate: images are pushed once under the immutable tag sha-<commit> and every
+# later job consumes digests only. The web bundle is built in a job with no cloud credentials, so npm
+# lifecycle scripts never run beside a role. The plan (synthesized assembly) is approved by hash and
+# executed as-is. Nothing here opens the public API edge; CloudFront keeps /api/* closed except for the
+# verifier token.
+#
+# Re-running: "Re-run failed jobs" reuses the plan and artifacts of the attempt that produced them (their
+# names travel as job outputs). A deploy-infra waiting for its reviewer holds the concurrency group, so
+# later releases queue behind it until it is approved or rejected (GitHub expires it after 30 days).
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: deploy this commit, or roll back to a recorded release
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      expected_sha:
+        description: deploy only - must equal the commit this run checks out (main HEAD at dispatch)
+        type: string
+        required: false
+      rollback_plan_sha256:
+        description: rollback only - plan sha256 of the release to return to (empty = deployed/previous.json)
+        type: string
+        required: false
+      accept_newer_schema:
+        description: rollback only - the older release will run against the newer schema; accept that
+        type: boolean
+        default: false
+
+permissions: {}
+
+# One release at a time; a running migration/deploy is never cancelled. A newer queued run replaces an
+# older queued one (GitHub keeps one pending run per group), which is what "deploy latest main" wants.
+concurrency:
+  group: nullnull-staging-release
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  AWS_CLI_VERSION: 2.34.59
+  AWS_CLI_SHA256: 968f9c7096a8a8de090cbd75cea26ea9791c46c7ef6de3b345668a515b43dd24
+  NODE_VERSION: 24.20.0
+  PYTHON_VERSION: "3.12"
+  NULLNULL_AWS_AUTH: ambient
+  # Approved estimate for one 14-day plan window (infra/cost-basis.md); not a billing reading.
+  ESTIMATED_TOTAL_USD: "80"
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: This commit is main and passed both required checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ inputs.action }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: python3 scripts/aws/ci_reconcile.py verify --action "$ACTION" --sha "$EXPECTED_SHA"
+
+  web:
+    name: web
+    needs: verify
+    if: inputs.action == 'deploy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # No environment, no id-token: dependency lifecycle scripts run here and never beside a cloud role.
+    permissions:
+      contents: read
+    outputs:
+      artifact: ${{ steps.bundle.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Build the web bundle
+        id: bundle
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm --workspace apps/web run build
+          echo "artifact=web-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.bundle.outputs.artifact }}
+          path: apps/web/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: build
+    needs: [verify, web]
+    if: inputs.action == 'deploy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: staging-build
+      deployment: false
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      artifact: ${{ steps.release.outputs.artifact }}
+    env:
+      NULLNULL_EXPECTED_GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Node runs the release-manifest validator only; nothing is installed from npm in this job.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: ./.github/actions/setup-aws-cli
+        with:
+          version: ${{ env.AWS_CLI_VERSION }}
+          sha256: ${{ env.AWS_CLI_SHA256 }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          version: v0.37.1
+          driver: docker
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.STAGING_PUBLISH_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: nullnull-build-${{ github.run_id }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          mask-aws-account-id: true
+          allowed-account-ids: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      - name: Build once, or reuse the image already published for this commit
+        env:
+          ACCOUNT_ID: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          registry="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$registry" >/dev/null
+          tag="sha-${GITHUB_SHA}"
+          for name in api ai; do
+            repo="nullnull-stg-${name}"
+            if digest="$(aws ecr describe-images --repository-name "$repo" --image-ids "imageTag=${tag}" \
+                 --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)"; then
+              echo "reused ${name} ${digest}"
+            else
+              docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+                -f "apps/${name}/Dockerfile" --target runtime --push \
+                --metadata-file "$RUNNER_TEMP/${name}-metadata.json" -t "${registry}/${repo}:${tag}" .
+              digest="$(aws ecr describe-images --repository-name "$repo" --image-ids "imageTag=${tag}" \
+                --query 'imageDetails[0].imageDigest' --output text)"
+              grep -q "\"${digest}\"" "$RUNNER_TEMP/${name}-metadata.json" \
+                || { echo "::error::pushed digest differs from the build metadata"; exit 1; }
+            fi
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::no digest for ${name}"; exit 1; }
+            echo "${name^^}_DIGEST=${digest}" >> "$GITHUB_ENV"
+          done
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.web.outputs.artifact }}
+          # Outside the checkout: the release must still see exactly the committed tree.
+          path: ${{ runner.temp }}/web
+      - name: Release manifest (source must be exactly this commit)
+        id: release
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release"
+          python3 scripts/aws/prepare-release.py --web-dir "$RUNNER_TEMP/web" \
+            --api-image-digest "$API_DIGEST" --ai-image-digest "$AI_DIGEST" \
+            --release-version "v0.1.0-rc.${GITHUB_RUN_NUMBER}" \
+            --build-run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --out "$RUNNER_TEMP/release/release.json"
+          grep -q '"sourceState": "clean"' "$RUNNER_TEMP/release/release.json" \
+            || { echo "::error::release source is not the checked-out commit"; exit 1; }
+          cp -R "$RUNNER_TEMP/web" "$RUNNER_TEMP/release/web"
+          echo "artifact=release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # Digests, checksums and the public web bundle only - no account data.
+          name: ${{ steps.release.outputs.artifact }}
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+          retention-days: 7
+
+  plan:
+    name: plan
+    needs: [verify, build]
+    if: >-
+      always() && needs.verify.result == 'success' &&
+      (needs.build.result == 'success' || (inputs.action == 'rollback' && needs.build.result == 'skipped'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: staging
+      deployment: false
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      kind: ${{ steps.classify.outputs.kind }}
+      skip: ${{ steps.classify.outputs.skip }}
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+      pending_key: ${{ steps.classify.outputs.pending_key }}
+    env:
+      NULLNULL_AWS_ACCOUNT_ID: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      NULLNULL_EXPECTED_GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: ./.github/actions/setup-aws-cli
+        with:
+          version: ${{ env.AWS_CLI_VERSION }}
+          sha256: ${{ env.AWS_CLI_SHA256 }}
+      - name: Pinned CDK toolchain (infra/package-lock.json)
+        run: npm --prefix infra ci --ignore-scripts --no-audit --no-fund
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.STAGING_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: nullnull-plan-${{ github.run_id }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          mask-aws-account-id: true
+          allowed-account-ids: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      - if: inputs.action == 'deploy'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: ${{ runner.temp }}/release
+      - name: Plan (local synthesis of the approved assembly; no AWS writes)
+        id: plan
+        env:
+          ACTION: ${{ inputs.action }}
+          ROLLBACK_PLAN_SHA256: ${{ inputs.rollback_plan_sha256 }}
+          ACCEPT_NEWER_SCHEMA: ${{ inputs.accept_newer_schema }}
+          NULLNULL_VERIFIER_TOKEN: ${{ secrets.STAGING_VERIFIER_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "$ACTION" == deploy ]]; then
+            python3 scripts/aws/staging_operator.py deploy --manifest "$RUNNER_TEMP/release/release.json" \
+              --web-dir "$RUNNER_TEMP/release/web" --estimated-total "$ESTIMATED_TOTAL_USD" \
+              --cost-basis infra/cost-basis.md --days 14 | tee "$RUNNER_TEMP/plan.out"
+          else
+            bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+              --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
+            if [[ -z "$ROLLBACK_PLAN_SHA256" ]]; then
+              aws s3 cp "s3://${bucket}/deployed/previous.json" "$RUNNER_TEMP/previous.json" --only-show-errors
+              ROLLBACK_PLAN_SHA256="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["planSha256"])' "$RUNNER_TEMP/previous.json")"
+            fi
+            [[ "$ROLLBACK_PLAN_SHA256" =~ ^[a-f0-9]{64}$ ]] || { echo "::error::invalid rollback plan sha256"; exit 1; }
+            mkdir -p "$RUNNER_TEMP/previous"
+            aws s3 cp "s3://${bucket}/releases/${ROLLBACK_PLAN_SHA256}/plan.tgz" "$RUNNER_TEMP/previous.tgz" --only-show-errors
+            tar -xzf "$RUNNER_TEMP/previous.tgz" -C "$RUNNER_TEMP/previous"
+            flags=()
+            [[ "$ACCEPT_NEWER_SCHEMA" == true ]] && flags+=(--accept-newer-schema)
+            python3 scripts/aws/staging_operator.py rollback --previous-plan "$RUNNER_TEMP/previous/plan.json" \
+              --previous-plan-sha256 "$ROLLBACK_PLAN_SHA256" "${flags[@]}" | tee "$RUNNER_TEMP/plan.out"
+          fi
+          echo "plan_path=$(sed -n 's/^plan_path=//p' "$RUNNER_TEMP/plan.out")" >> "$GITHUB_OUTPUT"
+          echo "plan_sha256=$(sed -n 's/^approved_plan_sha256=//p' "$RUNNER_TEMP/plan.out")" >> "$GITHUB_OUTPUT"
+      - name: Classify (app path vs reviewed path), print the reviewed diff, stash the plan privately
+        id: classify
+        env:
+          ACTION: ${{ inputs.action }}
+          PLAN_PATH: ${{ steps.plan.outputs.plan_path }}
+          PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
+        run: |
+          set -euo pipefail
+          # Rollbacks are classified too: one that undoes a reviewed template change is reviewed again.
+          python3 scripts/aws/staging_operator.py classify --plan "$PLAN_PATH" \
+            --approved-plan-sha256 "$PLAN_SHA256" | tee "$RUNNER_TEMP/classify.out"
+          kind="$(sed -n 's/^release_kind=//p' "$RUNNER_TEMP/classify.out")"
+          state="$(sed -n 's/^release_state=//p' "$RUNNER_TEMP/classify.out")"
+          [[ "$kind" == app || "$kind" == infra ]] || { echo "::error::classification produced no verdict"; exit 1; }
+          echo "kind=${kind}" >> "$GITHUB_OUTPUT"
+          echo "skip=$([[ "$state" == already-deployed ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+            --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
+          # The assembly names account resources, and artifacts of a public repository are public.
+          key="pending/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/plan.tgz"
+          tar -czf "$RUNNER_TEMP/plan.tgz" -C "$(dirname "$PLAN_PATH")" .
+          aws s3 cp "$RUNNER_TEMP/plan.tgz" "s3://${bucket}/${key}" --only-show-errors
+          echo "pending_key=${key}" >> "$GITHUB_OUTPUT"
+          diff="$(dirname "$PLAN_PATH")/template-diff.txt"
+          lines="$(wc -l < "$diff" | tr -d ' ')"
+          {
+            echo "### Staging release plan"
+            echo "- action: \`${ACTION}\` - kind: \`${kind}\` - state: \`${state}\`"
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- approved plan sha256: \`${PLAN_SHA256}\`"
+            sed -n 's/^infra_reason=/- infra reason: /p' "$RUNNER_TEMP/classify.out"
+            if [[ "$lines" -gt 0 ]]; then
+              # Approving deploy-infra approves exactly this: normalized templates and the migration set,
+              # account ids redacted by the operator (this summary is public).
+              echo ""
+              echo "<details><summary>Reviewed changes (${lines} lines)</summary>"
+              echo ""
+              echo '``````diff'
+              head -n 3000 "$diff"
+              echo '``````'
+              [[ "$lines" -le 3000 ]] || echo "Truncated at 3000 lines; the full diff is template-diff.txt in ${key}."
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-app:
+    name: deploy-app
+    needs: plan
+    if: needs.plan.outputs.kind == 'app' && needs.plan.outputs.skip != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: staging
+      url: ${{ steps.execute.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NULLNULL_AWS_ACCOUNT_ID: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      NULLNULL_EXPECTED_GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: ./.github/actions/setup-aws-cli
+        with:
+          version: ${{ env.AWS_CLI_VERSION }}
+          sha256: ${{ env.AWS_CLI_SHA256 }}
+      - name: Pinned CDK toolchain (infra/package-lock.json)
+        run: npm --prefix infra ci --ignore-scripts --no-audit --no-fund
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.STAGING_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: nullnull-deploy-${{ github.run_id }}
+          role-duration-seconds: 7200
+          role-skip-session-tagging: true
+          mask-aws-account-id: true
+          allowed-account-ids: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      - name: Execute the approved plan (lock, migrate, deploy; edge stays closed)
+        id: execute
+        env:
+          ACTION: ${{ inputs.action }}
+          KIND: ${{ needs.plan.outputs.kind }}
+          PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+          PENDING_KEY: ${{ needs.plan.outputs.pending_key }}
+        run: |
+          set -euo pipefail
+          [[ "$PENDING_KEY" =~ ^pending/[0-9]+-[0-9]+/plan\.tgz$ ]] || { echo "::error::no plan from the plan job"; exit 1; }
+          bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+            --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
+          mkdir -p "$RUNNER_TEMP/plan"
+          aws s3 cp "s3://${bucket}/${PENDING_KEY}" "$RUNNER_TEMP/plan.tgz" --only-show-errors
+          tar -xzf "$RUNNER_TEMP/plan.tgz" -C "$RUNNER_TEMP/plan"
+          # --approved-plan-sha256 re-hashes plan.json; assembly, release and cost basis are re-hashed too.
+          python3 scripts/aws/staging_operator.py "$ACTION" --plan "$RUNNER_TEMP/plan/plan.json" \
+            --approved-plan-sha256 "$PLAN_SHA256" --execute --kind "$KIND"
+          url="$(aws cloudformation describe-stacks --stack-name NullnullStgWebEdge \
+            --query "Stacks[0].Outputs[?OutputKey=='PublicUrl'].OutputValue | [0]" --output text)"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+      - name: Smoke through CloudFront (public API closed, verifier path healthy, private origins)
+        env:
+          NULLNULL_VERIFIER_TOKEN: ${{ secrets.STAGING_VERIFIER_TOKEN }}
+        run: bash scripts/aws/staging-smoke.sh
+      - name: User flows through CloudFront (session, cookie/CSRF/Origin, trips, catalog state; erases its owner)
+        env:
+          NULLNULL_VERIFIER_TOKEN: ${{ secrets.STAGING_VERIFIER_TOKEN }}
+          URL: ${{ steps.execute.outputs.url }}
+        run: node scripts/aws/staging-flows.mjs --url "$URL"
+      - name: Record
+        env:
+          URL: ${{ steps.execute.outputs.url }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+            --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
+          aws s3 cp "s3://${bucket}/deployed/current.json" "$RUNNER_TEMP/current.json" --only-show-errors
+          python3 - "$RUNNER_TEMP/current.json" "$URL" "$ACTION" >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          import json, sys
+          record, url, action = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
+          m = record['releaseManifest']
+          print(f"### Staging {action}: {record['releaseVersion']}")
+          print(f"- url: {url}  (public /api/* closed; verifier token only)")
+          print(f"- commit: `{m['gitSha']}` ({m['sourceState']})")
+          print(f"- api image: `{m['apiImageDigest']}`")
+          print(f"- ai image: `{m['aiImageDigest']}`")
+          print(f"- web bundle: `{m['webArtifactSha256']}`")
+          print(f"- plan sha256: `{record['planSha256']}` - deployed at {record['deployedAt']}")
+          EOF
+
+  deploy-infra:
+    name: deploy-infra
+    needs: plan
+    if: needs.plan.outputs.kind == 'infra' && needs.plan.outputs.skip != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment:
+      # Required reviewer. What is approved is this run: its plan hash, classification and the reviewed
+      # diff are in the plan job summary, and the operator refuses if any live stack changed since.
+      name: staging-infra
+      url: ${{ steps.execute.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NULLNULL_AWS_ACCOUNT_ID: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      NULLNULL_EXPECTED_GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: ./.github/actions/setup-aws-cli
+        with:
+          version: ${{ env.AWS_CLI_VERSION }}
+          sha256: ${{ env.AWS_CLI_SHA256 }}
+      - name: Pinned CDK toolchain (infra/package-lock.json)
+        run: npm --prefix infra ci --ignore-scripts --no-audit --no-fund
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.STAGING_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: nullnull-deploy-${{ github.run_id }}
+          role-duration-seconds: 7200
+          role-skip-session-tagging: true
+          mask-aws-account-id: true
+          allowed-account-ids: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      - name: Execute the approved plan (lock, migrate, deploy; edge stays closed)
+        id: execute
+        env:
+          ACTION: ${{ inputs.action }}
+          KIND: ${{ needs.plan.outputs.kind }}
+          PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+          PENDING_KEY: ${{ needs.plan.outputs.pending_key }}
+        run: |
+          set -euo pipefail
+          [[ "$PENDING_KEY" =~ ^pending/[0-9]+-[0-9]+/plan\.tgz$ ]] || { echo "::error::no plan from the plan job"; exit 1; }
+          bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+            --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
+          mkdir -p "$RUNNER_TEMP/plan"
+          aws s3 cp "s3://${bucket}/${PENDING_KEY}" "$RUNNER_TEMP/plan.tgz" --only-show-errors
+          tar -xzf "$RUNNER_TEMP/plan.tgz" -C "$RUNNER_TEMP/plan"
+          # --approved-plan-sha256 re-hashes plan.json; assembly, release and cost basis are re-hashed too.
+          python3 scripts/aws/staging_operator.py "$ACTION" --plan "$RUNNER_TEMP/plan/plan.json" \
+            --approved-plan-sha256 "$PLAN_SHA256" --execute --kind "$KIND"
+          url="$(aws cloudformation describe-stacks --stack-name NullnullStgWebEdge \
+            --query "Stacks[0].Outputs[?OutputKey=='PublicUrl'].OutputValue | [0]" --output text)"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+      - name: Smoke through CloudFront (public API closed, verifier path healthy, private origins)
+        env:
+          NULLNULL_VERIFIER_TOKEN: ${{ secrets.STAGING_VERIFIER_TOKEN }}
+        run: bash scripts/aws/staging-smoke.sh
+      - name: User flows through CloudFront (session, cookie/CSRF/Origin, trips, catalog state; erases its owner)
+        env:
+          NULLNULL_VERIFIER_TOKEN: ${{ secrets.STAGING_VERIFIER_TOKEN }}
+          URL: ${{ steps.execute.outputs.url }}
+        run: node scripts/aws/staging-flows.mjs --url "$URL"
+      - name: Record
+        env:
+          URL: ${{ steps.execute.outputs.url }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+            --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
+          aws s3 cp "s3://${bucket}/deployed/current.json" "$RUNNER_TEMP/current.json" --only-show-errors
+          python3 - "$RUNNER_TEMP/current.json" "$URL" "$ACTION" >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          import json, sys
+          record, url, action = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
+          m = record['releaseManifest']
+          print(f"### Staging {action}: {record['releaseVersion']}")
+          print(f"- url: {url}  (public /api/* closed; verifier token only)")
+          print(f"- commit: `{m['gitSha']}` ({m['sourceState']})")
+          print(f"- api image: `{m['apiImageDigest']}`")
+          print(f"- ai image: `{m['aiImageDigest']}`")
+          print(f"- web bundle: `{m['webArtifactSha256']}`")
+          print(f"- plan sha256: `{record['planSha256']}` - deployed at {record['deployedAt']}")
+          EOF

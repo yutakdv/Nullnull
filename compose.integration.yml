@@ -119,10 +119,9 @@ services:
     profiles: [quality]
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
-      target: tooling
+      dockerfile: infra/Dockerfile
     working_dir: /workspace
-    command: ["npm", "run", "infra:check"]
+    command: ["node", "scripts/infra-check.mjs"]
     networks:
       - integration-internal
 

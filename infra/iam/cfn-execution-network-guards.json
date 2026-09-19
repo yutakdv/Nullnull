@@ -1,0 +1,155 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "NoRulesOnOtherProjectsSecurityGroups",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:ModifySecurityGroupRules",
+        "ec2:UpdateSecurityGroupRuleDescriptionsIngress",
+        "ec2:UpdateSecurityGroupRuleDescriptionsEgress"
+      ],
+      "Resource": "arn:aws:ec2:*:${Account}:security-group/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoRoutesInOtherProjectsRouteTables",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:CreateRoute",
+        "ec2:ReplaceRoute"
+      ],
+      "Resource": "arn:aws:ec2:*:${Account}:route-table/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoAssociationsWithOtherProjectsSubnets",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:AssociateRouteTable",
+        "ec2:DisassociateRouteTable",
+        "ec2:ReplaceRouteTableAssociation"
+      ],
+      "Resource": [
+        "arn:aws:ec2:*:${Account}:route-table/*",
+        "arn:aws:ec2:*:${Account}:subnet/*"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoGatewaysOnOtherProjectsVpcs",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:AttachInternetGateway",
+        "ec2:DetachInternetGateway"
+      ],
+      "Resource": [
+        "arn:aws:ec2:*:${Account}:internet-gateway/*",
+        "arn:aws:ec2:*:${Account}:vpc/*"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoBuildingInsideOtherProjectsVpcs",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:CreateSubnet",
+        "ec2:CreateRouteTable",
+        "ec2:CreateSecurityGroup",
+        "ec2:CreateNetworkAcl",
+        "ec2:ModifyVpcAttribute",
+        "ec2:AssociateDhcpOptions",
+        "ec2:AssociateVpcCidrBlock",
+        "ec2:DisassociateVpcCidrBlock"
+      ],
+      "Resource": "arn:aws:ec2:*:${Account}:vpc/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoChangingOtherProjectsSubnets",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:ModifySubnetAttribute",
+        "ec2:CreateNetworkInterface"
+      ],
+      "Resource": "arn:aws:ec2:*:${Account}:subnet/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoInstancesSnapshotsOrNetworkBridges",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:RunInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:RebootInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:ModifyInstanceMetadataOptions",
+        "ec2:AssociateIamInstanceProfile",
+        "ec2:ReplaceIamInstanceProfileAssociation",
+        "ec2:GetPasswordData",
+        "ec2:GetConsoleOutput",
+        "ec2:GetConsoleScreenshot",
+        "ec2:CreateVolume",
+        "ec2:AttachVolume",
+        "ec2:DetachVolume",
+        "ec2:ModifyVolume",
+        "ec2:CreateSnapshot",
+        "ec2:CreateSnapshots",
+        "ec2:CopySnapshot",
+        "ec2:ModifySnapshotAttribute",
+        "ec2:CreateImage",
+        "ec2:CopyImage",
+        "ec2:RegisterImage",
+        "ec2:ModifyImageAttribute",
+        "ec2:ExportImage",
+        "ec2:CreateStoreImageTask",
+        "ec2:CreateInstanceExportTask",
+        "ec2:CreateTrafficMirrorSession",
+        "ec2:CreateTrafficMirrorTarget",
+        "ec2:CreateTrafficMirrorFilter",
+        "ec2:ModifyTrafficMirrorSession",
+        "ec2:CreateVpcPeeringConnection",
+        "ec2:AcceptVpcPeeringConnection",
+        "ec2:CreateTransitGatewayVpcAttachment",
+        "ec2:AttachVpnGateway",
+        "ec2:CreateVpnConnection",
+        "ec2:CreateClientVpnEndpoint",
+        "ec2:AssociateAddress",
+        "ec2:CreateFlowLogs",
+        "ec2:CreateVpcEndpoint",
+        "ec2:ModifyVpcEndpoint",
+        "ec2:ModifyVpcEndpointServicePermissions"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

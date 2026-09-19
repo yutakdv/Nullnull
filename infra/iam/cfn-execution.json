@@ -1,0 +1,290 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StackResourceServices",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:*",
+        "ecs:*",
+        "elasticloadbalancing:*",
+        "rds:*",
+        "cloudfront:*",
+        "wafv2:*",
+        "servicediscovery:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudMapPrivateZone",
+      "Effect": "Allow",
+      "Action": [
+        "route53:CreateHostedZone",
+        "route53:GetHostedZone",
+        "route53:DeleteHostedZone",
+        "route53:ListHostedZonesByName",
+        "route53:ChangeResourceRecordSets",
+        "route53:ListResourceRecordSets",
+        "route53:GetChange",
+        "route53:ChangeTagsForResource",
+        "route53:ListTagsForResource",
+        "route53:AssociateVPCWithHostedZone",
+        "route53:DisassociateVPCFromHostedZone",
+        "route53:CreateHealthCheck",
+        "route53:GetHealthCheck",
+        "route53:UpdateHealthCheck",
+        "route53:DeleteHealthCheck"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "NullnullNamedResources",
+      "Effect": "Allow",
+      "Action": [
+        "logs:*",
+        "cloudwatch:*",
+        "sns:*",
+        "dynamodb:*",
+        "ecr:*",
+        "secretsmanager:*",
+        "lambda:*",
+        "s3:*"
+      ],
+      "Resource": [
+        "arn:aws:logs:*:${Account}:log-group:NullnullStg*",
+        "arn:aws:logs:*:${Account}:log-group:NullnullStg*:*",
+        "arn:aws:cloudwatch:*:${Account}:alarm:NullnullStg*",
+        "arn:aws:sns:*:${Account}:NullnullStg*",
+        "arn:aws:dynamodb:*:${Account}:table/nullnull-stg-*",
+        "arn:aws:ecr:*:${Account}:repository/nullnull-stg-*",
+        "arn:aws:secretsmanager:*:${Account}:secret:nullnull-stg/*",
+        "arn:aws:lambda:*:${Account}:function:NullnullStg*",
+        "arn:aws:lambda:*:${Account}:layer:*",
+        "arn:aws:s3:::nullnullstg*",
+        "arn:aws:s3:::nullnullstg*/*"
+      ]
+    },
+    {
+      "Sid": "NoResourceLevelSupport",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "cloudwatch:DescribeAlarms",
+        "secretsmanager:GetRandomPassword",
+        "lambda:GetLayerVersion",
+        "lambda:PublishLayerVersion",
+        "lambda:DeleteLayerVersion",
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LambdaCodeFromCdkAssets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion"
+      ],
+      "Resource": "arn:aws:s3:::cdk-nnstg-assets-${Account}-*/*"
+    },
+    {
+      "Sid": "CdkBootstrapVersion",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
+      "Resource": "arn:aws:ssm:*:${Account}:parameter/cdk-bootstrap/nnstg/*"
+    },
+    {
+      "Sid": "AwsManagedKeysThroughServices",
+      "Effect": "Allow",
+      "Action": [
+        "kms:DescribeKey",
+        "kms:CreateGrant",
+        "kms:Decrypt",
+        "kms:Encrypt",
+        "kms:GenerateDataKey*",
+        "kms:ReEncrypt*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": [
+            "rds.*.amazonaws.com",
+            "secretsmanager.*.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "NullnullRolesWithoutPrivilegeChange",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRoleTags",
+        "iam:DeleteRole",
+        "iam:DeleteRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateRole",
+        "iam:UpdateRoleDescription",
+        "iam:UpdateAssumeRolePolicy"
+      ],
+      "Resource": [
+        "arn:aws:iam::${Account}:role/NullnullStg*",
+        "arn:aws:iam::${Account}:role/nullnull-stg-github-*"
+      ]
+    },
+    {
+      "Sid": "PassRolesOnlyToTheirServices",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::${Account}:role/NullnullStg*",
+        "arn:aws:iam::${Account}:role/nullnull-stg-github-*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "ecs-tasks.amazonaws.com",
+            "lambda.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "RolesOnlyInsideTheBoundary",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:PutRolePolicy",
+        "iam:AttachRolePolicy",
+        "iam:PutRolePermissionsBoundary"
+      ],
+      "Resource": [
+        "arn:aws:iam::${Account}:role/NullnullStg*",
+        "arn:aws:iam::${Account}:role/nullnull-stg-github-*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::${Account}:policy/NullnullStgRoleBoundary"
+        }
+      }
+    },
+    {
+      "Sid": "ServiceLinkedRolesForStackServices",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": [
+            "ecs.amazonaws.com",
+            "elasticloadbalancing.amazonaws.com",
+            "rds.amazonaws.com",
+            "vpcorigin.cloudfront.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "OnlyTheLambdaBasicManagedPolicy",
+      "Effect": "Deny",
+      "Action": "iam:AttachRolePolicy",
+      "Resource": "*",
+      "Condition": {
+        "ArnNotEquals": {
+          "iam:PolicyARN": "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        }
+      }
+    },
+    {
+      "Sid": "NoIdentityPolicyOrAccountChanges",
+      "Effect": "Deny",
+      "Action": [
+        "iam:*User*",
+        "iam:*AccessKey*",
+        "iam:*Group*",
+        "iam:*LoginProfile*",
+        "iam:*MFADevice*",
+        "iam:*OpenIDConnectProvider*",
+        "iam:*SAMLProvider*",
+        "iam:*AccountAlias*",
+        "iam:*PasswordPolicy*",
+        "iam:CreatePolicy*",
+        "iam:DeletePolicy*",
+        "iam:SetDefaultPolicyVersion",
+        "iam:DeleteRolePermissionsBoundary",
+        "organizations:*",
+        "account:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OnlyTheStagingRegions",
+      "Effect": "Deny",
+      "Action": "*",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:RequestedRegion": [
+            "ap-northeast-2",
+            "us-east-1"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "NoDestroyingOtherProjects",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:Delete*",
+        "ec2:Terminate*",
+        "rds:Delete*",
+        "rds:Stop*",
+        "elasticloadbalancing:Delete*",
+        "ecs:Delete*",
+        "ecs:UpdateService",
+        "wafv2:Delete*",
+        "cloudfront:DeleteDistribution",
+        "cloudfront:DeleteVpcOrigin",
+        "servicediscovery:Delete*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        }
+      }
+    },
+    {
+      "Sid": "NoRetaggingOtherProjectsEc2",
+      "Effect": "Deny",
+      "Action": "ec2:CreateTags",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceTag/Project": "Nullnull"
+        },
+        "Null": {
+          "ec2:CreateAction": "true"
+        }
+      }
+    },
+    {
+      "Sid": "OnlyNullnullCloudFrontFunctions",
+      "Effect": "Deny",
+      "Action": [
+        "cloudfront:UpdateFunction",
+        "cloudfront:DeleteFunction",
+        "cloudfront:PublishFunction"
+      ],
+      "NotResource": "arn:aws:cloudfront::${Account}:function/nullnull-stg-*"
+    }
+  ]
+}
