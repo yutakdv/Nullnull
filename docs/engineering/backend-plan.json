@@ -2097,9 +2097,17 @@
         {
           "id": "BA-053-T11",
           "assertion": "REVERT는 기록된 일정 변경만 되돌리고 후보의 ACTIVE·DISMISSED 상태를 바꾸지 않는다"
+        },
+        {
+          "id": "BA-053-T12",
+          "assertion": "APPLY와 REVERT가 기록된 trip의 deleteTrip은 500이 아니라 204다"
+        },
+        {
+          "id": "BA-053-T13",
+          "assertion": "다른 trip의 revision을 가리키는 run이 있으면 그 revision이 속한 trip의 삭제가 거절된다"
         }
       ],
-      "handoff": "undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag.",
+      "handoff": "undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag. **staging rc.6에서 나온 결함(V036):** 최적화 이력이 있는 trip의 `DELETE /trips/{tripId}`가 500이었다. `trips` 삭제가 `trip_revisions`로 cascade하는데 `optimization_decisions.before_revision_id`·`after_revision_id`와 `optimization_runs.input_revision_id` 셋이 그 revision을 ON DELETE 없이 가리켰고, PostgreSQL이 revision 삭제의 NO ACTION 검사를 decision·run cascade보다 먼저 돌려 statement 전체가 실패했다(`update or delete on table \"trip_revisions\" violates foreign key constraint \"optimization_decisions_before_revision_id_fkey\"`). KEEP만 있는 run은 revision id를 저장하지 않아 무사했고(V030 shape CHECK), `T3`의 cascade 단언이 초록이던 것도 그 run에 결정이 없었기 때문이다 — **절은 맞았고 fixture가 그 경우를 만들지 않았다.** V036은 셋을 `DEFERRABLE INITIALLY DEFERRED`로 바꾼다 — 검사를 COMMIT으로 미루면 trip 전체 삭제는 그때 참조 행이 이미 cascade로 사라진 뒤라 통과한다. **CASCADE가 아닌 이유는 측정이다:** schema에는 run의 revision이 그 run의 trip 것이라는 제약이 없어서, CASCADE면 어긋난 행 하나가 \"B trip 삭제가 A trip의 run·proposal·decision을 지운다\"가 된다(Codex 적대적 검토 지적). 지금은 그 경우가 fail-closed이고 그대로 둬야 한다. `T13`이 그 차이를 고정한다 — CASCADE로 바꾸면 `T12`는 초록인 채 `T13`만 빨갛다(측정함). SET NULL은 shape CHECK가 APPLY·REVERT에 두 id를 요구하므로 애초에 불가다. 카탈로그를 전수 조회해 trip 삭제를 막을 수 있는 FK가 이 셋뿐임을 확인했다. **계정 삭제는 깨지지 않았는데 그 이유가 이름 순서였다** — `DeleteOwnerDataHandler`가 eraser를 이름순으로 돌아 `optimization-runs`가 `trip-owned-aggregates`보다 먼저 지운다. 양방향 측정: V036 없이 그 eraser를 뒤로 밀면 삭제 job이 실패하고, V036이 있으면 같은 rename이 무해하다. `OwnerDataErasureIT`에 applied run 행을 심어 그 자리를 고정했다(BA-012-T2 절 안, 새 ID 없음).",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-053"
