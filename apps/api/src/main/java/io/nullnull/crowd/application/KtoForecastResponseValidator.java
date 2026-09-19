@@ -27,7 +27,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class KtoForecastResponseValidator {
 
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final ZoneId SEOUL = ForecastDays.ZONE;
     private static final DateTimeFormatter KTO_DATE = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int MAX_FORECAST_DAYS = 30;
     private static final int MAX_RECORDS = 31;
@@ -108,7 +108,7 @@ public final class KtoForecastResponseValidator {
                 if (targetDate.isBefore(firstAllowed) || targetDate.isAfter(lastAllowed)) {
                     return rejected(ProviderResponseValidator.Outcome.RANGE, items.size());
                 }
-                Instant targetAt = targetDate.atStartOfDay(SEOUL).toInstant();
+                Instant targetAt = ForecastDays.startOf(targetDate);
                 if (!targets.add(targetAt)) {
                     return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, items.size());
                 }

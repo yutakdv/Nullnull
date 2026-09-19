@@ -1,11 +1,11 @@
 package io.nullnull.optimization.application;
 
 import io.nullnull.crowd.application.CrowdForecastQuery;
+import io.nullnull.crowd.application.ForecastDays;
 import io.nullnull.crowd.application.CrowdProvenanceProjection;
 import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p><strong>Day resolution, and that is measured rather than chosen.</strong> The one forecast
  * source P0 has stores a point per date at Seoul midnight ({@code KtoForecastResponseValidator}
- * builds {@code targetDate.atStartOfDay(SEOUL)}), so there is no hour-level evidence to compare and
- * no honest way to propose a time. Candidates therefore carry a date and no time, which
+ * builds {@code ForecastDays.startOf(targetDate)}), so there is no hour-level evidence to compare and
+ * no honest way to propose a time. Which date a point is for is read the same way, in the source's
+ * zone and never the trip's ({@link ForecastDays}). Candidates therefore carry a date and no time, which
  * {@code TemporalCandidateIn} maps to {@code DAY}. An hour-resolution source would change this, and
  * would change it here rather than anywhere downstream.
  *
@@ -65,11 +66,11 @@ public class TemporalCandidateAssembler {
      */
     @Transactional(readOnly = true)
     public Candidates candidatesFor(List<UUID> frozenSetIds, UUID placeId, LocalDate currentDate,
-            LocalDate tripStart, LocalDate tripEnd, ZoneId zone, Instant now) {
+            LocalDate tripStart, LocalDate tripEnd, Instant now) {
         Objects.requireNonNull(placeId, "placeId");
         Objects.requireNonNull(currentDate, "currentDate");
-        Instant from = tripStart.atStartOfDay(zone).toInstant();
-        Instant to = tripEnd.plusDays(1).atStartOfDay(zone).toInstant();
+        Instant from = ForecastDays.startOf(tripStart);
+        Instant to = ForecastDays.endOf(tripEnd);
 
         // Fresh only. A stale forecast is readable elsewhere with its freshness shown to a human, but
         // a proposal is an instruction to change a plan, and a stale measurement is not evidence for
@@ -79,9 +80,8 @@ public class TemporalCandidateAssembler {
             return Candidates.none();
         }
         List<CrowdForecastQuery.Snapshot> snapshots = found.get().snapshots();
-        Instant currentTarget = currentDate.atStartOfDay(zone).toInstant();
         Optional<CrowdForecastQuery.Snapshot> before = snapshots.stream()
-                .filter(snapshot -> snapshot.targetAt().equals(currentTarget))
+                .filter(snapshot -> ForecastDays.dayOf(snapshot).equals(currentDate))
                 .findFirst();
         if (before.isEmpty()) {
             return Candidates.none();
@@ -90,14 +90,14 @@ public class TemporalCandidateAssembler {
         List<TemporalCandidateIn> candidates = new ArrayList<>();
         java.util.Set<UUID> pinned = new java.util.LinkedHashSet<>();
         for (CrowdForecastQuery.Snapshot after : snapshots) {
-            if (after.targetAt().equals(currentTarget)) {
+            LocalDate date = ForecastDays.dayOf(after);
+            if (date.equals(currentDate)) {
                 continue;
             }
-            LocalDate date = LocalDate.ofInstant(after.targetAt(), zone);
             if (date.isBefore(tripStart) || date.isAfter(tripEnd)) {
-                // The set is asked for by window, but a window in instants and a trip in local dates
-                // do not have the same edges. Filtering by the date the traveller would see keeps a
-                // candidate from appearing on a day the trip does not contain.
+                // The set is asked for by the same KST dates, so a point outside them is not expected
+                // from the query; the trip's own date range is still the rule a candidate must meet,
+                // and it is stated here rather than left to the query's bound.
                 continue;
             }
             CrowdProvenanceProjection.PairVerdict verdict =
