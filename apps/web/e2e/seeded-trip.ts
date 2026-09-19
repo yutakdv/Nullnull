@@ -13,7 +13,17 @@ import type { Page } from '@playwright/test';
 // seed did not run, createTrip answers 4xx and this throws with the status, rather than the
 // screen failing later as "We can't find that trip".
 
-/** The first day holds 경복궁 then 인사동; 인사동 carries a MUST_VISIT lock. */
+/**
+ * The first day holds 경복궁 then 인사동; 경복궁 carries a DATE lock and 인사동 a MUST_VISIT one.
+ *
+ * The DATE lock is what makes a day change a question rather than a move
+ * (`reorder.ts` `moveBlock` returns 'date-lock' for DATE and nothing else), so
+ * the focus-restore test needs it to reach a confirm at all. It is sent here
+ * because the server does NOT attach it: TripService only turns a candidate's
+ * MUST_VISIT into a lock, and these items come from seedItems, not candidates.
+ * The msw fixture (trip-detail-scheduled.json) does carry DATE on 경복궁, which
+ * is why this test passed locally while the gate never saw a confirm at all.
+ */
 export const FIRST_ITEM = '경복궁';
 
 const GYEONGBOKGUNG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01';
@@ -63,7 +73,16 @@ export async function createSeededTrip(page: Page): Promise<string> {
           planningLevel: 'MUST_VISIT_ONLY',
           interests: [],
           seedItems: [
-            { placeId: first, date: startDate, position: 0 },
+            {
+              placeId: first,
+              date: startDate,
+              position: 0,
+              // DATE carries its own date: V014's typed check requires it, and
+              // the contract makes it required on SetDateConstraintInput.
+              // BA-030-T2 sends this same shape through seedItems against a
+              // real PostgreSQL, so the server is known to accept and store it.
+              constraints: [{ type: 'DATE', locked: true, date: startDate }],
+            },
             {
               placeId: second,
               date: startDate,
