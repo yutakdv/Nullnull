@@ -1,10 +1,33 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { overflow } from './overflow.js';
 import { SCREENS } from './screens.js';
 
 const composedStack = Boolean(
   process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL,
 );
+
+function requireLocalOptimizationRun(screenName: string) {
+  if (screenName === 'optimization run') {
+    test.skip(
+      composedStack,
+      'the composed stack keeps optimization off, so it cannot prove FE-503-T3',
+    );
+  }
+}
+
+async function expectOptimizationRunContent(page: Page, screenName: string) {
+  if (screenName !== 'optimization run') return;
+
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: /대안을 확인해 주세요|Review the alternatives/,
+    }),
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.getByRole('group', { name: /최적화 결정|Optimization decision/ }),
+  ).toBeVisible();
+}
 
 // FE-601: every built P0 screen must survive 360px, 200% zoom and long copy.
 //
@@ -34,9 +57,12 @@ const composedStack = Boolean(
 // (AGENTS.md registration rule 3).
 test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
-    test(`${screen.name} fits`, async ({ page }) => {
+    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T3 ' : '';
+    test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
+      requireLocalOptimizationRun(screen.name);
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
+      await expectOptimizationRunContent(page, screen.name);
       const result = await overflow(page);
       expect(result.spilling, `${screen.name} has content past the viewport`).toEqual([]);
       expect(result.clipped, `${screen.name} clips text`).toEqual([]);
@@ -49,9 +75,14 @@ test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed wi
 test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () => {
   test.use({ viewport: { width: 180, height: 500 } });
   for (const screen of SCREENS) {
-    test(`${screen.name} reflows instead of scrolling sideways`, async ({ page }) => {
+    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T3 ' : '';
+    test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
+      page,
+    }) => {
+      requireLocalOptimizationRun(screen.name);
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
+      await expectOptimizationRunContent(page, screen.name);
       const result = await overflow(page);
       // WCAG 1.4.10: content reflows rather than requiring two-axis scrolling.
       //
@@ -114,9 +145,14 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // saved-places screen are each measured rather than stood in for.
 test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
-    test(`BA-070-T5 ${screen.name} puts focus on something visible`, async ({ page }) => {
+    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T3 ' : '';
+    test(`${acceptanceId}BA-070-T5 ${screen.name} puts focus on something visible`, async ({
+      page,
+    }) => {
+      requireLocalOptimizationRun(screen.name);
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
+      await expectOptimizationRunContent(page, screen.name);
 
       // EIGHT presses, not one. One press only ever measured each screen's
       // first stop, and the defect this exists to catch was on the SECOND:
