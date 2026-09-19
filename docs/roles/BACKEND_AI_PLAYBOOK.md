@@ -1823,7 +1823,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: 목표 수치를 측정 결과로 기록하지 않는다. CI noisy runner의 부하 결과와 staging SLO를 분리하고 중요 안전 suite 실패는 성능과 관계없이 차단한다. 그래서 `T3`는 **시간을 재지 않는다** — 이 칸이 금지하는 것이 정확히 그것이다. CI가 정직하게 잴 수 있는 것은 구조이고(`JobConnectionBudget`이 선례다), p95는 staging의 질문이다.
 
-`T5`는 **소유자가 FE다.** 범위는 여행 생성 완주까지로 좁혔다(#233): 후보 저장과 최적화의 키보드 흐름은 이 카드 밖이며 제출 뒤 후속으로 남긴다. 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어온다. #276으로 tab bar 순회·Enter 이동·Escape·wizard 단계 안내가 잡혔지만 셋이 아직 없다: focus ring을 여러 Tab에 걸쳐 확인하기, Escape test의 sheet를 키보드로 열기, 여행 생성을 키보드만으로 완주하기. **그래서 아직 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). 셋이 게이트 JUnit에 잡히면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`는 그렇게 복원됐다.
+`T5`는 **소유자가 FE다.** 범위는 여행 생성 완주까지로 좁혔다(#233): 후보 저장과 최적화의 키보드 흐름은 이 카드 밖이며 제출 뒤 후속으로 남긴다. 집계기(`check_test_reports.py`)는 JUnit testcase 이름만 보고 Playwright report는 #233부터 `--e2e-junit-dir`로 들어온다. #282의 `keyboard-flow.spec.ts`로 tab bar 순회·Enter 이동, 키보드로 연 sheet의 Escape, 여행 생성 키보드 완주가 `BA-070-T5` 이름으로 게이트 JUnit에 잡혔다(PR run 35427648983, 7건 통과). **남은 절은 하나다: focus ring이 여러 Tab에 걸쳐 보인다.** `BA-070-T5` 이름의 focus test는 Tab을 한 번만 누르고 outline·shadow가 *있는지*만 보므로 이 절을 재지 않는다. 여러 Tab과 쉴 때 스타일 대조로 이 절을 재는 test는 `responsive.spec.ts`에 있지만 FE ID만 달고 있다(규칙 3의 거울상: 증명은 있고 이 카드의 ID가 없다). **그래서 아직 이 카드의 `integration-ready` 조건에서 제외한다** — FE plan으로 옮기는 것은 답이 아니다(`validate_frontend_plan.py`는 report를 열지 않아 "집계기가 못 보는 ID"가 "아무것도 검증하지 않는 ID"가 된다). 그 절을 재는 testcase가 `BA-070-T5` 이름으로 게이트 JUnit에 잡히면 조건으로 복원한다. [BA-040](#ba-040)의 `T4`는 그렇게 복원됐다.
 
 필수 검증:
 
