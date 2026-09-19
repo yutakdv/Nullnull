@@ -213,7 +213,7 @@ Frontend 실행 ID: `FE-601`, `FE-602`, `FE-603`, `FE-604`
 - [BA-087 · 개인화 계측·학습·평가·실험](../roles/BACKEND_AI_PLAYBOOK.md#ba-087) — P2
 - [BA-088 · worker·추천/예측 service 분리](../roles/BACKEND_AI_PLAYBOOK.md#ba-088) — P2
 
-Frontend 실행 ID: `FE-P1-101`, `FE-P1-103`, `FE-P1-104`, `FE-P1-105`, `FE-P1-106`
+Frontend 실행 ID: `FE-308`, `FE-P1-101`, `FE-P1-103`, `FE-P1-104`, `FE-P1-105`, `FE-P1-106`
 
 완료 증거: 선정 기능의 계약/ON·OFF CI·privacy·rollback.
 
@@ -267,7 +267,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-302` | B05 | S07-2 edit buffer, dirty-exit, save/conflict recovery | `411:1837`, `413:2020` |
 | `FE-303` | B05 | S07-8 후보 panel과 일정화 flow | `412:1912` |
 | `FE-304` | B05 | lock control, unlock/date-lock confirm | `413:2081`, `527:3876` |
-| `FE-305` | B05 | 검색/추가/교체/날짜·시간 이동 variant | `527:4085`, `414:2347`, `527:4537`, `476:3409`, `479:3497`, `479:3816`, `527:4380`, `521:3976`, `527:4695` |
+| `FE-305` | B05 | 검색/추가/교체/날짜 이동 variant | `527:4085`, `414:2347`, `527:4537`, `476:3409`, `479:3497`, `479:3816`, `527:4380`, `521:3976`, `527:4695` |
 | `FE-306` | B05 | 날짜 범위 변경 시 영향 preview/cancel/명시 처리 | 미지정 · S07 편집 흐름 |
 | `FE-307` | B05 | item 편집 시트에서 잠금 종류별 독립 설정 | `411:1837` |
 | `FE-501` | B06 | S09-0 scope/item setup, 미지원 P1 state | `415:2268` |
@@ -282,6 +282,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-603` | B08 | 공모전 준수 REQUIRED 행을 기계가 지키게 한다 (위치 0건·출처 coverage·이미지·TourAPI 단독 표기) | 전 P0 화면 |
 | `FE-604` | B08 | 배포 URL이 필요한 제출 준수 행 — staging이 서기 전까지 blocked | 전 P0 화면 |
 | `FE-P1-101` | B09 | S12 알림 목록/empty/unread/read-all/allowlisted deep link | `442:3344` |
+| `FE-308` | B09 | FCR-017 확정 뒤 시간/duration 편집 | 미지정 · FCR-017 |
 | `FE-P1-103` | B09 | 독립 검색 route/filter/recent-search privacy | 미지정 · P1 seed |
 | `FE-P1-104` | B09 | 게시물 작성/media/moderation 상태 | 미지정 · P1 seed |
 | `FE-P1-105` | B09 | S02-6 AI draft와 S09-D1 DAY preview capability | `440:3244`, `439:3104` |
