@@ -105,7 +105,7 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // The reduced-motion clause is FE-104-T4 / FE-203-T4, still unproven.
 test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
-    test(`${screen.name} puts focus on something visible`, async ({ page }) => {
+    test(`BA-070-T5 ${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
 
