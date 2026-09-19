@@ -324,9 +324,16 @@ describe('FE-301-T3 the screen is reachable and named', () => {
 // CMP-ATT-001 on the trip screen, which is submission screenshot #2.
 //
 // The screen already renders the credit. What was missing is any test that
-// enters that branch: all six trip fixtures carry no sourceAttribution at all,
-// so `item.place.sourceAttribution ? ... : null` short-circuits on the first
+// enters that branch: no trip fixture carried sourceAttribution, so
+// `item.place.sourceAttribution ? ... : null` short-circuited on the first
 // operand in every run and the render could be deleted with the suite green.
+//
+// #281 changed the input, not this test. Of the six trip-*.json fixtures, the
+// two that hold items (scheduled, reservation) now carry the KTO credit on
+// every place; the other four (created, interests, page, page-empty) have no
+// items at all, so they hold no place to attribute and are not evidence either
+// way. The override below stays because it pins the exact credit this case
+// asserts rather than inheriting whatever the shared fixture happens to say.
 // That is the same shape as the thumbnailUrl:null trap — the guard's own
 // comment says the real server populates the field, which is exactly why the
 // fixture's silence is not evidence of anything.

@@ -5,6 +5,7 @@
 // an inline object is a hand-written model with nothing checking it.
 import {
   candidateFixtures,
+  crowdFixtures,
   feedFixtures,
   postFixtures,
   relatedFixtures,
@@ -12,6 +13,7 @@ import {
   placeFixtures,
   problemFixtures,
   sessionFixtures,
+  tripDraftFixtures,
   tripFixtures,
 } from '@nullnull/contracts';
 import { http, HttpResponse } from 'msw';
@@ -623,6 +625,30 @@ export const handlers = [
   // path could ever be exercised against a fresh run.
   http.get(`${API_BASE}/optimizations/:runId`, ({ params }) => {
     const runId = String(params.runId);
+    // The run the HISTORY names, served from the fixture that already is it.
+    //
+    // `history-page.json`'s APPLY row and `run-applied.json` carry the same id
+    // — the two fixtures were written to point at each other — but this
+    // handler answered NOT_FOUND to everything except its own MOCK_RUN_ID, so
+    // the pair never met. The cost was invisible and total: TripAppliedPanel
+    // reads the history, asks for that run, got a 404, and returned null, so
+    // the undo panel NEVER rendered in the browser. Measured, not reasoned —
+    // `section[data-state]` was 0 on the trip screen and the network showed
+    // `404 /optimizations/018f4a20-…b101`.
+    //
+    // Fixing it on the fixture side is not available: `history-page.json` is
+    // pinned byte-for-byte to the contract's listOptimizationHistory example
+    // (check-examples.mjs), so changing its ids would mean changing
+    // openapi.yaml. The mock is what was wrong, so the mock is what moves.
+    //
+    // Served before the state machine below rather than inside it: this run is
+    // already decided, and the QUEUED→RUNNING→READY poll counter describes a
+    // run being watched, which an applied one is not.
+    if (runId === optimizationFixtures.runApplied.id) {
+      return HttpResponse.json(optimizationFixtures.runApplied, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
+    }
     if (runId !== MOCK_RUN_ID) return problemResponse('NOT_FOUND');
     const seen = (runPolls.get(runId) ?? 0) + 1;
     runPolls.set(runId, seen);
@@ -924,6 +950,50 @@ export const handlers = [
     };
     return new HttpResponse(null, { status: 204 });
   }),
+  // getPlaceCrowdForecast (BA-023, #105). One place x one date range, which is
+  // what the two sheets and the confirm step already hold — the batch
+  // operation those screens will want for a LIST of cards
+  // (POST /places/crowd-forecasts:query) is not in the contract yet, so this
+  // covers the single-place reads that are possible today.
+  //
+  // All three fixtures are wired, not just the forecast: STALE and UNAVAILABLE
+  // are half of what #105 has to answer, and a mock that only ever serves the
+  // happy series lets a screen ship having never rendered the other two. They
+  // share one placeId, so the variant is chosen by a query flag rather than by
+  // id — `?mock=stale` / `?mock=unavailable`, default forecast.
+  //
+  // Read-only: no entry in resetMockState, because nothing here is state. A
+  // handler that remembered which variant it last served would leak that
+  // choice into the next test in the file.
+  http.get(`${API_BASE}/places/:placeId/crowd-forecast`, ({ request }) => {
+    const mock = new URL(request.url).searchParams.get('mock');
+    const series =
+      mock === 'stale'
+        ? crowdFixtures.seriesStale
+        : mock === 'unavailable'
+          ? crowdFixtures.seriesUnavailable
+          : crowdFixtures.seriesForecast;
+    return HttpResponse.json(series, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }),
+
+  // previewTripDraft (BA-055, FR-TRC-10). A read-only POST like searchPlaces:
+  // it saves nothing, so there is no state and no Idempotency-Key.
+  //
+  // EMPTY is an answer, not an outage — the contract is explicit that an
+  // outage is a 503 — so it is reachable rather than left untestable behind an
+  // error path. Selected by `?mock=empty`, not by the request body: both
+  // fixtures cover the SAME two dates (2026-10-04/05), so no start date or
+  // range tells them apart. Keying off the body would have meant a selector
+  // that silently always returns `ready`.
+  http.post(`${API_BASE}/trip-drafts/preview`, ({ request }) => {
+    const empty = new URL(request.url).searchParams.get('mock') === 'empty';
+    return HttpResponse.json(empty ? tripDraftFixtures.empty : tripDraftFixtures.ready, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }),
+
   // MOCK DATA (FE-305). listRelatedPlaces has no approved example (BA-042).
   // Every row's crowd is null: CrowdMetric needs a 29-field DataProvenance and
   // the replace rules read comparisonEligible off it, so a synthesised one

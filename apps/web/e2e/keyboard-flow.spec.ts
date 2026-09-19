@@ -11,11 +11,12 @@ import { createSeededTrip, FIRST_ITEM } from './seeded-trip.js';
 // editing (#233).
 //
 // The ids are in the test titles on purpose: that is the string the aggregator
-// reads out of the JUnit report. Wiring integration-test.sh to pass
-// --e2e-junit-dir is BE's half and is not done yet, so these ids are not
-// collected today — the specs still run inside docker-integration and fail the
-// gate on a regression, and the day that flag lands the two cards can promote
-// without anyone writing a test under time pressure.
+// reads out of the JUnit report. That wiring has landed (#233):
+// playwright.config.ts writes JUnit in CI, compose.integration.yml exports the
+// directory, and integration-test.sh passes --e2e-junit-dir with the
+// aggregation step moved after E2E so the report exists when it is read.
+// So an id in a title here is collected, and a title that names a clause it
+// does not prove now claims that clause in the card ledger.
 //
 // What these prove that the unit tests cannot: MoveDaySheet, ReplaceSheet and
 // ConfirmDialog each hold a `restoreTo` ref and focus it on close, and that
@@ -114,9 +115,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     await expect(page.getByText(/Moved .* to position/)).toBeVisible();
   });
 
-  test('BA-040-T4 the move sheet traps focus and returns it to the trigger', async ({
-    page,
-  }) => {
+  test('BA-040-T4 the move sheet traps focus', async ({ page }) => {
     const trigger = page.getByRole('button', {
       name: `Move ${FIRST_ITEM} to another day`,
     });
@@ -414,7 +413,14 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     await expect(page).not.toHaveURL(/\/feed$/);
   });
 
-  test('BA-070-T5 focus is always visible where it lands', async ({ page }) => {
+  // NOT BA-070-T5. That clause is "the ring stays visible across repeated
+  // Tab presses", and this presses once. Worse, `boxShadow !== 'none'` passes
+  // on a decorative shadow the control carries at rest, so this cannot fail
+  // for the reason the clause cares about. The id now sits on
+  // responsive.spec.ts's "puts focus on something visible", which presses
+  // eight times and compares each stop against its OWN resting style.
+  // Kept because a first stop with no indicator at all is still worth failing.
+  test('the feed gives its first stop a visible focus ring', async ({ page }) => {
     // A focused control with no visible indicator is a trap: the user is
     // somewhere but cannot see where. Checked on the feed because it is the
     // screenshot-1 screen and the densest.

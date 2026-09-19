@@ -43,7 +43,7 @@ export {
   optimizationQueryKey,
   useOptimization,
   useOptimizationHistory,
-  useLatestTripOptimization,
+  useTripOptimizationHistory,
   useRevertOptimizationDecision,
   usePlaceSearch,
   usePost,

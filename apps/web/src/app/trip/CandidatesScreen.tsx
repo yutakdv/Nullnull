@@ -16,6 +16,7 @@ import {
   NavBar,
   PlaceThumbnail,
 } from '../../shared/ui/components/index.js';
+import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import styles from './CandidatesScreen.module.css';
 import { isScheduled, nextPosition, visibleCandidates } from './candidates.js';
 import { ScheduleCandidateSheet } from './ScheduleCandidateSheet.js';
@@ -232,7 +233,20 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
           // Queued so it runs after React has re-rendered the scheduled
           // state; focusing during the same tick would target the node that
           // is about to be replaced.
-          setTimeout(() => afterScheduleRef.current?.focus(), 0);
+          //
+          // NOT A DEFECT TODAY, unlike MoveDaySheet's restore: this is the
+          // same guard for a case nothing currently reaches. The target is the
+          // Remove button, which is `disabled={remove.isPending}` (below), and
+          // a removal cannot be in flight at the moment a schedule succeeds —
+          // so the bare `.focus()` this replaces did land. It carried no guard
+          // at all, though, not even `isConnected`, so the day those two
+          // mutations can overlap it becomes a silent no-op and focus goes to
+          // <body>. Changed now because the helper costs nothing and the
+          // reasoning is cheaper to write down than to rediscover; no test
+          // fails if it is reverted, and none should be written to force one.
+          setTimeout(() => {
+            restoreFocusTo(afterScheduleRef.current);
+          }, 0);
         },
         onError: (error) => {
           if (isProblem(error) && error.code === 'TRIP_CHANGED') {

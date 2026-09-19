@@ -20,7 +20,9 @@
 // currently the only thing type-checking that file.
 import { describe, expect, it } from 'vitest';
 import type { RouteObject } from 'react-router';
+import { postFixtures, tripFixtures } from '@nullnull/contracts';
 import { routes } from '../routes.js';
+import { MOCK_RUN_ID } from '../../shared/testing/msw/handlers.js';
 import { SCREENS } from '../../../e2e/screens.js';
 
 // Paths the walk deliberately does not visit. Each needs a reason, because an
@@ -92,5 +94,107 @@ describe('the E2E screen list matches the route table', () => {
     expect(orphaned, 'e2e/screens.ts walks paths routes.tsx does not declare').toEqual(
       [],
     );
+  });
+});
+
+// The describe above compares SHAPES, and that is why it cannot see this.
+//
+// `shape()` rewrites any uuid segment to ':param', so a fabricated id and a
+// real one are the same string to it: '/posts/018f4c30-…' and
+// '/posts/018f5b00-…' both become '/posts/:param'. It answers "does the router
+// declare this path", which is a different question from "does this id resolve
+// to data". Both entries below were wrong for a while and it stayed green.
+//
+// Its third test already describes this failure in prose — "a stale entry sends
+// Playwright to the not-found screen, which reflows fine at 360px … It passes,
+// and the screen it was named for goes unmeasured". That sentence was true and
+// nothing measured it. This block does.
+//
+// Measured (#195): /posts/018f4c30-… rendered "That post does not exist" and
+// an optimizations id rendered "No such optimization", while their names in
+// SCREENS claimed the post screen and the run screen. Every gate was green:
+// a not-found screen reflows at 360px, survives 200% zoom, meets the 44px
+// floor and calls no geolocation. It just is not the screen being claimed.
+const KNOWN_IDS = new Map<string, string>([
+  [tripFixtures.detailScheduled.id, 'tripFixtures.detailScheduled.id'],
+  [postFixtures.detail.id, 'postFixtures.detail.id'],
+  [MOCK_RUN_ID, 'MOCK_RUN_ID (msw handlers)'],
+]);
+
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/** Every uuid in a path, in order. */
+function idsIn(path: string): string[] {
+  return path.match(UUID) ?? [];
+}
+
+describe('the E2E screen list reaches the screens it names', () => {
+  // The entries this block is about. Kept as a value so the guard below and the
+  // assertions read the same set rather than two greps that can drift apart.
+  const withIds = SCREENS.filter((screen) => idsIn(screen.path).length > 0);
+
+  // Not vacuous, and this one is load-bearing rather than decorative: every
+  // assertion below iterates `withIds`, so if the regex stops matching or the
+  // paths stop carrying ids, all of them pass over an empty set and report
+  // nothing. That is the shape this repo has been caught by three times — the
+  // `ajv test --invalid` glob matching 0 files, the egress probe judged by exit
+  // code, `actual_call=blocked` counted as a pass. An empty set is the failure.
+  it('finds entries that carry ids at all', () => {
+    expect(
+      withIds.length,
+      'no SCREENS entry carries a uuid, so every assertion in this block ' +
+        'would pass over an empty set and prove nothing',
+    ).toBeGreaterThan(0);
+    expect(KNOWN_IDS.size).toBeGreaterThan(0);
+  });
+
+  it('resolves every id on a rendered entry to a fixture', () => {
+    const unresolved = withIds
+      .filter((screen) => (screen.expect ?? 'rendered') === 'rendered')
+      .flatMap((screen) =>
+        idsIn(screen.path)
+          .filter((id) => !KNOWN_IDS.has(id.toLowerCase()))
+          .map((id) => `${screen.name}: ${id}`),
+      );
+
+    expect(
+      unresolved,
+      'these SCREENS entries carry ids no fixture or msw handler answers, so ' +
+        'the walk measures a not-found screen while the entry name claims a ' +
+        'real one. Either point the path at a fixture id, or, if the miss is ' +
+        "deliberate, say so with expect: 'missing'.",
+    ).toEqual([]);
+  });
+
+  it("keeps an entry marked 'missing' actually missing", () => {
+    // The mirror, and the reason `expect` is a field rather than a naming
+    // convention. 'optimization run (missing)' exists to measure the not-found
+    // screen's own reflow, which the fix above would otherwise have spent. If
+    // someone later points it at a real id, the error state stops being
+    // measured and the name starts lying — silently, because a rendered screen
+    // passes every assertion the suites make.
+    //
+    // ONE unresolvable id is enough, not all of them. This path carries two:
+    // the trip id, which resolves and must — the run is nested under a real
+    // trip — and the run id, which is invented on purpose. Requiring every id
+    // to miss would fail on the trip id and push the next person to break the
+    // trip too, which would measure a different not-found screen than the one
+    // this entry names.
+    const resolved = withIds
+      .filter((screen) => screen.expect === 'missing')
+      .filter((screen) =>
+        idsIn(screen.path).every((id) => KNOWN_IDS.has(id.toLowerCase())),
+      )
+      .map(
+        (screen) =>
+          `${screen.name}: every id resolves (${idsIn(screen.path).join(', ')})`,
+      );
+
+    expect(
+      resolved,
+      "an entry marked expect: 'missing' carries an id that DOES resolve. It " +
+        'now renders a real screen, so the not-found state it was added to ' +
+        'measure is no longer measured by anything.',
+    ).toEqual([]);
   });
 });

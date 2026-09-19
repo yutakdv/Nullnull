@@ -421,6 +421,13 @@ export const messages = {
     'feed.title': '둘러보기',
     'feed.loading': '불러오는 중이에요',
     'feed.error': '피드를 불러오지 못했어요',
+    // 503 SOURCE_UNAVAILABLE. feed.error 와 나누는 이유는 원인이 다르기
+    // 때문이다: 저쪽은 요청이 실패한 것이고, 이쪽은 요청이 닿았는데 아직
+    // 공개된 장소 데이터가 없는 것이다. 게이트가 열리면 같은 요청이 그대로
+    // 성공하므로 `고장`으로 읽히면 안 되고, 지금 다시 눌러도 같은 답이므로
+    // `바로 다시`로 읽혀도 안 된다.
+    'feed.sourceUnavailable':
+      '추천할 장소를 아직 불러올 수 없어요. 잠시 후 다시 시도해 주세요',
     'feed.empty': '아직 보여드릴 게시물이 없어요',
     'feed.emptyNoTrip': '여행을 만들면 일정에 맞춰 추천해드려요',
     'feed.createTrip': '여행 만들기',
@@ -578,6 +585,18 @@ export const messages = {
     'trip.applied.revert': '이전 일정(v{from})으로 되돌리기',
     'trip.applied.reverting': '되돌리는 중…',
     'trip.applied.expired': '되돌릴 수 없어요 · 일정 편집에서 직접 바꿔요',
+    'trip.applied.badge.failed': '되돌리지 못함',
+    'trip.applied.retry': '다시 시도',
+    // 되돌리기 실패 두 문구. 먼저 말하는 것은 둘 다 `일정은 그대로`다 —
+    // 실패한 것이 되돌리기이므로 적용된 일정이 남아 있고, 그것을 말하지 않으면
+    // 사용자는 일정이 어느 쪽인지 모른 채 남는다.
+    //
+    // 나누는 이유는 다시 눌러서 되는지가 다르기 때문이다. `REVERT_WINDOW_EXPIRED`는
+    // policy가 `retry: 'none'`·`recovery: 'none'`이라 다시 눌러도 같은 답이고,
+    // 그 자리에서 `다시 시도`를 권하면 서버가 이미 거절한 것을 권하는 것이 된다.
+    'trip.applied.failed.expired':
+      '되돌리기 기한이 지나 일정은 그대로예요. 일정 편집에서 직접 바꿔요',
+    'trip.applied.failed.retryable': '되돌리지 못했어요. 일정은 그대로예요',
     'run.notFound': '없는 최적화예요',
     'run.expired': '제안이 만료됐어요. 일정은 그대로예요',
     'run.recompute': '다시 계산하기',
@@ -1262,6 +1281,8 @@ export const messages = {
     'feed.title': 'Browse',
     'feed.loading': 'Loading',
     'feed.error': "We couldn't load the feed",
+    'feed.sourceUnavailable':
+      "We can't show places to recommend yet. Please try again in a little while",
     'feed.empty': 'Nothing to show yet',
     'feed.emptyNoTrip': 'Make a trip and we will suggest places for it',
     'feed.createTrip': 'Make a trip',
@@ -1370,6 +1391,11 @@ export const messages = {
     'trip.applied.revert': 'Undo, back to v{from}',
     'trip.applied.reverting': 'Undoing…',
     'trip.applied.expired': "This can't be undone · edit the itinerary directly",
+    'trip.applied.badge.failed': "Couldn't undo",
+    'trip.applied.retry': 'Try again',
+    'trip.applied.failed.expired':
+      'The undo window has closed, so your itinerary is unchanged. Edit it directly instead',
+    'trip.applied.failed.retryable': "We couldn't undo it. Your itinerary is unchanged",
     'run.notFound': 'No such optimization',
     'run.expired': 'The suggestion expired. Your itinerary is unchanged',
     'run.recompute': 'Calculate again',

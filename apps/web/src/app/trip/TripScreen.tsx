@@ -347,8 +347,9 @@ function TripItemRow({
           name and address with none — the header comment above claimed the
           credit reached the screen through CrowdLevel/DataAttribution, and
           neither was imported. It went unnoticed because the trip fixture
-          carries sourceAttribution: null; BA-030 now maps places through the
-          shared catalog projection, so the real response populates it. */}
+          carried sourceAttribution: null at the time; BA-030 maps places
+          through the shared catalog projection, so the real response populates
+          it, and #281 filled the fixtures in to match. */}
       {item.place.sourceAttribution ? (
         <DataAttribution compact provenance={item.place.sourceAttribution} />
       ) : null}

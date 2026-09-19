@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import styles from './ConfirmDialog.module.css';
+import { canTakeFocus } from './focus-restore.js';
 
 // Figma: S07-9 폐기 dialog `413:2020`, and the shape any confirm takes.
 //
@@ -29,31 +30,23 @@ const FOCUSABLE =
  */
 const OWN_BLOCK = 'article, li, form, section, main';
 
-/**
- * Whether focus can actually land on this element.
- *
- * One predicate for both paths on purpose. The search below has always
- * excluded disabled controls through FOCUSABLE, while the restore path asked
- * only `isConnected` — so a target that was in the page but could not hold
- * focus was restored to, `.focus()` did nothing, and the fallback never ran
- * because that branch returns. #272 cause ④, found in a browser: the move
- * trigger is `disabled` while its own reorder request is in flight, which is
- * exactly the moment the confirm closes.
- *
- * `closest('[inert]')` and the disabled-fieldset case are here rather than in
- * the selector because a CSS selector cannot express either: `:not([disabled])`
- * does not exclude a button inside a disabled <fieldset>, and `inert` is
- * inherited by descendants. Measured in happy-dom — both a disabled fieldset's
- * button and an inert subtree's button match FOCUSABLE.
- */
-function canTakeFocus(element: HTMLElement): boolean {
-  if (!element.isConnected) return false;
-  if (element.closest('[inert]') !== null) return false;
-  // Covers the element's own `disabled` and an ancestor <fieldset disabled>,
-  // which disables its controls without marking them.
-  if (element.closest(':disabled') !== null) return false;
-  return true;
-}
+// `canTakeFocus` is imported rather than defined here. It was written in this
+// file for #272 cause ④ and TripPicker then reached the same wall
+// independently, so it now lives in focus-restore.ts — one copy, because a rule
+// kept in two files has one copy that goes stale first.
+//
+// What that move must not lose: the predicate is used for BOTH paths in this
+// file on purpose. The candidate search below already excludes disabled
+// controls through FOCUSABLE, but a CSS selector cannot express the inherited
+// cases — `:not([disabled])` does not exclude a button inside a disabled
+// <fieldset>, and `inert` is inherited by descendants. Measured in happy-dom:
+// both match FOCUSABLE, so the predicate filters them at :231 as well as
+// guarding the restore at :150.
+//
+// `restoreFocusTo` from the same module is deliberately NOT used here. It falls
+// back to the <main> landmark as soon as the target will not take focus, and
+// this dialog must first walk outward for a nearer candidate — that search is
+// #272 causes ②/⑤, and routing straight to <main> would delete it.
 
 export interface ConfirmDialogProps {
   open: boolean;

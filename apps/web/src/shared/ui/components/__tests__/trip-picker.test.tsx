@@ -63,13 +63,26 @@ function renderPicker(overrides: Partial<TripPickerProps> = {}) {
   return { props, ...render(<TripPicker {...props} />) };
 }
 
-describe('FE-203-T1 the picker reports a choice and saves nothing itself', () => {
+// FE-203-T2 rides along here for its "기본" clause, and only for that one.
+// These four cases render the sheet in its populated default — a full trip
+// list, the current trip marked, the place named — which IS the default state
+// that clause asks for. The id is on the describe because all four show it;
+// AGENTS.md allows one test to prove clauses of two cards, and the aggregator
+// reads names, so a comment claiming coverage would not count.
+describe('FE-203-T1 FE-203-T2 the picker reports a choice and saves nothing itself', () => {
   it('lists every trip the owner has, not just the first', () => {
     // The defect this component exists to fix: the feed took items[0] and the
     // other trips were unreachable.
     renderPicker();
     expect(screen.getByRole('button', { name: /서울 가을 여행/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /부산 겨울 여행/ })).toBeInTheDocument();
+    // This is the FE-203-T2 "기본" clause: the populated default renders as
+    // ITSELF, with no other state's copy alongside it. Listing the trips does
+    // not say that — a sheet showing two trips AND "No trips yet" satisfies
+    // the two assertions above. Measured: widening the empty guard to render
+    // with a full list left all ten green before these two lines existed.
+    expect(screen.queryByText(LABELS.empty)).toBeNull();
+    expect(screen.queryByText(LABELS.loading)).toBeNull();
   });
 
   it('answers with the trip id the user pressed', async () => {
@@ -96,6 +109,27 @@ describe('FE-203-T1 the picker reports a choice and saves nothing itself', () =>
   });
 });
 
+// FE-203-T2 is "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다".
+//
+// Four of the six are here; 기본 is on the block above. The remaining two,
+// offline and stale, CANNOT BE REACHED IN THIS COMPONENT, and that is a fact
+// about where the fetch lives rather than a gap in this file.
+//
+// TripPicker takes `trips`, `loading` and `failed` as props and issues no
+// request of its own (see its header: the sheet only CHOOSES, because a picker
+// that also fetched or saved would become a second place a candidate gets
+// written, which invariant 1 keeps apart). So:
+//
+//   offline → a thrown fetch has no response to distinguish; the caller's query
+//             folds it into `failed`, which is the third case below. A prop to
+//             tell the two apart would exist only for a test.
+//   stale   → cache revalidation belongs to the caller's query cache. This
+//             component holds no cache and cannot observe one going stale.
+//
+// Writing a case per literal word would mean inventing props the sheet cannot
+// be put into, and an assertion about a state nothing produces is the
+// "발화할 수 없는 단언" AGENTS.md rule 7② names. import-paste.test.tsx made the
+// same call for the same reason and records it the same way.
 describe('FE-203-T2 each state renders as itself', () => {
   it('says it is loading rather than showing an empty list', () => {
     // An empty list while loading reads as "you have no trips", which is a
@@ -103,6 +137,12 @@ describe('FE-203-T2 each state renders as itself', () => {
     renderPicker({ trips: [], loading: true, selectedTripId: null });
     expect(screen.getByRole('status')).toHaveTextContent(LABELS.loading);
     expect(screen.queryByRole('button', { name: /여행/ })).toBeNull();
+    // The title's actual claim. Without this the assertions above pass while
+    // the sheet renders BOTH the spinner copy and "No trips yet" — "loading"
+    // and "you have none" are different facts and the empty guard is the only
+    // thing keeping them apart. Measured: dropping `!loading` from that guard
+    // left all ten green before this line existed.
+    expect(screen.queryByText(LABELS.empty)).toBeNull();
   });
 
   it('offers trip creation when there are none, instead of describing the problem', async () => {
@@ -110,6 +150,15 @@ describe('FE-203-T2 each state renders as itself', () => {
     const user = userEvent.setup();
     renderPicker({ trips: [], selectedTripId: null, onCreateTrip });
     expect(screen.getByText(LABELS.empty)).toBeInTheDocument();
+    // "Instead of describing the problem": no trip yet is a fact about the
+    // account, so neither the spinner nor the failure copy belongs here.
+    //
+    // NOT an absence-of-trip-cards assertion, which is the trap this state
+    // invites: `trips` is [] here, so no card can appear whatever the render
+    // guards say, and the assertion could never fail. These two can — each
+    // fires on its own when the matching guard is widened.
+    expect(screen.queryByText(LABELS.loading)).toBeNull();
+    expect(screen.queryByText(LABELS.error)).toBeNull();
     await user.click(screen.getByRole('button', { name: LABELS.createTrip }));
     expect(onCreateTrip).toHaveBeenCalled();
   });

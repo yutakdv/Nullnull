@@ -30,6 +30,8 @@ const LABELS = {
   revert: 'REVERT_BUTTON',
   reverting: 'REVERTING_BUTTON',
   expired: 'EXPIRED_BUTTON',
+  badgeFailed: 'BADGE_FAILED',
+  retry: 'RETRY_BUTTON',
 };
 
 // The numbers are run-applied.json's: inputTripVersion 2, the APPLY decision's
@@ -58,10 +60,62 @@ function revertButton() {
 // disabled rather than vanishing, so the window having closed is something the
 // user can see rather than infer from an absence.
 //
-// FE-505-T2 as well: these six cases ARE the state matrix for this panel
-// (absent, NOT_APPLICABLE, AVAILABLE, submitting, REVERTED, EXPIRED). Offline
-// is the service worker's, as optimization-run.test.tsx explains at its own T2
-// block — `shared/testing/__tests__/offline-shell.test.ts` holds it.
+// FE-505-T2 as well, and the case COUNT here is still not the evidence for
+// that. The first six cases are the six values of `RevertAvailability` (absent,
+// NOT_APPLICABLE, AVAILABLE, submitting, REVERTED, EXPIRED) — a different axis
+// that happens to have the same size as the clause list, which is exactly how a
+// matrix can look complete while two clauses go unmeasured. It did: four of the
+// six clauses were covered while the count read as all six. Mapped to the
+// clause words:
+//
+//   기본    → AVAILABLE, the panel with a pressable undo
+//   loading → submitting, the revert request in flight
+//   empty   → absent and NOT_APPLICABLE, nothing to draw
+//   stale   → EXPIRED, the 24h window closed underneath the user
+//   error   → a failed revert, retryable and not (the two cases at the end)
+//   offline → the same `failure` prop: a transport failure is not a Problem, so
+//             it carries no code and takes the retryable branch. That mapping
+//             is the WRAPPER's, so trip-applied-panel.test.tsx proves it and
+//             this file only proves the prop renders.
+//
+// ERROR AND OFFLINE now have a seventh case below, and the S09-3 question this
+// comment used to leave open has an answer. Both were measured in Figma:
+//
+//   * S09-3 has exactly FOUR frames (417:2412, 724:4602, 724:4730, 724:4858).
+//     There is no fifth, and all four applied-panel instances share the same
+//     three rows — result-row, revision-line, btn/revert — with no error slot.
+//   * The S09 error reference (417:2567) lists six codes and says, in the
+//     frame itself, that they render as "S09 Preview 위 배너". That is the
+//     PREVIEW screen, and no code in the list is a revert or a read failure.
+//
+// So the design says nothing about a failed undo, and the two halves of the
+// gap resolve differently rather than together:
+//
+//   READ FAILURE — intended. `TripAppliedPanel` returning null when
+//   `run.data` is undefined folds "the read failed" into "there is nothing to
+//   undo", and that is acceptable HERE because this panel is a section of the
+//   trip screen rather than a screen: all four frames draw it wedged between
+//   the trip header and the day cards, which stay up. The traveller is not
+//   stranded, and the only loss is an undo that existed going unseen. Figma
+//   draws no banner for it, so neither do we.
+//
+//   REVERT FAILURE — a defect, now fixed. `revert.isError` was read nowhere in
+//   apps/web (measured: zero hits outside tests), so pressing 되돌리기 and
+//   getting a 503 returned the button to its resting state and said nothing:
+//   indistinguishable from never having pressed. Figma's silence does not
+//   cover this one, for two reasons — EXPIRED (724:4869) keeps a VISIBLE
+//   disabled button rather than letting the closed window be inferred from an
+//   absence, which is this panel's own norm for an unavailable undo; and
+//   REVERT_WINDOW_EXPIRED was already wired end to end (problem-policy.ts:171,
+//   error copy, and an msw handler that emits it) with nothing rendering it.
+//
+// The failed case therefore uses the two slots the design already has, the
+// badge and the button, instead of a banner S09-3 does not draw.
+//
+// An earlier version of this comment sent offline to
+// `shared/testing/__tests__/offline-shell.test.ts`. That file carries only
+// FE-004-T1 and renders nothing — see optimization-run.test.tsx's T2 block,
+// which carried the same pointer and now explains why it did not hold.
 describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so', () => {
   it('renders nothing at all when revertAvailability is absent', async () => {
     // The contract case: the field is optional, and its absence means "unknown
@@ -106,6 +160,16 @@ describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so
     const button = screen.getByRole('button', { name: LABELS.reverting });
     expect(button).toBeDisabled();
 
+    // The revision line still describes what the APPLY did, and submitting
+    // shares that string with `available`. Sharing is why the badge's own
+    // cross-detection does not reach here: every other slot differs per frame,
+    // so a wrong value shows up as some other case's string, but three frames
+    // read the same revision. Measured: with the submitting frame's revision
+    // switched to the EXPIRED wording, all ten cases of this describe stayed
+    // green — a panel mid-revert could say the 24h window had closed.
+    expect(screen.getByText(LABELS.revisionAvailable)).toBeInTheDocument();
+    expect(screen.queryByText(LABELS.revisionExpired)).not.toBeInTheDocument();
+
     await user.click(button);
     expect(onRevert).not.toHaveBeenCalled();
   });
@@ -146,6 +210,150 @@ describe('FE-505-T1 FE-505-T2 the panel offers undo only when the server says so
     await user.click(button);
     expect(onRevert).not.toHaveBeenCalled();
   });
+
+  it('says a retryable revert failed, and offers the same command again', async () => {
+    // The clause `error`. Before this the panel had no way to express a failed
+    // attempt: `revert.isError` reached nothing, so the button returned to
+    // REVERT_BUTTON and the screen was identical to never having pressed.
+    //
+    // The retry presses `onRevert` — the SAME callback, which replays the same
+    // idempotency key. There is deliberately no second handler to press.
+    const onRevert = vi.fn();
+    const user = userEvent.setup();
+    panel({
+      onRevert,
+      failure: { message: 'FAILURE_MESSAGE', retryable: true },
+    });
+
+    expect(screen.getByText(LABELS.badgeFailed)).toBeInTheDocument();
+    // Announced rather than merely present: the failure lands after a press,
+    // so a screen-reader user has to be told the schedule did not change.
+    expect(screen.getByRole('alert')).toHaveTextContent('FAILURE_MESSAGE');
+    // The revision line describes the APPLY, not the failed undo, so it keeps
+    // the `available` wording — and shares that string with two other frames,
+    // which is why nothing here caught it being wrong. Measured: with the
+    // failed frame's revision switched to the EXPIRED wording, every case in
+    // this file stayed green, so a retryable failure could tell the traveller
+    // the window had closed while offering them a retry.
+    expect(screen.getByText(LABELS.revisionAvailable)).toBeInTheDocument();
+    expect(screen.queryByText(LABELS.revisionExpired)).not.toBeInTheDocument();
+
+    const button = screen.getByRole('button', { name: LABELS.retry });
+    expect(button).toBeEnabled();
+
+    await user.click(button);
+    expect(onRevert).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a retry when the failure was the window closing', async () => {
+    // The half that makes the case above mean something. Folding both failures
+    // into one "it failed" state would pass that test while telling the
+    // traveller to try again in the one case where trying cannot work:
+    // REVERT_WINDOW_EXPIRED is retry:'none' and recovery:'none' in
+    // problem-policy.ts, and the server has already refused for good.
+    //
+    // `retryable` is the caller's reading of that policy. This file asserts
+    // only that the panel obeys it — which is why a failure with the same
+    // words but retryable:false must NOT be pressable.
+    const onRevert = vi.fn();
+    const user = userEvent.setup();
+    panel({
+      onRevert,
+      failure: { message: 'TERMINAL_MESSAGE', retryable: false },
+    });
+
+    expect(screen.getByText(LABELS.badgeFailed)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('TERMINAL_MESSAGE');
+
+    const button = screen.getByRole('button', { name: LABELS.retry });
+    expect(button).toBeDisabled();
+
+    await user.click(button);
+    expect(onRevert).not.toHaveBeenCalled();
+  });
+
+  it('does not draw a failure onto a state that has no undo to fail', () => {
+    // A failure reported against REVERTED would otherwise conjure a panel out
+    // of a state whose frame has no button at all. The wrapper cannot produce
+    // this — it only mutates from AVAILABLE — but the prop admits it, and a
+    // frame nothing can reach is the mirror of an assertion nothing can fire.
+    panel({ availability: 'REVERTED', failure: { message: 'X', retryable: true } });
+
+    expect(screen.getByText(LABELS.badgeReverted)).toBeInTheDocument();
+    expect(screen.queryByText(LABELS.badgeFailed)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+// FE-505-T3's accessible-name half. The clause is "keyboard 이동·접근성 이름과
+// 360px·200% zoom", and the name half had no test anywhere: the only block
+// carrying FE-505-T3 is in optimization-run.test.tsx, whose comment forwards
+// accessible names to responsive.spec.ts — and that walk reads
+// `document.activeElement`, so a <section> with no tabindex never enters its
+// `stops` and can never be judged. Measured here rather than argued: deleting
+// `aria-label` from the panel left all ten cases of the describe above green.
+//
+// `getByRole('region', …)` rather than an attribute check, because the defect
+// is not a missing string — it is the panel ceasing to be a landmark at all.
+// Measured: a <section> WITH an accessible name resolves as `region`, and the
+// same <section> without one resolves to nothing (queryAllByRole('region')
+// returns 0). So this assertion fails on the real failure mode, and it fails
+// for the reason a screen-reader user would notice.
+//
+// The badge's data-state is checked in the same walk because it is the other
+// slot nothing reads. AppliedPanel.module.css:49-50 selects
+// `.badge[data-state='available'|'submitting']` for the active blue treatment,
+// so pinning the attribute paints EXPIRED, REVERTED and a failed revert as
+// though the undo were live. Measured: red=0 before this test.
+//
+// `closest('[data-state]')` resolves to the badge itself — `closest` starts at
+// the element — which matters because the <section> carries the same attribute
+// and matching it instead would read `frame` twice and prove nothing.
+describe('FE-505-T3 the panel is a named landmark in every state', () => {
+  const STATES = [
+    { name: 'AVAILABLE', props: {}, badge: LABELS.badgeAvailable, state: 'available' },
+    {
+      name: 'submitting',
+      props: { submitting: true },
+      badge: LABELS.badgeSubmitting,
+      state: 'submitting',
+    },
+    {
+      name: 'a failed revert',
+      props: { failure: { message: 'M', retryable: true } },
+      badge: LABELS.badgeFailed,
+      state: 'failed',
+    },
+    {
+      name: 'REVERTED',
+      props: { availability: 'REVERTED' as const },
+      badge: LABELS.badgeReverted,
+      state: 'reverted',
+    },
+    {
+      name: 'EXPIRED',
+      props: { availability: 'EXPIRED' as const },
+      badge: LABELS.badgeExpired,
+      state: 'expired',
+    },
+  ];
+
+  for (const { name, props, badge, state } of STATES) {
+    it(`names the panel and marks the badge on ${name}`, () => {
+      panel(props);
+
+      // The landmark, named by the badge — the panel's only accessible name.
+      // There is no heading and no aria-labelledby, so without this the region
+      // is unreachable by name and does not exist as a landmark.
+      expect(screen.getByRole('region', { name: badge })).toBeInTheDocument();
+
+      // The state the stylesheet reads, on the node it reads it from.
+      expect(screen.getByText(badge).closest('[data-state]')).toHaveAttribute(
+        'data-state',
+        state,
+      );
+    });
+  }
 });
 
 describe('the panel states the server sentence rather than composing one', () => {
