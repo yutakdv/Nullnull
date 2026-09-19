@@ -431,7 +431,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-006",
-      "reason": "T1은 full Docker와 outbound-deny report로 증명됐다. T2는 A-045로 operator가 읽을 수 있는 secret으로 좁혔고 release v0.1.0-rc.9의 secret-scan이 clean-partial(누출 0)로 증명했다. T3는 A-046으로 다른 environment의 subject로 좁혔고 staging-oidc-negative workflow의 실제 AssumeRole 거부 기록이 들어오기 전까지 증명되지 않았다. staging 절은 JUnit으로 집계되지 않으므로 integration-ready로 올리지 않고 in-progress를 유지한다."
+      "reason": "T1은 full Docker와 outbound-deny report로 증명됐다. T2는 A-045로 operator가 읽을 수 있는 secret으로 좁혔고 release v0.1.0-rc.9의 secret-scan이 clean-partial(누출 0)로 증명했다. T3는 A-046으로 다른 environment의 subject로 좁혔고 staging-oidc-negative run 35471139893의 두 job이 대조군 수락과 AccessDenied 거부를 함께 찍어 증명했다. staging 절은 JUnit으로 집계되지 않으므로 integration-ready로 올리지 않고 in-progress를 유지한다."
     },
     {
       "id": "BA-010",
@@ -2632,7 +2632,7 @@
         },
         {
           "id": "BA-072-T3",
-          "assertion": "수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 tabletop으로 검토한다"
+          "assertion": "수신자 부재 escalation·KTO 쿼터와 rollback 판단을 tabletop으로 검토한다"
         },
         {
           "id": "BA-072-T4",
@@ -2663,7 +2663,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-072",
-      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049로 tabletop 등급 증거를 기다린다. T7은 staging drill에서 다섯 alarm이 ALARM으로 전환했지만 SNS action이 전부 실패했다(enforceSSL topic policy가 CloudWatch의 Allow를 지웠다). Allow를 더했고 배포 뒤 drill을 다시 돌려 primary 메일 도달을 봐야 증명된다. secondary 수신자는 A-043으로 범위 밖이다."
+      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049의 tabletop 등급으로 runbook §9에 기록됐다(예산 절은 A-050으로 제외). T7은 staging drill에서 다섯 alarm이 ALARM으로 전환했지만 SNS action이 전부 실패했다(enforceSSL topic policy가 CloudWatch의 Allow를 지웠다). Allow를 더했고 배포 뒤 drill을 다시 돌려 primary 메일 도달을 봐야 증명된다. secondary 수신자는 A-043으로 범위 밖이다."
     },
     {
       "id": "BA-073",

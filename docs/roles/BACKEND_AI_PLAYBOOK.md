@@ -377,11 +377,11 @@ FE 인계·완료 증거: QUEUED/RUNNING/FAILED 예시와 retryable 의미, poll
 
 실패·안전 경계: 실제 secret 값 기반 bundle·image layer·log scan과 잘못된 OIDC subject의 AssumeRole 거부 기록이 없으면 integration-ready가 아니다. 실제 설정·배포 완료를 문서와 구조 test만으로 표시하지 않는다.
 
-로컬 통합과 staging 배포·CD 실행은 끝났지만 T3의 실제 거부 기록 때문에 `in-progress`다:
+로컬 통합·staging 배포·CD와 세 절의 증거가 모두 있다. staging 절은 JUnit으로 집계되지 않아 status는 `in-progress`로 남는다:
 
 - 증명됨(T1): 로컬 web→API→`apps/ai`→PostgreSQL 연결과 단일 wrapper가 있고, required Docker gate가 정규화 Compose의 internal network와 판정 token을 내는 `egress-denied` probe를 실행한다.
 - 증명(T2, [A-045](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): browser-facing build에 credential 또는 `VITE_*` secret을 건네지 않는 입력 경계는 gate가 고정한다. 값 스캔은 operator 명령 `staging_operator.py secret-scan`이 release `v0.1.0-rc.9`에서 `secret_exposure=clean-partial`로 냈다 — release 6개의 bundle, api·ai image(layer와 jar까지 풀어 blob 5,910개·archive 항목 56,161개), log event 17,848건을 KTO key·verifier token의 실제 값(인코딩 형태 포함)으로 훑었고 누출 0이다. `partial`은 DB 계정·비밀번호·cursor·deletion token secret을 스캔하지 않았다는 뜻이고 A-045가 그것을 이 절 밖으로 뺐다. evidence는 release bucket `evidence/secret-exposure/v0.1.0-rc.9/`에 값 없이 있다.
-- 대기(T3, [A-046](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): CDK 구조 test와 배포 뒤 smoke는 live GitHub role trust가 deploy·publish role의 exact subject 집합과 일치함을 관측했다. 실제 거부는 `staging-oidc-negative` workflow(`scripts/aws/oidc-negative-probe.sh`)가 잰다 — `staging-build` token이 deploy role에, `staging` token이 publish role에 `AccessDenied`를 받고, 같은 token이 자기 role에는 받아들여지는 대조군이 먼저 통과해야 판정이다. 그 run이 돌기 전까지 이 절은 증명되지 않았다. 다른 repository의 subject는 이 저장소에서 token을 만들 수 없어 A-046이 절 밖으로 뺐다.
+- 증명(T3, [A-046](../project/DECISIONS_AND_RISKS.md)로 좁힌 절): `staging-oidc-negative` run `35471139893`(main)에서 두 job이 모두 통과했다 — `staging-build` token은 `oidc_control=accepted role=nullnull-stg-github-publish` 뒤에 `oidc_negative=rejected role=nullnull-stg-github-deploy`, `staging` token은 그 반대(`oidc_control=accepted role=nullnull-stg-github-deploy`, `oidc_negative=rejected role=nullnull-stg-github-publish`)다. 거부는 `AssumeRoleWithWebIdentity`의 `AccessDenied`만 센다. 대조군이 먼저 통과했으므로 거부가 token·호출의 고장이 아니다. CDK 구조 test와 배포 뒤 smoke의 live trust 관측은 그대로다. 다른 repository의 subject는 이 저장소에서 token을 만들 수 없어 A-046이 절 밖으로 뺐다.
 - 배포 사실: main `d988123`의 Staging release가 성공했고 배포 뒤 smoke에서 `public_api_edge=closed`, `alb_internal=true`, `s3_private=true`, `rds_private_multi_az=true`를 관측했다. 이 사실은 과거의 *infra/CDK와 실제 AWS evidence가 없다*는 서술을 대체하지만 T2·T3의 빈 증거를 채우지는 않는다.
 
 필수 검증:
@@ -1978,7 +1978,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - `BA-072-T1`: 삭제 이전 backup 복원 후 해당 owner가 재노출되지 않는다
 - `BA-072-T2`: 부분 삭제 실패(PARTIAL_FAILED)가 기록될 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_PARTIAL_FAILED` 한 줄을 남긴다
-- `BA-072-T3`: 수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 tabletop으로 검토한다
+- `BA-072-T3`: 수신자 부재 escalation·KTO 쿼터와 rollback 판단을 tabletop으로 검토한다
 - `BA-072-T4`: 최종 삭제 실패(FAILED, 판정은 job 행의 attempt 상한)가 기록될 때마다 jobId 외 식별자가 없는 `ops.alarm name=DELETION_FAILED` 한 줄을 남긴다
 - `BA-072-T5`: lease 재시도, 즉 lease가 만료된 RUNNING job을 다시 claim할 때마다 `ops.alarm name=JOB_LEASE_RETAKEN` 한 줄을 남긴다
 - `BA-072-T6`: receipt 만료, 즉 삭제가 끝나기 전(ACCEPTED·RUNNING·PARTIAL_FAILED)에 status token이 만료된 요청마다 id 없는 `ops.alarm name=DELETION_RECEIPT_EXPIRED_UNFINISHED` 한 줄을 한 번 남긴다
@@ -1992,7 +1992,7 @@ T2는 원래 *"부분 삭제 실패·lease 재시도·receipt 만료를 incident
 
 - 증명됨: `api-quality`에 등록된 `DeletionIncidentSignalIT`·`JobCrashRetryIT`·`DeletionReceiptExpiryIT`가 T2·T4·T5·T6·T8·T9를 실제 testcase 이름으로 보고한다.
 - 제출 범위 밖(T1, [A-048](../project/DECISIONS_AND_RISKS.md)): 삭제 원장이 구현되지 않아 복원 뒤 접수된 삭제를 재적용할 수 없다. A-039는 심사 기간 restore를 금지하며, restore drill과 복원 뒤 owner 비노출 evidence가 없다.
-- 대기(T3, [A-049](../project/DECISIONS_AND_RISKS.md)): 증거 등급은 **tabletop**이다 — 실제 재현이 아니다. 조직 SCP 때문에 자동 Budget 신호가 없어 오너가 조직 billing 화면에서 확인하고, 수신자는 A-043으로 한 명이다. tabletop 기록이 들어오기 전까지 증명되지 않았다.
+- 증명(T3, tabletop 등급 — [A-049](../project/DECISIONS_AND_RISKS.md)): 실제 재현이 아니다. 세 시나리오(수신자 부재·KTO 쿼터·배포 실패와 rollback 판단)와 오너 판단이 `STAGING_DEPLOYMENT_RUNBOOK` §9 *BA-072-T3 tabletop*에 있다. rollback 판단의 사례는 실제 배포 실패 셋(run `35426407975`·`35457509371`·`35461072422`)이다. 예산 절은 [A-050](../project/DECISIONS_AND_RISKS.md)으로 뺐다 — 조직 SCP 때문에 비용 알림을 받을 수 없고, 남는 위험(종료 뒤 과금)은 teardown 이슈가 맡는다.
 - 부분(T7): staging API 로그 그룹에 다섯 이름의 `ops.alarm name=<NAME> drill=BA-072-T7` 줄을 넣었다(관리자 profile, 거절 0건). 배포된 metric filter 다섯이 그 문구를 그대로 인용하고 `OpsAlarmDeletionFailed` metric이 그 분에 1을 기록했으며, **다섯 alarm 모두 `OK → ALARM`으로 전환했다**(alarm history). 그런데 다섯 모두 SNS action이 `Failed to execute action`이었다 — **이 drill이 없었으면 어떤 alarm도 사람에게 닿지 않는다는 것을 몰랐다.** 원인은 topic의 `enforceSSL`이 Deny 한 줄짜리 topic policy로 기본 policy를 **교체**해 CloudWatch 서비스 주체의 Allow가 사라진 것이다(구독 script의 test 메일은 IAM 주체의 identity policy로 나가서 도착했다). 이 계정의 alarm만 publish하게 하는 Allow를 더했고(`infra/test/staging.test.ts`의 topic policy test, Allow를 지우면 그것만 빨갛다) **배포 뒤 drill을 다시 돌려 메일 도달을 봐야 이 절이 증명된다.** A-043에 따라 secondary 수신자는 두지 않는다.
 
 FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status·역할 교대 checklist, 비공개 연락처는 저장소에 넣지 않는다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
