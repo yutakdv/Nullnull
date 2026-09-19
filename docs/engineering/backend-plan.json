@@ -2663,7 +2663,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-072",
-      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049의 tabletop 등급으로 runbook §9에 기록됐다(예산 절은 A-050으로 제외). T7은 staging drill에서 다섯 alarm이 ALARM으로 전환했지만 SNS action이 전부 실패했다(enforceSSL topic policy가 CloudWatch의 Allow를 지웠다). Allow를 더했고 배포 뒤 drill을 다시 돌려 primary 메일 도달을 봐야 증명된다. secondary 수신자는 A-043으로 범위 밖이다."
+      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049의 tabletop 등급으로 runbook §9에 기록됐다(예산 절은 A-050으로 제외). T7은 두 번의 staging drill로 증명했다 — 첫 drill이 SNS action 전부 실패(enforceSSL topic policy가 CloudWatch의 Allow를 지움)를 드러냈고, Allow를 더한 release c083f1e 배포 뒤 재실행에서 다섯 alarm이 ALARM 전환과 Action Successfully executed를 찍었으며 primary 수신자가 메일을 받았다. secondary 수신자는 A-043으로 범위 밖이다."
     },
     {
       "id": "BA-073",
