@@ -322,3 +322,282 @@ describe('ConfirmDialog restores focus when its own container unmounts', () => {
     });
   });
 });
+
+// Cause ④ from #272: the opener survives the change but cannot take focus.
+//
+// Found in a browser (#272, session 51) after the unmount fix had landed and
+// the restored e2e test still failed — 6/6 once it waited 600ms for focus to
+// settle, which is the same coin-flip shape the issue measured originally.
+// Instrumentation showed the restore routine running, the target connected and
+// visible, and `disabled=true`: ItemMoveControls disables the move trigger
+// while `busy`, and the reorder mutation is still in flight at the moment the
+// confirm closes. `.focus()` on a disabled button is a no-op.
+//
+// This one IS fully measurable here, unlike ① and ③. Measured: happy-dom
+// refuses focus on a disabled button and leaves activeElement where it was
+// (`dis_tookFocus=false`), matching a real browser — while it wrongly allows
+// focus on `inert` and `display:none` elements. So the landing assertion below
+// is real, not a stand-in.
+describe('ConfirmDialog restores focus when the opener cannot take it', () => {
+  // The opener is alive, connected and visible — and disabled, because the
+  // mutation it started has not settled yet.
+  //
+  // The confirm is UNMOUNTED once the move is under way, and that detail is
+  // load-bearing rather than decoration: with the dialog left mounted, focus
+  // simply stays on its own confirm button and the defect does not appear at
+  // all (measured — the first version of this harness passed against the
+  // unfixed component for exactly that reason). MoveDaySheet's confirm is
+  // rendered conditionally, so the real screen has no such button to hold
+  // focus.
+  function BusyOpener() {
+    const [open, setOpen] = useState(false);
+    const [busy, setBusy] = useState(false);
+    return (
+      <div>
+        <button type="button">일정 다시 계산</button>
+        <article>
+          <button disabled={busy} onClick={() => setOpen(true)} type="button">
+            경복궁을 다른 날로
+          </button>
+          {open || !busy ? (
+            <ConfirmDialog
+              cancelLabel="취소"
+              confirmLabel="옮기기"
+              onCancel={() => setOpen(false)}
+              onConfirm={() => {
+                // The real order: the request starts and the dialog closes in
+                // the same commit, so the trigger is disabled exactly when the
+                // restore runs.
+                setBusy(true);
+                setOpen(false);
+              }}
+              open={open}
+              title="3일차로 옮길까요?"
+            />
+          ) : null}
+        </article>
+      </div>
+    );
+  }
+
+  it('does not leave focus on <body> when the opener is disabled', async () => {
+    const user = userEvent.setup();
+    render(<BusyOpener />);
+
+    const trigger = screen.getByRole('button', { name: '경복궁을 다른 날로' });
+    await user.click(trigger);
+    await user.click(await screen.findByRole('button', { name: '옮기기' }));
+
+    // The premise really holds: still in the page, and refusing focus. Without
+    // this the test could pass by the opener never becoming disabled, and the
+    // assertion below would be about a case that never happened.
+    await waitFor(() => {
+      expect(trigger).toBeDisabled();
+    });
+    expect(trigger.isConnected).toBe(true);
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement | null;
+      expect(
+        active === document.body || active === null,
+        'focus fell to <body>: the next Tab restarts at the top of the page',
+      ).toBe(false);
+    });
+  });
+
+  it('skips candidates the selector cannot exclude: disabled fieldset, inert', async () => {
+    // The two cases `button:not([disabled])` cannot express, because both are
+    // inherited rather than marked on the control: a <fieldset disabled>
+    // disables its controls without giving them the attribute, and `inert`
+    // applies to a whole subtree. Measured in happy-dom — both match FOCUSABLE.
+    //
+    // Written after a mutation showed the candidate-side filter was reachable
+    // but untested: removing it left all other tests green while the scan
+    // rejected four candidates in this shape.
+    function UnfocusableNeighbours() {
+      const [open, setOpen] = useState(false);
+      const [busy, setBusy] = useState(false);
+      return (
+        <main>
+          <fieldset disabled>
+            <button type="button">비활성 묶음 안 버튼</button>
+          </fieldset>
+          <div inert>
+            <button type="button">inert 안 버튼</button>
+          </div>
+          <article>
+            <button disabled={busy} onClick={() => setOpen(true)} type="button">
+              여는 버튼
+            </button>
+            {open || !busy ? (
+              <ConfirmDialog
+                cancelLabel="취소"
+                confirmLabel="옮기기"
+                onCancel={() => setOpen(false)}
+                onConfirm={() => {
+                  setBusy(true);
+                  setOpen(false);
+                }}
+                open={open}
+                title="3일차로 옮길까요?"
+              />
+            ) : null}
+          </article>
+        </main>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<UnfocusableNeighbours />);
+    await user.click(screen.getByRole('button', { name: '여는 버튼' }));
+    await user.click(await screen.findByRole('button', { name: '옮기기' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '여는 버튼' })).toBeDisabled();
+    });
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement | null;
+      // Neither unfocusable neighbour, and not <body>: the landmark is the
+      // honest answer when nothing on the page can hold focus.
+      expect(active?.textContent).not.toBe('비활성 묶음 안 버튼');
+      expect(active?.textContent).not.toBe('inert 안 버튼');
+      expect(active).not.toBe(document.body);
+    });
+  });
+
+  it('does not claim the disabled opener took focus', async () => {
+    // The sharper form: "not body" would also be satisfied by focus sitting on
+    // some third thing. What the traveller needs is that focus is NOT on the
+    // control that cannot hold it.
+    const user = userEvent.setup();
+    render(<BusyOpener />);
+
+    const trigger = screen.getByRole('button', { name: '경복궁을 다른 날로' });
+    await user.click(trigger);
+    await user.click(await screen.findByRole('button', { name: '옮기기' }));
+
+    await waitFor(() => {
+      expect(trigger).toBeDisabled();
+    });
+
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(trigger);
+      expect(document.activeElement).not.toBe(document.body);
+    });
+  });
+});
+
+// Cause ⑤ from #272: the candidate the search finds is REPLACED, not removed.
+//
+// Found in a browser (session 51) with the cause-④ fix in place. Its trace
+// shows the fix working — the disabled opener is rejected and the search runs —
+// and then picking `Set Time locked`, a control inside the very row the move
+// re-renders. Focus lands on it, the row re-renders, and the node it landed on
+// is swapped for a new one. Final state: <body>, 3/3 runs.
+//
+// This is NOT cause ②, and the difference decides the fix. There the <article>
+// unmounted, so every in-row candidate was already detached and `isConnected`
+// saw it. Here the row SURVIVES (51 measured `rows:3`, unchanged across the
+// move) and React replaces its children. Until the replacement, the candidate
+// is connected, enabled and focusable — `canTakeFocus` and the landing check
+// are both true at the moment they run, and become false afterwards.
+//
+// So no post-hoc verification can catch it: the check is correct when it runs.
+// Measured here: a keyed re-render detaches the old node
+// (`keyedStillConnected: false`) and focus is lost, while a node outside the
+// re-rendered subtree keeps it (`focusStuckToSurvivor: true`). The fix is
+// therefore to prefer a candidate that outlives the change, not to re-check
+// later — waiting makes it worse, which is what 51's `waitForTimeout(600)`
+// measured: 6/6 failures rather than fewer.
+describe('ConfirmDialog restores focus when the row is re-rendered, not removed', () => {
+  // The shape of the defect: the row stays in the page but its contents are
+  // replaced, exactly as a completed move re-renders the itinerary row.
+  function RerenderingRow() {
+    const [open, setOpen] = useState(false);
+    const [moved, setMoved] = useState(0);
+    return (
+      <main>
+        <section>
+          <h1>서울 가을 여행</h1>
+          {/* Outside the row and outside the dialog: what a traveller can
+              still Tab from once the row has been redrawn. */}
+          <button type="button">일정 다시 계산</button>
+        </section>
+        <section>
+          {/* `key` forces React to replace the subtree rather than update it,
+              which is what the real move does to the row it rewrites. */}
+          <article key={moved}>
+            <button type="button">Set Time locked</button>
+            <button onClick={() => setOpen(true)} type="button">
+              경복궁을 다른 날로
+            </button>
+            <ConfirmDialog
+              cancelLabel="취소"
+              confirmLabel="옮기기"
+              onCancel={() => setOpen(false)}
+              onConfirm={() => {
+                setOpen(false);
+                setMoved((n) => n + 1);
+              }}
+              open={open}
+              title="3일차로 옮길까요?"
+            />
+          </article>
+        </section>
+      </main>
+    );
+  }
+
+  // WHICH OF THESE TWO ACTUALLY FIRES HERE, measured rather than assumed: only
+  // the second. happy-dom leaves `activeElement` pointing at the REPLACED node
+  // and still reports `isConnected: true` for it, where a real browser resets
+  // focus to <body> — so the `<body>` clause below passes even with the defect
+  // present, exactly as it did before this fix. It is kept because it names
+  // what the traveller actually loses and it is the clause the e2e suite can
+  // assert; the clause that fails here is the one that checks focus is not
+  // inside the row about to be rewritten.
+  it('does not leave focus on <body> when the row is redrawn', async () => {
+    const user = userEvent.setup();
+    render(<RerenderingRow />);
+
+    await user.click(screen.getByRole('button', { name: '경복궁을 다른 날로' }));
+    await user.click(await screen.findByRole('button', { name: '옮기기' }));
+
+    // The premise: the row really was replaced, and really is still here.
+    // Without both, this test could pass against a page where nothing happened.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Set Time locked' })).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement | null;
+      expect(
+        active === document.body || active === null,
+        'focus fell to <body>: the next Tab restarts at the top of the page',
+      ).toBe(false);
+    });
+  });
+
+  it('puts focus somewhere the redraw cannot take away', async () => {
+    // The sharper clause: "not body" would also be satisfied by landing on a
+    // node inside the row that is about to be replaced again. What the
+    // traveller needs is a place that survives the change.
+    const user = userEvent.setup();
+    render(<RerenderingRow />);
+
+    await user.click(screen.getByRole('button', { name: '경복궁을 다른 날로' }));
+    await user.click(await screen.findByRole('button', { name: '옮기기' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Set Time locked' })).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement | null;
+      expect(active?.isConnected ?? false).toBe(true);
+      // Not inside the row that the move rewrites.
+      expect(active?.closest('article')).toBeNull();
+    });
+  });
+});
