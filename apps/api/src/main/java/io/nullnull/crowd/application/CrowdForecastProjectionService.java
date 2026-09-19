@@ -64,7 +64,7 @@ public class CrowdForecastProjectionService {
                 .map(set -> project(placeId, set, now, false))
                 .or(() -> forecasts.latestStale(placeId, from, to, now)
                         .map(set -> project(placeId, set, now, true)))
-                .orElseGet(() -> CrowdSeries.unavailable(placeId, "NO_COVERAGE"));
+                .orElseGet(() -> CrowdSeries.unavailable(placeId, UnavailableReason.NO_COVERAGE));
     }
 
     /**
@@ -108,12 +108,12 @@ public class CrowdForecastProjectionService {
         for (UUID requested : requestedPlaceIds) {
             UUID placeId = readable.get(requested);
             if (placeId == null) {
-                items.add(CrowdSeries.unavailable(requested, "PLACE_UNAVAILABLE"));
+                items.add(CrowdSeries.unavailable(requested, UnavailableReason.PLACE_UNAVAILABLE));
                 continue;
             }
             CrowdForecastQuery.SnapshotSet set = sets.get(placeId);
             items.add(set == null
-                    ? CrowdSeries.unavailable(placeId, "NO_COVERAGE")
+                    ? CrowdSeries.unavailable(placeId, UnavailableReason.NO_COVERAGE)
                     : project(placeId, set, now, stale.containsKey(placeId)));
         }
         return List.copyOf(items);
@@ -152,13 +152,27 @@ public class CrowdForecastProjectionService {
         return new CrowdSeries(placeId, points.get(0).state(), points, null);
     }
 
-    public record CrowdSeries(UUID placeId, SourceState state, List<CrowdMetric> points, String unavailableReason) {
+    public record CrowdSeries(UUID placeId, SourceState state, List<CrowdMetric> points,
+            UnavailableReason unavailableReason) {
         public CrowdSeries {
             points = List.copyOf(points);
         }
 
-        static CrowdSeries unavailable(UUID placeId, String reason) {
+        static CrowdSeries unavailable(UUID placeId, UnavailableReason reason) {
             return new CrowdSeries(placeId, SourceState.UNAVAILABLE, List.of(), reason);
         }
+    }
+
+    /**
+     * Why a series has no points: a token Frontend maps to its own copy, never display text. The
+     * contract's {@code x-extensible-enum} lists exactly these (CrowdVocabularyContractTest, BA-023-T21):
+     * extensible, so a new reason does not break a client, and listed, so it is announced there when
+     * the server starts sending it rather than appearing on the wire first.
+     */
+    public enum UnavailableReason {
+        /** Nothing stored covers the window - the common case, not an outage. */
+        NO_COVERAGE,
+        /** The id cannot be read (unknown, not active, no coordinates); queryPlaceCrowdForecasts only. */
+        PLACE_UNAVAILABLE
     }
 }
