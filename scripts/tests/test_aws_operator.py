@@ -915,15 +915,16 @@ class FetchPublicRegressions(unittest.TestCase):
             server.shutdown();server.server_close()
 
 class SecretScanRegressions(unittest.TestCase):
-    """BA-006-T2 on the deployed release: bundle, images and logs, with the values read from Secrets Manager.
+    """BA-006-T2: every recorded release's bundle, the deployed images and the retained logs, with the real values.
 
-    The images are built the way a containerd store saves them - gzip layers - with the key deflated inside a jar, and
-    inside a jar inside that jar, because a scan that did not open both would find nothing there and say clean.
+    The images are built the way a containerd store saves them - gzip layers - with the key deflated inside a jar, a jar
+    inside that jar, a zip with no suffix and an xz file, because a scan that did not open them would find nothing
+    there and say clean.
     """
     KTO='abc+def/ghi=jkl'
     VERIFIER='v'*43
     GROUPS={'nullnull-stg-api':'NullnullStgPlatform-ApiLogs1','nullnull-stg-ai':'NullnullStgPlatform-AiLogs1',
-            'nullnull-stg-ops':'NullnullStgPlatform-MigrationLogs1','nullnull-stg-migration':'NullnullStgPlatform-MigrationLogs1'}
+            'OpsTaskDefinitionArn':'NullnullStgPlatform-MigrationLogs1','MigrationTaskDefinitionArn':'NullnullStgPlatform-MigrationLogs1'}
     @staticmethod
     def zipped(entries):
         import io, zipfile
@@ -932,104 +933,133 @@ class SecretScanRegressions(unittest.TestCase):
             for name,data in entries.items():archive.writestr(name,data)
         return buffer.getvalue()
     def image_tar(self, path, jar_text=b'spring.application.name=nullnull', nested_text=b'library resource',
-                  plain_text=b'ID=synthetic'):
-        import gzip as gz, io, tarfile as tf
+                  plain_text=b'ID=synthetic', odd_zip_text=b'nothing', xz_text=b'nothing', broken=False):
+        import gzip as gz, io, lzma, tarfile as tf
         jar=self.zipped({'BOOT-INF/classes/application.yaml':jar_text,
                          'BOOT-INF/lib/library.jar':self.zipped({'library.properties':nested_text})})
         layer=io.BytesIO()
         with tf.open(fileobj=layer,mode='w') as tar:
-            for name,data in {'app/nullnull-api.jar':jar,'etc/os-release':plain_text}.items():
+            for name,data in {'app/nullnull-api.jar':jar,'etc/os-release':plain_text,
+                              'opt/bundle.dat':self.zipped({'inside.txt':odd_zip_text}),
+                              'usr/share/doc/notes':lzma.compress(xz_text),
+                              **({'var/cache/damaged':b'\x1f\x8b'+b'not really gzip'*40} if broken else {})}.items():
                 info=tf.TarInfo(name);info.size=len(data);tar.addfile(info,io.BytesIO(data))
         blobs={'blobs/sha256/'+'1'*64:gz.compress(layer.getvalue()),'blobs/sha256/'+'2'*64:b'{"config":{"Env":["PATH=/usr/bin"]}}',
                'index.json':b'{"schemaVersion":2}'}
         with tf.open(path,'w') as tar:
             for name,data in blobs.items():
                 info=tf.TarInfo(name);info.size=len(data);tar.addfile(info,io.BytesIO(data))
-    def run_scan(self, logs=None, web=b'<!doctype html>', image_jar=None, image_nested=None, image_plain=None,
-                 without_images=False,
-                 docker=True, tamper_plan=False, wrong_bundle=False):
-        import contextlib, io, tarfile as tf
+    def release_archive(self, root, n, web):
+        import tarfile as tf
+        plan=root/f'build/plan-{n}';(plan/'assembly/asset.web').mkdir(parents=True)
+        (plan/'assembly/asset.web/index.html').write_bytes(web)
+        (plan/'assembly/NullnullStgWebEdge.template.json').write_text('{"Resources":{}}')
+        (plan/'plan.json').write_text(json.dumps({'assemblySha256':ops.tree_digest(plan/'assembly'),'n':n}))
+        (plan/'release.json').write_text(json.dumps({'webArtifactSha256':'sha256:'+ops.tree_digest(plan/'assembly/asset.web')}))
+        sha=ops.digest(plan/'plan.json')
+        archive=root/f'build/{sha}.tgz'
+        with tf.open(archive,'w:gz') as tar:
+            for name in ['plan.json','release.json','assembly']:tar.add(plan/name,arcname=name)
+        return sha,archive
+    def run_scan(self, logs=None, web=b'<!doctype html>', old_web=None, image=None, without_images=False, docker=True,
+                 unrecorded=False, task_secrets=(), since=None):
+        import contextlib, io
         from types import SimpleNamespace
         logs={'NullnullStgPlatform-ApiLogs1':['Started NullnullApiApplication']} if logs is None else logs
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);(root/'scripts').mkdir()
             shutil.copyfile(ROOT/'scripts/check_secret_exposure.py',root/'scripts/check_secret_exposure.py')
-            plan=root/'build/plan';(plan/'assembly/asset.web').mkdir(parents=True)
-            (plan/'assembly/asset.web/index.html').write_bytes(web)
-            (plan/'assembly/NullnullStgWebEdge.template.json').write_text('{"Resources":{}}')
-            (plan/'plan.json').write_text(json.dumps({'assemblySha256':ops.tree_digest(plan/'assembly')}))
-            (plan/'release.json').write_text('{}')
-            archive=root/'build/plan.tgz'
-            with tf.open(archive,'w:gz') as tar:
-                for name in ['plan.json','release.json','assembly']:tar.add(plan/name,arcname=name)
-            web_digest='sha256:'+('0'*64 if wrong_bundle else ops.tree_digest(plan/'assembly/asset.web'))
-            current={'planKey':'releases/p/plan.tgz','planSha256':'f'*64 if tamper_plan else ops.digest(plan/'plan.json'),
+            releases=[self.release_archive(root,0,web)]
+            if old_web is not None:releases.append(self.release_archive(root,1,old_web))
+            archives={f'releases/{sha}/plan.tgz':a for sha,a in releases}
+            current={'planKey':f'releases/{releases[0][0]}/plan.tgz','planSha256':releases[0][0],
                      'releaseVersion':'v0.1.0-rc.9','deployedAt':'2026-09-19T00:00:00+00:00',
-                     'releaseManifest':{'apiImageDigest':'sha256:'+'a'*64,'aiImageDigest':'sha256:'+'b'*64,
-                                        'webArtifactSha256':web_digest}}
-            uploads,docker_calls=[],[]
+                     'releaseManifest':{'apiImageDigest':'sha256:'+'a'*64,'aiImageDigest':'sha256:'+'b'*64}}
+            uploads,docker_calls,log_calls=[],[],[]
             def fake_aws(service,operation,**kw):
                 if (service,operation)==('secretsmanager','get-secret-value'):
                     return {'SecretString':self.KTO if 'kto' in kw['SecretId'] else self.VERIFIER}
                 if (service,operation)==('ecs','describe-task-definition'):
-                    return {'taskDefinition':{'containerDefinitions':[{'name':'c','logConfiguration':{'options':{
-                            'awslogs-group':self.GROUPS[kw['taskDefinition']]}}}]}}
+                    return {'taskDefinition':{'containerDefinitions':[{'name':'c','secrets':[{'name':s} for s in task_secrets],
+                            'logConfiguration':{'options':{'awslogs-group':self.GROUPS[kw['taskDefinition']]}}}]}}
                 raise AssertionError((service,operation))
             def fake_cli(args,**kw):
                 args=[str(a) for a in args]
+                if args[:2]==['s3api','list-objects-v2']:
+                    keys=[] if unrecorded else list(archives)
+                    return subprocess.CompletedProcess(args,0,json.dumps({'Contents':[{'Key':k} for k in keys+['releases/x/other.json']]}),'')
                 if args[:2]==['s3','cp'] and args[2].startswith('s3://'):
-                    shutil.copyfile(archive,args[3]);return subprocess.CompletedProcess(args,0,'','')
+                    shutil.copyfile(archives[args[2][len('s3://b/'):]],args[3]);return subprocess.CompletedProcess(args,0,'','')
                 if args[:2]==['s3','cp']:
                     uploads.append((args[3],json.loads(Path(args[2]).read_text())));return subprocess.CompletedProcess(args,0,'','')
                 if args[:2]==['logs','filter-log-events']:
+                    log_calls.append(args)
                     group=args[args.index('--log-group-name')+1]
                     return subprocess.CompletedProcess(args,0,json.dumps({'events':[{'message':m} for m in logs.get(group,[])]}),'')
                 if args[:2]==['ecr','get-login-password']:return subprocess.CompletedProcess(args,0,'token\n','')
                 raise AssertionError(args)
             def fake_run(command,**kw):
-                docker_calls.append(command)
-                if command[:2]==['docker','save']:
-                    self.image_tar(command[3],**{k:v for k,v in {'jar_text':image_jar,'nested_text':image_nested,
-                                                                'plain_text':image_plain}.items() if v is not None})
+                docker_calls.append((command,kw.get('env',{}).get('DOCKER_CONFIG')))
+                if command[:2]==['docker','save']:self.image_tar(command[3],**(image or {}))
                 return subprocess.CompletedProcess(command,0,'','')
             out,err=io.StringIO(),io.StringIO()
             env={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
             with patch.dict(os.environ,env),patch.object(ops,'ROOT',root),patch.object(ops,'identity'),\
                  patch.object(ops,'aws',side_effect=fake_aws),patch.object(ops,'aws_cli',side_effect=fake_cli),\
+                 patch.object(ops,'output',side_effect=lambda stack,key,**kw:key),\
                  patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=current),\
                  patch.object(ops.subprocess,'run',side_effect=fake_run),\
                  patch.object(ops.shutil,'which',return_value='/usr/local/bin/docker' if docker else None),\
                  contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
                 error=None
                 try:
-                    ops.secret_scan(SimpleNamespace(since=None,without_images=without_images))
+                    ops.secret_scan(SimpleNamespace(since=since,without_images=without_images))
                 except ops.OpsError as e:
                     error=str(e)
+            docker_dirs=[c for _,c in docker_calls if c]
+            leftover=[c for c in docker_dirs if Path(c).exists()]
         printed=out.getvalue()+err.getvalue()
-        for value in [self.KTO,self.VERIFIER,'abc%2Bdef%2Fghi%3Djkl','abc%2bdef%2fghi%3djkl']:
+        import base64 as b64
+        for value in [self.KTO,self.VERIFIER,'abc%2Bdef%2Fghi%3Djkl','abc%2bdef%2fghi%3djkl',b64.b64encode(self.KTO.encode()).decode()]:
             self.assertNotIn(value,printed,'a secret value was printed')
             for _,evidence in uploads:self.assertNotIn(value,json.dumps(evidence),'a secret value reached the evidence')
-        return {'error':error,'out':printed,'uploads':uploads,'docker':docker_calls}
-    def test_a_clean_release_is_scanned_everywhere_and_recorded(self):
+        return {'error':error,'out':printed,'uploads':uploads,'docker':docker_calls,'docker_dirs':docker_dirs,
+                'leftover':leftover,'logs':log_calls}
+    def test_a_clean_staging_is_scanned_everywhere_and_recorded(self):
         r=self.run_scan()
         self.assertIsNone(r['error'],r['out'])
         key,evidence=r['uploads'][0]
         self.assertTrue(key.startswith('s3://b/evidence/secret-exposure/v0.1.0-rc.9/'),key)
         self.assertEqual('clean',evidence['verdict'])
-        # Every place was actually read: the bundle, the logs, both images with their layers inflated and archives opened.
+        self.assertEqual([],evidence['partialBecause'])
         self.assertEqual(1,evidence['webBundleFiles'])
+        # The whole retention, not from deployedAt: that instant is recorded after the tasks had started and logged.
+        self.assertEqual('retention',evidence['logs']['since'])
+        self.assertTrue(r['logs'] and all('--start-time' not in c for c in r['logs']))
         self.assertEqual({'NullnullStgPlatform-ApiLogs1':1,'NullnullStgPlatform-AiLogs1':0,'NullnullStgPlatform-MigrationLogs1':0},
                          evidence['logs']['eventsByGroup'])
         self.assertEqual({'api':'sha256:'+'a'*64,'ai':'sha256:'+'b'*64},evidence['images'])
-        self.assertEqual(2,evidence['layersInflated'])
-        self.assertEqual(4,evidence['archivesExpanded'])  # the boot jar and the library jar in each image
-        self.assertEqual(['KTO_SERVICE_KEY','KTO_SERVICE_KEY_URLENCODED','KTO_SERVICE_KEY_URLENCODED_LOWER','VERIFIER_TOKEN'],
-                         evidence['variables'])
+        self.assertEqual(0,evidence['blobsNotExpanded'])
+        # Per image: the gzip layer and the xz file inflated; the boot jar, the library jar and the suffix-less zip opened.
+        self.assertEqual(4,evidence['blobsInflated'])
+        self.assertEqual(6,evidence['archivesExpanded'])
+        self.assertEqual(['KTO_SERVICE_KEY','KTO_SERVICE_KEY_BASE64','KTO_SERVICE_KEY_JSON_ESCAPED','KTO_SERVICE_KEY_URLENCODED',
+                          'KTO_SERVICE_KEY_URLENCODED_LOWER','VERIFIER_TOKEN','VERIFIER_TOKEN_BASE64'],evidence['variables'])
         self.assertIn('secret_exposure=clean release=v0.1.0-rc.9',r['out'])
-    def test_the_key_as_a_request_line_logs_it_is_found(self):
-        # KtoKorServiceProperties sends serviceKey=URLEncoder(key): a logged request line holds this, not the raw key.
+    def test_the_ecr_login_lives_only_in_a_config_made_for_the_scan(self):
+        r=self.run_scan()
+        self.assertIsNone(r['error'],r['out'])
+        commands=[c for c,_ in r['docker']]
+        self.assertTrue(all(cfg for _,cfg in r['docker']),'every docker call runs on the scan-only config')
+        self.assertEqual(1,len(set(r['docker_dirs'])))
+        self.assertIn('logout',[c[1] for c in commands])
+        self.assertEqual([],r['leftover'],'the scan-only config is removed')
+    def test_the_key_as_logs_would_hold_it_is_found(self):
+        import base64 as b64
         for line,variable in [('GET /B551011/KorService2?serviceKey=abc%2Bdef%2Fghi%3Djkl&_type=json','KTO_SERVICE_KEY_URLENCODED'),
                               ('serviceKey=abc%2bdef%2fghi%3djkl','KTO_SERVICE_KEY_URLENCODED_LOWER'),
+                              ('{"url":"abc+def\\/ghi=jkl"}','KTO_SERVICE_KEY_JSON_ESCAPED'),
+                              ('Authorization: '+b64.b64encode(self.KTO.encode()).decode(),'KTO_SERVICE_KEY_BASE64'),
                               ('key='+self.KTO,'KTO_SERVICE_KEY')]:
             with self.subTest(variable=variable):
                 r=self.run_scan(logs={'NullnullStgPlatform-ApiLogs1':['Started',line]})
@@ -1038,37 +1068,57 @@ class SecretScanRegressions(unittest.TestCase):
                 self.assertEqual('leaked',evidence['verdict'])
                 self.assertEqual([variable],list(evidence['leaked']))
                 self.assertIn(f'secret_exposure_leak variable={variable}',r['out'])
-    def test_a_key_deflated_inside_a_jar_inside_a_compressed_layer_is_found(self):
-        # Three depths: a plain file in the gzip layer (found only once the layer is inflated - a byte scan of the
-        # saved tar reads gzip), a resource in the boot jar, and one in a library jar inside it.
-        for kw,where in [({'image_plain':b'KTO_SERVICE_KEY='+KTO_BYTES},'.inflated'),
-                         ({'image_jar':b'nullnull.kto.service-key='+KTO_BYTES},'!BOOT-INF/classes/application.yaml'),
-                         ({'image_nested':b'key='+KTO_BYTES},'!BOOT-INF/lib/library.jar!library.properties')]:
+    def test_a_key_compressed_or_archived_inside_a_layer_is_found(self):
+        # A plain file in the gzip layer, the boot jar, a jar in it, a zip with no suffix, and an xz file.
+        for kw,where in [({'plain_text':b'KTO_SERVICE_KEY='+KTO_BYTES},'(gzip)'),
+                         ({'jar_text':b'nullnull.kto.service-key='+KTO_BYTES},'!BOOT-INF/classes/application.yaml'),
+                         ({'nested_text':b'key='+KTO_BYTES},'!BOOT-INF/lib/library.jar!library.properties'),
+                         ({'odd_zip_text':b'key='+KTO_BYTES},'opt/bundle.dat!inside.txt'),
+                         ({'xz_text':b'key='+KTO_BYTES},'usr/share/doc/notes(xz)')]:
             with self.subTest(where=where):
-                r=self.run_scan(**kw)
+                r=self.run_scan(image=kw)
                 self.assertIn('secret-exposure-leaked',r['error'] or '')
                 places=r['uploads'][0][1]['leaked']['KTO_SERVICE_KEY']
                 self.assertTrue(any(p.endswith(where) for p in places),places)
-    def test_the_verifier_token_in_the_web_bundle_is_found(self):
-        r=self.run_scan(web=b'<script>const t="'+self.VERIFIER.encode()+b'"</script>')
-        self.assertIn('secret-exposure-leaked',r['error'] or '')
-        self.assertEqual(['VERIFIER_TOKEN'],list(r['uploads'][0][1]['leaked']))
+    def test_a_token_in_any_recorded_releases_bundle_is_found(self):
+        # The web deployment never prunes: an old release's hashed files are still served.
+        for kw in [{'web':b'<script>const t="'+self.VERIFIER.encode()+b'"</script>'},
+                   {'old_web':b'<script>const t="'+self.VERIFIER.encode()+b'"</script>'}]:
+            with self.subTest(which=list(kw)[0]):
+                r=self.run_scan(**kw)
+                self.assertIn('secret-exposure-leaked',r['error'] or '')
+                self.assertEqual(['VERIFIER_TOKEN'],list(r['uploads'][0][1]['leaked']))
+    def test_what_was_not_scanned_makes_the_verdict_partial(self):
+        r=self.run_scan(task_secrets=('KTO_SERVICE_KEY','SPRING_DATASOURCE_PASSWORD','NULLNULL_CURSOR_SECRET'))
+        self.assertIsNone(r['error'],r['out'])
+        evidence=r['uploads'][0][1]
+        self.assertEqual('clean-partial',evidence['verdict'])
+        self.assertEqual(['NULLNULL_CURSOR_SECRET','SPRING_DATASOURCE_PASSWORD'],evidence['taskSecretsNotScanned'])
+        self.assertIn('secret_exposure=clean-partial',r['out'])
+        r=self.run_scan(without_images=True)
+        evidence=r['uploads'][0][1]
+        self.assertEqual('clean-partial',evidence['verdict'])
+        self.assertEqual(['images not scanned'],evidence['partialBecause'])
+        self.assertEqual([],r['docker'])
+        # A compressed blob it could not open could hold anything: counted, and never clean.
+        r=self.run_scan(image={'broken':True})
+        evidence=r['uploads'][0][1]
+        self.assertEqual('clean-partial',evidence['verdict'])
+        self.assertEqual(2,evidence['blobsNotExpanded'])
+        self.assertEqual(['2 blobs not expanded'],evidence['partialBecause'])
     def test_a_scan_that_could_not_read_what_it_claims_stops_without_a_verdict(self):
         for kw,reason in [({'logs':{}},'no-log-events-to-scan'),
-                          ({'wrong_bundle':True},'deployed-web-bundle-not-in-assembly'),
-                          ({'tamper_plan':True},'release-archive-not-the-deployed-plan'),
+                          ({'unrecorded':True},'deployed-release-not-recorded'),
                           ({'docker':False},'docker-required-for-image-scan')]:
             with self.subTest(reason=reason):
                 r=self.run_scan(**kw)
                 self.assertIn(reason,r['error'] or '')
                 self.assertEqual([],r['uploads'])
-    def test_without_images_says_so_in_the_verdict(self):
-        r=self.run_scan(without_images=True)
+    def test_since_narrows_the_logs_and_says_so(self):
+        r=self.run_scan(since='2026-09-18T00:00:00+00:00')
         self.assertIsNone(r['error'],r['out'])
-        evidence=r['uploads'][0][1]
-        self.assertEqual('clean-without-images',evidence['verdict'])
-        self.assertEqual('not-scanned',evidence['images'])
-        self.assertEqual([],r['docker'])
+        self.assertTrue(all('--start-time' in c for c in r['logs']))
+        self.assertEqual('2026-09-18T00:00:00+00:00',r['uploads'][0][1]['logs']['since'])
 
 KTO_BYTES=SecretScanRegressions.KTO.encode()
 
