@@ -12,6 +12,7 @@ import io.nullnull.shared.problem.ProblemCode;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -71,6 +72,21 @@ public class CatalogPlaceProjectionService {
         String locale = preferences.get(owner).locale();
         return catalog.find(requestedPlaceId, locale, clock.instant())
                 .orElseThrow(() -> new ApiException(ProblemCode.NOT_FOUND, "The requested place is unavailable."));
+    }
+
+    /**
+     * Which canonical place each requested id means, for the ids {@link #detail} would answer - many
+     * at once, behind the same publication gate. An id {@code detail} would answer 404 for is absent
+     * from the map; the caller decides what that means for its own response.
+     *
+     * <p>No owner, because {@code detail} reads the owner only for the locale of the text it
+     * projects, and this projects no text.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, UUID> readableCanonicalIds(List<UUID> requestedPlaceIds) {
+        publication.requirePublicProjection();
+        Objects.requireNonNull(requestedPlaceIds, "requestedPlaceIds");
+        return catalog.readableCanonicalIds(List.copyOf(requestedPlaceIds));
     }
 
     /**

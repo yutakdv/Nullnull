@@ -141,7 +141,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | FR-DAT-02 | P0 | temporal 비교 적격성 | 공통 | `comparisonAxis=TEMPORAL` | 같은 POI/forecast issue |
 | FR-DAT-03 | P0 | spatial 비교 적격성 | 공통 | `comparisonAxis=SPATIAL` | 같은 source/scope/group/set |
 | FR-DAT-04 | P0 | source schema drift 격리 | 개발/운영 | readiness/source health | 추측값 대신 degraded |
-| FR-DAT-05 | P0 | 장소별 혼잡 예보 시계열 조회 | Live/상세 | `getPlaceCrowdForecast` | 발표·대상 시각과 비교 적격성 포함 |
+| FR-DAT-05 | P0 | 장소별 혼잡 예보 시계열 조회 | Live/상세 | `getPlaceCrowdForecast`, `queryPlaceCrowdForecasts` | 발표·대상 시각과 비교 적격성 포함 |
 
 ## 7. P1/P2 확장
 

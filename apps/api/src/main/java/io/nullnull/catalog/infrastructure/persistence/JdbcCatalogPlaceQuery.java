@@ -12,10 +12,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -270,6 +273,28 @@ SELECT p.id,
                 detail.categoryCode, detail.regionCode, detail.categoryName, detail.regionName, detail.thumbnailUrl,
                 detail.address, detail.description, detail.latitude, detail.longitude, externalReferences(detail.id),
                 media(detail.id, observedAt).orElse(null), detail.sourceAttribution));
+    }
+
+    @Override
+    public Map<UUID, UUID> readableCanonicalIds(List<UUID> requestedPlaceIds) {
+        if (requestedPlaceIds.isEmpty()) {
+            return Map.of();
+        }
+        // find's join and find's filter, over a list. Kept next to find so the two are read together:
+        // an id this answers and find refuses would give a batch a place the single route calls 404.
+        Map<UUID, UUID> canonical = new HashMap<>();
+        jdbc.query("""
+                SELECT requested.id AS requested_id, p.id AS place_id
+                  FROM places requested
+                  JOIN places p ON p.id = COALESCE(requested.canonical_place_id, requested.id)
+                 WHERE requested.id = ANY (?)
+                   AND p.status = 'ACTIVE'
+                   AND p.latitude IS NOT NULL
+                   AND p.longitude IS NOT NULL
+                """, (RowCallbackHandler) result -> canonical.put(result.getObject("requested_id", UUID.class),
+                        result.getObject("place_id", UUID.class)),
+                (Object) requestedPlaceIds.toArray(UUID[]::new));
+        return Map.copyOf(canonical);
     }
 
     private List<CatalogExternalReferenceView> externalReferences(UUID placeId) {

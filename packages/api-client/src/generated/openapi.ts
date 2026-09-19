@@ -310,6 +310,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/places/crowd-forecasts/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read the stored crowd forecasts of up to 50 places
+         * @description Reads the stored crowd forecast of up to 50 places in one call - the cards of one search
+         *     page, for example (#105). It is a read-only POST like searchPlaces: nothing is written, so it
+         *     takes no CSRF token and no Idempotency-Key, and the place ids stay out of URL logs.
+         *
+         *     `items[i]` answers `placeIds[i]`: the list has the request's length and order, and the server
+         *     never sorts it. For a place that can be read, `items[i]` is exactly what getPlaceCrowdForecast
+         *     returns for that place and the shared `from`/`to`, so `items[i].placeId` is the canonical place
+         *     and can differ from `placeIds[i]` when the requested id was merged into another place. A place
+         *     that cannot be read - unknown, not active, or without coordinates, where getPlaceCrowdForecast
+         *     answers 404 - answers its own item `UNAVAILABLE` with `unavailableReason` `PLACE_UNAVAILABLE`
+         *     and `placeId` equal to `placeIds[i]`; it does not fail the call.
+         *
+         *     Items MUST NOT be sorted, ranked or compared with one another (invariant 8). `comparisonAxis`
+         *     is TEMPORAL, and `comparisonEligible`, `forecastIssueId` and `comparisonGroupId` speak only
+         *     about points inside ONE item: two different places can carry the same `comparisonGroupId`, and
+         *     the KTO value is relative to each place's own peak. To show one number on a card, show one
+         *     point as the server sent it, with its `targetAt` and provenance; a value computed across points
+         *     or places has no provenance to carry. A KTO point's `ordinalLevel` is null: an item gives each
+         *     place's own relative value and its day, not a crowd stage such as the design's `4 · 혼잡`,
+         *     which needs a contract decision of its own.
+         *
+         *     Nothing is fetched from a provider: the call reads stored snapshot sets only and never
+         *     schedules collection, so a place nobody collected a forecast for answers `NO_COVERAGE`.
+         *     `unavailableReason` is an open string; treat a value you do not know as unavailable. `to` is
+         *     inclusive, and a point's day is the KST date of its `targetAt`: to read one KST date, send
+         *     that date's KST start and its last microsecond (`…T14:59:59.999999Z`). The server compares at
+         *     PostgreSQL's microsecond precision, so a `to` with more than six fractional digits can round up
+         *     onto the next date's point. Send the narrowest window the screen needs - the response carries
+         *     every point of every place inside it.
+         *
+         *     The request is checked before the catalog publication gate, as getPlaceCrowdForecast checks
+         *     its range first. A missing, empty, oversized (more than 50), repeated-id or null-holding
+         *     `placeIds`, a missing `from` or `to`, a `from` or `to` outside the years 0001-9999, or a range
+         *     getPlaceCrowdForecast would refuse is 422 `VALIDATION_FAILED` with a field error on
+         *     `placeIds`, `from` or `to`; a body with an unknown field or an id that is not a UUID is 400. A
+         *     valid request is one 503 `SOURCE_UNAVAILABLE` while the catalog is not published.
+         */
+        post: operations["queryPlaceCrowdForecasts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/places/{placeId}/related": {
         parameters: {
             query?: never;
@@ -1430,6 +1485,27 @@ export interface components {
             state: components["schemas"]["SourceState"];
             points: components["schemas"]["CrowdMetric"][];
             unavailableReason?: string | null;
+        };
+        PlaceCrowdForecastQuery: {
+            /**
+             * @description The places to read, as searchPlaces or getPlace named them. The response answers them
+             *     position by position, so the order is the caller's and repeating an id is refused.
+             */
+            placeIds: string[];
+            /** Format: date-time */
+            from: string;
+            /**
+             * Format: date-time
+             * @description Inclusive, as in getPlaceCrowdForecast. Every item shares this one window.
+             */
+            to: string;
+        };
+        PlaceCrowdForecastQueryResult: {
+            /**
+             * @description `items[i]` answers `placeIds[i]`: same length, same order, never sorted. Items are not
+             *     comparable with one another; see queryPlaceCrowdForecasts.
+             */
+            items: components["schemas"]["CrowdSeries"][];
         };
         /** @enum {string} */
         RelationState: "EXACT" | "SIMILAR" | "NONE" | "CHECKING" | "UNKNOWN";
@@ -3260,6 +3336,37 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    queryPlaceCrowdForecasts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceCrowdForecastQuery"];
+            };
+        };
+        responses: {
+            /** @description One forecast series per requested place, in the request's order */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceCrowdForecastQueryResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["Unprocessable"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };

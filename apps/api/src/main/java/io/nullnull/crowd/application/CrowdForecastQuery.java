@@ -5,7 +5,9 @@ import io.nullnull.crowd.domain.QualityFlag;
 import io.nullnull.crowd.domain.SourceState;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -16,6 +18,22 @@ public interface CrowdForecastQuery {
     Optional<SnapshotSet> latestFresh(UUID placeId, Instant from, Instant to, Instant now);
 
     Optional<SnapshotSet> latestStale(UUID placeId, Instant from, Instant to, Instant now);
+
+    /**
+     * For each place, the id of the set {@link #latestFresh} would choose for it - asked for many
+     * places in one statement instead of one per place. A place with no such set is absent.
+     */
+    Map<UUID, UUID> latestFreshSetIds(Collection<UUID> placeIds, Instant from, Instant to, Instant now);
+
+    /** {@link #latestFreshSetIds}, choosing the set {@link #latestStale} would. */
+    Map<UUID, UUID> latestStaleSetIds(Collection<UUID> placeIds, Instant from, Instant to, Instant now);
+
+    /**
+     * For each place, the points its set holds for it in the window, read the way {@link #frozenSet}
+     * reads one - for many (place, set) pairs in one statement. A pair with no point in the window is
+     * absent.
+     */
+    Map<UUID, SnapshotSet> sets(Map<UUID, UUID> setIdByPlace, Instant from, Instant to);
 
     /**
      * The set a caller already froze, by its id - not "what is newest now".

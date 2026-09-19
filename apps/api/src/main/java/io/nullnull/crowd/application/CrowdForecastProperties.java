@@ -26,6 +26,16 @@ public final class CrowdForecastProperties {
     public boolean accepts(Instant from, Instant to) {
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
-        return !to.isBefore(from) && Duration.between(from, to).compareTo(Duration.ofDays(maxRangeDays)) <= 0;
+        return !from.isBefore(EARLIEST) && !to.isAfter(LATEST)
+                && !to.isBefore(from) && Duration.between(from, to).compareTo(Duration.ofDays(maxRangeDays)) <= 0;
     }
+
+    /**
+     * The four-digit years RFC 3339 - the contract's {@code format: date-time} - can write. Jackson
+     * and Spring also read "+300000-01-01T00:00:00Z" into an Instant; PostgreSQL's timestamptz ends in
+     * 294276 AD, so such a window passed the relative check above and failed as the query bound it,
+     * which the catch-all answered 500 (BA-023-T20).
+     */
+    private static final Instant EARLIEST = Instant.parse("0001-01-01T00:00:00Z");
+    private static final Instant LATEST = Instant.parse("9999-12-31T23:59:59.999999999Z");
 }

@@ -1501,6 +1501,259 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/Problem"
+  /places/crowd-forecasts/query:
+    post:
+      tags: [Places]
+      operationId: queryPlaceCrowdForecasts
+      summary: Read the stored crowd forecasts of up to 50 places
+      description: |
+        Reads the stored crowd forecast of up to 50 places in one call - the cards of one search
+        page, for example (#105). It is a read-only POST like searchPlaces: nothing is written, so it
+        takes no CSRF token and no Idempotency-Key, and the place ids stay out of URL logs.
+
+        `items[i]` answers `placeIds[i]`: the list has the request's length and order, and the server
+        never sorts it. For a place that can be read, `items[i]` is exactly what getPlaceCrowdForecast
+        returns for that place and the shared `from`/`to`, so `items[i].placeId` is the canonical place
+        and can differ from `placeIds[i]` when the requested id was merged into another place. A place
+        that cannot be read - unknown, not active, or without coordinates, where getPlaceCrowdForecast
+        answers 404 - answers its own item `UNAVAILABLE` with `unavailableReason` `PLACE_UNAVAILABLE`
+        and `placeId` equal to `placeIds[i]`; it does not fail the call.
+
+        Items MUST NOT be sorted, ranked or compared with one another (invariant 8). `comparisonAxis`
+        is TEMPORAL, and `comparisonEligible`, `forecastIssueId` and `comparisonGroupId` speak only
+        about points inside ONE item: two different places can carry the same `comparisonGroupId`, and
+        the KTO value is relative to each place's own peak. To show one number on a card, show one
+        point as the server sent it, with its `targetAt` and provenance; a value computed across points
+        or places has no provenance to carry. A KTO point's `ordinalLevel` is null: an item gives each
+        place's own relative value and its day, not a crowd stage such as the design's `4 · 혼잡`,
+        which needs a contract decision of its own.
+
+        Nothing is fetched from a provider: the call reads stored snapshot sets only and never
+        schedules collection, so a place nobody collected a forecast for answers `NO_COVERAGE`.
+        `unavailableReason` is an open string; treat a value you do not know as unavailable. `to` is
+        inclusive, and a point's day is the KST date of its `targetAt`: to read one KST date, send
+        that date's KST start and its last microsecond (`…T14:59:59.999999Z`). The server compares at
+        PostgreSQL's microsecond precision, so a `to` with more than six fractional digits can round up
+        onto the next date's point. Send the narrowest window the screen needs - the response carries
+        every point of every place inside it.
+
+        The request is checked before the catalog publication gate, as getPlaceCrowdForecast checks
+        its range first. A missing, empty, oversized (more than 50), repeated-id or null-holding
+        `placeIds`, a missing `from` or `to`, a `from` or `to` outside the years 0001-9999, or a range
+        getPlaceCrowdForecast would refuse is 422 `VALIDATION_FAILED` with a field error on
+        `placeIds`, `from` or `to`; a body with an unknown field or an id that is not a UUID is 400. A
+        valid request is one 503 `SOURCE_UNAVAILABLE` while the catalog is not published.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceCrowdForecastQuery"
+      responses:
+        "200":
+          description: One forecast series per requested place, in the request's order
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaceCrowdForecastQueryResult"
+              examples:
+                forecastsQueried:
+                  summary: "Four cards: fresh, stale, no forecast, and an id no place has"
+                  description: |
+                    Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against;
+                    CrowdForecastQueryIT compares every level's keys with a real response. The request was
+                    `placeIds` [an id that was merged into 명동, 경복궁, 북촌한옥마을, an id no place has] with
+                    `from` 2026-10-04T15:00:00Z and `to` 2026-10-07T14:59:59.999999Z (10-05 to 10-07 KST),
+                    read on 10-02 when 명동's set is fresh and 경복궁's newest set is already stale.
+                    `items[0]` is getPlaceCrowdForecast's forecastFresh answer for 명동, and its `placeId` is
+                    명동's rather than the merged id that was sent. `items[1]` is a STALE fallback,
+                    `items[2]` has no stored forecast in the window, and `items[3]` answers the unknown id in
+                    place instead of failing the call.
+                  value:
+                    items:
+                    - placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b02
+                      state: FORECAST
+                      points:
+                      - state: FORECAST
+                        value: 34
+                        unit: relative-index
+                        ordinalLevel: null
+                        label: '관광지 집중률 예측'
+                        provenance:
+                          source: KTO_CONCENTRATION_FORECAST
+                          sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                          sourceRegistryVersion: 2
+                          sourceState: FORECAST
+                          observedAt: null
+                          targetAt: '2026-10-04T15:00:00Z'
+                          freshness: FRESH
+                          fetchedAt: '2026-10-02T00:00:00Z'
+                          staleAt: '2026-10-03T00:00:00Z'
+                          confidence: null
+                          license: '이용허락범위 제한 없음'
+                          officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                          licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                          attribution: '출처: ⓒ한국관광공사'
+                          attributionShort: null
+                          metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                          normalizationVersion: kto-tats-cnctr-rate-v4.1
+                          qualityFlags: []
+                          forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                          comparisonAxis: TEMPORAL
+                          comparisonEligible: true
+                          comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                          comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                          collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                          snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                          observedAtSkewSeconds: null
+                          scope: PLACE
+                          scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                          mappingType: DIRECT
+                          fallbackUsed: false
+                          provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e05
+                      - state: FORECAST
+                        value: 72.5
+                        unit: relative-index
+                        ordinalLevel: null
+                        label: '관광지 집중률 예측'
+                        provenance:
+                          source: KTO_CONCENTRATION_FORECAST
+                          sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                          sourceRegistryVersion: 2
+                          sourceState: FORECAST
+                          observedAt: null
+                          targetAt: '2026-10-05T15:00:00Z'
+                          freshness: FRESH
+                          fetchedAt: '2026-10-02T00:00:00Z'
+                          staleAt: '2026-10-03T00:00:00Z'
+                          confidence: null
+                          license: '이용허락범위 제한 없음'
+                          officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                          licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                          attribution: '출처: ⓒ한국관광공사'
+                          attributionShort: null
+                          metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                          normalizationVersion: kto-tats-cnctr-rate-v4.1
+                          qualityFlags: []
+                          forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                          comparisonAxis: TEMPORAL
+                          comparisonEligible: true
+                          comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                          comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                          collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                          snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                          observedAtSkewSeconds: null
+                          scope: PLACE
+                          scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                          mappingType: DIRECT
+                          fallbackUsed: false
+                          provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e06
+                      - state: FORECAST
+                        value: 51
+                        unit: relative-index
+                        ordinalLevel: null
+                        label: '관광지 집중률 예측'
+                        provenance:
+                          source: KTO_CONCENTRATION_FORECAST
+                          sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                          sourceRegistryVersion: 2
+                          sourceState: FORECAST
+                          observedAt: null
+                          targetAt: '2026-10-06T15:00:00Z'
+                          freshness: FRESH
+                          fetchedAt: '2026-10-02T00:00:00Z'
+                          staleAt: '2026-10-03T00:00:00Z'
+                          confidence: null
+                          license: '이용허락범위 제한 없음'
+                          officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                          licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                          attribution: '출처: ⓒ한국관광공사'
+                          attributionShort: null
+                          metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                          normalizationVersion: kto-tats-cnctr-rate-v4.1
+                          qualityFlags: []
+                          forecastIssueId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                          comparisonAxis: TEMPORAL
+                          comparisonEligible: true
+                          comparisonReasonCode: SAME_METRIC_AND_ISSUE
+                          comparisonGroupId: kto-tats-25aa417641d7c6ed0ca7685961d74c9d
+                          collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e00
+                          snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e01
+                          observedAtSkewSeconds: null
+                          scope: PLACE
+                          scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                          mappingType: DIRECT
+                          fallbackUsed: false
+                          provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e07
+                      unavailableReason: null
+                    - placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b01
+                      state: STALE
+                      points:
+                      - state: STALE
+                        value: 58
+                        unit: relative-index
+                        ordinalLevel: null
+                        label: '만료된 관광지 집중률 예측'
+                        provenance:
+                          source: KTO_CONCENTRATION_FORECAST
+                          sourceDisplayName: '한국관광공사 관광지 집중률 예측'
+                          sourceRegistryVersion: 2
+                          sourceState: STALE
+                          observedAt: null
+                          targetAt: '2026-10-05T15:00:00Z'
+                          freshness: STALE
+                          fetchedAt: '2026-10-01T00:00:00Z'
+                          staleAt: '2026-10-02T00:00:00Z'
+                          confidence: null
+                          license: '이용허락범위 제한 없음'
+                          officialUrl: 'https://www.data.go.kr/data/15128555/openapi.do'
+                          licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do'
+                          attribution: '출처: ⓒ한국관광공사'
+                          attributionShort: null
+                          metricDefinition: '가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측; 인원·수용률·시간대 예측 아님'
+                          normalizationVersion: kto-tats-cnctr-rate-v4.1
+                          qualityFlags: []
+                          forecastIssueId: kto-tats-26454f6aa9dcba7cb8fcd221288ebc61
+                          comparisonAxis: TEMPORAL
+                          comparisonEligible: false
+                          comparisonReasonCode: STALE_INPUT
+                          comparisonGroupId: kto-tats-26454f6aa9dcba7cb8fcd221288ebc61
+                          collectorRunId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e10
+                          snapshotSetId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e11
+                          observedAtSkewSeconds: null
+                          scope: PLACE
+                          scopeLabel: 'KTO 관광지 일별 집중률 예측'
+                          mappingType: DIRECT
+                          fallbackUsed: true
+                          provenanceId: 018f5a10-3c21-7d41-9b02-6a7b8c9d0e12
+                      unavailableReason: null
+                    - placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b03
+                      state: UNAVAILABLE
+                      points: []
+                      unavailableReason: NO_COVERAGE
+                    - placeId: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b99
+                      state: UNAVAILABLE
+                      points: []
+                      unavailableReason: PLACE_UNAVAILABLE
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
+        default:
+          $ref: "#/components/responses/Problem"
   /places/{placeId}/related:
     parameters:
       - $ref: "#/components/parameters/PlaceId"
@@ -6655,6 +6908,42 @@ components:
             $ref: "#/components/schemas/CrowdMetric"
         unavailableReason:
           type: [string, "null"]
+    PlaceCrowdForecastQuery:
+      type: object
+      additionalProperties: false
+      required: [placeIds, from, to]
+      properties:
+        placeIds:
+          type: array
+          description: |
+            The places to read, as searchPlaces or getPlace named them. The response answers them
+            position by position, so the order is the caller's and repeating an id is refused.
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+          description: Inclusive, as in getPlaceCrowdForecast. Every item shares this one window.
+    PlaceCrowdForecastQueryResult:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: |
+            `items[i]` answers `placeIds[i]`: same length, same order, never sorted. Items are not
+            comparable with one another; see queryPlaceCrowdForecasts.
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/CrowdSeries"
     RelationState:
       type: string
       enum: [EXACT, SIMILAR, NONE, CHECKING, UNKNOWN]

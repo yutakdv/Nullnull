@@ -67,6 +67,7 @@ const FIXTURE_OF = {
   forecastFresh: 'crowd/series-forecast.json',
   forecastStale: 'crowd/series-stale.json',
   forecastUnavailable: 'crowd/series-unavailable.json',
+  forecastsQueried: 'crowd/forecast-query.json',
   itemAdded: 'trips/mutation-add.json',
   itemUpdated: 'trips/mutation-update.json',
   itemsReordered: 'trips/mutation-reorder.json',

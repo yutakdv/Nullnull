@@ -14,6 +14,7 @@ import io.nullnull.recommendation.domain.item.TemporalCandidateIn;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -120,6 +121,23 @@ class TemporalCandidateAssemblerTest {
             @Override
             public Optional<SnapshotSet> latestStale(UUID placeId, Instant from, Instant to, Instant now) {
                 throw new AssertionError("a proposal is an instruction to change a plan; stale is not evidence for one");
+            }
+
+            @Override
+            public Map<UUID, UUID> latestFreshSetIds(Collection<UUID> placeIds, Instant from, Instant to,
+                    Instant now) {
+                throw new AssertionError("the assembler reads the set the run froze; it does not choose one");
+            }
+
+            @Override
+            public Map<UUID, UUID> latestStaleSetIds(Collection<UUID> placeIds, Instant from, Instant to,
+                    Instant now) {
+                throw new AssertionError("a proposal is an instruction to change a plan; stale is not evidence for one");
+            }
+
+            @Override
+            public Map<UUID, SnapshotSet> sets(Map<UUID, UUID> setIdByPlace, Instant from, Instant to) {
+                throw new AssertionError("the assembler reads one frozen set by its id");
             }
 
             @Override

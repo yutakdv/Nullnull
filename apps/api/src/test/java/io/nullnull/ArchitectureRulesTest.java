@@ -215,6 +215,70 @@ class ArchitectureRulesTest {
                 .check(classes);
     }
 
+    /**
+     * BA-023-T15: the public crowd reads - getPlaceCrowdForecast and queryPlaceCrowdForecasts - and the
+     * port implementations they run through hold no route to a provider call or to scheduling one.
+     *
+     * <p>Transitive on purpose. A direct rule stays green when the gateway is hidden behind a new
+     * service the read path calls: fifty places per request would become up to fifty provider calls
+     * against a quota, from inside the read-only transaction the projection runs in, where CLAUDE.md
+     * forbids an external call. Measured: that mutation left a direct rule green.
+     *
+     * <p>The port implementations are subjects of their own because a transitive walk does not go
+     * from an interface to the class behind it. The read path depends on CrowdForecastQuery and
+     * CatalogPlaceQuery only, so without them a read-through added inside JdbcCrowdForecastQuery -
+     * the most ordinary place for one in this code - was invisible here. The forbidden side is every
+     * way out this codebase has: both KTO gateways and fetchers, the shared ProviderHttpClient, the
+     * JDK and Spring HTTP clients, and the job queue a "refresh it later" would be enqueued on.
+     *
+     * <p>It binds the single route as well, because both reads live in one class. A decision to give
+     * the single route a read-through has to change this rule and queryPlaceCrowdForecasts'
+     * "exactly what getPlaceCrowdForecast returns" in the same change.
+     */
+    @Test
+    @DisplayName("BA-023-T15 the public crowd read path and its port implementations cannot reach a provider call or a job")
+    void publicCrowdReadsCannotReachAProvider() {
+        // Not vacuous in either direction: the read path, the implementations behind its ports and
+        // each named way out all exist.
+        org.assertj.core.api.Assertions.assertThat(classes.contain(
+                io.nullnull.crowd.application.CrowdForecastProjectionService.class)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName().equals("io.nullnull.crowd.api"))
+                        .count())
+                .as("the public crowd routes have classes")
+                .isPositive();
+        for (Class<?> port : java.util.List.of(io.nullnull.crowd.application.CrowdForecastQuery.class,
+                io.nullnull.catalog.application.CatalogPlaceQuery.class)) {
+            org.assertj.core.api.Assertions.assertThat(classes.stream()
+                            .filter(candidate -> !candidate.isInterface() && candidate.isAssignableTo(port))
+                            .count())
+                    .as("%s has an implementation for the rule to look at", port.getSimpleName())
+                    .isPositive();
+        }
+        java.util.List<Class<?>> exits = java.util.List.of(
+                io.nullnull.crowd.application.KtoCrowdForecastGateway.class,
+                io.nullnull.crowd.application.KtoForecastFetcher.class,
+                io.nullnull.catalog.application.KtoPlaceDetailGateway.class,
+                io.nullnull.catalog.application.KtoPlaceDetailFetcher.class,
+                io.nullnull.shared.provider.ProviderHttpClient.class,
+                io.nullnull.operations.application.JobQueue.class);
+        exits.forEach(exit -> org.assertj.core.api.Assertions.assertThat(classes.contain(exit))
+                .as("%s is imported, or forbidding it forbids nothing", exit.getSimpleName()).isTrue());
+
+        noClasses().that().belongToAnyOf(io.nullnull.crowd.application.CrowdForecastProjectionService.class)
+                .or().resideInAPackage("io.nullnull.crowd.api..")
+                .or().implement(io.nullnull.crowd.application.CrowdForecastQuery.class)
+                .or().implement(io.nullnull.catalog.application.CatalogPlaceQuery.class)
+                .should().transitivelyDependOnClassesThat(
+                        com.tngtech.archunit.core.domain.JavaClass.Predicates.belongToAnyOf(
+                                        exits.toArray(Class<?>[]::new))
+                                .or(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage(
+                                        "java.net.http..", "org.springframework.web.client..")))
+                .because("a public crowd read projects stored snapshots only; it never fetches and never"
+                        + " schedules a fetch (BA-023-T15)")
+                .check(classes);
+    }
+
     @Test
     void domainLayerDependsOnNothingAbove() {
         noClasses().that().resideInAPackage("io.nullnull..domain..")

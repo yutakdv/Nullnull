@@ -91,7 +91,7 @@ FE는 response type을 재선언하거나 unknown field에 의존하지 않는�
 - cookie가 없으면 `POST /demo/sessions`가 Owner, `__Host-nullnull_session` HttpOnly cookie, response body의 CSRF token을 만든다. valid cookie로 retry하면 200과 같은 Owner로 수렴하며 이유 없이 session을 rotate하지 않는다.
 - refresh/new tab은 valid cookie와 `POST /session/csrf`로 tab-local token을 받는다. token 발급은 same-origin 검증을 거친다. 미만료 token 5개까지 함께 유지하고, 6번째 발급 시 `last_used_at`(미사용이면 `created_at`) 기준 LRU token을 회수한다. 동률은 `created_at`, `id` 순으로 결정한다.
 - FE는 CSRF token을 memory에만 두며 bootstrap/재발급 response의 `expiresAt` 전에 갱신한다. 이 시각은 CSRF 만료이며 session idle/absolute 만료와 별개다. Backend는 session당 미만료 hash 최대 5개만 둔다.
-- 일반 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다. 최초 bootstrap은 cookie/CSRF 없이, token 재발급과 read-only `POST /places/search`는 cookie만 요구한다. 모든 non-safe operation은 동일 origin의 `Origin`(없으면 `Referer`)을 검증하며, 이 검증은 session 해석보다 먼저 돈다. 그래서 cross-origin non-safe 요청은 cookie가 있든 없든 같은 `403 CSRF_INVALID`를 받고 어느 쪽인지 알 수 없다.
+- 일반 mutation은 session cookie + `X-CSRF-Token` 조합을 요구한다. 최초 bootstrap은 cookie/CSRF 없이, token 재발급과 read-only `POST /places/search`·`POST /places/crowd-forecasts/query`는 cookie만 요구한다. 모든 non-safe operation은 동일 origin의 `Origin`(없으면 `Referer`)을 검증하며, 이 검증은 session 해석보다 먼저 돈다. 그래서 cross-origin non-safe 요청은 cookie가 있든 없든 같은 `403 CSRF_INVALID`를 받고 어느 쪽인지 알 수 없다.
 - cookie는 HTTPS production에서 `Secure; HttpOnly; SameSite=Lax; Path=/`를 사용한다.
 - client는 HttpOnly cookie를 볼 수 없으므로 401을 `missingCredential`로 가른다. `missingCredential: SESSION_COOKIE`가 실린 401(요청에 session cookie가 아예 없음)이면 `POST /demo/sessions`로 session을 한 번 만든 뒤 안전한 read만 재시도한다. 필드가 없는 401(만료·폐기·위조·형식 오류)에는 자동으로 새 session을 만들지 않는다. 새 session은 다른 익명 Owner라 이전 여행이 돌아오지 않으므로 사용자가 결정한다. mutation 자동 재실행은 동일 idempotency key가 있는 경우에도 UI가 요청 결과 불명을 처리하는 경로에서만 허용한다.
 - 다른 owner의 resource도 404로 응답해 존재 여부를 노출하지 않는다.
@@ -317,7 +317,7 @@ client에서 다시 만들지 않는다.
 
 ## 13. 개인정보·query body
 
-- `POST /places/search`와 `POST /live/areas`는 side effect 없는 read-only POST다. 검색어/coarse viewport를 URL·CDN/ALB/APM access log에서 제외하기 위한 선택이며 `private, no-store`다.
+- `POST /places/search`, `POST /places/crowd-forecasts/query`, `POST /live/areas`는 side effect 없는 read-only POST다. 검색어·장소 id 목록·coarse viewport를 URL·CDN/ALB/APM access log에서 제외하기 위한 선택이며 `private, no-store`다.
 - 검색 body는 저장/analytics/trace 금지다. live viewport는 소수점 3자리로 반올림하고 각 축 0.01도 이상인 coarse bounds만 허용하며 device exact coordinate를 보내지 않는다.
 - analytics body는 `sessionId/ownerId`를 받지 않는다. Backend가 인증 cookie에서 bind하며 route는 query/실제 UUID가 없는 route template만 허용한다.
 - session DELETE는 즉시 revoke 후 202 receipt와 memory-only status token을 반환한다. 상태 endpoint는 삭제 데이터 접근 권한 없이 상태만 보여주며 token hash는 7일 뒤 삭제한다.

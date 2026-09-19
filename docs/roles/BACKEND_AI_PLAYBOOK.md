@@ -728,8 +728,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - 선행: [BA-020](#ba-020), [BA-021](#ba-021), [BA-022](#ba-022)
 - 기능 ID: `FR-DAT-01`, `FR-DAT-02`, `FR-DAT-03`, `FR-DAT-04`, `FR-DAT-05`, `NFR-DATA-01`
-- API: `getPlaceCrowdForecast` (미기재 작업은 내부 처리 또는 별도 계약 제안)
-- Figma: `423:2967`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- API: `getPlaceCrowdForecast`, `queryPlaceCrowdForecasts` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `423:2967`, `438:3158`; FCR: `FCR-029`. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: crowd_snapshots · snapshot_sets · crowd_comparisons · source registry · crowd snapshot 보존 정리(retention sweep)는 아직 생산자가 없다. 만들 때는 optimization 제안이 가리키는 point를 지우지 않거나 지운 run의 읽기 계약을 먼저 정한다(#259, BA-052-T5)
 
 구현 순서:
@@ -761,6 +761,20 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-023-T4`: stale pair는 비교 자격이 없다
 - `BA-023-T5`: replay pair는 비교 자격이 없다
 - `BA-023-T6`: incident pair는 비교 자격이 없다
+- `BA-023-T7`: 배치 응답의 items는 요청 placeIds와 길이가 같고 i번째 item이 i번째 id에 답한다
+- `BA-023-T8`: 배치의 각 item은 같은 장소·같은 기간의 getPlaceCrowdForecast 응답과 같다
+- `BA-023-T9`: 조회할 수 없는 장소 id는 요청을 실패시키지 않고 그 id의 item만 UNAVAILABLE(PLACE_UNAVAILABLE)로 답한다
+- `BA-023-T10`: placeIds 51개 요청은 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T11`: 빈 placeIds 요청은 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T12`: 중복 placeIds 요청은 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T13`: 공개 게이트가 닫히면 배치는 503 SOURCE_UNAVAILABLE로 답한다
+- `BA-023-T14`: 배치의 statement 수와 connection 수는 placeIds 수에 따라 자라지 않는다
+- `BA-023-T15`: 공개 crowd 읽기 경로와 그 port 구현은 provider 호출·수집 예약 경로에 전이적으로도 의존하지 않는다
+- `BA-023-T16`: placeIds가 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T17`: placeIds에 null이 든 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T18`: from이 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T19`: to가 빠진 요청은 500이 아니라 422 VALIDATION_FAILED로 거절된다
+- `BA-023-T20`: 연도가 0001~9999 밖인 from·to는 500이 아니라 422 VALIDATION_FAILED로 거절된다
 
 구현 결과:
 
@@ -809,7 +823,37 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
   `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구한다. BA-021-T3의 staging
   actual-success→public provenance가 남아 있는 동안 BA-023도 `verified`가 아니며 공개 flag를 켜지 않는다.
 
-FE 인계·완료 증거: S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다. crowd는 `PlaceSummary`·`PlaceDetail`이 아니라 별도 operation `getPlaceCrowdForecast`로 제공하므로 FE는 카드에서 필요한 시점에만 호출한다(`FCR-029`).
+배치 조회(#105) 구현 결과:
+
+- `queryPlaceCrowdForecasts`(`POST /places/crowd-forecasts/query`)는 `placeIds[1..50]`와 공유 `from`/`to` 하나를 받는다.
+  `items[i]`가 `placeIds[i]`에 답하고 조립은 요청을 순회해서 한다. 읽을 수 있는 장소의 item은 같은 장소·기간의
+  `getPlaceCrowdForecast` 응답과 같다(deprecated id는 canonical `placeId`로 수렴). 단건이 404로 답할 id(없음·
+  비활성·좌표 없음)는 요청을 실패시키지 않고 그 item만 `UNAVAILABLE`·`PLACE_UNAVAILABLE`(`placeId`=요청 id)이다.
+- 문장은 id 수와 무관하다. catalog `readableCanonicalIds`가 `find`와 같은 join·필터로 1문장, fresh set 선택이
+  단건 `latest`와 같은 ORDER BY의 `DISTINCT ON`으로 1문장, fresh가 빠진 장소가 있을 때만 stale 선택 1문장,
+  set이 있을 때만 (set, place) 쌍의 point 1문장이다. 쌍인 이유는 `snapshot_sets`에 장소 열이 없어 한 set이
+  여러 장소를 담을 수 있기 때문이다. fresh와 stale을 한 문장으로 합치지 않는다 — `stale_at`이 NULL인 set이
+  DESC에서 맨 앞에 온다. `now`는 요청당 한 번 읽는다.
+- 검증(422)이 공개 게이트(503)보다 먼저다. body의 null이 `CrowdForecastProperties.accepts`의 `requireNonNull`에
+  닿으면 catch-all이 500으로 답하므로 그 전에 `NotNull` FieldError로 막는다. 같은 자리에 0001~9999년 절대
+  범위를 더했다: `+300000-01-01T00:00:00Z`는 Instant로 읽히고 상대 범위 검사를 통과한 뒤 PostgreSQL
+  timestamptz 범위 밖에서 500이 됐다. **단건 route에도 있던 결함**이라(수정 전 두 route 모두 500을 재현했다)
+  둘이 함께 422가 된다.
+- 측정(`QueryBudgetIT`, 5개 대 45개): 요청당 statement가 fresh 11·stale 12·no-coverage 11·merged 11·unresolved
+  9이고 connection은 모두 3이며, 다섯 branch 모두 45개에서 **같은 수**였다.
+- 변이는 각자 겨눈 절에서 발화했다. `T14`의 branch 단언은 soft라 한 변이가 빨갛게 만든 branch를 **전부** 보고한다:
+  id마다 해석 → 다섯 branch 전부, stale 조회를 장소별로 → STALE·NO_COVERAGE(fresh가 없는 둘)만, 해석 실패
+  id만 재조회 → UNRESOLVED만. 결과를 id순 정렬 → `T7`·`T8`·`T9`, resolver의 좌표 필터 제거 → `T9`·`T14`
+  (UNRESOLVED), `DISTINCT ON`의 `ss.id DESC` 제거 → `T8`(동률 fixture), stale이 fresh를 덮게 함 → `T8`(더 새
+  stale 옆의 옛 fresh), (set, place) 쌍을 id 목록 둘로 → `T8`(두 장소가 나눠 가진 set), `to`의 null 검사만
+  제거 → `T19`만(넷 중 잰 것은 이 하나), 절대 범위 제거 → `T20`과 단건 route test, 게이트를 검증 앞으로 → id
+  없는 순서 test(`CrowdForecastQueryFailsClosedIT`)만.
+- `T15`는 service에 collector 필드, collector를 새 중간 class 뒤에, **`JdbcCrowdForecastQuery`에** collector,
+  `CatalogPlaceProjectionService`에 KTO detail gateway, `JdbcCatalogPlaceQuery`에 `JobQueue` — 다섯 변이 모두에
+  빨갛다. 중간 class 변이에 **직접 의존 규칙은 초록**이었고, transitive 규칙도 interface에서 구현체로 건너가지
+  않으므로 port 구현체를 따로 주어로 둔다.
+
+FE 인계·완료 증거: S15·장소 상세·MetricDelta eligible/ineligible 예시. Live 화면 개발 전 공통 source/data guide를 완료한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다. crowd는 `PlaceSummary`·`PlaceDetail`이 아니라 별도 operation으로 제공한다 — 한 장소는 `getPlaceCrowdForecast`, 카드가 여럿인 화면(검색 결과 등)은 `queryPlaceCrowdForecasts`(50개까지 한 번에). FE는 카드에서 필요한 시점에만 호출한다(`FCR-029`). 두 operation이 주는 것은 장소별 상대값과 그 `targetAt`이고 단계가 아니다 — KTO point의 `ordinalLevel`은 늘 null이라 Figma의 `4 · 혼잡` 같은 단계 표시는 별도 계약 결정이 필요하다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-010, PM-013, PM-014.
 
