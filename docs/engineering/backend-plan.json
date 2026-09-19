@@ -2632,7 +2632,7 @@
         },
         {
           "id": "BA-072-T3",
-          "assertion": "수신자 부재 escalation·예산/쿼터 경보와 rollback 판단을 tabletop으로 검토한다"
+          "assertion": "수신자 부재 escalation·KTO 쿼터와 rollback 판단을 tabletop으로 검토한다"
         },
         {
           "id": "BA-072-T4",
@@ -2663,7 +2663,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-072",
-      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049로 tabletop 등급 증거를 기다린다. T7은 staging drill에서 다섯 alarm이 ALARM으로 전환했지만 SNS action이 전부 실패했다(enforceSSL topic policy가 CloudWatch의 Allow를 지웠다). Allow를 더했고 배포 뒤 drill을 다시 돌려 primary 메일 도달을 봐야 증명된다. secondary 수신자는 A-043으로 범위 밖이다."
+      "reason": "api-quality에 등록된 DeletionIncidentSignalIT·JobCrashRetryIT·DeletionReceiptExpiryIT가 T2·T4·T5·T6·T8·T9를 증명한다. T1은 A-048로 제출 범위에서 뺐고 증명되지 않았다(복원 전 삭제 원장이 조건). T3는 A-049의 tabletop 등급으로 runbook §9에 기록됐다(예산 절은 A-050으로 제외). T7은 staging drill에서 다섯 alarm이 ALARM으로 전환했지만 SNS action이 전부 실패했다(enforceSSL topic policy가 CloudWatch의 Allow를 지웠다). Allow를 더했고 배포 뒤 drill을 다시 돌려 primary 메일 도달을 봐야 증명된다. secondary 수신자는 A-043으로 범위 밖이다."
     },
     {
       "id": "BA-073",
