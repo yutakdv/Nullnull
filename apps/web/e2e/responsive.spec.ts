@@ -95,8 +95,9 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // FE-002 the tokens, FE-003 the error mapper, FE-004 the offline shell - so
 // their keyboard-and-reflow clause can only be shown across the whole set.
 // FE-104-T3 / FE-203-T3 are here for the accessible-name half only: the
-// per-screen test below presses Tab once and requires that whatever takes
-// focus is on screen and has a name. That is the "접근성 이름" clause.
+// per-screen test below walks eight Tab presses and requires that whatever
+// takes focus is on screen, has a name, and shows a ring. That is the
+// "접근성 이름" clause.
 //
 // They are NOT for reduced motion, which is why `honours prefers-reduced-motion`
 // now lives in its own describe below rather than in this one: it visits
@@ -107,56 +108,126 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-10
     test(`${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
-      await page.keyboard.press('Tab');
 
-      const focused = await page.evaluate(() => {
-        const el = document.activeElement as HTMLElement | null;
-        if (!el || el === document.body) return null;
-        const box = el.getBoundingClientRect();
-        const style = getComputedStyle(el);
-        return {
-          tag: el.tagName.toLowerCase(),
-          // An <input> has no textContent, and its name usually comes from the
-          // <label> around it or from aria-labelledby. Reading only aria-label
-          // and textContent reported "no name" for a correctly labelled field
-          // — which flagged the product for a gap in this check. The order
-          // below follows the accessible-name computation as far as it matters
-          // here: aria-label, then aria-labelledby, then the associated label,
-          // then the element's own text.
-          name: (() => {
-            const aria = el.getAttribute('aria-label');
-            if (aria?.trim()) return aria.trim().slice(0, 40);
-            const labelledBy = el.getAttribute('aria-labelledby');
-            if (labelledBy) {
-              const text = labelledBy
-                .split(/\s+/)
-                .map((id) => document.getElementById(id)?.textContent ?? '')
-                .join(' ')
-                .trim();
-              if (text) return text.slice(0, 40);
-            }
-            const labels = (el as HTMLInputElement).labels;
-            if (labels?.length) {
-              const text = Array.from(labels)
-                .map((l) => l.textContent ?? '')
-                .join(' ')
-                .trim();
-              if (text) return text.slice(0, 40);
-            }
-            return (el.textContent ?? '').trim().slice(0, 40);
-          })(),
-          onScreen: box.width > 0 && box.height > 0 && box.right <= window.innerWidth + 1,
-          // A focus ring the browser removed with nothing put back is a trap
-          // for keyboard users even though the element is technically focused.
-          hasIndicator: style.outlineStyle !== 'none' || style.boxShadow !== 'none',
-        };
-      });
+      // EIGHT presses, not one. One press only ever measured each screen's
+      // first stop, and the defect this exists to catch was on the SECOND:
+      // SearchField set `outline: none` with nothing put back, so the add-place
+      // search box took focus while showing no ring at all, and this test was
+      // green the whole time (measured, #279).
+      //
+      // Eight rather than "until it wraps": every screen in SCREENS reaches its
+      // own wrap point within eight, and a fixed bound cannot hang on a screen
+      // whose order never repeats.
+      //
+      // Landing on <body> is NOT a failure. Measured on normal code: nine of
+      // these screens hand focus back to the document between cycles, and
+      // splash has no interactive content at all, so requiring an element on
+      // every press would reject correct code rather than find a defect. Each
+      // press is judged only when something took focus.
+      const stops: Array<{
+        tag: string;
+        name: string;
+        onScreen: boolean;
+        hasIndicator: boolean;
+      }> = [];
+      for (let press = 0; press < 8; press += 1) {
+        await page.keyboard.press('Tab');
+        const stop = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || el === document.body) return null;
+          const box = el.getBoundingClientRect();
+          return {
+            tag: el.tagName.toLowerCase(),
+            // An <input> has no textContent, and its name usually comes from the
+            // <label> around it or from aria-labelledby. Reading only aria-label
+            // and textContent reported "no name" for a correctly labelled field
+            // — which flagged the product for a gap in this check. The order
+            // below follows the accessible-name computation as far as it matters
+            // here: aria-label, then aria-labelledby, then the associated label,
+            // then the element's own text.
+            name: (() => {
+              const aria = el.getAttribute('aria-label');
+              if (aria?.trim()) return aria.trim().slice(0, 40);
+              const labelledBy = el.getAttribute('aria-labelledby');
+              if (labelledBy) {
+                const text = labelledBy
+                  .split(/\s+/)
+                  .map((id) => document.getElementById(id)?.textContent ?? '')
+                  .join(' ')
+                  .trim();
+                if (text) return text.slice(0, 40);
+              }
+              const labels = (el as HTMLInputElement).labels;
+              if (labels?.length) {
+                const text = Array.from(labels)
+                  .map((l) => l.textContent ?? '')
+                  .join(' ')
+                  .trim();
+                if (text) return text.slice(0, 40);
+              }
+              return (el.textContent ?? '').trim().slice(0, 40);
+            })(),
+            onScreen:
+              box.width > 0 && box.height > 0 && box.right <= window.innerWidth + 1,
+            // A focus ring the browser removed with nothing put back is a trap
+            // for keyboard users even though the element is technically focused.
+            //
+            // What counts is a style that CHANGES when focus arrives, not any
+            // outline or shadow present on the node. Ancestors have to be
+            // considered, because the ring does not have to sit on the focused
+            // element: SearchField draws it on the 48px pill with
+            // `:focus-within`, since an outline on the transparent <input>
+            // inside would trace the text box rather than the control the user
+            // sees. But accepting any ancestor shadow is how the first version
+            // of this check passed on the very defect it was written for — the
+            // pill carries a decorative `--elevation-subtle` shadow at rest, so
+            // "the label has a box-shadow" was true with the focus ring deleted
+            // (measured: the mutation was live and all 16 screens stayed green).
+            //
+            // So each candidate is compared against its own resting style,
+            // captured while focus is elsewhere. Bounded at four levels up so
+            // this stays a local check.
+            hasIndicator: (() => {
+              const focusStyles: string[] = [];
+              const nodes: HTMLElement[] = [];
+              let node: HTMLElement | null = el;
+              for (let up = 0; node && up < 4; up += 1) {
+                const s = getComputedStyle(node);
+                nodes.push(node);
+                focusStyles.push(`${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`);
+                node = node.parentElement;
+              }
+              // Move focus away and re-read the same nodes. `blur()` is enough:
+              // it drops :focus and :focus-within without scrolling the page or
+              // disturbing the tab order the caller is walking.
+              el.blur();
+              const restStyles = nodes.map((n) => {
+                const s = getComputedStyle(n);
+                return `${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`;
+              });
+              // Put focus back so the next Tab continues from here.
+              el.focus();
+              return focusStyles.some((f, i) => f !== restStyles[i]);
+            })(),
+          };
+        });
+        if (stop) stops.push(stop);
+      }
 
       // A screen with no interactive content is allowed to have nothing to
       // focus; one that does must show where focus went, and name it.
-      if (focused) {
-        expect(focused.onScreen, `${screen.name}: focus is off-screen`).toBe(true);
-        expect(focused.name, `${screen.name}: focused element has no name`).not.toBe('');
+      for (const [i, stop] of stops.entries()) {
+        expect(stop.onScreen, `${screen.name}: focus is off-screen (stop ${i})`).toBe(
+          true,
+        );
+        expect(
+          stop.name,
+          `${screen.name}: focused <${stop.tag}> has no name (stop ${i})`,
+        ).not.toBe('');
+        expect(
+          stop.hasIndicator,
+          `${screen.name}: focused <${stop.tag}> "${stop.name}" shows no focus ring (stop ${i})`,
+        ).toBe(true);
       }
     });
   }
