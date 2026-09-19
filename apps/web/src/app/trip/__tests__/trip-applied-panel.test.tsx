@@ -22,13 +22,14 @@
 // assert the plan rather than the behaviour.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { optimizationFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
-import { API_BASE } from '../../../shared/testing/msw/handlers.js';
+import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
 import { TripAppliedPanel } from '../TripAppliedPanel.js';
 
@@ -36,6 +37,13 @@ import { TripAppliedPanel } from '../TripAppliedPanel.js';
 // this test, not break it (trip-screen.test.tsx does the same).
 const copy = messages['en-US'];
 const run = optimizationFixtures.runApplied;
+// `trip.applied.revert` carries a {from} placeholder, so the catalogue string
+// is not what reaches the DOM. Substituted here the same way the panel does it:
+// inputTripVersion is the version the undo goes back to.
+const REVERT_LABEL = copy['trip.applied.revert'].replace(
+  '{from}',
+  String(optimizationFixtures.runApplied.inputTripVersion),
+);
 const TRIP_ID = run.tripId;
 
 /** The history row the panel reads first; `decision` is what this file varies. */
@@ -128,6 +136,107 @@ describe('TripAppliedPanel', () => {
     // Asserted separately from the text: a panel could in principle be drawn
     // from cached data, and it is the REQUEST that 하4 restored.
     expect(runReads, 'the run should be read for a REVERT too').toEqual([run.id]);
+  });
+
+  // FE-505-T2's `error` and `offline` clauses, at the level that owns them.
+  //
+  // applied-panel.test.tsx proves the `failure` prop renders; these prove the
+  // wrapper DERIVES it, which is the half that was missing entirely:
+  // `revert.isError` was read nowhere, so a failed undo looked exactly like an
+  // unpressed one. The two cases differ in whether a retry is offered, and that
+  // answer comes from problem-policy.ts rather than from this file.
+  describe('FE-505-T2 a failed revert is reported rather than swallowed', () => {
+    /**
+     * Serves the two reads, then fails the revert.
+     *
+     * `problemResponse` rather than a hand-written body: `isProblem` requires
+     * nine fields (instance, requestId and retryable among them) and a body
+     * missing any of them is NOT a Problem, so the wrapper reads no code and
+     * falls to the generic branch. Writing the JSON by hand here silently
+     * tested that fallback instead of the code path — measured, it did.
+     */
+    function serveFailingRevert(code: 'INTERNAL_ERROR' | 'REVERT_WINDOW_EXPIRED' | null) {
+      serve(historyRow('APPLY', '2026-10-02T01:13:40Z'), run);
+      const attempts: string[] = [];
+      server.use(
+        http.post(
+          `${API_BASE}/optimization-decisions/:decisionId/revert`,
+          ({ request }) => {
+            attempts.push(request.headers.get('Idempotency-Key') ?? '');
+            // A transport failure: no response at all, so no Problem to read.
+            if (code === null) return HttpResponse.error();
+            return problemResponse(code);
+          },
+        ),
+      );
+      return attempts;
+    }
+
+    it('reports a retryable failure and replays the SAME command', async () => {
+      // A 503-shaped failure: the command can be sent again. The assertion that
+      // matters is the KEY — a retry that minted a fresh one would be a second
+      // revert of the same decision, which invariant 6 forbids and which the
+      // server would answer as a new command rather than a replay.
+      const attempts = serveFailingRevert('INTERNAL_ERROR');
+      const user = userEvent.setup();
+      renderPanel();
+
+      await user.click(await screen.findByRole('button', { name: REVERT_LABEL }));
+
+      const retry = await screen.findByRole('button', {
+        name: copy['trip.applied.retry'],
+      });
+      expect(
+        screen.getByRole('alert'),
+        'the traveller must be told the itinerary did not change',
+      ).toHaveTextContent(copy['trip.applied.failed.retryable']);
+      expect(retry).toBeEnabled();
+
+      await user.click(retry);
+      await expect.poll(() => attempts.length).toBe(2);
+      expect(attempts[0], 'the retry must replay the first key').toBe(attempts[1]);
+      expect(attempts[0]).not.toBe('');
+    });
+
+    it('offers no retry when the undo window has closed', async () => {
+      // REVERT_WINDOW_EXPIRED is retry:'none' and recovery:'none'. Without this
+      // case a fix that reported every failure identically would look complete.
+      const attempts = serveFailingRevert('REVERT_WINDOW_EXPIRED');
+      const user = userEvent.setup();
+      renderPanel();
+
+      await user.click(await screen.findByRole('button', { name: REVERT_LABEL }));
+
+      const retry = await screen.findByRole('button', {
+        name: copy['trip.applied.retry'],
+      });
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        copy['trip.applied.failed.expired'],
+      );
+      expect(retry, 'a press the server has already refused for good').toBeDisabled();
+
+      await user.click(retry);
+      // Still one: the first attempt, and nothing the disabled button added.
+      await expect.poll(() => attempts.length).toBe(1);
+    });
+
+    it('reports a transport failure the same way, with the retry kept', async () => {
+      // The `offline` clause. The request never reaches the server, so there is
+      // no Problem and no code — `isProblem` is false — and the wrapper must
+      // read that as retryable rather than defaulting to the terminal branch.
+      serveFailingRevert(null);
+      const user = userEvent.setup();
+      renderPanel();
+
+      await user.click(await screen.findByRole('button', { name: REVERT_LABEL }));
+
+      expect(
+        await screen.findByRole('button', { name: copy['trip.applied.retry'] }),
+      ).toBeEnabled();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        copy['trip.applied.failed.retryable'],
+      );
+    });
   });
 
   it('draws nothing for a KEEP, which changed no schedule', async () => {

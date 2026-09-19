@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import {
+  isProblem,
   useLatestTripOptimization,
   useOptimization,
   useRevertOptimizationDecision,
@@ -70,17 +71,49 @@ export function TripAppliedPanel({ tripId, etag }: TripAppliedPanelProps) {
 
   const numbers = { from: versions.from, to: versions.to };
 
+  // How the last revert attempt failed, translated once here so the panel
+  // stays presentational.
+  //
+  // `retryable` comes from the problem policy rather than from a guess: the
+  // table gives REVERT_WINDOW_EXPIRED `retry: 'none'` and `recovery: 'none'`,
+  // and a retry button on that code would offer a press the server has already
+  // refused for good. Anything else — a 503, a dropped connection — keeps the
+  // press, because the command is replayable and the key below makes replaying
+  // it safe.
+  //
+  // A transport failure is not a Problem: `isProblem` is false when the request
+  // never reached the server, so `code` is undefined and it lands in the
+  // retryable branch, which is the correct reading of an offline attempt.
+  const revertProblem = isProblem(revert.error) ? revert.error : null;
+  const failure = revert.isError
+    ? {
+        message:
+          revertProblem?.code === 'REVERT_WINDOW_EXPIRED'
+            ? t('trip.applied.failed.expired')
+            : t('trip.applied.failed.retryable'),
+        retryable: revertProblem?.code !== 'REVERT_WINDOW_EXPIRED',
+      }
+    : undefined;
+
   return (
     <AppliedPanel
       // Straight from the server. The panel has no other source for this, by
       // design — see its own header.
       availability={detail.revertAvailability}
+      failure={failure}
       summary={apply.proposalId ? (detail.proposals[0]?.summary ?? '') : ''}
       fromVersion={versions.from}
       toVersion={versions.to}
       appliedAt={appliedAt}
       revertUntil={revertUntil}
       submitting={revert.isPending}
+      // The retry button presses THIS, unchanged, and that is the whole
+      // mechanism: `idempotencyKey` is minted once per mount (see the top of
+      // this file), so a second press after a failure replays the first
+      // command instead of queuing a second revert. Minting a key here — the
+      // obvious-looking place, once a retry exists — would turn one retried
+      // revert into two distinct ones and break invariant 6. There is no
+      // separate onRetry for exactly that reason.
       onRevert={() => {
         revert.mutate({ decisionId: apply.id, etag, idempotencyKey });
       }}
@@ -107,6 +140,8 @@ export function TripAppliedPanel({ tripId, etag }: TripAppliedPanelProps) {
         revert: t('trip.applied.revert', { from: versions.from }),
         reverting: t('trip.applied.reverting'),
         expired: t('trip.applied.expired'),
+        badgeFailed: t('trip.applied.badge.failed'),
+        retry: t('trip.applied.retry'),
       }}
     />
   );

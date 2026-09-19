@@ -59,6 +59,18 @@
   line-height: 16px;
 }
 
+/* The failed-attempt line. Same treatment as every other state line in this
+   feature (AddPlaceScreen, LockRow, CandidatesScreen all use
+   --color-text-secondary): this design system has no danger colour, and the
+   failure is carried by the words and the `role="alert"` rather than by hue —
+   which is also the rule that meaning never rides on colour alone. */
+.failure {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .revert {
   display: flex;
   justify-content: center;
