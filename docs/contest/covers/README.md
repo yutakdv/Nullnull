@@ -21,9 +21,11 @@ tags:
 생기면 실패한다. 표지는 앱 번들이 아니라 **배포 도메인에서 서빙되는 콘텐츠 자산**이라
 그 목록에 들어갈 것도 아니다.
 
-**최종 URL은 BE가 정한다.** `#182` 결정에 따라 `media_assets`는 **절대 https URL만**
-받는다(`media_assets_origin_url_check`가 `^https://`를 강제). 서빙 위치는 `D-001`(서비스
-도메인)이 확정된 뒤 BE가 정하고, 이 폴더는 **원본을 주고받는 자리**다.
+**서빙 위치: staging distribution의 `/covers/`.** `#182` 결정에 따라 `media_assets`는 **절대 https URL만**
+받는다(`media_assets_origin_url_check`가 `^https://`를 강제). staging operator의 release plan이 이 폴더의
+`*.jpg`를 배포 묶음(assembly)에 넣고 WebEdge distribution이 `<PublicUrl>/covers/<파일>`로 서빙한다
+(`STAGING_DEPLOYMENT_RUNBOOK.md` §11). 그래서 **이 폴더의 jpg는 모두 공개로 배포된다** — 게시물이 쓰지 않는
+사진을 여기 두지 않는다. 한 번 올라간 사진은 다음 release에서도 지워지지 않는다(`prune: false`).
 
 ## 파일 이름
 
@@ -68,4 +70,6 @@ tags:
    `alt`는 이미지를 못 보는 사람에게 *실제로 무엇이 보이는지* 말하는 값이다
 3. 서식에 맞춘 JSON 조각을 만들어 #183에 올린다
 
-BE는 거기에 `id`·`placeId`·`cover.url` 세 칸을 채워 실제 계획 파일로 옮긴다.
+BE는 거기에 `id`·`placeId`·`cover.url` 세 칸을 채워 실제 계획 파일로 옮긴다. 다섯 장 모두 옮겨졌다
+(`ops/curated-posts.json`). 사진을 바꾸면 `cover.checksum`도 바꿔야 하고,
+`scripts/tests/test_curated_post_covers.py`가 둘이 어긋나면 실패한다.

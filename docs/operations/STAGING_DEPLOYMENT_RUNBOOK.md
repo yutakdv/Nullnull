@@ -99,10 +99,10 @@ CDK v2 TypeScript 구현은 stateful replacement와 배포 순서를 분리하�
 | `NullnullStgNetwork` | VPC, subnet, SG(ALB는 CloudFront origin-facing prefix list만) | `VpcId` |
 | `NullnullStgData` | RDS Multi-AZ, DB secret | `DatabaseIdentifier`, `DatabaseSubnetGroupName`, `DatabaseSecurityGroupId` |
 | `NullnullStgPlatform` | ECS cluster, internal ALB, Cloud Map, log group | `ClusterName`, `AppSubnetIds`, `ApiSecurityGroupId`, `MigrationSecurityGroupId`, `MigrationLogGroupName` |
-| `NullnullStgMigration` | release digest를 담는 migration·ops task definition(앱 경로) | `MigrationTaskDefinitionArn`, `MigrationContainerName`, `OpsTaskDefinitionArn` |
+| `NullnullStgMigration` | release digest를 담는 migration·ops task definition(앱 경로), 예보·detail 재적재 schedule | `MigrationTaskDefinitionArn`, `MigrationContainerName`, `OpsTaskDefinitionArn`, `ForecastScheduleName`, `DetailScheduleName` |
 | `NullnullStgServices` | api/ai task definition과 service | `ApiServiceName`, `AiServiceName`, `InternalAlbArn` |
 | `NullnullStgWebEdge` | private S3, OAC, CloudFront VPC origin(HTTP:80), WAF, API gate | `PublicUrl`, `DistributionId`, `WebBucketName` |
-| `NullnullStgObservability` | alarms, SNS(Budget 없음 — 조직 SCP가 `budgets:*`를 거부) | `AlarmTopicArn` |
+| `NullnullStgObservability` | alarms, `ops.alarm`·예보 metric filter, SNS(Budget 없음 — 조직 SCP가 `budgets:*`를 거부) | `AlarmTopicArn` |
 
 release digest를 담는 것은 `Migration`·`WebEdge`·`Services`뿐이다. 보호 stack(`Foundation`·`Network`·`Data`·`Platform`·`GlobalWaf`·`Observability`)의 template이 바뀌거나 migration 목록이 바뀌면 infra 변경으로 분류되어 `staging-infra` 승인 경로를 탄다.
 
@@ -237,6 +237,49 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 | jobs/source | dead letter, queue 지연, KTO freshness/quota/security event |
 | billing | 조직 SCP가 Budgets·Cost Explorer를 거부하므로 자동 신호가 없다. 오너가 조직 청구 화면에서 확인한다 |
 
+### `ops.alarm`과 예보 재적재 alarm
+
+`OpsAlarm`은 BA-072부터 `ops.alarm name=<NAME>` 한 줄을 남기고 그 javadoc은 *"a metric filter matches the quoted phrase"* 라고 적고 있었다. **그 filter가 없었다.** 어휘는 있고 배선이 없었으므로 그 줄들은 아무에게도 닿지 않았고, 닿지 않는 것과 사건이 없는 것은 CloudWatch에서 같아 보인다. 이제 다섯 이름 각각에 metric filter 하나와 alarm 하나가 있다(`ApiLogs`, namespace `Nullnull/Staging`). 이름을 합치지 않은 이유는 대응이 다섯 다 다르기 때문이다.
+
+예보 재적재는 세 alarm으로 본다. **먼저 보는 것은 실패가 아니라 성공의 부재다**: `RunTask`는 task가 배치되면 돌아오고 exit code를 읽지 않으므로, schedule이 돌았다는 사실은 재적재가 됐다는 뜻이 아니다.
+
+| Alarm | 무엇을 보는가 | 창 |
+| --- | --- | --- |
+| `ForecastRefreshMissing` | `KTO_DEMO_REFRESH_DONE mode=forecast … failed=0` 줄이 **없다** | 1시간 창 18개. 마지막 성공 뒤 **18~19시간**에 울린다(창이 시계에 붙어 있어 정렬만큼 1시간 흔들린다). 예보 set이 stale이 되는 PT24H보다 **최소 5시간 앞**이다 |
+| `DemoRefreshFailed` | `KTO demo refresh failed:` 줄이 **있다** | 5분 창 1개. 예보·detail **두 mode 공용**이다(문구에 mode가 없다) |
+| `ForecastRefreshEmpty` | **INT-04 장소(경복궁 126508)** 예보 evidence 줄의 `coverage=0` | 5분 창 1개. provider가 빈 답을 주면 run은 `REFRESHED`·`failed=0`이라 앞의 두 alarm이 못 본다. 다른 장소의 `coverage=0`은 KTO가 그곳을 예보하지 않는다는 뜻일 수 있어 사고로 세지 않는다 |
+
+부재를 보는 쪽이 schedule 비활성·만료, role의 `ecs:RunTask` 상실, 기동 실패, 로그를 남기기 전에 죽은 run을 **전부** 덮는다. 다만 이 alarm은 **schedule이 아니라 재적재를 잰다** — operator로 손으로 돌린 예보도 같은 줄을 찍으므로 성공으로 센다. 화면이 보는 것이 신선도이므로 그게 맞는 기준이지만, schedule이 사라진 것(예: A-044 이전 release로 rollback)을 손 실행이 가릴 수 있다.
+
+**배포 직후 `ForecastRefreshMissing`은 한 번 울린다.** 새 alarm에는 이력이 없어 만들어지기 전 창들이 missing이고 missing을 breaching으로 읽기 때문이다(AWS에서 실측하지는 않았다 — 적대적 검토가 주장했고 반증되지 않았다). 조용히 만드는 설정은 schedule이 조용히 멈출 때도 조용하므로 막지 않는다. 오너 시트 3-2의 수동 예보가 몇 분 안에 OK로 돌린다.
+
+모든 alarm은 기존 `AlarmTopicArn` topic으로 발행한다. **수신자는 `staging-alarm-subscribe.sh`가 정한다**(A-037). 구독을 돌리지 않으면 이 alarm들은 발화하고도 아무에게도 닿지 않는다.
+
+### 예보·detail 재적재 schedule (A-044)
+
+심사 기간 내내 두 schedule이 돈다. **그래서 KTO 승인 변수 둘이 각 schedule 안에서 상시 승인이다**: `staging_operator.py`는 호출자 환경의 승인 변수와 `--owner-approval` 기록을 둘 다 요구하지만(*"Neither alone runs"*) schedule에는 호출자가 없다. 오너가 상시 형태를 승인했고(A-044, detail 쪽은 2026-09-20 오너 확인), 값은 schedule 정의 안에 그대로 보인다. task definition에는 들어가지 않으므로 operator의 gate는 그대로다.
+
+| schedule | 주기 | 승인 변수 | 왜 필요한가 |
+| --- | --- | --- | --- |
+| `nullnull-stg-forecast-refresh` | 12시간 | `NULLNULL_KTO_FORECAST_SMOKE_APPROVED` | 예보 set은 PT24H에 stale. 주기는 `KtoDemoRefresh.FORECAST_RENEW_BEFORE`(12시간)와 같다 |
+| `nullnull-stg-detail-refresh` | 5일 | `NULLNULL_KTO_SMOKE_APPROVED` | 예보 요청은 detail snapshot에서 만들어지고 그 수명은 `V007`의 604800초(7일)다. 끊기면 예보가 `NO_VERIFIED_KTO_MAPPING`으로 매번 실패한다. 5일 + `DETAIL_RENEW_BEFORE` 2일 = 7일 |
+
+KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. 등록된 quota는 source당 하루 1000건(`V007`의 `perDay`)이라 0.5% 미만이다.
+
+**무인 호출의 위험 하나를 그대로 적는다**: provider 응답이 validator에 거절되면 그 source의 최신 collector run이 `QUARANTINED`가 되고, 그 뒤 모든 호출이 `SOURCE_QUARANTINED`로 막힌다(`KtoPlaceDetailGateway.requireHealthySource`). 사람이 돌릴 때와 같은 동작이지만 새벽에 일어날 수 있고, 해제 도구는 없다. `DemoRefreshFailed`가 그때 울린다.
+
+`staging_operator.py`는 ops task를 **local 전용**으로 못박으므로(`ops-tasks-are-local-only`) schedule은 그 operator를 거치지 않고 ECS `RunTask`를 직접 부른다. 같은 task definition·image·revision을 쓰되 operator가 하던 것 중 빠지는 것이 있다.
+
+| operator가 하던 것 | schedule에서 | 메우는 것 |
+| --- | --- | --- |
+| release binding | **있다** | schedule이 app stack(`Migration`) 안에 있어 배포가 target을 새 revision으로 다시 가리킨다. 고정 ARN이면 조용히 어긋나므로 infra test가 두 schedule 모두 `Ref`인지 검사한다 |
+| 배포 lock(DynamoDB) | **없다** | **메우지 못한다.** 배포와 schedule 실행이 겹칠 수 있다. 특히 `Migration` stack이 schedule을 새 revision으로 다시 가리킨 뒤 Flyway가 돌기 전 몇 분 동안 tick이 들어오면 **새 image가 옛 schema에 붙는다**(ops task는 Flyway가 꺼져 있고 Hibernate `validate`만 남는다). 그 run은 실패하고 `DemoRefreshFailed`가 울리며 다음 tick은 정상이다. schedule은 lock을 잡지 않으므로 실패해도 lock을 남기지 않는다 |
+| `NULLNULL_OPERATIONS_TARGET` 사전 대조 | **부분** | schedule이 같은 endpoint로 값을 만들고, task 안 `OperationsContext`가 자기 datasource와 대조해 다르면 연결 전에 거절한다. RDS에 먼저 물어보는 operator의 사전 검사만 없다 |
+| 로그 allowlist 증거 수집 | **없다** | **메우지 못한다.** 줄은 CloudWatch에 남고 operator가 하던 선별·증거 파일이 없다. ops main들은 이미 allowlist 모양으로만 찍는다 |
+| task 종료까지 대기와 판정 | **없다** | 위 alarm들이 대신한다. 부재 alarm이 "돌지 않았다"와 "돌고 죽었다"를 함께 덮는다 |
+
+종료는 각 schedule 자신의 `EndDate`이고 값은 `staging_operator.py`의 `EXPIRY`(2026-10-25T14:59:59Z = KST 23:59:59)와 같다. 두 파일이 서로를 못 보므로 `scripts/tests/test_ops_alarm_metric_filters.py`가 대조한다.
+
 비용 대응은 다음과 같이 고정한다.
 
 - `$100`: tag 누락과 예상 밖 resource 점검
@@ -294,6 +337,9 @@ AWS script는 `scripts/aws/`에 있다. 기본값은 read-only plan이고 실제
 export AWS_PROFILE=nullnull-staging NULLNULL_AWS_AUTH=profile NULLNULL_AWS_ACCOUNT_ID=<account>
 
 python3 scripts/aws/staging-iam.py                                   # IAM 정책·operator role 계획(정책을 바꿀 때마다)
+# A-044 배포 순서: `infra/iam/cfn-execution.json`이 scheduler 권한을 얻었으므로, 예보 schedule이 든 release를
+# 배포하기 전에 위 스크립트를 plan→execute로 한 번 더 돌린다. 건너뛰면 CloudFormation이 schedule을 만들 권한이
+# 없어 Migration stack이 AccessDenied로 rollback한다. 그 순서를 검사하는 게이트는 없고, 이 줄이 유일한 기록이다.
 # CDK toolkit(서울·us-east-1). 이 template으로만 실행한다. live stack의 BootstrapVariant가 이 template의 값이라
 # (SSM parameter 설명이 그 값을 참조해야 CloudFormation이 parameter만 바뀐 update를 no-op으로 버리지 않는다)
 # --force 없는 표준 `cdk bootstrap`은 CLI가 variant 불일치로 거부한다. --force는 그 거부를 끄므로 표준 template에
@@ -328,6 +374,14 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-hours --plan-file <plan.json> \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# 큐레이션 게시물(local 전용, #183). 커밋된 ops/curated-posts.json을 그대로 넘긴다(staging placeId와 표지 URL이 들어 있다).
+# 표지는 이 명령이 올리지 않는다: release plan이 docs/contest/covers의 jpg를 assembly에 넣고 WebEdge가 /covers/로 서빙한다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task curate-posts --plan-file ops/curated-posts.json \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# BA-006-T2 secret 스캔(local 전용). 배포된 release의 assembly(web bundle 포함)·두 image·그 release 배포 뒤의 로그에서
+# KTO key와 verifier token을 찾는다(원문과 URL 인코딩 형태). docker가 필요하다. 값은 출력·기록하지 않는다.
+python3 scripts/aws/staging_operator.py secret-scan
 # verifier token(Secrets Manager nullnull-stg/verifier-token)은 history에 남지 않게 읽는다. 아래 flows와 edge open이 쓴다.
 read -rs NULLNULL_VERIFIER_TOKEN && export NULLNULL_VERIFIER_TOKEN
 # INT-04 확인(verifier 경로). 먼저 날짜 쌍을 찾고, 예보 적재 뒤 24시간 안에 돌린다. edge를 연 뒤에는 --expect-edge open.
@@ -349,6 +403,11 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
 - `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
 - `curate-hours`는 승인한 plan 바이트를 gzip+base64로 task override에 싣는다. override는 `describe-tasks`와 CloudTrail에 남으므로 plan에 민감한 값을 넣지 않는다. task가 출력한 sha가 승인값과 같을 때만 성공이고, 그 바이트는 release bucket `evidence/curation/<release>/<sha>.json`에 남는다.
+- `curate-posts`도 같은 경로다. task를 띄우기 **전에** plan의 표지마다 배포된 `PublicUrl/covers/` 아래 주소인지 보고(`cover-not-on-the-deployed-edge`), 그 주소를 실제로 받아 바이트의 sha256이 `cover.checksum`과 같은지 본다(`cover-not-served-as-approved`, 성공이면 `covers_verified=<n>`). 성공은 sha 줄, 실패 줄 없음, **plan의 게시물 id마다 결과 줄이 정확히 하나**, 그리고 `curated_posts_published=<PUBLISHED 줄 수> of <게시물 수>`다 — 합계만으로는 `9999 of 5`도 통과했다. 다시 돌려 이미 있는 게시물은 `ALREADY_PRESENT`이고 그래도 성공이다(`0 of 5`). **두 전제가 있다**: 표지를 서빙하는 release(WebEdge의 `CuratedCovers` 배포)가 먼저 배포돼 있어야 게시물의 표지가 404가 되지 않고, `CuratedPostImportMain`이 inline plan을 읽는 release의 image에서만 task가 돈다 — 그 전 release에서는 main이 파일 경로만 알아서 task 안에서 실패한다. 이미 게시된 게시물은 다시 import해도 바뀌지 않으므로(`ALREADY_PRESENT`) 표지 URL을 고치려면 그 게시물을 먼저 지워야 한다.
+- 표지 사진이 바뀐 release는 **infra 분류**다. web bundle과 달리 표지 배포의 `SourceObjectKeys`는 분류에서 가리지 않는다: 게시된 글이 표지의 URL과 checksum을 들고 있어서, 같은 이름으로 사진을 바꾸면 이미 게시된 글이 깨지고 그 변경은 검토 diff에 보여야 한다. 사진을 바꿀 때는 새 파일 이름으로 둔다.
+- `secret-scan`은 BA-006-T2(*"frontend bundle·image layer·log에 secret이 없다"*)를 실제 값으로 잰다. 대상은 `deployed/current.json`이 가리키는 release다: release bucket의 plan 기록에서 assembly를 받아 기록된 hash로 확인하고, 그 안에서 `webArtifactSha256`과 같은 asset 디렉터리(배포된 web bundle)를 찾는다 — 없으면 판정 없이 멈춘다. image는 ECR에서 digest로 받아 layer를 **풀고**(containerd store는 압축된 채로 저장하므로 그대로 훑으면 아무것도 못 찾는다) 그 안의 jar·zip과 그 안의 jar까지 연다. 로그는 task definition의 `awslogs-group`에서 그룹 이름을 읽고(`logs:DescribeLogGroups`는 operator에 없다) release 배포 시각 이후(`--since`로 바꿀 수 있다)를 읽는다. KTO key는 원문과 함께 `URLEncoder` 형태(대·소문자 hex)로도 찾는다 — 앱이 `serviceKey=`에 인코딩해 보내므로 로그에 남는다면 그 형태다. 결과는 release bucket `evidence/secret-exposure/<release>/<시각>.json`에 남고(값 없이 변수 이름·파일 수·그룹별 이벤트 수·inflate한 layer 수), `secret_exposure=clean|leaked|clean-without-images`를 찍는다. 누출이면 non-zero다.
+- `secret-scan`이 **증명하지 않는 것**: DB 비밀번호·cursor·deletion token secret은 찾지 않는다 — operator가 읽을 수 없고, 그 값을 운영자 노트북으로 가져와 새지 않았음을 증명하는 것 자체가 노출이다(`infra/iam/operator.json`은 크기 한도에 닿아 있기도 하다). `--without-images`는 image를 건너뛰고 판정을 `clean-without-images`로 남긴다. `logs:FilterLogEvents`가 실제 계정에서 되는지는 아직 재지 않았다(정책에는 있다). docker 로그인은 ECR의 12시간 토큰을 이 기계의 docker 설정에 남긴다.
+- `docs/contest/covers/`의 **모든 jpg가 공개로 배포된다.** plan 단계가 그 폴더의 jpg를 전부 assembly에 넣고 `prune: false`라 한 번 올라간 사진은 지워지지 않는다. 게시물이 쓰지 않는 사진을 두지 않는다(`scripts/tests/test_curated_post_covers.py`가 사진 목록과 게시물의 표지 목록이 같음을 확인한다).
 - `edge`는 A-039의 전제를 운영자가 지킬 때만 쓴다. 전제는 둘이다. 배포된 release에 FE 로그인 흉내 화면이 들어 있어야 하고, 열려 있는 동안에는 DB 복원을 하지 않는다(복원 전에 닫는다). 명령은 이 전제를 검사하지 않는다.
 - `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. release 확인은 배포 잠금 안에서 한다. plan이 `deployed/current.json`의 `planSha256`이 아니거나 WebEdge stack이 진행 중이면 거부한다. hash 검사는 모두 하지만 시간 검사는 하지 않는다. 24시간 신선도와 plan의 `expiresAt` 가동 창을 보지 않고(심사 기간에 다시 열 수 있어야 한다) staging 종료 한계만 본다. 비용 plan도 다시 평가하지 않는다. `infra/package-lock.json`이 release의 것과 같은 checkout에서, `npm --prefix infra ci`를 한 뒤 돌린다(`toolchain-changed`).
 - 열기 전에는 CD가 배포 뒤 돌리는 `staging-smoke.sh`와 verifier 경로 `staging-flows.mjs`가 통과해야 한다. 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 `200 application/json`(열림) 또는 `503 application/problem+json`(닫힘)이 될 때까지 확인한다. ALB의 `503 text/html`은 닫힘이 아니다. 이미 그 상태면 다시 배포하지 않고 확인만 한다.
@@ -363,15 +422,18 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 | `BA-006-T1` | full Docker report와 egress-denied probe |
 | `BA-006-T2` | frontend bundle, image layer, log secret scan report |
 | `BA-006-T3` | exact OIDC trust validator와 wrong subject AssumeRole 거부 기록 |
-| `BA-071-T1` | internal ALB, private S3/RDS, OIDC negative 검사 report |
-| `BA-071-T2` | local/GitHub deploy lock과 DB advisory lock 동시 실행 test |
-| `BA-071-T3` | current/previous manifest, rollback task definition, 외부 smoke |
+| `BA-071-T1` | `staging-smoke.sh`의 `alb_internal=true`·`s3_private=true`·`rds_private_multi_az=true`(OIDC 거부는 `BA-006-T3`이다) |
+| `BA-071-T2` | local/GitHub deploy lock과 DB advisory lock 동시 실행 test(재현 절차는 카드에 있다) |
+| `BA-071-T3` | release manifest digest 검사(operator)와 manifest로 성공한 release run |
+| `BA-071-T4` | 이전 release로 rollback한 뒤의 외부 smoke(rollback task definition, current/previous manifest) |
 | `BA-072-T1` | 격리 PITR restore에서 tombstone 재적용 후 owner 비노출 report |
 | `BA-072-T2` | 부분 삭제/lease/receipt incident exercise |
 | `BA-072-T3` | primary/secondary 실제 alarm 수신과 비용/쿼터 tabletop |
 | `BA-073-T1` | 새 browser profile, 외부망, anonymous HTTPS journey |
-| `BA-073-T2` | actual KTO call audit, 화면 attribution, location OFF negative gate |
-| `BA-073-T3` | 같은 release의 PDF feature/API 목록과 runtime capability diff 0 |
+| `BA-073-T2` | 제출 release의 actual-call 증거에 `check_actual_call_evidence.py --require-verified`를 돌린 기록 |
+| `BA-073-T4` | `BA-073-T4`를 단 testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T4(`attribution-coverage.test.ts`, vitest)만 있고 vitest report는 집계되지 않는다(부분) |
+| `BA-073-T5` | `BA-073-T5`를 단 E2E testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T1(`location-off.spec.ts`) 제목에 그 ID가 없다(부분) |
+| `BA-073-T3` | 같은 release의 ledger·readiness·KTO inventory에 `check_submission_inventory.py`를 돌린 출력(diff 0) |
 
 `BA-073`은 기능 선행 카드가 끝나기 전에는 harness만 준비한다. mock-only, 문서-only, 로컬-only 결과로 완료 처리하지 않는다.
 

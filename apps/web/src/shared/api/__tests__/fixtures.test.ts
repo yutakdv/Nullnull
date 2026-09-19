@@ -111,6 +111,7 @@ const SCHEMA_OF: Record<string, string> = {
   'crowdFixtures.seriesStale': 'CrowdSeries',
   'crowdFixtures.seriesUnavailable': 'CrowdSeries',
   'crowdFixtures.forecastQuery': 'PlaceCrowdForecastQueryResult',
+  'crowdFixtures.forecastQueryRequest': 'PlaceCrowdForecastQuery',
   'postFixtures.detail': 'PostDetail',
   'postFixtures.detailSaved': 'PostDetail',
   'postFixtures.savedState': 'SavedPostState',

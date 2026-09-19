@@ -1551,6 +1551,23 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PlaceCrowdForecastQuery"
+            examples:
+              forecastsQueriedRequest:
+                summary: The request forecastsQueried answers
+                description: |
+                  Pinned to the fixture Frontend mocks against. forecastsQueried answers exactly this request -
+                  these ids in this order with this `from`/`to` - and no other. `placeIds[0]` is an id that was
+                  merged into 명동, so forecastsQueried's `items[0].placeId` is 명동's and not this one: a mock that
+                  pairs request and response by id instead of by position answers it PLACE_UNAVAILABLE. The id is
+                  authored for the example; what the server does with a merged id is BA-023-T7's.
+                value:
+                  placeIds:
+                    - "018f4b20-1a44-7e11-9c02-5d7e3f1a2b06"
+                    - "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                    - "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03"
+                    - "018f4b20-1a44-7e11-9c02-5d7e3f1a2b99"
+                  from: "2026-10-04T15:00:00Z"
+                  to: "2026-10-07T14:59:59.999999Z"
       responses:
         "200":
           description: One forecast series per requested place, in the request's order
@@ -1569,7 +1586,7 @@ paths:
                   description: |
                     Schema-shaped, not a captured response, and pinned to the fixture Frontend mocks against;
                     CrowdForecastQueryIT compares every level's keys with a real response. The request was
-                    `placeIds` [an id that was merged into 명동, 경복궁, 북촌한옥마을, an id no place has] with
+                    `placeIds` [an id that was merged into 명동, 경복궁, 북촌한옥마을, an id no place has] - the forecastsQueriedRequest example - with
                     `from` 2026-10-04T15:00:00Z and `to` 2026-10-07T14:59:59.999999Z (10-05 to 10-07 KST),
                     read on 10-02 when 명동's set is fresh and 경복궁's newest set is already stale.
                     `items[0]` is getPlaceCrowdForecast's forecastFresh answer for 명동, and its `placeId` is

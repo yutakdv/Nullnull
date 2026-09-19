@@ -61,7 +61,7 @@ class DemoReadinessContractTest {
     }
 
     @Test
-    @DisplayName("BA-003-T1 the demo readiness fixture is what DemoCapabilityQuery actually answers")
+    @DisplayName("BA-003-T12 the demo readiness fixture is what DemoCapabilityQuery actually answers")
     void fixtureMatchesTheService() throws Exception {
         // Every flag OFF is the only configuration that starts: the constructor refuses an ON flag
         // with no source behind it, which is the safety line this endpoint exists to hold.
@@ -75,7 +75,7 @@ class DemoReadinessContractTest {
     }
 
     @Test
-    @DisplayName("BA-003-T1 a capability with no source is never advertised as ready")
+    @DisplayName("BA-003-T11 a capability with no source is never advertised as ready")
     void nothingIsAdvertisedWithoutASource() {
         DemoReadinessReport report = new DemoCapabilityQuery(false, false, false,
                 Clock.fixed(CHECKED, ZoneOffset.UTC)).readiness();

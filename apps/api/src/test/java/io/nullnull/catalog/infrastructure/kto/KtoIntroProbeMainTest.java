@@ -30,7 +30,7 @@ class KtoIntroProbeMainTest {
     }
 
     @Test
-    @DisplayName("BA-021-T1 the report names every field and copies none of them")
+    @DisplayName("BA-021-T4 the report names every field and copies none of them")
     void reportsShapeWithoutCopyingTheBody() {
         List<String> lines = KtoIntroProbeMain.report(body("09:00~18:00"), "126508", "12");
         String report = String.join("\n", lines);
@@ -40,10 +40,15 @@ class KtoIntroProbeMainTest {
         // A field outside the question is named and measured, never shown.
         assertThat(report).doesNotContain(CANARY);
         assertThat(report).contains("name=infocenter type=scalar length=" + CANARY.length());
+        // Only the two deciding fields may carry a preview. The canary above guards one field; this
+        // guards the list itself, so adding contentid to it would not stay green.
+        assertThat(lines.stream().filter(line -> line.contains(" preview=")))
+                .hasSize(2)
+                .allMatch(line -> line.contains("name=usetime ") || line.contains("name=restdate "));
     }
 
     @Test
-    @DisplayName("BA-021-T1 the preview separates a time range from prose, which is the whole question")
+    @DisplayName("BA-021-T4 the preview separates a time range from prose, which is the whole question")
     void previewDistinguishesStructureFromProse() {
         String structured = String.join("\n", KtoIntroProbeMain.report(body("09:00~18:00"), "126508", "12"));
         assertThat(structured).contains("preview=09:00~18:00").contains("markup=false").contains("lines=1");
@@ -53,10 +58,12 @@ class KtoIntroProbeMainTest {
         assertThat(free).contains("length=" + prose.length());
         // Long prose is truncated rather than reproduced: the decision needs the shape, not the text.
         assertThat(free).doesNotContain(prose);
+        // BA-021-T4 names the bound, so the bound is asserted: 40 characters and the ellipsis.
+        assertThat(free).contains("preview=" + prose.substring(0, 40) + "…");
     }
 
     @Test
-    @DisplayName("BA-021-T1 a multi-line value cannot break the one-line-per-field report")
+    @DisplayName("BA-021-T4 a multi-line value cannot break the one-line-per-field report")
     void multiLineValuesAreFlattened() {
         // The escape stays escaped on the way in: a raw newline inside a JSON string is not JSON,
         // and this case is about what the report does with a value that really carries one.
@@ -68,7 +75,7 @@ class KtoIntroProbeMainTest {
     }
 
     @Test
-    @DisplayName("BA-021-T1 a provider error is reported as one, not parsed as an observation")
+    @DisplayName("BA-021-T5 a provider error is reported as one, not parsed as an observation")
     void providerErrorIsNotAnObservation() {
         String error = "{\"response\":{\"header\":{\"resultCode\":\"22\",\"resultMsg\":\"LIMITED\"}}}";
         String report = String.join("\n", KtoIntroProbeMain.report(error, "126508", "12"));
@@ -76,7 +83,7 @@ class KtoIntroProbeMainTest {
     }
 
     @Test
-    @DisplayName("BA-021-T1 a non-JSON answer is named, not dumped")
+    @DisplayName("BA-021-T4 BA-021-T5 a non-JSON answer is named, not dumped")
     void nonJsonIsNamedNotDumped() {
         String html = "<html><body>" + CANARY + "</body></html>";
         String report = String.join("\n", KtoIntroProbeMain.report(html, "126508", "12"));
@@ -84,7 +91,7 @@ class KtoIntroProbeMainTest {
     }
 
     @Test
-    @DisplayName("BA-021-T1 an empty item list is reported rather than read as a field-less observation")
+    @DisplayName("BA-021-T5 an empty item list is reported rather than read as a field-less observation")
     void emptyItemsAreReported() {
         String empty = "{\"response\":{\"header\":{\"resultCode\":\"0000\"},"
                 + "\"body\":{\"totalCount\":0,\"items\":{\"item\":[]}}}}";

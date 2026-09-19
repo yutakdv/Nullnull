@@ -12,6 +12,8 @@ writeFileSync(
   join(directory, "web", "index.html"),
   "<!doctype html><title>synthetic</title>",
 );
+mkdirSync(join(directory, "covers"));
+writeFileSync(join(directory, "covers", "01-synthetic.jpg"), "synthetic cover bytes");
 const app = new cdk.App({ outdir: join(directory, "assembly") });
 const stacks = createStacks(app, {
   account: "1".repeat(12),
@@ -22,6 +24,7 @@ const stacks = createStacks(app, {
     aiCatalogVersion: "KTO_KOR_SERVICE_2:4",
   },
   webDirectory: join(directory, "web"),
+  coversDirectory: join(directory, "covers"),
 });
 const templates = Object.fromEntries(
   Object.entries(stacks).map(([k, s]) => [k, Template.fromStack(s)]),
@@ -228,7 +231,7 @@ test("complete synthesis has no dependency cycle and no Services dependency in P
   );
   assert.equal(assembly.stacks.length, 9);
   const bootstrapApp = new cdk.App({outdir:join(directory,"bootstrap")});
-  createStacks(bootstrapApp,{account:"1".repeat(12),bootstrapOnly:true,webDirectory:"",
+  createStacks(bootstrapApp,{account:"1".repeat(12),bootstrapOnly:true,webDirectory:"",coversDirectory:"",
     release:{releaseVersion:"bootstrap",apiImageDigest:"",aiImageDigest:"",aiCatalogVersion:""}});
   assert.equal(bootstrapApp.synth().stacks.length,1);
   assert.equal((assembly.manifest.missing ?? []).length, 0);
@@ -354,6 +357,269 @@ test("every role the app creates carries the Nullnull permissions boundary", () 
   assert(roles >= 10, `expected the app's roles, saw ${roles}`);
   const customs = Object.values(templates).flatMap((t) =>
     Object.values(t.toJSON().Resources as Record<string, any>).map((r) => r.Type).filter((type: string) => type.startsWith("Custom::")));
-  assert.deepEqual(customs, ["Custom::CDKBucketDeployment"]);
+  // Two bucket deployments (the web bundle and the #183 covers) share CDK's one singleton handler, so the set of
+  // custom resource types is still exactly the one this app allows.
+  assert.deepEqual([...new Set(customs)], ["Custom::CDKBucketDeployment"]);
+  assert.equal(customs.length, 2, "the web bundle and the covers");
+});
+const {
+  FORECAST_SCHEDULE_END,
+  FORECAST_SCHEDULE_RATE_HOURS,
+  FORECAST_MISSING_PERIOD_HOURS,
+  FORECAST_MISSING_PERIODS,
+  FORECAST_DEMO_PLACES,
+  FORECAST_MAIN,
+  FORECAST_DONE_PHRASE,
+  DEMO_REFRESH_FAILED_PHRASE,
+  FORECAST_EVIDENCE_TAG,
+  FORECAST_EMPTY_TERM,
+  INT04_CONTENT_ID,
+  DETAIL_MAIN,
+  DETAIL_SCHEDULE_RATE_DAYS,
+  OPS_ALARM_NAMES,
+  METRIC_NAMESPACE,
+} = require("../src/staging");
+const schedules = () =>
+  Object.values(
+    templates.migration.findResources("AWS::Scheduler::Schedule"),
+  ) as any[];
+const schedule = (name = "nullnull-stg-forecast-refresh") => {
+  const found = schedules().filter((s) => s.Properties.Name === name);
+  assert.equal(found.length, 1, `one schedule named ${name}`);
+  return found[0];
+};
+// The literal halves of the target input; the other halves are CloudFormation references. Joined with a
+// newline, which no literal half contains, so a match cannot straddle a reference.
+const scheduleInput = (name?: string) =>
+  (schedule(name).Properties.Target.Input["Fn::Join"][1] as any[])
+    .filter((p) => typeof p === "string")
+    .join("\n");
+test("the forecast refresh runs every 12 h and the schedule itself stops at the judging expiry", () => {
+  // Not a task-side check: what has to stop is the calling, and the same instant is staging_operator.py's
+  // EXPIRY (scripts/tests/test_ops_alarm_metric_filters.py compares the two files).
+  templates.migration.hasResourceProperties("AWS::Scheduler::Schedule", {
+    Name: "nullnull-stg-forecast-refresh",
+    ScheduleExpression: `rate(${FORECAST_SCHEDULE_RATE_HOURS} hours)`,
+    EndDate: FORECAST_SCHEDULE_END.toISOString(),
+    State: "ENABLED",
+    FlexibleTimeWindow: { Mode: "OFF" },
+  });
+});
+test("the schedule's run carries the standing KTO approval, the demo places and the forecast main", () => {
+  // A-044 is visible here or the schedule runs no KTO call at all: the approval is read from the process
+  // environment by KtoDemoRefreshCommand, and nothing else in the task supplies it.
+  const input = scheduleInput();
+  for (const [name, value] of [
+    ["LOADER_MAIN", FORECAST_MAIN],
+    ["NULLNULL_DEMO_PLACES", FORECAST_DEMO_PLACES],
+    ["APP_CONTEST_PROFILE", "2026_KTO_WEBAPP"],
+    ["NULLNULL_KTO_FORECAST_SMOKE_APPROVED", "true"],
+  ])
+    assert(
+      input.includes(`{"name":"${name}","value":"${value}"}`),
+      `override ${name}=${value} missing from the schedule input`,
+    );
+  assert(
+    input.includes('"name":"NULLNULL_OPERATIONS_TARGET","value":"postgresql://'),
+    "the run must name the database it is allowed to write",
+  );
+  assert(
+    input.includes('"name":"ops"') && input.includes('"launchType":"FARGATE"'),
+    "the override must address the ops container of a Fargate run",
+  );
+});
+test("the schedule follows the release: it refers to this stack's ops task definition, not a fixed ARN", () => {
+  // The whole reason the schedule lives in Migration (an app stack). A literal ARN would keep calling the
+  // revision that existed when the schedule was written, and drift from the deployed release in silence.
+  const ops = Object.entries(
+    templates.migration.findResources("AWS::ECS::TaskDefinition"),
+  ).find(([, r]: any) => r.Properties.Family === "nullnull-stg-ops");
+  assert(ops, "the ops task definition");
+  for (const s of schedules()) {
+    const refs = (s.Properties.Target.Input["Fn::Join"][1] as any[])
+      .filter((p) => p && typeof p === "object" && p.Ref)
+      .map((p) => p.Ref);
+    assert(
+      refs.includes(ops![0]),
+      `${s.Properties.Name} must reference ${ops![0]}, referenced ${JSON.stringify(refs)}`,
+    );
+  }
+});
+test("the schedule's role may run only the ops family, only in this cluster, and pass only its task roles", () => {
+  const statements = (
+    Object.entries(templates.migration.findResources("AWS::IAM::Policy")).find(
+      ([k]) => k.includes("Scheduler"),
+    )![1] as any
+  ).Properties.PolicyDocument.Statement;
+  const run = statements.find((s: any) => s.Action === "ecs:RunTask");
+  assert(run, "the role runs tasks");
+  // Built, not spelled: a 12-digit literal here is an account id to the repository's own scan.
+  assert.equal(
+    run.Resource,
+    `arn:aws:ecs:ap-northeast-2:${"1".repeat(12)}:task-definition/nullnull-stg-ops:*`,
+  );
+  assert(run.Condition.ArnEquals["ecs:cluster"], "scoped to the cluster");
+  const pass = statements.find((s: any) => s.Action === "iam:PassRole");
+  assert.equal(
+    pass.Condition.StringEquals["iam:PassedToService"],
+    "ecs-tasks.amazonaws.com",
+  );
+  assert.equal(pass.Resource.length, 2, "the ops task and execution roles only");
+});
+test("a forecast that stopped refreshing alarms before the data is stale; a failed run alarms at once", () => {
+  // RunTask returns when the task is placed and never reads its exit code, so the signal is the task's
+  // own success line - and its absence is the only thing that also catches a schedule that never ran.
+  templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+    FilterPattern: `"${FORECAST_DONE_PHRASE}" "failed=0"`,
+    MetricTransformations: [
+      Match.objectLike({
+        MetricName: "ForecastRefreshOk",
+        MetricNamespace: METRIC_NAMESPACE,
+        DefaultValue: 0,
+      }),
+    ],
+  });
+  templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    MetricName: "ForecastRefreshOk",
+    ComparisonOperator: "LessThanThreshold",
+    Threshold: 1,
+    EvaluationPeriods: FORECAST_MISSING_PERIODS,
+    Period: FORECAST_MISSING_PERIOD_HOURS * 3600,
+    TreatMissingData: "breaching",
+    AlarmActions: [Match.anyValue()],
+  });
+  // Periods sit on the clock, not on the last success, so the alarm fires between N*P and N*P+P after it.
+  // The LATEST of those has to precede PT24H by enough to act on, and the EARLIEST must not be reachable
+  // between two healthy runs. Each bound alone permits a useless alarm; the old 3 x 6 h passed the first
+  // test written here and still fired, at worst, at the instant a set went stale.
+  const windowHours = FORECAST_MISSING_PERIOD_HOURS * FORECAST_MISSING_PERIODS;
+  const latestHours = windowHours + FORECAST_MISSING_PERIOD_HOURS;
+  assert(
+    24 - latestHours >= 4,
+    `fires up to ${latestHours} h after the last success: ${24 - latestHours} h before PT24H is not a warning`,
+  );
+  assert(
+    windowHours >=
+      FORECAST_SCHEDULE_RATE_HOURS + FORECAST_MISSING_PERIOD_HOURS,
+    `${windowHours} h can be emptied by two healthy runs ${FORECAST_SCHEDULE_RATE_HOURS} h apart`,
+  );
+  templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+    FilterPattern: `"${DEMO_REFRESH_FAILED_PHRASE}"`,
+  });
+  templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    MetricName: "DemoRefreshFailures",
+    ComparisonOperator: "GreaterThanOrEqualToThreshold",
+    Threshold: 1,
+    // One period, and an empty window is not a failure - the opposite of the alarm above.
+    EvaluationPeriods: 1,
+    TreatMissingData: "notBreaching",
+    AlarmActions: [Match.anyValue()],
+  });
+  // The run that prints failed=0 and stored nothing: invisible to both alarms above. One phrase, and for
+  // the INT-04 place only - other places may have no forecast at all, which is not an incident.
+  templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+    FilterPattern: `"${FORECAST_EVIDENCE_TAG} contentId=${INT04_CONTENT_ID} ${FORECAST_EMPTY_TERM}"`,
+  });
+  assert(FORECAST_DEMO_PLACES.split(",").some((p: string) => p.startsWith(INT04_CONTENT_ID + ":")),
+    "the INT-04 place is not refreshed, so its alarm could never fire");
+  templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    MetricName: "ForecastRefreshEmpty",
+    ComparisonOperator: "GreaterThanOrEqualToThreshold",
+    Threshold: 1,
+    EvaluationPeriods: 1,
+    TreatMissingData: "notBreaching",
+    AlarmActions: [Match.anyValue()],
+  });
+});
+test("the detail snapshot the forecast is built from is renewed on its own schedule, before it lapses", () => {
+  // A forecast request needs a detail snapshot younger than the registry's 604800 s; a forecast-only
+  // schedule fails from the seventh day of judging onward. The cadence's pairing with that lifetime is
+  // pinned against V007 by scripts/tests/test_ops_alarm_metric_filters.py.
+  templates.migration.hasResourceProperties("AWS::Scheduler::Schedule", {
+    Name: "nullnull-stg-detail-refresh",
+    ScheduleExpression: `rate(${DETAIL_SCHEDULE_RATE_DAYS} days)`,
+    EndDate: FORECAST_SCHEDULE_END.toISOString(),
+    State: "ENABLED",
+  });
+  const input = scheduleInput("nullnull-stg-detail-refresh");
+  for (const [name, value] of [
+    ["LOADER_MAIN", DETAIL_MAIN],
+    ["NULLNULL_DEMO_PLACES", FORECAST_DEMO_PLACES],
+    ["NULLNULL_KTO_SMOKE_APPROVED", "true"],
+  ])
+    assert(
+      input.includes(`{"name":"${name}","value":"${value}"}`),
+      `override ${name}=${value} missing from the detail schedule`,
+    );
+  // Each schedule carries only its own mode's approval: the forecast one never approves a detail call.
+  assert(!scheduleInput().includes("NULLNULL_KTO_SMOKE_APPROVED"));
+  assert(!input.includes("NULLNULL_KTO_FORECAST_SMOKE_APPROVED"));
+  assert.equal(schedules().length, 2, "forecast and detail, nothing else");
+});
+test("every ops.alarm name has a metric filter and an alarm that notifies", () => {
+  // OpsAlarm's javadoc has said "a metric filter matches the quoted phrase" since BA-072; none existed.
+  assert(OPS_ALARM_NAMES.length >= 5, "the declared vocabulary");
+  for (const name of OPS_ALARM_NAMES) {
+    templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+      FilterPattern: `"ops.alarm name=${name}"`,
+    });
+    const metric = "OpsAlarm" + name.split("_").map((w: string) => w[0] + w.slice(1).toLowerCase()).join("");
+    templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+      MetricName: metric,
+      Threshold: 1,
+      EvaluationPeriods: 1,
+      TreatMissingData: "notBreaching",
+      AlarmActions: [Match.anyValue()],
+    });
+  }
+});
+test("every alarm publishes to the one topic the subscribe script subscribes, and no address is in the template", () => {
+  // An alarm with no action is the exact failure this work exists to remove: it fires, and the firing
+  // is indistinguishable from silence. Who receives the topic is decided by
+  // scripts/aws/staging-alarm-subscribe.sh (A-037), never by a literal here.
+  const json = templates.obs.toJSON();
+  const topics = Object.keys(templates.obs.findResources("AWS::SNS::Topic"));
+  assert.equal(topics.length, 1, "one alarm topic");
+  const alarms = Object.values(
+    templates.obs.findResources("AWS::CloudWatch::Alarm"),
+  ) as any[];
+  assert(alarms.length >= 10, `expected the alarm set, saw ${alarms.length}`);
+  for (const a of alarms)
+    assert.deepEqual(
+      a.Properties.AlarmActions,
+      [{ Ref: topics[0] }],
+      `${a.Properties.MetricName} notifies nobody`,
+    );
+  assert.equal(
+    Object.keys(templates.obs.findResources("AWS::SNS::Subscription")).length,
+    0,
+    "the subscription has one owner and it is the operator script",
+  );
+  assert.doesNotMatch(
+    JSON.stringify(json),
+    /[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+    "the receiver's address belongs to the operator's ignored settings, not to this repository",
+  );
+});
+test("the curated covers are served under /covers/ of the web distribution, kept, cached and invalidated alone", () => {
+  // #183. The URLs in ops/curated-posts.json are <PublicUrl>/covers/<file>; media_assets takes only absolute https.
+  const deployments = Object.values(
+    templates.web.findResources("Custom::CDKBucketDeployment"),
+  ) as any[];
+  const covers = deployments.filter(
+    (d) => d.Properties.DestinationBucketKeyPrefix === "covers/",
+  );
+  assert.equal(covers.length, 1, "one covers deployment");
+  const c = covers[0].Properties;
+  // A published post keeps pointing at its cover: nothing a later release does may delete one.
+  assert.equal(c.Prune, false);
+  assert.equal(c.RetainOnDelete, true);
+  assert.deepEqual(c.DistributionPaths, ["/covers/*"]);
+  assert.equal(c.SystemMetadata["cache-control"], "public, max-age=86400");
+  assert.deepEqual(c.DistributionId, deployments.find((d) => d !== covers[0]).Properties.DistributionId);
+  // The web bundle's own deployment is unchanged: no prefix, no-cache, the whole site invalidated.
+  const bundle = deployments.find((d) => d !== covers[0]).Properties;
+  assert.equal(bundle.DestinationBucketKeyPrefix, undefined);
+  assert.equal(bundle.SystemMetadata["cache-control"], "no-cache");
 });
 process.on("exit", () => rmSync(directory, { recursive: true, force: true }));

@@ -1,10 +1,11 @@
 package io.nullnull.social.infrastructure.curation;
 
 import io.nullnull.OperationsContext;
+import io.nullnull.OperationsPlan;
 import io.nullnull.social.application.CuratedPostImporter;
 import io.nullnull.social.application.CuratedPostImporter.ImportReport;
 import io.nullnull.social.application.CuratedPostPlan;
-import java.nio.file.Files;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.Map;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -19,6 +20,12 @@ import tools.jackson.databind.json.JsonMapper;
  * <pre>
  * cd apps/api && NULLNULL_CURATION_PLAN="$(git rev-parse --show-toplevel)/ops/curated-posts.json" ./gradlew curatePosts
  * </pre>
+ *
+ * <p>In staging the plan cannot be a file: the ops task runs the release's image with a read-only root, so the staging
+ * operator sends the owner-approved bytes inline with their sha256 ({@code NULLNULL_POSTS_PLAN_GZIP_BASE64},
+ * {@code NULLNULL_POSTS_PLAN_SHA256}; see {@link OperationsPlan}), exactly as it does for the hours. Either way the first
+ * line printed is the sha256 of the bytes imported, which the operator compares with the one the owner approved. Until
+ * this read a path only, the staging operator had no way to run it at all and the curate-posts task was withdrawn.
  *
  * <p>It makes no external request and creates no catalog row. Everything it writes is either the
  * editorial content the file states or the 1st-party cover asset that content needs, and every place
@@ -36,17 +43,42 @@ import tools.jackson.databind.json.JsonMapper;
 public final class CuratedPostImportMain {
 
     static final String PLAN_PATH = "NULLNULL_CURATION_PLAN";
+    static final OperationsPlan.Source PLAN = new OperationsPlan.Source(PLAN_PATH, "NULLNULL_POSTS_PLAN_GZIP_BASE64",
+            "NULLNULL_POSTS_PLAN_SHA256", "curation plan");
 
     private CuratedPostImportMain() {
     }
 
     public static void main(String[] args) {
-        Path plan = planPath(System.getenv(), args);
-        CuratedPostPlan parsed = read(plan);
-        try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
-            ImportReport report = context.getBean(CuratedPostImporter.class).importPlan(parsed);
-            System.out.println(summary(report));
+        run(System.getenv(), args, System.out);
+    }
+
+    /**
+     * The whole command. A failure prints one line the staging operator's log allowlist passes - so it is not silent
+     * there - and is then rethrown, so the process exits non-zero: the operator reads success from the exit code as
+     * well as from these lines, and a failure that returned normally would read as a publication.
+     */
+    static void run(Map<String, String> environment, String[] args, PrintStream out) {
+        try {
+            OperationsPlan.Text plan = OperationsPlan.read(environment, args, PLAN);
+            out.println(planLine(plan));
+            CuratedPostPlan parsed = parse(plan.json(), plan.origin());
+            try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
+                ImportReport report = context.getBean(CuratedPostImporter.class).importPlan(parsed);
+                out.println(summary(report));
+            }
+        } catch (RuntimeException failure) {
+            out.println(failureLine(failure));
+            throw failure;
         }
+    }
+
+    static String planLine(OperationsPlan.Text plan) {
+        return "curated_posts_plan sha256=" + plan.sha256() + " bytes=" + plan.bytes();
+    }
+
+    static String failureLine(Throwable failure) {
+        return "curated_posts_failed reason=" + OperationsPlan.failureReason(failure);
     }
 
     /**
@@ -63,30 +95,19 @@ public final class CuratedPostImportMain {
                 .append(" of ").append(report.entries().size()).toString();
     }
 
-    static Path planPath(Map<String, String> environment, String[] args) {
-        if (args != null && args.length > 0 && !args[0].isBlank()) {
-            return Path.of(args[0]);
-        }
-        String configured = environment.get(PLAN_PATH);
-        if (configured == null || configured.isBlank()) {
-            throw new IllegalStateException(PLAN_PATH + " must name the curation plan file");
-        }
-        return Path.of(configured);
-    }
-
     /** Public so the suite can parse the sample plan with the reader the script itself uses. */
     public static CuratedPostPlan read(Path plan) {
-        if (!Files.isRegularFile(plan)) {
-            // The path is echoed because it is the operator's own argument, not user data.
-            throw new IllegalStateException("no curation plan at " + plan);
-        }
+        return parse(OperationsPlan.read(Map.of(PLAN_PATH, plan.toString()), null, PLAN).json(), plan.toString());
+    }
+
+    static CuratedPostPlan parse(String text, String origin) {
         ObjectMapper json = JsonMapper.builder()
                 .findAndAddModules()
                 .build();
         try {
-            return json.readValue(Files.readString(plan), CuratedPostPlan.class);
-        } catch (java.io.IOException unreadable) {
-            throw new IllegalStateException("the curation plan could not be read: " + plan, unreadable);
+            return json.readValue(text, CuratedPostPlan.class);
+        } catch (tools.jackson.core.JacksonException unreadable) {
+            throw new IllegalStateException("the curation plan could not be read: " + origin, unreadable);
         }
     }
 }

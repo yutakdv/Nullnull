@@ -60,6 +60,7 @@ import crowdSeriesForecast from "../fixtures/crowd/series-forecast.json" with { 
 import crowdSeriesStale from "../fixtures/crowd/series-stale.json" with { type: "json" };
 import crowdSeriesUnavailable from "../fixtures/crowd/series-unavailable.json" with { type: "json" };
 import crowdForecastQuery from "../fixtures/crowd/forecast-query.json" with { type: "json" };
+import crowdForecastQueryRequest from "../fixtures/crowd/forecast-query-request.json" with { type: "json" };
 import tripDetailCreated from "../fixtures/trips/trip-detail-created.json" with { type: "json" };
 import tripDetailInterests from "../fixtures/trips/trip-detail-interests.json" with { type: "json" };
 import tripDetailScheduled from "../fixtures/trips/trip-detail-scheduled.json" with { type: "json" };
@@ -369,4 +370,9 @@ export const crowdFixtures = {
   // placeIds[i]; pinned like the three above, shape compared by CrowdForecastQueryIT.
   forecastQuery:
     crowdForecastQuery as components["schemas"]["PlaceCrowdForecastQueryResult"],
+  // The request forecastQuery answers - that response is right for exactly these ids, in this
+  // order, with this from/to, and for no other request. placeIds[0] was merged into 명동, so it
+  // differs from forecastQuery.items[0].placeId: item i answers placeIds[i], by position, never by id.
+  forecastQueryRequest:
+    crowdForecastQueryRequest as components["schemas"]["PlaceCrowdForecastQuery"],
 };

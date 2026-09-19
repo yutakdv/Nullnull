@@ -54,6 +54,8 @@ class ServiceUnavailableContractTest {
 
     private static final Pattern OPERATION = Pattern.compile("^\\s+operationId: (\\w+)\\s*$");
 
+    private static final Pattern COMPONENT = Pattern.compile("#/components/responses/(\\w+)");
+
     /** The 503 responses that say which code arrives. A generic one is no longer declarable. */
     private static final java.util.Set<String> NAMED_503 =
             java.util.Set.of("SourceUnavailable", "ApplyUnavailable");
@@ -69,30 +71,38 @@ class ServiceUnavailableContractTest {
         }
     }
 
-    /** operationId -> the 503 response component it references, for every operation that has one. */
+    /**
+     * operationId -> the 503 response component it references, for every operation that declares a
+     * 503 at all. A 503 with no component is recorded as {@code (inline)}.
+     *
+     * <p>Every 503 is recorded, whatever it points at. This used to record only the two NAMED
+     * components, so an operation declaring any other 503 was simply absent from the map and the
+     * implemented-operation case below could not fail for any input (#195, measured: pointing
+     * getTrip's 503 at an unnamed component left both cases green).
+     */
     private static Map<String, String> declared503() {
         Map<String, String> declarations = new LinkedHashMap<>();
+        List<String> lines = contractLines();
         String operation = null;
-        for (String line : contractLines()) {
-            Matcher header = OPERATION.matcher(line);
+        for (int index = 0; index < lines.size(); index++) {
+            Matcher header = OPERATION.matcher(lines.get(index));
             if (header.matches()) {
                 operation = header.group(1);
                 continue;
             }
-            if (line.contains("responses/SourceUnavailable")) {
-                declarations.put(operation, "SourceUnavailable");
-            } else if (line.contains("responses/ApplyUnavailable")) {
-                // Recognised here or this parser stops seeing the operation at all - and an operation
-                // the scanner cannot see passes every assertion below by being absent, which is the
-                // shape of green this suite exists to refuse.
-                declarations.put(operation, "ApplyUnavailable");
+            // The response key itself, not an x-error-codes entry ("503": [CODE, ...]) - those name
+            // codes and declare no response.
+            if (!lines.get(index).trim().equals("\"503\":")) {
+                continue;
             }
+            Matcher component = COMPONENT.matcher(index + 1 < lines.size() ? lines.get(index + 1) : "");
+            declarations.put(operation, component.find() ? component.group(1) : "(inline)");
         }
         return declarations;
     }
 
     @Test
-    @DisplayName("BA-032-T1 an operation that sends a 503 names the code it sends")
+    @DisplayName("BA-003-T9 an operation that sends a 503 names the code it sends")
     void everyProducedFiveOhThreeNamesItsCode() {
         Map<String, String> declared = declared503();
         assertThat(declared).as("the parser found 503 declarations at all").isNotEmpty();
@@ -116,19 +126,19 @@ class ServiceUnavailableContractTest {
     }
 
     /**
-     * BA-032-T1, rewritten when the unnamed 503 was deleted.
+     * BA-003-T10, rewritten when the unnamed 503 was deleted. It carried BA-032-T1 until #195, a
+     * clause about feed paging that this never measured.
      *
      * <p>It used to assert that no IMPLEMENTED operation declared the generic {@code
      * ServiceUnavailable}. That component now has no referrer and has been removed, so the old
      * assertion could not fail for any input - the shape this suite exists to refuse.
      *
      * <p>What replaces it is the claim the old one was reaching for: an implemented operation that
-     * declares a 503 declares a NAMED one. Measured rather than assumed - two runs with a defect
-     * planted showed the parser's knowledge of a component changed no verdict at all while nothing
-     * asserted this, which is how a line that looks like coverage buys none.
+     * declares a 503 declares a NAMED one. It still could not fail until #195, because the parser
+     * only ever recorded named components - see declared503().
      */
     @Test
-    @DisplayName("BA-032-T1 an implemented operation's 503 names the code it carries")
+    @DisplayName("BA-003-T10 an implemented operation's 503 names the code it carries")
     void everyImplementedFiveOhThreeIsNamed() {
         List<String> unnamed = declared503().entrySet().stream()
                 .filter(entry -> ImplementedOperationsRegistry.IMPLEMENTED.contains(entry.getKey()))
