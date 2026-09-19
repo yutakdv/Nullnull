@@ -416,17 +416,31 @@ test("the schedule's run carries the standing KTO approval, the demo places and 
     ["NULLNULL_KTO_FORECAST_SMOKE_APPROVED", "true"],
   ])
     assert(
-      input.includes(`{"name":"${name}","value":"${value}"}`),
+      input.includes(`{"Name":"${name}","Value":"${value}"}`),
       `override ${name}=${value} missing from the schedule input`,
     );
   assert(
-    input.includes('"name":"NULLNULL_OPERATIONS_TARGET","value":"postgresql://'),
+    input.includes('"Name":"NULLNULL_OPERATIONS_TARGET","Value":"postgresql://'),
     "the run must name the database it is allowed to write",
   );
   assert(
-    input.includes('"name":"ops"') && input.includes('"launchType":"FARGATE"'),
+    input.includes('"Name":"ops"') && input.includes('"LaunchType":"FARGATE"'),
     "the override must address the ops container of a Fargate run",
   );
+});
+test("every key of the schedule's RunTask input is PascalCase, the shape Scheduler validates", () => {
+  // Scheduler checks universal-target input against the SDK request shape with PascalCase member names.
+  // camelCase keys (the ECS JSON API's and boto3's shape) synthesize fine and are refused only at CREATE:
+  // "Request payload is missing the following field(s): TaskDefinition" (run 35457509371).
+  for (const s of schedules()) {
+    const input = (s.Properties.Target.Input["Fn::Join"][1] as any[])
+      .filter((p) => typeof p === "string")
+      .join("\n");
+    const keys = [...input.matchAll(/"([A-Za-z]+)":/g)].map((m) => m[1]);
+    assert(keys.includes("TaskDefinition") && keys.includes("Cluster"), `${s.Properties.Name} names no task`);
+    const lower = keys.filter((k) => !/^[A-Z]/.test(k));
+    assert.deepEqual(lower, [], `${s.Properties.Name} has non-PascalCase keys`);
+  }
 });
 test("the schedule follows the release: it refers to this stack's ops task definition, not a fixed ARN", () => {
   // The whole reason the schedule lives in Migration (an app stack). A literal ARN would keep calling the
@@ -548,7 +562,7 @@ test("the detail snapshot the forecast is built from is renewed on its own sched
     ["NULLNULL_KTO_SMOKE_APPROVED", "true"],
   ])
     assert(
-      input.includes(`{"name":"${name}","value":"${value}"}`),
+      input.includes(`{"Name":"${name}","Value":"${value}"}`),
       `override ${name}=${value} missing from the detail schedule`,
     );
   // Each schedule carries only its own mode's approval: the forecast one never approves a detail call.
