@@ -17,6 +17,8 @@ import {
   aws_cloudwatch_actions as actions,
   aws_dynamodb as ddb,
   aws_s3_deployment as deploy,
+  aws_scheduler as scheduler,
+  aws_scheduler_targets as schedulerTargets,
 } from "aws-cdk-lib";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -51,6 +53,60 @@ export const stagingConfig: { catalogPublicEnabled: boolean } = (() => {
 export const BOOTSTRAP_QUALIFIER = "nnstg";
 // Managed policies created once by scripts/aws/staging-iam.py from infra/iam/*.json.
 export const ROLE_BOUNDARY_POLICY = "NullnullStgRoleBoundary";
+// Metric namespace for everything this app publishes from its own log lines.
+export const METRIC_NAMESPACE = "Nullnull/Staging";
+// The forecast refresh schedule (A-044). The end instant is staging_operator.py's EXPIRY, not a second
+// date: judging closes 2026-10-25 23:59:59 KST and nothing here may outlive it.
+export const FORECAST_SCHEDULE_END = new Date("2026-10-25T14:59:59Z");
+// Every 12 h because that is KtoDemoRefresh.FORECAST_RENEW_BEFORE: a run renews the sets that lapse
+// within 12 h, so a cadence longer than that leaves a set stale before the next run arrives, and a
+// shorter one spends KTO quota renewing what is not near lapsing. The pairing, not the number, is the
+// rule; scripts/tests/test_ops_alarm_metric_filters.py keeps the two files saying the same hours.
+export const FORECAST_SCHEDULE_RATE_HOURS = 12;
+// The missing-refresh alarm's window: 18 periods of 1 h. The reasoning is at the alarm; these are
+// constants so the infra test can state the bounds without restating the arithmetic.
+export const FORECAST_MISSING_PERIOD_HOURS = 1;
+export const FORECAST_MISSING_PERIODS = 18;
+// The demo places, as staging_operator.py's `places` input spells them: contentId:contentTypeId.
+export const FORECAST_DEMO_PLACES = "126508:12,128611:12";
+// OPS_TASKS['kto-demo-forecast'] and ['kto-demo-detail'] in scripts/aws/staging_operator.py name these
+// same main classes, with these same approval variables.
+export const FORECAST_MAIN =
+  "io.nullnull.catalog.infrastructure.kto.KtoDemoForecastRefreshMain";
+export const DETAIL_MAIN =
+  "io.nullnull.catalog.infrastructure.kto.KtoDemoDetailRefreshMain";
+// A forecast request is built from a detailCommon2 snapshot, and the registry stales that snapshot after
+// 604800 s (V007__sources.sql). Once it lapses the forecast refresh has nothing to ask with and ends
+// NO_VERIFIED_KTO_MAPPING (KtoDemoRefresh.refreshForecast), so a forecast-only schedule would fail from
+// the seventh day of a thirty-six day judging period onward. Every 5 days renews with the two days of
+// margin KtoDemoRefresh.DETAIL_RENEW_BEFORE was written for: 5 + 2 = the 7 the registry allows.
+export const DETAIL_SCHEDULE_RATE_DAYS = 5;
+// What KtoDemoRefresh prints when a forecast run touched every place without one failing. The mode token
+// is lower case (KtoDemoRefresh.name(Mode)); a filter quoting "mode=FORECAST" would never match a line.
+export const FORECAST_DONE_PHRASE = "KTO_DEMO_REFRESH_DONE mode=forecast";
+// What KtoDemoRefreshCommand throws when either mode fails. It carries no mode token - the detail and
+// the forecast refresh share the prefix - so the alarm on it is named for both.
+export const DEMO_REFRESH_FAILED_PHRASE = "KTO demo refresh failed:";
+// A forecast refresh the provider answered with nothing is REFRESHED, not FAILED (KtoDemoRefresh prints
+// its evidence as "coverage=0"), so it prints failed=0 and feeds the success metric. For most places
+// that is the truth - KTO does not forecast every attraction - but for the INT-04 place it means the
+// judged flow has no evidence to rest on. So the alarm names that one place: the phrase is the whole
+// evidence prefix KtoDemoRefresh.Outcome.lines() builds, "<tag> contentId=<id> coverage=0", which a
+// set with no points and no set at all both print. The Python test pins every piece of it.
+export const FORECAST_EVIDENCE_TAG = "KTO_DEMO_REFRESH_EVIDENCE";
+export const FORECAST_EMPTY_TERM = "coverage=0";
+// 경복궁, the INT-04 place (owner sheet step 1: "반드시 넣는다"). It must be one of the demo places.
+export const INT04_CONTENT_ID = "126508";
+// io.nullnull.operations.application.OpsAlarm.Name, whose phrase() is "ops.alarm name=<NAME>" and whose
+// javadoc says a metric filter quotes it. Until this file listed them, nothing did: the vocabulary
+// existed and reached no one. The same Python test compares this list with the enum both ways.
+export const OPS_ALARM_NAMES = [
+  "DELETION_PARTIAL_FAILED",
+  "DELETION_FAILED",
+  "JOB_LEASE_RETAKEN",
+  "JOB_DEAD_LETTER",
+  "DELETION_RECEIPT_EXPIRED_UNFINISHED",
+];
 // CloudFront Function (cloudfront-js-2.0, crypto.createHash sha256 supported) for /api/*. ${Open} and
 // ${Verifier} are CloudFormation Fn::Sub variables; the code itself must not contain "${".
 export const GATE_FUNCTION_CODE = [
@@ -514,6 +570,132 @@ export function createStacks(
     OpsContainerName: "ops",
   }))
     out(migrationStack, k, v);
+  // A-044 (owner decision, 2026-09-19). The demo forecast is re-read on a schedule, so the KTO approval
+  // variable in the overrides below is STANDING: no person approves the 2 calls this makes every 12 h
+  // (4 a day) until judging ends. staging_operator.py demands both the caller's own approval variable and
+  // a --owner-approval record ("Neither alone runs"), and a schedule is nobody's caller; the owner
+  // approved the standing form once instead, and it is written here in the open rather than hidden in a
+  // task definition, where every principal able to RunTask that family would inherit it.
+  //
+  // It runs the operator's own ops definition, image and revision, but NOT through staging_operator.py:
+  // ops tasks are local-only there (`ops-tasks-are-local-only`), so this is a second path to the same
+  // task. What that path does not carry - the deployment lock and the operator's log allowlist - and what
+  // replaces the rest, is the table in docs/operations/STAGING_DEPLOYMENT_RUNBOOK.md. Release binding is
+  // the one that matters and it is kept here: this schedule lives in Migration, an app stack, so its
+  // taskDefinition below is re-pointed at the new revision by the same deploy that publishes it.
+  //
+  // The target is universal, not the templated ECS one: a templated target carries EcsParameters only and
+  // cannot carry container overrides, and without an override there is no LOADER_MAIN, hence no main
+  // class. The input is therefore the ECS RunTask request itself (camelCase, the API's own shape - the
+  // same call staging_operator.py makes through boto3).
+  const operationsTarget = `postgresql://${db.dbInstanceEndpointAddress}:5432/nullnull`;
+  // One shape, two clocks. Each mode renews one of them before it lapses (KtoDemoRefresh), and neither
+  // renews the other's, so a single schedule would leave the forecast without a mapping to ask with.
+  const demoRefresh = (
+    id: string,
+    name: string,
+    main: string,
+    approval: string,
+    rate: cdk.Duration,
+    description: string,
+  ) =>
+    new scheduler.Schedule(migrationStack, id, {
+      // Named, like the cluster and the task families, so the runbook and the IAM policy can both say
+      // which schedule they mean instead of a generated suffix.
+      scheduleName: name,
+      schedule: scheduler.ScheduleExpression.rate(rate),
+      // The schedule stops itself at the judging expiry. A task-side check would still need something to
+      // stop calling KTO; this stops the calling.
+      end: FORECAST_SCHEDULE_END,
+      timeWindow: scheduler.TimeWindow.off(),
+      description,
+      target: new schedulerTargets.Universal({
+        service: "ecs",
+        action: "runTask",
+        // An invocation that cannot start within the hour waits for the next tick instead of piling onto
+        // it; the missing-success alarm is what reports the gap, not a longer retry queue.
+        maxEventAge: cdk.Duration.hours(1),
+        retryAttempts: 3,
+        input: scheduler.ScheduleTargetInput.fromObject({
+          cluster: cluster.clusterArn,
+          taskDefinition: ops.taskDefinitionArn,
+          launchType: "FARGATE",
+          count: 1,
+          // Distinct from the operator's own 'nullnull-stg-ops', and per mode, so a running task says
+          // which of the two started it (RunTask caps this at 36 characters).
+          startedBy: name,
+          networkConfiguration: {
+            awsvpcConfiguration: {
+              subnets: vpc.publicSubnets.map((s) => s.subnetId),
+              securityGroups: [migrationSg.securityGroupId],
+              assignPublicIp: "ENABLED",
+            },
+          },
+          overrides: {
+            containerOverrides: [
+              {
+                name: "ops",
+                environment: [
+                  { name: "LOADER_MAIN", value: main },
+                  { name: "NULLNULL_DEMO_PLACES", value: FORECAST_DEMO_PLACES },
+                  { name: "APP_CONTEST_PROFILE", value: "2026_KTO_WEBAPP" },
+                  { name: approval, value: "true" },
+                  // OperationsContext.target() of the task's own spring.datasource.url, which is dbEnv's
+                  // JDBC URL above: same endpoint, same database, so a task that reached another database
+                  // refuses itself before it connects.
+                  { name: "NULLNULL_OPERATIONS_TARGET", value: operationsTarget },
+                ],
+              },
+            ],
+          },
+        }),
+        // The role is created inside the app's permissions boundary, which already limits ecs:RunTask to
+        // nullnull-stg-* definitions and iam:PassRole to ecs-tasks.amazonaws.com. These statements narrow
+        // it further to this one family and this cluster.
+        policyStatements: [
+          new iam.PolicyStatement({
+            actions: ["ecs:RunTask"],
+            resources: [
+              `arn:aws:ecs:${region}:${config.account}:task-definition/nullnull-stg-ops:*`,
+            ],
+            conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } },
+          }),
+          new iam.PolicyStatement({
+            actions: ["iam:PassRole"],
+            resources: [ops.taskRole.roleArn, ops.executionRole!.roleArn],
+            conditions: {
+              StringEquals: {
+                "iam:PassedToService": "ecs-tasks.amazonaws.com",
+              },
+            },
+          }),
+        ],
+      }),
+    });
+  const forecastSchedule = demoRefresh(
+    "ForecastRefresh",
+    "nullnull-stg-forecast-refresh",
+    FORECAST_MAIN,
+    "NULLNULL_KTO_FORECAST_SMOKE_APPROVED",
+    cdk.Duration.hours(FORECAST_SCHEDULE_RATE_HOURS),
+    "KTO demo forecast refresh every 12h (A-044 standing approval), until the judging expiry",
+  );
+  // The clock under the forecast. It renews the detail snapshot a forecast request is built from, and
+  // its approval variable is the one kto-smoke also uses - standing here, and only here: it rides in
+  // this schedule's input, never in the task definition, so the operator's own gate is untouched.
+  const detailSchedule = demoRefresh(
+    "DetailRefresh",
+    "nullnull-stg-detail-refresh",
+    DETAIL_MAIN,
+    "NULLNULL_KTO_SMOKE_APPROVED",
+    cdk.Duration.days(DETAIL_SCHEDULE_RATE_DAYS),
+    "KTO demo detail refresh every 5 days (A-044 standing approval), until the judging expiry",
+  );
+  for (const [k, v] of Object.entries({
+    ForecastScheduleName: forecastSchedule.scheduleName,
+    DetailScheduleName: detailSchedule.scheduleName,
+  }))
+    out(migrationStack, k, v);
   const globalWaf = stack("GlobalWaf", true);
   const visibility = {
     cloudWatchMetricsEnabled: true,
@@ -762,21 +944,56 @@ export function createStacks(
   out(services, "InternalAlbArn", alb.loadBalancerArn);
   const obs = stack("Observability");
   const topic = new sns.Topic(obs, "Alarms", { enforceSSL: true });
+  // Who receives this topic is not decided here. scripts/aws/staging-alarm-subscribe.sh subscribes the
+  // primary (and secondary) address from the operator's ignored local settings, checks that the
+  // subscription was confirmed, and can publish the BA-072-T3 test; a CloudFormation subscription could
+  // do only the first of those, and two owners of one subscription is one owner too many (A-037 keeps
+  // the address out of Git, so it could never be a literal here either). Every alarm below therefore
+  // publishes to this one topic, and reaching a person is that script's job.
   const alarm = (
     name: string,
     metric: cw.IMetric,
     threshold: number,
     comparisonOperator = cw.ComparisonOperator
       .GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+    // An occurrence alarm ("this bad line appeared") needs one period and must not read an empty window
+    // as bad; a continuous signal ("the host count fell") needs two and must read silence as bad.
+    options: {
+      evaluationPeriods?: number;
+      treatMissingData?: cw.TreatMissingData;
+    } = {},
   ) => {
     const a = new cw.Alarm(obs, name, {
       metric,
       threshold,
-      evaluationPeriods: 2,
+      evaluationPeriods: options.evaluationPeriods ?? 2,
       comparisonOperator,
-      treatMissingData: cw.TreatMissingData.BREACHING,
+      treatMissingData:
+        options.treatMissingData ?? cw.TreatMissingData.BREACHING,
     });
     a.addAlarmAction(new actions.SnsAction(topic));
+    return a;
+  };
+  // One metric per quoted phrase. defaultValue 0 makes a window with other traffic read as zero rather
+  // than as missing, so only true silence is missing data.
+  const phraseMetric = (
+    name: string,
+    logGroup: logs.ILogGroup,
+    pattern: string,
+  ) => {
+    new logs.MetricFilter(obs, name + "Filter", {
+      logGroup,
+      filterPattern: logs.FilterPattern.literal(pattern),
+      metricNamespace: METRIC_NAMESPACE,
+      metricName: name,
+      metricValue: "1",
+      defaultValue: 0,
+    });
+    return new cw.Metric({
+      namespace: METRIC_NAMESPACE,
+      metricName: name,
+      statistic: "Sum",
+    });
   };
   alarm(
     "ApiUnhealthy",
@@ -791,6 +1008,90 @@ export function createStacks(
     cw.ComparisonOperator.LESS_THAN_THRESHOLD,
   );
   alarm("DatabaseCpu", db.metricCPUUtilization(), 85);
+  // A RunTask that started is not a refresh that happened: RunTask returns once the task is placed and
+  // never reads its exit code. The schedule's health is therefore measured on the task's own success
+  // line, and the first signal is that line's ABSENCE - the only one that also catches a schedule that
+  // was disabled or expired, a role that lost ecs:RunTask, an image that will not start, and a run that
+  // died before it logged anything.
+  //
+  // The window is eighteen 1 h periods. CloudWatch periods sit on the clock, not on the last run, so an
+  // alarm of N periods of length P fires between N*P and N*P+P after the last success, depending on
+  // where in its period that success fell. Coarse periods waste the margin on alignment: three 6 h ones
+  // fire anywhere from 18 h to 24 h - at worst at the very instant a set goes stale at PT24H. With 1 h
+  // periods it is 18 h to 19 h, so the owner always has five hours before the screen loses the data.
+  // Runs 12 h apart leave at most twelve empty periods between them (eleven, plus one if a run slips by
+  // its retry window), so healthy operation never reaches eighteen.
+  //
+  // A brand-new alarm has no history: the periods before the stack existed are missing, and missing is
+  // breaching here, so it goes to ALARM on the deploy that creates it and stays there until the first
+  // success line. That is accepted rather than suppressed - any setting that keeps it quiet at bring-up
+  // also keeps it quiet when the schedule silently stops, which is the case it exists for. The owner's
+  // sheet runs the forecast by hand right after the deploy (step 3-2), which turns it OK within minutes.
+  const occurrence = {
+    evaluationPeriods: 1,
+    treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+  };
+  alarm(
+    "ForecastRefreshMissing",
+    phraseMetric(
+      "ForecastRefreshOk",
+      migrationLogs,
+      `"${FORECAST_DONE_PHRASE}" "failed=0"`,
+    ).with({ period: cdk.Duration.hours(FORECAST_MISSING_PERIOD_HOURS) }),
+    1,
+    cw.ComparisonOperator.LESS_THAN_THRESHOLD,
+    { evaluationPeriods: FORECAST_MISSING_PERIODS },
+  );
+  // The named, faster half: a run that happened and refused, or lost a place, in either mode (the two
+  // share the phrase). One line is enough, and an empty window is not a failure - hence one period and
+  // NOT_BREACHING, unlike the alarm above. A detail refresh that fails reaches the forecast too, within
+  // the seven days its snapshot lives, so this is also the detail schedule's only direct signal.
+  alarm(
+    "DemoRefreshFailed",
+    phraseMetric(
+      "DemoRefreshFailures",
+      migrationLogs,
+      `"${DEMO_REFRESH_FAILED_PHRASE}"`,
+    ).with({ period: cdk.Duration.minutes(5) }),
+    1,
+    cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+    occurrence,
+  );
+  // The outage the success metric cannot see: the provider answered, the run counted the place as
+  // refreshed, and nothing was stored. Only for the INT-04 place - another demo place with no forecast
+  // is the provider's coverage, not an incident, and alarming on it would ring twice a day forever.
+  alarm(
+    "ForecastRefreshEmpty",
+    phraseMetric(
+      "ForecastRefreshEmpty",
+      migrationLogs,
+      `"${FORECAST_EVIDENCE_TAG} contentId=${INT04_CONTENT_ID} ${FORECAST_EMPTY_TERM}"`,
+    ).with({ period: cdk.Duration.minutes(5) }),
+    1,
+    cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+    occurrence,
+  );
+  // OpsAlarm.Name. The application has written these lines since BA-072, and its javadoc says "a metric
+  // filter matches the quoted phrase" - but no filter existed, so the vocabulary reached no one. Each
+  // name gets its own metric and its own alarm: a merged one would say "something happened" about five
+  // different incidents with five different responses.
+  const pascal = (name: string) =>
+    name
+      .split("_")
+      .map((w) => w[0] + w.slice(1).toLowerCase())
+      .join("");
+  for (const name of OPS_ALARM_NAMES)
+    alarm(
+      "OpsAlarm" + pascal(name),
+      phraseMetric(
+        "OpsAlarm" + pascal(name),
+        apiLogs,
+        `"ops.alarm name=${name}"`,
+      ).with({ period: cdk.Duration.minutes(5) }),
+      1,
+      cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      occurrence,
+    );
   // No AWS::Budgets::Budget: this account is an AWS Organizations member whose SCP explicitly denies
   // budgets:* and ce:GetCostAndUsage (simulate-principal-policy, 2026-09-18). A Budget resource would
   // fail creation and roll the whole stack back. Spend is checked by the owner in the organization's

@@ -65,6 +65,20 @@
       ]
     },
     {
+      "Sid": "NullnullSchedules",
+      "Effect": "Allow",
+      "Action": [
+        "scheduler:CreateSchedule",
+        "scheduler:UpdateSchedule",
+        "scheduler:DeleteSchedule",
+        "scheduler:GetSchedule",
+        "scheduler:TagResource",
+        "scheduler:UntagResource",
+        "scheduler:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:scheduler:ap-northeast-2:${Account}:schedule/default/nullnull-stg-*"
+    },
+    {
       "Sid": "NoResourceLevelSupport",
       "Effect": "Allow",
       "Action": [
@@ -152,7 +166,8 @@
         "StringEquals": {
           "iam:PassedToService": [
             "ecs-tasks.amazonaws.com",
-            "lambda.amazonaws.com"
+            "lambda.amazonaws.com",
+            "scheduler.amazonaws.com"
           ]
         }
       }

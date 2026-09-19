@@ -124,11 +124,15 @@ class CeilingTest(unittest.TestCase):
         self.assertEqual(set(created), seen)
 
     def test_roles_are_passed_only_to_the_services_they_trust(self):
-        # Synthesized trust policies name exactly ecs-tasks (task/execution roles) and lambda (web deployment).
+        # Synthesized trust policies name exactly ecs-tasks (task/execution roles), lambda (web deployment)
+        # and scheduler (the forecast schedule's own execution role, A-044). The list is exact in both
+        # directions on purpose: a service no role trusts is as wrong as a missing one, so it moves only
+        # when a role's trust policy does.
         passing = [s for s in self.statements() if s['Effect'] == 'Allow'
                    and 'iam:PassRole' in ([s['Action']] if isinstance(s['Action'], str) else s['Action'])]
         self.assertEqual(['PassRolesOnlyToTheirServices'], [s['Sid'] for s in passing])
-        self.assertEqual({'StringEquals': {'iam:PassedToService': ['ecs-tasks.amazonaws.com', 'lambda.amazonaws.com']}},
+        self.assertEqual({'StringEquals': {'iam:PassedToService': ['ecs-tasks.amazonaws.com', 'lambda.amazonaws.com',
+                                                                   'scheduler.amazonaws.com']}},
                          passing[0]['Condition'])
 
     def test_github_and_app_roles_never_reach_the_cdk_lookup_role(self):
