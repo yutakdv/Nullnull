@@ -246,14 +246,24 @@ describe('FE-502-T1 FE-504-T1 nothing here changes the itinerary', () => {
 // matrix on the same screen, and the READY branch these tests exercise is the
 // one FE-503's preview lives on.
 //
-// OFFLINE, the sixth state in that clause, is NOT measured in this file and is
-// not measured per screen anywhere. The app answers it in the service worker,
-// and `shared/testing/__tests__/offline-shell.test.ts` is what holds that
-// boundary — it reads the shipped sw.js and the built output and fails if a
-// cached /api/v1 response could be served as live. Naming the layer here rather
-// than leaving the word unclaimed: the clause is met, by a test one directory
-// over, and a reader who greps this file for "offline" should find out where it
-// went instead of finding nothing.
+// OFFLINE, the sixth state, IS measured here: "offers a retry when the request
+// itself failed" drives `HttpResponse.error()`, a thrown fetch with no response
+// at all, which is what offline looks like to this screen. It is a different
+// case from the Problem responses above, and it asserts a different render
+// (`run.error` plus a retry) — import-paste.test.tsx draws the same line for
+// the same clause.
+//
+// An earlier version of this comment sent the clause to
+// `shared/testing/__tests__/offline-shell.test.ts` instead. That file is real,
+// but it carries only FE-004-T1 and it renders nothing — it drives sw.js in a
+// fake worker scope to prove no /api/v1 response is ever served from cache.
+// That is an app-wide invariant about the worker, not this screen's render, so
+// it could not prove a "각 상태를 렌더한다" clause. The pointer also could not be
+// caught by anything: `check_cited_tests.py` checks that a cited file EXISTS,
+// and this file's 15 other cases already satisfied FE-503-T2 on their own, so
+// the aggregator was never going to notice the sixth state had been sent
+// somewhere it was not proven (AGENTS.md rule 3 — a many-clause id is met by
+// any one of its clauses).
 describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', () => {
   it('shows a queued run as waiting, not as finished', async () => {
     runIs('QUEUED');
@@ -405,6 +415,12 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
     expect(
       screen.getByRole('button', { name: copy['optimize.retry'] }),
     ).toBeInTheDocument();
+    // Presence alone passes for a screen that draws this state AND another on
+    // top of it. Measured: with `run.readyPending` rendered unconditionally on
+    // the error frame, every one of this describe's cases stayed green — an
+    // offline screen could say "the result screen is still being built" while
+    // reporting that it could not load the status at all.
+    expect(screen.queryByText(copy['run.readyPending'])).toBeNull();
   });
 
   it('names every terminal status instead of calling them all ready', async () => {
@@ -444,6 +460,12 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
     runIs('READY');
     renderRun();
     expect(await screen.findByText(copy['run.readyPending'])).toBeInTheDocument();
+    // The body half of #279 하1. That block asserts the <h1> stops saying
+    // "still searching", and stops there — so the same defect in the body copy
+    // was open: measured, a READY frame rendering `run.running` alongside this
+    // note left all of this describe green. The heading and the body are
+    // separate renders and need separate absence assertions.
+    expect(screen.queryByText(copy['run.running'])).toBeNull();
   });
 });
 

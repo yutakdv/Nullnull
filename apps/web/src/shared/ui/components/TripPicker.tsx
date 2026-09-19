@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { components } from '@nullnull/api-client';
 import styles from './TripPicker.module.css';
 import { SheetGrab } from './SheetGrab.js';
+import { restoreFocusTo } from './focus-restore.js';
 
 // `Sheet / TripPicker` (C02), S03-C1 `399:658` / S06-1 `409:1595`.
 //
@@ -89,7 +90,14 @@ export function TripPicker({
     if (open) return;
     const target = restoreTo.current;
     restoreTo.current = null;
-    if (target?.isConnected) target.focus();
+    // Not `isConnected` alone: picking a trip starts the save, which
+    // re-renders this sheet's trigger into TripAddButton's `loading` state,
+    // and that state is `disabled`. The node survives, so `isConnected` says
+    // yes, but focusing a disabled button is a silent no-op and focus is left
+    // on <body> — measured in a browser (#272 cause ④, the same one
+    // ConfirmDialog hit). `restoreFocusTo` asks whether focus can actually
+    // land, and falls back to <main> when it cannot.
+    restoreFocusTo(target);
   }, [open]);
 
   return (

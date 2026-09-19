@@ -18,9 +18,11 @@ import { SCREENS } from './screens.js';
 // ("keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion"),
 // and this spec proves three of them for every screen in SCREENS: 360px here,
 // 200% zoom below, and the accessible name of whatever takes focus. The other
-// three are FE-104-T4 / FE-203-T4 and have no test yet — reduced motion runs
-// once against /language rather than per screen (see the block below), and
-// nothing here asserts focus returning to a trigger.
+// three are FE-104-T4 / FE-203-T4, and two of them are now proven elsewhere:
+// reduced motion by the per-screen block at the bottom of this file, which
+// walks the same SCREENS list so each card's own screen is measured, and focus
+// return by e2e/focus-restore.spec.ts. Neither is asserted in the three
+// describes below, which is why the T4 ids are not on them.
 //
 // The ids are split rather than attached whole because the aggregator only
 // checks that an id APPEARS in a testcase name: one id covering six clauses is
@@ -102,10 +104,13 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // They are NOT for reduced motion, which is why `honours prefers-reduced-motion`
 // now lives in its own describe below rather than in this one: it visits
 // /language alone and says nothing about the paste screen or the trip picker.
-// The reduced-motion clause is FE-104-T4 / FE-203-T4, still unproven.
+// The reduced-motion clause is FE-104-T4 / FE-203-T4, and it is proven by the
+// `reduced motion, per screen` describe at the bottom of this file — that one
+// carries the T4 ids because it walks SCREENS, so the paste screen and the
+// saved-places screen are each measured rather than stood in for.
 test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
-    test(`${screen.name} puts focus on something visible`, async ({ page }) => {
+    test(`BA-070-T5 ${screen.name} puts focus on something visible`, async ({ page }) => {
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
 
@@ -257,11 +262,147 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
         .filter((s) => s.animationDuration !== '0s' || s.transitionDuration !== '0s')
         .map((s) => `${s.animationDuration}/${s.transitionDuration}`),
     );
+    // The zero-count guard, added after measuring that this test passed with
+    // the `prefers-reduced-motion` block deleted from styles.css. That rule is
+    // what puts elements into `durations` at all — it sets every element to
+    // 0.01ms with `!important`, and the app declares almost no motion at rest —
+    // so removing it empties the list, skips the loop, and leaves this green on
+    // the one defect it exists to catch. An empty list is now the failure.
+    expect(
+      durations.length,
+      'no element reported a duration, so the collapse rule was never measured',
+    ).toBeGreaterThan(0);
     // styles.css collapses both to 0.01ms under reduce; nothing should run longer.
     for (const pair of durations) {
       expect(pair).not.toMatch(/(?:^|\/)(?:[1-9]\d*|0\.[1-9])s/);
     }
   });
+});
+
+// FE-104-T4 / FE-203-T4: reduced motion on EVERY screen, not just one.
+//
+// The describe above measures reduced motion as a property of the app, which
+// one screen can show. FE-104 (paste import) and FE-203 (saved places) ask for
+// it on THEIR screen, and a card's clause is only proven on the screen it
+// names, so this walks all of SCREENS.
+//
+// T4 rather than T3: the owner split both cards in two. T3 keeps the four
+// clauses already proven above (keyboard 이동, 접근성 이름, 360px, 200% zoom)
+// and T4 takes focus 복귀 plus this screen's reduced motion. Only the
+// reduced-motion half of T4 is proven here; focus 복귀 is focus-restore.spec.ts.
+//
+// FE-503-T4 and FE-505-T4 are deliberately NOT on this title, though SCREENS
+// does carry the two optimize routes. Those cards are the READY preview -
+// before/after, MetricDelta, the decision bar, the applied/undo panel - and
+// OptimizationRunScreen.tsx:39-43 records that none of it is built, because it
+// needs BA-051 to compute proposals and BA-052 to record a decision. A READY
+// run reports that the result arrived and stops. So there is no motion of
+// theirs on either route to collapse, and `optimization run` does not even
+// reach its own content here (it renders "No such optimization", measured).
+// Attaching their ids would claim a clause about a screen state this suite
+// never renders.
+//
+// It does NOT reuse the assertion above, because that assertion cannot fail.
+// Measured: delete the `prefers-reduced-motion` block from styles.css and
+// `honours prefers-reduced-motion` still passes. The reason is the filter —
+// it keeps only elements whose duration is not '0s', and this app declares
+// almost no motion at rest (one `pulse`, in OptimizationRunScreen.module.css).
+// So the ONLY thing that puts elements into that list is the collapse rule
+// itself, which sets every element to 0.01ms with `!important`. Remove the
+// rule and the list is empty, the loop body never runs, and the test is green
+// on the exact defect it names. The rule was manufacturing its own targets.
+//
+// So this measures the collapse against a target the page is made to declare:
+// a node with an explicit 600ms transition and a 900ms animation, appended to
+// the live document so it inherits the same cascade and media state as the
+// screen around it. Under `reduce` the app's rule must flatten it. That target
+// exists on every screen regardless of what the screen rendered, which is what
+// makes the per-screen claim honest — and it is why the check does not depend
+// on a screen reaching its real content.
+//
+// Two of the sixteen reach an error state, because the fixture ids in
+// screens.ts are not this session's (screens.ts:21-23): `optimization run`
+// shows "No such optimization" and `post detail` likewise. They are kept in
+// the loop deliberately — an error screen must honour reduced motion too — but
+// nothing here claims to have measured those screens' real content. Notably
+// the app's one real animation lives on `optimization run` behind
+// `data-active`, so it is unreachable here; that is why the probe exists
+// rather than a query for the app's own animated nodes, which would find none
+// and pass over an empty set on all sixteen screens.
+test.describe('FE-104-T4 FE-203-T4 reduced motion, per screen', () => {
+  for (const screen of SCREENS) {
+    test(`${screen.name} collapses motion under reduce`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto(screen.path);
+      await page.waitForLoadState('networkidle');
+
+      const measured = await page.evaluate(() => {
+        // The probe declares motion the reduce rule has to override. Inline
+        // styles are used so the declaration cannot be lost to a selector that
+        // happens not to match on this screen; `!important` in styles.css
+        // outranks an inline declaration, which is precisely what is measured.
+        const probe = document.createElement('div');
+        probe.setAttribute('data-nn-motion-probe', '');
+        probe.style.transitionProperty = 'opacity';
+        probe.style.transitionDuration = '600ms';
+        probe.style.animationName = 'nn-motion-probe';
+        probe.style.animationDuration = '900ms';
+        document.body.appendChild(probe);
+        const probed = getComputedStyle(probe);
+        const probeResult = {
+          transitionDuration: probed.transitionDuration,
+          animationDuration: probed.animationDuration,
+        };
+        probe.remove();
+
+        // Anything the screen itself declares is measured too, so a future
+        // animation added to a real component is covered without editing this.
+        const own = [...document.querySelectorAll('*')]
+          .map((el) => getComputedStyle(el as HTMLElement))
+          .filter((s) => s.animationDuration !== '0s' || s.transitionDuration !== '0s')
+          .map((s) => `${s.animationDuration}/${s.transitionDuration}`);
+
+        return { probeResult, own };
+      });
+
+      // The zero-count guard. Not "did the screen have animations" — it had
+      // none, and requiring some would reject correct code — but "did the
+      // thing this test measures actually get measured". If the probe never
+      // landed, every assertion below is a statement about nothing.
+      // attribution-coverage.test.ts:80 is the precedent: 100% of nothing is
+      // the shape of a compliance claim that passes while the rule goes
+      // unchecked.
+      expect(
+        measured.probeResult.transitionDuration,
+        `${screen.name}: the motion probe did not render, so nothing was measured`,
+      ).not.toBe('');
+      expect(
+        measured.probeResult.animationDuration,
+        `${screen.name}: the motion probe did not render, so nothing was measured`,
+      ).not.toBe('');
+
+      // A duration is acceptable only if it is instant. styles.css collapses to
+      // 0.01ms, which computes as `1e-05s`; a plain `0s` would be fine too. The
+      // 600ms and 900ms the probe asked for must not survive.
+      const instant = /^(?:0s|1e-05s|0\.00001s)$/;
+      expect(
+        measured.probeResult.transitionDuration,
+        `${screen.name}: a 600ms transition survived prefers-reduced-motion`,
+      ).toMatch(instant);
+      expect(
+        measured.probeResult.animationDuration,
+        `${screen.name}: a 900ms animation survived prefers-reduced-motion`,
+      ).toMatch(instant);
+
+      // And nothing the screen declares on its own may run either.
+      for (const pair of measured.own) {
+        expect(
+          pair,
+          `${screen.name}: an element runs ${pair} under prefers-reduced-motion`,
+        ).not.toMatch(/(?:^|\/)(?:[1-9]\d*|0\.[1-9])s/);
+      }
+    });
+  }
 });
 
 test.describe('touch targets', () => {

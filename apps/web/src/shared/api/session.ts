@@ -1589,20 +1589,32 @@ export function useDecideOptimization(runId: string | null, tripId: string | nul
 }
 
 /**
- * The most recent run for one trip, used to decide whether an undo is offered.
+ * One trip's recent runs, from which the undo panel picks the decided one.
  *
  * Separate from `useOptimizationHistory`, which is the profile's whole-owner
- * list: this one filters by trip and asks for a single row, because the trip
- * screen needs exactly "the last thing that happened to THIS trip" and paying
- * for a full page on every visit to the most-opened screen in the app is not
- * worth the one row it would use.
+ * list: this one filters by trip, because the trip screen asks about THIS
+ * trip's undo and nothing else.
+ *
+ * It used to ask for `limit: 1` and was named for that — "the latest run" —
+ * which was the right row only while nothing had happened since the apply.
+ * Start a second optimization with an undo still live and row 0 is the new
+ * RUNNING one, so the panel lost the run it was about. The contract's own
+ * example for this operation is five rows with RUNNING and READY above the
+ * APPLIED one, so that owner could never see the panel at all. Which row
+ * matters is now `latestDecidedRun`'s question, and this hook's job is only to
+ * return a page for it to scan.
+ *
+ * `limit` is the contract's own default (20, max 50) rather than a number
+ * invented here. It bounds the scan without pretending to be exhaustive: 20
+ * runs on one trip inside the 24-hour window would still hide the panel, and
+ * `?decided=true` is the shape that closes that for good.
  *
  * The page carries no revert state — `OptimizationHistoryItem` is
  * `additionalProperties: false` over nine fields and holds neither
  * `revertAvailability` nor the decision id. It is step one of two, and its job
  * is only to name the run worth reading.
  */
-export function useLatestTripOptimization(
+export function useTripOptimizationHistory(
   tripId: string | null,
 ): UseQueryResult<OptimizationHistoryPage, Problem | Error> {
   return useQuery({
@@ -1611,7 +1623,7 @@ export function useLatestTripOptimization(
     queryFn: async () => {
       if (tripId === null) throw new Error('No trip selected');
       const { data, error, response } = await getApiClient().GET('/optimizations', {
-        params: { query: { tripId, limit: 1 } },
+        params: { query: { tripId, limit: 20 } },
       });
       if (!data) fail(error, response);
       return data;

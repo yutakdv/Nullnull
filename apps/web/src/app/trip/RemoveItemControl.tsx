@@ -125,6 +125,31 @@ export function RemoveItemControl({
     const target = restore === 'day' ? restoreTo.current : openerRef.current;
     restoreTo.current = null;
     // Deferred so focus lands after React has committed the close.
+    //
+    // LATENT, recorded rather than fixed (#272 cause 4). `isConnected` asks
+    // whether the node is in the page, not whether it can HOLD focus, and
+    // focusing a disabled button is a silent no-op that leaves focus on
+    // <body>. TripPicker hit exactly that and now routes through
+    // `restoreFocusTo` (shared/ui/components/focus-restore.ts), which also
+    // falls back to <main>.
+    //
+    // Not routed through it here because the two conditions on this trigger's
+    // `disabled` (:178) differ, and only one of them is real:
+    //
+    //   `remove.isPending` — UNREACHABLE on this path. submit() calls
+    //     close('day') BEFORE the mutation, so the restore target is the day,
+    //     never this trigger, and the cancel paths do not start a request.
+    //   `etag === null`   — REACHABLE. A sibling row's refetch (:165) can
+    //     land an ETag-less response while this dialog is open, disabling the
+    //     trigger under a cancel/Escape/backdrop close, whose target IS the
+    //     trigger.
+    //
+    // So the guard would fire today only through the second, which needs a
+    // sibling's refetch to race an open dialog. Switching now would be a
+    // radius-0 change with nothing to prove it; this note is here so that the
+    // next person to add a `disabled` to this trigger -- or to move the
+    // close() out of submit() -- sees why the plain `isConnected` is not
+    // enough, and reaches for `restoreFocusTo`.
     queueMicrotask(() => {
       if (target?.isConnected) target.focus();
     });

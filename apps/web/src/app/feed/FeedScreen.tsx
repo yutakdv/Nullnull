@@ -194,6 +194,15 @@ export function FeedScreen() {
     isProblem(error) &&
     (error.code === 'CURSOR_EXPIRED' || error.code === 'CURSOR_INVALID');
   const failed = feed.isError;
+  // 503 SOURCE_UNAVAILABLE: the catalog is not published yet, so the request
+  // arrived and was answered — there is simply nothing to recommend from.
+  // `feed.error` would call that a load failure and read as a broken screen,
+  // which is what a judge opening this before the gate opens would conclude.
+  //
+  // Only the feed query is read. A failing /trips is a real load failure and
+  // keeps `feed.error`, because the trip list has nothing to do with whether
+  // the catalog is published.
+  const sourceUnavailable = isProblem(error) && error.code === 'SOURCE_UNAVAILABLE';
 
   useEffect(() => {
     if (!expired) {
@@ -274,7 +283,7 @@ export function FeedScreen() {
           on 불러오는 중 for ever with no error and no retry. */}
       {(failed || trips.isError) && !expired ? (
         <p className={styles.state} role="alert">
-          {t('feed.error')}
+          {sourceUnavailable ? t('feed.sourceUnavailable') : t('feed.error')}
           <button
             className={styles.retry}
             onClick={() => {

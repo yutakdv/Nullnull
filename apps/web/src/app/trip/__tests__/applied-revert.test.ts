@@ -12,7 +12,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { components } from '@nullnull/api-client';
-import { panelVersions, shouldReadRun, formatInstant } from '../applied-revert.js';
+import {
+  latestDecidedRun,
+  panelVersions,
+  shouldReadRun,
+  formatInstant,
+} from '../applied-revert.js';
 
 type OptimizationRun = components['schemas']['OptimizationRun'];
 type OptimizationHistoryItem =
@@ -192,5 +197,87 @@ describe('formatInstant', () => {
   it('returns null rather than a guess for an unparseable value', () => {
     expect(formatInstant('not-a-date', 'ko-KR')).toBeNull();
     expect(formatInstant(null, 'ko-KR')).toBeNull();
+  });
+});
+
+// The row the panel is about, picked out of a page rather than assumed to be
+// first. `limit: 1` + "newest-first" read "the last run" as "the last DECIDED
+// run", and those are the same sentence only while nothing has happened since
+// the apply — which is not the state a traveller with a live undo is in.
+describe('latestDecidedRun finds the run the panel is about', () => {
+  const decidedAt = Date.parse('2026-10-02T01:13:40Z');
+  const soon = decidedAt + 1000;
+
+  /** A run in flight: no decision, no decidedAt. This is what sits at row 0. */
+  function undecided(overrides: Partial<OptimizationHistoryItem> = {}) {
+    return historyItem({
+      runId: '018f4a20-9f11-7c08-b3d7-2e5a41c9b104',
+      status: 'RUNNING',
+      decision: null,
+      decidedAt: null,
+      ...overrides,
+    });
+  }
+
+  it('skips runs started after the apply to reach the applied one', () => {
+    // The defect, in one line: start another optimization while the undo is
+    // still live and row 0 stops being the row that matters.
+    const page = [undecided(), undecided({ status: 'READY' }), historyItem()];
+
+    expect(latestDecidedRun(page, soon)?.decision).toBe('APPLY');
+  });
+
+  it('takes the FIRST decided row, not merely any of them', () => {
+    // Newest-first is the server's guarantee and this function leans on it. A
+    // scan that returned the last match would answer with the oldest run in
+    // the page, which is a different trip moment wearing the same shape.
+    const newer = historyItem({ runId: 'newer', decidedAt: '2026-10-02T01:13:40Z' });
+    const older = historyItem({ runId: 'older', decidedAt: '2026-10-02T01:00:00Z' });
+
+    expect(latestDecidedRun([newer, older], soon)?.runId).toBe('newer');
+  });
+
+  it('answers undefined when every row is still undecided', () => {
+    expect(latestDecidedRun([undecided(), undecided()], soon)).toBeUndefined();
+  });
+
+  it('answers undefined for an empty page and for no page at all', () => {
+    expect(latestDecidedRun([], soon)).toBeUndefined();
+    expect(latestDecidedRun(undefined, soon)).toBeUndefined();
+  });
+
+  it('does not reach past the 24-hour window to find one', () => {
+    // A stale decided row is not a rescue: the window is closed, and picking
+    // it would ask for a run the server answers EXPIRED. The scan uses the
+    // same test as the single-row gate, so this cannot drift from it.
+    expect(
+      latestDecidedRun([historyItem()], decidedAt + 24 * 60 * 60 * 1000),
+    ).toBeUndefined();
+  });
+
+  it("finds the applied run in the CONTRACT's own five-row example", () => {
+    // Non-vacuity, and the reason this whole change exists. The example that
+    // ships with listOptimizationHistory has RUNNING and READY above APPLIED,
+    // so an owner in that state could never see the panel while row 0 was the
+    // answer. Read from the pinned fixture rather than retyped, so a contract
+    // edit moves this test instead of leaving it asserting a shape that is
+    // gone.
+    const page = JSON.parse(
+      readFileSync(
+        '../../packages/contracts/fixtures/optimizations/history-page.json',
+        'utf8',
+      ),
+    ) as { items: OptimizationHistoryItem[] };
+
+    expect(page.items[0]?.decision, 'the example must still open undecided').toBeNull();
+    expect(
+      page.items.filter((item) => item.decision).length,
+      'and must still carry a decided row to find',
+    ).toBeGreaterThan(0);
+
+    const found = latestDecidedRun(page.items, Date.parse('2026-10-02T02:00:00Z'));
+
+    expect(found?.decision).toBe('APPLY');
+    expect(found?.runId).toBe('018f4a20-9f11-7c08-b3d7-2e5a41c9b101');
   });
 });
