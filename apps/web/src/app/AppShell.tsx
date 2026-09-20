@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from '@nullnull/api-client';
 import {
   bootstrapSession,
+  currentOwnerQueryKey,
   currentCsrfToken,
+  forgetDeletionToken,
   isProblem,
   sessionQueryKey,
   useCsrfToken,
   useCurrentOwner,
 } from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
+import { clearSnapshot } from './trip-create/wizard-storage.js';
 import styles from './AppShell.module.css';
 
 export interface AppShellOutletContext {
@@ -91,7 +94,10 @@ export function AppShell({ tabs = false }: AppShellProps) {
   const location = useLocation();
   const navState = location.state as TabNavState | null;
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { t } = useI18n();
+  const [restartingSession, setRestartingSession] = useState(false);
+  const [restartFailed, setRestartFailed] = useState(false);
   const layoutWidth = contentWidth(location.pathname);
 
   // FR-SES-03. This is the root element of every route, which is why the call
@@ -271,19 +277,42 @@ export function AppShell({ tabs = false }: AppShellProps) {
               </h1>
               <p className={styles.sessionNote}>{t('session.expiredNote')}</p>
             </div>
-            {/* The restart is the user's deliberate act. Bootstrapping here on
-                their behalf would mint a different anonymous owner and strand
-                the trips this message just promised (SessionSafetyIT). Sending
-                them to the splash screen makes it a choice. */}
+            {/* The restart is the user's deliberate act. Only this click may
+                mint a replacement owner; background recovery must never do so
+                because it would silently strand the previous owner's trips. */}
             <button
               className={styles.sessionRestart}
-              onClick={() => {
-                void navigate('/');
+              disabled={restartingSession}
+              onClick={async () => {
+                if (restartingSession) return;
+                setRestartFailed(false);
+                setRestartingSession(true);
+                try {
+                  // The click is the user's explicit decision to leave the
+                  // revoked owner behind. Bootstrap first, then discard every
+                  // query that could still belong to the deleted owner and
+                  // seed the two session sources with the fresh response.
+                  const fresh = await bootstrapSession();
+                  queryClient.clear();
+                  queryClient.setQueryData(sessionQueryKey, fresh);
+                  queryClient.setQueryData(currentOwnerQueryKey, fresh.owner);
+                  forgetDeletionToken();
+                  clearSnapshot();
+                  void navigate('/', { replace: true });
+                } catch {
+                  setRestartFailed(true);
+                  setRestartingSession(false);
+                }
               }}
               type="button"
             >
-              {t('session.restart')}
+              {restartingSession ? t('session.restarting') : t('session.restart')}
             </button>
+            {restartFailed ? (
+              <p className={styles.sessionNote} role="alert">
+                {t('session.restartFailed')}
+              </p>
+            ) : null}
           </section>
         </main>
       </div>

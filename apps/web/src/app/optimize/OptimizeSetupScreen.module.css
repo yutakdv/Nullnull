@@ -4,7 +4,7 @@
   z-index: 20;
   inset: 0;
   overflow: hidden;
-  background: var(--color-bg-default);
+  background: var(--color-bg-subtle);
 }
 
 .tripBackground {
@@ -30,25 +30,35 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  /* 415:2268 is 466px tall at the 393×852 reference viewport.  Long target
-     lists scroll inside this fixed visual sheet instead of moving its top
-     edge and losing the trip context behind it. */
-  max-height: min(66dvh, 466px);
-  padding: 12px var(--space-4) max(24px, env(safe-area-inset-bottom));
-  overflow-y: auto;
+  max-height: calc(100dvh - var(--space-2));
+  padding: 10px var(--space-4) var(--space-6);
+  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
+  overflow: hidden;
   border-radius: 24px 24px 0 0;
   background: var(--color-bg-default);
   box-shadow: 0 -12px 32px rgb(22 27 35 / 12%);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
-.grabber {
+.screen[data-dragging='true'] {
+  transition: none;
+}
+
+.dragHandle {
+  display: flex;
   flex: none;
-  align-self: center;
-  width: 36px;
-  height: 4px;
-  margin-bottom: 4px;
-  border-radius: 999px;
-  background: var(--color-border-strong);
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  margin: -6px 44px -6px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
 }
 
 .close {
@@ -69,7 +79,7 @@
   margin: 0;
   padding-right: 44px;
   color: var(--color-text-primary);
-  font-size: var(--font-title-md);
+  font-size: var(--font-title-sm);
   font-weight: 700;
 }
 
@@ -100,6 +110,9 @@
   gap: var(--space-2);
   margin: 0;
   padding: 0;
+  max-height: min(30dvh, 200px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
 }
 
@@ -120,8 +133,9 @@
 
 /* Selection is a border plus the pressed state, never colour alone. */
 .item[data-selected] {
-  border-color: var(--color-border-strong);
+  border-color: var(--color-action-primary);
   border-width: 2px;
+  background: var(--color-action-subtle);
 }
 
 .item:disabled {
@@ -220,4 +234,33 @@
   font-family: inherit;
   font-size: var(--font-caption);
   font-weight: 700;
+}
+
+@media (max-height: 640px) {
+  .screen {
+    gap: var(--space-2);
+    overflow-y: auto;
+  }
+
+  .items {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .item {
+    padding-block: var(--space-1);
+  }
+}
+
+@media (forced-colors: active) {
+  .item[data-selected] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    transition: none;
+  }
 }

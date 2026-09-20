@@ -91,10 +91,15 @@
  * person needs when they arrive. */
 .notice {
   min-height: 16px;
-  margin: 0;
+  margin: calc(var(--space-3) * -1) var(--space-4) 0;
   color: var(--color-text-secondary);
   font-size: var(--font-label);
   line-height: 16px;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--color-border-strong);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
 }
 
 /* A button, not a link: it goes back to wherever the traveller came from, so

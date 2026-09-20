@@ -61,6 +61,16 @@ export function IconClose(props: IconProps) {
   return <Icon paths={ICONCLOSE_PATHS} variant="stroke" {...props} />;
 }
 
+const ICONEDIT_PATHS = [
+  'M 5 19 L 8.5 18.3 L 18.7 8.1 C 19.5 7.3 19.5 6 18.7 5.2 C 17.9 4.4 16.6 4.4 15.8 5.2 L 5.7 15.3 L 5 19 Z',
+  'M 14.5 6.5 L 17.5 9.5',
+] as const;
+
+/** Shared 24x24 edit/pencil action. */
+export function IconEdit(props: IconProps) {
+  return <Icon paths={ICONEDIT_PATHS} variant="stroke" {...props} />;
+}
+
 const ICONDATELOCK_PATHS = [
   'M 9 4 L 9 8.5 M 16 4 L 16 8.5 M 5 11.5 L 20 11.5 M 5 7 L 20 7 L 20 20.5 L 5 20.5 L 5 7 Z',
 ] as const;

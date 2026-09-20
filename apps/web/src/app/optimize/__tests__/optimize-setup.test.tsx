@@ -240,7 +240,13 @@ describe('FE-501-T1 only ITEM is offered (FCR-010 trace)', () => {
       expect(sent).toHaveLength(1);
     });
 
-    const second = trip.days.flatMap((day) => day.items)[1];
+    const second = trip.days
+      .flatMap((day) => day.items)
+      .find(
+        (item) =>
+          item.id !== first?.id &&
+          !item.constraints.some((constraint) => constraint.type === 'DATE'),
+      );
     await user.click(
       screen.getByRole('button', { name: new RegExp(second?.place.name ?? '') }),
     );
@@ -480,6 +486,38 @@ describe('FE-501-T3 keyboard and names', () => {
     expect(stop).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(stop).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('toggles the selected stop off when it is pressed again', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+    await screen.findByRole('button', { name: copy['optimize.scope.ITEM'] });
+    const stop = screen.getByRole('button', {
+      name: new RegExp(first?.place.name ?? ''),
+    });
+
+    await user.click(stop);
+    expect(stop).toHaveAttribute('aria-pressed', 'true');
+    expect(stop).toHaveAttribute('data-selected');
+
+    await user.click(stop);
+    expect(stop).toHaveAttribute('aria-pressed', 'false');
+    expect(stop).not.toHaveAttribute('data-selected');
+  });
+
+  it('dismisses the bottom sheet when its handle is dragged down', async () => {
+    renderSetup();
+    const handle = await screen.findByTestId('optimize-sheet-drag-handle');
+    const dialog = screen.getByRole('dialog');
+
+    fireEvent.pointerDown(handle, { button: 0, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientY: 240, pointerId: 1 });
+    expect(dialog).toHaveStyle({ transform: 'translateY(140px)' });
+    fireEvent.pointerUp(handle, { clientY: 240, pointerId: 1 });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 
   it('groups the scope and the target under named legends', async () => {

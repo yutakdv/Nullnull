@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import { isProblem, useTrip } from '../../shared/api/index.js';
+import { isProblem, useTrip, useUpdateTrip } from '../../shared/api/index.js';
 import { Chip, CrowdLevel, DataAttribution } from '../../shared/ui/components/index.js';
 import {
   IconDateLock,
+  IconCheck,
+  IconClose,
+  IconEdit,
   IconPinVisitFilled,
   IconReservation,
   IconTimeLock,
@@ -14,6 +17,7 @@ import { ItemMoveControls } from './ItemMoveControls.js';
 import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
+import { draftError, draftFrom, toPatch } from './trip-edit.js';
 import styles from './TripScreen.module.css';
 import {
   daysUntil,
@@ -83,14 +87,21 @@ function tripDateRange(startDate: string, endDate: string, locale: string): stri
 
 export interface TripScreenProps {
   mode?: 'view' | 'edit' | 'details';
+  surface?: 'default' | 'subtle';
 }
 
-export function TripScreen({ mode = 'view' }: TripScreenProps) {
+export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenProps) {
   const { tripId } = useParams();
   const navigate = useNavigate();
   const { locale, t } = useI18n();
   const query = useTrip(tripId ?? null);
+  const updateTitle = useUpdateTrip(tripId ?? null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const titleEditButton = useRef<HTMLButtonElement>(null);
+  const restoreTitleFocus = useRef(false);
   const editing = mode === 'edit';
   // The outcome of a removal, held HERE rather than in the control that sent
   // it: a successful remove unmounts the row, so a message owned by the row
@@ -99,6 +110,12 @@ export function TripScreen({ mode = 'view' }: TripScreenProps) {
   const trip = query.data?.trip;
   const days = trip?.days ?? [];
   const shown = useMemo(() => visibleDays(days, selectedDay), [days, selectedDay]);
+
+  useEffect(() => {
+    if (editingTitle || !restoreTitleFocus.current) return;
+    restoreTitleFocus.current = false;
+    titleEditButton.current?.focus();
+  }, [editingTitle]);
 
   if (query.isPending) {
     return (
@@ -143,23 +160,131 @@ export function TripScreen({ mode = 'view' }: TripScreenProps) {
   const { nights, days: dayCount } = tripLength(trip.startDate, trip.endDate);
   const countdown = daysUntil(trip.startDate, todayIn(trip.timezone));
   const total = itemCount(days);
+  const loadedTrip = trip;
+  const loadedEtag = query.data?.etag ?? null;
+  function beginTitleEdit() {
+    updateTitle.reset();
+    setTitleDraft(loadedTrip.title);
+    setTitleError(null);
+    setEditingTitle(true);
+  }
+
+  function cancelTitleEdit() {
+    updateTitle.reset();
+    setTitleError(null);
+    restoreTitleFocus.current = true;
+    setEditingTitle(false);
+  }
+
+  function saveTitle() {
+    const draft = { ...draftFrom(loadedTrip), title: titleDraft };
+    const localError = draftError(draft);
+    if (localError === 'title-empty' || localError === 'title-too-long') {
+      setTitleError(t(`trip.error.${localError}`));
+      return;
+    }
+    const patch = toPatch(draft, loadedTrip);
+    if (patch === null) {
+      cancelTitleEdit();
+      return;
+    }
+    updateTitle.mutate(
+      { patch, etag: loadedEtag },
+      {
+        onSuccess: () => {
+          setTitleError(null);
+          restoreTitleFocus.current = true;
+          setEditingTitle(false);
+        },
+        onError: () => {
+          setTitleError(t('trip.titleSaveFailed'));
+        },
+      },
+    );
+  }
 
   return (
     <section
-      className={`${styles.screen} ${editing ? styles.editing : ''}`}
+      className={`${styles.screen} ${editing ? styles.editing : ''} ${
+        surface === 'subtle' ? styles.subtleSurface : ''
+      }`}
       aria-labelledby="trip-heading"
     >
       <header className={styles.header}>
-        <div className={styles.headRow}>
-          <h1 className={styles.title} id="trip-heading">
+        <div
+          className={`${styles.headRow} ${
+            mode === 'view' && !editingTitle ? styles.viewHeadRow : ''
+          }`}
+        >
+          <h1 className={editingTitle ? styles.srOnly : styles.title} id="trip-heading">
             {trip.title}
           </h1>
+          {editingTitle ? (
+            <div className={styles.titleEditor}>
+              <label className={styles.srOnly} htmlFor="trip-title-inline">
+                {t('trip.field.title')}
+              </label>
+              <input
+                aria-describedby={titleError ? 'trip-title-inline-error' : undefined}
+                aria-invalid={titleError ? true : undefined}
+                autoFocus
+                className={styles.titleInput}
+                id="trip-title-inline"
+                maxLength={100}
+                onChange={(event) => {
+                  setTitleDraft(event.target.value);
+                  setTitleError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    saveTitle();
+                  }
+                  if (event.key === 'Escape') cancelTitleEdit();
+                }}
+                value={titleDraft}
+              />
+              <button
+                aria-label={t('trip.editSave')}
+                className={styles.titleIconButton}
+                disabled={updateTitle.isPending}
+                onClick={saveTitle}
+                type="button"
+              >
+                <IconCheck size={18} />
+              </button>
+              <button
+                aria-label={t('trip.editCancel')}
+                className={styles.titleIconButton}
+                disabled={updateTitle.isPending}
+                onClick={cancelTitleEdit}
+                type="button"
+              >
+                <IconClose size={18} />
+              </button>
+            </div>
+          ) : mode === 'view' ? (
+            <button
+              aria-label={t('trip.titleEdit')}
+              className={`${styles.titleIconButton} ${styles.titleEditButton}`}
+              onClick={beginTitleEdit}
+              ref={titleEditButton}
+              type="button"
+            >
+              <IconEdit size={18} />
+            </button>
+          ) : null}
           {/* Once the trip is under way there is no countdown to show, so it
               says which it is rather than falling back to D-0. */}
           <span className={styles.dday}>
             {countdown === null ? t('trip.started') : t('trip.dday', { days: countdown })}
           </span>
         </div>
+        {titleError ? (
+          <p className={styles.titleError} id="trip-title-inline-error" role="alert">
+            {titleError}
+          </p>
+        ) : null}
 
         <div className={styles.meta}>
           <p className={styles.metaText}>

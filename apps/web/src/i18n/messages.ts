@@ -74,6 +74,8 @@ export const messages = {
     'session.expired': '세션이 만료됐어요. 다시 시작해주세요',
     'session.expiredNote': '이 기기에 저장된 여행은 다시 시작하면 볼 수 있어요',
     'session.restart': '다시 시작하기',
+    'session.restarting': '다시 시작하는 중이에요',
+    'session.restartFailed': '다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요',
 
     // A-2 language (388:277). The heading is bilingual in both locales by
     // design: the screen has to be readable before a language is chosen.
@@ -165,11 +167,10 @@ export const messages = {
 
     // A-4 sign-in (746:4707).
     //
-    // The screen exists before the contract does: docs/api/openapi.yaml has no
-    // auth operation yet (#264), so the button verifies nothing — pressing it
-    // moves the traveller to the feed without checking the fields against
-    // anything. These strings describe a real form whose submit does not yet
-    // mean what it says.
+    // The screen exists before account auth does: docs/api/openapi.yaml has no
+    // account sign-in or anonymous-owner transfer operation yet (#264, #324).
+    // The demo credentials are checked only in the browser, so the copy must
+    // not promise account storage or cross-device continuity.
     //
     // `signIn.anonymous` is not `intro.noLogin`. Intro says "바로" to someone
     // who has not started; here the traveller already has trips in this
@@ -178,12 +179,13 @@ export const messages = {
     // addition, and the anonymous path stays whole.
     'signIn.title': '로그인',
     'signIn.lead':
-      '기기를 옮겨도 여행이 그대로 남아요\n현재 기기의 여행도 계정에 이어서 보관해요.',
+      '이 기기에서 만든 여행은 그대로 유지돼요.\n기기 간 여행 이어보기는 아직 준비 중이에요.',
     'signIn.id.label': '아이디',
     'signIn.id.placeholder': '아이디를 입력해 주세요',
     'signIn.password.label': '비밀번호',
     'signIn.password.placeholder': '비밀번호를 입력해 주세요',
     'signIn.submit': '로그인',
+    'signIn.failed': '아이디 또는 비밀번호가 올바르지 않아요',
     'signIn.anonymous': '로그인 없이 계속 둘러볼 수 있어요',
     'profile.trips.title': '내 여행 목록',
     'profile.trips.count': '{count}',
@@ -855,6 +857,8 @@ export const messages = {
     'trip.editMode': '편집 중',
     'trip.item.actions': '{name} 항목 메뉴',
     'trip.editStart': '일정 편집',
+    'trip.titleEdit': '여행 이름 수정',
+    'trip.titleSaveFailed': '여행 이름을 저장하지 못했어요. 다시 시도해 주세요',
     'trip.editSave': '변경사항 저장',
     'trip.editSaving': '저장하는 중이에요',
     'trip.editCancel': '취소',
@@ -1046,6 +1050,8 @@ export const messages = {
     'session.expired': 'Your session ended. Please start again',
     'session.expiredNote': 'Trips saved on this device come back when you start again',
     'session.restart': 'Start again',
+    'session.restarting': 'Starting again',
+    'session.restartFailed': "We couldn't start again. Please try once more",
 
     // A-2 language (643:4088, the EN-selected variant). The heading stays
     // bilingual in both locales: the screen must be readable before choosing.
@@ -1135,16 +1141,17 @@ export const messages = {
     'profile.login': 'Sign in',
     'profile.comingSoon': 'Coming soon',
 
-    // A-4 sign-in (746:4707). See the ko-KR block for why this screen exists
-    // before the contract it will call.
+    // A-4 sign-in (746:4707). See the ko-KR block for why this demo screen must
+    // not promise an account or cross-device continuity yet.
     'signIn.title': 'Sign in',
     'signIn.lead':
-      'Your trips stay with you on any device.\nTrips on this device will be saved to your account, too.',
+      'Trips created on this device stay here.\nCross-device trip access is still coming soon.',
     'signIn.id.label': 'ID',
     'signIn.id.placeholder': 'Enter your ID',
     'signIn.password.label': 'Password',
     'signIn.password.placeholder': 'Enter your password',
     'signIn.submit': 'Sign in',
+    'signIn.failed': 'The ID or password is incorrect',
     'signIn.anonymous': 'You can keep browsing without signing in',
     'profile.trips.title': 'My trips',
     'profile.trips.count': '{count}',
@@ -1675,6 +1682,8 @@ export const messages = {
     'trip.editMode': 'Editing',
     'trip.item.actions': '{name} item actions',
     'trip.editStart': 'Edit itinerary',
+    'trip.titleEdit': 'Edit trip name',
+    'trip.titleSaveFailed': "We couldn't save the trip name. Try again",
     'trip.editSave': 'Save changes',
     'trip.editSaving': 'Saving',
     'trip.editCancel': 'Cancel',

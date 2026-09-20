@@ -64,7 +64,7 @@
 // more" that refetched page one would still append cards and look correct on
 // screen, so the test checks the cursor that was sent.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -1225,6 +1225,48 @@ describe('FE-203-T1 the add button actually saves a candidate', () => {
       expect(router.state.location.pathname).toBe(
         `/trip/${tripFixtures.page.items[0]?.id ?? ''}/candidates`,
       );
+    });
+  });
+
+  it('removes a successful save toast after the brief confirmation window', async () => {
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await saveVia(user, firstTitle);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      copy['tripAdd.toast.saved'].replace(
+        '{trip}',
+        tripFixtures.page.items[0]?.title ?? '',
+      ),
+    );
+    await waitFor(
+      () => {
+        expect(screen.queryByRole('status')).toBeNull();
+      },
+      { timeout: 2_200 },
+    );
+  });
+
+  it('keeps the toast available while its action has keyboard focus', async () => {
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    await saveVia(user, firstTitle);
+
+    const status = await screen.findByRole('status');
+    const view = within(status).getByRole('button', {
+      name: copy['tripAdd.toast.view'],
+    });
+    fireEvent.focus(view);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1_650));
+    });
+    expect(status).toBeInTheDocument();
+
+    fireEvent.blur(view, { relatedTarget: document.body });
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull(), {
+      timeout: 2_200,
     });
   });
 

@@ -181,6 +181,16 @@ describe('the receipt token never leaves memory', () => {
     expect(document.body.innerHTML).not.toContain(token);
   });
 
+  it('clears an unfinished trip wizard when deletion revokes the session', async () => {
+    sessionStorage.setItem('nullnull.wizard.v1', '{"step":3}');
+    const user = userEvent.setup();
+    renderSection();
+    await requestDeletion(user);
+    await screen.findByText(copy['deletion.requested']);
+
+    expect(sessionStorage.getItem('nullnull.wizard.v1')).toBeNull();
+  });
+
   it('never appears in a URL', async () => {
     const user = userEvent.setup();
     renderSection();
