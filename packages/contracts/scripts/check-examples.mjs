@@ -191,9 +191,27 @@ for (const name of Object.keys(FIXTURE_OF)) {
 // BA-000-T3: the contract must REJECT a malformed scope target or decision revision union.
 // Pinning the discriminator proves the shape can reject; only feeding it a bad payload proves it does.
 const negativePath = resolve(ROOT, 'packages/contracts/fixtures/negative/README.json');
+
+// How many negative cases that file is expected to hold. The loop below proves every case it
+// FINDS is rejected, which is vacuously true of a file that holds none - measured, not assumed:
+// emptying `cases` printed `negative_rejected=0` and exited 0, and deleting one printed 5 and
+// exited 0. Both are green gates that prove nothing, and AGENTS.md describes BA-000-T3 by that
+// very number.
+//
+// So the number is pinned. It moves when the suite grows, and that is the point: a case added
+// without touching this line fails here rather than being counted by nobody. Say why it moved.
+// Today it is six: three CreateOptimizationRequest scope/target unions and three
+// OptimizationDecision revision unions.
+const NEGATIVE_CASES = 6;
 let rejected = 0;
 {
   const suite = JSON.parse(readFileSync(negativePath, 'utf8'));
+  if (!Array.isArray(suite.cases) || suite.cases.length !== NEGATIVE_CASES) {
+    errors.push(
+      `negative suite holds ${suite.cases?.length ?? 'no'} cases, expected ${NEGATIVE_CASES}: `
+        + 'a suite that lost cases still reports every case it kept as rejected',
+    );
+  }
   for (const testCase of suite.cases) {
     const validate = ajv.compile({
       components: api.components,
