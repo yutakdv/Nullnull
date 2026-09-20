@@ -15,6 +15,7 @@ import io
 import json
 import logging
 import urllib.error
+from dataclasses import replace
 from datetime import date, time
 from decimal import Decimal
 from typing import Any
@@ -33,6 +34,9 @@ from nullnull_ai.provider.openai import MONTHLY_BUDGET_USD, OpenAiExplanationPor
 
 CANARY_KEY = "sk-canary-1ecb0f2a-do-not-leak"
 """A value unique enough that finding it anywhere is proof rather than coincidence."""
+
+FACT_ONLY_CANARY = "issue-canary-7d41-the-template-never-renders-this"
+"""A facts field that reaches no template, so finding it in a request is proof rather than coincidence."""
 
 FACTS = ExplanationFacts(
     locale="ko",
@@ -72,15 +76,47 @@ def test_an_answer_comes_back_as_the_sentence() -> None:
 
 
 def test_the_model_is_handed_the_template_and_nothing_else() -> None:
-    """The port's contract, asserted on the bytes that would go out rather than on the call."""
+    """The port's contract, asserted on the bytes that would go out rather than on the call.
+
+    **The whole message list is pinned, not the user turn alone.** Measured on 2026-09-20: a facts
+    field appended to the SYSTEM turn left the entire suite green (572 passed, red=0), while the
+    same value appended to the user turn turned this test red on its own. A model is handed every
+    turn in the list, so a rule that reads one role describes the request instead of bounding it.
+
+    The canary asks the same question from the other end and does not depend on the shape of the
+    body: `rewrite` is given the whole `ExplanationFacts` and ignores all of it today, so what
+    survives a rewrite of this request is "no field the template did not render went out".
+    """
+    facts = replace(FACTS, forecast_issue_id=FACT_ONLY_CANARY)
     recorder = Recorder(completion("ok"))
-    OpenAiExplanationPort(CANARY_KEY, "gpt-test", post=recorder).rewrite(FACTS, TEMPLATE)
+    OpenAiExplanationPort(CANARY_KEY, "gpt-test", post=recorder).rewrite(facts, TEMPLATE)
     (_url, body, _headers, _timeout) = recorder.calls[0]
     sent: Any = json.loads(body)
-    user = [message for message in sent["messages"] if message["role"] == "user"]
-    assert [message["content"] for message in user] == [TEMPLATE]
+    assert [message["role"] for message in sent["messages"]] == ["system", "user"]
+    assert sent["messages"][1]["content"] == TEMPLATE
+    assert FACT_ONLY_CANARY not in body.decode("utf-8")
     assert sent["model"] == "gpt-test"
     assert sent["max_completion_tokens"] == adapter.MAX_OUTPUT_TOKENS
+
+
+def test_the_system_turn_is_the_same_whatever_the_request_carries() -> None:
+    """The instruction is a constant; two different sets of facts must produce the same system turn.
+
+    Asserted by comparison rather than against the module constant on purpose. Comparing to
+    `_SYSTEM` would pass for any expression built from it - including `_SYSTEM + fact` if the
+    constant were read back the same way - and would tie the test to a private name. Two requests
+    that differ in every fact must still be handed the identical first turn; nothing per-request
+    can survive that.
+    """
+    other = replace(FACTS, place_name="광화문", forecast_issue_id="issue-2", before_value=Decimal("70"))
+    system_turns = []
+    for facts in (FACTS, other):
+        recorder = Recorder(completion("ok"))
+        OpenAiExplanationPort(CANARY_KEY, "gpt-test", post=recorder).rewrite(facts, TEMPLATE)
+        sent: Any = json.loads(recorder.calls[0][1])
+        system_turns.append(sent["messages"][0])
+    assert system_turns[0]["role"] == "system"
+    assert system_turns[0] == system_turns[1]
 
 
 def test_the_key_travels_in_the_header_and_nowhere_else() -> None:

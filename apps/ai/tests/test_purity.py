@@ -124,6 +124,52 @@ def _violations(tree: ast.AST) -> list[str]:
     return found
 
 
+def _import_target(node: ast.ImportFrom, module: Path) -> str:
+    """The absolute module an `ImportFrom` names, resolving a relative one against its location."""
+    level = node.level or 0
+    package = ("nullnull_ai", *module.relative_to(SRC).parts[:-1])
+    if level == 0:
+        return node.module or ""
+    base = package[: len(package) - (level - 1)]
+    return ".".join((*base, node.module) if node.module else base)
+
+
+def _boundary_reaches(tree: ast.AST, module: Path) -> list[str]:
+    """Imports that take a decision package into one this file exempts in IMPURE_PACKAGES.
+
+    `_violations` above asks whether a module performs I/O *itself*, and for
+    `from nullnull_ai.provider.openai import OpenAiExplanationPort` the honest answer is no: the
+    urllib call stays in the adapter, so nothing forbidden appears in the importer's own tree.
+
+    **Measured on 2026-09-20, because the gap and the control look identical from outside.** That
+    exact line added to `explain/service.py` left the whole suite green - 572 passed, red=0 - while
+    `import urllib.request` in the same file turned
+    `test_module_is_free_of_clocks_randomness_environment_and_io[explain/service.py]` red on its
+    own. So the scan did cover the file, and what it had no rule for was a decision package
+    *reaching* a boundary one.
+
+    That is the half of BA-084-T6 the existing device does not reach. `DECISION_PACKAGES <=
+    PURE_PACKAGES` plus the urllib rule makes the adapter impossible to MOVE into `explain`; being
+    unreachable FROM `explain` is a different claim, and apps/ai/CLAUDE.md states the first where
+    the card asks for the second.
+
+    Relative imports are resolved although the tree has none today: a rule that reads only absolute
+    paths is got round by a change of style rather than by an argument.
+    """
+    found: list[str] = []
+    for node in ast.walk(tree):
+        named: list[tuple[int, str]] = []
+        if isinstance(node, ast.Import):
+            named = [(node.lineno, alias.name) for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            named = [(node.lineno, _import_target(node, module))]
+        for lineno, name in named:
+            parts = name.split(".")
+            if len(parts) >= 2 and parts[0] == "nullnull_ai" and parts[1] in IMPURE_PACKAGES:
+                found.append(f"line {lineno}: {name}")
+    return found
+
+
 def _pure_modules() -> list[Path]:
     return sorted(path for package in PURE_PACKAGES for path in (SRC / package).rglob("*.py"))
 
@@ -163,6 +209,54 @@ def test_the_scan_actually_covers_the_decision_packages() -> None:
 def test_module_is_free_of_clocks_randomness_environment_and_io(module: Path) -> None:
     tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
     assert _violations(tree) == [], f"{module.relative_to(SRC)} must stay deterministic and I/O free"
+
+
+@pytest.mark.parametrize("module", _pure_modules(), ids=lambda path: str(path.relative_to(SRC)))
+def test_module_does_not_reach_into_a_boundary_package(module: Path) -> None:
+    """BA-084-T6, second clause: the adapter is not merely elsewhere, it is unreachable from here."""
+    tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+    assert _boundary_reaches(tree, module) == [], (
+        f"{module.relative_to(SRC)} must not import a package exempted in IMPURE_PACKAGES"
+    )
+
+
+@pytest.mark.parametrize(
+    ("planted", "reported"),
+    [
+        ("from nullnull_ai.provider.openai import OpenAiExplanationPort", "nullnull_ai.provider.openai"),
+        ("import nullnull_ai.provider.openai", "nullnull_ai.provider.openai"),
+        ("from ..provider.openai import OpenAiExplanationPort", "nullnull_ai.provider.openai"),
+        ("from nullnull_ai.api.schemas import Anything", "nullnull_ai.api.schemas"),
+        ("from nullnull_ai.evaluation.report import Anything", "nullnull_ai.evaluation.report"),
+    ],
+    ids=["adapter from", "adapter import", "adapter relative", "transport", "evaluation"],
+)
+def test_the_boundary_rule_sees_a_decision_package_reaching_one(planted: str, reported: str) -> None:
+    """The adapter case is the one that was measured as a hole; the others keep the rule general.
+
+    Planted rather than derived from IMPURE_PACKAGES for the reason the I/O cases give above: a
+    test that looped over that mapping would agree with whatever it happens to contain.
+    """
+    reaches = _boundary_reaches(ast.parse(planted), SRC / "explain" / "service.py")
+    assert any(reported in message for message in reaches), f"{planted!r} must be reported as {reported!r}"
+
+
+def test_the_boundary_rule_leaves_the_allowed_directions_alone() -> None:
+    """A rule that also refused these would be traded for the one it replaced.
+
+    Decision packages import each other, and the policy YAML is reached as a packaged *resource*
+    through a string - which is why `nullnull_ai.domain.policy` can load it without importing the
+    `policy` package, and why a rule about imports must not claim to have seen that access.
+    """
+    allowed = (
+        "from nullnull_ai.explain.templates import render\n"
+        "from nullnull_ai.domain.policy import load_default\n"
+        "from .facts import ExplanationFacts\n"
+        "from importlib import resources\n"
+        "def f():\n"
+        "    return resources.files('nullnull_ai.policy'), render, load_default, ExplanationFacts\n"
+    )
+    assert _boundary_reaches(ast.parse(allowed), SRC / "explain" / "service.py") == []
 
 
 def test_the_scan_detects_a_planted_violation() -> None:
