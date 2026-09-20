@@ -173,6 +173,11 @@ catalog 게이트가 열린 뒤여야 실데이터가 나오므로 1·2·3·5번
 - [ ] alarm 수신을 두 사람이 확인했다.
 - [ ] 비용/쿼터 alarm과 KTO 429/timeout degradation이 동작한다.
 - [ ] 제출 URL에 관리자 allowlist/VPN/Basic auth가 없다.
+- [ ] **마지막 배포 뒤에 공개 API edge를 다시 열었다.** `python3 scripts/aws/staging_operator.py edge --state open --plan <배포된 release의 plan.json> --approved-plan-sha256 <그 sha256> --execute` — **`AWS_PROFILE`로 `nullnull-stg-operator`를 타야 하고**, `NULLNULL_VERIFIER_TOKEN`이 env에 있어야 하며(없으면 `edge-open-requires-verifier-token`), plan 디렉터리는 `s3://<ReleaseBucket>/pending/<RUN_ID>-<ATTEMPT>/plan.tgz`에서 받는다.
+- [ ] **열린 것을 값으로 확인했다**: `curl -sS -o /dev/null -w '%{http_code} %{content_type}' <PublicUrl>/api/v1/health/live` → **`200 application/json`**. 닫혀 있으면 `503 application/problem+json`이다.
+
+  **이 두 줄이 여기 있는 이유**: `execute`가 **배포와 롤백마다 `TrafficEnabled=false`로 되돌린다**(`staging_operator.py`, *"Preserve the closed edge on every new release/rollback"*). 그래서 단계 3의 배포가 **직전에 열어 둔 것을 다시 닫는다.** 잊으면 아래 `Judge smoke`의 *"휴대전화 데이터망에서 접속한다"* 가 통과하지 못하고, 더 나쁘게는 **화면은 뜨는데 모든 API가 503**이라 사람이 *"느린가 보다"* 로 읽는다 — `/`·`/login`·`/covers/*`는 gate 밖이라 열려 있고 **`/api/*`만 닫힌다**(실측).
+  **여는 것은 로컬 전용이다**(`edge-is-local-only`) — CI가 대신 못 한다. 그리고 operator role에는 `cloudformation:UpdateStack`이 **없으므로**(`infra/iam/operator.json`은 읽기 액션만 준다) 스택 parameter를 직접 뒤집는 우회도 없다. 설계된 것이다.
 
 ### Judge smoke
 
