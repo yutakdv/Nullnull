@@ -2114,9 +2114,21 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 
 필수 검증:
 
-- `BA-082-T1`: 타 owner presign 재사용·경로 조작·크기 초과·format spoof를 거부한다
+- `BA-082-T1`: 타 owner 의 upload ticket 은 소비할 수 없다
 - `BA-082-T2`: 기술 검증을 통과하지 못한 asset은 공개되지 않는다
 - `BA-082-T3`: 삭제/권리 철회가 기존 cursor·cache에서도 반영된다
+- `BA-082-T4`: 촬영 좌표를 담은 metadata 는 정제를 살아남지 못한다
+- `BA-082-T5`: 실제 형식이 선언된 형식과 다른 바이트는 거절된다
+- `BA-082-T6`: 제공하지 않는 이미지 형식의 바이트는 거절된다
+- `BA-082-T7`: 어느 한 변이라도 상한을 넘는 이미지는 거절된다
+- `BA-082-T8`: 이미지가 없는 header 만의 바이트는 거절된다
+- `BA-082-T9`: 빈 업로드는 거절된다
+- `BA-082-T10`: 선언한 길이가 상한을 넘으면 서명 전에 거절된다
+- `BA-082-T11`: 0 이하의 선언 길이는 거절된다
+- `BA-082-T12`: 제공 어휘 밖의 형식은 서명 전에 거절된다
+- `BA-082-T13`: checksum 이 64자리 소문자 hex 가 아니면 거절된다
+- `BA-082-T14`: 서명된 key 는 owner 와 caller 가 고르지 않은 id 로만 이뤄진다
+- `BA-082-T15`: 한 ticket 은 최대 하나의 post 를 만든다
 
 FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2169,12 +2181,19 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 - `BA-084-T1`: 유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다
 - `BA-084-T2`: timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다
 - `BA-084-T3`: user approval 전 trip mutation0과 model OFF 핵심 흐름을 검증한다
+- `BA-084-T4`: AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다
+- `BA-084-T5`: 이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다
+- `BA-084-T6`: adapter 는 경계 package 에 있고 decision package 에서 도달 불가다
+- `BA-084-T7`: 모델에 건네는 것은 template 뿐이다
+- `BA-084-T8`: provider 실패는 종류와 무관하게 명명된 error 로 도착한다
+- `BA-084-T9`: 명명된 provider error 는 template 로 끝난다
+- `BA-084-T10`: 키는 header 밖 어디에도 없다 — url·body·응답·log·예외 문구
 
 FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ### BA-085
 
-**알림 목록·읽음·대상 유효성** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**알림 목록·읽음·대상 유효성** — P1 / `verified` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-053](#ba-053), [BA-073](#ba-073)
 - 기능 ID: `FR-NOT-01`, `FR-NOT-02`

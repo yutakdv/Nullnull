@@ -270,6 +270,62 @@ class CrowdForecastApiIT {
                 .param("from", from.toString()).param("to", to.toString()));
     }
 
+    /**
+     * BA-090-T17, the half BA-023-T2 cannot reach.
+     *
+     * <p>BA-023-T2 shows a stored snapshot losing eligibility once an incident is declared over it.
+     * Its control is temporal - eligible BEFORE the incident row existed - so it excludes a
+     * projection that never isolates anything, but it does not exclude one that isolates EVERY
+     * observation as soon as any incident row exists: its window is open-ended and starts before the
+     * only snapshot in the test.
+     *
+     * <p>The other half of that boundary is measured, but on the APPLY path
+     * ({@code OptimizeDecisionIT} BA-052-T14, "an incident covering none of the compared points does
+     * not refuse"), which reaches the same {@code incident_active} join through
+     * {@code CrowdForecastQuery}. This puts both sides in one read, against one closed window, so
+     * the clause does not depend on two cards' tests being read together.
+     */
+    @Test
+    @DisplayName("BA-090-T17 only the observation inside a reviewed incident window is isolated")
+    void onlyTheObservationInsideTheIncidentWindowIsIsolated() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID place = activePlace("BA-090-T17 window fixture");
+        Instant target = clock.instant().plus(Duration.ofDays(1));
+
+        // Two sets of the same place and target, fetched an hour apart. The incident covers the
+        // earlier fetch and ends before the later one.
+        Instant inside = clock.instant().minus(Duration.ofHours(2));
+        Instant outside = clock.instant().minus(Duration.ofMinutes(5));
+        insertForecastSet(place, "issue-inside-window", inside,
+                clock.instant().plus(Duration.ofHours(23)), List.of(target), BigDecimal.valueOf(11.0));
+
+        UUID incident = UUID.randomUUID();
+        incidents.add(incident);
+        jdbc.update("""
+                INSERT INTO source_quality_incidents
+                    (id, source_code, incident_code, affected_from, affected_to, scope, disposition, reviewed_at)
+                VALUES (?, ?, ?, ?, ?, 'PLACE', 'QUARANTINE', ?)
+                """, incident, FORECAST_SOURCE, "t17-window-" + incident,
+                Timestamp.from(inside.minus(Duration.ofMinutes(1))),
+                Timestamp.from(inside.plus(Duration.ofMinutes(1))), timestamp());
+
+        forecast(owner, place, target, target)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points[0].provenance.qualityFlags[0]").value("PROVIDER_INCIDENT"))
+                .andExpect(jsonPath("$.points[0].provenance.comparisonEligible").value(false));
+
+        // The same place, the same target, the same incident row - fetched after the window closed.
+        // The read prefers the newest set, so this is what the next call answers with.
+        insertForecastSet(place, "issue-outside-window", outside,
+                clock.instant().plus(Duration.ofHours(23)), List.of(target), BigDecimal.valueOf(22.0));
+
+        forecast(owner, place, target, target)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points[0].value").value(22.0))
+                .andExpect(jsonPath("$.points[0].provenance.qualityFlags").isEmpty())
+                .andExpect(jsonPath("$.points[0].provenance.comparisonEligible").value(true));
+    }
+
     private void quarantine(String sourceCode, Instant affectedFrom) {
         UUID incident = UUID.randomUUID();
         incidents.add(incident);
