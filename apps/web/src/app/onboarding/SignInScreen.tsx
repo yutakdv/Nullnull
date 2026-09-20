@@ -4,17 +4,19 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import { BottomCta } from '../../shared/ui/index.js';
 import styles from './SignInScreen.module.css';
 
-// Figma: A-4 sign-in `746:4707`.
+// Figma: A-4 sign-in `804:4537`.
 //
 // This screen sends nothing. docs/api/openapi.yaml has no auth operation
 // (measured: `operationId: .*(login|signin|auth|oauth|register)` matches 0
 // lines), so there is no endpoint to post to and no error code to render. #264
 // asks BE for the contract; #265 tracks this screen.
 //
-// Submitting therefore navigates to the feed without checking anything. That
-// is the same thing continuing without an account does, which is the honest
-// behaviour while there is nothing to check against: wiring a fetch to a
-// guessed path would 404 and read to the traveller as "my password is wrong".
+// Submitting therefore navigates to the feed without checking anything. The
+// official demo credentials are prefilled so the walkthrough can continue
+// with one press, but they are not sent anywhere. That is the same thing
+// continuing without an account does, which is the honest behaviour while
+// there is nothing to check against: wiring a fetch to a guessed path would
+// 404 and read to the traveller as "my password is wrong".
 //
 // profile.test.tsx asserts no request matching /login|auth|session\/account/
 // leaves the app. That assertion stays true here and is what guards this
@@ -32,8 +34,8 @@ export function SignInScreen() {
 
   // Controlled because the submit button's disabled state is derived from them.
   // An uncontrolled form would need a separate "has the user typed" signal.
-  const [account, setAccount] = useState('');
-  const [password, setPassword] = useState('');
+  const [account, setAccount] = useState('openapi');
+  const [password, setPassword] = useState('2026openapi!');
 
   const ready = account.trim() !== '' && password !== '';
 
@@ -102,7 +104,7 @@ export function SignInScreen() {
             <button
               className={styles.anonymous}
               onClick={() => {
-                void navigate(-1);
+                void navigate('/feed', { replace: true });
               }}
               type="button"
             >

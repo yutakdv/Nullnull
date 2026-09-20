@@ -82,7 +82,7 @@
   --elevation-sheet: 0 -4px 16px 0 rgb(0 0 0 / 0.1);
 
   /* Type family */
-  --font-family-base: 'Noto Sans KR', system-ui, sans-serif;
+  --font-family-base: 'Pretendard', system-ui, sans-serif;
 }
 
 /* Text styles. Each mirrors a Figma text style; apply with the class or

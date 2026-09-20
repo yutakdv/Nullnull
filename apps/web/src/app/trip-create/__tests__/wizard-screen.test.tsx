@@ -60,13 +60,14 @@ afterEach(() => {
 
 function renderWizard() {
   const router = createMemoryRouter(routes, { initialEntries: ['/start'] });
-  return render(
+  const result = render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
         <RouterProvider router={router} />
       </I18nProvider>
     </QueryClientProvider>,
   );
+  return { ...result, router };
 }
 
 /** Picks the first two selectable days in the visible month. */
@@ -76,6 +77,16 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
   await user.click(numbered[0] as HTMLElement);
   await user.click(numbered[3] as HTMLElement);
 }
+
+describe('the wizard keeps every step label in the app bar', () => {
+  it('places STEP 1 beside the back control instead of in the date content', async () => {
+    renderWizard();
+
+    const marker = await screen.findByText(`${copy['wizard.step']} 1`);
+    const back = screen.getByRole('button', { name: copy['wizard.back'] });
+    expect(marker.closest('header')).toBe(back.closest('header'));
+  });
+});
 
 describe('the paste path is reachable from the wizard', () => {
   // FE-104. The route existing is not the same as the route being reachable:
@@ -443,7 +454,7 @@ describe('the calendar names its weekdays in the reader locale', () => {
 // immediately, which contradicted the answer the traveller had just given.
 describe('FE-103 the input-method branch is reachable and keeps the draft', () => {
   async function reachMethod(user: ReturnType<typeof userEvent.setup>) {
-    renderWizard();
+    const result = renderWizard();
     await pickDates(user);
     // Step 1's CTA is the range itself, not 다음.
     await user.click(screen.getByRole('button', { name: /–/ }));
@@ -455,6 +466,7 @@ describe('FE-103 the input-method branch is reachable and keeps the draft', () =
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    return result;
   }
 
   it('offers both ways in rather than creating the trip', async () => {
@@ -478,11 +490,31 @@ describe('FE-103 the input-method branch is reachable and keeps the draft', () =
     // everything steps 1-2 collected. Reaching it from inside the wizard keeps
     // the draft alive behind it.
     const user = userEvent.setup();
-    await reachMethod(user);
+    const { router } = await reachMethod(user);
     await user.click(
       await screen.findByRole('button', { name: new RegExp(copy['method.paste']) }),
     );
     expect(await screen.findByLabelText(copy['import.label'])).toBeInTheDocument();
+    expect(router.state.location.state).toMatchObject({
+      wizardDraft: {
+        startDate: expect.any(String),
+        endDate: expect.any(String),
+        interests: ['FOOD'],
+        planningLevel: 'MOSTLY_PLANNED',
+      },
+    });
+  });
+
+  it('moves focus to the method heading after the step changes', async () => {
+    const user = userEvent.setup();
+    await reachMethod(user);
+
+    const heading = await screen.findByRole('heading', {
+      name: `${copy['method.title1']} ${copy['method.title2']}`,
+    });
+    await waitFor(() => {
+      expect(heading).toHaveFocus();
+    });
   });
 
   it('goes back to the planning question rather than out of the flow', async () => {

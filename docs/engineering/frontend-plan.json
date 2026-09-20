@@ -1440,6 +1440,53 @@
       "note": "Gzip bundle budget measured on the production build and fixed per TEST_STRATEGY.md 7; touch-target floor enforced in Playwright."
     },
     {
+      "id": "FE-P1-101",
+      "phase": "B09",
+      "priority": "P1",
+      "title": "S12 알림 목록·읽음·allowlisted deep link",
+      "status": "planned",
+      "dependsOn": [
+        "FE-003",
+        "BA-085"
+      ],
+      "operations": [
+        "listNotifications",
+        "markNotificationRead",
+        "markAllNotificationsRead"
+      ],
+      "featureIds": [
+        "FR-NOT-01",
+        "FR-NOT-02"
+      ],
+      "figmaNodes": [
+        "442:3344"
+      ],
+      "designRequests": [],
+      "steps": [
+        "알림 type별 내부 route builder와 삭제·만료 대상 fallback을 승인된 계약에 맞춰 고정한다",
+        "S12의 목록·empty·unread·개별 읽음·모두 읽음 상태를 capability OFF 기본값부터 구현한다",
+        "생성 client와 example을 연결하고 pagination·멱등 mutation·keyboard deep-link 이동을 검증한다"
+      ],
+      "safety": "알림의 raw href를 직접 열거나 외부 redirect로 넘기지 않는다. canonical UI path는 단수형 /trip/...이며 /notifications route와 capability가 모두 활성화되기 전에는 알림 deep link를 생산하거나 탐색하지 않는다.",
+      "tests": [
+        {
+          "id": "FE-P1-101-T1",
+          "assertion": "알림 목록의 empty·unread·pagination 상태와 unread count를 중복 없이 렌더한다"
+        },
+        {
+          "id": "FE-P1-101-T2",
+          "assertion": "개별 읽음과 모두 읽음은 각각 승인된 단일 mutation을 사용하고 재시도해도 결과가 같다"
+        },
+        {
+          "id": "FE-P1-101-T3",
+          "assertion": "allowlist 밖·삭제·만료 대상은 raw href로 이동하지 않고 /notifications 안내로 복구하며 keyboard·360px·ko/en 상태를 검증한다"
+        }
+      ],
+      "handoff": "BA-085가 deepLink pattern을 단수형 /trip/...에 맞추고 capability별 발급 조건을 명시한 뒤 generated client·example, S12 상태, keyboard/focus, 360px, ko/en을 함께 검토한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
       "id": "FE-308",
       "phase": "B09",
       "priority": "P1",
@@ -1484,29 +1531,218 @@
       "reviewer": "BE_AI_DRI"
     },
     {
+      "id": "FE-P1-103",
+      "phase": "B09",
+      "priority": "P1",
+      "title": "독립 검색 route·filter·recent-search privacy",
+      "status": "blocked",
+      "reason": "디자이너가 /search 신규 화면을 제작 중이고 BA-080의 filter·sort·recent-search privacy 계약도 승인 전이다. 사용자가 디자인 완료를 알리기 전에는 해당 Figma 작업물을 열거나 구현 기준으로 삼지 않는다. 안전 기본값은 독립 /search route를 노출하지 않고 기존 P0 검색만 유지하는 것이다.",
+      "dependsOn": [
+        "FE-103",
+        "BA-080"
+      ],
+      "operations": [
+        "searchPlaces"
+      ],
+      "featureIds": [
+        "FR-SRC-01",
+        "FR-FED-05"
+      ],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "사용자가 /search 디자인 완료를 알린 뒤 확정 node와 상태를 handoff에 등록한다",
+        "승인된 filter·sort·cursor·recent-search 보존 계약과 generated client를 검토한다",
+        "독립 route의 loading·no-result·error·offline·비교 불가 상태와 삭제 가능한 최근 검색 UI를 구현한다"
+      ],
+      "safety": "디자인과 계약 승인 전에는 /search route·tab·요청을 추가하지 않는다. 검색어를 URL·로그·analytics event에 남기지 않고 recent search는 보존 범위와 개별·전체 삭제를 명시한다.",
+      "tests": [
+        {
+          "id": "FE-P1-103-T1",
+          "assertion": "query·filter·sort가 바뀌면 cursor가 초기화되고 서로 다른 결과 page를 합치지 않는다"
+        },
+        {
+          "id": "FE-P1-103-T2",
+          "assertion": "recent search term은 URL·로그·analytics에 남지 않고 개별·전체 삭제와 보존 고지를 제공한다"
+        },
+        {
+          "id": "FE-P1-103-T3",
+          "assertion": "loading·no-result·error·offline·비교 불가와 keyboard·360px·ko/en 상태를 각각 검증한다"
+        }
+      ],
+      "handoff": "사용자의 디자인 완료 확인, 확정 Figma node, BA-080 계약·example·generated client, privacy 문구와 cursor reset 검증이 모두 있어야 blocked를 해제한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-P1-104",
+      "phase": "B09",
+      "priority": "P1",
+      "title": "게시물 작성·media upload·moderation 상태",
+      "status": "blocked",
+      "reason": "디자이너가 /posts/new 신규 화면을 제작 중이고 BA-082의 upload·moderation·license 계약도 승인 전이다. 사용자가 디자인 완료를 알리기 전에는 해당 Figma 작업물을 열거나 구현 기준으로 삼지 않는다. 안전 기본값은 /posts/new 진입점을 노출하지 않고 upload 요청을 보내지 않는 것이다.",
+      "dependsOn": [
+        "FE-202",
+        "BA-082"
+      ],
+      "operations": [],
+      "featureIds": [
+        "FR-PUB-01"
+      ],
+      "figmaNodes": [],
+      "designRequests": [],
+      "steps": [
+        "사용자가 /posts/new 디자인 완료를 알린 뒤 확정 node와 작성·업로드 상태를 handoff에 등록한다",
+        "승인된 upload session·moderation·license 계약과 generated client를 검토한다",
+        "draft·progress·cancel·expiry·failure·pending·rejected 상태와 이탈 복구를 구현한다"
+      ],
+      "safety": "디자인과 계약 승인 전에는 /posts/new route·CTA·upload 요청을 추가하지 않는다. 권리 확인 전 publish하지 않고 moderation 사유를 응답 근거 없이 만들어내지 않는다.",
+      "tests": [
+        {
+          "id": "FE-P1-104-T1",
+          "assertion": "upload progress·cancel·expiry·failure가 draft를 조용히 잃지 않고 권리 확인 전 publish하지 않는다"
+        },
+        {
+          "id": "FE-P1-104-T2",
+          "assertion": "moderation pending·rejected를 구분하고 서버가 주지 않은 거절 사유를 만들어내지 않는다"
+        },
+        {
+          "id": "FE-P1-104-T3",
+          "assertion": "작성 중 이탈·복구와 focus·keyboard·360px·ko/en 긴 문구를 검증한다"
+        }
+      ],
+      "handoff": "사용자의 디자인 완료 확인, 확정 Figma node, BA-082 계약·example·generated client, upload 취소·expiry와 moderation 상태가 모두 있어야 blocked를 해제한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-P1-105",
+      "phase": "B09",
+      "priority": "P1",
+      "title": "S02-6 AI draft와 S09-D1 DAY preview capability",
+      "status": "planned",
+      "dependsOn": [
+        "FE-503",
+        "BA-083",
+        "BA-084"
+      ],
+      "operations": [
+        "createOptimization",
+        "getOptimization"
+      ],
+      "featureIds": [
+        "FR-TRC-11",
+        "FR-OPT-02",
+        "FR-RTE-01"
+      ],
+      "figmaNodes": [
+        "440:3244",
+        "439:3104"
+      ],
+      "designRequests": [],
+      "steps": [
+        "BA-083·BA-084의 AI draft provenance와 DAY target·route matrix 계약을 승인된 example로 검토한다",
+        "capability OFF에서는 P0 결정적 draft와 ITEM scope만 유지하고 신규 요청을 보내지 않는다",
+        "승인 뒤 S02-6과 S09-D1의 preview·unavailable·failed 상태를 생성 client로 구현한다"
+      ],
+      "safety": "AI draft와 DAY preview는 사용자 확인 전 여행을 바꾸지 않는다. TEMPLATE과 LLM 근거를 구분하고 provider가 확정되지 않은 경로를 검증됨으로 표시하거나 placeholder attribution을 노출하지 않는다.",
+      "tests": [
+        {
+          "id": "FE-P1-105-T1",
+          "assertion": "capability OFF에서는 AI draft 요청이 0건이고 P0 결정적 draft를 유지하며 ON에서는 TEMPLATE과 LLM provenance를 구분한다"
+        },
+        {
+          "id": "FE-P1-105-T2",
+          "assertion": "DAY preview는 명시한 targetDate에만 적용 후보를 만들고 사용자 승인 전 trip을 변경하지 않으며 route unavailable을 성공으로 표시하지 않는다"
+        },
+        {
+          "id": "FE-P1-105-T3",
+          "assertion": "preview·unavailable·failed 상태와 keyboard·360px·ko/en 긴 문구를 검증한다"
+        }
+      ],
+      "handoff": "BA-083·BA-084 계약·example·generated client, provenance, targetDate, route provider·unavailable 표현과 두 Figma node를 함께 검토한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-P1-106",
+      "phase": "B09",
+      "priority": "P1",
+      "title": "프로필 정식 로그인과 익명 owner 데이터 승계·복구",
+      "status": "planned",
+      "dependsOn": [
+        "FE-105",
+        "BA-081"
+      ],
+      "operations": [],
+      "featureIds": [
+        "FR-AUT-01"
+      ],
+      "figmaNodes": [
+        "422:2925"
+      ],
+      "designRequests": [],
+      "steps": [
+        "BA-081의 magic-link·transfer preview·confirm·conflict·recovery 계약을 승인된 example로 검토한다",
+        "submission profile에서는 현재 guest와 로그인 준비 중 상태를 유지하고 인증 요청을 보내지 않는다",
+        "capability 승인 뒤 프로필의 로그인·승계 preview·충돌·실패·복구 상태를 구현한다"
+      ],
+      "safety": "로그인 capability가 OFF인 제출 profile에서는 요청을 보내지 않는다. 익명 owner 데이터는 preview와 명시적 confirm 전 이동·병합하지 않고 session fixation과 owner isolation을 보존한다.",
+      "tests": [
+        {
+          "id": "FE-P1-106-T1",
+          "assertion": "submission profile은 로그인 준비 중 상태를 유지하고 인증 요청이 0건이며 enabled profile은 magic-link 상태를 구분한다"
+        },
+        {
+          "id": "FE-P1-106-T2",
+          "assertion": "승계 preview·confirm·conflict·failure에서 승인 전 데이터를 바꾸지 않고 session fixation과 owner isolation을 보존한다"
+        },
+        {
+          "id": "FE-P1-106-T3",
+          "assertion": "로그인·승계 복구와 keyboard·focus·360px·ko/en 긴 문구를 검증한다"
+        }
+      ],
+      "handoff": "BA-081 계약·example·generated client, submission/enabled profile, migration 충돌·복구 상태와 profile Figma variant를 함께 검토한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
       "id": "FE-401",
       "phase": "B10",
       "priority": "P0",
       "title": "S11-1 list-first와 DataStateLabel, 승인 시 map capability",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-404",
         "BA-091"
       ],
       "operations": [
-        "queryLiveAreas"
+        "queryLiveAreas",
+        "listLiveAreaPlaces",
+        "searchPlaces",
+        "getLivePlace"
       ],
       "featureIds": [
-        "FR-LIV-01"
+        "FR-LIV-01",
+        "FR-LIV-02",
+        "FR-LIV-11"
       ],
       "figmaNodes": [
-        "418:2523"
+        "716:4377",
+        "718:4521",
+        "718:4584",
+        "718:4647",
+        "718:4710",
+        "684:4156",
+        "684:4330",
+        "684:4366",
+        "684:4402"
       ],
       "designRequests": [],
       "steps": [
-        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
-        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
-        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+        "승인된 BA-091 fixture와 generated client로 list-first 권역 조회를 연결한다",
+        "권역 선택 뒤에만 장소 목록을 조회하고 canonical 검색 결과를 Live 상세 route로 연결한다",
+        "default/loading/empty/error/unavailable/stale을 구분하고 지도·geolocation·viewport 요청은 만들지 않는다"
       ],
       "safety": "map을 쓰면 같은 정보·필터의 list 대안을 함께 제공한다. 정밀 위치를 서버로 보내지 않는다.",
       "tests": [
@@ -1532,19 +1768,22 @@
       "phase": "B10",
       "priority": "P0",
       "title": "S11-2 상세/S11-3 대안/S11-N 없음",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "FE-401",
         "BA-091"
       ],
       "operations": [
         "getLivePlace",
-        "listRelatedPlaces"
+        "listRelatedPlaces",
+        "addTripCandidate"
       ],
       "featureIds": [
         "FR-LIV-03",
         "FR-LIV-04",
-        "FR-LIV-05"
+        "FR-LIV-05",
+        "FR-LIV-06",
+        "FR-LIV-09"
       ],
       "figmaNodes": [
         "419:2617",
@@ -1553,9 +1792,9 @@
       ],
       "designRequests": [],
       "steps": [
-        "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
-        "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
-        "선행 BE 작업이 열리면 fixture를 실제 응답으로 교체하고 계약 차이를 보고한다"
+        "getLivePlace의 장소·혼잡·출처·relation 상태를 하나의 상세 화면으로 렌더한다",
+        "NONE·CHECKING·UNKNOWN과 요청 오류를 구분하고 비교 자격 없는 수치나 delta를 만들지 않는다",
+        "대표 여행이 있을 때만 source LIVE 후보 저장을 보내고 tripScheduleChanged=false 안내를 유지한다"
       ],
       "safety": "계약에 근거 없는 수치·문구를 만들지 않는다. P1 capability가 OFF면 요청을 보내지 않는다. 붙여넣기 원문·정밀 위치를 저장·로그·analytics에 남기지 않는다.",
       "tests": [
@@ -1615,6 +1854,50 @@
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "owner": "FE_DRI",
+      "reviewer": "BE_AI_DRI"
+    },
+    {
+      "id": "FE-P1-102",
+      "phase": "B10",
+      "priority": "P1",
+      "title": "S10 주변 장소와 S11-4 동의 기반 재계획 진입",
+      "status": "planned",
+      "dependsOn": [
+        "FE-403",
+        "BA-093"
+      ],
+      "operations": [],
+      "featureIds": [
+        "FR-NBY-01",
+        "FR-LIV-10"
+      ],
+      "figmaNodes": [
+        "442:3370",
+        "501:3750"
+      ],
+      "designRequests": [],
+      "steps": [
+        "BA-093의 위치 동의·거부·철회와 preview-only replan 계약을 승인된 example로 검토한다",
+        "capability OFF와 denied에서는 위치 요청·전송 없이 기존 Live 목록과 수동 여행 기능을 유지한다",
+        "승인 뒤 S10과 S11-4의 consent·nearby·preview·unavailable 상태를 generated client로 구현한다"
+      ],
+      "safety": "명시적 opt-in 전에는 geolocation을 호출하거나 좌표를 전송하지 않고 정밀 위치를 서버·로그·analytics에 보존하지 않는다. 재계획은 preview만 만들며 사용자 승인 전 일정을 변경하지 않는다.",
+      "tests": [
+        {
+          "id": "FE-P1-102-T1",
+          "assertion": "명시적 opt-in 전 위치 호출·전송이 0건이고 denied·withdraw 뒤에도 기존 Live 목록과 수동 기능을 사용할 수 있다"
+        },
+        {
+          "id": "FE-P1-102-T2",
+          "assertion": "replan은 preview만 만들고 승인 전 일정이 불변이며 route·source 근거가 없으면 수치를 만들어내지 않는다"
+        },
+        {
+          "id": "FE-P1-102-T3",
+          "assertion": "consent·denied·withdraw·unavailable과 keyboard·360px·ko/en 상태를 검증한다"
+        }
+      ],
+      "handoff": "BA-093 계약·example·generated client, 위치 목적·정밀도·보존 고지, preview 승인 경계와 두 Figma node를 함께 검토한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },

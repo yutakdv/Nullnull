@@ -52,6 +52,7 @@ const TRIPS = [
 function renderPicker(overrides: Partial<TripPickerProps> = {}) {
   const props: TripPickerProps = {
     open: true,
+    locale: 'en-US',
     placeName: '경복궁',
     trips: TRIPS,
     selectedTripId: 'trip-1',
@@ -196,6 +197,6 @@ describe('FE-203-T3 the sheet is operable without a mouse', () => {
     // the same city are told apart by their dates.
     renderPicker();
     const row = screen.getByRole('button', { name: /서울 가을 여행/ });
-    expect(within(row).getByText(/2026-10-04/)).toBeInTheDocument();
+    expect(within(row).getByText('10/4 – 10/7')).toBeInTheDocument();
   });
 });

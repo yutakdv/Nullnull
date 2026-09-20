@@ -1,5 +1,12 @@
 /* S02-4C 입력 방법 선택 `400:1201`: two option rows, gap 12, px16 py20, r14. */
 
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
 .options {
   display: flex;
   flex-direction: column;
@@ -33,11 +40,24 @@
   min-width: 0;
 }
 
+.iconTile {
+  display: inline-flex;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+}
+
 /* 437:3047 */
 .optionName {
   color: var(--color-text-primary);
-  font-size: var(--font-body-lg);
+  font-size: 16px;
   font-weight: 700;
+  line-height: 21px;
 }
 
 /* 437:3048 — wraps rather than truncating: the hint is the difference between
@@ -45,10 +65,10 @@
 .optionHint {
   color: var(--color-text-secondary);
   font-size: var(--font-label);
+  line-height: 17px;
 }
 
 .arrow {
   flex-shrink: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-body-lg);
+  color: var(--color-text-primary);
 }

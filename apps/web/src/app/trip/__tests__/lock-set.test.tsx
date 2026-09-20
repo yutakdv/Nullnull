@@ -80,10 +80,14 @@ function renderTrip() {
 /** Renders the trip, then returns one item's card so queries stay scoped. */
 async function itemCard(name: string): Promise<HTMLElement> {
   renderTrip();
+  await userEvent
+    .setup()
+    .click(await screen.findByRole('button', { name: copy['trip.editStart'] }));
   // By heading, not by text: a place name also occurs inside an address
   // ("명동" is both a place and a street), so a text query matches twice.
   const heading = await screen.findByRole('heading', { level: 3, name });
-  return heading.closest('article') as HTMLElement;
+  const card = heading.closest('article') as HTMLElement;
+  return card;
 }
 
 const setName = (lock: string) => copy['trip.lock.apply'].replace('{lock}', lock);

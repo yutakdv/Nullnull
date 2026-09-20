@@ -109,3 +109,26 @@ export async function createSeededTrip(page: Page): Promise<string> {
   }
   return `/trip/${result.id}`;
 }
+
+/**
+ * Creates trips through the real product API, chooses the first one as the
+ * representative trip, and returns the detail path the UI opened.
+ *
+ * The deterministic MSW server already has trips, while the composed API
+ * starts each browser session empty. Calling the same UI journey in both
+ * modes keeps feed tests independent of either fixture's ids and titles.
+ */
+export async function createRepresentativeTrip(
+  page: Page,
+  tripCount = 1,
+): Promise<string> {
+  for (let index = 0; index < tripCount; index += 1) {
+    await createSeededTrip(page);
+  }
+
+  await page.goto('/trips/select');
+  const firstTrip = page.getByRole('list').getByRole('button').first();
+  await firstTrip.click();
+  await page.waitForURL(/\/trip\/[0-9a-f-]+$/i, { timeout: 15_000 });
+  return new URL(page.url()).pathname;
+}

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { type MessageKey, messages } from '../../i18n/messages.js';
@@ -337,6 +337,62 @@ export function OptimizationRunScreen() {
     licenseTerms: t('license.terms'),
   };
 
+  if (working) {
+    return (
+      <section aria-labelledby="run-heading" className={styles.loadingScreen}>
+        <div className={styles.loadingBody}>
+          <img
+            alt=""
+            aria-hidden="true"
+            className={styles.spinner}
+            src="/figma/optimization-spinner.svg"
+          />
+          {/* S09-1 uses the work currently under way as its visible heading,
+              instead of a generic "searching" title. */}
+          <h1 className={styles.loadingTitle} id="run-heading">
+            {t('run.working')}
+          </h1>
+          <p aria-live="polite" className={styles.srOnly} role="status">
+            {t(statusMessage(detail.status, false))}
+          </p>
+          <ul className={styles.loadingSteps}>
+            <li className={styles.loadingStep}>
+              <span aria-hidden="true" className={styles.marker}>
+                ○
+              </span>
+              {t('run.step.itinerary')}
+            </li>
+            <li className={styles.loadingStep}>
+              <span aria-hidden="true" className={styles.marker}>
+                ○
+              </span>
+              {t('run.step.crowd')}
+            </li>
+            <li className={styles.loadingStep}>
+              <span aria-hidden="true" className={styles.marker}>
+                ○
+              </span>
+              {t('run.step.locks')}
+            </li>
+            <li className={styles.loadingStep}>
+              <span aria-hidden="true" className={styles.marker}>
+                ○
+              </span>
+              {t('run.step.proposal')}
+            </li>
+          </ul>
+          <Link
+            className={styles.leaveButton}
+            to={tripId === null ? '/feed' : `/trip/${tripId}`}
+          >
+            {t('run.leave')}
+          </Link>
+          <p className={styles.loadingNote}>{t('run.keepsRunning')}</p>
+        </div>
+      </section>
+    );
+  }
+
   return frame(
     <>
       {/* One live region for the whole run, so a screen reader hears the
@@ -344,24 +400,6 @@ export function OptimizationRunScreen() {
       <p aria-live="polite" className={styles.status} role="status">
         {t(statusMessage(detail.status, failure !== null))}
       </p>
-
-      {working ? (
-        <>
-          <p className={styles.lead}>{t('run.working')}</p>
-          {/* FCR-005: crowd and locks only. P0 has no route provider, so a
-              `경로 계산` step would describe work nothing does. */}
-          <ul className={styles.steps}>
-            <li className={styles.step} data-active>
-              <span aria-hidden="true" className={styles.dot} />
-              {t('run.step.crowd')}
-            </li>
-            <li className={styles.step} data-active={detail.status === 'RUNNING'}>
-              <span aria-hidden="true" className={styles.dot} />
-              {t('run.step.locks')}
-            </li>
-          </ul>
-        </>
-      ) : null}
 
       {failure ? (
         <>

@@ -96,6 +96,48 @@ async function openWizard(page: Page) {
   await expect(page.getByRole('heading', { name: 'Add your trip dates' })).toBeVisible();
 }
 
+test('STEP 1 uses the same top-right app-bar position as the later steps', async ({
+  page,
+}) => {
+  await openWizard(page);
+
+  const back = await page.getByRole('button', { name: 'Previous step' }).boundingBox();
+  const marker = await page.getByText('STEP 1', { exact: true }).boundingBox();
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+
+  expect(marker).not.toBeNull();
+  expect(back).not.toBeNull();
+  expect((marker?.y ?? 0) + (marker?.height ?? 0) / 2).toBeCloseTo(
+    (back?.y ?? 0) + (back?.height ?? 0) / 2,
+    0,
+  );
+  expect(viewportWidth - ((marker?.x ?? 0) + (marker?.width ?? 0))).toBe(16);
+});
+
+test('the wizard action stays fixed to the viewport bottom while content scrolls', async ({
+  page,
+}) => {
+  await openWizard(page);
+  const bar = page.locator('[data-fixed="true"]');
+  await expect(bar).toBeVisible();
+
+  const viewportHeight = page.viewportSize()?.height ?? 0;
+  const before = await bar.boundingBox();
+  expect(before).not.toBeNull();
+  expect((before?.y ?? 0) + (before?.height ?? 0)).toBeCloseTo(viewportHeight, 0);
+
+  // Force enough content to scroll, then measure the same fixed bar again.
+  // A normal-flow or sticky CTA moves with this scroll; a fixed one does not.
+  await page.addStyleTag({ content: '#main > section { min-height: 1400px; }' });
+  await page.locator('#main').evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  const after = await bar.boundingBox();
+  expect(after).not.toBeNull();
+  expect(after?.y).toBeCloseTo(before?.y ?? 0, 0);
+  expect((after?.y ?? 0) + (after?.height ?? 0)).toBeCloseTo(viewportHeight, 0);
+});
+
 test.describe('FE-103 the manual branch is operable by keyboard', () => {
   test('reaches manual entry and back out without a pointer', async ({ page }) => {
     // Every step of the branch has to be answerable from the keyboard, because

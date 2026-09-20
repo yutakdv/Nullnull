@@ -22,6 +22,7 @@ import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
 import { routes } from '../../routes.js';
+import type { WizardDraft } from '../wizard.js';
 
 const copy = messages['en-US'];
 
@@ -88,8 +89,15 @@ afterEach(() => {
   server.events.removeAllListeners();
 });
 
-function renderImport() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/start/import'] });
+function renderImport(wizardDraft?: WizardDraft) {
+  const router = createMemoryRouter(routes, {
+    initialEntries: [
+      {
+        pathname: '/start/import',
+        state: wizardDraft ? { wizardDraft } : null,
+      },
+    ],
+  });
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -253,7 +261,14 @@ describe('a draft becomes a trip only once it is settled', () => {
 
   it('confirms with both guards once nothing is unresolved', async () => {
     const user = userEvent.setup();
-    renderImport();
+    renderImport({
+      startDate: '2026-10-04',
+      endDate: '2026-10-07',
+      interests: ['FOOD'],
+      planningLevel: 'MOSTLY_PLANNED',
+      mustVisit: [],
+      stops: [],
+    });
     await paste(user);
 
     // Settle everything: resolve the suggested line, drop the unreadable one,
@@ -301,6 +316,10 @@ describe('a draft becomes a trip only once it is settled', () => {
     expect(posted?.headers).toMatch(
       /\["Idempotency-Key","[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"\]/i,
     );
+    expect(JSON.parse(posted?.body ?? '{}')).toMatchObject({
+      planningLevel: 'MOSTLY_PLANNED',
+      interests: [{ code: 'FOOD', weight: 3 }],
+    });
   });
 });
 

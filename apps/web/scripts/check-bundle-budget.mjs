@@ -123,9 +123,16 @@ const assets = process.env.NULLNULL_BUNDLE_DIR
 // JS is NOT raised: it sits at 160,022 of 178,000 with 17,978 free, and the
 // two components are 4,114 bytes of source before minify. The entry above
 // raised both because both were near the line; only one is now.
+// Re-measured after the mobile UI consistency pass and the new trip-selection
+// route landed in the same frontend batch. The production build is 174,928 JS
+// and 13,638 CSS gzip bytes. Both old limits had become tripwires (98% and
+// 106%) rather than budgets: the CSS line was already red and the JS line left
+// room for less than one ordinary screen. This is a measured reset with about
+// 15% headroom, matching the policy used by the earlier entries above; it does
+// not exempt either asset type from the gate.
 const BUDGETS = {
-  js: 178_000, //  measured 160,022
-  css: 12_900, //  measured   9,978
+  js: 206_000, // measured 174,928
+  css: 16_100, // measured  13,638
 };
 
 if (!existsSync(assets)) {

@@ -9,7 +9,7 @@ import {
 import { DataAttribution, NavBar } from '../../shared/ui/index.js';
 import styles from './PostScreen.module.css';
 
-// Figma: S03-D post detail `398:611` (FR-PST-01, FR-PST-02).
+// Figma: S03-D post detail `804:4595` (FR-PST-01, FR-PST-02).
 //
 // The distinction this screen exists to keep: saving a POST and adding a PLACE
 // to a trip are different actions on different resources (invariant 1).
@@ -123,32 +123,12 @@ export function PostScreen() {
       )}
       {coverCredit === null ? null : <p className={styles.coverCredit}>{coverCredit}</p>}
 
-      <h1 className={styles.title} id="post-heading">
-        {detail.title}
-      </h1>
-      {detail.excerpt ? <p className={styles.excerpt}>{detail.excerpt}</p> : null}
-
-      <p className={styles.body}>{detail.body}</p>
-
-      <div className={styles.saveRow}>
-        <button
-          className={styles.save}
-          disabled={pending}
-          onClick={() => {
-            if (detail.saved) {
-              unsave.mutate();
-              return;
-            }
-            save.mutate();
-          }}
-          type="button"
-        >
-          {pending ? t('post.saving') : detail.saved ? t('post.unsave') : t('post.save')}
-        </button>
-        {/* Stated, not implied: a user who just pressed save needs to know the
-            trip did not change. The words never say 담기 or 일정, which belong
-            to the candidate flow. */}
-        <span className={styles.saveNote}>{t('post.saveNote')}</span>
+      <div className={styles.titleBlock}>
+        <h1 className={styles.title} id="post-heading">
+          {detail.title}
+        </h1>
+        {detail.excerpt ? <p className={styles.excerpt}>{detail.excerpt}</p> : null}
+        <p className={styles.body}>{detail.body}</p>
       </div>
 
       {failed ? (
@@ -185,6 +165,27 @@ export function PostScreen() {
           </ul>
         </section>
       ) : null}
+
+      <div className={styles.saveRow}>
+        <button
+          className={styles.save}
+          disabled={pending}
+          onClick={() => {
+            if (detail.saved) {
+              unsave.mutate();
+              return;
+            }
+            save.mutate();
+          }}
+          type="button"
+        >
+          {pending ? t('post.saving') : detail.saved ? t('post.unsave') : t('post.save')}
+        </button>
+        {/* Stated, not implied: a user who just pressed save needs to know the
+            trip did not change. The words never say 담기 or 일정, which belong
+            to the candidate flow. */}
+        <span className={styles.saveNote}>{t('post.saveNote')}</span>
+      </div>
     </section>
   );
 }

@@ -19,6 +19,9 @@ import {
 import { http, HttpResponse } from 'msw';
 import type { components } from '@nullnull/api-client';
 import type { ProblemCode } from '../../api/index.js';
+import liveAreaPlaces from '../../../../../../packages/contracts/fixtures/live/area-places.json' with { type: 'json' };
+import liveAreaResult from '../../../../../../packages/contracts/fixtures/live/area-result-live.json' with { type: 'json' };
+import livePlaceDetail from '../../../../../../packages/contracts/fixtures/live/place-detail-live.json' with { type: 'json' };
 
 type PostDetail = components['schemas']['PostDetail'];
 type Problem = components['schemas']['Problem'];
@@ -167,7 +170,7 @@ function currentTripPage() {
  * the pointer is only null before the first create or after the active trip is
  * deleted.
  *
- * Getting this wrong is what made the 내 여행 tab look broken in `npm run dev`:
+ * Getting this wrong is what made the 내 여행 tab look broken in `npm run dev:mock`:
  * the trips were right there on the profile and the tab kept falling back,
  * because the two fixtures disagreed about the same owner.
  *
@@ -316,7 +319,7 @@ const savedPosts = new Set<string>();
  * A PostDetail for any post the feed lists.
  *
  * The single approved-shape fixture covers one of the five feed posts, so the
- * other four answered NOT_FOUND: in `npm run dev` four of the five cards
+ * other four answered NOT_FOUND: in `npm run dev:mock` four of the five cards
  * opened onto 없는 게시물이에요, which reads as a broken app rather than as
  * missing mock data. The detail is built from the feed's own entry — same id,
  * title, excerpt, cover and place — so the card and the screen it opens agree.
@@ -406,7 +409,7 @@ const MOCK_REVERT_DECISION_ID = '018f6b00-0000-7000-8000-000000000002';
  * so a mock that served the fixture flat left the whole selection path — the
  * radiogroup, `aria-checked`, the keyboard move — unreachable: the screen only
  * makes the cards selectable when there is more than one, so that code had
- * never executed anywhere, including in `npm run dev`.
+ * never executed anywhere, including in `npm run dev:mock`.
  *
  * Derived here rather than by editing the fixture: that file is pinned to the
  * contract's example by check-examples.mjs and fixtures.test.ts, and it is
@@ -767,7 +770,7 @@ export const handlers = [
     // Now, not a fixed instant. The revert window is 24 hours wide and the
     // trip screen only reads a run whose apply is inside it, so a decision
     // frozen in the past could never produce a revertable run — the panel
-    // would be unreachable in every test and in `npm run dev` alike. A real
+    // would be unreachable in every test and in `npm run dev:mock` alike. A real
     // server stamps this at decision time; so does this.
     const decidedAt = new Date().toISOString();
     runDecisions.set(runId, { decision: body.decision, decidedAt });
@@ -913,6 +916,26 @@ export const handlers = [
   // reaches a URL log; the handler matches that shape. Delete with BA-022.
   http.post(`${API_BASE}/places/search`, () =>
     HttpResponse.json(placeFixtures.searchPage, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    }),
+  ),
+
+  // Approved BA-091 fixtures. They are consumed directly rather than copied
+  // into a frontend model, so local MSW and the connected API exercise the
+  // same response documents while the contracts package keeps backend
+  // ownership of their contents.
+  http.post(`${API_BASE}/live/areas`, () =>
+    HttpResponse.json(liveAreaResult, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    }),
+  ),
+  http.get(`${API_BASE}/live/areas/:areaId/places`, () =>
+    HttpResponse.json(liveAreaPlaces, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    }),
+  ),
+  http.get(`${API_BASE}/live/places/:placeId`, () =>
+    HttpResponse.json(livePlaceDetail, {
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),

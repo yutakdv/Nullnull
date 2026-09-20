@@ -76,6 +76,11 @@ export function CandidatesScreen() {
         onBack={() => {
           void navigate(`/trip/${tripId ?? ''}`);
         }}
+        title={
+          trip.isSuccess
+            ? t('candidates.open', { count: trip.data.trip.candidateCount })
+            : t('candidates.title')
+        }
       />
 
       <div className={styles.head}>
@@ -91,7 +96,7 @@ export function CandidatesScreen() {
 
             `trip` is already fetched above for the title, so this costs no
             extra request. */}
-        <h1 className={styles.title} id="candidates-heading">
+        <h1 className={styles.srOnly} id="candidates-heading">
           {trip.isSuccess
             ? t('candidates.open', { count: trip.data.trip.candidateCount })
             : t('candidates.title')}

@@ -118,90 +118,93 @@ export function ConfirmStopsStep({
 
   return (
     <>
-      <div className={wizard.head}>
-        <h1 className={wizard.title} id="wizard-heading">
-          {t('confirm.title')}
-        </h1>
-        <p className={wizard.lead}>{t('confirm.lead')}</p>
-      </div>
+      <div className={styles.screen}>
+        <div className={wizard.head}>
+          <h1 className={wizard.title} id="wizard-heading">
+            {t('confirm.title')}
+          </h1>
+          <p className={wizard.lead}>{t('confirm.lead')}</p>
+        </div>
 
-      {/* The promise the picks make. Two lines in the frame, and both are
+        {/* The promise the picks make. Two lines in the frame, and both are
           statements about server behaviour rather than reassurance. */}
-      <p className={styles.hint}>
-        {t('confirm.hint1')}
-        <br />
-        {t('confirm.hint2')}
-      </p>
+        <p className={styles.hint}>
+          {t('confirm.hint1')}
+          <br />
+          {t('confirm.hint2')}
+        </p>
 
-      {days.map((date) => {
-        const headingId = `confirm-day-${date}`;
-        return (
-          <section aria-labelledby={headingId} className={styles.day} key={date}>
-            <h2 className={styles.dayHead} id={headingId}>
-              <span className={styles.dayName}>
-                {t('manual.day', { n: tripDays(draft).indexOf(date) + 1 })}
-              </span>
-              <span className={styles.dayDate}>{dayLabel(date)}</span>
-            </h2>
+        {days.map((date) => {
+          const headingId = `confirm-day-${date}`;
+          return (
+            <section aria-labelledby={headingId} className={styles.day} key={date}>
+              <h2 className={styles.dayHead} id={headingId}>
+                <span className={styles.dayName}>
+                  {t('manual.day', { n: tripDays(draft).indexOf(date) + 1 })}
+                </span>
+                <span className={styles.dayDate}>{dayLabel(date)}</span>
+              </h2>
 
-            <ol className={styles.stops}>
-              {stopsOn(draft, date).map((stop, index) => (
-                <li className={styles.stop} key={stop.key}>
-                  {/* Numbered dot on the spine. Decorative — a screen reader
+              <ol className={styles.stops}>
+                {stopsOn(draft, date).map((stop, index) => (
+                  <li className={styles.stop} key={stop.key}>
+                    {/* Numbered dot on the spine. Decorative — a screen reader
                       counts the list items itself. The frame colours a picked
                       stop's dot differently, which data-picked carries. */}
-                  <span
-                    aria-hidden="true"
-                    className={styles.dot}
-                    data-picked={stop.mustVisit}
-                  >
-                    {index + 1}
-                  </span>
-                  <div
-                    className={styles.card}
-                    data-crowd-stop
-                    data-picked={stop.mustVisit}
-                  >
-                    <span className={styles.text}>
-                      <span className={styles.row1}>
-                        <span className={styles.name}>{stop.place.name}</span>
-                        <span className={styles.daypart}>
-                          {t(`manual.daypart.${stop.daypart}` as MessageKey)}
-                        </span>
-                      </span>
-                      {meta(stop) ? (
-                        <span className={styles.meta}>{meta(stop)}</span>
-                      ) : null}
-                      <LazyStopCrowd date={date} placeId={stop.place.id} />
+                    <span
+                      aria-hidden="true"
+                      className={styles.dot}
+                      data-picked={stop.mustVisit}
+                    >
+                      {index + 1}
                     </span>
-                    {/* A toggle, so it announces its own state rather than
+                    <div
+                      className={styles.card}
+                      data-crowd-stop
+                      data-picked={stop.mustVisit}
+                    >
+                      <span className={styles.text}>
+                        <span className={styles.row1}>
+                          <span className={styles.name}>{stop.place.name}</span>
+                          <span className={styles.daypart}>
+                            {t(`manual.daypart.${stop.daypart}` as MessageKey)}
+                          </span>
+                        </span>
+                        {meta(stop) ? (
+                          <span className={styles.meta}>{meta(stop)}</span>
+                        ) : null}
+                        <LazyStopCrowd date={date} placeId={stop.place.id} />
+                      </span>
+                      {/* A toggle, so it announces its own state rather than
                         relying on the pin glyph — which is colour-and-shape
                         only information otherwise. The name carries the place
                         because every row's control is otherwise identical. */}
-                    <button
-                      type="button"
-                      className={styles.pick}
-                      aria-pressed={stop.mustVisit}
-                      aria-label={t('confirm.pickNamed', { place: stop.place.name })}
-                      onClick={() => {
-                        onTogglePick(stop.key);
-                      }}
-                    >
-                      {stop.mustVisit ? (
-                        <IconPinVisitFilled size={16} />
-                      ) : (
-                        <IconPinVisit size={16} />
-                      )}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        );
-      })}
+                      <button
+                        type="button"
+                        className={styles.pick}
+                        aria-pressed={stop.mustVisit}
+                        aria-label={t('confirm.pickNamed', { place: stop.place.name })}
+                        onClick={() => {
+                          onTogglePick(stop.key);
+                        }}
+                      >
+                        {stop.mustVisit ? (
+                          <IconPinVisitFilled size={16} />
+                        ) : (
+                          <IconPinVisit size={16} />
+                        )}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          );
+        })}
+      </div>
 
       <BottomCta
+        fixed
         label={t('confirm.next')}
         disabled={isSubmitting}
         onClick={onSubmit}

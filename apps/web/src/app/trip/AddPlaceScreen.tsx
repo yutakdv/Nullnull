@@ -142,119 +142,122 @@ export function AddPlaceScreen() {
         onBack={() => {
           void navigate(`/trip/${tripId ?? ''}`);
         }}
+        title={t('addPlace.title')}
       />
-      <h1 className={styles.title} id="add-place-heading">
+      <h1 className={styles.srOnly} id="add-place-heading">
         {t('addPlace.title')}
       </h1>
 
-      <SearchField
-        label={t('addPlace.searchLabel')}
-        onChange={(event) => {
-          setQuery(event.target.value);
-        }}
-        placeholder={t('addPlace.search')}
-        value={query}
-      />
-
-      <div className={styles.dayRow}>
-        <span className={styles.dayLabel} id="add-place-day">
-          {t('addPlace.day')}
-        </span>
-        <ul aria-labelledby="add-place-day" className={styles.dayChips}>
-          {targets.map((date) => (
-            <li key={date ?? 'someday'}>
-              <Chip
-                label={dayLabel(date)}
-                onClick={() => {
-                  setTarget(date);
-                }}
-                selected={target === date}
-                size="sm"
-              />
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <p className={styles.sectionHead}>{t('addPlace.results')}</p>
-
-      {search.isPending && query.trim().length > 0 ? (
-        <p className={styles.state} role="status">
-          {t('addPlace.searching')}
-        </p>
-      ) : null}
-
-      {search.isError ? (
-        <p className={styles.state} role="alert">
-          {t('addPlace.searchError')}
-        </p>
-      ) : null}
-
-      {search.isSuccess && results.length === 0 ? (
-        <p className={styles.state}>{t('addPlace.noResults')}</p>
-      ) : null}
-
-      {results.length > 0 ? (
-        <CrowdForecastQueryState
-          failed={forecasts.isError}
-          loading={forecasts.isFetching}
-          series={undefined}
+      <div className={styles.body}>
+        <SearchField
+          label={t('addPlace.searchLabel')}
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+          placeholder={t('addPlace.search')}
+          value={query}
         />
-      ) : null}
 
-      {results.length > 0 ? (
-        <ul className={styles.results}>
-          {results.map((place, index) => {
-            const taken = alreadyOnDay(days, place.id, target);
-            const meta = [place.categoryName, place.regionName, place.address]
-              .filter(
-                (part): part is string => typeof part === 'string' && part.length > 0,
-              )
-              .join(' · ');
-            return (
-              <li className={styles.result} key={place.id}>
-                {place.thumbnailUrl && place.thumbnailAttribution ? (
-                  <PlaceThumbnail place={place} size={44} />
-                ) : (
-                  <span aria-hidden="true" className={styles.thumb} />
-                )}
-                <span className={styles.resultText}>
-                  <span className={styles.name}>{place.name}</span>
-                  {meta === '' ? null : <span className={styles.meta}>{meta}</span>}
-                  {place.sourceAttribution ? (
-                    <DataAttribution compact provenance={place.sourceAttribution} />
-                  ) : null}
-                  <CrowdForecastCardReading series={forecasts.data?.items[index]} />
-                </span>
-                <button
-                  // Named for the place: a column of identical "추가" buttons
-                  // tells a screen reader nothing about which one it presses.
-                  aria-label={t('addPlace.addNamed', { name: place.name })}
-                  className={styles.add}
-                  disabled={busy || taken}
+        <div className={styles.dayRow}>
+          <span className={styles.dayLabel} id="add-place-day">
+            {t('addPlace.day')}
+          </span>
+          <ul aria-labelledby="add-place-day" className={styles.dayChips}>
+            {targets.map((date) => (
+              <li key={date ?? 'someday'}>
+                <Chip
+                  label={dayLabel(date)}
                   onClick={() => {
-                    add(place.id, place.name);
+                    setTarget(date);
                   }}
-                  title={
-                    taken ? t('addPlace.onDay', { day: dayLabel(target) }) : undefined
-                  }
-                  type="button"
-                >
-                  {t('addPlace.add')}
-                </button>
+                  selected={target === date}
+                  size="sm"
+                />
               </li>
-            );
-          })}
-        </ul>
-      ) : null}
+            ))}
+          </ul>
+        </div>
 
-      {/* The frame's own footnote, and the only place the two destinations are
+        <p className={styles.sectionHead}>{t('addPlace.results')}</p>
+
+        {search.isPending && query.trim().length > 0 ? (
+          <p className={styles.state} role="status">
+            {t('addPlace.searching')}
+          </p>
+        ) : null}
+
+        {search.isError ? (
+          <p className={styles.state} role="alert">
+            {t('addPlace.searchError')}
+          </p>
+        ) : null}
+
+        {search.isSuccess && results.length === 0 ? (
+          <p className={styles.state}>{t('addPlace.noResults')}</p>
+        ) : null}
+
+        {results.length > 0 ? (
+          <CrowdForecastQueryState
+            failed={forecasts.isError}
+            loading={forecasts.isFetching}
+            series={undefined}
+          />
+        ) : null}
+
+        {results.length > 0 ? (
+          <ul className={styles.results}>
+            {results.map((place, index) => {
+              const taken = alreadyOnDay(days, place.id, target);
+              const meta = [place.categoryName, place.regionName, place.address]
+                .filter(
+                  (part): part is string => typeof part === 'string' && part.length > 0,
+                )
+                .join(' · ');
+              return (
+                <li className={styles.result} key={place.id}>
+                  {place.thumbnailUrl && place.thumbnailAttribution ? (
+                    <PlaceThumbnail place={place} size={44} />
+                  ) : (
+                    <span aria-hidden="true" className={styles.thumb} />
+                  )}
+                  <span className={styles.resultText}>
+                    <span className={styles.name}>{place.name}</span>
+                    {meta === '' ? null : <span className={styles.meta}>{meta}</span>}
+                    {place.sourceAttribution ? (
+                      <DataAttribution compact provenance={place.sourceAttribution} />
+                    ) : null}
+                    <CrowdForecastCardReading series={forecasts.data?.items[index]} />
+                  </span>
+                  <button
+                    // Named for the place: a column of identical "추가" buttons
+                    // tells a screen reader nothing about which one it presses.
+                    aria-label={t('addPlace.addNamed', { name: place.name })}
+                    className={styles.add}
+                    disabled={busy || taken}
+                    onClick={() => {
+                      add(place.id, place.name);
+                    }}
+                    title={
+                      taken ? t('addPlace.onDay', { day: dayLabel(target) }) : undefined
+                    }
+                    type="button"
+                  >
+                    {t('addPlace.add')}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+
+        {/* The frame's own footnote, and the only place the two destinations are
           spelled out for the user. */}
-      <p className={styles.note}>{t('addPlace.note')}</p>
+        <p className={styles.note}>{t('addPlace.note')}</p>
 
-      <p aria-live="polite" className={styles.state} role="status">
-        {busy ? t('addPlace.adding') : (status ?? '')}
-      </p>
+        <p aria-live="polite" className={styles.state} role="status">
+          {busy ? t('addPlace.adding') : (status ?? '')}
+        </p>
+      </div>
     </section>
   );
 }

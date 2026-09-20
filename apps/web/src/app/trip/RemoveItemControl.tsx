@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useRemoveTripItem, useTrip } from '../../shared/api/index.js';
+import { IconClose } from '../../shared/ui/icons/index.js';
 import styles from './RemoveItemControl.module.css';
 
 // Taking a stop off the itinerary (FR-ITM-06, P0).
@@ -37,6 +38,7 @@ export interface RemoveItemControlProps {
    * screen holds it instead and outlives the row.
    */
   onAnnounce?: (message: string) => void;
+  compact?: boolean;
 }
 
 export function RemoveItemControl({
@@ -44,6 +46,7 @@ export function RemoveItemControl({
   tripId,
   etag,
   onAnnounce,
+  compact = false,
 }: RemoveItemControlProps) {
   const { t } = useI18n();
   const trip = useTrip(tripId);
@@ -199,7 +202,7 @@ export function RemoveItemControl({
   return (
     <>
       <button
-        className={styles.open}
+        className={compact ? `${styles.open} ${styles.compact}` : styles.open}
         disabled={remove.isPending || etag === null}
         onClick={() => {
           setConfirming(true);
@@ -207,7 +210,16 @@ export function RemoveItemControl({
         ref={openerRef}
         type="button"
       >
-        {t('trip.remove.open', { name: item.place.name })}
+        {compact ? (
+          <IconClose size={16} />
+        ) : (
+          t('trip.remove.open', { name: item.place.name })
+        )}
+        {compact ? (
+          <span className={styles.srOnly}>
+            {t('trip.remove.open', { name: item.place.name })}
+          </span>
+        ) : null}
       </button>
 
       <dialog

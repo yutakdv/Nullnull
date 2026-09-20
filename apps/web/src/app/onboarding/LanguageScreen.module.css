@@ -1,4 +1,4 @@
-/* Figma: A-2 language 388:277 (KO selected) / 643:4088 (EN selected). */
+/* Figma: A-2 language redesign 804:4481. */
 
 .screen {
   display: flex;
@@ -66,7 +66,7 @@
   background: var(--color-action-subtle);
 }
 
-/* The ✓ mark already survives forced colours, so the row stays identifiable
+/* The check icon already survives forced colours, so the row stays identifiable
    there; the outline makes the whole target obvious rather than just its
    trailing glyph (TEST_STRATEGY.md §3). */
 @media (forced-colors: active) {
@@ -107,9 +107,6 @@
 .check {
   margin-inline-start: auto;
   color: var(--color-action-primary);
-  font-size: var(--font-body-md);
-  font-weight: 700;
-  line-height: 20px;
 }
 
 .visuallyHidden {

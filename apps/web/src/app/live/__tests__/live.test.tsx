@@ -1,23 +1,36 @@
 // @vitest-environment happy-dom
-//
-// happy-dom because the screen links into the router (#67).
-//
-// FE-401 is NOT built: this covers the 준비 중 screen that stands in for it,
-// and the one thing that screen must never do.
+import { readFileSync } from 'node:fs';
+import type { components } from '@nullnull/api-client';
+import {
+  candidateFixtures,
+  placeFixtures,
+  sessionFixtures,
+  tripFixtures,
+} from '@nullnull/contracts';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { I18nProvider } from '../../../i18n/I18nProvider.js';
-import { messages } from '../../../i18n/messages.js';
-import { createQueryClient } from '../../../shared/api/index.js';
 import { RouterProvider, createMemoryRouter } from 'react-router';
+import { I18nProvider } from '../../../i18n/I18nProvider.js';
+import { createQueryClient } from '../../../shared/api/index.js';
+import { API_BASE } from '../../../shared/testing/msw/handlers.js';
+import { server } from '../../../shared/testing/msw/server.js';
 import { routes } from '../../routes.js';
 
-const copy = messages['en-US'];
+type LiveAreaResult = components['schemas']['LiveAreaResult'];
+type LivePlace = components['schemas']['LivePlace'];
+type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
 
-function renderLive() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/live'] });
+function liveFixture<T>(name: string): T {
+  return JSON.parse(
+    readFileSync(`../../packages/contracts/fixtures/live/${name}.json`, 'utf8'),
+  ) as T;
+}
+
+function renderLive(initialEntry = '/live') {
+  const router = createMemoryRouter(routes, { initialEntries: [initialEntry] });
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -27,68 +40,226 @@ function renderLive() {
   );
 }
 
-describe('the live tab says what it is', () => {
-  it('renders a real screen, not the debug placeholder', async () => {
-    // 라이브 is one of four persistent tabs, reachable from the feed, a trip
-    // and the profile. It used to render the app name above the untranslated
-    // literal "live", which reads as a broken build rather than an unfinished
-    // feature.
-    renderLive();
-    expect(
-      await screen.findByRole('heading', { level: 1, name: copy['live.title'] }),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId('placeholder-route')).toBeNull();
-  });
-
-  it('marks itself 준비 중 rather than looking empty', async () => {
-    renderLive();
-    expect(await screen.findByText(copy['live.comingSoon'])).toBeInTheDocument();
-    expect(screen.getByText(copy['live.description'])).toBeInTheDocument();
-  });
-
-  it('shows no crowd reading, because there is no data behind it', async () => {
-    // AGENTS.md rule 6 and invariant 8: a placeholder number would be a
-    // crowd figure with no observation, no source and no time behind it.
-    // BA-091 has not opened queryLiveAreas, so the honest count is zero.
-    renderLive();
-    await screen.findByRole('heading', { level: 1, name: copy['live.title'] });
-    const body = document.body.textContent ?? '';
-    expect(body).not.toMatch(/\d+\s*%/);
-    expect(body).not.toMatch(/혼잡해요|여유|보통|Busy|Quiet|Moderate/);
-  });
-
-  it('sends no request, because the capability is off', async () => {
-    // P1/unbuilt capabilities must not call the server
-    // (.claude/rules/frontend.md). The screen has nothing to fetch.
-    const seen: string[] = [];
-    const { server } = await import('../../../shared/testing/msw/server.js');
-    const record = ({ request }: { request: Request }) => {
-      const path = new URL(request.url).pathname;
-      if (!path.includes('/session') && !path.includes('/demo')) seen.push(path);
-    };
-    server.events.on('request:start', record);
-    try {
-      renderLive();
-      await screen.findByRole('heading', { level: 1, name: copy['live.title'] });
-      expect(seen).toEqual([]);
-    } finally {
-      // By reference: the server is shared and removeAllListeners would drop
-      // other files' listeners.
-      server.events.removeListener('request:start', record);
-    }
-  });
-
-  it('offers the data guide, which explains the states without claiming any', async () => {
-    const user = userEvent.setup();
-    renderLive();
-    await user.click(
-      await screen.findByRole('link', { name: new RegExp(copy['live.dataGuide']) }),
+describe('FE-401 Live area list', () => {
+  it('requests the approved list-only query and renders every returned area', async () => {
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    let body: unknown = null;
+    server.use(
+      http.post(`${API_BASE}/live/areas`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(result);
+      }),
     );
+
+    renderLive();
+
+    expect(await screen.findByRole('button', { name: /광화문·덕수궁/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: /명동 관광특구/ })).toBeVisible();
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
-        'id',
-        'data-guide-heading',
-      );
+      expect(body).toEqual({ mode: 'AUTO', regionCode: '11', viewport: null });
     });
+    expect(document.body.textContent).not.toMatch(/37\.\d+|126\.\d+/);
+  });
+
+  it('keeps empty, unavailable and request failure as different states', async () => {
+    const unavailable = liveFixture<LiveAreaResult>('area-result-unavailable');
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(unavailable)));
+
+    let view = renderLive();
+    expect(
+      await screen.findByText(/Live observations are unavailable right now/i),
+    ).toBeVisible();
+
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json({ ...unavailable, mode: 'LIVE' }),
+      ),
+    );
+    view.unmount();
+    view = renderLive();
+    expect(await screen.findByText(/No areas to show/i)).toBeVisible();
+
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.error()));
+    view.unmount();
+    renderLive();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /couldn't check live areas/i,
+    );
+  });
+
+  it('FE-401-T2 labels stale observations without presenting them as live', async () => {
+    const stale = liveFixture<LiveAreaResult>('area-result-stale');
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(stale)));
+
+    renderLive();
+
+    expect(await screen.findAllByText('Update delayed')).not.toHaveLength(0);
+    expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
+  it('loads mapped places only after an area is selected', async () => {
+    const user = userEvent.setup();
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    const places = liveFixture<LivePlace[]>('area-places');
+    let areaPlaceRequests = 0;
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)),
+      http.get(`${API_BASE}/live/areas/:areaId/places`, ({ params }) => {
+        areaPlaceRequests += 1;
+        expect(params.areaId).toBe(result.areas[0]?.id);
+        return HttpResponse.json(places);
+      }),
+    );
+
+    renderLive();
+    const area = await screen.findByRole('button', { name: /광화문·덕수궁/ });
+    expect(areaPlaceRequests).toBe(0);
+
+    await user.click(area);
+
+    expect(await screen.findByText('경복궁')).toBeVisible();
+    expect(screen.getByText('북촌한옥마을')).toBeVisible();
+    expect(screen.getByText('명동')).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: /View Live information for 경복궁/i }),
+    ).toHaveAttribute('href', `/live/places/${places[0]?.place.id}`);
+    expect(areaPlaceRequests).toBe(1);
+  });
+
+  it('searches canonically and opens the selected place coverage', async () => {
+    const user = userEvent.setup();
+    const areas = liveFixture<LiveAreaResult>('area-result-live');
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(areas)),
+      http.post(`${API_BASE}/places/search`, async ({ request }) => {
+        expect(await request.json()).toEqual({ query: '경복궁' });
+        return HttpResponse.json(placeFixtures.searchPage);
+      }),
+      http.get(`${API_BASE}/live/places/:placeId`, ({ params }) => {
+        expect(params.placeId).toBe(detail.place.id);
+        return HttpResponse.json(detail);
+      }),
+    );
+
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    await user.click(
+      await screen.findByRole('link', { name: /View Live information for 경복궁/i }),
+    );
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '경복궁' }),
+    ).toBeVisible();
+    expect(screen.getByText('서울 종로구 사직로 161')).toBeVisible();
+  });
+
+  it('saves the live place to the representative trip without changing its schedule', async () => {
+    const user = userEvent.setup();
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    const requests: Array<{
+      tripId: string;
+      body: unknown;
+      idempotencyKey: string | null;
+    }> = [];
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+      http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ params, request }) => {
+        requests.push({
+          tripId: String(params.tripId),
+          body: await request.json(),
+          idempotencyKey: request.headers.get('Idempotency-Key'),
+        });
+        return HttpResponse.json(candidateFixtures.saveResultCreated, { status: 201 });
+      }),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+    await user.click(
+      await screen.findByRole('button', { name: /Save to representative trip/i }),
+    );
+
+    await waitFor(() => {
+      expect(requests).toHaveLength(1);
+    });
+    expect(requests[0]).toEqual({
+      tripId: tripFixtures.page.items[0]?.id,
+      body: { placeId: detail.place.id, source: { type: 'LIVE' } },
+      idempotencyKey: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      ),
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /Saved to your representative trip\. Your itinerary is unchanged\./i,
+    );
+  });
+
+  it('does not guess a trip when the owner has no representative trip', async () => {
+    const user = userEvent.setup();
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    let candidateRequests = 0;
+    server.use(
+      http.post(`${API_BASE}/demo/sessions`, () =>
+        HttpResponse.json(
+          {
+            ...sessionFixtures.bootstrap,
+            owner: { ...sessionFixtures.owner, activeTripId: null },
+          },
+          { status: 201 },
+        ),
+      ),
+      http.get(`${API_BASE}/me`, () =>
+        HttpResponse.json({ ...sessionFixtures.owner, activeTripId: null }),
+      ),
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+      http.post(`${API_BASE}/trips/:tripId/candidates`, () => {
+        candidateRequests += 1;
+        return HttpResponse.json(candidateFixtures.saveResultCreated, { status: 201 });
+      }),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+    await user.click(
+      await screen.findByRole('button', { name: /Choose a trip to save/i }),
+    );
+
+    expect(await screen.findByRole('heading', { name: /My trips/i })).toBeVisible();
+    expect(candidateRequests).toBe(0);
+  });
+});
+
+describe('FE-402 Live place detail', () => {
+  it('FE-402-T1 distinguishes a verified absence of alternatives from a request error', async () => {
+    const none = liveFixture<LivePlaceDetail>('place-detail-related-none');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(none)),
+    );
+
+    const view = renderLive(`/live/places/${none.place.id}`);
+    expect(
+      await screen.findByText('No valid alternative is available right now'),
+    ).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    server.use(http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.error()));
+    view.unmount();
+    renderLive(`/live/places/${none.place.id}`);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /couldn't load this place/i,
+    );
+  });
+
+  it('FE-402-T2 keeps a checking relation visibly distinct from no alternatives', async () => {
+    const checking = liveFixture<LivePlaceDetail>('place-detail-related-checking');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(checking)),
+    );
+
+    renderLive(`/live/places/${checking.place.id}`);
+
+    expect(await screen.findByText('Checking alternatives')).toBeVisible();
+    expect(
+      screen.queryByText('No valid alternative is available right now'),
+    ).not.toBeInTheDocument();
   });
 });

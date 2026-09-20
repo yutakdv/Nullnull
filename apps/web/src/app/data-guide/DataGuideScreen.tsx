@@ -48,44 +48,46 @@ export function DataGuideScreen() {
         }}
       />
 
-      <h1 className={styles.title} id="data-guide-heading">
-        {t('dataGuide.title1')}
-        <br />
-        {t('dataGuide.title2')}
-      </h1>
+      <div className={styles.body}>
+        <h1 className={styles.title} id="data-guide-heading">
+          {t('dataGuide.title1')}
+          <br />
+          {t('dataGuide.title2')}
+        </h1>
 
-      <h2 className={styles.sectionTitle} id="data-guide-states">
-        {t('dataGuide.states.heading')}
-      </h2>
-      <ul className={styles.rows} aria-labelledby="data-guide-states">
-        {STATES.map((state) => (
-          <li className={styles.row} key={state}>
-            <StateLabel labels={stateLabels} state={state} />
-            <p className={styles.rowBody}>
-              {t(`dataGuide.state.${state}` as MessageKey)}
-            </p>
-          </li>
-        ))}
-      </ul>
+        <h2 className={styles.sectionTitle} id="data-guide-states">
+          {t('dataGuide.states.heading')}
+        </h2>
+        <ul className={styles.rows} aria-labelledby="data-guide-states">
+          {STATES.map((state) => (
+            <li className={styles.row} key={state}>
+              <StateLabel labels={stateLabels} state={state} />
+              <p className={styles.rowBody}>
+                {t(`dataGuide.state.${state}` as MessageKey)}
+              </p>
+            </li>
+          ))}
+        </ul>
 
-      <h2 className={styles.sectionTitle} id="data-guide-rules">
-        {t('dataGuide.rules.heading')}
-      </h2>
-      <ul className={styles.rows} aria-labelledby="data-guide-rules">
-        {RULES.map((n) => (
-          <li className={styles.guideRow} key={n}>
-            <span className={styles.guideTitle}>
-              {t(`dataGuide.rule${n}.title` as MessageKey)}
-            </span>
-            <span className={styles.rowBody}>
-              {t(`dataGuide.rule${n}.body` as MessageKey)}
-            </span>
-          </li>
-        ))}
-      </ul>
+        <h2 className={styles.sectionTitle} id="data-guide-rules">
+          {t('dataGuide.rules.heading')}
+        </h2>
+        <ul className={styles.rows} aria-labelledby="data-guide-rules">
+          {RULES.map((n) => (
+            <li className={styles.guideRow} key={n}>
+              <span className={styles.guideTitle}>
+                {t(`dataGuide.rule${n}.title` as MessageKey)}
+              </span>
+              <span className={styles.rowBody}>
+                {t(`dataGuide.rule${n}.body` as MessageKey)}
+              </span>
+            </li>
+          ))}
+        </ul>
 
-      {/* Required attribution for the KTO and Seoul sources (invariant 12). */}
-      <p className={styles.attribution}>{t('dataGuide.attribution')}</p>
+        {/* Required attribution for the KTO and Seoul sources (invariant 12). */}
+        <p className={styles.attribution}>{t('dataGuide.attribution')}</p>
+      </div>
     </section>
   );
 }

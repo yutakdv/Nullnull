@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "VITE_API_MOCKING=on vite",
+    "dev": "vite",
     "dev:api": "vite",
+    "dev:mock": "VITE_API_MOCKING=on vite",
     "build": "tsc --noEmit && vite build",
     "tokens:build": "node scripts/build-tokens.mjs",
     "tokens:check": "node ../../scripts/check-generated.mjs src/design/tokens.css -- node scripts/build-tokens.mjs",
@@ -24,6 +25,7 @@
     "budget:check": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
+    "@fontsource/pretendard": "^5.3.0",
     "@nullnull/api-client": "*",
     "@nullnull/contracts": "*",
     "@tanstack/react-query": "5.90.2",

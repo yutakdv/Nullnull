@@ -327,6 +327,11 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
 });
 
 describe('A-3 intro completes onboarding', () => {
+  it('renders the supplied Nulli artwork before the onboarding copy', async () => {
+    const { container } = renderAt('/intro');
+    expect(container.querySelector('img[src="/figma/nulli.png"]')).toBeInTheDocument();
+  });
+
   it('records completion with only the contracted field', async () => {
     const bodies: unknown[] = [];
     const contentTypes: (string | null)[] = [];
@@ -359,29 +364,16 @@ describe('A-3 intro completes onboarding', () => {
     expect(await screen.findByText(copy['intro.noLogin'])).toBeInTheDocument();
   });
 
-  it('lands on the feed without passing through sign-in', async () => {
-    // This asserted the opposite for a day. Login was briefly in P0 (#264,
-    // #265) and intro routed through /sign-in; the owner reverted it to P1 on
-    // 2026-09-19 because `owners.account_id` is unique, so several judges on
-    // the one official test account would share an owner and see each other's
-    // edits. An anonymous session gives each browser its own.
-    //
-    // Two clauses, because they fail differently. Landing on the feed says the
-    // flow completes; the absence of the sign-in heading says it completes
-    // WITHOUT an account step, which is what `로그인 불필요` means and what the
-    // test above ('states that no sign-in is needed') promises on the intro
-    // screen itself. A traveller could reach the feed via a sign-in screen they
-    // dismissed, and that would satisfy the first clause while breaking the
-    // promise.
+  it('opens sign-in before entering the feed', async () => {
     const user = userEvent.setup();
     renderAt('/intro');
     await user.click(await screen.findByRole('button', { name: copy['intro.start'] }));
 
     expect(
-      await screen.findByRole('heading', { name: copy['feed.title'] }),
+      await screen.findByRole('heading', { name: copy['signIn.title'] }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: copy['signIn.title'] }),
+      screen.queryByRole('heading', { name: copy['feed.title'] }),
     ).not.toBeInTheDocument();
   });
 });

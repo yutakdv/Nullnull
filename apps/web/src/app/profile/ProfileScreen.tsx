@@ -8,7 +8,8 @@ import {
   useOptimizationHistory,
   useTrips,
 } from '../../shared/api/index.js';
-import { ConfirmDialog } from '../../shared/ui/components/index.js';
+import { ConfirmDialog, IconChevronRight, IconProfile } from '../../shared/ui/index.js';
+import { formatTripPeriod } from '../../shared/i18n/trip-period.js';
 import { DeletionSection } from './DeletionSection.js';
 import { hasResult, rowState, runHref } from './history.js';
 import { InterestsSection } from './InterestsSection.js';
@@ -16,7 +17,8 @@ import styles from './ProfileScreen.module.css';
 
 // Figma: S14 profile `422:2925`.
 //
-// FR-PRO-01 guest shell, FR-PRO-02 disabled sign-in, FR-PRO-03 trip list.
+// FR-PRO-01 test-account summary, FR-PRO-02 no profile sign-in control,
+// FR-PRO-03 trip list.
 //
 // MOCK DATA: the trip list and the optimization history are served by msw
 // fixtures because listTrips and listOptimizationHistory have no approved
@@ -33,11 +35,6 @@ function runDate(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric' }).format(
     new Date(iso),
   );
-}
-
-function tripDates(start: string, end: string, locale: string): string {
-  const format = new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric' });
-  return `${format.format(new Date(start))} – ${format.format(new Date(end))}`;
 }
 
 /** The trip a confirm is open for, with the key that deletion will carry. */
@@ -101,36 +98,14 @@ export function ProfileScreen() {
 
       <div className={styles.card}>
         <div className={styles.guest}>
-          {/* 422:2934: a 44px avatar. Decorative — the name beside it is the
-              content, so it carries no alternative text of its own. */}
-          <span aria-hidden="true" className={styles.avatar} />
+          <span className={styles.avatar} data-testid="profile-avatar">
+            <IconProfile size={24} />
+          </span>
           <span className={styles.guestText}>
             <span className={styles.guestName}>{t('profile.guest.name')}</span>
             <span className={styles.guestNote}>{t('profile.guest.note')}</span>
           </span>
         </div>
-        {/* Inert text with a `준비 중` badge, which is what FCR-006 asks for.
-            This row has been flipped twice, so the reason is recorded rather
-            than the conclusion: the owner briefly moved sign-in into P0 (#264,
-            #265) and it was a `<Link to="/sign-in">` for a day, then reverted
-            it on 2026-09-19 and login is P1 again.
-
-            The revert is not a scope trim. `owners.account_id` is unique, so
-            several judges signing in with the one official test account would
-            share a single owner and see each other's edits and deletions — an
-            anonymous session gives each browser its own owner (#264). Until
-            that is solved, an account is worse than no account here.
-
-            So do not make this a link again without reading #264 first. The
-            canonical sources all say the same thing: CLAUDE.md's P0 decisions,
-            AGENTS.md principles 13-14, docs/contest's `로그인 불필요`, and
-            FCR-006. A link here contradicts four of them at once.
-
-            /sign-in and its route stay for P1. Nothing navigates there now. */}
-        <p className={styles.loginRow}>
-          <span className={styles.loginLabel}>{t('profile.login')}</span>
-          <span className={styles.badge}>{t('profile.comingSoon')}</span>
-        </p>
       </div>
 
       {/* Labelled section, not a bare div: the trip list and the history list
@@ -150,7 +125,7 @@ export function ProfileScreen() {
               is the same rule the rest of this app follows: a number the
               contract cannot source is not rendered. */}
           {trips.isSuccess && !trips.data.page.hasMore ? (
-            <span className={styles.rowValue}>
+            <span className={`${styles.rowValue} ${styles.tripCount}`}>
               {t('profile.trips.count', { count: trips.data.items.length })}
             </span>
           ) : null}
@@ -185,11 +160,8 @@ export function ProfileScreen() {
                   <span className={styles.rowText}>
                     <span className={styles.rowTitle}>{trip.title}</span>
                     <span className={styles.rowNote}>
-                      {tripDates(trip.startDate, trip.endDate, locale)}
+                      {formatTripPeriod(trip.startDate, trip.endDate, locale, 'short')}
                     </span>
-                  </span>
-                  <span className={styles.rowValue} aria-hidden="true">
-                    ›
                   </span>
                 </Link>
                 {/* After the link, never inside it: an interactive control
@@ -257,9 +229,11 @@ export function ProfileScreen() {
       </section>
 
       <section aria-labelledby="profile-history-heading" className={styles.card}>
-        <h2 className={styles.sectionHead} id="profile-history-heading">
-          {t('profile.history.title')}
-        </h2>
+        <div className={styles.sectionRow}>
+          <h2 className={styles.sectionHead} id="profile-history-heading">
+            {t('profile.history.title')}
+          </h2>
+        </div>
         {history.isPending ? (
           <p className={styles.state} role="status">
             {t('profile.history.loading')}
@@ -307,7 +281,7 @@ export function ProfileScreen() {
                   </span>
                   {hasResult(run) ? (
                     <span className={styles.rowValue} aria-hidden="true">
-                      ›
+                      <IconChevronRight size={18} />
                     </span>
                   ) : null}
                 </>
@@ -353,7 +327,7 @@ export function ProfileScreen() {
                 <span className={styles.rowNote}>{t('profile.dataGuide.note')}</span>
               </span>
               <span className={styles.rowValue} aria-hidden="true">
-                ›
+                <IconChevronRight size={18} />
               </span>
             </Link>
           </li>

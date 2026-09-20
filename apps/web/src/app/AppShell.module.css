@@ -24,12 +24,26 @@
 
 .content {
   flex: 1;
+  width: 100%;
+  margin-inline: auto;
   /* The scroll happens here, not on the body. */
   overflow-y: auto;
   /* Momentum scrolling on iOS. */
   -webkit-overflow-scrolling: touch;
   /* The notch sits above the content, not above the shell. */
   padding-top: env(safe-area-inset-top);
+}
+
+.content[data-content-width='form'] {
+  max-width: var(--layout-content-form-max);
+}
+
+.content[data-content-width='detail'] {
+  max-width: var(--layout-content-detail-max);
+}
+
+.content[data-content-width='browse'] {
+  max-width: var(--layout-content-browse-max);
 }
 
 .tabs {

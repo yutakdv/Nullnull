@@ -64,12 +64,17 @@
 // more" that refetched page one would still append cards and look correct on
 // screen, so the test checks the cursor that was sent.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { candidateFixtures, feedFixtures, tripFixtures } from '@nullnull/contracts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  candidateFixtures,
+  feedFixtures,
+  sessionFixtures,
+  tripFixtures,
+} from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -81,19 +86,56 @@ const copy = messages['en-US'];
 
 /** Every feed request's cursor, in order, as the server saw it. */
 let cursors: (string | null)[] = [];
+let feedTripIds: (string | null)[] = [];
+let revealFeedEnd: () => void = () => {
+  throw new Error('feed intersection observer was not created');
+};
 
 beforeEach(() => {
   cursors = [];
+  feedTripIds = [];
+  revealFeedEnd = () => {
+    throw new Error('feed intersection observer was not created');
+  };
+  class Observer implements IntersectionObserver {
+    private readonly callback: IntersectionObserverCallback;
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+      revealFeedEnd = () => {
+        this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this);
+      };
+    }
+
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+    takeRecords() {
+      return [];
+    }
+    readonly root = null;
+    readonly rootMargin = '240px 0px';
+    readonly thresholds = [0];
+  }
+  vi.stubGlobal('IntersectionObserver', Observer);
   server.events.on('request:start', ({ request }) => {
     const url = new URL(request.url);
     if (!url.pathname.endsWith('/feed')) return;
     cursors.push(url.searchParams.get('cursor'));
+    feedTripIds.push(url.searchParams.get('tripId'));
   });
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   server.events.removeAllListeners();
 });
+
+function approachFeedEnd() {
+  act(() => {
+    revealFeedEnd();
+  });
+}
 
 function renderFeed() {
   const router = createMemoryRouter(routes, { initialEntries: ['/feed'] });
@@ -230,20 +272,233 @@ describe('FE-201-T2 the feed renders each of its states', () => {
     ).toBeInTheDocument();
   });
 
+  it('dismisses the no-trip prompt when the traveller chooses to browse', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.pageEmpty)),
+    );
+    const user = userEvent.setup();
+    renderFeed();
+
+    await user.click(await screen.findByRole('button', { name: copy['feed.browse'] }));
+
+    expect(screen.queryByText(copy['feed.emptyNoTrip'])).not.toBeInTheDocument();
+    expect(screen.getByText(firstTitle)).toBeInTheDocument();
+  });
+
   it('does not show the trip prompt when a trip exists (S03-F1)', async () => {
     renderFeed();
     await screen.findByText(firstTitle);
     expect(screen.queryByText(copy['feed.emptyNoTrip'])).not.toBeInTheDocument();
+    expect(screen.getByTestId('active-trip-banner')).toHaveTextContent(
+      tripFixtures.page.items[0]?.title ?? '',
+    );
   });
-});
 
-describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
-  it('asks for the next page with the cursor the server sent', async () => {
+  it('does not pretend the first trip is representative when activeTripId is null', async () => {
+    // This catches the split-brain state that made Feed show 서울 가을 여행
+    // while the My Trip tab correctly saw no representative at all.
+    server.use(
+      http.get(`${API_BASE}/me`, () =>
+        HttpResponse.json({ ...sessionFixtures.owner, activeTripId: null }),
+      ),
+    );
+    const user = userEvent.setup();
+    const { router } = renderFeed();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Choose a representative trip' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('active-trip-banner')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Choose trip' }));
+    expect(router.state.location.pathname).toBe('/trips/select');
+  });
+
+  it('announces that feed search is coming soon without leaving the feed', async () => {
+    const user = userEvent.setup();
+    const { router } = renderFeed();
+    await screen.findByText(firstTitle);
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(screen.getByRole('status')).toHaveTextContent('Search is coming soon');
+    expect(router.state.location.pathname).toBe('/feed');
+  });
+
+  it('hides the search notice one second after the latest click', async () => {
+    renderFeed();
+    await screen.findByText(firstTitle);
+    const search = screen.getByRole('button', { name: 'Search' });
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        search.click();
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('Search is coming soon');
+
+      act(() => {
+        vi.advanceTimersByTime(700);
+        search.click();
+        vi.advanceTimersByTime(700);
+      });
+      expect(screen.getByRole('status')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(screen.queryByRole('status')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses the Nullnull logo as a home-feed link and returns the feed to the top', async () => {
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    const user = userEvent.setup();
+    const { router } = renderFeed();
+    await screen.findByText(firstTitle);
+
+    await user.click(screen.getByRole('link', { name: 'Home feed' }));
+
+    expect(router.state.location.pathname).toBe('/feed');
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+  });
+
+  it('expands the representative-trip card without repeating the active trip', async () => {
+    const activeTrip = tripFixtures.page.items[0];
+    expect(activeTrip).toBeDefined();
     const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
 
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    const trigger = screen.getByRole('button', { name: /Representative trip/ });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const choices = screen.getByRole('list', { name: 'Representative trip' });
+    expect(within(choices).getAllByRole('button')).toHaveLength(
+      tripFixtures.page.items.length - 1,
+    );
+    expect(
+      within(choices).queryByRole('button', { name: activeTrip?.title ?? '' }),
+    ).toBeNull();
+    for (const trip of tripFixtures.page.items.slice(1)) {
+      expect(within(choices).getByRole('button', { name: trip.title })).toBeVisible();
+    }
+  });
+
+  it('closes the representative-trip choices with Escape and restores focus', async () => {
+    const second = tripFixtures.page.items[1];
+    expect(second).toBeDefined();
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+
+    const trigger = screen.getByRole('button', { name: /Representative trip/ });
+    await user.click(trigger);
+    const choice = within(
+      screen.getByRole('list', { name: 'Representative trip' }),
+    ).getByRole('button', { name: second?.title ?? '' });
+    choice.focus();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('list', { name: 'Representative trip' })).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('changes the representative trip for Feed while My Trip still opens its selector', async () => {
+    const first = tripFixtures.page.items[0];
+    const second = tripFixtures.page.items[1];
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    const patches: unknown[] = [];
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        const patch = await request.json();
+        patches.push(patch);
+        return HttpResponse.json({
+          ...sessionFixtures.owner,
+          activeTripId: second?.id ?? null,
+        });
+      }),
+    );
+
+    const user = userEvent.setup();
+    const { router } = renderFeed();
+    await screen.findByText(firstTitle);
+
+    const picker = screen.getByRole('button', { name: /Representative trip/ });
+    expect(picker).toHaveTextContent(first?.title ?? '');
+    await user.click(picker);
+    await user.click(
+      within(screen.getByRole('list', { name: 'Representative trip' })).getByRole(
+        'button',
+        { name: second?.title ?? '' },
+      ),
+    );
+
+    await waitFor(() => {
+      expect(patches).toEqual([{ activeTripId: second?.id }]);
+      expect(picker).toHaveTextContent(second?.title ?? '');
+      expect(feedTripIds.at(-1)).toBe(second?.id);
+    });
+    expect(screen.getByTestId('active-trip-banner')).toHaveTextContent(
+      second?.title ?? '',
+    );
+
+    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/trips/select');
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'My trips' }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('keeps the previous representative trip when saving the change fails', async () => {
+    const first = tripFixtures.page.items[0];
+    const second = tripFixtures.page.items[1];
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    server.use(http.patch(`${API_BASE}/me`, () => HttpResponse.error()));
+
+    const user = userEvent.setup();
+    renderFeed();
+    await screen.findByText(firstTitle);
+    const picker = screen.getByRole('button', { name: /Representative trip/ });
+
+    await user.click(picker);
+    await user.click(
+      within(screen.getByRole('list', { name: 'Representative trip' })).getByRole(
+        'button',
+        { name: second?.title ?? '' },
+      ),
+    );
+
+    expect(
+      await screen.findByRole('alert', {
+        name: "We couldn't change the representative trip",
+      }),
+    ).toBeInTheDocument();
+    expect(picker).toHaveTextContent(first?.title ?? '');
+    expect(screen.getByTestId('active-trip-banner')).toHaveTextContent(
+      first?.title ?? '',
+    );
+  });
+});
+
+describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
+  it('asks for the next page when the end approaches without rendering a button', async () => {
+    renderFeed();
+    await screen.findByText(firstTitle);
+
+    expect(screen.queryByRole('button', { name: copy['feed.more'] })).toBeNull();
+    approachFeedEnd();
     await screen.findByText(secondPageTitle);
 
     // The first request carries no cursor; the second carries exactly the one
@@ -252,10 +507,9 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
   });
 
   it('appends the next page without dropping or repeating a card', async () => {
-    const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
     await screen.findByText(secondPageTitle);
 
     const titles = [...feedFixtures.page.items, ...feedFixtures.pageTwo.items].map(
@@ -266,11 +520,10 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
     }
   });
 
-  it('stops offering more at the end and says so', async () => {
-    const user = userEvent.setup();
+  it('stops paging at the end and says so', async () => {
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
 
     expect(await screen.findByText(copy['feed.end'])).toBeInTheDocument();
     expect(
@@ -281,8 +534,8 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
   it('stops when hasMore is false even if a cursor came with it', async () => {
     // The contract makes hasMore the required field and nextCursor optional,
     // so hasMore is the authority. A server that sends a trailing cursor with
-    // hasMore false must not produce another "show more" — reading only the
-    // cursor would page forever.
+    // hasMore false must not produce another automatic request — reading only
+    // the cursor would page forever.
     server.use(
       http.get(`${API_BASE}/feed`, ({ request }) => {
         const cursor = new URL(request.url).searchParams.get('cursor');
@@ -293,10 +546,9 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
         });
       }),
     );
-    const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
     await screen.findByText(secondPageTitle);
 
     expect(await screen.findByText(copy['feed.end'])).toBeInTheDocument();
@@ -321,10 +573,9 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
         return HttpResponse.json(feedFixtures.page);
       }),
     );
-    const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
 
     expect(await screen.findByText(copy['feed.cursorExpired'])).toBeInTheDocument();
     // The generic load error belongs to real failures only. Showing it here
@@ -366,7 +617,7 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
   it('recovers again when a later cursor expires in the same session', async () => {
     // The mark that stops the loop has to clear once a page loads, or the
     // first expiry in a session is the only one ever recovered from and every
-    // later one leaves the user on a dead 더 보기.
+    // later one leaves the user at a dead feed end.
     let expireNext = true;
     const served: string[] = [];
     server.use(
@@ -382,12 +633,11 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
         );
       }),
     );
-    const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
 
     // First expiry: recovered, page one served again.
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
     await screen.findByText(copy['feed.cursorExpired']);
     await waitFor(() => {
       expect(served.filter((c) => c === 'first').length).toBeGreaterThan(1);
@@ -395,7 +645,7 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
 
     // A second expiry later in the same session must recover too.
     expireNext = true;
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
     await waitFor(() => {
       expect(served.filter((c) => c === 'first').length).toBeGreaterThan(2);
     });
@@ -416,10 +666,9 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
         return HttpResponse.json(feedFixtures.page);
       }),
     );
-    const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
 
     expect(await screen.findByText(copy['feed.cursorExpired'])).toBeInTheDocument();
     expect(screen.queryByText(copy['feed.error'])).not.toBeInTheDocument();
@@ -427,16 +676,17 @@ describe('FE-201-T1 pagination continues without duplicates or gaps', () => {
 });
 
 describe('FE-201-T2 populated feed boundaries (FCR-002/003/009 trace)', () => {
-  it('renders real cards but no search, notification, follow or ranking controls', async () => {
+  it('renders real cards and the approved search entry, but no notification, follow or ranking controls', async () => {
     renderFeed();
     const title = await screen.findByText(firstTitle);
     expect(firstTitle).not.toBe('');
     expect(title.closest('article')).not.toBeNull();
 
+    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
     expect(screen.queryByRole('searchbox')).toBeNull();
     expect(
       screen.queryByRole('button', {
-        name: /search|검색|notification|알림|follow|팔로우|following|팔로잉|latest|최신|recommended|추천|filter|필터/i,
+        name: /notification|알림|follow|팔로우|following|팔로잉|latest|최신|recommended|추천|filter|필터/i,
       }),
     ).toBeNull();
     expect(
@@ -459,6 +709,7 @@ describe('FE-201-T2 populated feed boundaries (FCR-002/003/009 trace)', () => {
   });
 
   it('sends no unsupported search, notification, follow, filter or sort request', async () => {
+    const user = userEvent.setup();
     const requests: URL[] = [];
     const record = ({ request }: { request: Request }) => {
       requests.push(new URL(request.url));
@@ -467,6 +718,8 @@ describe('FE-201-T2 populated feed boundaries (FCR-002/003/009 trace)', () => {
     try {
       renderFeed();
       await screen.findByText(firstTitle);
+      await user.click(screen.getByRole('button', { name: 'Search' }));
+      expect(screen.getByRole('status')).toHaveTextContent('Search is coming soon');
 
       expect(requests.length).toBeGreaterThan(0);
       expect(
@@ -487,7 +740,10 @@ describe('FE-201-T2 populated feed boundaries (FCR-002/003/009 trace)', () => {
       expect(productPaths.length).toBeGreaterThan(0);
       expect(
         productPaths.every(
-          (path) => path === `${API_BASE}/feed` || path === `${API_BASE}/trips`,
+          (path) =>
+            path === `${API_BASE}/feed` ||
+            path === `${API_BASE}/trips` ||
+            path === `${API_BASE}/me`,
         ),
       ).toBe(true);
 
@@ -619,11 +875,10 @@ describe('FE-201 the card shows only what the contract supplies', () => {
     // made against '', which passes by matching nothing.
     expect(stale).toBeDefined();
 
-    const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
     // The STALE card is on page two, so pagination has to run first.
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
 
     const card = (await screen.findByText(stale?.post.title ?? '')).closest(
       'article',
@@ -672,15 +927,12 @@ describe('FE-201-T3 keyboard and accessible names', () => {
     );
   });
 
-  it('reaches the more button by keyboard and activates it with Enter', async () => {
-    const user = userEvent.setup();
+  it('keeps automatic pagination out of the keyboard tab order', async () => {
     renderFeed();
     await screen.findByText(firstTitle);
 
-    const more = screen.getByRole('button', { name: copy['feed.more'] });
-    more.focus();
-    expect(more).toHaveFocus();
-    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('button', { name: copy['feed.more'] })).toBeNull();
+    approachFeedEnd();
     expect(await screen.findByText(secondPageTitle)).toBeInTheDocument();
   });
 
@@ -693,13 +945,16 @@ describe('FE-201-T3 keyboard and accessible names', () => {
         return HttpResponse.json(feedFixtures.pageTwo);
       }),
     );
-    const user = userEvent.setup();
     renderFeed();
     await screen.findByText(firstTitle);
-    await user.click(screen.getByRole('button', { name: copy['feed.more'] }));
+    approachFeedEnd();
     await waitFor(() => {
-      expect(screen.getByText(copy['feed.loadingMore'])).toBeInTheDocument();
+      expect(
+        screen.getByRole('status', { name: copy['feed.loadingMore'] }),
+      ).toBeInTheDocument();
     });
+    expect(await screen.findByText(secondPageTitle)).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: copy['feed.loadingMore'] })).toBeNull();
   });
 });
 

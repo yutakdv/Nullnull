@@ -50,8 +50,21 @@ export async function overflow(page: Page) {
           `<${node.tagName.toLowerCase()}> reaches ${Math.round(box.right)}px`,
         );
       }
-      // Visually hidden text is clipped on purpose; it is not on screen.
-      const hidden = getComputedStyle(node).clipPath.startsWith('inset(50%');
+      // Visually hidden text is clipped on purpose; it is not on screen. The
+      // clipping can live on its screen-reader-only wrapper rather than the
+      // text leaf itself, so inspect ancestors too. Otherwise a live-region
+      // message inside a 1px clipped wrapper is reported as ordinary cut-off
+      // text even though it is intentionally absent from the visual layout.
+      const hidden = (() => {
+        for (
+          let current: HTMLElement | null = node;
+          current;
+          current = current.parentElement
+        ) {
+          if (getComputedStyle(current).clipPath.startsWith('inset(50%')) return true;
+        }
+        return false;
+      })();
       const scrolls = getComputedStyle(node).overflowX !== 'visible';
       if (
         !hidden &&

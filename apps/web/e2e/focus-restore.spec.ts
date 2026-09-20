@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createSeededTrip } from './seeded-trip.js';
+import { createRepresentativeTrip } from './seeded-trip.js';
 
 // The "focus 복귀" clause on the saved-places sheet: where focus lands after
 // it closes. Carries no acceptance ID -- see WHY THIS TEST CARRIES NO
@@ -169,9 +169,9 @@ test.describe('FE-203-T4 closing the 담기 sheet leaves focus somewhere usable'
     // dev server MSW supplies one; against the real API a fresh anonymous
     // session owns none, and TripPicker had nothing to list — which is why the
     // gate failed here on the precondition rather than on the focus assertion.
-    // createSeededTrip also settles the session bootstrap, so the goto below
-    // does not race it.
-    await createSeededTrip(page);
+    // createRepresentativeTrip also settles the session bootstrap and selects
+    // a real target, so the button is actionable in both API modes.
+    await createRepresentativeTrip(page);
 
     await page.goto('/feed');
     await page.waitForLoadState('networkidle');

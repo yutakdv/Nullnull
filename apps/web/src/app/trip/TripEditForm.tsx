@@ -79,6 +79,7 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
   const titleRef = useRef<HTMLInputElement>(null);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
+  const intentionalClose = useRef(false);
 
   const dirty = isDirty(draft, trip);
   const localError = draftError(draft);
@@ -92,7 +93,7 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
   // requestClose covers this form's own exit, but neither sees a react-router
   // navigation — pressing 내 여행 or 내 정보 while editing left the screen and
   // discarded the draft with no warning at all. Reproduced before this existed.
-  const blocker = useBlocker(dirty);
+  const blocker = useBlocker(() => dirty && !intentionalClose.current);
   useEffect(() => {
     if (blocker.state === 'blocked') setConfirming(true);
   }, [blocker.state]);
@@ -115,13 +116,18 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function close() {
+    intentionalClose.current = true;
+    onClose();
+  }
+
   /** Leaving: asks first when there is something to lose. */
   function requestClose() {
     if (dirty) {
       setConfirming(true);
       return;
     }
-    onClose();
+    close();
   }
 
   function onSave() {
@@ -130,7 +136,7 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
     const patch = toPatch(draft, trip);
     // Nothing changed: an empty merge-patch is minProperties:1 and would 400.
     if (patch === null) {
-      onClose();
+      close();
       return;
     }
     update.mutate(
@@ -138,7 +144,7 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
       {
         onSuccess: () => {
           setSaved(true);
-          onClose();
+          close();
         },
         onError: (error) => {
           if (!isProblem(error)) return;
@@ -348,7 +354,7 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
                 // Take the server's version and drop the draft — but only
                 // because the user asked.
                 setConflict(false);
-                onClose();
+                close();
               }}
               type="button"
             >
@@ -417,7 +423,7 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
             blocker.proceed();
             return;
           }
-          onClose();
+          close();
         }}
         open={confirming}
         title={t('trip.discard.title')}

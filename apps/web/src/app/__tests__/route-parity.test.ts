@@ -24,6 +24,7 @@ import { postFixtures, tripFixtures } from '@nullnull/contracts';
 import { routes } from '../routes.js';
 import { MOCK_RUN_ID } from '../../shared/testing/msw/handlers.js';
 import { SCREENS } from '../../../e2e/screens.js';
+import livePlaceDetail from '../../../../../packages/contracts/fixtures/live/place-detail-live.json' with { type: 'json' };
 
 // Paths the walk deliberately does not visit. Each needs a reason, because an
 // exemption with no reason is how a screen stops being measured quietly.
@@ -119,6 +120,7 @@ const KNOWN_IDS = new Map<string, string>([
   [tripFixtures.detailScheduled.id, 'tripFixtures.detailScheduled.id'],
   [postFixtures.detail.id, 'postFixtures.detail.id'],
   [MOCK_RUN_ID, 'MOCK_RUN_ID (msw handlers)'],
+  [livePlaceDetail.place.id, 'live place approved contract fixture'],
 ]);
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;

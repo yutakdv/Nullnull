@@ -51,6 +51,7 @@ const TRIPS = [
 export const Trips: Story = {
   args: {
     open: true,
+    locale: 'ko-KR',
     placeName: '경복궁',
     trips: TRIPS,
     selectedTripId: '018f4a10-2c31-7d42-9a55-6b1f0c3e8a01',

@@ -1,62 +1,188 @@
-/* S11 `418:2523`, stood in for until BA-091 opens the live data. */
 .screen {
   display: flex;
+  min-height: 100%;
   flex-direction: column;
   gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-6);
+  padding: var(--space-3) var(--layout-page-gutter) var(--space-8);
 }
 
-.head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.title {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-title-md);
-  font-weight: 700;
-}
-
-.description {
-  margin: 0;
+.searchPanel {
+  padding: var(--space-2) 0;
   color: var(--color-text-secondary);
   font-size: var(--font-body-sm);
-  line-height: 20px;
 }
 
-.meanwhile {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-caption);
-  line-height: 16px;
-}
-
-.link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-height: 44px;
+.searchPanel > p {
   padding: var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-card-lg);
-  background: var(--color-bg-default);
+  margin: 0;
+  text-align: center;
+}
+
+.searchResults {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.searchResults a {
+  display: grid;
+  min-height: 56px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
   color: var(--color-text-primary);
   font-size: var(--font-body-sm);
   font-weight: 700;
   text-decoration: none;
 }
 
-/* Same badge the profile uses for its 준비 중 row, so the two read as one
-   convention rather than two treatments of the same idea. */
-.badge {
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  padding: 5px var(--space-3);
+.searchResults a span:nth-child(2) {
+  grid-column: 1;
   color: var(--color-text-secondary);
+  font-size: var(--font-caption);
+  font-weight: 400;
+}
+
+.searchResults a span:last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sectionHead h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 700;
+}
+
+.stateCard {
+  display: flex;
+  min-height: 132px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.stateCard strong {
+  color: var(--color-text-primary);
+}
+
+.stateCard button {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-text-onAccent);
+  font: inherit;
+  font-weight: 700;
+}
+
+.areaList,
+.placeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.areaButton {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.areaButton[data-selected] {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-subtle);
+}
+
+.placePanel {
+  padding: var(--space-3) 0 var(--space-1);
+}
+
+.placePanel > p {
+  padding: var(--space-4);
+  margin: 0;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.placeList > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+}
+
+.placeLink {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.placeLink > :nth-child(2) {
+  grid-column: 1;
+}
+
+.placeLink > :last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--color-text-secondary);
+  font-size: var(--font-icon);
+}
+
+.placeName {
+  color: var(--color-text-primary);
   font-size: var(--font-label);
-  font-weight: 500;
+  font-weight: 700;
 }
