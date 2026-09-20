@@ -100,6 +100,7 @@ class EvaluationReport:
     session: SessionCounts = field(default_factory=SessionCounts)
     fixtures: list[FixtureResult] = field(default_factory=list)
     expected_fixture_ids: tuple[str, ...] = ()
+    executed_paths: frozenset[str] = frozenset()
     partial: bool = False
 
     def record_fixture(
@@ -139,6 +140,10 @@ class EvaluationReport:
 
     def record_session(self, *, executed: int, failed: int, skipped: int) -> None:
         self.session = SessionCounts(executed, failed, skipped)
+
+    def record_executed_paths(self, paths: Iterable[str]) -> None:
+        """The test files this run actually executed, as pytest node ids name them."""
+        self.executed_paths = frozenset(paths)
 
     def record_expected_fixtures(self, ids: Iterable[str], *, partial: bool = False) -> None:
         """The corpus the manifest requires this run to cover; `partial` waives only that check."""
@@ -184,12 +189,43 @@ class EvaluationReport:
             )
         return tuple(reasons)
 
+    def _implemented_by_this_run(self, manifest: Mapping[str, Any]) -> set[str]:
+        """The REC IDs this run actually exercised - not the ones the manifest claims.
+
+        Until 2026-09-20 this was `{entry["id"] for entry in manifest["implementedTestIds"]}`, a
+        copy of the manifest. `scripts/check_test_reports.py` compares that list against the
+        manifest and its docstring says the comparison refuses "a manifest that claims a pytest ID
+        the corpus never exercises" - but a list cannot disagree with the list it was copied from.
+        Measured: `REC-FAKE-99` planted in the manifest with a path that exists, `pytest exit=0`,
+        `572 passed`, and the id appeared in this artifact.
+
+        A pytest row now earns its place only when one of the files it names actually ran. Rows of
+        other suites are declared as before: Java resolves those (`ManifestTestPathParityTest`), and
+        withholding them here would report an absence this process is in no position to observe.
+
+        **What this still does not catch, measured rather than assumed.** A row whose file exists
+        and runs is accepted even when nothing in that file has anything to do with the ID: planting
+        `REC-FAKE-99` against `tests/test_purity.py` leaves `pytest exit=0` and the id in this
+        artifact. It cannot be caught here, because the REC vocabulary is matched by PATH and never
+        by test name - unlike the BA acceptance IDs, which `check_test_reports.py` reads out of
+        JUnit testcase names. So the claim this method supports is "the manifest names a file this
+        run executed", and no more than that. Registering an ID against an unrelated file is still
+        a thing a person has to not do.
+        """
+        earned: set[str] = set()
+        for entry in manifest["implementedTestIds"]:
+            declared = entry["path"]
+            paths = declared if isinstance(declared, list) else [declared]
+            if entry["suite"] != "pytest" or any(path in self.executed_paths for path in paths):
+                earned.add(entry["id"])
+        return earned
+
     def write(self, directory: Path, manifest_path: Path, policy: RecommendationPolicy) -> Path:
         """Writes `evaluation.json` plus a copy of the manifest and returns the report path."""
         manifest_bytes = manifest_path.read_bytes()
         manifest: Mapping[str, Any] = json.loads(manifest_bytes.decode("utf-8"))
         required = sorted(manifest["requiredTestIds"])
-        implemented = sorted({entry["id"] for entry in manifest["implementedTestIds"]})
+        implemented = sorted(self._implemented_by_this_run(manifest))
         document = {
             "codeSha": os.environ.get(CODE_SHA_ENV) or UNKNOWN_CODE_SHA,
             "service": manifest["service"],
