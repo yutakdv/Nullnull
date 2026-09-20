@@ -166,7 +166,7 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 
 ### 추천 서비스 `apps/ai` 설정
 
-[ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)의 Python 서비스는 DB·외부 API 설정을 갖지 않는다.
+[ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)의 Python 서비스는 **DB 설정을 갖지 않는다.** 외부 설정은 `AI_PROVIDER`·`AI_API_KEY`·`AI_MODEL_ID`뿐이며 `AI_PROVIDER=NONE`이 기본값이다.
 
 | 변수 | Secret | 기본/예 | 설명 |
 | --- | --- | --- | --- |

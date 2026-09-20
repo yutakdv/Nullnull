@@ -49,7 +49,7 @@ flowchart LR
     API --> OBS
 ```
 
-브라우저가 외부 데이터 API를 직접 호출하지 않는다. API key 보호, 캐시, 쿼터, schema 변화, provenance 보존을 backend adapter가 담당한다. 추천 서비스 `apps/ai`는 내부 network에서만 Spring이 호출하며 DB·외부 API를 읽지 않는다.
+브라우저가 외부 데이터 API를 직접 호출하지 않는다. API key 보호, 캐시, 쿼터, schema 변화, provenance 보존을 backend adapter가 담당한다. 추천 서비스 `apps/ai`는 내부 network에서만 Spring이 호출하며 **DB를 읽지 않고, 외부 호출은 모델 adapter 하나로 제한된다**(`D-034`).
 
 ## 3. 목표 저장소 구조
 
@@ -394,7 +394,7 @@ Spring의 `recommendation` package는 `RecommendationGateway` port, 내부 계�
 | `social` | post, SavedPost, feed feedback, feed projection | `FeedQuery`, `FeedbackCommand`, `PostQuery` | 후보 저장 시 TripItem 생성 |
 | `trip` | 여행 aggregate, interest, candidate, item, lock, revision | `TripSnapshotQuery`, `TripCommand`, `CandidateQuery` | optimizer에서 trip repository 직접 접근 |
 | `recommendation` | `apps/ai` 호출 gateway, 내부 계약 DTO, 응답 재검증, fallback | `RecommendationGateway`, `ProposalRevalidator`, `FeedFallback` | 계산 로직 중복 구현, DB transaction 안 HTTP 호출 |
-| `apps/ai`(별도 process) | 검색 결과 병합, 자격 필터, 점수, 선택, 근거 template | `POST /internal/v1/{feed/rank,related/rank,slots/evaluate,items/propose,explanations/render}` | DB·외부 API·현재 시각·난수·LLM 직접 사실 판정 |
+| `apps/ai`(별도 process) | 검색 결과 병합, 자격 필터, 점수, 선택, 근거 template | `POST /internal/v1/{feed/rank,related/rank,slots/evaluate,items/propose,explanations/render}` | 계산 package에 DB·현재 시각·난수 없음; LLM 직접 사실 판정 없음 |
 | `crowd` | source registry, snapshot, incident, comparison | `CrowdSnapshotQuery`, `ComparisonPolicy` | 서로 다른 scope/metric의 숫자 통합 |
 | `optimization` | run/job, proposal, decision, apply/revert 조정 | `OptimizationCommand`, `OptimizationQuery` | preview 계산 중 TripCommand mutation 호출 |
 | `live` | area mapping, coverage | `LiveQuery` | area 관측을 개별 POI 실측으로 변환 |
