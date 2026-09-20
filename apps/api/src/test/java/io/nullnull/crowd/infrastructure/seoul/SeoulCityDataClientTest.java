@@ -3,6 +3,9 @@ package io.nullnull.crowd.infrastructure.seoul;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.nullnull.crowd.application.SeoulCityDataValidator;
+import io.nullnull.crowd.application.SeoulGatewayException;
+import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.shared.provider.CircuitBreaker;
 import io.nullnull.shared.provider.ProviderHttpClient;
 import io.nullnull.shared.provider.RetryPolicy;

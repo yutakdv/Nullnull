@@ -1,5 +1,6 @@
-package io.nullnull.crowd.infrastructure.seoul;
+package io.nullnull.crowd.application;
 
+import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.shared.provider.ProviderResponseValidator;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

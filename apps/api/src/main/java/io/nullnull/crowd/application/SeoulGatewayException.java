@@ -1,9 +1,10 @@
-package io.nullnull.crowd.infrastructure.seoul;
+package io.nullnull.crowd.application;
 
 /** Fail-closed configuration and request-shape errors for the Seoul live-area source. */
 public class SeoulGatewayException extends RuntimeException {
 
-    public enum Code { SEOUL_NOT_CONFIGURED, SEOUL_BASE_URL_NOT_APPROVED, SEOUL_AREA_NOT_ACCEPTED }
+    public enum Code { SEOUL_NOT_CONFIGURED, SEOUL_BASE_URL_NOT_APPROVED, SEOUL_AREA_NOT_ACCEPTED,
+            SEOUL_SOURCE_DISABLED, SEOUL_SOURCE_QUARANTINED, SEOUL_QUOTA_EXHAUSTED }
 
     private final Code code;
 

@@ -1,7 +1,8 @@
-package io.nullnull.crowd.infrastructure.seoul;
+package io.nullnull.crowd.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.shared.provider.ProviderResponseValidator;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
