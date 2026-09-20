@@ -39,7 +39,7 @@ class LiveAreaProjectionTest {
     }
 
     @Test
-    @DisplayName("BA-091-T4 좌표를 모르는 구역은 centroid 를 null 로 내보낸다")
+    @DisplayName("BA-091-T7 좌표를 모르는 구역은 centroid 를 null 로 내보낸다")
     void anAreaWithNoKnownCentroidShipsNull() {
         LiveAreaProjection.LiveAreaResultResponse result =
                 projection.project(List.of(area("광화문·덕수궁", SourceState.LIVE, null, null)), NOW);
