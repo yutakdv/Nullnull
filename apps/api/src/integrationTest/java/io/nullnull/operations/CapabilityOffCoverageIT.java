@@ -60,7 +60,7 @@ class CapabilityOffCoverageIT {
      * then, because the capability will be in the other register and being in both fails.
      */
     private static final Map<String, String> NO_OPERATION_YET = new LinkedHashMap<>(Map.of(
-            DemoCapabilities.LIVE, "B10 has no Live route; A-033 defers the tab and allows a mockup",
+            DemoCapabilities.LIVE, "B10 has no Live route yet (A-054 replaced A-033's mockup clause)",
             DemoCapabilities.REPLAY, "no replay manifest reader exists; DEMO_REPLAY is DISABLED in V007"));
 
     @Autowired MockMvc mvc;
