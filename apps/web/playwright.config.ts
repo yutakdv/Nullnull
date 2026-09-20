@@ -51,14 +51,17 @@ export default defineConfig({
   // path ends in e2e/ because the reader looks for <dir>/<suite>/*.xml, and
   // compose.integration.yml already binds playwright-report out of the container.
   reporter: process.env.CI
-    // The json reporter rides alongside because JUnit cannot express a retry. Measured with
-    // this Playwright (1.56): a test that fails once and passes on the retry is written as a
-    // plain <testcase> with no <failure>, inside a <testsuites failures="0">, and the run
-    // exits 0 - indistinguishable from a clean pass, which is exactly what
-    // check_test_reports.py reads. The same run's json carries status: 'flaky' and
-    // stats.flaky, which is what scripts/check_e2e_flaky.py records.
-    ? [['line'], ['junit', { outputFile: 'playwright-report/e2e/results.xml' }],
-       ['json', { outputFile: 'playwright-report/e2e/results.json' }]]
+    ? // The json reporter rides alongside because JUnit cannot express a retry. Measured with
+      // this Playwright (1.56): a test that fails once and passes on the retry is written as a
+      // plain <testcase> with no <failure>, inside a <testsuites failures="0">, and the run
+      // exits 0 - indistinguishable from a clean pass, which is exactly what
+      // check_test_reports.py reads. The same run's json carries status: 'flaky' and
+      // stats.flaky, which is what scripts/check_e2e_flaky.py records.
+      [
+        ['line'],
+        ['junit', { outputFile: 'playwright-report/e2e/results.xml' }],
+        ['json', { outputFile: 'playwright-report/e2e/results.json' }],
+      ]
     : 'list',
   use: {
     baseURL: integration ?? 'http://127.0.0.1:5173',
