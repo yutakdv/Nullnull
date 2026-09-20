@@ -47,6 +47,32 @@ contract - change it in both languages or not at all.
   }
 }
 ```
+
+An `LLM` fixture is the model-output corpus instead (BA-084). It carries no expected proposals,
+because what it pins is a verdict of `explain.validator.accepts` on one sentence:
+
+```jsonc
+{
+  "id": "llm-output-corpus", "kind": "LLM", "dataOrigin": "SYNTHETIC",
+  "fixtureVersion": "0.0.1", "policyVersion": "policy-v1",
+  "fixedClock": "2026-09-06T00:00:00Z", "timezone": "Asia/Seoul",
+  "note": "...", "derivation": "why every verdict below is the one it is",
+  "facts": {"ko": {"locale": "ko", "placeName": "...", "beforeDate": "2026-09-12",
+                   "beforeTime": "10:00"|null, "afterDate": "...", "afterTime": "12:00"|null,
+                   "beforeValue": "80", "afterValue": "60",   // decimal strings, never JSON floats
+                   "metricLabel": "...", "attribution": "...",
+                   "forecastIssueId": "issue-1"|null}},
+  "cases": [{"id": "ko-visitor-count",
+             "profile": "ko",                       // names a key of `facts`
+             "family": "FAITHFUL"|"HALLUCINATION"|"INJECTION",
+             "verdict": "ACCEPT"|"REFUSE",
+             "text": "the sentence a model returned",
+             "why": "one line: which rule decides this verdict"}]
+}
+```
+
+`text` is the one string not required to be non-blank: an empty answer is something a provider can
+return, so the corpus has to be able to say so.
 """
 
 from __future__ import annotations
@@ -58,11 +84,12 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from nullnull_ai.domain.types import CandidateKey
+from nullnull_ai.explain.facts import ExplanationFacts, Locale
 from nullnull_ai.item.types import (
     Closed,
     ComparisonVerdict,
@@ -84,7 +111,9 @@ from nullnull_ai.item.types import (
 
 DATA_ORIGIN = "SYNTHETIC"
 OUTCOMES = frozenset({"PROPOSALS", "LOCK_CONFLICT", "ROUTE_UNAVAILABLE", "DATA_INSUFFICIENT", "NO_IMPROVEMENT"})
-KINDS = frozenset({"ITEM", "FEED"})
+KINDS = frozenset({"ITEM", "FEED", "LLM"})
+VERDICTS = frozenset({"ACCEPT", "REFUSE"})
+FAMILIES = frozenset({"FAITHFUL", "HALLUCINATION", "INJECTION"})
 
 
 class FixtureError(ValueError):
@@ -545,6 +574,170 @@ def _zone_name(name: str, path: str) -> str:
     except (ZoneInfoNotFoundError, ValueError) as error:
         raise FixtureError(f"{path} must be an IANA time zone") from error
     return name
+
+
+@dataclass(frozen=True, slots=True)
+class LlmCase:
+    """One model answer and the verdict the output validator owes it."""
+
+    id: str
+    profile: str
+    family: str
+    verdict: str
+    text: str
+    why: str
+
+
+@dataclass(frozen=True, slots=True)
+class LlmFixture:
+    id: str
+    path: str
+    note: str
+    derivation: str
+    fixture_version: str
+    policy_version: str
+    fixed_clock: datetime
+    timezone: str
+    facts: Mapping[str, ExplanationFacts]
+    cases: tuple[LlmCase, ...]
+
+
+def load_llm_fixture(root: Path, entry: FixtureEntry) -> LlmFixture:
+    if entry.kind != "LLM":
+        raise FixtureError(f"{entry.path} is a {entry.kind} fixture, not LLM")
+    document = read_verified(root, entry)
+    node = _object(
+        document,
+        entry.path,
+        {
+            "id",
+            "kind",
+            "dataOrigin",
+            "fixtureVersion",
+            "policyVersion",
+            "fixedClock",
+            "timezone",
+            "note",
+            "derivation",
+            "facts",
+            "cases",
+        },
+        set(),
+    )
+    if _string(node, "dataOrigin", entry.path) != DATA_ORIGIN:
+        raise FixtureError(f"{entry.path} must declare dataOrigin={DATA_ORIGIN}")
+    if _string(node, "kind", entry.path) != "LLM":
+        raise FixtureError(f"{entry.path} must declare kind=LLM")
+    identifier = _string(node, "id", entry.path)
+    if identifier != entry.id:
+        raise FixtureError(f"{entry.path} declares id {identifier} but the manifest says {entry.id}")
+    facts = _facts_profiles(node["facts"], f"{entry.path}.facts")
+    cases = _cases(node["cases"], facts, f"{entry.path}.cases")
+    return LlmFixture(
+        id=identifier,
+        path=entry.path,
+        note=_string(node, "note", entry.path),
+        derivation=_string(node, "derivation", entry.path),
+        fixture_version=entry.fixture_version,
+        policy_version=_string(node, "policyVersion", entry.path),
+        fixed_clock=_instant(_string(node, "fixedClock", entry.path), f"{entry.path}.fixedClock"),
+        timezone=_zone_name(_string(node, "timezone", entry.path), f"{entry.path}.timezone"),
+        facts=facts,
+        cases=cases,
+    )
+
+
+def _facts_profiles(value: Any, path: str) -> Mapping[str, ExplanationFacts]:
+    if not isinstance(value, dict) or not value:
+        raise FixtureError(f"{path} must be a non-empty object keyed by profile name")
+    profiles: dict[str, ExplanationFacts] = {}
+    for name, body in value.items():
+        if not isinstance(name, str) or not name.strip():
+            raise FixtureError(f"{path} has a blank profile name")
+        profiles[name] = _facts(body, f"{path}.{name}")
+    return profiles
+
+
+def _facts(value: Any, path: str) -> ExplanationFacts:
+    node = _object(
+        value,
+        path,
+        {
+            "locale",
+            "placeName",
+            "beforeDate",
+            "beforeTime",
+            "afterDate",
+            "afterTime",
+            "beforeValue",
+            "afterValue",
+            "metricLabel",
+            "attribution",
+            "forecastIssueId",
+        },
+        set(),
+    )
+    locale = _string(node, "locale", path)
+    if locale not in ("ko", "en"):
+        raise FixtureError(f"{path}.locale must be ko or en")
+    issue = node["forecastIssueId"]
+    if issue is not None and not isinstance(issue, str):
+        raise FixtureError(f"{path}.forecastIssueId must be a string or null")
+    try:
+        return ExplanationFacts(
+            locale=cast("Locale", locale),
+            place_name=_string(node, "placeName", path),
+            before_date=_date(node, "beforeDate", path),
+            before_time=_optional_time(node, "beforeTime", path),
+            after_date=_date(node, "afterDate", path),
+            after_time=_optional_time(node, "afterTime", path),
+            before_value=_decimal(node, "beforeValue", path),
+            after_value=_decimal(node, "afterValue", path),
+            metric_label=_string(node, "metricLabel", path),
+            attribution=_string(node, "attribution", path),
+            forecast_issue_id=issue,
+        )
+    except ValueError as error:
+        if isinstance(error, FixtureError):
+            raise
+        raise FixtureError(f"{path} violates a domain rule: {error}") from error
+
+
+def _cases(value: Any, facts: Mapping[str, ExplanationFacts], path: str) -> tuple[LlmCase, ...]:
+    if not isinstance(value, list) or not value:
+        raise FixtureError(f"{path} must be a non-empty list")
+    cases: list[LlmCase] = []
+    for index, item in enumerate(value):
+        where = f"{path}[{index}]"
+        node = _object(item, where, {"id", "profile", "family", "verdict", "text", "why"}, set())
+        family = _string(node, "family", where)
+        if family not in FAMILIES:
+            raise FixtureError(f"{where}.family must be one of {sorted(FAMILIES)}")
+        verdict = _string(node, "verdict", where)
+        if verdict not in VERDICTS:
+            raise FixtureError(f"{where}.verdict must be one of {sorted(VERDICTS)}")
+        profile = _string(node, "profile", where)
+        if profile not in facts:
+            raise FixtureError(f"{where}.profile {profile} is not a declared facts profile")
+        text = node["text"]
+        # The one string that may be blank: an empty answer is a real provider outcome, and a corpus
+        # that cannot express it would leave the emptiest case to an inline test nobody registers.
+        if not isinstance(text, str):
+            raise FixtureError(f"{where}.text must be a string")
+        cases.append(
+            LlmCase(
+                id=_string(node, "id", where),
+                profile=profile,
+                family=family,
+                verdict=verdict,
+                text=text,
+                why=_string(node, "why", where),
+            )
+        )
+    ids = [case.id for case in cases]
+    if len(set(ids)) != len(ids):
+        raise FixtureError(f"{path}[].id must be unique")
+    return tuple(cases)
 
 
 def of_kind(entries: Sequence[FixtureEntry], kind: str) -> tuple[FixtureEntry, ...]:
