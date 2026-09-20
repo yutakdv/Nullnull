@@ -103,4 +103,18 @@ class PolicyPinsParityTest {
     void theFeedCursorTtlMatchesTheFile() {
         assertThat(PolicyPins.V1.feedCursorTtlMinutes()).isEqualTo(policy.get("feedCursorTtlMinutes"));
     }
+
+    /**
+     * The feed order itself, not a version number beside it.
+     *
+     * <p>apps/ai refuses to run when its policy's feedOrdering is not exactly this pair
+     * ({@code feed/pipeline.py}), so the pair is the thing the two languages have to agree on. A
+     * {@code SORT_VERSION} integer matching on both sides while the orders differed would be parity
+     * in name only - and until this line existed nothing compared them at all: Java's order lives in
+     * {@code FeedOrdering} and in {@code JdbcFeedStore}'s SQL, neither of which this file could see.
+     */
+    @Test
+    void theFeedOrderingMatchesTheFile() {
+        assertThat(PolicyPins.V1.feedOrdering()).isEqualTo(policy.get("feedOrdering"));
+    }
 }

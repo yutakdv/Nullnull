@@ -176,6 +176,30 @@ nullnull:
     base-url: ${NULLNULL_AI_BASE_URL}
     connect-timeout: ${NULLNULL_AI_CONNECT_TIMEOUT:PT2S}
     read-timeout: ${NULLNULL_AI_READ_TIMEOUT:PT5S}
+  # BA-082 post image uploads (A-057 file input, A-058 automatic validation).
+  #
+  # THE CEILINGS ARE DERIVED, NOT PICKED. They live here rather than in V045 for the reason V037
+  # gives about its own derivation: an applied migration cannot be edited, so a ceiling written
+  # into one could never be raised.
+  #
+  # Derivation: the largest image this project actually ships, rounded up to the next power of two.
+  # Measured on docs/contest/covers (5 cover images, 2026-09-20):
+  #   largest file      2,830,569 B   (02-changdeokgung)
+  #   largest long edge 1,312 px      (04-deoksugung, 05-seoulsup)
+  # A ceiling below those would mean we could not upload our own covers, which is the test any
+  # replacement number has to pass. Re-measure the directory and round up the same way.
+  upload:
+    max-bytes: ${NULLNULL_UPLOAD_MAX_BYTES:4194304}
+    max-long-edge-pixels: ${NULLNULL_UPLOAD_MAX_LONG_EDGE_PIXELS:2048}
+    # The two the contract accepts. V045's CHECK and ImageFormat hold the same two; all three move
+    # together. webp is absent because this JDK has no webp reader or writer and EXIF is removed by
+    # re-encoding - see ImageFormat's javadoc for the measurement.
+    content-types: ${NULLNULL_UPLOAD_CONTENT_TYPES:image/jpeg,image/png}
+    # How long a signed URL stays usable. Bounded above by the idempotency key retention (24h) so an
+    # intent cannot outlive the record that makes its consumption replay-safe, and below by the time
+    # the upload itself takes. ASSUMED, NOT MEASURED: 4 MiB over a 1 Mbps uplink is about 34 seconds,
+    # so minutes - not seconds - is the right order, with room for one retry on the same URL.
+    presign-ttl: ${NULLNULL_UPLOAD_PRESIGN_TTL:PT15M}
   # External provider calls use an isolated bounded executor, exact host allowlists and no redirects.
   provider:
     connect-timeout: ${NULLNULL_PROVIDER_CONNECT_TIMEOUT:PT2S}

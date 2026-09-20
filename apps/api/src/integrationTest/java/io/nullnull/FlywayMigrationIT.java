@@ -61,11 +61,15 @@ class FlywayMigrationIT {
     // wrong. V044's author was right too: on their tree the previous migration created nothing.
     // Both were correct alone and the merge was red, which is the global-sum shape this file
     // keeps meeting - it is settled by whoever merges last, not by either slice.
-    // V046 (BA-090, the Seoul registry revision) is that next migration, so V044's own tables
-    // -- on THIS branch. A sibling branch holds V045 (uploads); when both land, its table joins
-    // this list too and whoever merges last recalculates, because neither branch can see the other.
-    // have joined: live_areas and seoul_live_area_maps are below and populateEveryTable seeds
-    // them. V046 creates no table of its own, so nothing new waits behind them.
+    // V045 (BA-082) came next and brought V044's own tables in - live_areas and
+    // seoul_live_area_maps. Then V046 (BA-090, the Seoul registry revision) landed on top, which
+    // makes V045 the previous schema and adds ITS table, upload_intents.
+    //
+    // BOTH BRANCHES PREDICTED THIS AND NEITHER COULD SETTLE IT. The V046 side wrote "a sibling
+    // branch holds V045; when both land, its table joins this list too and whoever merges last
+    // recalculates, because neither branch can see the other." The merge is that moment, and this
+    // list plus the count below is the recalculation. V046 creates no table of its own, so
+    // nothing new waits behind upload_intents.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -80,7 +84,7 @@ class FlywayMigrationIT {
             "place_relations", "itinerary_import_drafts",
             "optimization_proposals", "optimization_changes",
             "optimization_decisions", "notifications",
-            "live_areas", "seoul_live_area_maps");
+            "live_areas", "seoul_live_area_maps", "upload_intents");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -164,10 +168,18 @@ class FlywayMigrationIT {
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
-            // V046 seeds ONE row: the source_registry_revisions entry (version 2) that the
-            // Seoul promotion writes beside its UPDATE. The UPDATE itself adds nothing. This
-            // number moving is how this assertion works - it is what notices a migration that
-            // quietly plants data - so it is edited with a reason, never deleted.
+            //
+            // V045 (BA-082) seeded three - the USER_UPLOAD source, its first registry revision and
+            // the one asset licence that source's assets point at, the same three shapes V021
+            // seeded for A-024. Those three are NOT counted here any more: V046 is the last
+            // migration now, so V045 runs in the first migrate step and its rows are inside
+            // rowsBefore. The count is what the LAST migration alone seeds.
+            //
+            // V046 seeds ONE row: the source_registry_revisions entry (version 2) that the Seoul
+            // promotion writes beside its UPDATE. The UPDATE itself adds nothing. This number
+            // moving is how this assertion works - it is what notices a migration that quietly
+            // plants data - so it is edited with a reason, never deleted. It moved 0 -> 3 -> 1 in
+            // one day because two branches each had a different last migration.
             long seededAfterPreviousSchema = 1;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
@@ -435,7 +447,6 @@ class FlywayMigrationIT {
                     v_candidate uuid := gen_random_uuid();
                     v_run uuid := gen_random_uuid();
                     v_observation uuid := gen_random_uuid();
-                    v_live_area uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -450,17 +461,6 @@ class FlywayMigrationIT {
                             'ACTIVE', v_at, v_at);
                     INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)
                     VALUES (gen_random_uuid(), v_place, 'ko-KR', 'upgrade place', 'upgrade address', v_at);
-                    -- V044's tables. They arrive in this list now because V046 made V044 the
-                    -- PREVIOUS schema; the comment above PREVIOUS_SCHEMA_TABLES said they would.
-                    -- mapping_type is 'AREA', the value io.nullnull.live.domain.LiveAreaMapping
-                    -- produces and the only one V044's CHECK accepts alongside AREA_FALLBACK.
-                    INSERT INTO live_areas (id, source_code, external_id, name, boundary_geojson,
-                                            status, updated_at)
-                    VALUES (v_live_area, 'SEOUL_CITYDATA', 'upgrade-POI', 'upgrade area', NULL,
-                            'ACTIVE', v_at);
-                    INSERT INTO seoul_live_area_maps (id, place_id, live_area_id, mapping_type,
-                                                      confidence, fallback_used, verified_at)
-                    VALUES (gen_random_uuid(), v_place, v_live_area, 'AREA', 0.9000, false, v_at);
                     INSERT INTO place_external_refs (id, place_id, source_code, source_registry_version,
                                                      external_id, external_type, verified_at)
                     VALUES (gen_random_uuid(), v_place, 'KTO_KOR_SERVICE_2', 2,
@@ -649,6 +649,34 @@ class FlywayMigrationIT {
                         + " (id, owner_id, type, title, body, deep_link, created_at, read_at, expires_at)"
                         + " VALUES (?, ?, 'OPTIMIZATION_READY', ?, ?, '/notifications', ?, NULL, ?)",
                 UUID.randomUUID(), ownerId, "upgrade", "upgrade", now, now.plusDays(90));
+        // V044's live_areas and seoul_live_area_maps, which V045 turns into part of the previous
+        // schema. Nothing produces either row yet, so this is their only writer in the sweep.
+        // boundary_geojson stays null on purpose: the provider publishes area names without
+        // polygons and V044 says a made-up boundary would be a fabricated observation.
+        UUID liveAreaId = UUID.randomUUID();
+        jdbc.update("INSERT INTO " + schema + ".live_areas"
+                        + " (id, source_code, external_id, name, boundary_geojson, status, updated_at)"
+                        + " VALUES (?, 'SEOUL_CITYDATA', ?, ?, NULL, 'ACTIVE', ?)",
+                liveAreaId, "upgrade-" + liveAreaId, "upgrade", now);
+        // AREA pairs with fallback_used false: V044's CHECK makes the two columns dependent, and
+        // confidence must sit inside [0, 1].
+        jdbc.update("INSERT INTO " + schema + ".seoul_live_area_maps"
+                        + " (id, place_id, live_area_id, mapping_type, confidence, fallback_used,"
+                        + " verified_at)"
+                        + " VALUES (?, (SELECT id FROM " + schema + ".places LIMIT 1), ?,"
+                        + " 'AREA', 0.5000, false, ?)",
+                UUID.randomUUID(), liveAreaId, now);
+        // V045's upload_intents, which V046 turns into part of the previous schema - the same
+        // hand-off V045's author performed for V044's two tables just above. Nothing writes an
+        // intent in this sweep otherwise. PENDING with consumed_at null is the one pairing
+        // upload_intents_consumed_shape_check accepts, the checksum is 64 lowercase hex because
+        // the CHECK is a regex, and expires_at sits after created_at.
+        jdbc.update("INSERT INTO " + schema + ".upload_intents"
+                        + " (id, owner_id, status, content_type, content_length, checksum_sha256,"
+                        + " quarantine_key, created_at, expires_at, consumed_at)"
+                        + " VALUES (?, ?, 'PENDING', 'image/jpeg', 1024, ?, ?, ?, ?, NULL)",
+                UUID.randomUUID(), ownerId, "c".repeat(64), "upgrade-" + UUID.randomUUID(),
+                now, now.plusHours(1));
         return key;
     }
 
