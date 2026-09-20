@@ -122,7 +122,7 @@ export function SplashScreen() {
       </p>
 
       {/* Reserved space so the retry appearing does not shift the layout. */}
-      <div className={styles.status}>
+      <div className={`${styles.status} ${isError ? styles.statusError : ''}`}>
         {isError ? (
           <>
             <p className={styles.message} role="alert">

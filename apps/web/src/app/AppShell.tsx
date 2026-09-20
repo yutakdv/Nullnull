@@ -1,16 +1,24 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
 import { useQuery } from '@tanstack/react-query';
 import type { components } from '@nullnull/api-client';
 import {
   bootstrapSession,
+  currentCsrfToken,
   isProblem,
   sessionQueryKey,
   useCsrfToken,
+  useCurrentOwner,
 } from '../shared/api/index.js';
 import { TabBar, type TabKey } from '../shared/ui/components/index.js';
 import styles from './AppShell.module.css';
+
+export interface AppShellOutletContext {
+  activeTripId: string | null;
+  activeTripReady: boolean;
+  setActiveTripId: (activeTripId: string | null) => void;
+}
 
 type SessionBootstrap = components['schemas']['SessionBootstrap'];
 
@@ -33,14 +41,28 @@ const TAB_PATHS: Record<Exclude<TabKey, 'trip'>, string> = {
   profile: '/profile',
 };
 
+type ContentWidth = 'form' | 'detail' | 'browse';
+
+/** Desktop width is route chrome, not screen content. Keeping the decision in
+ * the shell avoids seventeen slightly different max-width media queries. */
+function contentWidth(pathname: string): ContentWidth {
+  if (pathname === '/feed') return 'browse';
+  if (
+    pathname.startsWith('/trip/') ||
+    pathname.startsWith('/posts/') ||
+    pathname === '/about-data'
+  ) {
+    return 'detail';
+  }
+  return 'form';
+}
+
 /**
  * Which tab is current.
  *
  * `fromTab` is the tab the traveller actually pressed, carried in history
- * state, and it wins over the path for one reason: the 내 여행 tab can land on
- * /profile when there is no active trip, and highlighting 내 정보 there tells
- * the user they pressed something other than what they pressed. The press is
- * the fact; the path is a consequence of it.
+ * state, and it wins over the path when a tab intentionally lands on a shared
+ * destination. The press is the fact; the path is a consequence of it.
  *
  * Only that one case sets it. A direct visit to /profile, a reload, or a link
  * from anywhere else carries no state and reads from the path as before.
@@ -70,6 +92,7 @@ export function AppShell({ tabs = false }: AppShellProps) {
   const navState = location.state as TabNavState | null;
   const navigate = useNavigate();
   const { t } = useI18n();
+  const layoutWidth = contentWidth(location.pathname);
 
   // FR-SES-03. This is the root element of every route, which is why the call
   // lives here: only the splash screen bootstraps, so a refresh or a deep link
@@ -161,6 +184,14 @@ export function AppShell({ tabs = false }: AppShellProps) {
     !noCookieSent &&
     !bootstrapped;
 
+  // A refresh with a valid cookie recovers CSRF but deliberately does not POST
+  // /demo/sessions. Read the existing owner instead, and only on tab routes:
+  // onboarding already receives the owner in SessionBootstrap and must not
+  // wait behind a second request.
+  const currentOwner = useCurrentOwner(
+    tabs && session.data === undefined && (csrf.isSuccess || currentCsrfToken() !== null),
+  );
+
   // Where the 내 여행 tab goes, read from the same cache entry rather than
   // fetched: `useSessionBootstrap` owns it and asks once per load, and a second
   // caller here would POST /demo/sessions again — which mints a different
@@ -168,7 +199,28 @@ export function AppShell({ tabs = false }: AppShellProps) {
   //
   // `useUpdatePreferences` writes the owner back into this entry after a PATCH,
   // so creating a trip moves the tab without a reload.
-  const activeTripId = session.data?.owner.activeTripId ?? null;
+  const resolvedOwner = session.data?.owner ?? currentOwner.data;
+  const ownerActiveTripId = resolvedOwner?.activeTripId ?? null;
+  const activeTripReady = resolvedOwner !== undefined;
+
+  // The owner query is the source of truth. Mirroring it directly into local
+  // state leaves one render where `activeTripReady` is true but the old local
+  // value is still null; FeedScreen then sends an unnecessary unscoped request
+  // before the representative trip arrives. `undefined` means "follow the
+  // owner now", while string/null are short-lived optimistic overrides after a
+  // successful preference mutation. Once the query cache catches up, clear the
+  // override and resume following the owner.
+  const [activeTripOverride, setActiveTripOverride] = useState<string | null | undefined>(
+    undefined,
+  );
+  const activeTripId =
+    activeTripOverride === undefined ? ownerActiveTripId : activeTripOverride;
+  useEffect(() => {
+    setActiveTripOverride(undefined);
+  }, [ownerActiveTripId]);
+  const setActiveTripId = (nextActiveTripId: string | null) => {
+    setActiveTripOverride(nextActiveTripId);
+  };
 
   // Brings the asked-for section into view after a tab press landed on a screen
   // that holds more than it.
@@ -194,7 +246,7 @@ export function AppShell({ tabs = false }: AppShellProps) {
     // whole screen for one would hide a recoverable error behind a restart.
     return (
       <div className={styles.shell}>
-        <main className={styles.content} id="main">
+        <main className={styles.content} data-content-width="form" id="main">
           <section aria-labelledby="session-heading" className={styles.session}>
             {/* The heading stays a heading.
 
@@ -240,8 +292,16 @@ export function AppShell({ tabs = false }: AppShellProps) {
 
   return (
     <div className={styles.shell}>
-      <main className={styles.content} id="main">
-        <Outlet />
+      <main className={styles.content} data-content-width={layoutWidth} id="main">
+        <Outlet
+          context={
+            {
+              activeTripId,
+              activeTripReady,
+              setActiveTripId,
+            } satisfies AppShellOutletContext
+          }
+        />
       </main>
       {tabs ? (
         <div className={styles.tabs}>
@@ -256,28 +316,12 @@ export function AppShell({ tabs = false }: AppShellProps) {
             navLabel={t('nav.tabs')}
             onSelect={(key) => {
               if (key === 'trip') {
-                // There is no single "my trip" URL — the tab resolves at press
-                // time to the owner's active trip (BA-011's `activeTripId`),
-                // which the wizard sets on every create.
-                //
-                // The fallback is the trip list on the profile, and it is a
-                // real state rather than a stopgap: a traveller who has made no
-                // trip has none to open, and one whose active trip was deleted
-                // has the pointer cleared by `owners.active_trip_id`'s ON
-                // DELETE SET NULL. Both land on the list, which is where a trip
-                // gets picked.
-                if (activeTripId) {
-                  void navigate(`/trip/${activeTripId}`);
-                  return;
-                }
-                // The fallback says where the press came from, so the bar keeps
-                // 내 여행 lit and the profile scrolls to its trip list instead
-                // of opening on the account block. Without this the tab reads
-                // as broken: a different tab lights up and the trips sit below
-                // the fold.
-                void navigate('/profile', {
-                  state: { fromTab: 'trip', focus: 'profile-trips-heading' },
-                });
+                // 내 여행 is an index, not a shortcut to whichever trip happens
+                // to be representative. Always show the selector first so the
+                // traveller knows which plan they are opening. Choosing one
+                // updates `activeTripId` for Feed and then opens its detail; an
+                // owner with no trips continues from the selector into setup.
+                void navigate('/trips/select');
                 return;
               }
               void navigate(TAB_PATHS[key]);

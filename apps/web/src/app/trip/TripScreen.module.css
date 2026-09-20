@@ -3,8 +3,14 @@
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-3);
+  /* S07-1 Trip header starts 12px below the safe-area content edge. */
+  padding: 12px var(--space-4) var(--space-4);
+}
+
+.editing {
+  padding-top: 8px;
+  padding-bottom: calc(71px + max(var(--space-3), env(safe-area-inset-bottom)));
 }
 
 .header {
@@ -35,6 +41,7 @@
 }
 
 .dday {
+  margin-inline-start: auto;
   /* 462:3391 */
   padding: 3px var(--space-2);
   border-radius: var(--radius-pill);
@@ -47,37 +54,44 @@
 
 .meta {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin: 0;
   color: var(--color-text-secondary);
   /* Body/sm 12/16 (462:3393). */
   font-size: var(--font-label);
   line-height: 16px;
 }
 
+.metaText {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 521:3989: the filled pill that opens place search. */
 .addPlace {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 34px;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-pill);
   background: var(--color-action-strong);
-  color: var(--color-text-inverse);
+  color: var(--color-action-onPrimary);
   font-size: var(--font-body-sm);
   font-weight: 700;
   line-height: 18px;
   text-decoration: none;
-  white-space: nowrap;
 }
 
 /* 468:3397: a white pill on the subtle hero, in the action colour. */
 .candidates {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--layout-touch-min);
   padding: 5px var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -87,6 +101,31 @@
   font-weight: 700;
   line-height: 16px;
   text-decoration: none;
+}
+
+.candidatesEditing {
+  min-height: 34px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-action-subtle);
+  font-size: var(--font-body-sm);
+  line-height: 18px;
+}
+
+.modeBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.modeLabel {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  line-height: 18px;
+}
+
+.modeSpacer {
+  flex: 1;
 }
 
 /* 462:3401 */
@@ -149,6 +188,16 @@
   cursor: pointer;
 }
 
+/* 462:3403 is the hero's primary action. It reached the real optimization
+   flow after the original visual treatment was written, but retained the
+   secondary button class, making two equal white actions where Figma has a
+   clear primary/secondary pair. */
+.optimize {
+  border-color: var(--color-action-strong);
+  background: var(--color-action-strong);
+  color: var(--color-action-onPrimary);
+}
+
 .badge {
   flex: none;
   padding: 0;
@@ -159,11 +208,31 @@
 }
 
 .dayNav {
+  position: sticky;
+  z-index: 3;
+  top: 0;
   overflow-x: auto;
   /* The chip row scrolls itself rather than pushing the page sideways at
      360px or 200% zoom. */
   margin: 0 calc(var(--space-4) * -1);
-  padding: 0 var(--space-4);
+  padding: var(--space-1) var(--space-4);
+  background: var(--color-bg-default);
+}
+
+@media (max-width: 240px) {
+  .meta {
+    flex-wrap: wrap;
+  }
+
+  .metaText {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+
+  .candidates {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .dayChips {
@@ -184,6 +253,28 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.emptyDay {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+}
+
+.emptyDayAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--color-action-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 /* 410:4404: Title/sm 15/20 with a 12/16 date beside it. */
@@ -227,12 +318,28 @@
 
 /* title-row (381:351): gap 6. */
 .itemHead {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
+.mustVisit {
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+
+.mustVisit {
+  color: var(--color-action-strong);
+}
+
 .itemName {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   color: var(--color-text-primary);
   /* Title/sm 15/20 (381:353). */
@@ -244,12 +351,25 @@
 }
 
 .itemTime {
-  margin-inline-start: auto;
+  flex: none;
   color: var(--color-text-secondary);
   /* Body/sm 12/16 (381:355). */
   font-size: var(--font-label);
   line-height: 16px;
   white-space: nowrap;
+}
+
+.itemMenuLink {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-decoration: none;
 }
 
 .itemMeta {
@@ -261,6 +381,10 @@
   /* Body/sm 12/16 (381:357). */
   font-size: var(--font-label);
   line-height: 16px;
+}
+
+.itemMeta > span {
+  display: inline;
 }
 
 /* locks (381:368): gap 6. */
@@ -277,6 +401,9 @@
    px12 py3, pill, Label/sm 11/15. Status here, not a control — FE-304 makes
    these operable, and the component itself is used then. */
 .lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 3px var(--space-3);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-pill);
@@ -285,6 +412,13 @@
   font-size: var(--font-caption);
   font-weight: 500;
   line-height: 15px;
+}
+
+.lock[data-constraint='MUST_VISIT'] {
+  border-color: transparent;
+  background: var(--color-action-subtle);
+  color: var(--color-action-primary);
+  font-weight: 700;
 }
 
 .empty {
@@ -322,4 +456,104 @@
   font-family: inherit;
   font-size: var(--font-body-sm);
   cursor: pointer;
+}
+
+.editActions {
+  position: fixed;
+  z-index: 10;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  gap: var(--space-2);
+  width: min(100%, var(--layout-content-detail-max));
+  margin-inline: auto;
+  padding: var(--space-3) var(--space-4);
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  background: var(--color-bg-default);
+}
+
+.editCancel,
+.editSave {
+  min-height: 47px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editCancel {
+  flex: 0 0 120px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+}
+
+.editSave {
+  flex: 1;
+  border: 0;
+  background: var(--color-action-strong);
+  color: var(--color-action-onPrimary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 240px) {
+  .itemHead {
+    flex-wrap: wrap;
+  }
+
+  .itemTime {
+    order: 1;
+    flex: 1 0 100%;
+    padding-inline-start: 50px;
+  }
+
+  .metaText {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .meta,
+  .modeBar {
+    flex-wrap: wrap;
+  }
+
+  .modeSpacer {
+    display: none;
+  }
+
+  .modeLabel,
+  .addPlace,
+  .candidatesEditing {
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .editActions {
+    flex-direction: column;
+  }
+
+  .editCancel,
+  .editSave {
+    flex: none;
+    width: 100%;
+  }
 }

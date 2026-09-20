@@ -313,14 +313,15 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
       expect(screen.queryByText(copy['run.title'])).toBeNull();
     });
 
-    it('keeps the searching title while the run is actually searching', async () => {
-      // The control. Without it "never show run.title" would pass by deleting
-      // the string everywhere, which would be wrong for the state it describes.
+    it('names the work under way while the run is actually searching', async () => {
+      // The Figma loading frame names the actual work rather than the generic
+      // search label. This control prevents a "delete every loading heading"
+      // regression from satisfying the completed-state cases above.
       runIs('RUNNING');
       renderRun();
 
       expect(
-        await screen.findByRole('heading', { level: 1, name: copy['run.title'] }),
+        await screen.findByRole('heading', { level: 1, name: copy['run.working'] }),
       ).toBeInTheDocument();
     });
   });
@@ -333,7 +334,22 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
     renderRun();
     expect(await screen.findByText(copy['run.step.crowd'])).toBeInTheDocument();
     expect(screen.getByText(copy['run.step.locks'])).toBeInTheDocument();
+    expect(screen.getByText(copy['run.step.itinerary'])).toBeInTheDocument();
+    expect(screen.getByText(copy['run.step.proposal'])).toBeInTheDocument();
     expect(screen.queryByText(/route|경로/i)).toBeNull();
+  });
+
+  it('does not claim a specific work phase the run contract does not expose', async () => {
+    runIs('RUNNING');
+    renderRun();
+    await screen.findByText(copy['run.step.crowd']);
+
+    const steps = screen.getByRole('list').querySelectorAll('li');
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      expect(step).not.toHaveAttribute('data-complete');
+      expect(step).not.toHaveAttribute('data-active');
+    }
   });
 
   it('distinguishes each failure code rather than showing one generic error', async () => {
@@ -499,7 +515,7 @@ describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation (FCR-014 t
     const user = userEvent.setup();
     try {
       renderRun();
-      const [back] = await screen.findAllByRole('button', { name: copy['run.leave'] });
+      const [back] = await screen.findAllByRole('link', { name: copy['run.leave'] });
       await user.click(back as HTMLElement);
       await waitFor(() => {
         expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
@@ -537,13 +553,13 @@ describe('FE-502-T3 FE-504-T3 leaving is navigation, not cancellation (FCR-014 t
 //
 // FE-503-T4 now names the READY route's reduced-motion case in that suite. Its
 // focus-return half is inapplicable because this screen mounts no dialog or
-// sheet. FE-505-T4 remains separate: the applied/undo panel is still excluded
-// from the integration gate while the optimization capability is off.
+// sheet. FE-505-T4 remains a component-level contract: the applied/undo panel
+// is no longer mounted on trip detail by product decision.
 describe('FE-502-T3 FE-504-T3 FE-503-T3 FE-505-T3 the controls answer to the keyboard', () => {
   it('reaches the back control by keyboard', async () => {
     runIs('RUNNING');
     renderRun();
-    const [back] = await screen.findAllByRole('button', { name: copy['run.leave'] });
+    const [back] = await screen.findAllByRole('link', { name: copy['run.leave'] });
     (back as HTMLElement).focus();
     expect(back).toHaveFocus();
   });

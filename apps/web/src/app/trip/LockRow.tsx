@@ -9,6 +9,12 @@ import {
   useSetItemConstraint,
 } from '../../shared/api/index.js';
 import { ConfirmDialog } from '../../shared/ui/components/index.js';
+import {
+  IconDateLock,
+  IconPinVisitFilled,
+  IconReservation,
+  IconTimeLock,
+} from '../../shared/ui/icons/index.js';
 import styles from './LockRow.module.css';
 import { activeLocks, needsConfirm, remainingLocks, settableLocks } from './locks.js';
 
@@ -38,6 +44,7 @@ export interface LockRowProps {
   item: TripItem;
   tripId: string | null;
   etag: string | null;
+  mode?: 'all' | 'inline' | 'menu';
 }
 
 /**
@@ -51,7 +58,7 @@ export interface LockRowProps {
  */
 const DEFAULT_TIME_TOLERANCE_MINUTES = 0;
 
-export function LockRow({ item, tripId, etag }: LockRowProps) {
+export function LockRow({ item, tripId, etag, mode = 'all' }: LockRowProps) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState<ConstraintType | null>(null);
   // Which action failed, so the message names the right one.
@@ -65,11 +72,18 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
   const set = useSetItemConstraint(tripId);
   const locks = activeLocks(item);
   const settable = settableLocks(item);
+  const visibleLocks =
+    mode === 'inline'
+      ? locks.filter((lock) => lock !== 'MUST_VISIT')
+      : mode === 'menu'
+        ? locks.filter((lock) => lock === 'MUST_VISIT')
+        : locks;
+  const visibleSettable = mode === 'inline' ? [] : settable;
 
   // No early return any more. This component used to render nothing when an
   // item had no locks, which is why a user could release a lock but never
   // create one — the only locks that existed came from an import (FE-307).
-  if (locks.length === 0 && settable.length === 0) return null;
+  if (visibleLocks.length === 0 && visibleSettable.length === 0) return null;
 
   function release(type: ConstraintType) {
     setFailed(null);
@@ -143,7 +157,7 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
   return (
     <>
       <ul className={styles.locks}>
-        {locks.map((lock) => {
+        {visibleLocks.map((lock) => {
           const managed = lock === 'RESERVATION';
           const label = t(`trip.lock.${lock}` as MessageKey);
           return (
@@ -164,43 +178,40 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
                 title={managed ? t('trip.lock.reservationNote') : undefined}
                 type="button"
               >
+                <LockIcon type={lock} />
                 {label}
               </button>
             </li>
           );
         })}
-      </ul>
-
-      {settable.length > 0 ? (
-        <ul className={styles.locks}>
-          {settable.map((lock) => {
-            const label = t(`trip.lock.${lock}` as MessageKey);
-            return (
-              <li key={lock}>
-                <button
-                  // Named for what pressing does. Each press sends one request
-                  // for one lock and leaves the others exactly as they were
-                  // (invariant 7).
-                  aria-label={t('trip.lock.apply', { lock: label })}
-                  className={`${styles.lock} ${styles.settable}`}
-                  disabled={set.isPending || etag === null}
-                  onClick={() => {
-                    apply(lock);
-                  }}
-                  type="button"
-                >
-                  {/* The visible text says what pressing does, not just which
+        {visibleSettable.map((lock) => {
+          const label = t(`trip.lock.${lock}` as MessageKey);
+          return (
+            <li key={lock}>
+              <button
+                // Named for what pressing does. Each press sends one request
+                // for one lock and leaves the others exactly as they were
+                // (invariant 7).
+                aria-label={t('trip.lock.apply', { lock: label })}
+                className={`${styles.lock} ${styles.settable}`}
+                disabled={set.isPending || etag === null}
+                onClick={() => {
+                  apply(lock);
+                }}
+                type="button"
+              >
+                {/* The visible text says what pressing does, not just which
                       lock it is. An item with MUST_VISIT set and DATE unset
                       otherwise showed "Must visit" on a release control and
                       "Date locked" on a set control with nothing to tell them
                       apart but the accessible name. */}
-                  {t('trip.lock.apply', { lock: label })}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+                <LockIcon type={lock} />
+                {t('trip.lock.apply', { lock: label })}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
 
       {set.isPending ? (
         <p className={styles.state} role="status">
@@ -264,4 +275,11 @@ export function LockRow({ item, tripId, etag }: LockRowProps) {
       />
     </>
   );
+}
+
+function LockIcon({ type }: { type: ConstraintType }) {
+  if (type === 'DATE') return <IconDateLock size={13} />;
+  if (type === 'TIME') return <IconTimeLock size={13} />;
+  if (type === 'RESERVATION') return <IconReservation size={13} />;
+  return <IconPinVisitFilled size={13} />;
 }

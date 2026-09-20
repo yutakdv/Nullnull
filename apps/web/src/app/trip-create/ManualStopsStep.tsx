@@ -156,115 +156,117 @@ export function ManualStopsStep({
 
   return (
     <>
-      <div className={wizard.head}>
-        <h1 className={wizard.title} id="wizard-heading">
-          {t('manual.title')}
-        </h1>
-        <p className={wizard.lead}>{t('manual.lead')}</p>
-      </div>
+      <div className={styles.screen}>
+        <div className={wizard.head}>
+          <h1 className={wizard.title} id="wizard-heading">
+            {t('manual.title')}
+          </h1>
+          <p className={wizard.lead}>{t('manual.lead')}</p>
+        </div>
 
-      {days.map((date) => {
-        const stops = stopsOn(draft, date);
-        const headingId = `day-${date}`;
-        return (
-          <section aria-labelledby={headingId} className={styles.day} key={date}>
-            <h2 className={styles.dayHead} id={headingId}>
-              <span className={styles.dayName}>
-                {t('manual.day', { n: days.indexOf(date) + 1 })}
-              </span>
-              <span className={styles.dayDate}>{dayLabel(date)}</span>
-            </h2>
+        {days.map((date) => {
+          const stops = stopsOn(draft, date);
+          const headingId = `day-${date}`;
+          return (
+            <section aria-labelledby={headingId} className={styles.day} key={date}>
+              <h2 className={styles.dayHead} id={headingId}>
+                <span className={styles.dayName}>
+                  {t('manual.day', { n: days.indexOf(date) + 1 })}
+                </span>
+                <span className={styles.dayDate}>{dayLabel(date)}</span>
+              </h2>
 
-            {stops.length > 0 ? (
-              <ol className={styles.stops}>{stops.map(renderStop)}</ol>
-            ) : null}
+              {stops.length > 0 ? (
+                <ol className={styles.stops}>{stops.map(renderStop)}</ol>
+              ) : null}
 
-            {addingTo === date ? (
-              <div className={styles.search}>
-                <SearchField
-                  label={t('manual.searchLabel')}
-                  placeholder={t('manual.search')}
-                  value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                  }}
-                />
-                {query.trim() ? (
-                  <>
-                    {search.isPending ? (
-                      <p className={styles.state} role="status">
-                        {t('manual.searching')}
-                      </p>
-                    ) : null}
-                    {search.isError ? (
-                      <p className={styles.state} role="alert">
-                        {t('manual.searchError')}
-                      </p>
-                    ) : null}
-                    {search.isSuccess && search.data.items.length === 0 ? (
-                      <p className={styles.state}>{t('manual.noResults')}</p>
-                    ) : null}
-                    {search.isSuccess && search.data.items.length > 0 ? (
-                      <ul className={styles.results}>
-                        {search.data.items.map((place) => (
-                          <li className={styles.result} key={place.id}>
-                            {place.thumbnailUrl && place.thumbnailAttribution ? (
-                              <PlaceThumbnail place={place} size={44} />
-                            ) : (
-                              <span aria-hidden="true" className={styles.thumb} />
-                            )}
-                            <span className={styles.resultText}>
-                              <span className={styles.resultName}>{place.name}</span>
-                              <span className={styles.resultMeta}>{meta(place)}</span>
-                              {/* FCR-031 / CMP-ATT-001: the credit the server
+              {addingTo === date ? (
+                <div className={styles.search}>
+                  <SearchField
+                    label={t('manual.searchLabel')}
+                    placeholder={t('manual.search')}
+                    value={query}
+                    onChange={(event) => {
+                      setQuery(event.target.value);
+                    }}
+                  />
+                  {query.trim() ? (
+                    <>
+                      {search.isPending ? (
+                        <p className={styles.state} role="status">
+                          {t('manual.searching')}
+                        </p>
+                      ) : null}
+                      {search.isError ? (
+                        <p className={styles.state} role="alert">
+                          {t('manual.searchError')}
+                        </p>
+                      ) : null}
+                      {search.isSuccess && search.data.items.length === 0 ? (
+                        <p className={styles.state}>{t('manual.noResults')}</p>
+                      ) : null}
+                      {search.isSuccess && search.data.items.length > 0 ? (
+                        <ul className={styles.results}>
+                          {search.data.items.map((place) => (
+                            <li className={styles.result} key={place.id}>
+                              {place.thumbnailUrl && place.thumbnailAttribution ? (
+                                <PlaceThumbnail place={place} size={44} />
+                              ) : (
+                                <span aria-hidden="true" className={styles.thumb} />
+                              )}
+                              <span className={styles.resultText}>
+                                <span className={styles.resultName}>{place.name}</span>
+                                <span className={styles.resultMeta}>{meta(place)}</span>
+                                {/* FCR-031 / CMP-ATT-001: the credit the server
                                   approved, verbatim. Never composed here. */}
-                              {place.sourceAttribution ? (
-                                <DataAttribution
-                                  compact
-                                  provenance={place.sourceAttribution}
-                                />
-                              ) : null}
-                            </span>
-                            <button
-                              type="button"
-                              className={styles.pick}
-                              aria-label={t('manual.addNamed', { place: place.name })}
-                              onClick={() => {
-                                onAddStop(date, place);
-                                closeSearch();
-                              }}
-                            >
-                              {t('manual.pick')}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </>
-                ) : null}
-                <button type="button" className={styles.cancel} onClick={closeSearch}>
-                  {t('manual.cancel')}
+                                {place.sourceAttribution ? (
+                                  <DataAttribution
+                                    compact
+                                    provenance={place.sourceAttribution}
+                                  />
+                                ) : null}
+                              </span>
+                              <button
+                                type="button"
+                                className={styles.pick}
+                                aria-label={t('manual.addNamed', { place: place.name })}
+                                onClick={() => {
+                                  onAddStop(date, place);
+                                  closeSearch();
+                                }}
+                              >
+                                {t('manual.pick')}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  ) : null}
+                  <button type="button" className={styles.cancel} onClick={closeSearch}>
+                    {t('manual.cancel')}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.add}
+                  // Disabled at the contract's 100, rather than accepting the
+                  // 101st and dropping it silently.
+                  disabled={!canAddStop(draft)}
+                  aria-label={t('manual.addToDay', { day: dayLabel(date) })}
+                  onClick={() => {
+                    setAddingTo(date);
+                    setQuery('');
+                  }}
+                >
+                  {t('manual.add')}
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className={styles.add}
-                // Disabled at the contract's 100, rather than accepting the
-                // 101st and dropping it silently.
-                disabled={!canAddStop(draft)}
-                aria-label={t('manual.addToDay', { day: dayLabel(date) })}
-                onClick={() => {
-                  setAddingTo(date);
-                  setQuery('');
-                }}
-              >
-                {t('manual.add')}
-              </button>
-            )}
-          </section>
-        );
-      })}
+              )}
+            </section>
+          );
+        })}
+      </div>
 
       {/* Both exits create the trip, so both are blocked while one is in
           flight: a second press would be a second trip, which the
@@ -272,6 +274,7 @@ export function ManualStopsStep({
           discover. 이 일정으로 시작하기 carries the stops; 건너뛰기 states
           there are none, the same distinction MustVisitStep draws (#185). */}
       <BottomCta
+        fixed
         label={t('manual.next')}
         disabled={isSubmitting}
         onClick={onSubmit}

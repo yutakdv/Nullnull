@@ -1,4 +1,5 @@
 import { useI18n } from '../../i18n/I18nProvider.js';
+import { IconArrowRight, IconCheck, IconChevronRight } from '../../shared/ui/index.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './InputMethodStep.module.css';
 
@@ -12,9 +13,9 @@ import styles from './InputMethodStep.module.css';
 // A STEP of the wizard, not a route of its own. That distinction is the whole
 // reason this screen can exist now: `wizard.ts` used to send MOSTLY_PLANNED
 // straight to createTrip because routing to the standalone `/start/import`
-// would drop the dates and interests already collected — ImportPasteScreen
-// builds its own draft from EMPTY_DRAFT. Held here, the draft survives the
-// choice.
+// would drop the dates and interests already collected. The wizard now sends
+// that structured draft as router state; the pasted raw text still remains
+// local to ImportPasteScreen and is never persisted.
 //
 // The icons in the frame (`437:3043` check, `437:3061` chevron) are decorative
 // tiles, not state: both options are always available and neither is selected
@@ -33,9 +34,9 @@ export function InputMethodStep({ onPaste, onManual }: InputMethodStepProps) {
   const { t } = useI18n();
 
   return (
-    <>
+    <div className={styles.body}>
       <div className={wizard.head}>
-        <h1 className={wizard.title}>
+        <h1 className={wizard.title} id="wizard-heading">
           {t('method.title1')}
           <br />
           {t('method.title2')}
@@ -46,27 +47,29 @@ export function InputMethodStep({ onPaste, onManual }: InputMethodStepProps) {
       <ul className={styles.options}>
         <li>
           <button className={styles.option} onClick={onPaste} type="button">
+            <span aria-hidden="true" className={styles.iconTile}>
+              <IconCheck size={20} />
+            </span>
             <span className={styles.optionText}>
               <span className={styles.optionName}>{t('method.paste')}</span>
               <span className={styles.optionHint}>{t('method.pasteHint')}</span>
             </span>
-            <span aria-hidden="true" className={styles.arrow}>
-              →
-            </span>
+            <IconArrowRight aria-hidden="true" className={styles.arrow} size={24} />
           </button>
         </li>
         <li>
           <button className={styles.option} onClick={onManual} type="button">
+            <span aria-hidden="true" className={styles.iconTile}>
+              <IconChevronRight size={20} />
+            </span>
             <span className={styles.optionText}>
               <span className={styles.optionName}>{t('method.manual')}</span>
               <span className={styles.optionHint}>{t('method.manualHint')}</span>
             </span>
-            <span aria-hidden="true" className={styles.arrow}>
-              →
-            </span>
+            <IconArrowRight aria-hidden="true" className={styles.arrow} size={24} />
           </button>
         </li>
       </ul>
-    </>
+    </div>
   );
 }

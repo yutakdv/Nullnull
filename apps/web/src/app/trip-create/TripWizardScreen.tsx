@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { BottomCta, Chip, NavBar } from '../../shared/ui/index.js';
+import { BottomCta, Chip, IconArrowRight, NavBar } from '../../shared/ui/index.js';
 import { useCreateTrip, useUpdatePreferences } from '../../shared/api/index.js';
 import {
   EMPTY_DRAFT,
@@ -43,6 +43,11 @@ type PlanningLevel = components['schemas']['PlanningLevel'];
 // which .claude/rules/frontend.md keeps feature-local.
 
 const LEVELS: PlanningLevel[] = ['NOTHING', 'MUST_VISIT_ONLY', 'MOSTLY_PLANNED'];
+const PLAN_LEVEL_ICONS: Record<PlanningLevel, string> = {
+  NOTHING: '/figma/plan-level-empty.svg',
+  MUST_VISIT_ONLY: '/figma/plan-level-must-visit.svg',
+  MOSTLY_PLANNED: '/figma/plan-level-mostly-planned.svg',
+};
 /**
  * The weekday headers, in the active locale.
  *
@@ -243,97 +248,108 @@ export function TripWizardScreen() {
 
   return (
     <section className={styles.screen} aria-labelledby="wizard-heading">
-      <NavBar backLabel={t('wizard.back')} onBack={goBack} />
+      <NavBar
+        backLabel={t('wizard.back')}
+        onBack={goBack}
+        actions={
+          <span className={styles.navStep}>
+            {step === 6 ? t('confirm.step') : `${t('wizard.step')} ${String(step)}`}
+          </span>
+        }
+      />
       {/* The confirm step names itself 마지막 rather than STEP 6: the frame
           says so, and a number implies a seventh step that does not exist. */}
-      <p className={styles.step}>
-        {step === 6 ? t('confirm.step') : `${t('wizard.step')} ${String(step)}`}
-      </p>
 
       {step === 1 ? (
         <>
-          <div className={styles.head}>
-            <h1 className={styles.title} id="wizard-heading">
-              {t('wizard.dates.title')}
-            </h1>
-            <p className={styles.lead}>{t('wizard.dates.lead')}</p>
-          </div>
+          <div className={styles.datesFlow}>
+            <div className={styles.datesHead}>
+              <h1 className={styles.title} id="wizard-heading">
+                {t('wizard.dates.title')}
+              </h1>
+              <p className={styles.lead}>{t('wizard.dates.lead')}</p>
+            </div>
 
-          <div className={styles.month}>
-            <button
-              type="button"
-              className={styles.monthNav}
-              aria-label={t('wizard.dates.prevMonth')}
-              onClick={() => {
-                shiftMonth(-1);
-              }}
-            >
-              ‹
-            </button>
-            <span className={styles.monthLabel}>
-              {new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long' }).format(
-                month,
-              )}
-            </span>
-            <button
-              type="button"
-              className={styles.monthNav}
-              aria-label={t('wizard.dates.nextMonth')}
-              onClick={() => {
-                shiftMonth(1);
-              }}
-            >
-              ›
-            </button>
-          </div>
-
-          <div className={styles.grid} role="group" aria-labelledby="wizard-heading">
-            {weekdayNames(locale).map((day) => (
-              <span className={styles.dow} key={day}>
-                {day}
-              </span>
-            ))}
-            {Array.from({ length: firstWeekday }, (_, i) => (
-              <span className={styles.empty} key={`pad-${String(i)}`} />
-            ))}
-            {Array.from({ length: daysInMonth }, (_, i) => {
-              const date = isoDate(year, monthIndex, i + 1);
-              const isStart = draft.startDate === date;
-              const isEnd = draft.endDate === date;
-              const between =
-                draft.startDate !== null &&
-                draft.endDate !== null &&
-                date > draft.startDate &&
-                date < draft.endDate;
-              return (
+            <div className={styles.datesCalendar}>
+              <div className={styles.month}>
                 <button
                   type="button"
-                  key={date}
-                  className={[
-                    styles.day,
-                    isStart || isEnd ? styles.dayEdge : '',
-                    between ? styles.dayBetween : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  aria-pressed={isStart || isEnd || between}
+                  className={styles.monthNav}
+                  aria-label={t('wizard.dates.prevMonth')}
                   onClick={() => {
-                    setDraft((current) => selectDay(current, date));
+                    shiftMonth(-1);
                   }}
                 >
-                  {i + 1}
+                  ‹
                 </button>
-              );
-            })}
+                <span className={styles.monthLabel}>
+                  {new Intl.DateTimeFormat(locale, {
+                    year: 'numeric',
+                    month: 'long',
+                  }).format(month)}
+                </span>
+                <button
+                  type="button"
+                  className={styles.monthNav}
+                  aria-label={t('wizard.dates.nextMonth')}
+                  onClick={() => {
+                    shiftMonth(1);
+                  }}
+                >
+                  ›
+                </button>
+              </div>
+
+              <div className={styles.grid} role="group" aria-labelledby="wizard-heading">
+                {weekdayNames(locale).map((day) => (
+                  <span className={styles.dow} key={day}>
+                    {day}
+                  </span>
+                ))}
+                {Array.from({ length: firstWeekday }, (_, i) => (
+                  <span className={styles.empty} key={`pad-${String(i)}`} />
+                ))}
+                {Array.from({ length: daysInMonth }, (_, i) => {
+                  const date = isoDate(year, monthIndex, i + 1);
+                  const isStart = draft.startDate === date;
+                  const isEnd = draft.endDate === date;
+                  const between =
+                    draft.startDate !== null &&
+                    draft.endDate !== null &&
+                    date > draft.startDate &&
+                    date < draft.endDate;
+                  return (
+                    <button
+                      type="button"
+                      key={date}
+                      className={[
+                        styles.day,
+                        isStart || isEnd ? styles.dayEdge : '',
+                        between ? styles.dayBetween : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      aria-pressed={isStart || isEnd || between}
+                      onClick={() => {
+                        setDraft((current) => selectDay(current, date));
+                      }}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {dateProblem === 'tooLong' ? (
+                <p className={styles.hint} role="alert">
+                  {t('wizard.dates.tooLong')}
+                </p>
+              ) : null}
+            </div>
           </div>
 
-          {dateProblem === 'tooLong' ? (
-            <p className={styles.hint} role="alert">
-              {t('wizard.dates.tooLong')}
-            </p>
-          ) : null}
-
           <BottomCta
+            fixed
             label={
               dateProblem === null && draft.startDate && draft.endDate
                 ? `${draft.startDate} – ${draft.endDate}`
@@ -349,41 +365,44 @@ export function TripWizardScreen() {
 
       {step === 2 ? (
         <>
-          <div className={styles.head}>
-            <h1 className={styles.title} id="wizard-heading">
-              {t('wizard.interests.title1')}
-              <br />
-              {t('wizard.interests.title2')}
-            </h1>
-            <p className={styles.lead}>{t('wizard.interests.lead')}</p>
+          <div className={styles.stepBody}>
+            <div className={styles.head}>
+              <h1 className={styles.title} id="wizard-heading">
+                {t('wizard.interests.title1')}
+                <br />
+                {t('wizard.interests.title2')}
+              </h1>
+              <p className={styles.lead}>{t('wizard.interests.lead')}</p>
+            </div>
+
+            {INTEREST_GROUPS.map((group) => (
+              <div className={styles.group} key={group.id}>
+                <span className={styles.groupLabel} id={`group-${group.id}`}>
+                  {t(`wizard.interests.${group.id}` as MessageKey)}
+                </span>
+                <ul className={styles.chips} aria-labelledby={`group-${group.id}`}>
+                  {group.codes.map((code) => {
+                    const selected = draft.interests.includes(code);
+                    return (
+                      <li key={code}>
+                        <Chip
+                          label={t(`interest.${code}` as MessageKey)}
+                          selected={selected}
+                          disabled={!selected && !canAddInterest(draft)}
+                          onClick={() => {
+                            setDraft((current) => toggleInterest(current, code));
+                          }}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </div>
 
-          {INTEREST_GROUPS.map((group) => (
-            <div className={styles.group} key={group.id}>
-              <span className={styles.groupLabel} id={`group-${group.id}`}>
-                {t(`wizard.interests.${group.id}` as MessageKey)}
-              </span>
-              <ul className={styles.chips} aria-labelledby={`group-${group.id}`}>
-                {group.codes.map((code) => {
-                  const selected = draft.interests.includes(code);
-                  return (
-                    <li key={code}>
-                      <Chip
-                        label={t(`interest.${code}` as MessageKey)}
-                        selected={selected}
-                        disabled={!selected && !canAddInterest(draft)}
-                        onClick={() => {
-                          setDraft((current) => toggleInterest(current, code));
-                        }}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-
           <BottomCta
+            fixed
             label={t('wizard.next')}
             onClick={() => {
               setStep(3);
@@ -407,50 +426,62 @@ export function TripWizardScreen() {
 
       {step === 3 ? (
         <>
-          <div className={styles.head}>
-            <h1 className={styles.title} id="wizard-heading">
-              {t('wizard.planning.title1')}
-              <br />
-              {t('wizard.planning.title2')}
-            </h1>
-            <p className={styles.lead}>{t('wizard.planning.lead')}</p>
+          <div className={styles.stepBody}>
+            <div className={styles.head}>
+              <h1 className={styles.title} id="wizard-heading">
+                {t('wizard.planning.title1')}
+                <br />
+                {t('wizard.planning.title2')}
+              </h1>
+              <p className={styles.lead}>{t('wizard.planning.lead')}</p>
+            </div>
+
+            <ul className={styles.options}>
+              {LEVELS.map((level) => {
+                const selected = draft.planningLevel === level;
+                return (
+                  <li key={level}>
+                    <button
+                      type="button"
+                      className={`${styles.option} ${selected ? styles.optionSelected : ''}`}
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setDraft((current) => ({ ...current, planningLevel: level }));
+                      }}
+                    >
+                      <img
+                        alt=""
+                        className={styles.optionIcon}
+                        src={PLAN_LEVEL_ICONS[level]}
+                      />
+                      <span className={styles.optionText}>
+                        <span className={styles.optionTitle}>
+                          {t(`wizard.planning.${level}.title` as MessageKey)}
+                        </span>
+                        <span className={styles.optionBody}>
+                          {t(`wizard.planning.${level}.body` as MessageKey)}
+                        </span>
+                      </span>
+                      <IconArrowRight
+                        aria-hidden="true"
+                        className={styles.optionArrow}
+                        size={20}
+                      />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {createTrip.isError ? (
+              <p className={styles.hint} role="alert">
+                {t('wizard.createFailed')}
+              </p>
+            ) : null}
           </div>
 
-          <ul className={styles.options}>
-            {LEVELS.map((level) => {
-              const selected = draft.planningLevel === level;
-              return (
-                <li key={level}>
-                  <button
-                    type="button"
-                    className={`${styles.option} ${selected ? styles.optionSelected : ''}`}
-                    aria-pressed={selected}
-                    onClick={() => {
-                      setDraft((current) => ({ ...current, planningLevel: level }));
-                    }}
-                  >
-                    <span className={styles.optionText}>
-                      <span className={styles.optionTitle}>
-                        {t(`wizard.planning.${level}.title` as MessageKey)}
-                      </span>
-                      <span className={styles.optionBody}>
-                        {t(`wizard.planning.${level}.body` as MessageKey)}
-                      </span>
-                    </span>
-                    <span aria-hidden="true">→</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {createTrip.isError ? (
-            <p className={styles.hint} role="alert">
-              {t('wizard.createFailed')}
-            </p>
-          ) : null}
-
           <BottomCta
+            fixed
             label={createTrip.isPending ? t('wizard.creating') : t('wizard.next')}
             // Blocked while in flight: a second submit would be a second trip,
             // which the Idempotency-Key guards against but need not be tested by
@@ -483,7 +514,7 @@ export function TripWizardScreen() {
                 type="button"
                 className={styles.later}
                 onClick={() => {
-                  void navigate('/start/import');
+                  void navigate('/start/import', { state: { wizardDraft: draft } });
                 }}
               >
                 {t('import.start')}
@@ -506,7 +537,7 @@ export function TripWizardScreen() {
             setStep(5);
           }}
           onPaste={() => {
-            void navigate('/start/import');
+            void navigate('/start/import', { state: { wizardDraft: draft } });
           }}
         />
       ) : null}

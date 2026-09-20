@@ -142,9 +142,18 @@ function renderTrip() {
 }
 
 async function cardFor(name: string) {
+  await screen.findByRole('heading', { level: 3, name });
+  const edit = screen.queryByRole('button', { name: copy['trip.editStart'] });
+  if (edit) await userEvent.setup().click(edit);
   const heading = await screen.findByRole('heading', { level: 3, name });
   const card = heading.closest('article');
   if (!card) throw new Error('card not found');
+  const menu = within(card).queryByRole('button', {
+    name: copy['trip.item.actions'].replace('{name}', name),
+  });
+  if (menu?.getAttribute('aria-expanded') === 'false') {
+    await userEvent.setup().click(menu);
+  }
   return card;
 }
 
@@ -624,9 +633,15 @@ describe('each move sheet is labelled by its OWN heading', () => {
   // useId(); these two did not.
   it('gives every sheet a distinct title id', async () => {
     renderTrip();
-    // Waiting for a MOVE control, not just the h1: the sheets mount with the
+    await screen.findByRole('heading', { level: 3, name: '경복궁' });
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: copy['trip.editStart'] }));
+    // Waiting for the move control, not just the h1: the sheets mount with the
     // item cards, and the h1 arrives before them.
-    await screen.findByRole('button', { name: moveName('경복궁') });
+    await screen.findByRole('button', {
+      name: moveName('경복궁'),
+    });
 
     // querySelectorAll, not getAllByRole: a closed <dialog> is not exposed
     // with the dialog role, and these are all closed until one is opened.
@@ -640,7 +655,13 @@ describe('each move sheet is labelled by its OWN heading', () => {
 
   it('points each aria-labelledby at an element that exists', async () => {
     renderTrip();
-    await screen.findByRole('button', { name: moveName('경복궁') });
+    await screen.findByRole('heading', { level: 3, name: '경복궁' });
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: copy['trip.editStart'] }));
+    await screen.findByRole('button', {
+      name: moveName('경복궁'),
+    });
 
     for (const dialog of document.querySelectorAll('dialog[aria-labelledby]')) {
       const id = dialog.getAttribute('aria-labelledby');

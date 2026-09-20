@@ -160,6 +160,31 @@ export function useSessionBootstrap(): UseQueryResult<SessionBootstrap, Problem 
 
 type UpdatePreferencesRequest = components['schemas']['UpdatePreferencesRequest'];
 
+export const currentOwnerQueryKey = ['owner', 'current'] as const;
+
+/**
+ * Reads the owner behind an existing session without minting another owner.
+ *
+ * Refreshed tabs recover only a CSRF token, so the bootstrap cache is empty in
+ * exactly the situation where the shell still needs `activeTripId`. GET /me is
+ * the safe read counterpart to that token recovery.
+ */
+export function useCurrentOwner(
+  enabled = true,
+): UseQueryResult<OwnerProfile, Problem | Error> {
+  return useQuery({
+    queryKey: currentOwnerQueryKey,
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET('/me', {});
+      if (!data) fail(error, response);
+      return data;
+    },
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 /**
  * Merge-patches the owner profile. The body carries only the fields being
  * changed: UpdatePreferencesRequest is `additionalProperties: false`, and
@@ -185,6 +210,10 @@ export function useUpdatePreferences() {
       return data;
     },
     onSuccess: (owner) => {
+      // A refreshed tab reads GET /me instead of bootstrapping a new owner.
+      // Keep that source current too, or the successful change snaps back to
+      // the old representative as soon as a consumer reads this cache again.
+      queryClient.setQueryData(currentOwnerQueryKey, owner);
       // The bootstrap entry holds the owner profile, and for `activeTripId`
       // that cache IS the source of truth — AppShell reads it to decide where
       // the 내 여행 tab goes. Leaving it stale means the tab keeps sending the
@@ -1597,6 +1626,76 @@ export function useRelatedPlaces(
       if (!data) fail(error, response);
       return data;
     },
+  });
+}
+
+type LiveAreaQuery = components['schemas']['LiveAreaQuery'];
+type LiveAreaResult = components['schemas']['LiveAreaResult'];
+type LivePlace = components['schemas']['LivePlace'];
+type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
+
+export const liveAreasQueryKey = ['live', 'areas'] as const;
+
+/** List-first Live query with map and device location deliberately off. */
+export function useLiveAreas(): UseQueryResult<LiveAreaResult, Problem | Error> {
+  return useQuery({
+    queryKey: liveAreasQueryKey,
+    queryFn: async () => {
+      const request: LiveAreaQuery = {
+        mode: 'AUTO',
+        regionCode: '11',
+        viewport: null,
+      };
+      const { data, error, response } = await getApiClient().POST('/live/areas', {
+        body: request,
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+    // This contract is a read-only POST, so it must not inherit the shared
+    // GET-only retry assumption. A repeat is always the traveller's action.
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+/** Places mapped to the area the traveller explicitly selected. */
+export function useLiveAreaPlaces(
+  areaId: string | null,
+): UseQueryResult<LivePlace[], Problem | Error> {
+  return useQuery({
+    queryKey: ['live', 'areas', areaId ?? '', 'places'],
+    enabled: areaId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET(
+        '/live/areas/{areaId}/places',
+        { params: { path: { areaId: areaId ?? '' } } },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    staleTime: 30_000,
+  });
+}
+
+/** One canonical place with its Live coverage and verified alternatives. */
+export function useLivePlace(
+  placeId: string | null,
+): UseQueryResult<LivePlaceDetail, Problem | Error> {
+  return useQuery({
+    queryKey: ['live', 'places', placeId ?? ''],
+    enabled: placeId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await getApiClient().GET(
+        '/live/places/{placeId}',
+        { params: { path: { placeId: placeId ?? '' } } },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+    refetchInterval: (query) =>
+      query.state.data?.related.state === 'CHECKING' ? 2000 : false,
+    staleTime: 30_000,
   });
 }
 

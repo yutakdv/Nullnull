@@ -12,9 +12,11 @@ import { SignInScreen } from './onboarding/SignInScreen.js';
 import { SplashScreen } from './onboarding/SplashScreen.js';
 import { DataGuideScreen } from './data-guide/DataGuideScreen.js';
 import { LiveScreen } from './live/LiveScreen.js';
+import { LivePlaceScreen } from './live/LivePlaceScreen.js';
 import { AddPlaceScreen } from './trip/AddPlaceScreen.js';
 import { CandidatesScreen } from './trip/CandidatesScreen.js';
 import { TripScreen } from './trip/TripScreen.js';
+import { TripSelectScreen } from './trip-select/TripSelectScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
 import { ImportPasteScreen } from './trip-create/ImportPasteScreen.js';
 import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
@@ -40,7 +42,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <SplashScreen /> },
       { path: 'language', element: <LanguageScreen /> },
       { path: 'intro', element: <IntroScreen /> },
-      // A-4 sign-in `746:4707` (#265). Here rather than under the tabbed
+      // A-4 sign-in `804:4537` (#265). Here rather than under the tabbed
       // layout for the reason stated above: a tab press mid-form abandons what
       // the traveller typed. The screen sends nothing yet — #264 asks BE for
       // the auth contract, and until it lands there is no endpoint to post to.
@@ -65,6 +67,13 @@ export const routes: RouteObject[] = [
       { path: 'posts/:postId', element: <PostScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
       { path: 'trip/:tripId/add-place', element: <AddPlaceScreen /> },
+      // S07-2 is a focused edit state: the tab bar is replaced by its fixed
+      // cancel/save bar, matching the Figma frame and preventing accidental
+      // navigation while item controls are active.
+      { path: 'trip/:tripId/edit', element: <TripScreen mode="edit" /> },
+      // Metadata editing remains a separate capability while Product assigns
+      // it a visible entry point; it must not be mixed into S07-2 schedule edit.
+      { path: 'trip/:tripId/settings', element: <TripScreen mode="details" /> },
       {
         // S09-0 setup, before a run exists (FE-501).
         path: 'trip/:tripId/optimize',
@@ -90,9 +99,11 @@ export const routes: RouteObject[] = [
     ),
     children: [
       { path: 'feed', element: <FeedScreen /> },
+      { path: 'trips/select', element: <TripSelectScreen /> },
       { path: 'trip/:tripId', element: <TripScreen /> },
       // S11 live, a 준비 중 screen until BA-091 opens the data (FE-401).
       { path: 'live', element: <LiveScreen /> },
+      { path: 'live/places/:placeId', element: <LivePlaceScreen /> },
       { path: 'profile', element: <ProfileScreen /> },
     ],
   },

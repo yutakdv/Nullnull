@@ -6,8 +6,12 @@ export interface BottomCtaProps {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  /** Pin this action bar to the viewport bottom inside an active flow. */
+  fixed?: boolean;
   /** Optional secondary action rendered under the primary button. */
   secondary?: ReactNode;
+  /** Secondary actions need a touch target; notes only need reading space. */
+  secondaryKind?: 'action' | 'note';
   type?: 'button' | 'submit';
 }
 
@@ -15,11 +19,17 @@ export function BottomCta({
   label,
   onClick,
   disabled,
+  fixed = false,
   secondary,
+  secondaryKind = 'action',
   type = 'button',
 }: BottomCtaProps) {
   return (
-    <div className={styles.bar}>
+    <div
+      className={styles.bar}
+      data-fixed={fixed || undefined}
+      data-secondary-kind={secondary ? secondaryKind : undefined}
+    >
       <button
         type={type}
         className={styles.primary}

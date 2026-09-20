@@ -39,10 +39,22 @@ export const SCREENS: ReadonlyArray<{
   // passed. route-parity.test.ts now closes that, and it was written here.
   { path: '/sign-in', name: 'sign in' },
   { path: '/profile', name: 'profile' },
+  // `activeTripId` is nullable even when trips exist. The My Trip tab routes
+  // that state here so the owner can choose the representative trip instead
+  // of silently landing on the account screen.
+  { path: '/trips/select', name: 'trip selection' },
   // A real trip id shape, though the built app has no API behind it yet: what
   // this measures is the reflow of whichever state the screen reaches, and the
   // error state has to survive 360px and 200% zoom too.
   { path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01', name: 'trip' },
+  {
+    path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/edit',
+    name: 'trip schedule edit',
+  },
+  {
+    path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/settings',
+    name: 'trip details settings',
+  },
   {
     path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/candidates',
     name: 'saved places',
@@ -103,4 +115,8 @@ export const SCREENS: ReadonlyArray<{
     expect: 'missing',
   },
   { path: '/live', name: 'live' },
+  {
+    path: '/live/places/018f4b20-1a44-7e11-9c02-5d7e3f1a2b01',
+    name: 'live place detail',
+  },
 ];

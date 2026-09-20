@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { components } from '@nullnull/api-client';
+import { formatTripPeriod } from '../../i18n/trip-period.js';
 import styles from './TripPicker.module.css';
 import { SheetGrab } from './SheetGrab.js';
 import { restoreFocusTo } from './focus-restore.js';
@@ -41,6 +42,7 @@ export interface TripPickerLabels {
 
 export interface TripPickerProps {
   open: boolean;
+  locale: string;
   /** The place being saved, named so the user knows what they are filing. */
   placeName: string;
   trips: readonly TripSummary[];
@@ -57,6 +59,7 @@ export interface TripPickerProps {
 
 export function TripPicker({
   open,
+  locale,
   placeName,
   trips,
   selectedTripId = null,
@@ -191,7 +194,7 @@ export function TripPicker({
                     <span className={styles.tripText}>
                       <span className={styles.tripName}>{trip.title}</span>
                       <span className={styles.tripDates}>
-                        {trip.startDate} – {trip.endDate}
+                        {formatTripPeriod(trip.startDate, trip.endDate, locale, 'short')}
                       </span>
                     </span>
                     <span aria-hidden="true" className={styles.chevron}>

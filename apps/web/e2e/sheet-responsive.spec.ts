@@ -35,6 +35,9 @@ async function openWithSession(page: import('@playwright/test').Page, path: Shee
   const trip = await createSeededTrip(page);
   await page.goto(path === 'own-trip' ? trip : path);
   await page.waitForLoadState('networkidle');
+  if (path === 'own-trip') {
+    await page.getByRole('button', { name: 'Edit itinerary' }).click();
+  }
 }
 
 /** Every sheet reachable without writing anything. */

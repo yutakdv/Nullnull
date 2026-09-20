@@ -53,6 +53,345 @@ test.describe('app shell', () => {
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link')).toBeFocused();
   });
+
+  test('the not-found state uses the service gutter and recovery target', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/no-such-page');
+
+    const heading = page.getByRole('heading', { level: 1 });
+    const recovery = page.getByRole('link');
+    const headingBounds = await heading.boundingBox();
+    const recoveryBounds = await recovery.boundingBox();
+    expect(headingBounds?.x).toBe(16);
+    expect(recoveryBounds?.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('A-2 keeps the Figma 16px content gutter without shell padding', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/language');
+
+    const heading = page.getByRole('heading', { name: /Choose your language/ });
+    await expect(heading).toBeVisible();
+    await expect(heading).toHaveCSS('margin-left', '0px');
+
+    const bounds = await heading.boundingBox();
+    expect(bounds?.x).toBe(16);
+  });
+
+  test('uses Pretendard as the UI typeface', async ({ page }) => {
+    await page.goto('/language');
+    await expect(page.locator('body')).toHaveCSS('font-family', /Pretendard/);
+  });
+
+  test('caps and centers form content on a wide viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/start');
+
+    const main = page.locator('#main');
+    await expect(main).toHaveAttribute('data-content-width', 'form');
+    const bounds = await main.boundingBox();
+    expect(bounds?.width).toBe(560);
+    expect(bounds?.x).toBe(360);
+  });
+
+  test('A-2 places its bottom CTA at the Figma inset', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/language');
+
+    const next = page.locator('section').getByRole('button').last();
+    await expect(next).toBeVisible();
+    const bounds = await next.boundingBox();
+    expect(bounds?.y).toBe(771);
+    expect(bounds?.height).toBe(52);
+  });
+
+  test('A-1 centers the Figma brand block without a visible loading line', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/');
+
+    const heading = page.getByRole('heading', { name: 'Nullnull' });
+    const tagline = page.locator('#splash-heading + p');
+    await expect(heading).toBeVisible();
+    await expect(tagline).toBeVisible();
+
+    const headingBounds = await heading.boundingBox();
+    const taglineBounds = await tagline.boundingBox();
+    expect(headingBounds?.y).toBe(377);
+    expect(taglineBounds?.y).toBe(433);
+  });
+
+  test('A-3 moves the CTA up when its Figma secondary copy is present', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/intro');
+
+    const start = page.locator('section').getByRole('button').last();
+    await expect(start).toBeVisible();
+    const bounds = await start.boundingBox();
+    expect(bounds?.y).toBe(756);
+    expect(bounds?.height).toBe(52);
+  });
+
+  test('P0 tab destinations keep the deployment-sized floating tab bar', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/feed');
+
+    const tabs = page.getByRole('navigation', { name: /주요 메뉴|Main menu/ });
+    await expect(tabs).toBeVisible();
+    const bounds = await tabs.boundingBox();
+    expect(bounds?.x).toBe(16);
+    expect(bounds?.y).toBe(771);
+    expect(bounds?.width).toBe(361);
+    expect(bounds?.height).toBe(73);
+  });
+
+  test('BA-011 chooses and opens a representative trip by keyboard', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    await page.goto('/trips/select');
+
+    await expect(page.getByRole('heading', { name: '내 여행' })).toBeVisible();
+    const firstTrip = page.getByRole('button', { name: /서울 가을 여행/ });
+    await firstTrip.focus();
+    await expect(firstTrip).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    await expect(page).toHaveURL(/\/trip\/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01$/);
+    await expect(page.getByRole('heading', { name: '서울 가을 여행' })).toBeVisible();
+  });
+
+  test('S03 feed cards keep the deployment portrait proportions', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/feed');
+
+    const firstCard = page.locator('article').first();
+    await expect(firstCard).toBeVisible();
+    const bounds = await firstCard.boundingBox();
+    const imageBounds = await firstCard.locator('img').boundingBox();
+    expect(bounds?.width).toBe(172.5);
+    expect(bounds?.height).toBeGreaterThan(340);
+    expect(imageBounds?.width).toBe(172.5);
+    expect(imageBounds?.height).toBe(230);
+  });
+
+  test('S03 balances the feed title inset above and below', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/feed');
+
+    const screen = page.locator('section[aria-labelledby="feed-heading"]');
+    const title = page.locator('#feed-heading');
+    const header = title.locator('..');
+    const next = header.locator('xpath=following-sibling::*[1]');
+
+    const screenBounds = await screen.boundingBox();
+    const headerBounds = await header.boundingBox();
+    const nextBounds = await next.boundingBox();
+    await expect(title).toHaveCSS('font-size', '24px');
+    expect((headerBounds?.y ?? 0) - (screenBounds?.y ?? 0)).toBe(12);
+    expect(
+      (nextBounds?.y ?? 0) - ((headerBounds?.y ?? 0) + (headerBounds?.height ?? 0)),
+    ).toBe(12);
+  });
+
+  test('S03 floats the search notice without moving the feed', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/feed');
+
+    const banner = page.getByTestId('active-trip-banner');
+    await expect(banner).toBeVisible();
+    const before = await banner.boundingBox();
+
+    await page.getByRole('button', { name: /검색|Search/ }).click();
+
+    const notice = page.getByRole('status');
+    await expect(notice).toBeVisible();
+    const after = await banner.boundingBox();
+    const noticeBounds = await notice.boundingBox();
+    const searchBounds = await page
+      .getByRole('button', { name: /검색|Search/ })
+      .boundingBox();
+    expect(after?.y).toBe(before?.y);
+    expect(
+      (searchBounds?.x ?? 0) - ((noticeBounds?.x ?? 0) + (noticeBounds?.width ?? 0)),
+    ).toBe(8);
+    expect((noticeBounds?.y ?? 0) + (noticeBounds?.height ?? 0) / 2).toBe(
+      (searchBounds?.y ?? 0) + (searchBounds?.height ?? 0) / 2,
+    );
+    await page.waitForTimeout(1_100);
+    await expect(notice).toHaveCount(0);
+  });
+
+  test('S03 reaches the home logo and representative-trip choices by keyboard', async ({
+    page,
+  }) => {
+    await page.goto('/feed');
+
+    const logo = page.getByRole('link', { name: /홈 피드|Home feed/ });
+    await logo.focus();
+    await expect(logo).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/feed$/);
+
+    const trip = page.getByRole('button', { name: /대표 여행|Representative trip/ });
+    await trip.focus();
+    await page.keyboard.press('Enter');
+    await expect(trip).toHaveAttribute('aria-expanded', 'true');
+
+    await page.keyboard.press('Tab');
+    await expect(
+      page
+        .getByRole('list', { name: /대표 여행|Representative trip/ })
+        .getByRole('button')
+        .first(),
+    ).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(trip).toBeFocused();
+    await expect(trip).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('S03 keeps the closed trip filter blue and highlights gray choices on hover', async ({
+    page,
+  }) => {
+    await page.goto('/feed');
+
+    const trip = page.getByRole('button', { name: /대표 여행|Representative trip/ });
+    await expect(trip).toHaveCSS('background-color', 'rgb(234, 242, 255)');
+    await trip.hover();
+    await expect(trip).toHaveCSS('background-color', 'rgb(234, 242, 255)');
+
+    await trip.click();
+    const choice = page
+      .getByRole('list', { name: /대표 여행|Representative trip/ })
+      .getByRole('button')
+      .last();
+    await expect(choice).toHaveCSS('background-color', 'rgb(247, 248, 249)');
+    await choice.hover();
+    await expect(choice).toHaveCSS('background-color', 'rgb(234, 242, 255)');
+  });
+
+  test('S03 continues the feed on scroll without a load-more button', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.goto('/feed');
+
+    const cards = page.locator('article');
+    await expect(cards.first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /더 보기|Show more/ })).toHaveCount(0);
+
+    await page.locator('main').hover();
+    await page.mouse.wheel(0, 1_000);
+    await expect(cards).toHaveCount(6);
+  });
+
+  test('S07 trip hero keeps the Figma 12px top inset', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    await page.goto('/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01');
+
+    const heading = page.getByRole('heading', { name: '서울 가을 여행' });
+    await expect(heading).toBeVisible();
+    const hero = heading.locator('xpath=ancestor::header');
+    const bounds = await hero.boundingBox();
+    expect(bounds?.x).toBe(16);
+    expect(bounds?.y).toBe(12);
+    expect(bounds?.height).toBe(178);
+  });
+
+  test('S09 keeps optimization inside the Figma bottom-sheet frame', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    await page.goto('/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimize');
+
+    const sheet = page.getByRole('dialog', { name: '무엇을 최적화할까요?' });
+    await expect(sheet).toBeVisible();
+    const bounds = await sheet.boundingBox();
+    expect(bounds?.x).toBe(0);
+    expect(bounds?.y).toBe(386);
+    expect(bounds?.height).toBe(466);
+  });
+
+  test('S14 uses the approved profile type and icon scale', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    await page.goto('/profile');
+
+    await expect(page.locator('#profile-heading')).toHaveCSS('font-size', '24px');
+
+    const avatar = page.getByTestId('profile-avatar');
+    await expect(avatar).toHaveCSS('width', '40px');
+    await expect(avatar).toHaveCSS('height', '40px');
+    await expect(avatar.locator('svg')).toHaveAttribute('width', '24');
+
+    await expect(page.getByRole('link', { name: '로그인' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '로그인' })).toHaveCount(0);
+
+    await expect(page.getByText('TEST', { exact: true })).toHaveCSS('font-size', '18px');
+    await expect(page.getByText('이 계정은 test계정입니다')).toHaveCSS(
+      'font-size',
+      '15px',
+    );
+    await expect(page.locator('#profile-trips-heading')).toHaveCSS('font-size', '17px');
+    await expect(page.locator('#interests-heading')).toHaveCSS('font-size', '17px');
+    await expect(page.locator('#deletion-heading')).toHaveCSS('font-size', '17px');
+
+    const trips = page.getByRole('region', { name: '내 여행 목록' });
+    const firstTrip = trips.getByRole('link').first();
+    await expect(firstTrip.getByText('서울 가을 여행')).toHaveCSS('font-size', '16px');
+    await expect(firstTrip.locator('svg')).toHaveCount(0);
+  });
+
+  test('S14 aligns profile card headings to the 16px spacing grid', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    await page.goto('/profile');
+
+    const trips = page.getByRole('region', { name: '내 여행 목록' });
+    const history = page.getByRole('region', { name: 'AI 최적화 이력' });
+    const tripBounds = await trips.boundingBox();
+    const tripHeadingBounds = await page.locator('#profile-trips-heading').boundingBox();
+    const historyBounds = await history.boundingBox();
+    const historyHeadingBounds = await page
+      .locator('#profile-history-heading')
+      .boundingBox();
+
+    expect((tripHeadingBounds?.x ?? 0) - (tripBounds?.x ?? 0)).toBe(16);
+    expect((tripHeadingBounds?.y ?? 0) - (tripBounds?.y ?? 0)).toBe(16);
+    expect((historyHeadingBounds?.x ?? 0) - (historyBounds?.x ?? 0)).toBe(16);
+    expect((historyHeadingBounds?.y ?? 0) - (historyBounds?.y ?? 0)).toBe(16);
+    expect(
+      (historyBounds?.y ?? 0) - ((tripBounds?.y ?? 0) + (tripBounds?.height ?? 0)),
+    ).toBe(12);
+
+    const tripCount = trips.getByText('4', { exact: true });
+    const firstDelete = trips.getByRole('button', { name: /삭제/ }).first();
+    await expect(tripCount).toBeVisible();
+    await expect(firstDelete).toBeVisible();
+    const countBounds = await tripCount.boundingBox();
+    const deleteBounds = await firstDelete.boundingBox();
+    const countCenter = (countBounds?.x ?? 0) + (countBounds?.width ?? 0) / 2;
+    const deleteCenter = (deleteBounds?.x ?? 0) + (deleteBounds?.width ?? 0) / 2;
+    expect(Math.abs(countCenter - deleteCenter)).toBeLessThanOrEqual(0.5);
+  });
 });
 
 // These run against the built app and a real API container, with no mocks. The
@@ -78,7 +417,7 @@ test.describe('onboarding and profile in a real browser', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR');
   });
 
-  test('FE-105-T1 profile sign-in is inert and sends nothing (FCR-006 trace)', async ({
+  test('FE-105-T1 profile test-account label is inert and sends nothing', async ({
     page,
   }) => {
     // THIRD spelling. It began as inert text, became a link when login went
@@ -102,19 +441,17 @@ test.describe('onboarding and profile in a real browser', () => {
       'profile-heading',
     );
 
-    // Present but not a control. Both halves are asserted because they fail
-    // differently: the text going missing would break FCR-006 the other way
-    // (it asks for a disabled affordance that says why, not for silence), and
-    // the row becoming focusable again is the change the owner reverted.
-    const login = page.getByText(/로그인|Sign in/).first();
-    await expect(login).toBeVisible();
+    // Present but not a control. The test-account label explains the session
+    // state without promising a sign-in flow that P0 does not provide.
+    const account = page.getByText(/test계정|test account/i).first();
+    await expect(account).toBeVisible();
     await expect(page.getByRole('link', { name: /로그인|Sign in/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /로그인|Sign in/ })).toHaveCount(0);
 
     await page.waitForLoadState('networkidle');
     const requestCount = requests.length;
-    await login.click();
-    await login.dispatchEvent('keydown', { key: 'Enter' });
+    await account.click();
+    await account.dispatchEvent('keydown', { key: 'Enter' });
     await expect(page).toHaveURL(/\/profile$/);
     await page.waitForTimeout(50);
     expect(requests).toHaveLength(requestCount);

@@ -434,6 +434,41 @@ describe('FE-501 a closed catalog does not disable the submit button', () => {
 });
 
 describe('FE-501-T3 keyboard and names', () => {
+  it('moves focus into the modal sheet and makes the trip behind it inert', async () => {
+    renderSetup();
+    await screen.findByRole('button', { name: copy['optimize.scope.ITEM'] });
+    const sheet = await screen.findByRole('dialog', { name: copy['optimize.title'] });
+    const background = screen.getByText(trip.title).closest('[aria-hidden="true"]');
+
+    expect(background).not.toBeNull();
+    expect(background).toHaveAttribute('inert');
+    await waitFor(() => {
+      expect(sheet).toContainElement(document.activeElement as HTMLElement);
+    });
+  });
+
+  it('wraps Tab and Shift+Tab inside the modal sheet', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+    await screen.findByRole('button', { name: copy['optimize.scope.ITEM'] });
+    const sheet = await screen.findByRole('dialog', { name: copy['optimize.title'] });
+    const controls = within(sheet)
+      .getAllByRole('button')
+      .filter((control) => !control.hasAttribute('disabled'));
+    const firstControl = controls[0];
+    const lastControl = controls.at(-1);
+
+    expect(firstControl).toBeDefined();
+    expect(lastControl).toBeDefined();
+    lastControl?.focus();
+    await user.tab();
+    expect(firstControl).toHaveFocus();
+
+    firstControl?.focus();
+    await user.tab({ shift: true });
+    expect(lastControl).toHaveFocus();
+  });
+
   it('reaches a stop by keyboard and selects it with Enter', async () => {
     const user = userEvent.setup();
     renderSetup();
@@ -467,6 +502,13 @@ describe('FE-501-T3 keyboard and names', () => {
         'trip-heading',
       );
     });
+  });
+
+  it('keeps the trip behind one accessible optimization sheet', async () => {
+    renderSetup();
+    const sheet = await screen.findByRole('dialog', { name: copy['optimize.title'] });
+    expect(sheet).toHaveAttribute('aria-modal', 'true');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 });
 
@@ -527,7 +569,8 @@ describe('FE-501 the stop list credits the places it lists', () => {
     );
     renderSetup();
     const name = trip.days[0]?.items[0]?.place.name ?? '';
-    const row = (await screen.findByText(name)).closest('li');
+    const sheet = await screen.findByRole('dialog', { name: copy['optimize.title'] });
+    const row = (await within(sheet).findByText(name)).closest('li');
     expect(row).not.toBeNull();
     // Scoped to the row and to the link role: DataAttribution renders its text
     // inside the source link, so getByText matches both the wrapper and the

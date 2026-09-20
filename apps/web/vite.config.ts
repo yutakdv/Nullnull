@@ -3,6 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const configuredApiTarget = process.env.API_INTERNAL_BASE_URL;
+const apiTarget = configuredApiTarget ?? 'http://localhost:8080';
+
 // The MSW worker script is served from mocks/ rather than public/ so it never
 // reaches dist. A worker sitting in the runtime image would let a build serve
 // mocks, and scripts/integration-test.sh runs Playwright against that image
@@ -35,8 +38,13 @@ export default defineConfig({
     // without relaxing CORS.
     proxy: {
       '/api': {
-        target: process.env.API_INTERNAL_BASE_URL ?? 'http://localhost:8080',
-        changeOrigin: false,
+        target: apiTarget,
+        // Local API requests keep the browser-facing origin. A remote deploy
+        // (CloudFront, for example) must receive its own Host header or it can
+        // reject the proxy request before the API sees it. All other request
+        // headers, including a user-supplied deployment gate header, pass
+        // through without being stored in frontend configuration.
+        changeOrigin: configuredApiTarget !== undefined,
       },
     },
   },

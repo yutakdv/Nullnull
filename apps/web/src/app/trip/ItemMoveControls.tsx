@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import {
@@ -62,9 +63,18 @@ export interface ItemMoveControlsProps {
   days: readonly TripDetail['days'][number][];
   tripId: string | null;
   etag: string | null;
+  compact?: boolean;
+  children?: ReactNode;
 }
 
-export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsProps) {
+export function ItemMoveControls({
+  item,
+  days,
+  tripId,
+  etag,
+  compact = false,
+  children,
+}: ItemMoveControlsProps) {
   // Same query key as the screen's, so this is the one cached trip rather than
   // a second copy. Used to refetch after a conflict: the cached ETag is stale
   // the moment the server says TRIP_CHANGED, so without this every later press
@@ -76,6 +86,8 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
   const replace = useReplaceTripItem(tripId);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   // Only fetched once the sheet opens: asking for alternatives to every stop
   // up front is a burst of requests for answers nobody has looked at.
   const related = useRelatedPlaces(replaceOpen ? item.place.id : null);
@@ -97,6 +109,24 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
   const first = isFirstInDay(days, item.id);
   const last = isLastInDay(days, item.id);
   const busy = reorder.isPending || etag === null;
+
+  useEffect(() => {
+    if (!compact || !menuOpen) return;
+    function closeOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [compact, menuOpen]);
 
   /**
    * Sends one reorder.
@@ -181,56 +211,84 @@ export function ItemMoveControls({ item, days, tripId, etag }: ItemMoveControlsP
 
   return (
     <>
-      <div className={styles.controls}>
-        <button
-          aria-label={t('trip.reorder.up', { name: item.place.name })}
-          className={styles.step}
-          disabled={first || busy}
-          onClick={() => {
-            step(-1);
-          }}
-          type="button"
+      <div className={compact ? styles.compactRoot : undefined} ref={menuRef}>
+        {compact ? (
+          <button
+            aria-expanded={menuOpen}
+            aria-haspopup="true"
+            aria-label={t('trip.item.actions', { name: item.place.name })}
+            className={styles.menuTrigger}
+            onClick={() => {
+              setMenuOpen((open) => !open);
+            }}
+            type="button"
+          >
+            <span aria-hidden="true">•••</span>
+          </button>
+        ) : null}
+        <div
+          className={`${styles.controls} ${compact ? styles.compactControls : ''}`}
+          hidden={compact && !menuOpen}
         >
-          ↑
-        </button>
-        <button
-          aria-label={t('trip.reorder.down', { name: item.place.name })}
-          className={styles.step}
-          disabled={last || busy}
-          onClick={() => {
-            step(1);
-          }}
-          type="button"
-        >
-          ↓
-        </button>
-        <button
-          className={styles.move}
-          disabled={busy || block === 'reservation'}
-          onClick={() => {
-            setSheetOpen(true);
-          }}
-          title={block === 'reservation' ? t('trip.move.reservation') : undefined}
-          type="button"
-        >
-          {t('trip.move.open', { name: item.place.name })}
-        </button>
-        <button
-          className={styles.move}
-          disabled={busy || replace.isPending || isReplaceBlocked(item)}
-          onClick={() => {
-            setReplaceOpen(true);
-          }}
-          title={isReplaceBlocked(item) ? t('replace.blocked') : undefined}
-          type="button"
-        >
-          {t('replace.open', { name: item.place.name })}
-        </button>
+          <button
+            aria-label={t('trip.reorder.up', { name: item.place.name })}
+            className={styles.step}
+            disabled={first || busy}
+            onClick={() => {
+              setMenuOpen(false);
+              step(-1);
+            }}
+            type="button"
+          >
+            ↑
+          </button>
+          <button
+            aria-label={t('trip.reorder.down', { name: item.place.name })}
+            className={styles.step}
+            disabled={last || busy}
+            onClick={() => {
+              setMenuOpen(false);
+              step(1);
+            }}
+            type="button"
+          >
+            ↓
+          </button>
+          <button
+            className={styles.move}
+            disabled={busy || block === 'reservation'}
+            onClick={() => {
+              setMenuOpen(false);
+              setSheetOpen(true);
+            }}
+            title={block === 'reservation' ? t('trip.move.reservation') : undefined}
+            type="button"
+          >
+            {t('trip.move.open', { name: item.place.name })}
+          </button>
+          <button
+            className={styles.move}
+            disabled={busy || replace.isPending || isReplaceBlocked(item)}
+            onClick={() => {
+              setMenuOpen(false);
+              setReplaceOpen(true);
+            }}
+            title={isReplaceBlocked(item) ? t('replace.blocked') : undefined}
+            type="button"
+          >
+            {t('replace.open', { name: item.place.name })}
+          </button>
+          {children ? <div className={styles.extraActions}>{children}</div> : null}
+        </div>
       </div>
 
       {/* One live region per item: the result of a keyboard move has to be
           announced, since the visual change is the only other signal. */}
-      <p aria-live="polite" className={styles.status} role="status">
+      <p
+        aria-live="polite"
+        className={`${styles.status} ${compact ? styles.compactStatus : ''}`}
+        role="status"
+      >
         {reorder.isPending ? t('trip.move.moving') : (status ?? '')}
       </p>
 

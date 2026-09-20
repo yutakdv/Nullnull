@@ -7,41 +7,6 @@ const integration = process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL;
 
 export default defineConfig({
   testDir: './e2e',
-  // applied-panel.spec.ts is the one file the gate cannot run, and it is
-  // excluded there rather than weakened everywhere.
-  //
-  // WHY. Every assertion in it is about the undo panel, and the panel only
-  // renders once the trip has a DECIDED optimization run behind it. The gate's
-  // Spring starts with that capability off — `optimization:
-  // ${FEATURE_OPTIMIZATION_ITEM:false}` (apps/api application.yaml:129) — and
-  // nothing in compose.integration.yml, the workflows or integration-test.sh
-  // ever sets that variable. So the run cannot be created there and the panel
-  // cannot exist: measured, the original three cases died in their own presence guard
-  // ("the applied panel is not on the trip screen") before reaching a single
-  // real assertion. Seeding harder does not help; createSeededTrip could ask
-  // for a run and the capability gate would refuse it.
-  //
-  // WHY NOT `fixme`. check_test_reports.py rejects skipped tests, and a single
-  // rejected file makes it discard the whole suite as zero executed — taking
-  // the testcases that did pass with it.
-  //
-  // WHY NOT DELETE. The first three caught real defects this week: the two reflow
-  // cases pinned the `.resultRow` wrap fix with a blast radius of 1, and the
-  // keyboard case closed the #272 class of silently-unfocusable triggers. They
-  // must keep firing in the explicit local Playwright suite, and they do —
-  // `verify:ci` does not run E2E. This ignores the file only when
-  // PLAYWRIGHT_BASE_URL/WEB_BASE_URL point at a composed stack.
-  //
-  // WHAT BRINGS IT BACK. The day the gate runs with the optimization
-  // capability on, delete this line: the panel becomes reachable and these
-  // cases should run there like everything else.
-  //
-  // AND WHAT THIS COSTS, said plainly: FE-505-T3/T4's clauses have never been
-  // proven in the gate. They are green locally, against MSW, and that is not
-  // the same claim. This line does not create that gap — the panel was already
-  // unreachable there — but it does stop the gate from saying so, so the gap
-  // is written down here instead.
-  testIgnore: integration ? ['**/applied-panel.spec.ts'] : [],
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   // JUnit alongside the readable one in CI. check_test_reports.py reads JUnit and nothing
@@ -79,7 +44,7 @@ export default defineConfig({
         // the suite runs against a blank page -- assertions on absent elements
         // fail loudly, but any probe that only measures layout would "pass"
         // while measuring nothing.
-        command: 'npm run dev -- --host 127.0.0.1',
+        command: 'npm run dev:mock -- --host 127.0.0.1',
         url: 'http://127.0.0.1:5173',
         reuseExistingServer: !process.env.CI,
       },

@@ -60,8 +60,8 @@ afterEach(() => {
   server.events.removeAllListeners();
 });
 
-function renderTrip() {
-  const router = createMemoryRouter(routes, { initialEntries: [`/trip/${trip.id}`] });
+function renderTrip(entry = `/trip/${trip.id}`) {
+  const router = createMemoryRouter(routes, { initialEntries: [entry] });
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -74,8 +74,7 @@ function renderTrip() {
 /** Opens edit mode and returns the user-event instance. */
 async function openEditor() {
   const user = userEvent.setup();
-  renderTrip();
-  await user.click(await screen.findByRole('button', { name: copy['trip.editStart'] }));
+  renderTrip(`/trip/${trip.id}/settings`);
   await screen.findByLabelText(copy['trip.field.title']);
   return user;
 }
@@ -280,8 +279,13 @@ describe('FE-302-T1 saving uses optimistic concurrency', () => {
   });
 });
 
-describe('FE-302-T1 leaving by the tab bar asks first', () => {
-  it('warns before a tab press discards the draft', async () => {
+describe('FE-302-T1 leaving by another route asks first', () => {
+  const candidatesLink = () =>
+    screen.getByRole('link', {
+      name: new RegExp(copy['trip.candidates'].replace('{count}', '')),
+    });
+
+  it('warns before another route discards the draft', async () => {
     // beforeunload covers closing the browser and requestClose covers this
     // form's own exit, but neither sees a react-router navigation. Pressing
     // 내 정보 while editing left the screen and discarded the draft with no
@@ -289,7 +293,7 @@ describe('FE-302-T1 leaving by the tab bar asks first', () => {
     // and no dialog appeared.
     const user = await openEditor();
     await user.type(screen.getByLabelText(copy['trip.field.title']), ' 수정');
-    await user.click(screen.getByRole('button', { name: copy['nav.tab.profile'] }));
+    await user.click(candidatesLink());
 
     expect(await screen.findByRole('dialog')).toHaveTextContent(
       copy['trip.discard.title'],
@@ -303,7 +307,7 @@ describe('FE-302-T1 leaving by the tab bar asks first', () => {
   it('stays put when the user keeps editing', async () => {
     const user = await openEditor();
     await user.type(screen.getByLabelText(copy['trip.field.title']), ' 수정');
-    await user.click(screen.getByRole('button', { name: copy['nav.tab.profile'] }));
+    await user.click(candidatesLink());
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', {
         name: copy['trip.discard.keep'],
@@ -322,7 +326,7 @@ describe('FE-302-T1 leaving by the tab bar asks first', () => {
     // blocker.reset() the router stays blocked and a second tab press does
     // nothing at all — the dialog never returns and the user is stuck on a
     // screen they asked twice to leave. Checked by removing the reset.
-    await user.click(screen.getByRole('button', { name: copy['nav.tab.profile'] }));
+    await user.click(candidatesLink());
     expect(await screen.findByRole('dialog')).toHaveTextContent(
       copy['trip.discard.title'],
     );
@@ -331,7 +335,7 @@ describe('FE-302-T1 leaving by the tab bar asks first', () => {
   it('lets the user leave when they choose to', async () => {
     const user = await openEditor();
     await user.type(screen.getByLabelText(copy['trip.field.title']), ' 수정');
-    await user.click(screen.getByRole('button', { name: copy['nav.tab.profile'] }));
+    await user.click(candidatesLink());
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', {
         name: copy['trip.discard.leave'],
@@ -341,7 +345,7 @@ describe('FE-302-T1 leaving by the tab bar asks first', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
         'id',
-        'profile-heading',
+        'candidates-heading',
       );
     });
   });
@@ -349,11 +353,11 @@ describe('FE-302-T1 leaving by the tab bar asks first', () => {
   it('does not ask when nothing was typed', async () => {
     // A clean draft has nothing to lose; a prompt there is noise.
     const user = await openEditor();
-    await user.click(screen.getByRole('button', { name: copy['nav.tab.profile'] }));
+    await user.click(candidatesLink());
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
         'id',
-        'profile-heading',
+        'candidates-heading',
       );
     });
   });
@@ -477,12 +481,14 @@ describe('FE-302-T3 the dialog behaves like a dialog', () => {
   });
 });
 
-describe('FE-302-T3 focus returns where it came from', () => {
-  it('puts focus back on the edit button after closing', async () => {
+describe('FE-302-T3 leaving settings returns to the itinerary', () => {
+  it('returns to the schedule view after closing', async () => {
     const user = await openEditor();
     await user.click(screen.getByRole('button', { name: copy['trip.editCancel'] }));
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: copy['trip.editStart'] })).toHaveFocus();
+      expect(
+        screen.getByRole('button', { name: copy['trip.editStart'] }),
+      ).toBeInTheDocument();
     });
   });
 

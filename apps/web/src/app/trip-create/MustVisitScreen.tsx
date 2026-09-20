@@ -120,147 +120,149 @@ export function MustVisitStep({
   // second labelled region inside the wizard's.
   return (
     <div className={styles.screen}>
-      <h1 className={styles.title} id="wizard-heading">
-        {t('mustVisit.title1')}
-        <br />
-        {t('mustVisit.title2')}
-      </h1>
-      <p className={styles.lead}>
-        {t('mustVisit.body1')}
-        <br />
-        {t('mustVisit.body2')}
-      </p>
+      <div className={styles.body}>
+        <h1 className={styles.title} id="wizard-heading">
+          {t('mustVisit.title1')}
+          <br />
+          {t('mustVisit.title2')}
+        </h1>
+        <p className={styles.lead}>
+          {t('mustVisit.body1')}
+          <br />
+          {t('mustVisit.body2')}
+        </p>
 
-      <SearchField
-        label={t('mustVisit.searchLabel')}
-        placeholder={t('mustVisit.search')}
-        value={query}
-        onChange={(event) => {
-          setQuery(event.target.value);
-        }}
-      />
+        <SearchField
+          label={t('mustVisit.searchLabel')}
+          placeholder={t('mustVisit.search')}
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+        />
 
-      {query.trim() ? (
-        <div>
-          <p className={styles.sectionLabel} id="search-results">
-            {t('mustVisit.results')}
-          </p>
-          {search.isPending ? (
-            <p className={styles.state} role="status">
-              {t('mustVisit.searching')}
+        {query.trim() ? (
+          <div>
+            <p className={styles.sectionLabel} id="search-results">
+              {t('mustVisit.results')}
             </p>
-          ) : null}
-          {search.isError ? (
-            <p className={styles.state} role="alert">
-              {t('mustVisit.searchError')}
-            </p>
-          ) : null}
-          {search.isSuccess && search.data.items.length === 0 ? (
-            <p className={styles.state}>{t('mustVisit.noResults')}</p>
-          ) : null}
-          {searchResults.length > 0 ? (
-            <CrowdForecastQueryState
-              failed={forecasts.isError}
-              loading={forecasts.isFetching}
-              series={undefined}
-            />
-          ) : null}
-          {search.isSuccess && search.data.items.length > 0 ? (
-            <ul className={styles.list} aria-labelledby="search-results">
-              {search.data.items.map((place, index) => (
-                <li className={styles.card} key={place.id}>
-                  {/* 438:3171: a 66px thumbnail. Decorative — the name beside
+            {search.isPending ? (
+              <p className={styles.state} role="status">
+                {t('mustVisit.searching')}
+              </p>
+            ) : null}
+            {search.isError ? (
+              <p className={styles.state} role="alert">
+                {t('mustVisit.searchError')}
+              </p>
+            ) : null}
+            {search.isSuccess && search.data.items.length === 0 ? (
+              <p className={styles.state}>{t('mustVisit.noResults')}</p>
+            ) : null}
+            {searchResults.length > 0 ? (
+              <CrowdForecastQueryState
+                failed={forecasts.isError}
+                loading={forecasts.isFetching}
+                series={undefined}
+              />
+            ) : null}
+            {search.isSuccess && search.data.items.length > 0 ? (
+              <ul className={styles.list} aria-labelledby="search-results">
+                {search.data.items.map((place, index) => (
+                  <li className={styles.card} key={place.id}>
+                    {/* 438:3171: a 66px thumbnail. Decorative — the name beside
                       it is the accessible content. */}
+                    {place.thumbnailUrl && place.thumbnailAttribution ? (
+                      <PlaceThumbnail place={place} size={66} />
+                    ) : (
+                      <span aria-hidden="true" className={styles.thumb} />
+                    )}
+                    <span className={styles.cardText}>
+                      <span className={styles.name}>{place.name}</span>
+                      <span className={styles.meta}>{meta(place)}</span>
+                      {/* FCR-031 / CMP-ATT-001: the credit the server approved for
+                        this record, shown verbatim. Never composed here — the
+                        contract says to display the string as given, and
+                        CMP-ATT-003 forbids implying a source that was not
+                        granted. Null only for places with no external source. */}
+                      {place.sourceAttribution ? (
+                        <DataAttribution compact provenance={place.sourceAttribution} />
+                      ) : null}
+                      <CrowdForecastCardReading series={forecasts.data?.items[index]} />
+                    </span>
+                    <button
+                      type="button"
+                      // Every result's button reads 담기, so a screen reader
+                      // hears the same name down the whole list and cannot tell
+                      // which place each one adds. The visible label stays short
+                      // — the place is right beside it on screen — and only the
+                      // accessible name carries it.
+                      aria-label={t('mustVisit.addNamed', { place: place.name })}
+                      className={styles.action}
+                      disabled={pickedIds.has(place.id)}
+                      onClick={() => {
+                        onAdd(place);
+                      }}
+                    >
+                      {t('mustVisit.add')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div>
+          <div className={styles.sectionHead}>
+            <span className={styles.sectionLabel} id="picked-places">
+              {t('mustVisit.picked')}
+            </span>
+            {/* One interpolated message, not a number glued to a suffix: the
+              noun goes before the count in English and after it in Korean, and
+              the concatenated form left English with a bare digit. */}
+            <span className={styles.count}>
+              {t('mustVisit.pickedCount', { count: picked.length })}
+            </span>
+          </div>
+          {picked.length === 0 ? (
+            <p className={styles.state}>{t('mustVisit.pickedEmpty')}</p>
+          ) : (
+            <ul className={styles.list} aria-labelledby="picked-places">
+              {picked.map((place) => (
+                <li className={`${styles.card} ${styles.picked}`} key={place.id}>
+                  {/* 438:3171: a 66px thumbnail. Decorative — the name beside
+                    it is the accessible content. */}
                   {place.thumbnailUrl && place.thumbnailAttribution ? (
                     <PlaceThumbnail place={place} size={66} />
                   ) : (
                     <span aria-hidden="true" className={styles.thumb} />
                   )}
                   <span className={styles.cardText}>
-                    <span className={styles.name}>{place.name}</span>
+                    <span className={styles.nameRow}>
+                      <span className={styles.name}>{place.name}</span>
+                      <MustVisitBadge label={t('mustVisit.badge')} />
+                    </span>
                     <span className={styles.meta}>{meta(place)}</span>
-                    {/* FCR-031 / CMP-ATT-001: the credit the server approved for
-                        this record, shown verbatim. Never composed here — the
-                        contract says to display the string as given, and
-                        CMP-ATT-003 forbids implying a source that was not
-                        granted. Null only for places with no external source. */}
                     {place.sourceAttribution ? (
                       <DataAttribution compact provenance={place.sourceAttribution} />
                     ) : null}
-                    <CrowdForecastCardReading series={forecasts.data?.items[index]} />
                   </span>
                   <button
                     type="button"
-                    // Every result's button reads 담기, so a screen reader
-                    // hears the same name down the whole list and cannot tell
-                    // which place each one adds. The visible label stays short
-                    // — the place is right beside it on screen — and only the
-                    // accessible name carries it.
-                    aria-label={t('mustVisit.addNamed', { place: place.name })}
                     className={styles.action}
-                    disabled={pickedIds.has(place.id)}
+                    aria-label={`${place.name} ${t('mustVisit.remove')}`}
                     onClick={() => {
-                      onAdd(place);
+                      onRemove(place.id);
                     }}
                   >
-                    {t('mustVisit.add')}
+                    {t('mustVisit.remove')}
                   </button>
                 </li>
               ))}
             </ul>
-          ) : null}
+          )}
         </div>
-      ) : null}
-
-      <div>
-        <div className={styles.sectionHead}>
-          <span className={styles.sectionLabel} id="picked-places">
-            {t('mustVisit.picked')}
-          </span>
-          {/* One interpolated message, not a number glued to a suffix: the
-              noun goes before the count in English and after it in Korean, and
-              the concatenated form left English with a bare digit. */}
-          <span className={styles.count}>
-            {t('mustVisit.pickedCount', { count: picked.length })}
-          </span>
-        </div>
-        {picked.length === 0 ? (
-          <p className={styles.state}>{t('mustVisit.pickedEmpty')}</p>
-        ) : (
-          <ul className={styles.list} aria-labelledby="picked-places">
-            {picked.map((place) => (
-              <li className={`${styles.card} ${styles.picked}`} key={place.id}>
-                {/* 438:3171: a 66px thumbnail. Decorative — the name beside
-                    it is the accessible content. */}
-                {place.thumbnailUrl && place.thumbnailAttribution ? (
-                  <PlaceThumbnail place={place} size={66} />
-                ) : (
-                  <span aria-hidden="true" className={styles.thumb} />
-                )}
-                <span className={styles.cardText}>
-                  <span className={styles.nameRow}>
-                    <span className={styles.name}>{place.name}</span>
-                    <MustVisitBadge label={t('mustVisit.badge')} />
-                  </span>
-                  <span className={styles.meta}>{meta(place)}</span>
-                  {place.sourceAttribution ? (
-                    <DataAttribution compact provenance={place.sourceAttribution} />
-                  ) : null}
-                </span>
-                <button
-                  type="button"
-                  className={styles.action}
-                  aria-label={`${place.name} ${t('mustVisit.remove')}`}
-                  onClick={() => {
-                    onRemove(place.id);
-                  }}
-                >
-                  {t('mustVisit.remove')}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       {/* The two exits now do different things, which is the whole point of
@@ -273,6 +275,7 @@ export function MustVisitStep({
           a second press would be a second trip, which Idempotency-Key guards
           against but the user should not have to discover. */}
       <BottomCta
+        fixed
         label={t('mustVisit.next')}
         disabled={isSubmitting}
         onClick={onSubmit}

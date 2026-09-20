@@ -2,7 +2,7 @@
 //
 // happy-dom because the screen navigates (#67).
 //
-// FE-202 acceptance (FR-PST-01, FR-PST-02), S03-D `398:611`.
+// FE-202 acceptance (FR-PST-01, FR-PST-02), S03-D `804:4595`.
 //
 // FE-202-T1: saving a post does not change a trip.
 // FE-202-T2: default/loading/error/404/saved each render.
@@ -187,7 +187,7 @@ describe('FE-202-T2 the screen renders each of its states', () => {
   it('opens every post the feed offers, not only the one with a fixture', async () => {
     // The feed lists five posts and the approved-shape fixture covers one, so
     // the handler used to answer NOT_FOUND for the other four: four of the
-    // five cards in `npm run dev` opened onto 없는 게시물이에요, which reads as
+    // five cards in `npm run dev:mock` opened onto 없는 게시물이에요, which reads as
     // a broken app rather than as missing mock data. Every id the feed shows
     // has to resolve, or the first thing anyone clicks is a dead end.
     const listed = feedFixtures.page.items[1]?.post;

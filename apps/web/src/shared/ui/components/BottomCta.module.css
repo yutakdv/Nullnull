@@ -4,13 +4,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  min-height: calc(var(--layout-bottom-primary) + env(safe-area-inset-bottom));
+  padding: 29px var(--layout-page-gutter);
+  padding-bottom: max(29px, calc(29px + env(safe-area-inset-bottom)));
   background: var(--color-bg-default);
 }
 
+.bar[data-fixed='true'] {
+  position: fixed;
+  z-index: 30;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
 .primary {
-  min-height: 47px;
+  min-height: var(--layout-primary-min);
   border: none;
   border-radius: var(--radius-card);
   /* action/strong, not action/primary: the frame's CTA is the darker blue
@@ -25,13 +34,35 @@
 }
 
 .primary:disabled {
-  background: var(--color-bg-track);
-  color: var(--color-text-disabled);
+  background: var(--color-action-strong);
+  color: var(--color-action-onPrimary);
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .secondary {
   display: flex;
+  align-items: center;
   justify-content: center;
+  min-width: 0;
   font-size: var(--font-body-sm);
+}
+
+/* Supporting copy and a secondary action have different physical needs. A
+   button retains a 44px target; a note receives reading space without being
+   padded like a control. Both keep breathing room above the safe area. */
+.bar[data-secondary-kind='note'] {
+  min-height: calc(var(--layout-bottom-note) + env(safe-area-inset-bottom));
+  padding: var(--space-4) var(--layout-page-gutter);
+  padding-bottom: max(var(--space-4), calc(var(--space-4) + env(safe-area-inset-bottom)));
+}
+
+.bar[data-secondary-kind='action'] {
+  min-height: calc(var(--layout-bottom-action) + env(safe-area-inset-bottom));
+  padding: var(--space-4) var(--layout-page-gutter);
+  padding-bottom: max(var(--space-4), calc(var(--space-4) + env(safe-area-inset-bottom)));
+}
+
+.bar[data-secondary-kind='action'] .secondary {
+  min-height: var(--layout-touch-min);
 }
