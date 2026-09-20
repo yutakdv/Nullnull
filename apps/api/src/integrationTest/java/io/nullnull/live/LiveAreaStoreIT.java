@@ -41,7 +41,7 @@ class LiveAreaStoreIT {
     }
 
     @Test
-    @DisplayName("BA-090-T12 provider 가 이름을 바꿔도 같은 행이 유지된다")
+    @DisplayName("BA-090-T15 provider 가 이름을 바꿔도 같은 행이 유지된다")
     void aRenameKeepsTheRowItsSnapshotsPointAt() {
         List<LiveAreaStore.StoredArea> first = store.replaceAreas(SOURCE,
                 List.of(new LiveAreaStore.AreaUpsert("POI009", "광화문·덕수궁")));
@@ -58,7 +58,7 @@ class LiveAreaStoreIT {
     }
 
     @Test
-    @DisplayName("BA-090-T13 목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다")
+    @DisplayName("BA-090-T16 목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다")
     void aVanishedAreaIsRetiredRatherThanDeleted() {
         List<LiveAreaStore.StoredArea> both = store.replaceAreas(SOURCE,
                 List.of(new LiveAreaStore.AreaUpsert("POI009", "광화문·덕수궁"),
