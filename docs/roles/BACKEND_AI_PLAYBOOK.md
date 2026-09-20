@@ -2132,7 +2132,7 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 - `BA-082-T14`: 서명된 key 는 owner 와 caller 가 고르지 않은 id 로만 이뤄진다
 - `BA-082-T15`: 한 ticket 은 최대 하나의 post 를 만든다
 - `BA-082-T16`: 회수된 게시물은 published_at 이 비워진 채 PUBLISHED 를 벗어난다
-- `BA-082-T17`: post route 는 선언한 Cache-Control 을 실제 응답으로도 보낸다
+- `BA-082-T17`: /posts·/feed 경로의 operation 은 계약이 선언한 Cache-Control 을 실제 응답으로도 보낸다
 - `BA-082-T18`: social module 은 feed 순위 gateway 를 이름으로 부르지 않는다
 
 FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
@@ -2216,6 +2216,8 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 - `BA-084-T11`: 선호 해석은 어휘 밖의 선호 코드를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(없는 코드·대소문자·공백·부분 오염)
 - `BA-084-T12`: 선호 해석은 중복된 선호 코드를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(weight 가 다른 같은 코드 둘)
 - `BA-084-T13`: 선호 해석은 경계 밖 weight 를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(floor 아래·ceiling 위·0)
+- `BA-084-T14`: 선호 해석은 자기 코드 목록을 갖지 않고 호출자가 준 어휘로만 판정한다 — apps/ai REC coverage: `REC-LLM-05`(같은 선택을 두 어휘에 물어 답이 갈린다)
+- `BA-084-T15`: 선호 해석은 아무것도 고르지 않은 선택을 선호 없음으로 읽지 않고 거절한다 — apps/ai REC coverage: `REC-LLM-05`(None 과 빈 목록 두 case)
 
 FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

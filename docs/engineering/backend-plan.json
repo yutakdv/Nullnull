@@ -2913,7 +2913,7 @@
         },
         {
           "id": "BA-082-T17",
-          "assertion": "post route 는 선언한 Cache-Control 을 실제 응답으로도 보낸다"
+          "assertion": "/posts·/feed 경로의 operation 은 계약이 선언한 Cache-Control 을 실제 응답으로도 보낸다"
         },
         {
           "id": "BA-082-T18",
@@ -3209,6 +3209,26 @@
               "REC-LLM-05"
             ],
             "reason": "`accepts` 의 `not vocabulary.min_weight <= weight <= vocabulary.max_weight` 분기. 같은 parametrize 의 세 case 가 민다 — floor 아래(1), ceiling 위(5), bounds 가 허용하지 않는 0. corpus 의 vocabulary 가 `min_weight=2, max_weight=4` 로 **계약의 1..5 가 아닌 것이 의도**이며, 그래서 하드코딩된 범위를 가진 validator 는 이 절을 통과하지 못한다."
+          }
+        },
+        {
+          "id": "BA-084-T14",
+          "assertion": "선호 해석은 자기 코드 목록을 갖지 않고 호출자가 준 어휘로만 판정한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-05"
+            ],
+            "reason": "`test_the_same_selection_is_read_against_the_vocabulary_it_was_given` 이 같은 선택(`DIORITE` weight 7)을 두 vocabulary 에 물어 답이 갈려야 함을 단언한다 — 내장 allowlist 를 가진 validator 는 두 경우에 같은 답을 낸다. 이 절이 `T11`~`T13` 을 비공허하게 만든다: 하드코딩된 목록을 가진 구현도 그 셋을 전부 통과하고, 두 어휘의 답이 갈리는 것만이 그것을 배제한다. 넘겨받은 어휘 자체가 공허해서 통과하는 길은 `test_a_vocabulary_that_bounds_nothing_is_refused_at_construction` 이 닫는다. corpus 의 코드가 제품 interest 어휘와 일부러 다른 것도 같은 장치다 — 정본은 FE 소유 Figma chip 목록이고 이 package 는 순수성 규칙상 계약을 읽을 수 없다."
+          }
+        },
+        {
+          "id": "BA-084-T15",
+          "assertion": "선호 해석은 아무것도 고르지 않은 선택을 선호 없음으로 읽지 않고 거절한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-05"
+            ],
+            "reason": "`accepts` 의 첫 분기 `if not selection: return False` 이고 `test_an_empty_interpretation_is_refused_rather_than_read_as_no_preferences` 가 `None` 과 빈 목록 두 case 로 민다. 둘을 나눈 것이 요점이다 — `None`(모델이 아무것도 해석하지 못했다)과 빈 목록(해석했는데 비었다)은 호출자만 구별할 수 있고, 어느 쪽이든 `선호 없음` 으로 읽으면 traveller 가 하지 않은 선택이 만들어진다. 한 case 만 있으면 나머지 한쪽을 조용히 통과시키는 구현도 이 절을 만족한다."
           }
         }
       ],
