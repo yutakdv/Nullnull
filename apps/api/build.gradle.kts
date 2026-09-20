@@ -41,6 +41,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation(libs.json.schema.validator)
+    implementation(libs.aws.s3)
     runtimeOnly("org.postgresql:postgresql")
 
     // Shared test support (Testcontainers wiring) for every suite that needs PostgreSQL.

@@ -45,6 +45,30 @@ public interface FeedStore {
     UUID insertFirstPartyCover(UUID assetId, String url, String alt, String checksum, Instant now);
 
     /** Writes the post as a DRAFT. It is not visible until {@link #publishPost} runs. */
+    /**
+     * The media asset behind a cover a visitor uploaded (V045's USER_UPLOAD source).
+     *
+     * <p>Separate from {@link #insertFirstPartyCover} because the licence is a different row and the
+     * difference is the point: A-024 was amended (2026-09-20) to allow uploaded covers only under a
+     * source that does not claim the work is ours. Pointing an uploaded photograph at the
+     * first-party licence would record that the team made it and that redistribution was ours to
+     * allow.
+     *
+     * @param sourceExternalId the upload intent's id - where these bytes reached us, which is what
+     *        makes media_assets_license_source_checksum_unique hold without anything else
+     */
+    UUID insertUserUploadCover(UUID assetId, String url, String sourceExternalId, String alt,
+            String checksum, Instant now);
+
+    /**
+     * A draft post with an author, which a curated post does not have.
+     *
+     * <p>The author is an owner id derived from the session, never a value the request carried
+     * (invariant 11). It may be an anonymous owner: A-058 allows an anonymous session to author.
+     */
+    void insertAuthoredDraftPost(UUID postId, UUID authorOwnerId, String title, String body,
+            String coverUrl, UUID coverAssetId, Instant now);
+
     void insertDraftPost(UUID postId, String title, String body, String coverUrl, UUID coverAssetId,
             Instant now);
 

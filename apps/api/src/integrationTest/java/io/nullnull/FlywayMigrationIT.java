@@ -61,7 +61,9 @@ class FlywayMigrationIT {
     // wrong. V044's author was right too: on their tree the previous migration created nothing.
     // Both were correct alone and the merge was red, which is the global-sum shape this file
     // keeps meeting - it is settled by whoever merges last, not by either slice.
-    // V044's own tables (live_areas, seoul_live_area_maps) join when the next migration lands.
+    // V045 (BA-082) is that next migration, so V044's own tables join here now. The same
+    // hand-off the lines above describe: V044's author could not have written them in,
+    // because on their tree V044 was the head.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -75,7 +77,8 @@ class FlywayMigrationIT {
             "place_hours_observations", "place_hours_windows", "feed_feedback",
             "place_relations", "itinerary_import_drafts",
             "optimization_proposals", "optimization_changes",
-            "optimization_decisions", "notifications");
+            "optimization_decisions", "notifications",
+            "live_areas", "seoul_live_area_maps");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -158,7 +161,13 @@ class FlywayMigrationIT {
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
-            long seededAfterPreviousSchema = 0;
+            //
+            // V045 (BA-082) is the last one now and it DOES seed: the USER_UPLOAD source, its
+            // first registry revision and the one asset licence that source's assets point
+            // at - the same three shapes V021 seeded for A-024, because A-058 needed a second
+            // self-originated source rather than a wider reading of the first. Three rows, so
+            // this count moves for the first time since V021.
+            long seededAfterPreviousSchema = 3;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -627,6 +636,23 @@ class FlywayMigrationIT {
                         + " (id, owner_id, type, title, body, deep_link, created_at, read_at, expires_at)"
                         + " VALUES (?, ?, 'OPTIMIZATION_READY', ?, ?, '/notifications', ?, NULL, ?)",
                 UUID.randomUUID(), ownerId, "upgrade", "upgrade", now, now.plusDays(90));
+        // V044's live_areas and seoul_live_area_maps, which V045 turns into part of the previous
+        // schema. Nothing produces either row yet, so this is their only writer in the sweep.
+        // boundary_geojson stays null on purpose: the provider publishes area names without
+        // polygons and V044 says a made-up boundary would be a fabricated observation.
+        UUID liveAreaId = UUID.randomUUID();
+        jdbc.update("INSERT INTO " + schema + ".live_areas"
+                        + " (id, source_code, external_id, name, boundary_geojson, status, updated_at)"
+                        + " VALUES (?, 'SEOUL_CITYDATA', ?, ?, NULL, 'ACTIVE', ?)",
+                liveAreaId, "upgrade-" + liveAreaId, "upgrade", now);
+        // AREA pairs with fallback_used false: V044's CHECK makes the two columns dependent, and
+        // confidence must sit inside [0, 1].
+        jdbc.update("INSERT INTO " + schema + ".seoul_live_area_maps"
+                        + " (id, place_id, live_area_id, mapping_type, confidence, fallback_used,"
+                        + " verified_at)"
+                        + " VALUES (?, (SELECT id FROM " + schema + ".places LIMIT 1), ?,"
+                        + " 'AREA', 0.5000, false, ?)",
+                UUID.randomUUID(), liveAreaId, now);
         return key;
     }
 
