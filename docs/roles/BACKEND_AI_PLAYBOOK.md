@@ -2110,13 +2110,15 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 2. 격리 업로드→자동 기술 검증→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
 3. MIME/magic bytes·악성 파일·EXIF(A-057의 표준 파일 입력으로 들어온 촬영 파일이 GPS를 싣는 것이 전제다)·권리·신고/삭제 전파를 검증한다
 
+진행 상태(대조): **회수·철회의 쓰기 쪽이 아직 없다.** 계약의 post operation 은 `createPost`·`createPostImageUpload`·`getPost`·`savePost`·`unsavePost` 다섯뿐이고 **삭제·숨김·철회 operation 이 없다**. `PostStatus.HIDDEN` 은 값과 주석으로만 존재하고 그리로 옮기는 production 경로가 없다 — 지금 그 전이를 하는 것은 운영자가 DB 에서 하는 것이다. 그래서 `T3` 는 **읽기 쪽으로 좁혔고**(이미 발급된 cursor 가 회수된 post 를 건네지 않는다) 쓰기 쪽은 `T16` 으로 떼어 **증명되지 않은 채** 둔다. 절을 원래 문구로 두면 `integration-ready` 승격이 *"삭제·권리 철회가 구현돼 있고 반영된다"* 를 주장하게 된다.
+
 실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다. 게시물 작성은 제출 범위이므로 capability OFF 목록에 두지 않는다(A-058).
 
 필수 검증:
 
 - `BA-082-T1`: 타 owner 의 upload ticket 은 소비할 수 없다
 - `BA-082-T2`: 기술 검증을 통과하지 못한 asset은 공개되지 않는다
-- `BA-082-T3`: 삭제/권리 철회가 기존 cursor·cache에서도 반영된다
+- `BA-082-T3`: 회수된 post 는 이미 발급된 cursor 로도 나오지 않는다
 - `BA-082-T4`: 촬영 좌표를 담은 metadata 는 정제를 살아남지 못한다
 - `BA-082-T5`: 실제 형식이 선언된 형식과 다른 바이트는 거절된다
 - `BA-082-T6`: 제공하지 않는 이미지 형식의 바이트는 거절된다
@@ -2129,6 +2131,7 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 - `BA-082-T13`: checksum 이 64자리 소문자 hex 가 아니면 거절된다
 - `BA-082-T14`: 서명된 key 는 owner 와 caller 가 고르지 않은 id 로만 이뤄진다
 - `BA-082-T15`: 한 ticket 은 최대 하나의 post 를 만든다
+- `BA-082-T16`: 게시물 회수·권리 철회가 feed·cache·recommendation 노출을 함께 차단한다
 
 FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

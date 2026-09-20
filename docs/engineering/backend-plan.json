@@ -2857,7 +2857,7 @@
         },
         {
           "id": "BA-082-T3",
-          "assertion": "삭제/권리 철회가 기존 cursor·cache에서도 반영된다"
+          "assertion": "회수된 post 는 이미 발급된 cursor 로도 나오지 않는다"
         },
         {
           "id": "BA-082-T4",
@@ -2906,6 +2906,10 @@
         {
           "id": "BA-082-T15",
           "assertion": "한 ticket 은 최대 하나의 post 를 만든다"
+        },
+        {
+          "id": "BA-082-T16",
+          "assertion": "게시물 회수·권리 철회가 feed·cache·recommendation 노출을 함께 차단한다"
         }
       ],
       "handoff": "upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client.",
