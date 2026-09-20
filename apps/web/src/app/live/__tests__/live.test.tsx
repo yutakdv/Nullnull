@@ -119,7 +119,7 @@ describe('FE-401 Live area list', () => {
 
     expect(await screen.findByText('경복궁')).toBeVisible();
     expect(screen.getByText('북촌한옥마을')).toBeVisible();
-    expect(screen.getByText('명동')).toBeVisible();
+    expect(screen.queryByText('명동')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /View Live information for 경복궁/i }),
     ).toHaveAttribute('href', `/live/places/${places[0]?.place.id}`);

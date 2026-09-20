@@ -1077,11 +1077,13 @@ export function createStacks(
       // submission rather than as a mockup. Three things had to stand first and all three do -
       // SEOUL_CITYDATA promoted to DEV_APPROVED in V046 (which derives enabled from approval_state
       // and stale_after_seconds), the proxy URL and token passed below, and a collector that stores a
-      // reading per area. DemoCapabilityQuery.WITHOUT_A_SOURCE dropped live on the same day, so an ON
-      // flag no longer advertises something nothing can answer - it would have failed startup before.
+      // reading per area. An ON flag now has a collector and read path behind it.
       // Fixed here rather than in staging.config.json for the same reason as the line above: this is a
       // settled product decision, not an operator gate.
       FEATURE_LIVE_DATA: "true",
+      // The approved-manifest reader is present. Readiness stays UNAVAILABLE until an owner-approved
+      // capture exists; then the API may serve it as explicitly labelled REPLAY without redeploying.
+      FEATURE_REPLAY_MODE: "true",
       NULLNULL_LIVE_SCHEDULE_ENABLED: "true",
       // The proxy, never openapi.seoul.go.kr. Both values are set together because they are two halves
       // of one fact: if the allowlist still named the provider while the base URL named the proxy, a

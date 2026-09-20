@@ -16,4 +16,7 @@ public interface ReplayManifestReader {
     }
 
     Optional<ReplayBatch> read(UUID manifestId, Instant now);
+
+    /** Selects the newest approved manifest; a corrupt newest one fails closed. */
+    Optional<ReplayBatch> latestFor(String sourceCode, Instant now);
 }

@@ -241,7 +241,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
 | `FEATURE_LIVE_DATA` | **staging/제출 ON**, 그 밖 OFF | `A-054`(오너 2026-09-20)로 Live 가 제출과 함께 나간다. 켤 수 있게 된 근거는 `V046` 의 `SEOUL_CITYDATA` `DEV_APPROVED` 승격·proxy URL/token·area 당 reading 을 쓰는 collector 셋이 같이 선 것이고, `DemoCapabilityQuery.WITHOUT_A_SOURCE` 가 같은 날 `live` 를 뺐다. 배포가 `infra/src/staging.ts` 에서 넘긴다 |
 | `NULLNULL_LIVE_SCHEDULE_ENABLED` | staging API task만 ON | 이미 실행 중인 API에서 서울숲공원 수집을 5분마다 시도한다. `V048` claim이 API 복제본 사이에서 한 번만 허용하며 추가 Fargate schedule은 없다. 3회 재시도 포함 정상 주기 최대 864회/일이며 심사 종료부터 중단한다. provider 관측 자체가 늦으면 UI는 STALE을 표시한다 |
-| `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |
+| `FEATURE_REPLAY_MODE` | staging API만 ON, 그 밖 OFF | 승인 manifest reader가 있으므로 기능을 켜되, 실제 manifest가 없으면 `getDemoReadiness`의 replay는 `UNAVAILABLE`이다. 오너가 SHA 승인한 정규화 관측 capture 뒤에만 `READY`가 된다. Live 응답은 `REPLAY`와 원 관측 시각을 계속 표시한다 |
 | `FEATURE_OPTIMIZATION_ITEM` | OFF (기본값) | 제출 빌드(staging)는 ON이다 — 오너 결정(2026-09-19). `infra/src/staging.ts`가 staging API task에만 켠다(ops·migration·ai task에는 없다. `infra/test/staging.test.ts`가 고정한다). BA-050·BA-051이 source라 ON이어도 startup을 막지 않는다 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
 | `FEATURE_OPTIMIZATION_TRIP` | OFF | P1 |
@@ -255,7 +255,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 
 flag는 backend capability response가 정본이다. frontend build flag만으로 권한/안전 기능을 제어하지 않는다.
 
-BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. **`live` 는 2026-09-20 에 source 를 얻었다**(`V046` 승격 + collector + `queryLiveAreas`) — `DemoCapabilityQuery.WITHOUT_A_SOURCE` 에서 빠졌고 켜면 `READY` 로 나타난다. **`replay` 는 아직 source 가 없어** 응답이 `UNAVAILABLE` 이고, `true` 로 켜면 9절의 "LIVE feature가 ON이면 source registry/key/readiness 설정 존재" 규칙에 따라 startup 이 실패한다. 그 flag 를 켤 수 있게 하는 것은 source 를 만드는 slice(B03 replay)다. **이 문단은 한 번 낡아 있었다** — `live` 가 그 목록에서 빠진 뒤에도 *"아직 source 가 없다"* 로 남아 있었고, 그것만 읽은 사람은 *"Live 는 못 켠다"* 로 결론낸다. `optimization`은 BA-050·BA-051이 source라 이미 켤 수 있고(`DemoCapabilityQuery`), 켜면 `READY`로 나타난다.
+BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. `live`는 `V046` 승격·collector·`queryLiveAreas`가 구현돼 staging에서 ON이다. `replay`는 manifest reader와 승인 capture 경로가 구현돼 staging API에서 ON이지만, 유효한 승인 manifest가 생기기 전에는 `UNAVAILABLE`을 보고한다. `optimization`은 BA-050·BA-051이 source이며 ON이면 `READY`를 보고한다.
 
 공모전 profile `2026_KTO_WEBAPP`은 다음 startup invariant를 추가한다.
 

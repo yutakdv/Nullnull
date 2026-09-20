@@ -226,7 +226,7 @@
         },
         {
           "id": "BA-003-T2",
-          "assertion": "unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다"
+          "assertion": "unknown 필드·초과 body를 거부하고 flag만 켜진 빈 replay를 READY로 광고하지 않는다"
         },
         {
           "id": "BA-003-T3",
@@ -262,7 +262,7 @@
         },
         {
           "id": "BA-003-T11",
-          "assertion": "source가 없는 capability는 준비 완료로 광고되지 않는다"
+          "assertion": "꺼진 capability는 준비 완료로 광고되지 않는다"
         },
         {
           "id": "BA-003-T12",
@@ -3867,7 +3867,7 @@
       "designRequests": [],
       "entities": "replay_manifests · replay_manifest_entries · checksums · final evidence ledger",
       "steps": [
-        "승인 출처·scrub·capture window·checksum·entry order가 고정된 replay manifest를 검증한다",
+        "승인된 정규화 관측의 출처·capture window·checksum·entry order가 고정된 replay manifest를 검증한다",
         "LIVE/REPLAY/STALE/UNAVAILABLE 전환과 persistent badge를 FE에 연결한다",
         "BA-073 핵심 검수를 Live 포함 전체 P0로 재실행하고 같은 release의 PDF/API/실제 KTO 증거를 갱신한다",
         "09-06 PM 검토 PM-013, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
@@ -3897,6 +3897,34 @@
         {
           "id": "BA-092-T2",
           "assertion": "live↔replay 전환에서 데이터 namespace·label·comparison이 섞이지 않는다"
+        },
+        {
+          "id": "BA-092-T8",
+          "assertion": "최신 승인 manifest가 손상되면 과거 replay로 조용히 후퇴하지 않는다"
+        },
+        {
+          "id": "BA-092-T9",
+          "assertion": "오너 승인 계획에 적힌 정규화 관측만 manifest로 캡처한다"
+        },
+        {
+          "id": "BA-092-T10",
+          "assertion": "현재 승인이 철회된 출처의 replay는 제공하지 않는다"
+        },
+        {
+          "id": "BA-092-T11",
+          "assertion": "replay flag가 켜져도 승인 manifest 전에는 READY를 광고하지 않는다"
+        },
+        {
+          "id": "BA-092-T12",
+          "assertion": "비활성 구역의 관측은 capture 또는 replay할 수 없다"
+        },
+        {
+          "id": "BA-092-T13",
+          "assertion": "서울 표준 metric 또는 normalization과 다른 관측은 capture 또는 replay할 수 없다"
+        },
+        {
+          "id": "BA-092-T14",
+          "assertion": "구역 목록과 장소 상세는 전체 활성 구역의 현재 LIVE 여부를 같은 기준으로 판정한다"
         },
         {
           "id": "BA-092-T3",

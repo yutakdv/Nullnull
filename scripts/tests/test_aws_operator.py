@@ -504,6 +504,19 @@ class OpsTaskRegressions(unittest.TestCase):
                 with self.assertRaisesRegex(ops.OpsError,'plan-sha256-not-approved'):
                     ops.ops_task(args)
                 aws.assert_not_called()
+    def test_replay_capture_plan_needs_owner_approved_snapshot_ids(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'replay.json'
+            snapshot_id='00000000-0000-4000-8000-000000000001'
+            path.write_text(json.dumps({'name':'seoul-pilot','capturedFrom':'2026-09-20T05:00:00Z',
+                'capturedTo':'2026-09-20T05:10:00Z','snapshotIds':[snapshot_id]}))
+            args=SimpleNamespace(task='capture-live-replay',plan_file=str(path),
+                                 approved_plan_sha256=None,owner_approval='owner approved in session')
+            with self.assertRaisesRegex(ops.OpsError,'plan-sha256-not-approved'):
+                ops.curation_plan(args)
+            args.approved_plan_sha256=ops.digest(path)
+            assert ops.curation_plan(args)['ids']==[snapshot_id]
     def test_only_redacted_evidence_lines_are_echoed(self):
         allowed=['KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 payloadHash=abc',
                  'KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- process env',

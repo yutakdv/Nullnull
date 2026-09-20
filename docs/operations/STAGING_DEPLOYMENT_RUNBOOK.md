@@ -427,6 +427,18 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-live-maps --plan-file <plan.json> \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# replay 후보 조회(local 전용, 외부 호출 없음). 출력된 정규화 snapshot UUID와 관측 시각을
+# 확인한 뒤에만 capture 계획을 만든다. 활성 구역의 표준 서울 혼잡도 관측만 목록에
+# 나오며 원본 provider 응답이나 위치 원문은 읽지 않는다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task list-live-replay-candidates
+# replay capture 계획은 name, capturedFrom, capturedTo, snapshotIds 배열을 담는다.
+# 공개 데이터의 정규화 snapshot만 대상이며, 계획을 검토한 오너가 출력된 SHA-256과 승인
+# 기록을 지정해야 한다. 최신 승인 manifest가 자동 fallback 대상이므로 테스트용 계획을
+# staging에 승인하지 않는다. 원 관측이 오래됐어도 화면은 REPLAY와 관측 시각을 표시한다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task capture-live-replay --plan-file <plan.json> \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
 # BA-006-T2 secret 스캔(local 전용). 기록된 모든 release의 assembly(web bundle 포함)·배포된 두 image·보존 중인 로그에서
 # KTO key와 verifier token을 찾는다(원문·URL 인코딩·JSON escape·base64). docker가 필요하다. 값은 출력·기록하지 않는다.
 python3 scripts/aws/staging_operator.py secret-scan

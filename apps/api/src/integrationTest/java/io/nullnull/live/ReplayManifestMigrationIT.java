@@ -5,13 +5,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import io.nullnull.crowd.application.CrowdProvenanceProjection;
+import io.nullnull.crowd.application.SeoulLiveSnapshotStore;
 import io.nullnull.crowd.infrastructure.persistence.JdbcReplayManifestReader;
 import io.nullnull.crowd.application.ReplayManifestReader.ReplayBatch;
+import io.nullnull.crowd.infrastructure.persistence.ReplayManifestImporter;
+import io.nullnull.operations.application.DemoCapabilityQuery;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.sql.Connection;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -26,7 +31,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -85,6 +89,118 @@ class ReplayManifestMigrationIT {
         assertThat(replay(sparse, OBSERVED.plusSeconds(600))).isEmpty();
         assertThat(replay(wrongLicense, OBSERVED.plusSeconds(600))).isEmpty();
         assertThat(replay(valid, OBSERVED.plusSeconds(61))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("BA-092-T8 최신 승인 manifest가 손상되면 과거 replay로 조용히 후퇴하지 않는다")
+    void invalidLatestApprovalDoesNotFallBackToOlderReplay() throws Exception {
+        UUID snapshot = snapshot();
+        UUID older = manifest(OBSERVED.minusSeconds(60), OBSERVED.plusSeconds(60),
+                checksum("0:" + snapshot + "\n"));
+        entry(older, snapshot, 0);
+        UUID newerInvalid = manifest(OBSERVED.minusSeconds(60), OBSERVED.plusSeconds(120));
+        entry(newerInvalid, snapshot, 0);
+
+        assertThat(replayLatest(OBSERVED.plusSeconds(600))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("BA-092-T9 승인한 정규화 관측 목록만 replay manifest로 캡처한다")
+    void capturesOnlyTheExplicitNormalizedSnapshot() throws Exception {
+        UUID snapshot = snapshot();
+        var plan = new ReplayManifestImporter.Plan("approved-" + UUID.randomUUID(),
+                OBSERVED.minusSeconds(60), OBSERVED.plusSeconds(60), List.of(snapshot));
+        UUID manifest = new TransactionTemplate(transactions).execute(status -> {
+            jdbc.execute("SET LOCAL search_path TO " + SCHEMA);
+            ReplayManifestImporter importer = new ReplayManifestImporter(jdbc,
+                    Clock.fixed(OBSERVED.plusSeconds(120), ZoneOffset.UTC));
+            UUID imported = importer.importPlan(plan);
+            assertThat(importer.importPlan(plan)).isEqualTo(imported);
+            return imported;
+        });
+
+        assertThat(replay(manifest, OBSERVED.plusSeconds(600))).isPresent()
+                .get().satisfies(batch -> assertThat(batch.readings()).hasSize(1));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM " + SCHEMA
+                + ".replay_manifest_entries WHERE manifest_id = ?", Long.class, manifest)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("BA-092-T10 현재 승인이 철회된 출처의 replay는 제공하지 않는다")
+    void aRevokedSourceCannotKeepServingAnOldReplay() throws Exception {
+        UUID snapshot = snapshot();
+        UUID manifest = manifest(OBSERVED.minusSeconds(1), OBSERVED.plusSeconds(60),
+                checksum("0:" + snapshot + "\n"));
+        entry(manifest, snapshot, 0);
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            jdbc.execute("SET LOCAL search_path TO " + SCHEMA);
+            jdbc.update("UPDATE source_registry SET approval_state = 'DISABLED', enabled = false"
+                    + " WHERE code = 'SEOUL_CITYDATA'");
+
+            assertThat(new JdbcReplayManifestReader(jdbc, new CrowdProvenanceProjection())
+                    .read(manifest, OBSERVED.plusSeconds(600))).isEmpty();
+            assertThatThrownBy(() -> new ReplayManifestImporter(jdbc,
+                    Clock.fixed(OBSERVED.plusSeconds(600), ZoneOffset.UTC)).importPlan(
+                    new ReplayManifestImporter.Plan("revoked-" + UUID.randomUUID(),
+                            OBSERVED.minusSeconds(1), OBSERVED.plusSeconds(1), List.of(snapshot))))
+                    .isInstanceOf(IllegalArgumentException.class);
+            status.setRollbackOnly();
+        });
+    }
+
+    @Test
+    @DisplayName("BA-092-T12 비활성 구역의 관측은 replay로 캡처하지 않는다")
+    void aRetiredAreaCannotBeCaptured() {
+        UUID snapshot = snapshot();
+        retireArea(snapshot);
+        var plan = new ReplayManifestImporter.Plan("retired-" + UUID.randomUUID(),
+                OBSERVED.minusSeconds(1), OBSERVED.plusSeconds(1), List.of(snapshot));
+
+        assertThatThrownBy(() -> importInIsolatedSchema(plan)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("BA-092-T12 승인 후 비활성화된 구역의 replay도 제공하지 않는다")
+    void aRetiredAreaCannotBeRead() throws Exception {
+        UUID snapshot = snapshot();
+        UUID manifest = manifest(OBSERVED.minusSeconds(1), OBSERVED.plusSeconds(60),
+                checksum("0:" + snapshot + "\n"));
+        entry(manifest, snapshot, 0);
+        retireArea(snapshot);
+
+        assertThat(replay(manifest, OBSERVED.plusSeconds(600))).isEmpty();
+        var readiness = new TransactionTemplate(transactions).execute(status -> {
+            jdbc.execute("SET LOCAL search_path TO " + SCHEMA);
+            return new DemoCapabilityQuery(false, true, false,
+                    new JdbcReplayManifestReader(jdbc, new CrowdProvenanceProjection()),
+                    Clock.fixed(OBSERVED.plusSeconds(600), ZoneOffset.UTC)).readiness();
+        });
+        assertThat(readiness.capabilities().stream()
+                .filter(capability -> capability.name().equals("replay")).findFirst().orElseThrow()
+                .status().name()).isEqualTo("UNAVAILABLE");
+    }
+
+    @Test
+    @DisplayName("BA-092-T13 서울 표준 혼잡도와 다른 metric은 캡처하지 않는다")
+    void anotherMetricCannotBeCaptured() {
+        UUID snapshot = snapshot("OTHER_METRIC", SeoulLiveSnapshotStore.NORMALIZATION_VERSION);
+        var plan = new ReplayManifestImporter.Plan("wrong-metric-" + UUID.randomUUID(),
+                OBSERVED.minusSeconds(1), OBSERVED.plusSeconds(1), List.of(snapshot));
+
+        assertThatThrownBy(() -> importInIsolatedSchema(plan)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("BA-092-T13 잘못된 metric 또는 normalization manifest는 읽지 않는다")
+    void anotherMetricOrNormalizationCannotBeRead() throws Exception {
+        for (UUID snapshot : List.of(
+                snapshot("OTHER_METRIC", SeoulLiveSnapshotStore.NORMALIZATION_VERSION),
+                snapshot(SeoulLiveSnapshotStore.METRIC_CODE, "other-normalization"))) {
+            UUID manifest = manifest(OBSERVED.minusSeconds(1), OBSERVED.plusSeconds(60),
+                    checksum("0:" + snapshot + "\n"));
+            entry(manifest, snapshot, 0);
+            assertThat(replay(manifest, OBSERVED.plusSeconds(600))).isEmpty();
+        }
     }
 
     @Test
@@ -211,13 +327,34 @@ class ReplayManifestMigrationIT {
         });
     }
 
-    private Optional<ReplayBatch> replay(UUID manifest, Instant now) throws Exception {
-        try (Connection connection = dataSource.getConnection()) {
-            connection.setSchema(SCHEMA);
-            return new JdbcReplayManifestReader(
-                    new JdbcTemplate(new SingleConnectionDataSource(connection, true)),
-                    new CrowdProvenanceProjection()).read(manifest, now);
-        }
+    private Optional<ReplayBatch> replay(UUID manifest, Instant now) {
+        return new TransactionTemplate(transactions).execute(status -> {
+            jdbc.execute("SET LOCAL search_path TO " + SCHEMA);
+            return new JdbcReplayManifestReader(jdbc, new CrowdProvenanceProjection())
+                    .read(manifest, now);
+        });
+    }
+
+    private Optional<ReplayBatch> replayLatest(Instant now) {
+        return new TransactionTemplate(transactions).execute(status -> {
+            jdbc.execute("SET LOCAL search_path TO " + SCHEMA);
+            return new JdbcReplayManifestReader(jdbc, new CrowdProvenanceProjection())
+                    .latestFor("SEOUL_CITYDATA", now);
+        });
+    }
+
+    private UUID importInIsolatedSchema(ReplayManifestImporter.Plan plan) {
+        return new TransactionTemplate(transactions).execute(status -> {
+            jdbc.execute("SET LOCAL search_path TO " + SCHEMA);
+            return new ReplayManifestImporter(jdbc, Clock.fixed(OBSERVED.plusSeconds(120), ZoneOffset.UTC))
+                    .importPlan(plan);
+        });
+    }
+
+    private void retireArea(UUID snapshot) {
+        jdbc.update("UPDATE " + SCHEMA + ".live_areas SET status = 'RETIRED'"
+                + " WHERE id = (SELECT live_area_id FROM " + SCHEMA + ".crowd_snapshots WHERE id = ?)",
+                snapshot);
     }
 
     private static String checksum(String canonical) throws Exception {
@@ -226,6 +363,10 @@ class ReplayManifestMigrationIT {
     }
 
     private UUID snapshot() {
+        return snapshot(SeoulLiveSnapshotStore.METRIC_CODE, SeoulLiveSnapshotStore.NORMALIZATION_VERSION);
+    }
+
+    private UUID snapshot(String metricCode, String normalizationVersion) {
         UUID area = UUID.randomUUID();
         UUID run = UUID.randomUUID();
         UUID set = UUID.randomUUID();
@@ -246,18 +387,18 @@ class ReplayManifestMigrationIT {
             jdbc.update("INSERT INTO snapshot_sets"
                     + " (id, source_code, source_registry_version, collector_run_id, source_state, observed_at,"
                     + " fetched_at, stale_at, normalization_version, created_at)"
-                    + " VALUES (?, 'SEOUL_CITYDATA', 2, ?, 'LIVE', ?, ?, ?, 'seoul-live-area-v1', ?)",
+                    + " VALUES (?, 'SEOUL_CITYDATA', 2, ?, 'LIVE', ?, ?, ?, ?, ?)",
                     set, run, Timestamp.from(OBSERVED), Timestamp.from(fetched), Timestamp.from(stale),
-                    Timestamp.from(fetched));
+                    normalizationVersion, Timestamp.from(fetched));
             jdbc.update("INSERT INTO crowd_snapshots"
                     + " (id, snapshot_set_id, source_code, source_registry_version, live_area_id, source_state,"
                     + " observed_at, fetched_at, stale_at, metric_code, ordinal_level, normalization_version,"
                     + " scope, scope_label, mapping_type, created_at)"
                     + " VALUES (?, ?, 'SEOUL_CITYDATA', 2, ?, 'LIVE', ?, ?, ?,"
-                    + " 'SEOUL_LIVE_AREA_CONGESTION_LEVEL', '2', 'seoul-live-area-v1',"
+                    + " ?, '2', ?,"
                     + " 'LIVE_AREA', '서울 실시간 도시데이터 주요 장소', 'DIRECT', ?)",
                     point, set, area, Timestamp.from(OBSERVED), Timestamp.from(fetched),
-                    Timestamp.from(stale), Timestamp.from(fetched));
+                    Timestamp.from(stale), metricCode, normalizationVersion, Timestamp.from(fetched));
         });
         return point;
     }

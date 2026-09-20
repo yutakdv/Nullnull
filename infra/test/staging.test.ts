@@ -285,12 +285,14 @@ test("only the API runs ITEM optimization, and no service turns on a capability 
   );
   for (const name of ["ai", "ops", "migration"])
     assert(!env(name).some((e: any) => e.Name === "FEATURE_LIVE_DATA"), `${name} FEATURE_LIVE_DATA`);
-  // replay still has no source: DemoCapabilityQuery.WITHOUT_A_SOURCE keeps it, so ON fails startup.
-  for (const c of containers)
-    assert(
-      !(c.Environment ?? []).some((e: any) => e.Name === "FEATURE_REPLAY_MODE" && e.Value === "true"),
-      `${c.Name} FEATURE_REPLAY_MODE`,
-    );
+  // The code can read replay manifests, but readiness remains UNAVAILABLE until an approved one
+  // exists. Only the API, which serves Live, may opt into that runtime fallback.
+  assert.deepEqual(
+    env("api").filter((e: any) => e.Name === "FEATURE_REPLAY_MODE"),
+    [{ Name: "FEATURE_REPLAY_MODE", Value: "true" }],
+  );
+  for (const name of ["ai", "ops", "migration"])
+    assert(!env(name).some((e: any) => e.Name === "FEATURE_REPLAY_MODE"), `${name} FEATURE_REPLAY_MODE`);
 });
 test("existing GitHub OIDC provider is referenced, never created", () => {
   for (const t of Object.values(templates))
@@ -395,7 +397,7 @@ test("a missing or failed Seoul collection reaches the alarm topic", () => {
   templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
     MetricName: "SeoulLiveCollectOk",
     Period: 60,
-    EvaluationPeriods: 4,
+    EvaluationPeriods: 12,
     ComparisonOperator: "LessThanThreshold",
     Threshold: 1,
     TreatMissingData: "breaching",

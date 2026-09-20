@@ -4,6 +4,7 @@ import io.nullnull.crowd.application.CrowdForecastQuery.Snapshot;
 import io.nullnull.crowd.application.CrowdProvenanceProjection;
 import io.nullnull.crowd.application.LiveAreaCrowdQuery.AreaReading;
 import io.nullnull.crowd.application.ReplayManifestReader;
+import io.nullnull.crowd.application.SeoulLiveSnapshotStore;
 import io.nullnull.crowd.domain.SourceState;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -41,6 +42,20 @@ public class JdbcReplayManifestReader implements ReplayManifestReader {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<ReplayBatch> latestFor(String sourceCode, Instant now) {
+        Objects.requireNonNull(sourceCode, "sourceCode");
+        Objects.requireNonNull(now, "now");
+        List<UUID> ids = jdbc.query("""
+                SELECT id FROM replay_manifests
+                 WHERE source_code = ? AND approved_at <= ?
+                 ORDER BY approved_at DESC, id DESC
+                 LIMIT 1
+                """, (row, ignored) -> row.getObject(1, UUID.class), sourceCode, Timestamp.from(now));
+        return ids.isEmpty() ? Optional.empty() : read(ids.getFirst(), now);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<ReplayBatch> read(UUID manifestId, Instant now) {
         Objects.requireNonNull(manifestId, "manifestId");
         Objects.requireNonNull(now, "now");
@@ -49,10 +64,12 @@ public class JdbcReplayManifestReader implements ReplayManifestReader {
                        manifest.source_registry_version, manifest.checksum,
                        manifest.source_license_snapshot, manifest.captured_from, manifest.captured_to,
                        manifest.approved_at,
+                       registry.enabled AS current_enabled,
                        (revision.canonical_contract->'license')::text AS approved_license,
                        revision.canonical_contract->>'approvalState' AS approval_state,
                        (revision.canonical_contract->>'enabled')::boolean AS source_enabled
                   FROM replay_manifests manifest
+                  JOIN source_registry registry ON registry.code = manifest.source_code
                   JOIN source_registry_revisions revision
                     ON revision.source_code = manifest.source_code
                    AND revision.version = manifest.source_registry_version
@@ -62,13 +79,15 @@ public class JdbcReplayManifestReader implements ReplayManifestReader {
                 result.getString("source_code"), result.getLong("source_registry_version"),
                 result.getString("checksum"), result.getString("source_license_snapshot"),
                 instant(result.getTimestamp("captured_from")), instant(result.getTimestamp("captured_to")),
-                instant(result.getTimestamp("approved_at")), result.getString("approved_license"),
+                instant(result.getTimestamp("approved_at")), result.getBoolean("current_enabled"),
+                result.getString("approved_license"),
                 result.getString("approval_state"), result.getBoolean("source_enabled")), manifestId);
         if (manifests.isEmpty()) {
             return Optional.empty();
         }
         Manifest manifest = manifests.getFirst();
         if (!FORMAT.equals(manifest.format()) || manifest.approvedAt().isAfter(now)
+                || !manifest.currentEnabled()
                 || !manifest.enabled()
                 || !("DEV_APPROVED".equals(manifest.approvalState())
                     || "PROD_APPROVED".equals(manifest.approvalState()))
@@ -77,18 +96,21 @@ public class JdbcReplayManifestReader implements ReplayManifestReader {
         }
 
         List<Entry> entries = jdbc.query("""
-                SELECT entry.sequence, entry.crowd_snapshot_id, point.live_area_id,
+                SELECT entry.sequence, entry.crowd_snapshot_id, point.live_area_id, area.status,
                        point.source_code, point.source_registry_version, point.source_state,
-                       point.scope, point.observed_at
+                       point.scope, point.metric_code, point.normalization_version, point.observed_at
                   FROM replay_manifest_entries entry
                   JOIN crowd_snapshots point ON point.id = entry.crowd_snapshot_id
+                  JOIN live_areas area ON area.id = point.live_area_id
                  WHERE entry.manifest_id = ?
                  ORDER BY entry.sequence
                 """, (result, row) -> new Entry(result.getInt("sequence"),
                 result.getObject("crowd_snapshot_id", UUID.class),
-                result.getObject("live_area_id", UUID.class), result.getString("source_code"),
+                result.getObject("live_area_id", UUID.class), result.getString("status"),
+                result.getString("source_code"),
                 result.getLong("source_registry_version"), result.getString("source_state"),
-                result.getString("scope"), instant(result.getTimestamp("observed_at"))), manifestId);
+                result.getString("scope"), result.getString("metric_code"),
+                result.getString("normalization_version"), instant(result.getTimestamp("observed_at"))), manifestId);
         if (!valid(manifest, entries)) {
             return Optional.empty();
         }
@@ -131,10 +153,13 @@ public class JdbcReplayManifestReader implements ReplayManifestReader {
         StringBuilder canonical = new StringBuilder();
         for (int index = 0; index < entries.size(); index++) {
             Entry entry = entries.get(index);
-            if (entry.sequence() != index || entry.areaId() == null || !areas.add(entry.areaId())
+            if (entry.sequence() != index || entry.areaId() == null
+                    || !"ACTIVE".equals(entry.areaStatus()) || !areas.add(entry.areaId())
                     || !manifest.sourceCode().equals(entry.sourceCode())
                     || manifest.sourceVersion() != entry.sourceVersion()
                     || !"LIVE_AREA".equals(entry.scope())
+                    || !SeoulLiveSnapshotStore.METRIC_CODE.equals(entry.metricCode())
+                    || !SeoulLiveSnapshotStore.NORMALIZATION_VERSION.equals(entry.normalizationVersion())
                     || !("LIVE".equals(entry.state()) || "STALE".equals(entry.state()))
                     || entry.observedAt() == null || entry.observedAt().isBefore(manifest.from())
                     || entry.observedAt().isAfter(manifest.to())) {
@@ -157,10 +182,12 @@ public class JdbcReplayManifestReader implements ReplayManifestReader {
 
     private record Manifest(UUID id, String format, String sourceCode, long sourceVersion,
             String checksum, String licenseSnapshot, Instant from, Instant to,
-            Instant approvedAt, String approvedLicense, String approvalState, boolean enabled) {
+            Instant approvedAt, boolean currentEnabled, String approvedLicense,
+            String approvalState, boolean enabled) {
     }
 
-    private record Entry(int sequence, UUID snapshotId, UUID areaId, String sourceCode,
-            long sourceVersion, String state, String scope, Instant observedAt) {
+    private record Entry(int sequence, UUID snapshotId, UUID areaId, String areaStatus,
+            String sourceCode, long sourceVersion, String state, String scope,
+            String metricCode, String normalizationVersion, Instant observedAt) {
     }
 }

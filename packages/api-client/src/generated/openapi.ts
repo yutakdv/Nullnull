@@ -929,6 +929,11 @@ export interface paths {
          * @description Read-only POST keeps an optional coarse viewport out of access URLs. Coordinates must
          *     be rounded to at most three decimals and cover at least 0.01 degrees on each axis;
          *     exact device coordinates are forbidden and the body is not logged or persisted.
+         *     AUTO and REPLAY_ALLOWED prefer current LIVE readings, then use the newest owner-approved
+         *     normalized replay manifest when no active Seoul area has a current LIVE reading. LIVE_ONLY never uses
+         *     replay. A stale provider reading remains STALE if no valid replay is available. A replay
+         *     response carries REPLAY at both page and reading level, its original observedAt, and
+         *     comparisonEligible=false; it does not claim to describe the current city.
          */
         post: operations["queryLiveAreas"];
         delete?: never;
