@@ -156,6 +156,12 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
    **되는 형태는 `git commit -m … -- <경로>`다**(같은 실측: `c.txt`만 커밋되고 `b.txt`는 index에 남았다). `reset --mixed`도 증상은 없애지만 **staging을 전부 푼다** — 재구성 중에는 남의 hunk를 index에 둔 채로 내 것만 내는 것이 요구사항이므로 `--mixed`는 그 요구를 만족하지 못한다. 둘을 나란히 적으면 다음 사람이 `--mixed`를 골라 같은 자리에서 한 번 더 물린다.
 
+   **그 형태에는 구멍이 둘 있다. 둘 다 실측으로 확인됐다.**
+
+   **첫째: `git commit -- <경로>`는 untracked 파일에 듣지 않는다.** 버리는 저장소에서 잰 출력이 `error: pathspec 'untracked.txt' did not match any file(s) known to git`이다. 새 파일이 섞인 커밋은 그 형태만으로 **커밋 자체가 안 된다.** `git add -- <경로들> && git commit -m … -- <경로들>`로 **한 명령에 묶는다** — 위 문단이 닫으려는 창(`add`와 `commit` 사이)은 그대로 닫히고, `commit`이 보는 범위도 경로로 좁혀진 채 남는다. **이 규칙을 쓰면서 그 경우를 안 쟀다**는 것이 이 항목이 생긴 이유다.
+
+   **둘째: 격리 worktree에는 이 창이 애초에 없다.** `git rev-parse --git-path index`로 재면 worktree마다 `.git/worktrees/<이름>/index`를 따로 갖는다(공유 checkout만 `.git/index`다). 규칙 6의 index 사고는 **같은 checkout을 공유할 때**의 것이고, 각자 worktree에 있는 세션에는 걸리지 않는다. **그래도 위 형태를 쓰는 것이 낫다** — 어느 트리에 있는지가 그 순간 틀릴 수 있고(오늘 세션 이름·base SHA·ref가 각각 한 번씩 틀렸다), 맞는 트리에서도 비용이 0이다. 다만 *"공유 index 때문에"* 를 이유로 적으면 **격리 worktree에서 그 문장이 거짓이 되고**, 거짓인 이유를 단 규칙은 다음 사람이 규칙째로 버린다.
+
    **작업 파일을 아예 안 건드리는 형태가 더 낫다**: `git show HEAD:<파일>`을 꺼내 내 편집만 적용하고 그 blob을 index에 직접 넣으면(`hash-object -w` + `update-index --cacheinfo`) 남의 미커밋 hunk가 **디스크에서 한 번도 사라지지 않는다.** 아래 열째가 *"되돌리는 순간이 남의 작업이 마지막으로 위험한 자리"* 라고 적은 그 순간이 없어진다.
 
    **선언은 소유가 아니다 — 그리고 예고한 직후가 가장 위험하다.** 위 항목이 *"내 파일이 남의 커밋으로 간다"* 라면 이것은 그 거울상인 *"남의 파일을 내 것으로 읽는다"* 다. 한 세션이 조율자에게 *"내가 만질 파일은 `apps/api/src/main/java/io/nullnull/shared/…`"* 라고 적어 보냈고, **그 직후** `git status`에 정확히 그 자리의 새 디렉터리 둘이 `??`로 떴다. 그 세션은 **코드를 한 줄도 쓰지 않은 상태였다.** 열어보니 다른 세션의 `DeploymentProfileGuard`와 그 test였다 — 파일 이름은 안 겹치고 package만 같았다. 확인하지 않고 `git add`를 했으면 남의 작업이 그 세션의 커밋에 실렸고, `git checkout --`를 했으면 날아갔다. **이 저장소는 그 두 사고를 이미 각각 겪었고 위 두 항목이 그것이다.** 확인 비용은 `find` 한 번이었다.
