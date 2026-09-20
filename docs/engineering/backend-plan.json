@@ -3193,6 +3193,30 @@
         {
           "id": "BA-086-T3",
           "assertion": "source 변경/삭제 때 오래된 번역 노출을 차단한다"
+        },
+        {
+          "id": "BA-086-T4",
+          "assertion": "요청 locale 의 행이 없으면 fallback 이 일어나고 응답이 그 텍스트가 어느 locale 에서 왔는지 말한다"
+        },
+        {
+          "id": "BA-086-T5",
+          "assertion": "fallback 으로 답할 때도 그 텍스트를 만든 source 의 attribution 이 유지된다"
+        },
+        {
+          "id": "BA-086-T6",
+          "assertion": "V047 은 기존 행의 출처를 place_external_refs 에서 유도하지 않는다"
+        },
+        {
+          "id": "BA-086-T7",
+          "assertion": "pin 된 source revision 이 현재 revision 과 다르면 그 localization 을 내보내지 않는다"
+        },
+        {
+          "id": "BA-086-T8",
+          "assertion": "source 가 더 이상 enabled 가 아니면 그 localization 을 내보내지 않는다"
+        },
+        {
+          "id": "BA-086-T9",
+          "assertion": "localization 의 provenance 는 전부-또는-전무다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
