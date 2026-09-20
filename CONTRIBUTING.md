@@ -31,7 +31,7 @@ tags:
 - Backend/AI 담당: `backend`
 - 통합·배포 기준선: `main`
 
-각 담당자는 자기 역할 브랜치에서 한 vertical slice만 진행하고 `main`을 base로 PR을 만든다. 상대 담당자의 승인, `docs-contract`, `docker-integration`을 통과한 뒤 merge commit으로 병합한다. `main` direct/force push, self-approval, 역할 브랜치 삭제를 금지한다. 자세한 순서와 교차 계약 변경 절차는 [브랜치·Docker 통합 계약](docs/engineering/BRANCH_AND_INTEGRATION.md)을 따른다.
+각 담당자는 자기 역할 브랜치에서 한 vertical slice만 진행하고 `main`을 base로 PR을 만든다. 최신 `main` 기준 `docs-contract`·`docker-integration`이 모두 green이면 **상대 승인 대기 없이** auto-merge로 merge commit한다([AGENTS.md 원칙 15](AGENTS.md)). 예외는 오너가 직접 merge하는 AWS·CD 경로뿐이다. `main` direct/force push와 역할 브랜치 삭제를 금지한다. 자세한 순서와 교차 계약 변경 절차는 [브랜치·Docker 통합 계약](docs/engineering/BRANCH_AND_INTEGRATION.md)을 따른다.
 
 Commit은 Conventional Commits를 사용한다.
 

@@ -70,6 +70,11 @@ class FlywayMigrationIT {
     // recalculates, because neither branch can see the other." The merge is that moment, and this
     // list plus the count below is the recalculation. V046 creates no table of its own, so
     // nothing new waits behind upload_intents.
+    //
+    // V047 (BA-086) is the head now, which makes V046 the previous schema - and V046 creates no
+    // table, so this list does NOT move. That is the whole edit on this side: the hand-off only
+    // has something to hand over when the migration that just became "previous" created a table.
+    // V047 creates none either, so the next migration will find this list unchanged again.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -180,7 +185,14 @@ class FlywayMigrationIT {
             // moving is how this assertion works - it is what notices a migration that quietly
             // plants data - so it is edited with a reason, never deleted. It moved 0 -> 3 -> 1 in
             // one day because two branches each had a different last migration.
-            long seededAfterPreviousSchema = 1;
+            //
+            // V047 (BA-086) is the last migration now, so V046 runs in the first migrate step and
+            // that Seoul revision row is inside rowsBefore. V047 seeds NOTHING: it adds four
+            // nullable provenance columns to place_localizations and deliberately backfills none
+            // of them - deriving a text's source from the place's external reference is the thing
+            // that migration exists to refuse - so the count is 0. MEASURED, not predicted: with
+            // 1 still here the assertion read "expected: 72L but was: 71L".
+            long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.

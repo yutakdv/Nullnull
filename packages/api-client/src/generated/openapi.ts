@@ -3629,6 +3629,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3657,6 +3658,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3890,6 +3892,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3935,6 +3938,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3973,6 +3977,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -4591,6 +4596,7 @@ export interface operations {
             /** @description Places mapped to the selected live area */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -4598,6 +4604,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };
@@ -4615,6 +4622,7 @@ export interface operations {
             /** @description Place details with current, forecast, replay, or unavailable state */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -4623,6 +4631,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["SourceUnavailable"];
             default: components["responses"]["Problem"];
         };
     };

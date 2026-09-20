@@ -13,7 +13,7 @@ tags:
 
 - 대상: Nullnull Frontend 담당자(`FE_DRI`)와 해당 담당자의 Claude Code 세션
 - 기준일: 2026-09-05
-- 현재 상태: 문서·계약 기준선은 `main`에 병합됐으며, `apps/web/`는 아직 없다
+- 현재 상태: 문서·계약 기준선과 `apps/web/`·`apps/api/`·`apps/ai/`·생성 client·`infra`가 모두 `main`에 있다
 - 이 문서의 목적: 처음 합류한 담당자가 문서 전체를 탐색하지 않고도 안전하게 첫 Frontend slice를 시작하게 한다
 
 ## Claude Code에 전달할 첫 요청
@@ -50,7 +50,7 @@ Frontend 작업을 보고해줘. 수동 API type/client를 만들거나 P1 capab
 | --- | --- | --- |
 | 기준선 | 문서·계약 기준선과 그 뒤의 병합된 dependency update가 `main`에 있음 | FE 담당자는 최신 `main`의 화면/API 적합성을 먼저 review한다 |
 | 역할 branch | `frontend`는 이미 생성된 장기 역할 branch | 작업 전 최신 `main`과 동기화한다. `backend`에서 UI를 구현하거나 역할 branch를 다시 만들지 않는다 |
-| 앱 코드 | `apps/web/`, `apps/api/`, generated client, DB migration이 아직 없음 | 구현 완료처럼 행동하지 않는다. 첫 개발은 M0 `FE-001` scaffold다 |
+| 앱 코드 | `apps/web/`, `apps/api/`, `apps/ai/`, generated client, Flyway migration이 모두 있음 | 존재 여부를 이 표에서 읽지 말고 `git ls-tree -d --name-only origin/main`으로 본다 — 이 칸은 한 번 낡아서 사람을 틀리게 했다 |
 | Figma | 현재 52개 구현 frame, component 49개를 확인했지만 P0 mismatch가 남음 | FCR-001~015 영향 화면은 Figma 수정·검토 전 UI를 확정하지 않는다 |
 | P0 언어 | 한국어·English 실제 지원, 日本語·中文만 disabled `준비 중` | English를 준비 중으로 표시하거나 API 호출을 막으면 안 된다 |
 | 로그인·위치 | P0은 익명 session, login/위치는 OFF | 로그인 CTA·P1 feature·geolocation request를 활성화하지 않는다 |
@@ -107,13 +107,12 @@ issue와 synchronized 문서 변경으로 해결한다.
 │   └── project/             # PM audit, risk, repository baseline
 ├── scripts/                 # 문서/target-stack/integration verifier
 ├── compose.integration.yml  # M0 뒤 full integration contract
-└── apps/                    # 아직 없음; M0에서 web/api를 함께 추가
+└── apps/                    # web(FE) · api(Spring) · ai(Python 추천)
 ```
 
-M0 후 Frontend의 소유 경로는 `apps/web/**`이며, generated TypeScript API client는
+Frontend의 소유 경로는 `apps/web/**`이며, generated TypeScript API client는
 `packages/api-client/**`다. 과거 Python/FastAPI/SQLite 또는 예전 React prototype을
-복사하거나 되살리지 않는다. 현재 source tree에 target app이 없다는 것은 실패가 아니라
-의도된 baseline 상태다.
+복사하거나 되살리지 않는다.
 
 ## 4. branch와 첫 작업 절차
 

@@ -15,7 +15,7 @@ tags:
 - 대상: Frontend 담당 1명, Backend/AI 담당 1명
 - 원칙: 새 clone에서 같은 명령·seed·생성물로 같은 화면과 API를 재현한다.
 
-현재 문서는 목표 stack의 실행 계약이다. 검토 중 `apps/api` scaffold, 추천 서비스 `apps/ai`([ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006))와 `compose.yml`이 추가됐다. `apps/web`과 marker가 없어 현재 `scripts/integration-test.sh`는 hard fail한다. 앱이 전혀 없는 초기 기준선에서만 baseline-only를 허용하며, B01 scaffold PR은 내용이 정확히 `version=1`인 `.nullnull-target-stack`, 표의 lock 파일과 앱 명령/Docker stage를 실제로 만든 뒤 CI와 두 개발자 기기에서 검증해야 한다.
+현재 문서는 목표 stack의 실행 계약이다. `apps/api`, 추천 서비스 `apps/ai`([ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)), `apps/web`, `.nullnull-target-stack`, `compose.yml`이 모두 있으므로 `scripts/integration-test.sh`는 더 이상 marker 부재로 hard fail하지 않는다. 앱이 전혀 없는 초기 기준선에서만 baseline-only를 허용한다. **존재 여부는 산문이 아니라 `git ls-tree -d --name-only origin/main`으로 확인한다.**
 
 ## 1. B01 toolchain 결정표
 

@@ -303,7 +303,13 @@ class WrapperExecutionTests(unittest.TestCase):
                              # Copied, not stubbed: it reads the fake probe's real output and
                              # must refuse when the verdict is absent, which is the property
                              # that keeps it from being a rubber stamp.
-                             'record_gate_evidence.py'):
+                             'record_gate_evidence.py',
+                             # Copied for the same reason: the wrapper calls it after the browser
+                             # suite, and `set -Eeuo pipefail` makes a missing script abort the run.
+                             # This list is the second declaration of what the wrapper needs, and
+                             # adding a script without it fails here - which is how this one was
+                             # caught rather than in the gate.
+                             'check_e2e_flaky.py'):
                 shutil.copy2(ROOT / 'scripts' / filename, root / 'scripts' / filename)
             (root / 'scripts/verify_target_stack.py').write_text('')
             # Stubbed, not copied: the real runner discovers scripts/tests, and running it from

@@ -32,7 +32,11 @@ DB·clock·난수는 **어느 package에도 없고**, 외부 호출은 경계 pa
 - **그 예외가 번지지 않는 이유는 선언이 아니라 장치다.** `DECISION_PACKAGES`는 `PURE_PACKAGES`와 따로 적힌
   두 번째 리터럴이고 `DECISION_PACKAGES <= PURE_PACKAGES`가 단언된다. 그래서 adapter를 `explain`으로 옮기려면
   (a) `explain`을 impure로 재선언해야 하는데 그 단언이 막고, (b) 그대로 두면 AST scan이 import에서 실패한다.
-  **두 길이 다 빨갛다.**
+  **두 길이 다 빨갛다** — (b)를 재는 것은 `test_the_scan_sees_io_and_not_only_randomness_and_the_clock`이다.
+  **그 test가 생기기 전까지 이 문장은 거짓이었다.** scan의 금지 목록이 `random`·`requests`·`httpx`·`sqlalchemy`
+  넷뿐이라 `urllib`·`socket`·`subprocess`·`open()`·`pathlib`이 전부 통과했고, **`urllib`은 이 adapter가 쓰는
+  바로 그 module이다.** 즉 (b)는 정확히 이 adapter에 대해 발화하지 않았다. 셀 수 있는 주장을 적을 때는
+  무엇이 그것을 재는지 같이 적는다 — 그 이름이 없으면 다음 사람이 이 문장을 확인할 방법이 없다.
 - owner/session ID·붙여넣기 원문·정밀 좌표를 입력으로 받지 않는다.
 - 같은 입력은 같은 출력을 낸다. `tests/test_purity.py`가 이를 검사한다.
 - 사실·영업·좌표·경로·혼잡·적용 가능성의 최종 판정자는 이 서비스가 아니다.
