@@ -34,9 +34,19 @@ def test_a_name_the_literal_does_not_know_fails_at_startup() -> None:
     stops the process" - so it moves to a name that is still unknown. Keeping the old case here
     would have left an assertion that passes for a new reason: OPENAI does raise today, but for a
     missing credential, which is the test below.
+
+    **The credentials below are what make that dodge work, and without them it did not.** Measured
+    on 2026-09-20: replacing the Literal with a plain `str` left the entire suite green (572
+    passed, red=0). The reason is that a bare `AI_PROVIDER=ANTHROPIC` has TWO reasons to raise, and
+    the one this clause is about is not the one that fires first - `_provider_credentials_required`
+    runs for every name that is not NONE, and its message ("AI_API_KEY is required when
+    AI_PROVIDER is ANTHROPIC") matches `AI_PROVIDER` just as well as the literal error does. So the
+    case moved from one substitute reason to another. Handing the unknown name a full set of
+    credentials removes the second reason, leaving only "this build has no such provider"; with the
+    Literal gone the call now returns normally and `pytest.raises` fails.
     """
     with pytest.raises(ValidationError, match="AI_PROVIDER"):
-        Settings(NULLNULL_ENV="test", AI_PROVIDER="ANTHROPIC")
+        Settings(NULLNULL_ENV="test", AI_PROVIDER="ANTHROPIC", AI_API_KEY="sk-test", AI_MODEL_ID="gpt-test")
 
 
 @pytest.mark.parametrize(

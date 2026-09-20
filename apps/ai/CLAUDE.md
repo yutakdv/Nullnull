@@ -37,6 +37,15 @@ DB·clock·난수는 **어느 package에도 없고**, 외부 호출은 경계 pa
   넷뿐이라 `urllib`·`socket`·`subprocess`·`open()`·`pathlib`이 전부 통과했고, **`urllib`은 이 adapter가 쓰는
   바로 그 module이다.** 즉 (b)는 정확히 이 adapter에 대해 발화하지 않았다. 셀 수 있는 주장을 적을 때는
   무엇이 그것을 재는지 같이 적는다 — 그 이름이 없으면 다음 사람이 이 문장을 확인할 방법이 없다.
+- **(a)(b)가 막는 것은 *옮기기*이고, *도달*은 다른 절이다.** 위 두 길은 adapter 파일이 decision package **안으로
+  들어올 때** 빨개진다. decision package가 adapter를 **제자리에 둔 채 import**하는 것은 둘 중 어느 것도 보지
+  않았다 — `FORBIDDEN_MODULES`는 third-party·stdlib 이름이고 `nullnull_ai.provider.openai`는 그 어느 쪽도
+  아니며, I/O는 adapter 안에 남아 importer의 tree에는 금지된 것이 나타나지 않는다. **측정(2026-09-20)**:
+  `explain/service.py`에 그 import 한 줄을 넣으면 572개가 전부 초록이었고, 같은 파일에 `import urllib.request`를
+  넣으면 `test_module_is_free_of_clocks_randomness_environment_and_io[explain/service.py]`가 반경 1로 빨갰다 —
+  scan은 그 파일을 덮고 있었고 없던 것은 **규칙**이다. 지금 그 절을 재는 것은
+  `test_module_does_not_reach_into_a_boundary_package`이고, 심은 위반(`adapter from`·`adapter import`·
+  `adapter relative`·`transport`·`evaluation`)과 허용 방향 대조가 같이 있다. `BA-084-T6`이 묻는 것이 이쪽이다.
 - owner/session ID·붙여넣기 원문·정밀 좌표를 입력으로 받지 않는다.
 - 같은 입력은 같은 출력을 낸다. `tests/test_purity.py`가 이를 검사한다.
 - 사실·영업·좌표·경로·혼잡·적용 가능성의 최종 판정자는 이 서비스가 아니다.
