@@ -55,16 +55,44 @@ public class JdbcCatalogPlaceQuery implements CatalogPlaceQuery {
      * the next candidate. Rows with no provenance - every row written before V047 - are unaffected,
      * because "we do not know where this came from" is not the same claim as "this is stale".
      *
-     * <p>Named once and interpolated into all four places that read place_localizations, for the
+     * <p>Named once and interpolated everywhere this class reads place_localizations, for the
      * reason the projection below is shared: a second copy would drift, and the copy that drifted
      * would be the one still serving text under a superseded licence.
+     *
+     * <p>The count, and how it was counted, because an earlier draft of this sentence said "four"
+     * and that was wrong: there are SEVEN substitution sites - three lateral joins in
+     * SUMMARY_PROJECTION, one in the search match, three in the detail read - delivered by THREE
+     * {@code .formatted(SERVABLE_LOCALIZATION)} calls and serving FOUR public read methods, because
+     * search, summaries and activePool all share SUMMARY_PROJECTION. Four was the method count
+     * written where the site count belonged.
+     *
+     * <p>The command is {@code grep -cE '^ +%1[$]s$'} on this file, and both brackets are load
+     * bearing - the one in the pattern and the one this sentence writes the token with. The
+     * previous version of this paragraph spelled the token out and told the reader to run a plain
+     * {@code grep -c} for it; that answered EIGHT, because the counting sentence had become one of
+     * the things being counted. A reviewer ran the command and found it. Anchoring the pattern to
+     * lines that are nothing but the token counts the SQL and not the prose, and writing the token
+     * here in brackets keeps this paragraph out of its own result. Self-checked before being
+     * written: the pattern returns 1 on the first lateral's line and 0 on this one.
      *
      * <p>It deliberately falls back rather than erroring. Making the fallback VISIBLE - telling the
      * client which locale it actually got - is BA-086-T4 and needs a contract field (#310).
      *
-     * <p>PlaceLocalizationProvenanceIT holds every clause here, and holds each of the four sites
-     * this is interpolated into: it measures the detail read, the embedded summary and the search
-     * match separately, because removing the gate from one of the three leaves the other two green.
+     * <p>PlaceLocalizationProvenanceIT holds every clause here. It measures three entry points
+     * separately - the detail read, the embedded summary and the search match - because removing
+     * the gate from one of them leaves the other two green; that was measured, one ungating
+     * mutation per entry point. activePool is not called there and does not need to be: it is the
+     * same SUMMARY_PROJECTION string the summary assertion already goes through.
+     *
+     * <p><strong>Its reach stops at the name, and that is measured rather than assumed.</strong>
+     * For a place shaped the way KtoSnapshotCatalogIngest actually writes one - the same
+     * {@code snapshot.title()} in both {@code places.canonical_name} and the localization -
+     * withdrawing the localization removed the address and the description and left the name
+     * byte-identical, with the place still matching a search for that name. canonical_name is the
+     * ungated tail of the COALESCE above and the ungated term on the search line below, and it has
+     * no provenance columns to gate it by. So this predicate governs the localized fields, not
+     * every copy of the provider's string. Closing that needs provenance on {@code places}, which
+     * is a migration and a card decision, not an edit here.
      */
     private static final String SERVABLE_LOCALIZATION =
             "AND (loc.source_code IS NULL"

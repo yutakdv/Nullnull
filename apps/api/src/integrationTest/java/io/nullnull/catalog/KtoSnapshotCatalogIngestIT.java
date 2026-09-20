@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import io.nullnull.testsupport.OwnedRows;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 
 /** Internal C3 mapping test; it uses normalized C2 evidence and performs no KTO HTTP call. */
@@ -108,6 +109,80 @@ class KtoSnapshotCatalogIngestIT {
         assertThat(placesCreatedHere()).containsExactly(existing.id());
     }
 
+    @Test
+    @DisplayName("BA-086-T12 a cached snapshot on a superseded source revision is refused rather than pinned")
+    void refusesASnapshotCollectedUnderASupersededSourceRevision() {
+        long current = currentKtoRevision();
+        // Without a superseded revision to point at there is nothing to refuse and this test would
+        // be measuring the absence of a case rather than the guard.
+        assertThat(current).isGreaterThan(1L);
+
+        assertThatThrownBy(() -> catalog.ingest(snapshot(current - 1, "A0101", "1")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("current reviewed revision");
+        // Refused before anything was written: a snapshot promoted on a stale pin would produce a
+        // row the read path withdraws on sight, and nothing anywhere would say why it vanished.
+        assertThat(placesCreatedHere()).isEmpty();
+        assertThat(rowsFor("place_external_refs")).isZero();
+
+        // The identical snapshot at the current revision is accepted, so the refusal is about the
+        // revision and not about this fixture being unfit for some other reason.
+        CatalogPlace accepted = catalog.ingest(snapshot(current, "A0101", "1"));
+        assertThat(placesCreatedHere()).containsExactly(accepted.id());
+    }
+
+    @Test
+    @DisplayName("BA-086-T13 an ingested place's Korean text carries the provenance the read gate reads")
+    void ingestStampsTheProvenanceTheReadGateReads() {
+        long current = currentKtoRevision();
+        CatalogPlace place = catalog.ingest(snapshot("A0101", "1"));
+
+        // This is the only thing that measures the gate's PRODUCER. Every other BA-086 test works
+        // from rows inserted by hand, so dropping the provenance argument from
+        // KtoSnapshotCatalogIngest.create would leave all of them green while turning the read
+        // gate into the guard-with-no-producer this card exists to avoid - the shape this
+        // repository already met in place_hours and place_relations.
+        Map<String, Object> row = jdbc.queryForMap("SELECT source_code, source_registry_version,"
+                + " source_locale, observed_at FROM place_localizations WHERE place_id = ?", place.id());
+        assertThat(row.get("source_code")).isEqualTo("KTO_KOR_SERVICE_2");
+        assertThat(((Number) row.get("source_registry_version")).longValue()).isEqualTo(current);
+        // KorService2 publishes Korean, so this row is not a translation: source_locale equals the
+        // locale it is stored under, and that equality is what "translated" is derived from.
+        assertThat(row.get("source_locale")).isEqualTo("ko-KR");
+        // The provider timeline, not the row timeline - observed_at is when the source was read.
+        assertThat(((java.sql.Timestamp) row.get("observed_at")).toInstant()).isEqualTo(FETCHED_AT);
+    }
+
+    @Test
+    @DisplayName("BA-086-T14 re-ingesting an already mapped place with a superseded snapshot is a no-op, not a refusal")
+    void reIngestingAnAlreadyMappedPlaceWithASupersededSnapshotIsStillANoOp() {
+        long current = currentKtoRevision();
+        assertThat(current).isGreaterThan(1L);
+        CatalogPlace existing = catalog.ingest(snapshot(current, "A0101", "1"));
+        Long pinBefore = pinOf(existing);
+
+        // KtoDemoRefresh.detail() makes this call for EVERY place on its list and its comment says
+        // it relies on the call being idempotent for ones already mapped. findFresh filters only on
+        // staleness, so for a whole freshness window after a revision bump it hands over snapshots
+        // pinned to the previous revision. Refusing here would report every already-known place as
+        // failed for something that writes nothing - which is what the first version of the guard
+        // did, because it ran before the external-reference lookup instead of inside create().
+        CatalogPlace again = catalog.ingest(snapshot(current - 1, "A0101", "1"));
+
+        assertThat(again.id()).isEqualTo(existing.id());
+        assertThat(placesCreatedHere()).containsExactly(existing.id());
+        // And it really wrote nothing: the pin is UNCHANGED, rather than equal to some value. The
+        // difference was measured - asserting the value made this test fail whenever the producer
+        // stopped stamping provenance at all, which is BA-086-T13's clause, not this one. A no-op
+        // is a statement about change.
+        assertThat(pinOf(existing)).isEqualTo(pinBefore);
+    }
+
+    private Long pinOf(CatalogPlace place) {
+        return jdbc.queryForObject("SELECT source_registry_version FROM place_localizations"
+                + " WHERE place_id = ?", Long.class, place.id());
+    }
+
     /** The places that appeared while this test ran - the ones it is entitled to make claims about. */
     private List<UUID> placesCreatedHere() {
         List<UUID> mine = new ArrayList<>(jdbc.queryForList("SELECT id FROM places", UUID.class));
@@ -127,9 +202,26 @@ class KtoSnapshotCatalogIngestIT {
         return found == null ? 0 : found;
     }
 
-    private static KtoPlaceSnapshot snapshot(String category, String areaCode) {
-        return KtoPlaceSnapshot.accepted(3, UUID.randomUUID(), "264432", "12", "서울 테스트 관광지", category,
-                areaCode, "1", "서울특별시 종로구", new BigDecimal("37.566535"), new BigDecimal("126.978001"),
-                FETCHED_AT, Duration.ofDays(7));
+    /**
+     * The revision is READ rather than written down. It used to be the literal 3 while the
+     * migrations had already moved KTO to 4, which was harmless only because nothing in this class
+     * read the snapshot back through the projection - BA-086-T12 now refuses exactly that mismatch,
+     * so a literal here would pin this class to whichever revision was current the day it was typed.
+     */
+    private KtoPlaceSnapshot snapshot(String category, String areaCode) {
+        return snapshot(currentKtoRevision(), category, areaCode);
+    }
+
+    private static KtoPlaceSnapshot snapshot(long sourceRegistryVersion, String category, String areaCode) {
+        return KtoPlaceSnapshot.accepted(sourceRegistryVersion, UUID.randomUUID(), "264432", "12",
+                "서울 테스트 관광지", category, areaCode, "1", "서울특별시 종로구",
+                new BigDecimal("37.566535"), new BigDecimal("126.978001"), FETCHED_AT, Duration.ofDays(7));
+    }
+
+    private long currentKtoRevision() {
+        Long revision = jdbc.queryForObject(
+                "SELECT current_revision FROM source_registry WHERE code = 'KTO_KOR_SERVICE_2'", Long.class);
+        assertThat(revision).isNotNull();
+        return revision;
     }
 }

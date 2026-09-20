@@ -34,12 +34,25 @@
 -- content 12345"), which does not expire when terms change, while a localization is PROVIDER PROSE
 -- WE REPUBLISH, and republishing prose is exactly what a licence governs.
 --
--- The consequence is load-bearing and belongs here rather than in a comment further from the
--- decision: once the KTO ingest starts stamping these columns, bumping KTO_KOR_SERVICE_2 to a new
--- revision hides the Korean name, address and description collected under the old one until they
--- are re-ingested. That is fail-closed on purpose. It is not a bug report. That source has already
--- been bumped three times in this repository's life (V008, V009, V012), so this is a path the
--- project has walked, not a hypothetical.
+-- HOW FAR THE PIN ACTUALLY REACHES - measured, because the first draft of this paragraph asserted
+-- something broader and was wrong. Bumping KTO_KOR_SERVICE_2 withdraws the ADDRESS and the
+-- DESCRIPTION of Korean text collected under the old revision. It does NOT withdraw the NAME, and
+-- the place stays searchable by it: KtoSnapshotCatalogIngest writes snapshot.title() into BOTH
+-- places.canonical_name and the localization, and canonical_name is the ungated last resort of the
+-- locale chain as well as the ungated search term. So a pin on the localization cannot reach a
+-- second copy of the same provider string living on another table. That source has already been
+-- bumped three times in this repository's life (V008, V009, V012), so this is a path the project
+-- has walked, not a hypothetical.
+--
+-- And withdrawal is ONE-WAY today. KtoSnapshotCatalogIngest returns the existing place as soon as
+-- the external reference is claimed, so nothing afterwards updates a localization's text or its
+-- revision pin - there is no re-ingest that brings the address back. Do not read the paragraphs
+-- above as promising one.
+--
+-- This paragraph is a DATED OBSERVATION, not a rule: a migration comment cannot be corrected once
+-- applied. The rule lives where it can be edited - the BA-086 card, and
+-- JdbcCatalogPlaceQuery.SERVABLE_LOCALIZATION - and PlaceLocalizationProvenanceIT is what measures
+-- the part that is enforced.
 --
 -- PlaceLocalizationProvenanceIT is what measures all of the above. A migration comment cannot be
 -- corrected once applied, so it names the test rather than restating the rule: the rule lives
