@@ -162,6 +162,16 @@ required status는 `docs-contract`·`docker-integration` 두 개뿐이다. 그 �
 
    **둘째: 격리 worktree에는 이 창이 애초에 없다.** `git rev-parse --git-path index`로 재면 worktree마다 `.git/worktrees/<이름>/index`를 따로 갖는다(공유 checkout만 `.git/index`다). 규칙 6의 index 사고는 **같은 checkout을 공유할 때**의 것이고, 각자 worktree에 있는 세션에는 걸리지 않는다. **그래도 위 형태를 쓰는 것이 낫다** — 어느 트리에 있는지가 그 순간 틀릴 수 있고(오늘 세션 이름·base SHA·ref가 각각 한 번씩 틀렸다), 맞는 트리에서도 비용이 0이다. 다만 *"공유 index 때문에"* 를 이유로 적으면 **격리 worktree에서 그 문장이 거짓이 되고**, 거짓인 이유를 단 규칙은 다음 사람이 규칙째로 버린다.
 
+   **그리고 격리 worktree는 반대 방향으로도 판정을 바꾼다 — 같은 축에서 하루에 두 번 났다.**
+
+   **ref 축**: worktree는 옆 세션의 **미push 커밋을 못 본다**. 한 세션이 자기 트리에서 어떤 결정 행을 찾지 못하고 *"없다"* 로 보고했는데 그것은 다른 세션의 로컬 branch 에 있었다.
+
+   **파일시스템 축**: `git worktree add` 는 **추적 파일만 실체화한다** — gitignore된 것은 거기 **존재하지 않는다**. 그래서 **파일시스템을 걷는 검사**를 worktree 에서 재면 작업 checkout 과 다른 답이 나온다. 실측: `validate_docs.py` 를 `docs/**` 재귀로 넓히는 변경이 그 세션의 worktree 에서 **0건**이었고 공유 checkout 에서 **101건**이었다 — `docs/contracts/review-2026-09-06/node_modules` 안의 `*.md` 가 **471개** 있고 worktree 에는 그 디렉터리가 아예 없다. `node_modules`·`build/`·`.artifacts/` 가 정확히 그 차이에 산다.
+
+   **둘 다 *"내 트리 = 저장소"* 로 읽은 것이고, 격리 worktree 를 쓰기 때문에 기본값으로 일어난다.** *부재를 주장할 때 어디까지 찾았는지 적어라* 에 한 줄이 붙는다: **어느 트리에서 쟀는지도 적고, 파일시스템을 걷는 주장은 작업 checkout 에서 다시 재라.** 비공허 증명은 이 축을 닫지 못한다 — 그것은 *"새 파일을 읽는가"* 를 보이고, **읽는 범위가 그 트리에서만 작았다는 것**은 보이지 않는다.
+
+   **그 부류를 넓힐 때 셋째 교훈이 나왔다.** `scripts/` 에서 재귀로 걷는 것이 9개고 `node_modules` 를 제외하지 않는 것이 3개인데, **본문을 읽으니 고쳐야 하는 것은 0개였다** — 둘은 `apps/api/src` 만 걸어 노출이 없고, 셋째(`check_secret_exposure.py`)는 **제외하면 안 된다**: release bundle·image layer·log 를 훑는 것이고 **`node_modules` 안의 secret 도 secret 이다**. `grep` 목록을 그대로 작업으로 돌렸으면 셋째는 **가드를 약하게 만드는 수정**이 됐을 것이다.
+
    **작업 파일을 아예 안 건드리는 형태가 더 낫다**: `git show HEAD:<파일>`을 꺼내 내 편집만 적용하고 그 blob을 index에 직접 넣으면(`hash-object -w` + `update-index --cacheinfo`) 남의 미커밋 hunk가 **디스크에서 한 번도 사라지지 않는다.** 아래 열째가 *"되돌리는 순간이 남의 작업이 마지막으로 위험한 자리"* 라고 적은 그 순간이 없어진다.
 
    **선언은 소유가 아니다 — 그리고 예고한 직후가 가장 위험하다.** 위 항목이 *"내 파일이 남의 커밋으로 간다"* 라면 이것은 그 거울상인 *"남의 파일을 내 것으로 읽는다"* 다. 한 세션이 조율자에게 *"내가 만질 파일은 `apps/api/src/main/java/io/nullnull/shared/…`"* 라고 적어 보냈고, **그 직후** `git status`에 정확히 그 자리의 새 디렉터리 둘이 `??`로 떴다. 그 세션은 **코드를 한 줄도 쓰지 않은 상태였다.** 열어보니 다른 세션의 `DeploymentProfileGuard`와 그 test였다 — 파일 이름은 안 겹치고 package만 같았다. 확인하지 않고 `git add`를 했으면 남의 작업이 그 세션의 커밋에 실렸고, `git checkout --`를 했으면 날아갔다. **이 저장소는 그 두 사고를 이미 각각 겪었고 위 두 항목이 그것이다.** 확인 비용은 `find` 한 번이었다.
