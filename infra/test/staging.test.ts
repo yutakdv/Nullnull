@@ -305,9 +305,12 @@ test("the Seoul proxy holds the key, the API task does not, and the allowlist na
   const services = templates.services;
   const fn = Object.values(
     services.findResources("AWS::Lambda::Function"),
-  ).find((r: any) => r.Properties.FunctionName === "nullnull-stg-seoul-proxy") as any;
+  ).find((r: any) => r.Properties.FunctionName === "NullnullStgSeoulProxy") as any;
   assert.ok(fn, "the Seoul proxy function exists");
 
+  // The name has to satisfy the deployment role's resource pattern, which is case-sensitive. The
+  // gate cannot simulate IAM, so this asserts the shape the checked-in policy allows instead.
+  assert.match(fn.Properties.FunctionName, /^NullnullStg/);
   // Outside the VPC: inside it would need a NAT, and A-029's cost plan does not have one.
   assert.equal(fn.Properties.VpcConfig, undefined);
   // The function is handed a secret NAME to read at runtime, never a key. If the key were passed as

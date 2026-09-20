@@ -1006,8 +1006,17 @@ export function createStacks(
   // nothing else. Inside, it would need a NAT and A-029's cost plan would have to be recalculated.
   // There is no always-on resource here either - A-050 records that this account cannot have budget
   // alarms, so a fixed cost nobody is watching is the thing not to add.
+  // THE NAME IS NOT COSMETIC. infra/iam/cfn-execution.json:61 allows the CloudFormation execution
+  // role to act on "arn:aws:lambda:*:${Account}:function:NullnullStg*" and role-boundary.json:144
+  // allows "log-group:/aws/lambda/NullnullStg*". IAM resource patterns are case-sensitive, so a
+  // lowercase nullnull-stg-* function is outside BOTH: the deployment is denied, and a function
+  // that somehow deployed could not write the log line that is its only failure signal.
+  //
+  // AND THE OFFLINE GATE CANNOT SEE THAT. infra_check=pass means the templates synthesised and the
+  // assertions held; it does not simulate IAM. A green gate says nothing about whether this name is
+  // deployable - that only shows up at deploy time.
   const seoulProxy = new lambda.Function(services, "SeoulProxy", {
-    functionName: "nullnull-stg-seoul-proxy",
+    functionName: "NullnullStgSeoulProxy",
     runtime: lambda.Runtime.NODEJS_22_X,
     handler: "index.handler",
     code: lambda.Code.fromInline(SEOUL_PROXY_CODE),
