@@ -3430,6 +3430,10 @@
         {
           "id": "BA-086-T12",
           "assertion": "캐시된 snapshot 이 현재가 아닌 source revision 을 들고 있으면 ingest 가 그것을 pin 하지 않고 거절한다"
+        },
+        {
+          "id": "BA-086-T13",
+          "assertion": "ingest 된 place 의 국문 텍스트는 읽기 게이트가 읽는 provenance 를 들고 있다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
