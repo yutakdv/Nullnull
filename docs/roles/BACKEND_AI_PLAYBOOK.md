@@ -2291,6 +2291,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T9`: localization provenance 는 네 열 전부이거나 전무다
 - `BA-086-T10`: 영문 dataset probe 는 우리 contentId 가 그 dataset 에서 풀리는지를 보고한다
 - `BA-086-T11`: 영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다
+- `BA-086-T12`: 캐시된 snapshot 이 현재가 아닌 source revision 을 들고 있으면 ingest 가 그것을 pin 하지 않고 거절한다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

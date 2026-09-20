@@ -3426,6 +3426,10 @@
         {
           "id": "BA-086-T11",
           "assertion": "영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다"
+        },
+        {
+          "id": "BA-086-T12",
+          "assertion": "캐시된 snapshot 이 현재가 아닌 source revision 을 들고 있으면 ingest 가 그것을 pin 하지 않고 거절한다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
