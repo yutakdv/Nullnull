@@ -17,6 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
  * the lesson recorded in HANDOFF-PROMPT is that a new owner-owned table gets its eraser in the same
  * change as its migration.
  *
+ * <p>{@code notifications} joined this eraser with V037. The coverage check finds owner-owned
+ * tables by their FOREIGN KEY to {@code owners} rather than by the column's name, so the table was
+ * enrolled the moment the migration declared that key - which is why the two land together.
+ *
  * <p>{@code posts.author_owner_id} is NOT named here. It is nullable, no P0 row sets it, and its
  * foreign key is ON DELETE SET NULL - a curated post is not the deleted owner's content and must
  * not disappear with them. When BA-082 lets an owner author a post, that slice decides whether
@@ -38,7 +42,7 @@ public class SocialOwnerDataEraser implements OwnerDataEraser {
 
     @Override
     public Set<String> ownerIdTables() {
-        return Set.of("saved_posts", "posts", "feed_feedback");
+        return Set.of("saved_posts", "posts", "feed_feedback", "notifications");
     }
 
     @Override
@@ -50,6 +54,11 @@ public class SocialOwnerDataEraser implements OwnerDataEraser {
         // Feed feedback is the reader's own behaviour, not an audit record, so erasure is immediate
         // and total rather than waiting for the 90-day retention sweep (ERD §6).
         jdbc.sql("DELETE FROM feed_feedback WHERE owner_id = ?").param(ownerId).update();
+        // Notifications are the traveller's own record of what happened to their trips, not an
+        // audit trail, so they go immediately rather than waiting for the retention sweep. The
+        // owners foreign key cascades too; this covers the soft-delete stage, where the owner row
+        // is still there - which is the stage DeletionIT BA-012-T2 measures.
+        jdbc.sql("DELETE FROM notifications WHERE owner_id = ?").param(ownerId).update();
         // Curated posts survive. This clears the authorship pointer for any row that ever gains one
         // so the table can never hold a deleted owner's identifier, which is what ownerIdTables
         // above is claiming coverage of.

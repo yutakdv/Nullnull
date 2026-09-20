@@ -72,7 +72,10 @@ import tools.jackson.databind.ObjectMapper;
         // searchPlaces and the feed's embedded places both sit behind the publication gate; with it
         // closed they answer 503 and there is no listing to page through.
         "nullnull.catalog.public-enabled=true",
-        "NULLNULL_CURSOR_SECRET=test-cursor-surface-matrix-secret-that-is-long-enough"})
+        "NULLNULL_CURSOR_SECRET=test-cursor-surface-matrix-secret-that-is-long-enough",
+        // listNotifications is routed but refuses while the feature flag is off, so a surface that
+        // could not serve a page would look like a broken fixture rather than a disabled feature.
+        "nullnull.notifications.enabled=true"})
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 @DisplayName("BA-027 cursor pagination across every cursor-paged surface")
@@ -111,10 +114,12 @@ class CursorSurfaceMatrixIT {
     private final List<UUID> createdPlaces = new ArrayList<>();
     private final List<UUID> createdTrips = new ArrayList<>();
     private final List<UUID> createdPosts = new ArrayList<>();
+    private final List<UUID> createdNotifications = new ArrayList<>();
     @Autowired io.nullnull.social.application.FeedCursorProperties feedCursors;
     @Autowired io.nullnull.trip.application.TripCursorProperties tripCursors;
     @Autowired io.nullnull.catalog.application.CatalogPublicationProperties catalogPublication;
     @Autowired io.nullnull.optimization.application.OptimizationCursorProperties optimizationCursors;
+    @Autowired io.nullnull.social.application.NotificationCursorProperties notificationCursors;
 
     @org.junit.jupiter.api.AfterEach
     void removeTheRowsThisClassCreated() {
@@ -129,9 +134,16 @@ class CursorSurfaceMatrixIT {
         for (UUID placeId : createdPlaces) {
             jdbc.update("DELETE FROM places WHERE id = ?", placeId);
         }
+        for (UUID notificationId : createdNotifications) {
+            // Named one by one rather than swept by owner: the gate runs every context against one
+            // database, so a statement that does not point at this class's own rows is a statement
+            // about every test that ran before it.
+            jdbc.update("DELETE FROM notifications WHERE id = ?", notificationId);
+        }
         createdTrips.clear();
         createdPlaces.clear();
         createdPosts.clear();
+        createdNotifications.clear();
     }
 
     // ---------------------------------------------------------------- tests
@@ -350,7 +362,8 @@ class CursorSurfaceMatrixIT {
     private Map<String, Surface> surfaces() {
         Map<String, Surface> surfaces = new LinkedHashMap<>();
         for (Surface surface : List.of(new FeedSurface(), new CandidateSurface(), new TripSurface(),
-                new PlaceSearchSurface(), new OptimizationHistorySurface())) {
+                new PlaceSearchSurface(), new OptimizationHistorySurface(),
+                new NotificationSurface())) {
             surfaces.put(surface.operationId, surface);
         }
         return surfaces;
@@ -740,6 +753,80 @@ class CursorSurfaceMatrixIT {
     }
 
     // ------------------------------------------------------------- fixtures
+
+    /**
+     * BA-085 listNotifications, the surface this file named before it existed.
+     *
+     * <p>The class javadoc said routing it would fail BA-027-T4 until it was covered here, and that
+     * is exactly what happened: the operation was declared in the contract, the matrix read it from
+     * there, and the moment a handler served it the fixture list was short by one.
+     */
+    private final class NotificationSurface extends Surface {
+
+        private SessionService.Bootstrap reader;
+        private Instant base;
+
+        NotificationSurface() {
+            super("listNotifications", null);
+        }
+
+        @Override
+        SignedCursorCodec codec() {
+            return notificationCursors.cursorCodec();
+        }
+
+        @Override
+        SessionService.Bootstrap seed() throws Exception {
+            // A fresh owner: the listing is per-owner, so the seeded four are the whole set.
+            reader = owner();
+            base = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+            for (int index = 0; index < SEEDED; index++) {
+                notification(base.minus(java.time.Duration.ofMinutes(60L - index * 10)));
+            }
+            return reader;
+        }
+
+        @Override
+        UUID insertAhead() {
+            // Ahead in created_at DESC means created later than every seeded row.
+            return notification(base.plus(java.time.Duration.ofHours(1)));
+        }
+
+        @Override
+        void remove(UUID id) {
+            jdbc.update("DELETE FROM notifications WHERE id = ?", id);
+        }
+
+        @Override
+        MvcResult call(SessionService.Bootstrap owner, String cursor, int limit) throws Exception {
+            var request = get("/api/v1/notifications").param("limit", Integer.toString(limit))
+                    .cookie(cookie(owner));
+            if (cursor != null) {
+                request.param("cursor", cursor);
+            }
+            return mvc.perform(request).andReturn();
+        }
+
+        /**
+         * One unread notification, with the expiry the application would have resolved.
+         *
+         * <p>Written through JDBC rather than NotificationService because what is being modelled is
+         * a row in the set, not the act of producing one - and no producer exists yet. The expiry is
+         * far enough out that the listing's "unexpired only" filter never hides a seeded row; a
+         * fixture that quietly expired mid-test would look like a paging defect.
+         */
+        private UUID notification(Instant createdAt) {
+            UUID id = UUID.randomUUID();
+            jdbc.update("INSERT INTO notifications (id, owner_id, type, title, body, deep_link,"
+                            + " created_at, read_at, expires_at)"
+                            + " VALUES (?, ?, 'TRIP_REMINDER', ?, ?, '/notifications', ?, NULL, ?)",
+                    id, reader.owner.id(), "cursor matrix", "cursor matrix",
+                    java.sql.Timestamp.from(createdAt),
+                    java.sql.Timestamp.from(createdAt.plus(java.time.Duration.ofDays(90))));
+            createdNotifications.add(id);
+            return id;
+        }
+    }
 
     private SessionService.Bootstrap owner() {
         return sessions.bootstrap(null, null, null);

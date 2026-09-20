@@ -244,7 +244,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | `FEATURE_OPTIMIZATION_ITEM` | OFF (기본값) | 제출 빌드(staging)는 ON이다 — 오너 결정(2026-09-19). `infra/src/staging.ts`가 staging API task에만 켠다(ops·migration·ai task에는 없다. `infra/test/staging.test.ts`가 고정한다). BA-050·BA-051이 source라 ON이어도 startup을 막지 않는다 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
 | `FEATURE_OPTIMIZATION_TRIP` | OFF | P1 |
-| `FEATURE_NOTIFICATIONS` | OFF | P1 |
+| `FEATURE_NOTIFICATIONS` | OFF (기본값) | P1. BA-085이 `nullnull.notifications.enabled`로 묶었다 — OFF면 `listNotifications`·`markNotificationRead`·`markAllNotificationsRead` 셋이 403으로 거절한다(`NotificationCapabilityOffIT`). **`getDemoReadiness`의 capability가 아니다**: 그 목록은 `live`·`replay`·`optimization` 셋으로 고정이고(`FR-OPS-02`, 9절 아래 문단) 넷째를 더하는 것은 BA-003이 소유한 FE-facing 계약 변경이다 |
 | `FEATURE_NEARBY_LOCATION` | OFF | P1 + privacy review |
 | `FEATURE_POST_CREATION` | OFF | P1 + moderation/media |
 | `FEATURE_PROFILE_HISTORY` | OFF local 초기 → B06 ON | P0 이력 계약·cursor/보존 test 통과 후 |

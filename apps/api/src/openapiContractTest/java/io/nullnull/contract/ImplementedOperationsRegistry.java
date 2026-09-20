@@ -22,7 +22,11 @@ public final class ImplementedOperationsRegistry {
                     "createOptimization", "getOptimization", "decideOptimization",
                     "revertOptimizationDecision", "listOptimizationHistory",
                     "parseTripImport", "remapTripImport", "confirmTripImport",
-                    "previewTripDraft");
+                    "previewTripDraft",
+                    // BA-085. The three are served behind nullnull.notifications.enabled, which is
+                    // OFF by default - serving an operation and enabling a feature are different
+                    // things, and this registry is about the former.
+                    "listNotifications", "markNotificationRead", "markAllNotificationsRead");
 
     private ImplementedOperationsRegistry() {
     }
