@@ -123,10 +123,12 @@ public final class RouteFeasibility {
      * lock that does not belong to it.
      */
     private static LocalDateTime waitsForReservation(PlannedStop stop, LocalDate date, LocalDateTime arrival) {
-        if (stop.lock() instanceof ItemLock.Reservation reservation
-                && reservation.date().equals(date)
-                && arrival.toLocalTime().isBefore(reservation.startTime())) {
-            return LocalDateTime.of(date, reservation.startTime());
+        for (ItemLock lock : stop.locks()) {
+            if (lock instanceof ItemLock.Reservation reservation
+                    && reservation.date().equals(date)
+                    && arrival.toLocalTime().isBefore(reservation.startTime())) {
+                return LocalDateTime.of(date, reservation.startTime());
+            }
         }
         return arrival;
     }
@@ -154,28 +156,33 @@ public final class RouteFeasibility {
      * The locks that say something about <em>when</em>. Each type is checked on its own fields only,
      * which is what keeps the four independent (invariant 7); MUST_VISIT says nothing about time and
      * is deliberately inert here - see {@link Reason}.
+     *
+     * <p><b>Every lock the stop carries is checked, not the first one.</b> A stop may hold one of
+     * each type at once, and independence means a DATE that matches does not excuse a TIME that is
+     * missed. Each failing lock adds its own reason, in the order the stop lists them, so a caller
+     * sees all of them rather than whichever came first.
      */
     private static void checkLock(PlannedStop stop, LocalDate date, LocalDateTime arrival,
             LocalDateTime departure, List<RouteInfeasibility> reasons) {
-        switch (stop.lock()) {
-            case null -> {
-                return;
-            }
-            case ItemLock.MustVisit ignored -> {
-                return;
-            }
-            case ItemLock.Date held -> {
-                if (!held.date().equals(date)) {
-                    reasons.add(RouteInfeasibility.at(Reason.DATE_LOCK_MISMATCH, stop.key()));
+        for (ItemLock lock : stop.locks()) {
+            switch (lock) {
+                case ItemLock.MustVisit ignored -> {
+                    // Says the place stays in the trip, not when it is visited. Inert here.
                 }
-            }
-            case ItemLock.Time held -> {
-                LocalDateTime pinned = LocalDateTime.of(date, held.startTime());
-                if (Duration.between(pinned, arrival).abs().toMinutes() > held.toleranceMinutes()) {
-                    reasons.add(RouteInfeasibility.at(Reason.TIME_LOCK_MISSED, stop.key()));
+                case ItemLock.Date held -> {
+                    if (!held.date().equals(date)) {
+                        reasons.add(RouteInfeasibility.at(Reason.DATE_LOCK_MISMATCH, stop.key()));
+                    }
                 }
+                case ItemLock.Time held -> {
+                    LocalDateTime pinned = LocalDateTime.of(date, held.startTime());
+                    if (Duration.between(pinned, arrival).abs().toMinutes() > held.toleranceMinutes()) {
+                        reasons.add(RouteInfeasibility.at(Reason.TIME_LOCK_MISSED, stop.key()));
+                    }
+                }
+                case ItemLock.Reservation held ->
+                        checkReservation(held, stop, date, arrival, departure, reasons);
             }
-            case ItemLock.Reservation held -> checkReservation(held, stop, date, arrival, departure, reasons);
         }
     }
 

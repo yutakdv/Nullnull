@@ -48,8 +48,8 @@ class RouteFeasibilityTest {
         return PlannedStop.of(key, place, Duration.ofMinutes(dwellMinutes));
     }
 
-    private static PlannedStop locked(String key, UUID place, int dwellMinutes, ItemLock lock) {
-        return new PlannedStop(key, place, Duration.ofMinutes(dwellMinutes), lock);
+    private static PlannedStop locked(String key, UUID place, int dwellMinutes, ItemLock... locks) {
+        return PlannedStop.locked(key, place, Duration.ofMinutes(dwellMinutes), locks);
     }
 
     private static DirectedRouteMatrix legs(Map<Pair, Duration> available) {
@@ -267,6 +267,55 @@ class RouteFeasibilityTest {
                 DirectedRouteMatrix.empty(), allOpen());
 
         assertThat(verdict.feasible()).isTrue();
+    }
+
+    @Test
+    @DisplayName("BA-083-T27 every lock a stop carries is checked, not the first one")
+    void allOfAStopsLocksAreChecked() {
+        // An item may hold one of each type at once - trip_constraints_one_per_type stores a row per
+        // (trip_item_id, type) - and the four are independent (invariant 7), so a DATE that matches
+        // does not excuse a TIME that is missed. The satisfied lock is listed FIRST on purpose: that
+        // is the order under which a reader of only the first lock sees nothing wrong.
+        RouteFeasibility.Verdict one = RouteFeasibility.verify(DAY, LocalTime.parse("09:31"),
+                List.of(locked("a", PLACE_A, 30, new ItemLock.Date(DAY),
+                        new ItemLock.Time(LocalTime.parse("09:00"), 30))),
+                DirectedRouteMatrix.empty(), allOpen());
+
+        assertThat(reasonsOf(one)).containsExactly(Reason.TIME_LOCK_MISSED);
+
+        // And when two of them refuse, both are reported rather than the walk settling for one.
+        RouteFeasibility.Verdict two = RouteFeasibility.verify(DAY, LocalTime.parse("09:31"),
+                List.of(locked("a", PLACE_A, 30, new ItemLock.Date(OTHER_DAY),
+                        new ItemLock.Time(LocalTime.parse("09:00"), 30))),
+                DirectedRouteMatrix.empty(), allOpen());
+
+        assertThat(reasonsOf(two))
+                .containsExactly(Reason.DATE_LOCK_MISMATCH, Reason.TIME_LOCK_MISSED);
+
+        // The waiting rule reads the list too, and a booking is not always listed first. Without
+        // this case, a version that only looked at locks.get(0) would still pass everything above:
+        // the two cases there hold no RESERVATION, and the single-lock case that does (T18) cannot
+        // tell "the first lock" from "the only lock". 10:30 is again the whole proof - starting at
+        // 09:00 instead of waiting is also feasible().
+        RouteFeasibility.Verdict booked = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
+                List.of(locked("a", PLACE_A, 30, new ItemLock.MustVisit(),
+                        new ItemLock.Reservation(DAY, LocalTime.parse("10:00"), null))),
+                DirectedRouteMatrix.empty(), allOpen());
+
+        assertThat(booked.feasible()).isTrue();
+        assertThat(booked.completedAt()).isEqualTo(LocalTime.parse("10:30"));
+    }
+
+    @Test
+    @DisplayName("BA-083-T28 two locks of the same type on one stop are rejected rather than resolved")
+    void aDuplicateLockTypeIsRejected() {
+        // The same shape as a pair declared both routable and unroutable: two DATEs are a request
+        // that cannot be satisfied, not a later one that wins. trip_constraints_one_per_type refuses
+        // them in storage and this refuses them in the value, so a caller that assembles a stop by
+        // hand cannot invent a combination the trip could never hold.
+        assertThatThrownBy(() -> PlannedStop.locked("a", PLACE_A, Duration.ofMinutes(30),
+                new ItemLock.Date(DAY), new ItemLock.Date(OTHER_DAY)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
