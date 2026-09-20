@@ -124,11 +124,23 @@ export const OPS_ALARM_NAMES = [
 export const SEOUL_PROXY_CODE = [
   "const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');",
   "const client = new SecretsManagerClient({});",
+  "const TTL_MS = 300000;",
+  "const MAX_BYTES = 2097152;",
   "let cached = null;",
+  "let cachedAt = 0;",
   "async function secret() {",
-  "  if (cached) return cached;",
+  // A warm container would otherwise hold the first value for its whole life: a rotated key would
+  // never be picked up and a revoked proxy token would keep being accepted.
+  "  if (cached && Date.now() - cachedAt < TTL_MS) return cached;",
   "  const out = await client.send(new GetSecretValueCommand({ SecretId: process.env.SECRET_ID }));",
-  "  cached = JSON.parse(out.SecretString);",
+  "  const parsed = JSON.parse(out.SecretString);",
+  // The secret is created with apiKey:"" so the operator can put the real one. Sending that blank
+  // upstream is a silent failure - Seoul decides what a keyless request means, and we do not know.
+  "  if (!parsed || typeof parsed.apiKey !== 'string' || !parsed.apiKey",
+  "      || typeof parsed.proxyToken !== 'string' || !parsed.proxyToken) {",
+  "    throw new Error('seoul_proxy_secret_incomplete');",
+  "  }",
+  "  cached = parsed; cachedAt = Date.now();",
   "  return cached;",
   "}",
   "function timingSafeEqual(a, b) {",
@@ -140,7 +152,12 @@ export const SEOUL_PROXY_CODE = [
   "exports.handler = async (event) => {",
   "  const path = (event && event.rawPath) || '';",
   "  const headers = (event && event.headers) || {};",
-  "  const { apiKey, proxyToken } = await secret();",
+  "  let apiKey, proxyToken;",
+  "  try { ({ apiKey, proxyToken } = await secret()); }",
+  "  catch (failure) {",
+  "    console.error('seoul_proxy_unavailable name=' + (failure && failure.message));",
+  "    return { statusCode: 503, body: '{\"code\":\"SOURCE_UNAVAILABLE\"}' };",
+  "  }",
   "  if (!timingSafeEqual(headers['x-nullnull-proxy-token'], proxyToken)) {",
   "    return { statusCode: 403, body: '{\"code\":\"FORBIDDEN\"}' };",
   "  }",
@@ -151,8 +168,21 @@ export const SEOUL_PROXY_CODE = [
   "  const upstream = 'http://openapi.seoul.go.kr:8088/' + encodeURIComponent(apiKey)",
   "    + '/json/citydata/1/5/' + encodeURIComponent(area);",
   "  try {",
-  "    const response = await fetch(upstream, { signal: AbortSignal.timeout(8000) });",
-  "    const body = await response.text();",
+  // redirect 'error' and a byte ceiling: ENVIRONMENT.md says the provider transport follows no
+  // redirect and reads a bounded stream. The Java client does both on ITS hop; without these two
+  // this hop did neither, so the guarantee had a hole exactly where the credential is.
+  "    const response = await fetch(upstream,",
+  "      { redirect: 'error', signal: AbortSignal.timeout(8000) });",
+  "    const reader = response.body.getReader();",
+  "    const chunks = []; let size = 0;",
+  "    for (;;) {",
+  "      const { done, value } = await reader.read();",
+  "      if (done) break;",
+  "      size += value.length;",
+  "      if (size > MAX_BYTES) { await reader.cancel(); throw new Error('response_too_large'); }",
+  "      chunks.push(value);",
+  "    }",
+  "    const body = Buffer.concat(chunks).toString('utf8');",
   "    return { statusCode: response.status, headers: { 'content-type': 'application/json' }, body };",
   "  } catch (failure) {",
   // The name only. failure.message can contain the URL, and the URL contains the key.

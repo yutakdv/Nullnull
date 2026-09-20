@@ -321,6 +321,14 @@ test("the Seoul proxy holds the key, the API task does not, and the allowlist na
   // host, and it must not print the URL - the URL is where the key is.
   const code = fn.Properties.Code.ZipFile as string;
   assert.match(code, /openapi\.seoul\.go\.kr:8088/);
+  // The three guarantees this hop owes, because the Java client cannot make them on its behalf:
+  // it follows no redirect, it does not buffer an unbounded body, and it refuses to run with the
+  // placeholder credential the secret is created with.
+  assert.match(code, /redirect: 'error'/);
+  assert.match(code, /size > MAX_BYTES/);
+  assert.match(code, /seoul_proxy_secret_incomplete/);
+  // And it re-reads the secret, so a rotated key or a revoked token reaches a warm container.
+  assert.match(code, /Date\.now\(\) - cachedAt < TTL_MS/);
   assert.equal(code.includes("console.error('seoul_proxy_upstream_failed name='"), true);
   assert.equal(/console\.(log|error|warn)\([^)]*upstream[^)]*\)/.test(code.replace(
     "console.error('seoul_proxy_upstream_failed name=' + (failure && failure.name));", "")), false);
