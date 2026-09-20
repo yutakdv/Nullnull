@@ -78,6 +78,8 @@ class RouteFeasibilityTest {
                 legs(Map.of(pair("a", "b"), Duration.ofMinutes(20))), allOpen());
 
         assertThat(verdict.feasible()).isTrue();
+        // 09:00 + 60 dwell + 20 travel + 30 dwell. feasible() alone passes under any arithmetic;
+        // this line is what pins the accumulation.
         assertThat(verdict.completedAt()).isEqualTo(LocalTime.parse("10:50"));
     }
 
@@ -89,6 +91,8 @@ class RouteFeasibilityTest {
                 legs(Map.of(pair("b", "a"), Duration.ofMinutes(20))), allOpen());
 
         assertThat(reasonsOf(verdict)).containsExactly(Reason.ROUTE_ABSENT);
+        // Not decoration: the reason is the only place the direction survives into a caller's
+        // hands. Drop these two and a matrix reporting the pair backwards still passes here.
         assertThat(verdict.reasons().getFirst().fromStopKey()).isEqualTo("a");
         assertThat(verdict.reasons().getFirst().stopKey()).isEqualTo("b");
     }
@@ -186,6 +190,9 @@ class RouteFeasibilityTest {
     @Test
     @DisplayName("BA-083-T14 a TIME lock missed by more than its tolerance refuses the day")
     void aTimeLockMissedBeyondToleranceIsRefused() {
+        // 09:31 is one minute past a 30-minute tolerance and aTimeLockWithinToleranceIsAccepted
+        // sits on 09:30. The two are one boundary measured from both sides: either alone stays
+        // green if the comparison becomes >= or its operands swap.
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:31"),
                 List.of(locked("a", PLACE_A, 30, new ItemLock.Time(LocalTime.parse("09:00"), 30))),
                 DirectedRouteMatrix.empty(), allOpen());
@@ -196,6 +203,8 @@ class RouteFeasibilityTest {
     @Test
     @DisplayName("BA-083-T15 a TIME lock met inside its tolerance does not refuse the day")
     void aTimeLockWithinToleranceIsAccepted() {
+        // Exactly the tolerance, so "more than its tolerance" is false. The other half of the
+        // boundary is aTimeLockMissedBeyondToleranceIsRefused.
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:30"),
                 List.of(locked("a", PLACE_A, 30, new ItemLock.Time(LocalTime.parse("09:00"), 30))),
                 DirectedRouteMatrix.empty(), allOpen());
@@ -233,6 +242,8 @@ class RouteFeasibilityTest {
                         new ItemLock.Reservation(DAY, LocalTime.parse("10:00"), null))),
                 DirectedRouteMatrix.empty(), allOpen());
 
+        // 10:30 is the whole proof. Starting at 09:00 rather than waiting for the booking is also
+        // feasible(), so without this line the clause asserts nothing about waiting.
         assertThat(verdict.feasible()).isTrue();
         assertThat(verdict.completedAt()).isEqualTo(LocalTime.parse("10:30"));
     }
@@ -272,6 +283,8 @@ class RouteFeasibilityTest {
                 legs(Map.of(pair("a", "b"), Duration.ofMinutes(120))), windows);
 
         assertThat(reasonsOf(verdict)).containsExactly(Reason.DAY_OVERFLOW);
+        // Which stop overflowed, not only that one did: a walk that gave up at "a" would satisfy
+        // the reason assertion above.
         assertThat(verdict.reasons().getFirst().stopKey()).isEqualTo("b");
     }
 
