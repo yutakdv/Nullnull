@@ -2353,9 +2353,12 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-091-T1`: viewport exact/oversized/invalid·owner cursor·검색 coverage를 검증한다
+- `BA-091-T1`: viewport 는 소수점 3자리·축별 최소 0.01도이고 그 밖은 거절된다
 - `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
 - `BA-091-T3`: Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다
+- `BA-091-T4`: viewport 거절이 좌표를 로그·응답에 남기지 않는다
+- `BA-091-T5`: 다른 owner 의 cursor 는 거절된다
+- `BA-091-T6`: searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

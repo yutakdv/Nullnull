@@ -3291,7 +3291,7 @@
       "tests": [
         {
           "id": "BA-091-T1",
-          "assertion": "viewport exact/oversized/invalid·owner cursor·검색 coverage를 검증한다"
+          "assertion": "viewport 는 소수점 3자리·축별 최소 0.01도이고 그 밖은 거절된다"
         },
         {
           "id": "BA-091-T2",
@@ -3300,6 +3300,18 @@
         {
           "id": "BA-091-T3",
           "assertion": "Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다"
+        },
+        {
+          "id": "BA-091-T4",
+          "assertion": "viewport 거절이 좌표를 로그·응답에 남기지 않는다"
+        },
+        {
+          "id": "BA-091-T5",
+          "assertion": "다른 owner 의 cursor 는 거절된다"
+        },
+        {
+          "id": "BA-091-T6",
+          "assertion": "searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",
