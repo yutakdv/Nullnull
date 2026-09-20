@@ -18,16 +18,20 @@ public final class CrowdStage {
     public static final List<String> SCALE = List.of("1", "2", "3", "4", "5");
 
     /**
-     * Sources whose stored stage may be served as a stage: none yet. A stage says "this source published
-     * this step of our scale", and no source has a mapping onto it that anyone reviewed - KTO publishes a
-     * relative index with no steps at all, and its writer stores NULL. So a stored stage is not passed
-     * through as evidence nobody approved: it is served as no stage, with SCHEMA_DRIFT (BA-023-T23).
+     * Sources whose stored stage may be served as a stage, each with the mapping that was reviewed.
      *
-     * <p>The slice that adds a producer adds its source code here together with the mapping that was
-     * reviewed. Until then this empty set is what makes the contract's "null today" true of the server
-     * and not only of the one writer.
+     * <p>A stage says "this source published this step of our scale". Without a reviewed mapping a
+     * stored stage is evidence nobody approved, so it is served as no stage with SCHEMA_DRIFT
+     * (BA-023-T23) - and that is still what happens to every source not named here. KTO is one of
+     * them: it publishes a relative index with no steps at all and its writer stores NULL.
+     *
+     * <p><strong>SEOUL_CITYDATA is the first, by owner decision A-060 (2026-09-20).</strong> Its
+     * mapping is {@link SeoulCongestionStage}, which is where the four steps, their thresholds and
+     * the fact that those thresholds are relative to each area's own past average are written. This
+     * set carries the name; that class carries the meaning, because a set of strings cannot hold the
+     * part a reader needs in order not to misread the numbers as absolutes.
      */
-    public static final Set<String> SOURCES_WITH_REVIEWED_SCALE = Set.of();
+    public static final Set<String> SOURCES_WITH_REVIEWED_SCALE = Set.of("SEOUL_CITYDATA");
 
     private CrowdStage() {
     }

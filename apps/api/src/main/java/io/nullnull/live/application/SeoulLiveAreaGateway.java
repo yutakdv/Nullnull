@@ -9,6 +9,7 @@ import io.nullnull.crowd.application.SeoulLiveSnapshotStore;
 import io.nullnull.crowd.application.SourceQuotaStore;
 import io.nullnull.crowd.application.SourceRegistryQuery;
 import io.nullnull.crowd.application.SourceRegistryStore;
+import io.nullnull.crowd.domain.SeoulCongestionStage;
 import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.crowd.domain.SourceRegistration;
 import io.nullnull.operations.application.IngestAudit;
@@ -152,7 +153,7 @@ public class SeoulLiveAreaGateway {
         // collectionEnabled() already required a stale window, so this is never null here.
         snapshots.save(SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), UUID.randomUUID(), runId,
                 source.currentRevision(), areaId, observation.observedAt(), clock.instant(),
-                source.staleAfterSeconds()));
+                source.staleAfterSeconds(), SeoulCongestionStage.of(observation.congestionLevel())));
         return observation;
     }
 

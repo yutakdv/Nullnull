@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.crowd.application.SeoulLiveSnapshotStore;
+import io.nullnull.crowd.domain.SeoulCongestionStage;
 import io.nullnull.crowd.domain.SourceState;
 import io.nullnull.live.application.LiveAreaStore;
 import io.nullnull.testsupport.OwnedRows;
@@ -73,7 +74,7 @@ class SeoulLiveSnapshotStoreIT {
         UUID snapshotId = UUID.randomUUID();
 
         snapshots.save(SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), snapshotId, runId, 2L,
-                areaId, OBSERVED, FETCHED, 300L));
+                areaId, OBSERVED, FETCHED, 300L, SeoulCongestionStage.of("보통")));
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM crowd_snapshots WHERE id = ?", snapshotId);
         // The subject is the area and only the area: crowd_snapshots_subject_xor_check and
@@ -84,12 +85,13 @@ class SeoulLiveSnapshotStoreIT {
         assertThat(row.get("source_state")).isEqualTo("LIVE");
         assertThat(((Timestamp) row.get("observed_at")).toInstant()).isEqualTo(OBSERVED);
         assertThat(((Timestamp) row.get("stale_at")).toInstant()).isEqualTo(OBSERVED.plusSeconds(300));
-        // No figure and no stage. Seoul publishes a population RANGE and a step measured against the
-        // area's own past average; a midpoint would be a number nobody took, and a stage needs the
-        // reviewed mapping CrowdStage is still waiting for.
+        // No figure, but a stage. Seoul publishes a population RANGE, so a midpoint would be a
+        // number nobody took - value stays null. The stage is different: the source publishes a step
+        // and A-060 placed those steps on our scale, so "보통" is cell 2 and that is reviewed
+        // evidence rather than a reading of the value.
         assertThat(row.get("value")).isNull();
         assertThat(row.get("unit")).isNull();
-        assertThat(row.get("ordinal_level")).isNull();
+        assertThat(row.get("ordinal_level")).isEqualTo("2");
         // DIRECT, not AREA: this row IS the area's reading. AREA is the other direction - a place
         // carrying an area's number - and that belongs to seoul_live_area_maps.
         assertThat(row.get("mapping_type")).isEqualTo("DIRECT");
@@ -107,7 +109,7 @@ class SeoulLiveSnapshotStoreIT {
         // Observed an hour before it was fetched, so observed + 300s is in the past.
         // crowd_snapshots_staleness_check would refuse that value; the state carries the fact instead.
         snapshots.save(SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), snapshotId, runId, 2L,
-                areaId, FETCHED.minusSeconds(3600), FETCHED, 300L));
+                areaId, FETCHED.minusSeconds(3600), FETCHED, 300L, SeoulCongestionStage.of("붐빔")));
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM crowd_snapshots WHERE id = ?", snapshotId);
         assertThat(row.get("source_state")).isEqualTo("STALE");
@@ -121,7 +123,7 @@ class SeoulLiveSnapshotStoreIT {
         // does. It is here so that the branch above is the ONLY producer of a null expiry - a caller
         // assembling the record by hand cannot smuggle an expiry the table would reject.
         assertThatThrownBy(() -> new SeoulLiveSnapshotStore.Reading(UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), 2L, UUID.randomUUID(), SourceState.LIVE, OBSERVED, FETCHED, FETCHED))
+                UUID.randomUUID(), 2L, UUID.randomUUID(), SourceState.LIVE, OBSERVED, FETCHED, FETCHED, "2"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("staleAt");
     }

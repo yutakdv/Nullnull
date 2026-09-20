@@ -132,6 +132,9 @@ class SeoulLiveAreaGatewayTest {
                     assertThat(stored.observedAt()).isEqualTo(Instant.parse("2026-09-20T06:15:00Z"));
                     assertThat(stored.staleAt()).isEqualTo(stored.observedAt().plusSeconds(300));
                     assertThat(areas.upserted.get(0).externalId()).isEqualTo("POI009");
+                    // 보통 is cell 2 of the product scale (A-060). The stage travels from the
+                    // provider's word to a reviewed digit here and nowhere else.
+                    assertThat(stored.ordinalLevel()).isEqualTo("2");
                 }
             }
         }

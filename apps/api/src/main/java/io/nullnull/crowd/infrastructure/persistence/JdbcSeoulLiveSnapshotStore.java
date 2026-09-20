@@ -49,13 +49,13 @@ public class JdbcSeoulLiveSnapshotStore implements SeoulLiveSnapshotStore {
                      ordinal_level, confidence, quality_flags, forecast_issue_id, comparison_group_id,
                      normalization_version, observed_at_skew_seconds, scope, scope_label, mapping_type,
                      fallback_used, created_at)
-                VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL, NULL, '[]'::jsonb,
+                VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, ?, NULL, '[]'::jsonb,
                         NULL, NULL, ?, NULL, 'LIVE_AREA', ?, ?, false, ?)
                 """, reading.snapshotId(), reading.snapshotSetId(), SOURCE_CODE,
                 reading.sourceRegistryVersion(), reading.liveAreaId(), reading.sourceState().name(),
                 Timestamp.from(reading.observedAt()), Timestamp.from(reading.fetchedAt()),
-                timestamp(reading.staleAt()), METRIC_CODE, NORMALIZATION_VERSION, SCOPE_LABEL,
-                MAPPING_TYPE, Timestamp.from(reading.fetchedAt()));
+                timestamp(reading.staleAt()), METRIC_CODE, reading.ordinalLevel(), NORMALIZATION_VERSION,
+                SCOPE_LABEL, MAPPING_TYPE, Timestamp.from(reading.fetchedAt()));
     }
 
     private static Timestamp timestamp(Instant value) {

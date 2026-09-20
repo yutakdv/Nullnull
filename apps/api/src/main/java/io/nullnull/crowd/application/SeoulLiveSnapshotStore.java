@@ -1,5 +1,6 @@
 package io.nullnull.crowd.application;
 
+import io.nullnull.crowd.domain.CrowdStage;
 import io.nullnull.crowd.domain.SourceState;
 import java.time.Instant;
 import java.util.Objects;
@@ -16,14 +17,15 @@ import java.util.UUID;
  *       and the congestion step it publishes beside that is a percentage of THAT AREA'S OWN past
  *       average. A midpoint would be a figure nobody measured and a cross-area comparison the data
  *       cannot support (invariant 8).
- *   <li>{@code ordinal_level} - {@code CrowdStage.SOURCES_WITH_REVIEWED_SCALE} is empty, and its
- *       javadoc says the slice that adds a producer adds its source code there TOGETHER WITH THE
- *       MAPPING THAT WAS REVIEWED. Seoul publishes four steps; the product's scale has five cells
- *       (FCR-035). Which four of the five is a product judgement, not something the source implies,
- *       so it is an owner decision and not a constant invented here. Until it is made the column
- *       stays null - a stored stage from an unreviewed source is served as null with SCHEMA_DRIFT
- *       anyway, which would report a drift that did not happen.
  * </ul>
+ *
+ * <p><strong>{@code ordinal_level} IS stored, and only because a human decided where it goes.</strong>
+ * Seoul publishes four steps and the product's scale has five cells (FCR-035); which four of the five
+ * is a product judgement the source does not imply. Owner decision A-060 (2026-09-20) placed them on
+ * 1-2-3-4 and left cell 5 empty, and {@link io.nullnull.crowd.domain.SeoulCongestionStage} holds that
+ * mapping with its thresholds. Before that decision this column was null here - not as a placeholder
+ * but because a stage from an unreviewed source is served as null with SCHEMA_DRIFT anyway, which
+ * would have reported a drift that never happened.
  *
  * <p>What the row does carry is the part that is unambiguous: which area, at which instant, from
  * which registry revision, and when it stops being current. That is enough for the Live page to
@@ -45,9 +47,11 @@ public interface SeoulLiveSnapshotStore {
      *
      * @param sourceState LIVE, or STALE when it had already expired before we received it
      * @param staleAt when it stops being current, or null when it already had
+     * @param ordinalLevel the product-scale cell, from SeoulCongestionStage (A-060)
      */
     record Reading(UUID snapshotSetId, UUID snapshotId, UUID collectorRunId, long sourceRegistryVersion,
-            UUID liveAreaId, SourceState sourceState, Instant observedAt, Instant fetchedAt, Instant staleAt) {
+            UUID liveAreaId, SourceState sourceState, Instant observedAt, Instant fetchedAt, Instant staleAt,
+            String ordinalLevel) {
 
         public Reading {
             Objects.requireNonNull(snapshotSetId, "snapshotSetId");
@@ -57,6 +61,12 @@ public interface SeoulLiveSnapshotStore {
             Objects.requireNonNull(sourceState, "sourceState");
             Objects.requireNonNull(observedAt, "observedAt");
             Objects.requireNonNull(fetchedAt, "fetchedAt");
+            if (!CrowdStage.onScale(ordinalLevel)) {
+                // Not "non-null": ON THE SCALE. A stage the read boundary would refuse must not be
+                // storable, or the refusal becomes the only thing standing between a typo and a
+                // number the screen treats as authoritative.
+                throw new IllegalArgumentException("ordinalLevel must be a step of the product scale");
+            }
             if (sourceRegistryVersion < 1) {
                 throw new IllegalArgumentException("sourceRegistryVersion must be positive");
             }
@@ -84,12 +94,12 @@ public interface SeoulLiveSnapshotStore {
          */
         public static Reading of(UUID snapshotSetId, UUID snapshotId, UUID collectorRunId,
                 long sourceRegistryVersion, UUID liveAreaId, Instant observedAt, Instant fetchedAt,
-                long staleAfterSeconds) {
+                long staleAfterSeconds, String ordinalLevel) {
             Instant expiry = Objects.requireNonNull(observedAt, "observedAt").plusSeconds(staleAfterSeconds);
             boolean current = expiry.isAfter(Objects.requireNonNull(fetchedAt, "fetchedAt"));
             return new Reading(snapshotSetId, snapshotId, collectorRunId, sourceRegistryVersion, liveAreaId,
                     current ? SourceState.LIVE : SourceState.STALE, observedAt, fetchedAt,
-                    current ? expiry : null);
+                    current ? expiry : null, ordinalLevel);
         }
     }
 

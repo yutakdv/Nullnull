@@ -1,5 +1,8 @@
 package io.nullnull.live.application;
 
+import io.nullnull.crowd.application.CrowdProvenanceProjection.CrowdMetric;
+import io.nullnull.crowd.application.LiveAreaCrowdQuery;
+import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.live.domain.CoarseViewport;
 import io.nullnull.live.domain.LiveQueryMode;
 import io.nullnull.live.domain.LiveViewportException;
@@ -7,20 +10,23 @@ import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 /**
  * The read side of the Live tab: validate what the caller sent, then answer with what is stored.
  *
- * <p><strong>Today that is nothing, and the response says so rather than pretending.</strong> The
- * Seoul collector writes no snapshot yet, so this returns an empty page whose mode is UNAVAILABLE -
- * the answer {@link LiveCapability} documents for "the feature is on and the provider gave us
- * nothing". It is not a placeholder and it is not a stub: an empty page IS the correct projection of
- * an empty store, and the alternative - seeding the screen with anything at all - is the one thing
- * invariant 6 forbids outright. When the collector's writer lands, the row source changes and this
- * class's contract with the caller does not.
+ * <p><strong>An area with no stored reading is not on the page.</strong> The alternative would be
+ * listing it with an UNAVAILABLE metric, and a metric carries a thirty-field provenance record - so
+ * that listing means composing a provenance for a measurement nobody took. An empty page is
+ * UNAVAILABLE by {@code LiveResultMode}, which is the honest answer when the feature is on and there
+ * is nothing to report; it is not a placeholder, and nothing is seeded to fill it (invariant 6).
  *
  * <p><strong>The viewport is validated and then not used as a filter.</strong> With no rows there is
  * nothing to filter, but the validation is NOT deferred with them: refusing precise coordinates is
@@ -35,11 +41,16 @@ public class LiveAreaQueryService {
 
     private final LiveCapability capability;
     private final LiveAreaProjection projection;
+    private final LiveAreaStore areas;
+    private final LiveAreaCrowdQuery readings;
     private final Clock clock;
 
-    public LiveAreaQueryService(LiveCapability capability, LiveAreaProjection projection, Clock clock) {
+    public LiveAreaQueryService(LiveCapability capability, LiveAreaProjection projection,
+            LiveAreaStore areas, LiveAreaCrowdQuery readings, Clock clock) {
         this.capability = Objects.requireNonNull(capability, "capability");
         this.projection = Objects.requireNonNull(projection, "projection");
+        this.areas = Objects.requireNonNull(areas, "areas");
+        this.readings = Objects.requireNonNull(readings, "readings");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -56,7 +67,23 @@ public class LiveAreaQueryService {
         requireRegionCode(regionCode);
         requireViewport(west, south, east, north);
         capability.require();
-        return projection.project(List.of(), clock.instant());
+        Instant now = clock.instant();
+        List<LiveAreaStore.StoredArea> stored = areas.activeAreas(SeoulLiveAreaObservation.SOURCE_CODE);
+        Map<UUID, CrowdMetric> byArea = new HashMap<>();
+        readings.latestFor(SeoulLiveAreaObservation.SOURCE_CODE,
+                        stored.stream().map(LiveAreaStore.StoredArea::id).toList(), now)
+                .forEach(reading -> byArea.put(reading.liveAreaId(), reading.crowd()));
+        List<LiveAreaProjection.AreaRow> rows = new ArrayList<>(stored.size());
+        for (LiveAreaStore.StoredArea area : stored) {
+            CrowdMetric crowd = byArea.get(area.id());
+            if (crowd == null) {
+                continue;
+            }
+            // No centroid, on both axes or neither: Seoul publishes no coordinate for an area
+            // anywhere, and AreaRow refuses half a point for exactly that reason.
+            rows.add(new LiveAreaProjection.AreaRow(area.id(), area.name(), null, null, crowd));
+        }
+        return projection.project(rows, now);
     }
 
     private static void requireMode(String mode) {
