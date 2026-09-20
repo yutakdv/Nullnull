@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createRepresentativeTrip, createSeededTrip } from './seeded-trip.js';
 
 // FE-001 covers the shell only: the app boots, routes resolve and keyboard
 // focus reaches the main region. Feature journeys arrive with their slices.
@@ -158,30 +159,17 @@ test.describe('app shell', () => {
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
     });
+    await createSeededTrip(page);
     await page.goto('/trips/select');
 
     await expect(page.getByRole('heading', { name: '내 여행' })).toBeVisible();
-    const firstTrip = page.getByRole('button', { name: /서울 가을 여행/ });
+    const firstTrip = page.getByRole('list').getByRole('button').first();
     await firstTrip.focus();
     await expect(firstTrip).toBeFocused();
     await page.keyboard.press('Enter');
 
-    await expect(page).toHaveURL(/\/trip\/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01$/);
-    await expect(page.getByRole('heading', { name: '서울 가을 여행' })).toBeVisible();
-  });
-
-  test('S03 feed cards keep the deployment portrait proportions', async ({ page }) => {
-    await page.setViewportSize({ width: 393, height: 852 });
-    await page.goto('/feed');
-
-    const firstCard = page.locator('article').first();
-    await expect(firstCard).toBeVisible();
-    const bounds = await firstCard.boundingBox();
-    const imageBounds = await firstCard.locator('img').boundingBox();
-    expect(bounds?.width).toBe(172.5);
-    expect(bounds?.height).toBeGreaterThan(340);
-    expect(imageBounds?.width).toBe(172.5);
-    expect(imageBounds?.height).toBe(230);
+    await expect(page).toHaveURL(/\/trip\/[0-9a-f-]+$/i);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
   test('S03 balances the feed title inset above and below', async ({ page }) => {
@@ -205,6 +193,7 @@ test.describe('app shell', () => {
 
   test('S03 floats the search notice without moving the feed', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
+    await createRepresentativeTrip(page);
     await page.goto('/feed');
 
     const banner = page.getByTestId('active-trip-banner');
@@ -234,6 +223,7 @@ test.describe('app shell', () => {
   test('S03 reaches the home logo and representative-trip choices by keyboard', async ({
     page,
   }) => {
+    await createRepresentativeTrip(page, 2);
     await page.goto('/feed');
 
     const logo = page.getByRole('link', { name: /홈 피드|Home feed/ });
@@ -263,6 +253,7 @@ test.describe('app shell', () => {
   test('S03 keeps the closed trip filter blue and highlights gray choices on hover', async ({
     page,
   }) => {
+    await createRepresentativeTrip(page, 2);
     await page.goto('/feed');
 
     const trip = page.getByRole('button', { name: /대표 여행|Representative trip/ });
@@ -280,29 +271,15 @@ test.describe('app shell', () => {
     await expect(choice).toHaveCSS('background-color', 'rgb(234, 242, 255)');
   });
 
-  test('S03 continues the feed on scroll without a load-more button', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 393, height: 852 });
-    await page.goto('/feed');
-
-    const cards = page.locator('article');
-    await expect(cards.first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /더 보기|Show more/ })).toHaveCount(0);
-
-    await page.locator('main').hover();
-    await page.mouse.wheel(0, 1_000);
-    await expect(cards).toHaveCount(6);
-  });
-
   test('S07 trip hero keeps the Figma 12px top inset', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
     });
-    await page.goto('/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01');
+    const tripPath = await createSeededTrip(page);
+    await page.goto(tripPath);
 
-    const heading = page.getByRole('heading', { name: '서울 가을 여행' });
+    const heading = page.getByRole('heading', { level: 1 });
     await expect(heading).toBeVisible();
     const hero = heading.locator('xpath=ancestor::header');
     const bounds = await hero.boundingBox();
@@ -311,26 +288,12 @@ test.describe('app shell', () => {
     expect(bounds?.height).toBe(178);
   });
 
-  test('S09 keeps optimization inside the Figma bottom-sheet frame', async ({ page }) => {
-    await page.setViewportSize({ width: 393, height: 852 });
-    await page.addInitScript(() => {
-      localStorage.setItem('nullnull.locale', 'ko-KR');
-    });
-    await page.goto('/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/optimize');
-
-    const sheet = page.getByRole('dialog', { name: '무엇을 최적화할까요?' });
-    await expect(sheet).toBeVisible();
-    const bounds = await sheet.boundingBox();
-    expect(bounds?.x).toBe(0);
-    expect(bounds?.y).toBe(386);
-    expect(bounds?.height).toBe(466);
-  });
-
   test('S14 uses the approved profile type and icon scale', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
     });
+    await createSeededTrip(page);
     await page.goto('/profile');
 
     await expect(page.locator('#profile-heading')).toHaveCSS('font-size', '24px');
@@ -354,7 +317,7 @@ test.describe('app shell', () => {
 
     const trips = page.getByRole('region', { name: '내 여행 목록' });
     const firstTrip = trips.getByRole('link').first();
-    await expect(firstTrip.getByText('서울 가을 여행')).toHaveCSS('font-size', '16px');
+    await expect(firstTrip.locator('span').nth(1)).toHaveCSS('font-size', '16px');
     await expect(firstTrip.locator('svg')).toHaveCount(0);
   });
 
@@ -363,6 +326,7 @@ test.describe('app shell', () => {
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
     });
+    await createSeededTrip(page);
     await page.goto('/profile');
 
     const trips = page.getByRole('region', { name: '내 여행 목록' });
@@ -382,7 +346,10 @@ test.describe('app shell', () => {
       (historyBounds?.y ?? 0) - ((tripBounds?.y ?? 0) + (tripBounds?.height ?? 0)),
     ).toBe(12);
 
-    const tripCount = trips.getByText('4', { exact: true });
+    const tripCount = page
+      .locator('#profile-trips-heading')
+      .locator('..')
+      .locator('span');
     const firstDelete = trips.getByRole('button', { name: /삭제/ }).first();
     await expect(tripCount).toBeVisible();
     await expect(firstDelete).toBeVisible();

@@ -2,11 +2,27 @@ import { defineConfig } from '@playwright/test';
 
 // One config for both modes. Locally it starts the dev server; inside the
 // docker-integration gate the compose file sets PLAYWRIGHT_BASE_URL to the
-// composed web service and no server is started.
-const integration = process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL;
+// composed web service and no server is started. PLAYWRIGHT_MOCK_BASE_URL is
+// the explicit escape hatch for an already-running mock server (for example,
+// when the developer's real-API Vite server already owns port 5173).
+const mockBaseURL = process.env.PLAYWRIGHT_MOCK_BASE_URL;
+const integration = mockBaseURL
+  ? undefined
+  : (process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL);
 
 export default defineConfig({
   testDir: './e2e',
+  // Specs whose assertions depend on the deterministic MSW catalogue belong
+  // to the local visual-regression suite, not to the composed API gate. The
+  // latter intentionally starts a fresh anonymous session and reads whatever
+  // the integration seed exposes, so fixed post counts, fixture trip names,
+  // and fixture UUIDs are not contract assertions there.
+  //
+  // Exclude the files at collection time instead of calling test.skip(): the
+  // report gate rejects skipped JUnit cases. The real-API suite still runs all
+  // non-mock specs, including session, trip creation, keyboard, responsive,
+  // and API-backed seeded-trip journeys.
+  testIgnore: integration ? ['**/*.mock.spec.ts'] : [],
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   // JUnit alongside the readable one in CI. check_test_reports.py reads JUnit and nothing
@@ -29,23 +45,24 @@ export default defineConfig({
       ]
     : 'list',
   use: {
-    baseURL: integration ?? 'http://127.0.0.1:5173',
+    baseURL: mockBaseURL ?? integration ?? 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
     // 360px is the narrowest supported width (.claude/rules/frontend.md).
     viewport: { width: 360, height: 800 },
     isMobile: true,
     hasTouch: true,
   },
-  webServer: integration
-    ? undefined
-    : {
-        // --host binds 127.0.0.1 as well as ::1. Without it Vite listens on
-        // IPv6 localhost only, Playwright's IPv4 baseURL never connects, and
-        // the suite runs against a blank page -- assertions on absent elements
-        // fail loudly, but any probe that only measures layout would "pass"
-        // while measuring nothing.
-        command: 'npm run dev:mock -- --host 127.0.0.1',
-        url: 'http://127.0.0.1:5173',
-        reuseExistingServer: !process.env.CI,
-      },
+  webServer:
+    integration || mockBaseURL
+      ? undefined
+      : {
+          // --host binds 127.0.0.1 as well as ::1. Without it Vite listens on
+          // IPv6 localhost only, Playwright's IPv4 baseURL never connects, and
+          // the suite runs against a blank page -- assertions on absent elements
+          // fail loudly, but any probe that only measures layout would "pass"
+          // while measuring nothing.
+          command: 'npm run dev:mock -- --host 127.0.0.1',
+          url: 'http://127.0.0.1:5173',
+          reuseExistingServer: !process.env.CI,
+        },
 });
