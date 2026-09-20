@@ -3240,6 +3240,14 @@
         {
           "id": "BA-090-T14",
           "assertion": "stale 한 서울 관측을 live 로 표시하지 않는다"
+        },
+        {
+          "id": "BA-090-T15",
+          "assertion": "provider 가 이름을 바꿔도 같은 행이 유지된다"
+        },
+        {
+          "id": "BA-090-T16",
+          "assertion": "목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",
