@@ -3450,7 +3450,7 @@
         },
         {
           "id": "BA-091-T5",
-          "assertion": "다른 owner 의 cursor 는 거절된다"
+          "assertion": "Live 목록 응답은 cursor 를 발급하지 않는다"
         },
         {
           "id": "BA-091-T6",

@@ -2376,6 +2376,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다
 4. 09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+진행 상태(대조): **`T5` 를 좁혔다.** 원래 문구는 *"다른 owner 의 cursor 는 거절된다"* 였는데 **Live 표면 전체에 cursor 가 없다** — `listLiveAreaPlaces` 는 page envelope 가 아니라 맨 배열을 내고 `getLivePlace` 는 단건이며 `queryLiveAreas` 의 요청에도 cursor 가 없다(계약 측정). **상류가 그 입력을 만들 수 없어 구조적으로 반증 불가인 절**이라 그대로 두면 증명할 방법이 없다. **그래서 지우지 않고 덫으로 바꿨다**: 지금 참인 사실(cursor 를 발급하지 않는다)을 응답 shape 로 고정하면, **Live 에 페이지네이션이 생기는 날 그 단언이 발화하고** 그때 owner 결속을 다시 세워야 한다는 것이 드러난다. **owner 별 cursor 거절 자체는 `BA-022-T2`·`BA-070-T1` 이 소유한 층**이고 이 카드가 그것을 다시 증명하지 않는다.
+
 실패·안전 경계: viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.
 
 필수 검증:
@@ -2384,7 +2386,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
 - `BA-091-T3`: Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다
 - `BA-091-T4`: viewport 거절이 좌표를 로그에 남기지 않는다
-- `BA-091-T5`: 다른 owner 의 cursor 는 거절된다
+- `BA-091-T5`: Live 목록 응답은 cursor 를 발급하지 않는다
 - `BA-091-T6`: searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다
 - `BA-091-T7`: 좌표를 모르는 구역은 centroid 를 null 로 내보낸다
 - `BA-091-T8`: viewport 는 축별 0.01도 미만이거나 역전된 box 를 거절한다
