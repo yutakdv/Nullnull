@@ -2187,6 +2187,13 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - `BA-083-T31`: 첫 stop 에 시각이 없으면 기본값을 주지 않고 거절한다
 - `BA-083-T32`: stop 에 소요시간이 없으면 0 으로 치지 않고 거절한다
 - `BA-083-T33`: curated 읽기가 없는 장소는 창을 얻지 않고 부재로 남는다
+- `BA-083-T34`: feasible 한 permutation 이 더 짧으면 측정된 delta 와 함께 검증된다
+- `BA-083-T35`: permutation 이 아닌 제안은 그것으로 거절한다
+- `BA-083-T36`: 같거나 더 긴 순서는 개선 없음으로 거절한다
+- `BA-083-T37`: 하루의 규칙을 깨는 순서는 더 짧아도 거절한다
+- `BA-083-T38`: leg 이 불명인 하루는 개선 없음이 아니라 비교 불가로 거절한다
+- `BA-083-T39`: 기록되는 분보다 짧은 절약도 개선이다 — 판정은 반올림 전 durations 로 한다
+- `BA-083-T40`: 기록되는 분은 0 쪽으로 버린다
 - `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
 - `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
 
