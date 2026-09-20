@@ -55,10 +55,13 @@ class FlywayMigrationIT {
     // V031, V032 and V033 landed - none of them creates a table, so the sentence stayed true and
     // stopped being useful, and it would need editing again at V034.
     //
-    // V037 creates notifications, the first new table since V030. It is deliberately NOT added
-    // here yet: this list describes the schema one migration BEHIND the head, and notifications
-    // does not exist there. It joins when V038 lands, and the PR that adds V038 is the one that
-    // adds it - an earlier migration's author cannot, because their CI has no V038 to migrate to.
+    // V037 created notifications, the first new table since V030, and V044 (BA-090) is now the
+    // head - so V037 IS the previous schema and notifications belongs here. V037's own author
+    // was right to leave it out: on their tree V037 was the head and this list would have been
+    // wrong. V044's author was right too: on their tree the previous migration created nothing.
+    // Both were correct alone and the merge was red, which is the global-sum shape this file
+    // keeps meeting - it is settled by whoever merges last, not by either slice.
+    // V044's own tables (live_areas, seoul_live_area_maps) join when the next migration lands.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -72,7 +75,7 @@ class FlywayMigrationIT {
             "place_hours_observations", "place_hours_windows", "feed_feedback",
             "place_relations", "itinerary_import_drafts",
             "optimization_proposals", "optimization_changes",
-            "optimization_decisions");
+            "optimization_decisions", "notifications");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -137,11 +140,12 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V037 is the last one today and seeds nothing: it creates the notifications table
-            // (BA-085) with its constraints and indexes and writes no row into it, because nothing
-            // produces a notification yet. It is the first migration since V030 to create a table,
-            // so PREVIOUS_SCHEMA_TABLES above does NOT gain notifications here - that list always
-            // describes the PREVIOUS schema, and notifications joins it when V038 lands. V036
+            // V044 is the last one today and seeds nothing: it creates live_areas and
+            // seoul_live_area_maps (BA-090) and adds the foreign key crowd_snapshots.live_area_id
+            // had been waiting for, and writes no row. V037 seeds nothing either: it creates the
+            // notifications table (BA-085) and writes no row into it, because nothing produces a
+            // notification yet - and with V044 ahead of it, V037 is now the previous schema, so
+            // PREVIOUS_SCHEMA_TABLES above DOES carry notifications. V036
             // seeded nothing either: it swaps three foreign keys on
             // optimization_decisions and optimization_runs, which creates no row
             // and no table and holds
@@ -614,6 +618,15 @@ class FlywayMigrationIT {
                 END
                 $upgrade$;
                 """.formatted(schema));
+        // V037's notifications, which V044 turns into part of the previous schema. Nothing produces
+        // a notification yet, so this is the table's only writer in the sweep. The row satisfies
+        // every constraint the migration declares: a type from the CHECK, an absolute internal path
+        // whose second character is not a slash (V037's open-redirect guard refuses "//host/x"),
+        // read_at null, and an expiry after creation.
+        jdbc.update("INSERT INTO " + schema + ".notifications"
+                        + " (id, owner_id, type, title, body, deep_link, created_at, read_at, expires_at)"
+                        + " VALUES (?, ?, 'OPTIMIZATION_READY', ?, ?, '/notifications', ?, NULL, ?)",
+                UUID.randomUUID(), ownerId, "upgrade", "upgrade", now, now.plusDays(90));
         return key;
     }
 
