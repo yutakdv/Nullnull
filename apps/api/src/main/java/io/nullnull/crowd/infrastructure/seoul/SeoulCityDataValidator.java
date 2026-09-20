@@ -76,7 +76,16 @@ public final class SeoulCityDataValidator {
         // observation at all. Storing it as LIVE would advertise a substitute as a measurement under
         // every one of them, so it is refused here. Relaxing this later is easy; discovering we
         // published substitutes as live readings is not.
-        if ("Y".equalsIgnoreCase(text(population, "REPLACE_YN"))) {
+        // ONLY A KNOWN VALUE PASSES. The earlier shape here was `if ("Y") refuse` - which accepted a
+        // missing flag, an empty one, and any value the provider might add later, as though the
+        // provider had said "N". That is fail-open on exactly the field that tells us whether the
+        // reading is real, and SOURCE_CATALOG section 8 says provider drift is quarantined rather
+        // than guessed at.
+        String replaced = text(population, "REPLACE_YN");
+        if (replaced == null || !("Y".equals(replaced) || "N".equals(replaced))) {
+            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
+        }
+        if ("Y".equals(replaced)) {
             // PROVISIONAL OUTCOME. None of the seven values means "the provider says this is a
             // substitute": an eighth would have to move ProviderResponseValidator.Outcome,
             // IngestAudit.ValidationResult and the api_ingest_validation_check CHECK together, and
@@ -96,9 +105,17 @@ public final class SeoulCityDataValidator {
         }
 
         List<SeoulLiveAreaObservation.ForecastPoint> points = new ArrayList<>();
-        if ("Y".equalsIgnoreCase(text(population, "FCST_YN"))) {
+        // Same rule as REPLACE_YN: an unknown FCST_YN used to become "no forecast" silently, so a
+        // provider change would have quietly removed a whole class of data instead of failing.
+        String hasForecast = text(population, "FCST_YN");
+        if (hasForecast == null || !("Y".equals(hasForecast) || "N".equals(hasForecast))) {
+            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
+        }
+        if ("Y".equals(hasForecast)) {
             JsonNode forecast = population.path("FCST_PPLTN");
-            if (!forecast.isArray()) {
+            // An empty array while the flag says Y is a contradiction, not an empty forecast: the
+            // provider is claiming points it did not send.
+            if (!forecast.isArray() || forecast.isEmpty()) {
                 return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
             }
             for (JsonNode point : forecast) {
