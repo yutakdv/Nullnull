@@ -64,17 +64,27 @@ CREATE TABLE seoul_live_area_maps (
     -- says "no mapping" - otherwise "is this place covered" has two answers that can disagree.
     -- DIRECT and AREA_FALLBACK are the only two a row can hold.
     --
-    -- AREA_FALLBACK IS NEW VOCABULARY. Before this migration the only value that appears anywhere in
-    -- the repository is DIRECT (21 occurrences, all in examples and fixtures; no server enum, no ERD
-    -- constraint). The contract types mappingType as a bare string, so this CHECK is currently the
-    -- only place the vocabulary exists. It needs an x-extensible-enum on the contract side and a test
-    -- pinning the two lists against each other, the way BA-023-T21~T23 pins unavailableReason.
-    CONSTRAINT seoul_live_area_maps_type_check CHECK (mapping_type IN ('DIRECT', 'AREA_FALLBACK')),
+    -- AREA, NOT DIRECT, AND THE DIFFERENCE IS NOT COSMETIC.
+    --
+    -- io.nullnull.live.domain.LiveAreaMapping.AREA is the value this repository's Live domain already
+    -- produces ("the place sits inside the area's published boundary"), and its javadoc names THIS
+    -- table. DIRECT belongs to a different question: JdbcKtoForecastSnapshotStore writes it as a SQL
+    -- literal for PLACE-scope KTO snapshots, where it means "this observation is about this place"
+    -- rather than "this place was matched to an area". Both land in DataProvenance.mappingType, which
+    -- is why they were confused - an earlier draft of this CHECK used DIRECT and would have rejected
+    -- every row the Live domain can make.
+    --
+    -- AREA_FALLBACK is new, and LiveAreaMapping's javadoc reserved the slot for it: "a looser rule
+    -- (nearest centroid, containing district) would be a different one and would arrive with
+    -- fallbackUsed true and its own name". crowd_snapshots.mapping_type does NOT pin this vocabulary
+    -- (V011:135 is only btrim(...) <> ''), so this CHECK and the contract's x-extensible-enum on
+    -- LivePlace.mappingType are the two places it lives; they have to be changed together.
+    CONSTRAINT seoul_live_area_maps_type_check CHECK (mapping_type IN ('AREA', 'AREA_FALLBACK')),
     CONSTRAINT seoul_live_area_maps_confidence_check CHECK (confidence BETWEEN 0 AND 1),
     -- The two columns are not independent and nothing else says so. A row claiming DIRECT while
     -- reporting fallback_used would put two different answers into one DataProvenance, and the
     -- projection reads them from different places.
-    CONSTRAINT seoul_live_area_maps_fallback_check CHECK ((mapping_type = 'DIRECT') = (fallback_used IS FALSE))
+    CONSTRAINT seoul_live_area_maps_fallback_check CHECK ((mapping_type = 'AREA') = (fallback_used IS FALSE))
 );
 
 CREATE INDEX seoul_live_area_maps_place_idx ON seoul_live_area_maps (place_id);
