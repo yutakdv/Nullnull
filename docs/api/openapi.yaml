@@ -5727,7 +5727,7 @@ paths:
                             forecastIssueId: null
                             comparisonAxis: null
                             comparisonEligible: false
-                            comparisonReasonCode: MISSING_PROVENANCE
+                            comparisonReasonCode: QUALITATIVE_ONLY
                             comparisonGroupId: null
                             collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                             snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -5769,7 +5769,7 @@ paths:
                             forecastIssueId: null
                             comparisonAxis: null
                             comparisonEligible: false
-                            comparisonReasonCode: MISSING_PROVENANCE
+                            comparisonReasonCode: QUALITATIVE_ONLY
                             comparisonGroupId: null
                             collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                             snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -5816,7 +5816,7 @@ paths:
                             qualityFlags: []
                             comparisonAxis: null
                             comparisonEligible: false
-                            comparisonReasonCode: MISSING_PROVENANCE
+                            comparisonReasonCode: STALE_INPUT
                             comparisonGroupId: null
                             collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                             snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -5864,7 +5864,7 @@ paths:
                               - PROVIDER_INCIDENT
                             comparisonAxis: null
                             comparisonEligible: false
-                            comparisonReasonCode: MISSING_PROVENANCE
+                            comparisonReasonCode: PROVIDER_INCIDENT
                             comparisonGroupId: null
                             collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                             snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -5958,7 +5958,7 @@ paths:
                           qualityFlags: []
                           comparisonAxis: null
                           comparisonEligible: false
-                          comparisonReasonCode: MISSING_PROVENANCE
+                          comparisonReasonCode: QUALITATIVE_ONLY
                           comparisonGroupId: null
                           collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                           snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -6015,7 +6015,7 @@ paths:
                           qualityFlags: []
                           comparisonAxis: null
                           comparisonEligible: false
-                          comparisonReasonCode: MISSING_PROVENANCE
+                          comparisonReasonCode: QUALITATIVE_ONLY
                           comparisonGroupId: null
                           collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                           snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -6132,7 +6132,7 @@ paths:
                         forecastIssueId: null
                         comparisonAxis: null
                         comparisonEligible: false
-                        comparisonReasonCode: MISSING_PROVENANCE
+                        comparisonReasonCode: QUALITATIVE_ONLY
                         comparisonGroupId: null
                         collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                         snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -6204,7 +6204,7 @@ paths:
                         qualityFlags: []
                         comparisonAxis: null
                         comparisonEligible: false
-                        comparisonReasonCode: MISSING_PROVENANCE
+                        comparisonReasonCode: QUALITATIVE_ONLY
                         comparisonGroupId: null
                         collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                         snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02
@@ -6276,7 +6276,7 @@ paths:
                         qualityFlags: []
                         comparisonAxis: null
                         comparisonEligible: false
-                        comparisonReasonCode: MISSING_PROVENANCE
+                        comparisonReasonCode: QUALITATIVE_ONLY
                         comparisonGroupId: null
                         collectorRunId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a01
                         snapshotSetId: 018f5a10-2c31-7f40-9a11-0c1d2e3f4a02

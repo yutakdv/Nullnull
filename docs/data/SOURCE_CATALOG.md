@@ -258,9 +258,9 @@ KTO 관광정보·집중률 예측과 서울 실시간 관측이 한 카드에 �
 
 Replay는 외부 장애를 숨기는 fallback이 아니라 별도의 data product다.
 
-- fixture마다 source snapshot 원본 출처, 수집 허용 여부, scrub 방식, 시각 범위, schema version, checksum을 기록한다.
-- manifest는 immutable UUID/version이며 승인자·승인시각, source registry revision, license snapshot, capture window, scrub method, file/record checksum과 entry 순서를 가진다. snapshot은 manifest junction에 명시적으로 속해야 한다.
-- response의 `sourceState=REPLAY`, `selectorMode`, `snapshotSetId`, 재현 기준 시각을 제공한다.
+- capture fixture를 생산할 때 source snapshot 원본 출처, 수집 허용 여부, 검토된 scrub 방식, 시각 범위, schema version, checksum을 기록한다. capture 생산자와 scrub 어휘는 아직 구현되지 않았다.
+- manifest는 immutable UUID/version이며 승인시각, source registry revision, 전체 license snapshot, capture window, 순서가 있는 entry 목록의 SHA-256 checksum을 가진다. snapshot은 manifest junction에 명시적으로 속해야 한다. `scrub_method`의 승인 어휘와 capture 생산자는 아직 없으므로 해당 column과 실제 공개 replay 전환은 그 계약을 확정할 때 추가한다.
+- replay reader는 원본 snapshot을 수정하지 않고 `sourceState=REPLAY`, 원본 `snapshotSetId`, 관측 시각과 manifest의 재현 기준 시각을 분리한다. 공개 응답의 `selectorMode`·기준시각 위치는 FE 승인 전 결정한다.
 - production에서 replay 강제 시 화면 상단에 persistent badge/banner를 표시한다.
 - replay 값으로 “지금 한산하다” 알림을 보내지 않는다.
 - 개인정보/기기/사용자 위치가 포함된 원본을 fixture로 저장하지 않는다.

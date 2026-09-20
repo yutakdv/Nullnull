@@ -71,11 +71,8 @@ class FlywayMigrationIT {
     // list plus the count below is the recalculation. V046 creates no table of its own, so
     // nothing new waits behind upload_intents.
     //
-    // V047 (BA-086) followed V046; neither creates a table. V048 is the head now, which makes V047
-    // the previous schema, so this list does NOT move. The hand-off only
-    // has something to hand over when the migration that just became "previous" created a table.
-    // V047 creates none either, so V048 still finds this list unchanged. V048 creates
-    // seoul_live_refresh_claims; the migration after V048 must add that table here.
+    // V049 (BA-092) is the head. V048's Seoul refresh claim is part of the previous schema.
+    // V049's replay tables join this list when a later migration becomes the head.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -90,7 +87,7 @@ class FlywayMigrationIT {
             "place_relations", "itinerary_import_drafts",
             "optimization_proposals", "optimization_changes",
             "optimization_decisions", "notifications",
-            "live_areas", "seoul_live_area_maps", "upload_intents");
+            "live_areas", "seoul_live_area_maps", "upload_intents", "seoul_live_refresh_claims");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -187,9 +184,8 @@ class FlywayMigrationIT {
             // plants data - so it is edited with a reason, never deleted. It moved 0 -> 3 -> 1 in
             // one day because two branches each had a different last migration.
             //
-            // V048 creates the Seoul Live cadence-claim table and seeds NOTHING. V047's nullable
-            // localization provenance is already in rowsBefore, as is V046's registry revision.
-            // This count belongs to the LAST migration alone, not to all migrations since V046.
+            // V049 (BA-092) is last and seeds nothing. V048's claim table and all earlier seeded
+            // rows are already in rowsBefore; this count belongs to the last migration alone.
             long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
@@ -687,6 +683,9 @@ class FlywayMigrationIT {
                         + " VALUES (?, ?, 'PENDING', 'image/jpeg', 1024, ?, ?, ?, ?, NULL)",
                 UUID.randomUUID(), ownerId, "c".repeat(64), "upgrade-" + UUID.randomUUID(),
                 now, now.plusHours(1));
+        jdbc.update("INSERT INTO " + schema + ".seoul_live_refresh_claims"
+                        + " (source_code, area_name, next_due_at) VALUES ('SEOUL_CITYDATA', ?, ?)",
+                "upgrade-" + UUID.randomUUID(), now.plusMinutes(2));
         return key;
     }
 

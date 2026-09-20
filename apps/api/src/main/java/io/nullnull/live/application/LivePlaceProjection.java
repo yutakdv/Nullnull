@@ -53,9 +53,8 @@ public class LivePlaceProjection {
             // POI must never be comparison-eligible: comparing two places by the numbers of the
             // districts they sit in is the fabricated comparison that invariant forbids, and it
             // would read as a real one because both sides carry full provenance. Today the stored
-            // row cannot be eligible (crowd_snapshots for an area has place_id NULL, so
-            // CrowdProvenanceProjection's completeness check already refuses it), and that chain is
-            // three classes long - this fails loudly on the day any link in it moves rather than
+            // row cannot be eligible (an area has no numeric value and retains LIVE_AREA scope).
+            // This fails loudly if that three-class chain changes rather than
             // shipping a comparison nobody authorised.
             throw new IllegalStateException("an area reading attached to a place is never comparable");
         }

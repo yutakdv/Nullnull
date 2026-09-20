@@ -550,7 +550,6 @@ erDiagram
       bigint source_registry_version FK
       string checksum
       string source_license_snapshot
-      string scrub_method
       timestamptz captured_from
       timestamptz captured_to
       timestamptz approved_at

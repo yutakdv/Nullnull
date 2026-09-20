@@ -60,7 +60,7 @@
       "qualityFlags": [],
       "comparisonAxis": null,
       "comparisonEligible": false,
-      "comparisonReasonCode": "MISSING_PROVENANCE",
+      "comparisonReasonCode": "QUALITATIVE_ONLY",
       "comparisonGroupId": null,
       "collectorRunId": "018f5a10-2c31-7f40-9a11-0c1d2e3f4a01",
       "snapshotSetId": "018f5a10-2c31-7f40-9a11-0c1d2e3f4a02",
