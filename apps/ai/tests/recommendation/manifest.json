@@ -56,6 +56,7 @@
     "REC-LLM-03",
     "REC-LLM-04",
     "REC-LLM-05",
+    "REC-LLM-06",
     "REC-LOC-01",
     "REC-ARCH-01",
     "REC-DRAFT-01",
@@ -134,6 +135,11 @@
       "id": "REC-LLM-05",
       "suite": "pytest",
       "path": "tests/preference/test_validator.py"
+    },
+    {
+      "id": "REC-LLM-06",
+      "suite": "pytest",
+      "path": "tests/provider/test_openai.py"
     },
     {
       "id": "REC-LOC-01",
