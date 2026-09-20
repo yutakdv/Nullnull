@@ -86,7 +86,8 @@ jobs:
           # Binding is searched repository-wide, not per app: apps/api/.env.example carries
           # AI_PROVIDER, which only apps/ai reads, and an operator has one .env.local.
           python3 scripts/check_env_example_parity.py apps/api/.env.example apps/ai/.env.example \
-            --source-root apps --source-root scripts --allow scripts/env-example-allow.txt
+            --source-root apps --source-root scripts --source-root infra \
+            --allow scripts/env-example-allow.txt
       - name: State whether this release has an actual provider call (CMP-KTO-003)
         # An EXCLUSION row whose evidence the matrix describes as "a test that blocks a release
         # with no actual call". There was no such test. Staging does not exist yet (BA-006), so

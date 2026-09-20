@@ -305,6 +305,13 @@ jobs:
           [[ "$kind" == app || "$kind" == infra ]] || { echo "::error::classification produced no verdict"; exit 1; }
           echo "kind=${kind}" >> "$GITHUB_OUTPUT"
           echo "skip=$([[ "$state" == already-deployed ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          # A rollback run classified infra/new and BOTH deploy jobs were skipped a second later,
+          # so `needs.plan.outputs.kind` did not reach their `if`. The value existed here - the job
+          # summary printed `kind: infra` - which leaves the write or its propagation as the suspect
+          # and neither is visible from the run afterwards. This prints what this step actually put
+          # in the file, so the NEXT dispatch answers it instead of another round of reading.
+          # It carries no secret: kind, skip and pending_key are a verdict, a boolean and a run id.
+          echo "classify_outputs_written<<<$(tr "\n" "|" < "$GITHUB_OUTPUT")>>>"
           bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
             --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
           # The assembly names account resources, and artifacts of a public repository are public.

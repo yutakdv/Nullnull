@@ -279,7 +279,7 @@ Backend/AI 담당은 2026-09-07 추천 계산 전체를 Python 서비스로 두�
 | 책임 | `apps/api`(Spring) | `apps/ai`(Python 3.13, FastAPI) |
 | --- | --- | --- |
 | 계산 | 없음(fallback만) | 고정 feed 순서, 관련 장소 순위, 후보 slot, ITEM 날짜/시간 개선, 설명 template |
-| 입력 | session·trip·잠금·KTO/crowd snapshot·비교 verdict를 hydrate | Spring이 보낸 immutable 입력만 사용; DB·외부 API·clock·난수 없음 |
+| 입력 | session·trip·잠금·KTO/crowd snapshot·비교 verdict를 hydrate | Spring이 보낸 immutable 입력만 사용; **계산 package에** DB·외부 API·clock·난수 없음. `AI_PROVIDER != NONE`의 모델 adapter는 계산 밖 경계 package이며 그 출력은 validator를 통과한 텍스트로만 들어온다(`D-034`) |
 | 저장·상태 | run/job·proposal·APPLY/REVERT·cursor·저장 전체 | 저장 없음, stateless |
 | 검증 | 응답을 `ProposalRevalidator`로 다시 검증한 뒤에만 저장 | 정책 `policy-v1.yaml`과 `policyHash`를 응답에 포함 |
 | 계약 | 공개 OpenAPI 0.2.x 변경 없음 | 내부 계약 v1 `apps/ai/contracts/recommendation-internal-v1.json`, `/internal/v1/*` |

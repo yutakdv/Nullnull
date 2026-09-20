@@ -52,10 +52,11 @@ tags:
 
 ## 승인된 예외
 
-활성 예외는 없다. **표가 비어 있는 것이 정상 상태다.**
+**표가 비어 있는 것이 정상 상태다.** 아래 한 줄은 `BA-085`의 `deepLink` 정정이 `main`에 들어갈 때까지만 산다 — 머지 직후 후속 커밋으로 두 곳에서 함께 지운다(절차 5). 지우는 사람은 그 PR의 주인이다.
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
+| in API GET /notifications the `items/items/deepLink` response's property pattern was changed from `^/(trips/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?\|live/(areas\|places)/[0-9a-fA-F-]{36}\|notifications\|profile)$` to `^/(trip/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?\|live/(areas\|places)/[0-9a-fA-F-]{36}\|notifications\|profile)$` for the status `200` | 계약 내부 모순 정정. 같은 파일의 `runLink`는 [#118](https://github.com/yutakdv/Nullnull/issues/118)·[#122](https://github.com/yutakdv/Nullnull/pull/122)에서 이미 `/trip/`(단수)로 고쳤고 `deepLink`만 `/trips/`(복수)로 남아 있었다 — PM-016이 `runLink`만 이름으로 불러서 같은 결함의 나머지 절반이 함께 안 고쳐졌다. FE 라우트(`routes.tsx`의 `trip/:tripId`)와 같은 파일의 analytics `context.route` enum도 단수다. 알림 생산자가 아직 없어 이 pattern으로 발급된 링크가 존재하지 않으므로 깨질 소비자가 없다 | 오너 (2026-09-20). #122의 `runLink` 정정을 같은 이유로 승인한 전례가 있고, FE가 [#310](https://github.com/yutakdv/Nullnull/issues/310) 2026-09-20 판정에서 이 정정을 직접 요청했다 | [#310](https://github.com/yutakdv/Nullnull/issues/310) |
 
 ## 만료된 예외 (기록)
 

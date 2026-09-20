@@ -19,6 +19,7 @@ import {
   aws_s3_deployment as deploy,
   aws_scheduler as scheduler,
   aws_scheduler_targets as schedulerTargets,
+  aws_lambda as lambda,
 } from "aws-cdk-lib";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -109,6 +110,88 @@ export const OPS_ALARM_NAMES = [
 ];
 // CloudFront Function (cloudfront-js-2.0, crypto.createHash sha256 supported) for /api/*. ${Open} and
 // ${Verifier} are CloudFormation Fn::Sub variables; the code itself must not contain "${".
+// The Seoul live-area proxy. It exists because the provider is plain HTTP on port 8088 with the API
+// key in the URL PATH, and ProviderHttpClient refuses anything that is not HTTPS or loopback.
+//
+// IT INJECTS THE KEY; IT IS NOT A PASS-THROUGH. If the caller sent the key, the key would sit in the
+// path of every request and the path is the part access logs record - BA-070-T2 pins only that the
+// query string stays out of them. Simplifying this into a pass-through removes the only reason it
+// exists.
+//
+// It is also not an open relay: one upstream host, one path template, and a shared token it checks
+// before it calls anything. No log line here carries the URL, the key or the token - not even on
+// failure, because a failure is exactly when someone prints the request.
+export const SEOUL_PROXY_CODE = [
+  "const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');",
+  "const client = new SecretsManagerClient({});",
+  "const TTL_MS = 300000;",
+  "const MAX_BYTES = 2097152;",
+  "let cached = null;",
+  "let cachedAt = 0;",
+  "async function secret() {",
+  // A warm container would otherwise hold the first value for its whole life: a rotated key would
+  // never be picked up and a revoked proxy token would keep being accepted.
+  "  if (cached && Date.now() - cachedAt < TTL_MS) return cached;",
+  "  const out = await client.send(new GetSecretValueCommand({ SecretId: process.env.SECRET_ID }));",
+  "  const parsed = JSON.parse(out.SecretString);",
+  // The secret is created with apiKey:"" so the operator can put the real one. Sending that blank
+  // upstream is a silent failure - Seoul decides what a keyless request means, and we do not know.
+  "  if (!parsed || typeof parsed.apiKey !== 'string' || !parsed.apiKey",
+  "      || typeof parsed.proxyToken !== 'string' || !parsed.proxyToken) {",
+  "    throw new Error('seoul_proxy_secret_incomplete');",
+  "  }",
+  "  cached = parsed; cachedAt = Date.now();",
+  "  return cached;",
+  "}",
+  "function timingSafeEqual(a, b) {",
+  "  if (typeof a !== 'string' || a.length !== b.length) return false;",
+  "  let differing = 0;",
+  "  for (let i = 0; i < a.length; i++) differing |= a.charCodeAt(i) ^ b.charCodeAt(i);",
+  "  return differing === 0;",
+  "}",
+  "exports.handler = async (event) => {",
+  "  const path = (event && event.rawPath) || '';",
+  "  const headers = (event && event.headers) || {};",
+  "  let apiKey, proxyToken;",
+  "  try { ({ apiKey, proxyToken } = await secret()); }",
+  "  catch (failure) {",
+  "    console.error('seoul_proxy_unavailable name=' + (failure && failure.message));",
+  "    return { statusCode: 503, body: '{\"code\":\"SOURCE_UNAVAILABLE\"}' };",
+  "  }",
+  "  if (!timingSafeEqual(headers['x-nullnull-proxy-token'], proxyToken)) {",
+  "    return { statusCode: 403, body: '{\"code\":\"FORBIDDEN\"}' };",
+  "  }",
+  "  const match = /^\\/citydata\\/([^/]{1,300})$/.exec(path);",
+  "  if (!match) return { statusCode: 404, body: '{\"code\":\"NOT_FOUND\"}' };",
+  "  const area = decodeURIComponent(match[1]);",
+  "  if (!area.trim() || area.length > 100) return { statusCode: 404, body: '{\"code\":\"NOT_FOUND\"}' };",
+  "  const upstream = 'http://openapi.seoul.go.kr:8088/' + encodeURIComponent(apiKey)",
+  "    + '/json/citydata/1/5/' + encodeURIComponent(area);",
+  "  try {",
+  // redirect 'error' and a byte ceiling: ENVIRONMENT.md says the provider transport follows no
+  // redirect and reads a bounded stream. The Java client does both on ITS hop; without these two
+  // this hop did neither, so the guarantee had a hole exactly where the credential is.
+  "    const response = await fetch(upstream,",
+  "      { redirect: 'error', signal: AbortSignal.timeout(8000) });",
+  "    const reader = response.body.getReader();",
+  "    const chunks = []; let size = 0;",
+  "    for (;;) {",
+  "      const { done, value } = await reader.read();",
+  "      if (done) break;",
+  "      size += value.length;",
+  "      if (size > MAX_BYTES) { await reader.cancel(); throw new Error('response_too_large'); }",
+  "      chunks.push(value);",
+  "    }",
+  "    const body = Buffer.concat(chunks).toString('utf8');",
+  "    return { statusCode: response.status, headers: { 'content-type': 'application/json' }, body };",
+  "  } catch (failure) {",
+  // The name only. failure.message can contain the URL, and the URL contains the key.
+  "    console.error('seoul_proxy_upstream_failed name=' + (failure && failure.name));",
+  "    return { statusCode: 502, body: '{\"code\":\"BAD_GATEWAY\"}' };",
+  "  }",
+  "};",
+].join("\n");
+
 export const GATE_FUNCTION_CODE = [
   "var crypto = require('crypto');",
   "var OPEN = ${Open};",
@@ -202,6 +285,21 @@ export function createStacks(
     description: "KTO data.go.kr decoding key. Value is put by the operator, never by CDK.",
   });
   kto.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+  // Two values in one secret because they belong to one hop: the operator puts the Seoul key, and the
+  // generated proxyToken is what the API task presents to the proxy. apiKey starts empty for the same
+  // reason the KTO secret has no generated value - a placeholder that looked like a key would be
+  // indistinguishable from a real one that stopped working.
+  const seoul = new sm.Secret(foundation, "Seoul", {
+    secretName: "nullnull-stg/seoul-proxy",
+    description: "Seoul open API key (operator) and the shared proxy token (generated).",
+    generateSecretString: {
+      secretStringTemplate: JSON.stringify({ apiKey: "" }),
+      generateStringKey: "proxyToken",
+      passwordLength: 64,
+      excludePunctuation: true,
+    },
+  });
+  seoul.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
   // Verifier token for the closed API edge: born here, never on disk. The operator and the GitHub
   // `staging` environment secret read it; only its SHA-256 reaches CloudFormation (WebEdge parameter).
   new sm.Secret(foundation, "VerifierToken", {
@@ -904,6 +1002,40 @@ export function createStacks(
     runtimePlatform,
   });
   apiTask.addVolume({ name: "tmp" });
+  // Outside the VPC on purpose: this function needs Secrets Manager and the public internet, and
+  // nothing else. Inside, it would need a NAT and A-029's cost plan would have to be recalculated.
+  // There is no always-on resource here either - A-050 records that this account cannot have budget
+  // alarms, so a fixed cost nobody is watching is the thing not to add.
+  // THE NAME IS NOT COSMETIC. infra/iam/cfn-execution.json:61 allows the CloudFormation execution
+  // role to act on "arn:aws:lambda:*:${Account}:function:NullnullStg*" and role-boundary.json:144
+  // allows "log-group:/aws/lambda/NullnullStg*". IAM resource patterns are case-sensitive, so a
+  // lowercase nullnull-stg-* function is outside BOTH: the deployment is denied, and a function
+  // that somehow deployed could not write the log line that is its only failure signal.
+  //
+  // AND THE OFFLINE GATE CANNOT SEE THAT. infra_check=pass means the templates synthesised and the
+  // assertions held; it does not simulate IAM. A green gate says nothing about whether this name is
+  // deployable - that only shows up at deploy time.
+  const seoulProxy = new lambda.Function(services, "SeoulProxy", {
+    functionName: "NullnullStgSeoulProxy",
+    runtime: lambda.Runtime.NODEJS_22_X,
+    handler: "index.handler",
+    code: lambda.Code.fromInline(SEOUL_PROXY_CODE),
+    timeout: cdk.Duration.seconds(15),
+    memorySize: 256,
+    // The ARN, not the name: across stacks CDK reconstructs a name from the ARN with nested
+    // Fn::Split/Fn::Select, and GetSecretValue takes either. The ARN is the unambiguous one.
+    environment: { SECRET_ID: seoul.secretArn },
+  });
+  seoul.grantRead(seoulProxy);
+  // authType NONE with a shared token checked inside the function, not AWS_IAM: IAM auth needs the
+  // caller to sign with SigV4 and ProviderHttpClient sends a plain GET. The endpoint is not open -
+  // the function answers 403 without the token, and it can only ever reach one upstream path.
+  const seoulProxyUrl = seoulProxy.addFunctionUrl({
+    authType: lambda.FunctionUrlAuthType.NONE,
+  });
+  // https://<id>.lambda-url.<region>.on.aws/ -> the bare host, which is what the source allowlist takes.
+  const seoulProxyHost = cdk.Fn.select(2, cdk.Fn.split("/", seoulProxyUrl.url));
+
   const apiContainer = apiTask.addContainer("api", {
     image: ecs.ContainerImage.fromEcrRepository(
       apiRepo,
@@ -926,6 +1058,11 @@ export function createStacks(
       // The submission build runs ITEM optimization (owner decision 2026-09-19, docs/operations/ENVIRONMENT.md).
       // A settled product decision rather than an operator gate, so it is fixed here and not in staging.config.json.
       FEATURE_OPTIMIZATION_ITEM: "true",
+      // The proxy, never openapi.seoul.go.kr. Both values are set together because they are two halves
+      // of one fact: if the allowlist still named the provider while the base URL named the proxy, a
+      // request built for the proxy - with no key in its path - would go to Seoul instead.
+      SEOUL_BASE_URL: seoulProxyUrl.url,
+      SEOUL_ALLOWED_HOST: seoulProxyHost,
     },
     secrets: {
       SPRING_DATASOURCE_USERNAME: ecs.Secret.fromSecretsManager(
@@ -939,6 +1076,9 @@ export function createStacks(
       NULLNULL_CURSOR_SECRET: ecs.Secret.fromSecretsManager(cursor),
       NULLNULL_DELETION_TOKEN_SECRET: ecs.Secret.fromSecretsManager(deletion),
       KTO_SERVICE_KEY: ecs.Secret.fromSecretsManager(kto),
+      // The token only. The Seoul API key lives in the same secret and is NOT handed to this task:
+      // the proxy holds it, and a task that never receives a value cannot leak one.
+      SEOUL_PROXY_TOKEN: ecs.Secret.fromSecretsManager(seoul, "proxyToken"),
     },
     logging: ecs.LogDrivers.awsLogs({ streamPrefix: "api", logGroup: apiLogs }),
   });
