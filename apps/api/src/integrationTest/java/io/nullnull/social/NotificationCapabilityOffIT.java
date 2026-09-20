@@ -9,6 +9,8 @@ import io.nullnull.operations.application.DemoCapabilities;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * BA-085 with the notification flag in its shipped state, which is OFF.
@@ -68,17 +71,32 @@ class NotificationCapabilityOffIT {
     @Test
     @DisplayName("BA-085-T11 the notification feature flag is not in getDemoReadiness'"
             + " capability list")
-    void theFlagIsNotAFourthCapability() {
+    void theFlagIsNotAFourthCapability() throws Exception {
         // The clause this id carries is the second assertion only. The first - that the set is
         // exactly those three - is already pinned by DemoCapabilityQueryTest and belongs to BA-003;
         // carrying it here too would make BA-085 look better covered than it is, which is the
         // mirror of the borrowed-id problem #195 closed. It stays as context, not as the clause.
-        assertThat(DemoCapabilities.NAMES)
-                .as("context: FR-OPS-02 names three, and BA-003 owns that set")
-                .containsExactly(DemoCapabilities.LIVE, DemoCapabilities.REPLAY,
-                        DemoCapabilities.OPTIMIZATION);
-        assertThat(DemoCapabilities.NAMES)
-                .as("the clause: the notification flag was not published as a fourth capability")
+        // The clause names getDemoReadiness, so this reads what getDemoReadiness actually answers
+        // rather than the constant behind it. Asserting on DemoCapabilities.NAMES alone would lean
+        // on BA-070-T4 - another card's test - to carry the link from the constant to the response,
+        // which is the borrowed-evidence shape #195 closed.
+        SessionService.Bootstrap owner = sessions.bootstrap(null, "ko-KR", "Asia/Seoul");
+        String body = mvc.perform(get("/api/v1/demo/readiness")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie)))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> published = new ArrayList<>();
+        JsonMapper.builder().build().readTree(body).get("capabilities")
+                .forEach(entry -> published.add(entry.get("name").asText()));
+
+        assertThat(published).as("the response names capabilities at all, or this proves nothing")
+                .isNotEmpty();
+        assertThat(published)
+                .as("the clause: the notification flag was not published as a capability")
                 .doesNotContain("notifications");
+        // Context, not the clause: BA-003 owns the set itself and DemoCapabilityQueryTest pins it.
+        assertThat(published).containsExactlyInAnyOrderElementsOf(DemoCapabilities.NAMES);
     }
 }
