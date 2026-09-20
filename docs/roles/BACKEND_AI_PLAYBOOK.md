@@ -2131,7 +2131,9 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 - `BA-082-T13`: checksum 이 64자리 소문자 hex 가 아니면 거절된다
 - `BA-082-T14`: 서명된 key 는 owner 와 caller 가 고르지 않은 id 로만 이뤄진다
 - `BA-082-T15`: 한 ticket 은 최대 하나의 post 를 만든다
-- `BA-082-T16`: 게시물 회수·권리 철회가 feed·cache·recommendation 노출을 함께 차단한다
+- `BA-082-T16`: 회수된 게시물은 published_at 이 비워진 채 PUBLISHED 를 벗어난다
+- `BA-082-T17`: post route 는 선언한 Cache-Control 을 실제 응답으로도 보낸다
+- `BA-082-T18`: social module 은 feed 순위 gateway 를 이름으로 부르지 않는다
 
 FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2201,7 +2203,10 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 
 - `BA-084-T1`: 유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다
 - `BA-084-T2`: timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다
-- `BA-084-T3`: user approval 전 trip mutation0과 model OFF 핵심 흐름을 검증한다
+- `BA-084-T3`: AI provider 가 꺼져 있어도 핵심 흐름이 template 로 완결된다
+- `BA-084-T11`: 선호 해석은 어휘 밖의 선호 코드를 거절한다
+- `BA-084-T12`: 선호 해석은 중복된 선호 코드를 거절한다
+- `BA-084-T13`: 선호 해석은 경계 밖 weight 를 거절한다
 - `BA-084-T4`: AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다
 - `BA-084-T5`: 이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다
 - `BA-084-T6`: adapter 는 경계 package 에 있고 decision package 에서 도달 불가다
@@ -2276,10 +2281,12 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T3`: source 변경/삭제 때 오래된 번역 노출을 차단한다
 - `BA-086-T4`: 요청 locale 의 행이 없으면 fallback 이 일어나고 응답이 그 텍스트가 어느 locale 에서 왔는지 말한다
 - `BA-086-T5`: fallback 으로 답할 때도 그 텍스트를 만든 source 의 attribution 이 유지된다
-- `BA-086-T6`: V047 은 기존 행의 출처를 place_external_refs 에서 유도하지 않는다
-- `BA-086-T7`: pin 된 source revision 이 현재 revision 과 다르면 그 localization 을 내보내지 않는다
-- `BA-086-T8`: source 가 더 이상 enabled 가 아니면 그 localization 을 내보내지 않는다
-- `BA-086-T9`: localization 의 provenance 는 전부-또는-전무다
+- `BA-086-T6`: provenance 없는 localization 은 그 place 의 external ref 가 지나간 revision 을 가리켜도 계속 나간다
+- `BA-086-T7`: source 가 그 텍스트를 수집한 revision 을 지나가면 그 localization 은 나가지 않는다
+- `BA-086-T8`: source 가 더 이상 enabled 가 아니면 그 localization 은 나가지 않는다
+- `BA-086-T9`: localization provenance 는 네 열 전부이거나 전무다
+- `BA-086-T10`: 영문 dataset probe 는 우리 contentId 가 그 dataset 에서 풀리는지를 보고한다
+- `BA-086-T11`: 영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2418,6 +2425,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T8`: viewport 는 축별 0.01도 미만이거나 역전된 box 를 거절한다
 - `BA-091-T9`: 세계 밖 좌표를 담은 viewport 를 거절한다
 - `BA-091-T10`: viewport 거절 응답이 좌표를 담지 않는다
+- `BA-091-T11`: 장소에 붙인 구역 값은 그 mapping 의 mappingType 과 fallbackUsed 로 나간다
+- `BA-091-T12`: 장소에 붙인 구역 값의 confidence 는 coverage 의 것이고 source 의 것이 아니다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -2909,7 +2909,15 @@
         },
         {
           "id": "BA-082-T16",
-          "assertion": "게시물 회수·권리 철회가 feed·cache·recommendation 노출을 함께 차단한다"
+          "assertion": "회수된 게시물은 published_at 이 비워진 채 PUBLISHED 를 벗어난다"
+        },
+        {
+          "id": "BA-082-T17",
+          "assertion": "post route 는 선언한 Cache-Control 을 실제 응답으로도 보낸다"
+        },
+        {
+          "id": "BA-082-T18",
+          "assertion": "social module 은 feed 순위 gateway 를 이름으로 부르지 않는다"
         }
       ],
       "handoff": "upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client.",
@@ -3072,7 +3080,19 @@
         },
         {
           "id": "BA-084-T3",
-          "assertion": "user approval 전 trip mutation0과 model OFF 핵심 흐름을 검증한다"
+          "assertion": "AI provider 가 꺼져 있어도 핵심 흐름이 template 로 완결된다"
+        },
+        {
+          "id": "BA-084-T11",
+          "assertion": "선호 해석은 어휘 밖의 선호 코드를 거절한다"
+        },
+        {
+          "id": "BA-084-T12",
+          "assertion": "선호 해석은 중복된 선호 코드를 거절한다"
+        },
+        {
+          "id": "BA-084-T13",
+          "assertion": "선호 해석은 경계 밖 weight 를 거절한다"
         },
         {
           "id": "BA-084-T4",
@@ -3276,19 +3296,27 @@
         },
         {
           "id": "BA-086-T6",
-          "assertion": "V047 은 기존 행의 출처를 place_external_refs 에서 유도하지 않는다"
+          "assertion": "provenance 없는 localization 은 그 place 의 external ref 가 지나간 revision 을 가리켜도 계속 나간다"
         },
         {
           "id": "BA-086-T7",
-          "assertion": "pin 된 source revision 이 현재 revision 과 다르면 그 localization 을 내보내지 않는다"
+          "assertion": "source 가 그 텍스트를 수집한 revision 을 지나가면 그 localization 은 나가지 않는다"
         },
         {
           "id": "BA-086-T8",
-          "assertion": "source 가 더 이상 enabled 가 아니면 그 localization 을 내보내지 않는다"
+          "assertion": "source 가 더 이상 enabled 가 아니면 그 localization 은 나가지 않는다"
         },
         {
           "id": "BA-086-T9",
-          "assertion": "localization 의 provenance 는 전부-또는-전무다"
+          "assertion": "localization provenance 는 네 열 전부이거나 전무다"
+        },
+        {
+          "id": "BA-086-T10",
+          "assertion": "영문 dataset probe 는 우리 contentId 가 그 dataset 에서 풀리는지를 보고한다"
+        },
+        {
+          "id": "BA-086-T11",
+          "assertion": "영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
@@ -3567,6 +3595,14 @@
         {
           "id": "BA-091-T10",
           "assertion": "viewport 거절 응답이 좌표를 담지 않는다"
+        },
+        {
+          "id": "BA-091-T11",
+          "assertion": "장소에 붙인 구역 값은 그 mapping 의 mappingType 과 fallbackUsed 로 나간다"
+        },
+        {
+          "id": "BA-091-T12",
+          "assertion": "장소에 붙인 구역 값의 confidence 는 coverage 의 것이고 source 의 것이 아니다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",
