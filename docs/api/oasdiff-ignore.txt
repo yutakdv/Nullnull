@@ -1,1 +1,0 @@
-in API POST /live/areas the response property `areas/items/centroid` became nullable for the status `200`

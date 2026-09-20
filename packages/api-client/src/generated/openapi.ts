@@ -2524,6 +2524,20 @@ export interface components {
             north: number;
         };
         LiveAreaResult: {
+            /**
+             * @description The weakest state present on the page wins. A page labelled LIVE that contains one
+             *     stale area tells the reader every reading on it is current, and one of them is not -
+             *     invariant 6 is that live, stale, replay and absent stay distinguishable, and a
+             *     page-level label that rounds up erases that distinction for exactly the readings it
+             *     matters for. Rounding down never claims something untrue: it under-promises for the
+             *     fresh areas, and each area still carries its own state in its own `crowd.provenance`.
+             *     An empty page is `UNAVAILABLE`, not `LIVE` - "nothing to report" is not a live
+             *     reading, and the alternative would make a working server and a silent provider look
+             *     the same. `FORECAST` and `QUALITATIVE` are absent from the ranking because this path
+             *     cannot produce them: it is the area list, which serves current observations, and a
+             *     forecast point is a different question with a `targetAt`. The server folds anything
+             *     outside the ranking to `UNAVAILABLE` rather than inventing an order for it.
+             */
             mode: components["schemas"]["SourceState"];
             areas: components["schemas"]["LiveArea"][];
             /** Format: date-time */
