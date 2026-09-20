@@ -67,7 +67,7 @@ independentChecker:
 
 - [ ] `frontend`, `backend`가 최신 `main`을 포함한다.
 - [ ] INT-01 익명 session·여행 생성, INT-02 KTO Feed·후보, INT-03 일정화·편집, INT-04 preview·APPLY/KEEP가 staging에서 완결된다.
-- [ ] 미완성 P1은 capability OFF이며 로그인·JA/ZH·알림·주변·게시물 작성·DAY/TRIP 최적화 control이 disabled/준비 중이다.
+- [ ] 미완성 P1은 capability OFF이며 로그인·JA/ZH·알림·주변·DAY/TRIP 최적화 control이 disabled/준비 중이다. **게시물 작성은 2026-09-20부터 제출 범위이므로 이 목록에 넣지 않는다**(`A-058`).
 - [ ] 공모전 profile에서 `FEATURE_NEARBY_LOCATION=OFF`이고 browser geolocation 호출이 없다.
 - [ ] 승인된 KTO 운영 key와 quota가 Backend runtime에만 주입된다.
 - [ ] KTO 인증키 신청자와 운영계정 신청/승인 상태를 확인하고, 제출 원장에는 key 원문 대신 credential 입력 확인 여부만 기록한다.

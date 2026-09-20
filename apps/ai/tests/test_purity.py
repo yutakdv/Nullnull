@@ -28,6 +28,9 @@ IMPURE_PACKAGES = {
     "evaluation": "reads fixture bytes from disk, reads the environment and stamps the wall clock into evaluation.json",
     "policy": "resource-only package shipping policy-v1.yaml, loaded through importlib.resources "
     "by nullnull_ai.domain.policy",
+    "provider": "the model adapter: the one network call this service makes, and only when "
+    "AI_PROVIDER names a provider. Exempt because it performs I/O, not because its answer is "
+    "trusted - whatever it returns still passes explain.validator before anything renders it",
 }
 
 FORBIDDEN_MODULES = frozenset({"random", "requests", "httpx", "sqlalchemy"})
