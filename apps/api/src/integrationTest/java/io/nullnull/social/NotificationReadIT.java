@@ -91,6 +91,73 @@ class NotificationReadIT {
         assertThat(retry.get("cutoffAt").asText()).isEqualTo(first.get("cutoffAt").asText());
     }
 
+    /**
+     * Two mark-all requests at once, asserted on the result rather than on what ordered them.
+     *
+     * <p>Written because the clause was missing, not because a defect was suspected: BA-052 had this
+     * exact shape wrong once. There the claim "the guard's owner lock means two requests cannot both
+     * be live" was <em>read off the lock order</em> and published, and it was false because
+     * {@code decide()} read the run BEFORE the guard - so both requests passed a status check on a
+     * snapshot that was already stale. A test that tried to reach the race is what overturned it.
+     *
+     * <p>So this tries to reach it. Measured with the {@code notifications} table held in ACCESS
+     * EXCLUSIVE while both requests were in flight: exactly ONE of the two reached the table and
+     * blocked there ({@code blocked_on_notifications=1}), and their cutoffs were 3 seconds apart -
+     * the second request computed its cutoff only after the first had finished. The structural
+     * reason is the difference from BA-052: {@code markAllRead} reads no mutable state before the
+     * guard, because the cutoff is taken INSIDE the command.
+     *
+     * <p><strong>That mechanism is deliberately not asserted here.</strong> Naming the line that
+     * orders them would let the next person delete it, see green, and read the other guard as dead
+     * code. What is asserted is the property that must survive whichever line does the ordering: no
+     * notification is counted twice.
+     */
+    @Test
+    @DisplayName("BA-085 two mark-all requests sent at once mark each notification exactly once")
+    void concurrentMarkAllReadCountsEachNotificationOnce() throws Exception {
+        SessionService.Bootstrap owner = sessions.bootstrap(null, "ko-KR", "Asia/Seoul");
+        int seeded = 4;
+        for (int index = 0; index < seeded; index++) {
+            notification(owner.owner.id(), Instant.now().minusSeconds(120L - index));
+        }
+
+        // Different Idempotency-Keys on purpose: with the same key the guard replays and there is no
+        // race to have. Two distinct keys are two commands, and both are allowed to run.
+        java.util.concurrent.ExecutorService callers =
+                java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        try {
+            java.util.List<java.util.concurrent.Future<MvcResult>> sent = new ArrayList<>();
+            for (int index = 0; index < 2; index++) {
+                String key = "concurrent-read-all-" + UUID.randomUUID();
+                sent.add(callers.submit(() -> {
+                    go.await(30, java.util.concurrent.TimeUnit.SECONDS);
+                    return readAll(owner, key);
+                }));
+            }
+            go.countDown();
+            MvcResult first = sent.get(0).get(60, java.util.concurrent.TimeUnit.SECONDS);
+            MvcResult second = sent.get(1).get(60, java.util.concurrent.TimeUnit.SECONDS);
+
+            // The result, not the line that produced it. Whether the two are ordered by the guard's
+            // owner lock or by the UPDATE's row locks is an implementation detail that a later change
+            // is allowed to move; what may not move is that no notification is counted twice.
+            assertThat(first.getResponse().getStatus()).isEqualTo(200);
+            assertThat(second.getResponse().getStatus()).isEqualTo(200);
+            int counted = body(first).get("updatedCount").asInt()
+                    + body(second).get("updatedCount").asInt();
+            assertThat(counted)
+                    .as("each unread notification is marked once across both requests, not once per request")
+                    .isEqualTo(seeded);
+            assertThat(body(first).get("unreadCount").asInt()).isZero();
+            assertThat(body(second).get("unreadCount").asInt()).isZero();
+            assertThat(unreadRowsOf(owner.owner.id()))
+                    .as("and the table agrees with what both callers were told").isZero();
+        } finally {
+            callers.shutdownNow();
+        }
+    }
+
     @Test
     @DisplayName("BA-085-T4 a notification committed after the request cutoff stays unread")
     void theCutoffLeavesNewerNotificationsUnread() throws Exception {
@@ -223,6 +290,13 @@ class NotificationReadIT {
                 Timestamp.from(createdAt.plus(java.time.Duration.ofDays(90))));
         seededNotifications.add(id);
         return id;
+    }
+
+    private int unreadRowsOf(UUID ownerId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT count(*) FROM notifications WHERE owner_id = ? AND read_at IS NULL",
+                Integer.class, ownerId);
+        return count == null ? 0 : count;
     }
 
     private Instant readAtOf(UUID id) {
