@@ -134,17 +134,22 @@ class LiveAreaReadIT {
         assertThat(crowd.get("value").isNull()).isTrue();
     }
 
+    /**
+     * The same clause as {@code CrowdForecastApiIT}'s, proven on the second read path.
+     *
+     * <p>Not a new number: "an observation inside a reviewed incident window is isolated" is one
+     * statement, and {@code provenBy} takes a list of names per id. What is new is the route - a
+     * second read that reached the same rows through its own query could have missed the incident
+     * join entirely and still looked right, because the page renders, the state is LIVE, and the
+     * only thing absent is the flag saying an operator has quarantined this source right now.
+     */
     @Test
-    @DisplayName("BA-090 사건 창 안의 서울 관측은 Live 페이지에서도 격리 표시를 달고 나간다")
+    @DisplayName("BA-090-T17 사건 창 안의 서울 관측은 Live 페이지에서도 격리된다")
     void aReadingInsideAReviewedIncidentWindowIsIsolatedOnThisPageToo() throws Exception {
         Instant now = clock.instant();
         Instant fetched = now.minusSeconds(55);
         UUID id = area("POI012", "이태원 관광특구", now.minusSeconds(60), fetched, "보통");
 
-        // BA-090-T17 is proven on the forecast read. THIS CASE IS ABOUT THE NEW PATH: a second read
-        // that reached the same rows by its own query could have missed the incident join entirely
-        // and looked correct - the page would render, the state would be LIVE, and the only thing
-        // missing would be the flag saying an operator has quarantined this source right now.
         UUID incident = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO source_quality_incidents
