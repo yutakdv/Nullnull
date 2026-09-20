@@ -2858,6 +2858,30 @@
         {
           "id": "BA-082-T3",
           "assertion": "삭제/권리 철회가 기존 cursor·cache에서도 반영된다"
+        },
+        {
+          "id": "BA-082-T4",
+          "assertion": "촬영 좌표를 담은 metadata 는 정제를 살아남지 못한다"
+        },
+        {
+          "id": "BA-082-T5",
+          "assertion": "실제 형식이 선언된 형식과 다른 바이트는 거절된다"
+        },
+        {
+          "id": "BA-082-T6",
+          "assertion": "제공하지 않는 이미지 형식의 바이트는 거절된다"
+        },
+        {
+          "id": "BA-082-T7",
+          "assertion": "어느 한 변이라도 상한을 넘는 이미지는 거절된다"
+        },
+        {
+          "id": "BA-082-T8",
+          "assertion": "이미지가 없는 header 만의 바이트는 거절된다"
+        },
+        {
+          "id": "BA-082-T9",
+          "assertion": "빈 업로드는 거절된다"
         }
       ],
       "handoff": "upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client.",
@@ -2949,6 +2973,34 @@
         {
           "id": "BA-084-T3",
           "assertion": "user approval 전 trip mutation0과 model OFF 핵심 흐름을 검증한다"
+        },
+        {
+          "id": "BA-084-T4",
+          "assertion": "AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다"
+        },
+        {
+          "id": "BA-084-T5",
+          "assertion": "이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다"
+        },
+        {
+          "id": "BA-084-T6",
+          "assertion": "adapter 는 경계 package 에 있고 decision package 에서 도달 불가다"
+        },
+        {
+          "id": "BA-084-T7",
+          "assertion": "모델에 건네는 것은 template 뿐이다"
+        },
+        {
+          "id": "BA-084-T8",
+          "assertion": "provider 실패는 종류와 무관하게 명명된 error 로 도착한다"
+        },
+        {
+          "id": "BA-084-T9",
+          "assertion": "명명된 provider error 는 template 로 끝난다"
+        },
+        {
+          "id": "BA-084-T10",
+          "assertion": "키는 header 밖 어디에도 없다 — url·body·응답·log·예외 문구"
         }
       ],
       "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy.",
@@ -2961,7 +3013,7 @@
       "phase": "B09",
       "priority": "P1",
       "title": "알림 목록·읽음·대상 유효성",
-      "status": "integration-ready",
+      "status": "verified",
       "dependsOn": [
         "BA-053",
         "BA-073"
@@ -3036,7 +3088,47 @@
       "handoff": "S12 unread/empty/read-all·삭제 대상 fallback fixtures, client N개 mutation 대신 단일 operation.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-085"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-085",
+      "evidence": {
+        "report": "https://github.com/yutakdv/Nullnull/actions/runs/35506671621",
+        "contractSha": "85c0eda416a2b27555d0a9f947fc1a9166437431",
+        "secondPass": "열한 절을 그 ID를 단 testcase 본문과 대조했다. 구멍이 하나 나왔다 — T11은 절이 getDemoReadiness의 capability 목록을 말하는데 본문은 DemoCapabilities.NAMES 상수만 읽고 응답을 읽지 않았다. 상수에서 응답으로 가는 연결은 BA-070-T4가 들고 있어 남의 카드 test에 기대는 모양이었고, /demo/readiness를 실제로 불러 published 이름을 읽도록 고쳤다(990060b). 응답이 capability를 하나라도 낸다는 비공허 가드를 같이 걸었다. T4는 등급을 낮춰 적는다: created_at을 미래로 심어 cutoff 술어를 겨눈 것이고 실제 동시 삽입을 잰 것이 아니다. 절이 말하는 것이 그 술어이므로 어긋나지는 않지만 '동시성을 쟀다'로 읽히면 안 된다. T6·T10은 같은 testcase를 지목한다 — 한 fixture가 둘을 재지만 서로 다른 변이로 독립 발화한다: 목록에서 숨기면 T6가, deepLink를 /notifications로 다시 쓰면 T10이 빨갛다. 나머지 여덟은 구멍이 없었다. T7·T8은 '지워졌다'만 보지 않고 경계 1초 전 생존까지 세 단언이라 아무것도 안 지우는 fix가 통과하지 못한다. T1의 두 번째 호출은 일부러 다른 Idempotency-Key다(같은 key는 replay이고 다른 문장이다). T5는 instance·requestId를 뺀 Problem body 전체를 비교하므로 OwnerIsolationMatrixIT의 status/code 쌍보다 강하고, 자기 알림에 204가 나오는 세 번째 호출이 공허함을 막는다. T9는 세 집합을 비교하기 전에 비공허 가드 셋을 먼저 건다. 열한 절 전부 변이로 발화를 확인했다 — 반경은 T7·T8이 2(한 sweep이 두 절을 진다), 나머지는 1이다. T2만 test(unit) suite이고 나머지 열은 integrationTest다.",
+        "provenBy": {
+          "BA-085-T1": [
+            "BA-085-T1 marking all read again reports nothing left to mark"
+          ],
+          "BA-085-T2": [
+            "BA-085-T2 a deep link carrying a scheme, host, query or fragment is refused"
+          ],
+          "BA-085-T3": [
+            "BA-085-T3 with the notification flag off every notification operation refuses"
+          ],
+          "BA-085-T4": [
+            "BA-085-T4 a notification committed after the request cutoff stays unread"
+          ],
+          "BA-085-T5": [
+            "BA-085-T5 another owner's notification is indistinguishable from one that never existed"
+          ],
+          "BA-085-T6": [
+            "BA-085-T6 BA-085-T10 a notification whose target is gone stays in the list and its link is not rewritten"
+          ],
+          "BA-085-T7": [
+            "BA-085-T7 a notification 90 days old does not survive the sweep"
+          ],
+          "BA-085-T8": [
+            "BA-085-T8 a notification read 30 days ago does not survive the sweep"
+          ],
+          "BA-085-T9": [
+            "BA-085-T9 the enum, the column constraint and the contract publish one vocabulary"
+          ],
+          "BA-085-T10": [
+            "BA-085-T6 BA-085-T10 a notification whose target is gone stays in the list and its link is not rewritten"
+          ],
+          "BA-085-T11": [
+            "BA-085-T11 the notification feature flag is not in getDemoReadiness' capability list"
+          ]
+        }
+      }
     },
     {
       "id": "BA-086",
