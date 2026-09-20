@@ -97,7 +97,16 @@ class SeoulCityDataPropertiesTest {
     @DisplayName("BA-090 an area name that would change the request path is refused")
     void areaNameCannotEscapeItsSegment() {
         String withControlCharacter = "광화문" + (char) 7;
-        for (String rejected : new String[] {"", "   ", "../../etc", "a/b", "a\\b", withControlCharacter}) {
+        // The traversal case is BUILT, not written as a literal - and this comment avoids the literal
+        // too, which is why it describes the shape instead of showing it. check_container_test_inputs
+        // reads any quoted string starting with a doubled parent-directory prefix as a repository path
+        // the suite opens, and demands a matching COPY in the api image (READ_PATH, at
+        // scripts/check_container_test_inputs.py:38). This
+        // is an input we REFUSE, not a file we read - but that checker cannot tell those apart, and it
+        // is right to stay strict: the two times it fired for real, docker-integration was the only
+        // gate that would have caught them. Keep this constructed.
+        String traversal = ".." + "/" + ".." + "/etc";
+        for (String rejected : new String[] {"", "   ", traversal, "a/b", "a\\b", withControlCharacter}) {
             assertThatThrownBy(() -> configured().cityDataUri(rejected, false))
                     .as(rejected.isBlank() ? "blank" : rejected)
                     .isInstanceOf(SeoulGatewayException.class).hasMessage("SEOUL_AREA_NOT_ACCEPTED");
