@@ -12,11 +12,13 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "nullnull_ai"
-PURE_PACKAGES = ("domain", "item", "slot", "related", "explain", "feed", "pipeline", "draft")
+PURE_PACKAGES = ("domain", "item", "slot", "related", "explain", "feed", "pipeline", "draft", "preference")
 
 # Deliberately a second literal, not `set(PURE_PACKAGES)`: the packages that decide a result may
 # never leave the scan, neither by being dropped from the tuple nor by being re-declared impure.
-DECISION_PACKAGES = frozenset({"domain", "item", "slot", "related", "explain", "feed", "pipeline", "draft"})
+DECISION_PACKAGES = frozenset(
+    {"domain", "item", "slot", "related", "explain", "feed", "pipeline", "draft", "preference"}
+)
 
 # Package -> why the purity scan does not cover it. Every directory under `src/nullnull_ai` is
 # either scanned or listed here with its reason, so a new package cannot arrive unclassified.
