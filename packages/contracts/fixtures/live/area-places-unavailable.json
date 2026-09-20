@@ -19,7 +19,7 @@
         "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
       }
     },
-    "mappingType": "DIRECT",
+    "mappingType": "AREA",
     "fallbackUsed": false,
     "crowd": {
       "state": "UNAVAILABLE",
@@ -56,7 +56,7 @@
         "observedAtSkewSeconds": null,
         "scope": null,
         "scopeLabel": null,
-        "mappingType": "DIRECT",
+        "mappingType": "AREA",
         "fallbackUsed": false,
         "provenanceId": null
       }

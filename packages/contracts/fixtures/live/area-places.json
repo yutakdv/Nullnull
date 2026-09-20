@@ -19,7 +19,7 @@
         "license": "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
       }
     },
-    "mappingType": "DIRECT",
+    "mappingType": "AREA",
     "fallbackUsed": false,
     "crowd": {
       "state": "LIVE",
@@ -56,7 +56,7 @@
         "observedAtSkewSeconds": 5,
         "scope": "LIVE_AREA",
         "scopeLabel": "광화문·덕수궁",
-        "mappingType": "DIRECT",
+        "mappingType": "AREA",
         "fallbackUsed": false,
         "provenanceId": "018f5a10-2c31-7f40-9a11-0c1d2e3f4b03"
       }
