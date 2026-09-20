@@ -19,7 +19,7 @@ tags:
 
 ## Obsidian과 Backend/AI 계획
 
-작업 vault는 `~/Desktop/Nullnull`이다. [문서 홈](docs/README.md)에서 [실행 순서](docs/engineering/IMPLEMENTATION_PLAN.md)와 [45개 상세 작업](docs/roles/BACKEND_AI_PLAYBOOK.md)을 연다. Backend와 AI는 `backend` 브랜치에서 함께 개발하며 Live 탭은 마지막이다. 개발 계획은 날짜 대신 우선순위·선행 조건·완료 증거로 관리한다.
+작업 vault는 `~/Desktop/Nullnull`이다. [문서 홈](docs/README.md)에서 [실행 순서](docs/engineering/IMPLEMENTATION_PLAN.md)와 [50개 상세 작업](docs/roles/BACKEND_AI_PLAYBOOK.md)을 연다. Backend와 AI는 `backend` 브랜치에서 함께 개발하며 Live 탭은 마지막이다. 개발 계획은 날짜 대신 우선순위·선행 조건·완료 증거로 관리한다.
 
 ## 현재 단계
 
@@ -30,7 +30,7 @@ tags:
 범위만 착수할 수 있으며 전체 디자인을 일괄 승인 상태로 보지 않는다. 화면 수치는 Figma, 동작과 데이터 의미는
 OpenAPI·이벤트 스키마·제품 문서를 기준으로 구현한다.
 
-현재 저장소는 과거 prototype을 제외한 목표 서비스 작업공간이다. `apps/api`(Spring), 추천 계산 서비스 `apps/ai`(Python, [ADR-0006](docs/decisions/ARCHITECTURE_DECISIONS.md#adr-0006))와 local Compose가 추가됐으며 `apps/web`, 생성 client, `infra`, `.nullnull-target-stack`은 아직 없다. 09-07 확인한 통합 wrapper는 이 부분 scaffold 상태를 hard fail했다. 계약이 확정된 vertical slice를 구현하고 B01 통합 산출물이 갖춰진 뒤 full Docker를 통과해야 한다. 앱이 전혀 없던 초기 검토의 baseline-only 성공을 현재 제품 통합 성공으로 사용하지 않는다.
+현재 저장소는 과거 prototype을 제외한 목표 서비스 작업공간이다. `apps/api`(Spring), 추천 계산 서비스 `apps/ai`(Python, [ADR-0006](docs/decisions/ARCHITECTURE_DECISIONS.md#adr-0006)), `apps/web`, 생성 client `packages/api-client`, `infra`(AWS CDK), `.nullnull-target-stack`, local Compose가 모두 있다. **존재 여부를 산문에서 읽지 말고 `git ls-tree -d --name-only origin/main`으로 본다** — 이 문단은 한 번 낡아서 사람을 틀리게 했다. 앱이 전혀 없던 초기 검토의 baseline-only 성공을 현재 제품 통합 성공으로 사용하지 않는다.
 
 ## 2026 관광데이터 활용 공모전 ②-2 웹·앱 구현 부문 릴리스
 
@@ -99,7 +99,7 @@ flowchart LR
 우선순위, 사용자 문구, 공모전 claim과 최종 go/no-go를 승인하되 FE의 접근성·시각 품질
 review나 BE/AI의 보안·데이터 무결성 review를 대신하지 않는다.
 
-Frontend 담당은 장기 `frontend`, Backend/AI 담당은 장기 `backend` 브랜치에서 작업하고 각각 `main`에 PR을 만든다. 상대 담당자 1명의 승인과 `docs-contract`·`docker-integration` 통과 뒤 merge commit하며, 병합 후 두 역할 브랜치를 최신 `main`으로 동기화한다. 구체 절차는 [브랜치·Docker 통합 계약](docs/engineering/BRANCH_AND_INTEGRATION.md)을 따른다.
+Frontend 담당은 장기 `frontend`, Backend/AI 담당은 장기 `backend` 브랜치에서 작업하고 각각 `main`에 PR을 만든다. 최신 `main` 기준 `docs-contract`·`docker-integration`이 모두 green이면 **상대 승인 대기 없이** auto-merge로 merge commit하며, 병합 후 두 역할 브랜치를 최신 `main`으로 동기화한다. 상대 검토는 계약 합의와 위험 검토에 쓰되 merge 조건으로 두지 않는다([AGENTS.md 원칙 15](AGENTS.md)). 예외는 오너가 직접 merge하는 AWS·CD 경로뿐이다. 구체 절차는 [브랜치·Docker 통합 계약](docs/engineering/BRANCH_AND_INTEGRATION.md)을 따른다.
 
 ## 문서 시작점
 

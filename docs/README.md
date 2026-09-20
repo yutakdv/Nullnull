@@ -20,7 +20,7 @@ tags:
 | Figma부터 한 화면씩 검수할 때 | [09-06 PM 점검](project/PM_REVIEW_2026-09-06.md), [52개 화면 확인표](design/SCREEN_REVIEW_2026-09-06.md) |
 | GitHub #10·#11 검토 | [기반 결정안](engineering/FOUNDATION_DECISIONS.md), [추가 계약·재현 자료](contracts/review-2026-09-06/README.md) |
 | 다음에 무엇부터 개발할지 | [우선순위와 실행 순서](engineering/IMPLEMENTATION_PLAN.md) |
-| 기능별 구현·API·DB·CI·FE 인계 | [Backend/AI 45개 상세 작업](roles/BACKEND_AI_PLAYBOOK.md) |
+| 기능별 구현·API·DB·CI·FE 인계 | [Backend/AI 50개 상세 작업](roles/BACKEND_AI_PLAYBOOK.md) |
 | 첫 추천 알고리즘과 X 참조 | [추천 상세 설계](architecture/RECOMMENDATION_ALGORITHM.md), [추천 서비스 구현 계획](superpowers/plans/2026-09-07-recommendation-python-service.md) |
 | 단계 간 연결을 한눈에 보기 | [개발 순서 Canvas](BACKEND_ROADMAP.canvas) |
 | 현재 막힌 계약·외부 결정 | [결정·위험·문서 검토 기록](project/DECISIONS_AND_RISKS.md) |
