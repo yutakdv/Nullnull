@@ -103,6 +103,18 @@ nullnull:
     # ERD §6 retention for client analytics events. Not configurable down to zero: a zero would
     # delete every row on the next sweep, which reads like a policy and is usually an unset value.
     retention: ${NULLNULL_ANALYTICS_RETENTION:P90D}
+  # P1 notification centre (BA-085). Default OFF, so the submission build serves no notification
+  # surface: the three operations refuse while it is off. This is NOT a nullnull.capabilities.* flag
+  # - that vocabulary is pinned to live/replay/optimization and publishing a fourth through
+  # getDemoReadiness is a FE-facing contract change owned by BA-003.
+  #
+  # The two retentions are ERD §6's "90 days, or 30 days after it was read, whichever is earlier".
+  # They are ISO-8601 durations and floored in NotificationService, because a zero reads like a
+  # policy and is almost always an unset value.
+  notifications:
+    enabled: ${FEATURE_NOTIFICATIONS:false}
+    retention: ${NULLNULL_NOTIFICATION_RETENTION:P90D}
+    read-retention: ${NULLNULL_NOTIFICATION_READ_RETENTION:P30D}
   crowd:
     max-range-days: ${NULLNULL_CROWD_MAX_RANGE_DAYS:30}
   env: ${NULLNULL_ENV:local}

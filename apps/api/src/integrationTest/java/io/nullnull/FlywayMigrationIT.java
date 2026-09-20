@@ -49,12 +49,16 @@ class FlywayMigrationIT {
     // did, and itinerary_import_drafts arrived when V029 did, and V029's optimization_proposals and
     // optimization_changes arrived when V030 did, and optimization_decisions arrived when V031 did.
     //
-    // This list is therefore complete through V030, the last migration that created a table. It is
-    // written that way on purpose: an earlier version said "the next migration that does will find
-    // this list already complete", which is a claim about the FUTURE and went stale the moment
+    // This list is therefore complete through V036: every table that exists in the previous schema.
+    // It is written that way on purpose: an earlier version said "the next migration that does will
+    // find this list already complete", which is a claim about the FUTURE and went stale the moment
     // V031, V032 and V033 landed - none of them creates a table, so the sentence stayed true and
-    // stopped being useful, and it would need editing again at V034. Naming the last table-creating
-    // migration is a claim about what this list HOLDS, and it only changes when the list does.
+    // stopped being useful, and it would need editing again at V034.
+    //
+    // V037 creates notifications, the first new table since V030. It is deliberately NOT added
+    // here yet: this list describes the schema one migration BEHIND the head, and notifications
+    // does not exist there. It joins when V038 lands, and the PR that adds V038 is the one that
+    // adds it - an earlier migration's author cannot, because their CI has no V038 to migrate to.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -133,9 +137,14 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V036 is the last one today and seeds nothing: it swaps three foreign keys on
-            // optimization_decisions and optimization_runs to ON DELETE CASCADE, which creates no row
-            // and no table (so PREVIOUS_SCHEMA_TABLES above is still complete through V030) and holds
+            // V037 is the last one today and seeds nothing: it creates the notifications table
+            // (BA-085) with its constraints and indexes and writes no row into it, because nothing
+            // produces a notification yet. It is the first migration since V030 to create a table,
+            // so PREVIOUS_SCHEMA_TABLES above does NOT gain notifications here - that list always
+            // describes the PREVIOUS schema, and notifications joins it when V038 lands. V036
+            // seeded nothing either: it swaps three foreign keys on
+            // optimization_decisions and optimization_runs, which creates no row
+            // and no table and holds
             // for the decision rows populateEveryTable wrote under V035. V035 seeded nothing either: it
             // replaced the run failure_code CHECK with a wider one, which every run row already
             // satisfies. V034 seeded nothing either - it added two nullable columns
