@@ -45,6 +45,7 @@ tags:
 ### Task 1: Semantic layout contract and shared chrome
 
 **Files:**
+
 - Modify: `apps/web/src/styles.css`
 - Modify: `apps/web/src/shared/ui/components/NavBar.module.css`
 - Modify: `apps/web/src/shared/ui/components/BottomCta.tsx`
@@ -53,6 +54,7 @@ tags:
 - Modify: `apps/web/src/app/trip-create/TripWizardScreen.module.css`
 
 **Interfaces:**
+
 - Produces semantic CSS aliases for page gutter, app-bar height, content widths, and bottom-action heights.
 - Produces `BottomCtaProps.secondaryKind?: 'action' | 'note'` and a `data-secondary-kind` geometry hook.
 - Existing call sites without secondary content remain source-compatible.
@@ -84,6 +86,7 @@ tags:
 ### Task 2: Route frame widths and page spacing
 
 **Files:**
+
 - Modify: `apps/web/src/app/AppShell.tsx`
 - Modify: `apps/web/src/app/AppShell.module.css`
 - Modify: `apps/web/src/app/__tests__/app-shell.test.tsx`
@@ -94,6 +97,7 @@ tags:
 - Create: `apps/web/src/app/NotFoundScreen.module.css`
 
 **Interfaces:**
+
 - Produces `contentWidth(pathname): 'form' | 'detail' | 'browse'` inside `AppShell` and `data-content-width` on the scrolling main element.
 - Forms/onboarding/profile/select use 560px, trip/detail/edit flows use 720px, feed uses 960px.
 
@@ -108,6 +112,7 @@ tags:
 ### Task 3: Trip-selection UX writing and states
 
 **Files:**
+
 - Modify: `apps/web/src/app/trip-select/TripSelectScreen.tsx`
 - Modify: `apps/web/src/app/trip-select/TripSelectScreen.module.css`
 - Modify: `apps/web/src/i18n/messages.ts`
@@ -115,6 +120,7 @@ tags:
 - Modify: `apps/web/e2e/shell.spec.ts`
 
 **Interfaces:**
+
 - Selected preference uses `aria-pressed`; route-current semantics remain exclusive to navigation.
 - Pending preference mutation exposes a polite live status and disables the create-trip link via `aria-disabled` plus click prevention.
 - Copy uses “피드 기준” / “Feed trip”, and candidate count receives a locale-specific unit.
@@ -137,6 +143,7 @@ EN badge: Feed trip / {count} saved places
 ### Task 4: Flow integrity, date consistency, and full verification
 
 **Files:**
+
 - Modify: `apps/web/src/app/trip-create/InputMethodStep.tsx`
 - Modify: `apps/web/src/app/trip-create/TripWizardScreen.tsx`
 - Modify: `apps/web/src/app/trip-create/ImportPasteScreen.tsx`
@@ -152,6 +159,7 @@ EN badge: Feed trip / {count} saved places
 - Modify: `apps/web/e2e/responsive.spec.ts`
 
 **Interfaces:**
+
 - Produces `formatTripPeriod(startDate, endDate, locale, style)` using `Intl.DateTimeFormat` and an en dash.
 - Wizard paste navigation carries `WizardDraft` in router state; import falls back to `EMPTY_DRAFT` on direct entry or refresh and merges parsed dates over preserved interests.
 
