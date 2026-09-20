@@ -2324,11 +2324,12 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T9`: 예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다
 - `BA-090-T10`: 제공자 플래그는 아는 값일 때만 통과한다
 - `BA-090-T11`: adapter 는 proxy 에 토큰을 헤더로 내고 받은 응답을 관측으로 정규화한다
-- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다
-- `BA-090-T13`: 거절된 서울 응답이 source_quality_incidents 에 기록된다
+- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않는다
+- `BA-090-T13`: 거절된 서울 응답은 해당 ValidationResult 로 collector run 에 기록된다
 - `BA-090-T14`: stale 한 서울 관측을 live 로 표시하지 않는다
 - `BA-090-T15`: provider 가 이름을 바꿔도 같은 행이 유지된다
 - `BA-090-T16`: 목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다
+- `BA-090-T17`: 검토된 provider 사건 window 안의 관측은 격리된다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

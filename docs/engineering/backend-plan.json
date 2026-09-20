@@ -3231,11 +3231,11 @@
         },
         {
           "id": "BA-090-T12",
-          "assertion": "서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다"
+          "assertion": "서울 upstream 의 429 는 관측을 만들지 않는다"
         },
         {
           "id": "BA-090-T13",
-          "assertion": "거절된 서울 응답이 source_quality_incidents 에 기록된다"
+          "assertion": "거절된 서울 응답은 해당 ValidationResult 로 collector run 에 기록된다"
         },
         {
           "id": "BA-090-T14",
@@ -3248,6 +3248,10 @@
         {
           "id": "BA-090-T16",
           "assertion": "목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다"
+        },
+        {
+          "id": "BA-090-T17",
+          "assertion": "검토된 provider 사건 window 안의 관측은 격리된다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",
