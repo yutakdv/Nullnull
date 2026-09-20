@@ -6,6 +6,7 @@ import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.shared.provider.ProviderResponseValidator;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -139,16 +140,59 @@ class SeoulCityDataValidatorTest {
         assertThat(noForecast.observation().forecastPoints()).isEmpty();
     }
 
+    /**
+     * The clause has two halves and they are NOT the same statement.
+     *
+     * <p>"Refused" is about the verdict; "makes no observation" is about what comes back beside it.
+     * The version of this case before the id was added asserted only the first, so a validator that
+     * refused a drifted response AND handed back a normalized reading would have passed it - and the
+     * caller that stores readings does not consult the verdict to decide whether there is one, it
+     * consults {@code observation()}.
+     */
     @Test
-    @DisplayName("BA-090 a level, a provider error or a wrong area is refused with its own outcome")
-    void refusalsCarryTheirReason() {
-        assertThat(validate(payload("N", "매우 붐빔", "2026-09-20 15:15", "POI009")).verdict().outcome())
-                .isEqualTo(ProviderResponseValidator.Outcome.ENUM_DRIFT);
-        assertThat(validate(normal().replace("INFO-000", "ERROR-500")).verdict().outcome())
-                .isEqualTo(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
-        assertThat(validator.validate(normal().getBytes(StandardCharsets.UTF_8), "명동 관광특구")
-                .verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
-        assertThat(validate(normal().replace("2026-09-20 15:15", "15:15 2026-09-20")).verdict().outcome())
-                .isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+    @DisplayName("BA-090-T1 서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다")
+    void driftIsRefusedAndProducesNoObservation() {
+        record Drift(String label, String body, ProviderResponseValidator.Outcome outcome) {
+        }
+        List<Drift> refused = List.of(
+                new Drift("a fifth congestion step", payload("N", "매우 붐빔", "2026-09-20 15:15", "POI009"),
+                        ProviderResponseValidator.Outcome.ENUM_DRIFT),
+                new Drift("an unknown substitution flag", payload("MAYBE", "보통", "2026-09-20 15:15", "POI009"),
+                        ProviderResponseValidator.Outcome.ENUM_DRIFT),
+                new Drift("a time in another format", normal().replace("2026-09-20 15:15", "15:15 2026-09-20"),
+                        ProviderResponseValidator.Outcome.SCHEMA_DRIFT),
+                // Bytes that are not JSON at all. Measured: a body that IS valid JSON but carries no
+                // RESULT envelope (say "[]") comes back PROVIDER_ERROR instead, because the first
+                // thing the validator asks is whether RESULT.CODE is INFO-000 and a missing field
+                // answers no. That is the validator's shape today, not this clause's question.
+                new Drift("bytes that are not JSON", "<html>proxy error</html>",
+                        ProviderResponseValidator.Outcome.SCHEMA_DRIFT),
+                // Not drift, and here on purpose: it is the other way a response fails to be an
+                // observation, and keeping it in the same case is what stops "refused" from being
+                // read as "refused for schema reasons only".
+                new Drift("the provider's own error envelope", normal().replace("INFO-000", "ERROR-500"),
+                        ProviderResponseValidator.Outcome.PROVIDER_ERROR));
+
+        for (Drift drift : refused) {
+            SeoulCityDataValidator.Validation validation = validate(drift.body());
+            assertThat(validation.verdict().outcome()).as("%s: refused with its own reason", drift.label())
+                    .isEqualTo(drift.outcome());
+            assertThat(validation.accepted()).as("%s: not accepted", drift.label()).isFalse();
+            assertThat(validation.observation()).as("%s: and nothing to store", drift.label()).isNull();
+        }
+
+        // The area the response is about is checked against the area we asked for, and that pairing
+        // is not something a payload edit can express - the drift is between the two, not in the bytes.
+        SeoulCityDataValidator.Validation wrongArea =
+                validator.validate(normal().getBytes(StandardCharsets.UTF_8), "명동 관광특구");
+        assertThat(wrongArea.verdict().outcome()).isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+        assertThat(wrongArea.observation()).isNull();
+
+        // THE CONTROL. Without it every assertion above is satisfied by a validator that refuses
+        // everything and returns null always, which is also a validator that never works.
+        SeoulCityDataValidator.Validation accepted = validate(normal());
+        assertThat(accepted.accepted()).isTrue();
+        assertThat(accepted.observation()).isNotNull();
     }
+
 }
