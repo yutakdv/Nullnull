@@ -2145,7 +2145,7 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - 기능 ID: `FR-OPT-02`, `FR-RTE-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `439:3104`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055)
+- 데이터·정책: time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055). `V024` 가 열어 둔 *route snapshot 이 무엇인가* 는 이 카드가 닫는다 — route snapshot table 을 만들지 않으므로 `optimization_run_route_snapshots` 도 없다(migration 주석은 checksum 이 고정돼 정정할 수 없어 답을 여기 둔다). `V029.travel_minutes_delta` 는 분(int)이고 provider 는 초를 주므로 반올림 지점을 gateway 가 적는다 — 그 열의 `0` 은 이동시간이 안 변했다는 뜻이 아니다
 
 구현 순서:
 
@@ -2176,6 +2176,8 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - `BA-083-T19`: 예약 종료 이후까지 이어지는 방문은 그 하루를 거절한다
 - `BA-083-T20`: MUST_VISIT 은 시간에 대해 아무것도 말하지 않으므로 여기서 아무것도 거절하지 않는다
 - `BA-083-T21`: 자정을 넘기는 하루는 아침으로 되감기지 않고 넘침으로 끝난다
+- `BA-083-T22`: 경로 응답의 성공 코드만 Available 을 만들고 그 밖의 결과는 Absent 다
+- `BA-083-T23`: Leg.Unavailable 은 provider 의 경로 없음 어휘가 확인될 때까지 생산자가 없다
 - `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
 - `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
 

@@ -2945,7 +2945,7 @@
         "439:3104"
       ],
       "designRequests": [],
-      "entities": "time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055)",
+      "entities": "time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055). `V024` 가 열어 둔 *route snapshot 이 무엇인가* 는 이 카드가 닫는다 — route snapshot table 을 만들지 않으므로 `optimization_run_route_snapshots` 도 없다(migration 주석은 checksum 이 고정돼 정정할 수 없어 답을 여기 둔다). `V029.travel_minutes_delta` 는 분(int)이고 provider 는 초를 주므로 반올림 지점을 gateway 가 적는다 — 그 열의 `0` 은 이동시간이 안 변했다는 뜻이 아니다",
       "steps": [
         "provider/약관/쿼터/이동수단·오차/TTL·데이터 전송 범위를 먼저 확정한다",
         "directed matrix의 누락/비대칭·영업 예외·예약 time window를 검증한다",
@@ -3028,6 +3028,14 @@
         {
           "id": "BA-083-T21",
           "assertion": "자정을 넘기는 하루는 아침으로 되감기지 않고 넘침으로 끝난다"
+        },
+        {
+          "id": "BA-083-T22",
+          "assertion": "경로 응답의 성공 코드만 Available 을 만들고 그 밖의 결과는 Absent 다"
+        },
+        {
+          "id": "BA-083-T23",
+          "assertion": "Leg.Unavailable 은 provider 의 경로 없음 어휘가 확인될 때까지 생산자가 없다"
         },
         {
           "id": "BA-083-T2",
