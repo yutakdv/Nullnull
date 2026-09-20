@@ -28,7 +28,7 @@ tags:
 | `DEMO_REPLAY` | 검증된 내부 fixture | 시연/외부 장애 fallback | `DISABLED` (B10 전) | 현재 실시간처럼 표시 금지 |
 | `NULLNULL_CATALOG_RULE` | 내부 taxonomy·region 규칙 | C5 `SIMILAR` 대체 후보 | C1 registry v1 `PROD_APPROVED`, `P7D` | 외부 relation 사실·혼잡 근거로 표시 금지 |
 | `NULLNULL_FIRST_PARTY` | 팀이 직접 제작한 일러스트와 편집 자산 | 게시물 표지(A-024) | registry v1 `PROD_APPROVED`, `P7D`; `V021`이 심는다 | 사진이 아닌 명시적 일러스트만. 실재 장소를 사진처럼 렌더한 합성 이미지는 불변식 6을 깨므로 금지 |
-| `ROUTE_PROVIDER` | 미정 | 이동 시간/route matrix | P1 | provider/가격/쿼터/약관 미결정 |
+| `KAKAO_MOBILITY_DIRECTIONS` | 카카오모빌리티 길찾기 | P1 route leg 이동시간(1→1 `GET /v1/directions`) | registry 행 없음 — **응답을 저장하지 않으므로 보존 정책이 *보존 불가*다**(`A-055`). host 는 code 가 고정한다(`apis-navi.kakaomobility.com`, 실호출로 확인) | **DB 저장·캐시 금지**(`A-055`: 카카오 운영정책 제5조 제20항, 모빌리티 길찾기에 대한 명시적 공식 답변은 못 찾았고 그 추론 위에서 간다). 이름이 제품을 담는 이유는 `A-051` 이다 — 지도·장소(카카오맵)와 길찾기(카카오모빌리티)는 키·약관이 다를 수 있어 한 이름으로 부르면 한쪽 한도를 다른 쪽 근거로 쓴다. `Leg.Unavailable` 은 provider 의 *경로 없음* 어휘가 확인될 때까지 생산자가 없다(`BA-083-T23`) |
 
 registry v1은 공모전 제출 빌드에서 KTO `DEV_APPROVED` 개발 키(1,000/일)를 실제 호출에 쓸 수 있다는 팀 결정을 기록했다. C2 registry v2는 `KorService2/detailCommon2` 하나만 reviewed operation으로 고정하지만, fixture 검증은 actual KTO gateway·서비스 내 사용 증거 또는 source capability ON을 대신하지 않는다. 서울/Replay/live flag와 D-003의 production 운영 key·재배포 조건은 여전히 별도 결정이다. 공모전 제출 서비스는 한국관광공사 OpenAPI를 실제로 사용해야 하므로 KTO 실제 호출·서비스 내 사용 증거가 없으면 제출 자체를 차단한다.
 

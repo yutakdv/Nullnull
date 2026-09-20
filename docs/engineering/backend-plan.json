@@ -3038,6 +3038,14 @@
           "assertion": "Leg.Unavailable 은 provider 의 경로 없음 어휘가 확인될 때까지 생산자가 없다"
         },
         {
+          "id": "BA-083-T24",
+          "assertion": "경로 요청은 경도를 위도보다 먼저 싣고 자격증명을 header 로 보낸다"
+        },
+        {
+          "id": "BA-083-T25",
+          "assertion": "자격증명이 없는 gateway 는 거절하며 모든 leg 을 미응답으로 보고하지 않는다"
+        },
+        {
           "id": "BA-083-T2",
           "assertion": "DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다"
         },

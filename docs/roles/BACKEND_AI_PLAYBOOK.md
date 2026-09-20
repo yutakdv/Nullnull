@@ -2178,6 +2178,8 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - `BA-083-T21`: 자정을 넘기는 하루는 아침으로 되감기지 않고 넘침으로 끝난다
 - `BA-083-T22`: 경로 응답의 성공 코드만 Available 을 만들고 그 밖의 결과는 Absent 다
 - `BA-083-T23`: Leg.Unavailable 은 provider 의 경로 없음 어휘가 확인될 때까지 생산자가 없다
+- `BA-083-T24`: 경로 요청은 경도를 위도보다 먼저 싣고 자격증명을 header 로 보낸다
+- `BA-083-T25`: 자격증명이 없는 gateway 는 거절하며 모든 leg 을 미응답으로 보고하지 않는다
 - `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
 - `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
 
