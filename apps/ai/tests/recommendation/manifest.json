@@ -56,6 +56,7 @@
     "REC-LLM-03",
     "REC-LLM-04",
     "REC-LLM-05",
+    "REC-LOC-01",
     "REC-ARCH-01",
     "REC-DRAFT-01",
     "REC-DRAFT-02",
@@ -133,6 +134,11 @@
       "id": "REC-LLM-05",
       "suite": "pytest",
       "path": "tests/preference/test_validator.py"
+    },
+    {
+      "id": "REC-LOC-01",
+      "suite": "pytest",
+      "path": "tests/explain/test_locale_parity.py"
     },
     {
       "id": "REC-ARCH-01",
