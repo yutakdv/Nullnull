@@ -720,10 +720,23 @@ erDiagram
 - `places`의 ACTIVE row는 `canonical_place_id`가 null이고, DEPRECATED row는 직접 ACTIVE canonical row 하나만
   가리킨다. duplicate merge 전에 localizations/external refs/media/영업 확인 근거를 target으로 옮겨 old ID에서
   stale content가 다시 투영되지 않게 한다.
-- `place_localizations`: unique `(place_id, locale)`.
+- `place_localizations`: unique `(place_id, locale)`. `V047`이 그 행의 **자기 텍스트** 출처를 더했다 —
+  `source_code`, `source_registry_version`(복합 FK → `source_registry_revisions`), `source_locale`,
+  `observed_at`. 네 열은 **전부이거나 전무**다(`num_nonnulls(...) IN (0, 4)`). 복합 FK는 MATCH SIMPLE이라
+  참조 열이 하나라도 NULL이면 검사되지 않으므로, 반쪽 행을 막는 것은 FK가 아니라 그 CHECK다.
+- `place_localizations`의 네 열이 **nullable인 것은 규칙이 약해서가 아니라 기존 행 때문**이다. `V047` 이전의
+  ko-KR 행은 무엇이 만들었는지 **알 수 없고**, place의 external ref에서 끌어오면 ref가 여럿일 때 *고르는 것이
+  지어내는 것*이 된다. 그래서 backfill하지 않고 "모른다"를 claim과 구분해 남긴다. 형제 table이 같은 두 열을
+  `NOT NULL`로 두는 것은 그 행들이 전부 출처를 손에 쥔 채 쓰였기 때문이므로, 이 비대칭을 결함으로 읽고
+  좁히지 않는다.
 - `place_external_refs`: unique `(source_code, external_id, external_type)`.
 - `place_external_refs`와 `asset_licenses`는 수집/검토 당시의 `(source_code, source_registry_version)`을
   참조한다. 현재 registry row만 보고 과거 canonical mapping 또는 asset 권리의 source policy를 재해석하지 않는다.
+- **`place_localizations`는 그 규칙의 예외이고 방향이 반대다.** 읽기 경로는 pin된 revision이 아직 그 source의
+  `current_revision`이고 source가 `enabled`일 때만 그 텍스트를 내보내며, 아니면 locale 사슬로 떨어진다
+  (`BA-086`). 바로 위 줄과 모순돼 보이지만 대상이 다르다 — ref는 **신원**(이 place가 그 provider의 어느
+  콘텐츠인가)이라 약관이 바뀐다고 만료되지 않고, localization은 **우리가 재배포하는 provider 산문**이라
+  재배포가 정확히 라이선스가 다루는 것이다. 한쪽을 다른 쪽에 맞추려면 그 차이를 먼저 무너뜨려야 한다.
 - `place_hours_observations`는 **값이 아니라 확인 행위**를 보존한다. 한 row는 "언제, 어느 페이지에서 이 POI의
   영업 상태를 확인했는가"이며 `evidence_url`은 POI별 주소다(`source_registry.official_url`은 `code`가 PK라
   source당 하나뿐이라 이 역할을 못 한다). `superseded_at IS NULL`인 row는 place당 하나로 partial unique를 두고,

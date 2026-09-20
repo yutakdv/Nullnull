@@ -68,12 +68,21 @@ public class JdbcCanonicalCatalogStore implements CanonicalCatalogStore {
                             new IllegalStateException("external reference winner disappeared"));
         }
 
+        // The four provenance columns travel together or not at all (V047), which is why they are
+        // read off one nullable object rather than four nullable fields: there is no arrangement of
+        // this call that writes a source code without the revision it was reviewed under.
+        CatalogPlaceLocalization.Provenance provenance = localization.provenance();
         jdbc.update("""
                 INSERT INTO place_localizations
-                    (id, place_id, locale, name, short_description, address, search_tokens, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, '[]'::jsonb, ?)
+                    (id, place_id, locale, name, short_description, address, search_tokens, updated_at,
+                     source_code, source_registry_version, source_locale, observed_at)
+                VALUES (?, ?, ?, ?, ?, ?, '[]'::jsonb, ?, ?, ?, ?, ?)
                 """, localization.id(), localization.placeId(), localization.locale(), localization.name(),
-                localization.shortDescription(), localization.address(), Timestamp.from(localization.updatedAt()));
+                localization.shortDescription(), localization.address(), Timestamp.from(localization.updatedAt()),
+                provenance == null ? null : provenance.sourceCode(),
+                provenance == null ? null : Long.valueOf(provenance.sourceRegistryVersion()),
+                provenance == null ? null : provenance.sourceLocale(),
+                provenance == null ? null : Timestamp.from(provenance.observedAt()));
         return place;
     }
 
