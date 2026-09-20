@@ -14,6 +14,7 @@
 // refresh and new tabs", cookie only, no existing token needed.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -272,6 +273,29 @@ describe('FR-SES-03 an expired session is a screen state, not silence', () => {
     expect(
       await screen.findByRole('button', {
         name: messages['en-US']['session.restart'],
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('starts a fresh session from the restart button without a page reload', async () => {
+    expiredSession();
+    const user = userEvent.setup();
+    renderAt('/feed');
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: messages['en-US']['session.restart'],
+      }),
+    );
+
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/demo/sessions');
+    });
+    expect(screen.queryByText(messages['en-US']['session.expired'])).toBeNull();
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: new RegExp(messages['en-US']['language.title.en']),
       }),
     ).toBeInTheDocument();
   });

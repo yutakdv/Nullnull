@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
@@ -10,7 +10,7 @@ import {
   useOptimization,
   useTrip,
 } from '../../shared/api/index.js';
-import { DecisionBar, NavBar } from '../../shared/ui/index.js';
+import { BottomCta, DecisionBar, NavBar } from '../../shared/ui/index.js';
 import { decisionPhase, isStale } from './preview.js';
 import { ProposalCard, type ProposalCardProps } from './ProposalCard.js';
 import styles from './OptimizationRunScreen.module.css';
@@ -42,6 +42,8 @@ import styles from './OptimizationRunScreen.module.css';
 // an empty array would invent the value invariant 8 forbids.
 
 type OptimizationStatus = components['schemas']['OptimizationStatus'];
+const PROGRESS_STEP_COUNT = 4;
+const PROGRESS_STEP_DELAY_MS = 500;
 
 /**
  * What the live region says for each run status.
@@ -175,6 +177,40 @@ export function OptimizationRunScreen() {
   // landed. The key resets when the pair changes because APPLY and KEEP are
   // different commands, and so is the same decision on another proposal.
   const decisionKeys = useRef<Record<string, string>>({});
+  const [progressStarted, setProgressStarted] = useState(false);
+  const [completedSteps, setCompletedSteps] = useState(0);
+  const [progressComplete, setProgressComplete] = useState(false);
+  const serverWorking = run.data ? isRunning(run.data.status) : false;
+
+  useEffect(() => {
+    setProgressStarted(false);
+    setCompletedSteps(0);
+    setProgressComplete(false);
+  }, [runId]);
+
+  useEffect(() => {
+    if (serverWorking) setProgressStarted(true);
+  }, [serverWorking]);
+
+  // This is a presentation timeline layered over the real polling state. It
+  // never blocks the request, and each timeout is cancelled before another is
+  // scheduled or when the screen unmounts.
+  useEffect(() => {
+    if (!progressStarted || progressComplete) return;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (completedSteps >= PROGRESS_STEP_COUNT - 1 && serverWorking) return;
+    const next = Math.min(completedSteps + 1, PROGRESS_STEP_COUNT);
+    const timer = window.setTimeout(
+      () => {
+        setCompletedSteps(next);
+        if (next >= PROGRESS_STEP_COUNT) setProgressComplete(true);
+      },
+      reducedMotion ? 0 : PROGRESS_STEP_DELAY_MS,
+    );
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [completedSteps, progressComplete, progressStarted, serverWorking]);
 
   function submitDecision(proposalId: string, decision: 'APPLY' | 'KEEP') {
     const pair = `${proposalId}:${decision}`;
@@ -281,7 +317,7 @@ export function OptimizationRunScreen() {
   }
 
   const detail = run.data;
-  const working = isRunning(detail.status);
+  const working = serverWorking;
   const failure = failureMessage(detail.failure);
 
   // `proposals` is required in the contract, so there is no `?? []` here: an
@@ -337,7 +373,13 @@ export function OptimizationRunScreen() {
     licenseTerms: t('license.terms'),
   };
 
-  if (working) {
+  if (working || (progressStarted && !progressComplete)) {
+    const stepLabels = [
+      t('run.step.itinerary'),
+      t('run.step.crowd'),
+      t('run.step.locks'),
+      t('run.step.proposal'),
+    ];
     return (
       <section aria-labelledby="run-heading" className={styles.loadingScreen}>
         <div className={styles.loadingBody}>
@@ -353,33 +395,35 @@ export function OptimizationRunScreen() {
             {t('run.working')}
           </h1>
           <p aria-live="polite" className={styles.srOnly} role="status">
-            {t(statusMessage(detail.status, false))}
+            {serverWorking
+              ? t(statusMessage(detail.status, false))
+              : stepLabels[Math.min(completedSteps, PROGRESS_STEP_COUNT - 1)]}
           </p>
           <ul className={styles.loadingSteps}>
-            <li className={styles.loadingStep}>
-              <span aria-hidden="true" className={styles.marker}>
-                ○
-              </span>
-              {t('run.step.itinerary')}
-            </li>
-            <li className={styles.loadingStep}>
-              <span aria-hidden="true" className={styles.marker}>
-                ○
-              </span>
-              {t('run.step.crowd')}
-            </li>
-            <li className={styles.loadingStep}>
-              <span aria-hidden="true" className={styles.marker}>
-                ○
-              </span>
-              {t('run.step.locks')}
-            </li>
-            <li className={styles.loadingStep}>
-              <span aria-hidden="true" className={styles.marker}>
-                ○
-              </span>
-              {t('run.step.proposal')}
-            </li>
+            {stepLabels.map((label, index) => {
+              const complete = index < completedSteps;
+              const active = !progressComplete && index === completedSteps;
+              return (
+                <li
+                  aria-current={active ? 'step' : undefined}
+                  className={styles.loadingStep}
+                  data-active={active || undefined}
+                  data-complete={complete || undefined}
+                  key={label}
+                >
+                  <span aria-hidden="true" className={styles.marker}>
+                    {active ? (
+                      <span className={styles.stepSpinner} />
+                    ) : complete ? (
+                      '✓'
+                    ) : (
+                      '○'
+                    )}
+                  </span>
+                  {label}
+                </li>
+              );
+            })}
           </ul>
           <Link
             className={styles.leaveButton}
@@ -389,6 +433,35 @@ export function OptimizationRunScreen() {
           </Link>
           <p className={styles.loadingNote}>{t('run.keepsRunning')}</p>
         </div>
+      </section>
+    );
+  }
+
+  if (detail.status === 'FAILED' && detail.failure?.code === 'NO_IMPROVEMENT') {
+    return (
+      <section aria-labelledby="run-heading" className={styles.failureScreen}>
+        <div className={styles.failureContent}>
+          <h1 className={styles.title} id="run-heading">
+            {t(titleMessage(detail.status))}
+          </h1>
+          <p aria-live="polite" className={styles.status} role="status">
+            {t(statusMessage(detail.status, true))}
+          </p>
+          <p className={styles.lead}>{failure ? t(failure) : t('run.failed')}</p>
+          <p className={styles.note}>{t('run.unchanged')}</p>
+        </div>
+        <BottomCta
+          fixed
+          label={t('run.recompute')}
+          onClick={() => {
+            void navigate(`/trip/${tripId ?? ''}/optimize`);
+          }}
+          secondary={
+            <button className={styles.failureSecondary} onClick={back} type="button">
+              {t('run.leave')}
+            </button>
+          }
+        />
       </section>
     );
   }

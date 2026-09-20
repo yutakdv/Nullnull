@@ -385,6 +385,22 @@
   margin-inline-start: var(--space-2);
 }
 
+.toastLayer {
+  position: fixed;
+  z-index: 30;
+  right: var(--space-4);
+  bottom: calc(73px + 8px + max(8px, env(safe-area-inset-bottom)) + var(--space-3));
+  left: var(--space-4);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.toastLayer > * {
+  max-width: min(100%, 360px);
+  pointer-events: auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .activeTripChevron {
     transition: none;

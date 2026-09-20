@@ -37,7 +37,9 @@ test.describe('deterministic feed and optimization visuals', () => {
     await expect(cards).toHaveCount(6);
   });
 
-  test('S09 keeps optimization inside the Figma bottom-sheet frame', async ({ page }) => {
+  test('S09 keeps optimization pinned to the viewport without whole-sheet scrolling', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
@@ -48,7 +50,12 @@ test.describe('deterministic feed and optimization visuals', () => {
     await expect(sheet).toBeVisible();
     const bounds = await sheet.boundingBox();
     expect(bounds?.x).toBe(0);
-    expect(bounds?.y).toBe(386);
-    expect(bounds?.height).toBe(466);
+    expect(Math.round((bounds?.y ?? 0) + (bounds?.height ?? 0))).toBe(852);
+    expect(bounds?.height).toBeLessThan(852);
+    const scroll = await sheet.evaluate((node) => ({
+      clientHeight: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+    }));
+    expect(scroll.scrollHeight).toBe(scroll.clientHeight);
   });
 });

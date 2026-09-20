@@ -261,6 +261,20 @@ describe('a draft becomes a trip only once it is settled', () => {
 
   it('confirms with both guards once nothing is unresolved', async () => {
     const user = userEvent.setup();
+    sessionStorage.setItem(
+      'nullnull.wizard.v1',
+      JSON.stringify({
+        step: 3,
+        draft: {
+          startDate: '2026-10-04',
+          endDate: '2026-10-07',
+          interests: ['FOOD'],
+          planningLevel: 'MOSTLY_PLANNED',
+          mustVisit: [],
+          stops: [],
+        },
+      }),
+    );
     renderImport({
       startDate: '2026-10-04',
       endDate: '2026-10-07',
@@ -319,6 +333,9 @@ describe('a draft becomes a trip only once it is settled', () => {
     expect(JSON.parse(posted?.body ?? '{}')).toMatchObject({
       planningLevel: 'MOSTLY_PLANNED',
       interests: [{ code: 'FOOD', weight: 3 }],
+    });
+    await waitFor(() => {
+      expect(sessionStorage.getItem('nullnull.wizard.v1')).toBeNull();
     });
   });
 });
