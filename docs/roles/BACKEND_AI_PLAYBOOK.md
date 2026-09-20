@@ -2419,7 +2419,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 - `BA-091-T1`: viewport 는 소수점 3자리를 넘으면 거절된다
 - `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
-- `BA-091-T3`: Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다
+- `BA-091-T3`: Live 에서 고른 장소를 후보로 저장해도 일정은 바뀌지 않는다
 - `BA-091-T4`: viewport 거절이 좌표를 로그에 남기지 않는다
 - `BA-091-T5`: Live 목록 응답은 cursor 를 발급하지 않는다
 - `BA-091-T6`: searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다
@@ -2429,6 +2429,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T10`: viewport 거절 응답이 좌표를 담지 않는다
 - `BA-091-T11`: 장소에 붙인 구역 값은 그 mapping 의 mappingType 과 fallbackUsed 로 나간다
 - `BA-091-T12`: 장소에 붙인 구역 값의 confidence 는 coverage 의 것이고 source 의 것이 아니다
+- `BA-091-T13`: 같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다
+- `BA-091-T14`: 같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

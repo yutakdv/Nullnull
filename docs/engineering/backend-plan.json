@@ -3574,7 +3574,7 @@
         },
         {
           "id": "BA-091-T3",
-          "assertion": "Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다"
+          "assertion": "Live 에서 고른 장소를 후보로 저장해도 일정은 바뀌지 않는다"
         },
         {
           "id": "BA-091-T4",
@@ -3611,6 +3611,14 @@
         {
           "id": "BA-091-T12",
           "assertion": "장소에 붙인 구역 값의 confidence 는 coverage 의 것이고 source 의 것이 아니다"
+        },
+        {
+          "id": "BA-091-T13",
+          "assertion": "같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다"
+        },
+        {
+          "id": "BA-091-T14",
+          "assertion": "같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",
