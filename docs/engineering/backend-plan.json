@@ -2954,7 +2954,7 @@
       "phase": "B09",
       "priority": "P1",
       "title": "알림 목록·읽음·대상 유효성",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-053",
         "BA-073"
@@ -3187,7 +3187,7 @@
       "tests": [
         {
           "id": "BA-090-T1",
-          "assertion": "Seoul XML/JSON fixture의 drift·429·incident·stale을 검증한다"
+          "assertion": "서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다"
         },
         {
           "id": "BA-090-T2",
@@ -3224,6 +3224,22 @@
         {
           "id": "BA-090-T10",
           "assertion": "제공자 플래그는 아는 값일 때만 통과한다"
+        },
+        {
+          "id": "BA-090-T11",
+          "assertion": "adapter 는 proxy 에 토큰을 헤더로 내고 받은 응답을 관측으로 정규화한다"
+        },
+        {
+          "id": "BA-090-T12",
+          "assertion": "서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다"
+        },
+        {
+          "id": "BA-090-T13",
+          "assertion": "거절된 서울 응답이 source_quality_incidents 에 기록된다"
+        },
+        {
+          "id": "BA-090-T14",
+          "assertion": "stale 한 서울 관측을 live 로 표시하지 않는다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",

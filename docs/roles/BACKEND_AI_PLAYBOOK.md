@@ -2173,7 +2173,7 @@ FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명
 
 ### BA-085
 
-**알림 목록·읽음·대상 유효성** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**알림 목록·읽음·대상 유효성** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-053](#ba-053), [BA-073](#ba-073)
 - 기능 ID: `FR-NOT-01`, `FR-NOT-02`
@@ -2313,7 +2313,7 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 
 필수 검증:
 
-- `BA-090-T1`: Seoul XML/JSON fixture의 drift·429·incident·stale을 검증한다
+- `BA-090-T1`: 서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다
 - `BA-090-T2`: coverage 없는 POI를0 또는 임의 AREA 값으로 채우지 않는다
 - `BA-090-T3`: source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다
 - `BA-090-T4`: provider 요청은 호출이 준 헤더만 싣는다
@@ -2323,6 +2323,10 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T8`: REPLACE_YN 이 Y 인 관측은 저장되지 않는다
 - `BA-090-T9`: 예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다
 - `BA-090-T10`: 제공자 플래그는 아는 값일 때만 통과한다
+- `BA-090-T11`: adapter 는 proxy 에 토큰을 헤더로 내고 받은 응답을 관측으로 정규화한다
+- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다
+- `BA-090-T13`: 거절된 서울 응답이 source_quality_incidents 에 기록된다
+- `BA-090-T14`: stale 한 서울 관측을 live 로 표시하지 않는다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
