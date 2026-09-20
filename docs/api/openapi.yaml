@@ -6834,6 +6834,19 @@ components:
           type: [string, "null"]
         mappingType:
           type: [string, "null"]
+          x-extensible-enum: [DIRECT, AREA_FALLBACK]
+          description: |
+            How the observation was tied to the subject it describes, as a token Frontend maps to
+            its own copy - never display text. Every source shares this field: KTO place-scope
+            snapshots already send `DIRECT`, meaning the reading is about this very subject.
+            `AREA_FALLBACK` means it is about a surrounding area instead, which is why
+            `comparisonEligible` is false there. Null when the source does not resolve a subject.
+            This list does NOT include `NONE`: an unmapped place has no observation, so no
+            provenance object exists to carry it - that absence is `LivePlace.mappingType`.
+            The Seoul area map CHECK constraint pins exactly these two values; the third token
+            lives in the projection, not in the table. Declared `x-extensible-enum` rather than
+            `enum` because this is where a future source states its own mapping method, and a
+            closed enum would make each one a breaking change.
         fallbackUsed:
           type: boolean
           default: false
@@ -8834,6 +8847,18 @@ components:
           $ref: "#/components/schemas/PlaceSummary"
         mappingType:
           type: string
+          x-extensible-enum: [DIRECT, AREA_FALLBACK, NONE]
+          description: |
+            How this place is tied to a Live area, as a token Frontend maps to its own copy -
+            never display text. `DIRECT`: the place is mapped to the area that was observed.
+            `AREA_FALLBACK`: only a surrounding area is mapped, so the reading is about that
+            area and not this place; `fallbackUsed` is true and the reading is not comparable.
+            `NONE`: nothing maps this place, so `crowd` is null and there is no provenance -
+            absence, not a zero. `NONE` appears HERE ONLY. The database stores no row for it and
+            `DataProvenance.mappingType` cannot carry it, because with no mapping there is no
+            observation to describe. Declared `x-extensible-enum` rather than `enum` for the
+            reason `x-nullnull-interest-codes` is: a closed response enum makes every new word a
+            breaking change. Render a token you do not know as unmapped; never print it.
         fallbackUsed:
           type: boolean
         crowd:
