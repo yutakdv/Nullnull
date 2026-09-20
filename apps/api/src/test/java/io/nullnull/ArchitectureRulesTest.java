@@ -183,6 +183,50 @@ class ArchitectureRulesTest {
     }
 
     /**
+     * BA-082-T18: the social module never names the feed ranking gateway.
+     *
+     * <p>BA-082's safety boundary says a withdrawal must block feed, cache AND recommendation
+     * exposure. The first two are clauses about code that runs; this one is a clause about code that
+     * does not exist. Measured on 2026-09-20 across 21 local and origin refs plus the shared
+     * checkout's uncommitted tree: nothing under {@code io.nullnull.social} calls {@code rankFeed} or
+     * builds a {@code FeedRankRequest}, so today there is no recommendation exposure of a post for a
+     * withdrawal to block.
+     *
+     * <p>That absence is registered as a rule rather than as a pending clause on purpose. A clause
+     * marked "awaiting its producer" is read by nobody on the day the producer lands; this test goes
+     * red on that day and makes whoever wires the ranking write the real clause - "a withdrawn post
+     * is not among the candidates sent for ranking" - instead of inheriting a green. It is the shape
+     * {@link #analyticsIsNeverOnAProductCommandsPath()} uses for the same reason.
+     *
+     * <p>The rule is one-directional and that is deliberate: {@code recommendation.application.
+     * FeedFallback} reads {@code social.domain.FeedOrdering}, which is the ordering definition
+     * travelling to the code that applies it. Forbidding that too would break the arrangement this
+     * clause is protecting rather than the one it is watching for.
+     */
+    @Test
+    @DisplayName("BA-082-T18 nothing in social names the feed ranking gateway, so a post has no path to it")
+    void socialNeverReachesTheRecommendationModule() {
+        // Not vacuous in either direction, like the analytics rule: there are classes to depend on,
+        // and there are classes that could have depended on them.
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName().startsWith("io.nullnull.recommendation"))
+                        .count())
+                .as("the rule is about a module that exists")
+                .isGreaterThan(3);
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName().startsWith("io.nullnull.social"))
+                        .count())
+                .as("the rule is about a module that could have reached it")
+                .isGreaterThan(3);
+
+        noClasses().that().resideInAPackage("io.nullnull.social..")
+                .should().dependOnClassesThat().resideInAPackage("io.nullnull.recommendation..")
+                .because("a post that cannot reach the ranking gateway cannot be exposed by it; "
+                        + "the day social does reach it, BA-082-T18 is replaced by the real clause")
+                .check(classes);
+    }
+
+    /**
      * BA-060-T4: the pasted itinerary has no route out of the importer.
      *
      * <p>What this proves is narrower than "the raw text never leaves", and the narrower claim is the
