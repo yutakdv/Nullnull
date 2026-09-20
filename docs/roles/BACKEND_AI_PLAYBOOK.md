@@ -2101,23 +2101,23 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 - 기능 ID: `FR-PUB-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: proposed upload intents/assets/post states · moderation/audit · S3 quarantine
+- 데이터·정책: proposed upload intents/assets/post states · 자동 기술 검증 audit · S3 quarantine (승인 게이트 없음 · A-058)
 
 구현 순서:
 
 1. 작성 권한·업로드 presign 범위·크기/형식/TTL·license attest 계약을 만든다
-2. 격리 업로드→검증/검토→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
-3. MIME/magic bytes·악성 파일·EXIF·권리·신고/삭제 전파를 검증한다
+2. 격리 업로드→자동 기술 검증→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
+3. MIME/magic bytes·악성 파일·EXIF(A-057의 표준 파일 입력으로 들어온 촬영 파일이 GPS를 싣는 것이 전제다)·권리·신고/삭제 전파를 검증한다
 
-실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다.
+실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다. 게시물 작성은 제출 범위이므로 capability OFF 목록에 두지 않는다(A-058).
 
 필수 검증:
 
 - `BA-082-T1`: 타 owner presign 재사용·경로 조작·크기 초과·format spoof를 거부한다
-- `BA-082-T2`: moderation 전 공개0과 실패 cleanup을 검증한다
+- `BA-082-T2`: 기술 검증을 통과하지 못한 asset은 공개되지 않는다
 - `BA-082-T3`: 삭제/권리 철회가 기존 cursor·cache에서도 반영된다
 
-FE 인계·완료 증거: upload 진행/취소/만료·검토/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ### BA-083
 
@@ -2127,7 +2127,7 @@ FE 인계·완료 증거: upload 진행/취소/만료·검토/게시 거절·출
 - 기능 ID: `FR-OPT-02`, `FR-RTE-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `439:3104`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: route_matrix_snapshots · time windows · scope-specific optimizer policy
+- 데이터·정책: time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055)
 
 구현 순서:
 
