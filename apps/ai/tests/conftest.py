@@ -45,6 +45,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     del exitstatus
     outcomes = Counter(_RESULTS.values())
     REPORT.record_session(executed=len(_RESULTS), failed=outcomes["failed"], skipped=outcomes["skipped"])
+    REPORT.record_executed_paths(nodeid.split("::")[0] for nodeid in _RESULTS)
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     declared = of_kind(read_entries(manifest), "ITEM")
     REPORT.record_expected_fixtures((entry.id for entry in declared), partial=partial_run())

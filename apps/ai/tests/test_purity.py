@@ -33,7 +33,51 @@ IMPURE_PACKAGES = {
     "trusted - whatever it returns still passes explain.validator before anything renders it",
 }
 
-FORBIDDEN_MODULES = frozenset({"random", "requests", "httpx", "sqlalchemy"})
+FORBIDDEN_MODULES = frozenset(
+    {
+        # Randomness. The clock has its own rules in FORBIDDEN_ATTRIBUTES below.
+        "random",
+        # Network, in every shape this service could reach for one. `urllib` is here because it is what
+        # nullnull_ai.provider.openai actually uses: without it, moving that adapter into a decision
+        # package would have passed this scan, and apps/ai/CLAUDE.md claimed the opposite.
+        "socket",
+        "ssl",
+        "http",
+        "urllib",
+        "urllib3",
+        "ftplib",
+        "smtplib",
+        "webbrowser",
+        "requests",
+        "httpx",
+        "aiohttp",
+        "openai",
+        "anthropic",
+        # Data stores and other processes.
+        "sqlalchemy",
+        "psycopg",
+        "psycopg2",
+        "pymysql",
+        "redis",
+        "boto3",
+        "subprocess",
+        "multiprocessing",
+        # The filesystem. `importlib` is deliberately NOT here: nullnull_ai.domain.policy reads its
+        # packaged policy YAML through importlib.resources, which is a resource shipped inside the
+        # wheel, not a path this service chooses at runtime.
+        #
+        # `pathlib` is blocked at the import rather than at its write methods because `Path('x').read_text()`
+        # is a call on a call, which `_dotted` cannot follow - the same reason `uuid` is allowed while
+        # `uuid4` is named. A decision package has no filesystem, so it has no use for a path type either;
+        # a package that needs one is a package that belongs in IMPURE_PACKAGES with a written reason.
+        "pathlib",
+        "shutil",
+        "tempfile",
+        "fileinput",
+    }
+)
+FORBIDDEN_CALLS = frozenset({"open"})
+"""Builtins, which arrive as a call rather than an import and so are invisible to the scan above."""
 FORBIDDEN_ATTRIBUTES = (
     ("time", "time"),
     ("datetime", "now"),
@@ -75,6 +119,8 @@ def _violations(tree: ast.AST) -> list[str]:
             path = _dotted(node)
             if len(path) >= 2 and path[-2:] in FORBIDDEN_ATTRIBUTES:
                 found.append(f"line {node.lineno}: {'.'.join(path)}")
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
+            found.append(f"line {node.lineno}: {node.func.id}()")
     return found
 
 
@@ -143,6 +189,38 @@ def test_the_scan_detects_a_planted_violation() -> None:
         "dt.datetime.utcnow",
         "time.time",
     ]
+
+
+@pytest.mark.parametrize(
+    ("planted", "reported"),
+    [
+        ("import urllib.request", "import urllib.request"),
+        ("from urllib.request import urlopen", "from urllib.request import ..."),
+        ("import socket", "import socket"),
+        ("import subprocess", "import subprocess"),
+        ("import httpx", "import httpx"),
+        ("from pathlib import Path", "from pathlib import ..."),
+        ("def f():\n    return open('/etc/hosts').read()\n", "open()"),
+    ],
+    ids=["urllib", "urllib from", "socket", "subprocess", "httpx", "pathlib", "open builtin"],
+)
+def test_the_scan_sees_io_and_not_only_randomness_and_the_clock(planted: str, reported: str) -> None:
+    """Every line here was measured as a HOLE before it was a rule.
+
+    On 2026-09-20 an audit said this scan had no rule that could see I/O. It was right: with
+    `random` and `datetime.now` both firing as controls, a decision package could `import
+    urllib.request`, `import socket`, `import subprocess`, call `open()` or write through `pathlib`
+    and the scan reported nothing - five mutations, `red=0` each. `urllib` is the one that mattered:
+    it is what `nullnull_ai.provider.openai` uses, so moving that adapter into `explain` would have
+    passed, while apps/ai/CLAUDE.md claimed the AST scan would stop it.
+
+    The cases are planted rather than derived from FORBIDDEN_MODULES on purpose. A test that looped
+    over that set would agree with whatever the set happens to contain and could never report a gap
+    in it - which is exactly the shape that let the gap live.
+    """
+    assert any(reported in message for message in _violations(ast.parse(planted))), (
+        f"{planted!r} must be reported as {reported!r}"
+    )
 
 
 def test_the_scan_allows_the_datetime_time_type_and_the_domain_time_module() -> None:
