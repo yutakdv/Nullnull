@@ -37,7 +37,7 @@ public class LiveCapability {
     }
 
     public void require() {
-        if (false) {
+        if (!enabled) {
             throw new ApiException(ProblemCode.FORBIDDEN, "Live data is not enabled on this server.");
         }
     }
