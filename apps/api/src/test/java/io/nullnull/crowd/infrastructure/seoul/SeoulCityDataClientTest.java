@@ -76,6 +76,32 @@ class SeoulCityDataClientTest {
     }
 
     @Test
+    @DisplayName("BA-090-T12 서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다")
+    void rateLimitEndsAsAProviderFailureWithNoObservation() throws Exception {
+        String canary = "should-never-become-an-observation";
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(429, "{\"RESULT\":{\"CODE\":\"" + canary + "\"}}",
+                        java.time.Duration.ZERO, java.util.Map.of("Retry-After", "0")))) {
+            SeoulCityDataProperties properties = new SeoulCityDataProperties();
+            properties.setBaseUrl(stub.uri("").toString().replace("?", ""));
+            properties.setProxyToken(TOKEN);
+            SeoulCityDataClient adapter = new SeoulCityDataClient(client(), properties, "test");
+
+            // The transport refuses a non-2xx before anything downstream sees it, so the body never
+            // reaches the validator and there is nothing for it to normalize. A "rate limited" answer
+            // is not a reading of an empty city.
+            assertThatThrownBy(() -> adapter.fetch(AREA).join())
+                    .hasRootCauseInstanceOf(io.nullnull.shared.provider.ProviderException.class)
+                    .rootCause().satisfies(failure -> {
+                        assertThat(failure.getMessage()).isEqualTo("HTTP_STATUS");
+                        // And the refusal carries neither the body nor the token it was sent with.
+                        assertThat(failure.toString()).doesNotContain(canary, TOKEN);
+                    });
+            assertThat(stub.calls()).as("one attempt, not a retry storm").isEqualTo(1);
+        }
+    }
+
+    @Test
     @DisplayName("BA-090 an adapter with no endpoint or no token refuses before it calls anything")
     void unconfiguredAdapterFailsClosed() {
         SeoulCityDataProperties blank = new SeoulCityDataProperties();
