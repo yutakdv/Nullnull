@@ -1,6 +1,8 @@
 # apps/ai — Nullnull 추천 계산 서비스
 
-Python 3.13 · uv 0.12.10 고정. Spring(`apps/api`)이 보낸 immutable 입력만 계산하는 순수 서비스다(ADR-0006).
+Python 3.13 · uv 0.12.10 고정. Spring(`apps/api`)이 보낸 immutable 입력으로 **계산 package가 순수하게** 판정한다(ADR-0006).
+DB·clock·난수는 **어느 package에도 없고**, 외부 호출은 경계 package 셋에만 있다 — `api`(전송), `evaluation`(fixture·report),
+그리고 `AI_PROVIDER != NONE`에서 모델을 호출하는 `provider`. 서비스 전체를 *"외부 API를 쓰지 않는다"* 로 적지 않는다.
 저장소 전체 규칙은 root `CLAUDE.md`를 따른다. 이 경로에는 `.claude/rules/*`가 적용되지 않으므로 이 파일이 정본이다.
 
 ## Package 지도

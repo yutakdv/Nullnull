@@ -24,19 +24,38 @@ from nullnull_ai.api.system import router as system_router
 from nullnull_ai.domain.policy import load_default
 from nullnull_ai.explain.ports import LlmExplanationPort, NoopLlmExplanationPort
 from nullnull_ai.explain.service import ExplanationService
+from nullnull_ai.provider.openai import OpenAiExplanationPort
 from nullnull_ai.settings import Settings
 
-_LLM_PORTS: dict[str, Callable[[], LlmExplanationPort]] = {"NONE": NoopLlmExplanationPort}
-"""AI_PROVIDER=NONE (P0 default) always answers with the deterministic template. A provider adapter
-arrives with its own model id, timeout and kill switch; until then any other value fails at startup
-instead of silently falling back to one."""
+
+def _noop_port(_settings: Settings) -> LlmExplanationPort:
+    return NoopLlmExplanationPort()
+
+
+def _openai_port(settings: Settings) -> LlmExplanationPort:
+    key, model = settings.ai_api_key, settings.ai_model_id
+    if key is None or model is None:
+        # Settings already refuses this for every provider but NONE. Repeated here because the cost
+        # of the two checks disagreeing is a request sent with the string "None" as the credential:
+        # a 401 from the provider rather than a startup that stopped and said why.
+        raise ValueError("AI_API_KEY and AI_MODEL_ID are required for AI_PROVIDER=OPENAI")
+    return OpenAiExplanationPort(key, model)
+
+
+_LLM_PORTS: dict[str, Callable[[Settings], LlmExplanationPort]] = {
+    "NONE": _noop_port,
+    "OPENAI": _openai_port,
+}
+"""AI_PROVIDER=NONE (P0 default) always answers with the deterministic template. A value with no row
+here fails at startup instead of silently falling back to one - the guard that matters on the day a
+name is added to the Literal before its adapter lands."""
 
 
 def llm_port(settings: Settings) -> LlmExplanationPort:
     factory = _LLM_PORTS.get(settings.ai_provider)
     if factory is None:
         raise ValueError(f"unsupported AI_PROVIDER: {settings.ai_provider}")
-    return factory()
+    return factory(settings)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

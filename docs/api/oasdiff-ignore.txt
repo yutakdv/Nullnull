@@ -1,1 +1,1 @@
-in API GET /notifications the `items/items/deepLink` response's property pattern was changed from `^/(trips/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?|live/(areas|places)/[0-9a-fA-F-]{36}|notifications|profile)$` to `^/(trip/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?|live/(areas|places)/[0-9a-fA-F-]{36}|notifications|profile)$` for the status `200`
+in API POST /live/areas the response property `areas/items/centroid` became nullable for the status `200`

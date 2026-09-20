@@ -2101,23 +2101,23 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 - 기능 ID: `FR-PUB-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: proposed upload intents/assets/post states · moderation/audit · S3 quarantine
+- 데이터·정책: proposed upload intents/assets/post states · 자동 기술 검증 audit · S3 quarantine (승인 게이트 없음 · A-058)
 
 구현 순서:
 
 1. 작성 권한·업로드 presign 범위·크기/형식/TTL·license attest 계약을 만든다
-2. 격리 업로드→검증/검토→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
-3. MIME/magic bytes·악성 파일·EXIF·권리·신고/삭제 전파를 검증한다
+2. 격리 업로드→자동 기술 검증→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
+3. MIME/magic bytes·악성 파일·EXIF(A-057의 표준 파일 입력으로 들어온 촬영 파일이 GPS를 싣는 것이 전제다)·권리·신고/삭제 전파를 검증한다
 
-실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다.
+실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다. 게시물 작성은 제출 범위이므로 capability OFF 목록에 두지 않는다(A-058).
 
 필수 검증:
 
 - `BA-082-T1`: 타 owner presign 재사용·경로 조작·크기 초과·format spoof를 거부한다
-- `BA-082-T2`: moderation 전 공개0과 실패 cleanup을 검증한다
+- `BA-082-T2`: 기술 검증을 통과하지 못한 asset은 공개되지 않는다
 - `BA-082-T3`: 삭제/권리 철회가 기존 cursor·cache에서도 반영된다
 
-FE 인계·완료 증거: upload 진행/취소/만료·검토/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ### BA-083
 
@@ -2127,7 +2127,7 @@ FE 인계·완료 증거: upload 진행/취소/만료·검토/게시 거절·출
 - 기능 ID: `FR-OPT-02`, `FR-RTE-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `439:3104`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: route_matrix_snapshots · time windows · scope-specific optimizer policy
+- 데이터·정책: time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055)
 
 구현 순서:
 
@@ -2173,7 +2173,7 @@ FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명
 
 ### BA-085
 
-**알림 목록·읽음·대상 유효성** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**알림 목록·읽음·대상 유효성** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-053](#ba-053), [BA-073](#ba-073)
 - 기능 ID: `FR-NOT-01`, `FR-NOT-02`
@@ -2313,7 +2313,7 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 
 필수 검증:
 
-- `BA-090-T1`: Seoul XML/JSON fixture의 drift·429·incident·stale을 검증한다
+- `BA-090-T1`: 서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다
 - `BA-090-T2`: coverage 없는 POI를0 또는 임의 AREA 값으로 채우지 않는다
 - `BA-090-T3`: source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다
 - `BA-090-T4`: provider 요청은 호출이 준 헤더만 싣는다
@@ -2323,6 +2323,10 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T8`: REPLACE_YN 이 Y 인 관측은 저장되지 않는다
 - `BA-090-T9`: 예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다
 - `BA-090-T10`: 제공자 플래그는 아는 값일 때만 통과한다
+- `BA-090-T11`: adapter 는 proxy 에 토큰을 헤더로 내고 받은 응답을 관측으로 정규화한다
+- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다
+- `BA-090-T13`: 거절된 서울 응답이 source_quality_incidents 에 기록된다
+- `BA-090-T14`: stale 한 서울 관측을 live 로 표시하지 않는다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2349,9 +2353,12 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-091-T1`: viewport exact/oversized/invalid·owner cursor·검색 coverage를 검증한다
+- `BA-091-T1`: viewport 는 소수점 3자리·축별 최소 0.01도이고 그 밖은 거절된다
 - `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
 - `BA-091-T3`: Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다
+- `BA-091-T4`: viewport 거절이 좌표를 로그·응답에 남기지 않는다
+- `BA-091-T5`: 다른 owner 의 cursor 는 거절된다
+- `BA-091-T6`: searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

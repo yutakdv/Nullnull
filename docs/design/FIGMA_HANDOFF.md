@@ -400,7 +400,7 @@ S12 P1 범위 정합성:
 7. G Live `418:2523`~`421:2850`: 기준시각과 LIVE/FORECAST/REPLAY 상태를 오인 없이 확인
 8. I 데이터 안내 `423:2967`: 실제 KTO 활용, 출처, 상태 의미와 문의 안내 확인
 
-제출 profile에서 로그인 CTA, JA/ZH, P1 알림·주변·게시물 작성·DAY/TRIP 최적화는 `준비 중`/capability OFF다. dead CTA나 클릭 가능한 가짜 기능으로 두지 않고 기능설명서의 구현 목록에서도 제외한다. 위치 permission prompt는 어떤 경로에서도 열리지 않는다.
+제출 profile에서 로그인 CTA, JA/ZH, P1 알림·주변·DAY/TRIP 최적화는 `준비 중`/capability OFF다. **게시물 작성은 2026-09-20부터 제출 범위라 이 목록에서 빠진다**(`A-058`) — 실제로 동작하는 화면이고 기능설명서의 구현 목록에도 들어간다. dead CTA나 클릭 가능한 가짜 기능으로 두지 않고 기능설명서의 구현 목록에서도 제외한다. 위치 permission prompt는 어떤 경로에서도 열리지 않는다.
 
 ## 5. Component 계약
 

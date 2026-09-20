@@ -481,7 +481,8 @@ property test는 고정 seed 목록과 실패 시 재현 seed를 기록한다. �
 | REC-LLM-01 | 모델 timeout·잘못된 ID·추가 수치·prompt injection | 검증 template 복구, 근거 외 claim·mutation 0 | fake adapter + golden |
 | REC-LLM-02 | 등록된 corpus(KO/EN)의 hallucination·prompt injection 출력 | 근거 밖 수치·ID·link·영업/혼잡/경로 claim 거부, 충실한 문장은 통과 | apps/ai fixture corpus |
 | REC-LLM-03 | provider timeout·읽을 수 없는 출력·budget 거부 | 세 실패 모두 결정적 template fallback, 취소는 삼키지 않음 | fake adapter |
-| REC-LLM-04 | `AI_PROVIDER=NONE` 기본값과 adapter 없는 provider 값 | 설명은 template 이고 model 귀속 표기 0, 지원하지 않는 값은 startup 실패 | settings + wiring |
+| REC-LLM-04 | `AI_PROVIDER` 기본값·미지원 이름·자격 증명 없는 named provider | 설명은 template 이고 model 귀속 표기 0, 미지원 이름과 빈 자격 증명은 startup 실패 | settings + wiring |
+| REC-LLM-06 | 모델 adapter 의 요청 shape·실패 매핑·키 취급 | template 만 전달, 실패는 명명된 provider error, 키는 header 밖(url·body·응답·log·예외 문구)에 없음 | injected transport + urlopen monkeypatch |
 | REC-LLM-05 | 호출자가 준 어휘 밖의 code·중복·범위 밖 weight 해석 | 어휘가 말할 수 없는 해석은 거부, 정규화·보정 0 | apps/ai unit |
 | REC-LOC-01 | 같은 facts 로 렌더한 KO/EN 설명 문장 | 두 문장이 같은 수·같은 slot(월·일·시각)을 말한다 | apps/ai unit |
 | REC-ARCH-01 | domain에서 repository/HTTP/LLM 접근, cross-module JPA import | 의존 규칙 위반 시 실패 | architecture test |

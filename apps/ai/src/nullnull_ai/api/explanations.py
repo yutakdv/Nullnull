@@ -11,6 +11,7 @@ coordinate or raw itinerary text, and the answer says which writer produced the 
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
+from starlette.concurrency import run_in_threadpool
 
 from nullnull_ai.api.problems import ApiProblemError
 from nullnull_ai.api.schemas import ExplanationRenderRequest, ExplanationRenderResponse, ExplanationSourceName
@@ -43,7 +44,10 @@ async def render_explanation(request: Request, body: ExplanationRenderRequest) -
             attribution=body.attribution,
             forecast_issue_id=body.forecast_issue_id,
         )
-        summary, source = service.summary(facts)
+        # Off the event loop: with AI_PROVIDER=NONE this is pure computation, but a named provider
+        # makes `summary` a blocking network call, and one request waiting on a socket must not
+        # stop every other request this process is serving.
+        summary, source = await run_in_threadpool(service.summary, facts)
     except ValueError as error:
         raise ApiProblemError("VALIDATION_FAILED", 422, "The request violates a domain rule.") from error
     return ExplanationRenderResponse(
