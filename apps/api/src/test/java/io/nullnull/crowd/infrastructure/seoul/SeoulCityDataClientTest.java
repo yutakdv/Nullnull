@@ -76,7 +76,7 @@ class SeoulCityDataClientTest {
     }
 
     @Test
-    @DisplayName("BA-090-T12 서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다")
+    @DisplayName("BA-090-T12 서울 upstream 의 429 는 관측을 만들지 않는다")
     void rateLimitEndsAsAProviderFailureWithNoObservation() throws Exception {
         String canary = "should-never-become-an-observation";
         try (StubProviderServer stub = new StubProviderServer()
