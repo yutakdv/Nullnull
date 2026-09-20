@@ -18,6 +18,9 @@ import java.util.Objects;
 public record SeoulLiveAreaObservation(String areaCode, String areaName, String congestionLevel,
         Instant observedAt, String forecastIssueId, List<ForecastPoint> forecastPoints) {
 
+    /** The registry code every snapshot from this provider references (source_registry.code). */
+    public static final String SOURCE_CODE = "SEOUL_CITYDATA";
+
     /** One published forecast step: when it is for, and the level expected then. */
     public record ForecastPoint(Instant targetAt, String congestionLevel) {
         public ForecastPoint {
