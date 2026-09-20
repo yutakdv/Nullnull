@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,28 @@ class LiveAreaQueryServiceTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private static LiveAreaQueryService service(boolean enabled) {
-        return new LiveAreaQueryService(new LiveCapability(enabled), new LiveAreaProjection(), CLOCK);
+        // An empty store: this file is about validation order and the capability, and an empty page
+        // is what an enabled server with nothing collected answers. The stored-reading path is
+        // LiveAreaReadIT, which needs a database to hold a reading at all.
+        return new LiveAreaQueryService(new LiveCapability(enabled), new LiveAreaProjection(),
+                new EmptyAreas(), (source, ids, now) -> List.of(), CLOCK);
+    }
+
+    private static final class EmptyAreas implements io.nullnull.live.application.LiveAreaStore {
+        @Override
+        public List<StoredArea> replaceAreas(String sourceCode, List<AreaUpsert> published) {
+            throw new UnsupportedOperationException("not this file's question");
+        }
+
+        @Override
+        public StoredArea upsertArea(String sourceCode, AreaUpsert area) {
+            throw new UnsupportedOperationException("not this file's question");
+        }
+
+        @Override
+        public List<StoredArea> activeAreas(String sourceCode) {
+            return List.of();
+        }
     }
 
     @Test

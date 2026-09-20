@@ -132,9 +132,11 @@ nullnull:
     access-log:
       # The documented default. AccessLogFilter refuses to start with this ON in production.
       include-query: ${APP_ACCESS_LOG_INCLUDE_QUERY:false}
-  # Product capability flags (docs/operations/ENVIRONMENT.md §6), published by getDemoReadiness. live and
-  # replay may only turn a feature OFF: they have no server-side source yet, so an ON value fails startup
-  # instead of advertising something nothing can answer. optimization has one (BA-050, BA-051) and may be ON.
+  # Product capability flags (docs/operations/ENVIRONMENT.md §6), published by getDemoReadiness. replay may
+  # only turn a feature OFF: it has no server-side source yet, so an ON value fails startup instead of
+  # advertising something nothing can answer. optimization has one (BA-050, BA-051) and live has one as of
+  # B10 (V046's promoted source, the Seoul collector's writer, queryLiveAreas); both may be ON. The
+  # defaults stay OFF - having a source is what makes ON permissible, not what makes it chosen.
   capabilities:
     live: ${FEATURE_LIVE_DATA:false}
     replay: ${FEATURE_REPLAY_MODE:false}
