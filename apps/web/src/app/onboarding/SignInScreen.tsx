@@ -11,12 +11,12 @@ import styles from './SignInScreen.module.css';
 // lines), so there is no endpoint to post to and no error code to render. #264
 // asks BE for the contract; #265 tracks this screen.
 //
-// Submitting therefore navigates to the feed without checking anything. The
-// official demo credentials are prefilled so the walkthrough can continue
-// with one press, but they are not sent anywhere. That is the same thing
-// continuing without an account does, which is the honest behaviour while
-// there is nothing to check against: wiring a fetch to a guessed path would
-// 404 and read to the traveller as "my password is wrong".
+// Submitting therefore validates only the official demo credentials in the
+// browser, then navigates to the feed. They are not sent anywhere and no
+// account is created or linked, so the lead copy explicitly says cross-device
+// continuity is still coming rather than promising a contract that does not
+// exist. Wiring a fetch to a guessed path would 404 and read to the traveller
+// as "my password is wrong".
 //
 // profile.test.tsx asserts no request matching /login|auth|session\/account/
 // leaves the app. That assertion stays true here and is what guards this
@@ -26,28 +26,36 @@ import styles from './SignInScreen.module.css';
 // which is why the secondary line offers to keep browsing rather than treating
 // this screen as a gate.
 
+const DEMO_ACCOUNT = 'openapi';
+const DEMO_PASSWORD = '2026openapi!';
+
 export function SignInScreen() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const idField = useId();
   const passwordField = useId();
+  const failureMessage = useId();
 
   // Controlled because the submit button's disabled state is derived from them.
   // An uncontrolled form would need a separate "has the user typed" signal.
-  const [account, setAccount] = useState('openapi');
-  const [password, setPassword] = useState('2026openapi!');
+  const [account, setAccount] = useState(DEMO_ACCOUNT);
+  const [password, setPassword] = useState(DEMO_PASSWORD);
+  const [failed, setFailed] = useState(false);
 
-  const ready = account.trim() !== '' && password !== '';
+  const ready = account !== '' && password !== '';
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     // preventDefault first: without it the browser submits the form itself and
     // reloads the app with the password in the query string — invariant 10.
     event.preventDefault();
-    // Straight to the feed, and still without a request. There is no auth
-    // operation to call (#264), so nothing is verified here — pressing the
-    // button moves the traveller on, exactly as continuing without an account
-    // does. When the contract lands, this is where `useSignIn` goes, and the
-    // navigation moves into its onSuccess.
+    // Demo-only validation. Exact equality is intentional: trimming would
+    // silently accept a different credential, while partial matching would
+    // make this screen a misleading stand-in for real authentication.
+    if (account !== DEMO_ACCOUNT || password !== DEMO_PASSWORD) {
+      setFailed(true);
+      return;
+    }
+    setFailed(false);
     void navigate('/feed', { replace: true });
   }
 
@@ -67,11 +75,14 @@ export function SignInScreen() {
               {t('signIn.id.label')}
             </label>
             <input
+              aria-describedby={failed ? failureMessage : undefined}
+              aria-invalid={failed || undefined}
               autoComplete="username"
               className={styles.input}
               id={idField}
               onChange={(event) => {
                 setAccount(event.target.value);
+                setFailed(false);
               }}
               placeholder={t('signIn.id.placeholder')}
               type="text"
@@ -84,11 +95,14 @@ export function SignInScreen() {
               {t('signIn.password.label')}
             </label>
             <input
+              aria-describedby={failed ? failureMessage : undefined}
+              aria-invalid={failed || undefined}
               autoComplete="current-password"
               className={styles.input}
               id={passwordField}
               onChange={(event) => {
                 setPassword(event.target.value);
+                setFailed(false);
               }}
               placeholder={t('signIn.password.placeholder')}
               type="password"
@@ -96,6 +110,12 @@ export function SignInScreen() {
             />
           </div>
         </div>
+
+        {failed ? (
+          <p className={styles.notice} id={failureMessage} role="alert">
+            {t('signIn.failed')}
+          </p>
+        ) : null}
 
         <BottomCta
           disabled={!ready}

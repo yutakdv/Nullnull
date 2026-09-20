@@ -122,6 +122,7 @@ export function FeedScreen() {
     tripId: string;
     tripName: string;
   } | null>(null);
+  const [toastPaused, setToastPaused] = useState(false);
   // One key per place, held across retries of that same save so a retry after
   // a lost response replays it instead of saving twice (invariant 6).
   const addKeys = useRef<Record<string, string>>({});
@@ -234,6 +235,21 @@ export function FeedScreen() {
       }
     };
   }, []);
+
+  // Confirmations are deliberately brief secondary feedback. Errors keep
+  // their retry action until the user acts, while successful saves disappear
+  // after the product's 1.5s acknowledgement window. The cleanup prevents a
+  // stale result from clearing a newer toast or updating an unmounted screen.
+  useEffect(() => {
+    if (toast === null || toast.kind === 'error' || toastPaused) return;
+    const current = toast;
+    const timer = window.setTimeout(() => {
+      setToast((shown) => (shown === current ? null : shown));
+    }, 1_500);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [toast, toastPaused]);
 
   useEffect(() => {
     if (!expired) {
@@ -644,37 +660,51 @@ export function FeedScreen() {
         trips={tripItems}
       />
 
-      {/* S03-C2 `399:843` · C3 `399:1011` · C4 `399:1179`.
-          Not auto-dismissed on a timer: the action inside it (보기 / 다시 시도)
-          is the only one offered, and a toast that removes its own button after
-          n seconds is unusable by anyone who reads slower than the timer. It is
-          replaced by the next result and closed by acting on it. */}
+      {/* S03-C2 `399:843` · C3 `399:1011` · C4 `399:1179`. Success and
+          duplicate confirmations dismiss after 1.5s. The error remains because
+          its retry action is the only recovery available in this context. */}
       {toast ? (
-        <Toast
-          actionLabel={
-            toast.kind === 'error' ? t('tripAdd.toast.retry') : t('tripAdd.toast.view')
-          }
-          message={
-            toast.kind === 'saved'
-              ? t('tripAdd.toast.saved', { trip: toast.tripName })
-              : toast.kind === 'duplicate'
-                ? t('tripAdd.toast.duplicate')
-                : t('tripAdd.toast.error')
-          }
-          onAction={() => {
-            if (toast.kind === 'error') {
-              setToast(null);
-              saveCandidate(toast.placeId, toast.postId, toast.tripId);
-              return;
-            }
-            // 보기 goes to the trip the place was saved into — the candidate
-            // list, not the itinerary: a candidate is not a scheduled item
-            // (invariant 1) and landing on the day view would suggest it was.
-            setToast(null);
-            void navigate(`/trip/${toast.tripId}/candidates`);
+        <div
+          className={styles.toastLayer}
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setToastPaused(false);
           }}
-          tone={toast.kind === 'error' ? 'error' : 'info'}
-        />
+          onFocusCapture={() => {
+            setToastPaused(true);
+          }}
+          onMouseEnter={() => {
+            setToastPaused(true);
+          }}
+          onMouseLeave={() => {
+            setToastPaused(false);
+          }}
+        >
+          <Toast
+            actionLabel={
+              toast.kind === 'error' ? t('tripAdd.toast.retry') : t('tripAdd.toast.view')
+            }
+            message={
+              toast.kind === 'saved'
+                ? t('tripAdd.toast.saved', { trip: toast.tripName })
+                : toast.kind === 'duplicate'
+                  ? t('tripAdd.toast.duplicate')
+                  : t('tripAdd.toast.error')
+            }
+            onAction={() => {
+              if (toast.kind === 'error') {
+                setToast(null);
+                saveCandidate(toast.placeId, toast.postId, toast.tripId);
+                return;
+              }
+              // 보기 goes to the trip the place was saved into — the candidate
+              // list, not the itinerary: a candidate is not a scheduled item
+              // (invariant 1) and landing on the day view would suggest it was.
+              setToast(null);
+              void navigate(`/trip/${toast.tripId}/candidates`);
+            }}
+            tone={toast.kind === 'error' ? 'error' : 'info'}
+          />
+        </div>
       ) : null}
 
       {feed.isSuccess && !feed.hasNextPage && cards.length > 0 ? (

@@ -3,6 +3,7 @@ import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useDeletionStatus, useRequestDeletion } from '../../shared/api/index.js';
+import { clearSnapshot } from '../trip-create/wizard-storage.js';
 import styles from './DeletionSection.module.css';
 
 type DeletionStatus = components['schemas']['DeletionRequestStatus']['status'];
@@ -81,6 +82,7 @@ export function DeletionSection() {
                     {
                       onSuccess: (receipt) => {
                         idempotencyKey.current = null;
+                        clearSnapshot();
                         setRequestId(receipt.requestId);
                       },
                     },

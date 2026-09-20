@@ -339,17 +339,43 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
     expect(screen.queryByText(/route|경로/i)).toBeNull();
   });
 
-  it('does not claim a specific work phase the run contract does not expose', async () => {
+  it('reveals the presentation steps one at a time while the real run continues', async () => {
     runIs('RUNNING');
     renderRun();
     await screen.findByText(copy['run.step.crowd']);
 
     const steps = screen.getByRole('list').querySelectorAll('li');
-    expect(steps.length).toBeGreaterThan(0);
-    for (const step of steps) {
-      expect(step).not.toHaveAttribute('data-complete');
-      expect(step).not.toHaveAttribute('data-active');
-    }
+    expect(steps).toHaveLength(4);
+    expect(steps[0]).toHaveAttribute('data-active');
+    expect(steps[1]).not.toHaveAttribute('data-active');
+    expect(steps[1]).not.toHaveAttribute('data-complete');
+
+    await waitFor(
+      () => {
+        expect(steps[0]).toHaveAttribute('data-complete');
+        expect(steps[1]).toHaveAttribute('data-active');
+      },
+      { timeout: 2_000 },
+    );
+  });
+
+  it('keeps the final presentation step active until the server run settles', async () => {
+    runIs('RUNNING');
+    renderRun();
+    await screen.findByText(copy['run.step.crowd']);
+
+    const steps = screen.getByRole('list').querySelectorAll('li');
+    await waitFor(
+      () => {
+        expect(steps[3]).toHaveAttribute('data-active');
+        expect(steps[3]).not.toHaveAttribute('data-complete');
+      },
+      { timeout: 2_500 },
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    expect(steps[3]).toHaveAttribute('data-active');
+    expect(steps[3]).not.toHaveAttribute('data-complete');
   });
 
   it('distinguishes each failure code rather than showing one generic error', async () => {
@@ -390,25 +416,16 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
     expect(screen.queryByText(/INTERNAL_ERROR|undefined/)).toBeNull();
   });
 
-  it('offers a recompute only when the contract says the failure is retryable', async () => {
+  it('keeps both recovery actions reachable at the bottom of a failed result', async () => {
     runIs('FAILED', {
       failure: { code: 'NO_IMPROVEMENT', message: 'x', retryable: false },
     });
-    const view = renderRun();
-    await screen.findByText(copy['run.failure.NO_IMPROVEMENT']);
-    // retryable:false means asking again cannot help; offering it would invite
-    // the user to burn a run on the same answer.
-    expect(screen.queryByRole('button', { name: copy['run.recompute'] })).toBeNull();
-    view.unmount();
-
-    runIs('FAILED', {
-      failure: { code: 'TRIP_CHANGED', message: 'x', retryable: true },
-    });
     renderRun();
-    await screen.findByText(copy['run.failure.TRIP_CHANGED']);
+    await screen.findByText(copy['run.failure.NO_IMPROVEMENT']);
     expect(
       screen.getByRole('button', { name: copy['run.recompute'] }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: copy['run.leave'] })).toBeInTheDocument();
   });
 
   it('separates a missing run from a failed request', async () => {

@@ -48,7 +48,7 @@ function renderSignIn() {
   );
 }
 
-describe('the sign-in screen holds a form that moves on without checking it', () => {
+describe('the sign-in screen validates the local demo credentials without sending them', () => {
   it('sends no request when the form is submitted', async () => {
     // The whole point of the screen existing before its contract. If this goes
     // red, either an endpoint was guessed or a real one landed — and in the
@@ -95,6 +95,23 @@ describe('the sign-in screen holds a form that moves on without checking it', ()
     expect(
       await screen.findByRole('heading', { name: copy['feed.title'] }),
     ).toBeInTheDocument();
+  });
+
+  it('rejects credentials that are not an exact match', async () => {
+    const user = userEvent.setup();
+    renderSignIn();
+
+    const account = await screen.findByLabelText(copy['signIn.id.label']);
+    await user.type(account, ' ');
+    await user.click(screen.getByRole('button', { name: copy['signIn.submit'] }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The ID or password is incorrect',
+    );
+    expect(
+      screen.getByRole('heading', { level: 1, name: copy['signIn.title'] }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: copy['feed.title'] })).toBeNull();
   });
 
   it('prefills the demo credentials and enables submit', async () => {
@@ -149,5 +166,7 @@ describe('the sign-in screen holds a form that moves on without checking it', ()
       'nothing rendered, so the check below is vacuous',
     ).toBeGreaterThan(20);
     expect(body).not.toMatch(/[가-힣]/);
+    expect(body).toContain('Cross-device trip access is still coming soon.');
+    expect(body).not.toContain('saved to your account');
   });
 });

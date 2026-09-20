@@ -7,7 +7,7 @@
 // FE-301-T2: default/loading/empty/error/offline/stale each render.
 // FE-301-T3: keyboard reach, focus, accessible names.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -127,6 +127,35 @@ describe('FE-301-T1 the counts are right and distinct', () => {
     // Day 1 holds 경복궁 at position 0 and 인사동 at position 1.
     expect(names[0]).toBe('경복궁');
     expect(names[1]).toBe('인사동');
+  });
+});
+
+describe('FE-301 trip title editing from the detail header', () => {
+  it('validates, saves, and keeps the renamed trip after reopening the detail', async () => {
+    const user = userEvent.setup();
+    const firstView = renderTrip();
+    await loaded();
+
+    await user.click(screen.getByRole('button', { name: 'Edit trip name' }));
+    const title = screen.getByLabelText(copy['trip.field.title']);
+    await user.clear(title);
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
+    expect(screen.getByRole('alert')).toHaveTextContent(copy['trip.error.title-empty']);
+
+    await user.type(title, 'Autumn Seoul');
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Autumn Seoul' }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit trip name' })).toHaveFocus();
+    });
+
+    firstView.unmount();
+    renderTrip();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Autumn Seoul' }),
+    ).toBeInTheDocument();
   });
 });
 

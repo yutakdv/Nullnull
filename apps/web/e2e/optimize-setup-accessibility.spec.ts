@@ -75,4 +75,26 @@ test.describe('optimization setup sheet keyboard flow', () => {
     await expect(page).toHaveURL(new RegExp(`/trip/${TRIP_ID}$`));
     await expect(dialog).toHaveCount(0);
   });
+
+  test('dismisses the sheet when its grabber is dragged down', async ({ page }) => {
+    await page.goto(SETUP_PATH);
+    await page.waitForLoadState('networkidle');
+
+    const dialog = page.getByRole('dialog');
+    const handle = page.getByTestId('optimize-sheet-drag-handle');
+    await expect(handle).toBeVisible();
+    const box = await handle.boundingBox();
+    expect(box).not.toBeNull();
+    if (box === null) return;
+
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 150, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page).toHaveURL(new RegExp(`/trip/${TRIP_ID}$`));
+    await expect(dialog).toHaveCount(0);
+  });
 });

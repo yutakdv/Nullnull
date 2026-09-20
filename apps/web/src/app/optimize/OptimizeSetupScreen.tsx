@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useCreateOptimization, useTrip } from '../../shared/api/index.js';
-import { Chip, DataAttribution, IconClose } from '../../shared/ui/index.js';
+import { Chip, DataAttribution, IconClose, SheetGrab } from '../../shared/ui/index.js';
 import { formatTime } from '../trip/trip-view.js';
 import { TripScreen } from '../trip/TripScreen.js';
 import styles from './OptimizeSetupScreen.module.css';
@@ -73,6 +79,16 @@ export function OptimizeSetupScreen() {
   // or succeeds, so a genuinely different run gets a genuinely new key.
   const idempotencyKey = useRef<string | null>(null);
   const [missingTarget, setMissingTarget] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragGesture = useRef<{
+    pointerId: number;
+    startY: number;
+    lastY: number;
+    lastAt: number;
+    offset: number;
+    velocity: number;
+  } | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   // Capture the entry point during render, before React applies `autoFocus`
@@ -117,6 +133,50 @@ export function OptimizeSetupScreen() {
 
   function back() {
     void navigate(tripId === null ? '/feed' : `/trip/${tripId}`);
+  }
+
+  function beginDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragGesture.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      lastY: event.clientY,
+      lastAt: event.timeStamp,
+      offset: 0,
+      velocity: 0,
+    };
+    setDragging(true);
+  }
+
+  function moveDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const gesture = dragGesture.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const offset = Math.max(0, event.clientY - gesture.startY);
+    const elapsed = Math.max(1, event.timeStamp - gesture.lastAt);
+    gesture.velocity = ((event.clientY - gesture.lastY) / elapsed) * 1_000;
+    gesture.lastY = event.clientY;
+    gesture.lastAt = event.timeStamp;
+    gesture.offset = offset;
+    setDragOffset(offset);
+  }
+
+  function finishDrag(event: ReactPointerEvent<HTMLDivElement>, cancelled = false) {
+    const gesture = dragGesture.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    dragGesture.current = null;
+    setDragging(false);
+    const distanceThreshold = Math.min(120, window.innerHeight * 0.18);
+    const shouldDismiss =
+      !cancelled &&
+      (gesture.offset >= distanceThreshold ||
+        (gesture.offset >= 24 && gesture.velocity >= 800));
+    if (shouldDismiss) {
+      back();
+      return;
+    }
+    setDragOffset(0);
   }
 
   function keepFocusInSheet(event: KeyboardEvent<HTMLElement>) {
@@ -165,7 +225,7 @@ export function OptimizeSetupScreen() {
     return (
       <div className={styles.overlay}>
         <div aria-hidden="true" className={styles.tripBackground} inert>
-          <TripScreen />
+          <TripScreen surface="subtle" />
         </div>
         <button
           aria-hidden="true"
@@ -179,12 +239,25 @@ export function OptimizeSetupScreen() {
           aria-labelledby="optimize-heading"
           aria-modal="true"
           className={styles.screen}
+          data-dragging={dragging || undefined}
           onKeyDown={keepFocusInSheet}
           ref={dialogRef}
           role="dialog"
+          style={{ transform: `translateY(${String(dragOffset)}px)` }}
           tabIndex={-1}
         >
-          <span aria-hidden="true" className={styles.grabber} />
+          <div
+            className={styles.dragHandle}
+            data-testid="optimize-sheet-drag-handle"
+            onPointerCancel={(event) => {
+              finishDrag(event, true);
+            }}
+            onPointerDown={beginDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={finishDrag}
+          >
+            <SheetGrab />
+          </div>
           <button
             aria-label={t('optimize.back')}
             autoFocus
@@ -349,7 +422,9 @@ export function OptimizeSetupScreen() {
                     data-selected={selected === item.id || undefined}
                     disabled={dateLocked}
                     onClick={() => {
-                      setTargetItemId(item.id);
+                      setTargetItemId((current) =>
+                        current === item.id ? null : item.id,
+                      );
                       setMissingTarget(false);
                       // A different stop is a different command.
                       idempotencyKey.current = null;

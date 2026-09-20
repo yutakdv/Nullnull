@@ -11,6 +11,7 @@ import {
 } from '../../shared/api/index.js';
 import { BottomCta, NavBar } from '../../shared/ui/index.js';
 import { EMPTY_DRAFT, toCreateRequest, type WizardDraft } from './wizard.js';
+import { clearSnapshot } from './wizard-storage.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './ImportPasteScreen.module.css';
 
@@ -133,6 +134,10 @@ export function ImportPasteScreen() {
       {
         onSuccess: (result) => {
           confirmKey.current = null;
+          // This import flow starts from the same persisted wizard draft as
+          // the manual flow. Once the import has become a trip, those dates
+          // must not be restored for the next trip after a reload.
+          clearSnapshot();
           void navigate(`/trip/${result.trip.id}`, { replace: true });
         },
       },

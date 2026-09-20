@@ -14,6 +14,7 @@
 .spinner {
   width: 48px;
   height: 48px;
+  animation: spin 900ms linear infinite;
 }
 
 .loadingTitle {
@@ -44,6 +45,15 @@
   line-height: 19px;
 }
 
+.loadingStep[data-active],
+.loadingStep[data-complete] {
+  color: var(--color-text-primary);
+}
+
+.loadingStep[data-active] {
+  font-weight: 700;
+}
+
 .marker {
   display: inline-grid;
   place-items: center;
@@ -52,6 +62,22 @@
   font-size: var(--font-body-sm);
   font-weight: 700;
   line-height: 18px;
+}
+
+.stepSpinner {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--color-bg-track);
+  border-top-color: var(--color-action-primary);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 .leaveButton {
@@ -97,6 +123,33 @@
   padding: 0 var(--space-4) var(--space-6);
 }
 
+.failureScreen {
+  min-height: 100%;
+  padding-bottom: calc(var(--layout-bottom-action) + env(safe-area-inset-bottom));
+  background: var(--color-bg-subtle);
+}
+
+.failureContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 520px;
+  margin: var(--space-6) auto 0;
+  padding: 0 var(--layout-page-gutter) var(--space-6);
+}
+
+.failureSecondary {
+  width: 100%;
+  min-height: var(--layout-touch-min);
+  padding: 0 var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .title {
   margin: 0;
   color: var(--color-text-primary);
@@ -140,6 +193,13 @@
   font-family: inherit;
   font-size: var(--font-body-sm);
   font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .stepSpinner {
+    animation: none;
+  }
 }
 
 .primary {
