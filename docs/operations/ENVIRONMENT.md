@@ -239,7 +239,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | --- | --- | --- |
 | `NULLNULL_CATALOG_PUBLIC_ENABLED` | OFF | C3 local projection은 기본 차단. C2 T3 staging provenance와 최종 AWS release에서만 별도 cursor secret과 함께 ON 가능 |
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
-| `FEATURE_LIVE_DATA` | OFF (모든 환경) | B10이 live source를 붙이는 slice에서만 ON 가능. source 불가 시 replay/empty |
+| `FEATURE_LIVE_DATA` | **staging/제출 ON**, 그 밖 OFF | `A-054`(오너 2026-09-20)로 Live 가 제출과 함께 나간다. 켤 수 있게 된 근거는 `V046` 의 `SEOUL_CITYDATA` `DEV_APPROVED` 승격·proxy URL/token·area 당 reading 을 쓰는 collector 셋이 같이 선 것이고, `DemoCapabilityQuery.WITHOUT_A_SOURCE` 가 같은 날 `live` 를 뺐다. 배포가 `infra/src/staging.ts` 에서 넘긴다 |
 | `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |
 | `FEATURE_OPTIMIZATION_ITEM` | OFF (기본값) | 제출 빌드(staging)는 ON이다 — 오너 결정(2026-09-19). `infra/src/staging.ts`가 staging API task에만 켠다(ops·migration·ai task에는 없다. `infra/test/staging.test.ts`가 고정한다). BA-050·BA-051이 source라 ON이어도 startup을 막지 않는다 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |
@@ -254,7 +254,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 
 flag는 backend capability response가 정본이다. frontend build flag만으로 권한/안전 기능을 제어하지 않는다.
 
-BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. `live`·`replay`는 아직 server-side source가 없어 응답이 `UNAVAILABLE`이고, `true`로 켜면 9절의 "LIVE feature가 ON이면 source registry/key/readiness 설정 존재" 규칙에 따라 startup이 실패한다. source를 만드는 slice(B03 replay, B10 live)가 그 flag를 켤 수 있게 된다. `optimization`은 BA-050·BA-051이 source라 이미 켤 수 있고(`DemoCapabilityQuery`), 켜면 `READY`로 나타난다.
+BA-003이 `getDemoReadiness`에 연결한 flag는 `FEATURE_LIVE_DATA`·`FEATURE_REPLAY_MODE`·`FEATURE_OPTIMIZATION_ITEM` 셋이며, capability 이름은 각각 `live`·`replay`·`optimization`이다(`FR-OPS-02`). flag는 기능을 끄는 방향으로만 쓴다. **`live` 는 2026-09-20 에 source 를 얻었다**(`V046` 승격 + collector + `queryLiveAreas`) — `DemoCapabilityQuery.WITHOUT_A_SOURCE` 에서 빠졌고 켜면 `READY` 로 나타난다. **`replay` 는 아직 source 가 없어** 응답이 `UNAVAILABLE` 이고, `true` 로 켜면 9절의 "LIVE feature가 ON이면 source registry/key/readiness 설정 존재" 규칙에 따라 startup 이 실패한다. 그 flag 를 켤 수 있게 하는 것은 source 를 만드는 slice(B03 replay)다. **이 문단은 한 번 낡아 있었다** — `live` 가 그 목록에서 빠진 뒤에도 *"아직 source 가 없다"* 로 남아 있었고, 그것만 읽은 사람은 *"Live 는 못 켠다"* 로 결론낸다. `optimization`은 BA-050·BA-051이 source라 이미 켤 수 있고(`DemoCapabilityQuery`), 켜면 `READY`로 나타난다.
 
 공모전 profile `2026_KTO_WEBAPP`은 다음 startup invariant를 추가한다.
 

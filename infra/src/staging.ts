@@ -1069,6 +1069,15 @@ export function createStacks(
       // The submission build runs ITEM optimization (owner decision 2026-09-19, docs/operations/ENVIRONMENT.md).
       // A settled product decision rather than an operator gate, so it is fixed here and not in staging.config.json.
       FEATURE_OPTIMIZATION_ITEM: "true",
+      // A-054 (owner, 2026-09-20, confirmed in two sessions) supersedes A-033: Live ships with the
+      // submission rather than as a mockup. Three things had to stand first and all three do -
+      // SEOUL_CITYDATA promoted to DEV_APPROVED in V046 (which derives enabled from approval_state
+      // and stale_after_seconds), the proxy URL and token passed below, and a collector that stores a
+      // reading per area. DemoCapabilityQuery.WITHOUT_A_SOURCE dropped live on the same day, so an ON
+      // flag no longer advertises something nothing can answer - it would have failed startup before.
+      // Fixed here rather than in staging.config.json for the same reason as the line above: this is a
+      // settled product decision, not an operator gate.
+      FEATURE_LIVE_DATA: "true",
       // The proxy, never openapi.seoul.go.kr. Both values are set together because they are two halves
       // of one fact: if the allowlist still named the provider while the base URL named the proxy, a
       // request built for the proxy - with no key in its path - would go to Seoul instead.

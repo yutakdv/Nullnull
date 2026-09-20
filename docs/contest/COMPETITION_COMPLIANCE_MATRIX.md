@@ -29,7 +29,9 @@ tags:
 | `INFO` | 공식 허용 범위 또는 오해 방지 안내 | 필수·가점으로 과장하지 않음 |
 | `INTERNAL` | Nullnull이 정한 더 엄격한 안전 gate | 두 사람 승인 없이는 예외 금지 |
 
-증거 상태는 `NOT_STARTED`, `IN_PROGRESS`, `VERIFIED`, `NOT_APPLICABLE`만 사용한다. 문서가 존재한다는 이유로 구현 증거를 `VERIFIED`로 바꾸지 않는다. 각 requirement의 현재 상태와 evidence ID는 [비밀값 없는 evidence ledger template](./EVIDENCE_LEDGER_TEMPLATE.md)을 복사한 보호 저장소의 원장에 requirement ID별로 정확히 한 번 기록한다.
+증거 상태는 `NOT_STARTED`, `IN_PROGRESS`, `VERIFIED`, `NOT_APPLICABLE`만 사용한다.
+
+**이 표가 모르는 미충족이 하나 있다 — `R-040`.** 제출 배포본의 큐레이션 표지 **5장 전부**가 `CMP-ATT-007` 이 금지하는 것에 해당한다(C2PA 매니페스트에 `gpt-image`·`trainedAlgorithmicMedia`·`OpenAI Media Service API`·`c2pa.created`, 촬영본 편집의 증거인 `ingredient`/`c2pa.opened` 는 **0건**). **2026-09-20 오너가 교체하지 않기로 했고** 그 판단과 잔여 위험은 [결정·위험 대장](../project/DECISIONS_AND_RISKS.md)의 `R-040` 에 있다. **여기 적는 이유는 이 문서가 go/no-go 판정에 쓰이기 때문이다** — 그 위험이 원장에만 있으면 이 표만 읽는 사람은 그 존재를 알 수 없다(실측: 이 파일에 `R-040`·`A-024` 언급이 **0건**이었다). 문서가 존재한다는 이유로 구현 증거를 `VERIFIED`로 바꾸지 않는다. 각 requirement의 현재 상태와 evidence ID는 [비밀값 없는 evidence ledger template](./EVIDENCE_LEDGER_TEMPLATE.md)을 복사한 보호 저장소의 원장에 requirement ID별로 정확히 한 번 기록한다.
 
 ## 2. 공식 제출 요건
 
@@ -84,6 +86,7 @@ AI 도구 사용을 별도 가점이나 구현 완료 증거로 주장하지 않
 | CMP-ATT-004 | 팀 결정/INTERNAL | 기준시각과 source state를 숨기지 않음 | LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE 표시 | contract/Storybook/E2E | FE / BE·AI |
 | CMP-ATT-005 | 팀 결정/INTERNAL | 비교 불가 source를 수치 비교하지 않음 | server comparison eligibility와 reason 사용 | property/contract/UI test | BE/AI / FE |
 | CMP-ATT-006 | 팀 결정/INTERNAL | 이미지별 이용 조건을 확인 | 승인된 asset만 사용, 불명확하면 placeholder | asset license ledger | 공동 / 공동 |
+| CMP-ATT-007 | 팀 결정/INTERNAL | **실재 장소를 사진처럼 렌더한 합성 이미지를 쓰지 않는다**(`A-024`, 불변식 6) | 일러스트임이 명시적으로 보이는 asset만. 사진 같은 합성은 금지 | `apps/web` image allowlist(FE-603-T2)와 **C2PA 매니페스트 확인** — **allowlist scan 은 `docs/contest/covers/` 를 보지 않는다**(앱 번들이 아니라 배포 도메인이 서빙하는 자산이다) | 공동 / 공동 |
 
 ## 5. 위치·개인정보·테스트 접근
 
