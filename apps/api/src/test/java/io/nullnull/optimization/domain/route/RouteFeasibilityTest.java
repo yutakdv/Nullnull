@@ -19,12 +19,18 @@ import org.junit.jupiter.api.Test;
 /**
  * BA-083 step 2: what a candidate day is checked against before anything proposes it.
  *
- * <p>Each test carries one clause. That is deliberate and it is why no acceptance ID appears in a
- * {@code @DisplayName} here yet: the card's {@code BA-083-T1} currently reads "불가능한 구간·비대칭·
- * time window·모든 잠금 조합" - four clauses under one id - and the aggregator only checks that an id
- * appears in some testcase name. Tagging these with it would let any one of the four stand in for all
- * four, which is the failure {@code BA-002-T3} recorded. The ids go on once the card is split; the
- * proposed split is in the handback.
+ * <p>Each test carries one clause, and the card now has one id per clause: {@code BA-083-T1} was
+ * narrowed to the route gap alone and {@code T4}-{@code T21} took the rest. It read "불가능한 구간·
+ * 비대칭·time window·모든 잠금 조합" - four clauses under one id - and the aggregator only checks that
+ * an id appears in some testcase name, so tagging all nineteen with it would have let any one of the
+ * four stand in for all four: the failure {@code BA-002-T3} recorded. The ids went on when the card
+ * was split, not before.
+ *
+ * <p>{@code T1} and {@code T12} are why the split is worth its cost, and they are a contrasting pair.
+ * A route gap stops the walk, so the day reports that one reason and no {@code completedAt}; an hours
+ * violation does not, so a day with two closed places reports two reasons. Under one id either test
+ * alone would satisfy it and the contrast - which is the actual design decision in
+ * {@link RouteFeasibility} - would have nothing pinning it.
  *
  * <p>No test here derives a travel time from distance, because the code cannot: the only source of a
  * duration is the matrix. The tests that matter most are therefore the ones about its <em>absence</em>.
@@ -65,7 +71,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a day whose legs and hours are all known finishes at the computed time")
+    @DisplayName("BA-083-T7 a day whose legs and hours are all known finishes at the computed time")
     void aFullyKnownDayIsFeasible() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(stop("a", PLACE_A, 60), stop("b", PLACE_B, 30)),
@@ -76,7 +82,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a missing leg is not satisfied by the reverse leg")
+    @DisplayName("BA-083-T4 a missing leg is not satisfied by the reverse leg")
     void theReverseLegDoesNotStandInForAMissingOne() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(stop("a", PLACE_A, 30), stop("b", PLACE_B, 30)),
@@ -88,7 +94,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a pair the provider answered as unroutable is not the same reason as one nobody asked")
+    @DisplayName("BA-083-T5 a pair the provider answered as unroutable is not the same reason as one nobody asked")
     void anUnroutablePairIsDistinctFromAnAbsentOne() {
         DirectedRouteMatrix matrix = DirectedRouteMatrix.of(Map.of(), Set.of(pair("a", "b")));
 
@@ -99,7 +105,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("the walk stops at the first route gap rather than judging stops it cannot time")
+    @DisplayName("BA-083-T1 the walk stops at the first route gap rather than judging stops it cannot time")
     void stopsAfterARouteGapAreNotJudged() {
         // c is closed, but c's arrival time is unknowable once a->b is missing. A verdict about it
         // would be invented in either direction, so the only reason is the gap itself.
@@ -116,7 +122,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a date nobody verified is unverified, never open")
+    @DisplayName("BA-083-T8 a date nobody verified is unverified, never open")
     void anAbsentWindowIsUnverified() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(stop("a", PLACE_A, 30)), DirectedRouteMatrix.empty(), Map.of());
@@ -125,7 +131,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a verified closure is reported as closed, not as unverified")
+    @DisplayName("BA-083-T9 a verified closure is reported as closed, not as unverified")
     void aVerifiedClosureIsItsOwnReason() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(stop("a", PLACE_A, 30)), DirectedRouteMatrix.empty(),
@@ -135,7 +141,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("arriving before a place opens is outside its window")
+    @DisplayName("BA-083-T10 arriving before a place opens is outside its window")
     void arrivingBeforeOpeningIsRefused() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("07:00"),
                 List.of(stop("a", PLACE_A, 30)), DirectedRouteMatrix.empty(),
@@ -145,7 +151,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a visit still running at closing time is outside the window")
+    @DisplayName("BA-083-T11 a visit still running at closing time is outside the window")
     void aVisitOverrunningClosingIsRefused() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("17:30"),
                 List.of(stop("a", PLACE_A, 60)), DirectedRouteMatrix.empty(),
@@ -155,7 +161,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("every stop whose hours refuse it is reported, because their arrivals are known")
+    @DisplayName("BA-083-T12 every stop whose hours refuse it is reported, because their arrivals are known")
     void hoursViolationsDoNotStopTheWalk() {
         Map<UUID, OpeningWindow> windows = Map.of(PLACE_A, OpeningWindow.closed(),
                 PLACE_B, OpeningWindow.closed());
@@ -168,7 +174,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a DATE lock pinning another date refuses the day")
+    @DisplayName("BA-083-T13 a DATE lock pinning another date refuses the day")
     void aDateLockOnAnotherDateIsRefused() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(locked("a", PLACE_A, 30, new ItemLock.Date(OTHER_DAY))),
@@ -178,7 +184,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a TIME lock missed by more than its tolerance refuses the day")
+    @DisplayName("BA-083-T14 a TIME lock missed by more than its tolerance refuses the day")
     void aTimeLockMissedBeyondToleranceIsRefused() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:31"),
                 List.of(locked("a", PLACE_A, 30, new ItemLock.Time(LocalTime.parse("09:00"), 30))),
@@ -188,7 +194,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a TIME lock met inside its tolerance does not refuse the day")
+    @DisplayName("BA-083-T15 a TIME lock met inside its tolerance does not refuse the day")
     void aTimeLockWithinToleranceIsAccepted() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:30"),
                 List.of(locked("a", PLACE_A, 30, new ItemLock.Time(LocalTime.parse("09:00"), 30))),
@@ -198,7 +204,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a RESERVATION held for another date refuses the day")
+    @DisplayName("BA-083-T16 a RESERVATION held for another date refuses the day")
     void aReservationOnAnotherDateIsRefused() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(locked("a", PLACE_A, 30,
@@ -209,7 +215,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("arriving after the reserved start refuses the day")
+    @DisplayName("BA-083-T17 arriving after the reserved start refuses the day")
     void arrivingAfterTheReservedStartIsRefused() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("10:01"),
                 List.of(locked("a", PLACE_A, 30,
@@ -220,7 +226,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("arriving early for a booking waits for it instead of starting early")
+    @DisplayName("BA-083-T18 arriving early for a booking waits for it instead of starting early")
     void arrivingEarlyForAReservationWaits() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(locked("a", PLACE_A, 30,
@@ -232,7 +238,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a visit still running after the reserved end refuses the day")
+    @DisplayName("BA-083-T19 a visit still running after the reserved end refuses the day")
     void overrunningTheReservedEndIsRefused() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("10:00"),
                 List.of(locked("a", PLACE_A, 90,
@@ -243,7 +249,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("MUST_VISIT says nothing about time and refuses nothing here")
+    @DisplayName("BA-083-T20 MUST_VISIT says nothing about time and refuses nothing here")
     void mustVisitIsInertForFeasibility() {
         RouteFeasibility.Verdict verdict = RouteFeasibility.verify(DAY, LocalTime.parse("09:00"),
                 List.of(locked("a", PLACE_A, 30, new ItemLock.MustVisit())),
@@ -253,7 +259,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a day that would run past midnight overflows instead of wrapping to the morning")
+    @DisplayName("BA-083-T21 a day that would run past midnight overflows instead of wrapping to the morning")
     void aDayRunningPastMidnightOverflows() {
         // Open to the last minute of the day, so the overflow is the only rule left to fire: with the
         // usual 22:00 close, a's own window would refuse a 23:00 start and the reason under test would
@@ -270,7 +276,7 @@ class RouteFeasibilityTest {
     }
 
     @Test
-    @DisplayName("a pair declared both routable and unroutable is rejected rather than resolved")
+    @DisplayName("BA-083-T6 a pair declared both routable and unroutable is rejected rather than resolved")
     void aContradictoryPairIsRejected() {
         assertThatThrownBy(() -> DirectedRouteMatrix.of(
                 Map.of(pair("a", "b"), Duration.ofMinutes(20)), Set.of(pair("a", "b"))))
