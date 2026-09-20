@@ -308,12 +308,19 @@ class ReplayManifestMigrationIT {
 
     private UUID manifest(Instant from, Instant to, String checksum, String license) {
         UUID id = UUID.randomUUID();
+        // Tests share this schema. Keep each fixture newer than earlier approvals regardless of test order.
+        Timestamp latestApproval = jdbc.queryForObject("SELECT max(approved_at) FROM " + SCHEMA
+                + ".replay_manifests", Timestamp.class);
+        Instant approvedAt = to.plusSeconds(60);
+        if (latestApproval != null && !approvedAt.isAfter(latestApproval.toInstant())) {
+            approvedAt = latestApproval.toInstant().plusSeconds(1);
+        }
         jdbc.update("INSERT INTO " + SCHEMA + ".replay_manifests"
                 + " (id, name, schema_version, source_code, source_registry_version, checksum,"
                 + " source_license_snapshot, captured_from, captured_to, approved_at, created_at)"
                 + " VALUES (?, ?, 'replay-manifest-v1', 'SEOUL_CITYDATA', 2, ?, ?, ?, ?, ?, ?)",
                 id, "test-" + id, checksum, license,
-                Timestamp.from(from), Timestamp.from(to), Timestamp.from(to.plusSeconds(60)),
+                Timestamp.from(from), Timestamp.from(to), Timestamp.from(approvedAt),
                 Timestamp.from(from));
         return id;
     }
