@@ -20,6 +20,24 @@ public final class NotificationDeepLink {
     /** Contract: Notification.deepLink maxLength. */
     public static final int MAX_LENGTH = 300;
 
+    /** Exactly the character class in V037's {@code notifications_deep_link_check}. */
+    private static final java.util.BitSet ALLOWED = new java.util.BitSet(128);
+
+    static {
+        for (char c = 'a'; c <= 'z'; c++) {
+            ALLOWED.set(c);
+        }
+        for (char c = 'A'; c <= 'Z'; c++) {
+            ALLOWED.set(c);
+        }
+        for (char c = '0'; c <= '9'; c++) {
+            ALLOWED.set(c);
+        }
+        ALLOWED.set('/');
+        ALLOWED.set('-');
+        ALLOWED.set('_');
+    }
+
     private NotificationDeepLink() {
     }
 
@@ -63,6 +81,16 @@ public final class NotificationDeepLink {
             // as a boundary rather than as part of the value.
             if (character <= ' ' || character == 0x7f) {
                 throw new IllegalArgumentException("deepLink must not contain whitespace or control characters");
+            }
+            // The same character set V037's notifications_deep_link_check enforces, and that is the
+            // whole point of it being here: this parser used to be WIDER than the CHECK, so
+            // "/trip/a.b" and "/trip/서울" passed Java and died at the INSERT as a constraint
+            // violation - a 500 where a refusal belonged. Two layers that disagree do not give you
+            // two defences; they give you one defence and one way to crash.
+            // NotificationDeepLinkParityIT compares the two on the same inputs, in both directions.
+            if (!ALLOWED.get(character)) {
+                throw new IllegalArgumentException(
+                        "deepLink may contain only letters, digits, '/', '-' and '_'");
             }
         }
         return link;
