@@ -9,6 +9,7 @@ readonly compose_file="${project_root}/compose.integration.yml"
 readonly target_stack_verifier="${project_root}/scripts/verify_target_stack.py"
 readonly evaluation_report_checker="${project_root}/scripts/check_evaluation_report.py"
 readonly test_report_checker="${project_root}/scripts/check_test_reports.py"
+readonly e2e_flaky_checker="${project_root}/scripts/check_e2e_flaky.py"
 readonly script_tests_runner="${project_root}/scripts/run_script_tests.py"
 readonly gate_evidence_recorder="${project_root}/scripts/record_gate_evidence.py"
 readonly egress_report_checker="${project_root}/scripts/check_egress_report.py"
@@ -301,6 +302,13 @@ fi
 grep -x 'e2e_catalog_seed=.*' "${e2e_seed_report}"
 
 "${compose[@]}" run --rm e2e
+# A retry hides a first-attempt failure from every check that follows: Playwright writes the
+# retried test as a plain <testcase> with no <failure> and exits 0, so check_test_reports.py's
+# failures=0 requirement is satisfied by a run that was red once. This records the count from the
+# json reporter. It does NOT fail the gate - the number is unknown until a full run reports one,
+# and a required check with an unknown pass rate is how a gate gets disabled. `none` rather than
+# `0` when the report cannot answer.
+python3 "${e2e_flaky_checker}" "${artifact_dir}/playwright/e2e/results.json"
 # #233: aggregated only now, after the browser suite has written its JUnit, so an acceptance ID a
 # Playwright title carries is counted like any other. Earlier it ran above web-quality and could
 # only have read a report this run had not produced yet - --run-start rejects anything older than
