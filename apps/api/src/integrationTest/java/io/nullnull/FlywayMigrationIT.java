@@ -61,9 +61,11 @@ class FlywayMigrationIT {
     // wrong. V044's author was right too: on their tree the previous migration created nothing.
     // Both were correct alone and the merge was red, which is the global-sum shape this file
     // keeps meeting - it is settled by whoever merges last, not by either slice.
-    // V045 (BA-090, the Seoul registry revision) is that next migration, so V044's own tables
+    // V046 (BA-090, the Seoul registry revision) is that next migration, so V044's own tables
+    // -- on THIS branch. A sibling branch holds V045 (uploads); when both land, its table joins
+    // this list too and whoever merges last recalculates, because neither branch can see the other.
     // have joined: live_areas and seoul_live_area_maps are below and populateEveryTable seeds
-    // them. V045 creates no table of its own, so nothing new waits behind them.
+    // them. V046 creates no table of its own, so nothing new waits behind them.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -143,7 +145,7 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V045 is the last one today and seeds one row, which is why the number below is 1
+            // V046 is the last one today ON THIS BRANCH and seeds one row, which is why the number below is 1
             // rather than 0. V044, now the previous schema, seeds nothing: it creates live_areas and
             // seoul_live_area_maps (BA-090) and adds the foreign key crowd_snapshots.live_area_id
             // had been waiting for, and writes no row. V037 seeds nothing either: it creates the
@@ -162,7 +164,7 @@ class FlywayMigrationIT {
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
-            // V045 seeds ONE row: the source_registry_revisions entry (version 2) that the
+            // V046 seeds ONE row: the source_registry_revisions entry (version 2) that the
             // Seoul promotion writes beside its UPDATE. The UPDATE itself adds nothing. This
             // number moving is how this assertion works - it is what notices a migration that
             // quietly plants data - so it is edited with a reason, never deleted.
@@ -448,7 +450,7 @@ class FlywayMigrationIT {
                             'ACTIVE', v_at, v_at);
                     INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)
                     VALUES (gen_random_uuid(), v_place, 'ko-KR', 'upgrade place', 'upgrade address', v_at);
-                    -- V044's tables. They arrive in this list now because V045 made V044 the
+                    -- V044's tables. They arrive in this list now because V046 made V044 the
                     -- PREVIOUS schema; the comment above PREVIOUS_SCHEMA_TABLES said they would.
                     -- mapping_type is 'AREA', the value io.nullnull.live.domain.LiveAreaMapping
                     -- produces and the only one V044's CHECK accepts alongside AREA_FALLBACK.
