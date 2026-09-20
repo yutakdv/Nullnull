@@ -3,6 +3,7 @@ package io.nullnull.operations;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
@@ -52,7 +53,8 @@ class CapabilityOffCoverageIT {
      * a claim about a file.
      */
     private static final Map<String, String> REFUSED_BY_AN_OPERATION = Map.of(
-            DemoCapabilities.OPTIMIZATION, "createOptimization (also OptimizationCapabilityOffIT)");
+            DemoCapabilities.OPTIMIZATION, "createOptimization (also OptimizationCapabilityOffIT)",
+            DemoCapabilities.LIVE, "queryLiveAreas (also LiveAreaApiIT)");
 
     /**
      * Capabilities whose flag is off and which no operation refuses, because no operation reads them
@@ -60,7 +62,6 @@ class CapabilityOffCoverageIT {
      * then, because the capability will be in the other register and being in both fails.
      */
     private static final Map<String, String> NO_OPERATION_YET = new LinkedHashMap<>(Map.of(
-            DemoCapabilities.LIVE, "B10 has no Live route yet (A-054 replaced A-033's mockup clause)",
             DemoCapabilities.REPLAY, "no replay manifest reader exists; DEMO_REPLAY is DISABLED in V007"));
 
     @Autowired MockMvc mvc;
@@ -109,7 +110,28 @@ class CapabilityOffCoverageIT {
                         .content("{\"scope\":\"ITEM\",\"targetItemId\":\"" + UUID.randomUUID()
                                 + "\",\"inputTripVersion\":1,\"includeCandidates\":false}"))
                 .andExpect(status().isForbidden());
+        // And the Live tab's route, which arrived with B10. A well-formed body for the same reason
+        // as above: queryLiveAreas judges the request shape before the capability, so a malformed
+        // viewport would answer 400 and never reach the gate this register is about. The viewport is
+        // coarse and inside the contract's rules, which LiveAreaApiIT measures on its own.
+        //
+        // LIVE MOVED REGISTERS BUT DID NOT BECOME READY. Its flag still cannot be turned on -
+        // DemoCapabilityQuery keeps it in WITHOUT_A_SOURCE because nothing stores a Seoul reading
+        // yet - and the assertion above already says no capability ships READY. What changed is only
+        // that something now refuses while it is off, which is what this register records.
+        mvc.perform(post("/api/v1/live/areas")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", ORIGIN)
+                        .contentType("application/json")
+                        .content("{\"mode\":\"AUTO\",\"viewport\":{\"west\":126.977,"
+                                + "\"south\":37.579,\"east\":127.007,\"north\":37.609}}"))
+                .andExpect(status().isForbidden())
+                // The code, not just the status: a POST with no Origin is ALSO 403 here, from the
+                // same-origin check that runs before any of this. Without this line the register
+                // would be satisfied by a request that never reached the capability at all - which
+                // is what the first run of this block actually did.
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         assertThat(Set.copyOf(REFUSED_BY_AN_OPERATION.keySet()))
-                .containsExactly(DemoCapabilities.OPTIMIZATION);
+                .containsExactlyInAnyOrder(DemoCapabilities.OPTIMIZATION, DemoCapabilities.LIVE);
     }
 }
