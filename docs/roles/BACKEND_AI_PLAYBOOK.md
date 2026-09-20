@@ -2435,6 +2435,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T12`: 장소에 붙인 구역 값의 confidence 는 coverage 의 것이고 source 의 것이 아니다
 - `BA-091-T13`: 같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다
 - `BA-091-T14`: 같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다
+- `BA-091-T15`: 두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

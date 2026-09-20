@@ -3728,6 +3728,10 @@
         {
           "id": "BA-091-T14",
           "assertion": "같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다"
+        },
+        {
+          "id": "BA-091-T15",
+          "assertion": "두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",
