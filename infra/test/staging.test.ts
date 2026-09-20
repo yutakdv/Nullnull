@@ -274,10 +274,23 @@ test("only the API runs ITEM optimization, and no service turns on a capability 
   // The worker runs in the API task; ops, migration and ai never read the capability.
   for (const name of ["ai", "ops", "migration"])
     assert(!env(name).some((e: any) => e.Name === "FEATURE_OPTIMIZATION_ITEM"), name);
-  // live and replay have no source yet, and DemoCapabilityQuery refuses to start with either ON.
+  // Live ships with the submission (A-054, owner 2026-09-20), so the API carries the flag ON and the
+  // other three never read it - the same shape as optimization above. This assertion is what keeps the
+  // decision and the wiring from drifting apart: before A-054 was executed this file asserted the
+  // opposite, and the comment it carried ("live and replay have no source yet") had already gone false
+  // when V046 promoted SEOUL_CITYDATA and DemoCapabilityQuery dropped live from WITHOUT_A_SOURCE.
+  assert.deepEqual(
+    env("api").filter((e: any) => e.Name === "FEATURE_LIVE_DATA"),
+    [{ Name: "FEATURE_LIVE_DATA", Value: "true" }],
+  );
+  for (const name of ["ai", "ops", "migration"])
+    assert(!env(name).some((e: any) => e.Name === "FEATURE_LIVE_DATA"), `${name} FEATURE_LIVE_DATA`);
+  // replay still has no source: DemoCapabilityQuery.WITHOUT_A_SOURCE keeps it, so ON fails startup.
   for (const c of containers)
-    for (const flag of ["FEATURE_LIVE_DATA", "FEATURE_REPLAY_MODE"])
-      assert(!(c.Environment ?? []).some((e: any) => e.Name === flag && e.Value === "true"), `${c.Name} ${flag}`);
+    assert(
+      !(c.Environment ?? []).some((e: any) => e.Name === "FEATURE_REPLAY_MODE" && e.Value === "true"),
+      `${c.Name} FEATURE_REPLAY_MODE`,
+    );
 });
 test("existing GitHub OIDC provider is referenced, never created", () => {
   for (const t of Object.values(templates))

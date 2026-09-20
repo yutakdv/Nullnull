@@ -17,9 +17,10 @@ import org.springframework.stereotype.Service;
  * <p>The BA-003 safety line is "readiness가 없는 기능은 준비 완료로 광고하지 않는다": a capability with
  * nothing behind it reports {@code UNAVAILABLE}, never {@code READY}. That was every capability until
  * BA-050, which builds the optimization run pipeline - so {@code optimization} is now a capability
- * whose flag may legitimately be turned on, and it reports {@code READY} when it is. {@code live} and
- * {@code replay} still have no source: their flags remain refused at startup, because turning one on
- * would advertise something nothing can answer.
+ * whose flag may legitimately be turned on, and it reports {@code READY} when it is. {@code live}
+ * joined it on 2026-09-20 (see {@code WITHOUT_A_SOURCE} below for what arrived). {@code replay} still
+ * has no source: its flag remains refused at startup, because turning it on would advertise something
+ * nothing can answer.
  *
  * <p>A flag that may be turned on is not a flag that should be, and where it is turned on is a
  * deployment decision, not this class's. BA-050 queues runs, freezes their evidence and refuses the ones
