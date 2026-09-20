@@ -3734,7 +3734,7 @@
         "searchPlaces→canonical 선택→getLivePlace coverage 흐름을 연결한다",
         "relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다",
         "09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
-        "서울 관측은 ops 수집 작업으로 적재하고 장소 연결은 소유자가 해시를 승인한 매핑 계획으로 적재한다"
+        "서울 관측은 API 작업의 2분 주기 원자적 claim으로 적재하고 장소 연결은 소유자가 해시를 승인한 매핑 계획으로 적재한다"
       ],
       "safety": "viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.",
       "tests": [
@@ -3809,6 +3809,30 @@
         {
           "id": "BA-091-T18",
           "assertion": "동일 매핑 계획을 재실행해도 연결 행은 하나다"
+        },
+        {
+          "id": "BA-091-T19",
+          "assertion": "오래된 승인 계획은 더 새로운 매핑 검토를 되돌리지 않는다"
+        },
+        {
+          "id": "BA-091-T20",
+          "assertion": "새 승인 계획은 이전 구역 연결을 원자적으로 교체한다"
+        },
+        {
+          "id": "BA-091-T21",
+          "assertion": "계획의 두 번째 매핑이 무효이면 첫 번째도 기록되지 않는다"
+        },
+        {
+          "id": "BA-091-T22",
+          "assertion": "뒤늦게 수신한 과거 관측은 더 새로운 관측을 가리지 않는다"
+        },
+        {
+          "id": "BA-091-T23",
+          "assertion": "이미 만료된 관측은 Live 수집 성공으로 보고되지 않는다"
+        },
+        {
+          "id": "BA-091-T24",
+          "assertion": "복수 API 작업이 같은 서울 구역을 동시에 수집하지 않는다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",

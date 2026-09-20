@@ -155,7 +155,8 @@ export const SEOUL_PROXY_CODE = [
   "  let apiKey, proxyToken;",
   "  try { ({ apiKey, proxyToken } = await secret()); }",
   "  catch (failure) {",
-  "    console.error('seoul_proxy_unavailable name=' + (failure && failure.message));",
+  // JSON.parse error messages may quote malformed secret bytes, including key material.
+  "    console.error('seoul_proxy_secret_unavailable');",
   "    return { statusCode: 503, body: '{\"code\":\"SOURCE_UNAVAILABLE\"}' };",
   "  }",
   "  if (!timingSafeEqual(headers['x-nullnull-proxy-token'], proxyToken)) {",
@@ -1044,62 +1045,6 @@ export function createStacks(
   out(services, "SeoulProxyUrl", seoulProxyUrl.url);
   out(services, "SeoulProxyHost", seoulProxyHost);
 
-  // One reviewed pilot area, 480 calls/day at this cadence against the registry's 1,000/day guard.
-  // The source's reading expires after 300 seconds, so the next call starts before that boundary.
-  const seoulRefreshName = "nullnull-stg-seoul-live-refresh";
-  const seoulRefresh = new scheduler.Schedule(services, "SeoulLiveRefresh", {
-    scheduleName: seoulRefreshName,
-    schedule: scheduler.ScheduleExpression.rate(cdk.Duration.minutes(3)),
-    end: FORECAST_SCHEDULE_END,
-    timeWindow: scheduler.TimeWindow.off(),
-    description: "Refresh the reviewed Seoul live pilot area until judging ends",
-    target: new schedulerTargets.Universal({
-      service: "ecs",
-      action: "runTask",
-      maxEventAge: cdk.Duration.minutes(3),
-      retryAttempts: 0,
-      input: scheduler.ScheduleTargetInput.fromObject({
-        Cluster: cluster.clusterArn,
-        TaskDefinition: ops.taskDefinitionArn,
-        LaunchType: "FARGATE",
-        Count: 1,
-        StartedBy: seoulRefreshName,
-        NetworkConfiguration: {
-          AwsvpcConfiguration: {
-            Subnets: vpc.publicSubnets.map((s) => s.subnetId),
-            SecurityGroups: [migrationSg.securityGroupId],
-            AssignPublicIp: "ENABLED",
-          },
-        },
-        Overrides: {
-          ContainerOverrides: [{
-            Name: "ops",
-            Environment: [
-              { Name: "LOADER_MAIN", Value: "io.nullnull.live.infrastructure.SeoulLiveCollectMain" },
-              { Name: "NULLNULL_SEOUL_AREA_NAME", Value: "서울숲공원" },
-              { Name: "SEOUL_BASE_URL", Value: seoulProxyUrl.url },
-              { Name: "SEOUL_ALLOWED_HOST", Value: seoulProxyHost },
-              { Name: "NULLNULL_OPERATIONS_TARGET", Value: operationsTarget },
-            ],
-          }],
-        },
-      }),
-      policyStatements: [
-        new iam.PolicyStatement({
-          actions: ["ecs:RunTask"],
-          resources: [`arn:aws:ecs:${region}:${config.account}:task-definition/nullnull-stg-ops:*`],
-          conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } },
-        }),
-        new iam.PolicyStatement({
-          actions: ["iam:PassRole"],
-          resources: [ops.taskRole.roleArn, ops.executionRole!.roleArn],
-          conditions: { StringEquals: { "iam:PassedToService": "ecs-tasks.amazonaws.com" } },
-        }),
-      ],
-    }),
-  });
-  out(services, "SeoulLiveScheduleName", seoulRefresh.scheduleName);
-
   const apiContainer = apiTask.addContainer("api", {
     image: ecs.ContainerImage.fromEcrRepository(
       apiRepo,
@@ -1137,6 +1082,7 @@ export function createStacks(
       // Fixed here rather than in staging.config.json for the same reason as the line above: this is a
       // settled product decision, not an operator gate.
       FEATURE_LIVE_DATA: "true",
+      NULLNULL_LIVE_SCHEDULE_ENABLED: "true",
       // The proxy, never openapi.seoul.go.kr. Both values are set together because they are two halves
       // of one fact: if the allowlist still named the provider while the base URL named the proxy, a
       // request built for the proxy - with no key in its path - would go to Seoul instead.
@@ -1322,11 +1268,11 @@ export function createStacks(
     evaluationPeriods: 1,
     treatMissingData: cw.TreatMissingData.NOT_BREACHING,
   };
-  // A successful RunTask placement does not prove a live reading was stored. Four empty minute
-  // windows after the last accepted run warn before the five-minute freshness boundary.
+  // The API service refreshes in place, so its success line is the signal. A missing run or an
+  // already-stale response is not allowed to claim LIVE; four empty minutes warn on a stopped loop.
   alarm(
     "SeoulLiveRefreshMissing",
-    phraseMetric("SeoulLiveCollectOk", migrationLogs, '"seoul_live_collect accepted=true"')
+    phraseMetric("SeoulLiveCollectOk", apiLogs, '"seoul_live_collect live=true"')
       .with({ period: cdk.Duration.minutes(1) }),
     1,
     cw.ComparisonOperator.LESS_THAN_THRESHOLD,
@@ -1334,7 +1280,7 @@ export function createStacks(
   );
   alarm(
     "SeoulLiveRefreshFailed",
-    phraseMetric("SeoulLiveCollectFailures", migrationLogs, '"seoul_live_collect_failed"')
+    phraseMetric("SeoulLiveCollectFailures", apiLogs, '"seoul_live_collect_failed"')
       .with({ period: cdk.Duration.minutes(1) }),
     1,
     cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,

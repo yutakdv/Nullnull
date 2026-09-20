@@ -134,6 +134,36 @@ class LiveAreaReadIT {
         assertThat(crowd.get("value").isNull()).isTrue();
     }
 
+    @Test
+    @DisplayName("BA-091-T22 뒤늦게 수신한 과거 관측은 더 새로운 관측을 가리지 않는다")
+    void lateOldObservationDoesNotReplaceNewerReading() throws Exception {
+        Instant now = clock.instant();
+        UUID id = area("POI-ORDER-" + UUID.randomUUID(), "관측 순서 구역 " + UUID.randomUUID(),
+                now.minusSeconds(60), now.minusSeconds(50), "여유");
+        // The provider can return an older publication on a later poll. Fetched time is then newer,
+        // but the reading itself is older and already expired.
+        UUID lateRun = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO collector_runs
+                    (id, source_code, status, trigger_type, records_received, records_accepted,
+                     records_rejected, schema_version, started_at, finished_at)
+                VALUES (?, ?, 'COMPLETED', 'SCHEDULED', 1, 1, 0, 'seoul-citydata-v8.5', ?, ?)
+                """, lateRun, SOURCE, Timestamp.from(now.minusSeconds(10)),
+                Timestamp.from(now.minusSeconds(10)));
+        snapshots.save(SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), UUID.randomUUID(), lateRun, 2L,
+                id, now.minusSeconds(600), now.minusSeconds(10), 300L, SeoulCongestionStage.of("붐빔")));
+
+        JsonNode body = JSON.readTree(mvc.perform(post("/api/v1/live/areas")
+                        .cookie(new Cookie("__Host-nullnull_session",
+                                sessions.bootstrap(null, "ko-KR", "Asia/Seoul").cookie))
+                        .header("Origin", ORIGIN).contentType("application/json")
+                        .content("{\"mode\":\"AUTO\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+
+        assertThat(stateOf(body, id)).isEqualTo("LIVE");
+        assertThat(crowdOf(body, id).get("ordinalLevel").asString()).isEqualTo("1");
+    }
+
     /**
      * The same clause as {@code CrowdForecastApiIT}'s, proven on the second read path.
      *

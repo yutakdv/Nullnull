@@ -71,10 +71,11 @@ class FlywayMigrationIT {
     // list plus the count below is the recalculation. V046 creates no table of its own, so
     // nothing new waits behind upload_intents.
     //
-    // V047 (BA-086) is the head now, which makes V046 the previous schema - and V046 creates no
-    // table, so this list does NOT move. That is the whole edit on this side: the hand-off only
+    // V047 (BA-086) followed V046; neither creates a table. V048 is the head now, which makes V047
+    // the previous schema, so this list does NOT move. The hand-off only
     // has something to hand over when the migration that just became "previous" created a table.
-    // V047 creates none either, so the next migration will find this list unchanged again.
+    // V047 creates none either, so V048 still finds this list unchanged. V048 creates
+    // seoul_live_refresh_claims; the migration after V048 must add that table here.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -186,12 +187,9 @@ class FlywayMigrationIT {
             // plants data - so it is edited with a reason, never deleted. It moved 0 -> 3 -> 1 in
             // one day because two branches each had a different last migration.
             //
-            // V047 (BA-086) is the last migration now, so V046 runs in the first migrate step and
-            // that Seoul revision row is inside rowsBefore. V047 seeds NOTHING: it adds four
-            // nullable provenance columns to place_localizations and deliberately backfills none
-            // of them - deriving a text's source from the place's external reference is the thing
-            // that migration exists to refuse - so the count is 0. MEASURED, not predicted: with
-            // 1 still here the assertion read "expected: 72L but was: 71L".
+            // V048 creates the Seoul Live cadence-claim table and seeds NOTHING. V047's nullable
+            // localization provenance is already in rowsBefore, as is V046's registry revision.
+            // This count belongs to the LAST migration alone, not to all migrations since V046.
             long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);

@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class LiveMappingImporter {
 
+    private record Existing(UUID areaId, Instant verifiedAt) { }
+
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
@@ -84,11 +86,18 @@ public class LiveMappingImporter {
                 throw new IllegalArgumentException("the plan needs one active Seoul area with that name");
             }
             UUID areaId = areas.get(0);
-            List<UUID> previous = jdbc.query("SELECT live_area_id FROM seoul_live_area_maps WHERE place_id = ?",
-                    (row, ignored) -> row.getObject(1, UUID.class), mapping.placeId());
-            if (previous.stream().anyMatch(id -> !id.equals(areaId))) {
-                throw new IllegalArgumentException("the place already has another reviewed area");
+            List<Existing> previous = jdbc.query(
+                    "SELECT live_area_id, verified_at FROM seoul_live_area_maps WHERE place_id = ?",
+                    (row, ignored) -> new Existing(row.getObject(1, UUID.class), row.getTimestamp(2).toInstant()),
+                    mapping.placeId());
+            if (previous.stream().anyMatch(old -> mapping.verifiedAt().isBefore(old.verifiedAt())
+                    || mapping.verifiedAt().equals(old.verifiedAt()) && !areaId.equals(old.areaId()))) {
+                throw new IllegalArgumentException("a newer review or a same-time area decision already exists");
             }
+            // A correction is a new reviewed decision. Remove the old link in the same transaction
+            // only after checking its review time, so re-running an old plan cannot undo it.
+            jdbc.update("DELETE FROM seoul_live_area_maps WHERE place_id = ? AND live_area_id <> ?",
+                    mapping.placeId(), areaId);
             jdbc.update("""
                     INSERT INTO seoul_live_area_maps
                         (id, place_id, live_area_id, mapping_type, confidence, fallback_used, verified_at)

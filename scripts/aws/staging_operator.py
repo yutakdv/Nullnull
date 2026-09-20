@@ -136,7 +136,7 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r' first=[0-9T:.-]{10,40}Z last=[0-9T:.-]{10,40}Z'
                           r'|kto_inventory_excluded rejected=[0-9]{1,9} replay=[0-9]{1,9}'
                           r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
-                          r'|seoul_live_collect accepted=true'
+                          r'|seoul_live_collect live=true'
                           r'|seoul_live_collect_failed reason=[A-Za-z_]{1,80}'
                           r'|curated_live_maps_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_live_map [0-9a-f-]{36} PROCESSED'
@@ -1073,12 +1073,12 @@ def ops_task(args):
                     echoed.append(line)
                 if args.task == 'kto-call-inventory' and line.startswith(('kto_inventory', 'kto_operation ')):
                     inventory.append(line)
-                if args.task == 'seoul-live-collect' and line == 'seoul_live_collect accepted=true':
+                if args.task == 'seoul-live-collect' and line == 'seoul_live_collect live=true':
                     seoul.append(line)
         if failure:
             raise failure
         if args.task == 'seoul-live-collect':
-            require(seoul == ['seoul_live_collect accepted=true'], 'seoul-collect-not-accepted')
+            require(seoul == ['seoul_live_collect live=true'], 'seoul-collect-not-live')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:

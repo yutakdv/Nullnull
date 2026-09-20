@@ -343,6 +343,8 @@ test("the Seoul proxy holds the key, the API task does not, and the allowlist na
   assert.match(code, /redirect: 'error'/);
   assert.match(code, /size > MAX_BYTES/);
   assert.match(code, /seoul_proxy_secret_incomplete/);
+  assert.match(code, /console\.error\('seoul_proxy_secret_unavailable'\)/);
+  assert.equal(code.includes("failure.message"), false);
   // And it re-reads the secret, so a rotated key or a revoked token reaches a warm container.
   assert.match(code, /Date\.now\(\) - cachedAt < TTL_MS/);
   assert.equal(code.includes("console.error('seoul_proxy_upstream_failed name='"), true);
@@ -376,23 +378,18 @@ test("the Seoul collector ops task receives the proxy token without its API key"
   templates.services.hasOutput("SeoulProxyUrl", {});
   templates.services.hasOutput("SeoulProxyHost", {});
 });
-test("the reviewed Seoul area is collected again before its 300-second reading expires", () => {
+test("the reviewed Seoul area refreshes inside the existing API task", () => {
   const matching = Object.values(templates.services.findResources("AWS::Scheduler::Schedule"))
     .filter((r: any) => r.Properties.Name === "nullnull-stg-seoul-live-refresh") as any[];
-  assert.equal(matching.length, 1);
-  const schedule = matching[0].Properties;
-  assert.equal(schedule.ScheduleExpression, "rate(3 minutes)");
-  const input = JSON.stringify(schedule.Target.Input);
-  assert.match(input, /SeoulLiveCollectMain/);
-  assert.match(input, /서울숲공원/);
-  assert.match(input, /SEOUL_BASE_URL/);
-  assert.match(input, /SEOUL_ALLOWED_HOST/);
-  assert.match(input, /NULLNULL_OPERATIONS_TARGET/);
-  assert.equal(input.includes("KTO_SMOKE"), false);
+  assert.equal(matching.length, 0, "no recurring Fargate charge for Live collection");
+  const api = Object.values(templates.services.findResources("AWS::ECS::TaskDefinition"))
+    .find((r: any) => r.Properties.Family === "nullnull-stg-api") as any;
+  const container = api.Properties.ContainerDefinitions.find((c: any) => c.Name === "api");
+  assert.match(JSON.stringify(container.Environment), /NULLNULL_LIVE_SCHEDULE_ENABLED.*true/);
 });
 test("a missing or failed Seoul collection reaches the alarm topic", () => {
   templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
-    FilterPattern: '"seoul_live_collect accepted=true"',
+    FilterPattern: '"seoul_live_collect live=true"',
     MetricTransformations: [Match.objectLike({ MetricName: "SeoulLiveCollectOk", DefaultValue: 0 })],
   });
   templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {

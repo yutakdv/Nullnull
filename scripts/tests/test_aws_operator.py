@@ -575,19 +575,19 @@ class OperationsTargetRegressions(unittest.TestCase):
         self.assertEqual(self.TARGET,environment[ops.OPERATIONS_TARGET])
         self.assertIn('ops_log '+line,out);self.assertNotIn('jdbc:',out)
         self.assertIn('ops_task=kto-ingest result=succeeded',out)
-    def test_seoul_task_requires_an_accepted_reading_and_receives_only_proxy_coordinates(self):
-        missing,calls,_=self.run_ingest(self.TARGET,task='seoul-live-collect',area_name='서울숲')
-        self.assertIn('seoul-collect-not-accepted',missing)
-        accepted,calls,out=self.run_ingest(self.TARGET,log=['seoul_live_collect accepted=true'],
-                                            task='seoul-live-collect',area_name='서울숲')
+    def test_seoul_task_requires_a_live_reading_and_receives_only_proxy_coordinates(self):
+        missing,calls,_=self.run_ingest(self.TARGET,task='seoul-live-collect',area_name='서울숲공원')
+        self.assertIn('seoul-collect-not-live',missing)
+        accepted,calls,out=self.run_ingest(self.TARGET,log=['seoul_live_collect live=true'],
+                                            task='seoul-live-collect',area_name='서울숲공원')
         self.assertIsNone(accepted)
         run=[kw for service,operation,kw in calls if (service,operation)==('ecs','run-task')]
         environment={entry['name']:entry['value'] for entry in run[0]['overrides']['containerOverrides'][0]['environment']}
-        self.assertEqual('서울숲',environment['NULLNULL_SEOUL_AREA_NAME'])
+        self.assertEqual('서울숲공원',environment['NULLNULL_SEOUL_AREA_NAME'])
         self.assertEqual('SeoulProxyUrl',environment['SEOUL_BASE_URL'])
         self.assertEqual('SeoulProxyHost',environment['SEOUL_ALLOWED_HOST'])
         self.assertNotIn('SEOUL_PROXY_TOKEN',environment)
-        self.assertIn('ops_log seoul_live_collect accepted=true',out)
+        self.assertIn('ops_log seoul_live_collect live=true',out)
 
 class SecretProvisioningRegressions(unittest.TestCase):
     def test_secret_value_never_reaches_stdout_or_argv(self):

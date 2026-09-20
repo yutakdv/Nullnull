@@ -27,12 +27,9 @@ API 0.5 vCPU / 1 GB x1, AI 0.25 vCPU / 0.5 GB x1, two public IPv4, ALB 1 LCU ave
 reserve 5, miscellaneous reserve 3 (Route 53 private zone for Cloud Map, S3, DynamoDB, Lambda, deploy
 overlap), tax 10%. Free tier counted as zero.
 
-The Seoul Live pilot adds 480 Fargate ops launches per day (one area every three minutes). At the
-existing 0.5 vCPU / 1 GB rate, an assumed two billable minutes per launch cost
-`480 * 2 / 60 * (0.5 * 0.04656 + 0.00511) = 0.45424` USD/day before tax. This is an estimate, not
-measured task duration. It starts with the new release, so the 2026-09-21 to 2026-10-25 remainder is
-34 days; manual retries, longer runs, log growth and alarm charges are additional. A three-minute
-average would add 50% more task cost and exceed the 200 USD envelope below.
+The Seoul Live pilot refreshes inside the existing API task every two minutes. Its cross-replica
+claim adds no recurring Fargate task; the Seoul proxy Lambda calls, logs and two new alarms still
+consume the miscellaneous reserve. Actual spend remains an operator observation, not a gate result.
 
 ## Result
 
@@ -41,12 +38,9 @@ average would add 50% more task cost and exceed the 200 USD envelope below.
 | 14 days (plan window) | 64.13 | 70.55 |
 | 2026-09-18 to 2026-10-25 (37 days) | 156.03 | 171.63 |
 | + second API task for 7 judging days | +5.61 | +6.17 |
-| + Seoul Live from 2026-09-21 to 2026-10-25 (34 days, 2 min/run) | +15.44 | +16.99 |
 | After shutdown, per month (retained secrets, images, snapshots, logs) | 3.14 | 3.45 |
 
 The operator plan uses **80** for its 14-day window (70.55 rounded up for deploy overlap and drills).
-The Seoul schedule would add **7.00** with tax to a 14-day window, leaving approximately 2.45 of that
-80 limit. Running to 2026-10-25 with the judging scale-up and Seoul pilot is approximately **195**
-with tax under the two-minute assumption. It exceeds the existing **180** operating-plan ceiling and
-leaves little of the 200 envelope; the owner must approve a revised budget gate before release, or the
-schedule must stay disabled. AWS Budgets are not available here, so the 200 is watched by hand.
+Running to 2026-10-25 with the judging scale-up is about **178** with tax, which leaves little of the
+200 envelope; a restore drill, a second environment or sustained traffic above the assumptions must be
+re-estimated first. AWS Budgets are not available here, so the 200 is watched by hand.

@@ -31,9 +31,9 @@ public final class SeoulLiveCollectMain {
 
     static void collect(String areaName,
             Function<String, CompletableFuture<SeoulLiveAreaGateway.Collection>> collector, PrintStream out) {
-        if (!collector.apply(areaName).join().accepted()) {
-            throw new IllegalStateException("Seoul live observation was refused");
+        if (!collector.apply(areaName).join().live()) {
+            throw new IllegalStateException("Seoul live observation was refused or already stale");
         }
-        out.println("seoul_live_collect accepted=true");
+        out.println("seoul_live_collect live=true");
     }
 }
