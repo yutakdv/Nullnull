@@ -3,6 +3,7 @@ package io.nullnull.crowd.infrastructure.seoul;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.nullnull.crowd.application.SeoulGatewayException;
 import java.net.URI;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

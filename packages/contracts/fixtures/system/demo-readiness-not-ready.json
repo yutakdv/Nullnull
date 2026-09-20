@@ -5,7 +5,7 @@
       "name": "live",
       "status": "UNAVAILABLE",
       "checkedAt": "2026-09-10T00:00:00Z",
-      "detail": "FEATURE_LIVE_DATA is OFF and no server-side source answers this capability yet"
+      "detail": "FEATURE_LIVE_DATA is OFF"
     },
     {
       "name": "replay",

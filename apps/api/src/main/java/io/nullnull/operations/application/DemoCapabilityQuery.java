@@ -49,11 +49,15 @@ public class DemoCapabilityQuery {
      * Capabilities whose flag cannot be turned on yet, because nothing would answer it.
      *
      * <p>A list rather than "all of them": each entry leaves when its own source arrives, and the set
-     * shrinking is the visible record of which ones have one. B03 removes {@code replay} and B10
-     * removes {@code live}.
+     * shrinking is the visible record of which ones have one. B03 removes {@code replay}.
+     *
+     * <p><strong>{@code live} left on 2026-09-20 (B10).</strong> What it waited for was not a route
+     * but something to answer WITH, and all three arrived together: SEOUL_CITYDATA promoted in V046,
+     * a collector that stores a reading per area, and {@code queryLiveAreas} reading them back. The
+     * flag still defaults OFF and turning it on is a deployment decision, the same as optimization's
+     * - what changed is that an ON flag no longer advertises something nothing can answer.
      */
-    private static final List<String> WITHOUT_A_SOURCE =
-            List.of(DemoCapabilities.LIVE, DemoCapabilities.REPLAY);
+    private static final List<String> WITHOUT_A_SOURCE = List.of(DemoCapabilities.REPLAY);
 
     private final Map<String, Boolean> flags;
     private final Clock clock;

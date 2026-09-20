@@ -3,6 +3,9 @@ package io.nullnull.crowd.infrastructure.seoul;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.nullnull.crowd.application.SeoulCityDataValidator;
+import io.nullnull.crowd.application.SeoulGatewayException;
+import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.shared.provider.CircuitBreaker;
 import io.nullnull.shared.provider.ProviderHttpClient;
 import io.nullnull.shared.provider.RetryPolicy;
@@ -72,6 +75,32 @@ class SeoulCityDataClientTest {
             assertThat(validation.observation().areaCode()).isEqualTo("POI009");
             assertThat(validation.observation().observedAt()).isEqualTo(Instant.parse("2026-09-20T06:15:00Z"));
             assertThat(validation.observation().forecastPoints()).hasSize(1);
+        }
+    }
+
+    @Test
+    @DisplayName("BA-090-T12 서울 upstream 의 429 는 관측을 만들지 않는다")
+    void rateLimitEndsAsAProviderFailureWithNoObservation() throws Exception {
+        String canary = "should-never-become-an-observation";
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(429, "{\"RESULT\":{\"CODE\":\"" + canary + "\"}}",
+                        java.time.Duration.ZERO, java.util.Map.of("Retry-After", "0")))) {
+            SeoulCityDataProperties properties = new SeoulCityDataProperties();
+            properties.setBaseUrl(stub.uri("").toString().replace("?", ""));
+            properties.setProxyToken(TOKEN);
+            SeoulCityDataClient adapter = new SeoulCityDataClient(client(), properties, "test");
+
+            // The transport refuses a non-2xx before anything downstream sees it, so the body never
+            // reaches the validator and there is nothing for it to normalize. A "rate limited" answer
+            // is not a reading of an empty city.
+            assertThatThrownBy(() -> adapter.fetch(AREA).join())
+                    .hasRootCauseInstanceOf(io.nullnull.shared.provider.ProviderException.class)
+                    .rootCause().satisfies(failure -> {
+                        assertThat(failure.getMessage()).isEqualTo("HTTP_STATUS");
+                        // And the refusal carries neither the body nor the token it was sent with.
+                        assertThat(failure.toString()).doesNotContain(canary, TOKEN);
+                    });
+            assertThat(stub.calls()).as("one attempt, not a retry storm").isEqualTo(1);
         }
     }
 

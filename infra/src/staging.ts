@@ -943,7 +943,7 @@ export function createStacks(
     distribution: dist,
     distributionPaths: ["/*"],
   });
-  // #183: the curated posts' cover photos, at <PublicUrl>/covers/<file>. They are the owner's own photographs
+  // #183: the curated posts' cover photos, at <PublicUrl>/covers/<file>. They are team-made first-party assets (NOT photographs - see covers/README.md)
   // (A-024), content rather than the app bundle - apps/web/public is pinned to an exact allowlist
   // (image-assets.test.ts) and the web artifact to the release manifest's webArtifactSha256 - so they come from
   // their own directory, which the operator's plan step copies out of the repository. Being an asset of this

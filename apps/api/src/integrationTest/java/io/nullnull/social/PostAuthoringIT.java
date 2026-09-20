@@ -127,7 +127,12 @@ class PostAuthoringIT {
     }
 
     @Test
-    @DisplayName("BA-082-T3 one ticket produces at most one post")
+    // This carried BA-082-T3 for a while and should not have: that clause is
+    // "삭제/권리 철회가 기존 cursor·cache에서도 반영된다", which this does not touch. The borrowed id
+    // was wrong in both directions - T3 looked covered while nothing tested it, and this property
+    // had no card of its own. T15 is the clause that owns it, registered on the backend card. T3 is
+    // still unproven: it has no implementation and no test.
+    @DisplayName("BA-082-T15 one ticket produces at most one post")
     void aTicketIsSpentOnce() throws Exception {
         var author = sessions.bootstrap(null, null, null);
         UUID placeId = place();

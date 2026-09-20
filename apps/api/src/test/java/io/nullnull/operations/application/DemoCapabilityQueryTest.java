@@ -71,12 +71,18 @@ class DemoCapabilityQueryTest {
         // Two states an operator must be able to tell apart: one they can change by setting a flag,
         // one they cannot. Before BA-050 every capability reported the second, so the sentence was
         // the same for all three and said nothing about any of them.
-        assertThat(detail(capabilities, "live")).contains("no server-side source");
         assertThat(detail(capabilities, "replay")).contains("no server-side source");
         assertThat(detail(capabilities, "optimization"))
                 .as("BA-050 built the run pipeline, so this one is off by decision, not by absence")
                 .doesNotContain("no server-side source")
                 .isEqualTo("FEATURE_OPTIMIZATION_ITEM is OFF");
+        // B10 did the same for live on 2026-09-20 - V046's promoted source, a collector that stores
+        // a reading per area, and queryLiveAreas reading them back. The list of capabilities with
+        // nothing behind them is down to one, and that shrinking is the point of this assertion
+        // being per-capability rather than "all of them say the same thing".
+        assertThat(detail(capabilities, "live"))
+                .doesNotContain("no server-side source")
+                .isEqualTo("FEATURE_LIVE_DATA is OFF");
     }
 
     @Test
@@ -102,21 +108,21 @@ class DemoCapabilityQueryTest {
     void aFlagTurnedOnWithoutASourceIsRefused() {
         // The combination is real: docs/operations/ENVIRONMENT.md §9 requires a LIVE feature that is ON
         // to have its source registry, key and readiness present, and §6 makes this response the
-        // authority on what is enabled. Nothing backs live or replay, so ON is a lie for them in every
+        // authority on what is enabled. Nothing backs replay, so ON is a lie for it in every
         // environment - and a flag that could turn a capability ON without a source would be exactly
         // the safety-invariant OFF switch the BA-003 card forbids.
-        assertThatThrownBy(() -> new DemoCapabilityQuery(true, false, false, CLOCK))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("FEATURE_LIVE_DATA")
-                .hasMessageContaining("live");
         assertThatThrownBy(() -> new DemoCapabilityQuery(false, true, false, CLOCK))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("FEATURE_REPLAY_MODE");
-        // optimization is deliberately NOT here any more. BA-050 built what answers it, so the
-        // premise of the refusal - that nothing could - is gone for that one capability. The refusal
-        // is not weakened: the two without a source keep it, and the list shrinking is the record of
-        // which slices have delivered.
+                .hasMessageContaining("FEATURE_REPLAY_MODE")
+                .hasMessageContaining("replay");
+        // optimization left this list at BA-050 and live left it at B10: each time, what answers the
+        // capability arrived, so the premise of the refusal - that nothing could - was gone for that
+        // one. THE REFUSAL IS NOT WEAKENED, and the two lines below are what say so rather than the
+        // sentence above: the one capability still without a source keeps it, and the two that have
+        // one are accepted. A shrinking list is only safe while it is measured from both sides.
         assertThatCode(() -> new DemoCapabilityQuery(false, false, true, CLOCK))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> new DemoCapabilityQuery(true, false, false, CLOCK))
                 .doesNotThrowAnyException();
     }
 

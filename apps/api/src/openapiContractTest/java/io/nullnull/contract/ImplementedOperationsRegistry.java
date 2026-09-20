@@ -29,7 +29,14 @@ public final class ImplementedOperationsRegistry {
                     // BA-085. The three are served behind nullnull.notifications.enabled, which is
                     // OFF by default - serving an operation and enabling a feature are different
                     // things, and this registry is about the former.
-                    "listNotifications", "markNotificationRead", "markAllNotificationsRead");
+                    "listNotifications", "markNotificationRead", "markAllNotificationsRead",
+                    // BA-091. One of the Live tab's three operations: the route is served, behind
+                    // nullnull.capabilities.live, which is OFF by default and cannot yet be turned
+                    // on (DemoCapabilityQuery refuses to start while nothing stores a reading). The
+                    // same distinction the notifications entry above draws - serving an operation
+                    // and enabling a feature are different things, and this registry is the former.
+                    // listLiveAreaPlaces and getLivePlace have no route yet.
+                    "queryLiveAreas");
 
     private ImplementedOperationsRegistry() {
     }

@@ -45,6 +45,13 @@ public class UploadIntentService {
         if (!properties.accepts(contentType)) {
             throw new UploadRejectedException(UploadRejection.UNSUPPORTED_CONTENT_TYPE);
         }
+        // This looks redundant with the same bound in the UploadIntent constructor, and it is not.
+        // This one decides the contract-level rejection (TOO_LARGE); the domain guard throws
+        // IllegalArgumentException, so deleting this one sends FE a 500 from that exception instead
+        // of the refusal the contract declares. BA-082-T11 measures exactly that difference - it
+        // asserts the rejection KIND, so removing this line turns it red. Measured: deleting these
+        // three lines reddens BA-082-T11 and BA-082-T10, and nothing else. The upper bound has no
+        // sibling at all - the domain guard only rejects lengths below one.
         if (contentLength < 1 || contentLength > properties.maxBytes()) {
             throw new UploadRejectedException(UploadRejection.TOO_LARGE);
         }

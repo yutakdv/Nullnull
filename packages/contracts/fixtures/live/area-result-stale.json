@@ -6,10 +6,7 @@
       "id": "018f5a10-2c31-7f40-9a11-0c1d2e3f4c01",
       "name": "광화문·덕수궁",
       "boundaryGeoJson": null,
-      "centroid": {
-        "latitude": 37.5719,
-        "longitude": 126.9768
-      },
+      "centroid": null,
       "crowd": {
         "state": "STALE",
         "value": null,
