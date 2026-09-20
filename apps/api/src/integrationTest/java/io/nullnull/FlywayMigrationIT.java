@@ -61,7 +61,9 @@ class FlywayMigrationIT {
     // wrong. V044's author was right too: on their tree the previous migration created nothing.
     // Both were correct alone and the merge was red, which is the global-sum shape this file
     // keeps meeting - it is settled by whoever merges last, not by either slice.
-    // V044's own tables (live_areas, seoul_live_area_maps) join when the next migration lands.
+    // V045 (BA-090, the Seoul registry revision) is that next migration, so V044's own tables
+    // have joined: live_areas and seoul_live_area_maps are below and populateEveryTable seeds
+    // them. V045 creates no table of its own, so nothing new waits behind them.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -75,7 +77,8 @@ class FlywayMigrationIT {
             "place_hours_observations", "place_hours_windows", "feed_feedback",
             "place_relations", "itinerary_import_drafts",
             "optimization_proposals", "optimization_changes",
-            "optimization_decisions", "notifications");
+            "optimization_decisions", "notifications",
+            "live_areas", "seoul_live_area_maps");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -140,7 +143,8 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V044 is the last one today and seeds nothing: it creates live_areas and
+            // V045 is the last one today and seeds one row, which is why the number below is 1
+            // rather than 0. V044, now the previous schema, seeds nothing: it creates live_areas and
             // seoul_live_area_maps (BA-090) and adds the foreign key crowd_snapshots.live_area_id
             // had been waiting for, and writes no row. V037 seeds nothing either: it creates the
             // notifications table (BA-085) and writes no row into it, because nothing produces a
@@ -158,7 +162,11 @@ class FlywayMigrationIT {
             // source and its first registry revision - are long inside rowsBefore now. Hence this
             // line changing again the next time a migration seeds anything, which is the point of
             // the count being exact.
-            long seededAfterPreviousSchema = 0;
+            // V045 seeds ONE row: the source_registry_revisions entry (version 2) that the
+            // Seoul promotion writes beside its UPDATE. The UPDATE itself adds nothing. This
+            // number moving is how this assertion works - it is what notices a migration that
+            // quietly plants data - so it is edited with a reason, never deleted.
+            long seededAfterPreviousSchema = 1;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -425,6 +433,7 @@ class FlywayMigrationIT {
                     v_candidate uuid := gen_random_uuid();
                     v_run uuid := gen_random_uuid();
                     v_observation uuid := gen_random_uuid();
+                    v_live_area uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -439,6 +448,17 @@ class FlywayMigrationIT {
                             'ACTIVE', v_at, v_at);
                     INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)
                     VALUES (gen_random_uuid(), v_place, 'ko-KR', 'upgrade place', 'upgrade address', v_at);
+                    -- V044's tables. They arrive in this list now because V045 made V044 the
+                    -- PREVIOUS schema; the comment above PREVIOUS_SCHEMA_TABLES said they would.
+                    -- mapping_type is 'AREA', the value io.nullnull.live.domain.LiveAreaMapping
+                    -- produces and the only one V044's CHECK accepts alongside AREA_FALLBACK.
+                    INSERT INTO live_areas (id, source_code, external_id, name, boundary_geojson,
+                                            status, updated_at)
+                    VALUES (v_live_area, 'SEOUL_CITYDATA', 'upgrade-POI', 'upgrade area', NULL,
+                            'ACTIVE', v_at);
+                    INSERT INTO seoul_live_area_maps (id, place_id, live_area_id, mapping_type,
+                                                      confidence, fallback_used, verified_at)
+                    VALUES (gen_random_uuid(), v_place, v_live_area, 'AREA', 0.9000, false, v_at);
                     INSERT INTO place_external_refs (id, place_id, source_code, source_registry_version,
                                                      external_id, external_type, verified_at)
                     VALUES (gen_random_uuid(), v_place, 'KTO_KOR_SERVICE_2', 2,
