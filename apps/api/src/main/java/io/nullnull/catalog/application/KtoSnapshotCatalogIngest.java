@@ -48,8 +48,14 @@ public class KtoSnapshotCatalogIngest implements CatalogIngest {
         java.util.UUID placeId = UuidV7.create(clock);
         CatalogPlace place = new CatalogPlace(placeId, null, snapshot.title(), category, snapshot.latitude(),
                 snapshot.longitude(), region, CatalogPlaceStatus.ACTIVE, snapshot.fetchedAt(), snapshot.fetchedAt());
+        // KorService2 publishes Korean, so source_locale is the locale the row is stored under and
+        // this text is not a translation (V047). It is stamped all the same: the revision pin is
+        // what stops the text going out after the source's reviewed contract moves on, and that is
+        // a licence question about republished prose, not a question about translation.
+        CatalogPlaceLocalization.Provenance provenance = new CatalogPlaceLocalization.Provenance(
+                KTO_SOURCE_CODE, snapshot.sourceRegistryVersion(), KOREAN_LOCALE, snapshot.fetchedAt());
         CatalogPlaceLocalization localization = new CatalogPlaceLocalization(UuidV7.create(clock), placeId,
-                KOREAN_LOCALE, snapshot.title(), null, snapshot.address(), snapshot.fetchedAt());
+                KOREAN_LOCALE, snapshot.title(), null, snapshot.address(), snapshot.fetchedAt(), provenance);
         CatalogExternalReference externalReference = new CatalogExternalReference(UuidV7.create(clock), placeId,
                 KTO_SOURCE_CODE, snapshot.sourceRegistryVersion(), snapshot.contentId(), externalType,
                 snapshot.fetchedAt());

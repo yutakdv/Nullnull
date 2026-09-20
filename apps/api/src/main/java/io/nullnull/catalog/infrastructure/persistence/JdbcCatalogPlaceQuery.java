@@ -48,6 +48,30 @@ public class JdbcCatalogPlaceQuery implements CatalogPlaceQuery {
     private static final String SORT_NAME =
             "lower(COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name))";
 
+    /**
+     * Whether a localization row may still be published (BA-086). Text collected under a reviewed
+     * source revision keeps going out only while that revision is the source's current one and the
+     * source is still enabled; otherwise the row is skipped and the existing locale chain supplies
+     * the next candidate. Rows with no provenance - every row written before V047 - are unaffected,
+     * because "we do not know where this came from" is not the same claim as "this is stale".
+     *
+     * <p>Named once and interpolated into all four places that read place_localizations, for the
+     * reason the projection below is shared: a second copy would drift, and the copy that drifted
+     * would be the one still serving text under a superseded licence.
+     *
+     * <p>It deliberately falls back rather than erroring. Making the fallback VISIBLE - telling the
+     * client which locale it actually got - is BA-086-T4 and needs a contract field (#310).
+     *
+     * <p>PlaceLocalizationProvenanceIT holds every clause here, and holds each of the four sites
+     * this is interpolated into: it measures the detail read, the embedded summary and the search
+     * match separately, because removing the gate from one of the three leaves the other two green.
+     */
+    private static final String SERVABLE_LOCALIZATION =
+            "AND (loc.source_code IS NULL"
+            + " OR EXISTS (SELECT 1 FROM source_registry gate"
+            + " WHERE gate.code = loc.source_code AND gate.enabled"
+            + " AND gate.current_revision = loc.source_registry_version))";
+
     private static final String SUMMARY_PROJECTION = """
 SELECT p.id,
                        COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name) AS name,
@@ -65,24 +89,27 @@ SELECT p.id,
                        thumbnail.attribution_template AS thumbnail_attribution
                   FROM places p
                   LEFT JOIN LATERAL (
-                    SELECT name, address
-                      FROM place_localizations
-                     WHERE place_id = p.id AND lower(locale) = ?
-                     ORDER BY id
+                    SELECT loc.name, loc.address
+                      FROM place_localizations loc
+                     WHERE loc.place_id = p.id AND lower(loc.locale) = ?
+                       %1$s
+                     ORDER BY loc.id
                      LIMIT 1
                   ) exact_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT name, address
-                      FROM place_localizations
-                     WHERE place_id = p.id AND split_part(lower(locale), '-', 1) = ?
-                     ORDER BY lower(locale), id
+                    SELECT loc.name, loc.address
+                      FROM place_localizations loc
+                     WHERE loc.place_id = p.id AND split_part(lower(loc.locale), '-', 1) = ?
+                       %1$s
+                     ORDER BY lower(loc.locale), loc.id
                      LIMIT 1
                   ) language_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT name, address
-                      FROM place_localizations
-                     WHERE place_id = p.id AND lower(locale) = 'ko-kr'
-                     ORDER BY id
+                    SELECT loc.name, loc.address
+                      FROM place_localizations loc
+                     WHERE loc.place_id = p.id AND lower(loc.locale) = 'ko-kr'
+                       %1$s
+                     ORDER BY loc.id
                      LIMIT 1
                   ) ko_locale ON TRUE
                   LEFT JOIN LATERAL (
@@ -113,7 +140,7 @@ SELECT p.id,
                      ORDER BY assignment.position, asset.id
                      LIMIT 1
                   ) thumbnail ON TRUE
-                """;
+                """.formatted(SERVABLE_LOCALIZATION);
 
     @Override
     public List<CatalogPlaceSearchHit> search(CatalogPlaceSearchRequest request, PageKey after, int fetchLimit,
@@ -121,6 +148,9 @@ SELECT p.id,
         String pattern = "%" + escapeLike(request.query().toLowerCase(java.util.Locale.ROOT)) + "%";
         List<Object> parameters = new java.util.ArrayList<>(List.of(request.locale(), request.language(),
                 Timestamp.from(observedAt)));
+        // The match carries the same gate as the projection. Without it a query could match a name
+        // the response is not allowed to show, and the searcher would get back a row whose name
+        // does not contain what they typed, with nothing in the response explaining why.
         StringBuilder sql = new StringBuilder(SUMMARY_PROJECTION + """
                  WHERE p.status = 'ACTIVE'
                    AND p.latitude IS NOT NULL
@@ -129,11 +159,12 @@ SELECT p.id,
                    AND (lower(p.canonical_name) LIKE ? ESCAPE '\\'
                         OR EXISTS (
                           SELECT 1
-                            FROM place_localizations searchable
-                           WHERE searchable.place_id = p.id
-                             AND lower(searchable.name) LIKE ? ESCAPE '\\'
+                            FROM place_localizations loc
+                           WHERE loc.place_id = p.id
+                             AND lower(loc.name) LIKE ? ESCAPE '\\'
+                             %1$s
                         ))
-                """);
+                """.formatted(SERVABLE_LOCALIZATION));
         parameters.add(request.regionCode());
         parameters.add(pattern);
         parameters.add(pattern);
@@ -141,6 +172,14 @@ SELECT p.id,
             // Resume after that place rather than skipping a count of rows: a place becoming
             // publishable, or losing the coordinates this projection requires, must not move a
             // reader who is already past it.
+            //
+            // BA-086 added a third trigger to that list, and it is named here because it is the
+            // one nobody would guess: SORT_NAME is a COALESCE over the localized names, and
+            // SERVABLE_LOCALIZATION can withdraw one of them, so BUMPING A SOURCE REGISTRY
+            // REVISION moves the sort key of every place whose name came from that source. The
+            // failure mode is the existing one - a cursor issued before the change can step over
+            // a place - and no new handling is needed. What is new is the cause, and a cause this
+            // far from the search path is exactly what a future reader would rule out first.
             sql.append(" AND (").append(SORT_NAME).append(" > ? OR (").append(SORT_NAME)
                     .append(" = ? AND p.id > ?))");
             parameters.add(after.sortName());
@@ -215,24 +254,27 @@ SELECT p.id,
                   FROM places requested
                   JOIN places p ON p.id = COALESCE(requested.canonical_place_id, requested.id)
                   LEFT JOIN LATERAL (
-                    SELECT name, address, short_description
-                      FROM place_localizations
-                     WHERE place_id = p.id AND lower(locale) = ?
-                     ORDER BY id
+                    SELECT loc.name, loc.address, loc.short_description
+                      FROM place_localizations loc
+                     WHERE loc.place_id = p.id AND lower(loc.locale) = ?
+                       %1$s
+                     ORDER BY loc.id
                      LIMIT 1
                   ) exact_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT name, address, short_description
-                      FROM place_localizations
-                     WHERE place_id = p.id AND split_part(lower(locale), '-', 1) = ?
-                     ORDER BY lower(locale), id
+                    SELECT loc.name, loc.address, loc.short_description
+                      FROM place_localizations loc
+                     WHERE loc.place_id = p.id AND split_part(lower(loc.locale), '-', 1) = ?
+                       %1$s
+                     ORDER BY lower(loc.locale), loc.id
                      LIMIT 1
                   ) language_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT name, address, short_description
-                      FROM place_localizations
-                     WHERE place_id = p.id AND lower(locale) = 'ko-kr'
-                     ORDER BY id
+                    SELECT loc.name, loc.address, loc.short_description
+                      FROM place_localizations loc
+                     WHERE loc.place_id = p.id AND lower(loc.locale) = 'ko-kr'
+                       %1$s
+                     ORDER BY loc.id
                      LIMIT 1
                   ) ko_locale ON TRUE
                   LEFT JOIN LATERAL (
@@ -267,7 +309,8 @@ SELECT p.id,
                    AND p.status = 'ACTIVE'
                    AND p.latitude IS NOT NULL
                    AND p.longitude IS NOT NULL
-                """, JdbcCatalogPlaceQuery::detailFields, normalizedLocale, language, Timestamp.from(observedAt),
+                """.formatted(SERVABLE_LOCALIZATION), JdbcCatalogPlaceQuery::detailFields, normalizedLocale,
+                language, Timestamp.from(observedAt),
                 requestedPlaceId);
         return fields.stream().findFirst().map(detail -> new CatalogPlaceDetail(detail.id, detail.name,
                 detail.categoryCode, detail.regionCode, detail.categoryName, detail.regionName, detail.thumbnailUrl,
