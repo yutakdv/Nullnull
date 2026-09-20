@@ -3202,7 +3202,7 @@
         },
         {
           "id": "BA-090-T3",
-          "assertion": "source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다"
+          "assertion": "source 장애 중 trip CRUD 의 답이 장애 밖에서와 같다"
         },
         {
           "id": "BA-090-T4",
@@ -3259,6 +3259,10 @@
         {
           "id": "BA-090-T17",
           "assertion": "검토된 provider 사건 window 안의 관측은 격리된다"
+        },
+        {
+          "id": "BA-090-T18",
+          "assertion": "source 장애 중 optimizer 의 답이 장애 밖에서와 같다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",
