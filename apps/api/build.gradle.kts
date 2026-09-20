@@ -136,6 +136,20 @@ testing {
                             .orElse(layout.projectDirectory.file("../../docs/api/openapi.yaml").asFile.absolutePath)
                             .get()
                     )
+                    // FeedOrderFixtureParityIT reads the same apps/ai fixture the `test` suite does,
+                    // and runs it through the PRODUCTION query instead of the fallback comparator.
+                    // Declared as an input as well as a property for the reason the block above
+                    // records: a path handed over only as a property leaves the suite UP-TO-DATE on
+                    // the previous PASS when the fixture changes.
+                    inputs.dir(layout.projectDirectory.dir("../ai/tests/recommendation/fixtures"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("aiOrderParityFixtures")
+                    systemProperty(
+                        "nullnull.ai.fixtures.path",
+                        providers.gradleProperty("nullnull.ai.fixtures.path")
+                            .orElse(layout.projectDirectory.dir("../ai/tests/recommendation/fixtures").asFile.absolutePath)
+                            .get()
+                    )
                 }
             }
         }
