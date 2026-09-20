@@ -1,4 +1,4 @@
-package io.nullnull.crowd.infrastructure.seoul;
+package io.nullnull.crowd.domain;
 
 import java.time.Instant;
 import java.util.List;

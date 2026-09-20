@@ -1,7 +1,9 @@
 package io.nullnull.crowd.infrastructure.seoul;
 
-import io.nullnull.shared.provider.ProviderHttpClient;
+import io.nullnull.crowd.application.SeoulCityDataFetcher;
+import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.shared.provider.ProviderHttpClient.ProviderResponse;
+import io.nullnull.shared.provider.ProviderHttpClient;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -15,7 +17,7 @@ import org.springframework.stereotype.Component;
  * place that token may go; a path would put it in the part access logs record.
  */
 @Component
-public class SeoulCityDataClient {
+public class SeoulCityDataClient implements SeoulCityDataFetcher {
 
     private final ProviderHttpClient provider;
     private final SeoulCityDataProperties properties;
@@ -28,11 +30,13 @@ public class SeoulCityDataClient {
         this.testEndpointAllowed = "test".equals(environment);
     }
 
+    @Override
     public void requireConfigured() {
         properties.requireConfigured(testEndpointAllowed);
     }
 
     /** One area, by the name the provider's path takes (AREA_NM), never by our AREA_CD. */
+    @Override
     public CompletableFuture<ProviderResponse> fetch(String areaName) {
         return provider.get(SeoulLiveAreaObservation.SOURCE_CODE,
                 properties.cityDataUri(areaName, testEndpointAllowed), properties.proxyHeaders());

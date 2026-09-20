@@ -16,10 +16,14 @@ import java.util.UUID;
  * the region's average - the contract's {@code LivePlace.crowd} is nullable precisely so that absence
  * is expressible, and 0 would be a reading nobody took.
  *
- * <p><b>Nothing calls this yet, by owner decision A-033:</b> the Live tab is deferred to last and may
- * end up mocked rather than built. This is the clause's decision, not a shipped feature - it is kept
- * because what it refuses (a zero nobody measured, a neighbouring area's reading) is the part that was
- * expensive to establish, and because BA-090-T2 is proven against it. If Live is mocked, delete it.
+ * <p><b>Nothing calls this yet, but the reason has changed and the old one said to delete this.</b>
+ * The paragraph here used to cite A-033 ("Live is deferred to last and may end up mocked... if Live is
+ * mocked, delete it"). A-054 replaced that on 2026-09-20: Live is built before submission, confirmed
+ * with the owner directly in two sessions because it reversed the previous day's comment, and made
+ * possible by the real Seoul key issued the same day. So this class is on the path rather than off it
+ * - what has not arrived is its caller, which is the projection that attaches an area's reading to a
+ * mapped place, and that waits on the collector's writer. BA-090-T2 is proven against this class
+ * either way.
  *
  * <p>Two conditions, deliberately separate. A mapping says where a place would read its value from;
  * an observation is whether there is a value to read. A place mapped to an area that has not reported

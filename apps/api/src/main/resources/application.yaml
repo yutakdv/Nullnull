@@ -132,9 +132,11 @@ nullnull:
     access-log:
       # The documented default. AccessLogFilter refuses to start with this ON in production.
       include-query: ${APP_ACCESS_LOG_INCLUDE_QUERY:false}
-  # Product capability flags (docs/operations/ENVIRONMENT.md §6), published by getDemoReadiness. live and
-  # replay may only turn a feature OFF: they have no server-side source yet, so an ON value fails startup
-  # instead of advertising something nothing can answer. optimization has one (BA-050, BA-051) and may be ON.
+  # Product capability flags (docs/operations/ENVIRONMENT.md §6), published by getDemoReadiness. replay may
+  # only turn a feature OFF: it has no server-side source yet, so an ON value fails startup instead of
+  # advertising something nothing can answer. optimization has one (BA-050, BA-051) and live has one as of
+  # B10 (V046's promoted source, the Seoul collector's writer, queryLiveAreas); both may be ON. The
+  # defaults stay OFF - having a source is what makes ON permissible, not what makes it chosen.
   capabilities:
     live: ${FEATURE_LIVE_DATA:false}
     replay: ${FEATURE_REPLAY_MODE:false}
@@ -176,6 +178,30 @@ nullnull:
     base-url: ${NULLNULL_AI_BASE_URL}
     connect-timeout: ${NULLNULL_AI_CONNECT_TIMEOUT:PT2S}
     read-timeout: ${NULLNULL_AI_READ_TIMEOUT:PT5S}
+  # BA-082 post image uploads (A-057 file input, A-058 automatic validation).
+  #
+  # THE CEILINGS ARE DERIVED, NOT PICKED. They live here rather than in V045 for the reason V037
+  # gives about its own derivation: an applied migration cannot be edited, so a ceiling written
+  # into one could never be raised.
+  #
+  # Derivation: the largest image this project actually ships, rounded up to the next power of two.
+  # Measured on docs/contest/covers (5 cover images, 2026-09-20):
+  #   largest file      2,830,569 B   (02-changdeokgung)
+  #   largest long edge 1,312 px      (04-deoksugung, 05-seoulsup)
+  # A ceiling below those would mean we could not upload our own covers, which is the test any
+  # replacement number has to pass. Re-measure the directory and round up the same way.
+  upload:
+    max-bytes: ${NULLNULL_UPLOAD_MAX_BYTES:4194304}
+    max-long-edge-pixels: ${NULLNULL_UPLOAD_MAX_LONG_EDGE_PIXELS:2048}
+    # The two the contract accepts. V045's CHECK and ImageFormat hold the same two; all three move
+    # together. webp is absent because this JDK has no webp reader or writer and EXIF is removed by
+    # re-encoding - see ImageFormat's javadoc for the measurement.
+    content-types: ${NULLNULL_UPLOAD_CONTENT_TYPES:image/jpeg,image/png}
+    # How long a signed URL stays usable. Bounded above by the idempotency key retention (24h) so an
+    # intent cannot outlive the record that makes its consumption replay-safe, and below by the time
+    # the upload itself takes. ASSUMED, NOT MEASURED: 4 MiB over a 1 Mbps uplink is about 34 seconds,
+    # so minutes - not seconds - is the right order, with room for one retry on the same URL.
+    presign-ttl: ${NULLNULL_UPLOAD_PRESIGN_TTL:PT15M}
   # External provider calls use an isolated bounded executor, exact host allowlists and no redirects.
   provider:
     connect-timeout: ${NULLNULL_PROVIDER_CONNECT_TIMEOUT:PT2S}
@@ -199,6 +225,14 @@ nullnull:
       allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
     KTO_RELATED_PLACES:
       allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
+    # A-051 fixed the provider and a live call on 2026-09-20 confirmed this host answers.
+    # Naming the product and the operation, not just "Kakao": Kakao Map is a different
+    # product on a different host with its own terms and quota, and route optimization is
+    # Kakao Mobility only. This entry must stay identical to ProviderHostPolicy
+    # PRODUCTION_HOSTS - production start-up compares the two maps for exact equality and
+    # no gate runs as production, so a change to one of them alone is green everywhere.
+    KAKAO_MOBILITY_DIRECTIONS:
+      allowed-hosts: ["${KAKAO_ROUTE_ALLOWED_HOST:apis-navi.kakaomobility.com}"]
     SEOUL_CITYDATA:
       # THIS DEFAULT IS WRONG ONCE THE PROXY EXISTS and must become the proxy host: with the provider's
       # own name here, a proxy-shaped request (no key in the path) would be sent straight to Seoul, and
@@ -217,6 +251,13 @@ nullnull:
   seoul:
     base-url: ${SEOUL_BASE_URL:}
     proxy-token: ${SEOUL_PROXY_TOKEN:}
+  # Car directions only. Walking and cycling are affiliate-gated (a prior contract is
+  # required), so the ETA here is a driving time and no screen may present it as a walking
+  # one. The key is blank by default because route optimization is P1 with its capability
+  # off: a deployment without it is the normal one, and the gateway refuses at call time.
+  kakao-route:
+    rest-api-key: ${KAKAO_REST_API_KEY:}
+    base-url: ${KAKAO_ROUTE_BASE_URL:https://apis-navi.kakaomobility.com}
   kto:
     service-key: ${KTO_SERVICE_KEY:}
     base-url: ${KTO_BASE_URL:}

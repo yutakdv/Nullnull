@@ -165,6 +165,83 @@ class FeedIT {
                         .value(firstExpected.equals(a) ? b.toString() : a.toString()));
     }
 
+    /**
+     * BA-082-T3, the half no other clause reaches.
+     *
+     * <p>Two neighbours cover the ends of this. BA-032-T1's third case seeds a post that is HIDDEN
+     * before anyone reads, so it is never in anybody's page. BA-027-T2 hides a row the reader has
+     * ALREADY been given and checks the next page does not skip past its neighbour. Neither is the
+     * sentence BA-082-T3 makes, which is about a cursor a reader is still holding: the post was
+     * visible when the cursor was cut, it is taken back before the reader comes back, and the page
+     * that cursor resumes must not hand it over.
+     *
+     * <p>The difference matters because a cursor is a promise about a PLACE, not about a set. A
+     * keyset resumes "after this row" and re-reads the table, so a withdrawal lands; an
+     * implementation answering from anything captured when the cursor was issued would serve the
+     * post that has since been taken back, and both neighbouring clauses would stay green.
+     *
+     * <p><strong>Two guards hold this, and neither alone makes this test fire.</strong> Measured.
+     * Dropping the {@code status = 'PUBLISHED'} filter on cursor pages only changes nothing here
+     * (radius 0): a curator's hide also nulls {@code published_at} - V015's
+     * {@code posts_published_shape_check} couples them - and the keyset predicate excludes NULL, so
+     * the row is unreachable by any page that orders on that column. Dropping BOTH (the filter, and
+     * making the predicate tolerate NULL) reddens this and five neighbours (radius 6), which is a
+     * broken query rather than an isolated defect.
+     *
+     * <p>So this is not the only thing standing between a reader and a withdrawn post, and it would
+     * be dishonest to read it that way. What it is for is the day the coupling is relaxed - a
+     * migration that keeps {@code published_at} so a screen can say when a post was taken back is a
+     * plausible change, and on that day the schema stops carrying this and the query's filter is
+     * alone. This is the test that would notice.
+     *
+     * <p><strong>Hiding is the only producer that exists.</strong> The clause says "삭제/권리 철회"
+     * and the contract has an operation for neither - createPost, getPost, savePost and unsavePost
+     * are all of it, and nothing moves a post to HIDDEN through the API. A curator does it in the
+     * database. So this measures the read side against the only writer there is; the write side is
+     * not implemented and the card should not read as though it were.
+     */
+    @Test
+    @DisplayName("BA-082-T3 a post taken back after a cursor was issued is not served by that cursor")
+    void aPostHiddenAfterTheCursorWasCutIsNotServedByIt() throws Exception {
+        var reader = owner();
+        UUID place = place("경복궁");
+        post("넷째", place, "2099-08-04T00:00:00Z");
+        post("셋째", place, "2099-08-03T00:00:00Z");
+        UUID taken = post("둘째", place, "2099-08-02T00:00:00Z");
+        post("첫째", place, "2099-08-01T00:00:00Z");
+
+        // The reader is given the two newest and a cursor. "둘째" is still published and is the next
+        // row that cursor resumes on - ahead of them and unread, which is the position neither
+        // neighbouring clause puts a withdrawal in.
+        String firstPage = mvc.perform(get("/api/v1/feed").param("limit", "2").cookie(cookie(reader)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].post.title").value("넷째"))
+                .andExpect(jsonPath("$.items[1].post.title").value("셋째"))
+                .andReturn().getResponse().getContentAsString();
+        String cursor = firstPage.replaceAll(".*\"nextCursor\":\"([^\"]+)\".*", "$1");
+        org.assertj.core.api.Assertions.assertThat(cursor)
+                .as("the reader is holding a cursor").isNotEqualTo(firstPage);
+
+        // Taken back the way a curator takes one back, which is the only writer there is.
+        jdbc.update("UPDATE posts SET status = 'HIDDEN', published_at = NULL WHERE id = ?", taken);
+
+        String resumed = mvc.perform(get("/api/v1/feed").param("limit", "2").param("cursor", cursor)
+                        .cookie(cookie(reader)))
+                .andExpect(status().isOk())
+                // Nothing shared may hold the answer, so the page cannot be one assembled before the
+                // withdrawal. Asserted here rather than inherited from BA-032-T1.
+                .andExpect(header().string("Cache-Control", "private, no-store"))
+                .andReturn().getResponse().getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(resumed)
+                .as("the post taken back is not handed over by the cursor that predated it")
+                .doesNotContain("\"title\":\"둘째\"");
+        // And the reader is not skipped past what they had not read. Without this the clause would
+        // be satisfied by a feed that returned nothing at all.
+        org.assertj.core.api.Assertions.assertThat(resumed)
+                .as("the row behind it is still served").contains("\"title\":\"첫째\"");
+    }
+
     @Test
     @DisplayName("BA-032-T1 DRAFT and HIDDEN posts never reach the feed or a post read")
     void unpublishedPostsAreInvisible() throws Exception {

@@ -175,7 +175,8 @@ class ProviderKitTest {
                 "KTO_KOR_SERVICE_2", Set.of("apis.data.go.kr"),
                 "KTO_CONCENTRATION_FORECAST", Set.of("apis.data.go.kr"),
                 "KTO_RELATED_PLACES", Set.of("apis.data.go.kr"),
-                "SEOUL_CITYDATA", Set.of("openapi.seoul.go.kr"));
+                "SEOUL_CITYDATA", Set.of("openapi.seoul.go.kr"),
+                "KAKAO_MOBILITY_DIRECTIONS", Set.of("apis-navi.kakaomobility.com"));
         assertThatCode(() -> new ProviderHostPolicy("production").validate(reviewed))
                 .doesNotThrowAnyException();
         assertThatThrownBy(() -> new ProviderHostPolicy("production").validate(Map.of(

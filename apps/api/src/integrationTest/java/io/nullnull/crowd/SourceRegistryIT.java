@@ -100,9 +100,15 @@ class SourceRegistryIT {
     @Test
     @DisplayName("BA-020-T1 approval stale policy and incidents determine source health without provider IO")
     void registryAndIncidentHealthFailClosed() {
+        // SEOUL_CITYDATA moved sides in V046, which promoted it to DEV_APPROVED with a
+        // stale_after_seconds - the two halves of the derived `enabled` CHECK. It belongs in the
+        // first list now, and leaving it in the second would have this case assert that an approved
+        // source is not collectable. The two that stay below are still unapproved: KTO_RELATED_PLACES
+        // has no reviewed provider and DEMO_REPLAY is DISABLED in V007.
         assertThat(registry.enabledFor("production")).extracting(source -> source.code())
-                .contains("KTO_KOR_SERVICE_2", "KTO_CONCENTRATION_FORECAST", "NULLNULL_CATALOG_RULE")
-                .doesNotContain("KTO_RELATED_PLACES", "SEOUL_CITYDATA", "DEMO_REPLAY");
+                .contains("KTO_KOR_SERVICE_2", "KTO_CONCENTRATION_FORECAST", "NULLNULL_CATALOG_RULE",
+                        "SEOUL_CITYDATA")
+                .doesNotContain("KTO_RELATED_PLACES", "DEMO_REPLAY");
         assertThatThrownBy(() -> registry.enabledFor("prod"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("environment must be one of");

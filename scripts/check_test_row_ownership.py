@@ -175,8 +175,22 @@ def unscoped_statements(path: Path) -> list[tuple[int, str, str]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    # Every source set that can put a statement in front of the gate's ONE database, not just the
+    # two that obviously hold tests. The reason this check exists is that the required gate runs
+    # every suite against one database, so the scope has to be the same "every suite" - and it was
+    # not: openapiContractTest and recommendationTest start Spring contexts against it, and
+    # testFixtures holds the helpers those suites share (OwnerFixtures, TestcontainersConfiguration),
+    # which is the worst place for an unqualified statement because every caller inherits it.
+    #
+    # Widening found nothing (215 -> 243 files, zero findings), so this costs no red today. That it
+    # is not a vacuous zero was measured: a `DELETE FROM owners` planted in
+    # testFixtures/OwnerFixtures.java is invisible at the old scope and named, with its line, at
+    # this one.
     parser.add_argument("root", nargs="*", type=Path,
-                        default=[Path("apps/api/src/integrationTest"), Path("apps/api/src/test")],
+                        default=[Path("apps/api/src/integrationTest"), Path("apps/api/src/test"),
+                                 Path("apps/api/src/openapiContractTest"),
+                                 Path("apps/api/src/recommendationTest"),
+                                 Path("apps/api/src/testFixtures")],
                         help="test source roots to scan")
     arguments = parser.parse_args()
 

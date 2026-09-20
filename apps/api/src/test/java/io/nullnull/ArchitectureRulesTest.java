@@ -60,14 +60,24 @@ class ArchitectureRulesTest {
      * wired FeedFallback without it would be a silent hole.
      */
     private static final java.util.Map<String, String> AWAITING_THEIR_SLICE = java.util.Map.of(
-            // Both labels said "BA-050 feed slice" and both were wrong, in different ways. BA-050 has
-            // no feed in it at all - it is the optimization run - and the P0 feed is fixed order by
-            // its own card's title, so the slice that first calls rankFeed is BA-080, which is P1.
             // RunFingerprint and ProposalRevalidator were listed here for BA-051, and BA-051 now calls
             // both from OptimizeItemHandler - so their lines are gone rather than kept as paperwork.
             // Deleting them is the point of the list: a name stays only while nothing in production
             // calls the class, and this map shrinking is what "the slice arrived" looks like.
-            "FeedFallback", "BA-080 ranked feed slice");
+            //
+            // FeedFallback's label has now been wrong TWICE and this is the third attempt. It said
+            // "BA-050 feed slice" (BA-050 is the optimization run and has no feed in it), then
+            // "BA-080 ranked feed slice" - and BA-080 has since been scoped to feed FILTERS, which
+            // do not call rankFeed, so that one went stale too.
+            //
+            // The reason it keeps going stale is visible in the assertion below: only the KEY SET is
+            // checked against the uncalled classes, and the value is asserted non-blank and nothing
+            // more. No card ID here can be verified by anything. So this one names no card: what is
+            // true today is that re-ranking has no card at all - RECOMMENDATION_ALGORITHM.md §5.1
+            // defers re-ordering to P2 - and a label that says so cannot go stale the way a card ID
+            // does. The line still disappears the day something in production calls the class, which
+            // is the only part of this entry a test can see.
+            "FeedFallback", "no card yet - re-ranking is deferred to P2 (RECOMMENDATION_ALGORITHM.md 5.1)");
 
     @Test
     @DisplayName("REC-ARCH-01 an uncalled recommendation service names the slice that will call it")
@@ -169,6 +179,50 @@ class ArchitectureRulesTest {
         noClasses().that().resideOutsideOfPackage("io.nullnull.analytics..")
                 .should().dependOnClassesThat().resideInAPackage("io.nullnull.analytics..")
                 .because("a command that cannot call analytics cannot be failed by it (BA-033-T3)")
+                .check(classes);
+    }
+
+    /**
+     * BA-082-T18: the social module never names the feed ranking gateway.
+     *
+     * <p>BA-082's safety boundary says a withdrawal must block feed, cache AND recommendation
+     * exposure. The first two are clauses about code that runs; this one is a clause about code that
+     * does not exist. Measured on 2026-09-20 across 21 local and origin refs plus the shared
+     * checkout's uncommitted tree: nothing under {@code io.nullnull.social} calls {@code rankFeed} or
+     * builds a {@code FeedRankRequest}, so today there is no recommendation exposure of a post for a
+     * withdrawal to block.
+     *
+     * <p>That absence is registered as a rule rather than as a pending clause on purpose. A clause
+     * marked "awaiting its producer" is read by nobody on the day the producer lands; this test goes
+     * red on that day and makes whoever wires the ranking write the real clause - "a withdrawn post
+     * is not among the candidates sent for ranking" - instead of inheriting a green. It is the shape
+     * {@link #analyticsIsNeverOnAProductCommandsPath()} uses for the same reason.
+     *
+     * <p>The rule is one-directional and that is deliberate: {@code recommendation.application.
+     * FeedFallback} reads {@code social.domain.FeedOrdering}, which is the ordering definition
+     * travelling to the code that applies it. Forbidding that too would break the arrangement this
+     * clause is protecting rather than the one it is watching for.
+     */
+    @Test
+    @DisplayName("BA-082-T18 nothing in social names the feed ranking gateway, so a post has no path to it")
+    void socialNeverReachesTheRecommendationModule() {
+        // Not vacuous in either direction, like the analytics rule: there are classes to depend on,
+        // and there are classes that could have depended on them.
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName().startsWith("io.nullnull.recommendation"))
+                        .count())
+                .as("the rule is about a module that exists")
+                .isGreaterThan(3);
+        org.assertj.core.api.Assertions.assertThat(classes.stream()
+                        .filter(candidate -> candidate.getPackageName().startsWith("io.nullnull.social"))
+                        .count())
+                .as("the rule is about a module that could have reached it")
+                .isGreaterThan(3);
+
+        noClasses().that().resideInAPackage("io.nullnull.social..")
+                .should().dependOnClassesThat().resideInAPackage("io.nullnull.recommendation..")
+                .because("a post that cannot reach the ranking gateway cannot be exposed by it; "
+                        + "the day social does reach it, BA-082-T18 is replaced by the real clause")
                 .check(classes);
     }
 

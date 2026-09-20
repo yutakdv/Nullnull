@@ -1,29 +1,19 @@
 package io.nullnull.crowd.infrastructure.persistence;
 
 import io.nullnull.crowd.application.CrowdForecastQuery;
-import io.nullnull.crowd.domain.ComparisonScope;
-import io.nullnull.crowd.domain.CrowdStage;
-import io.nullnull.crowd.domain.QualityFlag;
-import io.nullnull.crowd.domain.SourceState;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Repository;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Reads one immutable set at a time. The query joins the revision captured by the snapshot instead
@@ -33,7 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
 
     private final JdbcTemplate jdbc;
-    private final JsonMapper json = JsonMapper.builder().build();
+    private final CrowdSnapshotRows rows = new CrowdSnapshotRows();
 
     public JdbcCrowdForecastQuery(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -129,12 +119,12 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
         List<UUID> places = List.copyOf(setIdByPlace.keySet());
         // Pairs, not two independent lists: snapshot_sets has no place column, so nothing ties a set
         // to one place, and a place's points in the set chosen for ANOTHER place are not its answer.
-        List<Snapshot> points = jdbc.query(POINT + """
+        List<Snapshot> points = jdbc.query(CrowdSnapshotRows.POINT + """
                  WHERE (point.snapshot_set_id, point.place_id) IN (SELECT * FROM unnest(?::uuid[], ?::uuid[]))
                    AND point.target_at >= ?
                    AND point.target_at <= ?
                  ORDER BY point.place_id, point.target_at ASC, point.id ASC
-                """, this::snapshot, places.stream().map(setIdByPlace::get).toArray(UUID[]::new),
+                """, rows::map, places.stream().map(setIdByPlace::get).toArray(UUID[]::new),
                 places.toArray(UUID[]::new), Timestamp.from(from), Timestamp.from(to));
         Map<UUID, List<Snapshot>> byPlace = new LinkedHashMap<>();
         for (Snapshot point : points) {
@@ -145,55 +135,16 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
         return Map.copyOf(sets);
     }
 
-    /**
-     * Extracted from {@link #latest} so a caller that already knows the set id can ask for its points
-     * without re-running the "which set is newest" question. Same query, same mapping - the only
-     * change is who chooses {@code setId}.
-     */
-    /**
-     * One point with everything a provenance line needs: its set, its source revision and whether a
-     * quarantine covers it now. Shared by every read here so a point reads the same whichever way it
-     * was asked for.
-     */
-    private static final String POINT = """
-                SELECT point.id, point.snapshot_set_id, set_row.collector_run_id, point.place_id,
-                       point.source_code, point.source_registry_version, point.source_state,
-                       point.observed_at, point.target_at, point.fetched_at, point.stale_at,
-                       point.metric_code, point.value, point.unit, point.ordinal_level, point.confidence,
-                       point.quality_flags::text AS quality_flags, point.forecast_issue_id,
-                       point.comparison_group_id, point.normalization_version,
-                       point.observed_at_skew_seconds, point.scope, point.scope_label, point.mapping_type,
-                       point.fallback_used,
-                       revision.canonical_contract->>'displayName' AS source_display_name,
-                       revision.canonical_contract->'license'->>'name' AS license_name,
-                       revision.canonical_contract->>'officialUrl' AS official_url,
-                       revision.canonical_contract->'license'->>'url' AS license_url,
-                       revision.canonical_contract->>'attributionTemplate' AS attribution,
-                       revision.canonical_contract->>'metricDefinition' AS metric_definition,
-                       EXISTS (
-                           SELECT 1
-                             FROM source_quality_incidents incident
-                            WHERE incident.source_code = point.source_code
-                              AND incident.disposition = 'QUARANTINE'
-                              AND incident.affected_from <= point.fetched_at
-                              AND (incident.affected_to IS NULL OR point.fetched_at < incident.affected_to)
-                       ) AS incident_active
-                  FROM crowd_snapshots point
-                  JOIN snapshot_sets set_row ON set_row.id = point.snapshot_set_id
-                  JOIN source_registry_revisions revision
-                    ON revision.source_code = point.source_code
-                   AND revision.version = point.source_registry_version
-                """;
 
     @Override
     public Optional<SnapshotSet> frozenSet(UUID setId, UUID placeId, Instant from, Instant to) {
-        List<Snapshot> points = jdbc.query(POINT + """
+        List<Snapshot> points = jdbc.query(CrowdSnapshotRows.POINT + """
                  WHERE point.snapshot_set_id = ?
                    AND point.place_id = ?
                    AND point.target_at >= ?
                    AND point.target_at <= ?
                  ORDER BY point.target_at ASC, point.id ASC
-                """, new Object[] {setId, placeId, Timestamp.from(from), Timestamp.from(to)}, this::snapshot);
+                """, new Object[] {setId, placeId, Timestamp.from(from), Timestamp.from(to)}, rows::map);
         return points.isEmpty() ? Optional.empty() : Optional.of(new SnapshotSet(setId, points));
     }
 
@@ -202,64 +153,9 @@ public class JdbcCrowdForecastQuery implements CrowdForecastQuery {
         if (ids.isEmpty()) {
             return List.of();
         }
-        return jdbc.query(POINT + """
+        return jdbc.query(CrowdSnapshotRows.POINT + """
                  WHERE point.id = ANY (?)
                  ORDER BY point.target_at ASC, point.id ASC
-                """, new Object[] {ids.toArray(UUID[]::new)}, this::snapshot);
-    }
-
-    private Snapshot snapshot(ResultSet result, int row) throws SQLException {
-        String ordinalLevel = result.getString("ordinal_level");
-        Set<QualityFlag> flags = qualityFlags(result.getString("quality_flags"));
-        if (ordinalLevel != null && !CrowdStage.publishable(result.getString("source_code"), ordinalLevel)) {
-            // A stored stage from a source with no reviewed mapping onto the scale - today every source -
-            // is an unreviewed meaning, the same as an unknown flag below: it is not served as a stage,
-            // and the point says why (BA-023-T23). Being on the scale is not enough: a digit stored under
-            // a source that publishes no stages would otherwise become an authoritative one.
-            ordinalLevel = null;
-            EnumSet<QualityFlag> drifted = flags.isEmpty() ? EnumSet.noneOf(QualityFlag.class) : EnumSet.copyOf(flags);
-            drifted.add(QualityFlag.SCHEMA_DRIFT);
-            flags = Set.copyOf(drifted);
-        }
-        SourceDescriptor source = new SourceDescriptor(result.getString("source_code"),
-                result.getString("source_display_name"), result.getLong("source_registry_version"),
-                result.getString("license_name"), result.getString("official_url"), result.getString("license_url"),
-                result.getString("attribution"), result.getString("metric_definition"));
-        return new Snapshot(result.getObject("id", UUID.class), result.getObject("snapshot_set_id", UUID.class),
-                result.getObject("collector_run_id", UUID.class), result.getObject("place_id", UUID.class), source,
-                SourceState.valueOf(result.getString("source_state")), instant(result, "observed_at"),
-                instant(result, "target_at"), instant(result, "fetched_at"), instant(result, "stale_at"),
-                result.getString("metric_code"), result.getBigDecimal("value"), result.getString("unit"),
-                ordinalLevel, result.getBigDecimal("confidence"),
-                flags, result.getString("forecast_issue_id"),
-                result.getString("comparison_group_id"), result.getString("normalization_version"),
-                (Integer) result.getObject("observed_at_skew_seconds"),
-                ComparisonScope.valueOf(result.getString("scope")), result.getString("scope_label"),
-                result.getString("mapping_type"), result.getBoolean("fallback_used"), result.getBoolean("incident_active"));
-    }
-
-    private static Instant instant(ResultSet result, String column) throws SQLException {
-        Timestamp value = result.getTimestamp(column);
-        return value == null ? null : value.toInstant();
-    }
-
-    /** Unknown persisted flags are schema drift: do not turn an unreviewed meaning into a comparison. */
-    private Set<QualityFlag> qualityFlags(String raw) {
-        try {
-            JsonNode values = json.readTree(raw);
-            if (!values.isArray()) {
-                return Set.of(QualityFlag.SCHEMA_DRIFT);
-            }
-            EnumSet<QualityFlag> flags = EnumSet.noneOf(QualityFlag.class);
-            for (JsonNode value : values) {
-                if (!value.isTextual()) {
-                    return Set.of(QualityFlag.SCHEMA_DRIFT);
-                }
-                flags.add(QualityFlag.valueOf(value.asText()));
-            }
-            return Set.copyOf(flags);
-        } catch (RuntimeException exception) {
-            return Set.of(QualityFlag.SCHEMA_DRIFT);
-        }
+                """, new Object[] {ids.toArray(UUID[]::new)}, rows::map);
     }
 }

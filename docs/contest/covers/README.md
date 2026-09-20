@@ -43,7 +43,18 @@ tags:
 
 ## 권리 근거
 
-다섯 장 모두 오너가 직접 촬영해 보유한 사진이며 provider(KTO) 이미지가 아니다.
+다섯 장 모두 **팀이 만든 1st-party 자산**이며 provider(KTO) 이미지가 아니다.
+
+**2026-09-20 정정 — 이 문단은 원래 *"오너가 직접 촬영해 보유한 사진"* 이라고 적고 있었고 그것은 사실이 아니다.**
+다섯 파일 전부에 C2PA 매니페스트(`caBX` chunk, 21~23KB)가 박혀 있고 그 내용이 `softwareAgent.name=gpt-image`,
+`digitalSourceType=trainedAlgorithmicMedia`, `claim_generator_info.name=OpenAI Media Service API`, 동작은
+`c2pa.created`다. 촬영본을 편집한 것이라면 원본을 가리키는 `ingredient`/`c2pa.opened` assertion 이 있어야 하는데
+**0건**이다. 배포본에도 같은 바이트가 나간다(CloudFront 에서 받은 sha256 == repo 파일 == plan 의 checksum).
+**그래서 이 파일들을 Content Credentials 류 도구로 열면 "AI 생성"이 나온다.**
+
+**`A-024`는 개정하지 않았다** — 그 결정은 *"실제 장소를 사진처럼 묘사한 합성 이미지는 금지한다"* 로 그대로이고,
+이 다섯 장은 그 금지에 해당한 채로 남아 있다(위험 대장 `R-040`). 2026-09-20 오너가 교체하지 않기로 했다.
+**이 문단을 고친 이유는 결정을 정당화하려는 것이 아니라 기록이 거짓이었기 때문이다.**
 
 이 결정의 출처는 [GitHub issue #183](https://github.com/yutakdv/Nullnull/issues/183) (2026-09-19 BE·FE 공동 결정)이다.
 

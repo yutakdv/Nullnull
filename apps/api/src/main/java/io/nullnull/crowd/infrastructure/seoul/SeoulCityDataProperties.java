@@ -1,5 +1,6 @@
 package io.nullnull.crowd.infrastructure.seoul;
 
+import io.nullnull.crowd.application.SeoulGatewayException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;

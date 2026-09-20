@@ -873,7 +873,12 @@ export function createStacks(
   const spa = new cf.Function(web, "SpaRewrite", {
     functionName: "nullnull-stg-spa-rewrite",
     code: cf.FunctionCode.fromInline(
-      "function handler(e){var r=e.request;if(r.uri.indexOf('/api')===0)return {statusCode:404};if(r.uri.indexOf('.')===-1)r.uri='/index.html';return r;}",
+      // /quarantine is refused for the same reason /api is: the bucket behind this behaviour holds
+      // BA-082 uploads before they have been validated, and A-058 makes automatic validation the
+      // only boundary in front of a published image. Without this line the rewrite below would have
+      // hidden them by accident (a key with no dot becomes /index.html), which is not the same as
+      // refusing them - a quarantined .jpg WOULD have been served.
+      "function handler(e){var r=e.request;if(r.uri.indexOf('/api')===0)return {statusCode:404};if(r.uri.indexOf('/quarantine')===0)return {statusCode:404};if(r.uri.indexOf('.')===-1)r.uri='/index.html';return r;}",
     ),
   });
   const gate = new cf.CfnFunction(web, "ApiGate", {
@@ -938,7 +943,7 @@ export function createStacks(
     distribution: dist,
     distributionPaths: ["/*"],
   });
-  // #183: the curated posts' cover photos, at <PublicUrl>/covers/<file>. They are the owner's own photographs
+  // #183: the curated posts' cover photos, at <PublicUrl>/covers/<file>. They are team-made first-party assets (NOT photographs - see covers/README.md)
   // (A-024), content rather than the app bundle - apps/web/public is pinned to an exact allowlist
   // (image-assets.test.ts) and the web artifact to the release manifest's webArtifactSha256 - so they come from
   // their own directory, which the operator's plan step copies out of the repository. Being an asset of this
@@ -1053,6 +1058,12 @@ export function createStacks(
       KTO_FORECAST_BASE_URL:
         "https://apis.data.go.kr/B551011/TatsCnctrRateService",
       APP_CONTEST_PROFILE: "NONE",
+      // BA-082 uploads (owner decision (A), 2026-09-20): the bucket the edge already serves, under
+      // two prefixes of its own, rather than a new bucket and distribution. The grant below is what
+      // keeps that safe - this task can write covers/user/ and nothing else.
+      NULLNULL_UPLOAD_S3_BUCKET: webBucket.bucketName,
+      NULLNULL_UPLOAD_S3_REGION: cdk.Stack.of(services).region,
+      NULLNULL_UPLOAD_S3_PUBLIC_BASE_URL: `https://${dist.distributionDomainName}`,
       // C3 place reads stay 503 until the operator records staging KTO provenance and flips this file.
       NULLNULL_CATALOG_PUBLIC_ENABLED: String(stagingConfig.catalogPublicEnabled),
       // The submission build runs ITEM optimization (owner decision 2026-09-19, docs/operations/ENVIRONMENT.md).
@@ -1089,6 +1100,30 @@ export function createStacks(
   });
   writableTmp(apiTask, apiContainer, apiLogs);
   apiContainer.addPortMappings({ containerPort: 8080 });
+  // BA-082 object access, scoped by prefix rather than by bucket.
+  //
+  // NOT bucket.grantPut(): that helper also edits the bucket policy, which lives in the WebEdge
+  // stack, and a grant that writes into both stacks makes the dependency bidirectional. Services
+  // already depends on WebEdge (APP_PUBLIC_ORIGIN reads the distribution domain), so a role-only
+  // statement keeps that arrow pointing one way.
+  //
+  // THE PREFIXES ARE THE POINT. This bucket also holds the application bundle the distribution
+  // serves. A task that could PutObject on the bucket could replace index.html, so the write grant
+  // names covers/user/ exactly. Quarantine needs put as well as get: the browser's upload is a
+  // presigned PUT, and a presigned URL can only carry authority the signer itself has.
+  apiTask.taskRole.addToPrincipalPolicy(
+    new iam.PolicyStatement({
+      actions: ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      resources: [webBucket.arnForObjects("quarantine/*")],
+    }),
+  );
+  apiTask.taskRole.addToPrincipalPolicy(
+    new iam.PolicyStatement({
+      actions: ["s3:PutObject"],
+      resources: [webBucket.arnForObjects("covers/user/*")],
+    }),
+  );
+
   const apiService = new ecs.FargateService(services, "ApiService", {
     cluster,
     taskDefinition: apiTask,

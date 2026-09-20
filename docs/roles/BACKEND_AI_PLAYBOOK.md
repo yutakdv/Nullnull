@@ -284,9 +284,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 | `PM16-days`, `PM16-items`, `PM16-entry-query` | MATCH | #161로 해소 |
 | `PM06-duplicate-code` | schema는 MISMATCH | **domain에서 해소됐다** — `TripInterest.validated`가 `Duplicate`로 거절한다. probe의 `enforcementLayer`가 "domain rule"이라고 이미 적고 있으므로 schema 실행만으로는 보이지 않는다 |
 | `PM08-hhmm` | MISMATCH | **기대값이 낡았다.** #145가 `HH:mm:ss`로 정했으므로 `09:30`은 이제 거절이 맞다 |
-| `PM05-no-title` | MISMATCH | **진짜 미해결.** `confirmTripImport`는 BA-060이고 아직 구현되지 않았다 |
+| `PM05-no-title` | MISMATCH | **분류가 틀려 있었다 — 측정으로 정정했다.** `confirmTripImport`는 **구현돼 있다** — `TripImportController.java:100`의 `@NullnullOperation(id = "confirmTripImport", …)`, `TripImportService`의 idempotency guard, `ImplementedOperationsRegistry` 등록, `BA-060`의 `T1`~`T19`. **어긋난 것은 구현이 아니라 기대값과 계약이다**: probe가 `{planningLevel, interests: []}`만 보내는데 계약의 `ConfirmImportRequest`가 `required: [title, planningLevel, interests]`이고, `verification.json`의 오류도 정확히 `must have required property 'title'`이다. **그 어긋남에는 이미 주인이 있다** — [FCR-019](../design/FIGMA_CHANGE_REQUESTS.md)가 *기본 제목*을 범위에 담고 **P0 blocker·Open**이다 |
 
-probe를 CI 게이트로 승격하려면 위 두 기대값(낡은 것·layer 구분)을 먼저 정리해야 하고 그건 FE 자료이므로, FE 큐가 비면 제안으로 올린다. 지금 올리면 답을 기다리는 이슈만 하나 늘어난다.
+probe를 CI 게이트로 승격하려면 **미정리 기대값 셋**을 먼저 해소해야 한다. **셋의 성질이 다르다**: 앞의 둘(`PM08-hhmm`·`PM06-duplicate-code`)은 **probe의 기대값이 낡았거나 실행 층을 잘못 겨눈 것**이라 probe 자료를 고치면 닫히고, `PM05-no-title`은 **살아 있는 design request의 답 대기**(`FCR-019`)라 우리가 고칠 수 있는 것이 아니다. **결론은 그대로다** — 지금 올리면 답을 기다리는 이슈만 하나 늘어난다. **다만 근거가 `BA-060` 미구현이 아니다.** 그 문구를 두면 다음 사람이 *"BA-060이 끝났으니 이제 승격 가능"* 으로 읽는다.
 
 필수 검증:
 
@@ -1125,6 +1125,7 @@ PM-010의 **장소 쪽은 닫혔다**. `PlaceSummary.sourceAttribution`을 FE가
 - `BA-032-T2`: 다른 owner의 저장 상태가 shared cache로 새지 않는다
 - `BA-032-T3`: save/unsave가 후보·item·trip version에 영향을 주지 않는다
 - `BA-032-T4`: curation plan은 전부 적용되거나 전부 거절된다
+- `BA-032-T13`: 운영 feed query 가 내는 순서가 apps/ai 와 공유하는 order fixture 와 같다
 
 FE 인계·완료 증거: 여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2099,7 +2100,7 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 
 - 선행: [BA-081](#ba-081), [BA-022](#ba-022), [BA-071](#ba-071)
 - 기능 ID: `FR-PUB-01`
-- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- API: `createPostImageUpload`, `createPost`
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: proposed upload intents/assets/post states · 자동 기술 검증 audit · S3 quarantine (승인 게이트 없음 · A-058)
 
@@ -2109,13 +2110,30 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 2. 격리 업로드→자동 기술 검증→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
 3. MIME/magic bytes·악성 파일·EXIF(A-057의 표준 파일 입력으로 들어온 촬영 파일이 GPS를 싣는 것이 전제다)·권리·신고/삭제 전파를 검증한다
 
+진행 상태(대조): **회수·철회의 쓰기 쪽이 아직 없다.** 계약의 post operation 은 `createPost`·`createPostImageUpload`·`getPost`·`savePost`·`unsavePost` 다섯뿐이고 **삭제·숨김·철회 operation 이 없다**. `PostStatus.HIDDEN` 은 값과 주석으로만 존재하고 그리로 옮기는 production 경로가 없다 — 지금 그 전이를 하는 것은 운영자가 DB 에서 하는 것이다. 그래서 `T3` 는 **읽기 쪽으로 좁혔고**(이미 발급된 cursor 가 회수된 post 를 건네지 않는다) 쓰기 쪽은 `T16` 으로 떼어 **증명되지 않은 채** 둔다. 절을 원래 문구로 두면 `integration-ready` 승격이 *"삭제·권리 철회가 구현돼 있고 반영된다"* 를 주장하게 된다.
+
 실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다. 게시물 작성은 제출 범위이므로 capability OFF 목록에 두지 않는다(A-058).
 
 필수 검증:
 
-- `BA-082-T1`: 타 owner presign 재사용·경로 조작·크기 초과·format spoof를 거부한다
+- `BA-082-T1`: 타 owner 의 upload ticket 은 소비할 수 없다
 - `BA-082-T2`: 기술 검증을 통과하지 못한 asset은 공개되지 않는다
-- `BA-082-T3`: 삭제/권리 철회가 기존 cursor·cache에서도 반영된다
+- `BA-082-T3`: 회수된 post 는 이미 발급된 cursor 로도 나오지 않는다
+- `BA-082-T4`: 촬영 좌표를 담은 metadata 는 정제를 살아남지 못한다
+- `BA-082-T5`: 실제 형식이 선언된 형식과 다른 바이트는 거절된다
+- `BA-082-T6`: 제공하지 않는 이미지 형식의 바이트는 거절된다
+- `BA-082-T7`: 어느 한 변이라도 상한을 넘는 이미지는 거절된다
+- `BA-082-T8`: 이미지가 없는 header 만의 바이트는 거절된다
+- `BA-082-T9`: 빈 업로드는 거절된다
+- `BA-082-T10`: 선언한 길이가 상한을 넘으면 서명 전에 거절된다
+- `BA-082-T11`: 0 이하의 선언 길이는 거절된다
+- `BA-082-T12`: 제공 어휘 밖의 형식은 서명 전에 거절된다
+- `BA-082-T13`: checksum 이 64자리 소문자 hex 가 아니면 거절된다
+- `BA-082-T14`: 서명된 key 는 owner 와 caller 가 고르지 않은 id 로만 이뤄진다
+- `BA-082-T15`: 한 ticket 은 최대 하나의 post 를 만든다
+- `BA-082-T16`: 회수된 게시물은 published_at 이 비워진 채 PUBLISHED 를 벗어난다
+- `BA-082-T17`: /posts·/feed 경로의 operation 은 계약이 선언한 Cache-Control 을 실제 응답으로도 보낸다
+- `BA-082-T18`: social module 은 feed 순위 gateway 를 이름으로 부르지 않는다
 
 FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2127,7 +2145,7 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - 기능 ID: `FR-OPT-02`, `FR-RTE-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `439:3104`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055)
+- 데이터·정책: time windows · scope-specific optimizer policy (경로 응답은 DB에 저장하지 않는다 · A-055). `V024` 가 열어 둔 *route snapshot 이 무엇인가* 는 이 카드가 닫는다 — route snapshot table 을 만들지 않으므로 `optimization_run_route_snapshots` 도 없다(migration 주석은 checksum 이 고정돼 정정할 수 없어 답을 여기 둔다). `V029.travel_minutes_delta` 는 분(int)이고 provider 는 초를 주므로 반올림 지점을 gateway 가 적는다 — 그 열의 `0` 은 이동시간이 안 변했다는 뜻이 아니다
 
 구현 순서:
 
@@ -2135,11 +2153,47 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 2. directed matrix의 누락/비대칭·영업 예외·예약 time window를 검증한다
 3. bounded search로 DAY/TRIP 후보와 route evidence를 만들고 기존 preview/decision engine으로 적용한다
 
-실패·안전 경계: 거리/속도로 임의 travel time을 성공 경로로 간주하지 않는다. 계산 budget 초과는 검증된 부분 해 또는 명확한 실패이며 잠금 완화는 없다.
+실패·안전 경계: leg 이든 dwell 이든 없는 시간을 만들어 성공 경로로 간주하지 않는다 — 거리/속도로 travel time 을 지어내는 것과 결측 소요시간을 0 으로 치는 것은 같은 결과를 낸다(둘 다 뒤 도착이 실제보다 이르면서 판정은 feasible 로 남는다). 계산 budget 초과는 검증된 부분 해 또는 명확한 실패이며 잠금 완화는 없다.
 
 필수 검증:
 
-- `BA-083-T1`: 불가능한 구간·비대칭·time window·모든 잠금 조합을 검증한다
+- `BA-083-T1`: 경로 공백을 만나면 그 뒤 stop 은 판정하지 않고 걸음을 멈춘다
+- `BA-083-T4`: 없는 leg 은 역방향 leg 으로 충족되지 않는다
+- `BA-083-T5`: provider 가 경로 없음이라 답한 쌍은 ROUTE_UNAVAILABLE 로 보고되며 ROUTE_ABSENT 가 아니다
+- `BA-083-T6`: routable 과 unroutable 로 동시에 선언된 쌍은 해소하지 않고 거절한다
+- `BA-083-T7`: leg 과 영업시간이 모두 알려진 하루는 계산된 시각에 끝난다
+- `BA-083-T8`: 아무도 검증하지 않은 날짜는 미검증이며 영업으로 읽지 않는다
+- `BA-083-T9`: 검증된 휴무는 미검증이 아니라 휴무로 보고한다
+- `BA-083-T10`: 개점 전 도착은 그 장소의 영업 창 밖이다
+- `BA-083-T11`: 폐점 시각에 아직 진행 중인 방문은 영업 창 밖이다
+- `BA-083-T12`: 도착 시각이 알려진 stop 은 영업시간이 거절한 것을 전부 보고한다
+- `BA-083-T13`: 다른 날짜를 지목하는 DATE 잠금은 그 하루를 거절한다
+- `BA-083-T14`: tolerance 를 넘겨 빗나간 TIME 잠금은 그 하루를 거절한다
+- `BA-083-T15`: tolerance 안에서 충족된 TIME 잠금은 그 하루를 거절하지 않는다
+- `BA-083-T16`: 다른 날짜에 잡힌 RESERVATION 은 그 하루를 거절한다
+- `BA-083-T17`: 예약 시작 이후의 도착은 그 하루를 거절한다
+- `BA-083-T18`: 예약보다 일찍 도착하면 먼저 시작하지 않고 기다린다
+- `BA-083-T19`: 예약 종료 이후까지 이어지는 방문은 그 하루를 거절한다
+- `BA-083-T20`: MUST_VISIT 은 시간에 대해 아무것도 말하지 않으므로 여기서 아무것도 거절하지 않는다
+- `BA-083-T21`: 자정을 넘기는 하루는 아침으로 되감기지 않고 넘침으로 끝난다
+- `BA-083-T22`: 경로 응답의 성공 코드만 Available 을 만들고 그 밖의 결과는 Absent 다
+- `BA-083-T23`: Leg.Unavailable 은 provider 의 경로 없음 어휘가 확인될 때까지 생산자가 없다
+- `BA-083-T24`: 경로 요청은 경도를 위도보다 먼저 싣고 자격증명을 header 로 보낸다
+- `BA-083-T25`: 자격증명이 없는 gateway 는 거절하며 모든 leg 을 미응답으로 보고하지 않는다
+- `BA-083-T27`: 한 stop 이 든 잠금은 전부 검사되며 첫째만 검사되지 않는다
+- `BA-083-T28`: 한 stop 의 같은 type 잠금 둘은 해소하지 않고 거절한다
+- `BA-083-T29`: 하루는 그 날짜의 item 에서 position 순으로 잠금과 영업시간과 함께 조립된다
+- `BA-083-T30`: trip 에 그 날짜 item 이 없으면 빈 하루로 조립하지 않고 거절한다
+- `BA-083-T31`: 첫 stop 에 시각이 없으면 기본값을 주지 않고 거절한다
+- `BA-083-T32`: stop 에 소요시간이 없으면 0 으로 치지 않고 거절한다
+- `BA-083-T33`: curated 읽기가 없는 장소는 창을 얻지 않고 부재로 남는다
+- `BA-083-T34`: feasible 한 permutation 이 더 짧으면 측정된 delta 와 함께 검증된다
+- `BA-083-T35`: permutation 이 아닌 제안은 그것으로 거절한다
+- `BA-083-T36`: 같거나 더 긴 순서는 개선 없음으로 거절한다
+- `BA-083-T37`: 하루의 규칙을 깨는 순서는 더 짧아도 거절한다
+- `BA-083-T38`: leg 이 불명인 하루는 개선 없음이 아니라 비교 불가로 거절한다
+- `BA-083-T39`: 기록되는 분보다 짧은 절약도 개선이다 — 판정은 반올림 전 durations 로 한다
+- `BA-083-T40`: 기록되는 분은 0 쪽으로 버린다
 - `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
 - `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
 
@@ -2165,15 +2219,27 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 
 필수 검증:
 
-- `BA-084-T1`: 유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다
-- `BA-084-T2`: timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다
-- `BA-084-T3`: user approval 전 trip mutation0과 model OFF 핵심 흐름을 검증한다
+- `BA-084-T1`: 유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다 — apps/ai REC coverage: `REC-LLM-02`(corpus 18건, family·verdict·locale 비공허 가드), `REC-LLM-01`(거절된 rewrite 의 template 복구)
+- `BA-084-T2`: timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다 — apps/ai REC coverage: `REC-LLM-03`(명명된 셋이 각각 template 로 끝난다), `REC-LLM-06`(그 이름들을 실제로 생산하는 매핑)
+- `BA-084-T3`: AI provider 가 꺼져 있어도 핵심 흐름이 template 로 완결된다 — apps/ai REC coverage: `REC-LLM-04`(기본값 NONE 과 그 wiring), `REC-LLM-01`(noop port 가 template 를 낸다)
+- `BA-084-T4`: AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다 — apps/ai REC coverage: `REC-LLM-04`(결측·공백 자격 증명과 wiring 우회)
+- `BA-084-T5`: 이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다 — apps/ai REC coverage: `REC-LLM-04`(Literal 과 wiring 두 층)
+- `BA-084-T6`: adapter 는 경계 package 에 있고 decision package 에서 도달 불가다 — apps/ai REC coverage: `REC-ARCH-01`(경계 package 분류와 도달 금지 규칙)
+- `BA-084-T7`: 모델에 건네는 것은 template 뿐이다 — apps/ai REC coverage: `REC-LLM-06`(messages 목록 고정·facts canary·system 턴 불변)
+- `BA-084-T8`: provider 실패는 종류와 무관하게 명명된 error 로 도착한다 — apps/ai REC coverage: `REC-LLM-06`(transport 8 case·malformed body 5 case)
+- `BA-084-T9`: 명명된 provider error 는 template 로 끝난다 — apps/ai REC coverage: `REC-LLM-03`(명명된 셋·무명 실패·취소 반례)
+- `BA-084-T10`: 키는 header 밖 어디에도 없다 — url·body·응답·log·예외 문구 — apps/ai REC coverage: `REC-LLM-06`(다섯 자리 각각 변이로 측정)
+- `BA-084-T11`: 선호 해석은 어휘 밖의 선호 코드를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(없는 코드·대소문자·공백·부분 오염)
+- `BA-084-T12`: 선호 해석은 중복된 선호 코드를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(weight 가 다른 같은 코드 둘)
+- `BA-084-T13`: 선호 해석은 경계 밖 weight 를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(floor 아래·ceiling 위·0)
+- `BA-084-T14`: 선호 해석은 자기 코드 목록을 갖지 않고 호출자가 준 어휘로만 판정한다 — apps/ai REC coverage: `REC-LLM-05`(같은 선택을 두 어휘에 물어 답이 갈린다)
+- `BA-084-T15`: 선호 해석은 아무것도 고르지 않은 선택을 선호 없음으로 읽지 않고 거절한다 — apps/ai REC coverage: `REC-LLM-05`(None 과 빈 목록 두 case)
 
 FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ### BA-085
 
-**알림 목록·읽음·대상 유효성** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
+**알림 목록·읽음·대상 유효성** — P1 / `verified` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-053](#ba-053), [BA-073](#ba-073)
 - 기능 ID: `FR-NOT-01`, `FR-NOT-02`
@@ -2224,6 +2290,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. 누락 시 원문 fallback과 번역 출처를 명시한다
 3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
 
+진행 상태(대조): **`V047` 은 provenance 열만 만들고 `KTO_ENG_SERVICE` registry 행은 `V048` 로 미룬다.** 그 행은 `stale_after_seconds`·공공누리 유형·`provider_schema_version` 을 값으로 요구하는데 **넷 다 실호출 전이라 미측정**이고, migration 은 적용되면 checksum 이 고정돼 **정정할 수 없다**. **`T4`·`T5` 는 계약 변경(`PlaceSummary` 의 locale provenance)을 요구해 [#310](https://github.com/yutakdv/Nullnull/issues/310) FE 승인 대기**다. **`T7`·`T8` 의 게이트가 발화하려면 생산자가 있어야 한다** — 유일한 production writer 는 `JdbcCanonicalCatalogStore` 이고 그 경로는 국문 ingest 다(test fixture writer 20개는 NULL provenance 라 게이트 밖이다). 그래서 **국문 ingest 가 provenance 를 쓴다**. 귀결: **`KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 수집된 국문 텍스트가 같이 막히고 `canonical_name` 으로 떨어진다.** 의도된 fail-closed 이고 P0 에 걸리는 반경이라 적어 둔다 — 대안(국문에 provenance 를 안 쓴다)은 **생산자 없는 가드**이고 이 저장소가 `place_hours`·`place_relations` 에서 두 번 겪은 모양이다. **`place_external_refs` 와 다르게 두는 이유**: ref 는 *신원*(이 place 가 KTO content 12345다)이라 약관이 바뀐다고 만료되지 않고, localization 은 *우리가 재배포하는 provider 산문*이라 재배포가 정확히 라이선스가 다루는 것이다.
+
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
 필수 검증:
@@ -2231,6 +2299,16 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T1`: 동일 POI 언어별 ID/날짜/수치 parity를 검증한다
 - `BA-086-T2`: 누락 번역 fallback·출처·권리 표기가 유지된다
 - `BA-086-T3`: source 변경/삭제 때 오래된 번역 노출을 차단한다
+- `BA-086-T4`: 요청 locale 의 행이 없으면 fallback 이 일어나고 응답이 그 텍스트가 어느 locale 에서 왔는지 말한다
+- `BA-086-T5`: fallback 으로 답할 때도 그 텍스트를 만든 source 의 attribution 이 유지된다
+- `BA-086-T6`: provenance 없는 localization 은 그 place 의 external ref 가 지나간 revision 을 가리켜도 계속 나간다
+- `BA-086-T7`: source 가 그 텍스트를 수집한 revision 을 지나가면 그 localization 은 나가지 않는다
+- `BA-086-T8`: source 가 더 이상 enabled 가 아니면 그 localization 은 나가지 않는다
+- `BA-086-T9`: localization provenance 는 네 열 전부이거나 전무다
+- `BA-086-T10`: 영문 dataset probe 는 우리 contentId 가 그 dataset 에서 풀리는지를 보고한다
+- `BA-086-T11`: 영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다
+- `BA-086-T12`: 캐시된 snapshot 이 현재가 아닌 source revision 을 들고 있으면 ingest 가 그것을 pin 하지 않고 거절한다
+- `BA-086-T13`: ingest 된 place 의 국문 텍스트는 읽기 게이트가 읽는 provenance 를 들고 있다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2294,7 +2372,7 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 
 ### BA-090
 
-**마지막 단계: 서울 Live adapter·area 매핑** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**마지막 단계: 서울 Live adapter·area 매핑** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-020](#ba-020), [BA-023](#ba-023), [BA-024](#ba-024), [BA-073](#ba-073)
 - 기능 ID: `FR-LIV-08`
@@ -2315,7 +2393,7 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 
 - `BA-090-T1`: 서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다
 - `BA-090-T2`: coverage 없는 POI를0 또는 임의 AREA 값으로 채우지 않는다
-- `BA-090-T3`: source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다
+- `BA-090-T3`: source 장애 중 trip CRUD 의 답이 장애 밖에서와 같다
 - `BA-090-T4`: provider 요청은 호출이 준 헤더만 싣는다
 - `BA-090-T5`: proxy 요청 URL 은 자격증명을 담지 않는다
 - `BA-090-T6`: 관측 시각은 제공자의 offset 없는 시각을 KST 로 읽은 것이다
@@ -2324,9 +2402,13 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T9`: 예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다
 - `BA-090-T10`: 제공자 플래그는 아는 값일 때만 통과한다
 - `BA-090-T11`: adapter 는 proxy 에 토큰을 헤더로 내고 받은 응답을 관측으로 정규화한다
-- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다
-- `BA-090-T13`: 거절된 서울 응답이 source_quality_incidents 에 기록된다
+- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않는다
+- `BA-090-T13`: 거절된 서울 응답은 해당 ValidationResult 로 collector run 에 기록된다
 - `BA-090-T14`: stale 한 서울 관측을 live 로 표시하지 않는다
+- `BA-090-T15`: provider 가 이름을 바꿔도 같은 행이 유지된다
+- `BA-090-T16`: 목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다
+- `BA-090-T17`: 검토된 provider 사건 window 안의 관측은 격리된다
+- `BA-090-T18`: source 장애 중 optimizer 의 답이 장애 밖에서와 같다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2349,16 +2431,27 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 3. relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다
 4. 09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
+진행 상태(대조): **`T5` 를 좁혔다.** 원래 문구는 *"다른 owner 의 cursor 는 거절된다"* 였는데 **Live 표면 전체에 cursor 가 없다** — `listLiveAreaPlaces` 는 page envelope 가 아니라 맨 배열을 내고 `getLivePlace` 는 단건이며 `queryLiveAreas` 의 요청에도 cursor 가 없다(계약 측정). **상류가 그 입력을 만들 수 없어 구조적으로 반증 불가인 절**이라 그대로 두면 증명할 방법이 없다. **그래서 지우지 않고 덫으로 바꿨다**: 지금 참인 사실(cursor 를 발급하지 않는다)을 응답 shape 로 고정하면, **Live 에 페이지네이션이 생기는 날 그 단언이 발화하고** 그때 owner 결속을 다시 세워야 한다는 것이 드러난다. **owner 별 cursor 거절 자체는 `BA-022-T2`·`BA-070-T1` 이 소유한 층**이고 이 카드가 그것을 다시 증명하지 않는다.
+
 실패·안전 경계: viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.
 
 필수 검증:
 
-- `BA-091-T1`: viewport 는 소수점 3자리·축별 최소 0.01도이고 그 밖은 거절된다
+- `BA-091-T1`: viewport 는 소수점 3자리를 넘으면 거절된다
 - `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
-- `BA-091-T3`: Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다
-- `BA-091-T4`: viewport 거절이 좌표를 로그·응답에 남기지 않는다
-- `BA-091-T5`: 다른 owner 의 cursor 는 거절된다
+- `BA-091-T3`: Live 에서 고른 장소를 후보로 저장해도 일정은 바뀌지 않는다
+- `BA-091-T4`: viewport 거절이 좌표를 로그에 남기지 않는다
+- `BA-091-T5`: Live 목록 응답은 cursor 를 발급하지 않는다
 - `BA-091-T6`: searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다
+- `BA-091-T7`: 좌표를 모르는 구역은 centroid 를 null 로 내보낸다
+- `BA-091-T8`: viewport 는 축별 0.01도 미만이거나 역전된 box 를 거절한다
+- `BA-091-T9`: 세계 밖 좌표를 담은 viewport 를 거절한다
+- `BA-091-T10`: viewport 거절 응답이 좌표를 담지 않는다
+- `BA-091-T11`: 장소에 붙인 구역 값은 그 mapping 의 mappingType 과 fallbackUsed 로 나간다
+- `BA-091-T12`: 장소에 붙인 구역 값의 confidence 는 coverage 의 것이고 source 의 것이 아니다
+- `BA-091-T13`: 같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다
+- `BA-091-T14`: 같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다
+- `BA-091-T15`: 두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2385,7 +2478,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-092-T1`: checksum/manifest 누락·capture window 밖·scrub 실패 replay를 거부한다
+- `BA-092-T1`: 승인 시점과 entry 목록이 다른 manifest 는 replay 로 쓰이지 않는다
+- `BA-092-T4`: capture window 밖의 관측을 담은 manifest 는 거절된다
+- `BA-092-T5`: 승인된 manifest 가 가리키는 snapshot 은 삭제되지 않는다
+- `BA-092-T6`: 승인된 manifest 와 그 entry 는 수정되지 않는다
+- `BA-092-T7`: scrub 방식을 실은 manifest 는 만들 수 없다 — 그 column 이 아직 없다
 - `BA-092-T2`: live↔replay 전환에서 데이터 namespace·label·comparison이 섞이지 않는다
 - `BA-092-T3`: 전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다
 
