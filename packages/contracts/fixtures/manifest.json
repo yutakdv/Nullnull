@@ -97,8 +97,8 @@
         "LivePlace",
         "LivePlaceDetail"
       ],
-      "count": 10,
-      "basis": "BA-091 Backend/AI 계약 제안. queryLiveAreas, listLiveAreaPlaces, getLivePlace의 요청·응답 예시 10건을 OpenAPI에 넣고 check-examples.mjs로 fixture와 정확히 고정했다. 서울 값은 숫자가 아닌 검토된 1~4 단계(A-060)이며 value/unit은 null이다. sourceRegistryVersion=2, normalizationVersion=seoul-live-area-v1, scopeLabel과 attribution은 V046 및 서버 projection을 따른다. LiveAreaReadIT와 LivePlaceApiIT가 실제 HTTP 응답의 단계·label·출처·mapping·comparisonReasonCode 등 핵심 필드를 대조했다. 지역 관측은 DIRECT, 장소에 표시한 값은 AREA/AREA_FALLBACK이고, 관측 없는 매핑의 crowd는 null·mappingType은 NONE이다. 이 예시의 날짜·UUID·장소 데이터는 합성이며 실제 서울 API capture나 전체 응답 일치 증거가 아니므로 serverVerified=false다. FE 승인은 미완료이며 packages/contracts/src/index.ts export, apps/web fixtures.test.ts 등록, 화면 구현은 FE 인계다. 서울의 단계는 각 지역의 과거 평균에 상대적이므로 지역 간 혼잡 비교에 사용하지 않는다. 위치 좌표와 지역 경계는 공급자가 제공하지 않아 null이다.",
+      "count": 11,
+      "basis": "BA-091 Backend/AI 계약 제안. queryLiveAreas, listLiveAreaPlaces, getLivePlace의 요청·응답 예시 11건을 OpenAPI에 넣고 check-examples.mjs로 fixture와 정확히 고정했다. 서울 값은 숫자가 아닌 검토된 1~4 단계(A-060)이며 value/unit은 null이다. sourceRegistryVersion=2, normalizationVersion=seoul-live-area-v1, scopeLabel과 attribution은 V046 및 서버 projection을 따른다. LiveAreaReadIT와 LivePlaceApiIT가 실제 HTTP 응답의 단계·label·출처·mapping·comparisonReasonCode 등 핵심 필드를 대조했다. 지역 관측은 DIRECT, 장소에 표시한 값은 AREA/AREA_FALLBACK이고, 관측 없는 매핑의 crowd는 null·mappingType은 NONE이다. 이 예시의 날짜·UUID·장소 데이터는 합성이며 실제 서울 API capture나 전체 응답 일치 증거가 아니므로 serverVerified=false다. 11건은 packages/contracts/src/index.ts로 export하고 apps/web fixtures.test.ts에서 모든 응답과 LivePlace 배열을 검사한다. FE 승인은 미완료이며 화면 의미와 persistent badge 구현은 FE 검토가 필요하다. 서울의 단계는 각 지역의 과거 평균에 상대적이므로 지역 간 혼잡 비교에 사용하지 않는다. 위치 좌표와 지역 경계는 공급자가 제공하지 않아 null이다.",
       "serverVerified": false
     }
   }

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { readFileSync } from 'node:fs';
 import type { components } from '@nullnull/api-client';
 import {
   candidateFixtures,
+  liveFixtures,
   placeFixtures,
   sessionFixtures,
   tripFixtures,
@@ -23,10 +23,18 @@ type LiveAreaResult = components['schemas']['LiveAreaResult'];
 type LivePlace = components['schemas']['LivePlace'];
 type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
 
-function liveFixture<T>(name: string): T {
-  return JSON.parse(
-    readFileSync(`../../packages/contracts/fixtures/live/${name}.json`, 'utf8'),
-  ) as T;
+const LIVE_FIXTURES = {
+  'area-result-live': liveFixtures.areaResultLive,
+  'area-result-unavailable': liveFixtures.areaResultUnavailable,
+  'area-result-stale': liveFixtures.areaResultStale,
+  'area-places': liveFixtures.areaPlaces,
+  'place-detail-live': liveFixtures.placeDetailLive,
+  'place-detail-related-none': liveFixtures.placeDetailRelatedNone,
+  'place-detail-related-checking': liveFixtures.placeDetailRelatedChecking,
+} as const;
+
+function liveFixture<T>(name: keyof typeof LIVE_FIXTURES): T {
+  return structuredClone(LIVE_FIXTURES[name]) as T;
 }
 
 function renderLive(initialEntry = '/live') {

@@ -4,6 +4,18 @@
 // packages/contracts/__tests__/fixtures.test.ts. See README.md for the swap plan.
 import type { components } from "@nullnull/api-client/types";
 
+import liveAreaQuery from "../fixtures/live/area-query.json" with { type: "json" };
+import liveAreaResultLive from "../fixtures/live/area-result-live.json" with { type: "json" };
+import liveAreaResultReplay from "../fixtures/live/area-result-replay.json" with { type: "json" };
+import liveAreaResultStale from "../fixtures/live/area-result-stale.json" with { type: "json" };
+import liveAreaResultUnavailable from "../fixtures/live/area-result-unavailable.json" with { type: "json" };
+import liveAreaResultIncident from "../fixtures/live/area-result-incident.json" with { type: "json" };
+import liveAreaPlaces from "../fixtures/live/area-places.json" with { type: "json" };
+import liveAreaPlacesUnavailable from "../fixtures/live/area-places-unavailable.json" with { type: "json" };
+import livePlaceDetailLive from "../fixtures/live/place-detail-live.json" with { type: "json" };
+import livePlaceDetailRelatedChecking from "../fixtures/live/place-detail-related-checking.json" with { type: "json" };
+import livePlaceDetailRelatedNone from "../fixtures/live/place-detail-related-none.json" with { type: "json" };
+
 import invalidRequest from "../fixtures/problems/invalid-request.json" with { type: "json" };
 import unauthorized from "../fixtures/problems/unauthorized.json" with { type: "json" };
 import forbidden from "../fixtures/problems/forbidden.json" with { type: "json" };
@@ -375,4 +387,18 @@ export const crowdFixtures = {
   // differs from forecastQuery.items[0].placeId: item i answers placeIds[i], by position, never by id.
   forecastQueryRequest:
     crowdForecastQueryRequest as components["schemas"]["PlaceCrowdForecastQuery"],
+};
+
+export const liveFixtures = {
+  areaQuery: liveAreaQuery as components["schemas"]["LiveAreaQuery"],
+  areaResultLive: liveAreaResultLive as components["schemas"]["LiveAreaResult"],
+  areaResultReplay: liveAreaResultReplay as components["schemas"]["LiveAreaResult"],
+  areaResultStale: liveAreaResultStale as components["schemas"]["LiveAreaResult"],
+  areaResultUnavailable: liveAreaResultUnavailable as components["schemas"]["LiveAreaResult"],
+  areaResultIncident: liveAreaResultIncident as components["schemas"]["LiveAreaResult"],
+  areaPlaces: liveAreaPlaces as components["schemas"]["LivePlace"][],
+  areaPlacesUnavailable: liveAreaPlacesUnavailable as components["schemas"]["LivePlace"][],
+  placeDetailLive: livePlaceDetailLive as components["schemas"]["LivePlaceDetail"],
+  placeDetailRelatedChecking: livePlaceDetailRelatedChecking as components["schemas"]["LivePlaceDetail"],
+  placeDetailRelatedNone: livePlaceDetailRelatedNone as components["schemas"]["LivePlaceDetail"],
 };
