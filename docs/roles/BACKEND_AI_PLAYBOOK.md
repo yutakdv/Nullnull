@@ -2203,19 +2203,19 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 
 필수 검증:
 
-- `BA-084-T1`: 유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다
-- `BA-084-T2`: timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다
-- `BA-084-T3`: AI provider 가 꺼져 있어도 핵심 흐름이 template 로 완결된다
-- `BA-084-T11`: 선호 해석은 어휘 밖의 선호 코드를 거절한다
-- `BA-084-T12`: 선호 해석은 중복된 선호 코드를 거절한다
-- `BA-084-T13`: 선호 해석은 경계 밖 weight 를 거절한다
-- `BA-084-T4`: AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다
-- `BA-084-T5`: 이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다
-- `BA-084-T6`: adapter 는 경계 package 에 있고 decision package 에서 도달 불가다
-- `BA-084-T7`: 모델에 건네는 것은 template 뿐이다
-- `BA-084-T8`: provider 실패는 종류와 무관하게 명명된 error 로 도착한다
-- `BA-084-T9`: 명명된 provider error 는 template 로 끝난다
-- `BA-084-T10`: 키는 header 밖 어디에도 없다 — url·body·응답·log·예외 문구
+- `BA-084-T1`: 유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다 — apps/ai REC coverage: `REC-LLM-02`(corpus 18건, family·verdict·locale 비공허 가드), `REC-LLM-01`(거절된 rewrite 의 template 복구)
+- `BA-084-T2`: timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다 — apps/ai REC coverage: `REC-LLM-03`(명명된 셋이 각각 template 로 끝난다), `REC-LLM-06`(그 이름들을 실제로 생산하는 매핑)
+- `BA-084-T3`: AI provider 가 꺼져 있어도 핵심 흐름이 template 로 완결된다 — apps/ai REC coverage: `REC-LLM-04`(기본값 NONE 과 그 wiring), `REC-LLM-01`(noop port 가 template 를 낸다)
+- `BA-084-T4`: AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다 — apps/ai REC coverage: `REC-LLM-04`(결측·공백 자격 증명과 wiring 우회)
+- `BA-084-T5`: 이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다 — apps/ai REC coverage: `REC-LLM-04`(Literal 과 wiring 두 층)
+- `BA-084-T6`: adapter 는 경계 package 에 있고 decision package 에서 도달 불가다 — apps/ai REC coverage: `REC-ARCH-01`(경계 package 분류와 도달 금지 규칙)
+- `BA-084-T7`: 모델에 건네는 것은 template 뿐이다 — apps/ai REC coverage: `REC-LLM-06`(messages 목록 고정·facts canary·system 턴 불변)
+- `BA-084-T8`: provider 실패는 종류와 무관하게 명명된 error 로 도착한다 — apps/ai REC coverage: `REC-LLM-06`(transport 8 case·malformed body 5 case)
+- `BA-084-T9`: 명명된 provider error 는 template 로 끝난다 — apps/ai REC coverage: `REC-LLM-03`(명명된 셋·무명 실패·취소 반례)
+- `BA-084-T10`: 키는 header 밖 어디에도 없다 — url·body·응답·log·예외 문구 — apps/ai REC coverage: `REC-LLM-06`(다섯 자리 각각 변이로 측정)
+- `BA-084-T11`: 선호 해석은 어휘 밖의 선호 코드를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(없는 코드·대소문자·공백·부분 오염)
+- `BA-084-T12`: 선호 해석은 중복된 선호 코드를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(weight 가 다른 같은 코드 둘)
+- `BA-084-T13`: 선호 해석은 경계 밖 weight 를 거절한다 — apps/ai REC coverage: `REC-LLM-05`(floor 아래·ceiling 위·0)
 
 FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

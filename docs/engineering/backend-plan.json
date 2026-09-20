@@ -3080,55 +3080,136 @@
       "tests": [
         {
           "id": "BA-084-T1",
-          "assertion": "유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다"
+          "assertion": "유해 provider 지시·임의 ID/숫자/영업 주장 출력을 거부한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-02",
+              "REC-LLM-01"
+            ],
+            "reason": "절이 열거한 셋이 corpus 18건에 실제 case 로 있다 — 유해 provider 지시는 INJECTION 5건, 임의 ID 는 그중 위조 UUID(`ko-injection-with-identifier`)와 링크(`en-injection-with-link`), 임의 숫자는 HALLUCINATION 의 `ko-unknown-number`(대기 35분)·`ko-year-from-the-source-line`, 영업 주장은 `ko/en-opening-hours` 다. REC-LLM-02 가 그 corpus 를 `explain.validator.accepts` 로 재생하고, 빈 bucket 으로 공허해지는 것을 `test_every_family_verdict_and_locale_is_represented`(세 family·두 verdict·두 locale·family 당 2건 이상)가 막는다. INJECTION 에 ACCEPT 두 건이 있는 것이 판정 기준을 *문구*가 아니라 *더해진 사실*로 고정한다. 거절된 rewrite 가 template 로 돌아가는 쪽은 REC-LLM-01 이 덮는다."
+          }
         },
         {
           "id": "BA-084-T2",
-          "assertion": "timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다"
+          "assertion": "timeout·invalid JSON·budget 초과 시 결정적 fallback이 동작한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-03",
+              "REC-LLM-06"
+            ],
+            "reason": "절이 명명한 셋이 REC-LLM-03 의 parametrize 세 case 와 정확히 같다(`ProviderTimeoutError`·`ProviderMalformedOutputError`·`ProviderBudgetExceededError` 각각이 `(render(FACTS), \"TEMPLATE\")` 로 끝난다). 그 이름들이 실제로 생산되는 쪽은 REC-LLM-06 이다 — invalid JSON 은 `test_a_body_this_adapter_cannot_read_is_named_as_such` 5 case, budget 은 429 insufficient_quota 와 402 billing 매핑이다. 둘을 같이 인용해야 *원인 → 명명 → fallback* 사슬이 닫힌다."
+          }
         },
         {
           "id": "BA-084-T3",
-          "assertion": "AI provider 가 꺼져 있어도 핵심 흐름이 template 로 완결된다"
-        },
-        {
-          "id": "BA-084-T11",
-          "assertion": "선호 해석은 어휘 밖의 선호 코드를 거절한다"
-        },
-        {
-          "id": "BA-084-T12",
-          "assertion": "선호 해석은 중복된 선호 코드를 거절한다"
-        },
-        {
-          "id": "BA-084-T13",
-          "assertion": "선호 해석은 경계 밖 weight 를 거절한다"
+          "assertion": "AI provider 가 꺼져 있어도 핵심 흐름이 template 로 완결된다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-04",
+              "REC-LLM-01"
+            ],
+            "reason": "기본값이 NONE 인 것과 그 wiring 이 답을 모델에 귀속시키지 않는 것은 REC-LLM-04(`test_the_default_is_still_no_provider`, `test_the_default_provider_never_attributes_an_answer_to_a_model`), 그 port 가 실제로 template 를 내는 것은 REC-LLM-01(`test_the_noop_port_answers_with_the_template`)이다. 제출 profile 이 쓰는 설정이 정확히 이 상태다."
+          }
         },
         {
           "id": "BA-084-T4",
-          "assertion": "AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다"
+          "assertion": "AI_PROVIDER 가 이름을 대면 자격 증명 없이는 startup 에서 실패한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-04"
+            ],
+            "reason": "`test_a_named_provider_without_its_credentials_fails_at_startup`(AI_API_KEY·AI_MODEL_ID 각각 결측)과 `test_a_blank_credential_counts_as_missing`(빈 문자열·공백 — compose·task definition 의 미설정이 도착하는 모양이고 `.env.example` 이 `AI_API_KEY=` 로 선언한다), 그리고 validation 을 우회해도 막는 `test_the_wiring_refuses_openai_without_credentials_even_past_validation` 이 덮는다. 측정(2026-09-20): credential validator 를 끄면 red=4 이고 정확히 그 넷이다."
+          }
         },
         {
           "id": "BA-084-T5",
-          "assertion": "이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다"
+          "assertion": "이 build 가 섬길 수 없는 provider 이름은 startup 에서 실패한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-04"
+            ],
+            "reason": "`test_a_name_the_literal_does_not_know_fails_at_startup`(이 build 가 모르는 이름)과 `test_the_wiring_refuses_a_provider_it_has_no_port_for`(Literal 을 지나온 값에 port 가 없을 때) 두 층이다. **이 절은 2026-09-20 까지 발화하지 않았다**: 자격 증명 없는 `ANTHROPIC` 은 credential validator 가 먼저 거절하고 그 message(`AI_API_KEY is required when AI_PROVIDER is ANTHROPIC`)도 `match=\"AI_PROVIDER\"` 를 만족해서, `Literal` 을 `str` 로 바꿔도 572개가 전부 초록이었다. 자격 증명을 쥐여 주어 둘째 이유를 없앴고 같은 변이에 지금 red=1(반경 1)이다."
+          }
         },
         {
           "id": "BA-084-T6",
-          "assertion": "adapter 는 경계 package 에 있고 decision package 에서 도달 불가다"
+          "assertion": "adapter 는 경계 package 에 있고 decision package 에서 도달 불가다",
+          "recCoverage": {
+            "ids": [
+              "REC-ARCH-01"
+            ],
+            "reason": "앞절(경계 package 에 있다)은 `test_every_package_under_src_is_classified_as_pure_or_exempt` — `provider` 가 사유와 함께 IMPURE_PACKAGES 에 있고 분류되지 않은 package 는 그 자리에서 거절된다. 뒷절(도달 불가)은 **2026-09-20 까지 장치가 없었다**: `explain/service.py` 에 `from nullnull_ai.provider.openai import ...` 를 넣어도 572개가 초록이었고, 같은 파일에 `import urllib.request` 를 넣으면 반경 1로 빨갰다 — scan 은 그 파일을 덮고 있었고 없던 것은 규칙이다. 기존 장치가 막는 것은 adapter 를 *옮기는* 것이고 이 절은 *도달*이다. 지금은 `test_module_does_not_reach_into_a_boundary_package` 가 재고 심은 위반 5건과 허용 방향 대조가 붙어 있다."
+          }
         },
         {
           "id": "BA-084-T7",
-          "assertion": "모델에 건네는 것은 template 뿐이다"
+          "assertion": "모델에 건네는 것은 template 뿐이다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-06"
+            ],
+            "reason": "`test_the_model_is_handed_the_template_and_nothing_else` 가 나가는 바이트에서 messages 목록 전체를 고정하고 template 이 렌더하지 않는 facts 값 canary 가 body 어디에도 없음을 단언한다. `test_the_system_turn_is_the_same_whatever_the_request_carries` 는 서로 다른 두 facts 의 system 턴이 동일함을 비교로 잰다(private 상수와 대조하지 않는 이유는 `_SYSTEM + fact` 도 그 비교를 통과하기 때문이다). **2026-09-20 까지 user 턴만 보고 있었다** — system 턴에 facts 를 실으면 red=0 이었고 지금 같은 변이에 red=2, user 턴 변이는 red=1 로 유지된다."
+          }
         },
         {
           "id": "BA-084-T8",
-          "assertion": "provider 실패는 종류와 무관하게 명명된 error 로 도착한다"
+          "assertion": "provider 실패는 종류와 무관하게 명명된 error 로 도착한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-06"
+            ],
+            "reason": "`test_every_transport_failure_arrives_as_a_named_provider_error` 8 case 가 실제 transport 를 monkeypatch 해 매핑을 재고(timeout·wrapped timeout·unreachable·quota·billing·rate limit·500·401), `test_a_body_this_adapter_cannot_read_is_named_as_such` 5 case 가 읽을 수 없는 body 를 같은 어휘로 만든다. `test_the_named_failures_are_one_family_the_adapter_can_catch` 가 셋이 `ProviderError` 아래 한 family 임을 고정해 호출자가 하나로 잡을 수 있음을 보장한다."
+          }
         },
         {
           "id": "BA-084-T9",
-          "assertion": "명명된 provider error 는 template 로 끝난다"
+          "assertion": "명명된 provider error 는 template 로 끝난다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-03"
+            ],
+            "reason": "`test_each_named_provider_failure_answers_with_the_template` 이 명명된 셋 각각에 대해 결과가 `(render(FACTS), \"TEMPLATE\")` 임을 단언한다. 어휘가 *살아남는 오류 목록*으로 오독되지 않도록 `test_a_failure_the_vocabulary_does_not_name_also_answers_with_the_template` 이 이름 없는 실패도 같은 자리로 보내고, `test_a_cancellation_is_not_turned_into_an_answer` 가 반대 방향을 고정한다 — 종료 중인 process 가 시도한 적 없는 문장을 답으로 보고하면 안 된다."
+          }
         },
         {
           "id": "BA-084-T10",
-          "assertion": "키는 header 밖 어디에도 없다 — url·body·응답·log·예외 문구"
+          "assertion": "키는 header 밖 어디에도 없다 — url·body·응답·log·예외 문구",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-06"
+            ],
+            "reason": "절이 열거한 다섯 자리를 각각 변이로 쟀다(2026-09-20): url red=1 · body red=1(둘 다 `test_the_key_travels_in_the_header_and_nowhere_else`) · 응답 red=1(`test_an_answer_comes_back_as_the_sentence`) · log red=4 와 예외 문구 red=1(`test_no_failure_puts_the_key_in_its_message_or_the_logs`, str·repr·__cause__·caplog 를 함께 본다). canary 는 우연일 수 없는 고유값이고, log 절은 오늘 아무것도 로깅하지 않는 코드에 대한 회귀 가드다 — `logger.info(f\"calling {headers}\")` 가 들어오는 날 발화한다."
+          }
+        },
+        {
+          "id": "BA-084-T11",
+          "assertion": "선호 해석은 어휘 밖의 선호 코드를 거절한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-05"
+            ],
+            "reason": "`accepts` 의 `item.code not in vocabulary.codes` 분기다. `test_a_selection_the_vocabulary_cannot_say_is_refused` 의 네 case 가 그것을 민다 — 없는 코드(`DIORITE`), 대소문자만 다른 같은 코드(`aurora`), 공백이 붙은 코드(` AURORA`), 그리고 좋은 항목이 나쁜 항목을 업고 가지 못한다(`AURORA`+`DIORITE`). 뒤의 둘이 중요한 이유는 이 package 가 **정규화를 하지 않기** 때문이다 — 다듬어 통과시키는 것은 traveller 가 하지 않은 답을 만드는 조용한 fallback 이고 validator docstring 이 그렇게 적는다."
+          }
+        },
+        {
+          "id": "BA-084-T12",
+          "assertion": "선호 해석은 중복된 선호 코드를 거절한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-05"
+            ],
+            "reason": "`accepts` 의 `item.code in seen` 분기이고 같은 parametrize 의 `AURORA`(weight 3) + `AURORA`(weight 4) case 가 민다. **두 weight 가 다른 것이 이 case 의 요점이다** — 같은 weight 였다면 집합으로 접어 통과시키는 구현도 이 절을 만족한다."
+          }
+        },
+        {
+          "id": "BA-084-T13",
+          "assertion": "선호 해석은 경계 밖 weight 를 거절한다",
+          "recCoverage": {
+            "ids": [
+              "REC-LLM-05"
+            ],
+            "reason": "`accepts` 의 `not vocabulary.min_weight <= weight <= vocabulary.max_weight` 분기. 같은 parametrize 의 세 case 가 민다 — floor 아래(1), ceiling 위(5), bounds 가 허용하지 않는 0. corpus 의 vocabulary 가 `min_weight=2, max_weight=4` 로 **계약의 1..5 가 아닌 것이 의도**이며, 그래서 하드코딩된 범위를 가진 validator 는 이 절을 통과하지 못한다."
+          }
         }
       ],
       "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy.",
