@@ -52,6 +52,8 @@
     "REC-JOB-01",
     "REC-JOB-02",
     "REC-LLM-01",
+    "REC-LLM-02",
+    "REC-LLM-03",
     "REC-ARCH-01",
     "REC-DRAFT-01",
     "REC-DRAFT-02",
@@ -109,6 +111,16 @@
       "id": "REC-LLM-01",
       "suite": "pytest",
       "path": "tests/explain/test_service.py"
+    },
+    {
+      "id": "REC-LLM-02",
+      "suite": "pytest",
+      "path": "tests/recommendation/test_llm_corpus.py"
+    },
+    {
+      "id": "REC-LLM-03",
+      "suite": "pytest",
+      "path": "tests/explain/test_provider_failures.py"
     },
     {
       "id": "REC-ARCH-01",
@@ -225,6 +237,13 @@
       "path": "tests/recommendation/fixtures/feed-order-cases.json",
       "sha256": "0f7e5687ed43866b77a1f908628385ec892473bd23e6b86a49ef0e50c1bda76c",
       "kind": "FEED",
+      "dataOrigin": "SYNTHETIC"
+    },
+    {
+      "id": "llm-output-corpus",
+      "path": "tests/recommendation/fixtures/llm-output-corpus.json",
+      "sha256": "d5cbd7fac1012ae110799e1a828c56c2fdbcf707bee21421b080d6c6e99f7c36",
+      "kind": "LLM",
       "dataOrigin": "SYNTHETIC"
     }
   ],

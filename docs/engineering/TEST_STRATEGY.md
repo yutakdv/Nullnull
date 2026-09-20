@@ -479,6 +479,8 @@ property test는 고정 seed 목록과 실패 시 재현 seed를 기록한다. �
 | REC-JOB-01 | worker crash·lease 만료·오래된 worker 지연 완료 | 현재 lease만 완료 commit, proposal 중복 0 | integration |
 | REC-JOB-02 | source incident·policy 철회와 APPLY 경합 | 정해진 transaction 순서, 철회 후 신규 적용 차단 | integration |
 | REC-LLM-01 | 모델 timeout·잘못된 ID·추가 수치·prompt injection | 검증 template 복구, 근거 외 claim·mutation 0 | fake adapter + golden |
+| REC-LLM-02 | 등록된 corpus(KO/EN)의 hallucination·prompt injection 출력 | 근거 밖 수치·ID·link·영업/혼잡/경로 claim 거부, 충실한 문장은 통과 | apps/ai fixture corpus |
+| REC-LLM-03 | provider timeout·읽을 수 없는 출력·budget 거부 | 세 실패 모두 결정적 template fallback, 취소는 삼키지 않음 | fake adapter |
 | REC-ARCH-01 | domain에서 repository/HTTP/LLM 접근, cross-module JPA import | 의존 규칙 위반 시 실패 | architecture test |
 
 P0 LLM 기능이 OFF여도 결정적 template와 OFF 경로는 검증한다. 가짜 모델 adapter로 실패를 재현하며 PR에서 실제 모델 API를 호출하지 않는다.
