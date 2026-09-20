@@ -88,6 +88,16 @@ const FIXTURE_OF = {
   matchNone: 'candidates/match-none.json',
   matchUnknown: 'candidates/match-unknown.json',
   matchChecking: 'candidates/match-checking.json',
+  liveAreaQuery: 'live/area-query.json',
+  liveAreasLive: 'live/area-result-live.json',
+  liveAreasStale: 'live/area-result-stale.json',
+  liveAreasIncident: 'live/area-result-incident.json',
+  liveAreasUnavailable: 'live/area-result-unavailable.json',
+  liveAreaPlaces: 'live/area-places.json',
+  liveAreaPlacesUnavailable: 'live/area-places-unavailable.json',
+  livePlaceDetail: 'live/place-detail-live.json',
+  livePlaceRelatedNone: 'live/place-detail-related-none.json',
+  livePlaceRelatedChecking: 'live/place-detail-related-checking.json',
 };
 
 const ajv = new Ajv2020({ strict: false, allErrors: true, logger: false });

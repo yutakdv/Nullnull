@@ -130,7 +130,7 @@ public class CrowdProvenanceProjection {
     }
 
     private static String label(CrowdForecastQuery.Snapshot snapshot, SourceState responseState) {
-        if (responseState == SourceState.STALE) {
+        if (responseState == SourceState.STALE && snapshot.sourceState() == SourceState.FORECAST) {
             return "만료된 관광지 집중률 예측";
         }
         if (snapshot.sourceState() == SourceState.FORECAST) {

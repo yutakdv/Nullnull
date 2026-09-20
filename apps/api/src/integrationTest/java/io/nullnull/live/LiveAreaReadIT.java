@@ -13,6 +13,8 @@ import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.sql.Timestamp;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -107,6 +109,8 @@ class LiveAreaReadIT {
         // The freshness wording travels with it, so a client reading only the provenance sees it too.
         assertThat(provenanceOf(body, expired).get("freshness").asString()).isEqualTo("STALE");
         assertThat(provenanceOf(body, fresh).get("freshness").asString()).isEqualTo("FRESH");
+        assertThat(crowdOf(body, expired).get("label").asString())
+                .isEqualTo("서울 주요 장소의 실시간 인구 혼잡도 수준");
     }
 
     @Test
@@ -132,6 +136,17 @@ class LiveAreaReadIT {
         assertThat(crowd.get("provenance").get("qualityFlags").toString()).doesNotContain("SCHEMA_DRIFT");
         // Still no number: the stage is published, the value is a range we do not reduce.
         assertThat(crowd.get("value").isNull()).isTrue();
+
+        JsonNode example = JSON.readTree(Files.readString(Path.of("..", "..", "packages", "contracts",
+                "fixtures", "live", "area-result-live.json"))).get("areas").get(0).get("crowd");
+        assertThat(example.get("ordinalLevel")).isEqualTo(crowd.get("ordinalLevel"));
+        assertThat(example.get("label")).isEqualTo(crowd.get("label"));
+        for (String field : List.of("sourceRegistryVersion", "normalizationVersion", "confidence",
+                "attributionShort", "observedAtSkewSeconds", "scopeLabel", "mappingType",
+                "comparisonReasonCode")) {
+            assertThat(example.get("provenance").get(field)).as("Live example %s", field)
+                    .isEqualTo(crowd.get("provenance").get(field));
+        }
     }
 
     @Test
