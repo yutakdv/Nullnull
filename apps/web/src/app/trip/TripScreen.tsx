@@ -211,7 +211,11 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
       aria-labelledby="trip-heading"
     >
       <header className={styles.header}>
-        <div className={styles.headRow}>
+        <div
+          className={`${styles.headRow} ${
+            mode === 'view' && !editingTitle ? styles.viewHeadRow : ''
+          }`}
+        >
           <h1 className={editingTitle ? styles.srOnly : styles.title} id="trip-heading">
             {trip.title}
           </h1>
@@ -262,7 +266,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
           ) : mode === 'view' ? (
             <button
               aria-label={t('trip.titleEdit')}
-              className={styles.titleIconButton}
+              className={`${styles.titleIconButton} ${styles.titleEditButton}`}
               onClick={beginTitleEdit}
               ref={titleEditButton}
               type="button"

@@ -288,6 +288,42 @@ test.describe('app shell', () => {
     expect(bounds?.height).toBe(178);
   });
 
+  test('S07 keeps a long trip title clear of its edit and D-day controls', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    const tripPath = await createSeededTrip(page);
+    await page.goto(tripPath);
+
+    const hero = page
+      .getByRole('heading', { level: 1 })
+      .locator('xpath=ancestor::header');
+    await hero.getByRole('button', { name: /여행 이름 수정|Edit trip name/ }).click();
+    await hero.getByRole('textbox').fill('가'.repeat(100));
+    await hero.getByRole('button', { name: /저장|Save/ }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: '가'.repeat(100) }),
+    ).toBeVisible();
+
+    await page.setViewportSize({ width: 180, height: 500 });
+    const headingBounds = await page.getByRole('heading', { level: 1 }).boundingBox();
+    const editBounds = await hero
+      .getByRole('button', { name: /여행 이름 수정|Edit trip name/ })
+      .boundingBox();
+    const ddayBounds = await hero.locator('[class*="dday"]').boundingBox();
+
+    expect(editBounds?.width).toBe(44);
+    expect(editBounds?.height).toBe(44);
+    expect(boxesOverlap(headingBounds, editBounds)).toBe(false);
+    expect(boxesOverlap(editBounds, ddayBounds)).toBe(false);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(180);
+  });
+
   test('S14 uses the approved profile type and icon scale', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await page.addInitScript(() => {
@@ -360,6 +396,19 @@ test.describe('app shell', () => {
     expect(Math.abs(countCenter - deleteCenter)).toBeLessThanOrEqual(0.5);
   });
 });
+
+function boxesOverlap(
+  first: null | { x: number; y: number; width: number; height: number },
+  second: null | { x: number; y: number; width: number; height: number },
+) {
+  if (!first || !second) return true;
+  return !(
+    first.x + first.width <= second.x ||
+    second.x + second.width <= first.x ||
+    first.y + first.height <= second.y ||
+    second.y + second.height <= first.y
+  );
+}
 
 // These run against the built app and a real API container, with no mocks. The
 // unit suite covers behaviour; what only this environment can prove is that the
