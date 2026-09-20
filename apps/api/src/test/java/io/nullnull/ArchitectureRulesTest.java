@@ -60,14 +60,24 @@ class ArchitectureRulesTest {
      * wired FeedFallback without it would be a silent hole.
      */
     private static final java.util.Map<String, String> AWAITING_THEIR_SLICE = java.util.Map.of(
-            // Both labels said "BA-050 feed slice" and both were wrong, in different ways. BA-050 has
-            // no feed in it at all - it is the optimization run - and the P0 feed is fixed order by
-            // its own card's title, so the slice that first calls rankFeed is BA-080, which is P1.
             // RunFingerprint and ProposalRevalidator were listed here for BA-051, and BA-051 now calls
             // both from OptimizeItemHandler - so their lines are gone rather than kept as paperwork.
             // Deleting them is the point of the list: a name stays only while nothing in production
             // calls the class, and this map shrinking is what "the slice arrived" looks like.
-            "FeedFallback", "BA-080 ranked feed slice");
+            //
+            // FeedFallback's label has now been wrong TWICE and this is the third attempt. It said
+            // "BA-050 feed slice" (BA-050 is the optimization run and has no feed in it), then
+            // "BA-080 ranked feed slice" - and BA-080 has since been scoped to feed FILTERS, which
+            // do not call rankFeed, so that one went stale too.
+            //
+            // The reason it keeps going stale is visible in the assertion below: only the KEY SET is
+            // checked against the uncalled classes, and the value is asserted non-blank and nothing
+            // more. No card ID here can be verified by anything. So this one names no card: what is
+            // true today is that re-ranking has no card at all - RECOMMENDATION_ALGORITHM.md §5.1
+            // defers re-ordering to P2 - and a label that says so cannot go stale the way a card ID
+            // does. The line still disappears the day something in production calls the class, which
+            // is the only part of this entry a test can see.
+            "FeedFallback", "no card yet - re-ranking is deferred to P2 (RECOMMENDATION_ALGORITHM.md 5.1)");
 
     @Test
     @DisplayName("REC-ARCH-01 an uncalled recommendation service names the slice that will call it")

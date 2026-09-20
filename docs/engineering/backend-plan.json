@@ -1294,6 +1294,10 @@
         {
           "id": "BA-032-T4",
           "assertion": "curation plan은 전부 적용되거나 전부 거절된다"
+        },
+        {
+          "id": "BA-032-T13",
+          "assertion": "운영 feed query 가 내는 순서가 apps/ai 와 공유하는 order fixture 와 같다"
         }
       ],
       "handoff": "여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls.",
@@ -2826,7 +2830,10 @@
         "BA-022",
         "BA-071"
       ],
-      "operations": [],
+      "operations": [
+        "createPostImageUpload",
+        "createPost"
+      ],
       "featureIds": [
         "FR-PUB-01"
       ],
@@ -3195,7 +3202,7 @@
         },
         {
           "id": "BA-090-T3",
-          "assertion": "source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다"
+          "assertion": "source 장애 중 trip CRUD 의 답이 장애 밖에서와 같다"
         },
         {
           "id": "BA-090-T4",
@@ -3231,15 +3238,31 @@
         },
         {
           "id": "BA-090-T12",
-          "assertion": "서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다"
+          "assertion": "서울 upstream 의 429 는 관측을 만들지 않는다"
         },
         {
           "id": "BA-090-T13",
-          "assertion": "거절된 서울 응답이 source_quality_incidents 에 기록된다"
+          "assertion": "거절된 서울 응답은 해당 ValidationResult 로 collector run 에 기록된다"
         },
         {
           "id": "BA-090-T14",
           "assertion": "stale 한 서울 관측을 live 로 표시하지 않는다"
+        },
+        {
+          "id": "BA-090-T15",
+          "assertion": "provider 가 이름을 바꿔도 같은 행이 유지된다"
+        },
+        {
+          "id": "BA-090-T16",
+          "assertion": "목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다"
+        },
+        {
+          "id": "BA-090-T17",
+          "assertion": "검토된 provider 사건 window 안의 관측은 격리된다"
+        },
+        {
+          "id": "BA-090-T18",
+          "assertion": "source 장애 중 optimizer 의 답이 장애 밖에서와 같다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",
@@ -3291,7 +3314,7 @@
       "tests": [
         {
           "id": "BA-091-T1",
-          "assertion": "viewport 는 소수점 3자리·축별 최소 0.01도이고 그 밖은 거절된다"
+          "assertion": "viewport 는 소수점 3자리를 넘으면 거절된다"
         },
         {
           "id": "BA-091-T2",
@@ -3303,7 +3326,7 @@
         },
         {
           "id": "BA-091-T4",
-          "assertion": "viewport 거절이 좌표를 로그·응답에 남기지 않는다"
+          "assertion": "viewport 거절이 좌표를 로그에 남기지 않는다"
         },
         {
           "id": "BA-091-T5",
@@ -3312,6 +3335,22 @@
         {
           "id": "BA-091-T6",
           "assertion": "searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다"
+        },
+        {
+          "id": "BA-091-T7",
+          "assertion": "좌표를 모르는 구역은 centroid 를 null 로 내보낸다"
+        },
+        {
+          "id": "BA-091-T8",
+          "assertion": "viewport 는 축별 0.01도 미만이거나 역전된 box 를 거절한다"
+        },
+        {
+          "id": "BA-091-T9",
+          "assertion": "세계 밖 좌표를 담은 viewport 를 거절한다"
+        },
+        {
+          "id": "BA-091-T10",
+          "assertion": "viewport 거절 응답이 좌표를 담지 않는다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",

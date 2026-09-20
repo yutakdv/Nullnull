@@ -183,6 +183,43 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
+    public UUID insertUserUploadCover(UUID assetId, String url, String sourceExternalId, String alt,
+            String checksum, Instant now) {
+        UUID licenceId = jdbc.sql(
+                        "SELECT id FROM asset_licenses WHERE source_code = 'USER_UPLOAD'")
+                .query(UUID.class)
+                .optional()
+                .orElseThrow(() -> new IllegalStateException(
+                        "the seeded USER_UPLOAD licence (V045) is missing"));
+        // origin_url and served_url carry the same value, which is what V021's first-party covers
+        // already do (PostCovers): an asset that originates with us has no external place it came
+        // from, and the alternative - recording the quarantine key - would name a private path that
+        // has been deleted by the time anybody could read this row.
+        jdbc.sql("""
+                INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url,
+                                          served_url, checksum, media_type, alt_text, license_checked_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'IMAGE', ?, ?)
+                """)
+                .params(assetId, licenceId, sourceExternalId, url, url, checksum, alt,
+                        Timestamp.from(now))
+                .update();
+        return assetId;
+    }
+
+    @Override
+    public void insertAuthoredDraftPost(UUID postId, UUID authorOwnerId, String title, String body,
+            String coverUrl, UUID coverAssetId, Instant now) {
+        jdbc.sql("""
+                INSERT INTO posts (id, author_owner_id, status, title, body, cover_url,
+                                   cover_asset_id, created_at, updated_at)
+                VALUES (?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?)
+                """)
+                .params(postId, authorOwnerId, title, body, coverUrl, coverAssetId,
+                        Timestamp.from(now), Timestamp.from(now))
+                .update();
+    }
+
+    @Override
     public void insertDraftPost(UUID postId, String title, String body, String coverUrl,
             UUID coverAssetId, Instant now) {
         jdbc.sql("""

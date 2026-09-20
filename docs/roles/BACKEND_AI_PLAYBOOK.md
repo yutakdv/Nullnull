@@ -1125,6 +1125,7 @@ PM-010의 **장소 쪽은 닫혔다**. `PlaceSummary.sourceAttribution`을 FE가
 - `BA-032-T2`: 다른 owner의 저장 상태가 shared cache로 새지 않는다
 - `BA-032-T3`: save/unsave가 후보·item·trip version에 영향을 주지 않는다
 - `BA-032-T4`: curation plan은 전부 적용되거나 전부 거절된다
+- `BA-032-T13`: 운영 feed query 가 내는 순서가 apps/ai 와 공유하는 order fixture 와 같다
 
 FE 인계·완료 증거: 여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2099,7 +2100,7 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 
 - 선행: [BA-081](#ba-081), [BA-022](#ba-022), [BA-071](#ba-071)
 - 기능 ID: `FR-PUB-01`
-- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- API: `createPostImageUpload`, `createPost`
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: proposed upload intents/assets/post states · 자동 기술 검증 audit · S3 quarantine (승인 게이트 없음 · A-058)
 
@@ -2315,7 +2316,7 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 
 - `BA-090-T1`: 서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다
 - `BA-090-T2`: coverage 없는 POI를0 또는 임의 AREA 값으로 채우지 않는다
-- `BA-090-T3`: source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다
+- `BA-090-T3`: source 장애 중 trip CRUD 의 답이 장애 밖에서와 같다
 - `BA-090-T4`: provider 요청은 호출이 준 헤더만 싣는다
 - `BA-090-T5`: proxy 요청 URL 은 자격증명을 담지 않는다
 - `BA-090-T6`: 관측 시각은 제공자의 offset 없는 시각을 KST 로 읽은 것이다
@@ -2324,9 +2325,13 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T9`: 예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다
 - `BA-090-T10`: 제공자 플래그는 아는 값일 때만 통과한다
 - `BA-090-T11`: adapter 는 proxy 에 토큰을 헤더로 내고 받은 응답을 관측으로 정규화한다
-- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않고 provider 실패로 끝난다
-- `BA-090-T13`: 거절된 서울 응답이 source_quality_incidents 에 기록된다
+- `BA-090-T12`: 서울 upstream 의 429 는 관측을 만들지 않는다
+- `BA-090-T13`: 거절된 서울 응답은 해당 ValidationResult 로 collector run 에 기록된다
 - `BA-090-T14`: stale 한 서울 관측을 live 로 표시하지 않는다
+- `BA-090-T15`: provider 가 이름을 바꿔도 같은 행이 유지된다
+- `BA-090-T16`: 목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다
+- `BA-090-T17`: 검토된 provider 사건 window 안의 관측은 격리된다
+- `BA-090-T18`: source 장애 중 optimizer 의 답이 장애 밖에서와 같다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2353,12 +2358,16 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-091-T1`: viewport 는 소수점 3자리·축별 최소 0.01도이고 그 밖은 거절된다
+- `BA-091-T1`: viewport 는 소수점 3자리를 넘으면 거절된다
 - `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
 - `BA-091-T3`: Live→candidate201/duplicate/retry에서 일정 미변경을 확인한다
-- `BA-091-T4`: viewport 거절이 좌표를 로그·응답에 남기지 않는다
+- `BA-091-T4`: viewport 거절이 좌표를 로그에 남기지 않는다
 - `BA-091-T5`: 다른 owner 의 cursor 는 거절된다
 - `BA-091-T6`: searchPlaces 로 고른 canonical 장소에 대해 getLivePlace 가 coverage 를 답한다
+- `BA-091-T7`: 좌표를 모르는 구역은 centroid 를 null 로 내보낸다
+- `BA-091-T8`: viewport 는 축별 0.01도 미만이거나 역전된 box 를 거절한다
+- `BA-091-T9`: 세계 밖 좌표를 담은 viewport 를 거절한다
+- `BA-091-T10`: viewport 거절 응답이 좌표를 담지 않는다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -212,6 +212,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/posts/images/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reserve a one-time upload slot for a post cover
+         * @description Returns a pre-signed PUT the caller uses to place the bytes in a private quarantine
+         *     prefix. The signature is bound to the content type, the length and the checksum
+         *     declared here, so bytes that differ from the declaration are refused at the storage
+         *     layer before the server ever reads them; `createPost` then refuses them a second time
+         *     from the bytes themselves. The ticket is single use and short lived, and the offered
+         *     formats are the ones this runtime can decode AND re-encode - stripping metadata is a
+         *     decode/re-encode, so a format it cannot write is a format it cannot sanitise.
+         */
+        post: operations["createPostImageUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a post from a reserved upload
+         * @description Synchronous: when this returns 201 the post is already published and its cover is
+         *     already served, so no PENDING or PROCESSING post state exists and Frontend has
+         *     nothing to poll. The server reads the quarantined bytes, decides the real format from
+         *     the bytes rather than the declared type, applies the size ceilings, re-encodes to drop
+         *     every original metadata segment - the EXIF a phone camera writes carries the shooting
+         *     coordinates, and publishing it would route precise location around invariant 10 - and
+         *     only then writes the sanitised copy to the public location and deletes the original.
+         *     An upload ticket that is expired, already consumed, another owner's or never existed
+         *     all answer 404: it is one rule, and the four are deliberately indistinguishable.
+         */
+        post: operations["createPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/posts/{postId}": {
         parameters: {
             query?: never;
@@ -1141,6 +1195,47 @@ export interface components {
              * @enum {string}
              */
             candidateState: "NOT_SAVED" | "SAVED_TO_SELECTED_TRIP" | "SCHEDULED_IN_SELECTED_TRIP" | "NO_TRIP_SELECTED";
+        };
+        CreateUploadRequest: {
+            /**
+             * @description The two this runtime can both read and write. Measured, not chosen: ImageIO on the
+             *     deployed JDK reports no webp reader or writer, and sanitising re-encodes.
+             * @enum {string}
+             */
+            contentType: "image/jpeg" | "image/png";
+            /**
+             * @description 4 MiB. Derived, not invented: the largest cover this repository actually ships is
+             *     2,830,569 bytes, and the rule is the next power of two above what we ship - a
+             *     smaller ceiling would refuse our own assets.
+             */
+            contentLength: number;
+            checksumSha256: string;
+        };
+        UploadTicket: {
+            /** Format: uuid */
+            uploadId: string;
+            /** Format: uri */
+            url: string;
+            /** @constant */
+            method: "PUT";
+            /** @description Send exactly these; they are bound into the signature. */
+            headers: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CreatePostRequest: {
+            /** Format: uuid */
+            uploadId: string;
+            title: string;
+            body: string;
+            altText?: string | null;
+            placeIds: string[];
+        };
+        CreatedPost: {
+            /** Format: uuid */
+            postId: string;
         };
         PostSummary: {
             /** Format: uuid */
@@ -2524,6 +2619,20 @@ export interface components {
             north: number;
         };
         LiveAreaResult: {
+            /**
+             * @description The weakest state present on the page wins. A page labelled LIVE that contains one
+             *     stale area tells the reader every reading on it is current, and one of them is not -
+             *     invariant 6 is that live, stale, replay and absent stay distinguishable, and a
+             *     page-level label that rounds up erases that distinction for exactly the readings it
+             *     matters for. Rounding down never claims something untrue: it under-promises for the
+             *     fresh areas, and each area still carries its own state in its own `crowd.provenance`.
+             *     An empty page is `UNAVAILABLE`, not `LIVE` - "nothing to report" is not a live
+             *     reading, and the alternative would make a working server and a silent provider look
+             *     the same. `FORECAST` and `QUALITATIVE` are absent from the ranking because this path
+             *     cannot produce them: it is the area list, which serves current observations, and a
+             *     forecast point is a different question with a `targetAt`. The server folds anything
+             *     outside the ranking to `UNAVAILABLE` rather than inventing an order for it.
+             */
             mode: components["schemas"]["SourceState"];
             areas: components["schemas"]["LiveArea"][];
             /** Format: date-time */
@@ -3223,6 +3332,74 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    createPostImageUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID recommended. Reuse only for an exact retry of the same request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Upload slot reserved */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadTicket"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["Unprocessable"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    createPost: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID recommended. Reuse only for an exact retry of the same request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Post published */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedPost"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
             default: components["responses"]["Problem"];
         };
     };

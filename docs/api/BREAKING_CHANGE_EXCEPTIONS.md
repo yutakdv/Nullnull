@@ -56,9 +56,28 @@ tags:
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| in API POST /live/areas the response property `areas/items/centroid` became nullable for the status `200` | 우리가 그 값을 **모른다.** 서울 feed 는 구역 좌표를 어디에도 공개하지 않는다 — 응답 전수 스캔 0건, 데이터셋 상세 페이지에 출력 필드표 없음, 매뉴얼 v8.5 전문(`pdftotext -layout`, 64KB)에서 `위도`·`경도`·`좌표`·`WGS`·`경계`·`polygon` **전부 0건**이고 제2장 주요장소 표는 이름만 준다. `V044`·`ERD` 어디에도 centroid 열이 없고, 있던 것은 fixture 에 손으로 적힌 값 하나였다. **대안 둘을 배제했다**: 법정동 코드표는 미신청이고 행정동 경계라 관광 구역(`광화문`·`덕수궁`)과 단위가 다르다; 좌표를 계산으로 만드는 것은 발명이다. **소비자가 깨지지 않는다(절차 2)** — `apps/web` 에서 `centroid` 참조 **0건**이고 유일한 등장은 같은 저장소에서 재생성되는 생성 client 의 타입 한 줄이다. 제출 profile 은 map capability OFF 목록 화면이라 위치가 필요 없다. **`required` 제거(안 B)와 비용이 같다** — 둘 다 oasdiff 1 error 이고(실측: `response-property-became-nullable` vs `response-property-became-optional`) nullable 을 고른 것은 *"항상 있고 값이 null"* 이 *"없을 수도 있다"* 보다 client 에게 **모른다는 사실을 강제**하기 때문이다. 선례 셋(`CrowdMetric`·`MediaAsset`·`SourceAttribution`)이 같은 `oneOf` 모양이다 | **조율자(BE/AI) 2026-09-20 — 오너 확인 대기.** 오너 승인으로 적지 않는다: 이 판단을 오너가 아직 보지 않았고, 승인 기록은 옆에서 대신 켤 수 없다. 근거는 위 소비자 0건 측정이다 | [#64](https://github.com/yutakdv/Nullnull/issues/64) · [#310](https://github.com/yutakdv/Nullnull/issues/310) |
 
 ## 만료된 예외 (기록)
+
+- **`LiveArea.centroid` 가 nullable 이 됐다, 한 줄**
+  (승인: **오너 2026-09-20 — [#314](https://github.com/yutakdv/Nullnull/pull/314) 머지가 그 승인이다**, 추적:
+  [#64](https://github.com/yutakdv/Nullnull/issues/64) · [#310](https://github.com/yutakdv/Nullnull/issues/310)).
+  등록 당시 승인자 칸에는 *"조율자 판단, 오너 확인 대기"* 라고 적었다 — 오너가 그 판단을 아직 보지 않았고
+  **승인 기록은 옆에서 대신 켤 수 없기** 때문이다. 오너가 머지한 지금 그 칸이 채워진다.
+
+  **이유**: 우리가 그 값을 모른다. 서울 feed 는 구역 좌표를 어디에도 공개하지 않는다 — 응답 전수 스캔 0건,
+  데이터셋 상세 페이지에 출력 필드표 없음, 매뉴얼 v8.5 전문(`pdftotext -layout`, 64KB)에서
+  `위도`·`경도`·`좌표`·`WGS`·`경계`·`polygon` 전부 0건. 대안 둘을 배제했다(법정동 코드표는 미신청이고
+  **행정동 경계라 관광 구역과 단위가 다르다**; 좌표 계산은 발명이다). 소비자는 0건이었다 —
+  `apps/web` 에서 `centroid` 참조 0, 유일한 등장이 같은 저장소에서 재생성되는 생성 client 의 타입 한 줄.
+
+  **`required` 제거와 비용이 같았다** — 둘 다 oasdiff 1 error(`response-property-became-nullable` vs
+  `response-property-became-optional`)였고, 비용이 같아 **정확성으로 골랐다**: *"항상 있고 값이 null"* 이
+  *"없을 수도 있다"* 보다 client 에게 **모른다는 사실을 강제**한다.
+
+  **정리 시점**: `#314` 머지 직후, 다음 PR 이 열리기 전. 바로 위 항목이 *"이번에는 다음 PR 이 빨개지기 전에
+  치웠다"* 라고 적은 그 절차가 **연속 두 번 작동했다.** 앞의 두 기록(`DATA_INSUFFICIENT`·#225,
+  `OptimizationFailure.code`·#261)은 둘 다 무관한 사람이 빨간불을 받았다.
 
 - **`Notification.deepLink` pattern의 `/trips/`→`/trip/` 정정, 한 줄**
   (승인: 오너 2026-09-20, 추적: [#310](https://github.com/yutakdv/Nullnull/issues/310)).

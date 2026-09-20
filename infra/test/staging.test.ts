@@ -690,6 +690,60 @@ test("every alarm publishes to the one topic the subscribe script subscribes, an
     "the receiver's address belongs to the operator's ignored settings, not to this repository",
   );
 });
+test("BA-082 the API task may write covers/user and quarantine, and nothing else in the bucket", () => {
+  // The bucket this grant is on also holds the application bundle, so the interesting assertion is
+  // not that the task CAN write - it is what it cannot. A bucket-wide grant here would let the API
+  // replace index.html.
+  const policies = Object.values(templates.services.findResources("AWS::IAM::Policy")) as any[];
+  const statements = policies.flatMap(
+    (p) => p.Properties.PolicyDocument.Statement as any[],
+  );
+  const s3Writes = statements.filter((st) =>
+    ([] as string[]).concat(st.Action ?? []).some((a: string) => a.startsWith("s3:")),
+  );
+  assert.equal(s3Writes.length, 2, "one statement per prefix");
+
+  const resourcesOf = (st: any) =>
+    JSON.stringify(([] as any[]).concat(st.Resource ?? []));
+  // Every s3 resource this task is given ends in one of the two prefixes. Written as a positive
+  // check over ALL of them rather than as two lookups, so a third statement added later cannot
+  // slip past by simply not being one of the two we asked about.
+  for (const st of s3Writes) {
+    const json = resourcesOf(st);
+    assert.ok(
+      json.includes("quarantine/*") || json.includes("covers/user/*"),
+      `s3 grant outside the two prefixes: ${json}`,
+    );
+    // And never the bucket itself: arnForObjects keeps the /* , a bucket ARN would not.
+    assert.ok(!/"[^"]*WebBucket[^"]*"\s*\]?\s*$/.test(json.replace(/covers\/user\/\*|quarantine\/\*/g, "")),
+      `s3 grant names the bucket rather than a prefix: ${json}`);
+  }
+
+  // The published prefix is write-only: reading and deleting covers is not this task's business.
+  const published = s3Writes.find((st) => resourcesOf(st).includes("covers/user/*"));
+  assert.deepEqual(([] as string[]).concat(published.Action), ["s3:PutObject"]);
+});
+
+test("BA-082 the edge refuses the quarantine prefix outright", () => {
+  // Uploads live in the same bucket the distribution serves, so "not linked to" is not the same as
+  // "not reachable". The SPA rewrite hides extension-less keys by accident (they become
+  // /index.html); a quarantined .jpg would be served without this.
+  const fns = Object.values(
+    templates.web.findResources("AWS::CloudFront::Function"),
+  ) as any[];
+  const spa = fns.find(
+    (f) => f.Properties.Name === "nullnull-stg-spa-rewrite",
+  );
+  assert.ok(spa, "the SPA rewrite function exists");
+  const code = spa.Properties.FunctionCode as string;
+  assert.match(code, /indexOf\('\/quarantine'\)===0\)return \{statusCode:404\}/);
+  // The refusal comes BEFORE the rewrite, or the rewrite would have already changed the uri.
+  assert.ok(
+    code.indexOf("/quarantine") < code.indexOf("index.html"),
+    "the quarantine refusal must precede the rewrite",
+  );
+});
+
 test("the curated covers are served under /covers/ of the web distribution, kept, cached and invalidated alone", () => {
   // #183. The URLs in ops/curated-posts.json are <PublicUrl>/covers/<file>; media_assets takes only absolute https.
   const deployments = Object.values(

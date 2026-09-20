@@ -19,7 +19,8 @@ import java.util.Objects;
  */
 public record PolicyPins(String policyVersion, String policyHash, String pipelineVersion, int numericScale,
         RoundingMode roundingMode, Caps caps, BigDecimal reliefWeight, BigDecimal changeCostWeight,
-        int changeCostSaturationMinutes, Map<String, MetricPin> metrics, int feedCursorTtlMinutes) {
+        int changeCostSaturationMinutes, Map<String, MetricPin> metrics, int feedCursorTtlMinutes,
+        java.util.List<String> feedOrdering) {
 
     /** §4.1 caps Spring re-checks on a service answer. */
     public record Caps(int feedSnapshot, int relatedMerged, int slotDates, int itemProposals) {
@@ -43,10 +44,16 @@ public record PolicyPins(String policyVersion, String policyHash, String pipelin
             new BigDecimal("0.20"),
             240,
             Map.of(KTO_RELATIVE_CONCENTRATION_INDEX, new MetricPin(100, 5)),
-            15);
+            15,
+            // The fixed feed order, as the file apps/ai hashes into every run fingerprint spells it.
+            // Pinned as the TUPLE rather than as a version integer: apps/ai raises when its policy is not
+            // exactly this pair, so the pair is what the two languages have to agree on - a matching
+            // integer beside two different orders would be parity in name only.
+            java.util.List.of("publishedAt DESC", "postId ASC"));
 
     public PolicyPins {
         Objects.requireNonNull(policyVersion, "policyVersion");
+        Objects.requireNonNull(feedOrdering, "feedOrdering");
         Objects.requireNonNull(policyHash, "policyHash");
         Objects.requireNonNull(pipelineVersion, "pipelineVersion");
         Objects.requireNonNull(roundingMode, "roundingMode");
