@@ -5634,6 +5634,11 @@ paths:
       responses:
         "200":
           description: Notification page
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -5657,6 +5662,11 @@ paths:
       responses:
         "200":
           description: Count and server cutoff applied
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
           content:
             application/json:
               schema:
@@ -5683,6 +5693,11 @@ paths:
       responses:
         "204":
           description: Notification marked read
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
