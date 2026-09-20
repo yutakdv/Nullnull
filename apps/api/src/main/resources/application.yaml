@@ -225,6 +225,14 @@ nullnull:
       allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
     KTO_RELATED_PLACES:
       allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
+    # A-051 fixed the provider and a live call on 2026-09-20 confirmed this host answers.
+    # Naming the product and the operation, not just "Kakao": Kakao Map is a different
+    # product on a different host with its own terms and quota, and route optimization is
+    # Kakao Mobility only. This entry must stay identical to ProviderHostPolicy
+    # PRODUCTION_HOSTS - production start-up compares the two maps for exact equality and
+    # no gate runs as production, so a change to one of them alone is green everywhere.
+    KAKAO_MOBILITY_DIRECTIONS:
+      allowed-hosts: ["${KAKAO_ROUTE_ALLOWED_HOST:apis-navi.kakaomobility.com}"]
     SEOUL_CITYDATA:
       # THIS DEFAULT IS WRONG ONCE THE PROXY EXISTS and must become the proxy host: with the provider's
       # own name here, a proxy-shaped request (no key in the path) would be sent straight to Seoul, and
@@ -243,6 +251,13 @@ nullnull:
   seoul:
     base-url: ${SEOUL_BASE_URL:}
     proxy-token: ${SEOUL_PROXY_TOKEN:}
+  # Car directions only. Walking and cycling are affiliate-gated (a prior contract is
+  # required), so the ETA here is a driving time and no screen may present it as a walking
+  # one. The key is blank by default because route optimization is P1 with its capability
+  # off: a deployment without it is the normal one, and the gateway refuses at call time.
+  kakao-route:
+    rest-api-key: ${KAKAO_REST_API_KEY:}
+    base-url: ${KAKAO_ROUTE_BASE_URL:https://apis-navi.kakaomobility.com}
   kto:
     service-key: ${KTO_SERVICE_KEY:}
     base-url: ${KTO_BASE_URL:}
