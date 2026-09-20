@@ -2830,7 +2830,10 @@
         "BA-022",
         "BA-071"
       ],
-      "operations": [],
+      "operations": [
+        "createPostImageUpload",
+        "createPost"
+      ],
       "featureIds": [
         "FR-PUB-01"
       ],

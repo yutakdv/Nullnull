@@ -2100,7 +2100,7 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 
 - 선행: [BA-081](#ba-081), [BA-022](#ba-022), [BA-071](#ba-071)
 - 기능 ID: `FR-PUB-01`
-- API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- API: `createPostImageUpload`, `createPost`
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: proposed upload intents/assets/post states · 자동 기술 검증 audit · S3 quarantine (승인 게이트 없음 · A-058)
 
