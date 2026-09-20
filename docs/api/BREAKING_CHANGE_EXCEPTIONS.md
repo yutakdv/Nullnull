@@ -52,13 +52,24 @@ tags:
 
 ## 승인된 예외
 
-**표가 비어 있는 것이 정상 상태다.** 아래 한 줄은 `BA-085`의 `deepLink` 정정이 `main`에 들어갈 때까지만 산다 — 머지 직후 후속 커밋으로 두 곳에서 함께 지운다(절차 5). 지우는 사람은 그 PR의 주인이다.
+**표가 비어 있는 것이 정상 상태다.**
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| in API GET /notifications the `items/items/deepLink` response's property pattern was changed from `^/(trips/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?\|live/(areas\|places)/[0-9a-fA-F-]{36}\|notifications\|profile)$` to `^/(trip/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?\|live/(areas\|places)/[0-9a-fA-F-]{36}\|notifications\|profile)$` for the status `200` | 계약 내부 모순 정정. 같은 파일의 `runLink`는 [#118](https://github.com/yutakdv/Nullnull/issues/118)·[#122](https://github.com/yutakdv/Nullnull/pull/122)에서 이미 `/trip/`(단수)로 고쳤고 `deepLink`만 `/trips/`(복수)로 남아 있었다 — PM-016이 `runLink`만 이름으로 불러서 같은 결함의 나머지 절반이 함께 안 고쳐졌다. FE 라우트(`routes.tsx`의 `trip/:tripId`)와 같은 파일의 analytics `context.route` enum도 단수다. 알림 생산자가 아직 없어 이 pattern으로 발급된 링크가 존재하지 않으므로 깨질 소비자가 없다 | 오너 (2026-09-20). #122의 `runLink` 정정을 같은 이유로 승인한 전례가 있고, FE가 [#310](https://github.com/yutakdv/Nullnull/issues/310) 2026-09-20 판정에서 이 정정을 직접 요청했다 | [#310](https://github.com/yutakdv/Nullnull/issues/310) |
 
 ## 만료된 예외 (기록)
+
+- **`Notification.deepLink` pattern의 `/trips/`→`/trip/` 정정, 한 줄**
+  (승인: 오너 2026-09-20, 추적: [#310](https://github.com/yutakdv/Nullnull/issues/310)).
+  [#313](https://github.com/yutakdv/Nullnull/pull/313)이 `main`에 머지되면서 base가 따라 움직여 만료됐다 —
+  CI의 두 단계를 로컬에서 그대로 재현하니 oasdiff가 `No changes detected`이고
+  `check_oasdiff_exceptions.py`가 그 줄을 stale로 rc=1이었다.
+
+  **이번에는 다음 PR이 빨개지기 전에 치웠다 — 앞의 두 기록과 다른 점이 그것뿐이다.**
+  `DATA_INSUFFICIENT`과 `OptimizationFailure.code` 두 항목이 각각 *"정리를 미루면 그 뒤 처음 열린 PR이
+  빨개진다"* 를 경고했고 두 번 다 그대로 났다. 세 번째인 이번에 달라진 것은 **경고를 더 잘 적은 것이 아니라
+  머지 직후를 정리 시점으로 절차에 박은 것**이다(절차 5). 기록이 세 번 같은 말을 했다는 것은
+  **읽히는 자리에 없었다는 뜻**이지 문구가 약했다는 뜻이 아니다.
 
 - **`OptimizationFailure.code`에 `RECOMMENDATION_UNAVAILABLE`·`INTERNAL_ERROR` 추가, 네 줄**
   (승인: FE 승인을 오너가 조율 세션에 전달, 추적: [#261](https://github.com/yutakdv/Nullnull/issues/261)).
