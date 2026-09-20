@@ -22,12 +22,14 @@ import org.springframework.test.web.servlet.MvcResult;
  * queryLiveAreas over real HTTP, with the default properties - which is the submission build's
  * configuration, Live capability OFF.
  *
- * <p><strong>The flag cannot be turned on here, and that is a guard rather than a gap.</strong>
- * {@code DemoCapabilityQuery} refuses to start with FEATURE_LIVE_DATA ON while {@code live} is in
- * its {@code WITHOUT_A_SOURCE} list, and this slice does NOT take it out: a route that answers and a
- * source that has something to answer WITH are different things, and nothing stores a Seoul reading
- * yet. The enabled path is exercised at the service level instead ({@code LiveAreaQueryServiceTest}),
- * and the flag leaves that list when the collector's writer lands.
+ * <p><strong>The flag is OFF here on purpose, and it is no longer the case that it cannot be
+ * turned on.</strong> This paragraph used to say {@code DemoCapabilityQuery} refuses to start with
+ * FEATURE_LIVE_DATA ON while {@code live} sits in its {@code WITHOUT_A_SOURCE} list. BA-090 ended
+ * that - SEOUL_CITYDATA is promoted in V046, a collector stores a reading per area, and {@code live}
+ * left the list, which {@code DemoCapabilityQuery} now holds only {@code replay} in. What this file
+ * measures is therefore a choice rather than a limit: the default configuration, which is the
+ * submission build's, where the tab is off. {@code LiveAreaReadIT} and {@code LivePlaceApiIT} drive
+ * the enabled path.
  *
  * <p>What this file can do over HTTP is the half that matters most for privacy: the request shape is
  * judged before the capability is, so a viewport is refused here exactly as it would be on a server

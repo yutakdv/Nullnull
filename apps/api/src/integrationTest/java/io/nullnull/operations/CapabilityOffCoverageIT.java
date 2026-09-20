@@ -115,10 +115,17 @@ class CapabilityOffCoverageIT {
         // viewport would answer 400 and never reach the gate this register is about. The viewport is
         // coarse and inside the contract's rules, which LiveAreaApiIT measures on its own.
         //
-        // LIVE MOVED REGISTERS BUT DID NOT BECOME READY. Its flag still cannot be turned on -
-        // DemoCapabilityQuery keeps it in WITHOUT_A_SOURCE because nothing stores a Seoul reading
-        // yet - and the assertion above already says no capability ships READY. What changed is only
-        // that something now refuses while it is off, which is what this register records.
+        // LIVE MOVED REGISTERS AND STILL DOES NOT SHIP READY, but the reason has changed and the
+        // old one is now false. This used to say the flag cannot be turned on because
+        // DemoCapabilityQuery keeps live in WITHOUT_A_SOURCE; BA-090 took it out, and that list now
+        // holds replay alone. The flag CAN be turned on and defaults OFF, exactly like
+        // optimization's - so what keeps this register honest is the assertion above that no
+        // capability ships READY, not a startup refusal. What this block records is unchanged:
+        // something refuses while the flag is off.
+        //
+        // One operation is driven, not all three. listLiveAreaPlaces and getLivePlace go through
+        // the same LiveCapability.require(), and this register's claim is per capability rather
+        // than per route - LivePlaceCapabilityOffIT drives those two at this same default.
         mvc.perform(post("/api/v1/live/areas")
                         .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
                         .header("Origin", ORIGIN)

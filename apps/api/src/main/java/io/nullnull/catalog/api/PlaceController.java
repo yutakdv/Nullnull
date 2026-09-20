@@ -108,7 +108,13 @@ public class PlaceController {
             String categoryName, String regionName, String thumbnailUrl, MediaAssetResponse thumbnailAsset,
             String address, String description, GeoPointResponse location,
             List<ExternalReferenceResponse> externalRefs, SourceAttributionResponse sourceAttribution) {
-        static PlaceDetailResponse from(CatalogPlaceDetail source) {
+        /**
+         * Public for the same reason {@link PlaceSummaryResponse#from} is, and the second embedder
+         * has now arrived: {@code LivePlaceDetail.place} is this same {@code PlaceDetail} schema, so
+         * getPlace and getLivePlace either share one mapping or drift. The field a copy drops first
+         * is sourceAttribution, which is the one a KTO-derived place may not appear without.
+         */
+        public static PlaceDetailResponse from(CatalogPlaceDetail source) {
             return new PlaceDetailResponse(source.id(), source.name(), source.categoryCode(), source.regionCode(),
                     source.categoryName(), source.regionName(), source.thumbnailUrl(),
                     MediaAssetResponse.from(source.thumbnailAsset()), source.address(), source.description(),
@@ -121,7 +127,13 @@ public class PlaceController {
     /** The server-owned credit for the place's source; the client displays {@code attribution} verbatim. */
     public record RelatedPlaceResultResponse(UUID sourcePlaceId, String state, String reason,
             List<RelatedPlaceResponse> items) {
-        static RelatedPlaceResultResponse from(CatalogRelatedPlaces result) {
+        /**
+         * Public for the same reason as the two above: {@code LivePlaceDetail.related} embeds this
+         * whole {@code RelatedPlaceResult}, so listRelatedPlaces and getLivePlace project relation
+         * state, reason and provenance through one mapping. A second copy would be a second place
+         * for NONE and CHECKING to appear, and BA-024-T7 pins that neither is ever emitted.
+         */
+        public static RelatedPlaceResultResponse from(CatalogRelatedPlaces result) {
             return new RelatedPlaceResultResponse(result.sourcePlaceId(), result.state().name(),
                     result.reason(), result.items().stream().map(RelatedPlaceResponse::from).toList());
         }
