@@ -63,6 +63,7 @@ function renderTrip() {
 async function openConfirm(user: ReturnType<typeof userEvent.setup>) {
   renderTrip();
   await screen.findByRole('heading', { level: 1, name: trip.title });
+  await user.click(screen.getByRole('button', { name: copy['trip.editStart'] }));
   await user.click(
     screen.getByRole('button', {
       name: copy['trip.remove.open'].replace('{name}', itemName),

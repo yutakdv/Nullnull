@@ -2,12 +2,56 @@
    reference them. Regenerate with `npm run tokens:build`. */
 @import './design/tokens.css';
 
+/* Self-host only the weights used by the current UI. The package stylesheets
+   ship both woff and woff2 sources; declare the modern format explicitly so
+   the browser bundle does not carry a redundant multi-megabyte fallback. */
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('@fontsource/pretendard/files/pretendard-latin-400-normal.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('@fontsource/pretendard/files/pretendard-latin-500-normal.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('@fontsource/pretendard/files/pretendard-latin-700-normal.woff2')
+    format('woff2');
+}
+
 /* Shell reset only. Component styles arrive with FE-002's component work. */
 :root {
   color-scheme: light;
   font-family: var(--font-family-base);
   color: var(--color-text-primary);
   background: var(--color-bg-default);
+
+  /* Semantic layout aliases live outside the generated Figma tokens. Screens
+     consume these names so the app's chrome cannot drift when a frame is
+     tuned in isolation. */
+  --layout-page-gutter: var(--space-4);
+  --layout-app-bar-height: 56px;
+  --layout-touch-min: 44px;
+  --layout-primary-min: 52px;
+  --layout-content-form-max: 560px;
+  --layout-content-detail-max: 720px;
+  --layout-content-browse-max: 960px;
+  --layout-bottom-primary: 110px;
+  --layout-bottom-note: 112px;
+  --layout-bottom-action: 136px;
 }
 
 * {
@@ -28,14 +72,10 @@ body {
      rule asks for (.claude/rules/frontend.md). Layouts reflow instead. */
 }
 
-/* The shell owns the viewport and the safe area; `main` is just the scrolling
-   region inside it (app/AppShell.module.css). It carried `min-height: 100dvh`
-   and its own padding before, which made the content alone as tall as the
-   screen — so the shell was always taller than the viewport and a bar pinned to
-   its bottom sat below the fold on a phone. */
-main {
-  padding: var(--space-4);
-}
+/* The shell owns the viewport and the safe area; each screen owns its content
+   gutter. A global 16px main padding compounded with the screen-level padding
+   that every Figma frame specifies, shifting page content to 32px instead of
+   the design's 16px horizontal inset. */
 
 @media (prefers-reduced-motion: reduce) {
   *,

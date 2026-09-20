@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate, useOutletContext } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import {
   isProblem,
   useAddTripCandidate,
   useFeed,
   useTrips,
+  useUpdatePreferences,
 } from '../../shared/api/index.js';
+import { formatTripPeriod } from '../../shared/i18n/trip-period.js';
 import {
   CROWD_LEVEL_STEPS,
   FeedPostCard,
+  IconCheck,
+  IconChevronDown,
+  IconSearch,
   Toast,
   TripPicker,
   type TripAddState,
 } from '../../shared/ui/index.js';
+import type { AppShellOutletContext } from '../AppShell.js';
 import styles from './FeedScreen.module.css';
 
 // Figma: S03-F0 `391:310` (no trip) and S03-F1 `396:2926` (active trip).
@@ -48,26 +54,30 @@ import styles from './FeedScreen.module.css';
 // feed.test.tsx guards at the wire.
 
 export function FeedScreen() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
+  const { activeTripId, activeTripReady, setActiveTripId } =
+    useOutletContext<AppShellOutletContext>();
   const trips = useTrips();
+  const updatePreferences = useUpdatePreferences();
 
-  // Which trip the `+` collects into.
-  //
-  // `chosenTripId` is what the user picked in the sheet; until they pick, the
-  // first trip stands in. That default is deliberate: the feed needs a tripId
-  // to ask for `candidateState`, and having none would make every card read
-  // NO_TRIP_SELECTED for an owner who has trips. Null while the list is still
-  // loading, which is the difference between "no trip" and "not known yet" —
-  // asking with a tripId we do not have yet would bind the cursor to the wrong
-  // selection.
-  const [chosenTripId, setChosenTripId] = useState<string | null>(null);
+  // The feed follows the owner's representative trip rather than keeping a
+  // screen-local filter. The same activeTripId drives the My Trip tab in
+  // AppShell, so one selection cannot leave the banner, candidate state and
+  // tab destination disagreeing with one another.
+  const [showNoTripPrompt, setShowNoTripPrompt] = useState(true);
+  const [showSearchNotice, setShowSearchNotice] = useState(false);
+  const searchNoticeTimer = useRef<number | null>(null);
+  const [isTripMenuOpen, setIsTripMenuOpen] = useState(false);
+  const tripFilterRef = useRef<HTMLDivElement>(null);
+  const tripTriggerRef = useRef<HTMLButtonElement>(null);
   const tripItems = trips.data?.items ?? [];
-  const chosenStillExists = tripItems.some((trip) => trip.id === chosenTripId);
-  // A choice only counts while that trip is still in the list. A background
-  // refetch can remove it — another device deletes the trip — and the id would
-  // otherwise stay selected and be sent for a trip that no longer exists.
-  const selectedTripId = chosenStillExists ? chosenTripId : (tripItems[0]?.id ?? null);
+  const activeStillExists = tripItems.some((trip) => trip.id === activeTripId);
+  // Never promote the first trip only because the owner has no representative.
+  // That made the feed LOOK selected while the My Trip tab still held null.
+  // `activeTripId` is the one source of truth; the selector below is how null
+  // becomes a deliberate choice.
+  const selectedTripId = activeStillExists ? activeTripId : null;
   // The place the sheet is choosing a trip for, or null when it is closed.
   const [pickerFor, setPickerFor] = useState<{
     placeId: string;
@@ -77,7 +87,8 @@ export function FeedScreen() {
   // Waits for the trip list: the cursor the server mints is bound to the trip
   // selection, so asking before it is known spends a request on a selection
   // that is about to change.
-  const feed = useFeed(selectedTripId, trips.isSuccess);
+  const feed = useFeed(selectedTripId, trips.isSuccess && activeTripReady);
+  const loadMoreAnchor = useRef<HTMLDivElement>(null);
   // Bound to the selection, and the sheet sets the selection before it saves —
   // useAddTripCandidate takes its trip at hook level, so a save into a trip
   // other than the selected one is not expressible without changing that hook.
@@ -114,6 +125,17 @@ export function FeedScreen() {
   // One key per place, held across retries of that same save so a retry after
   // a lost response replays it instead of saving twice (invariant 6).
   const addKeys = useRef<Record<string, string>>({});
+
+  function showSearchComingSoon() {
+    setShowSearchNotice(true);
+    if (searchNoticeTimer.current !== null) {
+      window.clearTimeout(searchNoticeTimer.current);
+    }
+    searchNoticeTimer.current = window.setTimeout(() => {
+      setShowSearchNotice(false);
+      searchNoticeTimer.current = null;
+    }, 1_000);
+  }
 
   function saveCandidate(placeId: string, postId: string, tripId: string) {
     if (tripId === '') return;
@@ -206,6 +228,14 @@ export function FeedScreen() {
   const sourceUnavailable = isProblem(error) && error.code === 'SOURCE_UNAVAILABLE';
 
   useEffect(() => {
+    return () => {
+      if (searchNoticeTimer.current !== null) {
+        window.clearTimeout(searchNoticeTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!expired) {
       // A page that loads clears the mark, so a cursor that expires later in
       // the same session is recovered from again.
@@ -218,6 +248,55 @@ export function FeedScreen() {
     // Drops every accumulated page and refetches from the first one.
     void feed.refetch();
   }, [expired, feed]);
+
+  useEffect(() => {
+    if (!isTripMenuOpen) return;
+
+    const closeFromOutside = (event: PointerEvent) => {
+      if (tripFilterRef.current?.contains(event.target as Node)) return;
+      setIsTripMenuOpen(false);
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setIsTripMenuOpen(false);
+      tripTriggerRef.current?.focus();
+    };
+
+    document.addEventListener('pointerdown', closeFromOutside);
+    document.addEventListener('keydown', closeWithEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeFromOutside);
+      document.removeEventListener('keydown', closeWithEscape);
+    };
+  }, [isTripMenuOpen]);
+
+  useEffect(() => {
+    const anchor = loadMoreAnchor.current;
+    if (!anchor || !feed.hasNextPage || feed.isFetchingNextPage) return;
+
+    const loadNextPage = () => {
+      void feed.fetchNextPage();
+    };
+    if (typeof IntersectionObserver === 'undefined') {
+      // Progressive fallback: older browsers still receive the full feed
+      // instead of losing every page after the first one.
+      loadNextPage();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        loadNextPage();
+      },
+      { rootMargin: '240px 0px' },
+    );
+    observer.observe(anchor);
+    return () => {
+      observer.disconnect();
+    };
+  }, [feed.fetchNextPage, feed.hasNextPage, feed.isFetchingNextPage]);
 
   // The shared card components keep Korean defaults so Storybook can mount
   // them without a provider; inside the app the selected locale's words are
@@ -251,27 +330,175 @@ export function FeedScreen() {
 
   const cards = feed.data?.pages.flatMap((page) => page.items) ?? [];
   const noTrip = trips.isSuccess && trips.data.items.length === 0;
+  const selectedTrip = tripItems.find((trip) => trip.id === selectedTripId) ?? null;
+  const needsRepresentativeTrip =
+    activeTripReady && trips.isSuccess && tripItems.length > 0 && selectedTrip === null;
+  const selectedTripPeriod = selectedTrip
+    ? formatTripPeriod(selectedTrip.startDate, selectedTrip.endDate, locale, 'long')
+    : '';
+
+  const tripPeriod = (startDate: string, endDate: string) =>
+    formatTripPeriod(startDate, endDate, locale, 'long');
+
+  function selectRepresentativeTrip(tripId: string) {
+    setIsTripMenuOpen(false);
+    if (tripId === selectedTripId) return;
+    updatePreferences.reset();
+    updatePreferences.mutate(
+      { activeTripId: tripId },
+      {
+        onSuccess: (owner) => {
+          setActiveTripId(owner.activeTripId ?? null);
+        },
+      },
+    );
+  }
 
   return (
     <section aria-labelledby="feed-heading" className={styles.screen}>
-      <h1 className={styles.title} id="feed-heading">
-        {t('feed.title')}
-      </h1>
+      <header className={styles.header}>
+        <h1 aria-label={t('feed.title')} className={styles.title} id="feed-heading">
+          <Link
+            aria-label={t('feed.home')}
+            className={styles.logoLink}
+            onClick={() => {
+              window.scrollTo({ top: 0 });
+            }}
+            to="/feed"
+          >
+            <span aria-hidden="true">Nullnull</span>
+          </Link>
+        </h1>
+        <button
+          aria-label={t('feed.search')}
+          className={styles.searchButton}
+          onClick={showSearchComingSoon}
+          type="button"
+        >
+          <IconSearch />
+        </button>
+
+        {showSearchNotice ? (
+          <div className={styles.searchNotice}>
+            <Toast message={t('feed.searchComingSoon')} />
+          </div>
+        ) : null}
+      </header>
 
       {/* S03-F0: with no trip there is nothing to collect candidates into, so
           the screen offers the one action that changes that. */}
-      {noTrip ? (
-        <p className={styles.prompt}>
-          <span className={styles.promptText}>{t('feed.emptyNoTrip')}</span>
+      {noTrip && showNoTripPrompt ? (
+        <aside className={styles.prompt}>
+          <span className={styles.promptBadge}>{t('feed.noTripBadge')}</span>
+          <h2 className={styles.promptTitle}>{t('feed.noTripTitle')}</h2>
+          <p className={styles.promptText}>{t('feed.emptyNoTrip')}</p>
+          <div className={styles.promptActions}>
+            <button
+              className={styles.promptCta}
+              onClick={() => {
+                void navigate('/start');
+              }}
+              type="button"
+            >
+              {t('feed.createTrip')}
+            </button>
+            <button
+              className={styles.promptSecondary}
+              onClick={() => {
+                setShowNoTripPrompt(false);
+              }}
+              type="button"
+            >
+              {t('feed.browse')}
+            </button>
+          </div>
+        </aside>
+      ) : needsRepresentativeTrip ? (
+        <aside className={styles.prompt}>
+          <span className={styles.promptBadge}>{t('feed.noRepresentativeBadge')}</span>
+          <h2 className={styles.promptTitle}>{t('feed.noRepresentativeTitle')}</h2>
+          <p className={styles.promptText}>{t('feed.noRepresentativeText')}</p>
+          <div className={styles.promptActions}>
+            <button
+              className={styles.promptCta}
+              onClick={() => {
+                void navigate('/trips/select');
+              }}
+              type="button"
+            >
+              {t('feed.chooseRepresentative')}
+            </button>
+          </div>
+        </aside>
+      ) : selectedTrip ? (
+        <div className={styles.tripFilter} ref={tripFilterRef}>
           <button
-            className={styles.promptCta}
+            aria-busy={updatePreferences.isPending}
+            aria-controls="representative-trip-list"
+            aria-expanded={isTripMenuOpen}
+            aria-label={`${t('feed.representativeTrip')}: ${selectedTrip.title}`}
+            className={styles.activeTrip}
+            data-testid="active-trip-banner"
+            disabled={updatePreferences.isPending}
             onClick={() => {
-              void navigate('/start');
+              setIsTripMenuOpen((open) => !open);
             }}
+            ref={tripTriggerRef}
             type="button"
           >
-            {t('feed.createTrip')}
+            <span className={styles.activeTripPeriod}>{selectedTripPeriod}</span>
+            <span className={styles.activeTripChoice}>
+              <span className={styles.activeTripTitle}>{selectedTrip.title}</span>
+              <IconChevronDown
+                className={styles.activeTripChevron}
+                data-open={isTripMenuOpen}
+                size={18}
+              />
+            </span>
           </button>
+
+          {isTripMenuOpen ? (
+            <ul
+              aria-label={t('feed.representativeTrip')}
+              className={styles.tripOptions}
+              id="representative-trip-list"
+            >
+              {tripItems
+                .filter((trip) => trip.id !== selectedTripId)
+                .map((trip) => (
+                  <li key={trip.id}>
+                    <button
+                      aria-label={trip.title}
+                      aria-pressed={trip.id === selectedTripId}
+                      className={styles.tripOption}
+                      disabled={updatePreferences.isPending}
+                      onClick={() => {
+                        selectRepresentativeTrip(trip.id);
+                      }}
+                      type="button"
+                    >
+                      <span className={styles.activeTripPeriod}>
+                        {tripPeriod(trip.startDate, trip.endDate)}
+                      </span>
+                      <span className={styles.activeTripChoice}>
+                        <span className={styles.activeTripTitle}>{trip.title}</span>
+                        {trip.id === selectedTripId ? <IconCheck size={18} /> : null}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {updatePreferences.isError ? (
+        <p
+          aria-label={t('feed.representativeTripError')}
+          className={styles.preferenceError}
+          role="alert"
+        >
+          {t('feed.representativeTripError')}
         </p>
       ) : null}
 
@@ -364,12 +591,28 @@ export function FeedScreen() {
         </ul>
       ) : null}
 
+      {feed.hasNextPage ? (
+        <div className={styles.paginationAnchor} ref={loadMoreAnchor}>
+          {feed.isFetchingNextPage ? (
+            <div
+              aria-label={t('feed.loadingMore')}
+              aria-live="polite"
+              className={styles.paginationStatus}
+              role="status"
+            >
+              <span aria-hidden="true" className={styles.spinner} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* FR-CAN-01: which trip the place goes in. Mounted once for the screen
           rather than per card — twelve cards would otherwise mount twelve
           dialogs, which is the shape that made an earlier E2E measure the
           wrong one. */}
       <TripPicker
         failed={trips.isError}
+        locale={locale}
         labels={{
           title: t('tripPicker.title'),
           cancel: t('tripPicker.cancel'),
@@ -389,7 +632,6 @@ export function FeedScreen() {
         }}
         onPick={(tripId) => {
           const target = pickerFor;
-          setChosenTripId(tripId);
           setPickerFor(null);
           if (target) saveCandidate(target.placeId, target.postId, tripId);
         }}
@@ -433,22 +675,6 @@ export function FeedScreen() {
           }}
           tone={toast.kind === 'error' ? 'error' : 'info'}
         />
-      ) : null}
-
-      {/* A button, not an infinite scroll: a scroll handler that loads more
-          has no keyboard equivalent and no announced end, and the frontend
-          rules require both a keyboard path and a stated result. */}
-      {feed.hasNextPage ? (
-        <button
-          className={styles.more}
-          disabled={feed.isFetchingNextPage}
-          onClick={() => {
-            void feed.fetchNextPage();
-          }}
-          type="button"
-        >
-          {feed.isFetchingNextPage ? t('feed.loadingMore') : t('feed.more')}
-        </button>
       ) : null}
 
       {feed.isSuccess && !feed.hasNextPage && cards.length > 0 ? (

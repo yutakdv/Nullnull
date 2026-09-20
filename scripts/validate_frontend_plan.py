@@ -32,6 +32,7 @@ HANDOFF = 'docs/design/FIGMA_HANDOFF.md'
 OPENAPI = 'docs/api/openapi.yaml'
 STATUSES = {'planned', 'contract-ready', 'in-progress', 'integration-ready',
             'verified', 'blocked', 'deferred'}
+TASK_ID_RE = re.compile(r'FE-(?:\d{3}|P1-\d{3})')
 
 
 def testcase_names(path: Path) -> set[str] | None:
@@ -101,7 +102,7 @@ def validate(root: Path, problems: list[str]) -> None:
         problems.append('frontend plan tasks must be a non-empty object list')
         return
     ids = [t.get('id') for t in tasks]
-    if not all(isinstance(i, str) and re.fullmatch(r'FE-\d{3}', i) for i in ids):
+    if not all(isinstance(i, str) and TASK_ID_RE.fullmatch(i) for i in ids):
         problems.append('frontend plan has invalid task IDs')
         return
     if len(set(ids)) != len(ids):

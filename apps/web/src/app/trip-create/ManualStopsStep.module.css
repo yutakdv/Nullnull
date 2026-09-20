@@ -1,5 +1,11 @@
 /* Figma: S02-4C-C 직접 입력 438:3199. */
 
+.screen {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3) var(--space-4) 0;
+}
+
 .day {
   display: flex;
   flex-direction: column;

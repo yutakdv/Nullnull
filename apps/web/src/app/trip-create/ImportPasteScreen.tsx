@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import {
@@ -36,6 +36,9 @@ import styles from './ImportPasteScreen.module.css';
 export function ImportPasteScreen() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
+  const sourceDraft =
+    (location.state as { wizardDraft?: WizardDraft } | null)?.wizardDraft ?? EMPTY_DRAFT;
 
   const [raw, setRaw] = useState('');
   const [draft, setDraft] = useState<ImportDraftWithETag | null>(null);
@@ -111,9 +114,9 @@ export function ImportPasteScreen() {
     // place to collect them would be a second source for the same three
     // fields.
     const wizardDraft: WizardDraft = {
-      ...EMPTY_DRAFT,
-      startDate: draft.draft.dates.startDate ?? null,
-      endDate: draft.draft.dates.endDate ?? null,
+      ...sourceDraft,
+      startDate: draft.draft.dates.startDate ?? sourceDraft.startDate,
+      endDate: draft.draft.dates.endDate ?? sourceDraft.endDate,
       planningLevel: 'MOSTLY_PLANNED',
     };
     const created = toCreateRequest(wizardDraft, 'Asia/Seoul');
@@ -152,7 +155,7 @@ export function ImportPasteScreen() {
         }}
       />
 
-      <div className={wizard.head}>
+      <div className={`${wizard.head} ${styles.head}`}>
         <h1 className={wizard.title} id="import-heading">
           {t('import.title')}
         </h1>
@@ -193,6 +196,7 @@ export function ImportPasteScreen() {
           ) : null}
 
           <BottomCta
+            fixed
             disabled={raw.trim() === '' || parse.isPending}
             label={parse.isPending ? t('import.parsing') : t('import.parse')}
             onClick={runParse}
@@ -211,6 +215,7 @@ export function ImportPasteScreen() {
             {t('import.empty')}
           </p>
           <BottomCta
+            fixed
             label={t('import.retry')}
             onClick={() => {
               setDraft(null);
@@ -351,6 +356,7 @@ export function ImportPasteScreen() {
               the only way forward under a button that cannot move. */}
           {expired ? (
             <BottomCta
+              fixed
               label={t('import.retry')}
               onClick={() => {
                 setDraft(null);
@@ -358,6 +364,7 @@ export function ImportPasteScreen() {
             />
           ) : (
             <BottomCta
+              fixed
               disabled={!ready || confirm.isPending}
               label={confirm.isPending ? t('import.confirming') : t('import.confirm')}
               onClick={runConfirm}
@@ -366,6 +373,7 @@ export function ImportPasteScreen() {
                   <p className={styles.note}>{t('import.confirmBlocked')}</p>
                 )
               }
+              secondaryKind="note"
             />
           )}
         </>

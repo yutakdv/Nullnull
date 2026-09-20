@@ -12,7 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import { tripFixtures } from '@nullnull/contracts';
+import { crowdFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -71,6 +71,16 @@ describe('FE-301-T1 the counts are right and distinct', () => {
         copy['trip.length'].replace('{nights}', '3').replace('{days}', '4'),
       ),
     ).toBeInTheDocument();
+  });
+
+  it('formats the trip date range for the selected locale', async () => {
+    localStorage.setItem('nullnull.locale', 'en-US');
+    renderTrip();
+    await loaded();
+
+    expect(screen.getByText('Oct 4, 2026 – Oct 7, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('2026.10.04 – 10.07')).toBeNull();
+    localStorage.removeItem('nullnull.locale');
   });
 
   it('distinguishes an empty day from an empty trip', async () => {
@@ -231,6 +241,49 @@ describe('FE-301-T1 renders no value the contract does not carry', () => {
     expect(screen.queryByText('STREET')).not.toBeInTheDocument();
   });
 
+  it('renders the approved place labels and five-step crowd reading when present', async () => {
+    const firstDay = trip.days[0];
+    const firstItem = firstDay?.items[0];
+    if (!firstDay || !firstItem) throw new Error('fixture shape changed');
+    const detailed = {
+      ...trip,
+      days: [
+        {
+          ...firstDay,
+          items: [
+            {
+              ...firstItem,
+              place: {
+                ...firstItem.place,
+                categoryName: '관광지',
+                regionName: '종로구',
+              },
+              crowd: {
+                ...crowdFixtures.seriesForecast.points[0],
+                ordinalLevel: '4',
+              },
+            },
+            ...firstDay.items.slice(1),
+          ],
+        },
+        ...trip.days.slice(1),
+      ],
+    };
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(detailed, { headers: { ETag: '"3"' } }),
+      ),
+    );
+
+    renderTrip();
+    await loaded();
+
+    expect(screen.getByText('관광지')).toBeInTheDocument();
+    expect(screen.getByText('종로구')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Level 4 of 5' })).toBeInTheDocument();
+    expect(screen.getByText('4 · 혼잡')).toBeInTheDocument();
+  });
+
   it('shows real stops without route distance or travel-time claims (FCR-005 trace)', async () => {
     renderTrip();
     await loaded();
@@ -294,6 +347,92 @@ describe('FE-301-T3 the screen is reachable and named', () => {
     await user.click(day1);
     expect(day1).toHaveAttribute('aria-pressed', 'true');
     expect(all).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('keeps the view header free of the edit-only add-place action', async () => {
+    localStorage.setItem('nullnull.locale', 'ko-KR');
+    renderTrip();
+    await loaded();
+
+    expect(
+      within(screen.getByRole('banner')).queryByRole('link', { name: '장소 추가' }),
+    ).not.toBeInTheDocument();
+    localStorage.removeItem('nullnull.locale');
+  });
+
+  it('switches to the Figma edit state instead of appending the metadata form', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('nullnull.locale', 'ko-KR');
+    renderTrip();
+    await loaded();
+
+    await user.click(screen.getByRole('button', { name: '일정 편집' }));
+
+    expect(await screen.findByText('편집 중')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('banner')).getByRole('link', { name: '장소 추가' }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('banner')).getByRole('link', { name: /담아둔 장소/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'AI로 일정 최적화' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('여행 이름')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('navigation', { name: '주요 메뉴' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '취소' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '변경사항 저장' })).toBeInTheDocument();
+
+    localStorage.removeItem('nullnull.locale');
+  });
+
+  it('uses Korean day labels in the Korean itinerary', async () => {
+    localStorage.setItem('nullnull.locale', 'ko-KR');
+    renderTrip();
+    await loaded();
+
+    expect(screen.getByRole('button', { name: '1일차' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /1일차/ })).toBeInTheDocument();
+    localStorage.removeItem('nullnull.locale');
+  });
+
+  it('restores the existing item-card layout in edit mode', async () => {
+    const user = userEvent.setup();
+    renderTrip();
+    await loaded();
+
+    const move = copy['trip.move.open'].replace('{name}', '경복궁');
+    const remove = copy['trip.remove.open'].replace('{name}', '경복궁');
+    expect(screen.queryByRole('button', { name: move })).toBeNull();
+    expect(screen.queryByRole('button', { name: remove })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: copy['trip.editStart'] }));
+
+    expect(screen.getByRole('button', { name: move })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: remove })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '경복궁 item actions' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('9:30 AM')).toBeInTheDocument();
+  });
+
+  it('does not mount the retired optimization undo block', async () => {
+    let historyReads = 0;
+    server.use(
+      http.get(`${API_BASE}/optimizations`, () => {
+        historyReads += 1;
+        return HttpResponse.json({ items: [], nextCursor: null });
+      }),
+    );
+
+    renderTrip();
+    await loaded();
+    await delay(30);
+
+    expect(historyReads).toBe(0);
+    expect(screen.queryByText(copy['trip.applied.badge.available'])).toBeNull();
   });
 
   it('does not offer the optimization entry as a pressable button', async () => {

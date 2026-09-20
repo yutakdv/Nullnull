@@ -74,6 +74,7 @@ function renderTrip() {
 async function openReplace(name: string) {
   const user = userEvent.setup();
   renderTrip();
+  await user.click(await screen.findByRole('button', { name: copy['trip.editStart'] }));
   const heading = await screen.findByRole('heading', { level: 3, name });
   const card = heading.closest('article');
   if (!card) throw new Error('card not found');
@@ -276,6 +277,8 @@ describe('FE-305-T1 the replace request preserves the schedule', () => {
         </I18nProvider>
       </QueryClientProvider>,
     );
+    await screen.findByRole('heading', { level: 3, name: '경복궁' });
+    await user.click(screen.getByRole('button', { name: copy['trip.editStart'] }));
     const heading = await screen.findByRole('heading', { level: 3, name: '경복궁' });
     const card = heading.closest('article') as HTMLElement;
     await user.click(

@@ -3,7 +3,22 @@
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-1);
+}
+
+/* A fixed BottomCta leaves document flow, so reserve its full action area.
+   `:has` keeps the extra space off the input-method step, whose option rows
+   are the actions and which intentionally renders no bottom CTA. */
+.screen:has([data-fixed='true']) {
+  padding-bottom: calc(var(--layout-bottom-primary) + env(safe-area-inset-bottom));
+}
+
+.screen:has([data-fixed='true'][data-secondary-kind='note']) {
+  padding-bottom: calc(var(--layout-bottom-note) + env(safe-area-inset-bottom));
+}
+
+.screen:has([data-fixed='true'][data-secondary-kind='action']) {
+  padding-bottom: calc(var(--layout-bottom-action) + env(safe-area-inset-bottom));
 }
 
 .head {
@@ -12,8 +27,39 @@
   gap: var(--space-2);
 }
 
-.step {
-  align-self: flex-end;
+/* Figma S02-1 treats the heading and calendar as one content section. The
+   shared app bar owns the step label on every step. */
+.datesFlow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.datesHead,
+.datesCalendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-inline: var(--space-4);
+}
+
+/* S02-2 and S02-3 use a full-width navigation and CTA, with only the content
+   column inset. Keeping that distinction here avoids the historical double
+   gutter when the shared app shell changed its page padding. */
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-inline: var(--space-4);
+}
+
+/* In the wizard's choice screens the title and explanatory copy are separate
+   body blocks in Figma (24px apart), unlike the compact date-picker header. */
+.stepBody .head {
+  gap: var(--space-6);
+}
+
+.navStep {
   color: var(--color-text-secondary);
   font-size: var(--font-label);
   font-weight: 500;
@@ -177,10 +223,10 @@
      ~201px in a 180px viewport and pushed the page sideways; the label wraps
      instead now. */
   min-width: 0;
-  min-height: 44px;
-  padding: var(--space-4);
+  min-height: 88px;
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-card-lg);
+  border-radius: 14px;
   background: var(--color-bg-default);
   font-family: inherit;
   text-align: start;
@@ -199,15 +245,28 @@
   gap: 2px;
 }
 
+.optionIcon {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+}
+
+.optionArrow {
+  flex: 0 0 20px;
+  color: var(--color-action-primary);
+}
+
 .optionTitle {
   color: var(--color-text-primary);
-  font-size: var(--font-body-base);
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 24px;
 }
 
 .optionBody {
   color: var(--color-text-secondary);
   font-size: var(--font-label);
+  line-height: 18px;
 }
 
 .hint {

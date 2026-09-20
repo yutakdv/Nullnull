@@ -60,6 +60,8 @@ async function openTrip(page: import('@playwright/test').Page) {
   const path = await createSeededTrip(page);
   await page.goto(path);
   await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Edit itinerary' }).click();
+  await expect(page).toHaveURL(/\/edit$/);
 }
 
 test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {

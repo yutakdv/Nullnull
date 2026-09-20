@@ -1,4 +1,95 @@
 /* S09-1 `415:2413`. */
+.loadingScreen {
+  min-height: 100%;
+}
+
+.loadingBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 200px;
+  margin: 260px auto 0;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+}
+
+.loadingTitle {
+  margin: 24px 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-md);
+  font-weight: 700;
+  line-height: 28px;
+  text-align: center;
+}
+
+.loadingSteps {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+  gap: var(--space-2);
+  margin: 24px 0 0 40px;
+  padding: 0;
+  list-style: none;
+}
+
+.loadingStep {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-base);
+  line-height: 19px;
+}
+
+.marker {
+  display: inline-grid;
+  place-items: center;
+  width: 13px;
+  color: currentcolor;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.leaveButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  min-height: 44px;
+  margin-top: 24px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.loadingNote {
+  margin: 24px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .screen {
   display: flex;
   flex-direction: column;
@@ -18,54 +109,6 @@
   color: var(--color-text-primary);
   font-size: var(--font-body-sm);
   line-height: 20px;
-}
-
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.step {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-secondary);
-  font-size: var(--font-caption);
-}
-
-/* The dot carries no meaning on its own; the step's text is the label. */
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-bg-track);
-}
-
-.step[data-active] {
-  color: var(--color-text-primary);
-}
-
-.step[data-active] .dot {
-  background: var(--color-action-strong);
-}
-
-/* Reduced motion: the pulse is decoration, and the text already says the
-   run is working. */
-@media (prefers-reduced-motion: no-preference) {
-  .step[data-active] .dot {
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.35;
-  }
 }
 
 .note,

@@ -2,6 +2,7 @@
 .bar {
   display: flex;
   gap: var(--space-1);
+  height: 73px;
   padding: var(--space-2);
   border-radius: var(--radius-pill);
   background: var(--color-bg-surface);

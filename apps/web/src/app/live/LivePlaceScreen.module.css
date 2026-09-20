@@ -1,0 +1,137 @@
+.screen {
+  min-height: 100%;
+  padding-bottom: var(--space-8);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--layout-page-gutter);
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.titleRow h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-lg);
+  line-height: 1.3;
+}
+
+.address,
+.card p,
+.state {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-subtle);
+}
+
+.card h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+}
+
+.relatedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.relatedList li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
+}
+
+.relatedList a {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.relatedList li > span:not([class]) {
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+}
+
+.state {
+  display: flex;
+  min-height: 160px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.state button {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-text-onAccent);
+  font: inherit;
+  font-weight: 700;
+}
+
+.saveArea {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.saveButton {
+  min-height: 52px;
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-action-primary);
+  color: var(--color-text-onAccent);
+  font: inherit;
+  font-weight: 700;
+}
+
+.saveButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.saveNote,
+.saveStatus {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.saveStatus[role='alert'] {
+  color: var(--color-text-danger, var(--color-text-primary));
+}

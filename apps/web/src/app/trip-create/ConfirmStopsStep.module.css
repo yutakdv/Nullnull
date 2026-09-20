@@ -1,5 +1,12 @@
 /* Figma: S02-5C 최종 확인 438:3259. */
 
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
 .hint {
   margin: 0;
   padding: var(--space-3);

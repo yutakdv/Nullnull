@@ -44,6 +44,18 @@ const IMAGE_EXTENSIONS = new Set([
  * five arrive they are added here and this scan starts covering them for free.
  */
 const ALLOWED: Record<string, string> = {
+  'public/figma/nulli.png':
+    'Designer-supplied Nulli artwork exported from Figma node 804:4512 for A-3 intro.',
+  'public/figma/profile-guest.png':
+    'Designer-supplied guest avatar exported from Figma node 422:2934 for S14 profile.',
+  'public/figma/optimization-spinner.svg':
+    'Designer-supplied optimization spinner exported from Figma node 415:2415 for S09-1.',
+  'public/figma/plan-level-empty.svg':
+    'Designer-supplied plan-level empty tile exported from Figma node 438:3134 for S02-3.',
+  'public/figma/plan-level-must-visit.svg':
+    'Designer-supplied plan-level must-visit tile exported from Figma node 438:3134 for S02-3.',
+  'public/figma/plan-level-mostly-planned.svg':
+    'Designer-supplied plan-level mostly-planned tile exported from Figma node 438:3134 for S02-3.',
   'public/icon.svg': 'First-party app mark, drawn for this project (PWA manifest icon).',
   'public/icon-maskable.svg':
     'The same first-party mark with the maskable safe-area padding Android asks for.',

@@ -2,11 +2,11 @@ import { useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { SupportedLocale } from '../../i18n/locales.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { BottomCta } from '../../shared/ui/index.js';
+import { BottomCta, IconCheck } from '../../shared/ui/index.js';
 import { useUpdatePreferences } from '../../shared/api/index.js';
 import styles from './LanguageScreen.module.css';
 
-// Figma: A-2 language `388:277` (KO selected), `643:4088` (EN selected).
+// Figma: A-2 language redesign `804:4481`.
 // FR-ONB-02: Korean and English are selectable and restorable; Japanese and
 // Chinese are disabled `준비 중` and never selected, stored, or requested.
 //
@@ -109,9 +109,7 @@ export function LanguageScreen() {
                     </span>
                   </span>
                   {selected ? (
-                    <span className={styles.check} aria-hidden="true">
-                      ✓
-                    </span>
+                    <IconCheck aria-hidden="true" className={styles.check} size={20} />
                   ) : null}
                   {selected ? (
                     <span className={styles.visuallyHidden}>

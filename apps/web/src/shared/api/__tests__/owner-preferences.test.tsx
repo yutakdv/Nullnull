@@ -131,4 +131,27 @@ describe('a preference write keeps the session cache current (BA-011)', () => {
     });
     expect(client.getQueryData(sessionQueryKey)).toBeUndefined();
   });
+
+  it('keeps the current-owner cache in sync after a cold-tab preference change', async () => {
+    // Refreshed tabs recover the owner through GET /me rather than POSTing a
+    // new demo session. If PATCH updates only the bootstrap cache, the feed and
+    // My Trip tab snap back to the old representative on their next render.
+    const client = createQueryClient();
+    client.setQueryData(['owner', 'current'], {
+      ...sessionFixtures.owner,
+      activeTripId: null,
+    });
+
+    const { result } = renderHook(() => useUpdatePreferences(), {
+      wrapper: wrapper(client),
+    });
+    result.current.mutate({ activeTripId: TRIP_ID });
+
+    await waitFor(() => {
+      expect(
+        client.getQueryData<typeof sessionFixtures.owner>(['owner', 'current'])
+          ?.activeTripId,
+      ).toBe(TRIP_ID);
+    });
+  });
 });

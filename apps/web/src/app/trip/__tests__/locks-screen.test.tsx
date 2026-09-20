@@ -61,9 +61,18 @@ function renderTrip() {
 
 /** The card for one place, once the trip has loaded. */
 async function cardFor(name: string) {
+  await screen.findByRole('heading', { level: 3, name });
+  const edit = screen.queryByRole('button', { name: copy['trip.editStart'] });
+  if (edit) await userEvent.setup().click(edit);
   const heading = await screen.findByRole('heading', { level: 3, name });
   const card = heading.closest('article');
   if (!card) throw new Error('card not found');
+  const menu = within(card).queryByRole('button', {
+    name: copy['trip.item.actions'].replace('{name}', name),
+  });
+  if (menu?.getAttribute('aria-expanded') === 'false') {
+    await userEvent.setup().click(menu);
+  }
   return card;
 }
 

@@ -1,0 +1,37 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--layout-page-gutter);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-title-md);
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--layout-touch-min);
+  padding-inline: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  color: var(--color-action-strong);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back:hover {
+  background: var(--color-action-subtle);
+}
+
+.back:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}

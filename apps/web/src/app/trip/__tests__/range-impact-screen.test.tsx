@@ -34,7 +34,9 @@ afterEach(() => {
 });
 
 function renderTrip() {
-  const router = createMemoryRouter(routes, { initialEntries: [`/trip/${trip.id}`] });
+  const router = createMemoryRouter(routes, {
+    initialEntries: [`/trip/${trip.id}/settings`],
+  });
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -47,7 +49,6 @@ function renderTrip() {
 async function openEditor() {
   const user = userEvent.setup();
   renderTrip();
-  await user.click(await screen.findByRole('button', { name: copy['trip.editStart'] }));
   await screen.findByLabelText(copy['trip.field.title']);
   return user;
 }

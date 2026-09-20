@@ -1,14 +1,13 @@
-/* S03-D `398:611`. */
+/* S03-D `804:4595`. */
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-6);
+  min-height: 100%;
 }
 
 .cover {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 393 / 264;
   object-fit: cover;
 }
 
@@ -20,50 +19,73 @@
   font-size: var(--font-label);
 }
 
-.title,
-.excerpt,
-.body,
 .sectionHead {
   margin: 0;
   padding-inline: var(--space-4);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 14px var(--space-4) 0;
+}
+
+.title,
+.excerpt,
+.body {
+  margin: 0;
 }
 
 .title {
   color: var(--color-text-primary);
   font-size: var(--font-title-md);
   font-weight: 700;
+  line-height: 28px;
 }
 
 .excerpt {
-  color: var(--color-text-secondary);
-  font-size: var(--font-body-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-body-base);
+  line-height: 21px;
 }
 
 .body {
   color: var(--color-text-primary);
   font-size: var(--font-body-base);
-  line-height: 22px;
+  line-height: 21px;
   white-space: pre-wrap;
 }
 
 .saveRow {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  padding-inline: var(--space-4);
+  min-height: calc(var(--layout-bottom-primary) + env(safe-area-inset-bottom));
+  margin-top: auto;
+  padding: var(--space-4) var(--layout-page-gutter);
+  padding-bottom: max(var(--space-4), calc(var(--space-4) + env(safe-area-inset-bottom)));
+  background: var(--color-bg-default);
 }
 
 .save {
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
+  width: 100%;
+  min-height: 47px;
+  padding: 0 var(--space-4);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   background: var(--color-action-strong);
   color: var(--color-action-onPrimary);
   font-family: inherit;
-  font-size: var(--font-caption);
+  font-size: var(--font-body-md);
   font-weight: 700;
+}
+
+.save:disabled {
+  opacity: 0.45;
 }
 
 .saveNote,
@@ -72,6 +94,10 @@
   color: var(--color-text-secondary);
   font-size: var(--font-caption);
   line-height: 16px;
+}
+
+.saveNote {
+  text-align: center;
 }
 
 .state {
@@ -97,6 +123,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
 .sectionHead {
@@ -118,9 +145,9 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: 8px;
+  padding: var(--space-4);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-subtle);
 }
 
 .placeName {

@@ -332,9 +332,9 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 // FE-503's READY preview is now implemented and SCREENS uses MOCK_RUN_ID, so
 // the local MSW run reaches the real proposal and decision bar. The screen has
 // no dialog or sheet, making the focus-return half of T4 inapplicable; this
-// case proves its remaining reduced-motion half. FE-505-T4 stays out because
-// its applied/undo panel is not reachable in the integration gate while that
-// capability is off (playwright.config.ts records that boundary).
+// case proves its remaining reduced-motion half. The former FE-505 applied
+// panel is no longer mounted on trip detail by product decision, so its route
+// boundary is covered by applied-panel.spec.ts instead.
 //
 // It does NOT reuse the assertion above, because that assertion cannot fail.
 // Measured: delete the `prefers-reduced-motion` block from styles.css and
@@ -551,4 +551,40 @@ test.describe('the app shell fits the screen', () => {
     const after = await read();
     expect(after.bottom).toBe(before.bottom);
   });
+});
+
+test.describe('post detail keeps its primary action reachable', () => {
+  for (const [label, width] of [
+    ['360px phone', 360],
+    ['200% zoom', 180],
+  ] as const) {
+    test(`the save action stays inside the ${label} viewport while the post scrolls`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/posts/018f5b00-0000-7000-8000-000000000001');
+      await page.waitForLoadState('networkidle');
+
+      const save = page.getByRole('button', { name: /이 글 저장|Save this post/ });
+      await expect(save).toBeVisible();
+      await expect(save).toBeInViewport();
+
+      await page.evaluate(() => {
+        const main = document.querySelector('main');
+        if (main) main.scrollTop = main.scrollHeight;
+      });
+
+      await expect(save).toBeInViewport();
+      const bounds = await save.boundingBox();
+      const viewport = page.viewportSize();
+      expect(bounds).not.toBeNull();
+      expect(viewport).not.toBeNull();
+      expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(
+        viewport?.width ?? 0,
+      );
+      expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(
+        viewport?.height ?? 0,
+      );
+    });
+  }
 });

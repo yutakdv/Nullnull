@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 //
-// FE sign-in screen (#265). Figma A-4 `746:4707`.
+// FE sign-in screen (#265). Figma A-4 `804:4537`.
 //
 // The promise this file guards is narrow and easy to break by accident: the
 // screen renders a real credential form and sends NOTHING. There is no auth
@@ -48,12 +48,6 @@ function renderSignIn() {
   );
 }
 
-/** Fills both fields, which is what makes the submit button pressable. */
-async function fillCredentials(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(await screen.findByLabelText(copy['signIn.id.label']), 'traveller');
-  await user.type(screen.getByLabelText(copy['signIn.password.label']), 'hunter2');
-}
-
 describe('the sign-in screen holds a form that moves on without checking it', () => {
   it('sends no request when the form is submitted', async () => {
     // The whole point of the screen existing before its contract. If this goes
@@ -61,7 +55,6 @@ describe('the sign-in screen holds a form that moves on without checking it', ()
     // second case this test should be replaced, not relaxed.
     const user = userEvent.setup();
     renderSignIn();
-    await fillCredentials(user);
 
     await user.click(screen.getByRole('button', { name: copy['signIn.submit'] }));
 
@@ -96,7 +89,6 @@ describe('the sign-in screen holds a form that moves on without checking it', ()
     // they are not stuck either.
     const user = userEvent.setup();
     renderSignIn();
-    await fillCredentials(user);
 
     await user.click(screen.getByRole('button', { name: copy['signIn.submit'] }));
 
@@ -105,17 +97,14 @@ describe('the sign-in screen holds a form that moves on without checking it', ()
     ).toBeInTheDocument();
   });
 
-  it('keeps the submit button unpressable until both fields are filled', async () => {
-    const user = userEvent.setup();
+  it('prefills the demo credentials and enables submit', async () => {
     renderSignIn();
 
+    expect(await screen.findByLabelText(copy['signIn.id.label'])).toHaveValue('openapi');
+    expect(screen.getByLabelText(copy['signIn.password.label'])).toHaveValue(
+      '2026openapi!',
+    );
     const submit = await screen.findByRole('button', { name: copy['signIn.submit'] });
-    expect(submit).toBeDisabled();
-
-    await user.type(screen.getByLabelText(copy['signIn.id.label']), 'traveller');
-    expect(submit, 'an ID alone is not enough').toBeDisabled();
-
-    await user.type(screen.getByLabelText(copy['signIn.password.label']), 'hunter2');
     expect(submit).toBeEnabled();
   });
 
@@ -134,12 +123,17 @@ describe('the sign-in screen holds a form that moves on without checking it', ()
     expect(password).toHaveAttribute('autocomplete', 'current-password');
   });
 
-  it('offers a way to carry on without an account', async () => {
+  it('moves to the feed when continuing without an account', async () => {
     // AGENTS.md rule 14: the anonymous path stays whole. A sign-in screen with
     // no way out would turn an addition into a gate.
+    const user = userEvent.setup();
     renderSignIn();
-    expect(
+    await user.click(
       await screen.findByRole('button', { name: copy['signIn.anonymous'] }),
+    );
+
+    expect(
+      await screen.findByRole('heading', { name: copy['feed.title'] }),
     ).toBeInTheDocument();
   });
 

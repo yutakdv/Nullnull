@@ -10,15 +10,20 @@ npm install        # 저장소 루트에서 (workspace)
 npm run dev        # http://localhost:5173
 ```
 
-`npm run dev`는 **MSW mock을 켠 채로** 뜬다(`VITE_API_MOCKING=on`). `apps/api`를 띄우지 않아도
-모든 화면이 승인된 OpenAPI example 기반 fixture로 동작한다. 이 값이 없으면 Vite가 `/api`를
-`localhost:8080`으로 proxy하고, 백엔드가 없으면 모든 화면이 로딩 상태에서 멈춘다.
+`npm run dev`는 실제 API를 사용한다. Vite가 `/api`를 `API_INTERNAL_BASE_URL`로 proxy하며,
+값이 없으면 `http://localhost:8080`을 사용한다. 배포 API를 로컬 UI에서 확인할 때는 브라우저가
+아닌 Vite proxy 대상만 바꾼다. 세션 cookie와 CSRF 요청은 계속 같은 origin으로 보인다. 외부
+배포 주소를 지정하면 Vite가 upstream Host를 사용하며, 브라우저에서 넣은 배포 게이트 헤더도
+값을 저장하지 않고 그대로 전달한다.
 
-실제 `apps/api`를 상대로 확인하려면:
+승인된 fixture로 화면만 독립 실행해야 할 때에만 mock을 명시적으로 켠다.
 
 ```bash
-npm run dev:api    # mock 없이. apps/api가 :8080에 떠 있어야 한다
+API_INTERNAL_BASE_URL=https://example.invalid npm run dev  # 배포 API proxy
+npm run dev:mock                                      # MSW fixture
 ```
+
+`npm run dev:api`는 기존 로컬 작업 호환을 위한 `npm run dev`의 별칭이다.
 
 mock worker는 `public/`이 아니라 `mocks/mockServiceWorker.js`에 있고 Vite dev 미들웨어가
 서빙한다(`vite.config.ts`). `public/`에 두면 `dist/`로 복사돼 production 이미지가 mock을
@@ -30,12 +35,12 @@ mock worker는 `public/`이 아니라 `mocks/mockServiceWorker.js`에 있고 Vit
 ```bash
 npm run verify:ci  # tokens drift · lint · format · tsc · packages · vitest · build · bundle budget
 npm run test       # vitest만
-npm run test:e2e   # Playwright. dev 서버를 직접 띄운다
+npm run test:e2e   # Playwright. dev:mock 서버를 직접 띄운다
 ```
 
 `e2e/session.spec.ts` 3건은 `apps/api`(:8080)를 직접 호출하므로 백엔드 없이는
 실패한다. 브라우저를 쓰지 않는 transport 테스트라서 MSW가 가로채지 않는다.
-나머지 E2E는 mock으로 돈다.
+나머지 E2E는 명시적인 `dev:mock` 서버로 돈다.
 
 ## 구조
 

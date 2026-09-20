@@ -1,4 +1,4 @@
-// Browser worker for `npm run dev`. Never imported at module scope by app code:
+// Browser worker for `npm run dev:mock`. Never imported at module scope by app code:
 // main.tsx loads it through a dynamic import behind an import.meta.env.DEV
 // guard so Rollup drops it from the production bundle entirely.
 //

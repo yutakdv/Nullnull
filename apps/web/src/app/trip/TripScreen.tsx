@@ -1,13 +1,18 @@
-import { useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useTrip } from '../../shared/api/index.js';
-import { Chip, DataAttribution } from '../../shared/ui/components/index.js';
+import { Chip, CrowdLevel, DataAttribution } from '../../shared/ui/components/index.js';
+import {
+  IconDateLock,
+  IconPinVisitFilled,
+  IconReservation,
+  IconTimeLock,
+} from '../../shared/ui/icons/index.js';
 import { ItemMoveControls } from './ItemMoveControls.js';
 import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
-import { TripAppliedPanel } from './TripAppliedPanel.js';
 import { TripEditForm } from './TripEditForm.js';
 import styles from './TripScreen.module.css';
 import {
@@ -60,19 +65,37 @@ function dayLabel(date: string, locale: string, timeZone: string): string {
   }).format(new Date(`${date}T00:00:00Z`));
 }
 
-export function TripScreen() {
+/** Date-only contract values formatted without letting a device timezone move them. */
+function tripDateRange(startDate: string, endDate: string, locale: string): string {
+  if (locale === 'ko-KR') {
+    return `${startDate.replaceAll('-', '.')} – ${endDate.slice(5).replace('-', '.')}`;
+  }
+  const format = new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+  return `${format.format(new Date(`${startDate}T00:00:00Z`))} – ${format.format(
+    new Date(`${endDate}T00:00:00Z`),
+  )}`;
+}
+
+export interface TripScreenProps {
+  mode?: 'view' | 'edit' | 'details';
+}
+
+export function TripScreen({ mode = 'view' }: TripScreenProps) {
   const { tripId } = useParams();
+  const navigate = useNavigate();
   const { locale, t } = useI18n();
   const query = useTrip(tripId ?? null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const editing = mode === 'edit';
   // The outcome of a removal, held HERE rather than in the control that sent
   // it: a successful remove unmounts the row, so a message owned by the row
   // would be destroyed by the action it reports.
   const [removed, setRemoved] = useState<string | null>(null);
-  // The button that opened edit mode, so focus can come back to it (FR-TRP-03).
-  const editButtonRef = useRef<HTMLButtonElement>(null);
-
   const trip = query.data?.trip;
   const days = trip?.days ?? [];
   const shown = useMemo(() => visibleDays(days, selectedDay), [days, selectedDay]);
@@ -122,7 +145,10 @@ export function TripScreen() {
   const total = itemCount(days);
 
   return (
-    <section className={styles.screen} aria-labelledby="trip-heading">
+    <section
+      className={`${styles.screen} ${editing ? styles.editing : ''}`}
+      aria-labelledby="trip-heading"
+    >
       <header className={styles.header}>
         <div className={styles.headRow}>
           <h1 className={styles.title} id="trip-heading">
@@ -135,72 +161,69 @@ export function TripScreen() {
           </span>
         </div>
 
-        <p className={styles.meta}>
-          <span>
-            {new Intl.DateTimeFormat(locale, {
-              dateStyle: 'medium',
-              timeZone: trip.timezone,
-            }).format(new Date(`${trip.startDate}T00:00:00Z`))}
-            {' – '}
-            {new Intl.DateTimeFormat(locale, {
-              dateStyle: 'medium',
-              timeZone: trip.timezone,
-            }).format(new Date(`${trip.endDate}T00:00:00Z`))}
-          </span>
-          <span>{t('trip.length', { nights, days: dayCount })}</span>
+        <div className={styles.meta}>
+          <p className={styles.metaText}>
+            <span>{tripDateRange(trip.startDate, trip.endDate, locale)}</span>
+            <span aria-hidden="true"> · </span>
+            <span>{t('trip.length', { nights, days: dayCount })}</span>
+          </p>
           {/* candidateCount is the contract's own field, not a length taken
               from the `candidates` array: that array is a page of the
               candidates, so counting it would under-report the total. */}
           {/* The count is the way into the candidate panel (S07-8), so it is a
               link rather than a label. */}
-          {/* 521:3989: the frame's mode bar pairs "+ 장소 추가" with the saved
-              places count. */}
-          <Link className={styles.addPlace} to={`/trip/${trip.id}/add-place`}>
-            {t('trip.addPlace')}
-          </Link>
-          <Link className={styles.candidates} to={`/trip/${trip.id}/candidates`}>
-            {t('trip.candidates', { count: trip.candidateCount })}
-          </Link>
-        </p>
+          {editing ? null : (
+            <Link className={styles.candidates} to={`/trip/${trip.id}/candidates`}>
+              {t('trip.candidates', { count: trip.candidateCount })}
+            </Link>
+          )}
+        </div>
 
         {/* 462:3401: a hairline between the meta row and the actions. */}
         <span className={styles.divider} />
 
-        <p className={styles.actions}>
-          {/* Operable as of FE-501: this opens the setup where the user picks
+        {editing ? (
+          <div className={styles.modeBar}>
+            <strong className={styles.modeLabel}>{t('trip.editMode')}</strong>
+            <span className={styles.modeSpacer} />
+            <Link className={styles.addPlace} to={`/trip/${trip.id}/add-place`}>
+              <span aria-hidden="true">+</span> {t('trip.addPlace')}
+            </Link>
+            <Link
+              className={`${styles.candidates} ${styles.candidatesEditing}`}
+              to={`/trip/${trip.id}/candidates`}
+            >
+              {t('trip.candidates', { count: trip.candidateCount })}
+            </Link>
+          </div>
+        ) : (
+          <p className={styles.actions}>
+            {/* Operable as of FE-501: this opens the setup where the user picks
               the stop to change. It was inert `준비 중` text until then. */}
-          <Link className={styles.action} to={`/trip/${trip.id}/optimize`}>
-            {t('trip.optimize')}
-          </Link>
-          {editing ? null : (
+            <Link
+              className={`${styles.action} ${styles.optimize}`}
+              to={`/trip/${trip.id}/optimize`}
+            >
+              {t('trip.optimize')}
+            </Link>
             <button
               className={styles.action}
               onClick={() => {
-                setEditing(true);
+                void navigate(`/trip/${trip.id}/edit`);
               }}
-              ref={editButtonRef}
               type="button"
             >
               {t('trip.editStart')}
             </button>
-          )}
-        </p>
+          </p>
+        )}
       </header>
 
-      {/* The undo an apply earned, for as long as the server says it stands.
-          Persistent rather than a toast (`FCR-015`): the window is 24 hours,
-          so a traveller who comes back the next morning still finds it. The
-          panel renders nothing at all when there is nothing to undo. */}
-      <TripAppliedPanel etag={query.data.etag} tripId={trip.id} />
-
-      {editing ? (
+      {mode === 'details' ? (
         <TripEditForm
           etag={query.data.etag}
           onClose={() => {
-            setEditing(false);
-            // Focus returns to the control that opened the form, after the
-            // button is back in the tree.
-            queueMicrotask(() => editButtonRef.current?.focus());
+            void navigate(`/trip/${trip.id}`);
           }}
           trip={trip}
         />
@@ -253,7 +276,7 @@ export function TripScreen() {
           <p className={styles.state}>{t('trip.emptyNote')}</p>
         </div>
       ) : (
-        <p className={styles.state} role="status">
+        <p className={`${styles.state} ${styles.srOnly}`} role="status">
           {t('trip.itemCount', { count: total })}
         </p>
       )}
@@ -274,13 +297,16 @@ export function TripScreen() {
           </h2>
 
           {day.items.length === 0 ? (
-            <p className={styles.state}>{t('trip.dayEmpty')}</p>
+            <div className={styles.emptyDay}>
+              <p className={styles.state}>{t('trip.dayEmpty')}</p>
+            </div>
           ) : (
             <ul className={styles.items}>
               {orderedItems(day).map((item) => (
                 <li key={item.id}>
                   <TripItemRow
                     days={days}
+                    editing={editing}
                     etag={query.data.etag}
                     item={item}
                     onAnnounce={setRemoved}
@@ -292,6 +318,29 @@ export function TripScreen() {
           )}
         </section>
       ))}
+
+      {editing ? (
+        <div className={styles.editActions}>
+          <button
+            className={styles.editCancel}
+            onClick={() => {
+              void navigate(`/trip/${trip.id}`);
+            }}
+            type="button"
+          >
+            {t('trip.editCancel')}
+          </button>
+          <button
+            className={styles.editSave}
+            onClick={() => {
+              void navigate(`/trip/${trip.id}`);
+            }}
+            type="button"
+          >
+            {t('trip.editSave')}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -307,40 +356,108 @@ export function TripScreen() {
 function TripItemRow({
   item,
   days,
+  editing,
   tripId,
   etag,
   onAnnounce,
 }: {
   item: TripItem;
   days: readonly TripDetail['days'][number][];
+  editing: boolean;
   tripId: string | null;
   etag: string | null;
   onAnnounce: (message: string) => void;
 }) {
   const { locale, t } = useI18n();
+  const mustVisit = item.constraints.some(
+    (constraint) => constraint.type === 'MUST_VISIT',
+  );
+  const viewMeta = [item.place.categoryName, item.place.regionName].filter(
+    (value): value is string => Boolean(value),
+  );
+  if (item.durationMinutes !== null && item.durationMinutes !== undefined) {
+    viewMeta.push(formatDuration(item.durationMinutes, t));
+  }
+
+  if (editing) {
+    const editMeta = item.place.address ? [item.place.address] : [];
+    if (item.durationMinutes !== null && item.durationMinutes !== undefined) {
+      editMeta.push(formatDuration(item.durationMinutes, t));
+    }
+
+    return (
+      <article className={styles.item}>
+        <div className={styles.itemHead}>
+          <h3 className={styles.itemName}>{item.place.name}</h3>
+          <span className={styles.itemTime}>
+            {formatTime(item.startTime, locale) ?? t('trip.timeUnset')}
+          </span>
+        </div>
+
+        <p className={styles.itemMeta}>
+          {editMeta.map((value) => (
+            <span key={value}>{value}</span>
+          ))}
+        </p>
+
+        {item.place.sourceAttribution ? (
+          <DataAttribution compact provenance={item.place.sourceAttribution} />
+        ) : null}
+
+        <LockRow etag={etag} item={item} tripId={tripId} />
+        <ItemMoveControls days={days} etag={etag} item={item} tripId={tripId} />
+        <RemoveItemControl
+          etag={etag}
+          item={item}
+          onAnnounce={onAnnounce}
+          tripId={tripId}
+        />
+      </article>
+    );
+  }
 
   return (
     <article className={styles.item}>
       <div className={styles.itemHead}>
+        {mustVisit ? (
+          <span className={styles.mustVisit}>
+            <IconPinVisitFilled size={15} />
+            <span className={styles.srOnly}>{t('trip.lock.MUST_VISIT')}</span>
+          </span>
+        ) : null}
         <h3 className={styles.itemName}>{item.place.name}</h3>
         <span className={styles.itemTime}>
           {formatTime(item.startTime, locale) ?? t('trip.timeUnset')}
         </span>
+        {tripId ? (
+          <Link
+            aria-label={t('trip.item.actions', { name: item.place.name })}
+            className={styles.itemMenuLink}
+            to={`/trip/${tripId}/edit`}
+          >
+            <span aria-hidden="true">•••</span>
+          </Link>
+        ) : null}
       </div>
 
       <p className={styles.itemMeta}>
-        {/* Address, not categoryCode. The contract types categoryCode as a free
-            string with no enum and no display name, so there is nothing to
-            translate it against — rendering it shows the user machine text like
-            "ATTRACTION". Asked BE for the vocabulary and its labels on #34
-            (BA-022); until then the row shows only what is already human. */}
-        {item.place.address === null || item.place.address === undefined ? null : (
-          <span>{item.place.address}</span>
-        )}
-        {item.durationMinutes === null || item.durationMinutes === undefined ? null : (
-          <span>{formatDuration(item.durationMinutes, t)}</span>
-        )}
+        {viewMeta.map((value, index) => (
+          <span key={`${value}:${String(index)}`}>
+            {index > 0 ? <span aria-hidden="true"> · </span> : null}
+            {value}
+          </span>
+        ))}
       </p>
+
+      {item.crowd ? (
+        <CrowdLevel
+          crowd={item.crowd}
+          levelLabel={t('crowd.level', {
+            level: item.crowd.ordinalLevel ?? '',
+            steps: 5,
+          })}
+        />
+      ) : null}
 
       {/* CMP-ATT-001: a KTO-sourced place carries its credit wherever it
           appears, shown verbatim (CMP-ATT-003). This row rendered the place
@@ -350,27 +467,28 @@ function TripItemRow({
           carried sourceAttribution: null at the time; BA-030 maps places
           through the shared catalog projection, so the real response populates
           it, and #281 filled the fixtures in to match. */}
-      {item.place.sourceAttribution ? (
+      {item.crowd ? (
+        <DataAttribution compact provenance={item.crowd.provenance} />
+      ) : item.place.sourceAttribution ? (
         <DataAttribution compact provenance={item.place.sourceAttribution} />
       ) : null}
 
-      {/* Operable as of FE-304: each lock releases on its own request, and the
-          two with confirm frames ask first. */}
-      <LockRow etag={etag} item={item} tripId={tripId} />
-
-      {/* FR-ITM-03 / FR-ITM-05: reorder within the day and move to another,
-          each one atomic reorder request. */}
-      <ItemMoveControls days={days} etag={etag} item={item} tripId={tripId} />
-
-      {/* FR-ITM-06: take the stop off the itinerary, asking whether the saved
-          place survives. Nothing rendered this until now, so a place added by
-          mistake could not be removed at all. */}
-      <RemoveItemControl
-        etag={etag}
-        item={item}
-        onAnnounce={onAnnounce}
-        tripId={tripId}
-      />
+      <ul aria-label={t('trip.locks')} className={styles.locks}>
+        {item.constraints
+          .filter((constraint) => constraint.type !== 'MUST_VISIT')
+          .map((constraint) => (
+            <li
+              className={styles.lock}
+              data-constraint={constraint.type}
+              key={constraint.type}
+            >
+              {constraint.type === 'DATE' ? <IconDateLock size={12} /> : null}
+              {constraint.type === 'TIME' ? <IconTimeLock size={12} /> : null}
+              {constraint.type === 'RESERVATION' ? <IconReservation size={12} /> : null}
+              {t(`trip.lock.${constraint.type}`)}
+            </li>
+          ))}
+      </ul>
     </article>
   );
 }

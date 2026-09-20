@@ -21,7 +21,6 @@
   flex-direction: column;
   gap: var(--space-3);
   min-height: 100%;
-  margin: calc(var(--space-4) * -1);
   padding: var(--space-4);
   background: var(--color-bg-subtle);
 }
@@ -29,9 +28,9 @@
 .title {
   margin: 0 0 var(--space-2);
   color: var(--color-text-primary);
-  font-size: var(--font-title-md);
+  font-size: 24px;
   font-weight: 700;
-  line-height: 27px;
+  line-height: 30px;
 }
 
 /* `--elevation-raised` and not one of the other three: this frame's Figma
@@ -57,15 +56,19 @@
 
 /* 422:2934 */
 .avatar {
+  display: grid;
   flex: none;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-pill);
-  background: var(--color-bg-track, var(--color-bg-subtle));
+  background: var(--color-bg-track);
+  color: var(--color-text-secondary);
+  place-items: center;
 }
 
 .guestText {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
@@ -82,63 +85,24 @@
 .guestName {
   display: block;
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
-  line-height: 21px;
+  line-height: 24px;
 }
 
 .guestNote {
   display: block;
   color: var(--color-text-secondary);
-  font-size: var(--font-label);
-  line-height: 16px;
-}
-
-/* Disabled sign-in. Not a control: it is inert and says why.
- *
- * This was a real `<Link>` for a day, while login was briefly in P0 (#264,
- * #265), and the opacity and the disabled colour were removed then because
- * they would have lied about a control the traveller could follow. The owner
- * reverted login to P1 on 2026-09-19, so the row is inert text again and both
- * are back. ProfileScreen.tsx carries the reason — read it before flipping
- * this a third time.
- *
- * NO TOUCH-TARGET FLOOR HERE, deliberately. While this was a link it needed
- * one on both axes and the gate caught it twice (42×18, then 42×44 after a
- * bare min-height). Now it is a `<span>`, and responsive.spec's walk selects
- * `a, button, [role="button"], input, select, textarea` — a span is not in
- * that set, so it is not measured. That spec's own comment says the same thing
- * from the other side: "`준비 중` rows are inert by design and must not be
- * dragged up to 44px to satisfy a rule." Adding a 44px box to inert text would
- * satisfy nothing and would make the row look tappable. */
-.loginRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) var(--space-1);
-  opacity: 0.55;
-}
-
-.loginLabel {
-  color: var(--color-text-disabled);
-  font-size: var(--font-body-base);
-  font-weight: 500;
-}
-
-.badge {
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  padding: 5px var(--space-3);
-  color: var(--color-text-secondary);
-  font-size: var(--font-label);
-  font-weight: 500;
+  font-size: 15px;
+  line-height: 21px;
 }
 
 .sectionHead {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-label);
-  line-height: 16px;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 22px;
 }
 
 .rows {
@@ -217,15 +181,15 @@ button.row {
 
 .rowTitle {
   color: var(--color-text-primary);
-  font-size: var(--font-body-base);
+  font-size: 16px;
   font-weight: 500;
-  line-height: 19px;
+  line-height: 22px;
 }
 
 .rowNote {
   color: var(--color-text-secondary);
-  font-size: var(--font-caption);
-  line-height: 15px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .rowValue {
@@ -233,6 +197,16 @@ button.row {
   color: var(--color-text-secondary);
   font-size: var(--font-label);
   line-height: 16px;
+}
+
+.rowValue svg {
+  display: block;
+}
+
+.tripCount {
+  flex: 0 0 44px;
+  margin-inline-end: calc(var(--space-2) * -1);
+  text-align: center;
 }
 
 .note {

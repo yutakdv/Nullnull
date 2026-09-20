@@ -12,16 +12,10 @@ import styles from './IntroScreen.module.css';
 // means "skip reading", not "skip recording". The icons are decorative — the
 // adjacent text is the label.
 //
-// Both land on /feed. They routed through /sign-in for a while, when login was
-// briefly in P0 (#264, #265) — the owner reverted that on 2026-09-19 and login
-// is P1 again. The reason is recorded on #264 and is a real one rather than a
-// scope trim: `owners.account_id` is unique, so several judges signing in with
-// the one official test account would share a single owner and see each other's
-// edits and deletions. An anonymous session gives each browser its own owner.
-//
-// So the judged walk-through is anonymous end to end, which is what
-// docs/contest and AGENTS.md principles 13-14 have said all along. /sign-in
-// still exists for P1 but nothing routes to it.
+// Both continue to /sign-in, the last onboarding step before /feed. The form
+// is a demo-only presentation until an authentication contract exists, and it
+// keeps an explicit anonymous path so the core flow still works without an
+// account.
 
 const POINTS: { Icon: typeof IconHeart; titleKey: MessageKey; bodyKey: MessageKey }[] = [
   { Icon: IconHeart, titleKey: 'intro.point1.title', bodyKey: 'intro.point1.body' },
@@ -38,12 +32,13 @@ export function IntroScreen() {
     // Best effort until BA-011 opens: onboarding must not stall on a request
     // the server does not answer yet.
     updatePreferences.mutate({ onboardingCompleted: true });
-    void navigate('/feed', { replace: true });
+    void navigate('/sign-in');
   }
 
   return (
     <section className={styles.screen} aria-labelledby="intro-heading">
       <div className={styles.body}>
+        <img className={styles.nulli} src="/figma/nulli.png" alt="" />
         <div className={styles.copy}>
           <h1 className={styles.title} id="intro-heading">
             {t('intro.title1')}
@@ -76,6 +71,7 @@ export function IntroScreen() {
         label={t('intro.start')}
         onClick={start}
         secondary={<p className={styles.noLogin}>{t('intro.noLogin')}</p>}
+        secondaryKind="note"
       />
     </section>
   );

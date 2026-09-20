@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { overflow } from './overflow.js';
-import { createSeededTrip } from './seeded-trip.js';
+import { createRepresentativeTrip, createSeededTrip } from './seeded-trip.js';
 
 // FE-203-T3 / FE-601: the bottom sheets survive 360px and 200% zoom.
 //
@@ -32,9 +32,15 @@ type SheetPath = 'own-trip' | '/feed';
  * has one to list rather than an empty state.
  */
 async function openWithSession(page: import('@playwright/test').Page, path: SheetPath) {
-  const trip = await createSeededTrip(page);
-  await page.goto(path === 'own-trip' ? trip : path);
+  const destination =
+    path === 'own-trip'
+      ? await createSeededTrip(page)
+      : await createRepresentativeTrip(page);
+  await page.goto(path === 'own-trip' ? destination : path);
   await page.waitForLoadState('networkidle');
+  if (path === 'own-trip') {
+    await page.getByRole('button', { name: 'Edit itinerary' }).click();
+  }
 }
 
 /** Every sheet reachable without writing anything. */

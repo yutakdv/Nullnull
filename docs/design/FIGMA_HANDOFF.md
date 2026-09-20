@@ -75,6 +75,15 @@ Figma page의 용도:
 | `/nearby/:poiId` | 주변 추천 | P1 | 또는 Live inline panel |
 | `/posts/new` | 게시물 작성 | P1 | 미디어 upload 포함 |
 
+Notification `deepLink`의 canonical UI path는 실제 router와 event allowlist가 이미 사용하는
+단수형 `/trip/:tripId`, `/trip/:tripId/optimizations/:runId`, `/notifications`, `/profile`이다.
+복수형 `/trips/...` 호환 alias는 추가하지 않는다. `/notifications`는 FE-P1-101과 알림
+capability가 함께 활성화된 뒤에만 생산하며, 그 전에는 서버도 해당 deep link를 발급하지
+않는다. Live 상세 링크(`/live/areas/:areaId`, `/live/places/:placeId`)도 FE-401·FE-402의
+route와 capability가 활성화되기 전에는 발급하지 않고 `/live`만 사용한다. 허용되지 않거나
+이미 사라진 알림 대상은 raw href로 이동하지 않고 `/notifications`에서 안내한다. OpenAPI의
+복수형 `trips` pattern은 BE/AI가 이 canonical path에 맞춰 정정한다.
+
 ### Mobile navigation
 
 - P0 tab: `홈`, `내 여행`, `Live`, `프로필`.

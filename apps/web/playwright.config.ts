@@ -2,46 +2,27 @@ import { defineConfig } from '@playwright/test';
 
 // One config for both modes. Locally it starts the dev server; inside the
 // docker-integration gate the compose file sets PLAYWRIGHT_BASE_URL to the
-// composed web service and no server is started.
-const integration = process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL;
+// composed web service and no server is started. PLAYWRIGHT_MOCK_BASE_URL is
+// the explicit escape hatch for an already-running mock server (for example,
+// when the developer's real-API Vite server already owns port 5173).
+const mockBaseURL = process.env.PLAYWRIGHT_MOCK_BASE_URL;
+const integration = mockBaseURL
+  ? undefined
+  : (process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL);
 
 export default defineConfig({
   testDir: './e2e',
-  // applied-panel.spec.ts is the one file the gate cannot run, and it is
-  // excluded there rather than weakened everywhere.
+  // Specs whose assertions depend on the deterministic MSW catalogue belong
+  // to the local visual-regression suite, not to the composed API gate. The
+  // latter intentionally starts a fresh anonymous session and reads whatever
+  // the integration seed exposes, so fixed post counts, fixture trip names,
+  // and fixture UUIDs are not contract assertions there.
   //
-  // WHY. Every assertion in it is about the undo panel, and the panel only
-  // renders once the trip has a DECIDED optimization run behind it. The gate's
-  // Spring starts with that capability off — `optimization:
-  // ${FEATURE_OPTIMIZATION_ITEM:false}` (apps/api application.yaml:129) — and
-  // nothing in compose.integration.yml, the workflows or integration-test.sh
-  // ever sets that variable. So the run cannot be created there and the panel
-  // cannot exist: measured, the original three cases died in their own presence guard
-  // ("the applied panel is not on the trip screen") before reaching a single
-  // real assertion. Seeding harder does not help; createSeededTrip could ask
-  // for a run and the capability gate would refuse it.
-  //
-  // WHY NOT `fixme`. check_test_reports.py rejects skipped tests, and a single
-  // rejected file makes it discard the whole suite as zero executed — taking
-  // the testcases that did pass with it.
-  //
-  // WHY NOT DELETE. The first three caught real defects this week: the two reflow
-  // cases pinned the `.resultRow` wrap fix with a blast radius of 1, and the
-  // keyboard case closed the #272 class of silently-unfocusable triggers. They
-  // must keep firing in the explicit local Playwright suite, and they do —
-  // `verify:ci` does not run E2E. This ignores the file only when
-  // PLAYWRIGHT_BASE_URL/WEB_BASE_URL point at a composed stack.
-  //
-  // WHAT BRINGS IT BACK. The day the gate runs with the optimization
-  // capability on, delete this line: the panel becomes reachable and these
-  // cases should run there like everything else.
-  //
-  // AND WHAT THIS COSTS, said plainly: FE-505-T3/T4's clauses have never been
-  // proven in the gate. They are green locally, against MSW, and that is not
-  // the same claim. This line does not create that gap — the panel was already
-  // unreachable there — but it does stop the gate from saying so, so the gap
-  // is written down here instead.
-  testIgnore: integration ? ['**/applied-panel.spec.ts'] : [],
+  // Exclude the files at collection time instead of calling test.skip(): the
+  // report gate rejects skipped JUnit cases. The real-API suite still runs all
+  // non-mock specs, including session, trip creation, keyboard, responsive,
+  // and API-backed seeded-trip journeys.
+  testIgnore: integration ? ['**/*.mock.spec.ts'] : [],
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   // JUnit alongside the readable one in CI. check_test_reports.py reads JUnit and nothing
@@ -64,23 +45,24 @@ export default defineConfig({
       ]
     : 'list',
   use: {
-    baseURL: integration ?? 'http://127.0.0.1:5173',
+    baseURL: mockBaseURL ?? integration ?? 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
     // 360px is the narrowest supported width (.claude/rules/frontend.md).
     viewport: { width: 360, height: 800 },
     isMobile: true,
     hasTouch: true,
   },
-  webServer: integration
-    ? undefined
-    : {
-        // --host binds 127.0.0.1 as well as ::1. Without it Vite listens on
-        // IPv6 localhost only, Playwright's IPv4 baseURL never connects, and
-        // the suite runs against a blank page -- assertions on absent elements
-        // fail loudly, but any probe that only measures layout would "pass"
-        // while measuring nothing.
-        command: 'npm run dev -- --host 127.0.0.1',
-        url: 'http://127.0.0.1:5173',
-        reuseExistingServer: !process.env.CI,
-      },
+  webServer:
+    integration || mockBaseURL
+      ? undefined
+      : {
+          // --host binds 127.0.0.1 as well as ::1. Without it Vite listens on
+          // IPv6 localhost only, Playwright's IPv4 baseURL never connects, and
+          // the suite runs against a blank page -- assertions on absent elements
+          // fail loudly, but any probe that only measures layout would "pass"
+          // while measuring nothing.
+          command: 'npm run dev:mock -- --host 127.0.0.1',
+          url: 'http://127.0.0.1:5173',
+          reuseExistingServer: !process.env.CI,
+        },
 });

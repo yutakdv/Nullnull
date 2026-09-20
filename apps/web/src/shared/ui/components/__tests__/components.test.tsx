@@ -96,4 +96,39 @@ describe('BottomCta', () => {
     await userEvent.click(screen.getByRole('button', { name: '다음' }));
     expect(onClick).toHaveBeenCalledOnce();
   });
+
+  it('marks the bar when a flow pins it to the viewport bottom', () => {
+    render(<BottomCta fixed label="다음" />);
+    expect(screen.getByRole('button', { name: '다음' }).parentElement).toHaveAttribute(
+      'data-fixed',
+      'true',
+    );
+  });
+
+  it('distinguishes a secondary action from supporting copy for safe spacing', () => {
+    const { rerender } = render(
+      <BottomCta
+        fixed
+        label="다음"
+        secondary={<button type="button">일정 붙여넣기</button>}
+        secondaryKind="action"
+      />,
+    );
+    expect(screen.getByRole('button', { name: '다음' }).parentElement).toHaveAttribute(
+      'data-secondary-kind',
+      'action',
+    );
+
+    rerender(
+      <BottomCta
+        fixed
+        label="일정 만들기"
+        secondary={<p>확인이 필요한 줄이 남아 있어요</p>}
+        secondaryKind="note"
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: '일정 만들기' }).parentElement,
+    ).toHaveAttribute('data-secondary-kind', 'note');
+  });
 });

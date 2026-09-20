@@ -14,6 +14,14 @@
   padding: var(--space-8) var(--space-4) 0;
 }
 
+.nulli {
+  align-self: center;
+  flex: none;
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+}
+
 .copy {
   display: flex;
   flex-direction: column;

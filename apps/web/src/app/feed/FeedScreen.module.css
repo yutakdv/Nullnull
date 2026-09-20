@@ -4,32 +4,124 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-4) var(--space-6);
+  padding: var(--space-3) var(--space-4) var(--space-6);
+}
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  margin-bottom: calc(var(--space-1) * -1);
 }
 
 .title {
   margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-title-md);
+  font-size: 24px;
   font-weight: 700;
+}
+
+.logoLink {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  border-radius: 8px;
+  color: var(--color-action-primary);
+  text-decoration: none;
+}
+
+.logoLink:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.searchButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.searchButton:hover {
+  background: var(--color-action-subtle);
+}
+
+.searchButton:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.searchNotice {
+  position: absolute;
+  z-index: 40;
+  inset-block-start: 0;
+  inset-inline-end: calc(44px + var(--space-2));
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: max-content;
+  max-width: calc(100% - 104px);
+  min-height: 44px;
+  pointer-events: none;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .prompt {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
   margin: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: 8px;
-  background: var(--color-bg-subtle);
+  padding: var(--space-4);
+  border-radius: 14px;
+  background: var(--color-action-subtle);
+}
+
+.promptBadge {
+  padding: 5px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-default);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.promptTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 22px;
 }
 
 .promptText {
+  margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-caption);
+  line-height: 18px;
+}
+
+.promptActions {
+  display: flex;
+  width: 100%;
+  gap: var(--space-2);
 }
 
 /* Two cards per row, which is what both feed frames draw: S03-F1 `396:2926`
@@ -109,8 +201,7 @@
   line-height: 16px;
 }
 
-.retry,
-.more {
+.retry {
   min-height: 44px;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border-strong);
@@ -122,11 +213,45 @@
   font-weight: 700;
 }
 
-.promptCta {
+.paginationAnchor {
+  display: grid;
+  min-height: 1px;
+  place-items: center;
+}
+
+.paginationStatus {
+  display: grid;
   min-height: 44px;
-  padding: var(--space-2) var(--space-3);
+  place-items: center;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--color-action-subtle);
+  border-top-color: var(--color-action-primary);
+  border-radius: 50%;
+  animation: feed-spin 700ms linear infinite;
+}
+
+@keyframes feed-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+.promptCta {
+  flex: 1;
+  height: 44px;
+  padding: 0 var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--color-action-strong);
   color: var(--color-action-onPrimary);
   font-family: inherit;
@@ -134,6 +259,134 @@
   font-weight: 700;
 }
 
+.promptSecondary {
+  flex: 1;
+  height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 12px;
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.tripFilter {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.activeTrip,
+.tripOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  min-height: 61px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: 14px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.activeTrip[aria-expanded='false'] {
+  background: var(--color-action-subtle);
+}
+
+.activeTrip:hover,
+.tripOption:hover,
+.tripOption[aria-pressed='true']:hover {
+  background: var(--color-action-subtle);
+}
+
+.activeTrip:focus-visible,
+.tripOption:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.activeTrip:disabled,
+.tripOption:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.activeTripPeriod {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.activeTripChoice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 58%;
+}
+
+.activeTripTitle {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activeTripChevron {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  transition: transform 160ms ease;
+}
+
+.activeTripChevron[data-open='true'] {
+  transform: rotate(180deg);
+}
+
+.tripOptions {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tripOption {
+  background: var(--color-bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--color-border-default);
+}
+
+.tripOption[aria-pressed='true'] {
+  background: var(--color-bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+.preferenceError {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-caption);
+  line-height: 18px;
+}
+
 .retry {
   margin-inline-start: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activeTripChevron {
+    transition: none;
+  }
 }

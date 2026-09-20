@@ -14,12 +14,15 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { delay, http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { sessionFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../i18n/I18nProvider.js';
 import { messages } from '../../i18n/messages.js';
 import { createQueryClient, sessionQueryKey } from '../../shared/api/index.js';
+import { API_BASE } from '../../shared/testing/msw/handlers.js';
+import { server } from '../../shared/testing/msw/server.js';
 import { routes } from '../routes.js';
 
 const trip = tripFixtures.detailScheduled;
@@ -47,13 +50,20 @@ function renderAt(path: string, seed?: (client: QueryClient) => void) {
   );
 }
 
-/** Seeds the bootstrap entry AppShell observes, with the given active trip. */
-function withActiveTrip(activeTripId: string | null) {
+/** Seeds the owner and trip list that decide the 내 여행 tab destination. */
+function withActiveTrip(
+  activeTripId: string | null,
+  tripPage: typeof tripFixtures.page = tripFixtures.page,
+) {
   return (client: QueryClient) => {
     client.setQueryData(sessionQueryKey, {
       ...sessionFixtures.bootstrap,
       owner: { ...sessionFixtures.owner, activeTripId },
     });
+    // The screen must observe the state this case names rather than immediately
+    // replacing it with the default MSW page before the assertion runs.
+    client.setQueryDefaults(['trips'], { staleTime: Infinity });
+    client.setQueryData(['trips'], tripPage);
   };
 }
 
@@ -76,6 +86,18 @@ const WITHOUT_TABS = [
   [`/trip/${trip.id}/candidates`, 'sub-page with a back control'],
   ['/about-data', 'sub-page with a back control'],
 ] as const;
+
+describe('route families share responsive content widths', () => {
+  it.each([
+    ['/start', 'form'],
+    ['/trips/select', 'form'],
+    [`/trip/${trip.id}`, 'detail'],
+    ['/feed', 'browse'],
+  ] as const)('%s uses the %s content frame', (path, width) => {
+    renderAt(path, withActiveTrip(trip.id));
+    expect(document.getElementById('main')).toHaveAttribute('data-content-width', width);
+  });
+});
 
 describe('tab destinations carry the tab bar', () => {
   it.each(WITH_TABS)('%s (%s) shows it', async (path) => {
@@ -142,23 +164,99 @@ describe('sub-pages offer a way back', () => {
   });
 });
 
-describe('the 내 여행 tab resolves to the owner active trip (BA-011)', () => {
-  // The tab has no URL of its own: `activeTripId` on the owner profile decides,
-  // and the create wizard PATCHes it. Before this was wired the tab always went
-  // to /profile — which reads as "my trip shows nothing", because the heading
-  // says 내 정보, the trip list sits below the profile block, and the tab that
-  // lights up is the one the traveller did NOT press.
+describe('the 내 여행 tab opens the trip selector (BA-011)', () => {
+  // The tab has a stable index route. `activeTripId` remains Feed's
+  // representative trip, but it never skips the traveller past the list.
 
-  it('opens the active trip when the owner has one', async () => {
+  it('opens the trip selector even when the owner has an active trip', async () => {
     const user = userEvent.setup();
     renderAt('/feed', withActiveTrip(trip.id));
     await screen.findByRole('navigation', TAB_BAR);
 
     await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
 
-    // The destination is asserted by what RENDERS, not by window.location:
-    // createMemoryRouter keeps its own history and never touches the real URL,
-    // so a pathname check here passes '/' forever and proves nothing.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'My trips' }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /서울 가을 여행/ })).toBeInTheDocument();
+    expect(screen.getByText('Feed trip')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /서울 가을 여행.*Feed trip/ }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    const startTrip = screen.getByRole('link', { name: 'Start a new trip' });
+    expect(startTrip).toHaveAttribute('href', '/start');
+    await user.click(startTrip);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Add your trip dates' }),
+    ).toBeInTheDocument();
+  });
+
+  it('opens a trip-selection screen when trips exist but none is active', async () => {
+    // Catch the old fallback to /profile: an account screen happens to contain
+    // trip links, but it does not explain that one must become representative.
+    const user = userEvent.setup();
+    renderAt('/feed', withActiveTrip(null));
+    await screen.findByRole('navigation', TAB_BAR);
+
+    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'My trips' }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /서울 가을 여행/ })).toBeInTheDocument();
+    expect(screen.queryByText('Feed trip')).not.toBeInTheDocument();
+  });
+
+  it('opens trip setup when the owner has no trips', async () => {
+    const user = userEvent.setup();
+    renderAt(
+      '/feed',
+      withActiveTrip(null, {
+        ...tripFixtures.page,
+        items: [],
+      }),
+    );
+    await screen.findByRole('navigation', TAB_BAR);
+
+    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Add your trip dates' }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('navigation', TAB_BAR)).not.toBeInTheDocument();
+  });
+
+  it('keeps 내 여행 current while choosing a representative trip', async () => {
+    const user = userEvent.setup();
+    renderAt('/feed', withActiveTrip(null));
+    const bar = await screen.findByRole('navigation', TAB_BAR);
+
+    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+
+    await screen.findByRole('heading', { level: 1, name: 'My trips' });
+    const current = [...bar.querySelectorAll('button')].filter(
+      (button) => button.getAttribute('aria-current') === 'page',
+    );
+    expect(current[0]?.textContent).toBe(copy['nav.tab.trip']);
+  });
+
+  it('sets the chosen trip as representative and opens it', async () => {
+    // Removing either the preference update or the navigation makes this fail:
+    // the first leaves the shell pointing at null, the second strands the user
+    // on the chooser after their deliberate selection.
+    const user = userEvent.setup();
+    renderAt('/feed', withActiveTrip(null));
+    await screen.findByRole('navigation', TAB_BAR);
+
+    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+    await user.click(await screen.findByRole('button', { name: /서울 가을 여행/ }));
+
     await waitFor(() => {
       expect(
         screen.getByRole('heading', { level: 1, name: trip.title ?? '' }),
@@ -166,63 +264,29 @@ describe('the 내 여행 tab resolves to the owner active trip (BA-011)', () => 
     });
   });
 
-  it('falls back to the trip list when there is no active trip', async () => {
-    // A real state, not a stopgap: a traveller who has created nothing has no
-    // trip to open, and a deleted active trip clears the pointer through
-    // owners.active_trip_id's ON DELETE SET NULL. Both need somewhere to land.
+  it('announces a pending feed-trip update and blocks competing navigation', async () => {
+    server.use(
+      http.patch(`${API_BASE}/me`, async () => {
+        await delay('infinite');
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
     const user = userEvent.setup();
-    renderAt('/feed', withActiveTrip(null));
-    await screen.findByRole('navigation', TAB_BAR);
+    renderAt('/trips/select', withActiveTrip(trip.id));
 
-    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
+    const alternative = await screen.findByRole('button', { name: /부산 겨울 여행/ });
+    await user.click(alternative);
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole('heading', { level: 1, name: copy['profile.title'] }),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it('keeps 내 여행 lit on the fallback, not the tab it landed on', async () => {
-    // The symptom, precisely: pressing 내 여행 lit up 내 정보, so the bar said
-    // the traveller had pressed something they had not. The press is the fact;
-    // /profile is a consequence of having no active trip.
-    const user = userEvent.setup();
-    renderAt('/feed', withActiveTrip(null));
-    const bar = await screen.findByRole('navigation', TAB_BAR);
-
-    await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
-
-    await waitFor(() => {
-      const current = [...bar.querySelectorAll('button')].filter(
-        (b) => b.getAttribute('aria-current') === 'page',
-      );
-      expect(current[0]?.textContent).toBe(copy['nav.tab.trip']);
-    });
-  });
-
-  it('shows the trip list rather than the account block on the fallback', async () => {
-    // The other half of the symptom: the trips were there and 245px down,
-    // behind the profile header and a sign-in CTA, so the screen read as "my
-    // trip shows nothing". The section is scrolled to on arrival.
-    const scrolled: string[] = [];
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = function scrollIntoViewSpy(this: Element) {
-      scrolled.push(this.id);
-    };
-    try {
-      const user = userEvent.setup();
-      renderAt('/feed', withActiveTrip(null));
-      await screen.findByRole('navigation', TAB_BAR);
-
-      await user.click(screen.getByRole('button', { name: copy['nav.tab.trip'] }));
-
-      await waitFor(() => {
-        expect(scrolled).toContain('profile-trips-heading');
-      });
-    } finally {
-      Element.prototype.scrollIntoView = original;
-    }
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Updating the trip used for your feed…',
+    );
+    const create = screen.getByRole('link', { name: 'Start a new trip' });
+    expect(create).toHaveAttribute('aria-disabled', 'true');
+    expect(alternative).toBeDisabled();
+    await user.click(create);
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'My trips' }),
+    ).toBeInTheDocument();
   });
 
   it('leaves a direct visit to the profile reading as 내 정보', async () => {
@@ -237,10 +301,10 @@ describe('the 내 여행 tab resolves to the owner active trip (BA-011)', () => 
     expect(current[0]?.textContent).toBe(copy['nav.tab.profile']);
   });
 
-  it('falls back when the session has not bootstrapped in this tab', async () => {
-    // Deep link with a cold cache: nothing has answered yet, so the tab cannot
-    // know the active trip. Guessing an id here would open someone else's trip
-    // or a 404; the list is the honest answer.
+  it('loads the selector when this tab has a cold session cache', async () => {
+    // A refresh recovers CSRF without bootstrapping another owner. It must read
+    // GET /me as well so Feed and selection share the saved representative,
+    // but the 내 여행 tab still starts from the selector.
     const user = userEvent.setup();
     renderAt('/feed');
     await screen.findByRole('navigation', TAB_BAR);
@@ -249,7 +313,7 @@ describe('the 내 여행 tab resolves to the owner active trip (BA-011)', () => 
 
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { level: 1, name: copy['profile.title'] }),
+        screen.getByRole('heading', { level: 1, name: 'My trips' }),
       ).toBeInTheDocument();
     });
   });

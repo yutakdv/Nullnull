@@ -4,7 +4,8 @@
 //
 // FE-105 acceptance (FR-PRO-01, FR-PRO-02, FR-PRO-03).
 //
-// FE-105-T1: the sign-in CTA makes no request and no route.
+// FE-105-T1: the profile labels the test account without exposing a sign-in
+//             control or making an authentication request.
 // FE-105-T2: default/loading/empty/error states each render.
 // FE-105-T3: keyboard reach, focus and accessible names.
 //
@@ -12,7 +13,7 @@
 // itinerary content for history, so a test checks the screen shows status and
 // target only, rather than trusting the fixture to stay thin.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -69,36 +70,19 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe('FE-105-T1 S14 anonymous guest state (FCR-006 trace)', () => {
-  it('explains where trips are stored', async () => {
+describe('FE-105-T1 S14 test account state', () => {
+  it('labels the test account', async () => {
     renderProfile();
+    expect(await screen.findByText(copy['profile.guest.name'])).toBeInTheDocument();
     expect(await screen.findByText(copy['profile.guest.note'])).toBeInTheDocument();
   });
 
-  it('shows sign-in as inert `준비 중` text, not a control', async () => {
-    // THIRD spelling of this clause, so the history matters more than the
-    // assertion. It began as inert text with a `준비 중` badge, was inverted to
-    // a link when login went into P0 (#264, #265), and is back because the
-    // owner reverted login to P1 on 2026-09-19.
-    //
-    // The revert has a reason worth knowing before anyone flips it a fourth
-    // time: `owners.account_id` is unique, so several judges signing in with
-    // the one official test account would share a single owner and see each
-    // other's edits and deletions. An anonymous session gives each browser its
-    // own owner, which is why `로그인 불필요` is the safer submission profile.
-    //
-    // Asserted as an absence AND a presence. "No link" alone passes if the row
-    // vanishes entirely, which would break FCR-006 the other way — it asks for
-    // a disabled affordance that says why, not for silence.
+  it('shows no sign-in control in the profile summary', async () => {
     renderProfile();
-    expect(await screen.findByText(copy['profile.login'])).toBeInTheDocument();
-    expect(screen.getByText(copy['profile.comingSoon'])).toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: copy['profile.login'] }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: copy['profile.login'] }),
-    ).not.toBeInTheDocument();
+    await screen.findByText(copy['profile.guest.note']);
+    expect(screen.queryByRole('link', { name: copy['profile.login'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: copy['profile.login'] })).toBeNull();
+    expect(screen.queryByText(copy['profile.comingSoon'])).toBeNull();
   });
 
   it('sends no auth request while rendering the profile', async () => {
@@ -106,33 +90,6 @@ describe('FE-105-T1 S14 anonymous guest state (FCR-006 trace)', () => {
     await screen.findByText(copy['profile.guest.note']);
     const authCalls = requests.filter((r) => /login|auth|session\/account/i.test(r.url));
     expect(authCalls).toEqual([]);
-  });
-
-  it('does not navigate or request auth when the inert text is clicked or sent Enter', async () => {
-    const user = userEvent.setup();
-    const { router } = renderProfile();
-    const login = await screen.findByText(copy['profile.login']);
-    await screen.findByText(copy['profile.guest.note']);
-    await waitFor(() => {
-      expect(requests.some((request) => request.url.endsWith('/trips'))).toBe(true);
-      expect(requests.some((request) => request.url.includes('/optimizations'))).toBe(
-        true,
-      );
-      expect(
-        requests.some((request) =>
-          request.url.endsWith(`/trips/${tripFixtures.page.items[0]?.id ?? ''}`),
-        ),
-      ).toBe(true);
-    });
-    const requestCount = requests.length;
-
-    expect(login).not.toHaveAttribute('tabindex');
-    await user.click(login);
-    fireEvent.keyDown(login, { key: 'Enter' });
-
-    expect(router.state.location.pathname).toBe('/profile');
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(requests).toHaveLength(requestCount);
   });
 });
 
@@ -496,15 +453,6 @@ describe('the profile is reachable by keyboard', () => {
       name: new RegExp(tripFixtures.page.items[0]?.title ?? ''),
     });
 
-    // The FIRST tab reaches the trip list, because the sign-in row above it is
-    // inert `준비 중` text and not in the tab order at all. For a day it was a
-    // link and took this position (#264, #265); the owner reverted login to P1
-    // on 2026-09-19, so the row is skipped again.
-    //
-    // Asserting the position rather than just "a trip link gets focus" is what
-    // makes this catch a regression in either direction: a control inserted
-    // above the list fails here, and so does the sign-in row becoming focusable
-    // again — which is the exact change the owner reverted.
     await user.tab();
     const firstTrip = screen
       .getAllByRole('link')

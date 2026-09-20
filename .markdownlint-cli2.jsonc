@@ -20,6 +20,7 @@
     "CONTRIBUTING.md",
     "SECURITY.md",
     "docs/archive/PRODUCT_BRIEF.md",
+    ".agents/**/*.md",
     ".claude/**/*.md",
     ".github/**/*.md",
     "docs/**/*.md"

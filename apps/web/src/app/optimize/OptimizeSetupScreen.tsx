@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useCreateOptimization, useTrip } from '../../shared/api/index.js';
-import { Chip, DataAttribution, NavBar } from '../../shared/ui/index.js';
+import { Chip, DataAttribution, IconClose } from '../../shared/ui/index.js';
 import { formatTime } from '../trip/trip-view.js';
+import { TripScreen } from '../trip/TripScreen.js';
 import styles from './OptimizeSetupScreen.module.css';
 
 type OptimizationScope = components['schemas']['OptimizationScope'];
@@ -72,6 +73,39 @@ export function OptimizeSetupScreen() {
   // or succeeds, so a genuinely different run gets a genuinely new key.
   const idempotencyKey = useRef<string | null>(null);
   const [missingTarget, setMissingTarget] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // Capture the entry point during render, before React applies `autoFocus`
+  // to the sheet's close button during the commit.
+  const previouslyFocusedRef = useRef<HTMLElement | null>(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
+
+  useEffect(() => {
+    return () => {
+      const previouslyFocused = previouslyFocusedRef.current;
+      // StrictMode performs an effect cleanup while the mounted dialog is
+      // still connected. Restoring during that rehearsal steals the focus we
+      // just moved into the sheet. Defer until refs and connectivity reveal
+      // whether this was a real unmount.
+      queueMicrotask(() => {
+        if (dialogRef.current?.isConnected) return;
+        if (previouslyFocused?.isConnected) previouslyFocused.focus();
+      });
+    };
+  }, []);
+
+  // `autoFocus` is the browser path. The explicit focus keeps the same
+  // guarantee in DOM test environments and reasserts it when loading changes
+  // to either the ready or error content. The deferred pass runs after
+  // StrictMode's development-only effect rehearsal; without it that cleanup
+  // can leave a direct deep link focused on <body> in Chromium.
+  useEffect(() => {
+    const focusClose = () => closeRef.current?.focus();
+    focusClose();
+    const timer = window.setTimeout(focusClose, 0);
+    return () => window.clearTimeout(timer);
+  }, [trip.isPending, trip.isError]);
 
   const detail = trip.data?.trip;
   const etag = trip.data?.etag ?? null;
@@ -83,6 +117,88 @@ export function OptimizeSetupScreen() {
 
   function back() {
     void navigate(tripId === null ? '/feed' : `/trip/${tripId}`);
+  }
+
+  function keepFocusInSheet(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      back();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const sheet = dialogRef.current;
+    if (!sheet) return;
+    const controls = Array.from(
+      sheet.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (!first || !last) {
+      event.preventDefault();
+      sheet.focus();
+      return;
+    }
+    if (
+      event.shiftKey &&
+      (document.activeElement === first || document.activeElement === sheet)
+    ) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  /**
+   * S09 is a sheet over the trip, not a replacement page.  Keeping the trip
+   * in the background makes the transition and context match the design,
+   * while `inert`, the focus trap and the backdrop leave exactly one operable
+   * surface.
+   */
+  function frame(content: React.ReactNode) {
+    return (
+      <div className={styles.overlay}>
+        <div aria-hidden="true" className={styles.tripBackground} inert>
+          <TripScreen />
+        </div>
+        <button
+          aria-hidden="true"
+          aria-label={t('optimize.back')}
+          className={styles.backdrop}
+          onClick={back}
+          tabIndex={-1}
+          type="button"
+        />
+        <section
+          aria-labelledby="optimize-heading"
+          aria-modal="true"
+          className={styles.screen}
+          onKeyDown={keepFocusInSheet}
+          ref={dialogRef}
+          role="dialog"
+          tabIndex={-1}
+        >
+          <span aria-hidden="true" className={styles.grabber} />
+          <button
+            aria-label={t('optimize.back')}
+            autoFocus
+            className={styles.close}
+            onClick={back}
+            ref={closeRef}
+            type="button"
+          >
+            <IconClose size={24} />
+          </button>
+          {content}
+        </section>
+      </div>
+    );
   }
 
   // The selection only counts while the stop is still in the trip. A
@@ -131,23 +247,21 @@ export function OptimizeSetupScreen() {
   }
 
   if (trip.isPending) {
-    return (
-      <section aria-labelledby="optimize-heading" className={styles.screen}>
-        <NavBar backLabel={t('optimize.back')} onBack={back} />
+    return frame(
+      <>
         <h1 className={styles.title} id="optimize-heading">
           {t('optimize.title')}
         </h1>
         <p className={styles.state} role="status">
           {t('trip.loading')}
         </p>
-      </section>
+      </>,
     );
   }
 
   if (trip.isError || detail === undefined) {
-    return (
-      <section aria-labelledby="optimize-heading" className={styles.screen}>
-        <NavBar backLabel={t('optimize.back')} onBack={back} />
+    return frame(
+      <>
         <h1 className={styles.title} id="optimize-heading">
           {t('optimize.title')}
         </h1>
@@ -163,7 +277,7 @@ export function OptimizeSetupScreen() {
         >
           {t('optimize.retry')}
         </button>
-      </section>
+      </>,
     );
   }
 
@@ -190,10 +304,8 @@ export function OptimizeSetupScreen() {
               ? t('optimize.failed')
               : null;
 
-  return (
-    <section aria-labelledby="optimize-heading" className={styles.screen}>
-      <NavBar backLabel={t('optimize.back')} onBack={back} />
-
+  return frame(
+    <>
       <h1 className={styles.title} id="optimize-heading">
         {t('optimize.title')}
       </h1>
@@ -305,6 +417,6 @@ export function OptimizeSetupScreen() {
       >
         {create.isPending ? t('optimize.submitting') : t('optimize.submit')}
       </button>
-    </section>
+    </>,
   );
 }
