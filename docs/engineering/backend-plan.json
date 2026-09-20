@@ -1294,6 +1294,10 @@
         {
           "id": "BA-032-T4",
           "assertion": "curation plan은 전부 적용되거나 전부 거절된다"
+        },
+        {
+          "id": "BA-032-T13",
+          "assertion": "운영 feed query 가 내는 순서가 apps/ai 와 공유하는 order fixture 와 같다"
         }
       ],
       "handoff": "여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls.",

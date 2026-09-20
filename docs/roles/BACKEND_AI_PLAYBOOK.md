@@ -1125,6 +1125,7 @@ PM-010의 **장소 쪽은 닫혔다**. `PlaceSummary.sourceAttribution`을 FE가
 - `BA-032-T2`: 다른 owner의 저장 상태가 shared cache로 새지 않는다
 - `BA-032-T3`: save/unsave가 후보·item·trip version에 영향을 주지 않는다
 - `BA-032-T4`: curation plan은 전부 적용되거나 전부 거절된다
+- `BA-032-T13`: 운영 feed query 가 내는 순서가 apps/ai 와 공유하는 order fixture 와 같다
 
 FE 인계·완료 증거: 여행 없음/활성 여행/feed empty를 구분한 card/detail fixture와 숨겨야 할 P1 controls. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
