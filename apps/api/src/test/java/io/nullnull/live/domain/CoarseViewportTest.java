@@ -29,7 +29,7 @@ class CoarseViewportTest {
     }
 
     @Test
-    @DisplayName("a fourth decimal is a device reading, not a map the person moved")
+    @DisplayName("BA-091-T1 viewport 는 소수점 3자리를 넘으면 거절된다")
     void aFourthDecimalIsRefused() {
         assertThatThrownBy(() -> of("126.9701", "37.550", "127.000", "37.580"))
                 .isInstanceOf(LiveViewportException.class).hasMessage("VIEWPORT_TOO_PRECISE");
@@ -38,7 +38,7 @@ class CoarseViewportTest {
     }
 
     @Test
-    @DisplayName("a box below the floor, or inside out, is not a neighbourhood")
+    @DisplayName("BA-091-T8 viewport 는 축별 0.01도 미만이거나 역전된 box 를 거절한다")
     void aBoxThatIsNotCoarseIsRefused() {
         // 0.009 wide: one thousandth under the floor. The boundary case above is 0.010.
         assertThatThrownBy(() -> of("126.970", "37.550", "126.979", "37.580"))
@@ -58,7 +58,7 @@ class CoarseViewportTest {
     }
 
     @Test
-    @DisplayName("bounds outside the world are refused, and no refusal carries the coordinate")
+    @DisplayName("BA-091-T9 BA-091-T4 세계 밖 좌표를 담은 viewport 를 거절하고, 그 거절이 좌표를 로그에 남기지 않는다")
     void outOfRangeIsRefusedAndNothingLeaks() {
         assertThatThrownBy(() -> of("180.001", "37.550", "180.002", "37.580"))
                 .isInstanceOf(LiveViewportException.class).hasMessage("VIEWPORT_OUT_OF_RANGE");
