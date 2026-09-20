@@ -2317,6 +2317,12 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T2`: coverage 없는 POI를0 또는 임의 AREA 값으로 채우지 않는다
 - `BA-090-T3`: source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다
 - `BA-090-T4`: provider 요청은 호출이 준 헤더만 싣는다
+- `BA-090-T5`: proxy 요청 URL 은 자격증명을 담지 않는다
+- `BA-090-T6`: 관측 시각은 제공자의 offset 없는 시각을 KST 로 읽은 것이다
+- `BA-090-T7`: 한 응답의 현재 관측과 예보는 따로 나온다
+- `BA-090-T8`: REPLACE_YN 이 Y 인 관측은 저장되지 않는다
+- `BA-090-T9`: 예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다
+- `BA-090-T10`: 제공자 플래그는 아는 값일 때만 통과한다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
