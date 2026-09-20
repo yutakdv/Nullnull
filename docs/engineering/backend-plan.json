@@ -2963,7 +2963,7 @@
         },
         {
           "id": "BA-083-T5",
-          "assertion": "provider 가 경로 없음이라 답한 쌍과 아무도 묻지 않은 쌍은 다른 사유다"
+          "assertion": "provider 가 경로 없음이라 답한 쌍은 ROUTE_UNAVAILABLE 로 보고되며 ROUTE_ABSENT 가 아니다"
         },
         {
           "id": "BA-083-T6",
