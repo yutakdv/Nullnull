@@ -3046,6 +3046,14 @@
           "assertion": "자격증명이 없는 gateway 는 거절하며 모든 leg 을 미응답으로 보고하지 않는다"
         },
         {
+          "id": "BA-083-T27",
+          "assertion": "한 stop 이 든 잠금은 전부 검사되며 첫째만 검사되지 않는다"
+        },
+        {
+          "id": "BA-083-T28",
+          "assertion": "한 stop 의 같은 type 잠금 둘은 해소하지 않고 거절한다"
+        },
+        {
           "id": "BA-083-T2",
           "assertion": "DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다"
         },
