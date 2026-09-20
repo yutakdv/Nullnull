@@ -92,7 +92,13 @@ class FeedOrderFixtureParityIT {
     }
 
     @Test
-    @DisplayName("BA-032-T4 the production query returns the order the shared fixture declares")
+    // No clause id on purpose. The first version of this said BA-032-T4 - which is already taken by
+    // "curation plan은 전부 적용되거나 전부 거절된다" (CuratedPostImportIT). That is worse than
+    // borrowing a neighbour's id: the aggregator matches an id ANYWHERE in a testcase name, so this
+    // testcase would have counted as evidence for the curation clause while proving nothing about it.
+    // The clause this proves is proposed to the plan owner; until it is registered, the card id alone
+    // keeps the testcase out of the aggregate rather than lying inside it.
+    @DisplayName("BA-032 the production query returns the order the shared fixture declares")
     void theProductionQueryMatchesTheSharedOrderFixture() throws Exception {
         JsonNode cases = fixtureCases();
 
