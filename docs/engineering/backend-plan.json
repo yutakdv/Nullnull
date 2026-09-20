@@ -2849,7 +2849,7 @@
       "tests": [
         {
           "id": "BA-082-T1",
-          "assertion": "타 owner presign 재사용·경로 조작·크기 초과·format spoof를 거부한다"
+          "assertion": "타 owner 의 upload ticket 은 소비할 수 없다"
         },
         {
           "id": "BA-082-T2",
@@ -2882,6 +2882,30 @@
         {
           "id": "BA-082-T9",
           "assertion": "빈 업로드는 거절된다"
+        },
+        {
+          "id": "BA-082-T10",
+          "assertion": "선언한 길이가 상한을 넘으면 서명 전에 거절된다"
+        },
+        {
+          "id": "BA-082-T11",
+          "assertion": "0 이하의 선언 길이는 거절된다"
+        },
+        {
+          "id": "BA-082-T12",
+          "assertion": "제공 어휘 밖의 형식은 서명 전에 거절된다"
+        },
+        {
+          "id": "BA-082-T13",
+          "assertion": "checksum 이 64자리 소문자 hex 가 아니면 거절된다"
+        },
+        {
+          "id": "BA-082-T14",
+          "assertion": "서명된 key 는 owner 와 caller 가 고르지 않은 id 로만 이뤄진다"
+        },
+        {
+          "id": "BA-082-T15",
+          "assertion": "한 ticket 은 최대 하나의 post 를 만든다"
         }
       ],
       "handoff": "upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client.",
