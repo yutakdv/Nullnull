@@ -2533,7 +2533,15 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
-            centroid: components["schemas"]["GeoPoint"];
+            /**
+             * @description Null when no reviewed source gives this area a position. The Seoul feed that
+             *     defines these areas publishes no coordinate at all - not in the response, not in
+             *     the dataset page, not in manual v8.5 (searched for 위도/경도/좌표/WGS/경계/polygon,
+             *     zero hits; chapter 2's area table lists names only). A centroid is therefore not
+             *     withheld, it is unknown, and the submission profile renders these areas as a list
+             *     with the map capability OFF, which needs no position.
+             */
+            centroid: components["schemas"]["GeoPoint"] | null;
             boundaryGeoJson?: {
                 [key: string]: unknown;
             } | null;
