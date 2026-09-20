@@ -53,6 +53,20 @@ public final class ProviderHttpClient {
     }
 
     public CompletableFuture<ProviderResponse> get(String sourceCode, URI uri) {
+        return get(sourceCode, uri, Map.of());
+    }
+
+    /**
+     * The same call with request headers. It exists for a source reached through a proxy we run: the
+     * proxy holds the provider credential and refuses a request that does not carry our shared token,
+     * so the token travels in a header rather than in the path. A path would be the wrong place twice
+     * - it is what access logs record, and BA-070-T2 only pins that the query string stays out of them.
+     *
+     * <p>Header values are never logged here, and this class logs no URI either: the credential's only
+     * appearance is in the request this method builds.
+     */
+    public CompletableFuture<ProviderResponse> get(String sourceCode, URI uri, Map<String, String> headers) {
+        Map<String, String> requestHeaders = Map.copyOf(headers);
         validateTarget(sourceCode, uri);
         CircuitBreaker circuit = circuits.get(sourceCode);
         if (circuit == null || !circuit.allowRequest()) {
@@ -68,7 +82,7 @@ public final class ProviderHttpClient {
         try {
             executor.execute(() -> {
                 try {
-                    ProviderResponse response = retry.execute(() -> send(uri), ProviderResponse::status,
+                    ProviderResponse response = retry.execute(() -> send(uri, requestHeaders), ProviderResponse::status,
                             ProviderResponse::headers);
                     if (response.status() < 200 || response.status() > 299) {
                         if (response.status() == 429 || response.status() >= 500) {
@@ -101,8 +115,10 @@ public final class ProviderHttpClient {
         return result;
     }
 
-    private ProviderResponse send(URI uri) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(uri).timeout(requestTimeout).GET().build();
+    private ProviderResponse send(URI uri, Map<String, String> headers) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri).timeout(requestTimeout).GET();
+        headers.forEach(builder::header);
+        HttpRequest request = builder.build();
         HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
         try (InputStream input = response.body()) {
             long declared = response.headers().firstValueAsLong("Content-Length").orElse(-1);

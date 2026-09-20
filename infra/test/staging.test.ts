@@ -295,8 +295,52 @@ test("every secret has a project-scoped name", () => {
   const names = Object.values(templates)
     .flatMap((t) => Object.values(t.findResources("AWS::SecretsManager::Secret")) as any[])
     .map((r) => r.Properties.Name);
-  assert.equal(names.length, 6);
+  // 6 -> 7 with nullnull-stg/seoul-proxy (BA-090). The number moving is how this assertion works:
+  // it is what notices a secret arriving that nobody named in a review. Do not delete it, and say
+  // here what the new one is when it moves again.
+  assert.equal(names.length, 7);
   for (const name of names) assert.match(name, /^nullnull-stg\//);
+});
+test("the Seoul proxy holds the key, the API task does not, and the allowlist names the proxy", () => {
+  const services = templates.services;
+  const fn = Object.values(
+    services.findResources("AWS::Lambda::Function"),
+  ).find((r: any) => r.Properties.FunctionName === "nullnull-stg-seoul-proxy") as any;
+  assert.ok(fn, "the Seoul proxy function exists");
+
+  // Outside the VPC: inside it would need a NAT, and A-029's cost plan does not have one.
+  assert.equal(fn.Properties.VpcConfig, undefined);
+  // The function is handed a secret NAME to read at runtime, never a key. If the key were passed as
+  // an environment variable it would sit in the template, which is the thing the KTO secret and the
+  // verifier hash both avoid.
+  assert.deepEqual(Object.keys(fn.Properties.Environment.Variables), ["SECRET_ID"]);
+  // It reads THAT secret: the value is an ImportValue of the Foundation stack's Seoul secret,
+  // not a literal - so this matches the resource it points at rather than a name string.
+  assert.match(JSON.stringify(fn.Properties.Environment.Variables), /ImportValue.*Seoul/);
+  // Inline code, so this assertion reads what will actually run: it must reach exactly one upstream
+  // host, and it must not print the URL - the URL is where the key is.
+  const code = fn.Properties.Code.ZipFile as string;
+  assert.match(code, /openapi\.seoul\.go\.kr:8088/);
+  assert.equal(code.includes("console.error('seoul_proxy_upstream_failed name='"), true);
+  assert.equal(/console\.(log|error|warn)\([^)]*upstream[^)]*\)/.test(code.replace(
+    "console.error('seoul_proxy_upstream_failed name=' + (failure && failure.name));", "")), false);
+
+  const api = Object.values(services.findResources("AWS::ECS::TaskDefinition"))
+    .find((r: any) => r.Properties.Family === "nullnull-stg-api") as any;
+  const container = api.Properties.ContainerDefinitions.find((c: any) => c.Name === "api");
+  const environment = JSON.stringify(container.Environment);
+  const secrets = JSON.stringify(container.Secrets);
+
+  // THE SILENT MISROUTE. If the allowlist still named the provider while the base URL named the
+  // proxy, a request built for the proxy - with no key in its path - would be sent to Seoul, and
+  // what Seoul does with a keyless request is not something this repository has measured.
+  assert.equal(environment.includes("openapi.seoul.go.kr"), false);
+  assert.match(environment, /SEOUL_BASE_URL/);
+  assert.match(environment, /SEOUL_ALLOWED_HOST/);
+  // The task receives the proxy token and never the Seoul key: a value that never arrives cannot leak.
+  assert.match(secrets, /SEOUL_PROXY_TOKEN/);
+  assert.match(secrets, /proxyToken/);
+  assert.equal(secrets.includes("apiKey"), false);
 });
 test("protected stacks never embed a release (classification premise)", () => {
   // An app-only release must leave these templates byte-identical, otherwise every release needs the

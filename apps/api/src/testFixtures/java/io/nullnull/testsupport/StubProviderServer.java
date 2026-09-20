@@ -41,10 +41,19 @@ public final class StubProviderServer implements AutoCloseable {
     private static final Set<String> CREDENTIAL_PARAMETERS = Set.of("serviceKey", "apiKey", "key",
             "token", "authKey", "access_token");
 
+    /**
+     * The same rule one layer up. A header carrying a credential is recorded as PRESENT with an empty
+     * value: a test can still prove the adapter sent it, and no run of this harness ever holds the
+     * secret. Lower-cased because HTTP header names are case-insensitive and the sender chooses.
+     */
+    private static final Set<String> CREDENTIAL_HEADERS = Set.of("authorization", "x-api-key",
+            "x-nullnull-proxy-token");
+
     private final HttpServer server;
     private final ConcurrentLinkedQueue<Response> responses = new ConcurrentLinkedQueue<>();
     private final AtomicInteger calls = new AtomicInteger();
     private final ConcurrentLinkedQueue<Map<String, String>> observedQueries = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Map<String, String>> observedHeaders = new ConcurrentLinkedQueue<>();
 
     public StubProviderServer() {
         try {
@@ -84,6 +93,29 @@ public final class StubProviderServer implements AutoCloseable {
         return queries.get(index);
     }
 
+    /**
+     * The request headers of the call at {@code index}, with credential header values emptied. A name
+     * present with an empty value means the adapter sent that header and this harness refused to keep
+     * what was in it.
+     */
+    public Map<String, String> observedHeaders(int index) {
+        List<Map<String, String>> headers = List.copyOf(observedHeaders);
+        if (index < 0 || index >= headers.size()) {
+            throw new IllegalStateException("no call recorded at index " + index
+                    + "; recorded " + headers.size());
+        }
+        return headers.get(index);
+    }
+
+    private static Map<String, String> safeHeaders(com.sun.net.httpserver.Headers raw) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        raw.forEach((name, values) -> {
+            String lower = name.toLowerCase(java.util.Locale.ROOT);
+            headers.put(lower, CREDENTIAL_HEADERS.contains(lower) ? "" : String.join(",", values));
+        });
+        return Map.copyOf(headers);
+    }
+
     private static Map<String, String> safeQuery(String rawQuery) {
         Map<String, String> parameters = new LinkedHashMap<>();
         if (rawQuery == null || rawQuery.isEmpty()) {
@@ -105,6 +137,7 @@ public final class StubProviderServer implements AutoCloseable {
     private void respond(HttpExchange exchange) throws IOException {
         calls.incrementAndGet();
         observedQueries.add(safeQuery(exchange.getRequestURI().getRawQuery()));
+        observedHeaders.add(safeHeaders(exchange.getRequestHeaders()));
         Response response = responses.poll();
         if (response == null) {
             response = new Response(500, "{}");

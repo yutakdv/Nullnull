@@ -215,6 +215,42 @@ class ProviderKitTest {
         return new ClientFixture(client, executor);
     }
 
+    @Test
+    @DisplayName("BA-090-T4 provider 요청은 호출이 준 헤더만 싣는다")
+    void requestHeadersReachTheProvider() throws Exception {
+        // The clause is "only what the call gave", and it needs BOTH directions: a transport that
+        // attaches these headers to every request satisfies the first three assertions alone.
+        //
+        // It exists for the Seoul proxy, which holds the provider credential and refuses a request
+        // without our shared token - the token goes in a header because the path is what access logs
+        // record, and BA-070-T2 only pins that the query string stays out of them.
+        //
+        // WHAT THIS DOES NOT PROVE: that the credential is absent from the URL. Nothing here builds a
+        // URL that could carry one. That clause belongs to whoever builds the proxy URI, and it cannot
+        // be proven through this stub anyway - StubProviderServer.CREDENTIAL_PARAMETERS contains
+        // "token", so a `?token=...` would be dropped before recording and the assertion would pass
+        // while the secret was on the wire.
+        String token = "fake-proxy-token-never-retained";
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(200, "{\"state\":\"A\"}"))
+                .enqueue(new StubProviderServer.Response(200, "{\"state\":\"A\"}"));
+             ClientFixture fixture = fixture(1, Duration.ofMillis(200), 5)) {
+            assertThat(fixture.client.get(SOURCE, stub.uri(""),
+                    Map.of("X-Probe", "visible", "X-Nullnull-Proxy-Token", token)).join().status()).isEqualTo(200);
+
+            // The header left the client: without the overload threading it through, this is absent.
+            assertThat(stub.observedHeaders(0)).containsEntry("x-probe", "visible");
+            // Present, and empty: the harness records that it was sent and keeps nothing of it.
+            assertThat(stub.observedHeaders(0)).containsEntry("x-nullnull-proxy-token", "");
+            assertThat(stub.observedHeaders(0).toString()).doesNotContain(token);
+
+            // The other direction. Without this the first three assertions are also satisfied by a
+            // transport that attaches these headers to every request regardless of the argument.
+            assertThat(fixture.client.get(SOURCE, stub.uri("")).join().status()).isEqualTo(200);
+            assertThat(stub.observedHeaders(1)).doesNotContainKeys("x-probe", "x-nullnull-proxy-token");
+        }
+    }
+
     private record ClientFixture(ProviderHttpClient client, ThreadPoolExecutor executor) implements AutoCloseable {
         @Override
         public void close() {

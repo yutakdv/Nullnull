@@ -12,7 +12,6 @@
 
 SPRING_PROFILES_ACTIVE framework — Spring Boot itself consumes this; no repository code reads it, and none should
 
-SEOUL_API_KEY awaiting B10 — the Seoul Live integration is the last phase; no collector exists yet
-SEOUL_BASE_URL awaiting B10 — same card as SEOUL_API_KEY; documented in ENVIRONMENT.md section 4
+SEOUL_API_KEY awaiting B10 — read by the Seoul proxy in infra/, which this check does not scan (--source-root is apps and scripts); delete this row when infra/ joins the scan
 AI_API_KEY awaiting BA-084 — read only after an LLM provider adapter is approved; ENVIRONMENT.md says so
 AI_MODEL_ID awaiting BA-084 — same card as AI_API_KEY
