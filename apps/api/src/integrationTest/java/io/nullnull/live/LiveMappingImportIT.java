@@ -114,6 +114,24 @@ class LiveMappingImportIT {
     }
 
     @Test
+    @DisplayName("BA-091-T25 같은 승인 시각의 다른 매핑 판단은 기존 판단을 덮지 않는다")
+    void equalTimeDifferentMetadataCannotOverwriteReview() {
+        placeId = place();
+        String areaName = "검토 구역 " + UUID.randomUUID();
+        areaId = areas.upsertArea("SEOUL_CITYDATA",
+                new LiveAreaStore.AreaUpsert("POI-" + UUID.randomUUID(), areaName)).id();
+        var original = mapping(areaName);
+        importer.importPlan(new LiveMappingImporter.Plan(List.of(original)));
+        var conflicting = new LiveMappingImporter.Mapping(placeId, areaName, "AREA", BigDecimal.ONE,
+                false, original.verifiedAt(), original.evidenceUrl());
+
+        assertThatThrownBy(() -> importer.importPlan(new LiveMappingImporter.Plan(List.of(conflicting))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject("SELECT mapping_type FROM seoul_live_area_maps WHERE place_id = ?",
+                String.class, placeId)).isEqualTo("AREA_FALLBACK");
+    }
+
+    @Test
     @DisplayName("BA-091-T20 새 승인 계획은 이전 구역 연결을 원자적으로 교체한다")
     void newerReviewCanReplaceArea() {
         placeId = place();

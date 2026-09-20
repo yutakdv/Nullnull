@@ -240,7 +240,7 @@ FE의 `VITE_APP_VERSION`과 API의 release metadata는 같은 release manifest�
 | `NULLNULL_CATALOG_PUBLIC_ENABLED` | OFF | C3 local projection은 기본 차단. C2 T3 staging provenance와 최종 AWS release에서만 별도 cursor secret과 함께 ON 가능 |
 | `FEATURE_PASTE_IMPORT_SERVER` | OFF | browser parser 부족 시 승인 후 ON |
 | `FEATURE_LIVE_DATA` | **staging/제출 ON**, 그 밖 OFF | `A-054`(오너 2026-09-20)로 Live 가 제출과 함께 나간다. 켤 수 있게 된 근거는 `V046` 의 `SEOUL_CITYDATA` `DEV_APPROVED` 승격·proxy URL/token·area 당 reading 을 쓰는 collector 셋이 같이 선 것이고, `DemoCapabilityQuery.WITHOUT_A_SOURCE` 가 같은 날 `live` 를 뺐다. 배포가 `infra/src/staging.ts` 에서 넘긴다 |
-| `NULLNULL_LIVE_SCHEDULE_ENABLED` | staging API task만 ON | 이미 실행 중인 API에서 서울숲공원 수집을 2분마다 시도한다. `V048` claim이 API 복제본 사이에서 한 번만 허용하며 추가 Fargate schedule은 없다. provider 관측 자체가 늦으면 UI는 STALE을 표시한다 |
+| `NULLNULL_LIVE_SCHEDULE_ENABLED` | staging API task만 ON | 이미 실행 중인 API에서 서울숲공원 수집을 5분마다 시도한다. `V048` claim이 API 복제본 사이에서 한 번만 허용하며 추가 Fargate schedule은 없다. 3회 재시도 포함 정상 주기 최대 864회/일이며 심사 종료부터 중단한다. provider 관측 자체가 늦으면 UI는 STALE을 표시한다 |
 | `FEATURE_REPLAY_MODE` | OFF (모든 환경) | B03이 replay dataset을 만드는 slice에서만 ON 가능. production 강제 replay는 banner 필요 |
 | `FEATURE_OPTIMIZATION_ITEM` | OFF (기본값) | 제출 빌드(staging)는 ON이다 — 오너 결정(2026-09-19). `infra/src/staging.ts`가 staging API task에만 켠다(ops·migration·ai task에는 없다. `infra/test/staging.test.ts`가 고정한다). BA-050·BA-051이 source라 ON이어도 startup을 막지 않는다 |
 | `FEATURE_OPTIMIZATION_DAY` | OFF | P1 |

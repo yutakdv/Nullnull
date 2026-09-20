@@ -20,7 +20,7 @@ public class JdbcSeoulLiveRefreshClaim {
         Integer claimed = jdbc.queryForObject("""
                 WITH claimed AS (
                     INSERT INTO seoul_live_refresh_claims (source_code, area_name, next_due_at)
-                    VALUES ('SEOUL_CITYDATA', ?, clock_timestamp() + interval '2 minutes')
+                    VALUES ('SEOUL_CITYDATA', ?, clock_timestamp() + interval '5 minutes')
                     ON CONFLICT (source_code, area_name) DO UPDATE
                        SET next_due_at = EXCLUDED.next_due_at
                      WHERE seoul_live_refresh_claims.next_due_at <= clock_timestamp()

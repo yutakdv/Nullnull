@@ -24,12 +24,13 @@ class SeoulLiveCollectMainTest {
                 Instant.parse("2026-09-20T06:15:00Z"), "issue", List.of());
         var output = new ByteArrayOutputStream();
 
-        SeoulLiveCollectMain.collect("광화문·덕수궁", area -> {
+        boolean live = SeoulLiveCollectMain.collect("광화문·덕수궁", area -> {
             assertThat(area).isEqualTo("광화문·덕수궁");
             return CompletableFuture.completedFuture(
                     new SeoulLiveAreaGateway.Collection(UUID.randomUUID(), Optional.of(observation), SourceState.LIVE));
         }, new PrintStream(output));
 
+        assertThat(live).isTrue();
         assertThat(output.toString()).isEqualTo("seoul_live_collect live=true\n");
     }
 
@@ -48,15 +49,15 @@ class SeoulLiveCollectMainTest {
 
     @Test
     @DisplayName("BA-091-T23 이미 만료된 관측은 Live 수집 성공으로 보고되지 않는다")
-    void alreadyStaleObservationCannotLookLive() {
+    void alreadyStaleObservationIsDistinctFromLiveAndFailure() {
         var observation = new SeoulLiveAreaObservation("POI009", "광화문·덕수궁", "보통",
                 Instant.parse("2026-09-20T06:15:00Z"), "issue", List.of());
         var output = new ByteArrayOutputStream();
 
-        assertThatThrownBy(() -> SeoulLiveCollectMain.collect("광화문·덕수궁", area ->
+        boolean live = SeoulLiveCollectMain.collect("광화문·덕수궁", area ->
                 CompletableFuture.completedFuture(new SeoulLiveAreaGateway.Collection(UUID.randomUUID(),
-                        Optional.of(observation), SourceState.STALE)), new PrintStream(output)))
-                .isInstanceOf(IllegalStateException.class);
-        assertThat(output.toString()).doesNotContain("live=true");
+                        Optional.of(observation), SourceState.STALE)), new PrintStream(output));
+        assertThat(live).isFalse();
+        assertThat(output.toString()).isEqualTo("seoul_live_collect stale=true\n");
     }
 }

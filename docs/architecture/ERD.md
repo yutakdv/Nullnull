@@ -800,7 +800,7 @@ erDiagram
 
 - `crowd_snapshots`는 `place_id`와 `live_area_id` 중 정확히 하나를 요구한다.
 - `seoul_live_refresh_claims`(`V048`)는 `(source_code, area_name)`당 다음 수집 가능 시각을 한 행으로
-  보존한다. API 복제본은 한 `INSERT ... ON CONFLICT` 문장에서 2분 claim을 얻으며 provider 요청 중 DB
+  보존한다. API 복제본은 한 `INSERT ... ON CONFLICT` 문장에서 5분 claim을 얻으며 provider 요청 중 DB
   연결을 잡고 있지 않는다. 이 행은 관측이나 장소 매핑의 근거가 아니며, 수집이 멈추면 마지막 snapshot의
   신선도만 화면에 반영된다.
 - `LIVE`는 `observed_at` 필수다. `FORECAST`는 `target_at`과 `forecast_issue_id`가 필수지만 provider가 발표 시각을 주지 않으면 `observed_at`은 null이어야 하며 `fetched_at`으로 대체하지 않는다.

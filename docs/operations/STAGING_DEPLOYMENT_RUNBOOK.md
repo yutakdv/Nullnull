@@ -410,7 +410,9 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-posts --plan-file ops/curated-posts.json \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
 # 서울 Live 수동 관측(local 전용). 평시에는 API 작업이 V048의 원자적 claim으로
-# 서울숲공원을 2분마다 수집한다. 복제본 수만큼 호출하지 않으며 별도 주기 Fargate task도 없다.
+# 서울숲공원을 5분마다 수집한다. 복제본 수만큼 호출하지 않으며 별도 주기 Fargate task도 없다.
+# 재시도 포함 최대 3회/작업이므로 정상 주기 최대 288작업·864 provider 요청/일이다.
+# 심사 종료 2026-10-25T14:59:59Z부터 API 스케줄러는 claim/호출을 중단한다.
 # 검증된 LIVE 관측 한 건이 저장될 때만 성공한다. provider의 PPLTN_TIME이 이미 낡았다면
 # 관측은 STALE로 저장되고 성공으로 세지 않는다. 300초 유효기간과 provider 갱신 간격이
 # 겹치므로 잠깐의 STALE 구간은 가능하며 화면과 경보를 그 사실대로 확인한다.

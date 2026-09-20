@@ -1,5 +1,5 @@
 -- One durable cadence claim per Seoul area. Every API replica may attempt the schedule, but this
--- single statement's conflict update admits at most one every two minutes. It holds no database
+-- single statement's conflict update admits at most one every five minutes. It holds no database
 -- connection while the provider is called and a crashed replica cannot strand a lock.
 CREATE TABLE seoul_live_refresh_claims (
     source_code varchar(64) NOT NULL REFERENCES source_registry(code),

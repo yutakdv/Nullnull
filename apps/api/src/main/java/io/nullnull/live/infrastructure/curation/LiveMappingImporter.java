@@ -16,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class LiveMappingImporter {
 
-    private record Existing(UUID areaId, Instant verifiedAt) { }
+    private record Existing(UUID areaId, String mappingType, BigDecimal confidence,
+            boolean fallbackUsed, Instant verifiedAt) { }
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
@@ -87,12 +88,17 @@ public class LiveMappingImporter {
             }
             UUID areaId = areas.get(0);
             List<Existing> previous = jdbc.query(
-                    "SELECT live_area_id, verified_at FROM seoul_live_area_maps WHERE place_id = ?",
-                    (row, ignored) -> new Existing(row.getObject(1, UUID.class), row.getTimestamp(2).toInstant()),
+                    "SELECT live_area_id, mapping_type, confidence, fallback_used, verified_at"
+                            + " FROM seoul_live_area_maps WHERE place_id = ?",
+                    (row, ignored) -> new Existing(row.getObject(1, UUID.class), row.getString(2),
+                            row.getBigDecimal(3), row.getBoolean(4), row.getTimestamp(5).toInstant()),
                     mapping.placeId());
             if (previous.stream().anyMatch(old -> mapping.verifiedAt().isBefore(old.verifiedAt())
-                    || mapping.verifiedAt().equals(old.verifiedAt()) && !areaId.equals(old.areaId()))) {
-                throw new IllegalArgumentException("a newer review or a same-time area decision already exists");
+                    || mapping.verifiedAt().equals(old.verifiedAt())
+                    && (!areaId.equals(old.areaId()) || !mapping.mappingType().equals(old.mappingType())
+                        || mapping.confidence().compareTo(old.confidence()) != 0
+                        || mapping.fallbackUsed() != old.fallbackUsed()))) {
+                throw new IllegalArgumentException("a newer review or a different same-time decision already exists");
             }
             // A correction is a new reviewed decision. Remove the old link in the same transaction
             // only after checking its review time, so re-running an old plan cannot undo it.

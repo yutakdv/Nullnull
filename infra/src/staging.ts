@@ -1269,14 +1269,15 @@ export function createStacks(
     treatMissingData: cw.TreatMissingData.NOT_BREACHING,
   };
   // The API service refreshes in place, so its success line is the signal. A missing run or an
-  // already-stale response is not allowed to claim LIVE; four empty minutes warn on a stopped loop.
+  // already-stale response is not allowed to claim LIVE; twelve empty minutes warn on a stopped
+  // five-minute loop, while allowing one late provider publication without a false failure page.
   alarm(
     "SeoulLiveRefreshMissing",
     phraseMetric("SeoulLiveCollectOk", apiLogs, '"seoul_live_collect live=true"')
       .with({ period: cdk.Duration.minutes(1) }),
     1,
     cw.ComparisonOperator.LESS_THAN_THRESHOLD,
-    { evaluationPeriods: 4 },
+    { evaluationPeriods: 12 },
   );
   alarm(
     "SeoulLiveRefreshFailed",

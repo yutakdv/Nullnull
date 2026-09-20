@@ -124,7 +124,7 @@ nullnull:
     public-enabled: ${NULLNULL_CATALOG_PUBLIC_ENABLED:false}
   live:
     # Only the staging API service opts in. Each replica ticks locally, while V048 admits one
-    # database claim per reviewed area every two minutes across all replicas.
+    # database claim per reviewed area every five minutes across all replicas.
     schedule-enabled: ${NULLNULL_LIVE_SCHEDULE_ENABLED:false}
   readiness:
     database-timeout-seconds: 2
