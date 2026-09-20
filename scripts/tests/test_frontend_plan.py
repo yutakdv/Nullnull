@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from validate_frontend_plan import PLAN, validate
+from validate_frontend_plan import PLAN, TASK_ID_RE, validate
 
 
 class FrontendPlanTests(unittest.TestCase):
@@ -48,6 +48,14 @@ class FrontendPlanTests(unittest.TestCase):
         errors: list[str] = []
         validate(ROOT, errors)
         self.assertEqual([], errors)
+
+    def test_p1_task_id_shape_is_accepted(self):
+        self.assertIsNotNone(TASK_ID_RE.fullmatch('FE-P1-101'))
+
+    def test_unapproved_task_id_shapes_are_rejected(self):
+        for task_id in ('FE-P2-101', 'FE-P1-10', 'FE-P1-X01'):
+            with self.subTest(task_id=task_id):
+                self.assertIsNone(TASK_ID_RE.fullmatch(task_id))
 
     def test_unverified_figma_node_is_rejected(self):
         self.check_mutation(
