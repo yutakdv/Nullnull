@@ -3759,7 +3759,23 @@
       "tests": [
         {
           "id": "BA-092-T1",
-          "assertion": "checksum/manifest 누락·capture window 밖·scrub 실패 replay를 거부한다"
+          "assertion": "승인 시점과 entry 목록이 다른 manifest 는 replay 로 쓰이지 않는다"
+        },
+        {
+          "id": "BA-092-T4",
+          "assertion": "capture window 밖의 관측을 담은 manifest 는 거절된다"
+        },
+        {
+          "id": "BA-092-T5",
+          "assertion": "승인된 manifest 가 가리키는 snapshot 은 삭제되지 않는다"
+        },
+        {
+          "id": "BA-092-T6",
+          "assertion": "승인된 manifest 와 그 entry 는 수정되지 않는다"
+        },
+        {
+          "id": "BA-092-T7",
+          "assertion": "scrub 방식을 실은 manifest 는 만들 수 없다 — 그 column 이 아직 없다"
         },
         {
           "id": "BA-092-T2",

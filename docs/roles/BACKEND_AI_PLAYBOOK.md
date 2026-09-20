@@ -2460,7 +2460,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 필수 검증:
 
-- `BA-092-T1`: checksum/manifest 누락·capture window 밖·scrub 실패 replay를 거부한다
+- `BA-092-T1`: 승인 시점과 entry 목록이 다른 manifest 는 replay 로 쓰이지 않는다
+- `BA-092-T4`: capture window 밖의 관측을 담은 manifest 는 거절된다
+- `BA-092-T5`: 승인된 manifest 가 가리키는 snapshot 은 삭제되지 않는다
+- `BA-092-T6`: 승인된 manifest 와 그 entry 는 수정되지 않는다
+- `BA-092-T7`: scrub 방식을 실은 manifest 는 만들 수 없다 — 그 column 이 아직 없다
 - `BA-092-T2`: live↔replay 전환에서 데이터 namespace·label·comparison이 섞이지 않는다
 - `BA-092-T3`: 전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다
 
