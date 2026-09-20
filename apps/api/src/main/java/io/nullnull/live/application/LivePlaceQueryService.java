@@ -96,8 +96,13 @@ public class LivePlaceQueryService {
             // the provider for a gap on our side.
             return List.of();
         }
-        Set<UUID> observed = areasWithObservation(List.of(areaId));
-        CrowdMetric reading = observed.isEmpty() ? null : readingsByArea(List.of(areaId)).get(areaId);
+        // ONE read of the area's reading, and the observation set derived from it. Asking twice -
+        // once for "is there a reading" and once for "give me the reading" - is the same question
+        // twice, and the second answer could differ from the first if a collector committed in
+        // between, which would make a place's coverage and its number disagree inside one response.
+        Map<UUID, CrowdMetric> readings = readingsByArea(List.of(areaId));
+        Set<UUID> observed = Set.copyOf(readings.keySet());
+        CrowdMetric reading = readings.get(areaId);
 
         List<UUID> requested = List.copyOf(byPlace.keySet());
         Map<UUID, UUID> canonical = places.readableCanonicalIds(requested);
@@ -138,11 +143,13 @@ public class LivePlaceQueryService {
         UUID coverageKey = byPlace.containsKey(detail.id()) ? detail.id() : requestedPlaceId;
         LiveAreaMapping mapping = byPlace.get(coverageKey);
         List<UUID> mapped = mapping == null ? List.of() : List.of(mapping.liveAreaId());
-        Set<UUID> observed = areasWithObservation(mapped);
-        LiveCoverage coverage = LiveCoverage.decide(coverageKey, byPlace, observed);
+        // One read here too, for the reason above. An unmapped place asks for nothing at all rather
+        // than running a query with an empty list.
+        Map<UUID, CrowdMetric> readings = mapped.isEmpty() ? Map.of() : readingsByArea(mapped);
+        LiveCoverage coverage = LiveCoverage.decide(coverageKey, byPlace, Set.copyOf(readings.keySet()));
 
         CrowdMetric crowd = coverage.covered()
-                ? projection.attachedTo(readingsByArea(mapped).get(coverage.liveAreaId()), coverage)
+                ? projection.attachedTo(readings.get(coverage.liveAreaId()), coverage)
                 : null;
         // UNAVAILABLE is the state of a place with no reading to show, and it is not an error: the
         // feature is on, the place exists, and nothing covers it. The two are told apart by the
@@ -172,20 +179,17 @@ public class LivePlaceQueryService {
         }
     }
 
+    /**
+     * The newest stored reading for each of these areas. An area with none is ABSENT from the
+     * result rather than present with an empty metric, which is what makes the key set the honest
+     * answer to "which of these has a value to read" - a mapping says where a place would read its
+     * value from, and {@link LiveCoverage} refuses to attach anything without both halves.
+     */
     private Map<UUID, CrowdMetric> readingsByArea(List<UUID> areaIds) {
         Map<UUID, CrowdMetric> byArea = new LinkedHashMap<>();
         readings.latestFor(SeoulLiveAreaObservation.SOURCE_CODE, areaIds, clock.instant())
                 .forEach(reading -> byArea.put(reading.liveAreaId(), reading.crowd()));
         return byArea;
-    }
-
-    /**
-     * The areas among these that actually have a current reading. A mapping says where a place would
-     * read its value from; this says whether there is a value to read, and {@link LiveCoverage}
-     * refuses to attach anything without both.
-     */
-    private Set<UUID> areasWithObservation(List<UUID> areaIds) {
-        return areaIds.isEmpty() ? Set.of() : Set.copyOf(readingsByArea(areaIds).keySet());
     }
 
     /**

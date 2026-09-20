@@ -119,7 +119,7 @@ class LiveCandidateIT {
     }
 
     @Test
-    @DisplayName("BA-091 같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다")
+    @DisplayName("BA-091-T13 같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다")
     void savingTheSameLivePlaceAgainIsADuplicateAndStillTouchesNothing() throws Exception {
         SessionService.Bootstrap owner = owner();
         String tripId = trip(owner);
@@ -138,7 +138,7 @@ class LiveCandidateIT {
     }
 
     @Test
-    @DisplayName("BA-091 같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다")
+    @DisplayName("BA-091-T14 같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다")
     void aRetryWithTheSameKeyLeavesOneCandidateAndTheScheduleWhereItWas() throws Exception {
         SessionService.Bootstrap owner = owner();
         String tripId = trip(owner);

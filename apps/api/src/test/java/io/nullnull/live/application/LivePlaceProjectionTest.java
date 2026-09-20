@@ -24,8 +24,8 @@ class LivePlaceProjectionTest {
     private final LivePlaceProjection projection = new LivePlaceProjection();
 
     @Test
-    @DisplayName("BA-091-T11 장소가 든 구역 값은 자기 mapping 의 mappingType·confidence·fallbackUsed 로 나간다")
-    void theThreeFieldsSourceCatalogRequiresComeFromTheMapping() {
+    @DisplayName("BA-091-T11 장소에 붙인 구역 값은 그 mapping 의 mappingType 과 fallbackUsed 로 나간다")
+    void theMappingDecidesHowThePlaceCarriesTheReading() {
         // The stored row says DIRECT because the reading is directly about the AREA - which is what
         // JdbcSeoulLiveSnapshotStore writes and why. Under a place that value would claim this place
         // was measured.
@@ -36,13 +36,37 @@ class LivePlaceProjectionTest {
 
         assertThat(attached.mappingType()).isEqualTo("AREA_FALLBACK");
         assertThat(attached.fallbackUsed()).isTrue();
-        // The mapping's confidence, not the measurement's: the provider publishes a stage and no
-        // interval, so the uncertainty between this number and this place is the review's.
-        assertThat(attached.confidence()).isEqualByComparingTo("0.4200");
+    }
 
-        // And the measurement's own subject is untouched. Rewriting scope would erase the single
-        // field that says this number is about a region, which is the fact mappingType sits beside
-        // rather than replaces.
+    @Test
+    @DisplayName("BA-091-T12 장소에 붙인 구역 값의 confidence 는 coverage 의 것이고 source 의 것이 아니다")
+    void theConfidenceIsTheMappingsRatherThanTheMeasurements() {
+        // A SEPARATE ID because it has a separate producer, which the mutation measurement showed:
+        // removing the mapping rewrite reddens T11 and leaves this green, and passing the source's
+        // confidence through does the reverse. SOURCE_CATALOG §5 names all three in one sentence,
+        // but one sentence is not one mechanism.
+        //
+        // The source carries a confidence here ON PURPOSE. A null would let a projection that simply
+        // forgot the field pass: null and null are equal. This one has to be overwritten.
+        CrowdMetric areaReading = reading("DIRECT", false, new BigDecimal("0.1000"));
+        LiveCoverage coverage = new LiveCoverage("AREA", false, new BigDecimal("0.9000"), AREA);
+
+        DataProvenance attached = projection.attachedTo(areaReading, coverage).provenance();
+
+        // The provider publishes a stage and no interval, so the uncertainty that actually stands
+        // between this number and this place is how sure the review is that the place sits in that
+        // area. That is the number §5 asks for beside mappingType.
+        assertThat(attached.confidence()).isEqualByComparingTo("0.9000");
+    }
+
+    @Test
+    @DisplayName("BA-091 구역 관측 자신을 설명하는 필드는 장소 밑에서도 그대로다")
+    void theFieldsThatDescribeTheMeasurementAreNotRewritten() {
+        // Rewriting scope would erase the single field that says this number is about a region,
+        // which is the fact mappingType sits beside rather than replaces.
+        DataProvenance attached = projection.attachedTo(reading("DIRECT", false, null),
+                new LiveCoverage("AREA", false, new BigDecimal("0.9000"), AREA)).provenance();
+
         assertThat(attached.scope()).isEqualTo("LIVE_AREA");
         assertThat(attached.scopeLabel()).isEqualTo("광화문·덕수궁");
         assertThat(attached.observedAt()).isEqualTo(OBSERVED);
