@@ -145,22 +145,20 @@ def canonical_markdown_files() -> list[Path]:
         ROOT / "docs/archive/PRODUCT_BRIEF.md",
         ROOT / ".github/pull_request_template.md",
     ]
-    for directory in (
-        "docs/archive",
-        "docs/api",
-        "docs/architecture",
-        "docs/contest",
-        "docs/data",
-        "docs/decisions",
-        "docs/design",
-        "docs/engineering",
-        "docs/operations",
-        "docs/product",
-        "docs/project",
-        "docs/roles",
-        "docs/security",
-    ):
-        files.extend((ROOT / directory).glob("*.md"))
+    # Every markdown under docs/, found rather than listed. The list this replaces named thirteen
+    # directories and globbed each one non-recursively, so seven files had never been checked at
+    # all: docs/README.md was appended by hand, and the rest of docs/contest/covers/,
+    # docs/contracts/review-2026-09-06/ and docs/superpowers/plans/ were simply outside it. A
+    # hand-kept list of directories goes stale the first time someone adds one, and nothing says so.
+    #
+    # Measured before switching: all seven already carry the five frontmatter keys and all twenty of
+    # their local links resolve, so this widened the scope without reddening anything.
+    #
+    # NOTE: check_cited_tests.py deliberately SKIPS docs/superpowers/plans/ - a plan names classes
+    # that do not exist yet, and checking those names would fail on every plan. That reason does not
+    # apply here: this file checks frontmatter, links and anchors, none of which are promises about
+    # future code. The two checks treating the same directory differently is intended, not drift.
+    files.extend((ROOT / "docs").rglob("*.md"))
     files.append(ROOT / "docs/README.md")
     return sorted(set(files))
 
