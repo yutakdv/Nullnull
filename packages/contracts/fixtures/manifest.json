@@ -89,6 +89,17 @@
       "count": 2,
       "basis": "BE/AI authored (#16). receipt-accepted and receipt-resent are ingestEventBatch's two response examples, pinned by check-examples.mjs, and their counts are the ones AnalyticsIngestIT's BA-033-T2 case asserts for a batch sent and then sent again. The same case compares their keys with the real responses and validates those against EventBatchReceipt.",
       "serverVerified": false
+    },
+    "live": {
+      "schemas": [
+        "LiveAreaQuery",
+        "LiveAreaResult",
+        "LivePlace",
+        "LivePlaceDetail"
+      ],
+      "count": 10,
+      "basis": "BA-091 제안 (아직 FE 미승인, #310). Live 세 operation(queryLiveAreas, listLiveAreaPlaces, getLivePlace)의 승인된 example이 0건이라 FE가 막혀 있었고(#64 FE 코멘트), 이 열 건이 그 자리를 메우는 제안이다. SEOUL_CITYDATA의 provenance 상수(displayName/license/officialUrl/licenseUrl/attribution/attributionShort/metricDefinition)는 발명하지 않고 openapi.yaml의 DataProvenance example과 SOURCE_CATALOG.md §5 FCR-011이 고정한 값을 그대로 옮겼다. 장소는 places/search-page.json의 세 id를 재사용해 한 id가 어디서나 한 summary로 렌더되게 했고, place-detail-*는 places/place-detail.json을 그대로 담는다. value와 unit이 모두 null인 것은 누락이 아니라 판단이다: 이 저장소에는 서울 응답을 실제로 받은 capture가 아직 없고, 여기에 숫자를 적으면 그것은 관측이 아니라 지어낸 값이 된다. ordinalLevel이 null인 것은 계약이 요구하는 것이다 - 척도는 1~5이고 검토된 mapping이 있는 source만 단계를 실을 수 있는데, 서울 혼잡도는 4단계(여유/보통/약간 붐빔/붐빔)이고 4→5 mapping을 아직 아무도 검토하지 않았다. 그래서 이 example들은 state와 label과 attribution으로만 말한다. 실패 상태를 함께 넣은 이유는 성공 하나만 주면 FE가 그 화면만 만들기 때문이다: area-result-stale(STALE_INPUT), area-result-incident(qualityFlags=[PROVIDER_INCIDENT], comparisonEligible=false - 2026-07 서울 품질 공지가 근거다), area-result-unavailable(areas 빈 배열), area-places의 세 mapping 얼굴(DIRECT / AREA_FALLBACK은 MAPPING_UNCERTAIN이라 비교 부적격 / NONE은 crowd null), area-places-unavailable(source가 답하지 못하는 얼굴 - crowd null과 다르다: 전자는 매핑이 없고 후자는 관측이 없다), place-detail-related-{none,checking}와 place-detail-live의 UNKNOWN. comparisonReasonCode는 전부 SOURCE_CATALOG.md §9 표의 코드다. area 개수를 주장하지 않는다 - 2026-03 공지가 122개, 현재 상세 화면이 121개라 개수를 example에 박으면 그것이 셋째 정본이 된다. 검증: 열 건 모두 openapi.yaml의 해당 component schema에 대해 ajv 2020(strict:false, ajv-formats)으로 통과했고, required 하나를 지운 변이가 정확히 그 경로에서 빨개지는 것도 확인했다. 아직 하지 않은 것: packages/contracts/src/index.ts에서 export하지 않았다 - export하면 apps/web의 fixtures.test.ts SCHEMA_OF 커버리지 test가 등록되지 않은 fixture에서 실패하는데 그 파일은 FE 소유다. export와 SCHEMA_OF 등록은 FE 승인과 같은 PR에서 함께 간다.",
+      "serverVerified": false
     }
   }
 }
