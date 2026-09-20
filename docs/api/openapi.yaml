@@ -2045,6 +2045,8 @@ paths:
                     items: []
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2131,6 +2133,8 @@ paths:
                       hasMore: false
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -2989,6 +2993,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
   /trip-imports/{draftId}:
@@ -3127,6 +3133,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
   /trip-imports/{draftId}/confirm:
@@ -3272,6 +3280,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -5704,6 +5714,8 @@ paths:
                   $ref: "#/components/schemas/LivePlace"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
   /live/places/{placeId}:
@@ -5731,6 +5743,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         default:
           $ref: "#/components/responses/Problem"
 
