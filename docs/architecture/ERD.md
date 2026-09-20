@@ -546,6 +546,8 @@ erDiagram
       uuid id PK
       string name
       string schema_version
+      string source_code FK
+      bigint source_registry_version FK
       string checksum
       string source_license_snapshot
       string scrub_method
@@ -789,6 +791,12 @@ erDiagram
 - 모든 snapshot은 수집 시점의 `(source_code, source_registry_version)`을 참조한다. registry revision은 immutable canonical contract hash이며 approval·quota·license review·scope·retention·refresh·schema·stale·contest use를 함께 고정한다.
 - `source_quality_incidents`의 affected window/scope에 걸린 row는 투영 시점에 `PROVIDER_INCIDENT` flag가 붙고 그 결과 비교 적격성이 false가 된다.
 - `REPLAY`는 `replay_manifest_entries`를 통해 checksum·capture window·scrub·license 승인이 끝난 manifest에 속해야 하며 API에서 현재값으로 반환하지 않는다.
+- **`replay_manifests`는 단일 source다.** `(source_code, source_registry_version)`을 다른 snapshot table과 같은 복합 FK로 `source_registry_revisions(source_code, version)`에 건다 — registry 참조를 한 열만 넣으면 FK를 선언할 수 없고 FK 없는 bigint는 아무도 검증하지 않는 숫자다. 단일로 정한 근거는 `source_license_snapshot`이 **단수**라는 것이다: 서울과 KTO는 license·scrub 조건이 다르므로 하나의 license snapshot이 둘을 덮지 못한다. 그래서 entry의 snapshot이 그 source의 것인지를 강제하는 장치가 같이 필요하다 — 없으면 manifest의 source 열은 장식이다.
+- **`approved_by` column은 두지 않는다.** 신원 체계가 없어서가 아니다 — `source_registry_revisions.reviewed_by_owner_id`가 `owners(id)` FK로 **이미 있다**(`V007:50`). 두지 않는 근거는 측정이다: 그 열을 만든 뒤 `source_registry_revisions`에 INSERT하는 migration이 여섯인데 **그 열을 채우는 것은 0건**이다. 승인은 열이 아니라 **오너 셸에서 도는 operator 명령**이 증명하며(`check_actual_call_evidence.py`·`staging_operator.py secret-scan`이 같은 모양이다), `DeletionIT`의 `retained` 목록이 그 판단을 이미 적는다 — *operator approval은 registry에 대한 audit fact이지 traveller의 데이터가 아니다*. 부수 효과로 `owners(id)` FK를 붙이면 그 coverage 검사가 이름이 아니라 **FK로** 잡아 항목을 하나 더 요구한다.
+- **`replay_manifest_entries`는 `UNIQUE (manifest_id, sequence)`다.** 중복된 `sequence`는 순서를 정의하지 않고 그것은 *정렬하지 않은 것*과 구별되지 않는다. 선례는 `V024:122`·`V029:77`이다.
+- **`REPLAY` 소속 검사는 지연 제약(`DEFERRABLE INITIALLY DEFERRED`)이다.** snapshot 행이 먼저 들어가고 entry가 나중이므로 insert 시점 trigger는 entry가 없어 **항상 거절**하고, CHECK는 다른 table을 못 본다. 한 transaction에서 snapshot과 entry를 같이 쓰고 commit 시점에 검사한다 — `BA-053-T13`이 CASCADE 대신 지연 검사를 고른 자리와 같은 모양이다. *읽기 경계에서 막는다*는 답이 아니다: 저장은 허용되어 승인 없는 REPLAY 행이 DB에 남고 다른 경로가 읽을 수 있다.
+- **`checksum`은 승인된 entry 목록에 대한 해시다** — `(sequence, crowd_snapshot_id)` 순서쌍 전체. **이것은 비어 있던 정본을 채운 것이고 측정이 아니다**: `SOURCE_CATALOG` §6은 *file/record checksum*이라 적지만 `crowd_snapshots`에는 payload hash 열이 **없고**(실측) 원본 capture 파일을 보관한다는 결정도 없다. 그래서 파일 해시는 재계산할 수 없고, 승인 뒤 바뀔 수 있는 것은 **entry 집합뿐**이다(snapshot 값은 trigger가 UPDATE를 거부한다). 재계산 가능한 것에 걸어야 *checksum 불일치*가 실제로 발화한다.
+- **`scrub_method`의 어휘는 아직 없고 그 column은 capture 생산자가 생기는 migration으로 미룬다.** `SOURCE_CATALOG`·ERD·계약 어디에도 scrub 방식 목록이 없다(실측 0건). 지금 enum을 지어내면 **아무도 재지 않은 값을 지키는 열**이 되고 migration은 적용되면 고칠 수 없다. 자유 문자열도 답이 아니다 — 검토되지 않은 값이 승인 기록에 들어간다. 무엇을 scrub하는지 아는 것은 capture를 만드는 slice이고, 그때 어휘와 CHECK를 같이 넣는다.
 - 비교 적격성과 delta는 **저장하지 않는다**. `crowd_snapshots`에는 `comparison_eligible`/`comparison_reason_code`/`evidence` column이 없고, 판정에 필요한 provenance 입력(source·revision·state·scope·issue·target·flag·normalization)만 남는다. 적격성은 요청 시점에 pair/point policy가 계산해 응답 `DataProvenance`로만 나가며, immutable snapshot 쌍이 결과를 이미 결정하므로 두 번째 정본을 만들지 않는다. `crowd_comparisons`는 optimization proposal에 묶인 별도 table이고 해당 slice 전까지 만들지 않는다.
 - `snapshot_sets`와 `crowd_snapshots`는 둘 다 UPDATE를 trigger로 거부하고, snapshot은 set의 source·revision·state·시각·issue·normalization을 그대로 유지해야 insert된다. 저장된 preview snapshot을 나중에 덮어쓸 경로가 없다.
 - `api_ingest_logs`는 KTO 실제 호출을 source operation(`endpoint_key`), 시각, outcome/status class, duration, response count, collector/request, release와 연결한다. response body, 전체 URL/query, API key, 사용자 입력은 저장하지 않는다. `payload_hash`가 필요하면 비밀·개인정보를 제거한 canonical validation payload의 단방향 hash만 허용한다.
