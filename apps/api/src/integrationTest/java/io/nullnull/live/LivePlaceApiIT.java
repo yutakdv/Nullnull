@@ -260,7 +260,15 @@ class LivePlaceApiIT {
     }
 
     @Test
-    @DisplayName("BA-091 한 canonical 장소를 가리키게 된 매핑 둘은 목록에 한 줄이다")
+    @DisplayName("BA-091-T15 두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다")
+    /**
+     * <strong>Why this clause has an id of its own.</strong> BA-091-T11 says the reading goes out
+     * with <em>that</em> mapping's mappingType and fallbackUsed - singular. With one mapping the
+     * referent is plain; once two are merged onto one place it is not, and until this was measured
+     * the ambiguity was being settled by whichever UUID sorted lower. So this is not a rule beside
+     * the card, it is what makes T11 well defined: without it T11 reads "one of the two values",
+     * which no test can pin.
+     */
     void twoMappingsThatNowPointAtOneCanonicalPlaceAreOneRow() throws Exception {
         SessionService.Bootstrap owner = owner();
         Instant now = clock.instant();
