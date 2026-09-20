@@ -3286,7 +3286,7 @@
       "phase": "B10",
       "priority": "P0",
       "title": "마지막 단계: 서울 Live adapter·area 매핑",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-020",
         "BA-023",

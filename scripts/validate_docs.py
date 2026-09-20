@@ -158,7 +158,16 @@ def canonical_markdown_files() -> list[Path]:
     # that do not exist yet, and checking those names would fail on every plan. That reason does not
     # apply here: this file checks frontmatter, links and anchors, none of which are promises about
     # future code. The two checks treating the same directory differently is intended, not drift.
-    files.extend((ROOT / "docs").rglob("*.md"))
+    # node_modules is excluded because docs/contracts/review-2026-09-06/ carries a gitignored one
+    # (CLAUDE.md: "FE 계약 검토 재현 자료다(node_modules는 gitignore)"). The measurement that said
+    # this widening reddened nothing was taken in an isolated worktree, where gitignored files do
+    # not exist - so it could not see those 101 vendored readmes. A filesystem walk and a git-tracked
+    # listing answer different questions, and this one walks the filesystem.
+    files.extend(
+        path
+        for path in (ROOT / "docs").rglob("*.md")
+        if "node_modules" not in path.parts
+    )
     files.append(ROOT / "docs/README.md")
     return sorted(set(files))
 

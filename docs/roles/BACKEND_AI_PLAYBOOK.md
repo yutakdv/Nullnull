@@ -2314,7 +2314,7 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 
 ### BA-090
 
-**마지막 단계: 서울 Live adapter·area 매핑** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**마지막 단계: 서울 Live adapter·area 매핑** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-020](#ba-020), [BA-023](#ba-023), [BA-024](#ba-024), [BA-073](#ba-073)
 - 기능 ID: `FR-LIV-08`
