@@ -2153,7 +2153,7 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 2. directed matrix의 누락/비대칭·영업 예외·예약 time window를 검증한다
 3. bounded search로 DAY/TRIP 후보와 route evidence를 만들고 기존 preview/decision engine으로 적용한다
 
-실패·안전 경계: 거리/속도로 임의 travel time을 성공 경로로 간주하지 않는다. 계산 budget 초과는 검증된 부분 해 또는 명확한 실패이며 잠금 완화는 없다.
+실패·안전 경계: leg 이든 dwell 이든 없는 시간을 만들어 성공 경로로 간주하지 않는다 — 거리/속도로 travel time 을 지어내는 것과 결측 소요시간을 0 으로 치는 것은 같은 결과를 낸다(둘 다 뒤 도착이 실제보다 이르면서 판정은 feasible 로 남는다). 계산 budget 초과는 검증된 부분 해 또는 명확한 실패이며 잠금 완화는 없다.
 
 필수 검증:
 
