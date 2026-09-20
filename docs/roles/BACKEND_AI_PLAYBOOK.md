@@ -2155,7 +2155,25 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 
 필수 검증:
 
-- `BA-083-T1`: 불가능한 구간·비대칭·time window·모든 잠금 조합을 검증한다
+- `BA-083-T1`: 경로 공백을 만나면 그 뒤 stop 은 판정하지 않고 걸음을 멈춘다
+- `BA-083-T4`: 없는 leg 은 역방향 leg 으로 충족되지 않는다
+- `BA-083-T5`: provider 가 경로 없음이라 답한 쌍과 아무도 묻지 않은 쌍은 다른 사유다
+- `BA-083-T6`: routable 과 unroutable 로 동시에 선언된 쌍은 해소하지 않고 거절한다
+- `BA-083-T7`: leg 과 영업시간이 모두 알려진 하루는 계산된 시각에 끝난다
+- `BA-083-T8`: 아무도 검증하지 않은 날짜는 미검증이며 영업으로 읽지 않는다
+- `BA-083-T9`: 검증된 휴무는 미검증이 아니라 휴무로 보고한다
+- `BA-083-T10`: 개점 전 도착은 그 장소의 영업 창 밖이다
+- `BA-083-T11`: 폐점 시각에 아직 진행 중인 방문은 영업 창 밖이다
+- `BA-083-T12`: 도착 시각이 알려진 stop 은 영업시간이 거절한 것을 전부 보고한다
+- `BA-083-T13`: 다른 날짜를 지목하는 DATE 잠금은 그 하루를 거절한다
+- `BA-083-T14`: tolerance 를 넘겨 빗나간 TIME 잠금은 그 하루를 거절한다
+- `BA-083-T15`: tolerance 안에서 충족된 TIME 잠금은 그 하루를 거절하지 않는다
+- `BA-083-T16`: 다른 날짜에 잡힌 RESERVATION 은 그 하루를 거절한다
+- `BA-083-T17`: 예약 시작 이후의 도착은 그 하루를 거절한다
+- `BA-083-T18`: 예약보다 일찍 도착하면 먼저 시작하지 않고 기다린다
+- `BA-083-T19`: 예약 종료 이후까지 이어지는 방문은 그 하루를 거절한다
+- `BA-083-T20`: MUST_VISIT 은 시간에 대해 아무것도 말하지 않으므로 여기서 아무것도 거절하지 않는다
+- `BA-083-T21`: 자정을 넘기는 하루는 아침으로 되감기지 않고 넘침으로 끝난다
 - `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
 - `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
 
@@ -2247,6 +2265,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. 누락 시 원문 fallback과 번역 출처를 명시한다
 3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
 
+진행 상태(대조): **`V047` 은 provenance 열만 만들고 `KTO_ENG_SERVICE` registry 행은 `V048` 로 미룬다.** 그 행은 `stale_after_seconds`·공공누리 유형·`provider_schema_version` 을 값으로 요구하는데 **넷 다 실호출 전이라 미측정**이고, migration 은 적용되면 checksum 이 고정돼 **정정할 수 없다**. **`T4`·`T5` 는 계약 변경(`PlaceSummary` 의 locale provenance)을 요구해 [#310](https://github.com/yutakdv/Nullnull/issues/310) FE 승인 대기**다. **`T7`·`T8` 의 게이트가 발화하려면 생산자가 있어야 한다** — 유일한 production writer 는 `JdbcCanonicalCatalogStore` 이고 그 경로는 국문 ingest 다(test fixture writer 20개는 NULL provenance 라 게이트 밖이다). 그래서 **국문 ingest 가 provenance 를 쓴다**. 귀결: **`KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 수집된 국문 텍스트가 같이 막히고 `canonical_name` 으로 떨어진다.** 의도된 fail-closed 이고 P0 에 걸리는 반경이라 적어 둔다 — 대안(국문에 provenance 를 안 쓴다)은 **생산자 없는 가드**이고 이 저장소가 `place_hours`·`place_relations` 에서 두 번 겪은 모양이다. **`place_external_refs` 와 다르게 두는 이유**: ref 는 *신원*(이 place 가 KTO content 12345다)이라 약관이 바뀐다고 만료되지 않고, localization 은 *우리가 재배포하는 provider 산문*이라 재배포가 정확히 라이선스가 다루는 것이다.
+
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
 필수 검증:
@@ -2254,6 +2274,12 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T1`: 동일 POI 언어별 ID/날짜/수치 parity를 검증한다
 - `BA-086-T2`: 누락 번역 fallback·출처·권리 표기가 유지된다
 - `BA-086-T3`: source 변경/삭제 때 오래된 번역 노출을 차단한다
+- `BA-086-T4`: 요청 locale 의 행이 없으면 fallback 이 일어나고 응답이 그 텍스트가 어느 locale 에서 왔는지 말한다
+- `BA-086-T5`: fallback 으로 답할 때도 그 텍스트를 만든 source 의 attribution 이 유지된다
+- `BA-086-T6`: V047 은 기존 행의 출처를 place_external_refs 에서 유도하지 않는다
+- `BA-086-T7`: pin 된 source revision 이 현재 revision 과 다르면 그 localization 을 내보내지 않는다
+- `BA-086-T8`: source 가 더 이상 enabled 가 아니면 그 localization 을 내보내지 않는다
+- `BA-086-T9`: localization 의 provenance 는 전부-또는-전무다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

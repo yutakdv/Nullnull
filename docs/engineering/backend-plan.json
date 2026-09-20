@@ -2947,7 +2947,79 @@
       "tests": [
         {
           "id": "BA-083-T1",
-          "assertion": "불가능한 구간·비대칭·time window·모든 잠금 조합을 검증한다"
+          "assertion": "경로 공백을 만나면 그 뒤 stop 은 판정하지 않고 걸음을 멈춘다"
+        },
+        {
+          "id": "BA-083-T4",
+          "assertion": "없는 leg 은 역방향 leg 으로 충족되지 않는다"
+        },
+        {
+          "id": "BA-083-T5",
+          "assertion": "provider 가 경로 없음이라 답한 쌍과 아무도 묻지 않은 쌍은 다른 사유다"
+        },
+        {
+          "id": "BA-083-T6",
+          "assertion": "routable 과 unroutable 로 동시에 선언된 쌍은 해소하지 않고 거절한다"
+        },
+        {
+          "id": "BA-083-T7",
+          "assertion": "leg 과 영업시간이 모두 알려진 하루는 계산된 시각에 끝난다"
+        },
+        {
+          "id": "BA-083-T8",
+          "assertion": "아무도 검증하지 않은 날짜는 미검증이며 영업으로 읽지 않는다"
+        },
+        {
+          "id": "BA-083-T9",
+          "assertion": "검증된 휴무는 미검증이 아니라 휴무로 보고한다"
+        },
+        {
+          "id": "BA-083-T10",
+          "assertion": "개점 전 도착은 그 장소의 영업 창 밖이다"
+        },
+        {
+          "id": "BA-083-T11",
+          "assertion": "폐점 시각에 아직 진행 중인 방문은 영업 창 밖이다"
+        },
+        {
+          "id": "BA-083-T12",
+          "assertion": "도착 시각이 알려진 stop 은 영업시간이 거절한 것을 전부 보고한다"
+        },
+        {
+          "id": "BA-083-T13",
+          "assertion": "다른 날짜를 지목하는 DATE 잠금은 그 하루를 거절한다"
+        },
+        {
+          "id": "BA-083-T14",
+          "assertion": "tolerance 를 넘겨 빗나간 TIME 잠금은 그 하루를 거절한다"
+        },
+        {
+          "id": "BA-083-T15",
+          "assertion": "tolerance 안에서 충족된 TIME 잠금은 그 하루를 거절하지 않는다"
+        },
+        {
+          "id": "BA-083-T16",
+          "assertion": "다른 날짜에 잡힌 RESERVATION 은 그 하루를 거절한다"
+        },
+        {
+          "id": "BA-083-T17",
+          "assertion": "예약 시작 이후의 도착은 그 하루를 거절한다"
+        },
+        {
+          "id": "BA-083-T18",
+          "assertion": "예약보다 일찍 도착하면 먼저 시작하지 않고 기다린다"
+        },
+        {
+          "id": "BA-083-T19",
+          "assertion": "예약 종료 이후까지 이어지는 방문은 그 하루를 거절한다"
+        },
+        {
+          "id": "BA-083-T20",
+          "assertion": "MUST_VISIT 은 시간에 대해 아무것도 말하지 않으므로 여기서 아무것도 거절하지 않는다"
+        },
+        {
+          "id": "BA-083-T21",
+          "assertion": "자정을 넘기는 하루는 아침으로 되감기지 않고 넘침으로 끝난다"
         },
         {
           "id": "BA-083-T2",
@@ -3193,6 +3265,30 @@
         {
           "id": "BA-086-T3",
           "assertion": "source 변경/삭제 때 오래된 번역 노출을 차단한다"
+        },
+        {
+          "id": "BA-086-T4",
+          "assertion": "요청 locale 의 행이 없으면 fallback 이 일어나고 응답이 그 텍스트가 어느 locale 에서 왔는지 말한다"
+        },
+        {
+          "id": "BA-086-T5",
+          "assertion": "fallback 으로 답할 때도 그 텍스트를 만든 source 의 attribution 이 유지된다"
+        },
+        {
+          "id": "BA-086-T6",
+          "assertion": "V047 은 기존 행의 출처를 place_external_refs 에서 유도하지 않는다"
+        },
+        {
+          "id": "BA-086-T7",
+          "assertion": "pin 된 source revision 이 현재 revision 과 다르면 그 localization 을 내보내지 않는다"
+        },
+        {
+          "id": "BA-086-T8",
+          "assertion": "source 가 더 이상 enabled 가 아니면 그 localization 을 내보내지 않는다"
+        },
+        {
+          "id": "BA-086-T9",
+          "assertion": "localization 의 provenance 는 전부-또는-전무다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
