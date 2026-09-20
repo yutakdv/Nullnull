@@ -59,6 +59,7 @@ class LiveAreaReadIT {
     private List<UUID> setsBefore;
     private List<UUID> areasBefore;
     private List<UUID> runsBefore;
+    private List<UUID> incidentsBefore;
 
     @BeforeEach
     void noteRowsAlreadyPresent() {
@@ -66,6 +67,7 @@ class LiveAreaReadIT {
         setsBefore = OwnedRows.snapshot(jdbc, "snapshot_sets");
         areasBefore = OwnedRows.snapshot(jdbc, "live_areas");
         runsBefore = OwnedRows.snapshot(jdbc, "collector_runs");
+        incidentsBefore = OwnedRows.snapshot(jdbc, "source_quality_incidents");
     }
 
     @AfterEach
@@ -74,6 +76,8 @@ class LiveAreaReadIT {
         OwnedRows.remove(jdbc, "snapshot_sets", OwnedRows.appeared(jdbc, "snapshot_sets", setsBefore));
         OwnedRows.remove(jdbc, "live_areas", OwnedRows.appeared(jdbc, "live_areas", areasBefore));
         OwnedRows.remove(jdbc, "collector_runs", OwnedRows.appeared(jdbc, "collector_runs", runsBefore));
+        OwnedRows.remove(jdbc, "source_quality_incidents",
+                OwnedRows.appeared(jdbc, "source_quality_incidents", incidentsBefore));
     }
 
     @Test
@@ -128,6 +132,40 @@ class LiveAreaReadIT {
         assertThat(crowd.get("provenance").get("qualityFlags").toString()).doesNotContain("SCHEMA_DRIFT");
         // Still no number: the stage is published, the value is a range we do not reduce.
         assertThat(crowd.get("value").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("BA-090 사건 창 안의 서울 관측은 Live 페이지에서도 격리 표시를 달고 나간다")
+    void aReadingInsideAReviewedIncidentWindowIsIsolatedOnThisPageToo() throws Exception {
+        Instant now = clock.instant();
+        Instant fetched = now.minusSeconds(55);
+        UUID id = area("POI012", "이태원 관광특구", now.minusSeconds(60), fetched, "보통");
+
+        // BA-090-T17 is proven on the forecast read. THIS CASE IS ABOUT THE NEW PATH: a second read
+        // that reached the same rows by its own query could have missed the incident join entirely
+        // and looked correct - the page would render, the state would be LIVE, and the only thing
+        // missing would be the flag saying an operator has quarantined this source right now.
+        UUID incident = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO source_quality_incidents
+                    (id, source_code, incident_code, affected_from, affected_to, scope, disposition, reviewed_at)
+                VALUES (?, ?, ?, ?, ?, 'LIVE_AREA', 'QUARANTINE', ?)
+                """, incident, SOURCE, "live-window-" + incident,
+                Timestamp.from(fetched.minusSeconds(60)), Timestamp.from(fetched.plusSeconds(60)),
+                Timestamp.from(now));
+
+        JsonNode body = JSON.readTree(mvc.perform(post("/api/v1/live/areas")
+                        .cookie(new Cookie("__Host-nullnull_session",
+                                sessions.bootstrap(null, "ko-KR", "Asia/Seoul").cookie))
+                        .header("Origin", ORIGIN)
+                        .contentType("application/json")
+                        .content("{\"mode\":\"AUTO\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        JsonNode provenance = provenanceOf(body, id);
+        assertThat(provenance.get("qualityFlags").toString()).contains("PROVIDER_INCIDENT");
+        assertThat(provenance.get("comparisonEligible").asBoolean()).isFalse();
     }
 
     private UUID area(String externalId, String name, Instant observed, Instant fetched, String step) {
