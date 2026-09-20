@@ -8,6 +8,7 @@ import io.nullnull.crowd.application.QuotaExhaustedException;
 import io.nullnull.crowd.application.SourceQuotaGuard;
 import io.nullnull.crowd.application.SourceQuotaStore;
 import io.nullnull.crowd.application.SourceRegistryQuery;
+import io.nullnull.crowd.application.SeoulLiveSnapshotStore;
 import io.nullnull.crowd.application.SourceRegistryStore;
 import io.nullnull.crowd.domain.ApprovalState;
 import io.nullnull.crowd.domain.LicenseReviewState;
@@ -34,6 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
@@ -45,7 +47,13 @@ class SeoulLiveAreaGatewayTest {
     private static final String SOURCE = SeoulLiveAreaObservation.SOURCE_CODE;
     private static final String AREA = "광화문·덕수궁";
     private static final String TOKEN = "fake-proxy-token-for-the-stub";
-    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-09-20T06:20:00Z"), ZoneOffset.UTC);
+    /**
+     * Three minutes after the reading below, which is inside the source's 300-second window. The
+     * first version of this file sat exactly ON the boundary - observed 06:15, clock 06:20, window
+     * 300s - and the reading came out STALE. That is correct behaviour and a terrible fixture: the
+     * accepted case would have been asserting the expired branch by accident.
+     */
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-09-20T06:18:00Z"), ZoneOffset.UTC);
     private static final UUID INGEST_LOG_ID = UUID.fromString("0199a1f0-0000-7000-8000-00000000c0de");
 
     /**
@@ -78,8 +86,10 @@ class SeoulLiveAreaGatewayTest {
             try (StubProviderServer stub = new StubProviderServer()
                     .enqueue(new StubProviderServer.Response(200, example.body()))) {
                 RecordingAudit audit = new RecordingAudit();
+                RecordingAreas areas = new RecordingAreas();
+                RecordingSnapshots snapshots = new RecordingSnapshots();
                 SeoulLiveAreaGateway gateway = gateway(stub, audit, new FixedQuota(false),
-                        new SourceRegistryStore.SourceCondition(false, false));
+                        new SourceRegistryStore.SourceCondition(false, false), areas, snapshots);
 
                 SeoulLiveAreaGateway.Collection collection = gateway.collect(AREA).join();
 
@@ -105,7 +115,77 @@ class SeoulLiveAreaGatewayTest {
 
                 assertThat(collection.accepted()).isEqualTo(example.accepted());
                 assertThat(collection.observation().isPresent()).isEqualTo(example.accepted());
+                // A quarantined run leaves nothing behind. THIS PAIR IS HELD BY THE VALIDATOR'S
+                // SHAPE, not by an ordering this case could break: a non-OK verdict carries a null
+                // observation, so there is nothing for the gateway to store even if it tried. It is
+                // asserted because the pairing is the property, not because a gateway change alone
+                // could break it - the ordering claim is measured separately, below.
+                assertThat(snapshots.saved).as("%s: stored readings", example.label())
+                        .hasSize(example.accepted() ? 1 : 0);
+                assertThat(areas.upserted).as("%s: upserted areas", example.label())
+                        .hasSize(example.accepted() ? 1 : 0);
+                if (example.accepted()) {
+                    SeoulLiveSnapshotStore.Reading stored = snapshots.saved.get(0);
+                    assertThat(stored.collectorRunId()).isEqualTo(collection.runId());
+                    assertThat(stored.liveAreaId()).isEqualTo(RecordingAreas.AREA_ID);
+                    assertThat(stored.sourceState()).isEqualTo(io.nullnull.crowd.domain.SourceState.LIVE);
+                    assertThat(stored.observedAt()).isEqualTo(Instant.parse("2026-09-20T06:15:00Z"));
+                    assertThat(stored.staleAt()).isEqualTo(stored.observedAt().plusSeconds(300));
+                    assertThat(areas.upserted.get(0).externalId()).isEqualTo("POI009");
+                }
             }
+        }
+    }
+
+    @Test
+    @DisplayName("BA-090 관측은 run 이 닫힌 뒤에 저장된다")
+    void theReadingIsWrittenAfterTheRunIsFinalized() throws Exception {
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(200, payload("INFO-000", "보통")))) {
+            // One counter, two fakes: the step each side was called at is comparable, which is the
+            // only way a single-threaded ordering claim can be measured at all. Asserting "both
+            // happened" would be true in either order.
+            AtomicInteger order = new AtomicInteger();
+            RecordingAudit audit = new RecordingAudit(order);
+            RecordingSnapshots snapshots = new RecordingSnapshots(order);
+            SeoulLiveAreaGateway gateway = gateway(stub, audit, new FixedQuota(false),
+                    new SourceRegistryStore.SourceCondition(false, false), new RecordingAreas(), snapshots);
+
+            assertThat(gateway.collect(AREA).join().accepted()).isTrue();
+
+            // A snapshot whose run says QUARANTINED is a reading the ledger disowns, and no reader
+            // knows to ignore it. A finalized run with no snapshot is the other way round and is
+            // recoverable: the next collection writes one and the ledger still says what happened.
+            assertThat(snapshots.savedAtStep).as("the reading is written after the run is closed")
+                    .isGreaterThan(audit.finishedAtStep);
+            assertThat(audit.finishedAtStep).isPositive();
+        }
+    }
+
+    @Test
+    @DisplayName("BA-090 창 밖에서 도착한 관측은 LIVE 가 아니라 STALE 로 저장된다")
+    void aReadingOlderThanTheSourceWindowIsStoredStale() throws Exception {
+        // Observed at 05:15 KST-converted, which is an hour before this test's clock and far outside
+        // the 300-second window. It is still a true statement about the past, so it is kept - and it
+        // is kept as STALE with NO expiry, because crowd_snapshots_staleness_check requires
+        // stale_at > fetched_at and there is no honest value that satisfies that. Dropping it would
+        // lose an observation; moving its expiry forward would claim it is current.
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(200, expiredPayload()))) {
+            RecordingAudit audit = new RecordingAudit();
+            RecordingSnapshots snapshots = new RecordingSnapshots();
+            SeoulLiveAreaGateway gateway = gateway(stub, audit, new FixedQuota(false),
+                    new SourceRegistryStore.SourceCondition(false, false), new RecordingAreas(), snapshots);
+
+            assertThat(gateway.collect(AREA).join().accepted()).isTrue();
+
+            assertThat(snapshots.saved).hasSize(1);
+            SeoulLiveSnapshotStore.Reading stored = snapshots.saved.get(0);
+            assertThat(stored.sourceState()).isEqualTo(io.nullnull.crowd.domain.SourceState.STALE);
+            assertThat(stored.staleAt()).isNull();
+            assertThat(stored.observedAt()).isEqualTo(Instant.parse("2026-09-20T05:15:00Z"));
+            // The run itself is a normal accepted one: being old is not being wrong.
+            assertThat(audit.finishes.get(0).status()).isEqualTo(IngestAudit.RunStatus.COMPLETED);
         }
     }
 
@@ -184,6 +264,12 @@ class SeoulLiveAreaGatewayTest {
 
     private static SeoulLiveAreaGateway gateway(StubProviderServer stub, RecordingAudit audit,
             SourceQuotaStore quota, SourceRegistryStore.SourceCondition condition) {
+        return gateway(stub, audit, quota, condition, new RecordingAreas(), new RecordingSnapshots());
+    }
+
+    private static SeoulLiveAreaGateway gateway(StubProviderServer stub, RecordingAudit audit,
+            SourceQuotaStore quota, SourceRegistryStore.SourceCondition condition,
+            RecordingAreas areas, RecordingSnapshots snapshots) {
         SeoulCityDataProperties properties = new SeoulCityDataProperties();
         // The stub's context is "/provider" and HttpServer matches contexts by prefix, so the
         // adapter's "/citydata/<area>" lands inside it.
@@ -192,7 +278,7 @@ class SeoulLiveAreaGatewayTest {
         SourceRegistryStore registryStore = new FixedRegistry(registration(), condition);
         return new SeoulLiveAreaGateway(new SourceRegistryQuery(registryStore), registryStore,
                 new CollectorRunRecorder(audit, new SourceQuotaGuard(quota, CLOCK)),
-                new SeoulCityDataClient(providerClient(), properties, "test"), CLOCK);
+                new SeoulCityDataClient(providerClient(), properties, "test"), areas, snapshots, CLOCK);
     }
 
     private static SourceRegistration registration() {
@@ -208,6 +294,11 @@ class SeoulLiveAreaGatewayTest {
                   "LIVE_PPLTN_STTS":[{"AREA_CONGEST_LVL":"%s","REPLACE_YN":"N",
                     "PPLTN_TIME":"2026-09-20 15:15","FCST_YN":"N"}]}}
                 """.formatted(resultCode, congestionLevel);
+    }
+
+    /** The same area, reported an hour before this test's clock: outside the source's window. */
+    private static String expiredPayload() {
+        return payload("INFO-000", "보통").replace("2026-09-20 15:15", "2026-09-20 14:15");
     }
 
     /** A well-formed answer about a different place: the proxy routed our path somewhere else. */
@@ -236,6 +327,16 @@ class SeoulLiveAreaGatewayTest {
         private final List<StartRun> starts = new ArrayList<>();
         private final List<CallRecord> calls = new ArrayList<>();
         private final List<FinishRun> finishes = new ArrayList<>();
+        private final AtomicInteger order;
+        private int finishedAtStep;
+
+        RecordingAudit() {
+            this(new AtomicInteger());
+        }
+
+        RecordingAudit(AtomicInteger order) {
+            this.order = order;
+        }
 
         @Override
         public UUID startRun(StartRun command) {
@@ -251,6 +352,7 @@ class SeoulLiveAreaGatewayTest {
         @Override
         public void finishRun(FinishRun command) {
             finishes.add(command);
+            finishedAtStep = order.incrementAndGet();
         }
 
         @Override
@@ -275,6 +377,47 @@ class SeoulLiveAreaGatewayTest {
         @Override
         public SourceCondition conditionAt(String code, Instant at) {
             return condition;
+        }
+    }
+
+    private static final class RecordingAreas implements io.nullnull.live.application.LiveAreaStore {
+        private static final UUID AREA_ID = UUID.fromString("0199a1f0-0000-7000-8000-00000000a4ea");
+        private final List<AreaUpsert> upserted = new ArrayList<>();
+
+        @Override
+        public List<StoredArea> replaceAreas(String sourceCode, List<AreaUpsert> published) {
+            throw new UnsupportedOperationException("the gateway upserts one area, never a list");
+        }
+
+        @Override
+        public StoredArea upsertArea(String sourceCode, AreaUpsert area) {
+            upserted.add(area);
+            return new StoredArea(AREA_ID, area.externalId(), area.name(), "ACTIVE");
+        }
+
+        @Override
+        public List<StoredArea> activeAreas(String sourceCode) {
+            return List.of();
+        }
+    }
+
+    private static final class RecordingSnapshots implements SeoulLiveSnapshotStore {
+        private final List<Reading> saved = new ArrayList<>();
+        private final AtomicInteger order;
+        private int savedAtStep;
+
+        RecordingSnapshots() {
+            this(new AtomicInteger());
+        }
+
+        RecordingSnapshots(AtomicInteger order) {
+            this.order = order;
+        }
+
+        @Override
+        public void save(Reading reading) {
+            saved.add(reading);
+            savedAtStep = order.incrementAndGet();
         }
     }
 

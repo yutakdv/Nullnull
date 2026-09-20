@@ -41,6 +41,25 @@ class LiveAreaStoreIT {
     }
 
     @Test
+    @DisplayName("BA-090 한 구역만 올리는 것은 나머지를 은퇴시키지 않는다")
+    void upsertingOneAreaRetiresNothing() {
+        store.replaceAreas(SOURCE, List.of(new LiveAreaStore.AreaUpsert("POI009", "광화문·덕수궁"),
+                new LiveAreaStore.AreaUpsert("POI010", "강남역")));
+
+        // The per-area endpoint reports one area at a time. If that path used replaceAreas, a single
+        // collection would read as "the source now publishes exactly this one area" and retire the
+        // other 119 - the 2026-03 notice moved 120 of them, so the list form has to keep its meaning.
+        LiveAreaStore.StoredArea again = store.upsertArea(SOURCE,
+                new LiveAreaStore.AreaUpsert("POI009", "광화문광장"));
+
+        assertThat(again.name()).as("a rename still lands on the same row").isEqualTo("광화문광장");
+        assertThat(store.activeAreas(SOURCE)).extracting(LiveAreaStore.StoredArea::externalId)
+                .as("the area this call said nothing about is untouched").contains("POI010");
+        assertThat(jdbc.queryForObject("SELECT status FROM live_areas WHERE source_code = ?"
+                + " AND external_id = ?", String.class, SOURCE, "POI010")).isEqualTo("ACTIVE");
+    }
+
+    @Test
     @DisplayName("BA-090-T15 provider 가 이름을 바꿔도 같은 행이 유지된다")
     void aRenameKeepsTheRowItsSnapshotsPointAt() {
         List<LiveAreaStore.StoredArea> first = store.replaceAreas(SOURCE,

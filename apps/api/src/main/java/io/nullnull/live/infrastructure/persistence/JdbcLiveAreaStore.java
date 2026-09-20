@@ -69,6 +69,22 @@ public class JdbcLiveAreaStore implements LiveAreaStore {
     }
 
     @Override
+    public StoredArea upsertArea(String sourceCode, AreaUpsert area) {
+        // The same ON CONFLICT as replaceAreas, and deliberately NOT followed by a retirement
+        // statement: this caller has not been told what the source publishes, only what it just
+        // reported. RETURNING gives back the row the snapshots must point at, which for a rename is
+        // the row that already existed.
+        return jdbc.queryForObject("""
+                INSERT INTO live_areas (id, source_code, external_id, name, boundary_geojson, status, updated_at)
+                VALUES (?, ?, ?, ?, NULL, 'ACTIVE', ?)
+                ON CONFLICT (source_code, external_id) DO UPDATE
+                   SET name = EXCLUDED.name, status = 'ACTIVE', updated_at = EXCLUDED.updated_at
+                RETURNING id, external_id, name, status
+                """, JdbcLiveAreaStore::read, UUID.randomUUID(), sourceCode, area.externalId(),
+                area.name(), java.sql.Timestamp.from(clock.instant()));
+    }
+
+    @Override
     public List<StoredArea> activeAreas(String sourceCode) {
         return jdbc.query("""
                 SELECT id, external_id, name, status FROM live_areas

@@ -5,6 +5,7 @@ import io.nullnull.crowd.application.QuotaExhaustedException;
 import io.nullnull.crowd.application.SeoulCityDataFetcher;
 import io.nullnull.crowd.application.SeoulCityDataValidator;
 import io.nullnull.crowd.application.SeoulGatewayException;
+import io.nullnull.crowd.application.SeoulLiveSnapshotStore;
 import io.nullnull.crowd.application.SourceQuotaStore;
 import io.nullnull.crowd.application.SourceRegistryQuery;
 import io.nullnull.crowd.application.SourceRegistryStore;
@@ -49,24 +50,29 @@ public class SeoulLiveAreaGateway {
     private final CollectorRunRecorder collector;
     private final SeoulCityDataFetcher fetcher;
     private final SeoulCityDataValidator validator;
+    private final LiveAreaStore areas;
+    private final SeoulLiveSnapshotStore snapshots;
     private final Clock clock;
 
     // Two constructors, so Spring cannot pick one implicitly: the package-private one exists to
     // hand a test its own validator. The public one is the bean.
     @Autowired
     public SeoulLiveAreaGateway(SourceRegistryQuery registry, SourceRegistryStore registryStore,
-            CollectorRunRecorder collector, SeoulCityDataFetcher fetcher, Clock clock) {
-        this(registry, registryStore, collector, fetcher, new SeoulCityDataValidator(), clock);
+            CollectorRunRecorder collector, SeoulCityDataFetcher fetcher, LiveAreaStore areas,
+            SeoulLiveSnapshotStore snapshots, Clock clock) {
+        this(registry, registryStore, collector, fetcher, new SeoulCityDataValidator(), areas, snapshots, clock);
     }
 
     SeoulLiveAreaGateway(SourceRegistryQuery registry, SourceRegistryStore registryStore,
             CollectorRunRecorder collector, SeoulCityDataFetcher fetcher, SeoulCityDataValidator validator,
-            Clock clock) {
+            LiveAreaStore areas, SeoulLiveSnapshotStore snapshots, Clock clock) {
         this.registry = Objects.requireNonNull(registry, "registry");
         this.registryStore = Objects.requireNonNull(registryStore, "registryStore");
         this.collector = Objects.requireNonNull(collector, "collector");
         this.fetcher = Objects.requireNonNull(fetcher, "fetcher");
         this.validator = Objects.requireNonNull(validator, "validator");
+        this.areas = Objects.requireNonNull(areas, "areas");
+        this.snapshots = Objects.requireNonNull(snapshots, "snapshots");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -109,19 +115,45 @@ public class SeoulLiveAreaGateway {
                         duration, "PROVIDER_FAILED", clock.instant());
                 throw unwrap(failure);
             }
-            return acceptOrQuarantine(runId, reservation, response, areaName, duration);
+            return acceptOrQuarantine(runId, reservation, source, response, areaName, duration);
         });
     }
 
     private Collection acceptOrQuarantine(UUID runId, SourceQuotaStore.Reservation reservation,
-            ProviderResponse response, String areaName, int duration) {
+            SourceRegistration source, ProviderResponse response, String areaName, int duration) {
         SeoulCityDataValidator.Validation validation = validator.validate(response.body(), areaName);
         // One call, one observation, so the count is 1 whether it was kept or refused - "how many the
         // provider sent" is not "how many we accepted", and finalizeSingleCall splits those itself.
         boolean accepted = collector.finalizeSingleCall(runId, reservation.ingestLogId(), response.status(),
                 duration, 1, null, validation.verdict(), clock.instant());
-        return new Collection(runId,
-                accepted ? Optional.of(validation.observation()) : Optional.empty());
+        if (!accepted) {
+            return new Collection(runId, Optional.empty());
+        }
+        return new Collection(runId, Optional.of(store(runId, source, validation.observation())));
+    }
+
+    /**
+     * The reading is written only after the run has been finalized as accepted.
+     *
+     * <p>Order matters in one direction only: a stored snapshot whose run says QUARANTINED would be
+     * a reading the ledger disowns, and there is no reader that would know to ignore it. A finalized
+     * run with no snapshot is the other way round and is recoverable - the next collection writes
+     * one, and the ledger still says what happened.
+     *
+     * <p>The area row is upserted from the observation itself rather than from a published list,
+     * because the provider's endpoint IS per area: the response names the area it is about, and that
+     * is the only place this adapter learns of one. A rename lands on the same row - identity is
+     * (source, AREA_CD) - so the snapshots written before it keep pointing at it.
+     */
+    private SeoulLiveAreaObservation store(UUID runId, SourceRegistration source,
+            SeoulLiveAreaObservation observation) {
+        UUID areaId = areas.upsertArea(SOURCE_CODE,
+                new LiveAreaStore.AreaUpsert(observation.areaCode(), observation.areaName())).id();
+        // collectionEnabled() already required a stale window, so this is never null here.
+        snapshots.save(SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), UUID.randomUUID(), runId,
+                source.currentRevision(), areaId, observation.observedAt(), clock.instant(),
+                source.staleAfterSeconds()));
+        return observation;
     }
 
     private SourceRegistration requireHealthySource(Instant at) {
