@@ -8881,7 +8881,7 @@ components:
         deepLink:
           type: string
           maxLength: 300
-          pattern: '^/(trips/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?|live/(areas|places)/[0-9a-fA-F-]{36}|notifications|profile)$'
+          pattern: '^/(trip/[0-9a-fA-F-]{36}(/optimizations/[0-9a-fA-F-]{36})?|live/(areas|places)/[0-9a-fA-F-]{36}|notifications|profile)$'
           description: Relative internal route from the fixed allowlist; schemes, hosts, query, and fragments are forbidden.
         createdAt:
           type: string
