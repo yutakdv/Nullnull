@@ -96,7 +96,7 @@ Nullnull은 발견한 장소를 특정 여행의 후보로 모으고, 검증된 
 - 외부 호출을 DB transaction 안에서 수행하지 않는다.
 - 비동기 optimizer/deletion/collector는 lease·attempt·retry·dead-letter가 있는 persistent job이다.
 - controller는 JPA entity/provider DTO를 반환하지 않는다.
-- `apps/ai`는 DB·외부 API·clock·난수 없이 immutable 입력만 계산하고, Spring `recommendation` package는 gateway·재검증·저장만 한다(ADR-0006). 요청에 owner/session ID·원문·좌표를 넣지 않는다. 순수성 규칙과 계약 export 절차는 `apps/ai/CLAUDE.md`가 정본이다.
+- `apps/ai`는 **계산 package에** DB·외부 API·clock·난수 없이 immutable 입력만 계산하고, Spring `recommendation` package는 gateway·재검증·저장만 한다(ADR-0006). 요청에 owner/session ID·원문·좌표를 넣지 않는다. 순수성 규칙과 계약 export 절차는 `apps/ai/CLAUDE.md`가 정본이다.
 
 ## Contract and data rules
 

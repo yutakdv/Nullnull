@@ -2179,11 +2179,11 @@ FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명
 - 기능 ID: `FR-NOT-01`, `FR-NOT-02`
 - API: `listNotifications`, `markNotificationRead`, `markAllNotificationsRead` (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `442:3344`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
-- 데이터·정책: notifications · allowlisted deep_link · read_at · event delivery dedup
+- 데이터·정책: notifications · allowlisted deep_link · read_at · expires_at · event delivery dedup(정책만 확정, 열과 index는 생산자 slice)
 
 구현 순서:
 
-1. 알림 type·생성 trigger·중복 key·보존 정책을 정한다
+1. 알림 type·생성 trigger·중복 key 정책·보존 정책을 정한다 — dedup key는 `<type>:<targetKind>:<targetId>`이고 owner 범위에서 unique하며, 생산자가 없는 동안 열과 partial unique index를 만들지 않는다
 2. 목록/unread count·개별 읽음·모두 읽음을 owner 단위 원자 처리한다
 3. 내부 상대경로만 허용하고 삭제된 trip/run의 알림은 안전하게 축소한다
 4. 09-06 PM 검토 PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
@@ -2192,9 +2192,17 @@ FE 인계·완료 증거: AI 사용 표기·검증 실패·수동 대안·설명
 
 필수 검증:
 
-- `BA-085-T1`: 모두 읽음 반복/동시 새 알림의 기준 시점을 검증한다
-- `BA-085-T2`: scheme/host/query/fragment·타 owner deep link를 거부한다
-- `BA-085-T3`: OFF·삭제된 target·90일/read30일 TTL을 검증한다
+- `BA-085-T1`: 모두 읽음을 반복해도 2회차는 다시 셀 것이 없다고 답한다
+- `BA-085-T2`: scheme·host·query·fragment를 담은 deep link를 거부한다
+- `BA-085-T3`: 알림 feature flag가 꺼진 기본 상태에서 세 notification operation이 모두 거절한다
+- `BA-085-T4`: 요청 cutoff 이후 commit된 알림은 unread로 남는다
+- `BA-085-T5`: 타 owner의 알림을 지목한 읽음 처리가 존재하지 않는 알림과 구별 불가능하다
+- `BA-085-T6`: 대상이 사라진 알림이 목록에서 사라지지 않는다
+- `BA-085-T7`: 생성 90일이 지난 알림은 sweep 뒤 남지 않는다
+- `BA-085-T8`: 읽음 30일이 지난 알림은 sweep 뒤 남지 않는다
+- `BA-085-T9`: NotificationType enum·notifications_type_check·계약 Notification.type이 같은 어휘를 선언한다
+- `BA-085-T10`: 서버가 대상이 사라진 알림의 deepLink를 다시 쓰지 않는다
+- `BA-085-T11`: 알림 feature flag가 getDemoReadiness의 capability 목록에 들어가지 않는다
 
 FE 인계·완료 증거: S12 unread/empty/read-all·삭제 대상 fallback fixtures, client N개 mutation 대신 단일 operation. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2308,6 +2316,13 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T1`: Seoul XML/JSON fixture의 drift·429·incident·stale을 검증한다
 - `BA-090-T2`: coverage 없는 POI를0 또는 임의 AREA 값으로 채우지 않는다
 - `BA-090-T3`: source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다
+- `BA-090-T4`: provider 요청은 호출이 준 헤더만 싣는다
+- `BA-090-T5`: proxy 요청 URL 은 자격증명을 담지 않는다
+- `BA-090-T6`: 관측 시각은 제공자의 offset 없는 시각을 KST 로 읽은 것이다
+- `BA-090-T7`: 한 응답의 현재 관측과 예보는 따로 나온다
+- `BA-090-T8`: REPLACE_YN 이 Y 인 관측은 저장되지 않는다
+- `BA-090-T9`: 예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다
+- `BA-090-T10`: 제공자 플래그는 아는 값일 때만 통과한다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -103,4 +103,4 @@ def test_declared_fixtures_exist_with_matching_checksums(manifest: dict) -> None
         assert path.exists(), fixture["path"]
         assert sha256_hex(path.read_bytes()) == fixture["sha256"], fixture["path"]
         assert fixture["dataOrigin"] == "SYNTHETIC"
-        assert fixture["kind"] in {"ITEM", "FEED"}
+        assert fixture["kind"] in {"ITEM", "FEED", "LLM"}

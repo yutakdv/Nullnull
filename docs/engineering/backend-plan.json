@@ -2972,9 +2972,9 @@
         "442:3344"
       ],
       "designRequests": [],
-      "entities": "notifications · allowlisted deep_link · read_at · event delivery dedup",
+      "entities": "notifications · allowlisted deep_link · read_at · expires_at · event delivery dedup(정책만 확정, 열과 index는 생산자 slice)",
       "steps": [
-        "알림 type·생성 trigger·중복 key·보존 정책을 정한다",
+        "알림 type·생성 trigger·중복 key 정책·보존 정책을 정한다 — dedup key는 `<type>:<targetKind>:<targetId>`이고 owner 범위에서 unique하며, 생산자가 없는 동안 열과 partial unique index를 만들지 않는다",
         "목록/unread count·개별 읽음·모두 읽음을 owner 단위 원자 처리한다",
         "내부 상대경로만 허용하고 삭제된 trip/run의 알림은 안전하게 축소한다",
         "09-06 PM 검토 PM-016의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
@@ -2983,15 +2983,47 @@
       "tests": [
         {
           "id": "BA-085-T1",
-          "assertion": "모두 읽음 반복/동시 새 알림의 기준 시점을 검증한다"
+          "assertion": "모두 읽음을 반복해도 2회차는 다시 셀 것이 없다고 답한다"
         },
         {
           "id": "BA-085-T2",
-          "assertion": "scheme/host/query/fragment·타 owner deep link를 거부한다"
+          "assertion": "scheme·host·query·fragment를 담은 deep link를 거부한다"
         },
         {
           "id": "BA-085-T3",
-          "assertion": "OFF·삭제된 target·90일/read30일 TTL을 검증한다"
+          "assertion": "알림 feature flag가 꺼진 기본 상태에서 세 notification operation이 모두 거절한다"
+        },
+        {
+          "id": "BA-085-T4",
+          "assertion": "요청 cutoff 이후 commit된 알림은 unread로 남는다"
+        },
+        {
+          "id": "BA-085-T5",
+          "assertion": "타 owner의 알림을 지목한 읽음 처리가 존재하지 않는 알림과 구별 불가능하다"
+        },
+        {
+          "id": "BA-085-T6",
+          "assertion": "대상이 사라진 알림이 목록에서 사라지지 않는다"
+        },
+        {
+          "id": "BA-085-T7",
+          "assertion": "생성 90일이 지난 알림은 sweep 뒤 남지 않는다"
+        },
+        {
+          "id": "BA-085-T8",
+          "assertion": "읽음 30일이 지난 알림은 sweep 뒤 남지 않는다"
+        },
+        {
+          "id": "BA-085-T9",
+          "assertion": "NotificationType enum·notifications_type_check·계약 Notification.type이 같은 어휘를 선언한다"
+        },
+        {
+          "id": "BA-085-T10",
+          "assertion": "서버가 대상이 사라진 알림의 deepLink를 다시 쓰지 않는다"
+        },
+        {
+          "id": "BA-085-T11",
+          "assertion": "알림 feature flag가 getDemoReadiness의 capability 목록에 들어가지 않는다"
         }
       ],
       "handoff": "S12 unread/empty/read-all·삭제 대상 fallback fixtures, client N개 mutation 대신 단일 operation.",
@@ -3164,6 +3196,34 @@
         {
           "id": "BA-090-T3",
           "assertion": "source 장애 중 기존 trip CRUD/optimizer 독립성이 유지된다"
+        },
+        {
+          "id": "BA-090-T4",
+          "assertion": "provider 요청은 호출이 준 헤더만 싣는다"
+        },
+        {
+          "id": "BA-090-T5",
+          "assertion": "proxy 요청 URL 은 자격증명을 담지 않는다"
+        },
+        {
+          "id": "BA-090-T6",
+          "assertion": "관측 시각은 제공자의 offset 없는 시각을 KST 로 읽은 것이다"
+        },
+        {
+          "id": "BA-090-T7",
+          "assertion": "한 응답의 현재 관측과 예보는 따로 나온다"
+        },
+        {
+          "id": "BA-090-T8",
+          "assertion": "REPLACE_YN 이 Y 인 관측은 저장되지 않는다"
+        },
+        {
+          "id": "BA-090-T9",
+          "assertion": "예보 발표 id 는 구역·관측시각·내용 셋 모두에 달려 있다"
+        },
+        {
+          "id": "BA-090-T10",
+          "assertion": "제공자 플래그는 아는 값일 때만 통과한다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",

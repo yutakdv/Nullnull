@@ -57,7 +57,7 @@ B01에서 root script 또는 동등한 task runner로 다음 명령을 제공한
 | local dependency 시작 | `docker compose up -d postgres` | named volume·health check·`127.0.0.1:5434` 구성 확인함. **실제 기동은 실패할 수 있고, 실패해도 앱은 붙는다** — PM-022 항목 참고. `up -d` 뒤에 container가 **`.env.local`이 가리키는 포트를 publish하는지** 확인한다. `ps --status running`은 liveness만 보므로 부족하다(`ENVIRONMENT.md` §7 0단계) |
 | DB migration | `cd apps/api && ./gradlew flywayMigrate` | local profile만, production URL 거부 |
 | API 실행 | `cd apps/api && ./gradlew bootRun` | local config와 mock source 기본; `nullnull.ai.base-url`은 `http://127.0.0.1:8090` |
-| 추천 서비스 실행 | `cd apps/ai && uv run python -m nullnull_ai.main` | `127.0.0.1:8090`, DB·외부 API 접근 없음 |
+| 추천 서비스 실행 | `cd apps/ai && uv run python -m nullnull_ai.main` | `127.0.0.1:8090`, DB 접근 없음; `AI_PROVIDER=NONE`이면 외부 호출도 없음 |
 | 추천 서비스 검증 | `cd apps/ai && uv run ruff check . && uv run mypy && uv run pytest` | `build/reports/recommendation/evaluation.json` 생성, 계약 JSON drift는 실패 |
 | Web 실행 | `cd apps/web && npm run dev` | 같은 origin proxy 또는 명시된 credential CORS |
 | client 생성 | `npm run api:generate` | OpenAPI에서만 생성 |
