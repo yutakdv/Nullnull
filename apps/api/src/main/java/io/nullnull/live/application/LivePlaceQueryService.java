@@ -122,7 +122,7 @@ public class LivePlaceQueryService {
             LiveCoverage coverage = LiveCoverage.decide(requestedId, byPlace, observed);
             LivePlaceRow row = new LivePlaceRow(summary, coverage.mappingType(), coverage.fallbackUsed(),
                     coverage.covered() ? projection.attachedTo(reading, coverage) : null);
-            byCanonical.merge(summary.id(), row, LivePlaceQueryService::preferCovered);
+            byCanonical.merge(summary.id(), row, LivePlaceQueryService::stronger);
         }
         return List.copyOf(byCanonical.values());
     }
@@ -193,20 +193,34 @@ public class LivePlaceQueryService {
     }
 
     /**
-     * Two mapped ids that a merge has since pointed at one canonical place. The covered row wins;
-     * between two equally covered rows the earlier one, and the caller iterates the mappings in
-     * {@code place_id} order, so "earlier" is the lower id rather than whichever the database handed
-     * over first. Both rules are total and read off the rows themselves.
+     * Two mapped ids that a merge has since pointed at one canonical place: the stronger mapping
+     * describes it.
+     *
+     * <p><strong>Coverage cannot be the tie-break here, and an earlier version of this method used
+     * it.</strong> Every mapping in this list names the SAME area - {@code forArea} selected them by
+     * it - so {@code LiveCoverage.decide} asks one question for all of them and either all are
+     * covered or none are. A "the covered row wins" arm therefore could not fire for any input,
+     * which the merge-path test found: it was a guard nobody could reach. What differs between two
+     * rows is HOW each place is tied to the area, and that is what has to settle it.
+     *
+     * <p>AREA beats AREA_FALLBACK, and not as a preference: a direct mapping says this place sits
+     * inside the area's published boundary, a fallback says only that a surrounding area is mapped.
+     * Once a merge has made them one place, the direct row is the true statement about it and the
+     * fallback is a weaker claim about the same fact. Picking by {@code place_id} order - which is
+     * what "keep the first" would have done, since the query orders by it - would let a UUID decide
+     * which of two evidence grades the reader sees.
+     *
+     * <p>A tie keeps the row already held, and the caller iterates in {@code place_id} order, so a
+     * tie is settled by the lower id. That arm reads off the rows too, so every arrival order gives
+     * one answer - the same property {@code CatalogRelationProjectionService.converge} needs and for
+     * the same reason.
      *
      * <p>Reachable only after a merge: two rows in {@code seoul_live_area_maps} naming different
-     * places, one of which is later deprecated onto the other. Nothing writes that today, and it is
-     * not left to chance because the alternative is one place appearing twice on the page - which
-     * the internal contract already forbids for related places, in the same words.
+     * places, one of which is later deprecated onto the other. Nothing writes that today; it is not
+     * left to chance because the alternative is one place appearing twice on the page, which the
+     * internal contract already forbids for related places in the same words.
      */
-    private static LivePlaceRow preferCovered(LivePlaceRow kept, LivePlaceRow other) {
-        if (kept.crowd() == null && other.crowd() != null) {
-            return other;
-        }
-        return kept;
+    private static LivePlaceRow stronger(LivePlaceRow kept, LivePlaceRow other) {
+        return kept.fallbackUsed() && !other.fallbackUsed() ? other : kept;
     }
 }

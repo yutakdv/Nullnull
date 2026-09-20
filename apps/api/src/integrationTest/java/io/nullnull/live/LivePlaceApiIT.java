@@ -259,6 +259,52 @@ class LivePlaceApiIT {
         assertThat(detail.get("crowd").get("provenance").get("mappingType").asString()).isEqualTo("AREA");
     }
 
+    @Test
+    @DisplayName("BA-091 한 canonical 장소를 가리키게 된 매핑 둘은 목록에 한 줄이다")
+    void twoMappingsThatNowPointAtOneCanonicalPlaceAreOneRow() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        Instant now = clock.instant();
+        UUID area = area("POI106", "서울숲", now.minusSeconds(60), now.minusSeconds(55), "보통");
+        UUID first = place("살아 있는 장소");
+        UUID second = place("합쳐진 장소");
+        // THE ORDER IS CHOSEN, NOT LEFT TO THE IDS. The query hands these over in place_id order and
+        // the ids are random, so a fixture that mapped them by variable name would put the AREA row
+        // first about half the time - and then "keep whichever came first" would look correct on
+        // half the runs. The FALLBACK is given the lower id on purpose, so the direct mapping always
+        // arrives second and can only win by being the stronger one.
+        UUID fallback = first.toString().compareTo(second.toString()) < 0 ? first : second;
+        UUID direct = fallback.equals(first) ? second : first;
+        map(direct, area, "AREA", "0.9000", false);
+        map(fallback, area, "AREA_FALLBACK", "0.4000", true);
+        // The merge points the fallback's place at the direct one, so the canonical row is the
+        // direct place and the retired row is the weaker claim about it.
+        UUID canonical = direct;
+        UUID retired = fallback;
+        jdbc.update("DELETE FROM place_localizations WHERE place_id = ?", retired);
+        jdbc.update("UPDATE places SET status = 'DEPRECATED', canonical_place_id = ? WHERE id = ?",
+                canonical, retired);
+
+        JsonNode page = JSON.readTree(listPlaces(owner, area)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        // ONE row. The internal contract forbids a repeated place for related places in the same
+        // words, and the reason is the same here: the reader cannot tell which of the two rows is
+        // the place, and the screen would show it twice with different terms.
+        assertThat(page).hasSize(1);
+        assertThat(page.get(0).get("place").get("id").asString()).isEqualTo(canonical.toString());
+        // And it is the DIRECT mapping that describes it, not the fallback. Both rows cover - every
+        // mapping in this list names the same area, so coverage is the same question for all of
+        // them - so the only thing that can settle the merge is how each place is tied to that
+        // area. "Keep the first" would have let the lower place_id decide which evidence grade the
+        // reader sees, and the two fixtures above are deliberately seeded so that the AREA row is
+        // NOT reliably the lower one: the ids are random.
+        assertThat(page.get(0).get("mappingType").asString()).isEqualTo("AREA");
+        assertThat(page.get(0).get("fallbackUsed").asBoolean()).isFalse();
+        assertThat(crowdOf(page, canonical).get("provenance").get("mappingType").asString())
+                .isEqualTo("AREA");
+    }
+
     private ResultActions livePlace(SessionService.Bootstrap owner, UUID placeId) throws Exception {
         return mvc.perform(get("/api/v1/live/places/{id}", placeId).cookie(cookie(owner)));
     }
