@@ -9,9 +9,23 @@
 #   "awaiting"   — temporary. A named card will add the reader, and THAT CARD DELETES THIS ROW.
 #                  If these are mixed in with the permanent ones nobody ever deletes them, which is
 #                  how AI_API_KEY and SEOUL_BASE_URL came to sit in example files unread.
+#
+# AN "awaiting" ROW HAS A SECOND ENDING, AND IT IS NOT THE ONE THIS FILE FIRST DESCRIBED.
+#
+# The card can arrive and find that nothing will ever read that name - so the row goes, and the
+# EXAMPLE LINE goes with it. SEOUL_API_KEY ended that way (BA-090): the Seoul key is read by the
+# proxy as a JSON field of a Secrets Manager secret, never as an environment variable, so a row in
+# an example file was telling an operator to set something no process consumes - which is the shape
+# this check exists to remove. Compare KTO_SERVICE_KEY, which apps/api reads directly and therefore
+# belongs in the example file.
+#
+# Both endings delete the row; they differ in WHERE THE OTHER HALF OF THE FIX GOES. Adding a reader
+# leaves the example line in place. Discovering there is no reader takes the example line out, and
+# the deletion needs a comment there saying why - otherwise the next person reads it as an omission
+# and puts it back. Write down which ending a row is heading for only when you know; "awaiting"
+# means the question is open, not that a reader is promised.
 
 SPRING_PROFILES_ACTIVE framework — Spring Boot itself consumes this; no repository code reads it, and none should
 
-SEOUL_API_KEY awaiting B10 — read by the Seoul proxy in infra/, which this check does not scan (--source-root is apps and scripts); delete this row when infra/ joins the scan
 AI_API_KEY awaiting BA-084 — read only after an LLM provider adapter is approved; ENVIRONMENT.md says so
 AI_MODEL_ID awaiting BA-084 — same card as AI_API_KEY
