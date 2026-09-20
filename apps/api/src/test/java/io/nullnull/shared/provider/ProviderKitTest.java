@@ -216,13 +216,20 @@ class ProviderKitTest {
     }
 
     @Test
-    @DisplayName("provider transport sends the headers it was given, and sends none when given none")
+    @DisplayName("BA-090-T4 provider 요청은 호출이 준 헤더만 싣는다")
     void requestHeadersReachTheProvider() throws Exception {
-        // No acceptance ID on purpose. This proves a clause no card states yet: the transport can carry
-        // a header. It exists for the Seoul proxy, which holds the provider credential and refuses a
-        // request without our shared token - the token goes in a header because the path is what access
-        // logs record. If BA-090 gains a clause for that, this name gets its ID then; borrowing the
-        // nearest one (BA-020-T1) would make that card look better covered than it is (#195).
+        // The clause is "only what the call gave", and it needs BOTH directions: a transport that
+        // attaches these headers to every request satisfies the first three assertions alone.
+        //
+        // It exists for the Seoul proxy, which holds the provider credential and refuses a request
+        // without our shared token - the token goes in a header because the path is what access logs
+        // record, and BA-070-T2 only pins that the query string stays out of them.
+        //
+        // WHAT THIS DOES NOT PROVE: that the credential is absent from the URL. Nothing here builds a
+        // URL that could carry one. That clause belongs to whoever builds the proxy URI, and it cannot
+        // be proven through this stub anyway - StubProviderServer.CREDENTIAL_PARAMETERS contains
+        // "token", so a `?token=...` would be dropped before recording and the assertion would pass
+        // while the secret was on the wire.
         String token = "fake-proxy-token-never-retained";
         try (StubProviderServer stub = new StubProviderServer()
                 .enqueue(new StubProviderServer.Response(200, "{\"state\":\"A\"}"))
