@@ -3733,7 +3733,8 @@
         "목록 우선 area query와 선택 유지·area별 place·Live detail projection을 만든다",
         "searchPlaces→canonical 선택→getLivePlace coverage 흐름을 연결한다",
         "relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다",
-        "09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
+        "09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
+        "서울 관측은 ops 수집 작업으로 적재하고 장소 연결은 소유자가 해시를 승인한 매핑 계획으로 적재한다"
       ],
       "safety": "viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.",
       "tests": [
@@ -3796,6 +3797,18 @@
         {
           "id": "BA-091-T15",
           "assertion": "두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다"
+        },
+        {
+          "id": "BA-091-T16",
+          "assertion": "거절된 서울 관측은 수집 작업의 성공으로 보고되지 않는다"
+        },
+        {
+          "id": "BA-091-T17",
+          "assertion": "승인된 매핑은 계획이 지목한 활성 서울 구역에 연결된다"
+        },
+        {
+          "id": "BA-091-T18",
+          "assertion": "동일 매핑 계획을 재실행해도 연결 행은 하나다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",

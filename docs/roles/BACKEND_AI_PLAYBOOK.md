@@ -2430,6 +2430,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. searchPlaces→canonical 선택→getLivePlace coverage 흐름을 연결한다
 3. relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다
 4. 09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. 서울 관측은 ops 수집 작업으로 적재하고 장소 연결은 소유자가 해시를 승인한 매핑 계획으로 적재한다
 
 진행 상태(대조): **`T5` 를 좁혔다.** 원래 문구는 *"다른 owner 의 cursor 는 거절된다"* 였는데 **Live 표면 전체에 cursor 가 없다** — `listLiveAreaPlaces` 는 page envelope 가 아니라 맨 배열을 내고 `getLivePlace` 는 단건이며 `queryLiveAreas` 의 요청에도 cursor 가 없다(계약 측정). **상류가 그 입력을 만들 수 없어 구조적으로 반증 불가인 절**이라 그대로 두면 증명할 방법이 없다. **그래서 지우지 않고 덫으로 바꿨다**: 지금 참인 사실(cursor 를 발급하지 않는다)을 응답 shape 로 고정하면, **Live 에 페이지네이션이 생기는 날 그 단언이 발화하고** 그때 owner 결속을 다시 세워야 한다는 것이 드러난다. **owner 별 cursor 거절 자체는 `BA-022-T2`·`BA-070-T1` 이 소유한 층**이고 이 카드가 그것을 다시 증명하지 않는다.
 
@@ -2452,6 +2453,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T13`: 같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다
 - `BA-091-T14`: 같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다
 - `BA-091-T15`: 두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다
+- `BA-091-T16`: 거절된 서울 관측은 수집 작업의 성공으로 보고되지 않는다
+- `BA-091-T17`: 승인된 매핑은 계획이 지목한 활성 서울 구역에 연결된다
+- `BA-091-T18`: 동일 매핑 계획을 재실행해도 연결 행은 하나다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

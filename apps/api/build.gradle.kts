@@ -376,6 +376,24 @@ tasks.register<JavaExec>("ktoDemoForecastRefresh") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("seoulLiveCollect") {
+    group = "verification"
+    description = "Collects one Seoul live area named by NULLNULL_SEOUL_AREA_NAME"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.live.infrastructure.SeoulLiveCollectMain")
+    workingDir = projectDir
+}
+
+tasks.register<JavaExec>("curateLiveMaps") {
+    group = "verification"
+    description = "Imports a reviewed Live area mapping plan; no provider call"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.live.infrastructure.curation.LiveMappingImportMain")
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("ktoForecastSmoke") {
     group = "verification"
     description = "Runs one approved KTO forecast call from a verified canonical KTO mapping and prints redacted evidence only"

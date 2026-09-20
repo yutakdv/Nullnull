@@ -409,6 +409,18 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-posts --plan-file ops/curated-posts.json \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# 서울 Live 관측(local 전용). 서울 프록시의 토큰만 ops task에 있고 서울 API 키는 프록시에만 있다.
+# 검증된 관측 한 건이 저장될 때만 성공하며 관측은 300초 뒤 stale이 된다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task seoul-live-collect --area-name '서울숲공원'
+# 장소 연결(local 전용). 계획 파일의 mappings 배열은 placeId, areaName, mappingType,
+# confidence, fallbackUsed, verifiedAt, evidenceUrl을 각각 담는다. areaName은 위 작업이
+# 저장한 활성 서울 구역 이름과 정확히 같아야 한다. 공백/추측으로 채우지 않는다.
+# 먼저 --approved-plan-sha256 없이 실행해 해시를 받은 뒤, 계획과 근거를 검토한 소유자가
+# 그 해시와 승인 기록을 지정해 다시 실행한다. 승인된 원문은 release 증거로 보존된다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task curate-live-maps --plan-file <plan.json> \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
 # BA-006-T2 secret 스캔(local 전용). 기록된 모든 release의 assembly(web bundle 포함)·배포된 두 image·보존 중인 로그에서
 # KTO key와 verifier token을 찾는다(원문·URL 인코딩·JSON escape·base64). docker가 필요하다. 값은 출력·기록하지 않는다.
 python3 scripts/aws/staging_operator.py secret-scan

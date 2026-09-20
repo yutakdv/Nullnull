@@ -366,6 +366,54 @@ test("the Seoul proxy holds the key, the API task does not, and the allowlist na
   assert.match(secrets, /proxyToken/);
   assert.equal(secrets.includes("apiKey"), false);
 });
+test("the Seoul collector ops task receives the proxy token without its API key", () => {
+  const definition = Object.values(templates.migration.findResources("AWS::ECS::TaskDefinition"))
+    .find((r: any) => r.Properties.Family === "nullnull-stg-ops") as any;
+  const container = definition.Properties.ContainerDefinitions.find((c: any) => c.Name === "ops");
+  const secrets = JSON.stringify(container.Secrets);
+  assert.match(secrets, /SEOUL_PROXY_TOKEN/);
+  assert.equal(secrets.includes("apiKey"), false);
+  templates.services.hasOutput("SeoulProxyUrl", {});
+  templates.services.hasOutput("SeoulProxyHost", {});
+});
+test("the reviewed Seoul area is collected again before its 300-second reading expires", () => {
+  const matching = Object.values(templates.services.findResources("AWS::Scheduler::Schedule"))
+    .filter((r: any) => r.Properties.Name === "nullnull-stg-seoul-live-refresh") as any[];
+  assert.equal(matching.length, 1);
+  const schedule = matching[0].Properties;
+  assert.equal(schedule.ScheduleExpression, "rate(3 minutes)");
+  const input = JSON.stringify(schedule.Target.Input);
+  assert.match(input, /SeoulLiveCollectMain/);
+  assert.match(input, /서울숲공원/);
+  assert.match(input, /SEOUL_BASE_URL/);
+  assert.match(input, /SEOUL_ALLOWED_HOST/);
+  assert.match(input, /NULLNULL_OPERATIONS_TARGET/);
+  assert.equal(input.includes("KTO_SMOKE"), false);
+});
+test("a missing or failed Seoul collection reaches the alarm topic", () => {
+  templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+    FilterPattern: '"seoul_live_collect accepted=true"',
+    MetricTransformations: [Match.objectLike({ MetricName: "SeoulLiveCollectOk", DefaultValue: 0 })],
+  });
+  templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    MetricName: "SeoulLiveCollectOk",
+    Period: 60,
+    EvaluationPeriods: 4,
+    ComparisonOperator: "LessThanThreshold",
+    Threshold: 1,
+    TreatMissingData: "breaching",
+    AlarmActions: [Match.anyValue()],
+  });
+  templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+    FilterPattern: '"seoul_live_collect_failed"',
+  });
+  templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    MetricName: "SeoulLiveCollectFailures",
+    EvaluationPeriods: 1,
+    TreatMissingData: "notBreaching",
+    AlarmActions: [Match.anyValue()],
+  });
+});
 test("protected stacks never embed a release (classification premise)", () => {
   // An app-only release must leave these templates byte-identical, otherwise every release needs the
   // infra approval path and a rollback (which never redeploys them) leaves them on the newer release.
