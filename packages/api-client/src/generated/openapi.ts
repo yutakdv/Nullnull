@@ -1459,13 +1459,15 @@ export interface components {
             /**
              * @description How the observation was tied to the subject it describes, as a token Frontend maps to
              *     its own copy - never display text. Every source shares this field: KTO place-scope
-             *     snapshots already send `DIRECT`, meaning the reading is about this very subject.
-             *     `AREA_FALLBACK` means it is about a surrounding area instead, which is why
+             *     snapshots already send `DIRECT` (a SQL literal in JdbcKtoForecastSnapshotStore),
+             *     meaning the reading is about this very subject. The Seoul live module sends `AREA`
+             *     when the place is linked to the observed area and `AREA_FALLBACK` when it is about a
+             *     surrounding area instead, which is why
              *     `comparisonEligible` is false there. Null when the source does not resolve a subject.
              *     This list does NOT include `NONE`: an unmapped place has no observation, so no
              *     provenance object exists to carry it - that absence is `LivePlace.mappingType`.
-             *     The Seoul area map CHECK constraint pins exactly these two values; the third token
-             *     lives in the projection, not in the table. Declared `x-extensible-enum` rather than
+             *     The Seoul area map CHECK pins `AREA` and `AREA_FALLBACK`; `NONE` lives in the
+             *     projection, not in the table, and `DIRECT` belongs to a different source. Declared `x-extensible-enum` rather than
              *     `enum` because this is where a future source states its own mapping method, and a
              *     closed enum would make each one a breaking change.
              */
@@ -2541,7 +2543,10 @@ export interface components {
             place: components["schemas"]["PlaceSummary"];
             /**
              * @description How this place is tied to a Live area, as a token Frontend maps to its own copy -
-             *     never display text. `DIRECT`: the place is mapped to the area that was observed.
+             *     never display text. `AREA`: the place is mapped to the area that was observed. The
+             *     name is the live module's own (`LiveAreaMapping.AREA`), not the provenance field's
+             *     `DIRECT` - they answer different questions and an earlier draft of this list confused
+             *     them.
              *     `AREA_FALLBACK`: only a surrounding area is mapped, so the reading is about that
              *     area and not this place; `fallbackUsed` is true and the reading is not comparable.
              *     `NONE`: nothing maps this place, so `crowd` is null and there is no provenance -
