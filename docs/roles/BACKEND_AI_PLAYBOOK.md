@@ -570,6 +570,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-020-T1`: ProviderKitTest·CollectorRunRecorderTest·SourceRegistryIT가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 합성 provider와 PostgreSQL로 검증한다
 - `BA-020-T2`: SourceRegistryIT가 KST 일일 quota의 60/80/90% 경보·100% 초과 거부 및 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다
 - `BA-020-T3`: SourceRegistryIT.slowProviderDoesNotBlockApiRequests가 네 개의 지연 provider call 중에도 readiness와 owner /me 요청이 즉시 처리되는지를 검증한다
+- `BA-020-T4`: 격리된 최신 run 은 검토 기록이 없으면 source 를 계속 막는다
+- `BA-020-T5`: 그 run 이후에 검토된 RESOLVED incident 가 있으면 격리가 풀린다
+- `BA-020-T6`: 그 run 이전에 검토된 기록은 격리를 풀지 않는다
+- `BA-020-T7`: operator 해제 도구가 쓴 검토를 conditionAt 이 인정한다
+- `BA-020-T8`: operator 해제 도구는 격리되지 않은 source 를 거절하고 아무것도 쓰지 않는다
 
 구현·검증 증거:
 
@@ -1527,9 +1532,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-042-T4`: 요청은 여행의 timezone과 여행의 날짜 범위를 그대로 싣는다
 - `BA-042-T5`: 영업 근거가 없으면 eligible을 참으로 만들지 않고 그 사유를 낸다
 - `BA-042-T6`: 평가기가 낸 사유 코드를 Spring이 뭉개지 않고 그대로 낸다
-- `BA-042-T7`: state 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
+- `BA-042-T7`: state 여섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 이 서버가 답하는 것으로 등록돼 있다
 - `BA-042-T8`: replace는 MUST_VISIT과 RESERVATION을 releaseConstraints에 이름 대야 진행한다
 - `BA-042-T9`: stale If-Match는 replace를 거부한다
+- `BA-042-T10`: 예약으로 넘어간 후보의 slot 조회는 200 NOT_ACTIVE 로 답한다
+- `BA-042-T11`: NOT_ACTIVE 답은 apps/ai 를 부르지 않고 만든다
 
 FE 인계·완료 증거: comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2198,8 +2205,11 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - `BA-083-T38`: leg 이 불명인 하루는 개선 없음이 아니라 비교 불가로 거절한다
 - `BA-083-T39`: 기록되는 분보다 짧은 절약도 개선이다 — 판정은 반올림 전 durations 로 한다
 - `BA-083-T40`: 기록되는 분은 0 쪽으로 버린다
+- `BA-083-T41`: optimization_proposals 는 선언된 열만 갖는다 — 경로 응답의 피연산자를 담는 열이 delta 옆에 생길 수 없다
+- `BA-083-T42`: preview 가 판정한 경로 근거가 APPLY 시점에 없으면 APPLY 는 거부하고 일정을 바꾸지 않는다
+- `BA-083-T43`: 적용 결과는 preview 의 travel delta 를 측정된 절감으로 주장하지 않는다
 - `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
-- `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
+- `BA-083-T3`: preview 를 판정한 scope 정책이 바뀐 뒤의 APPLY 는 거부된다
 
 FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union examples와 provider attribution. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

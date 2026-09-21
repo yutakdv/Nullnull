@@ -2105,7 +2105,7 @@ export interface components {
             /** Format: uuid */
             candidateId: string;
             /** @enum {string} */
-            state: "EXACT" | "SIMILAR" | "NONE" | "CHECKING" | "UNKNOWN";
+            state: "EXACT" | "SIMILAR" | "NONE" | "CHECKING" | "UNKNOWN" | "NOT_ACTIVE";
             slots: {
                 /** Format: date */
                 date: string;

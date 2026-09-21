@@ -653,6 +653,26 @@
         {
           "id": "BA-020-T3",
           "assertion": "SourceRegistryIT.slowProviderDoesNotBlockApiRequests가 네 개의 지연 provider call 중에도 readiness와 owner /me 요청이 즉시 처리되는지를 검증한다"
+        },
+        {
+          "id": "BA-020-T4",
+          "assertion": "격리된 최신 run 은 검토 기록이 없으면 source 를 계속 막는다"
+        },
+        {
+          "id": "BA-020-T5",
+          "assertion": "그 run 이후에 검토된 RESOLVED incident 가 있으면 격리가 풀린다"
+        },
+        {
+          "id": "BA-020-T6",
+          "assertion": "그 run 이전에 검토된 기록은 격리를 풀지 않는다"
+        },
+        {
+          "id": "BA-020-T7",
+          "assertion": "operator 해제 도구가 쓴 검토를 conditionAt 이 인정한다"
+        },
+        {
+          "id": "BA-020-T8",
+          "assertion": "operator 해제 도구는 격리되지 않은 source 를 거절하고 아무것도 쓰지 않는다"
         }
       ],
       "handoff": "V007 source registry와 apps/api build/test-results/{test,integrationTest}의 C1 JUnit 증거. C2에서만 실제 KTO gateway·key·provenance/snapshot을 추가하며 서울 전용 adapter는 구현하지 않는다.",
@@ -1667,7 +1687,7 @@
         },
         {
           "id": "BA-042-T7",
-          "assertion": "state 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다"
+          "assertion": "state 여섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 이 서버가 답하는 것으로 등록돼 있다"
         },
         {
           "id": "BA-042-T8",
@@ -1676,6 +1696,14 @@
         {
           "id": "BA-042-T9",
           "assertion": "stale If-Match는 replace를 거부한다"
+        },
+        {
+          "id": "BA-042-T10",
+          "assertion": "예약으로 넘어간 후보의 slot 조회는 200 NOT_ACTIVE 로 답한다"
+        },
+        {
+          "id": "BA-042-T11",
+          "assertion": "NOT_ACTIVE 답은 apps/ai 를 부르지 않고 만든다"
         }
       ],
       "handoff": "comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture.",
@@ -3135,7 +3163,19 @@
         },
         {
           "id": "BA-083-T3",
-          "assertion": "preview/apply/route stale race와 정책 rollback을 검증한다"
+          "assertion": "preview 를 판정한 scope 정책이 바뀐 뒤의 APPLY 는 거부된다"
+        },
+        {
+          "id": "BA-083-T41",
+          "assertion": "optimization_proposals 는 선언된 열만 갖는다 — 경로 응답의 피연산자를 담는 열이 delta 옆에 생길 수 없다"
+        },
+        {
+          "id": "BA-083-T42",
+          "assertion": "preview 가 판정한 경로 근거가 APPLY 시점에 없으면 APPLY 는 거부하고 일정을 바꾸지 않는다"
+        },
+        {
+          "id": "BA-083-T43",
+          "assertion": "적용 결과는 preview 의 travel delta 를 측정된 절감으로 주장하지 않는다"
         }
       ],
       "handoff": "DAY/TRIP before/after·route unavailable·scope union examples와 provider attribution.",
