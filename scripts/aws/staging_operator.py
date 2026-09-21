@@ -1133,7 +1133,9 @@ def ops_task(args):
                     seoul.append(line)
                 if args.task == 'release-source-quarantine' and line.startswith('source_quarantine_released '):
                     released.append(line)
-                if args.task == 'withdraw-post' and line.startswith('post_withdrawn '):
+                # Every terminal line, the failure as well as the success: a stream holding both must not
+                # read as a withdrawal because one of its lines says so.
+                if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
                     withdrawn.append(line)
         if failure:
             raise failure
@@ -1143,8 +1145,8 @@ def ops_task(args):
         # benign no-op leaves no stack trace, and this is what stops that line from reading as a source reopened.
         if args.task == 'release-source-quarantine':
             require(len(released) == 1, 'source-not-released')
-        # Exactly one line, and it names the post the owner approved: a count alone would accept a withdrawal of some
-        # other post. ALREADY_HIDDEN is a success - a rerun finds the post where the first run left it.
+        # Exactly one terminal line, a success, naming the post the owner approved: a count alone would accept a
+        # withdrawal of some other post. ALREADY_HIDDEN is a success - a rerun finds the post where the first run left it.
         if args.task == 'withdraw-post':
             require(withdrawn in ([f'post_withdrawn post={args.post_id} outcome=WITHDRAWN'],
                                   [f'post_withdrawn post={args.post_id} outcome=ALREADY_HIDDEN']), 'post-not-withdrawn')

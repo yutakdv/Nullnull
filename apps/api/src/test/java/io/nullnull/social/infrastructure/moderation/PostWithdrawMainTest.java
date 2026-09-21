@@ -3,15 +3,22 @@ package io.nullnull.social.infrastructure.moderation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.tngtech.archunit.core.domain.JavaFieldAccess;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import io.nullnull.OperationsContext;
+import io.nullnull.social.application.PostLockTimeoutException;
 import io.nullnull.social.application.PostWithdrawalService.Withdrawal;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -90,6 +97,56 @@ class PostWithdrawMainTest {
     }
 
     @Test
+    @DisplayName("an approved run withdraws exactly the named post and prints what the withdrawal did")
+    void anApprovedRunWithdrawsTheNamedPost() {
+        for (Withdrawal done : List.of(Withdrawal.WITHDRAWN, Withdrawal.ALREADY_HIDDEN)) {
+            List<UUID> asked = new ArrayList<>();
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+            PostWithdrawMain.run(approved(), new PrintStream(bytes, true, StandardCharsets.UTF_8), id -> {
+                asked.add(id);
+                return done;
+            });
+
+            assertThat(asked).as("the service is asked once, about this post").containsExactly(UUID.fromString(POST));
+            assertThat(bytes.toString(StandardCharsets.UTF_8).lines().toList())
+                    .containsExactly("post_withdrawn post=" + POST + " outcome=" + done.name());
+        }
+    }
+
+    @Test
+    @DisplayName("a withdrawal that refuses or fails ends the run with its reason and a non-zero exit")
+    void aRefusalOrFailureIsNotASuccess() {
+        Map<Withdrawal, String> refusals = Map.of(Withdrawal.NOT_FOUND, "NOT_FOUND",
+                Withdrawal.NOT_PUBLISHED, "NOT_PUBLISHED");
+        refusals.forEach((outcome, reason) -> assertThat(run(approved(), id -> outcome))
+                .as("%s", outcome).containsExactly("post_withdraw_failed reason=" + reason));
+        // A row lock the withdrawal could not get in time, or anything else: the exception's name,
+        // never its message.
+        assertThat(run(approved(), id -> {
+            throw new PostLockTimeoutException("Timed out waiting for the post's row lock.", null);
+        })).containsExactly("post_withdraw_failed reason=PostLockTimeoutException");
+        assertThat(run(approved(), id -> {
+            throw new IllegalStateException("jdbc:postgresql://secret-host/db refused");
+        })).containsExactly("post_withdraw_failed reason=IllegalStateException");
+    }
+
+    @Test
+    @DisplayName("the withdrawal opens the application as a writing tool, which is what makes staging name its database")
+    void theApplicationIsOpenedForWriting() {
+        // Read from the compiled class rather than asserted by running it: starting the application
+        // needs a database this source set does not have. A READ context would skip
+        // OperationsContext's requirement that NULLNULL_OPERATIONS_TARGET name the database.
+        List<String> accessed = new ClassFileImporter().importClass(PostWithdrawMain.class)
+                .getFieldAccessesFromSelf().stream()
+                .filter(access -> access.getTargetOwner().isEquivalentTo(OperationsContext.Access.class))
+                .map(JavaFieldAccess::getName)
+                .collect(Collectors.toList());
+
+        assertThat(accessed).containsExactly("WRITE");
+    }
+
+    @Test
     @DisplayName("every line it prints passes the staging operator's log allowlist")
     void everyLineItPrintsIsEchoed() {
         UUID post = UUID.fromString(POST);
@@ -108,12 +165,24 @@ class PostWithdrawMainTest {
         assertThat(lines.getLast()).isEqualTo("post_withdraw_failed reason=IllegalStateException");
     }
 
-    /** Runs the command and returns what it printed, asserting that it failed. */
+    /** Runs a command that must be refused before any withdrawal, and returns what it printed. */
     private static List<String> refusal(Map<String, String> environment) {
+        return run(environment, id -> {
+            throw new AssertionError("a refused run must not reach the withdrawal");
+        });
+    }
+
+    /** Runs the command, asserting that it failed, and returns what it printed. */
+    private static List<String> run(Map<String, String> environment, Function<UUID, Withdrawal> withdraw) {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         PrintStream out = new PrintStream(bytes, true, StandardCharsets.UTF_8);
-        assertThatThrownBy(() -> PostWithdrawMain.run(environment, out))
-                .isInstanceOf(PostWithdrawMain.Refused.class);
+        assertThatThrownBy(() -> PostWithdrawMain.run(environment, out, withdraw))
+                .isInstanceOf(RuntimeException.class)
+                .isNotInstanceOf(AssertionError.class);
         return bytes.toString(StandardCharsets.UTF_8).lines().toList();
+    }
+
+    private static Map<String, String> approved() {
+        return Map.of(PostWithdrawMain.APPROVAL, "true", PostWithdrawMain.POST_ID, POST);
     }
 }

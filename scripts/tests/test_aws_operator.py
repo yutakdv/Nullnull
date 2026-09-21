@@ -1583,7 +1583,7 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
         out=io.StringIO()
         with patch.dict(os.environ,env),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),\
              patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
-             patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),patch.object(ops,'wait_task'),\
+             patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),patch.object(ops,'wait_task') as wait,\
              patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
              contextlib.redirect_stdout(out):
             error=None
@@ -1591,8 +1591,11 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
                 ops.ops_task(self.args())
             except ops.OpsError as e:
                 error=str(e)
+        self.wait=wait
         return error,calls,out.getvalue()
-    def test_the_callers_approval_and_a_record_are_required_before_any_call(self):
+    # 'Before the task': ops_task reads the caller's identity (STS) before any input is checked, for every task, so
+    # these tests patch identity() and claim only that nothing touches RDS, ECS or the logs.
+    def test_the_callers_approval_and_a_record_are_required_before_the_task(self):
         with patch.dict(os.environ,self.BASE),patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
             os.environ.pop('NULLNULL_POST_WITHDRAW_APPROVED',None)
             with self.assertRaisesRegex(ops.OpsError,'nullnull-post-withdraw-approved-not-set-by-caller'):
@@ -1602,7 +1605,7 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
                     with self.subTest(record=record),self.assertRaisesRegex(ops.OpsError,'owner-approval-record-required'):
                         ops.ops_task(self.args(owner_approval=record))
             aws.assert_not_called()
-    def test_the_post_id_is_a_canonical_uuid_before_any_call(self):
+    def test_the_post_id_is_a_canonical_uuid_before_the_task(self):
         with patch.dict(os.environ,{**self.BASE,'NULLNULL_POST_WITHDRAW_APPROVED':'true'}),\
              patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
             # The loose place_id shape would pass the first three; a post id is exactly one canonical UUID.
@@ -1626,6 +1629,8 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
         # Said on every success: the post is off every page, and the image is still at its URL.
         self.assertIn('post_withdraw_residual=cover-object-not-deleted',out)
         self.assertIn('ops_task=withdraw-post result=succeeded',out)
+        # The task that ran is checked against the deployed release's image, not only the definition that was named.
+        self.assertEqual(self.DIGEST,self.wait.call_args.args[5])
     def test_a_rerun_that_finds_the_post_already_hidden_succeeds(self):
         error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=ALREADY_HIDDEN'])
         self.assertIsNone(error)
@@ -1633,7 +1638,9 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
     def test_only_one_line_naming_the_requested_post_counts_as_a_withdrawal(self):
         named='post_withdrawn post='+self.POST+' outcome=WITHDRAWN'
         for log in ([],['post_withdraw_failed reason=NOT_FOUND'],['post_withdraw_failed reason=NOT_PUBLISHED'],
-                    ['post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN'],[named,named]):
+                    ['post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN'],[named,named],
+                    [named,'post_withdraw_failed reason=IllegalStateException'],
+                    [named,'post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN']):
             with self.subTest(log=log):
                 error,_,out=self.run_withdraw(log)
                 self.assertIn('post-not-withdrawn',error or '')

@@ -7,6 +7,7 @@ import io.nullnull.social.application.PostWithdrawalService.Withdrawal;
 import java.io.PrintStream;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.springframework.context.ConfigurableApplicationContext;
 
@@ -25,7 +26,8 @@ import org.springframework.context.ConfigurableApplicationContext;
  * post id must be a canonical UUID, before any database is opened. The operator records who approved
  * ({@code --owner-approval}); this main only refuses to run without the approval being stated.
  *
- * <p>It prints exactly one line. {@code post_withdrawn post=<id> outcome=WITHDRAWN} or
+ * <p>It prints one withdrawal line, after the target line {@link OperationsContext} prints.
+ * {@code post_withdrawn post=<id> outcome=WITHDRAWN} or
  * {@code outcome=ALREADY_HIDDEN} ends with exit 0 - a rerun of an approved withdrawal finds the post
  * already where it should be. Anything else prints {@code post_withdraw_failed reason=<CODE>} and
  * exits non-zero, including an id that names no post (a typo must not read as a withdrawal) and a
@@ -47,7 +49,7 @@ public final class PostWithdrawMain {
     }
 
     public static void main(String[] args) {
-        run(System.getenv(), System.out);
+        run(System.getenv(), System.out, PostWithdrawMain::throughOperationsContext);
     }
 
     /**
@@ -55,17 +57,23 @@ public final class PostWithdrawMain {
      * then rethrown, so the process exits non-zero: a refusal that returned normally would read as a
      * withdrawal to anything that looks only at the exit code.
      */
-    static void run(Map<String, String> environment, PrintStream out) {
+    static void run(Map<String, String> environment, PrintStream out, Function<UUID, Withdrawal> withdraw) {
         try {
             UUID postId = request(environment);
-            Withdrawal outcome;
-            try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
-                outcome = context.getBean(PostWithdrawalService.class).withdraw(postId);
-            }
-            out.println(report(postId, outcome));
+            out.println(report(postId, withdraw.apply(postId)));
         } catch (RuntimeException failure) {
             out.println(failureLine(failure));
             throw failure;
+        }
+    }
+
+    /**
+     * The withdrawal itself, in the application started as a WRITING tool: in staging that is what
+     * makes {@link OperationsContext} require {@code NULLNULL_OPERATIONS_TARGET} to name this database.
+     */
+    static Withdrawal throughOperationsContext(UUID postId) {
+        try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
+            return context.getBean(PostWithdrawalService.class).withdraw(postId);
         }
     }
 
