@@ -11,11 +11,13 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.MutableClock;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -222,21 +224,27 @@ class CatalogPlaceApiIT {
         SessionService.Bootstrap englishOwner = owner("en-US");
         UUID place = mixedLocalePlace();
 
-        mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
+        String detail = mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("English " + RUN))
                 .andExpect(jsonPath("$.address").value("서울시 주소"))
                 .andExpect(jsonPath("$.description").value("한국어 설명"))
                 .andExpect(jsonPath("$.textProvenance.name.locale").value("en-US"))
                 .andExpect(jsonPath("$.textProvenance.address.locale").value("ko-KR"))
-                .andExpect(jsonPath("$.textProvenance.description.locale").value("ko-KR"));
+                .andExpect(jsonPath("$.textProvenance.description.locale").value("ko-KR"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        // The shape the FE approved is the contract's, not this test's jsonPaths: validate the whole
+        // body so a property the contract does not declare fails here too.
+        ContractResponse.assertValid("getPlace", 200, detail);
 
-        search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
+        String found = search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(place.toString()))
                 .andExpect(jsonPath("$.items[0].textProvenance.name.locale").value("en-US"))
                 .andExpect(jsonPath("$.items[0].textProvenance.address.locale").value("ko-KR"))
-                .andExpect(jsonPath("$.items[0].textProvenance.description").isEmpty());
+                .andExpect(jsonPath("$.items[0].textProvenance.description").isEmpty())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        ContractResponse.assertValid("searchPlaces", 200, found);
     }
 
     @Test

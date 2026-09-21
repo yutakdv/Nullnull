@@ -23,7 +23,7 @@ class KtoEngServiceMatchProbeMainTest {
 
     private static final String CANARY = "Only in the provider body and never in the report";
     private static final Place GYEONGBOKGUNG =
-            new Place("126508", new BigDecimal("37.579617"), new BigDecimal("126.977041"));
+            new Place("126508", new BigDecimal("37.579617"), new BigDecimal("126.977041"), null);
 
     private static String list(String items) {
         return """
@@ -122,6 +122,62 @@ class KtoEngServiceMatchProbeMainTest {
         String report = String.join("\n",
                 KtoEngServiceMatchProbeMain.report("<html>" + CANARY + "</html>", 1, GYEONGBOKGUNG));
         assertThat(report).contains("verdict=NOT_JSON").doesNotContain(CANARY);
+    }
+
+    private static String titled(String title) {
+        return list("{\"contentid\":\"264329\",\"title\":\"" + title
+                + "\",\"mapx\":\"126.977041\",\"mapy\":\"37.579617\"}");
+    }
+
+    private static Place named(String name) {
+        return KtoEngServiceMatchProbeMain.withNames(List.of(GYEONGBOKGUNG), name).get(0);
+    }
+
+    @Test
+    @DisplayName("BA-086-T18 a title whose Hangul segment is exactly our name is reported as equal")
+    void exactHangulSegmentIsEvidence() {
+        String report = String.join("\n",
+                KtoEngServiceMatchProbeMain.report(titled("Gyeongbokgung Palace (경복궁)"), 1, named("경복궁")));
+        assertThat(report).contains("hangulSegmentEqualsName=true").contains("nameInTitle=true");
+    }
+
+    @Test
+    @DisplayName("BA-086-T18 containing our name is not equality: a different item named after the place stays unequal")
+    void containmentIsNotEquality() {
+        String report = String.join("\n", KtoEngServiceMatchProbeMain.report(
+                titled("Royal Guard Changing Ceremony (경복궁 수문장 교대식)"), 1, named("경복궁")));
+        assertThat(report).contains("hangulSegmentEqualsName=false").contains("nameInTitle=true");
+    }
+
+    @Test
+    @DisplayName("BA-086-T18 a title with no Hangul is not equal, and whitespace alone does not break equality")
+    void noHangulAndWhitespace() {
+        assertThat(String.join("\n",
+                KtoEngServiceMatchProbeMain.report(titled("Gyeongbokgung Palace"), 1, named("경복궁"))))
+                .contains("hangulSegmentEqualsName=false").contains("nameInTitle=false");
+        assertThat(String.join("\n", KtoEngServiceMatchProbeMain.report(
+                titled("N Seoul Tower (서울  타워)"), 1, named(" 서울 타워 "))))
+                .contains("hangulSegmentEqualsName=true");
+    }
+
+    @Test
+    @DisplayName("BA-086-T16 the name evidence prints neither our name nor the title")
+    void nameEvidenceQuotesNothing() {
+        String report = String.join("\n",
+                KtoEngServiceMatchProbeMain.report(titled("Deoksugung (덕수궁)"), 1, named("덕수궁")));
+        assertThat(report).doesNotContain("덕수궁").doesNotContain("Deoksugung");
+    }
+
+    @Test
+    @DisplayName("BA-086-T18 names are optional, but when given they must cover every place in order")
+    void namesCoverEveryPlace() {
+        assertThat(String.join("\n", KtoEngServiceMatchProbeMain.report(titled("Palace (경복궁)"), 1, GYEONGBOKGUNG)))
+                .doesNotContain("hangulSegmentEqualsName").doesNotContain("nameInTitle");
+        List<Place> two = KtoEngServiceMatchProbeMain.places("1:0:0,2:0:0");
+        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "경복궁"))
+                .hasMessageContaining("2 expected, 1 given");
+        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "경복궁|"))
+                .hasMessageContaining("empty name at position 2");
     }
 
     @Test

@@ -54,6 +54,14 @@ import tools.jackson.databind.json.JsonMapper;
  * overview - is reported by shape, with the title's ASCII letter share so an English value can be
  * told from a Korean echo without quoting either.
  *
+ * <p><strong>Name evidence, without romanisation.</strong> English titles observed here carry the
+ * Korean name in Hangul. So when the operator also passes our Korean names, each candidate gets two
+ * booleans: {@code hangulSegmentEqualsName} - a Hangul segment of the title (a parenthesised part,
+ * or a run of Hangul, digits and spaces) equals our name exactly, whitespace collapsed - and
+ * {@code nameInTitle}, plain containment. Only the first is evidence. Containment is reported to
+ * be looked at, not used: "경복궁" is also inside the title of a different item such as a ceremony
+ * held there. Neither the name nor the title is printed.
+ *
  * <p>The centre coordinate is the place's stored catalog coordinate (a provider-published POI
  * position), never a user's location, so invariant 10 is not in play.
  */
@@ -61,6 +69,7 @@ public final class KtoEngServiceMatchProbeMain {
 
     private static final String APPROVAL = "NULLNULL_KTO_ENG_MATCH_PROBE_APPROVED";
     private static final String PLACES = "NULLNULL_KTO_ENG_MATCH_PROBE_PLACES";
+    private static final String NAMES = "NULLNULL_KTO_ENG_MATCH_PROBE_NAMES";
     private static final String OFFICIAL_BASE = "https://apis.data.go.kr/B551011/EngService2";
     static final int RADIUS_METERS = 1000;
     static final int ROWS = 20;
@@ -68,6 +77,8 @@ public final class KtoEngServiceMatchProbeMain {
     private static final Pattern IDENTIFIER = Pattern.compile("[1-9][0-9]{0,29}");
     private static final Pattern CODE = Pattern.compile("[A-Za-z0-9]{1,20}");
     private static final double EARTH_RADIUS_METERS = 6_371_008.8;
+    private static final Pattern PARENTHESISED = Pattern.compile("[(（]([^()（）]*)[)）]");
+    private static final Pattern HANGUL_RUN = Pattern.compile("[\\p{IsHangul}0-9][\\p{IsHangul}0-9 ]*");
 
     /** Fields printed as values when they look like codes. Lower-cased: KTO mixes the case. */
     static final Set<String> CODE_FIELDS = Set.of("contentid", "contenttypeid", "areacode", "sigungucode",
@@ -76,7 +87,7 @@ public final class KtoEngServiceMatchProbeMain {
     private KtoEngServiceMatchProbeMain() {
     }
 
-    record Place(String contentId, BigDecimal latitude, BigDecimal longitude) {
+    record Place(String contentId, BigDecimal latitude, BigDecimal longitude, String koreanName) {
     }
 
     public static void main(String[] args) throws Exception {
@@ -85,7 +96,7 @@ public final class KtoEngServiceMatchProbeMain {
             throw new IllegalStateException(APPROVAL + " must be true in the shell running this command;"
                     + " it is not read from .env.local");
         }
-        List<Place> places = places(environment.get(PLACES));
+        List<Place> places = withNames(places(environment.get(PLACES)), environment.get(NAMES));
 
         Map<String, String> settings = KtoSmokeEnvironment.load(environment, Path.of(".env.local"));
         KtoSmokeEnvironment.sources(environment, Path.of(".env.local"))
@@ -128,12 +139,37 @@ public final class KtoEngServiceMatchProbeMain {
             }
             BigDecimal latitude = coordinate(parts[1], 90);
             BigDecimal longitude = coordinate(parts[2], 180);
-            places.add(new Place(parts[0].trim(), latitude, longitude));
+            places.add(new Place(parts[0].trim(), latitude, longitude, null));
         }
         if (places.size() > MAX_PLACES) {
             throw new IllegalStateException(PLACES + " allows at most " + MAX_PLACES + " places, one call each");
         }
         return List.copyOf(places);
+    }
+
+    /**
+     * Our Korean names, {@code |} separated and in the same order as the places. Optional: without
+     * it the report has no name evidence, which is what the first run looked like.
+     */
+    static List<Place> withNames(List<Place> places, String value) {
+        if (value == null || value.isBlank()) {
+            return places;
+        }
+        String[] names = value.split("\\|", -1);
+        if (names.length != places.size()) {
+            throw new IllegalStateException(NAMES + " must name every place, in order: " + places.size()
+                    + " expected, " + names.length + " given");
+        }
+        List<Place> named = new ArrayList<>();
+        for (int index = 0; index < names.length; index++) {
+            String name = collapse(names[index]);
+            if (name.isEmpty()) {
+                throw new IllegalStateException(NAMES + " has an empty name at position " + (index + 1));
+            }
+            Place place = places.get(index);
+            named.add(new Place(place.contentId(), place.latitude(), place.longitude(), name));
+        }
+        return List.copyOf(named);
     }
 
     /** One place's report. Static so a test can assert what it does and does not contain. */
@@ -198,6 +234,10 @@ public final class KtoEngServiceMatchProbeMain {
                             .append(KtoEngServiceProbeMain.asciiLetterPercent(text))
                             .append(" titleHangul=").append(KtoEngServiceProbeMain.containsHangul(text));
                 }
+                if (place.koreanName() != null) {
+                    line.append(" hangulSegmentEqualsName=").append(hangulSegments(text).contains(place.koreanName()))
+                            .append(" nameInTitle=").append(text.contains(place.koreanName()));
+                }
             }
         }
         return line.toString();
@@ -225,6 +265,35 @@ public final class KtoEngServiceMatchProbeMain {
         double a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2)
                 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
         return Long.toString(Math.round(2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(a)))));
+    }
+
+    /**
+     * The title's Hangul segments, whitespace collapsed: every parenthesised part that contains
+     * Hangul, and every run of Hangul, digits and spaces. "Gyeongbokgung Palace (경복궁)" gives
+     * {@code 경복궁}; "Royal Guard Ceremony (경복궁 수문장 교대식)" gives the whole ceremony name and
+     * never {@code 경복궁} alone, which is the point.
+     */
+    static List<String> hangulSegments(String title) {
+        List<String> segments = new ArrayList<>();
+        var parenthesised = PARENTHESISED.matcher(title);
+        while (parenthesised.find()) {
+            String inside = collapse(parenthesised.group(1));
+            if (KtoEngServiceProbeMain.containsHangul(inside)) {
+                segments.add(inside);
+            }
+        }
+        var run = HANGUL_RUN.matcher(title);
+        while (run.find()) {
+            String candidate = collapse(run.group());
+            if (KtoEngServiceProbeMain.containsHangul(candidate)) {
+                segments.add(candidate);
+            }
+        }
+        return segments;
+    }
+
+    private static String collapse(String value) {
+        return value.trim().replaceAll("\\s+", " ");
     }
 
     private static BigDecimal coordinate(String value, int bound) {

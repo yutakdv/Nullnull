@@ -427,6 +427,10 @@ class TripMutationFixtureIT {
         JsonNode onDisk = JsonShape.fixture(fixture);
         java.util.SortedSet<String> expected = JsonShape.of(onDisk);
         assertThat(expected.remove("$.days[].items[].crowd")).as("%s still holds items[].crowd", fixture).isTrue();
+        // textProvenance (BA-086) is left out of this shape comparison because only
+        // places/place-detail.json carries it among the fixtures with a sourceAttribution. Remove
+        // this exclusion once the representative fixtures carry textProvenance - until then the
+        // FE's mocks for this response never see the field.
         assertThat(JsonShape.withoutField(body, "textProvenance")).isEqualTo(expected);
         assertEveryPlaceCredited(body);
         // Order is not shape, and the fixture follows the server's: interests by code, each item's locks
@@ -449,6 +453,10 @@ class TripMutationFixtureIT {
     private static void assertShape(String operationId, int status, JsonNode body, String fixture) {
         ContractResponse.assertValid(operationId, status, body);
         // The fixture Frontend mocks this mutation against has the keys the server sends, everywhere.
+        // textProvenance (BA-086) is left out of this shape comparison because only
+        // places/place-detail.json carries it among the fixtures with a sourceAttribution. Remove
+        // this exclusion once the representative fixtures carry textProvenance - until then the
+        // FE's mocks for this response never see the field.
         assertThat(JsonShape.withoutField(body, "textProvenance"))
                 .isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
         assertEveryPlaceCredited(body);

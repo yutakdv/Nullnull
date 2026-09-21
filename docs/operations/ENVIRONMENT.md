@@ -346,13 +346,15 @@ NULLNULL_KTO_ENG_PROBE_CONTENT_ID=126508 \
   ./gradlew ktoEngServiceProbe --console=plain
 ```
 
-  둘째 `ktoEngServiceMatchProbe`는 ID가 안 풀릴 때 **무엇으로 매칭할 수 있는지**를 잰다. 우리가 가진 장소 좌표를 중심으로 `locationBasedList2`를 place당 1회 부른다(최대 5곳). **반경 1,000m는 관측 반경이지 매칭 임계값이 아니다** — 같은 장소로 볼 거리는 이 출력을 읽은 뒤 결정으로 정한다. 중심 좌표는 catalog에 저장된 POI 좌표이고 사용자 위치가 아니다(불변식 10 무관). 출력은 후보마다 계산한 거리, 식별자·코드 값(`contentid`·`contenttypeid`·법정동·분류 코드), 필드 이름 목록, 제목의 길이와 ASCII 글자 비율이고, **이름·주소·설명 원문은 찍지 않는다**(`CMP-KTO-008`). 이 probe는 어느 후보가 그 장소인지 **판정하지 않는다** — 영문 텍스트를 응답에 싣는 연결은 operator가 검토한 plan으로만 들어간다.
+  둘째 `ktoEngServiceMatchProbe`는 ID가 안 풀릴 때 **무엇으로 매칭할 수 있는지**를 잰다. 우리가 가진 장소 좌표를 중심으로 `locationBasedList2`를 place당 1회 부른다(최대 5곳). **반경 1,000m는 관측 반경이지 매칭 임계값이 아니다** — 같은 장소로 볼 거리는 이 출력을 읽은 뒤 결정으로 정한다. 중심 좌표는 catalog에 저장된 POI 좌표이고 사용자 위치가 아니다(불변식 10 무관). 출력은 후보마다 계산한 거리, 식별자·코드 값(`contentid`·`contenttypeid`·법정동·분류 코드), 필드 이름 목록, 제목의 길이와 ASCII 글자 비율이고, **이름·주소·설명 원문은 찍지 않는다**(`CMP-KTO-008`). 우리 국문 이름을 같은 순서로 주면 후보마다 `hangulSegmentEqualsName`(제목의 한글 구간이 우리 이름과 정확히 같다)과 `nameInTitle`(단순 포함)을 boolean으로만 덧붙인다. **증거는 앞의 것뿐이다** — 포함은 그 장소 이름을 딴 다른 항목(예: 그곳에서 열리는 의식)에서도 참이 된다. 이 probe는 어느 후보가 그 장소인지 **판정하지 않는다** — 영문 텍스트를 응답에 싣는 연결은 operator가 검토한 plan으로만 들어간다.
 
   입력 5곳은 catalog에서 고른다(읽기만 한다):
 
 ```sql
-SELECT string_agg(picked.entry, ',')
-  FROM (SELECT r.external_id || ':' || p.latitude || ':' || p.longitude AS entry
+SELECT string_agg(picked.entry, ',' ORDER BY picked.external_id) AS places,
+       string_agg(picked.name, '|' ORDER BY picked.external_id) AS names
+  FROM (SELECT r.external_id, p.canonical_name AS name,
+               r.external_id || ':' || p.latitude || ':' || p.longitude AS entry
           FROM place_external_refs r
           JOIN places p ON p.id = r.place_id
          WHERE r.source_code = 'KTO_KOR_SERVICE_2'
@@ -366,7 +368,8 @@ SELECT string_agg(picked.entry, ',')
 cd "$(git rev-parse --show-toplevel)/apps/api"
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 NULLNULL_KTO_ENG_MATCH_PROBE_APPROVED=true \
-NULLNULL_KTO_ENG_MATCH_PROBE_PLACES='<위 SELECT 결과>' \
+NULLNULL_KTO_ENG_MATCH_PROBE_PLACES='<위 SELECT 의 places>' \
+NULLNULL_KTO_ENG_MATCH_PROBE_NAMES='<위 SELECT 의 names>' \
   ./gradlew ktoEngServiceMatchProbe --console=plain
 ```
 
