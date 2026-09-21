@@ -1,5 +1,6 @@
 package io.nullnull.crowd.application;
 
+import io.nullnull.crowd.domain.CrowdStage;
 import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.crowd.domain.ComparisonScope;
 import io.nullnull.crowd.domain.ComparisonVerdict;
@@ -43,7 +44,7 @@ public class CrowdProvenanceProjection {
                 snapshot.comparisonGroupId(), snapshot.collectorRunId(), snapshot.snapshotSetId(),
                 snapshot.observedAtSkewSeconds(), snapshot.scope().name(), snapshot.scopeLabel(), snapshot.mappingType(),
                 snapshot.fallbackUsed() || staleFallback, provenanceId);
-        return new CrowdMetric(responseState, snapshot.value(), snapshot.unit(), snapshot.ordinalLevel(),
+        return CrowdMetric.of(responseState, snapshot.value(), snapshot.unit(), snapshot.ordinalLevel(),
                 label(snapshot, responseState), provenance);
     }
 
@@ -147,8 +148,24 @@ public class CrowdProvenanceProjection {
 
     public enum Freshness { FRESH, STALE, UNKNOWN }
 
-    public record CrowdMetric(SourceState state, BigDecimal value, String unit, String ordinalLevel, String label,
-            DataProvenance provenance) {
+    /**
+     * @param ordinalScale which cells the source that produced {@code ordinalLevel} can publish, or
+     *     null for a source with no reviewed mapping. Always derived from {@code provenance.source}
+     *     by {@link #of}, never passed in: a scale paired with the wrong source would tell a client
+     *     that a reading is "3 of 4" on a scale its source never published.
+     */
+    public record CrowdMetric(SourceState state, BigDecimal value, String unit, String ordinalLevel,
+            CrowdStage.Scale ordinalScale, String label, DataProvenance provenance) {
+
+        /** The only way to build one: the scale comes from the provenance, so the two cannot disagree. */
+        public static CrowdMetric of(SourceState state, BigDecimal value, String unit, String ordinalLevel,
+                String label, DataProvenance provenance) {
+            // No provenance means no source, and no source means no reviewed scale - the same
+            // empty answer an unreviewed source gets, rather than a default nobody approved.
+            String source = provenance == null ? null : provenance.source();
+            return new CrowdMetric(state, value, unit, ordinalLevel,
+                    CrowdStage.scaleOf(source).orElse(null), label, provenance);
+        }
     }
 
     /** Mirrors the required DataProvenance contract fields; null values remain meaningful. */
