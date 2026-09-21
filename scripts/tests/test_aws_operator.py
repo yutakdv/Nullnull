@@ -1544,3 +1544,112 @@ class WaitTaskRegressions(unittest.TestCase):
         with self.assertRaisesRegex(ops.OpsError,'executed-image-mismatch'):self.wait('sha256:'+'b'*64,digest)
         self.assertEqual('STOPPED',self.wait(digest,digest)['lastStatus'])
         self.assertEqual('STOPPED',self.wait('sha256:'+'b'*64,None)['lastStatus'])
+
+class WithdrawPostTaskRegressions(unittest.TestCase):
+    """BA-082-T16's operator task: withdraw-post takes one published post back (PostWithdrawMain).
+
+    A withdrawal is only as good as the evidence that it happened to the post the owner named, so the task
+    succeeds on exactly one line naming that post - not on a zero exit code and not on any line at all."""
+    POST='0192f3a4-5b6c-7d8e-9f01-23456789abcd'
+    OTHER='0192f3a4-5b6c-7d8e-9f01-23456789abce'
+    DIGEST='sha256:'+'a'*64
+    RECORD={'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':'sha256:'+'a'*64}}
+    # What PostWithdrawMainTest makes PostWithdrawMain print, verbatim.
+    JAVA_LINES=['post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN',
+                'post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=ALREADY_HIDDEN',
+                'post_withdraw_failed reason=NOT_FOUND','post_withdraw_failed reason=NOT_PUBLISHED',
+                'post_withdraw_failed reason=APPROVAL_NOT_SET','post_withdraw_failed reason=POST_ID_INVALID',
+                'post_withdraw_failed reason=IllegalStateException']
+    BASE={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
+    def args(self, **overrides):
+        from types import SimpleNamespace
+        base={'task':'withdraw-post','post_id':self.POST,'owner_approval':'owner approved in session','plan_file':None}
+        return SimpleNamespace(**{**base,**overrides})
+    def run_withdraw(self, log, ops_image=None, record=RECORD):
+        import contextlib, io
+        calls=[]
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if (service,operation)==('rds','describe-db-instances'):
+                return {'DBInstances':[{'Endpoint':{'Address':OperationsTargetRegressions.HOST,'Port':5432},'DBName':'nullnull'}]}
+            if (service,operation)==('ecs','describe-task-definition'):
+                return {'taskDefinition':{'containerDefinitions':[{'name':'ops',
+                        'image':ops_image or '1.dkr.ecr/nullnull-api@'+self.DIGEST,
+                        'environment':[{'name':'APP_RELEASE_VERSION','value':'v0.1.0-rc.2'}]}]}}
+            if (service,operation)==('ecs','run-task'): return {'tasks':[{'taskArn':'arn:aws:ecs:r:a:task/c/abc123'}]}
+            if (service,operation)==('logs','get-log-events'): return {'events':[{'message':m} for m in log]}
+            raise AssertionError((service,operation))
+        env={**self.BASE,'NULLNULL_POST_WITHDRAW_APPROVED':'true',ops.OPERATIONS_TARGET:OperationsTargetRegressions.TARGET}
+        out=io.StringIO()
+        with patch.dict(os.environ,env),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),\
+             patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
+             patch.object(ops,'DeploymentLock',OperationsTargetRegressions.Lock),patch.object(ops,'wait_task'),\
+             patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),\
+             contextlib.redirect_stdout(out):
+            error=None
+            try:
+                ops.ops_task(self.args())
+            except ops.OpsError as e:
+                error=str(e)
+        return error,calls,out.getvalue()
+    def test_the_callers_approval_and_a_record_are_required_before_any_call(self):
+        with patch.dict(os.environ,self.BASE),patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+            os.environ.pop('NULLNULL_POST_WITHDRAW_APPROVED',None)
+            with self.assertRaisesRegex(ops.OpsError,'nullnull-post-withdraw-approved-not-set-by-caller'):
+                ops.ops_task(self.args())
+            with patch.dict(os.environ,{'NULLNULL_POST_WITHDRAW_APPROVED':'true'}):
+                for record in (None,'too short'):
+                    with self.subTest(record=record),self.assertRaisesRegex(ops.OpsError,'owner-approval-record-required'):
+                        ops.ops_task(self.args(owner_approval=record))
+            aws.assert_not_called()
+    def test_the_post_id_is_a_canonical_uuid_before_any_call(self):
+        with patch.dict(os.environ,{**self.BASE,'NULLNULL_POST_WITHDRAW_APPROVED':'true'}),\
+             patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+            # The loose place_id shape would pass the first three; a post id is exactly one canonical UUID.
+            for bad in ('','----','0192f3a4','0192f3a4-5b6c-7d8e-9f01-23456789abc',self.POST.upper(),self.POST+'0',
+                        self.POST+"'; DELETE FROM posts; --",' '+self.POST,None):
+                with self.subTest(post_id=bad),self.assertRaisesRegex(ops.OpsError,'invalid-post-id'):
+                    ops.ops_task(self.args(post_id=bad))
+            aws.assert_not_called()
+    def test_the_post_and_the_approval_travel_to_the_deployed_release_and_the_residual_is_said(self):
+        error,calls,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'])
+        self.assertIsNone(error)
+        run=[kw for s,o,kw in calls if (s,o)==('ecs','run-task')]
+        self.assertEqual(1,len(run))
+        environment={e['name']:e['value'] for e in run[0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('io.nullnull.social.infrastructure.moderation.PostWithdrawMain',environment['LOADER_MAIN'])
+        self.assertEqual(self.POST,environment['NULLNULL_WITHDRAW_POST_ID'])
+        self.assertEqual('true',environment['NULLNULL_POST_WITHDRAW_APPROVED'])
+        self.assertEqual(OperationsTargetRegressions.TARGET,environment[ops.OPERATIONS_TARGET])
+        self.assertIn('owner_approval=owner approved in session',out)
+        self.assertIn('ops_log post_withdrawn post='+self.POST+' outcome=WITHDRAWN',out)
+        # Said on every success: the post is off every page, and the image is still at its URL.
+        self.assertIn('post_withdraw_residual=cover-object-not-deleted',out)
+        self.assertIn('ops_task=withdraw-post result=succeeded',out)
+    def test_a_rerun_that_finds_the_post_already_hidden_succeeds(self):
+        error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=ALREADY_HIDDEN'])
+        self.assertIsNone(error)
+        self.assertIn('ops_task=withdraw-post result=succeeded',out)
+    def test_only_one_line_naming_the_requested_post_counts_as_a_withdrawal(self):
+        named='post_withdrawn post='+self.POST+' outcome=WITHDRAWN'
+        for log in ([],['post_withdraw_failed reason=NOT_FOUND'],['post_withdraw_failed reason=NOT_PUBLISHED'],
+                    ['post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN'],[named,named]):
+            with self.subTest(log=log):
+                error,_,out=self.run_withdraw(log)
+                self.assertIn('post-not-withdrawn',error or '')
+                self.assertNotIn('result=succeeded',out)
+                self.assertNotIn('post_withdraw_residual',out)
+    def test_it_runs_only_on_the_deployed_release(self):
+        error,calls,_=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'],
+                                        ops_image='1.dkr.ecr/nullnull-api@sha256:'+'b'*64)
+        self.assertIn('ops-image-not-the-deployed-release',error or '')
+        self.assertNotIn(('ecs','run-task'),[(s,o) for s,o,_ in calls])
+    def test_its_lines_pass_the_log_allowlist_and_nothing_richer_does(self):
+        for line in self.JAVA_LINES:
+            self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
+        for line in ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN title=광화문 산책',
+                     'post_withdrawn post='+self.POST+' outcome=DELETED',
+                     'post_withdrawn post='+self.POST,
+                     'post_withdraw_failed reason=NOT_FOUND jdbc:postgresql://db:5432/nullnull',
+                     'post_withdraw_failed reason=could not find post 0192f3a4']:
+            self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
