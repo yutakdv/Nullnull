@@ -806,6 +806,10 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-023-T21`: 계약이 공개한 unavailableReason token 목록과 서버가 보낼 수 있는 사유 집합이 같다 — `CrowdVocabularyContractTest.unavailableReasonTokensMatchTheServer`
 - `BA-023-T22`: 계약의 ordinalLevel pattern이 받는 값과 서버의 5단계 척도가 같다 — `CrowdVocabularyContractTest.ordinalLevelPatternMatchesTheServersScale`
 - `BA-023-T23`: 검토된 척도 매핑이 없는 source의 저장된 단계는 단계로 나가지 않고 SCHEMA_DRIFT로 표시된다 — `CrowdForecastApiIT.aStageOffTheScaleIsNotServedAsOne`
+- `BA-023-T24`: scale descriptor 는 검토된 mapping 이 있는 source 에만, 정확히 그 source 들에만 나간다
+- `BA-023-T25`: 각 descriptor 의 publishedCells 는 그 source 의 검토된 mapping 이 배정한 칸과 정확히 같다
+- `BA-023-T26`: descriptor 의 size 는 source 의 단계 수가 아니라 제품 척도의 칸 수다
+- `BA-023-T27`: 계약의 publishedCells 어휘는 서버 척도를 정확히 받아들인다
 
 구현 결과:
 
@@ -2055,7 +2059,9 @@ P1/P2 중 이번 범위에 명시적으로 선정한 작업만 실행한다. 미
 
 ### BA-080
 
-**독립 검색·feed filter와 정렬 확장** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**독립 검색·feed filter와 정렬 확장** — P1 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정으로 이번 범위에서 뺀다. 1단계가 검색 지표·사용자 요구로 filter를 고르는 것인데 그 근거가 없고 새 계약은 FE·Figma 승인이 필요하다. 안전 기본값: 새 filter·sort API와 UI를 만들지 않고 P0 feed 순서를 그대로 버전 관리한다.
 
 - 선행: [BA-032](#ba-032), [BA-033](#ba-033), [BA-073](#ba-073)
 - 기능 ID: `FR-FED-05`, `FR-SRC-01`
@@ -2081,7 +2087,9 @@ FE 인계·완료 증거: 새 계약 승인 후 생성 client·필터 examples·
 
 ### BA-081
 
-**계정 인증·익명 승계·follow graph** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**계정 인증·익명 승계·follow graph** — P1 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0 로그인 CTA는 준비 중으로 남는다.
 
 - 선행: [BA-010](#ba-010), [BA-012](#ba-012), [BA-031](#ba-031), [BA-033](#ba-033), [BA-073](#ba-073)
 - 기능 ID: `FR-AUT-01`, `FR-FOL-01`
@@ -2109,7 +2117,7 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 
 **게시물·미디어 업로드·moderation** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-081](#ba-081), [BA-022](#ba-022), [BA-071](#ba-071)
+- 선행: [BA-022](#ba-022), [BA-071](#ba-071)
 - 기능 ID: `FR-PUB-01`
 - API: `createPostImageUpload`, `createPost`
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2152,7 +2160,7 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 
 **경로 provider·DAY/TRIP 최적화** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-051](#ba-051), [BA-052](#ba-052), [BA-073](#ba-073)
+- 선행: [BA-051](#ba-051), [BA-052](#ba-052)
 - 기능 ID: `FR-OPT-02`, `FR-RTE-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `439:3104`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2215,9 +2223,9 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 
 ### BA-084
 
-**선호 해석·AI draft 보조·근거 설명** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**선호 해석·AI draft 보조·근거 설명** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-051](#ba-051), [BA-060](#ba-060), [BA-073](#ba-073)
+- 선행: [BA-051](#ba-051), [BA-060](#ba-060)
 - 기능 ID: `FR-TRC-11`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `440:3244`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2230,6 +2238,8 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 3. hallucination/prompt injection corpus·KO/EN 검증·template fallback·kill switch를 구현한다
 
 실패·안전 경계: 원문 일정/정밀 위치/secret·DB mutation/APPLY tool을 모델에 주지 않는다. structured ID·수치·사실 검증 실패는 template fallback이며 조용한 자동 일정 변경은0이다.
+
+**`integration-ready`가 덮는 범위는 제목보다 좁다.** 증명된 것은 설명 template fallback, 출력 validator(`T1`), provider 실패와 startup 가드(`T2`~`T10`), 선호 해석 validator(`T11`~`T15`)이며 전부 apps/ai REC corpus로 증명된다. **선호 해석은 판정하는 쪽만 있고 만드는 쪽이 없다** — `nullnull_ai.preference`를 자기 package 밖에서 import하는 곳이 0이고 endpoint·adapter method·Spring 호출자가 없다. draft 보조 연결(FR-TRC-11)과 **AI 사용 표기**도 미구현이다. apps/ai 설명 응답은 `source`(TEMPLATE/LLM)를 돌려주지만 `OptimizeItemHandler`가 `.summary()`만 쓰고 공개 계약에 그 필드가 없다. 그래서 **`AI_PROVIDER=OPENAI`를 켜기 전에 AI 사용 표기가 먼저 들어가야 한다** — 지금 켜면 LLM이 쓴 문장이 표기 없이 사용자에게 나간다. 제출본은 `AI_PROVIDER=NONE`이다. kill switch는 `AI_PROVIDER=NONE`으로 다시 시작하는 것이며 런타임 스위치는 없다. OpenAI 외부 전송에 대한 개인정보 경계 문서(불변식 10 재증명)도 없다. 이 넷은 새 카드가 아니라 `A-064`의 한 항목으로 추적한다.
 
 필수 검증:
 
@@ -2292,7 +2302,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **영문 POI coverage·번역 품질** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-022](#ba-022), [BA-073](#ba-073)
+- 선행: [BA-022](#ba-022)
 - 기능 ID: `FR-LOC-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2328,7 +2338,9 @@ FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문�
 
 ### BA-087
 
-**개인화 계측·학습·평가·실험** — P2 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**개인화 계측·학습·평가·실험** — P2 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정으로 이번 범위에서 뺀다(P2). 안전 기본값: 개인화 학습·실험을 하지 않고 P0 feed 순서와 정책 버전을 유지한다.
 
 - 선행: [BA-033](#ba-033), [BA-051](#ba-051), [BA-073](#ba-073)
 - 기능 ID: `FR-ML-01`
@@ -2356,7 +2368,9 @@ FE 인계·완료 증거: 계측 schema·attribution window·동의 정책·평�
 
 모델 분리는 BA-087의 데이터·평가 결과를 추가로 확인한다. worker 분리는 모델 학습 완료를 선행 조건으로 요구하지 않는다. 추천 계산 서비스 분리는 [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)으로 P0에 선행 결정됐으므로 이 카드는 worker 분리와 학습 모델 service만 다룬다.
 
-**worker·추천/예측 service 분리** — P2 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**worker·추천/예측 service 분리** — P2 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정으로 이번 범위에서 뺀다(P2). 안전 기본값: modular monolith와 단일 apps/ai 서비스를 유지한다(A-008 측정 trigger 미충족).
 
 - 선행: [BA-005](#ba-005), [BA-070](#ba-070)
 - 기능 ID: `FR-ML-02`
