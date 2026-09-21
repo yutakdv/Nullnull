@@ -206,6 +206,13 @@ nullnull:
     # the upload itself takes. ASSUMED, NOT MEASURED: 4 MiB over a 1 Mbps uplink is about 34 seconds,
     # so minutes - not seconds - is the right order, with room for one retry on the same URL.
     presign-ttl: ${NULLNULL_UPLOAD_PRESIGN_TTL:PT15M}
+  # BA-082-T16's withdraw-post task: how long a withdrawal waits for a post row another transaction
+  # holds. PT3S, the bound the idempotency and job lock waits above use; without one PostgreSQL waits
+  # forever and the operator task holds the deployment lock while it does. A setting rather than a
+  # constant because PostWithdrawalConcurrencyIT makes two withdrawals wait on one held row and needs
+  # a bound longer than its own wait, so its verdict does not depend on how fast the machine is.
+  posts:
+    withdrawal-lock-timeout: PT3S
   # External provider calls use an isolated bounded executor, exact host allowlists and no redirects.
   provider:
     connect-timeout: ${NULLNULL_PROVIDER_CONNECT_TIMEOUT:PT2S}

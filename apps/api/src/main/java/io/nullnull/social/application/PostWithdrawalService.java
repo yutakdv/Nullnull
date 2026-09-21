@@ -4,6 +4,7 @@ import io.nullnull.identity.application.LockWaitLimit;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,8 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
  * was served with a one-year immutable cache header - so browsers, and the web app's service
  * worker, keep what they already fetched. The web app's in-memory query cache keeps a page it
  * already has until it refetches. A trip candidate saved from the post keeps the post's id as its
- * source. A withdrawal takes the post off every page the API answers from now on; it does not make
- * the image unreachable to someone who already has its URL.
+ * source, and addTripCandidate does not check the post's status, so a new candidate can still cite
+ * the id after the withdrawal - an id, never the post's content. A withdrawal takes the post off
+ * every page the API answers from now on; it does not make the image unreachable to someone who
+ * already has its URL.
  *
  * <p>There is no way back to PUBLISHED. {@link FeedStore#publishPost} only moves a DRAFT, and a
  * curated import leaves any existing id alone, so a withdrawn post stays withdrawn.
@@ -33,22 +36,25 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PostWithdrawalService {
 
-    /**
-     * How long a withdrawal waits for a post row another transaction holds. The same bound the
-     * repository's other lock waits use ({@code APP_IDEMPOTENCY_LOCK_TIMEOUT} and
-     * {@code NULLNULL_JOB_LOCK_TIMEOUT} both default to PT3S): without one PostgreSQL waits forever,
-     * and the operator task would hold the deployment lock until the operator gave up on it.
-     */
-    static final Duration LOCK_WAIT = Duration.ofSeconds(3);
-
     private final FeedStore feed;
     private final LockWaitLimit lockWaits;
     private final Clock clock;
+    private final Duration lockWait;
 
-    public PostWithdrawalService(FeedStore feed, LockWaitLimit lockWaits, Clock clock) {
+    /**
+     * @param lockWait how long a withdrawal waits for a post row another transaction holds
+     *        ({@code nullnull.posts.withdrawal-lock-timeout}; application.yaml carries the derivation).
+     *        Refused unless positive: PostgreSQL reads zero as "wait forever".
+     */
+    public PostWithdrawalService(FeedStore feed, LockWaitLimit lockWaits, Clock clock,
+            @Value("${nullnull.posts.withdrawal-lock-timeout}") Duration lockWait) {
+        if (lockWait.isNegative() || lockWait.toMillis() < 1) {
+            throw new IllegalStateException("nullnull.posts.withdrawal-lock-timeout must be at least 1ms");
+        }
         this.feed = feed;
         this.lockWaits = lockWaits;
         this.clock = clock;
+        this.lockWait = lockWait;
     }
 
     /**
@@ -60,7 +66,7 @@ public class PostWithdrawalService {
      */
     @Transactional
     public Withdrawal withdraw(UUID postId) {
-        lockWaits.applyToCurrentTransaction(LOCK_WAIT);
+        lockWaits.applyToCurrentTransaction(lockWait);
         if (feed.withdrawIfPublished(postId, clock.instant()) == 1) {
             return Withdrawal.WITHDRAWN;
         }
@@ -74,7 +80,8 @@ public class PostWithdrawalService {
             case DRAFT -> Withdrawal.NOT_PUBLISHED;
             // Not PUBLISHED when the UPDATE looked and PUBLISHED now: a draft was published in
             // between. The owner approved withdrawing a published post, so this says so rather
-            // than guessing; running the task again withdraws it.
+            // than guessing; running the task again withdraws it. No test reaches this branch -
+            // it needs a publication to commit between the two statements.
             case PUBLISHED -> throw new IllegalStateException(
                     "the post was published while it was being withdrawn; run the withdrawal again");
         };
