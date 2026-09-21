@@ -1301,6 +1301,8 @@ paths:
                     page:
                       nextCursor: null
                       hasMore: false
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1365,6 +1367,8 @@ paths:
                       officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                       licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                       license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+        "503":
+          $ref: "#/components/responses/SourceUnavailable"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
