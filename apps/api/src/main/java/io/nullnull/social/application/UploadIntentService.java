@@ -14,9 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Signs one upload at a time and remembers that it did.
  *
  * <p>The caller never names a storage path. It asks for permission to upload something of a stated
- * type and length, and gets back a URL it cannot have chosen - which is what makes BA-082-T1's
- * "경로 조작" a question with no surface: there is nothing in the request that a path is built from
- * except the owner we derived ourselves and an id we generated.
+ * type and length, and gets back a URL it cannot have chosen - which is what makes path
+ * manipulation (BA-082-T14) a question with no surface: there is nothing in the request that a
+ * path is built from except the owner we derived ourselves and an id we generated.
  */
 @Service
 public class UploadIntentService {

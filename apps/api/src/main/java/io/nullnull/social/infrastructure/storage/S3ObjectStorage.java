@@ -48,7 +48,7 @@ public class S3ObjectStorage implements ObjectStorage {
             Duration ttl) {
         // Both are part of what is signed, so the store refuses a PUT that does not match them -
         // before a byte reaches us. A caller signed for 100 KB of JPEG cannot upload 40 MB of
-        // anything, which is one of BA-082-T1's two layers; the other is that the bytes that do
+        // anything, which is one of two layers; the other is that the bytes that do
         // arrive are validated anyway, because a signature says what was promised.
         PutObjectRequest put = PutObjectRequest.builder()
                 .bucket(properties.bucket())
