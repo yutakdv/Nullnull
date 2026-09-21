@@ -7,11 +7,14 @@ import io.nullnull.crowd.domain.SourceRegistration;
 import io.nullnull.crowd.domain.SourceState;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public class JdbcSourceRegistryStore implements SourceRegistryStore {
@@ -89,5 +92,42 @@ public class JdbcSourceRegistryStore implements SourceRegistryStore {
                 rs.getInt("quota_per_day"), stale == null ? null : stale.longValue(),
                 rs.getBoolean("enabled"), rs.getLong("current_revision"),
                 rs.getString("provider_schema_version"), rs.getTimestamp("reviewed_at").toInstant());
+    }
+
+    @Override
+    @Transactional
+    public Optional<ReleasedRun> releaseLatestQuarantine(String code, String incidentCode, Instant reviewedAt) {
+        // FOR UPDATE inside the same transaction as the insert: a collection starting while the
+        // operator releases cannot land between the read and the write and leave the release pointing
+        // at a run that is no longer the latest.
+        List<ReleasedRun> latest = jdbc.query("""
+                SELECT id, started_at, status FROM collector_runs
+                 WHERE source_code = ? ORDER BY started_at DESC, id DESC LIMIT 1
+                 FOR UPDATE
+                """, (rs, row) -> "QUARANTINED".equals(rs.getString("status"))
+                        ? new ReleasedRun((UUID) rs.getObject("id"), rs.getTimestamp("started_at").toInstant())
+                        : null, code);
+        if (latest.isEmpty() || latest.get(0) == null) {
+            // Nothing to release, and saying so is the point: a command that reported success here
+            // would tell the operator a source was reopened when it had never been shut.
+            return Optional.empty();
+        }
+        ReleasedRun run = latest.get(0);
+        if (reviewedAt.isBefore(run.startedAt())) {
+            // conditionAt compares reviewed_at against the run's started_at, so a release that
+            // predates its refusal would be written and then silently ignored.
+            throw new IllegalArgumentException("a release cannot predate the run it releases");
+        }
+        jdbc.update("""
+                INSERT INTO source_quality_incidents
+                    (id, source_code, incident_code, affected_from, affected_to, scope,
+                     official_notice_url, disposition, reviewed_at)
+                VALUES (?, ?, ?, ?, ?, 'OPERATOR_REVIEW', NULL, 'RESOLVED', ?)
+                """, UUID.randomUUID(), code, incidentCode,
+                Timestamp.from(run.startedAt()),
+                Timestamp.from(reviewedAt.isAfter(run.startedAt()) ? reviewedAt
+                        : run.startedAt().plusMillis(1)),
+                Timestamp.from(reviewedAt));
+        return Optional.of(run);
     }
 }

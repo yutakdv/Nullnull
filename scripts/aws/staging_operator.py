@@ -73,6 +73,13 @@ OPS_TASKS = {
     'curate-live-maps': ('io.nullnull.live.infrastructure.curation.LiveMappingImportMain', None, {}),
     'capture-live-replay': ('io.nullnull.crowd.infrastructure.persistence.ReplayManifestImportMain', None, {}),
     'list-live-replay-candidates': ('io.nullnull.crowd.infrastructure.persistence.ReplayCandidateListMain', None, {}),
+    # Reopens a source whose latest collector run is QUARANTINED, by recording a reviewed RESOLVED incident
+    # (SourceQuarantineReleaseMain). Without it a quarantine was a deadlock: every gateway checks the latest run
+    # before starting one, so no newer run could ever displace it and the database is not reachable from outside
+    # the VPC. SEOUL_CITYDATA locked itself this way on its own schedule. It reopens a source the owner judged safe,
+    # so it takes an approval variable and --owner-approval like the provider calls.
+    'release-source-quarantine': ('io.nullnull.crowd.infrastructure.SourceQuarantineReleaseMain',
+                                  'NULLNULL_SOURCE_RELEASE_APPROVED', {'NULLNULL_RELEASE_SOURCE_CODE': 'source_code'}),
 }
 # A curate task's plan cannot be a file in the task: it runs the release's image with a read-only root, and baking
 # the plan into the image would make every plan edit a release (the hours re-observation before 2026-10-13 falls in
@@ -120,7 +127,7 @@ PLACE_ID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 # Input shapes per ops argument. A demo place list is `contentId:contentTypeId`, comma separated.
 OPS_INPUT = {'content_id': r'[0-9a-f-]{1,40}', 'content_type_id': r'[0-9a-f-]{1,40}', 'place_id': r'[0-9a-f-]{1,40}',
              'places': r'[1-9][0-9]{0,29}:[1-9][0-9]{0,29}(,[1-9][0-9]{0,29}:[1-9][0-9]{0,29})*',
-             'area_name': r'[^/\\\x00-\x1f\x7f]{1,100}'}
+             'area_name': r'[^/\\\x00-\x1f\x7f]{1,100}', 'source_code': r'[A-Z][A-Z0-9_]{1,63}'}
 # Every task above writes. From the release carrying OperationsContext (#183) a writing tool in staging runs only
 # when this names the database its datasource URL points to; an older image ignores it.
 OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
@@ -148,6 +155,11 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
                           r'|seoul_live_collect live=true'
                           r'|seoul_live_collect_failed reason=[A-Za-z_]{1,80}'
+                          # The quarantine release (SourceQuarantineReleaseMain): the source, the run it released and
+                          # when that run started, or why it released nothing. Source codes and ids only.
+                          r'|source_quarantine_released source=[A-Z][A-Z0-9_]{1,63} run=[0-9a-f-]{36} run_started=[0-9T:.-]{10,40}Z'
+                          r'|source_quarantine_release_refused source=[A-Z][A-Z0-9_]{1,63} reason=[a-z-]{1,40}'
+                          r'|source_quarantine_release_failed reason=[A-Za-z_]{1,80}'
                           r'|curated_live_maps_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_live_map [0-9a-f-]{36} PROCESSED'
                           r'|curated_live_maps_processed=[0-9]{1,4}|curated_live_maps_failed reason=[A-Za-z_]{1,80}'
@@ -1089,7 +1101,7 @@ def ops_task(args):
         else:
             # The bound is a safety stop, not an end: CloudWatch says the stream is read when the token stops moving.
             raise OpsError('task-log-not-fully-read')
-        evidence, echoed, inventory, seoul = [], [], [], []
+        evidence, echoed, inventory, seoul, released = [], [], [], [], []
         for event in events:
             line = event.get('message', '').strip()
             if OPS_LOG_LINE.match(line):
@@ -1102,10 +1114,16 @@ def ops_task(args):
                     inventory.append(line)
                 if args.task == 'seoul-live-collect' and line == 'seoul_live_collect live=true':
                     seoul.append(line)
+                if args.task == 'release-source-quarantine' and line.startswith('source_quarantine_released '):
+                    released.append(line)
         if failure:
             raise failure
         if args.task == 'seoul-live-collect':
             require(seoul == ['seoul_live_collect live=true'], 'seoul-collect-not-live')
+        # A release that released nothing is not a success: the main prints a refused line and exits zero so a
+        # benign no-op leaves no stack trace, and this is what stops that line from reading as a source reopened.
+        if args.task == 'release-source-quarantine':
+            require(len(released) == 1, 'source-not-released')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:
@@ -1577,7 +1595,7 @@ def main():
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')
     parser.add_argument('--task',choices=sorted(OPS_TASKS));parser.add_argument('--content-id')
     parser.add_argument('--content-type-id');parser.add_argument('--place-id');parser.add_argument('--owner-approval')
-    parser.add_argument('--places');parser.add_argument('--area-name');parser.add_argument('--plan-file')
+    parser.add_argument('--places');parser.add_argument('--area-name');parser.add_argument('--source-code');parser.add_argument('--plan-file')
     parser.add_argument('--owner');parser.add_argument('--accept-newer-schema',action='store_true')
     parser.add_argument('--since');parser.add_argument('--without-images',action='store_true')
     args=parser.parse_args()

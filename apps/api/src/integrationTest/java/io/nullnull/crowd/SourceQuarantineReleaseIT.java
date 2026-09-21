@@ -113,6 +113,57 @@ class SourceQuarantineReleaseIT {
         }
     }
 
+    @Test
+    @DisplayName("BA-020-T7 the operator release writes a review that conditionAt then honours")
+    void theOperatorReleaseReopensTheSource() {
+        UUID run = UUID.randomUUID();
+        try {
+            seedSource();
+            seedQuarantinedRun(run);
+            Instant reviewedAt = RUN_AT.plus(1, ChronoUnit.HOURS);
+
+            // T5 proves a hand-seeded review releases; this proves the TOOL writes one that does. Without
+            // it the two could disagree on scope or disposition and the release would be written and ignored.
+            assertThat(registryStore.releaseLatestQuarantine(SOURCE, "release-" + run, reviewedAt))
+                    .as("the latest run is quarantined, so there is something to release")
+                    .hasValueSatisfying(released -> assertThat(released.runId()).isEqualTo(run));
+            assertThat(registryStore.conditionAt(SOURCE, reviewedAt.plusSeconds(1)).latestRunQuarantined())
+                    .as("the review the tool wrote is one the guard accepts")
+                    .isFalse();
+        } finally {
+            jdbc.update("DELETE FROM source_quality_incidents WHERE source_code = ?", SOURCE);
+            cleanUp(run);
+        }
+    }
+
+    @Test
+    @DisplayName("BA-020-T8 the operator release refuses a source that is not quarantined and writes nothing")
+    void theReleaseRefusesWhenNothingIsShut() {
+        UUID run = UUID.randomUUID();
+        try {
+            seedSource();
+            jdbc.update("""
+                    INSERT INTO collector_runs
+                        (id, source_code, status, trigger_type, records_received, records_accepted,
+                         records_rejected, schema_version, started_at, finished_at)
+                    VALUES (?, ?, 'COMPLETED', 'SCHEDULED', 1, 1, 0, 'disabled', ?, ?)
+                    """, run, SOURCE, Timestamp.from(RUN_AT), Timestamp.from(RUN_AT.plusSeconds(1)));
+
+            assertThat(registryStore.releaseLatestQuarantine(SOURCE, "release-" + run, RUN_AT.plusSeconds(60)))
+                    .as("a completed run is not shut, so there is nothing to release")
+                    .isEmpty();
+            // Empty is only half of it: a tool that returned empty AND wrote an incident would leave a stray
+            // RESOLVED row able to release a quarantine that happens later.
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM source_quality_incidents WHERE source_code = ?", Integer.class, SOURCE))
+                    .as("a refused release writes no review")
+                    .isZero();
+        } finally {
+            jdbc.update("DELETE FROM source_quality_incidents WHERE source_code = ?", SOURCE);
+            cleanUp(run);
+        }
+    }
+
     /**
      * The source and its first revision go in together because they reference each other:
      * {@code source_registry_current_revision_fk} is DEFERRABLE INITIALLY DEFERRED and
