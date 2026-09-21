@@ -12,6 +12,7 @@ import io.nullnull.crowd.application.SourceRegistryStore;
 import io.nullnull.crowd.domain.SeoulCongestionStage;
 import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.crowd.domain.SourceRegistration;
+import io.nullnull.crowd.domain.SourceState;
 import io.nullnull.operations.application.IngestAudit;
 import io.nullnull.shared.provider.ProviderHttpClient.ProviderResponse;
 import java.time.Clock;
@@ -78,9 +79,21 @@ public class SeoulLiveAreaGateway {
     }
 
     /** What one collection attempt produced: an observation, or nothing with the run already closed. */
-    public record Collection(UUID runId, Optional<SeoulLiveAreaObservation> observation) {
+    public record Collection(UUID runId, Optional<SeoulLiveAreaObservation> observation, SourceState storedState) {
+        public Collection {
+            Objects.requireNonNull(runId, "runId");
+            Objects.requireNonNull(observation, "observation");
+            if (observation.isPresent() != (storedState != null)) {
+                throw new IllegalArgumentException("stored state must accompany an accepted observation");
+            }
+        }
+
         public boolean accepted() {
             return observation.isPresent();
+        }
+
+        public boolean live() {
+            return storedState == SourceState.LIVE;
         }
     }
 
@@ -128,9 +141,10 @@ public class SeoulLiveAreaGateway {
         boolean accepted = collector.finalizeSingleCall(runId, reservation.ingestLogId(), response.status(),
                 duration, 1, null, validation.verdict(), clock.instant());
         if (!accepted) {
-            return new Collection(runId, Optional.empty());
+            return new Collection(runId, Optional.empty(), null);
         }
-        return new Collection(runId, Optional.of(store(runId, source, validation.observation())));
+        SeoulLiveSnapshotStore.Reading reading = store(runId, source, validation.observation());
+        return new Collection(runId, Optional.of(validation.observation()), reading.sourceState());
     }
 
     /**
@@ -146,15 +160,16 @@ public class SeoulLiveAreaGateway {
      * is the only place this adapter learns of one. A rename lands on the same row - identity is
      * (source, AREA_CD) - so the snapshots written before it keep pointing at it.
      */
-    private SeoulLiveAreaObservation store(UUID runId, SourceRegistration source,
+    private SeoulLiveSnapshotStore.Reading store(UUID runId, SourceRegistration source,
             SeoulLiveAreaObservation observation) {
         UUID areaId = areas.upsertArea(SOURCE_CODE,
                 new LiveAreaStore.AreaUpsert(observation.areaCode(), observation.areaName())).id();
         // collectionEnabled() already required a stale window, so this is never null here.
-        snapshots.save(SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), UUID.randomUUID(), runId,
+        SeoulLiveSnapshotStore.Reading reading = SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), UUID.randomUUID(), runId,
                 source.currentRevision(), areaId, observation.observedAt(), clock.instant(),
-                source.staleAfterSeconds(), SeoulCongestionStage.of(observation.congestionLevel())));
-        return observation;
+                source.staleAfterSeconds(), SeoulCongestionStage.of(observation.congestionLevel()));
+        snapshots.save(reading);
+        return reading;
     }
 
     private SourceRegistration requireHealthySource(Instant at) {

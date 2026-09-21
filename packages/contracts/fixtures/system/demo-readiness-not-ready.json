@@ -11,7 +11,7 @@
       "name": "replay",
       "status": "UNAVAILABLE",
       "checkedAt": "2026-09-10T00:00:00Z",
-      "detail": "FEATURE_REPLAY_MODE is OFF and no server-side source answers this capability yet"
+      "detail": "FEATURE_REPLAY_MODE is OFF"
     },
     {
       "name": "optimization",

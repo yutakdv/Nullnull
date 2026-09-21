@@ -68,6 +68,11 @@ OPS_TASKS = {
     # gateway), so it takes no KTO approval. Its release has no input: it is the deployed one, set under the deployment
     # lock, because an inventory of another release would pass check_submission_inventory against a ledger naming it.
     'kto-call-inventory': ('io.nullnull.crowd.infrastructure.audit.KtoCallInventoryMain', None, {}),
+    'seoul-live-collect': ('io.nullnull.live.infrastructure.SeoulLiveCollectMain', None,
+                           {'NULLNULL_SEOUL_AREA_NAME': 'area_name'}),
+    'curate-live-maps': ('io.nullnull.live.infrastructure.curation.LiveMappingImportMain', None, {}),
+    'capture-live-replay': ('io.nullnull.crowd.infrastructure.persistence.ReplayManifestImportMain', None, {}),
+    'list-live-replay-candidates': ('io.nullnull.crowd.infrastructure.persistence.ReplayCandidateListMain', None, {}),
 }
 # A curate task's plan cannot be a file in the task: it runs the release's image with a read-only root, and baking
 # the plan into the image would make every plan edit a release (the hours re-observation before 2026-10-13 falls in
@@ -89,7 +94,23 @@ CURATION_PLANS = {'curate-hours': {'inline': 'NULLNULL_HOURS_PLAN_GZIP_BASE64', 
                                    'echo': 'curated_posts_plan', 'lines': 'curated_post', 'items': 'posts',
                                    'entry': r'curated_post ([0-9a-f-]{36}) (PUBLISHED|ALREADY_PRESENT) \(',
                                    'done': r'curated_posts_published={published} of {n}', 'failed': 'curated_posts_failed ',
-                                   'incomplete': 'curation-not-all-posts-published'}}
+                                   'incomplete': 'curation-not-all-posts-published'},
+                  'curate-live-maps': {'inline': 'NULLNULL_LIVE_MAPPING_PLAN_GZIP_BASE64',
+                                       'sha256': 'NULLNULL_LIVE_MAPPING_PLAN_SHA256',
+                                       'echo': 'curated_live_maps_plan', 'lines': 'curated_live_map',
+                                       'items': 'mappings',
+                                       'entry': r'curated_live_map ([0-9a-f-]{36}) (PROCESSED)$',
+                                       'done': r'curated_live_maps_processed={n}',
+                                       'failed': 'curated_live_maps_failed ',
+                                       'incomplete': 'curation-not-all-live-maps-processed'},
+                  'capture-live-replay': {'inline': 'NULLNULL_REPLAY_PLAN_GZIP_BASE64',
+                                          'sha256': 'NULLNULL_REPLAY_PLAN_SHA256',
+                                          'echo': 'replay_capture_plan', 'lines': 'replay_',
+                                          'items': 'snapshotIds',
+                                          'entry': r'replay_snapshot ([0-9a-f-]{36}) (CAPTURED)$',
+                                          'done': r'replay_snapshots_captured={n}',
+                                          'failed': 'replay_capture_failed ',
+                                          'incomplete': 'replay-capture-incomplete'}}
 PLAN_MAX_BYTES = 1 << 20  # io.nullnull.OperationsPlan.MAX_BYTES
 # RunTask refuses overrides past a size AWS documents as 8192 characters for the whole overrides object; that figure is
 # not recorded in this repository and was not measured, so these bounds keep well under it rather than at it.
@@ -98,7 +119,8 @@ OVERRIDES_MAX_CHARS = 7500
 PLACE_ID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
 # Input shapes per ops argument. A demo place list is `contentId:contentTypeId`, comma separated.
 OPS_INPUT = {'content_id': r'[0-9a-f-]{1,40}', 'content_type_id': r'[0-9a-f-]{1,40}', 'place_id': r'[0-9a-f-]{1,40}',
-             'places': r'[1-9][0-9]{0,29}:[1-9][0-9]{0,29}(,[1-9][0-9]{0,29}:[1-9][0-9]{0,29})*'}
+             'places': r'[1-9][0-9]{0,29}:[1-9][0-9]{0,29}(,[1-9][0-9]{0,29}:[1-9][0-9]{0,29})*',
+             'area_name': r'[^/\\\x00-\x1f\x7f]{1,100}'}
 # Every task above writes. From the release carrying OperationsContext (#183) a writing tool in staging runs only
 # when this names the database its datasource URL points to; an older image ignores it.
 OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
@@ -124,6 +146,17 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r' first=[0-9T:.-]{10,40}Z last=[0-9T:.-]{10,40}Z'
                           r'|kto_inventory_excluded rejected=[0-9]{1,9} replay=[0-9]{1,9}'
                           r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
+                          r'|seoul_live_collect live=true'
+                          r'|seoul_live_collect_failed reason=[A-Za-z_]{1,80}'
+                          r'|curated_live_maps_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
+                          r'|curated_live_map [0-9a-f-]{36} PROCESSED'
+                          r'|curated_live_maps_processed=[0-9]{1,4}|curated_live_maps_failed reason=[A-Za-z_]{1,80}'
+                          r'|replay_capture_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
+                          r'|replay_snapshot [0-9a-f-]{36} CAPTURED'
+                          r'|replay_snapshots_captured=[0-9]{1,3}|replay_capture_failed reason=[A-Za-z_]{1,80}'
+                          r'|replay_manifest_id=[0-9a-f-]{36}'
+                          r'|replay_candidate snapshot=[0-9a-f-]{36} area=[0-9a-f-]{36} observed=[0-9T:.-]{10,40}Z'
+                          r'|replay_candidates_failed reason=[A-Za-z_]{1,80}'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
 
@@ -890,7 +923,15 @@ def curation_plan(args):
     kind = CURATION_PLANS[args.task]['items']
     items = plan.get(kind) if isinstance(plan, dict) else None
     require(isinstance(items, list) and len(items) > 0, 'plan-file-has-no-' + kind)
-    require(all(isinstance(i, dict) for i in items), 'plan-file-has-no-' + kind)
+    if kind == 'snapshotIds':
+        require(len(items) <= 100 and all(isinstance(i, str) and PLACE_ID.fullmatch(i) for i in items)
+                and len(items) == len(set(items)), 'plan-file-snapshot-ids-invalid')
+        require(isinstance(plan.get('name'), str) and 0 < len(plan['name'].strip()) <= 200
+                and isinstance(plan.get('capturedFrom'), str) and isinstance(plan.get('capturedTo'), str),
+                'plan-file-replay-window-invalid')
+        places = [{'placeId': i} for i in items]
+    else:
+        require(all(isinstance(i, dict) for i in items), 'plan-file-has-no-' + kind)
     if kind == 'posts':
         # A post names places and a cover. The importer and V021 refuse a cover that is not an absolute https URL;
         # caught here so the refusal costs no approval and no task.
@@ -898,18 +939,30 @@ def curation_plan(args):
         places = [p for i in items for p in i['places']]
         require(all(isinstance(i.get('cover'), dict) and str(i['cover'].get('url', '')).startswith('https://')
                     for i in items), 'plan-file-cover-url-not-https')
-    else:
+    elif kind == 'mappings':
+        require(all(isinstance(i.get('areaName'), str) and 0 < len(i['areaName'].strip()) <= 200
+                    and isinstance(i.get('evidenceUrl'), str) and i['evidenceUrl'].startswith('https://')
+                    and i.get('mappingType') in ('AREA', 'AREA_FALLBACK')
+                    and isinstance(i.get('fallbackUsed'), bool)
+                    and (i['mappingType'] == 'AREA_FALLBACK') == i['fallbackUsed']
+                    and type(i.get('confidence')) in (int, float) and 0 <= i['confidence'] <= 1
+                    and isinstance(i.get('verifiedAt'), str) and i['verifiedAt']
+                    for i in items), 'plan-file-live-map-invalid')
+        places = items
+    elif kind != 'snapshotIds':
         places = items
     require(all(isinstance(p, dict) and PLACE_ID.fullmatch(str(p.get('placeId', ''))) for p in places),
             'plan-file-place-id-not-a-uuid')
     sha = hashlib.sha256(data).hexdigest()
-    print(f'plan_sha256={sha} bytes={len(data)} {kind}={len(items)} place_ids=' + ','.join(p['placeId'] for p in places))
+    id_label = 'snapshot_ids' if kind == 'snapshotIds' else 'place_ids'
+    print(f'plan_sha256={sha} bytes={len(data)} {kind}={len(items)} {id_label}=' + ','.join(p['placeId'] for p in places))
     require(getattr(args, 'approved_plan_sha256', None) == sha, 'plan-sha256-not-approved')
     require(bool(args.owner_approval) and len(args.owner_approval) >= 10, 'owner-approval-record-required')
     encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode('ascii')
     require(len(encoded) <= PLAN_INLINE_MAX_CHARS, 'plan-too-large-for-task-overrides')
     return {'data': data, 'sha256': sha, 'encoded': encoded, 'items': len(items),
-            'ids': [str(i.get('id', '')) for i in items]}
+            'ids': items if kind == 'snapshotIds' else
+                   [str(i.get('id', i.get('placeId', ''))) for i in items]}
 
 COVER_MAX_BYTES = 20 << 20  # far above the five photos (2.4-2.9 MB each); bounds what a wrong URL could make us read
 
@@ -956,6 +1009,8 @@ def ops_task(args):
     for name, attribute in inputs.items():
         value = getattr(args, attribute) or ''
         require(re.fullmatch(OPS_INPUT[attribute], value) is not None, 'invalid-' + attribute.replace('_', '-'))
+        if attribute == 'area_name':
+            require(value.strip() == value and '..' not in value, 'invalid-area-name')
         if attribute == 'places':
             require(len(set(value.split(','))) == len(value.split(',')), 'duplicate-places')
         environment.append({'name': name, 'value': value})
@@ -967,6 +1022,9 @@ def ops_task(args):
         require(os.environ.get(approval) == 'true', approval.lower().replace('_', '-') + '-not-set-by-caller')
         require(bool(args.owner_approval) and len(args.owner_approval) >= 10, 'owner-approval-record-required')
         environment.append({'name': approval, 'value': 'true'})
+    if args.task == 'seoul-live-collect':
+        environment += [{'name': 'SEOUL_BASE_URL', 'value': output('Services', 'SeoulProxyUrl')},
+                        {'name': 'SEOUL_ALLOWED_HOST', 'value': output('Services', 'SeoulProxyHost')}]
     # The database is the caller's to name, like the approval. Checked here against the instance RDS reports, so a
     # wrong name stops before a task starts; the task's own check compares it with its datasource URL.
     stated = os.environ.get(OPERATIONS_TARGET, '').strip()
@@ -991,7 +1049,8 @@ def ops_task(args):
         definition = aws('ecs', 'describe-task-definition', taskDefinition=definition_arn)['taskDefinition']
         # The smoke's report names a release, and a curate task needs an image that reads an inline plan: both run
         # only on the recorded release's own definition and image.
-        bound = args.task in ('kto-smoke', 'kto-call-inventory') or plan is not None
+        bound = args.task in ('kto-smoke', 'kto-call-inventory', 'seoul-live-collect',
+                              'list-live-replay-candidates') or plan is not None
         current, expected_digest = release_binding(definition) if bound else (None, None)
         if args.task == 'kto-call-inventory':
             # Read under the lock with the binding, so the release inventoried is the one this task definition is.
@@ -1030,7 +1089,7 @@ def ops_task(args):
         else:
             # The bound is a safety stop, not an end: CloudWatch says the stream is read when the token stops moving.
             raise OpsError('task-log-not-fully-read')
-        evidence, echoed, inventory = [], [], []
+        evidence, echoed, inventory, seoul = [], [], [], []
         for event in events:
             line = event.get('message', '').strip()
             if OPS_LOG_LINE.match(line):
@@ -1041,8 +1100,12 @@ def ops_task(args):
                     echoed.append(line)
                 if args.task == 'kto-call-inventory' and line.startswith(('kto_inventory', 'kto_operation ')):
                     inventory.append(line)
+                if args.task == 'seoul-live-collect' and line == 'seoul_live_collect live=true':
+                    seoul.append(line)
         if failure:
             raise failure
+        if args.task == 'seoul-live-collect':
+            require(seoul == ['seoul_live_collect live=true'], 'seoul-collect-not-live')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:
@@ -1514,7 +1577,7 @@ def main():
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')
     parser.add_argument('--task',choices=sorted(OPS_TASKS));parser.add_argument('--content-id')
     parser.add_argument('--content-type-id');parser.add_argument('--place-id');parser.add_argument('--owner-approval')
-    parser.add_argument('--places');parser.add_argument('--plan-file')
+    parser.add_argument('--places');parser.add_argument('--area-name');parser.add_argument('--plan-file')
     parser.add_argument('--owner');parser.add_argument('--accept-newer-schema',action='store_true')
     parser.add_argument('--since');parser.add_argument('--without-images',action='store_true')
     args=parser.parse_args()

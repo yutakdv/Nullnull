@@ -80,6 +80,7 @@ scripts/                    계약 생성·검증·로컬 bootstrap
 | `catalog` | canonical/localized POI, 검색, 외부 ID, 검증된 relation, 영업 확인 근거 | `places`, `place_localizations`, `place_external_refs`, `place_relations`, `place_hours_*` |
 | `social` | post, saved post, feed/feedback, P1 notification | `posts`, `post_places`, `saved_posts`, `feed_feedback`, `notifications` |
 | `trip` | 여행, 관심사, 후보, 일정, 제약, revision | `trips`, `trip_*` |
+| `recommendation` | `apps/ai` gateway port·DTO·응답 재검증·fallback. 계산을 중복 구현하지 않는다(ADR-0006) | 없음 — 재검증한 결과는 호출한 module의 table에 저장된다 |
 | `optimization` | run, proposal, decision, revert | `optimization_*`, `route_matrix_snapshots` |
 | `crowd` | live/forecast/replay snapshot와 비교 가능성 | `crowd_snapshots`, `source_registry`, `snapshot_sets` |
 | `live` | Live area mapping, coverage, P1 nearby projection | `live_areas` |

@@ -7,6 +7,7 @@ import {
   candidateFixtures,
   crowdFixtures,
   feedFixtures,
+  liveFixtures,
   postFixtures,
   relatedFixtures,
   optimizationFixtures,
@@ -19,9 +20,6 @@ import {
 import { http, HttpResponse } from 'msw';
 import type { components } from '@nullnull/api-client';
 import type { ProblemCode } from '../../api/index.js';
-import liveAreaPlaces from '../../../../../../packages/contracts/fixtures/live/area-places.json' with { type: 'json' };
-import liveAreaResult from '../../../../../../packages/contracts/fixtures/live/area-result-live.json' with { type: 'json' };
-import livePlaceDetail from '../../../../../../packages/contracts/fixtures/live/place-detail-live.json' with { type: 'json' };
 
 type PostDetail = components['schemas']['PostDetail'];
 type Problem = components['schemas']['Problem'];
@@ -1029,17 +1027,17 @@ export const handlers = [
   // same response documents while the contracts package keeps backend
   // ownership of their contents.
   http.post(`${API_BASE}/live/areas`, () =>
-    HttpResponse.json(liveAreaResult, {
+    HttpResponse.json(liveFixtures.areaResultLive, {
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),
   http.get(`${API_BASE}/live/areas/:areaId/places`, () =>
-    HttpResponse.json(liveAreaPlaces, {
+    HttpResponse.json(liveFixtures.areaPlaces, {
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),
   http.get(`${API_BASE}/live/places/:placeId`, () =>
-    HttpResponse.json(livePlaceDetail, {
+    HttpResponse.json(liveFixtures.placeDetailLive, {
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),

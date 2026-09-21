@@ -6,12 +6,12 @@ import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
 import io.nullnull.catalog.application.CatalogRelationProjectionService;
 import io.nullnull.catalog.application.CatalogRelationProjectionService.CatalogRelatedPlaces;
 import io.nullnull.crowd.application.CrowdProvenanceProjection.CrowdMetric;
-import io.nullnull.crowd.application.LiveAreaCrowdQuery;
 import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.crowd.domain.SourceState;
 import io.nullnull.identity.application.OwnerContext;
 import io.nullnull.live.domain.LiveAreaMapping;
 import io.nullnull.live.domain.LiveCoverage;
+import io.nullnull.live.domain.LiveQueryMode;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
 import java.time.Clock;
@@ -45,7 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
  * standing refusal: that series is a relative figure over the thirty days from the day it was
  * queried, so it is verified per DAY, and presenting it here - on a screen whose other readings are
  * current to the minute - would claim a time resolution nobody measured. The Seoul feed writes LIVE
- * or STALE; an uncovered place is UNAVAILABLE. Nothing on this path may invent a third answer.
+ * or STALE; an approved manifest can provide REPLAY when Live has expired, and an uncovered place
+ * is UNAVAILABLE. Nothing on this path may invent a current value from a replay.
  */
 @Service
 public class LivePlaceQueryService {
@@ -53,14 +54,14 @@ public class LivePlaceQueryService {
     private final LiveCapability capability;
     private final LiveAreaStore areas;
     private final LiveAreaMappingStore mappings;
-    private final LiveAreaCrowdQuery readings;
+    private final LiveAreaReadingSelector readings;
     private final LivePlaceProjection projection;
     private final CatalogPlaceProjectionService places;
     private final CatalogRelationProjectionService relations;
     private final Clock clock;
 
     public LivePlaceQueryService(LiveCapability capability, LiveAreaStore areas, LiveAreaMappingStore mappings,
-            LiveAreaCrowdQuery readings, LivePlaceProjection projection, CatalogPlaceProjectionService places,
+            LiveAreaReadingSelector readings, LivePlaceProjection projection, CatalogPlaceProjectionService places,
             CatalogRelationProjectionService relations, Clock clock) {
         this.capability = Objects.requireNonNull(capability, "capability");
         this.areas = Objects.requireNonNull(areas, "areas");
@@ -187,7 +188,7 @@ public class LivePlaceQueryService {
      */
     private Map<UUID, CrowdMetric> readingsByArea(List<UUID> areaIds) {
         Map<UUID, CrowdMetric> byArea = new LinkedHashMap<>();
-        readings.latestFor(SeoulLiveAreaObservation.SOURCE_CODE, areaIds, clock.instant())
+        readings.select(LiveQueryMode.AUTO, SeoulLiveAreaObservation.SOURCE_CODE, areaIds, clock.instant())
                 .forEach(reading -> byArea.put(reading.liveAreaId(), reading.crowd()));
         return byArea;
     }

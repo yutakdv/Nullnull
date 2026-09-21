@@ -285,12 +285,14 @@ test("only the API runs ITEM optimization, and no service turns on a capability 
   );
   for (const name of ["ai", "ops", "migration"])
     assert(!env(name).some((e: any) => e.Name === "FEATURE_LIVE_DATA"), `${name} FEATURE_LIVE_DATA`);
-  // replay still has no source: DemoCapabilityQuery.WITHOUT_A_SOURCE keeps it, so ON fails startup.
-  for (const c of containers)
-    assert(
-      !(c.Environment ?? []).some((e: any) => e.Name === "FEATURE_REPLAY_MODE" && e.Value === "true"),
-      `${c.Name} FEATURE_REPLAY_MODE`,
-    );
+  // The code can read replay manifests, but readiness remains UNAVAILABLE until an approved one
+  // exists. Only the API, which serves Live, may opt into that runtime fallback.
+  assert.deepEqual(
+    env("api").filter((e: any) => e.Name === "FEATURE_REPLAY_MODE"),
+    [{ Name: "FEATURE_REPLAY_MODE", Value: "true" }],
+  );
+  for (const name of ["ai", "ops", "migration"])
+    assert(!env(name).some((e: any) => e.Name === "FEATURE_REPLAY_MODE"), `${name} FEATURE_REPLAY_MODE`);
 });
 test("existing GitHub OIDC provider is referenced, never created", () => {
   for (const t of Object.values(templates))
@@ -343,6 +345,8 @@ test("the Seoul proxy holds the key, the API task does not, and the allowlist na
   assert.match(code, /redirect: 'error'/);
   assert.match(code, /size > MAX_BYTES/);
   assert.match(code, /seoul_proxy_secret_incomplete/);
+  assert.match(code, /console\.error\('seoul_proxy_secret_unavailable'\)/);
+  assert.equal(code.includes("failure.message"), false);
   // And it re-reads the secret, so a rotated key or a revoked token reaches a warm container.
   assert.match(code, /Date\.now\(\) - cachedAt < TTL_MS/);
   assert.equal(code.includes("console.error('seoul_proxy_upstream_failed name='"), true);
@@ -365,6 +369,49 @@ test("the Seoul proxy holds the key, the API task does not, and the allowlist na
   assert.match(secrets, /SEOUL_PROXY_TOKEN/);
   assert.match(secrets, /proxyToken/);
   assert.equal(secrets.includes("apiKey"), false);
+});
+test("the Seoul collector ops task receives the proxy token without its API key", () => {
+  const definition = Object.values(templates.migration.findResources("AWS::ECS::TaskDefinition"))
+    .find((r: any) => r.Properties.Family === "nullnull-stg-ops") as any;
+  const container = definition.Properties.ContainerDefinitions.find((c: any) => c.Name === "ops");
+  const secrets = JSON.stringify(container.Secrets);
+  assert.match(secrets, /SEOUL_PROXY_TOKEN/);
+  assert.equal(secrets.includes("apiKey"), false);
+  templates.services.hasOutput("SeoulProxyUrl", {});
+  templates.services.hasOutput("SeoulProxyHost", {});
+});
+test("the reviewed Seoul area refreshes inside the existing API task", () => {
+  const matching = Object.values(templates.services.findResources("AWS::Scheduler::Schedule"))
+    .filter((r: any) => r.Properties.Name === "nullnull-stg-seoul-live-refresh") as any[];
+  assert.equal(matching.length, 0, "no recurring Fargate charge for Live collection");
+  const api = Object.values(templates.services.findResources("AWS::ECS::TaskDefinition"))
+    .find((r: any) => r.Properties.Family === "nullnull-stg-api") as any;
+  const container = api.Properties.ContainerDefinitions.find((c: any) => c.Name === "api");
+  assert.match(JSON.stringify(container.Environment), /NULLNULL_LIVE_SCHEDULE_ENABLED.*true/);
+});
+test("a missing or failed Seoul collection reaches the alarm topic", () => {
+  templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+    FilterPattern: '"seoul_live_collect live=true"',
+    MetricTransformations: [Match.objectLike({ MetricName: "SeoulLiveCollectOk", DefaultValue: 0 })],
+  });
+  templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    MetricName: "SeoulLiveCollectOk",
+    Period: 60,
+    EvaluationPeriods: 12,
+    ComparisonOperator: "LessThanThreshold",
+    Threshold: 1,
+    TreatMissingData: "breaching",
+    AlarmActions: [Match.anyValue()],
+  });
+  templates.obs.hasResourceProperties("AWS::Logs::MetricFilter", {
+    FilterPattern: '"seoul_live_collect_failed"',
+  });
+  templates.obs.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    MetricName: "SeoulLiveCollectFailures",
+    EvaluationPeriods: 1,
+    TreatMissingData: "notBreaching",
+    AlarmActions: [Match.anyValue()],
+  });
 });
 test("protected stacks never embed a release (classification premise)", () => {
   // An app-only release must leave these templates byte-identical, otherwise every release needs the

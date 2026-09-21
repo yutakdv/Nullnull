@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { readFileSync } from 'node:fs';
 import type { components } from '@nullnull/api-client';
 import {
   candidateFixtures,
+  liveFixtures,
   placeFixtures,
   sessionFixtures,
   tripFixtures,
@@ -28,10 +28,18 @@ afterEach(() => {
   delete window.kakao;
 });
 
-function liveFixture<T>(name: string): T {
-  return JSON.parse(
-    readFileSync(`../../packages/contracts/fixtures/live/${name}.json`, 'utf8'),
-  ) as T;
+const LIVE_FIXTURES = {
+  'area-result-live': liveFixtures.areaResultLive,
+  'area-result-unavailable': liveFixtures.areaResultUnavailable,
+  'area-result-stale': liveFixtures.areaResultStale,
+  'area-places': liveFixtures.areaPlaces,
+  'place-detail-live': liveFixtures.placeDetailLive,
+  'place-detail-related-none': liveFixtures.placeDetailRelatedNone,
+  'place-detail-related-checking': liveFixtures.placeDetailRelatedChecking,
+} as const;
+
+function liveFixture<T>(name: keyof typeof LIVE_FIXTURES): T {
+  return structuredClone(LIVE_FIXTURES[name]) as T;
 }
 
 function renderLive(initialEntry = '/live') {
@@ -166,7 +174,7 @@ describe('FE-401 Live area list', () => {
 
     expect(await screen.findByText('경복궁')).toBeVisible();
     expect(screen.getByText('북촌한옥마을')).toBeVisible();
-    expect(screen.getByText('명동')).toBeVisible();
+    expect(screen.queryByText('명동')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /View Live information for 경복궁/i }),
     ).toHaveAttribute('href', `/live/places/${places[0]?.place.id}`);

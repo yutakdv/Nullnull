@@ -13,6 +13,8 @@ import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.sql.Timestamp;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -107,6 +109,8 @@ class LiveAreaReadIT {
         // The freshness wording travels with it, so a client reading only the provenance sees it too.
         assertThat(provenanceOf(body, expired).get("freshness").asString()).isEqualTo("STALE");
         assertThat(provenanceOf(body, fresh).get("freshness").asString()).isEqualTo("FRESH");
+        assertThat(crowdOf(body, expired).get("label").asString())
+                .isEqualTo("서울 주요 장소의 실시간 인구 혼잡도 수준");
     }
 
     @Test
@@ -132,6 +136,47 @@ class LiveAreaReadIT {
         assertThat(crowd.get("provenance").get("qualityFlags").toString()).doesNotContain("SCHEMA_DRIFT");
         // Still no number: the stage is published, the value is a range we do not reduce.
         assertThat(crowd.get("value").isNull()).isTrue();
+
+        JsonNode example = JSON.readTree(Files.readString(Path.of("..", "..", "packages", "contracts",
+                "fixtures", "live", "area-result-live.json"))).get("areas").get(0).get("crowd");
+        assertThat(example.get("ordinalLevel")).isEqualTo(crowd.get("ordinalLevel"));
+        assertThat(example.get("label")).isEqualTo(crowd.get("label"));
+        for (String field : List.of("sourceRegistryVersion", "normalizationVersion", "confidence",
+                "attributionShort", "observedAtSkewSeconds", "scopeLabel", "mappingType",
+                "comparisonReasonCode")) {
+            assertThat(example.get("provenance").get(field)).as("Live example %s", field)
+                    .isEqualTo(crowd.get("provenance").get(field));
+        }
+    }
+
+    @Test
+    @DisplayName("BA-091-T22 뒤늦게 수신한 과거 관측은 더 새로운 관측을 가리지 않는다")
+    void lateOldObservationDoesNotReplaceNewerReading() throws Exception {
+        Instant now = clock.instant();
+        UUID id = area("POI-ORDER-" + UUID.randomUUID(), "관측 순서 구역 " + UUID.randomUUID(),
+                now.minusSeconds(60), now.minusSeconds(50), "여유");
+        // The provider can return an older publication on a later poll. Fetched time is then newer,
+        // but the reading itself is older and already expired.
+        UUID lateRun = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO collector_runs
+                    (id, source_code, status, trigger_type, records_received, records_accepted,
+                     records_rejected, schema_version, started_at, finished_at)
+                VALUES (?, ?, 'COMPLETED', 'SCHEDULED', 1, 1, 0, 'seoul-citydata-v8.5', ?, ?)
+                """, lateRun, SOURCE, Timestamp.from(now.minusSeconds(10)),
+                Timestamp.from(now.minusSeconds(10)));
+        snapshots.save(SeoulLiveSnapshotStore.Reading.of(UUID.randomUUID(), UUID.randomUUID(), lateRun, 2L,
+                id, now.minusSeconds(600), now.minusSeconds(10), 300L, SeoulCongestionStage.of("붐빔")));
+
+        JsonNode body = JSON.readTree(mvc.perform(post("/api/v1/live/areas")
+                        .cookie(new Cookie("__Host-nullnull_session",
+                                sessions.bootstrap(null, "ko-KR", "Asia/Seoul").cookie))
+                        .header("Origin", ORIGIN).contentType("application/json")
+                        .content("{\"mode\":\"AUTO\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+
+        assertThat(stateOf(body, id)).isEqualTo("LIVE");
+        assertThat(crowdOf(body, id).get("ordinalLevel").asString()).isEqualTo("1");
     }
 
     /**

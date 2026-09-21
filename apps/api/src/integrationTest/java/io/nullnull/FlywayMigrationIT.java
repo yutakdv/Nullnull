@@ -71,10 +71,8 @@ class FlywayMigrationIT {
     // list plus the count below is the recalculation. V046 creates no table of its own, so
     // nothing new waits behind upload_intents.
     //
-    // V047 (BA-086) is the head now, which makes V046 the previous schema - and V046 creates no
-    // table, so this list does NOT move. That is the whole edit on this side: the hand-off only
-    // has something to hand over when the migration that just became "previous" created a table.
-    // V047 creates none either, so the next migration will find this list unchanged again.
+    // V049 (BA-092) is the head. V048's Seoul refresh claim is part of the previous schema.
+    // V049's replay tables join this list when a later migration becomes the head.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -89,7 +87,7 @@ class FlywayMigrationIT {
             "place_relations", "itinerary_import_drafts",
             "optimization_proposals", "optimization_changes",
             "optimization_decisions", "notifications",
-            "live_areas", "seoul_live_area_maps", "upload_intents");
+            "live_areas", "seoul_live_area_maps", "upload_intents", "seoul_live_refresh_claims");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -186,12 +184,8 @@ class FlywayMigrationIT {
             // plants data - so it is edited with a reason, never deleted. It moved 0 -> 3 -> 1 in
             // one day because two branches each had a different last migration.
             //
-            // V047 (BA-086) is the last migration now, so V046 runs in the first migrate step and
-            // that Seoul revision row is inside rowsBefore. V047 seeds NOTHING: it adds four
-            // nullable provenance columns to place_localizations and deliberately backfills none
-            // of them - deriving a text's source from the place's external reference is the thing
-            // that migration exists to refuse - so the count is 0. MEASURED, not predicted: with
-            // 1 still here the assertion read "expected: 72L but was: 71L".
+            // V049 (BA-092) is last and seeds nothing. V048's claim table and all earlier seeded
+            // rows are already in rowsBefore; this count belongs to the last migration alone.
             long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
@@ -689,6 +683,9 @@ class FlywayMigrationIT {
                         + " VALUES (?, ?, 'PENDING', 'image/jpeg', 1024, ?, ?, ?, ?, NULL)",
                 UUID.randomUUID(), ownerId, "c".repeat(64), "upgrade-" + UUID.randomUUID(),
                 now, now.plusHours(1));
+        jdbc.update("INSERT INTO " + schema + ".seoul_live_refresh_claims"
+                        + " (source_code, area_name, next_due_at) VALUES ('SEOUL_CITYDATA', ?, ?)",
+                "upgrade-" + UUID.randomUUID(), now.plusMinutes(2));
         return key;
     }
 

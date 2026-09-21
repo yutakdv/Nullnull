@@ -110,13 +110,15 @@ public class CrowdProvenanceProjection {
         CrowdForecastQuery.SourceDescriptor source = snapshot.source();
         if (provenanceId == null || source == null || blank(source.code()) || blank(source.displayName())
                 || source.registryVersion() < 1 || snapshot.snapshotSetId() == null || snapshot.collectorRunId() == null
-                || snapshot.placeId() == null || snapshot.fetchedAt() == null || blank(snapshot.metricCode())
+                || (snapshot.scope() == ComparisonScope.PLACE && snapshot.placeId() == null)
+                || snapshot.fetchedAt() == null || blank(snapshot.metricCode())
                 || blank(snapshot.normalizationVersion()) || snapshot.scope() == null || blank(snapshot.scopeLabel())
                 || blank(snapshot.mappingType()) || blank(source.metricDefinition()) || blank(source.license())
                 || blank(source.officialUrl()) || blank(source.licenseUrl()) || blank(source.attribution())) {
             return false;
         }
-        if (responseState == SourceState.FORECAST || responseState == SourceState.STALE) {
+        if (responseState == SourceState.FORECAST
+                || (responseState == SourceState.STALE && snapshot.scope() == ComparisonScope.PLACE)) {
             return snapshot.targetAt() != null && !blank(snapshot.forecastIssueId())
                     && !blank(snapshot.comparisonGroupId());
         }
@@ -130,7 +132,7 @@ public class CrowdProvenanceProjection {
     }
 
     private static String label(CrowdForecastQuery.Snapshot snapshot, SourceState responseState) {
-        if (responseState == SourceState.STALE) {
+        if (responseState == SourceState.STALE && snapshot.sourceState() == SourceState.FORECAST) {
             return "만료된 관광지 집중률 예측";
         }
         if (snapshot.sourceState() == SourceState.FORECAST) {

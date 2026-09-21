@@ -27,6 +27,13 @@ API 0.5 vCPU / 1 GB x1, AI 0.25 vCPU / 0.5 GB x1, two public IPv4, ALB 1 LCU ave
 reserve 5, miscellaneous reserve 3 (Route 53 private zone for Cloud Map, S3, DynamoDB, Lambda, deploy
 overlap), tax 10%. Free tier counted as zero.
 
+The Seoul Live pilot refreshes one area inside the existing API task every five minutes. Its
+cross-replica claim adds no recurring Fargate task. At most three transport attempts per refresh
+mean up to 864 Seoul proxy calls per day; this fits the project's configured 1,000/day source
+budget, which is not a verified provider quota. The proxy Lambda calls, logs and two new alarms
+still consume the miscellaneous reserve. Actual spend remains an operator observation, not a gate
+result.
+
 ## Result
 
 | Window | Pre-tax | With 10% tax |

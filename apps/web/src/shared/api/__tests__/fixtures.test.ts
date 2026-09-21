@@ -58,9 +58,13 @@ ajv.addFormat('int64', true);
 
 /** Compile a validator bound to one component schema, as verify.cjs does. */
 function validatorFor(schemaName: string) {
+  const array = schemaName.endsWith('[]');
+  const componentName = array ? schemaName.slice(0, -2) : schemaName;
   return ajv.compile({
     components: api.components,
-    $ref: `#/components/schemas/${schemaName}`,
+    ...(array
+      ? { type: 'array', items: { $ref: `#/components/schemas/${componentName}` } }
+      : { $ref: `#/components/schemas/${componentName}` }),
   });
 }
 
@@ -112,6 +116,17 @@ const SCHEMA_OF: Record<string, string> = {
   'crowdFixtures.seriesUnavailable': 'CrowdSeries',
   'crowdFixtures.forecastQuery': 'PlaceCrowdForecastQueryResult',
   'crowdFixtures.forecastQueryRequest': 'PlaceCrowdForecastQuery',
+  'liveFixtures.areaQuery': 'LiveAreaQuery',
+  'liveFixtures.areaResultLive': 'LiveAreaResult',
+  'liveFixtures.areaResultReplay': 'LiveAreaResult',
+  'liveFixtures.areaResultStale': 'LiveAreaResult',
+  'liveFixtures.areaResultUnavailable': 'LiveAreaResult',
+  'liveFixtures.areaResultIncident': 'LiveAreaResult',
+  'liveFixtures.areaPlaces': 'LivePlace[]',
+  'liveFixtures.areaPlacesUnavailable': 'LivePlace[]',
+  'liveFixtures.placeDetailLive': 'LivePlaceDetail',
+  'liveFixtures.placeDetailRelatedChecking': 'LivePlaceDetail',
+  'liveFixtures.placeDetailRelatedNone': 'LivePlaceDetail',
   'postFixtures.detail': 'PostDetail',
   'postFixtures.detailSaved': 'PostDetail',
   'postFixtures.savedState': 'SavedPostState',
@@ -238,7 +253,7 @@ describe('the fixture list maintains itself', () => {
     // in an unrelated case. `problemFixtures` covers Problem, which is why it is
     // not in the map and not expected here.
     const undefined_ = [...new Set(Object.values(SCHEMA_OF))].filter(
-      (name) => !(name in api.components.schemas),
+      (name) => !(name.replace(/\[\]$/, '') in api.components.schemas),
     );
     expect(undefined_, 'SCHEMA_OF names absent from openapi.yaml').toEqual([]);
   });

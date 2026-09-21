@@ -226,7 +226,7 @@
         },
         {
           "id": "BA-003-T2",
-          "assertion": "unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다"
+          "assertion": "unknown 필드·초과 body를 거부하고 flag만 켜진 빈 replay를 READY로 광고하지 않는다"
         },
         {
           "id": "BA-003-T3",
@@ -262,7 +262,7 @@
         },
         {
           "id": "BA-003-T11",
-          "assertion": "source가 없는 capability는 준비 완료로 광고되지 않는다"
+          "assertion": "꺼진 capability는 준비 완료로 광고되지 않는다"
         },
         {
           "id": "BA-003-T12",
@@ -776,6 +776,14 @@
         {
           "id": "BA-022-T7",
           "assertion": "관측이 붙은 place는 폐기할 수 없다"
+        },
+        {
+          "id": "BA-022-T8",
+          "assertion": "catalog 게이트가 닫히면 searchPlaces 가 503 SOURCE_UNAVAILABLE 로 거절한다"
+        },
+        {
+          "id": "BA-022-T9",
+          "assertion": "catalog 게이트가 닫히면 실재하는 place 의 getPlace 도 503 SOURCE_UNAVAILABLE 로 거절한다"
         }
       ],
       "handoff": "V010은 canonical places/localizations/external refs와 reviewed asset license/media 경계를 만든 internal foundation이다. normalized KTO snapshot은 source registry revision 3을 같이 고정하며 동일 external ID는 하나의 active canonical POI로 수렴하고 missing category/area는 추측하지 않고 거부한다. PostgreSQL fixture에서 duplicate/invalid canonical target/source revision/partial coordinate/unapproved media가 차단되고, longitude required 조건을 제거한 좌표 쌍 mutation과 rights guard를 OR→AND로 약화한 mutation은 BA-022-T1/T3를 RED로 만든 뒤 복구했다. `searchPlaces`/`getPlace` local projection은 active coordinate-complete canonical rows, locale fallback, approved media, signed owner/filter cursor만 읽으며 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값으로 fail-closed다. CatalogPlaceApiIT, CatalogPublicationPropertiesTest, CatalogPlaceProjectionServiceTest가 cursor tamper/owner/filter/expiry, canary 비로그, approved media, disabled production, enabled-secret gate와 gate-before-read를 확인한다. C3 gate의 `!publicEnabled`→`false` mutation은 fail-closed test를 RED로 만든 뒤 복구했다. backend Gradle Java 305/145/13/19와 full Docker gate(Java·AI pytest 410·web unit 224·Playwright 36·generated client·npm audit·egress-denied)는 GREEN이다. C2 T3 staging actual-success→public provenance와 최종 AWS release 전에는 flag를 켜거나 외부 공개하지 않으며 BA-022는 완료가 아니다. 이후 FE에는 검색 loading/empty/404/coverage 부족·KO/EN fallback fixture와 canonical ID만 전달한다. **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`의 지역 코드 체계는 실호출로 확정됐다 — `areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리이며, `11`+`110`의 `totalCount 0`은 형식 오류가 아니라 `signguCd` 자릿수 문제였다(`11`+`11110`은 한 장소에 30건). `KtoForecastRequest.signguRequestCode()`가 그 값을 만들고 `KtoCrowdForecastGatewayIT`가 나간 요청의 두 코드를 단언한다. #109는 닫혔다. **2026-09-11 후속:** `V012`가 KTO_KOR_SERVICE_2를 revision 4(`kto-kor-service2-detailcommon2-v3`)로 올리고 validator가 `lclsSystm1`·`lDongRegnCd`·`lDongSignguCd`를 읽는다. retired 식별자만 담긴 응답은 remap하지 않고 SCHEMA_DRIFT로 quarantine한다(`KtoDetailResponseValidatorTest.rejectsLegacyOnlyIdentifiers`). 같은 PR에서 `PlaceSummary`/`PlaceDetail`에 additive로 `sourceAttribution`·`categoryName`·`regionName`을 제안했다. `sourceAttribution`은 place의 `place_external_refs`가 가리키는 검토된 revision에서 읽으며, source나 승인 문구가 없으면 부분 credit 대신 null이다(`CatalogPlaceApiIT.aPlaceWithoutAnExternalReferenceHasNoAttribution`, 변이로 RED 확인). `categoryName`/`regionName`은 검토된 코드→문구 매핑이 생길 때까지 null이며 `categoryCode`/`regionCode`는 표시용이 아닌 불투명 값으로 명시했다. FE 승인 전까지 이 shape를 동결하지 않는다(#34).",
@@ -810,6 +818,12 @@
           ],
           "BA-022-T7": [
             "BA-022-T7 a place that carries opening-hours evidence cannot be deprecated"
+          ],
+          "BA-022-T8": [
+            "BA-022-T8 searchPlaces answers 503 SOURCE_UNAVAILABLE while the catalog gate is closed"
+          ],
+          "BA-022-T9": [
+            "BA-022-T9 getPlace answers 503 SOURCE_UNAVAILABLE for a place that exists while the gate is closed"
           ]
         }
       }
@@ -3733,7 +3747,8 @@
         "목록 우선 area query와 선택 유지·area별 place·Live detail projection을 만든다",
         "searchPlaces→canonical 선택→getLivePlace coverage 흐름을 연결한다",
         "relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다",
-        "09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
+        "09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
+        "서울 관측은 API 작업의 5분 주기 원자적 claim으로 적재하고 장소 연결은 소유자가 해시를 승인한 매핑 계획으로 적재한다"
       ],
       "safety": "viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.",
       "tests": [
@@ -3796,6 +3811,50 @@
         {
           "id": "BA-091-T15",
           "assertion": "두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다"
+        },
+        {
+          "id": "BA-091-T16",
+          "assertion": "거절된 서울 관측은 수집 작업의 성공으로 보고되지 않는다"
+        },
+        {
+          "id": "BA-091-T17",
+          "assertion": "승인된 매핑은 계획이 지목한 활성 서울 구역에 연결된다"
+        },
+        {
+          "id": "BA-091-T18",
+          "assertion": "동일 매핑 계획을 재실행해도 연결 행은 하나다"
+        },
+        {
+          "id": "BA-091-T19",
+          "assertion": "오래된 승인 계획은 더 새로운 매핑 검토를 되돌리지 않는다"
+        },
+        {
+          "id": "BA-091-T20",
+          "assertion": "새 승인 계획은 이전 구역 연결을 원자적으로 교체한다"
+        },
+        {
+          "id": "BA-091-T21",
+          "assertion": "계획의 두 번째 매핑이 무효이면 첫 번째도 기록되지 않는다"
+        },
+        {
+          "id": "BA-091-T22",
+          "assertion": "뒤늦게 수신한 과거 관측은 더 새로운 관측을 가리지 않는다"
+        },
+        {
+          "id": "BA-091-T23",
+          "assertion": "이미 만료된 관측은 Live 수집 성공으로 보고되지 않는다"
+        },
+        {
+          "id": "BA-091-T24",
+          "assertion": "복수 API 작업이 같은 서울 구역을 동시에 수집하지 않는다"
+        },
+        {
+          "id": "BA-091-T25",
+          "assertion": "같은 승인 시각의 다른 매핑 판단은 기존 판단을 덮지 않는다"
+        },
+        {
+          "id": "BA-091-T26",
+          "assertion": "심사 종료 시각부터 서울 수집을 시도하지 않는다"
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",
@@ -3822,7 +3881,7 @@
       "designRequests": [],
       "entities": "replay_manifests · replay_manifest_entries · checksums · final evidence ledger",
       "steps": [
-        "승인 출처·scrub·capture window·checksum·entry order가 고정된 replay manifest를 검증한다",
+        "승인된 정규화 관측의 출처·capture window·checksum·entry order가 고정된 replay manifest를 검증한다",
         "LIVE/REPLAY/STALE/UNAVAILABLE 전환과 persistent badge를 FE에 연결한다",
         "BA-073 핵심 검수를 Live 포함 전체 P0로 재실행하고 같은 release의 PDF/API/실제 KTO 증거를 갱신한다",
         "09-06 PM 검토 PM-013, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
@@ -3852,6 +3911,34 @@
         {
           "id": "BA-092-T2",
           "assertion": "live↔replay 전환에서 데이터 namespace·label·comparison이 섞이지 않는다"
+        },
+        {
+          "id": "BA-092-T8",
+          "assertion": "최신 승인 manifest가 손상되면 과거 replay로 조용히 후퇴하지 않는다"
+        },
+        {
+          "id": "BA-092-T9",
+          "assertion": "오너 승인 계획에 적힌 정규화 관측만 manifest로 캡처한다"
+        },
+        {
+          "id": "BA-092-T10",
+          "assertion": "현재 승인이 철회된 출처의 replay는 제공하지 않는다"
+        },
+        {
+          "id": "BA-092-T11",
+          "assertion": "replay flag가 켜져도 승인 manifest 전에는 READY를 광고하지 않는다"
+        },
+        {
+          "id": "BA-092-T12",
+          "assertion": "비활성 구역의 관측은 capture 또는 replay할 수 없다"
+        },
+        {
+          "id": "BA-092-T13",
+          "assertion": "서울 표준 metric 또는 normalization과 다른 관측은 capture 또는 replay할 수 없다"
+        },
+        {
+          "id": "BA-092-T14",
+          "assertion": "구역 목록과 장소 상세는 전체 활성 구역의 현재 LIVE 여부를 같은 기준으로 판정한다"
         },
         {
           "id": "BA-092-T3",

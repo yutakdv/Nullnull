@@ -1,17 +1,18 @@
 package io.nullnull.operations.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.operations.application.DemoCapabilityQuery.CapabilityReport;
 import io.nullnull.operations.application.DemoCapabilityQuery.DemoReadinessReport;
 import io.nullnull.operations.application.ReadinessProbe.ProbeStatus;
 import io.nullnull.operations.application.ReadinessQuery.ReadinessState;
+import io.nullnull.crowd.application.ReplayManifestReader;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,7 +50,7 @@ class DemoCapabilityQueryTest {
     @Test
     @DisplayName("every capability is UNAVAILABLE with its flags at the default")
     void everyCapabilityIsUnavailableWithAnOperatorSafeDetail() {
-        DemoReadinessReport report = new DemoCapabilityQuery(false, false, false, CLOCK).readiness();
+        DemoReadinessReport report = query(false, false, false, false).readiness();
 
         assertThat(report.checkedAt()).isEqualTo(NOW);
         assertThat(report.overall()).isEqualTo(ReadinessState.NOT_READY);
@@ -66,12 +67,11 @@ class DemoCapabilityQueryTest {
     @DisplayName("an unavailable capability says WHICH of the two reasons it is unavailable for")
     void theDetailDistinguishesAnOffFlagFromAMissingSource() {
         List<CapabilityReport> capabilities =
-                new DemoCapabilityQuery(false, false, false, CLOCK).readiness().capabilities();
+                query(false, false, false, false).readiness().capabilities();
 
-        // Two states an operator must be able to tell apart: one they can change by setting a flag,
-        // one they cannot. Before BA-050 every capability reported the second, so the sentence was
-        // the same for all three and said nothing about any of them.
-        assertThat(detail(capabilities, "replay")).contains("no server-side source");
+        // With flags off, each detail names the controlling flag. Replay has a second, data-backed
+        // unavailable state when the flag is on but no manifest has been approved.
+        assertThat(detail(capabilities, "replay")).isEqualTo("FEATURE_REPLAY_MODE is OFF");
         assertThat(detail(capabilities, "optimization"))
                 .as("BA-050 built the run pipeline, so this one is off by decision, not by absence")
                 .doesNotContain("no server-side source")
@@ -88,7 +88,7 @@ class DemoCapabilityQueryTest {
     @Test
     @DisplayName("BA-050 optimization reports READY when its flag is on, and only that one may be")
     void theOptimizationFlagCanNowBeTurnedOn() {
-        DemoReadinessReport report = new DemoCapabilityQuery(false, false, true, CLOCK).readiness();
+        DemoReadinessReport report = query(false, false, true, false).readiness();
 
         assertThat(report.capabilities()).filteredOn(capability -> capability.name().equals("optimization"))
                 .singleElement()
@@ -104,26 +104,30 @@ class DemoCapabilityQueryTest {
     }
 
     @Test
-    @DisplayName("BA-003-T2 a FEATURE flag turned on with no source behind it fails startup")
-    void aFlagTurnedOnWithoutASourceIsRefused() {
-        // The combination is real: docs/operations/ENVIRONMENT.md §9 requires a LIVE feature that is ON
-        // to have its source registry, key and readiness present, and §6 makes this response the
-        // authority on what is enabled. Nothing backs replay, so ON is a lie for it in every
-        // environment - and a flag that could turn a capability ON without a source would be exactly
-        // the safety-invariant OFF switch the BA-003 card forbids.
-        assertThatThrownBy(() -> new DemoCapabilityQuery(false, true, false, CLOCK))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("FEATURE_REPLAY_MODE")
-                .hasMessageContaining("replay");
-        // optimization left this list at BA-050 and live left it at B10: each time, what answers the
-        // capability arrived, so the premise of the refusal - that nothing could - was gone for that
-        // one. THE REFUSAL IS NOT WEAKENED, and the two lines below are what say so rather than the
-        // sentence above: the one capability still without a source keeps it, and the two that have
-        // one are accepted. A shrinking list is only safe while it is measured from both sides.
-        assertThatCode(() -> new DemoCapabilityQuery(false, false, true, CLOCK))
-                .doesNotThrowAnyException();
-        assertThatCode(() -> new DemoCapabilityQuery(true, false, false, CLOCK))
-                .doesNotThrowAnyException();
+    @DisplayName("BA-092-T11 replay flag가 켜져도 승인 manifest 전에는 READY를 광고하지 않는다")
+    void replayReadinessRequiresAnApprovedManifest() {
+        CapabilityReport missing = query(false, true, false, false).readiness().capabilities().stream()
+                .filter(item -> item.name().equals("replay")).findFirst().orElseThrow();
+        CapabilityReport available = query(false, true, false, true).readiness().capabilities().stream()
+                .filter(item -> item.name().equals("replay")).findFirst().orElseThrow();
+
+        assertThat(missing.status()).isEqualTo(ProbeStatus.UNAVAILABLE);
+        assertThat(missing.detail()).contains("approved manifest");
+        assertThat(available.status()).isEqualTo(ProbeStatus.READY);
+    }
+
+    private static DemoCapabilityQuery query(boolean live, boolean replay, boolean optimization,
+            boolean manifestAvailable) {
+        ReplayManifestReader reader = new ReplayManifestReader() {
+            @Override
+            public Optional<ReplayBatch> read(UUID manifestId, Instant now) { return Optional.empty(); }
+            @Override
+            public Optional<ReplayBatch> latestFor(String sourceCode, Instant now) {
+                return manifestAvailable ? Optional.of(new ReplayBatch(UUID.randomUUID(), NOW, NOW, List.of()))
+                        : Optional.empty();
+            }
+        };
+        return new DemoCapabilityQuery(live, replay, optimization, reader, CLOCK);
     }
 
     @Test
