@@ -382,3 +382,97 @@ test.describe('FE-103 the new steps hold up at 360px', () => {
     expect(small, 'these controls are smaller than 44px').toEqual([]);
   });
 });
+
+test.describe('FE-102-T4 FR-TRC-10 recommendation preview', () => {
+  test('keyboard flow previews before create and keeps the 360px layout usable', async ({
+    page,
+  }) => {
+    // Break caught: NOTHING submitting /trips immediately, or a preview whose
+    // Pick control cannot be reached without a pointer. The request list is
+    // observed at the browser boundary; component tests own the full payload.
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      const pathname = new URL(request.url()).pathname;
+      if (pathname.endsWith('/trip-drafts/preview') || pathname.endsWith('/trips')) {
+        requests.push(pathname);
+      }
+    });
+
+    await openWizard(page);
+    await pickRange(page);
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: /Nothing yet/ }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    const heading = page.getByRole('heading', { name: "Here's a plan to start with" });
+    await expect(heading).toBeVisible();
+    await expect(heading).toBeFocused();
+    expect(requests.filter((path) => path.endsWith('/trip-drafts/preview'))).toHaveLength(
+      1,
+    );
+    expect(requests.filter((path) => path.endsWith('/trips'))).toHaveLength(0);
+
+    const pick = page.getByRole('button', { name: /^Mark .* must visit$/ }).first();
+    const [pinBox, cardBox, hoursBox] = await Promise.all([
+      pick.locator('svg').boundingBox(),
+      pick.locator('..').boundingBox(),
+      pick.locator('..').getByText('Hours verified', { exact: true }).boundingBox(),
+    ]);
+    expect
+      .soft(pinBox?.width, 'the must-visit pin is visually prominent')
+      .toBeGreaterThanOrEqual(24);
+    expect
+      .soft(pinBox?.height, 'the must-visit pin is visually prominent')
+      .toBeGreaterThanOrEqual(24);
+    expect(cardBox).not.toBeNull();
+    expect(hoursBox).not.toBeNull();
+    expect
+      .soft(
+        Math.abs(
+          (cardBox?.y ?? 0) +
+            (cardBox?.height ?? 0) / 2 -
+            ((hoursBox?.y ?? 0) + (hoursBox?.height ?? 0) / 2),
+        ),
+        'opening-hours status is vertically centered in its card',
+      )
+      .toBeLessThanOrEqual(1);
+
+    await pick.focus();
+    await expect(pick).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(pick).toHaveAttribute('aria-pressed', 'true');
+
+    const layout = await overflow(page);
+    expect(layout.spilling, `preview spills: ${layout.widest.join(', ')}`).toEqual([]);
+    expect(layout.clipped, 'preview clips its own text').toEqual([]);
+    expect(page.viewportSize()?.width).toBe(NARROW);
+
+    await page.getByRole('button', { name: 'Start with this plan' }).click();
+    await expect
+      .poll(() => requests.filter((path) => path.endsWith('/trips')).length)
+      .toBe(1);
+  });
+
+  test('FE-102-T3 Korean preview reflows at 200% zoom', async ({ page }) => {
+    await page.setViewportSize({ width: 180, height: 500 });
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    await page.goto('/start');
+    await expect(page.getByRole('heading', { name: '여행 일정 등록' })).toBeVisible();
+
+    await pickRange(page);
+    await page.getByRole('button', { name: '다음' }).click();
+    await page.getByRole('button', { name: /아직 하나도 없어요/ }).click();
+    await page.getByRole('button', { name: '다음' }).click();
+    await expect(page.getByRole('heading', { name: '이렇게 채워봤어요' })).toBeVisible();
+
+    const layout = await overflow(page);
+    const requested = page.viewportSize()?.width ?? 0;
+    expect(layout.documentWidth).toBeLessThanOrEqual(requested);
+    expect(layout.spilling, `200% preview spills: ${layout.widest.join(', ')}`).toEqual(
+      [],
+    );
+    expect(layout.clipped, '200% preview clips its own text').toEqual([]);
+  });
+});

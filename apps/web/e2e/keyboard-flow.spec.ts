@@ -620,9 +620,9 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     );
     await expect(heading).toHaveText(/planned already/i);
 
-    // Step 3 → creation. "Nothing yet" is the branch that needs no further
-    // input, so it is the shortest honest path through the wizard; picking it
-    // does not advance on its own, Next does.
+    // Step 3 → deterministic preview. "Nothing yet" needs no more user input,
+    // but it must not create a trip before the unsaved recommendation is
+    // shown and explicitly confirmed.
     expect(
       await pressButton('Nothing yet'),
       'step 3 should offer its planning levels to a keyboard',
@@ -630,6 +630,12 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     expect(
       await pressButton('Next'),
       'step 3 should offer Next once a level is picked',
+    ).toBe(true);
+
+    await expect(heading).toHaveText(/plan to start with/i);
+    expect(
+      await pressButton('Start with this plan'),
+      'the recommendation preview should be confirmable by keyboard',
     ).toBe(true);
 
     // Arrived: the wizard handed off to a trip of its own making.

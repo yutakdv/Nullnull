@@ -29,10 +29,11 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 //
 // This is step 4 of the wizard, not a screen of its own. Step 3 asks how much
 // the traveller has already planned (`438:3134`) and its three answers are the
-// branch: NOTHING creates the trip straight away, MUST_VISIT_ONLY comes here,
-// MOSTLY_PLANNED goes to the S02-4C input-method choice. The Figma copy carries
-// that thread — step 3's second card reads "그 장소는 지키고 나머지를 채워드릴게요"
-// and this screen opens with the same promise.
+// branch: NOTHING opens the deterministic recommendation preview,
+// MUST_VISIT_ONLY comes here, and MOSTLY_PLANNED goes to the S02-4C
+// input-method choice. The Figma copy carries that thread — step 3's second
+// card reads "그 장소는 지키고 나머지를 채워드릴게요" and this screen opens
+// with the same promise.
 //
 // It used to live at its own route, which nothing linked to, so it was
 // reachable only by typing the URL and the picks it collected went nowhere.

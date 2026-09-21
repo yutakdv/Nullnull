@@ -108,8 +108,8 @@ async function renderStep4() {
   // Step 2 asks for interests and the contract permits none.
   await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
 
-  // Step 3: the answer that leads here. NOTHING would create the trip and
-  // MOSTLY_PLANNED would go to the paste screen.
+  // Step 3: the answer that leads here. NOTHING opens the recommendation
+  // preview and MOSTLY_PLANNED goes to the input-method screen.
   await user.click(
     await screen.findByRole('button', {
       name: new RegExp(copy['wizard.planning.MUST_VISIT_ONLY.title']),

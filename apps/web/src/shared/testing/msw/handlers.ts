@@ -26,8 +26,36 @@ import livePlaceDetail from '../../../../../../packages/contracts/fixtures/live/
 type PostDetail = components['schemas']['PostDetail'];
 type Problem = components['schemas']['Problem'];
 type CreateTripRequest = components['schemas']['CreateTripRequest'];
+type PreviewTripDraftRequest = components['schemas']['PreviewTripDraftRequest'];
+type TripDraftPreview = components['schemas']['TripDraftPreview'];
 type TripConstraint = components['schemas']['TripConstraint'];
 type TripDetail = components['schemas']['TripDetail'];
+
+function inclusiveDates(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+function tripDraftForRange(
+  fixture: TripDraftPreview,
+  { startDate, endDate }: PreviewTripDraftRequest,
+): TripDraftPreview {
+  return {
+    ...fixture,
+    days: inclusiveDates(startDate, endDate).map((date, index) => ({
+      date,
+      stops: (fixture.days[index]?.stops ?? []).map((stop) => ({ ...stop, date })),
+    })),
+  };
+}
 
 /**
  * The dev proxy and the deployed app both serve the API under /api/v1.
@@ -1122,9 +1150,11 @@ export const handlers = [
   // fixtures cover the SAME two dates (2026-10-04/05), so no start date or
   // range tells them apart. Keying off the body would have meant a selector
   // that silently always returns `ready`.
-  http.post(`${API_BASE}/trip-drafts/preview`, ({ request }) => {
+  http.post(`${API_BASE}/trip-drafts/preview`, async ({ request }) => {
     const empty = new URL(request.url).searchParams.get('mock') === 'empty';
-    return HttpResponse.json(empty ? tripDraftFixtures.empty : tripDraftFixtures.ready, {
+    const range = (await request.json()) as PreviewTripDraftRequest;
+    const fixture = empty ? tripDraftFixtures.empty : tripDraftFixtures.ready;
+    return HttpResponse.json(tripDraftForRange(fixture, range), {
       headers: { 'Cache-Control': 'private, no-store' },
     });
   }),
