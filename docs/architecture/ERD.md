@@ -284,8 +284,6 @@ erDiagram
     OPTIMIZATION_DECISIONS |o--o| OPTIMIZATION_DECISIONS : reverted_by
     OPTIMIZATION_RUNS ||--o{ OPTIMIZATION_RUN_SNAPSHOT_SETS : freezes
     SNAPSHOT_SETS ||--o{ OPTIMIZATION_RUN_SNAPSHOT_SETS : used_by
-    OPTIMIZATION_RUNS ||--o{ OPTIMIZATION_RUN_ROUTE_SNAPSHOTS : routes_with
-    ROUTE_MATRIX_SNAPSHOTS ||--o{ OPTIMIZATION_RUN_ROUTE_SNAPSHOTS : used_by
     OPTIMIZATION_PROPOSALS ||--o{ CROWD_COMPARISONS : supports
 
     OPTIMIZATION_RUNS {
@@ -312,13 +310,6 @@ erDiagram
       uuid run_id PK,FK
       uuid snapshot_set_id PK,FK
       string purpose PK "BEFORE|AFTER|CANDIDATE"
-      int sequence
-    }
-
-    OPTIMIZATION_RUN_ROUTE_SNAPSHOTS {
-      uuid run_id PK,FK
-      uuid route_snapshot_id PK,FK
-      string purpose PK "BASELINE|PROPOSAL"
       int sequence
     }
 
@@ -372,18 +363,6 @@ erDiagram
       decimal after_value
       decimal delta
       timestamptz created_at
-    }
-
-    ROUTE_MATRIX_SNAPSHOTS {
-      uuid id PK
-      string provider
-      string mode
-      string matrix_hash
-      jsonb request_points
-      jsonb durations
-      jsonb distances
-      timestamptz observed_at
-      timestamptz expires_at
     }
 ```
 
@@ -790,7 +769,8 @@ erDiagram
 - APPLY는 before/after revision을 모두 기록하고 24시간 `revert_until`을 둔다. KEEP은 version/revision을 만들지 않는다. REVERT는 APPLY가 기록한 변경(`optimization_changes`의 before 값)을 되돌리고 그 결과를 새 trip revision으로 남기며 현재 trip version이 APPLY 결과와 다르면 거부한다.
 - 이 줄은 원래 *"immutable before snapshot을 새 trip revision으로 복원한다"* 였고, 그대로 구현하면 사용자 내용을 지운다. `trip_revisions.aggregate_snapshot`의 item은 `id`·`placeId`·`date`·`position`·`startTime`·`constraints[type]`만 담고 (`TripService.canonicalItems`, 실제 저장 행으로 확인) `V014`의 `duration_minutes`·`note`를 담지 않는다. snapshot은 저장되고 해시되지만 **되읽히지 않는다** — `aggregate_snapshot`을 읽는 코드가 0이고 `snapshot_hash`도 INSERT 열 목록에만 나온다. 그 필드 집합이 왜 그것인지는 **기록돼 있지 않다.** snapshot을 넓히는 것이 대안처럼 보이지만 그것은 `snapshot_schema_version`으로 고정된 저장 형태라 넓히면 version을 올려야 하고 **이미 기록된 revision은 좁은 형태 그대로 남으므로 과거 APPLY는 여전히 복원 불가다.** 반면 `optimization_changes`의 before 값은 APPLY가 바꾼 열만 담으므로 손대지 않은 열은 애초에 쓰이지 않는다 — 그래서 무손실이다.
 - `optimization_changes`: ADD는 `before_value IS NULL AND after_value IS NOT NULL`, REMOVE는 반대, MOVE/REORDER/REPLACE는 둘 다 필수다.
-- run은 하나 이상의 `optimization_run_snapshot_sets` row로 실제 사용한 BEFORE/AFTER/CANDIDATE snapshot을 모두 고정한다. route matrix도 junction으로 고정하며 run row의 단일 snapshot FK로 축약하지 않는다.
+- run은 하나 이상의 `optimization_run_snapshot_sets` row로 실제 사용한 BEFORE/AFTER/CANDIDATE snapshot을 모두 고정한다. **경로는 고정할 것이 없다** — `A-055`가 카카오 경로 응답의 저장을 금지하므로 route snapshot table도 그 junction도 만들지 않는다. 이 줄의 앞선 판은 *route matrix도 junction으로 고정한다*를 요구했고, 그 요구를 만족시키는 유일한 구현이 금지된 캐시였다.
+- 경로 응답과 그 피연산자는 **저장하지 않는다**(`A-055`). `route_matrix_snapshots`도 `optimization_run_route_snapshots`도 없다 — 앞선 판은 두 table을 **열까지** 설계하고 있었고(`durations`·`distances` jsonb 와 `expires_at`), 그것은 카카오 운영정책 제5조 제20항이 명명한 *캐시하고 최신으로 유지하는 것* 을 그대로 적은 것이다. 남는 것은 `optimization_proposals.travel_minutes_delta` 하나이며, provider가 발행한 값이 아니라 우리 일정에 대한 비교값이다(`A-063`). 그 결정이 허용하는 것은 **비교값이고 피연산자가 아니며**, 허용의 근거는 그 값이 구조적으로 감사 불가능하다는 것이다 — provenance 없이 나가고 되돌릴 피연산자가 없으므로 provider 데이터의 캐시가 아니다. **그래서 피연산자를 복원할 수 있는 열을 더하지 않는다** — `baseline_travel_minutes`·구간별 duration·distance·geometry, 그리고 조합으로 복원되는 것까지다. **`crowd_delta`와 대칭이 아닌 것을 같이 적는다**: crowd 쪽은 `before_snapshot_id`·`after_snapshot_id`가 불변 피연산자를 가리키고 `OptimizationProposalReader`가 그 point가 사라지면 제안을 **보여주기를 거부**하는데, route delta에는 가리킬 쌍이 없고 만들 수도 없다. 그래서 그 값은 provenance 없이 나가며 저장된 근거처럼 비교하거나 인용하지 않는다.
 - S14 P0 이력은 기존 run/decision의 상태·시각·trip 연결만 조회한다. 이력 화면을 위해 일정/proposal snapshot을 복제하거나 보존 기간을 늘리는 별도 table을 만들지 않는다.
 - `crowd_comparisons`는 before/after snapshot pair 자체를 저장한다. `eligible=false`이면 `delta IS NULL`; true이면 두 snapshot의 metric/source/scope/issue 조건을 정책이 재검증한다.
 - apply 시 `expected_trip_version == trips.version`, `expires_at > now()`, data fingerprint 유효를 모두 검증한다.

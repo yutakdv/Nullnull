@@ -1608,6 +1608,38 @@ export interface components {
              */
             ordinalLevel?: string | null;
             /**
+             * @description Which cells of the scale the source that produced `ordinalLevel` actually publishes.
+             *     Null for every source with no reviewed mapping, which is the same set that serves a null
+             *     `ordinalLevel` with `SCHEMA_DRIFT` - a scale for a source nobody reviewed would be invented.
+             *
+             *     It exists because `ordinalLevel` alone cannot be rendered honestly. A reader that meets a
+             *     "3" cannot tell whether its source publishes three steps or five, so a fixed "Nth of five"
+             *     is wrong for any source that fills part of the scale - and today the only source that has a
+             *     scale at all fills four of five cells. Read `size` for what the bar has room for and
+             *     `publishedCells` for what this source can put in it; they are different numbers and the
+             *     difference is the point.
+             *
+             *     It carries no words. The step names are the provider's own language and would travel with
+             *     no `textProvenance`, so the wording stays Frontend's, as `ordinalLevel` already says.
+             *     It also says nothing about comparability - `provenance.comparisonEligible` and
+             *     `provenance.comparisonAxis` own that, and two readings on the same scale are still not
+             *     comparable across areas (invariant 8).
+             */
+            ordinalScale?: {
+                /**
+                 * @description How many cells the product scale has - what a bar has room for. Not the number of steps
+                 *     this source publishes; that is `publishedCells.length`.
+                 */
+                size: number;
+                /**
+                 * @description The cells this source can produce, ascending. A strict subset when the source fills part
+                 *     of the scale: `SEOUL_CITYDATA` publishes `["1","2","3","4"]` and never "5" (A-060),
+                 *     because its top step is "over 100% with no ceiling" and naming that the maximum of this
+                 *     scale would assert something the provider never said.
+                 */
+                publishedCells: string[];
+            } | null;
+            /**
              * @description Server-side name of the metric, in the source's own language. It is diagnostic, not display
              *     copy: it is not localized and it is not the approved attribution. Build user-facing wording
              *     from `state` and `provenance.metricDefinition`, and display `provenance.attribution` verbatim
@@ -2105,7 +2137,7 @@ export interface components {
             /** Format: uuid */
             candidateId: string;
             /** @enum {string} */
-            state: "EXACT" | "SIMILAR" | "NONE" | "CHECKING" | "UNKNOWN";
+            state: "EXACT" | "SIMILAR" | "NONE" | "CHECKING" | "UNKNOWN" | "NOT_ACTIVE";
             slots: {
                 /** Format: date */
                 date: string;

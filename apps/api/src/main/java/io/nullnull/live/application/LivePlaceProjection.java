@@ -73,7 +73,7 @@ public class LivePlaceProjection {
                 source.collectorRunId(), source.snapshotSetId(), source.observedAtSkewSeconds(),
                 source.scope(), source.scopeLabel(),
                 coverage.mappingType(), coverage.fallbackUsed(), source.provenanceId());
-        return new CrowdMetric(areaReading.state(), areaReading.value(), areaReading.unit(),
+        return CrowdMetric.of(areaReading.state(), areaReading.value(), areaReading.unit(),
                 areaReading.ordinalLevel(), areaReading.label(), attached);
     }
 }

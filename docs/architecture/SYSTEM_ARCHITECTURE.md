@@ -81,7 +81,7 @@ scripts/                    계약 생성·검증·로컬 bootstrap
 | `social` | post, saved post, feed/feedback, P1 notification | `posts`, `post_places`, `saved_posts`, `feed_feedback`, `notifications` |
 | `trip` | 여행, 관심사, 후보, 일정, 제약, revision | `trips`, `trip_*` |
 | `recommendation` | `apps/ai` gateway port·DTO·응답 재검증·fallback. 계산을 중복 구현하지 않는다(ADR-0006) | 없음 — 재검증한 결과는 호출한 module의 table에 저장된다 |
-| `optimization` | run, proposal, decision, revert | `optimization_*`, `route_matrix_snapshots` |
+| `optimization` | run, proposal, decision, revert | `optimization_*` |
 | `crowd` | live/forecast/replay snapshot와 비교 가능성 | `crowd_snapshots`, `source_registry`, `snapshot_sets` |
 | `live` | Live area mapping, coverage, P1 nearby projection | `live_areas` |
 | `importer` | 일정 원문의 일시적 parsing, draft | `itinerary_import_drafts`(구조화 값만) |

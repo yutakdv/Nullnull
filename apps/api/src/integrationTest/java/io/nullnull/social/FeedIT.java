@@ -45,6 +45,7 @@ class FeedIT {
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired io.nullnull.social.application.PostWithdrawalService withdrawals;
 
     /**
      * The feed is GLOBAL, unlike a trip listing: every owner sees the same posts in the same order,
@@ -194,11 +195,11 @@ class FeedIT {
      * plausible change, and on that day the schema stops carrying this and the query's filter is
      * alone. This is the test that would notice.
      *
-     * <p><strong>Hiding is the only producer that exists.</strong> The clause says "삭제/권리 철회"
-     * and the contract has an operation for neither - createPost, getPost, savePost and unsavePost
-     * are all of it, and nothing moves a post to HIDDEN through the API. A curator does it in the
-     * database. So this measures the read side against the only writer there is; the write side is
-     * not implemented and the card should not read as though it were.
+     * <p><strong>The withdrawal is the production writer's.</strong> Until BA-082-T16 this test typed
+     * the UPDATE itself, because nothing in the product moved a post to HIDDEN - the contract has no
+     * operation for it and still does not. The {@code withdraw-post} operator task is that writer now,
+     * so the read side here is measured against the row the tool actually leaves, not against a copy
+     * of its statement that could drift from it. PostWithdrawalIT measures the writer itself.
      */
     @Test
     @DisplayName("BA-082-T3 a post taken back after a cursor was issued is not served by that cursor")
@@ -222,8 +223,9 @@ class FeedIT {
         org.assertj.core.api.Assertions.assertThat(cursor)
                 .as("the reader is holding a cursor").isNotEqualTo(firstPage);
 
-        // Taken back the way a curator takes one back, which is the only writer there is.
-        jdbc.update("UPDATE posts SET status = 'HIDDEN', published_at = NULL WHERE id = ?", taken);
+        // Taken back the way the operator task takes one back.
+        assertThat(withdrawals.withdraw(taken))
+                .isEqualTo(io.nullnull.social.application.PostWithdrawalService.Withdrawal.WITHDRAWN);
 
         String resumed = mvc.perform(get("/api/v1/feed").param("limit", "2").param("cursor", cursor)
                         .cookie(cookie(reader)))

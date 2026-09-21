@@ -1,6 +1,7 @@
 package io.nullnull.social.infrastructure.persistence;
 
 import io.nullnull.social.application.FeedStore;
+import io.nullnull.social.application.PostLockTimeoutException;
 import io.nullnull.social.application.SavedPostState;
 import io.nullnull.social.domain.FeedFeedbackAction;
 import io.nullnull.social.domain.Post;
@@ -250,6 +251,53 @@ public class JdbcFeedStore implements FeedStore {
                 """)
                 .params(Timestamp.from(publishedAt), Timestamp.from(now), postId)
                 .update();
+    }
+
+    @Override
+    public int withdrawIfPublished(UUID postId, Instant now) {
+        // The condition is the decision, not a repeat of one made elsewhere: PostgreSQL re-checks it
+        // on the row it locks, so of two withdrawals that reach the same post at once, the second
+        // finds it HIDDEN and changes nothing.
+        try {
+            return jdbc.sql("""
+                    UPDATE posts SET status = 'HIDDEN', published_at = NULL, updated_at = ?
+                     WHERE id = ? AND status = 'PUBLISHED'
+                    """)
+                    .params(Timestamp.from(now), postId)
+                    .update();
+        } catch (RuntimeException failure) {
+            // The caller bounds the wait (LockWaitLimit); this names its expiry, which the driver
+            // reports as an uncategorised SQL error - the identity and operations modules translate
+            // the same SQLState for the same reason.
+            if (isLockTimeout(failure)) {
+                throw new PostLockTimeoutException("Timed out waiting for the post's row lock.", failure);
+            }
+            throw failure;
+        }
+    }
+
+    /** PostgreSQL {@code lock_not_available}: raised when the {@code lock_timeout} bound expires. */
+    private static final String LOCK_NOT_AVAILABLE = "55P03";
+
+    private static boolean isLockTimeout(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && LOCK_NOT_AVAILABLE.equals(sql.getSQLState())) {
+                return true;
+            }
+            if (cause.getCause() == cause) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public Optional<PostStatus> postStatus(UUID postId) {
+        return jdbc.sql("SELECT status FROM posts WHERE id = ?")
+                .param(postId)
+                .query(String.class)
+                .optional()
+                .map(PostStatus::of);
     }
 
     @Override

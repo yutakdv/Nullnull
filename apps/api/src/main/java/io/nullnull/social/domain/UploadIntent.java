@@ -9,8 +9,9 @@ import java.util.UUID;
  *
  * <p>WHY THIS EXISTS AT ALL. createPost is handed an id, never a path. A caller who cannot name a
  * storage key cannot walk one - not into another visitor's prefix, not into the published location,
- * not into the app bundle the same bucket serves. BA-082-T1's "타 owner presign 재사용" and "경로
- * 조작" are both refused by the same fact: the key is ours and the id only resolves for its owner.
+ * not into the app bundle the same bucket serves. BA-082-T1 (another owner's ticket cannot be
+ * consumed) and BA-082-T14 (the key is built only from the owner and an id the caller never chose)
+ * rest on the same fact: the key is ours and the id only resolves for its owner.
  *
  * <p>There is no EXPIRED state. Nothing would write it - the card ships no sweeping job (the
  * connection budget is held at two job types) - and a state no code can produce is a guard that can

@@ -570,6 +570,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-020-T1`: ProviderKitTest·CollectorRunRecorderTest·SourceRegistryIT가 429/timeout/circuit·schema/enum/range drift·incident·immutable revision hash·host/config fail-close를 합성 provider와 PostgreSQL로 검증한다
 - `BA-020-T2`: SourceRegistryIT가 KST 일일 quota의 60/80/90% 경보·100% 초과 거부 및 다른 source collector run 재사용 거부를 실제 PostgreSQL에서 검증한다
 - `BA-020-T3`: SourceRegistryIT.slowProviderDoesNotBlockApiRequests가 네 개의 지연 provider call 중에도 readiness와 owner /me 요청이 즉시 처리되는지를 검증한다
+- `BA-020-T4`: 격리된 최신 run 은 검토 기록이 없으면 source 를 계속 막는다
+- `BA-020-T5`: 그 run 이후에 검토된 RESOLVED incident 가 있으면 격리가 풀린다
+- `BA-020-T6`: 그 run 이전에 검토된 기록은 격리를 풀지 않는다
+- `BA-020-T7`: operator 해제 도구가 쓴 검토를 conditionAt 이 인정한다
+- `BA-020-T8`: operator 해제 도구는 격리되지 않은 source 를 거절하고 아무것도 쓰지 않는다
 
 구현·검증 증거:
 
@@ -660,6 +665,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-022-T7`: 관측이 붙은 place는 폐기할 수 없다
 - `BA-022-T8`: catalog 게이트가 닫히면 searchPlaces 가 503 SOURCE_UNAVAILABLE 로 거절한다
 - `BA-022-T9`: catalog 게이트가 닫히면 실재하는 place 의 getPlace 도 503 SOURCE_UNAVAILABLE 로 거절한다
+- `BA-022-T10`: 한 regionCode 로 발급된 cursor 는 다른 regionCode 에서 거절된다
+- `BA-022-T11`: 한 locale 로 발급된 cursor 는 다른 locale 에서 거절된다
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -799,6 +806,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-023-T21`: 계약이 공개한 unavailableReason token 목록과 서버가 보낼 수 있는 사유 집합이 같다 — `CrowdVocabularyContractTest.unavailableReasonTokensMatchTheServer`
 - `BA-023-T22`: 계약의 ordinalLevel pattern이 받는 값과 서버의 5단계 척도가 같다 — `CrowdVocabularyContractTest.ordinalLevelPatternMatchesTheServersScale`
 - `BA-023-T23`: 검토된 척도 매핑이 없는 source의 저장된 단계는 단계로 나가지 않고 SCHEMA_DRIFT로 표시된다 — `CrowdForecastApiIT.aStageOffTheScaleIsNotServedAsOne`
+- `BA-023-T24`: scale descriptor 는 검토된 mapping 이 있는 source 에만, 정확히 그 source 들에만 나간다
+- `BA-023-T25`: 각 descriptor 의 publishedCells 는 그 source 의 검토된 mapping 이 배정한 칸과 정확히 같다
+- `BA-023-T26`: descriptor 의 size 는 source 의 단계 수가 아니라 제품 척도의 칸 수다
+- `BA-023-T27`: 계약의 publishedCells 어휘는 서버 척도를 정확히 받아들인다
+- `BA-023-T28`: 승인된 SEOUL example 의 ordinalScale 은 서버가 SEOUL_CITYDATA 에 대해 내는 척도와 같다
 
 구현 결과:
 
@@ -1525,9 +1537,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-042-T4`: 요청은 여행의 timezone과 여행의 날짜 범위를 그대로 싣는다
 - `BA-042-T5`: 영업 근거가 없으면 eligible을 참으로 만들지 않고 그 사유를 낸다
 - `BA-042-T6`: 평가기가 낸 사유 코드를 Spring이 뭉개지 않고 그대로 낸다
-- `BA-042-T7`: state 다섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 소유 카드로 등록돼 있다
+- `BA-042-T7`: state 여섯 값 각각이 생산 가능하거나, 불가능함이 보이거나, 이 서버가 답하는 것으로 등록돼 있다
 - `BA-042-T8`: replace는 MUST_VISIT과 RESERVATION을 releaseConstraints에 이름 대야 진행한다
 - `BA-042-T9`: stale If-Match는 replace를 거부한다
+- `BA-042-T10`: 예약으로 넘어간 후보의 slot 조회는 200 NOT_ACTIVE 로 답한다
+- `BA-042-T11`: NOT_ACTIVE 답은 apps/ai 를 부르지 않고 만든다
 
 FE 인계·완료 증거: comparison eligible/ineligible·EXACT/SIMILAR/NONE/CHECKING/UNKNOWN·교체 성공/실패 fixture. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2046,7 +2060,9 @@ P1/P2 중 이번 범위에 명시적으로 선정한 작업만 실행한다. 미
 
 ### BA-080
 
-**독립 검색·feed filter와 정렬 확장** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**독립 검색·feed filter와 정렬 확장** — P1 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정으로 이번 범위에서 뺀다. 1단계가 검색 지표·사용자 요구로 filter를 고르는 것인데 그 근거가 없고 새 계약은 FE·Figma 승인이 필요하다. 안전 기본값: 새 filter·sort API와 UI를 만들지 않고 P0 feed 순서를 그대로 버전 관리한다.
 
 - 선행: [BA-032](#ba-032), [BA-033](#ba-033), [BA-073](#ba-073)
 - 기능 ID: `FR-FED-05`, `FR-SRC-01`
@@ -2072,7 +2088,9 @@ FE 인계·완료 증거: 새 계약 승인 후 생성 client·필터 examples·
 
 ### BA-081
 
-**계정 인증·익명 승계·follow graph** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**계정 인증·익명 승계·follow graph** — P1 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0 로그인 CTA는 준비 중으로 남는다.
 
 - 선행: [BA-010](#ba-010), [BA-012](#ba-012), [BA-031](#ba-031), [BA-033](#ba-033), [BA-073](#ba-073)
 - 기능 ID: `FR-AUT-01`, `FR-FOL-01`
@@ -2098,9 +2116,9 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 
 ### BA-082
 
-**게시물·미디어 업로드·moderation** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**게시물·미디어 업로드·moderation** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-081](#ba-081), [BA-022](#ba-022), [BA-071](#ba-071)
+- 선행: [BA-022](#ba-022), [BA-071](#ba-071)
 - 기능 ID: `FR-PUB-01`
 - API: `createPostImageUpload`, `createPost`
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2112,7 +2130,19 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 2. 격리 업로드→자동 기술 검증→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
 3. MIME/magic bytes·악성 파일·EXIF(A-057의 표준 파일 입력으로 들어온 촬영 파일이 GPS를 싣는 것이 전제다)·권리·신고/삭제 전파를 검증한다
 
-진행 상태(대조): **회수·철회의 쓰기 쪽이 아직 없다.** 계약의 post operation 은 `createPost`·`createPostImageUpload`·`getPost`·`savePost`·`unsavePost` 다섯뿐이고 **삭제·숨김·철회 operation 이 없다**. `PostStatus.HIDDEN` 은 값과 주석으로만 존재하고 그리로 옮기는 production 경로가 없다 — 지금 그 전이를 하는 것은 운영자가 DB 에서 하는 것이다. 그래서 `T3` 는 **읽기 쪽으로 좁혔고**(이미 발급된 cursor 가 회수된 post 를 건네지 않는다) 쓰기 쪽은 `T16` 으로 떼어 **증명되지 않은 채** 둔다. 절을 원래 문구로 두면 `integration-ready` 승격이 *"삭제·권리 철회가 구현돼 있고 반영된다"* 를 주장하게 된다.
+진행 상태(대조): **회수의 쓰기 쪽이 생겼다(`BA-082-T16`).** 공개 API가 아니라 운영자 one-time task `withdraw-post`(`PostWithdrawMain` → `PostWithdrawalService`)다. 계약의 post operation은 여전히 다섯뿐이다(`createPost`·`createPostImageUpload`·`getPost`·`savePost`·`unsavePost`).
+
+- 조건부 UPDATE 한 문장이 `PUBLISHED` → `HIDDEN`으로 바꾸고 `published_at`을 비운다.
+- 결과(`WITHDRAWN`)는 그 문장이 바꾼 행 수에서만 나온다. 그래서 동시에 들어온 회수 두 건은 `WITHDRAWN` 하나와 `ALREADY_HIDDEN` 하나로 갈린다(`T19`).
+- 잠금 대기의 상한은 설정 `nullnull.posts.withdrawal-lock-timeout`(PT3S)이고, 만료되면 `PostLockTimeoutException`으로 실패한다(`T20`). 초안(`T21`)과 없는 id(`T22`)는 거절한다.
+- `T3`은 이제 손으로 쓴 SQL이 아니라 이 writer가 만든 회수를 읽는다.
+- `T19`의 판정은 기계 속도에 기대지 않는다. 두 회수가 모두 잡힌 행에서 대기하는 것을 본 뒤에 풀고, 그 class만 잠금 상한을 모든 대기보다 길게(PT2M) 둔다.
+- **test가 없는 분기가 하나 있다**: 0행이 바뀐 뒤 읽은 상태가 `PUBLISHED`인 경우, 즉 게시가 두 문장 사이에 commit된 경우다. 이 분기는 실패하고 다시 돌리라고 말한다.
+- `T20`·`T21`의 *"아무것도 쓰지 않는다"* 는 test 본문의 단언이지 절이 아니다 — 따로 떼면 발화시킬 변이가 없다(store 조건과 rollback이 이미 막는다).
+
+승인은 `NULLNULL_POST_WITHDRAW_APPROVED`와 `--owner-approval`이다. **승인 기록은 operator 출력의 `owner_approval=` 한 줄에만 남는다** — CloudTrail의 RunTask overrides에는 post id와 승인 변수 `true`만 들어가고 DB에는 audit 행이 없다(migration 없음). 승인은 post id에 묶이지 않는다.
+
+**실패·안전 경계의 약속 중 남은 것([#338](https://github.com/yutakdv/Nullnull/issues/338)).** 회수는 API가 내는 모든 페이지에서 게시물을 내리지만, *권리 철회*에서는 **표지 이미지가 계속 서빙된다**: 업로드 표지(`covers/user/…`)를 지우는 port가 없고, API·ops task role과 operator role 어디에도 그 prefix의 객체 삭제 권한이 없고, web bucket이 versioned라 지워도 이전 버전이 남고, 객체가 `max-age=31536000, immutable`로 나가 브라우저 캐시와 web app service worker의 cache-first 캐시(같은 origin, 측정 안 함)가 이미 받은 사본을 쥔다. operator는 성공할 때마다 `post_withdraw_residual=cover-object-not-deleted`를 찍는다. 이름만 적는 잔여(측정 안 함): web app의 메모리 query cache는 다음 refetch 전까지 이미 받은 페이지를 보인다; **회수 뒤에도 새 후보가 그 게시물 id를 출처로 인용할 수 있다**(`addTripCandidate`가 게시물 상태를 보지 않고 DRAFT도 받으며, 기존 후보의 `sources[].postId`로도 id가 나간다 — 나가는 것은 id뿐이고 존재 오라클일 가능성이 있다); savePost의 404가 계약에 선언돼 있지 않다. `T15`는 순차 호출만 재고 동시 호출은 재지 않는다.
 
 실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다. 게시물 작성은 제출 범위이므로 capability OFF 목록에 두지 않는다(A-058).
 
@@ -2136,6 +2166,10 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 - `BA-082-T16`: 회수된 게시물은 published_at 이 비워진 채 PUBLISHED 를 벗어난다
 - `BA-082-T17`: /posts·/feed 경로의 operation 은 계약이 선언한 Cache-Control 을 실제 응답으로도 보낸다
 - `BA-082-T18`: social module 은 feed 순위 gateway 를 이름으로 부르지 않는다
+- `BA-082-T19`: 같은 게시물에 동시에 들어온 회수 두 건 중 WITHDRAWN 은 하나뿐이다
+- `BA-082-T20`: 상한 안에 잠금을 얻지 못한 회수는 기다리지 않고 실패한다
+- `BA-082-T21`: 게시되지 않은(DRAFT) 게시물의 회수는 거절된다
+- `BA-082-T22`: 없는 게시물의 회수는 거절된다
 
 FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2143,7 +2177,7 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 
 **경로 provider·DAY/TRIP 최적화** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-051](#ba-051), [BA-052](#ba-052), [BA-073](#ba-073)
+- 선행: [BA-051](#ba-051), [BA-052](#ba-052)
 - 기능 ID: `FR-OPT-02`, `FR-RTE-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `439:3104`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2196,16 +2230,20 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - `BA-083-T38`: leg 이 불명인 하루는 개선 없음이 아니라 비교 불가로 거절한다
 - `BA-083-T39`: 기록되는 분보다 짧은 절약도 개선이다 — 판정은 반올림 전 durations 로 한다
 - `BA-083-T40`: 기록되는 분은 0 쪽으로 버린다
-- `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
-- `BA-083-T3`: preview/apply/route stale race와 정책 rollback을 검증한다
+- `BA-083-T41`: optimization_proposals 는 선언된 열만 갖는다 — 경로 응답의 피연산자를 담는 열이 delta 옆에 생길 수 없다
+- `BA-083-T42`: preview 가 판정한 경로 근거가 APPLY 시점에 없으면 APPLY 는 거부하고 일정을 바꾸지 않는다
+- `BA-083-T43`: 경로 proposal의 summary는 travel delta 수치를 싣지 않는다
+- `BA-083-T44`: DAY·TRIP 요청은 그 scope의 capability가 꺼져 있으면 거절된다
+- `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없이 받는다 — 다른 scope의 target을 실은 요청은 거절된다
+- `BA-083-T3`: preview 를 판정한 scope 정책이 바뀐 뒤의 APPLY 는 거부된다
 
 FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union examples와 provider attribution. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ### BA-084
 
-**선호 해석·AI draft 보조·근거 설명** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**선호 해석·AI draft 보조·근거 설명** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-051](#ba-051), [BA-060](#ba-060), [BA-073](#ba-073)
+- 선행: [BA-051](#ba-051), [BA-060](#ba-060)
 - 기능 ID: `FR-TRC-11`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: `440:3244`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2218,6 +2256,8 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 3. hallucination/prompt injection corpus·KO/EN 검증·template fallback·kill switch를 구현한다
 
 실패·안전 경계: 원문 일정/정밀 위치/secret·DB mutation/APPLY tool을 모델에 주지 않는다. structured ID·수치·사실 검증 실패는 template fallback이며 조용한 자동 일정 변경은0이다.
+
+**`integration-ready`가 덮는 범위는 제목보다 좁다.** 증명된 것은 설명 template fallback, 출력 validator(`T1`), provider 실패와 startup 가드(`T2`~`T10`), 선호 해석 validator(`T11`~`T15`)이며 전부 apps/ai REC corpus로 증명된다. **선호 해석은 판정하는 쪽만 있고 만드는 쪽이 없다** — `nullnull_ai.preference`를 자기 package 밖에서 import하는 곳이 0이고 endpoint·adapter method·Spring 호출자가 없다. draft 보조 연결(FR-TRC-11)과 **AI 사용 표기**도 미구현이다. apps/ai 설명 응답은 `source`(TEMPLATE/LLM)를 돌려주지만 `OptimizeItemHandler`가 `.summary()`만 쓰고 공개 계약에 그 필드가 없다. 그래서 **`AI_PROVIDER=OPENAI`를 켜기 전에 AI 사용 표기가 먼저 들어가야 한다** — 지금 켜면 LLM이 쓴 문장이 표기 없이 사용자에게 나간다. 제출본은 `AI_PROVIDER=NONE`이다. kill switch는 `AI_PROVIDER=NONE`으로 다시 시작하는 것이며 런타임 스위치는 없다. OpenAI 외부 전송에 대한 개인정보 경계 문서(불변식 10 재증명)도 없다. 이 넷은 새 카드가 아니라 `A-064`의 한 항목으로 추적한다.
 
 필수 검증:
 
@@ -2280,7 +2320,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **영문 POI coverage·번역 품질** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
 
-- 선행: [BA-022](#ba-022), [BA-073](#ba-073)
+- 선행: [BA-022](#ba-022)
 - 기능 ID: `FR-LOC-01`
 - API: 해당 없음 (미기재 작업은 내부 처리 또는 별도 계약 제안)
 - Figma: 해당 없음; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
@@ -2292,7 +2332,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. 누락 시 원문 fallback과 번역 출처를 명시한다
 3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
 
-진행 상태(대조): **`V047` 은 provenance 열만 만들고 `KTO_ENG_SERVICE` registry 행은 `V048` 로 미룬다.** 그 행은 `stale_after_seconds`·공공누리 유형·`provider_schema_version` 을 값으로 요구하는데 **넷 다 실호출 전이라 미측정**이고, migration 은 적용되면 checksum 이 고정돼 **정정할 수 없다**. **`T4`·`T5` 는 계약 변경(`PlaceSummary` 의 locale provenance)을 요구해 [#310](https://github.com/yutakdv/Nullnull/issues/310) FE 승인 대기**다. **`T7`·`T8` 의 게이트가 발화하려면 생산자가 있어야 한다** — 유일한 production writer 는 `JdbcCanonicalCatalogStore` 이고 그 경로는 국문 ingest 다(test fixture writer 20개는 NULL provenance 라 게이트 밖이다). 그래서 **국문 ingest 가 provenance 를 쓴다**. 귀결: **`KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 수집된 국문 텍스트가 같이 막히고 `canonical_name` 으로 떨어진다.** 의도된 fail-closed 이고 P0 에 걸리는 반경이라 적어 둔다 — 대안(국문에 provenance 를 안 쓴다)은 **생산자 없는 가드**이고 이 저장소가 `place_hours`·`place_relations` 에서 두 번 겪은 모양이다. **`place_external_refs` 와 다르게 두는 이유**: ref 는 *신원*(이 place 가 KTO content 12345다)이라 약관이 바뀐다고 만료되지 않고, localization 은 *우리가 재배포하는 provider 산문*이라 재배포가 정확히 라이선스가 다루는 것이다.
+진행 상태(대조): **`V047` 은 provenance 열만 만들고 `KTO_ENG_SERVICE` registry 행은 `V048` 로 미룬다.** 그 행은 `stale_after_seconds`·공공누리 유형·`provider_schema_version`·`quota_policy.perDay` **넷**을 값으로 요구하는데 **넷 다 실호출 전이라 미측정**이고 — 앞의 문장은 **넷이라 적고 셋만 열거하고 있었다**. 빠진 것이 `perDay` 인 것은 `V007` 의 `source_registry_quota_check` 가 `perDay > 0` 을 요구하기 때문이고(열거가 아니라 CHECK 에서 나온 것이라 `[읽고추론]`), **하필 D-003 이 단위를 확정하며 의미를 갖게 만든 바로 그 값**이다. `official_url` 은 여기 없다 — 영문 dataset 은 `15101753` 으로 원장에 있고(`DECISIONS_AND_RISKS` D-003) KOR 패턴으로 유도된다. **그리고 `perDay: 1000` 을 KOR 행에서 베끼지 마라.** 그 값은 placeholder 가 아니라 **국문 활용신청의 실제 개발계정 한도**이고(`SOURCE_CATALOG` C2, 포털 상세가 *"개발 계정 신청 가능 트래픽 1,000"* 을 적는다), 영문 항목의 한도는 **아무도 보지 않았다**. 베끼면 그럴듯해 보이는 숫자가 아무 근거 없이 들어간다 — 지어낸 임계값이 **남의 실측값 옷을 입은** 모양이다., migration 은 적용되면 checksum 이 고정돼 **정정할 수 없다**. **`T4`·`T5` 는 계약 변경(`PlaceSummary` 의 locale provenance)을 요구해 [#310](https://github.com/yutakdv/Nullnull/issues/310) FE 승인 대기**다. **`T7`·`T8` 의 게이트가 발화하려면 생산자가 있어야 한다** — 유일한 production writer 는 `JdbcCanonicalCatalogStore` 이고 그 경로는 국문 ingest 다(test fixture writer 20개는 NULL provenance 라 게이트 밖이다). 그래서 **국문 ingest 가 provenance 를 쓴다**. 귀결: **`KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 수집된 국문 텍스트가 같이 막히고 `canonical_name` 으로 떨어진다.** 의도된 fail-closed 이고 P0 에 걸리는 반경이라 적어 둔다 — 대안(국문에 provenance 를 안 쓴다)은 **생산자 없는 가드**이고 이 저장소가 `place_hours`·`place_relations` 에서 두 번 겪은 모양이다. **`place_external_refs` 와 다르게 두는 이유**: ref 는 *신원*(이 place 가 KTO content 12345다)이라 약관이 바뀐다고 만료되지 않고, localization 은 *우리가 재배포하는 provider 산문*이라 재배포가 정확히 라이선스가 다루는 것이다.
 
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
@@ -2316,7 +2356,9 @@ FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문�
 
 ### BA-087
 
-**개인화 계측·학습·평가·실험** — P2 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**개인화 계측·학습·평가·실험** — P2 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정으로 이번 범위에서 뺀다(P2). 안전 기본값: 개인화 학습·실험을 하지 않고 P0 feed 순서와 정책 버전을 유지한다.
 
 - 선행: [BA-033](#ba-033), [BA-051](#ba-051), [BA-073](#ba-073)
 - 기능 ID: `FR-ML-01`
@@ -2344,7 +2386,9 @@ FE 인계·완료 증거: 계측 schema·attribution window·동의 정책·평�
 
 모델 분리는 BA-087의 데이터·평가 결과를 추가로 확인한다. worker 분리는 모델 학습 완료를 선행 조건으로 요구하지 않는다. 추천 계산 서비스 분리는 [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)으로 P0에 선행 결정됐으므로 이 카드는 worker 분리와 학습 모델 service만 다룬다.
 
-**worker·추천/예측 service 분리** — P2 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**worker·추천/예측 service 분리** — P2 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
+
+보류(`A-064`): A-064 오너 결정으로 이번 범위에서 뺀다(P2). 안전 기본값: modular monolith와 단일 apps/ai 서비스를 유지한다(A-008 측정 trigger 미충족).
 
 - 선행: [BA-005](#ba-005), [BA-070](#ba-070)
 - 기능 ID: `FR-ML-02`

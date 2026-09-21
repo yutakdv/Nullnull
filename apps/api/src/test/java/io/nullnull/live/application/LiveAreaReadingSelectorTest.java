@@ -99,6 +99,6 @@ class LiveAreaReadingSelectorTest {
     }
 
     private static CrowdMetric metric(SourceState state) {
-        return new CrowdMetric(state, null, null, "2", "서울 혼잡도", null);
+        return CrowdMetric.of(state, null, null, "2", "서울 혼잡도", null);
     }
 }

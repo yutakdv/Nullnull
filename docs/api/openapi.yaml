@@ -660,6 +660,7 @@ paths:
                           value: 62
                           unit: "상대 집중률"
                           ordinalLevel: null
+                          ordinalScale: null
                           label: "관광지별 집중률 예측"
                           provenance:
                             source: "KTO_KOR_SERVICE_2"
@@ -724,6 +725,7 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: null
+                          ordinalScale: null
                           label: "관광지별 집중률 예측"
                           provenance:
                             source: "KTO_KOR_SERVICE_2"
@@ -1426,6 +1428,7 @@ paths:
                       value: 34
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1463,6 +1466,7 @@ paths:
                       value: 72.5
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1500,6 +1504,7 @@ paths:
                       value: 51
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1550,6 +1555,7 @@ paths:
                       value: 72.5
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '만료된 관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1701,6 +1707,7 @@ paths:
                         value: 34
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -1738,6 +1745,7 @@ paths:
                         value: 72.5
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -1775,6 +1783,7 @@ paths:
                         value: 51
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -1816,6 +1825,7 @@ paths:
                         value: 58
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '만료된 관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -3686,6 +3696,23 @@ paths:
                   value:
                     candidateId: "018f4d40-1122-7a33-9b44-000000000001"
                     state: "UNKNOWN"
+                    slots: []
+                matchNotActive:
+                  summary: "The candidate is not waiting to be placed"
+                  description: |
+                    NOT_ACTIVE means this candidate's `status` is not ACTIVE - it is already SCHEDULED, or the
+                    owner DISMISSED it. The empty `slots` here is not "nowhere fits": nothing was asked, because
+                    a candidate that is not waiting to be placed has no slots to offer. The client already has
+                    the specific cause in `TripCandidate.status` and renders it from there.
+
+                    This state is why the operation answers 200 rather than a 4xx. The traveller reaches it by
+                    SUCCEEDING - accepting a slot makes the candidate SCHEDULED, and a refetch lands here - and
+                    the Problem code a refusal would carry, VALIDATION_FAILED, binds the client to
+                    `fieldErrors 연결` (docs/api/README.md), which this route cannot perform: it has no input to
+                    bind, and `candidateId` is a path variable the server itself handed over.
+                  value:
+                    candidateId: "018f4d40-1122-7a33-9b44-000000000002"
+                    state: "NOT_ACTIVE"
                     slots: []
         "401":
           $ref: "#/components/responses/Unauthorized"
@@ -5704,6 +5731,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '3'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -5746,6 +5776,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '3'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -5795,6 +5828,10 @@ paths:
                             "value": null,
                             "unit": null,
                             "ordinalLevel": "3",
+                            "ordinalScale": {
+                              "size": 5,
+                              "publishedCells": ["1", "2", "3", "4"]
+                            },
                             "label": "서울 주요 장소의 실시간 인구 혼잡도 수준",
                             "provenance": {
                               "source": "SEOUL_CITYDATA",
@@ -5841,6 +5878,10 @@ paths:
                             "value": null,
                             "unit": null,
                             "ordinalLevel": "3",
+                            "ordinalScale": {
+                              "size": 5,
+                              "publishedCells": ["1", "2", "3", "4"]
+                            },
                             "label": "서울 주요 장소의 실시간 인구 혼잡도 수준",
                             "provenance": {
                               "source": "SEOUL_CITYDATA",
@@ -5893,6 +5934,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '4'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -5940,6 +5984,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '2'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -6035,6 +6082,9 @@ paths:
                         value: null
                         unit: null
                         ordinalLevel: '3'
+                        ordinalScale:
+                          size: 5
+                          publishedCells: ['1', '2', '3', '4']
                         label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                         provenance:
                           source: SEOUL_CITYDATA
@@ -6092,6 +6142,9 @@ paths:
                         value: null
                         unit: null
                         ordinalLevel: '3'
+                        ordinalScale:
+                          size: 5
+                          publishedCells: ['1', '2', '3', '4']
                         label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                         provenance:
                           source: SEOUL_CITYDATA
@@ -6209,6 +6262,9 @@ paths:
                       value: null
                       unit: null
                       ordinalLevel: '3'
+                      ordinalScale:
+                        size: 5
+                        publishedCells: ['1', '2', '3', '4']
                       label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                       provenance:
                         source: SEOUL_CITYDATA
@@ -6281,6 +6337,9 @@ paths:
                       value: null
                       unit: null
                       ordinalLevel: '3'
+                      ordinalScale:
+                        size: 5
+                        publishedCells: ['1', '2', '3', '4']
                       label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                       provenance:
                         source: SEOUL_CITYDATA
@@ -6353,6 +6412,9 @@ paths:
                       value: null
                       unit: null
                       ordinalLevel: '3'
+                      ordinalScale:
+                        size: 5
+                        publishedCells: ['1', '2', '3', '4']
                       label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                       provenance:
                         source: SEOUL_CITYDATA
@@ -7842,6 +7904,45 @@ components:
             of five, because a source may fill only part of the scale and publish its own words for the
             steps it does fill. Read `provenance.source` to know which mapping produced the cell, and
             do not describe a reading as "Nth of five" unless that source actually publishes five.
+        ordinalScale:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [size, publishedCells]
+          description: |
+            Which cells of the scale the source that produced `ordinalLevel` actually publishes.
+            Null for every source with no reviewed mapping, which is the same set that serves a null
+            `ordinalLevel` with `SCHEMA_DRIFT` - a scale for a source nobody reviewed would be invented.
+
+            It exists because `ordinalLevel` alone cannot be rendered honestly. A reader that meets a
+            "3" cannot tell whether its source publishes three steps or five, so a fixed "Nth of five"
+            is wrong for any source that fills part of the scale - and today the only source that has a
+            scale at all fills four of five cells. Read `size` for what the bar has room for and
+            `publishedCells` for what this source can put in it; they are different numbers and the
+            difference is the point.
+
+            It carries no words. The step names are the provider's own language and would travel with
+            no `textProvenance`, so the wording stays Frontend's, as `ordinalLevel` already says.
+            It also says nothing about comparability - `provenance.comparisonEligible` and
+            `provenance.comparisonAxis` own that, and two readings on the same scale are still not
+            comparable across areas (invariant 8).
+          properties:
+            size:
+              type: integer
+              minimum: 1
+              description: |
+                How many cells the product scale has - what a bar has room for. Not the number of steps
+                this source publishes; that is `publishedCells.length`.
+            publishedCells:
+              type: array
+              minItems: 1
+              description: |
+                The cells this source can produce, ascending. A strict subset when the source fills part
+                of the scale: `SEOUL_CITYDATA` publishes `["1","2","3","4"]` and never "5" (A-060),
+                because its top step is "over 100% with no ceiling" and naming that the maximum of this
+                scale would assert something the provider never said.
+              items:
+                type: string
+                pattern: "^[1-5]$"
         label:
           type: string
           description: |
@@ -8766,7 +8867,7 @@ components:
           format: uuid
         state:
           type: string
-          enum: [EXACT, SIMILAR, NONE, CHECKING, UNKNOWN]
+          enum: [EXACT, SIMILAR, NONE, CHECKING, UNKNOWN, NOT_ACTIVE]
         slots:
           type: array
           items:

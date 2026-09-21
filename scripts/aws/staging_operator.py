@@ -73,6 +73,19 @@ OPS_TASKS = {
     'curate-live-maps': ('io.nullnull.live.infrastructure.curation.LiveMappingImportMain', None, {}),
     'capture-live-replay': ('io.nullnull.crowd.infrastructure.persistence.ReplayManifestImportMain', None, {}),
     'list-live-replay-candidates': ('io.nullnull.crowd.infrastructure.persistence.ReplayCandidateListMain', None, {}),
+    # Reopens a source whose latest collector run is QUARANTINED, by recording a reviewed RESOLVED incident
+    # (SourceQuarantineReleaseMain). Without it a quarantine was a deadlock: every gateway checks the latest run
+    # before starting one, so no newer run could ever displace it and the database is not reachable from outside
+    # the VPC. SEOUL_CITYDATA locked itself this way on its own schedule. It reopens a source the owner judged safe,
+    # so it takes an approval variable and --owner-approval like the provider calls.
+    'release-source-quarantine': ('io.nullnull.crowd.infrastructure.SourceQuarantineReleaseMain',
+                                  'NULLNULL_SOURCE_RELEASE_APPROVED', {'NULLNULL_RELEASE_SOURCE_CODE': 'source_code'}),
+    # Takes one published post back (PostWithdrawMain, BA-082-T16): HIDDEN with published_at cleared, which every
+    # reader refuses from the same commit. A-058 publishes an upload with no person in between, so this is the
+    # per-post answer to a post that must come down; before it the only one was switching authoring off. It takes
+    # a post down on the owner's word, so it takes an approval variable and --owner-approval like the provider calls.
+    'withdraw-post': ('io.nullnull.social.infrastructure.moderation.PostWithdrawMain',
+                      'NULLNULL_POST_WITHDRAW_APPROVED', {'NULLNULL_WITHDRAW_POST_ID': 'post_id'}),
 }
 # A curate task's plan cannot be a file in the task: it runs the release's image with a read-only root, and baking
 # the plan into the image would make every plan edit a release (the hours re-observation before 2026-10-13 falls in
@@ -120,7 +133,10 @@ PLACE_ID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 # Input shapes per ops argument. A demo place list is `contentId:contentTypeId`, comma separated.
 OPS_INPUT = {'content_id': r'[0-9a-f-]{1,40}', 'content_type_id': r'[0-9a-f-]{1,40}', 'place_id': r'[0-9a-f-]{1,40}',
              'places': r'[1-9][0-9]{0,29}:[1-9][0-9]{0,29}(,[1-9][0-9]{0,29}:[1-9][0-9]{0,29})*',
-             'area_name': r'[^/\\\x00-\x1f\x7f]{1,100}'}
+             'area_name': r'[^/\\\x00-\x1f\x7f]{1,100}', 'source_code': r'[A-Z][A-Z0-9_]{1,63}'}
+# A post id is exactly one canonical UUID, not the loose place_id shape: the post-condition below matches the id the
+# task printed against this string, and PostWithdrawMain refuses anything else before it opens a database.
+OPS_INPUT['post_id'] = PLACE_ID.pattern
 # Every task above writes. From the release carrying OperationsContext (#183) a writing tool in staging runs only
 # when this names the database its datasource URL points to; an older image ignores it.
 OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
@@ -148,6 +164,11 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
                           r'|seoul_live_collect live=true'
                           r'|seoul_live_collect_failed reason=[A-Za-z_]{1,80}'
+                          # The quarantine release (SourceQuarantineReleaseMain): the source, the run it released and
+                          # when that run started, or why it released nothing. Source codes and ids only.
+                          r'|source_quarantine_released source=[A-Z][A-Z0-9_]{1,63} run=[0-9a-f-]{36} run_started=[0-9T:.-]{10,40}Z'
+                          r'|source_quarantine_release_refused source=[A-Z][A-Z0-9_]{1,63} reason=[a-z-]{1,40}'
+                          r'|source_quarantine_release_failed reason=[A-Za-z_]{1,80}'
                           r'|curated_live_maps_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_live_map [0-9a-f-]{36} PROCESSED'
                           r'|curated_live_maps_processed=[0-9]{1,4}|curated_live_maps_failed reason=[A-Za-z_]{1,80}'
@@ -157,6 +178,10 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|replay_manifest_id=[0-9a-f-]{36}'
                           r'|replay_candidate snapshot=[0-9a-f-]{36} area=[0-9a-f-]{36} observed=[0-9T:.-]{10,40}Z'
                           r'|replay_candidates_failed reason=[A-Za-z_]{1,80}'
+                          # The withdrawal (PostWithdrawMain): the post id and a fixed outcome, or a failure code.
+                          # Never the post's title, body or cover URL.
+                          r'|post_withdrawn post=[0-9a-f-]{36} outcome=(WITHDRAWN|ALREADY_HIDDEN)'
+                          r'|post_withdraw_failed reason=[A-Za-z_]{1,80}'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
 
@@ -1051,6 +1076,9 @@ def ops_task(args):
         # only on the recorded release's own definition and image.
         bound = args.task in ('kto-smoke', 'kto-call-inventory', 'seoul-live-collect',
                               'list-live-replay-candidates') or plan is not None
+        # A withdrawal needs the release that carries PostWithdrawMain; an older ops image would fail inside the task
+        # after the lock was taken, so it is refused here instead.
+        bound = bound or args.task == 'withdraw-post'
         current, expected_digest = release_binding(definition) if bound else (None, None)
         if args.task == 'kto-call-inventory':
             # Read under the lock with the binding, so the release inventoried is the one this task definition is.
@@ -1089,7 +1117,8 @@ def ops_task(args):
         else:
             # The bound is a safety stop, not an end: CloudWatch says the stream is read when the token stops moving.
             raise OpsError('task-log-not-fully-read')
-        evidence, echoed, inventory, seoul = [], [], [], []
+        evidence, echoed, inventory, seoul, released = [], [], [], [], []
+        withdrawn = []
         for event in events:
             line = event.get('message', '').strip()
             if OPS_LOG_LINE.match(line):
@@ -1102,10 +1131,29 @@ def ops_task(args):
                     inventory.append(line)
                 if args.task == 'seoul-live-collect' and line == 'seoul_live_collect live=true':
                     seoul.append(line)
+                if args.task == 'release-source-quarantine' and line.startswith('source_quarantine_released '):
+                    released.append(line)
+                # Every terminal line, the failure as well as the success: a stream holding both must not
+                # read as a withdrawal because one of its lines says so.
+                if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
+                    withdrawn.append(line)
         if failure:
             raise failure
         if args.task == 'seoul-live-collect':
             require(seoul == ['seoul_live_collect live=true'], 'seoul-collect-not-live')
+        # A release that released nothing is not a success: the main prints a refused line and exits zero so a
+        # benign no-op leaves no stack trace, and this is what stops that line from reading as a source reopened.
+        if args.task == 'release-source-quarantine':
+            require(len(released) == 1, 'source-not-released')
+        # Exactly one terminal line, a success, naming the post the owner approved: a count alone would accept a
+        # withdrawal of some other post. ALREADY_HIDDEN is a success - a rerun finds the post where the first run left it.
+        if args.task == 'withdraw-post':
+            require(withdrawn in ([f'post_withdrawn post={args.post_id} outcome=WITHDRAWN'],
+                                  [f'post_withdrawn post={args.post_id} outcome=ALREADY_HIDDEN']), 'post-not-withdrawn')
+            # Said on every success, because the natural reading of "withdrawn" is wrong about the image: the post is
+            # off every page the API answers, and the uploaded cover is still served at its URL (no delete path, no
+            # delete permission, a versioned bucket, a one-year immutable cache header).
+            print('post_withdraw_residual=cover-object-not-deleted')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:
@@ -1577,7 +1625,8 @@ def main():
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')
     parser.add_argument('--task',choices=sorted(OPS_TASKS));parser.add_argument('--content-id')
     parser.add_argument('--content-type-id');parser.add_argument('--place-id');parser.add_argument('--owner-approval')
-    parser.add_argument('--places');parser.add_argument('--area-name');parser.add_argument('--plan-file')
+    parser.add_argument('--places');parser.add_argument('--area-name');parser.add_argument('--source-code');parser.add_argument('--plan-file')
+    parser.add_argument('--post-id')
     parser.add_argument('--owner');parser.add_argument('--accept-newer-schema',action='store_true')
     parser.add_argument('--since');parser.add_argument('--without-images',action='store_true')
     args=parser.parse_args()

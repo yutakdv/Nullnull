@@ -2,6 +2,7 @@ package io.nullnull.trip;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -266,6 +267,77 @@ class CandidateMatchIT {
                 .cookie(cookie(stranger))).andExpect(status().isNotFound());
         mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + UUID.randomUUID() + "/matches")
                 .cookie(cookie(owner))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("BA-042-T10 a candidate scheduled through addTripItem is answered 200 NOT_ACTIVE, not refused")
+    void aScheduledCandidateIsAnsweredNotActive() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = place("예약으로 넘어갈 후보 장소");
+        UUID candidateId = candidate(owner, tripId, placeId);
+        when(hours.windowsFor(any(), any(), any(), any())).thenReturn(Map.of());
+        when(recommendations.evaluateSlots(any())).thenReturn(response(SlotEvaluateResponse.State.EXACT,
+                List.of(new SlotOut(DAY_ONE, null, true, null))));
+
+        // Both calls answer 200 now, so the STATE is what has to change. Asserting the first one is what
+        // stops the second from passing on a server that answered NOT_ACTIVE to everything.
+        mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + candidateId + "/matches")
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("EXACT"));
+
+        scheduleCandidate(owner, tripId, placeId, candidateId);
+
+        // The traveller reached this by SUCCEEDING, so it is not an error. NOT_ACTIVE rather than NONE
+        // because an empty slot list under NONE would say "nowhere fits" when nothing was asked, and the
+        // 422 this replaces carried VALIDATION_FAILED, whose client contract is `fieldErrors 연결` - an
+        // action this route cannot offer, having no input and only a server-supplied path variable.
+        mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + candidateId + "/matches")
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "private, no-store"))
+                .andExpect(jsonPath("$.candidateId").value(candidateId.toString()))
+                .andExpect(jsonPath("$.state").value("NOT_ACTIVE"))
+                .andExpect(jsonPath("$.slots").isEmpty());
+    }
+
+    @Test
+    @DisplayName("BA-042-T11 the NOT_ACTIVE answer is produced without asking apps/ai")
+    void theNotActiveAnswerAsksNothingOfTheEvaluator() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = place("평가기를 부르지 않을 후보 장소");
+        UUID candidateId = candidate(owner, tripId, placeId);
+        scheduleCandidate(owner, tripId, placeId, candidateId);
+
+        mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + candidateId + "/matches")
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("NOT_ACTIVE"));
+
+        // ADR-0006's boundary, in the one direction it can be checked here: there is no question to ask
+        // when the candidate is not waiting to be placed, and asking anyway would spend a call to be told
+        // about dates nobody offered. CandidateMatchStateCoverageTest's register for NOT_ACTIVE states
+        // this, so it is asserted rather than left in a comment. No stub is needed: the call must not
+        // happen at all, and an unstubbed mock returning null would fail loudly if it did.
+        verify(recommendations, never()).evaluateSlots(any());
+    }
+
+    /** Schedules the candidate the way the screen does - addTripItem naming it - not by seeding the row. */
+    private void scheduleCandidate(SessionService.Bootstrap owner, UUID tripId, UUID placeId, UUID candidateId)
+            throws Exception {
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"" + version(tripId) + "\"")
+                        .header("Idempotency-Key", "schedule-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"candidateId\":\"" + candidateId
+                                + "\",\"date\":\"" + DAY_ONE + "\",\"position\":0}"))
+                .andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("SELECT status FROM trip_candidates WHERE id = ?", String.class,
+                candidateId)).isEqualTo("SCHEDULED");
     }
 
     private SlotEvaluateRequest captureRequest() {

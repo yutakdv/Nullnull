@@ -57,7 +57,7 @@ public final class ImageSanitiser {
         if (actual == null) {
             throw new ImageRejectedException(ImageRejection.UNSUPPORTED_FORMAT);
         }
-        // The declared type is compared, not trusted: BA-082-T1 asks for a spoofed format to be
+        // The declared type is compared, not trusted: BA-082-T5 asks for a spoofed format to be
         // refused, and a caller who declares PNG while uploading JPEG has either a broken client or
         // an intent this boundary exists for. Either way the two must agree before anything decodes.
         if (ImageFormat.ofMediaType(declaredMediaType) != actual) {

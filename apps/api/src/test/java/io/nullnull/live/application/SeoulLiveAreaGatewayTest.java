@@ -381,6 +381,16 @@ class SeoulLiveAreaGatewayTest {
         public SourceCondition conditionAt(String code, Instant at) {
             return condition;
         }
+
+        /**
+         * Throws rather than answering, because nothing on the gateway's path may release a quarantine -
+         * only the operator command does. If the gateway ever started calling this, every test here would
+         * go red instead of a fake quietly saying "nothing to release".
+         */
+        @Override
+        public Optional<ReleasedRun> releaseLatestQuarantine(String code, String incidentCode, Instant reviewedAt) {
+            throw new UnsupportedOperationException("the collection path must never release a quarantine");
+        }
     }
 
     private static final class RecordingAreas implements io.nullnull.live.application.LiveAreaStore {
