@@ -130,8 +130,17 @@ const assets = process.env.NULLNULL_BUNDLE_DIR
 // room for less than one ordinary screen. This is a measured reset with about
 // 15% headroom, matching the policy used by the earlier entries above; it does
 // not exempt either asset type from the gate.
-// CSS was re-measured on frontend after the Live map and draggable sheet:
-// 16,341 gzip bytes. Use the already-approved 18,800-byte budget here too.
+//
+// CSS re-measured after the interactive Live map and draggable sheet landed.
+// The parent production build is 15,616 gzip bytes and the Live slice makes it
+// 16,341, a measured increase of 725. Keeping 16,100 would require removing
+// 241 bytes, one third of the slice's marginal compressed cost. The new rules
+// are not dead duplication: they draw the map fallback, search overlay, snap
+// states, keyboard focus, reduced motion and short-viewport layout. The three
+// Live CSS modules are also under active visual work, so folding an unrelated
+// refactor into this gate repair would make the measurement stale and collide
+// with that work. Reset to the measured build plus about 15% headroom, following
+// the same policy as the previous measured resets above.
 const BUDGETS = {
   js: 206_000, // measured 174,928
   css: 18_800, // measured  16,341

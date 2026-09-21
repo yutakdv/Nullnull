@@ -180,7 +180,7 @@ for (const screen of SCREENS) {
   });
 }
 
-test('FE-603-T1 no screen registers a geolocation permission at all', async ({
+test('FE-603-T1 BA-073-T5 no screen registers a geolocation permission at all', async ({
   page,
 }) => {
   // The capability is OFF, so even querying it is a signal the feature is
