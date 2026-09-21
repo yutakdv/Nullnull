@@ -810,6 +810,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-023-T25`: 각 descriptor 의 publishedCells 는 그 source 의 검토된 mapping 이 배정한 칸과 정확히 같다
 - `BA-023-T26`: descriptor 의 size 는 source 의 단계 수가 아니라 제품 척도의 칸 수다
 - `BA-023-T27`: 계약의 publishedCells 어휘는 서버 척도를 정확히 받아들인다
+- `BA-023-T28`: 승인된 SEOUL example 의 ordinalScale 은 서버가 SEOUL_CITYDATA 에 대해 내는 척도와 같다
 
 구현 결과:
 
