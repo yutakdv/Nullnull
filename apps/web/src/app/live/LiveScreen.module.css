@@ -1,9 +1,8 @@
 .screen {
-  display: flex;
+  position: relative;
   min-height: 100%;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--layout-page-gutter) var(--space-8);
+  overflow: hidden;
+  background: var(--color-bg-subtle);
 }
 
 .srOnly {
@@ -18,8 +17,29 @@
   border: 0;
 }
 
+.searchOverlay {
+  position: absolute;
+  z-index: 6;
+  top: var(--space-4);
+  right: var(--layout-page-gutter);
+  left: var(--layout-page-gutter);
+}
+
+.searchOverlay > label {
+  min-height: 56px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-default);
+  box-shadow: var(--elevation-raised);
+}
+
 .searchPanel {
-  padding: var(--space-2) 0;
+  max-height: min(288px, 42vh);
+  padding: var(--space-2);
+  margin-top: var(--space-2);
+  overflow-y: auto;
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-default);
+  box-shadow: var(--elevation-raised);
   color: var(--color-text-secondary);
   font-size: var(--font-body-sm);
 }
@@ -30,7 +50,9 @@
   text-align: center;
 }
 
-.searchResults {
+.searchResults,
+.areaList,
+.placeList {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -47,7 +69,6 @@
   gap: var(--space-1) var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-card);
-  background: var(--color-bg-subtle);
   color: var(--color-text-primary);
   font-size: var(--font-body-sm);
   font-weight: 700;
@@ -66,23 +87,72 @@
   grid-row: 1 / span 2;
 }
 
-.sectionHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+.persistentState {
+  position: absolute;
+  z-index: 3;
+  top: 84px;
+  right: var(--layout-page-gutter);
 }
 
-.sectionHead h2 {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-body-md);
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--layout-page-gutter) max(var(--space-6), env(safe-area-inset-bottom));
+}
+
+.viewTabs {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.viewTabs button {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-title-sm);
   font-weight: 700;
+}
+
+.viewTabs button[aria-selected='true'] {
+  color: var(--color-action-primary);
+}
+
+.viewTabs button:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.sheetIntro h2,
+.sheetIntro p {
+  margin: 0;
+}
+
+.sheetIntro h2 {
+  color: var(--color-text-primary);
+  font-size: var(--font-title-sm);
+  line-height: 1.45;
+}
+
+.sheetIntro p {
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
 }
 
 .stateCard {
   display: flex;
-  min-height: 132px;
+  min-height: 112px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -109,25 +179,15 @@
   font-weight: 700;
 }
 
-.areaList,
-.placeList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
 .areaButton {
   display: grid;
   width: 100%;
-  min-height: 48px;
+  min-height: 52px;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-thin) solid transparent;
   border-radius: var(--radius-card);
   background: var(--color-bg-subtle);
   color: var(--color-text-primary);
@@ -142,7 +202,7 @@
 }
 
 .placePanel {
-  padding: var(--space-3) 0 var(--space-1);
+  padding: var(--space-2) 0 var(--space-1);
 }
 
 .placePanel > p {
@@ -156,8 +216,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3);
-  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  border-radius: var(--radius-card-lg);
   background: var(--color-bg-subtle);
 }
 
@@ -165,24 +225,39 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   color: inherit;
   text-decoration: none;
 }
 
-.placeLink > :nth-child(2) {
+.placeLink > :nth-last-child(2) {
   grid-column: 1;
 }
 
 .placeLink > :last-child {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
   color: var(--color-text-secondary);
   font-size: var(--font-icon);
 }
 
 .placeName {
   color: var(--color-text-primary);
-  font-size: var(--font-label);
+  font-size: var(--font-body-md);
   font-weight: 700;
+}
+
+.placeMeta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+@media (max-height: 640px) {
+  .sheetBody {
+    gap: var(--space-3);
+  }
+
+  .sheetIntro p {
+    display: none;
+  }
 }

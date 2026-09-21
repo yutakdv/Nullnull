@@ -41,6 +41,26 @@ function renderLive(initialEntry = '/live') {
 }
 
 describe('FE-401 Live area list', () => {
+  it('renders the map-first shell, persistent data state and accessible sheet control', async () => {
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)));
+
+    renderLive();
+
+    expect(await screen.findByRole('region', { name: /Live map/i })).toBeVisible();
+    expect(await screen.findByTestId('live-persistent-state')).toHaveTextContent(
+      /Observed live/i,
+    );
+    expect(screen.getByRole('button', { name: /Lower place list/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: /Current trip/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
   it('requests the approved list-only query and renders every returned area', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     let body: unknown = null;
@@ -95,6 +115,28 @@ describe('FE-401 Live area list', () => {
 
     expect(await screen.findAllByText('Update delayed')).not.toHaveLength(0);
     expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
+  it('uses the reviewed Seoul four-stage wording instead of the generic five-stage copy', async () => {
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    const firstArea = result.areas[0];
+    if (!firstArea?.crowd) throw new Error('Live fixture must include a crowd metric');
+    const seoulLevel = {
+      ...result,
+      areas: [
+        {
+          ...firstArea,
+          crowd: { ...firstArea.crowd, ordinalLevel: '3' },
+        },
+      ],
+    };
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(seoulLevel)));
+
+    renderLive();
+
+    expect(await screen.findByText('3 · Slightly crowded')).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Seoul crowd level 3 of 4' })).toBeVisible();
+    expect(screen.queryByText('3 · Moderate')).not.toBeInTheDocument();
   });
 
   it('loads mapped places only after an area is selected', async () => {
