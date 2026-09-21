@@ -7820,11 +7820,24 @@ components:
           description: |
             The crowd stage on the product's five-step scale, as a digit string: "1" is the least crowded
             and "5" the most. It is what the source published on that scale and nothing else - it is
-            never derived from `value`. Null on every point today: no source has a mapping onto this
-            scale that anyone reviewed, and KTO publishes a relative index with no stages at all. A stage
-            a source stored without such a mapping is served as null with `SCHEMA_DRIFT` in
-            `provenance.qualityFlags`, rather than passed through as a stage nobody approved. The words
-            for each stage are Frontend copy.
+            never derived from `value`. A stage a source stored without a reviewed mapping onto this
+            scale is served as null with `SCHEMA_DRIFT` in `provenance.qualityFlags`, rather than passed
+            through as a stage nobody approved, and that is still what happens to every source but the
+            one named below. KTO is one of them: it publishes a relative index with no stages at all.
+
+            `SEOUL_CITYDATA` is the first source with a reviewed mapping - owner decision A-060,
+            2026-09-20. **It publishes four steps, and they are placed on cells "1" to "4"; it never
+            sends "5".** The empty top cell is deliberate: Seoul's top step is "over 100% with no
+            ceiling", so calling it the maximum of this scale would assert something the provider never
+            said. **Its thresholds are percentages of that area's own past average**, not of a capacity
+            and not of anything comparable between areas, so two areas both at "3" are each three
+            quarters of their own normal and that says nothing about which is busier - comparing them
+            is what invariant 8 forbids.
+
+            The words for each stage are Frontend copy, as before - but they cannot be one fixed list
+            of five, because a source may fill only part of the scale and publish its own words for the
+            steps it does fill. Read `provenance.source` to know which mapping produced the cell, and
+            do not describe a reading as "Nth of five" unless that source actually publishes five.
         label:
           type: string
           description: |
