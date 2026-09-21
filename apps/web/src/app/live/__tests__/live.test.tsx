@@ -11,7 +11,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -22,6 +22,10 @@ import { routes } from '../../routes.js';
 type LiveAreaResult = components['schemas']['LiveAreaResult'];
 type LivePlace = components['schemas']['LivePlace'];
 type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
+
+beforeEach(() => {
+  vi.stubEnv('VITE_KAKAO_MAP_APP_KEY', '');
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
