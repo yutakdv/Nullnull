@@ -2215,8 +2215,9 @@ FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거�
 - `BA-083-T40`: 기록되는 분은 0 쪽으로 버린다
 - `BA-083-T41`: optimization_proposals 는 선언된 열만 갖는다 — 경로 응답의 피연산자를 담는 열이 delta 옆에 생길 수 없다
 - `BA-083-T42`: preview 가 판정한 경로 근거가 APPLY 시점에 없으면 APPLY 는 거부하고 일정을 바꾸지 않는다
-- `BA-083-T43`: 적용 결과는 preview 의 travel delta 를 측정된 절감으로 주장하지 않는다
-- `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다
+- `BA-083-T43`: 경로 proposal의 summary는 travel delta 수치를 싣지 않는다
+- `BA-083-T44`: DAY·TRIP 요청은 그 scope의 capability가 꺼져 있으면 거절된다
+- `BA-083-T2`: DAY는 targetDate만, TRIP은 target 없이 받는다 — 다른 scope의 target을 실은 요청은 거절된다
 - `BA-083-T3`: preview 를 판정한 scope 정책이 바뀐 뒤의 APPLY 는 거부된다
 
 FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union examples와 provider attribution. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.

@@ -3175,7 +3175,7 @@
         },
         {
           "id": "BA-083-T2",
-          "assertion": "DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다"
+          "assertion": "DAY는 targetDate만, TRIP은 target 없이 받는다 — 다른 scope의 target을 실은 요청은 거절된다"
         },
         {
           "id": "BA-083-T3",
@@ -3191,7 +3191,11 @@
         },
         {
           "id": "BA-083-T43",
-          "assertion": "적용 결과는 preview 의 travel delta 를 측정된 절감으로 주장하지 않는다"
+          "assertion": "경로 proposal의 summary는 travel delta 수치를 싣지 않는다"
+        },
+        {
+          "id": "BA-083-T44",
+          "assertion": "DAY·TRIP 요청은 그 scope의 capability가 꺼져 있으면 거절된다"
         }
       ],
       "handoff": "DAY/TRIP before/after·route unavailable·scope union examples와 provider attribution.",
