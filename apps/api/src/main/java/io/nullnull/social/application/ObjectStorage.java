@@ -25,7 +25,7 @@ public interface ObjectStorage {
      *
      * <p>The signature binds the content type and the exact length, so a caller who was signed for
      * 100 KB of JPEG cannot upload 40 MB of anything - that refusal happens at the store, before any
-     * byte reaches us. It is the first of BA-082-T1's two layers; the second is that the server
+     * byte reaches us. It is the first of two layers; the second is that the server
      * validates the bytes it later reads, because a signature proves what was promised, not what
      * arrived.
      *

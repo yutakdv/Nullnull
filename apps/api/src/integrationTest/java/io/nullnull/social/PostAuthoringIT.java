@@ -121,17 +121,17 @@ class PostAuthoringIT {
         // Scoped to source_external_id rather than counting the table: the gate runs every suite
         // against one database, so "no USER_UPLOAD asset exists" would be an assertion about every
         // test that ran before this one. It was written that way first and failed with 2 - the two
-        // posts T1 and T3 legitimately published.
+        // posts T1 and T15 legitimately published.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM media_assets"
                 + " WHERE source_external_id = ?", Long.class, uploadId.toString())).isZero();
     }
 
     @Test
-    // This carried BA-082-T3 for a while and should not have: that clause is
+    // This carried BA-082-T3 for a while and should not have: that clause was then
     // "삭제/권리 철회가 기존 cursor·cache에서도 반영된다", which this does not touch. The borrowed id
     // was wrong in both directions - T3 looked covered while nothing tested it, and this property
-    // had no card of its own. T15 is the clause that owns it, registered on the backend card. T3 is
-    // still unproven: it has no implementation and no test.
+    // had no card of its own. T15 is the clause that owns it, registered on the backend card. T3 has
+    // since been narrowed to its read side (FeedIT), and the withdrawal that feeds it is BA-082-T16.
     @DisplayName("BA-082-T15 one ticket produces at most one post")
     void aTicketIsSpentOnce() throws Exception {
         var author = sessions.bootstrap(null, null, null);
@@ -145,6 +145,10 @@ class PostAuthoringIT {
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         assertThat(recorder.published).hasSize(1);
+        // The clause counts posts, so this counts post rows too: an object published once says nothing
+        // about a second row that reused it. Sequential calls only - two concurrent calls race on the
+        // conditional claim, and that race is not measured here.
+        assertThat(postsAuthoredBy(author)).as("one post row").isOne();
     }
 
     /**

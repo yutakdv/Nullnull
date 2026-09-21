@@ -84,6 +84,18 @@ public interface FeedStore {
     void publishPost(UUID postId, Instant publishedAt, Instant now);
 
     /**
+     * Takes the post back if it is PUBLISHED: HIDDEN, with {@code published_at} cleared, which V015's
+     * shape CHECK requires of every row that is not PUBLISHED. Touches no other status.
+     *
+     * @return the rows changed - 1 when this call withdrew the post, 0 when it was not PUBLISHED
+     *         by the time the statement held its row
+     */
+    int withdrawIfPublished(UUID postId, Instant now);
+
+    /** The post's status, or empty when no post has that id. */
+    Optional<io.nullnull.social.domain.PostStatus> postStatus(UUID postId);
+
+    /**
      * Records one feed interaction, or converges on the one already recorded for that minute.
      *
      * @param occurredMinute whole minutes since the epoch for {@code occurredAt}; the dedup key

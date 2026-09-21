@@ -105,7 +105,9 @@ class UploadIntentServiceTest {
 
         assertThat(storage.signed).hasSize(1);
         String key = storage.signed.getFirst();
-        assertThat(key).startsWith("quarantine/" + ownerId + "/").endsWith(issued.uploadId().toString());
+        // The whole key, not its two ends: a segment between them would still start and end right,
+        // and "only" is the clause.
+        assertThat(key).isEqualTo("quarantine/" + ownerId + "/" + issued.uploadId());
         // Nothing the request carried appears in the key: the owner came from the session and the
         // id was generated here, which is why there is no path to manipulate.
         assertThat(store.inserted).hasSize(1);

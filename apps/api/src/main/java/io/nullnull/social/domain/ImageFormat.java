@@ -50,7 +50,7 @@ public enum ImageFormat {
      * The format these bytes actually are, or null when they are none of them.
      *
      * <p>This is the only question worth asking of an upload: a declared content type is a claim by
-     * the caller, and BA-082-T1 requires a spoofed one to be refused. Callers compare this answer
+     * the caller, and BA-082-T5 requires a spoofed one to be refused. Callers compare this answer
      * with what was declared rather than trusting either alone.
      */
     public static ImageFormat ofBytes(byte[] bytes) {
