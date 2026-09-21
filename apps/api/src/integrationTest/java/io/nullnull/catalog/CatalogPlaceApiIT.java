@@ -274,7 +274,7 @@ class CatalogPlaceApiIT {
     }
 
     @Test
-    @DisplayName("BA-086-T14 a text field with no provenance of its own does not borrow the place record's credit")
+    @DisplayName("BA-086-T20 a text field with no provenance of its own does not borrow the place record's credit")
     void textWithoutProvenanceDoesNotBorrowPlaceCredit() throws Exception {
         SessionService.Bootstrap englishOwner = owner("en-US");
         UUID place = mixedLocalePlace();
