@@ -992,6 +992,22 @@
         {
           "id": "BA-023-T23",
           "assertion": "검토된 척도 매핑이 없는 source의 저장된 단계는 단계로 나가지 않고 SCHEMA_DRIFT로 표시된다"
+        },
+        {
+          "id": "BA-023-T24",
+          "assertion": "scale descriptor 는 검토된 mapping 이 있는 source 에만, 정확히 그 source 들에만 나간다"
+        },
+        {
+          "id": "BA-023-T25",
+          "assertion": "각 descriptor 의 publishedCells 는 그 source 의 검토된 mapping 이 배정한 칸과 정확히 같다"
+        },
+        {
+          "id": "BA-023-T26",
+          "assertion": "descriptor 의 size 는 source 의 단계 수가 아니라 제품 척도의 칸 수다"
+        },
+        {
+          "id": "BA-023-T27",
+          "assertion": "계약의 publishedCells 어휘는 서버 척도를 정확히 받아들인다"
         }
       ],
       "handoff": "V011은 immutable `snapshot_sets`/`crowd_snapshots`와 KTO_CONCENTRATION_FORECAST registry revision 2(`kto-tats-cnctr-rate-v4.1`, 공식 operation `tatsCnctrRatedList`)를 만든다. raw body·request URL·key column은 schema에 없고, set 대비 snapshot provenance 불일치와 모든 UPDATE는 trigger가 거부한다. `getPlaceCrowdForecast`는 로컬에 저장된 검증 완료 snapshot set만 투영하며 절대 provider를 호출하지 않는다. collector `KtoCrowdForecastGateway`는 operator/background 전용이고 source health·quota·collector run·ingest audit을 거친다. 공개 route는 C3 canonical resolver를 재사용하므로 `NULLNULL_CATALOG_PUBLIC_ENABLED=false` 기본값에서 fail-closed다. observedAt은 provider 발표 시각이 없으면 null로 남고 fetchedAt으로 대체하지 않으며, FORECAST/LIVE가 stale 경계를 넘으면 응답 state가 STALE로 바뀌고 freshness가 분리된다. 비교는 저장하지 않는다(`crowd_comparisons` table 없음). 공개 응답은 `TemporalComparisonPolicy.eligibility(point)`만 쓰고 pair 판정 `evaluate`는 optimization preview용으로 domain에 남겨 둔다. 격리는 저장된 row가 가질 수 없는 flag이므로 `JdbcCrowdForecastQuery`가 읽기 시점에 `source_quality_incidents`(`QUARANTINE`)로 계산해 `PROVIDER_INCIDENT`를 붙이고 비교 자격을 false로 만든다. 검증: `CrowdProvenanceProjectionTest`(BA-023-T1 6-state·null provenance matrix), `CrowdForecastApiIT`(BA-023-T1 fresh/stale/invalid range, BA-023-T3 새 set이 저장된 snapshot을 덮지 않음), `KtoCrowdForecastGatewayIT`(BA-023-T1 normalized provenance·raw redaction·no-coverage·range quarantine), `CrowdProvenanceProjectionTest`·`CrowdForecastApiIT`(BA-023-T2 격리된 source는 값을 유지하되 `comparisonEligible=false`·`PROVIDER_INCIDENT`; 수집 이후 선언된 QUARANTINE incident가 저장된 snapshot의 HTTP 응답에서도 같은 결과), `KtoForecastResponseValidatorTest`, `FlywayMigrationIT`(populated V010→V011 upgrade). report는 `apps/api/build/test-results/{test,integrationTest,openapiContractTest,recommendationTest}`이며 local Temurin 21 run과 full Docker gate(`integration_mode=full-docker`, exit 0)가 모두 `320/153/13/19`, failures/errors/skipped 0이다. AI pytest 410, web unit 224, Playwright 36, test_reports/evaluation_report valid, npm audit clean, egress-denied도 통과했다. `TemporalComparisonPolicy.eligibility()`의 `PROVIDER_INCIDENT` 분기를 지우면 BA-023-T2 두 건이 RED이고 복원 SHA가 일치한다. 적대적 검토에서 production 호출자가 없는 `CrowdComparisonService`가 BA-023-T2 증거로 등록돼 있었다는 지적이 확정돼 service/test를 삭제하고 실제 경로 격리 가드 검증으로 교체했다. **미완료:** 실제 KTO `tatsCnctrRatedList` 호출 증거는 이 저장소에서 아직 만들지 않았다. opt-in `actualKtoSmoke`/`ktoForecastSmoke`는 `KTO_SERVICE_KEY`와 `NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true`를 요구하며, BA-021-T3의 staging actual-success→public provenance가 남아 있는 동안에는 BA-023도 `verified`가 아니고 flag를 켜거나 외부에 공개하지 않는다. fail-closed 응답 code를 `ROUTE_UNAVAILABLE`(최적화 run 실패용 문구)에서 `SOURCE_UNAVAILABLE`로 정정했으므로 catalog·crowd 경로를 쓰는 FE fixture는 기대 code를 바꿔야 한다. FE에는 별도 operation으로만 제공하며(한 장소는 `getPlaceCrowdForecast`, 카드가 여럿인 화면은 `queryPlaceCrowdForecasts`) `PlaceSummary`/`PlaceDetail`에는 crowd field가 없다(FCR-029·#105). **2026-09-11 실측:** 승인 후 `actualKtoSmoke`를 실행한 결과 `detailCommon2`(KorService2)가 `areacode`·`sigungucode`·`cat1/2/3`을 빈 문자열로 돌려주고 값은 `lDongRegnCd`·`lDongSignguCd`·`lclsSystm1/2/3`에 있다. 현재 validator는 빈 쪽을 읽으므로 canonical ingest와 forecast 수집이 실제 데이터로는 시작될 수 없다. `tatsCnctrRatedList`의 지역 코드 체계는 실호출로 확정됐다 — `areaCd` 시도 2자리 + `signguCd` 시도+시군구 5자리이며, `11`+`110`의 `totalCount 0`은 형식 오류가 아니라 `signguCd` 자릿수 문제였다(`11`+`11110`은 한 장소에 30건). `KtoForecastRequest.signguRequestCode()`가 그 값을 만들고 `KtoCrowdForecastGatewayIT`가 나간 요청의 두 코드를 단언한다. #109는 닫혔다. **배치 조회(#105):** `queryPlaceCrowdForecasts`(`POST /places/crowd-forecasts/query`)는 `placeIds[1..50]`와 공유 `from`/`to` 하나를 받아 `items[i]`가 `placeIds[i]`에 답하는 목록을 요청 순서대로 돌려준다. 조립은 요청을 순회해서 하고 SQL 결과 순서에 기대지 않는다. 읽을 수 있는 장소의 item은 같은 장소·기간의 `getPlaceCrowdForecast` 응답과 같고(canonical `placeId`, deprecated id도 수렴), 단건이 404로 답할 id(없음·비활성·좌표 없음)는 그 item만 `UNAVAILABLE`·`PLACE_UNAVAILABLE`(`placeId`=요청 id)로 답한다. 문장 구조는 id 수와 무관하다: catalog `readableCanonicalIds` 1문장(`find`와 같은 join·필터), fresh set 선택 1문장(`DISTINCT ON`, 단건 `latest`와 같은 ORDER BY), fresh가 없는 장소가 있을 때만 stale 선택 1문장, set이 있을 때만 (set, place) 쌍 point 1문장. 쌍으로 묻는 것은 `snapshot_sets`에 장소 열이 없어 한 set이 여러 장소를 담을 수 있기 때문이다. fresh와 stale을 한 문장으로 합치지 않는다(`stale_at` NULL set이 DESC에서 앞에 온다). `now`는 요청당 한 번 읽는다. 검증(422)이 공개 게이트(503)보다 먼저이고, body의 null이 `CrowdForecastProperties.accepts`에 닿으면 500이던 것을 422로 막는다. 같은 자리에 절대 범위(0001~9999년)를 더했다 — `+300000-01-01T00:00:00Z`가 Instant로 읽혀 PostgreSQL timestamptz 범위 밖에서 500이 되던 것은 **단건 route에도 있던 결함**이라 두 route가 함께 422가 된다. 공유 스키마(`CrowdSeries` 등)는 바꾸지 않았고 새 경로와 두 이름 있는 스키마만 더했다(oasdiff breaking: 0 error, 0 warning, info 1 `endpoint-added`). item끼리 정렬·비교 금지는 계약 description에 적는다. provider 호출·수집 예약이 없다는 것은 `ArchitectureRulesTest`(BA-023-T15)가 읽기 경로와 **두 port의 구현체**(`CrowdForecastQuery`·`CatalogPlaceQuery`)에 대해 transitive로 고정한다 — 금지 대상은 KTO gateway·fetcher 넷, `ProviderHttpClient`, `JobQueue`, `java.net.http`·Spring web client다. 같은 class라 단건 route도 묶인다. KTO point의 `ordinalLevel`은 늘 null이라 Figma `438:3158`의 단계 표시는 이 operation으로 생기지 않는다(FCR-029). 검증: `CrowdForecastQueryIT`(T7~T12·T16~T20, T8은 단건 응답 JSON 전체와 대조하고 fixture `crowd/forecast-query.json`과 key shape를 대조한다), `CrowdForecastQueryFailsClosedIT`(T13), `QueryBudgetIT`(T14, fresh·stale·no-coverage·merged·unresolved 다섯 branch를 각각 5 대 45로 잰다), `ArchitectureRulesTest`(T15). **어휘(#105 FE 후속):** `unavailableReason`은 FE가 매핑하는 token이고 화면 문구가 아니다. 서버가 낼 수 있는 값은 `NO_COVERAGE`·`PLACE_UNAVAILABLE` 둘뿐이라 Java enum(`UnavailableReason`)으로 두고 계약은 `x-extensible-enum`으로 같은 둘을 싣는다. `ordinalLevel`은 오너 결정(FCR-035)인 5단계 척도의 숫자 문자열 \"1\"~\"5\"이고 계약은 `pattern: ^[1-5]$`로 싣는다. **JSON Schema `enum`을 쓰지 않은 것은 측정 결과다** — enum이 없던 응답 property에 enum을 더하면 oasdiff breaking이 CrowdMetric을 품은 operation마다 값마다 한 건씩, 174 error가 된다(`response-property-enum-value-added`; oasdiff 자신이 \"If the value set is meant to grow, declare it with x-extensible-enum\"을 제안한다). pattern·x-extensible-enum 조합은 0 error·0 warning·28 info(pattern-added)다. 대가는 생성 client가 union type을 주지 못하는 것이고(`x-nullnull-interest-codes`와 같은 자리), 그래서 계약↔서버를 양방향으로 대조하는 test를 둔다(T21·T22). 단계의 생산자는 아직 없다 — KTO writer가 `ordinal_level`에 NULL을 쓰고 열에 CHECK도 없다. 그래서 저장된 단계가 계약을 어기고 나가지 않게 읽기 경계에서 막는다: 단계는 null로 두고 `SCHEMA_DRIFT`를 붙인다(같은 mapper가 모르는 quality flag를 그렇게 다루던 선례, T23). 척도 안의 값이어도 마찬가지다 — 판단 기준은 **source에 검토된 매핑이 있는가**이고(`CrowdStage.SOURCES_WITH_REVIEWED_SCALE`, 지금 비어 있다), 단계를 publish하는 slice가 자기 source를 그 목록에 넣는다. 척도 안의 숫자라는 것만으로 통과시키면 단계를 내지 않는 source에 저장된 숫자가 authoritative한 단계가 된다(Codex 적대적 검토 지적). 단계는 `value`에서 유도하지 않는다(불변식 8). **단계 생산자가 생기는 slice가 함께 해야 하는 둘:** FE의 `CrowdLevel.STEPS`가 아직 4라 `\"5\"`는 화면에서 조용히 사라진다(FCR-035의 FE 몫). 그리고 APPLY의 비교 철회 검사(`requireComparisonStillSupported`)는 지금 incident만 본다 — 저장된 단계가 drift로 바뀌면 `SCHEMA_DRIFT`로 비교 자격을 잃은 점이 생기므로 그때는 그 검사도 넓혀야 한다(오늘은 저장된 단계의 생산자가 없어 도달 불가).",
@@ -2788,7 +2804,7 @@
       "phase": "B09",
       "priority": "P1",
       "title": "독립 검색·feed filter와 정렬 확장",
-      "status": "planned",
+      "status": "deferred",
       "dependsOn": [
         "BA-032",
         "BA-033",
@@ -2825,14 +2841,15 @@
       "handoff": "새 계약 승인 후 생성 client·필터 examples·성능 보고서. 기본 P0 feed 순서는 그대로 버전 관리한다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-080"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-080",
+      "reason": "A-064 오너 결정으로 이번 범위에서 뺀다. 1단계가 검색 지표·사용자 요구로 filter를 고르는 것인데 그 근거가 없고 새 계약은 FE·Figma 승인이 필요하다. 안전 기본값: 새 filter·sort API와 UI를 만들지 않고 P0 feed 순서를 그대로 버전 관리한다."
     },
     {
       "id": "BA-081",
       "phase": "B09",
       "priority": "P1",
       "title": "계정 인증·익명 승계·follow graph",
-      "status": "planned",
+      "status": "deferred",
       "dependsOn": [
         "BA-010",
         "BA-012",
@@ -2873,7 +2890,8 @@
       "handoff": "login/merge preview·복구·실패·충돌 및 following feed empty/disabled fixtures. 새로운 endpoint는 모두 proposed다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-081"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-081",
+      "reason": "A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0 로그인 CTA는 준비 중으로 남는다."
     },
     {
       "id": "BA-082",
@@ -2882,7 +2900,6 @@
       "title": "게시물·미디어 업로드·moderation",
       "status": "planned",
       "dependsOn": [
-        "BA-081",
         "BA-022",
         "BA-071"
       ],
@@ -2989,8 +3006,7 @@
       "status": "planned",
       "dependsOn": [
         "BA-051",
-        "BA-052",
-        "BA-073"
+        "BA-052"
       ],
       "operations": [],
       "featureIds": [
@@ -3159,7 +3175,7 @@
         },
         {
           "id": "BA-083-T2",
-          "assertion": "DAY는 targetDate만, TRIP은 target 없음의 union과 capability를 검증한다"
+          "assertion": "DAY는 targetDate만, TRIP은 target 없이 받는다 — 다른 scope의 target을 실은 요청은 거절된다"
         },
         {
           "id": "BA-083-T3",
@@ -3175,7 +3191,11 @@
         },
         {
           "id": "BA-083-T43",
-          "assertion": "적용 결과는 preview 의 travel delta 를 측정된 절감으로 주장하지 않는다"
+          "assertion": "경로 proposal의 summary는 travel delta 수치를 싣지 않는다"
+        },
+        {
+          "id": "BA-083-T44",
+          "assertion": "DAY·TRIP 요청은 그 scope의 capability가 꺼져 있으면 거절된다"
         }
       ],
       "handoff": "DAY/TRIP before/after·route unavailable·scope union examples와 provider attribution.",
@@ -3188,11 +3208,10 @@
       "phase": "B09",
       "priority": "P1",
       "title": "선호 해석·AI draft 보조·근거 설명",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-051",
-        "BA-060",
-        "BA-073"
+        "BA-060"
       ],
       "operations": [],
       "featureIds": [
@@ -3364,7 +3383,7 @@
           }
         }
       ],
-      "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy.",
+      "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 범위: integration-ready는 설명 template fallback·출력/선호 validator·OPENAI adapter와 그 startup 가드까지다. 미구현: 선호 해석 생산자(apps/ai preference package는 validator만 있고 호출자가 없다), draft 보조 연결(FR-TRC-11), AI 사용 표기(apps/ai 설명 응답의 source를 공개 계약에 싣기). OPENAI를 켜기 전에 AI 사용 표기가 선행돼야 한다 — Spring OptimizeItemHandler가 source를 버리고 summary만 쓰므로 지금 켜면 표기 없이 LLM 문장이 사용자에게 나간다. kill switch는 AI_PROVIDER=NONE 재시작이다(런타임 스위치 없음). OpenAI 외부 전송의 개인정보 경계 문서는 없다. 후속 추적: A-064.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-084"
@@ -3498,8 +3517,7 @@
       "title": "영문 POI coverage·번역 품질",
       "status": "planned",
       "dependsOn": [
-        "BA-022",
-        "BA-073"
+        "BA-022"
       ],
       "operations": [],
       "featureIds": [
@@ -3578,7 +3596,7 @@
       "phase": "B09",
       "priority": "P2",
       "title": "개인화 계측·학습·평가·실험",
-      "status": "planned",
+      "status": "deferred",
       "dependsOn": [
         "BA-033",
         "BA-051",
@@ -3614,14 +3632,15 @@
       "handoff": "계측 schema·attribution window·동의 정책·평가표. P2 model이 없어도 Live P0로 진행 가능하다.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-087"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-087",
+      "reason": "A-064 오너 결정으로 이번 범위에서 뺀다(P2). 안전 기본값: 개인화 학습·실험을 하지 않고 P0 feed 순서와 정책 버전을 유지한다."
     },
     {
       "id": "BA-088",
       "phase": "B09",
       "priority": "P2",
       "title": "worker·추천/예측 service 분리",
-      "status": "planned",
+      "status": "deferred",
       "dependsOn": [
         "BA-005",
         "BA-070"
@@ -3656,7 +3675,8 @@
       "handoff": "새 protocol의 FE 영향 유무, 장애 상태 examples·비용·운영 분리 ADR.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
-      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-088"
+      "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-088",
+      "reason": "A-064 오너 결정으로 이번 범위에서 뺀다(P2). 안전 기본값: modular monolith와 단일 apps/ai 서비스를 유지한다(A-008 측정 trigger 미충족)."
     },
     {
       "id": "BA-090",

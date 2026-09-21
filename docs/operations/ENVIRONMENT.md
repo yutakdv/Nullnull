@@ -174,8 +174,8 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | `NULLNULL_AI_BIND_HOST` | 아니오 | `127.0.0.1` local, `0.0.0.0` container | bind address |
 | `NULLNULL_AI_PORT` | 아니오 | `8090` | 1024..65535 |
 | `NULLNULL_CATALOG_VERSION` | 아니오 | staging/production 필수, 없으면 startup 실패 | 응답 `catalogVersion`; local/test는 `catalog-unversioned-<env>` placeholder |
-| `AI_PROVIDER` | 아니오 | `NONE` | P0 허용값은 `NONE`뿐; `OPENAI`는 BA-084 adapter 전까지 startup 실패 |
-| `AI_API_KEY`, `AI_MODEL_ID`, `AI_TIMEOUT` | 4절과 동일 | BA-084 | provider `OPENAI` 승인 뒤 이 서비스에서만 읽는다 |
+| `AI_PROVIDER` | 아니오 | `NONE` | 허용값 `NONE`·`OPENAI`(BA-084 adapter). `OPENAI`는 `AI_API_KEY`·`AI_MODEL_ID`가 없거나 공백이면 startup 실패. 제출본은 `NONE`이고, AI 사용 표기가 공개 계약에 들어가기 전에는 `OPENAI`를 켜지 않는다(`BA-084` 카드) |
+| `AI_API_KEY`, `AI_MODEL_ID` | 4절과 동일 | BA-084 | provider `OPENAI`일 때 이 서비스에서만 읽는다. 호출 timeout·출력 token 상한은 환경변수가 아니라 adapter 상수다(`TIMEOUT_SECONDS`·`MAX_OUTPUT_TOKENS`, A-059) |
 | `NULLNULL_AI_REPORT_DIR` | 아니오 | test stage만 | `evaluation.json` 출력 위치 |
 
 보존 기간은 이 문서의 임의 default가 개인정보 정책보다 우선하지 않는다. OpenAPI/ERD/cleanup job/IaC 값이 다르면 startup 또는 contract test가 실패해야 한다.
@@ -200,10 +200,9 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | `MAP_PROVIDER` | 아니오 | `NONE` P0, provider 결정 후 enum |
 | `MAP_API_KEY` | 예 | backend route/geocode key |
 | `MAP_BASE_URL` | 아니오 | provider endpoint |
-| `AI_PROVIDER` | 아니오 | `NONE` P0 기본; `OPENAI`는 P1 BA-084에서 추가하는 enum, 읽는 곳은 `apps/ai` |
+| `AI_PROVIDER` | 아니오 | `NONE` 기본; `OPENAI`는 BA-084 adapter가 받는 값, 읽는 곳은 `apps/ai` |
 | `AI_API_KEY` | 예 | P1 AI 설명/보조 기능 승인 뒤 |
 | `AI_MODEL_ID` | 아니오 | 평가로 승인한 exact model identifier |
-| `AI_TIMEOUT` | 아니오 | request/job timeout |
 
 `ProviderHttpClient`는 redirect를 따르지 않고 source별 exact hostname·HTTPS만 허용한다. local/test fixture는 `127.0.0.1` override를 쓸 수 있지만 production은 `KTO_KOR_SERVICE_2`/`KTO_CONCENTRATION_FORECAST`/`KTO_RELATED_PLACES`의 `apis.data.go.kr` 및 `SEOUL_CITYDATA`의 `openapi.seoul.go.kr` 외의 host, 누락 source, 추가 source 설정으로 startup하지 않는다. C2 KTO client는 그 위에 `KorService2` exact path와 `detailCommon2` operation을 추가로 고정한다. provider key·전체 URL/query·응답 원문은 config/log/audit에 남기지 않는다.
 

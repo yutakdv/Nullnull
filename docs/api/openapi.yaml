@@ -660,6 +660,7 @@ paths:
                           value: 62
                           unit: "상대 집중률"
                           ordinalLevel: null
+                          ordinalScale: null
                           label: "관광지별 집중률 예측"
                           provenance:
                             source: "KTO_KOR_SERVICE_2"
@@ -724,6 +725,7 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: null
+                          ordinalScale: null
                           label: "관광지별 집중률 예측"
                           provenance:
                             source: "KTO_KOR_SERVICE_2"
@@ -1426,6 +1428,7 @@ paths:
                       value: 34
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1463,6 +1466,7 @@ paths:
                       value: 72.5
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1500,6 +1504,7 @@ paths:
                       value: 51
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1550,6 +1555,7 @@ paths:
                       value: 72.5
                       unit: relative-index
                       ordinalLevel: null
+                      ordinalScale: null
                       label: '만료된 관광지 집중률 예측'
                       provenance:
                         source: KTO_CONCENTRATION_FORECAST
@@ -1701,6 +1707,7 @@ paths:
                         value: 34
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -1738,6 +1745,7 @@ paths:
                         value: 72.5
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -1775,6 +1783,7 @@ paths:
                         value: 51
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -1816,6 +1825,7 @@ paths:
                         value: 58
                         unit: relative-index
                         ordinalLevel: null
+                        ordinalScale: null
                         label: '만료된 관광지 집중률 예측'
                         provenance:
                           source: KTO_CONCENTRATION_FORECAST
@@ -5721,6 +5731,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '3'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -5763,6 +5776,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '3'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -5812,6 +5828,10 @@ paths:
                             "value": null,
                             "unit": null,
                             "ordinalLevel": "3",
+                            "ordinalScale": {
+                              "size": 5,
+                              "publishedCells": ["1", "2", "3", "4"]
+                            },
                             "label": "서울 주요 장소의 실시간 인구 혼잡도 수준",
                             "provenance": {
                               "source": "SEOUL_CITYDATA",
@@ -5858,6 +5878,10 @@ paths:
                             "value": null,
                             "unit": null,
                             "ordinalLevel": "3",
+                            "ordinalScale": {
+                              "size": 5,
+                              "publishedCells": ["1", "2", "3", "4"]
+                            },
                             "label": "서울 주요 장소의 실시간 인구 혼잡도 수준",
                             "provenance": {
                               "source": "SEOUL_CITYDATA",
@@ -5910,6 +5934,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '4'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -5957,6 +5984,9 @@ paths:
                           value: null
                           unit: null
                           ordinalLevel: '2'
+                          ordinalScale:
+                            size: 5
+                            publishedCells: ['1', '2', '3', '4']
                           label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                           provenance:
                             source: SEOUL_CITYDATA
@@ -6052,6 +6082,9 @@ paths:
                         value: null
                         unit: null
                         ordinalLevel: '3'
+                        ordinalScale:
+                          size: 5
+                          publishedCells: ['1', '2', '3', '4']
                         label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                         provenance:
                           source: SEOUL_CITYDATA
@@ -6109,6 +6142,9 @@ paths:
                         value: null
                         unit: null
                         ordinalLevel: '3'
+                        ordinalScale:
+                          size: 5
+                          publishedCells: ['1', '2', '3', '4']
                         label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                         provenance:
                           source: SEOUL_CITYDATA
@@ -6226,6 +6262,9 @@ paths:
                       value: null
                       unit: null
                       ordinalLevel: '3'
+                      ordinalScale:
+                        size: 5
+                        publishedCells: ['1', '2', '3', '4']
                       label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                       provenance:
                         source: SEOUL_CITYDATA
@@ -6298,6 +6337,9 @@ paths:
                       value: null
                       unit: null
                       ordinalLevel: '3'
+                      ordinalScale:
+                        size: 5
+                        publishedCells: ['1', '2', '3', '4']
                       label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                       provenance:
                         source: SEOUL_CITYDATA
@@ -6370,6 +6412,9 @@ paths:
                       value: null
                       unit: null
                       ordinalLevel: '3'
+                      ordinalScale:
+                        size: 5
+                        publishedCells: ['1', '2', '3', '4']
                       label: 서울 주요 장소의 실시간 인구 혼잡도 수준
                       provenance:
                         source: SEOUL_CITYDATA

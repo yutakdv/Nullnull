@@ -66,6 +66,7 @@
         "value": 58,
         "unit": "상대 집중률",
         "ordinalLevel": null,
+        "ordinalScale": null,
         "label": "관광지별 집중률 예측",
         "provenance": {
           "source": "KTO_KOR_SERVICE_2",
