@@ -49,12 +49,33 @@ public class JdbcSourceRegistryStore implements SourceRegistryStore {
                        AND affected_from <= ? AND (affected_to IS NULL OR ? < affected_to)
                 )
                 """, Boolean.class, code, java.sql.Timestamp.from(at), java.sql.Timestamp.from(at)));
+        // A quarantined latest run shuts the source, and WITHOUT the release clause below that is a
+        // deadlock rather than a guard: every gateway asks this before collector.start, so while the
+        // latest run is QUARANTINED no newer run can ever be recorded to displace it. The source stays
+        // shut forever and nothing in the operator surface opens it (2026-09-21: SEOUL_CITYDATA locked
+        // itself this way on its own five-minute schedule, and the staging database is not reachable
+        // from outside the VPC).
+        //
+        // The release is a reviewed incident, not a rewritten run: the refusal happened and its row
+        // stays. `RESOLVED` is already in source_incident_disposition_check and `reviewed_at` is NOT
+        // NULL, so the human-review record this needs was designed - it simply was not consulted here.
+        // `reviewed_at >= started_at` is what makes it a release of THIS quarantine rather than an old
+        // review resurrected: a review filed before the refusal says nothing about it.
         boolean quarantined = Boolean.TRUE.equals(jdbc.queryForObject("""
-                SELECT COALESCE((
-                    SELECT status = 'QUARANTINED' FROM collector_runs
+                WITH latest AS (
+                    SELECT status, started_at FROM collector_runs
                      WHERE source_code = ? ORDER BY started_at DESC, id DESC LIMIT 1
+                )
+                SELECT COALESCE((
+                    SELECT latest.status = 'QUARANTINED'
+                       AND NOT EXISTS (
+                           SELECT 1 FROM source_quality_incidents
+                            WHERE source_code = ? AND disposition = 'RESOLVED'
+                              AND reviewed_at >= latest.started_at
+                       )
+                      FROM latest
                 ), false)
-                """, Boolean.class, code));
+                """, Boolean.class, code, code));
         return new SourceCondition(incident, quarantined);
     }
 
