@@ -691,6 +691,28 @@ export function usePlaceDetail(
 
 type CreateTripRequest = components['schemas']['CreateTripRequest'];
 type TripDetail = components['schemas']['TripDetail'];
+type PreviewTripDraftRequest = components['schemas']['PreviewTripDraftRequest'];
+type TripDraftPreview = components['schemas']['TripDraftPreview'];
+
+/**
+ * Builds a deterministic, unsaved itinerary preview for FR-TRC-10.
+ *
+ * The operation is read-only despite using POST for its body. It deliberately
+ * lives as a mutation so the wizard starts it only after an explicit choice;
+ * errors are retried only from the recovery CTA.
+ */
+export function usePreviewTripDraft() {
+  return useMutation<TripDraftPreview, Problem | Error, PreviewTripDraftRequest>({
+    mutationFn: async (request) => {
+      const { data, error, response } = await getApiClient().POST(
+        '/trip-drafts/preview',
+        { body: request },
+      );
+      if (!data) fail(error, response);
+      return data;
+    },
+  });
+}
 
 /**
  * Creates a trip from the wizard draft.

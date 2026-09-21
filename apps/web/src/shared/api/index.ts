@@ -32,6 +32,7 @@ export {
   currentOwnerQueryKey,
   forgetDeletionToken,
   useCreateTrip,
+  usePreviewTripDraft,
   useCurrentOwner,
   useDeletionStatus,
   useRequestDeletion,

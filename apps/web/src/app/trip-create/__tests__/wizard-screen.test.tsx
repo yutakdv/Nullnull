@@ -10,7 +10,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
-import { crowdFixtures, sessionFixtures } from '@nullnull/contracts';
+import {
+  crowdFixtures,
+  problemFixtures,
+  sessionFixtures,
+  tripDraftFixtures,
+} from '@nullnull/contracts';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
@@ -23,11 +28,13 @@ import { routes } from '../../routes.js';
 const copy = messages['en-US'];
 
 let created: { key: string | null; body: unknown }[] = [];
+let previews: unknown[] = [];
 /** Preference patches the wizard sent, so the active-trip write is observable. */
 let patched: Record<string, unknown>[] = [];
 
 beforeEach(() => {
   created = [];
+  previews = [];
   patched = [];
   server.use(
     http.patch(`${API_BASE}/me`, async ({ request }) => {
@@ -44,6 +51,12 @@ beforeEach(() => {
         { id: '018f4c00-0000-7000-8000-000000000001' },
         { status: 201 },
       );
+    }),
+    http.post(`${API_BASE}/trip-drafts/preview`, async ({ request }) => {
+      previews.push(await request.json());
+      return HttpResponse.json(tripDraftFixtures.ready, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
     }),
   );
 });
@@ -77,6 +90,194 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
   await user.click(numbered[0] as HTMLElement);
   await user.click(numbered[3] as HTMLElement);
 }
+
+/** Reaches the P0 deterministic recommendation preview from NOTHING. */
+async function reachRecommendedPreview(user: ReturnType<typeof userEvent.setup>) {
+  const rendered = renderWizard();
+  await pickDates(user);
+  await user.click(screen.getByRole('button', { name: /–/ }));
+  await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+  await user.click(
+    await screen.findByRole('button', {
+      name: new RegExp(copy['wizard.planning.NOTHING.title']),
+    }),
+  );
+  await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+  return rendered;
+}
+
+async function startRecommendedTrip(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByRole('heading', { name: copy['draftPreview.title'] });
+  await user.click(screen.getByRole('button', { name: copy['draftPreview.start'] }));
+}
+
+describe('FE-102-T4 FR-TRC-10 deterministic recommendation preview', () => {
+  it('previews before creating and confirms the approved stops as seedItems', async () => {
+    // Break caught: the NOTHING branch calling createTrip directly, or mapping
+    // preview stops without their date/position/null time/Pick constraint.
+    const user = userEvent.setup();
+    await reachRecommendedPreview(user);
+
+    expect(
+      await screen.findByRole('heading', { name: "Here's a plan to start with" }),
+    ).toBeInTheDocument();
+    expect(created).toHaveLength(0);
+    expect(previews).toHaveLength(1);
+    expect(Object.keys(previews[0] as Record<string, unknown>).sort()).toEqual([
+      'endDate',
+      'startDate',
+      'timezone',
+    ]);
+
+    const picks = screen.getAllByRole('button', { name: /^Mark .* must visit$/ });
+    await user.click(picks[0] as HTMLElement);
+    await user.click(screen.getByRole('button', { name: 'Start with this plan' }));
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    expect((created[0]?.body as { seedItems?: unknown[] }).seedItems).toEqual([
+      {
+        placeId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01',
+        date: '2026-10-04',
+        position: 0,
+        startTime: null,
+        constraints: [{ type: 'MUST_VISIT', locked: true }],
+      },
+      {
+        placeId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03',
+        date: '2026-10-04',
+        position: 1,
+        startTime: null,
+        constraints: [],
+      },
+      {
+        placeId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02',
+        date: '2026-10-05',
+        position: 0,
+        startTime: null,
+        constraints: [],
+      },
+    ]);
+  });
+
+  it('keeps createTrip blocked while the read-only preview is loading', async () => {
+    server.use(
+      http.post(`${API_BASE}/trip-drafts/preview`, async () => {
+        await delay(200);
+        return HttpResponse.json(tripDraftFixtures.ready);
+      }),
+    );
+    const user = userEvent.setup();
+    await reachRecommendedPreview(user);
+
+    expect(
+      await screen.findByRole('heading', { name: copy['draftPreview.loadingTitle'] }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: copy['draftPreview.loadingCta'] }),
+    ).toBeDisabled();
+    expect(created).toHaveLength(0);
+  });
+
+  it('restores local answers at step 3 without persisting the no-store preview', async () => {
+    const user = userEvent.setup();
+    const first = await reachRecommendedPreview(user);
+    await screen.findByRole('heading', { name: copy['draftPreview.title'] });
+
+    first.unmount();
+    renderWizard();
+
+    expect(
+      await screen.findByRole('heading', {
+        name: new RegExp(copy['wizard.planning.title1']),
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(copy['draftPreview.title'])).toBeNull();
+    expect(previews).toHaveLength(1);
+    expect(created).toHaveLength(0);
+  });
+});
+
+describe('FE-102-T5 recommendation preview non-ready states', () => {
+  it('renders EMPTY as no recommendation and returns to dates without creating', async () => {
+    server.use(
+      http.post(`${API_BASE}/trip-drafts/preview`, async ({ request }) => {
+        previews.push(await request.json());
+        return HttpResponse.json(tripDraftFixtures.empty);
+      }),
+    );
+    const user = userEvent.setup();
+    await reachRecommendedPreview(user);
+
+    expect(
+      await screen.findByRole('heading', { name: "We couldn't fill these dates" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start with this plan' })).toBeNull();
+    expect(created).toHaveLength(0);
+  });
+
+  it('keeps a retryable 503 distinct from EMPTY and recovers on explicit retry', async () => {
+    let attempt = 0;
+    server.use(
+      http.post(`${API_BASE}/trip-drafts/preview`, async ({ request }) => {
+        previews.push(await request.json());
+        attempt += 1;
+        if (attempt === 1) {
+          return HttpResponse.json(problemFixtures.SOURCE_UNAVAILABLE, { status: 503 });
+        }
+        return HttpResponse.json(tripDraftFixtures.ready);
+      }),
+    );
+    const user = userEvent.setup();
+    await reachRecommendedPreview(user);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Recommendations are unavailable' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("We couldn't fill these dates")).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(
+      await screen.findByRole('heading', { name: "Here's a plan to start with" }),
+    ).toBeInTheDocument();
+    expect(previews).toHaveLength(2);
+  });
+
+  it('does not offer retry for a non-retryable 500', async () => {
+    server.use(
+      http.post(`${API_BASE}/trip-drafts/preview`, () =>
+        HttpResponse.json(problemFixtures.INTERNAL_ERROR, { status: 500 }),
+      ),
+    );
+    const user = userEvent.setup();
+    await reachRecommendedPreview(user);
+
+    expect(
+      await screen.findByRole('heading', { name: "We couldn't build this plan" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(created).toHaveLength(0);
+  });
+
+  it('treats READY without stops as non-creatable EMPTY', async () => {
+    server.use(
+      http.post(`${API_BASE}/trip-drafts/preview`, () =>
+        HttpResponse.json({
+          ...tripDraftFixtures.ready,
+          days: tripDraftFixtures.ready.days.map((day) => ({ ...day, stops: [] })),
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await reachRecommendedPreview(user);
+
+    expect(
+      await screen.findByRole('heading', { name: copy['draftPreview.emptyTitle'] }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: copy['draftPreview.start'] })).toBeNull();
+    expect(created).toHaveLength(0);
+  });
+});
 
 describe('the wizard keeps every step label in the app bar', () => {
   it('places STEP 1 beside the back control instead of in the date content', async () => {
@@ -213,6 +414,7 @@ describe('the draft survives moving through the steps', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
@@ -238,6 +440,7 @@ describe('the draft survives moving through the steps', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
@@ -259,6 +462,7 @@ describe('FE-102-T1 creating the trip', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
@@ -304,9 +508,10 @@ describe('FE-102-T1 creating the trip', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     await screen.findByText(copy['wizard.createFailed']);
-    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(screen.getByRole('button', { name: copy['draftPreview.start'] }));
 
     await waitFor(() => {
       expect(created).toHaveLength(2);
@@ -338,6 +543,7 @@ describe('FE-102-T1 creating the trip', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
     await screen.findByText(copy['wizard.createFailed']);
 
     // Change the draft, then submit again.
@@ -350,12 +556,14 @@ describe('FE-102-T1 creating the trip', () => {
     // body, so toggling one is a real change to what is about to be sent while
     // keeping the answer that submits from here.
     await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
+    await user.click(screen.getByRole('button', { name: copy['wizard.back'] }));
     const interest = await screen.findByRole('button', {
       name: copy['interest.FOOD'],
     });
     await user.click(interest);
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     await waitFor(() => {
       expect(created.length).toBeGreaterThanOrEqual(2);
@@ -395,8 +603,9 @@ describe('FE-102-T1 creating the trip', () => {
       }),
     );
 
-    const submit = screen.getByRole('button', { name: copy['wizard.next'] });
-    await user.click(submit);
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await screen.findByRole('heading', { name: copy['draftPreview.title'] });
+    await user.click(screen.getByRole('button', { name: copy['draftPreview.start'] }));
     await waitFor(() => {
       expect(
         screen.getByRole('button', { name: copy['wizard.creating'] }),
@@ -418,6 +627,7 @@ describe('FE-102-T1 creating the trip', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       copy['wizard.createFailed'],
@@ -842,6 +1052,7 @@ describe('a created trip becomes the owner active trip (BA-011)', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
@@ -868,6 +1079,7 @@ describe('a created trip becomes the owner active trip (BA-011)', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
@@ -921,6 +1133,7 @@ describe('FR-TRC-12 the wizard recovers a draft it was interrupted in', () => {
       }),
     );
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await startRecommendedTrip(user);
     await waitFor(() => {
       expect(created).toHaveLength(1);
     });
