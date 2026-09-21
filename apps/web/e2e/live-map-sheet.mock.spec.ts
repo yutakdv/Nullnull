@@ -4,6 +4,32 @@ test.describe('FE-401 Live map sheet', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
+      class FakeMap {
+        constructor(public container: HTMLElement) {}
+      }
+      class FakeOverlay {
+        constructor(private options: { content: HTMLElement }) {}
+        setMap(map: FakeMap | null) {
+          if (map) map.container.append(this.options.content);
+          else this.options.content.remove();
+        }
+      }
+      Object.defineProperty(window, 'kakao', {
+        configurable: true,
+        value: {
+          maps: {
+            CustomOverlay: FakeOverlay,
+            LatLng: class {
+              constructor(
+                public latitude: number,
+                public longitude: number,
+              ) {}
+            },
+            Map: FakeMap,
+            load: (callback: () => void) => callback(),
+          },
+        },
+      });
     });
     await page.goto('/live');
   });
@@ -106,5 +132,22 @@ test.describe('FE-401 Live map sheet', () => {
 
     await page.keyboard.press('ArrowUp');
     await expect(handle).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('selects a search result on the map before opening its detail', async ({
+    page,
+  }) => {
+    const search = page.getByRole('searchbox', { name: 'Live 장소 검색' });
+    await search.fill('경복궁');
+    await page.getByRole('button', { name: '경복궁 지도에서 보기' }).click();
+
+    await expect(search).toHaveValue('');
+    const marker = page.getByRole('button', { name: '경복궁', exact: true });
+    await marker.focus();
+    await expect(marker).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    await expect(page).toHaveURL(/\/live\/places\/018f4b20-1a44-7e11-9c02-5d7e3f1a2b01$/);
+    await expect(page.getByRole('heading', { level: 1, name: '경복궁' })).toBeVisible();
   });
 });

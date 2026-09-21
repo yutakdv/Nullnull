@@ -25,6 +25,15 @@ npm run dev:mock                                      # MSW fixture
 
 `npm run dev:api`는 기존 로컬 작업 호환을 위한 `npm run dev`의 별칭이다.
 
+## 라이브 지도 (카카오맵)
+
+라이브 탭은 카카오맵 Web SDK로 지도를 표시하고, `/live/areas`의 좌표가 있는 권역을
+지도 위 선택 버튼으로 표시한다. SDK를 사용할 수 없어도 검색과 권역 목록은 이용할 수 있다.
+
+1. [카카오 개발자 문서](https://developers.kakao.com/docs/ko/kakaomap/common)에 따라 카카오맵 API를 활성화하고 **JavaScript 키**의 JavaScript SDK 허용 도메인에 현재 웹 origin을 등록한다. 로컬 확인용 서버가 `http://127.0.0.1:5175`라면 해당 origin도 등록한다. REST API 키는 지도 SDK에 사용할 수 없다.
+2. `apps/web/.env.local`에 `VITE_KAKAO_MAP_APP_KEY=발급받은_JavaScript_키`를 설정한다. `.env.local`은 Git에서 제외되며, 키를 소스나 테스트 fixture에 넣지 않는다. 브라우저에서 쓰는 JavaScript 키이므로 공개 노출을 전제로 허용 도메인을 제한한다.
+3. 개발 서버를 재시작한 뒤 `/live`에서 실제 지도 타일과 권역 버튼이 나타나는지 확인한다. 지도가 표시되지 않으면 카카오맵 API 활성화, 허용 도메인과 브라우저의 SDK 요청 오류를 확인한다.
+
 mock worker는 `public/`이 아니라 `mocks/mockServiceWorker.js`에 있고 Vite dev 미들웨어가
 서빙한다(`vite.config.ts`). `public/`에 두면 `dist/`로 복사돼 production 이미지가 mock을
 서빙할 수 있고, `scripts/integration-test.sh`가 그 이미지로 E2E를 돌리기 때문에 게이트가

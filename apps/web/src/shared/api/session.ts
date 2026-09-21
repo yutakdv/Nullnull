@@ -554,6 +554,7 @@ export function useFeed(tripId: string | null = null, enabled = true) {
 
 type PlaceSearchPage = components['schemas']['PlaceSearchPage'];
 type PlaceSearchRequest = components['schemas']['PlaceSearchRequest'];
+type PlaceDetail = components['schemas']['PlaceDetail'];
 type CrowdSeries = components['schemas']['CrowdSeries'];
 type PlaceCrowdForecastQueryResult =
   components['schemas']['PlaceCrowdForecastQueryResult'];
@@ -667,6 +668,24 @@ export function usePlaceSearch(
       if (!data) fail(error, response);
       return data;
     },
+  });
+}
+
+export function usePlaceDetail(
+  placeId: string | null,
+): UseQueryResult<PlaceDetail, Problem | Error> {
+  return useQuery({
+    queryKey: ['places', placeId ?? ''],
+    enabled: placeId !== null,
+    queryFn: async () => {
+      if (placeId === null) throw new Error('Place detail query is missing its place');
+      const { data, error, response } = await getApiClient().GET('/places/{placeId}', {
+        params: { path: { placeId } },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+    staleTime: 0,
   });
 }
 

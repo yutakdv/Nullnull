@@ -7,7 +7,9 @@ type LiveArea = components['schemas']['LiveArea'];
 interface KakaoLiveMapProps {
   areas: LiveArea[];
   label: string;
+  onOpenPlace?: (placeId: string) => void;
   onSelectArea?: (areaId: string) => void;
+  selectedPlace?: components['schemas']['PlaceDetail'] | null;
   unavailableDetail: string;
   unavailableTitle: string;
 }
@@ -35,8 +37,8 @@ declare global {
 let sdkPromise: Promise<KakaoMapApi> | null = null;
 
 function loadKakaoMapSdk(appKey: string) {
-  if (window.kakao?.maps) return Promise.resolve(window.kakao);
   if (sdkPromise) return sdkPromise;
+  if (window.kakao?.maps) return Promise.resolve(window.kakao);
 
   sdkPromise = new Promise<KakaoMapApi>((resolve, reject) => {
     const script = document.createElement('script');
@@ -62,7 +64,9 @@ function loadKakaoMapSdk(appKey: string) {
 export function KakaoLiveMap({
   areas,
   label,
+  onOpenPlace,
   onSelectArea,
+  selectedPlace,
   unavailableDetail,
   unavailableTitle,
 }: KakaoLiveMapProps) {
@@ -82,8 +86,17 @@ export function KakaoLiveMap({
     void loadKakaoMapSdk(appKey)
       .then((kakao) => {
         if (!active) return;
-        const center = new kakao.maps.LatLng(37.5665, 126.978);
-        const map = new kakao.maps.Map(container, { center, level: 7 });
+        container.replaceChildren();
+        const center = selectedPlace
+          ? new kakao.maps.LatLng(
+              selectedPlace.location.latitude,
+              selectedPlace.location.longitude,
+            )
+          : new kakao.maps.LatLng(37.5665, 126.978);
+        const map = new kakao.maps.Map(container, {
+          center,
+          level: selectedPlace ? 4 : 7,
+        });
 
         for (const area of areas) {
           if (!area.centroid) continue;
@@ -102,6 +115,23 @@ export function KakaoLiveMap({
           overlay.setMap(map);
           overlays.push(overlay);
         }
+
+        if (selectedPlace) {
+          const marker = document.createElement('button');
+          marker.className = styles.marker ?? '';
+          marker.type = 'button';
+          marker.textContent = selectedPlace.name;
+          marker.addEventListener('click', () => onOpenPlace?.(selectedPlace.id));
+          const overlay = new kakao.maps.CustomOverlay({
+            content: marker,
+            position: new kakao.maps.LatLng(
+              selectedPlace.location.latitude,
+              selectedPlace.location.longitude,
+            ),
+          });
+          overlay.setMap(map);
+          overlays.push(overlay);
+        }
         setUnavailable(false);
       })
       .catch(() => {
@@ -111,8 +141,9 @@ export function KakaoLiveMap({
     return () => {
       active = false;
       overlays.forEach((overlay) => overlay.setMap(null));
+      container.replaceChildren();
     };
-  }, [areas, onSelectArea]);
+  }, [areas, onOpenPlace, onSelectArea, selectedPlace]);
 
   return (
     <div aria-label={label} className={styles.root} role="region">

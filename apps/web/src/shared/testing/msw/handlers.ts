@@ -987,6 +987,14 @@ export const handlers = [
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),
+  http.get(`${API_BASE}/places/:placeId`, ({ params }) => {
+    if (params.placeId !== placeFixtures.detail.id) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    return HttpResponse.json(placeFixtures.detail, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }),
 
   // Approved BA-091 fixtures. They are consumed directly rather than copied
   // into a frontend model, so local MSW and the connected API exercise the
