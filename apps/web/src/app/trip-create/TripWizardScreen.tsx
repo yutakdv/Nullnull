@@ -116,9 +116,10 @@ export function TripWizardScreen() {
   // component (ImportPasteScreen holds it, on its own route), which is why the
   // canary test checks every Storage rather than trusting that shape.
   useEffect(() => {
-    // The recommendation response is `private, no-store`, so persist step 3
-    // while its ephemeral screen is open. Refresh keeps the local answers but
-    // never restores server preview data or a phantom step 4.
+    // The recommendation response is `private, no-store`, so it is never put
+    // in sessionStorage. Persist step 3 while that ephemeral screen is open:
+    // a refresh keeps the user's dates/interests/answer without restoring a
+    // phantom step 4 that has no preview to render.
     const persistedStep = step === 4 && draft.planningLevel === 'NOTHING' ? 3 : step;
     writeSnapshot({ step: persistedStep, draft });
   }, [step, draft]);
@@ -536,12 +537,16 @@ export function TripWizardScreen() {
             // which the Idempotency-Key guards against but need not be tested by
             // the user (.claude/rules/frontend.md on duplicate submits).
             disabled={draft.planningLevel === null || createTrip.isPending}
-            // Each answer now reaches its own branch screen. NOTHING requests
-            // an unsaved recommendation, and createTrip waits for confirmation.
+            // The answer decides what follows: MUST_VISIT_ONLY opens its
+            // picker, MOSTLY_PLANNED opens the input-method choice, and NOTHING
+            // requests a recommendation preview. All three used to call
+            // submit(), so the branch screens were skipped entirely (#185).
             onClick={() => {
               // Step 4 is whichever branch step 3 was answered with: the
               // must-visit picker (S02-4B) or the input-method choice
-              // (S02-4C `400:1201`). NOTHING opens the deterministic preview.
+              // (S02-4C `400:1201`). NOTHING opens the deterministic, unsaved
+              // recommendation preview; no trip exists until that screen is
+              // explicitly confirmed.
               const next = nextAfterPlanning(draft);
               if (next === 'must-visit' || next === 'method') {
                 setStep(4);

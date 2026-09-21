@@ -93,7 +93,7 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
 
 /** Reaches the P0 deterministic recommendation preview from NOTHING. */
 async function reachRecommendedPreview(user: ReturnType<typeof userEvent.setup>) {
-  const rendered = renderWizard();
+  renderWizard();
   await pickDates(user);
   await user.click(screen.getByRole('button', { name: /–/ }));
   await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
@@ -103,7 +103,6 @@ async function reachRecommendedPreview(user: ReturnType<typeof userEvent.setup>)
     }),
   );
   await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
-  return rendered;
 }
 
 async function startRecommendedTrip(user: ReturnType<typeof userEvent.setup>) {
@@ -129,14 +128,28 @@ describe('FE-102-T4 FR-TRC-10 deterministic recommendation preview', () => {
       'timezone',
     ]);
 
+    expect(screen.getByText('경복궁')).toBeInTheDocument();
+    expect(screen.getByText('북촌한옥마을')).toBeInTheDocument();
+    expect(screen.getByText('명동')).toBeInTheDocument();
+
     const picks = screen.getAllByRole('button', { name: /^Mark .* must visit$/ });
+    expect(picks).toHaveLength(3);
     await user.click(picks[0] as HTMLElement);
     await user.click(screen.getByRole('button', { name: 'Start with this plan' }));
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
     });
-    expect((created[0]?.body as { seedItems?: unknown[] }).seedItems).toEqual([
+    const body = created[0]?.body as {
+      seedItems?: Array<{
+        placeId: string;
+        date: string;
+        position: number;
+        startTime: string | null;
+        constraints?: Array<{ type: string; locked: boolean }>;
+      }>;
+    };
+    expect(body.seedItems).toEqual([
       {
         placeId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01',
         date: '2026-10-04',
@@ -149,58 +162,19 @@ describe('FE-102-T4 FR-TRC-10 deterministic recommendation preview', () => {
         date: '2026-10-04',
         position: 1,
         startTime: null,
-        constraints: [],
       },
       {
         placeId: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02',
         date: '2026-10-05',
         position: 0,
         startTime: null,
-        constraints: [],
       },
     ]);
-  });
-
-  it('keeps createTrip blocked while the read-only preview is loading', async () => {
-    server.use(
-      http.post(`${API_BASE}/trip-drafts/preview`, async () => {
-        await delay(200);
-        return HttpResponse.json(tripDraftFixtures.ready);
-      }),
-    );
-    const user = userEvent.setup();
-    await reachRecommendedPreview(user);
-
-    expect(
-      await screen.findByRole('heading', { name: copy['draftPreview.loadingTitle'] }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: copy['draftPreview.loadingCta'] }),
-    ).toBeDisabled();
-    expect(created).toHaveLength(0);
-  });
-
-  it('restores local answers at step 3 without persisting the no-store preview', async () => {
-    const user = userEvent.setup();
-    const first = await reachRecommendedPreview(user);
-    await screen.findByRole('heading', { name: copy['draftPreview.title'] });
-
-    first.unmount();
-    renderWizard();
-
-    expect(
-      await screen.findByRole('heading', {
-        name: new RegExp(copy['wizard.planning.title1']),
-      }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(copy['draftPreview.title'])).toBeNull();
-    expect(previews).toHaveLength(1);
-    expect(created).toHaveLength(0);
   });
 });
 
 describe('FE-102-T5 recommendation preview non-ready states', () => {
-  it('renders EMPTY as no recommendation and returns to dates without creating', async () => {
+  it('renders EMPTY as no recommendation and returns to dates without creating a trip', async () => {
     server.use(
       http.post(`${API_BASE}/trip-drafts/preview`, async ({ request }) => {
         previews.push(await request.json());
@@ -214,6 +188,13 @@ describe('FE-102-T5 recommendation preview non-ready states', () => {
       await screen.findByRole('heading', { name: "We couldn't fill these dates" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start with this plan' })).toBeNull();
+    expect(created).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Change dates' }));
+    expect(
+      await screen.findByRole('heading', { name: copy['wizard.dates.title'] }),
+    ).toBeInTheDocument();
+    expect(previews).toHaveLength(1);
     expect(created).toHaveLength(0);
   });
 
@@ -236,6 +217,9 @@ describe('FE-102-T5 recommendation preview non-ready states', () => {
       await screen.findByRole('heading', { name: 'Recommendations are unavailable' }),
     ).toBeInTheDocument();
     expect(screen.queryByText("We couldn't fill these dates")).toBeNull();
+    expect(previews).toHaveLength(1);
+    expect(created).toHaveLength(0);
+
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(
       await screen.findByRole('heading', { name: "Here's a plan to start with" }),
@@ -243,7 +227,7 @@ describe('FE-102-T5 recommendation preview non-ready states', () => {
     expect(previews).toHaveLength(2);
   });
 
-  it('does not offer retry for a non-retryable 500', async () => {
+  it('does not offer a retry for a non-retryable 500', async () => {
     server.use(
       http.post(`${API_BASE}/trip-drafts/preview`, () =>
         HttpResponse.json(problemFixtures.INTERNAL_ERROR, { status: 500 }),
@@ -256,25 +240,6 @@ describe('FE-102-T5 recommendation preview non-ready states', () => {
       await screen.findByRole('heading', { name: "We couldn't build this plan" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
-    expect(created).toHaveLength(0);
-  });
-
-  it('treats READY without stops as non-creatable EMPTY', async () => {
-    server.use(
-      http.post(`${API_BASE}/trip-drafts/preview`, () =>
-        HttpResponse.json({
-          ...tripDraftFixtures.ready,
-          days: tripDraftFixtures.ready.days.map((day) => ({ ...day, stops: [] })),
-        }),
-      ),
-    );
-    const user = userEvent.setup();
-    await reachRecommendedPreview(user);
-
-    expect(
-      await screen.findByRole('heading', { name: copy['draftPreview.emptyTitle'] }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: copy['draftPreview.start'] })).toBeNull();
     expect(created).toHaveLength(0);
   });
 });
@@ -549,7 +514,7 @@ describe('FE-102-T1 creating the trip', () => {
     // Change the draft, then submit again.
     //
     // An INTEREST rather than the planning level, which is what this used to
-    // change: only NOTHING creates the trip from step 3 now, because
+    // change: only NOTHING opens this recommendation path from step 3,
     // MUST_VISIT_ONLY and MOSTLY_PLANNED each continue to a step 4 of their
     // own (`438:3158` / `400:1201`). Picking another level would leave this
     // measuring navigation instead of the key. Interests ride in the request

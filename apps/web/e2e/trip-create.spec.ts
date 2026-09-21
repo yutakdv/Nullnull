@@ -384,9 +384,12 @@ test.describe('FE-103 the new steps hold up at 360px', () => {
 });
 
 test.describe('FE-102-T4 FR-TRC-10 recommendation preview', () => {
-  test('keyboard flow previews before create and remains usable at 360px', async ({
+  test('keyboard flow previews before create and keeps the 360px layout usable', async ({
     page,
   }) => {
+    // Break caught: NOTHING submitting /trips immediately, or a preview whose
+    // Pick control cannot be reached without a pointer. The request list is
+    // observed at the browser boundary; component tests own the full payload.
     const requests: string[] = [];
     page.on('request', (request) => {
       const pathname = new URL(request.url()).pathname;
@@ -435,12 +438,14 @@ test.describe('FE-102-T4 FR-TRC-10 recommendation preview', () => {
       .toBeLessThanOrEqual(1);
 
     await pick.focus();
+    await expect(pick).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(pick).toHaveAttribute('aria-pressed', 'true');
 
     const layout = await overflow(page);
     expect(layout.spilling, `preview spills: ${layout.widest.join(', ')}`).toEqual([]);
     expect(layout.clipped, 'preview clips its own text').toEqual([]);
+    expect(page.viewportSize()?.width).toBe(NARROW);
 
     await page.getByRole('button', { name: 'Start with this plan' }).click();
     await expect
