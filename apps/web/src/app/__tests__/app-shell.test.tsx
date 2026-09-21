@@ -17,7 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import { sessionFixtures, tripFixtures } from '@nullnull/contracts';
+import { placeFixtures, sessionFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../i18n/I18nProvider.js';
 import { messages } from '../../i18n/messages.js';
 import { createQueryClient, sessionQueryKey } from '../../shared/api/index.js';
@@ -84,6 +84,7 @@ const WITHOUT_TABS = [
   ['/intro', 'onboarding step'],
   ['/start', 'wizard draft is unsaved'],
   [`/trip/${trip.id}/candidates`, 'sub-page with a back control'],
+  [`/live/places/${placeFixtures.detail.id}`, 'sub-page with a back control'],
   ['/about-data', 'sub-page with a back control'],
 ] as const;
 

@@ -8,13 +8,15 @@ import {
 import { SheetGrab } from '../../shared/ui/index.js';
 import styles from './LiveBottomSheet.module.css';
 
-type SheetSnap = 'expanded' | 'collapsed';
+export type SheetSnap = 'expanded' | 'collapsed';
 
 interface LiveBottomSheetProps {
   children: ReactNode;
   collapseLabel: string;
   expandLabel: string;
   initialSnap?: SheetSnap;
+  onSnapChange?: (snap: SheetSnap) => void;
+  snap?: SheetSnap;
   title: string;
 }
 
@@ -26,9 +28,11 @@ export function LiveBottomSheet({
   collapseLabel,
   expandLabel,
   initialSnap = 'expanded',
+  onSnapChange,
+  snap: controlledSnap,
   title,
 }: LiveBottomSheetProps) {
-  const [snap, setSnap] = useState<SheetSnap>(initialSnap);
+  const [internalSnap, setInternalSnap] = useState<SheetSnap>(initialSnap);
   const [dragOffset, setDragOffset] = useState(0);
   const suppressClick = useRef(false);
   const drag = useRef<{
@@ -38,7 +42,12 @@ export function LiveBottomSheet({
     lastAt: number;
     velocity: number;
   } | null>(null);
+  const snap = controlledSnap ?? internalSnap;
   const expanded = snap === 'expanded';
+  const changeSnap = (nextSnap: SheetSnap) => {
+    if (controlledSnap === undefined) setInternalSnap(nextSnap);
+    onSnapChange?.(nextSnap);
+  };
 
   const finishDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = drag.current;
@@ -46,12 +55,12 @@ export function LiveBottomSheet({
 
     const distance = event.clientY - gesture.startY;
     if (expanded && (distance > SNAP_DISTANCE || gesture.velocity > SNAP_VELOCITY)) {
-      setSnap('collapsed');
+      changeSnap('collapsed');
     } else if (
       !expanded &&
       (distance < -SNAP_DISTANCE || gesture.velocity < -SNAP_VELOCITY)
     ) {
-      setSnap('expanded');
+      changeSnap('expanded');
     }
     setDragOffset(0);
     drag.current = null;
@@ -79,16 +88,16 @@ export function LiveBottomSheet({
             suppressClick.current = false;
             return;
           }
-          setSnap(expanded ? 'collapsed' : 'expanded');
+          changeSnap(expanded ? 'collapsed' : 'expanded');
         }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'Escape') {
             event.preventDefault();
-            setSnap('collapsed');
+            changeSnap('collapsed');
           }
           if (event.key === 'ArrowUp') {
             event.preventDefault();
-            setSnap('expanded');
+            changeSnap('expanded');
           }
         }}
         onPointerCancel={finishDrag}

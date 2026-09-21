@@ -99,6 +99,7 @@ export function AppShell({ tabs = false }: AppShellProps) {
   const [restartingSession, setRestartingSession] = useState(false);
   const [restartFailed, setRestartFailed] = useState(false);
   const layoutWidth = contentWidth(location.pathname);
+  const showTabs = tabs && !location.pathname.startsWith('/live/places/');
 
   // FR-SES-03. This is the root element of every route, which is why the call
   // lives here: only the splash screen bootstraps, so a refresh or a deep link
@@ -332,7 +333,7 @@ export function AppShell({ tabs = false }: AppShellProps) {
           }
         />
       </main>
-      {tabs ? (
+      {showTabs ? (
         <div className={styles.tabs}>
           <TabBar
             active={activeTab(location.pathname, navState?.fromTab)}

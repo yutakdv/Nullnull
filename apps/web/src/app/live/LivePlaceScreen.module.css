@@ -10,6 +10,12 @@
   padding: var(--space-4) var(--layout-page-gutter);
 }
 
+.body[data-has-fixed-action] {
+  padding-bottom: calc(
+    var(--layout-bottom-note) + var(--space-4) + env(safe-area-inset-bottom)
+  );
+}
+
 .titleRow {
   display: flex;
   align-items: flex-start;
@@ -101,26 +107,11 @@
   font-weight: 700;
 }
 
-.saveArea {
+.saveFeedback {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-}
-
-.saveButton {
-  min-height: 52px;
-  padding: 0 var(--space-5);
-  border: 0;
-  border-radius: var(--radius-card);
-  background: var(--color-action-primary);
-  color: var(--color-text-onAccent);
-  font: inherit;
-  font-weight: 700;
-}
-
-.saveButton:disabled {
-  cursor: wait;
-  opacity: 0.6;
+  align-items: center;
 }
 
 .saveNote,

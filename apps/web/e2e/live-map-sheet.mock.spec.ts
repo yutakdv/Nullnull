@@ -139,9 +139,15 @@ test.describe('FE-401 Live map sheet', () => {
   }) => {
     const search = page.getByRole('searchbox', { name: 'Live 장소 검색' });
     await search.fill('경복궁');
-    await page.getByRole('button', { name: '경복궁 지도에서 보기' }).click();
+    const searchResult = page.getByRole('button', { name: '경복궁 지도에서 보기' });
+    await expect(searchResult).not.toContainText('›');
+    await expect(searchResult).toHaveCSS('font-weight', '500');
+    await searchResult.click();
 
     await expect(search).toHaveValue('');
+    await expect(
+      page.getByRole('button', { name: '여행지 목록 올리기' }),
+    ).toHaveAttribute('aria-expanded', 'false');
     const marker = page.getByRole('button', { name: '경복궁', exact: true });
     await marker.focus();
     await expect(marker).toBeFocused();
@@ -149,5 +155,16 @@ test.describe('FE-401 Live map sheet', () => {
 
     await expect(page).toHaveURL(/\/live\/places\/018f4b20-1a44-7e11-9c02-5d7e3f1a2b01$/);
     await expect(page.getByRole('heading', { level: 1, name: '경복궁' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toHaveCount(0);
+
+    const appBarTitle = page.getByText('장소 혼잡 정보', { exact: true });
+    await expect(appBarTitle).toHaveCSS('font-size', '20px');
+
+    const fixedAction = page.locator('[data-fixed="true"]');
+    await expect(fixedAction).toContainText('대표 여행에 담기');
+    await expect(fixedAction).toContainText(
+      '후보 장소로만 담아요. 여행 일정은 그대로예요',
+    );
+    await expect(fixedAction).toHaveCSS('position', 'fixed');
   });
 });

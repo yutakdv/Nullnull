@@ -18,7 +18,7 @@ import {
   type SourceState,
 } from '../../shared/ui/index.js';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
-import { LiveBottomSheet } from './LiveBottomSheet.js';
+import { LiveBottomSheet, type SheetSnap } from './LiveBottomSheet.js';
 import styles from './LiveScreen.module.css';
 
 const STATES: SourceState[] = [
@@ -39,6 +39,7 @@ export function LiveScreen() {
   const [query, setQuery] = useState('');
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>('expanded');
   const places = useLiveAreaPlaces(selectedAreaId);
   const search = usePlaceSearch(query);
   const selectedPlace = usePlaceDetail(selectedPlaceId);
@@ -119,12 +120,12 @@ export function LiveScreen() {
                       onClick={() => {
                         setSelectedPlaceId(place.id);
                         setQuery('');
+                        setSheetSnap('collapsed');
                       }}
                       type="button"
                     >
                       <span>{place.name}</span>
                       <span>{place.regionName ?? place.address ?? ''}</span>
-                      <span aria-hidden="true">›</span>
                     </button>
                   </li>
                 ))}
@@ -143,6 +144,8 @@ export function LiveScreen() {
       <LiveBottomSheet
         collapseLabel={t('live.sheet.collapse')}
         expandLabel={t('live.sheet.expand')}
+        onSnapChange={setSheetSnap}
+        snap={sheetSnap}
         title={t('live.sheet.title')}
       >
         <div className={styles.sheetBody}>

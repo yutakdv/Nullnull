@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useAddTripCandidate, useLivePlace } from '../../shared/api/index.js';
 import {
+  BottomCta,
   CrowdLevel,
   DataAttribution,
   NavBar,
@@ -72,6 +73,7 @@ export function LivePlaceScreen() {
         backLabel={t('live.detail.back')}
         onBack={() => void navigate('/live')}
         title={t('live.detail.title')}
+        titleSize="large"
       />
 
       {detail.isPending ? (
@@ -89,7 +91,7 @@ export function LivePlaceScreen() {
       ) : null}
 
       {detail.data ? (
-        <div className={styles.body}>
+        <div className={styles.body} data-has-fixed-action={activeTripReady || undefined}>
           <div className={styles.titleRow}>
             <h1 id="live-place-heading">{detail.data.place.name}</h1>
             <StateLabel labels={stateLabels} state={detail.data.dataState} />
@@ -135,29 +137,32 @@ export function LivePlaceScreen() {
           </section>
 
           {activeTripReady ? (
-            <div className={styles.saveArea}>
-              <button
-                className={styles.saveButton}
-                disabled={addCandidate.isPending}
-                onClick={saveToTrip}
-                type="button"
-              >
-                {addCandidate.isPending
+            <BottomCta
+              disabled={addCandidate.isPending}
+              fixed
+              label={
+                addCandidate.isPending
                   ? t('live.detail.saving')
                   : activeTripId
                     ? t('live.detail.save')
-                    : t('live.detail.chooseTrip')}
-              </button>
-              <p className={styles.saveNote}>{t('live.detail.saveNote')}</p>
-              {saveStatus ? (
-                <p
-                  className={styles.saveStatus}
-                  role={saveStatus === 'error' ? 'alert' : 'status'}
-                >
-                  {t(`live.detail.save.${saveStatus}` as MessageKey)}
-                </p>
-              ) : null}
-            </div>
+                    : t('live.detail.chooseTrip')
+              }
+              onClick={saveToTrip}
+              secondary={
+                <div className={styles.saveFeedback}>
+                  <p className={styles.saveNote}>{t('live.detail.saveNote')}</p>
+                  {saveStatus ? (
+                    <p
+                      className={styles.saveStatus}
+                      role={saveStatus === 'error' ? 'alert' : 'status'}
+                    >
+                      {t(`live.detail.save.${saveStatus}` as MessageKey)}
+                    </p>
+                  ) : null}
+                </div>
+              }
+              secondaryKind="note"
+            />
           ) : null}
         </div>
       ) : null}

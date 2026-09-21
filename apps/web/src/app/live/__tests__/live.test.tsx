@@ -8,7 +8,7 @@ import {
   tripFixtures,
 } from '@nullnull/contracts';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -186,9 +186,11 @@ describe('FE-401 Live area list', () => {
 
     renderLive();
     await user.type(await screen.findByRole('searchbox'), '경복궁');
-    expect(
-      await screen.findByRole('button', { name: /Show 경복궁 on the map/i }),
-    ).toBeVisible();
+    const result = await screen.findByRole('button', {
+      name: /Show 경복궁 on the map/i,
+    });
+    expect(result).toBeVisible();
+    expect(result).not.toHaveTextContent('›');
   });
 
   it('shows a selected search result on the map before opening its Live page', async () => {
@@ -236,6 +238,10 @@ describe('FE-401 Live area list', () => {
     );
 
     expect(screen.getByRole('searchbox')).toHaveValue('');
+    expect(screen.getByRole('button', { name: /Raise place list/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
     const marker = await screen.findByRole('button', { name: '경복궁' });
     await user.click(marker);
     expect(
@@ -318,6 +324,40 @@ describe('FE-401 Live area list', () => {
 });
 
 describe('FE-402 Live place detail', () => {
+  it('keeps the candidate action and its schedule note in the fixed bottom bar', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    const save = await screen.findByRole('button', {
+      name: /Save to representative trip/i,
+    });
+    const fixedBar = save.closest('[data-fixed="true"]');
+    expect(fixedBar).not.toBeNull();
+    expect(
+      within(fixedBar as HTMLElement).getByText(
+        /Saves this as a candidate\. Your itinerary stays unchanged\./i,
+      ),
+    ).toBeVisible();
+  });
+
+  it('uses the emphasized app-bar title treatment on place details', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    expect(await screen.findByText('Place crowd information')).toHaveAttribute(
+      'data-size',
+      'large',
+    );
+  });
+
   it('FE-402-T1 distinguishes a verified absence of alternatives from a request error', async () => {
     const none = liveFixture<LivePlaceDetail>('place-detail-related-none');
     server.use(
