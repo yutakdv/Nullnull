@@ -12,6 +12,7 @@ import {
   isLastInDay,
   moveBlock,
   moveToDay,
+  reorderAt,
   reorderWithinDay,
 } from '../reorder.js';
 
@@ -109,6 +110,42 @@ describe('moveToDay renumbers both days in one payload', () => {
     // The unique index would reject a duplicate, and the whole transaction
     // with it.
     expect(new Set(slots).size).toBe(slots.length);
+  });
+});
+
+describe('reorderAt places a dragged card at an exact drop slot', () => {
+  it('moves within one day and sends the whole resulting day', () => {
+    expect(reorderAt(days, insadong.id, '2026-10-04', 0)).toEqual([
+      { itemId: insadong.id, date: '2026-10-04', position: 0 },
+      { itemId: gyeongbok.id, date: '2026-10-04', position: 1 },
+    ]);
+  });
+
+  it('inserts between target-day items and closes the source-day gap', () => {
+    const withSecondTarget = days.map((day, index) =>
+      index === 1
+        ? {
+            ...day,
+            items: [...day.items, { ...insadong, id: 'second-target', position: 1 }],
+          }
+        : day,
+    );
+    expect(reorderAt(withSecondTarget, insadong.id, '2026-10-05', 1)).toEqual([
+      { itemId: gyeongbok.id, date: '2026-10-04', position: 0 },
+      { itemId: myeongdong.id, date: '2026-10-05', position: 0 },
+      { itemId: insadong.id, date: '2026-10-05', position: 1 },
+      { itemId: 'second-target', date: '2026-10-05', position: 2 },
+    ]);
+  });
+
+  it('accepts an empty day but rejects no-op and unknown destinations', () => {
+    expect(reorderAt(days, insadong.id, '2026-10-06', 0)).toContainEqual({
+      itemId: insadong.id,
+      date: '2026-10-06',
+      position: 0,
+    });
+    expect(reorderAt(days, insadong.id, '2026-10-04', 1)).toBeNull();
+    expect(reorderAt(days, insadong.id, '2099-01-01', 0)).toBeNull();
   });
 });
 

@@ -234,7 +234,8 @@ describe('FE-305-T1 a retry replays the move rather than queueing another', () =
       expect(sent).toHaveLength(1);
     });
 
-    await user.click(within(card).getByRole('button', { name: moveName('인사동') }));
+    const nextCard = await cardFor('인사동');
+    await user.click(within(nextCard).getByRole('button', { name: moveName('인사동') }));
     const again = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
     await user.click(within(again).getByRole('button', { name: /Day 4/ }));
     await waitFor(() => {
@@ -637,6 +638,7 @@ describe('each move sheet is labelled by its OWN heading', () => {
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: copy['trip.editStart'] }));
+    await cardFor('경복궁');
     // Waiting for the move control, not just the h1: the sheets mount with the
     // item cards, and the h1 arrives before them.
     await screen.findByRole('button', {
@@ -659,6 +661,7 @@ describe('each move sheet is labelled by its OWN heading', () => {
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: copy['trip.editStart'] }));
+    await cardFor('경복궁');
     await screen.findByRole('button', {
       name: moveName('경복궁'),
     });

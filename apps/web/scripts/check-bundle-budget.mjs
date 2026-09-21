@@ -130,9 +130,11 @@ const assets = process.env.NULLNULL_BUNDLE_DIR
 // room for less than one ordinary screen. This is a measured reset with about
 // 15% headroom, matching the policy used by the earlier entries above; it does
 // not exempt either asset type from the gate.
+// CSS was re-measured on frontend after the Live map and draggable sheet:
+// 16,341 gzip bytes. Use the already-approved 18,800-byte budget here too.
 const BUDGETS = {
   js: 206_000, // measured 174,928
-  css: 16_100, // measured  13,638
+  css: 18_800, // measured  16,341
 };
 
 if (!existsSync(assets)) {

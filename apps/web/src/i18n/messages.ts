@@ -546,6 +546,7 @@ export const messages = {
     'trip.empty': '아직 일정이 없어요',
     'trip.emptyNote': '담아둔 장소를 날짜에 넣으면 일정이 돼요',
     'trip.timeUnset': '시간 미정',
+    'trip.visitOrder': '{position}번째',
     'trip.duration': '예상 {hours}시간',
     'trip.durationMinutes': '예상 {minutes}분',
     'trip.durationHoursMinutes': '예상 {hours}시간 {minutes}분',
@@ -825,6 +826,7 @@ export const messages = {
     // Card/TripItem spec.
     'trip.reorder.up': '{name} 위로 옮기기',
     'trip.reorder.down': '{name} 아래로 옮기기',
+    'trip.reorder.drag': '{name} 드래그해서 순서 변경',
     'trip.reorder.moved': '{name:을} {position}번째로 옮겼어요',
 
     // S07-3 place search `476:3409` (FE-305).
@@ -1504,6 +1506,7 @@ export const messages = {
     'trip.empty': 'Nothing scheduled yet',
     'trip.emptyNote': 'Put a saved place on a date and it becomes part of the plan',
     'trip.timeUnset': 'No time set',
+    'trip.visitOrder': 'Stop {position}',
     'trip.duration': 'About {hours}h',
     'trip.durationMinutes': 'About {minutes}m',
     'trip.durationHoursMinutes': 'About {hours}h {minutes}m',
@@ -1681,6 +1684,7 @@ export const messages = {
     'trip.move.reservation': "A reservation pins this stop, so it can't move here",
     'trip.reorder.up': 'Move {name} up',
     'trip.reorder.down': 'Move {name} down',
+    'trip.reorder.drag': 'Move {name} by dragging',
     'trip.reorder.moved': 'Moved {name} to position {position}',
 
     'addPlace.title': 'Add a place',

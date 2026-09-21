@@ -64,6 +64,14 @@ async function openTrip(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/edit$/);
 }
 
+async function openFirstItemActions(page: import('@playwright/test').Page) {
+  const trigger = page.getByRole('button', { name: `${FIRST_ITEM} item actions` });
+  await expect(trigger).toBeVisible();
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+}
+
 test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   test.beforeEach(async ({ page }) => {
     await openTrip(page);
@@ -73,10 +81,10 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   test('BA-040-T4 every move control is reachable by Tab and named for its item', async ({
     page,
   }) => {
-    // Reordering is buttons rather than drag precisely so it can be driven from
-    // a keyboard (COMPONENT_CATALOG calls the keyboard path a premise, not a
-    // fallback). The names carry the place because a row of bare arrows tells a
-    // screen-reader user nothing about which stop they are moving.
+    await openFirstItemActions(page);
+    // The drag handle is paired with named keyboard controls in the item menu.
+    // The names carry the place because bare arrows tell a screen-reader user
+    // nothing about which stop they are moving.
     const down = page.getByRole('button', { name: `Move ${FIRST_ITEM} down` });
     await expect(down).toBeVisible();
     await expect(down).toBeEnabled();
@@ -118,6 +126,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   });
 
   test('BA-040-T4 the move sheet traps focus', async ({ page }) => {
+    await openFirstItemActions(page);
     const trigger = page.getByRole('button', {
       name: `Move ${FIRST_ITEM} to another day`,
     });
@@ -192,6 +201,9 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   test('BA-040-T4 a completed move leaves focus somewhere, not on the document', async ({
     page,
   }) => {
+    await openFirstItemActions(page);
+    const dateLocked =
+      (await page.getByRole('button', { name: /Release Date/i }).count()) > 0;
     // The clause the test above could not reach. Closing the sheet by Escape or
     // Cancel is restored by the browser itself, so deleting our own restore left
     // that assertion green — but there is a third way out, and it is the one a
@@ -234,12 +246,16 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     await expect(sheet).toBeVisible();
     await sheet.getByRole('button', { name: /Day 3/ }).first().click();
 
-    // The DATE lock turns the pick into a question rather than a move.
+    // The composed API preserves the seeded DATE lock and asks for consent.
+    // The local mock reloads its unlocked demo trip after navigation, so that
+    // path completes directly; both must leave focus on a live control.
     const confirm = page.getByRole('dialog').getByRole('button', {
       name: /Release and move/i,
     });
-    await expect(confirm).toBeVisible();
-    await confirm.click();
+    if (dateLocked) {
+      await expect(confirm).toBeVisible();
+      await confirm.click();
+    }
 
     // Both surfaces are gone and the move has landed.
     await expect(page.locator('dialog[open]')).toHaveCount(0);
@@ -263,6 +279,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   test('BA-040-T4 a lock confirm can be answered and cancelled by keyboard', async ({
     page,
   }) => {
+    await openFirstItemActions(page);
     // Releasing a lock asks first (invariant 7: nothing auto-releases), so the
     // confirm is on the editing path and has to be answerable without a mouse.
     const release = page.getByRole('button', { name: /Release Must visit/i }).first();
@@ -460,6 +477,7 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     // describe waits for the heading in its beforeEach for this reason; this
     // one has no beforeEach, so the wait is stated here.
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await openFirstItemActions(page);
     await expect(
       page.getByRole('button', { name: `Move ${FIRST_ITEM} to another day` }),
     ).toBeVisible();

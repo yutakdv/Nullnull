@@ -28,9 +28,8 @@
 .header {
   display: flex;
   flex-direction: column;
-  /* Figma 462:3386 sets 10px, which is off the 4px token scale. */
-  gap: 10px;
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-card-lg);
   background: var(--color-bg-subtle);
 }
@@ -48,7 +47,7 @@
 }
 
 .viewHeadRow .title {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
 }
 
 .viewHeadRow .dday {
@@ -120,9 +119,12 @@
 }
 
 .dday {
+  display: inline-flex;
+  align-items: center;
   margin-inline-start: auto;
   /* 462:3391 */
-  padding: 3px var(--space-2);
+  min-height: 34px;
+  padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
   background: var(--color-action-subtle);
   color: var(--color-action-primary);
@@ -141,6 +143,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 34px;
   color: var(--color-text-secondary);
   /* Body/sm 12/16 (462:3393). */
   font-size: var(--font-label);
@@ -176,7 +179,7 @@
 .candidates {
   display: inline-flex;
   align-items: center;
-  min-height: var(--layout-touch-min);
+  min-height: 34px;
   padding: 5px var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -201,6 +204,7 @@
   align-items: center;
   gap: 6px;
   width: 100%;
+  min-height: var(--layout-touch-min);
 }
 
 .modeLabel {
@@ -334,6 +338,10 @@
   flex: none;
 }
 
+.dayChips button {
+  min-height: 34px;
+}
+
 .day {
   display: flex;
   flex-direction: column;
@@ -391,6 +399,26 @@
   list-style: none;
 }
 
+.items > li {
+  position: relative;
+}
+
+.items > li[data-drop-before='true']::before,
+.items[data-drop-end='true']::after {
+  display: block;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  content: '';
+}
+
+.items > li[data-drop-before='true']::before {
+  position: absolute;
+  top: calc(var(--space-2) * -1);
+  right: 0;
+  left: 0;
+}
+
 /* Card / TripItem (410:4407): p16, gap8, r14. */
 .item {
   display: flex;
@@ -401,6 +429,72 @@
   background: var(--color-bg-subtle);
 }
 
+.editItem[data-dragging='true'] {
+  opacity: 0.45;
+}
+
+.editItem .itemHead {
+  min-height: 44px;
+}
+
+.dragHandle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px 0 -10px -12px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.dragHandle:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: -2px;
+}
+
+.dragHandle:disabled {
+  cursor: not-allowed;
+}
+
+.dragPreview {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-4);
+  border-radius: var(--radius-card-lg);
+  background: var(--color-bg-default);
+  box-shadow: 0 8px 24px rgb(22 28 36 / 12%);
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.emptyDay[data-drop-target='true'] {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dragPreview {
+    box-shadow: none;
+  }
+}
+
 /* title-row (381:351): gap 6. */
 .itemHead {
   position: relative;
@@ -409,21 +503,22 @@
   gap: 6px;
 }
 
-.mustVisit {
-  display: inline-flex;
-  flex: 0 0 44px;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
+.itemHeadWithMenu {
+  padding-inline-end: 44px;
 }
 
 .mustVisit {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   color: var(--color-action-strong);
 }
 
 .itemName {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   color: var(--color-text-primary);
@@ -437,6 +532,7 @@
 
 .itemTime {
   flex: none;
+  margin-left: auto;
   color: var(--color-text-secondary);
   /* Body/sm 12/16 (381:355). */
   font-size: var(--font-label);
@@ -445,6 +541,9 @@
 }
 
 .itemMenuLink {
+  position: absolute;
+  top: 50%;
+  right: 0;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -455,6 +554,7 @@
   font-size: 13px;
   letter-spacing: 1px;
   text-decoration: none;
+  transform: translateY(-50%);
 }
 
 .itemMeta {
@@ -470,6 +570,14 @@
 
 .itemMeta > span {
   display: inline;
+}
+
+/* Credits are required product information, not footnotes. The shared
+   component keeps its compact 10px default for dense surfaces; trip cards
+   have enough room to use the service's readable 12/16 supporting style. */
+.itemAttribution > span {
+  font-size: var(--font-label);
+  line-height: 16px;
 }
 
 /* locks (381:368): gap 6. */

@@ -3,11 +3,17 @@ import { Link, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useTrip, useUpdateTrip } from '../../shared/api/index.js';
-import { Chip, CrowdLevel, DataAttribution } from '../../shared/ui/components/index.js';
+import {
+  Chip,
+  ConfirmDialog,
+  CrowdLevel,
+  DataAttribution,
+} from '../../shared/ui/components/index.js';
 import {
   IconDateLock,
   IconCheck,
   IconClose,
+  IconDragHandle,
   IconEdit,
   IconPinVisitFilled,
   IconReservation,
@@ -18,6 +24,7 @@ import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
 import { draftError, draftFrom, toPatch } from './trip-edit.js';
+import { useTripDragReorder } from './useTripDragReorder.js';
 import styles from './TripScreen.module.css';
 import {
   daysUntil,
@@ -108,7 +115,14 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
   // would be destroyed by the action it reports.
   const [removed, setRemoved] = useState<string | null>(null);
   const trip = query.data?.trip;
-  const days = trip?.days ?? [];
+  const serverDays = trip?.days ?? [];
+  const drag = useTripDragReorder({
+    days: serverDays,
+    tripId: tripId ?? null,
+    etag: query.data?.etag ?? null,
+    selectedDay,
+  });
+  const days = drag.days;
   const shown = useMemo(() => visibleDays(days, selectedDay), [days, selectedDay]);
 
   useEffect(() => {
@@ -365,6 +379,11 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
           {removed}
         </p>
       )}
+      {editing ? (
+        <p aria-live="polite" className={styles.srOnly} role="status">
+          {drag.busy ? t('trip.move.moving') : (drag.status ?? '')}
+        </p>
+      ) : null}
 
       <nav aria-label={t('trip.allDays')} className={styles.dayNav} data-scrolls-x>
         <ul className={styles.dayChips}>
@@ -410,6 +429,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
         <section
           aria-labelledby={`day-${day.date}`}
           className={styles.day}
+          data-drop-day={editing ? day.date : undefined}
           key={day.date}
         >
           <h2 className={styles.dayTitle} id={`day-${day.date}`}>
@@ -422,15 +442,49 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
           </h2>
 
           {day.items.length === 0 ? (
-            <div className={styles.emptyDay}>
+            <div
+              className={styles.emptyDay}
+              data-drop-target={
+                editing && drag.target?.date === day.date ? true : undefined
+              }
+            >
               <p className={styles.state}>{t('trip.dayEmpty')}</p>
             </div>
           ) : (
-            <ul className={styles.items}>
-              {orderedItems(day).map((item) => (
-                <li key={item.id}>
+            <ul
+              className={styles.items}
+              data-drop-end={
+                editing &&
+                drag.target?.date === day.date &&
+                drag.target.index ===
+                  day.items.length -
+                    Number(day.items.some((item) => item.id === drag.draggingItemId))
+                  ? true
+                  : undefined
+              }
+            >
+              {orderedItems(day).map((item, itemIndex) => (
+                <li
+                  data-drop-before={
+                    editing &&
+                    drag.target?.date === day.date &&
+                    drag.target.index ===
+                      itemIndex -
+                        Number(
+                          orderedItems(day)
+                            .slice(0, itemIndex)
+                            .some((earlier) => earlier.id === drag.draggingItemId),
+                        ) &&
+                    item.id !== drag.draggingItemId
+                      ? true
+                      : undefined
+                  }
+                  data-trip-item={editing ? item.id : undefined}
+                  key={item.id}
+                >
                   <TripItemRow
                     days={days}
+                    drag={drag}
                     editing={editing}
                     etag={query.data.etag}
                     item={item}
@@ -444,10 +498,37 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
         </section>
       ))}
 
+      {editing && drag.preview ? (
+        <div
+          aria-hidden="true"
+          className={styles.dragPreview}
+          style={{
+            left: drag.preview.left,
+            top: drag.preview.top,
+            width: drag.preview.width,
+            height: drag.preview.height,
+          }}
+        >
+          {drag.preview.name}
+        </div>
+      ) : null}
+
+      <ConfirmDialog
+        body={t('trip.move.dateLock.body')}
+        cancelLabel={t('trip.lock.cancel')}
+        confirmLabel={t('trip.move.dateLock.confirm')}
+        destructive
+        onCancel={drag.cancelDateLock}
+        onConfirm={drag.confirmDateLock}
+        open={drag.dateLockConfirmationOpen}
+        title={t('trip.move.dateLock.title')}
+      />
+
       {editing ? (
         <div className={styles.editActions}>
           <button
             className={styles.editCancel}
+            disabled={drag.busy}
             onClick={() => {
               void navigate(`/trip/${trip.id}`);
             }}
@@ -457,6 +538,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
           </button>
           <button
             className={styles.editSave}
+            disabled={drag.busy}
             onClick={() => {
               void navigate(`/trip/${trip.id}`);
             }}
@@ -481,6 +563,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
 function TripItemRow({
   item,
   days,
+  drag,
   editing,
   tripId,
   etag,
@@ -488,6 +571,7 @@ function TripItemRow({
 }: {
   item: TripItem;
   days: readonly TripDetail['days'][number][];
+  drag: ReturnType<typeof useTripDragReorder>;
   editing: boolean;
   tripId: string | null;
   etag: string | null;
@@ -500,6 +584,12 @@ function TripItemRow({
   const viewMeta = [item.place.categoryName, item.place.regionName].filter(
     (value): value is string => Boolean(value),
   );
+  const visibleConstraints = item.constraints.filter(
+    (constraint) => constraint.type !== 'MUST_VISIT',
+  );
+  const scheduleLabel =
+    formatTime(item.startTime, locale) ??
+    t('trip.visitOrder', { position: item.position + 1 });
   if (item.durationMinutes !== null && item.durationMinutes !== undefined) {
     viewMeta.push(formatDuration(item.durationMinutes, t));
   }
@@ -511,49 +601,65 @@ function TripItemRow({
     }
 
     return (
-      <article className={styles.item}>
+      <article
+        className={`${styles.item} ${styles.editItem}`}
+        data-dragging={drag.draggingItemId === item.id || undefined}
+      >
         <div className={styles.itemHead}>
+          <button
+            aria-label={t('trip.reorder.drag', { name: item.place.name })}
+            className={styles.dragHandle}
+            disabled={drag.busy || etag === null}
+            onPointerCancel={drag.onPointerCancel}
+            onPointerDown={(event) => drag.onPointerDown(event, item)}
+            onPointerMove={drag.onPointerMove}
+            onPointerUp={drag.onPointerUp}
+            type="button"
+          >
+            <IconDragHandle size={20} />
+          </button>
           <h3 className={styles.itemName}>{item.place.name}</h3>
-          <span className={styles.itemTime}>
-            {formatTime(item.startTime, locale) ?? t('trip.timeUnset')}
-          </span>
+          <span className={styles.itemTime}>{scheduleLabel}</span>
+          <ItemMoveControls compact days={days} etag={etag} item={item} tripId={tripId}>
+            <LockRow etag={etag} item={item} tripId={tripId} />
+            <RemoveItemControl
+              compact
+              etag={etag}
+              item={item}
+              onAnnounce={onAnnounce}
+              tripId={tripId}
+            />
+          </ItemMoveControls>
         </div>
 
-        <p className={styles.itemMeta}>
-          {editMeta.map((value) => (
-            <span key={value}>{value}</span>
-          ))}
-        </p>
-
-        {item.place.sourceAttribution ? (
-          <DataAttribution compact provenance={item.place.sourceAttribution} />
+        {editMeta.length > 0 ? (
+          <p className={styles.itemMeta}>
+            {editMeta.map((value) => (
+              <span key={value}>{value}</span>
+            ))}
+          </p>
         ) : null}
 
-        <LockRow etag={etag} item={item} tripId={tripId} />
-        <ItemMoveControls days={days} etag={etag} item={item} tripId={tripId} />
-        <RemoveItemControl
-          etag={etag}
-          item={item}
-          onAnnounce={onAnnounce}
-          tripId={tripId}
-        />
+        {item.place.sourceAttribution ? (
+          <div className={styles.itemAttribution}>
+            <DataAttribution compact provenance={item.place.sourceAttribution} />
+          </div>
+        ) : null}
       </article>
     );
   }
 
   return (
     <article className={styles.item}>
-      <div className={styles.itemHead}>
+      <div className={`${styles.itemHead} ${styles.itemHeadWithMenu}`}>
+        <h3 className={styles.itemName}>{item.place.name}</h3>
         {mustVisit ? (
           <span className={styles.mustVisit}>
             <IconPinVisitFilled size={15} />
             <span className={styles.srOnly}>{t('trip.lock.MUST_VISIT')}</span>
           </span>
         ) : null}
-        <h3 className={styles.itemName}>{item.place.name}</h3>
-        <span className={styles.itemTime}>
-          {formatTime(item.startTime, locale) ?? t('trip.timeUnset')}
-        </span>
+        <span className={styles.itemTime}>{scheduleLabel}</span>
         {tripId ? (
           <Link
             aria-label={t('trip.item.actions', { name: item.place.name })}
@@ -565,14 +671,16 @@ function TripItemRow({
         ) : null}
       </div>
 
-      <p className={styles.itemMeta}>
-        {viewMeta.map((value, index) => (
-          <span key={`${value}:${String(index)}`}>
-            {index > 0 ? <span aria-hidden="true"> · </span> : null}
-            {value}
-          </span>
-        ))}
-      </p>
+      {viewMeta.length > 0 ? (
+        <p className={styles.itemMeta}>
+          {viewMeta.map((value, index) => (
+            <span key={`${value}:${String(index)}`}>
+              {index > 0 ? <span aria-hidden="true"> · </span> : null}
+              {value}
+            </span>
+          ))}
+        </p>
+      ) : null}
 
       {item.crowd ? (
         <CrowdLevel
@@ -593,15 +701,18 @@ function TripItemRow({
           through the shared catalog projection, so the real response populates
           it, and #281 filled the fixtures in to match. */}
       {item.crowd ? (
-        <DataAttribution compact provenance={item.crowd.provenance} />
+        <div className={styles.itemAttribution}>
+          <DataAttribution compact provenance={item.crowd.provenance} />
+        </div>
       ) : item.place.sourceAttribution ? (
-        <DataAttribution compact provenance={item.place.sourceAttribution} />
+        <div className={styles.itemAttribution}>
+          <DataAttribution compact provenance={item.place.sourceAttribution} />
+        </div>
       ) : null}
 
-      <ul aria-label={t('trip.locks')} className={styles.locks}>
-        {item.constraints
-          .filter((constraint) => constraint.type !== 'MUST_VISIT')
-          .map((constraint) => (
+      {visibleConstraints.length > 0 ? (
+        <ul aria-label={t('trip.locks')} className={styles.locks}>
+          {visibleConstraints.map((constraint) => (
             <li
               className={styles.lock}
               data-constraint={constraint.type}
@@ -613,7 +724,8 @@ function TripItemRow({
               {t(`trip.lock.${constraint.type}`)}
             </li>
           ))}
-      </ul>
+        </ul>
+      ) : null}
     </article>
   );
 }

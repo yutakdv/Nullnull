@@ -283,3 +283,45 @@ describe('the mock answers item mutations with the approved shape (#16)', () => 
     expect(response?.headers.get('ETag')).toBe(`"${String(BASE_VERSION + 1)}"`);
   });
 });
+
+describe('the mock persists the trip the creation screen actually submitted', () => {
+  beforeEach(() => {
+    resetMockState();
+  });
+
+  it('does not invent a visit time or DATE/TIME locks for a seeded place', async () => {
+    const response = await fetch(`${API_BASE}/trips`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startDate: TRIP.startDate,
+        endDate: TRIP.endDate,
+        timezone: TRIP.timezone,
+        planningLevel: 'MUST_VISIT_ONLY',
+        interests: [],
+        seedItems: [
+          {
+            placeId: GYEONGBOKGUNG?.place.id,
+            date: TRIP.startDate,
+            position: 0,
+            startTime: null,
+            constraints: [{ type: 'MUST_VISIT', locked: true }],
+          },
+        ],
+      }),
+    });
+    expect(response.status).toBe(201);
+    const created = (await response.json()) as { id: string };
+
+    const detailResponse = await fetch(`${API_BASE}/trips/${created.id}`);
+    expect(detailResponse.status).toBe(200);
+    const detail = (await detailResponse.json()) as typeof TRIP;
+    const item = detail.days.flatMap((day) => day.items)[0];
+
+    expect(item?.startTime).toBeNull();
+    expect(item?.durationMinutes).toBeNull();
+    expect(item?.constraints.map((constraint) => constraint.type)).toEqual([
+      'MUST_VISIT',
+    ]);
+  });
+});

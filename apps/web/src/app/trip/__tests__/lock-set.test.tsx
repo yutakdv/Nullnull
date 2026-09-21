@@ -87,6 +87,11 @@ async function itemCard(name: string): Promise<HTMLElement> {
   // ("명동" is both a place and a street), so a text query matches twice.
   const heading = await screen.findByRole('heading', { level: 3, name });
   const card = heading.closest('article') as HTMLElement;
+  await userEvent.setup().click(
+    within(card).getByRole('button', {
+      name: copy['trip.item.actions'].replace('{name}', name),
+    }),
+  );
   return card;
 }
 

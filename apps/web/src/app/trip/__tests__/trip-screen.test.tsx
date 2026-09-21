@@ -204,7 +204,7 @@ describe('FE-301-T2 the screen renders each state', () => {
     expect(screen.queryByText(/09:30:00/)).not.toBeInTheDocument();
   });
 
-  it('says when an item has no time rather than leaving it blank', async () => {
+  it('shows visit order when an item has no exact time', async () => {
     const untimed = {
       ...trip,
       days: trip.days.map((d) => ({
@@ -219,7 +219,19 @@ describe('FE-301-T2 the screen renders each state', () => {
     );
     renderTrip();
     await loaded();
-    expect(screen.getAllByText(copy['trip.timeUnset']).length).toBeGreaterThan(0);
+    for (const day of untimed.days) {
+      for (const item of day.items) {
+        const card = screen
+          .getByRole('heading', { level: 3, name: item.place.name })
+          .closest('article');
+        expect(card).not.toBeNull();
+        expect(
+          within(card as HTMLElement).getByText(
+            copy['trip.visitOrder'].replace('{position}', String(item.position + 1)),
+          ),
+        ).toBeInTheDocument();
+      }
+    }
   });
 });
 
@@ -227,7 +239,10 @@ describe('FE-301-T1 locks are shown as status, not as controls', () => {
   it('names each lock the item carries', async () => {
     renderTrip();
     await loaded();
-    expect(screen.getByText(copy['trip.lock.MUST_VISIT'])).toBeInTheDocument();
+    const mustVisit = screen.getByText(copy['trip.lock.MUST_VISIT']);
+    const placeName = screen.getByRole('heading', { level: 3, name: '경복궁' });
+    expect(mustVisit).toBeInTheDocument();
+    expect(mustVisit.parentElement?.previousElementSibling).toBe(placeName);
     expect(screen.getByText(copy['trip.lock.DATE'])).toBeInTheDocument();
     expect(screen.getByText(copy['trip.lock.TIME'])).toBeInTheDocument();
   });
@@ -439,11 +454,11 @@ describe('FE-301-T3 the screen is reachable and named', () => {
 
     await user.click(screen.getByRole('button', { name: copy['trip.editStart'] }));
 
+    const actions = screen.getByRole('button', { name: '경복궁 item actions' });
+    expect(actions).toBeInTheDocument();
+    await user.click(actions);
     expect(screen.getByRole('button', { name: move })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: remove })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: '경복궁 item actions' }),
-    ).not.toBeInTheDocument();
     expect(screen.getByText('9:30 AM')).toBeInTheDocument();
   });
 
@@ -584,5 +599,53 @@ describe('FE-301 the trip screen credits the places it shows', () => {
     expect(
       within(row as HTMLElement).getByRole('link', { name: CREDIT }),
     ).toBeInTheDocument();
+  });
+
+  it('does not reserve empty rows when optional place details are absent', async () => {
+    const credited = tripWithCredit();
+    const [firstDay, ...restDays] = credited.days;
+    if (!firstDay) throw new Error('fixture has no days');
+    const [firstItem, ...restItems] = firstDay.items;
+    if (!firstItem) throw new Error('fixture day has no items');
+    const sparse = {
+      ...credited,
+      days: [
+        {
+          ...firstDay,
+          items: [
+            {
+              ...firstItem,
+              durationMinutes: null,
+              constraints: firstItem.constraints.filter(
+                (constraint) => constraint.type === 'MUST_VISIT',
+              ),
+              place: {
+                ...firstItem.place,
+                categoryName: null,
+                regionName: null,
+              },
+            },
+            ...restItems,
+          ],
+        },
+        ...restDays,
+      ],
+    };
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(sparse, { headers: { ETag: '"3"' } }),
+      ),
+    );
+    renderTrip();
+    await loaded();
+
+    const row = screen
+      .getByRole('heading', { level: 3, name: firstItem.place.name })
+      .closest('article');
+    expect(row).not.toBeNull();
+    expect(row?.querySelector('p')).toBeNull();
+    expect(
+      within(row as HTMLElement).queryByRole('list', { name: copy['trip.locks'] }),
+    ).not.toBeInTheDocument();
   });
 });
