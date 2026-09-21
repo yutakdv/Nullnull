@@ -660,6 +660,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-022-T7`: 관측이 붙은 place는 폐기할 수 없다
 - `BA-022-T8`: catalog 게이트가 닫히면 searchPlaces 가 503 SOURCE_UNAVAILABLE 로 거절한다
 - `BA-022-T9`: catalog 게이트가 닫히면 실재하는 place 의 getPlace 도 503 SOURCE_UNAVAILABLE 로 거절한다
+- `BA-022-T10`: 한 regionCode 로 발급된 cursor 는 다른 regionCode 에서 거절된다
+- `BA-022-T11`: 한 locale 로 발급된 cursor 는 다른 locale 에서 거절된다
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
