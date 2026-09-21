@@ -27,7 +27,14 @@ public final class JsonShape {
 
     public static SortedSet<String> of(JsonNode node) {
         SortedSet<String> paths = new TreeSet<>();
-        walk(node, "$", paths);
+        walk(node, "$", paths, null);
+        return paths;
+    }
+
+    /** Compare older pinned examples while BA-086's optional text credit is tested separately. */
+    public static SortedSet<String> withoutField(JsonNode node, String omittedField) {
+        SortedSet<String> paths = new TreeSet<>();
+        walk(node, "$", paths, omittedField);
         return paths;
     }
 
@@ -40,15 +47,18 @@ public final class JsonShape {
         }
     }
 
-    private static void walk(JsonNode node, String path, SortedSet<String> paths) {
+    private static void walk(JsonNode node, String path, SortedSet<String> paths, String omittedField) {
         if (node.isObject()) {
             node.properties().forEach(property -> {
+                if (property.getKey().equals(omittedField)) {
+                    return;
+                }
                 String child = path + "." + property.getKey();
                 paths.add(child);
-                walk(property.getValue(), child, paths);
+                walk(property.getValue(), child, paths, omittedField);
             });
         } else if (node.isArray()) {
-            node.forEach(element -> walk(element, path + "[]", paths));
+            node.forEach(element -> walk(element, path + "[]", paths, omittedField));
         }
     }
 }
