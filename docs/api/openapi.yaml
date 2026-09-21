@@ -3687,6 +3687,23 @@ paths:
                     candidateId: "018f4d40-1122-7a33-9b44-000000000001"
                     state: "UNKNOWN"
                     slots: []
+                matchNotActive:
+                  summary: "The candidate is not waiting to be placed"
+                  description: |
+                    NOT_ACTIVE means this candidate's `status` is not ACTIVE - it is already SCHEDULED, or the
+                    owner DISMISSED it. The empty `slots` here is not "nowhere fits": nothing was asked, because
+                    a candidate that is not waiting to be placed has no slots to offer. The client already has
+                    the specific cause in `TripCandidate.status` and renders it from there.
+
+                    This state is why the operation answers 200 rather than a 4xx. The traveller reaches it by
+                    SUCCEEDING - accepting a slot makes the candidate SCHEDULED, and a refetch lands here - and
+                    the Problem code a refusal would carry, VALIDATION_FAILED, binds the client to
+                    `fieldErrors 연결` (docs/api/README.md), which this route cannot perform: it has no input to
+                    bind, and `candidateId` is a path variable the server itself handed over.
+                  value:
+                    candidateId: "018f4d40-1122-7a33-9b44-000000000002"
+                    state: "NOT_ACTIVE"
+                    slots: []
         "401":
           $ref: "#/components/responses/Unauthorized"
         default:
@@ -8766,7 +8783,7 @@ components:
           format: uuid
         state:
           type: string
-          enum: [EXACT, SIMILAR, NONE, CHECKING, UNKNOWN]
+          enum: [EXACT, SIMILAR, NONE, CHECKING, UNKNOWN, NOT_ACTIVE]
         slots:
           type: array
           items:

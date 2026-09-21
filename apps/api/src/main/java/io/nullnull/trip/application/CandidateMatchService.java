@@ -16,7 +16,6 @@ import io.nullnull.trip.domain.CandidateStatus;
 import io.nullnull.trip.domain.Trip;
 import io.nullnull.trip.domain.TripCandidate;
 import io.nullnull.trip.domain.TripItem;
-import io.nullnull.trip.domain.TripValidationException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -72,11 +71,18 @@ public class CandidateMatchService {
         TripCandidate candidate = candidates.find(context.ownerId(), tripId, candidateId)
                 .orElseThrow(CandidateMatchService::notFound);
         if (candidate.status() != CandidateStatus.ACTIVE) {
-            // A SCHEDULED candidate is already somewhere and a DISMISSED one is a choice the owner
-            // took back. Answering either with an empty slot list would say "nowhere fits", which is
-            // a different sentence from "this is not a candidate waiting to be placed".
-            throw new TripValidationException("candidateId", "Unsupported",
-                    "only an ACTIVE candidate has slots to offer");
+            // A SCHEDULED candidate is already somewhere and a DISMISSED one is a choice the owner took
+            // back. Neither is REFUSED, and that is the whole point of this state: the traveller reaches
+            // SCHEDULED by succeeding - accepting a slot - so the refetch that follows must not answer
+            // with an error. The Problem code a refusal carried, VALIDATION_FAILED, binds the client to
+            // `fieldErrors 연결` (docs/api/README.md), and this route has no input to bind: its only
+            // field pointer was `candidateId`, a path variable the server itself handed over.
+            //
+            // NOT_ACTIVE rather than NONE, because an empty slot list under NONE would say "nowhere
+            // fits" when the truth is "this is not a candidate waiting to be placed". One value for both
+            // causes: the client already has which one from TripCandidate.status (a published
+            // CandidateStatus), so this field only says the question does not apply.
+            return new CandidateMatchView(candidateId, "NOT_ACTIVE", List.of());
         }
         Trip trip = trips.find(context.ownerId(), tripId).orElseThrow(CandidateMatchService::notFound);
         List<TripItem> items = trips.items(tripId);

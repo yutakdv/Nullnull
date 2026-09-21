@@ -71,6 +71,23 @@ class CandidateMatchStateCoverageTest {
             "CHECKING", "needs SlotEvaluateRequest.checking=true, which needs a candidate verification"
                     + " job; P0 registers none, and CandidateMatchIT asserts the request carries false"));
 
+    /**
+     * States this server answers itself, without asking the computing service, with where that is proved.
+     *
+     * <p>A third shape, and the one adding {@code NOT_ACTIVE} exposed: the two registers above both
+     * describe values NOTHING produces. This one describes a value {@code apps/ai} cannot produce and
+     * Spring can - which is ADR-0006's boundary showing through the vocabulary. Putting it in
+     * {@code NOT_IN_THE_SERVICE_VOCABULARY} would satisfy the structural check and state something
+     * false: that no hydration on this side could produce it.
+     *
+     * <p>Checked in both directions below - a value here must be absent from the service vocabulary,
+     * or the claim is confused - and each entry names the test that shows the answer really is served.
+     */
+    private static final Map<String, String> ANSWERED_BY_THIS_SERVER = new LinkedHashMap<>(Map.of(
+            "NOT_ACTIVE", "CandidateMatchService answers it for a candidate whose status is not ACTIVE,"
+                    + " without calling apps/ai at all; CandidateMatchIT's BA-042-T10 reaches it the way a"
+                    + " traveller does, by scheduling the candidate through addTripItem"));
+
     private static final Pattern STATE_ENUM = Pattern.compile(
             "(?s)CandidateMatchResult:.*?state:.*?enum: \\[([^\\]]+)\\]");
 
@@ -86,8 +103,10 @@ class CandidateMatchStateCoverageTest {
         // with the reason it cannot be. A new value in either place therefore has to be accounted for
         // before this passes again.
         assertThat(published).allSatisfy(state ->
-                assertThat(computable.contains(state) || NOT_IN_THE_SERVICE_VOCABULARY.containsKey(state))
-                        .as("%s is neither computable nor recorded as outside the service vocabulary", state)
+                assertThat(computable.contains(state) || NOT_IN_THE_SERVICE_VOCABULARY.containsKey(state)
+                                || ANSWERED_BY_THIS_SERVER.containsKey(state))
+                        .as("%s is neither computable, nor recorded as outside the service vocabulary, nor"
+                                + " recorded as answered by this server", state)
                         .isTrue());
         // A note that outlived its gap fails here: claiming the service cannot express something it
         // can is the direction that would let this register go quietly stale.
@@ -99,10 +118,17 @@ class CandidateMatchStateCoverageTest {
         assertThat(NO_INPUT_PRODUCES_THEM.keySet()).allSatisfy(state ->
                 assertThat(computable).as("%s is recorded as needing an input, so it must be a value"
                         + " the service can return", state).contains(state));
+        // A value this server answers itself must not also be one apps/ai can return: if it were, the
+        // entry would be hiding which of the two produced it, and the reason would stop being checkable.
+        assertThat(ANSWERED_BY_THIS_SERVER.keySet())
+                .as("a state recorded as answered by this server must be outside the service vocabulary")
+                .doesNotContainAnyElementsOf(computable);
         assertThat(published).containsAll(NOT_IN_THE_SERVICE_VOCABULARY.keySet());
         assertThat(published).containsAll(NO_INPUT_PRODUCES_THEM.keySet());
-        java.util.stream.Stream.concat(NOT_IN_THE_SERVICE_VOCABULARY.values().stream(),
-                        NO_INPUT_PRODUCES_THEM.values().stream())
+        assertThat(published).containsAll(ANSWERED_BY_THIS_SERVER.keySet());
+        java.util.stream.Stream.of(NOT_IN_THE_SERVICE_VOCABULARY.values().stream(),
+                        NO_INPUT_PRODUCES_THEM.values().stream(), ANSWERED_BY_THIS_SERVER.values().stream())
+                .flatMap(values -> values)
                 .forEach(reason -> assertThat(reason).isNotBlank());
     }
 
