@@ -1,0 +1,203 @@
+/* Figma: Final S02-5 추천 일정 초안 `384:5673` (FR-TRC-10). */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.basis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-action-subtle);
+  color: var(--color-text-primary);
+  font-size: var(--font-body-sm);
+  line-height: 19px;
+}
+
+.basis p,
+.notice,
+.noStops {
+  margin: 0;
+}
+
+.notice,
+.noStops {
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 19px;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dayHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.dayName {
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 700;
+}
+
+.dayDate,
+.hours,
+.meta,
+.source {
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+}
+
+.stops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.stop::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 0;
+  bottom: calc(-1 * var(--space-2));
+  width: 2px;
+  background: var(--color-structure-axis);
+}
+
+.stop:last-child::before {
+  bottom: 50%;
+}
+
+.dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--wf-white);
+  font-size: var(--font-label);
+  font-weight: 500;
+}
+
+.dot[data-picked='true'] {
+  background: var(--color-protect-default);
+}
+
+.card {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+}
+
+.card[data-picked='true'] {
+  background: var(--color-protect-subtle);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-md);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hours {
+  flex-shrink: 0;
+}
+
+.source {
+  overflow-wrap: anywhere;
+}
+
+.pick {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.pick[aria-pressed='true'] {
+  color: var(--color-protect-default);
+}
+
+@media (max-width: 240px) {
+  .card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: var(--space-1);
+    padding: var(--space-2);
+  }
+
+  .text {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .hours {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .pick {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+.secondary {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}

@@ -46,6 +46,12 @@ const TAB_PATHS: Record<Exclude<TabKey, 'trip'>, string> = {
 
 type ContentWidth = 'form' | 'detail' | 'browse';
 
+function screenGround(pathname: string): 'default' | 'subtle' {
+  return pathname.startsWith('/profile') || pathname === '/trips/select'
+    ? 'subtle'
+    : 'default';
+}
+
 /** Desktop width is route chrome, not screen content. Keeping the decision in
  * the shell avoids seventeen slightly different max-width media queries. */
 function contentWidth(pathname: string): ContentWidth {
@@ -99,6 +105,8 @@ export function AppShell({ tabs = false }: AppShellProps) {
   const [restartingSession, setRestartingSession] = useState(false);
   const [restartFailed, setRestartFailed] = useState(false);
   const layoutWidth = contentWidth(location.pathname);
+  const ground = screenGround(location.pathname);
+  const showTabs = tabs && !location.pathname.startsWith('/live/places/');
 
   // FR-SES-03. This is the root element of every route, which is why the call
   // lives here: only the splash screen bootstraps, so a refresh or a deep link
@@ -320,7 +328,14 @@ export function AppShell({ tabs = false }: AppShellProps) {
   }
 
   return (
-    <div className={styles.shell}>
+    <div
+      className={styles.shell}
+      data-ground={ground}
+      style={{
+        background:
+          ground === 'subtle' ? 'var(--color-bg-subtle)' : 'var(--color-bg-default)',
+      }}
+    >
       <main className={styles.content} data-content-width={layoutWidth} id="main">
         <Outlet
           context={
@@ -332,8 +347,11 @@ export function AppShell({ tabs = false }: AppShellProps) {
           }
         />
       </main>
-      {tabs ? (
-        <div className={styles.tabs}>
+      {showTabs ? (
+        <div
+          className={styles.tabs}
+          data-overlay={location.pathname === '/live' || undefined}
+        >
           <TabBar
             active={activeTab(location.pathname, navState?.fromTab)}
             labels={{

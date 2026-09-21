@@ -4,14 +4,15 @@ import {
   candidateFixtures,
   liveFixtures,
   placeFixtures,
+  relatedFixtures,
   sessionFixtures,
   tripFixtures,
 } from '@nullnull/contracts';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -23,8 +24,14 @@ type LiveAreaResult = components['schemas']['LiveAreaResult'];
 type LivePlace = components['schemas']['LivePlace'];
 type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+  delete window.kakao;
+});
+
 const LIVE_FIXTURES = {
   'area-result-live': liveFixtures.areaResultLive,
+  'area-result-replay': liveFixtures.areaResultReplay,
   'area-result-unavailable': liveFixtures.areaResultUnavailable,
   'area-result-stale': liveFixtures.areaResultStale,
   'area-places': liveFixtures.areaPlaces,
@@ -49,7 +56,46 @@ function renderLive(initialEntry = '/live') {
 }
 
 describe('FE-401 Live area list', () => {
-  it('requests the approved list-only query and renders every returned area', async () => {
+  it('FE-401-T1 FE-403-T2 renders the default list-first state without map capability', async () => {
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)));
+
+    renderLive();
+
+    expect(await screen.findByRole('heading', { name: 'Live' })).toBeVisible();
+    expect(screen.queryByRole('region', { name: /Live map/i })).not.toBeInTheDocument();
+    expect(await screen.findByTestId('live-persistent-state')).toHaveTextContent(
+      /Observed live/i,
+    );
+    expect(screen.getByTestId('live-persistent-state')).not.toHaveTextContent(
+      result.generatedAt,
+    );
+    expect(screen.queryByRole('button', { name: /Lower place list/i })).toBeNull();
+    expect(screen.getByRole('tab', { name: /Current trip/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('FE-403-T2 renders loading independently from empty and failure', async () => {
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    let release: (() => void) | undefined;
+    server.use(
+      http.post(`${API_BASE}/live/areas`, async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json(result);
+      }),
+    );
+
+    const view = renderLive();
+    expect(await screen.findByRole('status')).toHaveTextContent(/Loading live areas/i);
+    release?.();
+    view.unmount();
+  });
+
+  it('FE-401-T1 requests the approved list-only query and renders every returned area', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     let body: unknown = null;
     server.use(
@@ -67,9 +113,12 @@ describe('FE-401 Live area list', () => {
       expect(body).toEqual({ mode: 'AUTO', regionCode: '11', viewport: null });
     });
     expect(document.body.textContent).not.toMatch(/37\.\d+|126\.\d+/);
+    expect(document.body.textContent).not.toMatch(
+      /\b(?:walk|detour)\b|\+\d+\s*min|\d+(?:\.\d+)?\s*km/i,
+    );
   });
 
-  it('keeps empty, unavailable and request failure as different states', async () => {
+  it('FE-403-T2 keeps empty, unavailable and request failure as different states', async () => {
     const unavailable = liveFixture<LiveAreaResult>('area-result-unavailable');
     server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(unavailable)));
 
@@ -95,7 +144,7 @@ describe('FE-401 Live area list', () => {
     );
   });
 
-  it('FE-401-T2 labels stale observations without presenting them as live', async () => {
+  it('FE-401-T2 FE-403-T2 labels stale observations without presenting them as live', async () => {
     const stale = liveFixture<LiveAreaResult>('area-result-stale');
     server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(stale)));
 
@@ -103,6 +152,43 @@ describe('FE-401 Live area list', () => {
 
     expect(await screen.findAllByText('Update delayed')).not.toHaveLength(0);
     expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
+  it('FE-403-T1 shows replay observation time without using response generation time', async () => {
+    const replay = liveFixture<LiveAreaResult>('area-result-replay');
+    const observedAt = replay.areas[0]?.crowd?.provenance.observedAt;
+    if (!observedAt) throw new Error('Live fixture must include observedAt');
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(replay)));
+
+    renderLive();
+
+    const state = await screen.findByTestId('live-persistent-state');
+    expect(state).toHaveTextContent(/replay/i);
+    expect(state).toHaveTextContent(/not live/i);
+    expect(state).toHaveTextContent(observedAt);
+    expect(state).not.toHaveTextContent(replay.generatedAt);
+  });
+
+  it('uses the reviewed Seoul four-stage wording instead of the generic five-stage copy', async () => {
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    const firstArea = result.areas[0];
+    if (!firstArea?.crowd) throw new Error('Live fixture must include a crowd metric');
+    const seoulLevel = {
+      ...result,
+      areas: [
+        {
+          ...firstArea,
+          crowd: { ...firstArea.crowd, ordinalLevel: '3' },
+        },
+      ],
+    };
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(seoulLevel)));
+
+    renderLive();
+
+    expect(await screen.findByText('3 · Slightly crowded')).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Seoul crowd level 3 of 4' })).toBeVisible();
+    expect(screen.queryByText('3 · Moderate')).not.toBeInTheDocument();
   });
 
   it('loads mapped places only after an area is selected', async () => {
@@ -134,35 +220,56 @@ describe('FE-401 Live area list', () => {
     expect(areaPlaceRequests).toBe(1);
   });
 
-  it('searches canonically and opens the selected place coverage', async () => {
+  it('searches canonically and offers each result as a direct detail link', async () => {
     const user = userEvent.setup();
     const areas = liveFixture<LiveAreaResult>('area-result-live');
-    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     server.use(
       http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(areas)),
       http.post(`${API_BASE}/places/search`, async ({ request }) => {
         expect(await request.json()).toEqual({ query: '경복궁' });
         return HttpResponse.json(placeFixtures.searchPage);
       }),
-      http.get(`${API_BASE}/live/places/:placeId`, ({ params }) => {
-        expect(params.placeId).toBe(detail.place.id);
-        return HttpResponse.json(detail);
-      }),
     );
 
     renderLive();
     await user.type(await screen.findByRole('searchbox'), '경복궁');
-    await user.click(
-      await screen.findByRole('link', { name: /View Live information for 경복궁/i }),
+    const result = await screen.findByRole('link', {
+      name: /View Live information for 경복궁/i,
+    });
+    expect(result).toBeVisible();
+    expect(result).toHaveAttribute(
+      'href',
+      `/live/places/${placeFixtures.searchPage.items[0]?.id}`,
+    );
+    expect(result).not.toHaveTextContent('›');
+  });
+
+  it('FE-401-T3 opens a named search result link with the keyboard', async () => {
+    const user = userEvent.setup();
+    const areas = liveFixture<LiveAreaResult>('area-result-live');
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(areas)),
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
     );
 
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    const result = await screen.findByRole('link', {
+      name: /View Live information for 경복궁/i,
+    });
+    result.focus();
+    expect(result).toHaveFocus();
+    await user.keyboard('{Enter}');
     expect(
       await screen.findByRole('heading', { level: 1, name: '경복궁' }),
     ).toBeVisible();
-    expect(screen.getByText('서울 종로구 사직로 161')).toBeVisible();
   });
 
-  it('saves the live place to the representative trip without changing its schedule', async () => {
+  it('FE-402-T3 saves without changing the schedule and restores action focus', async () => {
     const user = userEvent.setup();
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     const requests: Array<{
@@ -183,9 +290,11 @@ describe('FE-401 Live area list', () => {
     );
 
     renderLive(`/live/places/${detail.place.id}`);
-    await user.click(
-      await screen.findByRole('button', { name: /Save to representative trip/i }),
-    );
+    const save = await screen.findByRole('button', {
+      name: /Save to representative trip/i,
+    });
+    save.focus();
+    await user.keyboard('{Enter}');
 
     await waitFor(() => {
       expect(requests).toHaveLength(1);
@@ -200,6 +309,7 @@ describe('FE-401 Live area list', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       /Saved to your representative trip\. Your itinerary is unchanged\./i,
     );
+    expect(save).toHaveFocus();
   });
 
   it('does not guess a trip when the owner has no representative trip', async () => {
@@ -237,7 +347,100 @@ describe('FE-401 Live area list', () => {
 });
 
 describe('FE-402 Live place detail', () => {
-  it('FE-402-T1 distinguishes a verified absence of alternatives from a request error', async () => {
+  it('FE-402-T2 renders loading before detail data arrives', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    let release: (() => void) | undefined;
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json(detail);
+      }),
+    );
+
+    const view = renderLive(`/live/places/${detail.place.id}`);
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /Loading place information/i,
+    );
+    release?.();
+    view.unmount();
+  });
+
+  it('FE-402-T2 labels stale detail data without presenting it as live', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    if (!detail.crowd) throw new Error('Live detail fixture must include crowd data');
+    const stale: LivePlaceDetail = {
+      ...detail,
+      dataState: 'STALE',
+      crowd: {
+        ...detail.crowd,
+        state: 'STALE',
+        provenance: {
+          ...detail.crowd.provenance,
+          sourceState: 'STALE',
+          freshness: 'STALE',
+          comparisonEligible: false,
+        },
+      },
+    };
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(stale)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    expect(await screen.findAllByText('Update delayed')).not.toHaveLength(0);
+    expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
+  it('FCR-011 trace keeps KTO place credit separate from Seoul crowd credit', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    expect(await screen.findByRole('link', { name: /한국관광공사/ })).toBeVisible();
+    expect(screen.getByRole('link', { name: /서울특별시/ })).toBeVisible();
+  });
+
+  it('FE-402-T2 keeps the default candidate action and schedule note visible', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    const save = await screen.findByRole('button', {
+      name: /Save to representative trip/i,
+    });
+    const fixedBar = save.closest('[data-fixed="true"]');
+    expect(fixedBar).not.toBeNull();
+    expect(
+      within(fixedBar as HTMLElement).getByText(
+        /Saves this as a candidate\. Your itinerary stays unchanged\./i,
+      ),
+    ).toBeVisible();
+  });
+
+  it('uses the emphasized app-bar title treatment on place details', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    expect(await screen.findByText('Place crowd information')).toHaveAttribute(
+      'data-size',
+      'large',
+    );
+  });
+
+  it('FE-402-T1 FE-402-T2 distinguishes a verified absence from request failure', async () => {
     const none = liveFixture<LivePlaceDetail>('place-detail-related-none');
     server.use(
       http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(none)),
@@ -248,6 +451,10 @@ describe('FE-402 Live place detail', () => {
       await screen.findByText('No valid alternative is available right now'),
     ).toBeVisible();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Browse other areas' })).toHaveAttribute(
+      'href',
+      '/live',
+    );
 
     server.use(http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.error()));
     view.unmount();
@@ -269,5 +476,76 @@ describe('FE-402 Live place detail', () => {
     expect(
       screen.queryByText('No valid alternative is available right now'),
     ).not.toBeInTheDocument();
+  });
+
+  it('FE-402-T1 suppresses comparison-ineligible crowd values in alternatives', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    const crowd = liveFixture<LivePlace[]>('area-places')[0]?.crowd;
+    const alternative = relatedFixtures.page.items[0];
+    if (!crowd || !alternative) throw new Error('Fixtures must include an alternative');
+    const ineligible: LivePlaceDetail = {
+      ...detail,
+      related: {
+        ...detail.related,
+        state: 'SIMILAR',
+        items: [
+          {
+            ...alternative,
+            crowd: {
+              ...crowd,
+              provenance: { ...crowd.provenance, comparisonEligible: false },
+            },
+          },
+        ],
+      },
+    };
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(ineligible)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    const link = await screen.findByRole('link', { name: alternative.place.name });
+    const row = link.closest('li');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).queryByRole('img')).toBeNull();
+    expect(within(row as HTMLElement).getByText(/different basis/i)).toBeVisible();
+  });
+
+  it('FE-402-T1 does not compare TEMPORAL metrics across different places', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    const crowd = liveFixture<LivePlace[]>('area-places')[0]?.crowd;
+    const alternative = relatedFixtures.page.items[0];
+    if (!crowd || !alternative) throw new Error('Fixtures must include an alternative');
+    const temporalProvenance = {
+      ...crowd.provenance,
+      comparisonAxis: 'TEMPORAL' as const,
+      comparisonEligible: true,
+    };
+    const temporal: LivePlaceDetail = {
+      ...detail,
+      crowd: { ...crowd, provenance: temporalProvenance },
+      related: {
+        ...detail.related,
+        state: 'SIMILAR',
+        items: [
+          {
+            ...alternative,
+            crowd: { ...crowd, provenance: temporalProvenance },
+          },
+        ],
+      },
+    };
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(temporal)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    const link = await screen.findByRole('link', { name: alternative.place.name });
+    const row = link.closest('li');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).queryByRole('img')).toBeNull();
+    expect(within(row as HTMLElement).getByText(/different basis/i)).toBeVisible();
   });
 });

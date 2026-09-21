@@ -23,6 +23,37 @@ import type { ProblemCode } from '../../api/index.js';
 
 type PostDetail = components['schemas']['PostDetail'];
 type Problem = components['schemas']['Problem'];
+type CreateTripRequest = components['schemas']['CreateTripRequest'];
+type PreviewTripDraftRequest = components['schemas']['PreviewTripDraftRequest'];
+type TripDraftPreview = components['schemas']['TripDraftPreview'];
+type TripConstraint = components['schemas']['TripConstraint'];
+type TripDetail = components['schemas']['TripDetail'];
+
+function inclusiveDates(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+function tripDraftForRange(
+  fixture: TripDraftPreview,
+  { startDate, endDate }: PreviewTripDraftRequest,
+): TripDraftPreview {
+  return {
+    ...fixture,
+    days: inclusiveDates(startDate, endDate).map((date, index) => ({
+      date,
+      stops: (fixture.days[index]?.stops ?? []).map((stop) => ({ ...stop, date })),
+    })),
+  };
+}
 
 /**
  * The dev proxy and the deployed app both serve the API under /api/v1.
@@ -70,13 +101,33 @@ export function problemResponse(
  * FE-106's trip state. A replace increments the version, so the next If-Match
  * has to use the ETag the server just returned.
  */
-let tripState: (typeof tripFixtures)['detailWithInterests'] | null = null;
+let tripState: TripDetail | null = null;
+
+function newlyPlannedDemoTrip(): TripDetail {
+  return {
+    ...tripFixtures.detailScheduled,
+    days: tripFixtures.detailScheduled.days.map((day) => ({
+      ...day,
+      items: day.items.map((item) => ({
+        ...item,
+        startTime: null,
+        durationMinutes: null,
+        constraints: item.constraints.filter(
+          (constraint) => constraint.type === 'MUST_VISIT',
+        ),
+      })),
+    })),
+  };
+}
 
 function currentTrip() {
   // The scheduled fixture is the default: it carries the interests FE-106
   // edits *and* the days/items FE-301 renders, so one trip serves both screens
   // and they cannot disagree about the same id.
-  tripState ??= tripFixtures.detailScheduled;
+  tripState ??=
+    import.meta.env.MODE === 'test'
+      ? tripFixtures.detailScheduled
+      : newlyPlannedDemoTrip();
   return tripState;
 }
 
@@ -102,6 +153,47 @@ function findPlace(placeId: string | undefined) {
     currentCandidates().items.find((c) => c.place.id === placeId)?.place ??
     relatedFixtures.page.items.find((p) => p.place.id === placeId)?.place
   );
+}
+
+function createdTripFrom(input: CreateTripRequest): TripDetail | null {
+  const start = new Date(`${input.startDate}T00:00:00Z`);
+  const end = new Date(`${input.endDate}T00:00:00Z`);
+  const days: TripDetail['days'] = [];
+
+  for (let date = start; date <= end; date = new Date(date.getTime() + 86_400_000)) {
+    days.push({ date: date.toISOString().slice(0, 10), items: [] });
+  }
+
+  for (const seed of input.seedItems ?? []) {
+    const day = days.find((candidate) => candidate.date === seed.date);
+    const place = findPlace(seed.placeId);
+    if (!day || !place) return null;
+    day.items.push({
+      id: crypto.randomUUID(),
+      place,
+      date: seed.date,
+      position: seed.position,
+      startTime: seed.startTime ?? null,
+      durationMinutes: null,
+      note: null,
+      constraints: (seed.constraints ?? []).map(
+        (constraint) => ({ ...constraint, source: 'USER' }) as TripConstraint,
+      ),
+      crowd: null,
+    });
+  }
+  for (const day of days) day.items.sort((a, b) => a.position - b.position);
+
+  return {
+    ...tripFixtures.detailCreated,
+    title: input.title ?? tripFixtures.detailCreated.title,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    timezone: input.timezone,
+    planningLevel: input.planningLevel,
+    interests: input.interests,
+    days,
+  };
 }
 
 /**
@@ -885,18 +977,22 @@ export const handlers = [
   // MOCK DATA (FE-102). Without this the wizard's final submit is an unhandled
   // request: the tests each stood up their own handler and passed, while the
   // running app answered 500 and showed its failure state. Delete with BA-030.
-  http.post(`${API_BASE}/trips`, () =>
-    HttpResponse.json(tripFixtures.detailCreated, {
+  http.post(`${API_BASE}/trips`, async ({ request }) => {
+    const input = (await request.json()) as CreateTripRequest;
+    const created = createdTripFrom(input);
+    if (!created) return problemResponse('VALIDATION_FAILED');
+    tripState = created;
+    return HttpResponse.json(created, {
       status: 201,
       headers: {
         // Strong, not W/"1": components.headers.ETag is `^"[1-9][0-9]*"$` and
         // If-Match repeats that pattern, so a weak validator is one the real
         // server would reject. Mirrors the body's own `version`.
-        ETag: `"${String(tripFixtures.detailCreated.version)}"`,
-        Location: `/trips/${tripFixtures.detailCreated.id}`,
+        ETag: `"${String(created.version)}"`,
+        Location: `/trips/${created.id}`,
       },
-    }),
-  ),
+    });
+  }),
   // MOCK DATA (FE-105). Deletion is 202 with a receipt, then a status the
   // screen polls with the receipt token. Delete with BA-012.
   http.delete(`${API_BASE}/session`, () =>
@@ -917,6 +1013,14 @@ export const handlers = [
       headers: { 'Cache-Control': 'private, no-store' },
     }),
   ),
+  http.get(`${API_BASE}/places/:placeId`, ({ params }) => {
+    if (params.placeId !== placeFixtures.detail.id) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    return HttpResponse.json(placeFixtures.detail, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }),
 
   // Approved BA-091 fixtures. They are consumed directly rather than copied
   // into a frontend model, so local MSW and the connected API exercise the
@@ -1052,9 +1156,11 @@ export const handlers = [
   // fixtures cover the SAME two dates (2026-10-04/05), so no start date or
   // range tells them apart. Keying off the body would have meant a selector
   // that silently always returns `ready`.
-  http.post(`${API_BASE}/trip-drafts/preview`, ({ request }) => {
+  http.post(`${API_BASE}/trip-drafts/preview`, async ({ request }) => {
     const empty = new URL(request.url).searchParams.get('mock') === 'empty';
-    return HttpResponse.json(empty ? tripDraftFixtures.empty : tripDraftFixtures.ready, {
+    const range = (await request.json()) as PreviewTripDraftRequest;
+    const fixture = empty ? tripDraftFixtures.empty : tripDraftFixtures.ready;
+    return HttpResponse.json(tripDraftForRange(fixture, range), {
       headers: { 'Cache-Control': 'private, no-store' },
     });
   }),

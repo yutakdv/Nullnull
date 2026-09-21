@@ -10,6 +10,12 @@
   padding: var(--space-4) var(--layout-page-gutter);
 }
 
+.body[data-has-fixed-action] {
+  padding-bottom: calc(
+    var(--layout-bottom-note) + var(--space-4) + env(safe-area-inset-bottom)
+  );
+}
+
 .titleRow {
   display: flex;
   align-items: flex-start;
@@ -79,6 +85,25 @@
   line-height: 1.5;
 }
 
+.recovery {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-subtle);
+  color: var(--color-action-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 44px;
+  text-decoration: none;
+}
+
+.ineligible {
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+}
+
 .state {
   display: flex;
   min-height: 160px;
@@ -101,26 +126,11 @@
   font-weight: 700;
 }
 
-.saveArea {
+.saveFeedback {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-}
-
-.saveButton {
-  min-height: 52px;
-  padding: 0 var(--space-5);
-  border: 0;
-  border-radius: var(--radius-card);
-  background: var(--color-action-primary);
-  color: var(--color-text-onAccent);
-  font: inherit;
-  font-weight: 700;
-}
-
-.saveButton:disabled {
-  cursor: wait;
-  opacity: 0.6;
+  align-items: center;
 }
 
 .saveNote,
@@ -134,4 +144,10 @@
 
 .saveStatus[role='alert'] {
   color: var(--color-text-danger, var(--color-text-primary));
+}
+
+@media (max-width: 240px) {
+  .titleRow {
+    flex-direction: column;
+  }
 }

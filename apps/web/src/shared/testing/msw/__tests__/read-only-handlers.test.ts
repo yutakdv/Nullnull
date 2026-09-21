@@ -164,11 +164,11 @@ describe('queryPlaceCrowdForecasts is mocked from the approved batch fixture', (
 describe('previewTripDraft is mocked', () => {
   const body = { startDate: '2026-10-04', endDate: '2026-10-05', timezone: 'Asia/Seoul' };
 
-  async function preview(query = '') {
+  async function preview(query = '', requestBody: typeof body = body) {
     return fetch(`${API_BASE}/trip-drafts/preview${query}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     });
   }
 
@@ -194,6 +194,27 @@ describe('previewTripDraft is mocked', () => {
     // and no entry in resetMockState. Asking twice proves the handler is not
     // quietly remembering the first call.
     expect(await (await preview()).json()).toEqual(await (await preview()).json());
+  });
+
+  it('keeps every returned day and stop inside the requested range', async () => {
+    const response = await preview('', {
+      startDate: '2026-09-20',
+      endDate: '2026-09-23',
+      timezone: 'Asia/Seoul',
+    });
+    const parsed = (await response.json()) as typeof tripDraftFixtures.ready;
+
+    expect(parsed.days.map((day) => day.date)).toEqual([
+      '2026-09-20',
+      '2026-09-21',
+      '2026-09-22',
+      '2026-09-23',
+    ]);
+    expect(parsed.days.flatMap((day) => day.stops).map((stop) => stop.date)).toEqual([
+      '2026-09-20',
+      '2026-09-20',
+      '2026-09-21',
+    ]);
   });
 });
 

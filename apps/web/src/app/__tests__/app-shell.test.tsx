@@ -17,7 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import { sessionFixtures, tripFixtures } from '@nullnull/contracts';
+import { placeFixtures, sessionFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../i18n/I18nProvider.js';
 import { messages } from '../../i18n/messages.js';
 import { createQueryClient, sessionQueryKey } from '../../shared/api/index.js';
@@ -84,6 +84,7 @@ const WITHOUT_TABS = [
   ['/intro', 'onboarding step'],
   ['/start', 'wizard draft is unsaved'],
   [`/trip/${trip.id}/candidates`, 'sub-page with a back control'],
+  [`/live/places/${placeFixtures.detail.id}`, 'sub-page with a back control'],
   ['/about-data', 'sub-page with a back control'],
 ] as const;
 
@@ -115,6 +116,20 @@ describe('tab destinations carry the tab bar', () => {
       copy['nav.tab.live'],
       copy['nav.tab.profile'],
     ]);
+  });
+
+  it.each([
+    ['/feed', 'default'],
+    [`/trip/${trip.id}`, 'default'],
+    ['/live', 'default'],
+    ['/profile', 'subtle'],
+  ] as const)('%s carries its screen ground behind the tab bar', async (path, ground) => {
+    renderAt(path);
+    await screen.findByRole('navigation', TAB_BAR);
+    expect(document.getElementById('main')?.parentElement).toHaveAttribute(
+      'data-ground',
+      ground,
+    );
   });
 
   it('marks the current tab for a screen reader, not by colour alone', async () => {

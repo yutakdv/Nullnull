@@ -2,10 +2,11 @@ import type { components } from '@nullnull/api-client';
 
 // Wizard draft state for S02-1/2/3 (FR-TRC-01/02/03).
 //
-// Steps 1-3 are a local draft: FIGMA_HANDOFF marks them "local draft" and the
-// only server call in this flow is createTrip at the end. Keeping the rules here
-// rather than in the screen means they can be tested without rendering, and the
-// screen cannot quietly disagree with them.
+// Steps 1-3 are a local draft: FIGMA_HANDOFF marks them "local draft". The
+// NOTHING branch requests a read-only preview before createTrip; the other
+// branches remain local until createTrip. Keeping the rules here rather than in
+// the screen means they can be tested without rendering, and the screen cannot
+// quietly disagree with them.
 //
 // The limits are the contract's, not invented: CreateTripRequest caps the range
 // at 30 calendar days and interests at 20 unique entries.
@@ -322,7 +323,7 @@ export function seedItemsOf(draft: WizardDraft): SeedTripItem[] {
  * thing — each one names what happens next, and the screen after it keeps that
  * promise:
  *
- *   NOTHING          아직 하나도 없어요      → create now, the server fills the days
+ *   NOTHING          아직 하나도 없어요      → read-only recommendation preview
  *   MUST_VISIT_ONLY  꼭 가고 싶은 곳만 정했어요 → step 4, S02-4B must-visit
  *   MOSTLY_PLANNED   거의 다 세우고 왔어요     → step 4, S02-4C input-method
  *
@@ -343,14 +344,14 @@ export function seedItemsOf(draft: WizardDraft): SeedTripItem[] {
  */
 export function nextAfterPlanning(
   draft: WizardDraft,
-): 'create' | 'must-visit' | 'method' | null {
+): 'recommend' | 'must-visit' | 'method' | null {
   switch (draft.planningLevel) {
     case 'MUST_VISIT_ONLY':
       return 'must-visit';
     case 'MOSTLY_PLANNED':
       return 'method';
     case 'NOTHING':
-      return 'create';
+      return 'recommend';
     default:
       return null;
   }

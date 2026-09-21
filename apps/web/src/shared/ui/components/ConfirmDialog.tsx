@@ -142,7 +142,11 @@ export function ConfirmDialog({
     // restore with focus nowhere (#272 cause ④).
     if (canTakeFocus(target)) {
       target.focus();
-      return;
+      // Connected is not the same as focusable. The move-sheet chain can
+      // capture <main> after its temporary tabindex has been removed; browsers
+      // then ignore focus() without throwing. Verify the landing and continue
+      // through the existing nearby-control/landmark fallback when it failed.
+      if (document.activeElement === target) return;
     }
     // The opener has unmounted. That happens when one surface opens this
     // dialog and closes itself doing it — a day picked inside MoveDaySheet

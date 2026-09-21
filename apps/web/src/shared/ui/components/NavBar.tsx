@@ -15,6 +15,8 @@ import styles from './NavBar.module.css';
 
 export interface NavBarProps {
   title?: string;
+  /** Uses the existing title token when a detail screen needs stronger hierarchy. */
+  titleSize?: 'default' | 'large';
   /** Renders the back control when given. */
   onBack?: () => void;
   /** Accessible name for the back control; the glyph alone is not a name. */
@@ -23,7 +25,13 @@ export interface NavBarProps {
   actions?: ReactNode;
 }
 
-export function NavBar({ title, onBack, backLabel = '뒤로', actions }: NavBarProps) {
+export function NavBar({
+  title,
+  titleSize = 'default',
+  onBack,
+  backLabel = '뒤로',
+  actions,
+}: NavBarProps) {
   return (
     <header className={styles.bar}>
       {onBack ? (
@@ -39,7 +47,11 @@ export function NavBar({ title, onBack, backLabel = '뒤로', actions }: NavBarP
       {/* Not an <h1>: the screen below owns the page heading, and two h1s — or
           a heading that duplicates the one in the content — makes the outline
           wrong for a screen reader. */}
-      {title === undefined ? null : <span className={styles.title}>{title}</span>}
+      {title === undefined ? null : (
+        <span className={styles.title} data-size={titleSize}>
+          {title}
+        </span>
+      )}
       {actions === undefined ? null : <div className={styles.actions}>{actions}</div>}
     </header>
   );

@@ -9,8 +9,8 @@ const all = [...Object.entries(glyphs), ...Object.entries(tabGlyphs)].filter(([n
 );
 
 describe('icon set', () => {
-  it('exports one component per Figma icon component', () => {
-    expect(all).toHaveLength(25);
+  it('exports the shared icon set including the trip drag handle', () => {
+    expect(all).toHaveLength(26);
   });
 
   it('renders every icon inside the shared 24x24 viewBox', () => {

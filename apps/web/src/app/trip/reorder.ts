@@ -79,6 +79,40 @@ export function moveToDay(
   return [...renumber(source.date, remaining), ...renumber(target.date, appended)];
 }
 
+/** Drops one item into a precise slot, including between items on another day. */
+export function reorderAt(
+  days: readonly TripDay[],
+  itemId: string,
+  targetDate: string,
+  targetIndex: number,
+): ReorderEntry[] | null {
+  const source = days.find((day) => day.items.some((item) => item.id === itemId));
+  const target = days.find((day) => day.date === targetDate);
+  if (!source || !target || !Number.isInteger(targetIndex)) return null;
+  const moved = source.items.find((item) => item.id === itemId);
+  if (!moved) return null;
+  const sameDay = source.date === target.date;
+  const sourceItems = ordered(source);
+  const from = sourceItems.findIndex((item) => item.id === itemId);
+  const targetItems = sameDay
+    ? sourceItems.filter((item) => item.id !== itemId)
+    : ordered(target);
+  if (targetIndex < 0 || targetIndex > targetItems.length) return null;
+  if (sameDay && targetIndex === from) return null;
+  const next = [...targetItems];
+  next.splice(targetIndex, 0, moved);
+  const result = sameDay
+    ? renumber(target.date, next)
+    : [
+        ...renumber(
+          source.date,
+          sourceItems.filter((item) => item.id !== itemId),
+        ),
+        ...renumber(target.date, next),
+      ];
+  return result.length <= MAX_REORDER_ENTRIES ? result : null;
+}
+
 /** True when the item is already first in its day. */
 export function isFirstInDay(days: readonly TripDay[], itemId: string): boolean {
   const day = days.find((d) => d.items.some((item) => item.id === itemId));

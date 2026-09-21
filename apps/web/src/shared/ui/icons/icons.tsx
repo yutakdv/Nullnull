@@ -71,6 +71,13 @@ export function IconEdit(props: IconProps) {
   return <Icon paths={ICONEDIT_PATHS} variant="stroke" {...props} />;
 }
 
+const ICONDRAGHANDLE_PATHS = ['M 5 9 L 19 9', 'M 5 15 L 19 15'] as const;
+
+/** Itinerary edit drag handle, using the shared 24px stroke system. */
+export function IconDragHandle(props: IconProps) {
+  return <Icon paths={ICONDRAGHANDLE_PATHS} variant="stroke" {...props} />;
+}
+
 const ICONDATELOCK_PATHS = [
   'M 9 4 L 9 8.5 M 16 4 L 16 8.5 M 5 11.5 L 20 11.5 M 5 7 L 20 7 L 20 20.5 L 5 20.5 L 5 7 Z',
 ] as const;

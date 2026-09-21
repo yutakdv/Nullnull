@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import styles from './BottomCta.module.css';
 
 // Figma: `Action / Bottom CTA` (C11). type=단독|보조링크.
 export interface BottomCtaProps {
+  buttonRef?: Ref<HTMLButtonElement>;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
@@ -16,6 +17,7 @@ export interface BottomCtaProps {
 }
 
 export function BottomCta({
+  buttonRef,
   label,
   onClick,
   disabled,
@@ -31,6 +33,7 @@ export function BottomCta({
       data-secondary-kind={secondary ? secondaryKind : undefined}
     >
       <button
+        ref={buttonRef}
         type={type}
         className={styles.primary}
         onClick={onClick}

@@ -11,6 +11,10 @@
  */
 
 .shell {
+  --app-tabs-height: calc(
+    73px + var(--space-2) + max(var(--space-2), env(safe-area-inset-bottom))
+  );
+
   display: flex;
   flex-direction: column;
   /* vh first as the fallback, then dvh where it is supported: a browser that
@@ -50,8 +54,13 @@
   flex: none;
   padding: var(--space-2) var(--space-4);
   padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
-  /* Opaque: content scrolls behind it. */
-  background: var(--color-bg-default);
+  background: inherit;
+}
+
+.tabs[data-overlay] {
+  position: absolute;
+  z-index: 5;
+  inset: auto 0 0;
 }
 
 /* Session ended (FR-SES-02). A full-screen state, per PROBLEM_POLICY's

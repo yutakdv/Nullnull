@@ -554,6 +554,7 @@ export function useFeed(tripId: string | null = null, enabled = true) {
 
 type PlaceSearchPage = components['schemas']['PlaceSearchPage'];
 type PlaceSearchRequest = components['schemas']['PlaceSearchRequest'];
+type PlaceDetail = components['schemas']['PlaceDetail'];
 type CrowdSeries = components['schemas']['CrowdSeries'];
 type PlaceCrowdForecastQueryResult =
   components['schemas']['PlaceCrowdForecastQueryResult'];
@@ -670,8 +671,51 @@ export function usePlaceSearch(
   });
 }
 
+export function usePlaceDetail(
+  placeId: string | null,
+): UseQueryResult<PlaceDetail, Problem | Error> {
+  return useQuery({
+    queryKey: ['places', placeId ?? ''],
+    enabled: placeId !== null,
+    queryFn: async () => {
+      if (placeId === null) throw new Error('Place detail query is missing its place');
+      const { data, error, response } = await getApiClient().GET('/places/{placeId}', {
+        params: { path: { placeId } },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+    staleTime: 0,
+  });
+}
+
 type CreateTripRequest = components['schemas']['CreateTripRequest'];
 type TripDetail = components['schemas']['TripDetail'];
+type PreviewTripDraftRequest = components['schemas']['PreviewTripDraftRequest'];
+type TripDraftPreview = components['schemas']['TripDraftPreview'];
+
+/**
+ * Builds a deterministic, unsaved itinerary preview for FR-TRC-10.
+ *
+ * The operation is read-only despite using POST for its body. It deliberately
+ * lives as a mutation so the wizard starts it only after an explicit choice;
+ * errors are retried only from the recovery CTA.
+ */
+export function usePreviewTripDraft() {
+  return useMutation<TripDraftPreview, Problem | Error, PreviewTripDraftRequest>({
+    mutationFn: async (request) => {
+      const { data, error, response } = await getApiClient().POST(
+        '/trip-drafts/preview',
+        { body: request },
+      );
+      if (!data) fail(error, response);
+      if (!Array.isArray(data.days)) {
+        throw new Error('Malformed previewTripDraft response: days must be an array');
+      }
+      return data;
+    },
+  });
+}
 
 /**
  * Creates a trip from the wizard draft.
