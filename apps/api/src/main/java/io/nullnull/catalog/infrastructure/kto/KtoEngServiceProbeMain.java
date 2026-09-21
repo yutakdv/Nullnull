@@ -27,12 +27,14 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p><strong>What this cannot answer, stated so nobody reads its silence as a negative.</strong>
  * Three of the four open EngService questions are not in a response body and this probe does not
- * pretend to reach them:
+ * pretend to reach them (one of them is settled by a decision, not a measurement):
  *
  * <ul>
- * <li>{@code stale_after_seconds} - a refresh cadence lives in the published operation manual. If
- *     the document does not state one, the registry column stays NULL rather than borrowing
- *     KorService2's, which is a different dataset.
+ * <li>{@code stale_after_seconds} - not a provider fact at all but our own maximum cache age, and it
+ *     cannot stay NULL: V007's {@code source_registry_enabled_check} makes a source with no
+ *     staleness bound disabled, and the read gate then withdraws all of its text. The owner set it to
+ *     seven days on 2026-09-21, the same cache ceiling KorService2 carries (V007: "상세 갱신 주기는
+ *     실측 전이며 최대 P7D") - a policy shared on purpose, not a provider cadence borrowed.
  * <li>How the daily quota is counted - that is on the data.go.kr 마이페이지 activation detail, not
  *     in a response. The owner read it there on 2026-09-21 (D-003): traffic is counted per operation,
  *     so English calls do not draw on the Korean operations' daily traffic even though the key is
