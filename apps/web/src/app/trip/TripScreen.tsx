@@ -651,7 +651,7 @@ function TripItemRow({
 
   return (
     <article className={styles.item}>
-      <div className={`${styles.itemHead} ${styles.itemHeadWithMenu}`}>
+      <div className={styles.itemHead}>
         <h3 className={styles.itemName}>{item.place.name}</h3>
         {mustVisit ? (
           <span className={styles.mustVisit}>
@@ -660,15 +660,6 @@ function TripItemRow({
           </span>
         ) : null}
         <span className={styles.itemTime}>{scheduleLabel}</span>
-        {tripId ? (
-          <Link
-            aria-label={t('trip.item.actions', { name: item.place.name })}
-            className={styles.itemMenuLink}
-            to={`/trip/${tripId}/edit`}
-          >
-            <span aria-hidden="true">•••</span>
-          </Link>
-        ) : null}
       </div>
 
       {viewMeta.length > 0 ? (

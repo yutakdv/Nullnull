@@ -449,6 +449,9 @@ describe('FE-301-T3 the screen is reachable and named', () => {
 
     const move = copy['trip.move.open'].replace('{name}', '경복궁');
     const remove = copy['trip.remove.open'].replace('{name}', '경복궁');
+    expect(
+      screen.queryByRole('link', { name: '경복궁 item actions' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: move })).toBeNull();
     expect(screen.queryByRole('button', { name: remove })).toBeNull();
 
