@@ -174,7 +174,15 @@ main에 들어간 코드는 `staging` environment로 deploy role을 쓸 수 있�
 - **trust 지속성**: CloudFormation이 GitHub role의 trust를 관리하므로(Foundation), 위 경로로 trust에 외부 주체가 추가되면 커밋을 되돌려도 남는다. `staging-smoke.sh`가 매 배포 두 role의 trust를 정확한 subject 집합으로 검사해 **탐지**하지만 막지는 않는다.
 - CloudFormation이 role을 넘길 수 있는 서비스는 합성된 trust와 같은 `ecs-tasks`·`lambda`뿐이다.
 
-Secrets Manager에는 최소 DB credential, `KTO_SERVICE_KEY`, `NULLNULL_CURSOR_SECRET`, `NULLNULL_DELETION_TOKEN_SECRET`을 둔다. secret 값은 CDK context, task environment, frontend `VITE_*`, release manifest, image layer, log와 GitHub artifact에 들어가지 않는다.
+Secrets Manager에는 최소 DB credential, `KTO_SERVICE_KEY`, `NULLNULL_CURSOR_SECRET`, `NULLNULL_DELETION_TOKEN_SECRET`, 서울 proxy secret(`nullnull-stg/seoul-proxy`)을 둔다. secret 값은 CDK context, task environment, frontend `VITE_*`, release manifest, image layer, log와 GitHub artifact에 들어가지 않는다.
+
+**서울 proxy secret에 키를 넣는 경로는 콘솔 하나다**([#334](https://github.com/yutakdv/Nullnull/issues/334)). 이 secret은 한 hop에 속한 두 값을 JSON 한 벌로 든다. `apiKey`는 오너가 넣는 서울 열린데이터 인증키이고, `proxyToken`은 CDK가 생성해 API task가 proxy에 제시하는 값이다. `infra/src/staging.ts`가 `apiKey: ""`로 만들고 operator의 `secrets` 명령(`provision_secrets()`)은 KTO 키만 다루므로, 채우는 경로가 따로 없었다.
+
+1. Secrets Manager 콘솔(서울 region)에서 `nullnull-stg/seoul-proxy`를 연다 → **Retrieve secret value** → **Edit**.
+2. Key/value 보기에서 **`apiKey`의 값만** 바꾸고 `proxyToken`은 그대로 둔 채 저장한다.
+3. 반영은 최대 5분 뒤다. proxy Lambda가 secret을 5분(`TTL_MS = 300000`) 캐시한다. 다음 5분 수집의 API 로그에서 `seoul_live_collect_failed`가 멈추는지 본다. 이전 수집이 이미 source를 격리했다면 키를 넣어도 수집이 시작되지 않으므로, ops task `release-source-quarantine`으로 먼저 푼다.
+
+**KTO 키처럼 문자열 통째로 넣지 않는다.** `put-secret-value --secret-string <키>` 모양은 JSON을 덮어 `proxyToken`을 지운다. 그러면 proxy가 `seoul_proxy_secret_incomplete`로 모든 요청을 거절하고, 고치려던 hop을 고치는 명령이 부순다. CLI 절차를 적지 않은 것은 이 때문이고, 키 값이 셸 history를 지나가지 않게 하려는 이유도 있다. **`proxyToken`은 바꾸지 않는다.** API task는 task 시작 시 ECS secret 주입으로 그 값을 읽으므로, 바꾸면 API를 다시 배포할 때까지 proxy가 API를 거절한다.
 
 ## 7. Immutable release와 migration
 
