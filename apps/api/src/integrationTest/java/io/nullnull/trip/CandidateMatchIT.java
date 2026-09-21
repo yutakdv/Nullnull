@@ -268,6 +268,53 @@ class CandidateMatchIT {
                 .cookie(cookie(owner))).andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("BA-042-T10 a candidate scheduled through addTripItem makes this operation answer 422 VALIDATION_FAILED")
+    void aScheduledCandidateIsRefusedWithAnUnprocessableContent() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = place("예약으로 넘어갈 후보 장소");
+        UUID candidateId = candidate(owner, tripId, placeId);
+        when(hours.windowsFor(any(), any(), any(), any())).thenReturn(Map.of());
+        when(recommendations.evaluateSlots(any())).thenReturn(response(SlotEvaluateResponse.State.EXACT,
+                List.of(new SlotOut(DAY_ONE, null, true, null))));
+
+        // The same request, answered, before anything is scheduled. Without this the case below would
+        // also pass on a server that refused every call, and the transition is the whole claim.
+        mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + candidateId + "/matches")
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("EXACT"));
+
+        // Scheduled the way the screen does it, not by seeding the row: addTripItem naming a candidate
+        // is the only production writer of SCHEDULED, so this is what makes the refusal reachable on a
+        // path the traveller takes rather than one only a test can reach.
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"" + version(tripId) + "\"")
+                        .header("Idempotency-Key", "schedule-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + placeId + "\",\"candidateId\":\"" + candidateId
+                                + "\",\"date\":\"" + DAY_ONE + "\",\"position\":0}"))
+                .andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("SELECT status FROM trip_candidates WHERE id = ?", String.class,
+                candidateId)).isEqualTo("SCHEDULED");
+
+        // Status and code are both pinned because they answer different questions: the status says
+        // which layer refused - TripProblemHandler, so the request reached the domain rather than
+        // being stopped by the session filter - and the code says what it called the refusal. The
+        // field pointer is asserted too, because `candidateId` is the path variable rather than a
+        // body field, and that is the part a client cannot act on.
+        mvc.perform(get("/api/v1/trips/" + tripId + "/candidates/" + candidateId + "/matches")
+                        .cookie(cookie(owner)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("candidateId"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("Unsupported"));
+    }
+
     private SlotEvaluateRequest captureRequest() {
         ArgumentCaptor<SlotEvaluateRequest> captor = ArgumentCaptor.forClass(SlotEvaluateRequest.class);
         verify(recommendations, org.mockito.Mockito.atLeastOnce()).evaluateSlots(captor.capture());
