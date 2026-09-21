@@ -240,17 +240,18 @@ class CatalogPlaceApiIT {
     }
 
     @Test
-    @DisplayName("BA-086-T5 fallback text retains its own approved credit without borrowing place credit")
+    @DisplayName("BA-086-T5 fallback text retains its own approved credit")
     void fallbackTextKeepsItsOwnCredit() throws Exception {
         SessionService.Bootstrap englishOwner = owner("en-US");
         UUID place = mixedLocalePlace();
         long revision = jdbc.queryForObject(
                 "SELECT current_revision FROM source_registry WHERE code = ?", Long.class, SOURCE);
 
+        // The place record has no credit here, so the address credit can only have come from the
+        // localization row that supplied the address.
         mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sourceAttribution").isEmpty())
-                .andExpect(jsonPath("$.textProvenance.name.sourceAttribution").isEmpty())
                 .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.source").value(SOURCE))
                 .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.sourceRegistryVersion")
                         .value(revision))
@@ -262,12 +263,18 @@ class CatalogPlaceApiIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].textProvenance.address.sourceAttribution.source")
                         .value(SOURCE));
+    }
 
-        // The other half of "without borrowing": above, the place record has no credit, so a text
-        // field that fell back to it would still read null. Give the place a credit and the English
-        // name - a row with no provenance of its own - must stay uncredited. Without this, filling a
-        // missing text credit from the place credit left every assertion above green.
+    @Test
+    @DisplayName("BA-086-T14 a text field with no provenance of its own does not borrow the place record's credit")
+    void textWithoutProvenanceDoesNotBorrowPlaceCredit() throws Exception {
+        SessionService.Bootstrap englishOwner = owner("en-US");
+        UUID place = mixedLocalePlace();
+        // The place must HAVE a credit to lend. Without one, a field that fell back to it would read
+        // null anyway and this test would pass whether or not anything was borrowed - which is how
+        // it went unmeasured while it lived inside T5.
         reference(place);
+
         mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sourceAttribution.source").value(SOURCE))

@@ -45,7 +45,7 @@ class KtoEngServiceMatchProbeMainTest {
             """;
 
     @Test
-    @DisplayName("the report lists each candidate with its computed distance, its codes and the field names")
+    @DisplayName("BA-086-T15 the report lists each candidate with its computed distance, its codes and the field names")
     void candidatesCarryDistanceCodesAndShape() {
         List<String> lines = KtoEngServiceMatchProbeMain.report(list(SAME_SPOT + "," + NORTH), 1, GYEONGBOKGUNG);
         String report = String.join("\n", lines);
@@ -71,7 +71,7 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     @Test
-    @DisplayName("an empty neighbourhood is its own verdict and an unusable coordinate is not a distance")
+    @DisplayName("BA-086-T15 an empty neighbourhood is its own verdict and an unusable coordinate is not a distance")
     void emptyAndUnusable() {
         String empty = "{\"response\":{\"header\":{\"resultCode\":\"0000\"},"
                 + "\"body\":{\"totalCount\":0,\"items\":\"\"}}}";
@@ -84,7 +84,7 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     @Test
-    @DisplayName("a provider error is reported as one, not parsed as candidates")
+    @DisplayName("BA-086-T15 a provider error is reported as one, not parsed as candidates")
     void providerErrorIsNotAnObservation() {
         String error = "{\"response\":{\"header\":{\"resultCode\":\"22\",\"resultMsg\":\"" + CANARY + "\"}}}";
         String report = String.join("\n", KtoEngServiceMatchProbeMain.report(error, 1, GYEONGBOKGUNG));
@@ -93,7 +93,7 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     @Test
-    @DisplayName("titles and addresses are measured, never copied")
+    @DisplayName("BA-086-T16 titles and addresses are measured, never copied")
     void proseIsMeasuredNotQuoted() {
         String report = String.join("\n", KtoEngServiceMatchProbeMain.report(list(SAME_SPOT), 1, GYEONGBOKGUNG));
         assertThat(report).doesNotContain(CANARY);
@@ -106,7 +106,7 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     @Test
-    @DisplayName("a code field carrying prose is reported by length, not printed")
+    @DisplayName("BA-086-T16 a code field carrying prose is reported by length, not printed")
     void codeFieldsPrintOnlyCodes() {
         String smuggled = list("{\"contentid\":\"" + CANARY + "\",\"cat1\":\"경복궁\",\"mapx\":\"126.977041\","
                 + "\"mapy\":\"37.579617\"}");
@@ -117,7 +117,7 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     @Test
-    @DisplayName("a non-JSON answer is named, not dumped")
+    @DisplayName("BA-086-T16 a non-JSON answer is named, not dumped")
     void nonJsonIsNamedNotDumped() {
         String report = String.join("\n",
                 KtoEngServiceMatchProbeMain.report("<html>" + CANARY + "</html>", 1, GYEONGBOKGUNG));
@@ -125,7 +125,7 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     @Test
-    @DisplayName("the place list is bounded: at most five places, each id:lat:lon")
+    @DisplayName("BA-086-T17 the place list is bounded: at most five places, each id:lat:lon")
     void placeListIsBounded() {
         assertThat(KtoEngServiceMatchProbeMain.places("126508:37.579617:126.977041, 1:0:0")).hasSize(2);
         String six = String.join(",", List.of("1:0:0", "2:0:0", "3:0:0", "4:0:0", "5:0:0", "6:0:0"));
