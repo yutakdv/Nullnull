@@ -2902,7 +2902,7 @@
       "phase": "B09",
       "priority": "P1",
       "title": "게시물·미디어 업로드·moderation",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022",
         "BA-071"
@@ -2995,6 +2995,22 @@
         {
           "id": "BA-082-T18",
           "assertion": "social module 은 feed 순위 gateway 를 이름으로 부르지 않는다"
+        },
+        {
+          "id": "BA-082-T19",
+          "assertion": "같은 게시물에 동시에 들어온 회수 두 건 중 WITHDRAWN 은 하나뿐이다"
+        },
+        {
+          "id": "BA-082-T20",
+          "assertion": "상한 안에 잠금을 얻지 못한 회수는 기다리지 않고 실패한다"
+        },
+        {
+          "id": "BA-082-T21",
+          "assertion": "게시되지 않은(DRAFT) 게시물의 회수는 거절된다"
+        },
+        {
+          "id": "BA-082-T22",
+          "assertion": "없는 게시물의 회수는 거절된다"
         }
       ],
       "handoff": "upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client.",

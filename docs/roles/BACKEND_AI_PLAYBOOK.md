@@ -2116,7 +2116,7 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 
 ### BA-082
 
-**게시물·미디어 업로드·moderation** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**게시물·미디어 업로드·moderation** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-071](#ba-071)
 - 기능 ID: `FR-PUB-01`
@@ -2130,7 +2130,19 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 2. 격리 업로드→자동 기술 검증→게시→숨김/삭제와 abandoned upload cleanup을 구현한다
 3. MIME/magic bytes·악성 파일·EXIF(A-057의 표준 파일 입력으로 들어온 촬영 파일이 GPS를 싣는 것이 전제다)·권리·신고/삭제 전파를 검증한다
 
-진행 상태(대조): **회수·철회의 쓰기 쪽이 아직 없다.** 계약의 post operation 은 `createPost`·`createPostImageUpload`·`getPost`·`savePost`·`unsavePost` 다섯뿐이고 **삭제·숨김·철회 operation 이 없다**. `PostStatus.HIDDEN` 은 값과 주석으로만 존재하고 그리로 옮기는 production 경로가 없다 — 지금 그 전이를 하는 것은 운영자가 DB 에서 하는 것이다. 그래서 `T3` 는 **읽기 쪽으로 좁혔고**(이미 발급된 cursor 가 회수된 post 를 건네지 않는다) 쓰기 쪽은 `T16` 으로 떼어 **증명되지 않은 채** 둔다. 절을 원래 문구로 두면 `integration-ready` 승격이 *"삭제·권리 철회가 구현돼 있고 반영된다"* 를 주장하게 된다.
+진행 상태(대조): **회수의 쓰기 쪽이 생겼다(`BA-082-T16`).** 공개 API가 아니라 운영자 one-time task `withdraw-post`(`PostWithdrawMain` → `PostWithdrawalService`)다. 계약의 post operation은 여전히 다섯뿐이다(`createPost`·`createPostImageUpload`·`getPost`·`savePost`·`unsavePost`).
+
+- 조건부 UPDATE 한 문장이 `PUBLISHED` → `HIDDEN`으로 바꾸고 `published_at`을 비운다.
+- 결과(`WITHDRAWN`)는 그 문장이 바꾼 행 수에서만 나온다. 그래서 동시에 들어온 회수 두 건은 `WITHDRAWN` 하나와 `ALREADY_HIDDEN` 하나로 갈린다(`T19`).
+- 잠금 대기의 상한은 설정 `nullnull.posts.withdrawal-lock-timeout`(PT3S)이고, 만료되면 `PostLockTimeoutException`으로 실패한다(`T20`). 초안(`T21`)과 없는 id(`T22`)는 거절한다.
+- `T3`은 이제 손으로 쓴 SQL이 아니라 이 writer가 만든 회수를 읽는다.
+- `T19`의 판정은 기계 속도에 기대지 않는다. 두 회수가 모두 잡힌 행에서 대기하는 것을 본 뒤에 풀고, 그 class만 잠금 상한을 모든 대기보다 길게(PT2M) 둔다.
+- **test가 없는 분기가 하나 있다**: 0행이 바뀐 뒤 읽은 상태가 `PUBLISHED`인 경우, 즉 게시가 두 문장 사이에 commit된 경우다. 이 분기는 실패하고 다시 돌리라고 말한다.
+- `T20`·`T21`의 *"아무것도 쓰지 않는다"* 는 test 본문의 단언이지 절이 아니다 — 따로 떼면 발화시킬 변이가 없다(store 조건과 rollback이 이미 막는다).
+
+승인은 `NULLNULL_POST_WITHDRAW_APPROVED`와 `--owner-approval`이다. **승인 기록은 operator 출력의 `owner_approval=` 한 줄에만 남는다** — CloudTrail의 RunTask overrides에는 post id와 승인 변수 `true`만 들어가고 DB에는 audit 행이 없다(migration 없음). 승인은 post id에 묶이지 않는다.
+
+**실패·안전 경계의 약속 중 남은 것([#338](https://github.com/yutakdv/Nullnull/issues/338)).** 회수는 API가 내는 모든 페이지에서 게시물을 내리지만, *권리 철회*에서는 **표지 이미지가 계속 서빙된다**: 업로드 표지(`covers/user/…`)를 지우는 port가 없고, API·ops task role과 operator role 어디에도 그 prefix의 객체 삭제 권한이 없고, web bucket이 versioned라 지워도 이전 버전이 남고, 객체가 `max-age=31536000, immutable`로 나가 브라우저 캐시와 web app service worker의 cache-first 캐시(같은 origin, 측정 안 함)가 이미 받은 사본을 쥔다. operator는 성공할 때마다 `post_withdraw_residual=cover-object-not-deleted`를 찍는다. 이름만 적는 잔여(측정 안 함): web app의 메모리 query cache는 다음 refetch 전까지 이미 받은 페이지를 보인다; **회수 뒤에도 새 후보가 그 게시물 id를 출처로 인용할 수 있다**(`addTripCandidate`가 게시물 상태를 보지 않고 DRAFT도 받으며, 기존 후보의 `sources[].postId`로도 id가 나간다 — 나가는 것은 id뿐이고 존재 오라클일 가능성이 있다); savePost의 404가 계약에 선언돼 있지 않다. `T15`는 순차 호출만 재고 동시 호출은 재지 않는다.
 
 실패·안전 경계: 미검증 asset은 공개 CDN에 노출하지 않고 임의 remote URL fetch는 금지한다. 게시 중지/권리 철회는 feed/cache/recommendation 노출도 차단한다. 게시물 작성은 제출 범위이므로 capability OFF 목록에 두지 않는다(A-058).
 
@@ -2154,6 +2166,10 @@ FE 인계·완료 증거: login/merge preview·복구·실패·충돌 및 follow
 - `BA-082-T16`: 회수된 게시물은 published_at 이 비워진 채 PUBLISHED 를 벗어난다
 - `BA-082-T17`: /posts·/feed 경로의 operation 은 계약이 선언한 Cache-Control 을 실제 응답으로도 보낸다
 - `BA-082-T18`: social module 은 feed 순위 gateway 를 이름으로 부르지 않는다
+- `BA-082-T19`: 같은 게시물에 동시에 들어온 회수 두 건 중 WITHDRAWN 은 하나뿐이다
+- `BA-082-T20`: 상한 안에 잠금을 얻지 못한 회수는 기다리지 않고 실패한다
+- `BA-082-T21`: 게시되지 않은(DRAFT) 게시물의 회수는 거절된다
+- `BA-082-T22`: 없는 게시물의 회수는 거절된다
 
 FE 인계·완료 증거: upload 진행/취소/만료·검증 실패/게시 거절·출처 fixtures와 새 generated client. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
