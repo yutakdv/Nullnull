@@ -1,81 +1,37 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('FE-401 Live map sheet', () => {
+test.describe('FE-401 Live list-first screen', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
-      class FakeMap {
-        constructor(public container: HTMLElement) {}
-      }
-      class FakeOverlay {
-        constructor(private options: { content: HTMLElement }) {}
-        setMap(map: FakeMap | null) {
-          if (map) map.container.append(this.options.content);
-          else this.options.content.remove();
-        }
-      }
-      Object.defineProperty(window, 'kakao', {
-        configurable: true,
-        value: {
-          maps: {
-            CustomOverlay: FakeOverlay,
-            LatLng: class {
-              constructor(
-                public latitude: number,
-                public longitude: number,
-              ) {}
-            },
-            Map: FakeMap,
-            load: (callback: () => void) => callback(),
-          },
-        },
-      });
     });
     await page.goto('/live');
   });
 
-  test('keeps source state visible while the sheet moves down and back up', async ({
+  test('FE-401-T1 keeps source state visible in the map-off list view', async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 360, height: 400 });
     const sourceState = page.getByTestId('live-persistent-state');
-    const handle = page.getByTestId('live-sheet-drag-handle');
     await expect(sourceState).toBeVisible();
-    await expect(handle).toHaveAttribute('aria-expanded', 'true');
-
-    await page.getByTestId('live-sheet-content').evaluate((element) => {
+    await expect(page.getByRole('region', { name: '카카오 지도' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: '라이브 여행지 목록' })).toBeVisible();
+    await expect(page.getByTestId('live-sheet-drag-handle')).toHaveCount(0);
+    const main = page.getByRole('main');
+    const scrollable = await main.evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    );
+    expect(scrollable).toBe(true);
+    await main.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
-    await expect(sourceState).toBeVisible();
-
-    const box = await handle.boundingBox();
-    expect(box).not.toBeNull();
-    if (!box) return;
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
-
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(x, y + 130, { steps: 8 });
-    await page.mouse.up();
-    await expect(handle).toHaveAttribute('aria-expanded', 'false');
-    await expect(sourceState).toBeVisible();
-
-    const collapsedBox = await handle.boundingBox();
-    expect(collapsedBox).not.toBeNull();
-    if (!collapsedBox) return;
-    const collapsedX = collapsedBox.x + collapsedBox.width / 2;
-    const collapsedY = collapsedBox.y + collapsedBox.height / 2;
-    await page.mouse.move(collapsedX, collapsedY);
-    await page.mouse.down();
-    await page.mouse.move(collapsedX, collapsedY - 130, { steps: 8 });
-    await page.mouse.up();
-    await expect(handle).toHaveAttribute('aria-expanded', 'true');
+    await expect(sourceState).toBeInViewport();
   });
 
-  test('keeps REPLAY explicitly not-live at the 200% zoom-equivalent viewport', async ({
+  test('FE-403-T1 FE-403-T3 keeps REPLAY explicitly not-live and keyboard-operable at the 200% zoom-equivalent viewport', async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 180, height: 800 });
+    await page.setViewportSize({ width: 180, height: 400 });
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'en-US');
       const nativeFetch = window.fetch.bind(window);
@@ -90,7 +46,12 @@ test.describe('FE-401 Live map sheet', () => {
         if (!requestUrl.includes('/live/areas') || !response.ok) return response;
         const body = (await response.clone().json()) as {
           mode: string;
-          areas: Array<{ crowd: null | { state: string } }>;
+          areas: Array<{
+            crowd: {
+              state: string;
+              provenance: { sourceState: string };
+            };
+          }>;
         };
         return new Response(
           JSON.stringify({
@@ -98,7 +59,11 @@ test.describe('FE-401 Live map sheet', () => {
             mode: 'REPLAY',
             areas: body.areas.map((area) => ({
               ...area,
-              crowd: area.crowd ? { ...area.crowd, state: 'REPLAY' } : null,
+              crowd: {
+                ...area.crowd,
+                state: 'REPLAY',
+                provenance: { ...area.crowd.provenance, sourceState: 'REPLAY' },
+              },
             })),
           }),
           { headers: response.headers, status: response.status },
@@ -110,10 +75,23 @@ test.describe('FE-401 Live map sheet', () => {
     const sourceState = page.getByTestId('live-persistent-state');
     await expect(sourceState).toContainText(/replay/i);
     await expect(sourceState).toContainText(/not live/i);
-    await page.getByTestId('live-sheet-content').evaluate((element) => {
+    await expect(sourceState).toContainText('2026-09-20T05:00:00Z');
+    await expect(sourceState).not.toContainText('2026-09-20T05:00:07Z');
+    const area = page.getByRole('button', { name: /광화문·덕수궁/ });
+    await area.focus();
+    await expect(area).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(area).toHaveAttribute('aria-expanded', 'true');
+    const main = page.getByRole('main');
+    const scrollable = await main.evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    );
+    expect(scrollable).toBe(true);
+    await main.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
     await expect(sourceState).toBeVisible();
+    await expect(sourceState).toBeInViewport();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(
@@ -121,36 +99,28 @@ test.describe('FE-401 Live map sheet', () => {
     );
   });
 
-  test('offers keyboard controls and keeps collapsed content out of focus order', async ({
-    page,
-  }) => {
-    const handle = page.getByTestId('live-sheet-drag-handle');
-    await handle.focus();
-    await page.keyboard.press('ArrowDown');
-    await expect(handle).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByTestId('live-sheet-content')).toHaveAttribute('inert', '');
-
-    await page.keyboard.press('ArrowUp');
-    await expect(handle).toHaveAttribute('aria-expanded', 'true');
+  test('FE-403-T3 expands and collapses an area with the keyboard', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    const area = page.getByRole('button', { name: /광화문·덕수궁/ });
+    await area.focus();
+    await expect(area).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(area).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('link', { name: /경복궁 Live 정보 보기/ })).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(area).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('selects a search result on the map before opening its detail', async ({
+  test('FE-401-T3 opens a named search result link with the keyboard', async ({
     page,
   }) => {
     const search = page.getByRole('searchbox', { name: 'Live 장소 검색' });
     await search.fill('경복궁');
-    const searchResult = page.getByRole('button', { name: '경복궁 지도에서 보기' });
+    const searchResult = page.getByRole('link', { name: '경복궁 Live 정보 보기' });
     await expect(searchResult).not.toContainText('›');
     await expect(searchResult).toHaveCSS('font-weight', '500');
-    await searchResult.click();
-
-    await expect(search).toHaveValue('');
-    await expect(
-      page.getByRole('button', { name: '여행지 목록 올리기' }),
-    ).toHaveAttribute('aria-expanded', 'false');
-    const marker = page.getByRole('button', { name: '경복궁', exact: true });
-    await marker.focus();
-    await expect(marker).toBeFocused();
+    await searchResult.focus();
+    await expect(searchResult).toBeFocused();
     await page.keyboard.press('Enter');
 
     await expect(page).toHaveURL(/\/live\/places\/018f4b20-1a44-7e11-9c02-5d7e3f1a2b01$/);

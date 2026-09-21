@@ -45,11 +45,10 @@ async function expectOptimizationRunContent(page: Page, screenName: string) {
 // ("keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion"),
 // and this spec proves three of them for every screen in SCREENS: 360px here,
 // 200% zoom below, and the accessible name of whatever takes focus. The other
-// three are FE-104-T4 / FE-203-T4, and two of them are now proven elsewhere:
-// reduced motion by the per-screen block at the bottom of this file, which
-// walks the same SCREENS list so each card's own screen is measured, and focus
-// return by e2e/focus-restore.spec.ts. Neither is asserted in the three
-// describes below, which is why the T4 ids are not on them.
+// remaining clauses are split honestly: FE-104-T4 and FE-203-T5 cover reduced
+// motion in the per-screen block below, while FE-203-T4 covers focus return in
+// e2e/focus-restore.spec.ts. The paste screen has no dialog or sheet, so it has
+// no invented focus-return clause.
 //
 // The ids are split rather than attached whole because the aggregator only
 // checks that an id APPEARS in a testcase name: one id covering six clauses is
@@ -137,7 +136,7 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // They are NOT for reduced motion, which is why `honours prefers-reduced-motion`
 // now lives in its own describe below rather than in this one: it visits
 // /language alone and says nothing about the paste screen or the trip picker.
-// The reduced-motion clause is FE-104-T4 / FE-203-T4, and it is proven by the
+// The reduced-motion clause is FE-104-T4 / FE-203-T5, and it is proven by the
 // `reduced motion, per screen` describe at the bottom of this file — that one
 // carries the T4 ids because it walks SCREENS, so the paste screen and the
 // saved-places screen are each measured rather than stood in for.
@@ -316,7 +315,7 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
   });
 });
 
-// FE-104-T4 / FE-203-T4 / FE-503-T4: reduced motion on EVERY screen, not just
+// FE-104-T4 / FE-203-T5 / FE-503-T4: reduced motion on EVERY screen, not just
 // one. FE-503-T4 is attached only to the optimization-run case below.
 //
 // The describe above measures reduced motion as a property of the app, which
@@ -324,10 +323,9 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 // it on THEIR screen, and a card's clause is only proven on the screen it
 // names, so this walks all of SCREENS.
 //
-// T4 rather than T3: the owner split both cards in two. T3 keeps the four
-// clauses already proven above (keyboard 이동, 접근성 이름, 360px, 200% zoom)
-// and T4 takes focus 복귀 plus this screen's reduced motion. Only the
-// reduced-motion half of T4 is proven here; focus 복귀 is focus-restore.spec.ts.
+// T3 keeps keyboard 이동, 접근성 이름, 360px and 200% zoom. FE-104-T4 owns
+// paste-screen motion; FE-203-T4 owns the sheet focus restore; FE-203-T5 owns
+// the saved-place screen's reduced motion.
 //
 // FE-503's READY preview is now implemented and SCREENS uses MOCK_RUN_ID, so
 // the local MSW run reaches the real proposal and decision bar. The screen has
@@ -354,7 +352,7 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 // makes the per-screen claim honest — and it is why the check does not depend
 // on a screen reaching its real content.
 //
-test.describe('FE-104-T4 FE-203-T4 reduced motion, per screen', () => {
+test.describe('FE-104-T4 FE-203-T5 reduced motion, per screen', () => {
   for (const screen of SCREENS) {
     const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T4 ' : '';
     test(`${acceptanceId}${screen.name} collapses motion under reduce`, async ({

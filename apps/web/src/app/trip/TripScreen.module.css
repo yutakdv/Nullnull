@@ -179,7 +179,7 @@
 .candidates {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
+  min-height: var(--layout-touch-min);
   padding: 5px var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -339,7 +339,7 @@
 }
 
 .dayChips button {
-  min-height: 34px;
+  min-height: var(--layout-touch-min);
 }
 
 .day {

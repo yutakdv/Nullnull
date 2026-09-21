@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import type { components } from '@nullnull/api-client';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -13,6 +14,7 @@ import {
 } from '../../shared/ui/index.js';
 import styles from './LivePlaceScreen.module.css';
 import type { AppShellOutletContext } from '../AppShell.js';
+import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 
 const STATES: SourceState[] = [
   'LIVE',
@@ -22,6 +24,34 @@ const STATES: SourceState[] = [
   'UNAVAILABLE',
   'REPLAY',
 ];
+
+type CrowdMetric = components['schemas']['CrowdMetric'];
+
+function canCompareCrowd(
+  current: CrowdMetric | null,
+  alternative: CrowdMetric | null,
+): boolean {
+  if (!current || !alternative) return false;
+  const currentSource = current.provenance;
+  const alternativeSource = alternative.provenance;
+  if (
+    currentSource.comparisonEligible !== true ||
+    alternativeSource.comparisonEligible !== true ||
+    !currentSource.comparisonAxis ||
+    currentSource.comparisonAxis !== alternativeSource.comparisonAxis
+  ) {
+    return false;
+  }
+  // TEMPORAL eligibility only makes points inside one metric series comparable.
+  // It never authorizes a numeric comparison between two different places.
+  if (currentSource.comparisonAxis !== 'SPATIAL') return false;
+  return (
+    currentSource.source === alternativeSource.source &&
+    currentSource.scope === alternativeSource.scope &&
+    currentSource.comparisonGroupId === alternativeSource.comparisonGroupId &&
+    currentSource.snapshotSetId === alternativeSource.snapshotSetId
+  );
+}
 
 // S11-2 `419:2617`: the server supplies the state, timestamp and both source
 // credits. Null metrics remain absent rather than being turned into a score.
@@ -36,15 +66,25 @@ export function LivePlaceScreen() {
     null,
   );
   const addKey = useRef<{ placeId: string; value: string } | null>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreSaveFocus = useRef(false);
   const stateLabels = Object.fromEntries(
     STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
   ) as Partial<Record<SourceState, string>>;
+
+  useEffect(() => {
+    if (!addCandidate.isPending && restoreSaveFocus.current) {
+      restoreSaveFocus.current = false;
+      restoreFocusTo(saveButtonRef.current);
+    }
+  }, [addCandidate.isPending]);
 
   function saveToTrip() {
     if (!detail.data || !activeTripId) {
       void navigate('/trips/select');
       return;
     }
+    restoreSaveFocus.current = document.activeElement === saveButtonRef.current;
     const id = detail.data.place.id;
     if (addKey.current?.placeId !== id) {
       addKey.current = { placeId: id, value: crypto.randomUUID() };
@@ -94,7 +134,16 @@ export function LivePlaceScreen() {
         <div className={styles.body} data-has-fixed-action={activeTripReady || undefined}>
           <div className={styles.titleRow}>
             <h1 id="live-place-heading">{detail.data.place.name}</h1>
-            <StateLabel labels={stateLabels} state={detail.data.dataState} />
+            <StateLabel
+              labels={stateLabels}
+              observedAt={
+                detail.data.crowd?.provenance.observedAt ??
+                detail.data.crowd?.provenance.targetAt ??
+                detail.data.crowd?.provenance.fetchedAt ??
+                null
+              }
+              state={detail.data.dataState}
+            />
           </div>
           {detail.data.place.address ? (
             <p className={styles.address}>{detail.data.place.address}</p>
@@ -118,17 +167,34 @@ export function LivePlaceScreen() {
           <section aria-labelledby="live-place-related" className={styles.card}>
             <h2 id="live-place-related">{t('live.detail.related')}</h2>
             <p>{t(`live.related.${detail.data.related.state}` as MessageKey)}</p>
+            {detail.data.related.state === 'NONE' ? (
+              <Link className={styles.recovery} to="/live">
+                {t('live.related.browse')}
+              </Link>
+            ) : null}
             {detail.data.related.items.length > 0 ? (
               <ul className={styles.relatedList}>
                 {detail.data.related.items.map((item) => (
                   <li key={item.place.id}>
                     <Link to={`/live/places/${item.place.id}`}>{item.place.name}</Link>
                     <span>{item.relationReason}</span>
-                    <CrowdLevel
-                      crowd={item.crowd ?? null}
-                      stateLabels={stateLabels}
-                      unavailableReason={t('live.noReading')}
-                    />
+                    {canCompareCrowd(detail.data.crowd ?? null, item.crowd ?? null) ? (
+                      <CrowdLevel
+                        crowd={item.crowd ?? null}
+                        stateLabels={stateLabels}
+                        unavailableReason={t('live.noReading')}
+                      />
+                    ) : item.crowd ? (
+                      <span className={styles.ineligible}>
+                        {t('live.related.ineligible')}
+                      </span>
+                    ) : (
+                      <CrowdLevel
+                        crowd={null}
+                        stateLabels={stateLabels}
+                        unavailableReason={t('live.noReading')}
+                      />
+                    )}
                     <DataAttribution compact provenance={item.provenance} />
                   </li>
                 ))}
@@ -138,6 +204,7 @@ export function LivePlaceScreen() {
 
           {activeTripReady ? (
             <BottomCta
+              buttonRef={saveButtonRef}
               disabled={addCandidate.isPending}
               fixed
               label={

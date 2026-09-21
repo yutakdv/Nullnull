@@ -709,6 +709,9 @@ export function usePreviewTripDraft() {
         { body: request },
       );
       if (!data) fail(error, response);
+      if (!Array.isArray(data.days)) {
+        throw new Error('Malformed previewTripDraft response: days must be an array');
+      }
       return data;
     },
   });

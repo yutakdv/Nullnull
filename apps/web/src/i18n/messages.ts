@@ -183,6 +183,8 @@ export const messages = {
     'live.related.NONE': '지금 제안할 수 있는 대안이 없어요',
     'live.related.CHECKING': '대안을 확인하고 있어요',
     'live.related.UNKNOWN': '대안 관계를 아직 확인하지 못했어요',
+    'live.related.ineligible': '비교 기준이 달라 혼잡 수치를 나란히 표시하지 않아요',
+    'live.related.browse': '다른 권역 보기',
     'profile.title': '내 정보',
     'profile.guest.name': 'TEST',
     'profile.guest.note': '이 계정은 test계정입니다',
@@ -1213,6 +1215,9 @@ export const messages = {
     'live.related.NONE': 'No valid alternative is available right now',
     'live.related.CHECKING': 'Checking alternatives',
     'live.related.UNKNOWN': "We haven't verified an alternative yet",
+    'live.related.ineligible':
+      'This crowd value uses a different basis, so it is not shown for comparison.',
+    'live.related.browse': 'Browse other areas',
     'profile.title': 'My info',
     'profile.guest.name': 'TEST',
     'profile.guest.note': 'This is a test account.',

@@ -427,6 +427,49 @@ test.describe('app shell', () => {
     await expect(target.getByRole('heading', { level: 3, name: '인사동' })).toBeVisible();
   });
 
+  test('FE-305 drag auto-scrolls the app content toward off-screen days', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 800 });
+    const tripPath = await createSeededTrip(page);
+    await page.goto(`${tripPath}/edit`);
+    await page.addStyleTag({
+      content: '#main { flex: none !important; height: 600px !important; }',
+    });
+
+    const main = page.getByRole('main');
+    const handle = page.getByRole('button', {
+      name: /Move 경복궁 by dragging|경복궁 드래그/,
+    });
+    await handle.scrollIntoViewIfNeeded();
+    const initialScrollTop = await main.evaluate((element) => element.scrollTop);
+    await expect(handle).toBeInViewport();
+    const from = await handle.boundingBox();
+    const viewport = await main.boundingBox();
+    expect(from).not.toBeNull();
+    expect(viewport).not.toBeNull();
+
+    await page.mouse.move((from?.x ?? 0) + 20, (from?.y ?? 0) + 20);
+    await page.mouse.down();
+    await page.mouse.move((from?.x ?? 0) + 40, (from?.y ?? 0) + 20, {
+      steps: 2,
+    });
+    await page.mouse.move(
+      (from?.x ?? 0) + 20,
+      (viewport?.y ?? 0) + (viewport?.height ?? 0) - 8,
+      { steps: 8 },
+    );
+    await expect(page.locator('[class*="dragPreview"]')).toBeVisible();
+    expect(
+      await main.evaluate((element) => element.scrollHeight > element.clientHeight),
+    ).toBe(true);
+    await expect
+      .poll(() => main.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(initialScrollTop);
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+  });
+
   test('S14 uses the approved profile type and icon scale', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await page.addInitScript(() => {

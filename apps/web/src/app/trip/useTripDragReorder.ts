@@ -111,11 +111,14 @@ export function useTripDragReorder({
     const scroll = () => {
       const current = pointer.current;
       if (!current?.active) return;
+      const scroller = document.getElementById('main');
+      if (!scroller) return;
+      const bounds = scroller.getBoundingClientRect();
       const edge = 72;
       const speed =
-        current.y < edge ? -12 : current.y > window.innerHeight - edge ? 12 : 0;
+        current.y < bounds.top + edge ? -12 : current.y > bounds.bottom - edge ? 12 : 0;
       if (speed !== 0) {
-        window.scrollBy(0, speed);
+        scroller.scrollBy(0, speed);
         setTarget(dropTargetAt(current.y, current.item.id));
       }
       frame = window.requestAnimationFrame(scroll);

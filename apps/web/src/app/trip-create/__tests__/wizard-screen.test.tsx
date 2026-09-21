@@ -242,6 +242,34 @@ describe('FE-102-T5 recommendation preview non-ready states', () => {
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(created).toHaveLength(0);
   });
+
+  it('treats a malformed 2xx preview as a non-retryable failure', async () => {
+    server.use(
+      http.post(`${API_BASE}/trip-drafts/preview`, async ({ request }) => {
+        previews.push(await request.json());
+        return HttpResponse.json({
+          ...tripDraftFixtures.ready,
+          days: undefined,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    await reachRecommendedPreview(user);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: copy['draftPreview.failedTitle'],
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: copy['draftPreview.start'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: copy['draftPreview.retry'] })).toBeNull();
+    expect(previews).toHaveLength(1);
+    expect(created).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: copy['draftPreview.back'] }));
+    expect(await screen.findByText(`${copy['wizard.step']} 3`)).toBeInTheDocument();
+    expect(previews).toHaveLength(1);
+  });
 });
 
 describe('the wizard keeps every step label in the app bar', () => {

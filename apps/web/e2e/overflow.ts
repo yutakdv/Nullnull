@@ -47,7 +47,9 @@ export async function overflow(page: Page) {
       const box = node.getBoundingClientRect();
       if (box.right > window.innerWidth + 1 && !insideScroller(node)) {
         spilling.push(
-          `<${node.tagName.toLowerCase()}> reaches ${Math.round(box.right)}px`,
+          `<${node.tagName.toLowerCase()}> "${(node.textContent ?? '')
+            .trim()
+            .slice(0, 24)}" reaches ${Math.round(box.right)}px`,
         );
       }
       // Visually hidden text is clipped on purpose; it is not on screen. The

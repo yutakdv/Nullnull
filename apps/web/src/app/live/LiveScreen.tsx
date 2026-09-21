@@ -1,12 +1,11 @@
 import type { components } from '@nullnull/api-client';
 import { useCallback, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import {
   useLiveAreaPlaces,
   useLiveAreas,
-  usePlaceDetail,
   usePlaceSearch,
 } from '../../shared/api/index.js';
 import {
@@ -17,8 +16,6 @@ import {
   StateLabel,
   type SourceState,
 } from '../../shared/ui/index.js';
-import { KakaoLiveMap } from './KakaoLiveMap.js';
-import { LiveBottomSheet, type SheetSnap } from './LiveBottomSheet.js';
 import styles from './LiveScreen.module.css';
 
 const STATES: SourceState[] = [
@@ -34,15 +31,11 @@ type CrowdMetric = components['schemas']['CrowdMetric'];
 
 export function LiveScreen() {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const areas = useLiveAreas();
   const [query, setQuery] = useState('');
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
-  const [sheetSnap, setSheetSnap] = useState<SheetSnap>('expanded');
   const places = useLiveAreaPlaces(selectedAreaId);
   const search = usePlaceSearch(query);
-  const selectedPlace = usePlaceDetail(selectedPlaceId);
   const stateLabels = Object.fromEntries(
     STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
   ) as Partial<Record<SourceState, string>>;
@@ -64,49 +57,37 @@ export function LiveScreen() {
   const selectArea = useCallback((areaId: string) => {
     setSelectedAreaId((current) => (current === areaId ? null : areaId));
   }, []);
-  const openPlace = useCallback(
-    (placeId: string) => void navigate(`/live/places/${placeId}`),
-    [navigate],
-  );
   const selectedArea = areas.data?.areas.find((area) => area.id === selectedAreaId);
+  const observedAt = areas.data?.areas.find((area) => area.crowd)?.crowd?.provenance
+    .observedAt;
 
   return (
     <section aria-labelledby="live-heading" className={styles.screen}>
-      <h1 className={styles.srOnly} id="live-heading">
-        {t('live.title')}
-      </h1>
-
-      <KakaoLiveMap
-        areas={areas.data?.areas ?? []}
-        label={t('live.map.label')}
-        onOpenPlace={openPlace}
-        onSelectArea={selectArea}
-        selectedPlace={selectedPlace.data ?? null}
-        unavailableDetail={t('live.map.unavailableDetail')}
-        unavailableTitle={t('live.map.unavailableTitle')}
-      />
-
-      <div className={styles.searchOverlay}>
+      <header className={styles.header}>
+        <div className={styles.titleRow}>
+          <h1 id="live-heading">{t('live.title')}</h1>
+          {areas.data ? (
+            <div className={styles.persistentState} data-testid="live-persistent-state">
+              <StateLabel
+                labels={stateLabels}
+                observedAt={observedAt ?? null}
+                state={areas.data.mode}
+              />
+            </div>
+          ) : null}
+        </div>
         <SearchField
+          id="live-search"
           label={t('live.searchLabel')}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setSelectedPlaceId(null);
-          }}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder={t('live.search')}
           value={query}
         />
 
-        {query.trim().length > 0 ||
-        (selectedPlaceId !== null &&
-          (selectedPlace.isPending || selectedPlace.isError)) ? (
+        {query.trim().length > 0 ? (
           <div className={styles.searchPanel}>
-            {search.isPending || (selectedPlaceId !== null && selectedPlace.isPending) ? (
-              <p role="status">{t('live.searching')}</p>
-            ) : null}
-            {search.isError || selectedPlace.isError ? (
-              <p role="alert">{t('live.searchError')}</p>
-            ) : null}
+            {search.isPending ? <p role="status">{t('live.searching')}</p> : null}
+            {search.isError ? <p role="alert">{t('live.searchError')}</p> : null}
             {search.isSuccess && search.data.items.length === 0 ? (
               <p>{t('live.searchEmpty')}</p>
             ) : null}
@@ -114,40 +95,23 @@ export function LiveScreen() {
               <ul className={styles.searchResults}>
                 {search.data.items.map((place) => (
                   <li key={place.id}>
-                    <button
-                      aria-label={t('live.searchShowOnMap', { name: place.name })}
+                    <Link
+                      aria-label={t('live.searchOpen', { name: place.name })}
                       className={styles.searchResult}
-                      onClick={() => {
-                        setSelectedPlaceId(place.id);
-                        setQuery('');
-                        setSheetSnap('collapsed');
-                      }}
-                      type="button"
+                      to={`/live/places/${place.id}`}
                     >
                       <span>{place.name}</span>
                       <span>{place.regionName ?? place.address ?? ''}</span>
-                    </button>
+                    </Link>
                   </li>
                 ))}
               </ul>
             ) : null}
           </div>
         ) : null}
-      </div>
+      </header>
 
-      {areas.data ? (
-        <div className={styles.persistentState} data-testid="live-persistent-state">
-          <StateLabel labels={stateLabels} state={areas.data.mode} />
-        </div>
-      ) : null}
-
-      <LiveBottomSheet
-        collapseLabel={t('live.sheet.collapse')}
-        expandLabel={t('live.sheet.expand')}
-        onSnapChange={setSheetSnap}
-        snap={sheetSnap}
-        title={t('live.sheet.title')}
-      >
+      <section aria-label={t('live.sheet.title')} className={styles.listPanel}>
         <div className={styles.sheetBody}>
           <div
             aria-label={t('live.view.label')}
@@ -174,7 +138,11 @@ export function LiveScreen() {
             <p>{t('live.sheet.description')}</p>
           </div>
 
-          <div aria-label={t('live.filters.label')} className={styles.filters}>
+          <div
+            aria-label={t('live.filters.label')}
+            className={styles.filters}
+            data-scrolls-x
+          >
             <Chip
               disabled
               disabledReason={t('live.filters.nearUnavailable')}
@@ -289,7 +257,7 @@ export function LiveScreen() {
             </div>
           ) : null}
         </div>
-      </LiveBottomSheet>
+      </section>
     </section>
   );
 }

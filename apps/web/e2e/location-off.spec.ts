@@ -70,7 +70,7 @@ const COORDINATE_PARAM =
   /(?<![a-z0-9_])(lat|lon|lng|latitude|longitude|coord|coords|geo|position)\s*=\s*[-+]?\d{1,3}\.\d{4,}/i;
 
 for (const screen of SCREENS) {
-  test(`${screen.name} asks for no location`, async ({ page }) => {
+  test(`FE-603-T1 BA-073-T5 ${screen.name} asks for no location`, async ({ page }) => {
     const dialogs: string[] = [];
     const leaked: string[] = [];
 

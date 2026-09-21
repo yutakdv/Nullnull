@@ -118,6 +118,20 @@ describe('tab destinations carry the tab bar', () => {
     ]);
   });
 
+  it.each([
+    ['/feed', 'default'],
+    [`/trip/${trip.id}`, 'default'],
+    ['/live', 'default'],
+    ['/profile', 'subtle'],
+  ] as const)('%s carries its screen ground behind the tab bar', async (path, ground) => {
+    renderAt(path);
+    await screen.findByRole('navigation', TAB_BAR);
+    expect(document.getElementById('main')?.parentElement).toHaveAttribute(
+      'data-ground',
+      ground,
+    );
+  });
+
   it('marks the current tab for a screen reader, not by colour alone', async () => {
     renderAt('/profile');
     const bar = await screen.findByRole('navigation', TAB_BAR);
