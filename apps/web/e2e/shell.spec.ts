@@ -309,7 +309,7 @@ test.describe('app shell', () => {
       .evaluateAll((buttons) =>
         buttons.map((button) => button.getBoundingClientRect().height),
       );
-    expect(dayControlHeights).toEqual([34, 34, 34, 34, 34]);
+    expect(dayControlHeights).toEqual([44, 44, 44, 44, 44]);
   });
 
   test('S07 matches view and edit header geometry and compact controls', async ({
@@ -359,7 +359,7 @@ test.describe('app shell', () => {
       .getByRole('link', { name: /장소 추가|Add place/ })
       .boundingBox();
 
-    expect(savedPlaceBounds?.height).toBe(34);
+    expect(savedPlaceBounds?.height).toBe(44);
     expect(savedPlaceBounds?.height).toBe(addPlaceBounds?.height);
     expect(editHeaderBounds?.height).toBe(viewHeaderBounds?.height);
     expect(editRows).toEqual(viewRows);

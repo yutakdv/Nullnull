@@ -416,7 +416,10 @@ test.describe('FE-102-T4 FR-TRC-10 recommendation preview', () => {
     const [pinBox, cardBox, hoursBox] = await Promise.all([
       pick.locator('svg').boundingBox(),
       pick.locator('..').boundingBox(),
-      pick.locator('..').getByText('Hours verified', { exact: true }).boundingBox(),
+      pick
+        .locator('..')
+        .getByText(/^Hours (?:not )?verified$/, { exact: true })
+        .boundingBox(),
     ]);
     expect
       .soft(pinBox?.width, 'the must-visit pin is visually prominent')

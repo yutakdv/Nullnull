@@ -164,7 +164,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
-  min-height: 34px;
+  min-height: var(--layout-touch-min);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-pill);
   background: var(--color-action-strong);
@@ -180,6 +180,7 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--layout-touch-min);
+  margin-block: calc((34px - var(--layout-touch-min)) / 2);
   padding: 5px var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -192,7 +193,7 @@
 }
 
 .candidatesEditing {
-  min-height: 34px;
+  min-height: var(--layout-touch-min);
   padding: var(--space-2) var(--space-4);
   background: var(--color-action-subtle);
   font-size: var(--font-body-sm);

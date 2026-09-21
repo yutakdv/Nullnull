@@ -282,7 +282,14 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     await openFirstItemActions(page);
     // Releasing a lock asks first (invariant 7: nothing auto-releases), so the
     // confirm is on the editing path and has to be answerable without a mouse.
-    const release = page.getByRole('button', { name: /Release Must visit/i }).first();
+    // The composed seed gives the first item a DATE lock; the local fixture
+    // gives it MUST_VISIT. Both are approved confirm-backed locks, so exercise
+    // the one the current boundary actually returned and use its own copy.
+    const dateRelease = page.getByRole('button', { name: /Release Date/i }).first();
+    const releasesDate = (await dateRelease.count()) > 0;
+    const release = releasesDate
+      ? dateRelease
+      : page.getByRole('button', { name: /Release Must visit/i }).first();
     await release.focus();
     await page.keyboard.press('Enter');
 
@@ -312,7 +319,10 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     // Reached by Tab rather than by `focus()`: this is a keyboard test and the
     // confirm of a destructive action is precisely where a control that takes
     // focus only programmatically would strand someone (#233).
-    const confirm = dialog.getByRole('button', { name: 'Release and continue' });
+    const confirm = dialog.getByRole('button', {
+      name: releasesDate ? 'Release' : 'Release and continue',
+      exact: true,
+    });
     await expect(confirm).toBeVisible();
     let onConfirm = false;
     for (let i = 0; i < 20 && !onConfirm; i += 1) {
@@ -325,7 +335,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     await expect(dialog).toBeHidden();
     await expect(
       release,
-      'the Must visit lock should be gone once the release is confirmed',
+      'the lock should be gone once the release is confirmed',
     ).toBeHidden();
   });
 });
