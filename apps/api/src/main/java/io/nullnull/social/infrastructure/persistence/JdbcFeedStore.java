@@ -253,6 +253,27 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
+    public Optional<PostStatus> lockPostStatus(UUID postId) {
+        return jdbc.sql("SELECT status FROM posts WHERE id = ? FOR UPDATE")
+                .param(postId)
+                .query(String.class)
+                .optional()
+                .map(PostStatus::of);
+    }
+
+    @Override
+    public void withdrawPublished(UUID postId, Instant now) {
+        // The status condition repeats the caller's check on purpose: this statement must never be
+        // the thing that hides a DRAFT, whatever the caller read.
+        jdbc.sql("""
+                UPDATE posts SET status = 'HIDDEN', published_at = NULL, updated_at = ?
+                 WHERE id = ? AND status = 'PUBLISHED'
+                """)
+                .params(Timestamp.from(now), postId)
+                .update();
+    }
+
+    @Override
     public boolean recordFeedback(UUID id, UUID ownerId, UUID postId, FeedFeedbackAction action,
             Instant occurredAt, long occurredMinute, Instant receivedAt) {
         // ON CONFLICT DO NOTHING on the minute key, so a repeat inside the same minute is one row

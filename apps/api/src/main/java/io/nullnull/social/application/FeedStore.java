@@ -84,6 +84,18 @@ public interface FeedStore {
     void publishPost(UUID postId, Instant publishedAt, Instant now);
 
     /**
+     * The post's status, with the row locked until the transaction ends; empty when no post has
+     * that id. The lock is what lets {@link PostWithdrawalService} decide from the status it read.
+     */
+    Optional<io.nullnull.social.domain.PostStatus> lockPostStatus(UUID postId);
+
+    /**
+     * Takes a PUBLISHED post back: HIDDEN, with {@code published_at} cleared, which V015's shape
+     * CHECK requires of every row that is not PUBLISHED. Touches no other status.
+     */
+    void withdrawPublished(UUID postId, Instant now);
+
+    /**
      * Records one feed interaction, or converges on the one already recorded for that minute.
      *
      * @param occurredMinute whole minutes since the epoch for {@code occurredAt}; the dedup key
