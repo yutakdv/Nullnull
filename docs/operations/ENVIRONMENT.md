@@ -334,6 +334,42 @@ NULLNULL_KTO_INTRO_PROBE_CONTENT_TYPE_ID=12 \
 
   출력은 `KTO_INTRO_PROBE_FIELD name=... type=... length=...` 한 줄씩이고, `usetime`·`restdate`만 앞 40자 미리보기와 줄 수·markup 여부가 붙는다. **원문 body는 찍지 않는다**(`CMP-KTO-008`). 이 probe는 `SOURCE_CATALOG`의 승인 범위를 넓히지 않는다 — 채택은 응답을 본 뒤의 별도 결정이고, 자유 텍스트로 판명되면 파싱하지 않는다(불변식 9).
 
+  **영문 `EngService2` probe 둘도 같은 모양이다(`BA-086`).** DB에 쓰지 않고 field 모양만 출력하며, 승인 변수는 shell이 갖는다. 쿼터는 operation 단위라 영문 호출이 국문 operation의 일일 트래픽을 먹지 않는다(`D-003`).
+
+  첫째 `ktoEngServiceProbe`는 국문 contentId가 영문 `detailCommon2`에서 풀리는지 묻는다. 2026-09-21 오너 실행에서 `126508`은 `resultCode=0000 totalCount=0`, `verdict=NO_ITEM`이었다 — **한 건에 대한 답**이고, 영문 dataset 전체의 ID 체계에 대한 결론이 아니다.
+
+```bash
+cd "$(git rev-parse --show-toplevel)/apps/api"
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+NULLNULL_KTO_ENG_PROBE_APPROVED=true \
+NULLNULL_KTO_ENG_PROBE_CONTENT_ID=126508 \
+  ./gradlew ktoEngServiceProbe --console=plain
+```
+
+  둘째 `ktoEngServiceMatchProbe`는 ID가 안 풀릴 때 **무엇으로 매칭할 수 있는지**를 잰다. 우리가 가진 장소 좌표를 중심으로 `locationBasedList2`를 place당 1회 부른다(최대 5곳). **반경 1,000m는 관측 반경이지 매칭 임계값이 아니다** — 같은 장소로 볼 거리는 이 출력을 읽은 뒤 결정으로 정한다. 중심 좌표는 catalog에 저장된 POI 좌표이고 사용자 위치가 아니다(불변식 10 무관). 출력은 후보마다 계산한 거리, 식별자·코드 값(`contentid`·`contenttypeid`·법정동·분류 코드), 필드 이름 목록, 제목의 길이와 ASCII 글자 비율이고, **이름·주소·설명 원문은 찍지 않는다**(`CMP-KTO-008`). 이 probe는 어느 후보가 그 장소인지 **판정하지 않는다** — 영문 텍스트를 응답에 싣는 연결은 operator가 검토한 plan으로만 들어간다.
+
+  입력 5곳은 catalog에서 고른다(읽기만 한다):
+
+```sql
+SELECT string_agg(picked.entry, ',')
+  FROM (SELECT r.external_id || ':' || p.latitude || ':' || p.longitude AS entry
+          FROM place_external_refs r
+          JOIN places p ON p.id = r.place_id
+         WHERE r.source_code = 'KTO_KOR_SERVICE_2'
+           AND p.status = 'ACTIVE'
+           AND p.latitude IS NOT NULL
+         ORDER BY r.external_id
+         LIMIT 5) picked;
+```
+
+```bash
+cd "$(git rev-parse --show-toplevel)/apps/api"
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+NULLNULL_KTO_ENG_MATCH_PROBE_APPROVED=true \
+NULLNULL_KTO_ENG_MATCH_PROBE_PLACES='<위 SELECT 결과>' \
+  ./gradlew ktoEngServiceMatchProbe --console=plain
+```
+
   **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패했다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있었고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 그때까지 `Created` 상태로 **한 번도 뜬 적이 없었다.** 오너 결정으로 host port를 **5434**로 옮겼다.
 
   위험한 쪽은 실패가 아니라 **그 뒤에도 앱이 동작한다는 것**이다. `SPRING_DATASOURCE_URL`이 점유된 포트를 가리키면 연결은 성공하고, 상대는 **host 서버**다. 그대로 두면 Flyway가 프로젝트와 무관한 서버에 migration을 건다 — `CLAUDE.md`의 *"test는 live demo/dev database에 대고 돌리지 않는다"* 를 정면으로 어긴다. 게다가 `docker compose ... | tail` 처럼 파이프를 쓰면 **exit code가 사라져** 실패가 보이지도 않는다.

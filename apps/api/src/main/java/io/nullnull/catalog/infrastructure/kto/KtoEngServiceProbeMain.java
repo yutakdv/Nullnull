@@ -33,9 +33,10 @@ import tools.jackson.databind.json.JsonMapper;
  * <li>{@code stale_after_seconds} - a refresh cadence lives in the published operation manual. If
  *     the document does not state one, the registry column stays NULL rather than borrowing
  *     KorService2's, which is a different dataset.
- * <li>Whether the daily quota is counted per authentication key or per activation - that is on the
- *     data.go.kr 마이페이지 activation detail. It matters because one key is shared, so English
- *     ingest would eat the quota P0 Korean ingest depends on.
+ * <li>How the daily quota is counted - that is on the data.go.kr 마이페이지 activation detail, not
+ *     in a response. The owner read it there on 2026-09-21 (D-003): traffic is counted per operation,
+ *     so English calls do not draw on the Korean operations' daily traffic even though the key is
+ *     shared.
  * <li>The 공공누리 type and the exact attribution wording - the portal's dataset page.
  * </ul>
  *

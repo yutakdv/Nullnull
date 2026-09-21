@@ -262,6 +262,21 @@ class CatalogPlaceApiIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].textProvenance.address.sourceAttribution.source")
                         .value(SOURCE));
+
+        // The other half of "without borrowing": above, the place record has no credit, so a text
+        // field that fell back to it would still read null. Give the place a credit and the English
+        // name - a row with no provenance of its own - must stay uncredited. Without this, filling a
+        // missing text credit from the place credit left every assertion above green.
+        reference(place);
+        mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceAttribution.source").value(SOURCE))
+                .andExpect(jsonPath("$.textProvenance.name.locale").value("en-US"))
+                .andExpect(jsonPath("$.textProvenance.name.sourceAttribution").isEmpty());
+        search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].sourceAttribution.source").value(SOURCE))
+                .andExpect(jsonPath("$.items[0].textProvenance.name.sourceAttribution").isEmpty());
     }
 
     private UUID mixedLocalePlace() {
