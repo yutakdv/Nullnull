@@ -7,6 +7,7 @@
       "value": 72.5,
       "unit": "relative-index",
       "ordinalLevel": null,
+      "ordinalScale": null,
       "label": "만료된 관광지 집중률 예측",
       "provenance": {
         "source": "KTO_CONCENTRATION_FORECAST",

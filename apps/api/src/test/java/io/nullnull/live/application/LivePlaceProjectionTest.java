@@ -120,6 +120,6 @@ class LivePlaceProjectionTest {
                 "seoul-citydata-v8.5", List.of("PROVIDER_INCIDENT"), null, null, comparisonEligible, null, null,
                 UUID.randomUUID(), UUID.randomUUID(), null, "LIVE_AREA", "광화문·덕수궁", mappingType, false,
                 UUID.randomUUID());
-        return new CrowdMetric(SourceState.LIVE, null, null, "3", "실시간 인구 혼잡도 단계", provenance);
+        return CrowdMetric.of(SourceState.LIVE, null, null, "3", "실시간 인구 혼잡도 단계", provenance);
     }
 }

@@ -20,7 +20,7 @@ class LiveAreaProjectionTest {
     private final LiveAreaProjection projection = new LiveAreaProjection();
 
     private static CrowdMetric metric(SourceState state) {
-        return new CrowdMetric(state, null, null, null, "서울 실시간 인구 혼잡도",
+        return CrowdMetric.of(state, null, null, null, "서울 실시간 인구 혼잡도",
                 new DataProvenance("SEOUL_CITYDATA", "서울시 실시간 도시데이터", 1L, state,
                         Instant.parse("2026-09-20T06:15:00Z"), null, "FRESH",
                         Instant.parse("2026-09-20T06:15:05Z"), Instant.parse("2026-09-20T06:25:00Z"),
