@@ -7,6 +7,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +61,15 @@ import tools.jackson.databind.json.JsonMapper;
  * or a run of Hangul, digits and spaces) equals our name exactly, whitespace collapsed - and
  * {@code nameInTitle}, plain containment. Only the first is evidence. Containment is reported to
  * be looked at, not used: "경복궁" is also inside the title of a different item such as a ceremony
- * held there. Neither the name nor the title is printed.
+ * held there. Neither the name nor the title is printed. Both sides are NFC-normalised before any
+ * comparison - canonical equivalence, not a guess - and {@code titleNfc} reports whether the title
+ * already was, with {@code hangulSegmentLengths} giving the segments' lengths only, so an unexpected
+ * {@code false} can be told apart without quoting anything.
+ *
+ * <p>A known limit of the run branch: in "Changing of the Royal Guard at 경복궁 (수문장 교대식)" the
+ * run {@code 경복궁} equals the place's name although the item is the ceremony. Not using runs when a
+ * parenthesised Hangul part exists would close that, but it is a new matching rule and is left to a
+ * decision rather than made here.
  *
  * <p>The centre coordinate is the place's stored catalog coordinate (a provider-published POI
  * position), never a user's location, so invariant 10 is not in play.
@@ -148,28 +157,34 @@ public final class KtoEngServiceMatchProbeMain {
     }
 
     /**
-     * Our Korean names, {@code |} separated and in the same order as the places. Optional: without
-     * it the report has no name evidence, which is what the first run looked like.
+     * Our Korean names as {@code contentId=name}, {@code |} separated. Keyed by content id rather than
+     * by position, so a list in a different order is matched to the right place instead of silently
+     * recording one place's booleans against another; every place must be named exactly once.
+     * Optional: without it the report has no name evidence, which is what the first run looked like.
      */
     static List<Place> withNames(List<Place> places, String value) {
         if (value == null || value.isBlank()) {
             return places;
         }
-        String[] names = value.split("\\|", -1);
-        if (names.length != places.size()) {
-            throw new IllegalStateException(NAMES + " must name every place, in order: " + places.size()
-                    + " expected, " + names.length + " given");
-        }
-        List<Place> named = new ArrayList<>();
-        for (int index = 0; index < names.length; index++) {
-            String name = collapse(names[index]);
-            if (name.isEmpty()) {
-                throw new IllegalStateException(NAMES + " has an empty name at position " + (index + 1));
+        Map<String, String> names = new java.util.LinkedHashMap<>();
+        for (String entry : value.split("\\|", -1)) {
+            int separator = entry.indexOf('=');
+            String id = separator < 0 ? "" : entry.substring(0, separator).trim();
+            String name = separator < 0 ? "" : collapse(entry.substring(separator + 1));
+            if (id.isEmpty() || name.isEmpty()) {
+                throw new IllegalStateException(NAMES + " entries must be contentId=name");
             }
-            Place place = places.get(index);
-            named.add(new Place(place.contentId(), place.latitude(), place.longitude(), name));
+            if (names.put(id, name) != null) {
+                throw new IllegalStateException(NAMES + " names content id " + id + " twice");
+            }
         }
-        return List.copyOf(named);
+        Set<String> expected = new TreeSet<>(places.stream().map(Place::contentId).toList());
+        if (!expected.equals(new TreeSet<>(names.keySet()))) {
+            throw new IllegalStateException(NAMES + " must name exactly the places' content ids " + expected
+                    + ", named " + new TreeSet<>(names.keySet()));
+        }
+        return places.stream().map(place -> new Place(place.contentId(), place.latitude(), place.longitude(),
+                names.get(place.contentId()))).toList();
     }
 
     /** One place's report. Static so a test can assert what it does and does not contain. */
@@ -235,8 +250,13 @@ public final class KtoEngServiceMatchProbeMain {
                             .append(" titleHangul=").append(KtoEngServiceProbeMain.containsHangul(text));
                 }
                 if (place.koreanName() != null) {
-                    line.append(" hangulSegmentEqualsName=").append(hangulSegments(text).contains(place.koreanName()))
-                            .append(" nameInTitle=").append(text.contains(place.koreanName()));
+                    String title = Normalizer.normalize(text, Normalizer.Form.NFC);
+                    List<String> segments = hangulSegments(title);
+                    line.append(" titleNfc=").append(title.equals(text))
+                            .append(" hangulSegmentLengths=").append(segments.isEmpty() ? "none"
+                                    : String.join(",", segments.stream().map(s -> Integer.toString(s.length())).toList()))
+                            .append(" hangulSegmentEqualsName=").append(segments.contains(place.koreanName()))
+                            .append(" nameInTitle=").append(title.contains(place.koreanName()));
                 }
             }
         }
@@ -293,7 +313,7 @@ public final class KtoEngServiceMatchProbeMain {
     }
 
     private static String collapse(String value) {
-        return value.trim().replaceAll("\\s+", " ");
+        return Normalizer.normalize(value, Normalizer.Form.NFC).trim().replaceAll("\\s+", " ");
     }
 
     private static BigDecimal coordinate(String value, int bound) {

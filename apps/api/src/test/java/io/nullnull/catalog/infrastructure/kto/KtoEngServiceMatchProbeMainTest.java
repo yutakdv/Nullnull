@@ -130,7 +130,7 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     private static Place named(String name) {
-        return KtoEngServiceMatchProbeMain.withNames(List.of(GYEONGBOKGUNG), name).get(0);
+        return KtoEngServiceMatchProbeMain.withNames(List.of(GYEONGBOKGUNG), "126508=" + name).get(0);
     }
 
     @Test
@@ -169,15 +169,51 @@ class KtoEngServiceMatchProbeMainTest {
     }
 
     @Test
-    @DisplayName("BA-086-T18 names are optional, but when given they must cover every place in order")
-    void namesCoverEveryPlace() {
+    @DisplayName("BA-086-T18 names are optional, but when given they must name every place by its content id")
+    void namesAreKeyedByContentId() {
         assertThat(String.join("\n", KtoEngServiceMatchProbeMain.report(titled("Palace (경복궁)"), 1, GYEONGBOKGUNG)))
                 .doesNotContain("hangulSegmentEqualsName").doesNotContain("nameInTitle");
         List<Place> two = KtoEngServiceMatchProbeMain.places("1:0:0,2:0:0");
-        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "경복궁"))
-                .hasMessageContaining("2 expected, 1 given");
-        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "경복궁|"))
-                .hasMessageContaining("empty name at position 2");
+        // A different order lands on the right place instead of on the neighbour.
+        assertThat(KtoEngServiceMatchProbeMain.withNames(two, "2=덕수궁|1=경복궁"))
+                .extracting(Place::koreanName).containsExactly("경복궁", "덕수궁");
+        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "1=경복궁"))
+                .hasMessageContaining("must name exactly");
+        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "1=경복궁|3=덕수궁"))
+                .hasMessageContaining("must name exactly");
+        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "1=경복궁|1=덕수궁"))
+                .hasMessageContaining("twice");
+        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "1=경복궁|2="))
+                .hasMessageContaining("contentId=name");
+        assertThatThrownBy(() -> KtoEngServiceMatchProbeMain.withNames(two, "경복궁|덕수궁"))
+                .hasMessageContaining("contentId=name");
+    }
+
+    @Test
+    @DisplayName("BA-086-T18 a parenthesised part is one segment even when it mixes in Latin letters, a middle dot "
+            + "or doubled spaces")
+    void parenthesisedPartIsOneSegment() {
+        // Each of these is invisible to the Hangul-run branch alone: the run stops at "N" or "·".
+        assertThat(String.join("\n",
+                KtoEngServiceMatchProbeMain.report(titled("N Seoul Tower (N서울타워)"), 1, named("N서울타워"))))
+                .contains("hangulSegmentEqualsName=true");
+        assertThat(String.join("\n", KtoEngServiceMatchProbeMain.report(
+                titled("Lotte World Adventure (롯데월드·어드벤처)"), 1, named("롯데월드·어드벤처"))))
+                .contains("hangulSegmentEqualsName=true");
+        assertThat(String.join("\n",
+                KtoEngServiceMatchProbeMain.report(titled("Tower (서울  N타워)"), 1, named("서울 N타워"))))
+                .contains("hangulSegmentEqualsName=true");
+    }
+
+    @Test
+    @DisplayName("BA-086-T18 a decomposed title is compared in NFC and says it was not NFC, with segment lengths only")
+    void titleIsComparedInNfc() {
+        String decomposed = java.text.Normalizer.normalize("경복궁", java.text.Normalizer.Form.NFD);
+        String report = String.join("\n", KtoEngServiceMatchProbeMain.report(
+                titled("Gyeongbokgung (" + decomposed + ")"), 1, named("경복궁")));
+        assertThat(report).contains("titleNfc=false").contains("hangulSegmentLengths=3,3")
+                .contains("hangulSegmentEqualsName=true").contains("nameInTitle=true");
+        assertThat(report).doesNotContain("경복궁").doesNotContain(decomposed);
     }
 
     @Test
