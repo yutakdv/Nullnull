@@ -7,6 +7,12 @@ import io.nullnull.crowd.domain.CrowdStage;
 import io.nullnull.crowd.domain.SeoulCongestionStage;
 import io.nullnull.testsupport.OpenApiDocument;
 import java.util.Arrays;
+import java.util.function.BiConsumer;
+import java.util.Map;
+import java.util.ArrayList;
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -15,6 +21,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -138,6 +147,58 @@ class CrowdVocabularyContractTest {
         // value-added, while widening this pattern is a warning.
         assertThat(cells.path("items").has("enum"))
                 .as("an enum here would make growing the scale a breaking change").isFalse();
+    }
+
+    @Test
+    @DisplayName("BA-023-T28 every approved SEOUL example carries the scale the server emits for SEOUL_CITYDATA")
+    void approvedSeoulExamplesCarryTheServersScale() throws Exception {
+        CrowdStage.Scale server = CrowdStage.scaleOf("SEOUL_CITYDATA").orElseThrow();
+        Map<String, Object> expected = Map.of("size", server.size(), "publishedCells", server.publishedCells());
+        List<String> found = new ArrayList<>();
+        walkExamples(openApiRoot(), "$", false, (where, metric) -> {
+            found.add(where);
+            // A SEOUL example without the key is the drift #97 exists to prevent, not a pass.
+            assertThat(metric).as("%s carries ordinalScale", where).containsKey("ordinalScale");
+            assertThat(metric.get("ordinalScale")).as("%s shows the scale the server emits", where)
+                    .isEqualTo(expected);
+        });
+        // Without this the loop passes on a contract with no SEOUL example at all - including one
+        // where a rename or a moved example means this walk simply stopped finding them.
+        assertThat(found).as("approved examples with a SEOUL_CITYDATA reading were found").isNotEmpty();
+    }
+
+    /**
+     * Every CrowdMetric inside an example value whose provenance names SEOUL_CITYDATA. Only example
+     * values qualify: in a schema definition {@code provenance} is a {@code $ref} with no source.
+     */
+    @SuppressWarnings("unchecked")
+    private static void walkExamples(Object node, String where, boolean inExample,
+            BiConsumer<String, Map<String, Object>> seoulMetric) {
+        if (node instanceof Map<?, ?> map) {
+            if (inExample && map.containsKey("ordinalLevel") && map.get("provenance") instanceof Map<?, ?> p
+                    && "SEOUL_CITYDATA".equals(p.get("source"))) {
+                seoulMetric.accept(where, (Map<String, Object>) map);
+            }
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                walkExamples(entry.getValue(), where + "." + key, inExample || "examples".equals(key),
+                        seoulMetric);
+            }
+        } else if (node instanceof List<?> list) {
+            for (int i = 0; i < list.size(); i++) {
+                walkExamples(list.get(i), where + "[" + i + "]", inExample, seoulMetric);
+            }
+        }
+    }
+
+    /** The same file and parser OpenApiDocument uses, read raw because it has no example accessor. */
+    private static Object openApiRoot() throws Exception {
+        String path = System.getProperty("nullnull.openapi.path");
+        assertThat(path).as("nullnull.openapi.path is set for this suite").isNotBlank();
+        LoaderOptions options = new LoaderOptions();
+        options.setCodePointLimit(Integer.MAX_VALUE);
+        return new Yaml(new SafeConstructor(options))
+                .load(Files.readString(Path.of(path), StandardCharsets.UTF_8));
     }
 
     /** The cells a source's reviewed mapping assigns, read from the mapping itself and not relisted. */
