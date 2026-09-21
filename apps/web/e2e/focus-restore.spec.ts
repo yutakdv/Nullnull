@@ -157,10 +157,9 @@ import { createRepresentativeTrip } from './seeded-trip.js';
 // ConfirmDialog verifies the landing and falls back to <main>; TripPicker does
 // not verify it at all.
 //
-// So this test is expected to FAIL until the restore verifies where focus
-// actually landed. It is written now, with the diagnosis above, so the fix has
-// something that can tell it worked -- and so the clause is not recorded as
-// satisfied by a test that cannot fail.
+// The restore now verifies where focus actually landed and falls back to the
+// next usable control. This regression keeps that behavior from returning to
+// the previously observed <body> focus loss.
 test.describe('FE-203-T4 closing the 담기 sheet leaves focus somewhere usable', () => {
   test('FE-203-T4 picking a trip leaves focus on a control, not the document', async ({
     page,

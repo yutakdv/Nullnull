@@ -25,6 +25,13 @@ npm run dev:mock                                      # MSW fixture
 
 `npm run dev:api`는 기존 로컬 작업 호환을 위한 `npm run dev`의 별칭이다.
 
+## 라이브 화면
+
+P0의 `/live` 기본 화면은 map OFF·list-first다. `queryLiveAreas`의 권역 목록과 검색만
+렌더링하며 Kakao SDK를 로드하지 않는다. 저장소에 남아 있는 지도 컴포넌트와
+`VITE_KAKAO_MAP_APP_KEY` 타입은 provider·license·attribution 승인이 끝난 뒤 사용할
+capability 후보일 뿐이다. 환경 변수에 키를 설정하는 것만으로 지도를 활성화하면 안 된다.
+
 mock worker는 `public/`이 아니라 `mocks/mockServiceWorker.js`에 있고 Vite dev 미들웨어가
 서빙한다(`vite.config.ts`). `public/`에 두면 `dist/`로 복사돼 production 이미지가 mock을
 서빙할 수 있고, `scripts/integration-test.sh`가 그 이미지로 E2E를 돌리기 때문에 게이트가

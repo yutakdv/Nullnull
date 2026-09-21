@@ -271,7 +271,7 @@ test.describe('app shell', () => {
     await expect(choice).toHaveCSS('background-color', 'rgb(234, 242, 255)');
   });
 
-  test('S07 trip hero keeps the Figma 12px top inset', async ({ page }) => {
+  test('S07 trip hero follows the service spacing scale', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
@@ -285,7 +285,84 @@ test.describe('app shell', () => {
     const bounds = await hero.boundingBox();
     expect(bounds?.x).toBe(16);
     expect(bounds?.y).toBe(12);
-    expect(bounds?.height).toBe(178);
+    expect(bounds?.height).toBe(161);
+    await expect(hero).toHaveCSS('row-gap', '8px');
+    await expect(hero).toHaveCSS('padding-top', '12px');
+    await expect(hero).toHaveCSS('padding-bottom', '12px');
+
+    const titleTextRight = await heading.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getBoundingClientRect().right;
+    });
+    const editBounds = await hero
+      .getByRole('button', { name: /여행 이름 수정|Edit trip name/ })
+      .boundingBox();
+    expect((editBounds?.x ?? 0) - titleTextRight).toBeLessThanOrEqual(8);
+
+    const ddayBounds = await hero.locator('[class*="dday"]').boundingBox();
+    expect(ddayBounds?.height).toBe(34);
+
+    const dayControlHeights = await page
+      .getByRole('navigation', { name: /전체|All days/ })
+      .getByRole('button')
+      .evaluateAll((buttons) =>
+        buttons.map((button) => button.getBoundingClientRect().height),
+      );
+    expect(dayControlHeights).toEqual([44, 44, 44, 44, 44]);
+  });
+
+  test('S07 matches view and edit header geometry and compact controls', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.addInitScript(() => {
+      localStorage.setItem('nullnull.locale', 'ko-KR');
+    });
+    const tripPath = await createSeededTrip(page);
+    await page.goto(tripPath);
+
+    const viewHeader = page
+      .getByRole('heading', { level: 1 })
+      .locator('xpath=ancestor::header');
+    const viewHeaderBounds = await viewHeader.boundingBox();
+    const viewRows = await viewHeader.evaluate((header) => {
+      const headerTop = header.getBoundingClientRect().top;
+      return Array.from(header.children).map((child) => {
+        const bounds = child.getBoundingClientRect();
+        return {
+          height: bounds.height,
+          top: bounds.top - headerTop,
+        };
+      });
+    });
+    const savedPlaceBounds = await page
+      .getByRole('link', { name: /담아둔 장소|Saved places/ })
+      .boundingBox();
+
+    await page.goto(`${tripPath}/edit`);
+    const editHeader = page
+      .getByRole('heading', { level: 1 })
+      .locator('xpath=ancestor::header');
+    const editHeaderBounds = await editHeader.boundingBox();
+    const editRows = await editHeader.evaluate((header) => {
+      const headerTop = header.getBoundingClientRect().top;
+      return Array.from(header.children).map((child) => {
+        const bounds = child.getBoundingClientRect();
+        return {
+          height: bounds.height,
+          top: bounds.top - headerTop,
+        };
+      });
+    });
+    const addPlaceBounds = await page
+      .getByRole('link', { name: /장소 추가|Add place/ })
+      .boundingBox();
+
+    expect(savedPlaceBounds?.height).toBe(44);
+    expect(savedPlaceBounds?.height).toBe(addPlaceBounds?.height);
+    expect(editHeaderBounds?.height).toBe(viewHeaderBounds?.height);
+    expect(editRows).toEqual(viewRows);
   });
 
   test('S07 keeps a long trip title clear of its edit and D-day controls', async ({
@@ -322,6 +399,75 @@ test.describe('app shell', () => {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(180);
+  });
+
+  test('FE-305 drag handle moves a stop into an empty day from All', async ({ page }) => {
+    const tripPath = await createSeededTrip(page);
+    await page.goto(`${tripPath}/edit`);
+    const source = page
+      .getByRole('heading', { level: 3, name: '인사동' })
+      .locator('xpath=ancestor::article');
+    const handle = source.getByRole('button', {
+      name: /Move 인사동 by dragging|인사동 드래그/,
+    });
+    const target = page
+      .getByRole('heading', { level: 2, name: /Day 2|2일차/ })
+      .locator('xpath=..');
+    const from = await handle.boundingBox();
+    const to = await target.boundingBox();
+    expect(from).not.toBeNull();
+    expect(to).not.toBeNull();
+    await page.mouse.move((from?.x ?? 0) + 20, (from?.y ?? 0) + 20);
+    await page.mouse.down();
+    await page.mouse.move((to?.x ?? 0) + 30, (to?.y ?? 0) + 60, { steps: 12 });
+    await page.mouse.up();
+    await expect(target.getByRole('heading', { level: 3, name: '인사동' })).toBeVisible();
+    await page.getByRole('button', { name: /Save changes|변경사항 저장/ }).click();
+    await expect(page).not.toHaveURL(/\/edit$/);
+    await expect(target.getByRole('heading', { level: 3, name: '인사동' })).toBeVisible();
+  });
+
+  test('FE-305 drag auto-scrolls the app content toward off-screen days', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 800 });
+    const tripPath = await createSeededTrip(page);
+    await page.goto(`${tripPath}/edit`);
+    await page.addStyleTag({
+      content: '#main { flex: none !important; height: 600px !important; }',
+    });
+
+    const main = page.getByRole('main');
+    const handle = page.getByRole('button', {
+      name: /Move 경복궁 by dragging|경복궁 드래그/,
+    });
+    await handle.scrollIntoViewIfNeeded();
+    const initialScrollTop = await main.evaluate((element) => element.scrollTop);
+    await expect(handle).toBeInViewport();
+    const from = await handle.boundingBox();
+    const viewport = await main.boundingBox();
+    expect(from).not.toBeNull();
+    expect(viewport).not.toBeNull();
+
+    await page.mouse.move((from?.x ?? 0) + 20, (from?.y ?? 0) + 20);
+    await page.mouse.down();
+    await page.mouse.move((from?.x ?? 0) + 40, (from?.y ?? 0) + 20, {
+      steps: 2,
+    });
+    await page.mouse.move(
+      (from?.x ?? 0) + 20,
+      (viewport?.y ?? 0) + (viewport?.height ?? 0) - 8,
+      { steps: 8 },
+    );
+    await expect(page.locator('[class*="dragPreview"]')).toBeVisible();
+    expect(
+      await main.evaluate((element) => element.scrollHeight > element.clientHeight),
+    ).toBe(true);
+    await expect
+      .poll(() => main.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(initialScrollTop);
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
   });
 
   test('S14 uses the approved profile type and icon scale', async ({ page }) => {

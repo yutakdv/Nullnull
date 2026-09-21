@@ -4,7 +4,11 @@ import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { BottomCta, Chip, IconArrowRight, NavBar } from '../../shared/ui/index.js';
-import { useCreateTrip, useUpdatePreferences } from '../../shared/api/index.js';
+import {
+  useCreateTrip,
+  usePreviewTripDraft,
+  useUpdatePreferences,
+} from '../../shared/api/index.js';
 import {
   EMPTY_DRAFT,
   INTEREST_GROUPS,
@@ -27,17 +31,21 @@ import { ConfirmStopsStep } from './ConfirmStopsStep.js';
 import { InputMethodStep } from './InputMethodStep.js';
 import { ManualStopsStep } from './ManualStopsStep.js';
 import { MustVisitStep } from './MustVisitScreen.js';
+import { RecommendedDraftStep } from './RecommendedDraftStep.js';
+import { recommendedSeedItems } from './recommended-draft.js';
 import styles from './TripWizardScreen.module.css';
 
 type PlanningLevel = components['schemas']['PlanningLevel'];
+type SeedTripItem = components['schemas']['SeedTripItem'];
+type TripDraftPreview = components['schemas']['TripDraftPreview'];
 
 // Figma: S02-1 dates `438:3012`, S02-2 interests `438:3108`,
 // S02-3 planning level `438:3134`.
 //
-// FR-TRC-01/02/03. Steps 1-3 are a local draft — FIGMA_HANDOFF marks them so —
-// and the only server call is createTrip at the end, which carries an
-// Idempotency-Key because a repeated submit must not create a second trip
-// (invariant 6).
+// FR-TRC-01/02/03. Steps 1-3 are a local draft — FIGMA_HANDOFF marks them so.
+// NOTHING requests a read-only recommendation before createTrip; every branch
+// creates only on explicit confirmation. createTrip carries an Idempotency-Key
+// because a repeated submit must not create a second trip (invariant 6).
 //
 // The draft lives in component state rather than the URL: it is edit buffer,
 // which .claude/rules/frontend.md keeps feature-local.
@@ -108,9 +116,17 @@ export function TripWizardScreen() {
   // component (ImportPasteScreen holds it, on its own route), which is why the
   // canary test checks every Storage rather than trusting that shape.
   useEffect(() => {
-    writeSnapshot({ step, draft });
+    // The recommendation response is `private, no-store`, so it is never put
+    // in sessionStorage. Persist step 3 while that ephemeral screen is open:
+    // a refresh keeps the user's dates/interests/answer without restoring a
+    // phantom step 4 that has no preview to render.
+    const persistedStep = step === 4 && draft.planningLevel === 'NOTHING' ? 3 : step;
+    writeSnapshot({ step: persistedStep, draft });
   }, [step, draft]);
   const createTrip = useCreateTrip();
+  const previewTripDraft = usePreviewTripDraft();
+  const [recommendedDraft, setRecommendedDraft] = useState<TripDraftPreview | null>(null);
+  const [recommendedPicks, setRecommendedPicks] = useState<Set<string>>(() => new Set());
   // Points the owner's 내 여행 tab at whatever this wizard creates (BA-011).
   const setActiveTrip = useUpdatePreferences();
   // The key for the request in flight, held across retries of THAT request.
@@ -145,12 +161,13 @@ export function TripWizardScreen() {
   // the press did nothing at all, with no error shown. The prop is typed
   // `() => void`, which happily accepts a function that ignores its argument,
   // so TypeScript could not see it.
-  function submit(using: WizardDraft) {
+  function submit(using: WizardDraft, seedItems?: SeedTripItem[]) {
     // The browser's zone: the trip is planned where the user is, and the
     // contract defaults to Asia/Seoul only when nothing is supplied.
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const request = toCreateRequest(using, timezone);
-    if (!request) return;
+    const baseRequest = toCreateRequest(using, timezone);
+    if (!baseRequest) return;
+    const request = seedItems ? { ...baseRequest, seedItems } : baseRequest;
     const fingerprint = JSON.stringify(request);
     if (submitKey.current?.for !== fingerprint) {
       submitKey.current = { for: fingerprint, key: crypto.randomUUID() };
@@ -182,6 +199,33 @@ export function TripWizardScreen() {
     );
   }
 
+  function requestRecommendation(using: WizardDraft) {
+    if (!using.startDate || !using.endDate) return;
+    createTrip.reset();
+    setStep(4);
+    setRecommendedDraft(null);
+    setRecommendedPicks(new Set());
+    previewTripDraft.mutate(
+      {
+        startDate: using.startDate,
+        endDate: using.endDate,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      {
+        onSuccess: (preview) => {
+          setRecommendedDraft(preview);
+        },
+      },
+    );
+  }
+
+  function leaveRecommendation(nextStep: number) {
+    previewTripDraft.reset();
+    setRecommendedDraft(null);
+    setRecommendedPicks(new Set());
+    setStep(nextStep);
+  }
+
   // Going back a step, and out of the flow from the first one.
   //
   // The steps are component state rather than routes, so browser Back leaves
@@ -194,6 +238,10 @@ export function TripWizardScreen() {
   // translated in both locales for a control that had never been rendered.
   function goBack() {
     if (step > 1) {
+      if (step === 4 && draft.planningLevel === 'NOTHING') {
+        leaveRecommendation(3);
+        return;
+      }
       setStep(step - 1);
       return;
     }
@@ -253,7 +301,9 @@ export function TripWizardScreen() {
         onBack={goBack}
         actions={
           <span className={styles.navStep}>
-            {step === 6 ? t('confirm.step') : `${t('wizard.step')} ${String(step)}`}
+            {step === 6 || (step === 4 && draft.planningLevel === 'NOTHING')
+              ? t('confirm.step')
+              : `${t('wizard.step')} ${String(step)}`}
           </span>
         }
       />
@@ -487,22 +537,22 @@ export function TripWizardScreen() {
             // which the Idempotency-Key guards against but need not be tested by
             // the user (.claude/rules/frontend.md on duplicate submits).
             disabled={draft.planningLevel === null || createTrip.isPending}
-            // The answer decides what follows: MUST_VISIT_ONLY goes to step 4
-            // and the other two create the trip. All three used to call
-            // submit(), so "꼭 가고 싶은 곳만 정했어요" made the same trip as
-            // "아직 하나도 없어요" and never asked which places (#185).
+            // The answer decides what follows: MUST_VISIT_ONLY opens its
+            // picker, MOSTLY_PLANNED opens the input-method choice, and NOTHING
+            // requests a recommendation preview. All three used to call
+            // submit(), so the branch screens were skipped entirely (#185).
             onClick={() => {
               // Step 4 is whichever branch step 3 was answered with: the
               // must-visit picker (S02-4B) or the input-method choice
-              // (S02-4C `400:1201`). Only NOTHING creates the trip from here,
-              // because it is the one answer that says there is nothing more
-              // to collect.
+              // (S02-4C `400:1201`). NOTHING opens the deterministic, unsaved
+              // recommendation preview; no trip exists until that screen is
+              // explicitly confirmed.
               const next = nextAfterPlanning(draft);
               if (next === 'must-visit' || next === 'method') {
                 setStep(4);
                 return;
               }
-              submit(draft);
+              requestRecommendation(draft);
             }}
             secondary={
               // The paste path (FE-104, `401:1221`) stays reachable from here
@@ -538,6 +588,38 @@ export function TripWizardScreen() {
           }}
           onPaste={() => {
             void navigate('/start/import', { state: { wizardDraft: draft } });
+          }}
+        />
+      ) : null}
+
+      {step === 4 && nextAfterPlanning(draft) === 'recommend' ? (
+        <RecommendedDraftStep
+          preview={recommendedDraft}
+          error={previewTripDraft.error}
+          loading={previewTripDraft.isPending}
+          picked={recommendedPicks}
+          isSubmitting={createTrip.isPending}
+          createFailed={createTrip.isError}
+          onTogglePick={(key) => {
+            setRecommendedPicks((current) => {
+              const next = new Set(current);
+              if (next.has(key)) next.delete(key);
+              else next.add(key);
+              return next;
+            });
+          }}
+          onSubmit={() => {
+            if (!recommendedDraft || recommendedDraft.state !== 'READY') return;
+            submit(draft, recommendedSeedItems(recommendedDraft, recommendedPicks));
+          }}
+          onRetry={() => {
+            requestRecommendation(draft);
+          }}
+          onChangeDates={() => {
+            leaveRecommendation(1);
+          }}
+          onEdit={() => {
+            leaveRecommendation(3);
           }}
         />
       ) : null}

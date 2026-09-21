@@ -262,7 +262,9 @@ BE가 [#163](https://github.com/yutakdv/Nullnull/issues/163)에서 측정해 알
 | | |
 | --- | --- |
 | `recordFeedFeedback` | 구현됨(`de8805c3`, 2026-09-13). 404가 아니라 **422**로 거절한다 |
-| 받는 것 | `IMPRESSION`·`OPEN` — 화면이 보낼 수 있는 것과 **정확히 같은 집합** |
+| 서버가 받는 것 | `IMPRESSION`·`OPEN` |
+| 계약 enum | `IMPRESSION`·`OPEN`·`HIDE`·`LIKE`·`DISLIKE` |
+| 화면이 보내는 것 | 없음 — feedback 계측은 미배선이며 `FE-201 #163` test가 0건을 고정 |
 | 거절 | `HIDE`·`LIKE`·`DISLIKE` → `VALIDATION_FAILED`, test가 양방향 고정 |
 | `PostSummary` | 작성자·하트 필드 애초에 없음 |
 
@@ -612,14 +614,14 @@ Vitest 구현 증거를 연결한다. test 이름의 `FCR-* trace`는 디자인 
 | FCR-002 | `FE-201-T2`, `FE-202-T2` (`feed.test.tsx`, `post.test.tsx`) | 실제 feed/post를 먼저 렌더한 뒤 검색·알림·팔로우 control/호출 부재 증명 완료 |
 | FCR-003 | `FE-201-T2` (`feed.test.tsx`) | 실제 feed와 `listFeed` wire를 기준으로 정렬·filter control/parameter 부재 증명 완료 |
 | FCR-004 | `FE-503-T1`, `FE-505-T1` (`proposal-card.test.tsx`, `decision-wiring.test.tsx`) | before/after, provenance+eligible metric, 집계·개별 lock validation, 승인 전 쓰기 0건과 APPLY/KEEP 경계 증명 완료 |
-| FCR-005 | `FE-502-T2`, `FE-301-T1` (`optimization-run.test.tsx`, `trip-screen.test.tsx`) | optimization/trip의 route 문구·수치 부재 완료. Live 절은 FE-401 대기 |
+| FCR-005 | `FE-502-T2`, `FE-301-T1`, `FE-401-T1` (`optimization-run.test.tsx`, `trip-screen.test.tsx`, `live.test.tsx`) | 실제 optimization/trip/Live 데이터를 렌더한 뒤 route 문구·수치 부재 증명 완료 |
 | FCR-006 | `FE-105-T1` (`profile.test.tsx`) | 익명 저장 설명·inert login text·route/요청 0건 증명 완료 |
 | FCR-007 | `FE-404-T1` (`data-guide.test.tsx`) | 계약 `SourceState` 전체 순회와 REPLAY≠LIVE 증명 완료 |
-| FCR-008 | — | FE-401/402와 승인 Live fixture 대기 |
+| FCR-008 | `FE-401-T1`·`T2`·`T3`, `FE-402-T2` (`live.test.tsx`, `live-map-sheet.mock.spec.ts`) | canonical 검색→선택→상세, 상태와 keyboard 경로의 로컬 증거 완료. fixture 승인·composed browser 증거는 대기 |
 | FCR-009 | `FE-201-T2`, `FE-202-T2` (`feed.test.tsx`, `post.test.tsx`) | 실제 card/place row에 계약 없는 거리·기준을 만들지 않음 증명 완료 |
 | FCR-010 | `FE-501-T1` (`optimize-setup.test.tsx`) | ITEM만 wire에 도달하고 DAY/TRIP·DATE lock은 요청 0건 증명 완료 |
-| FCR-011 | `FE-201-T2`, `FE-202-T2` (`card-components.test.tsx`, `data-components.test.tsx`, `post.test.tsx`) | state/credit 분리, 서버 원문·short fallback, Seoul/KTO 동시 표시 primitive 완료. Seoul/KTO 혼합 case의 Seoul provenance는 승인 Live fixture가 없어 test-local 합성이며 Live 사용처는 FE-402 대기 |
-| FCR-012 | — | FE-401 list-first 화면과 승인 Live fixture 대기 |
+| FCR-011 | `FE-201-T2`, `FE-202-T2`, `FE-402-T1` (`card-components.test.tsx`, `data-components.test.tsx`, `post.test.tsx`, `live.test.tsx`) | state/credit 분리와 Live 상세의 KTO 장소·Seoul 혼잡 출처 분리 증명 완료. 승인 fixture·폭 증거는 대기 |
+| FCR-012 | `FE-401-T1`·`T2`·`T3`, `FE-403-T2`·`T3` (`live.test.tsx`, `live-map-sheet.mock.spec.ts`, `live-accessibility.mock.spec.ts`) | map OFF·list-first와 default/loading/empty/error/unavailable, keyboard·reflow의 로컬 증거 완료. Figma sheet geometry·area-level 출처와 composed browser 승인은 대기 |
 | FCR-013 | `FE-301-T1` (`trip-screen.test.tsx`) | 실제 trip 화면에서 지원되는 최적화 진입은 남고 계약 없는 비교 banner/control은 없음 증명 완료 |
 | FCR-014 | `FE-502-T3`, `FE-504-T3` (`optimization-run.test.tsx`) | 이탈은 navigation이고 cancel control/요청이 아님을 증명 완료 |
 | FCR-015 | `FE-505-T1`·`T2` (`applied-panel.test.tsx`, `applied-revert.test.ts`, `trip-applied-panel.test.tsx`) | persistent panel 상태, version·deadline 규칙, wrapper의 실제 read→render·실패 경로 증명 완료 |

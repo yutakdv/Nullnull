@@ -1,3 +1,4 @@
+import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -86,6 +87,12 @@ describe('TripAddButton', () => {
 });
 
 describe('BottomCta', () => {
+  it('exposes the primary action for explicit focus restoration', () => {
+    const buttonRef = createRef<HTMLButtonElement>();
+    render(<BottomCta buttonRef={buttonRef} label="다음" />);
+    expect(buttonRef.current).toBe(screen.getByRole('button', { name: '다음' }));
+  });
+
   it('fires the primary action and honours disabled', async () => {
     const onClick = vi.fn();
     const { rerender } = render(<BottomCta label="다음" onClick={onClick} />);

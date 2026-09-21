@@ -43,6 +43,17 @@ async function openWithSession(page: import('@playwright/test').Page, path: Shee
   }
 }
 
+async function openCompactItemMenu(
+  page: import('@playwright/test').Page,
+  path: SheetPath,
+) {
+  if (path !== 'own-trip') return;
+
+  const menu = page.getByRole('button', { name: /item actions/ }).first();
+  await expect(menu).toBeVisible();
+  await menu.click();
+}
+
 /** Every sheet reachable without writing anything. */
 const SHEETS = [
   {
@@ -58,7 +69,7 @@ const SHEETS = [
     // the id, which is the string check_test_reports.py reads.
     //
     // It covers the 360px and 200% zoom halves of FE-203-T3 and no more — the
-    // clause's reduced-motion and focus-return halves are FE-203-T4, and
+    // clause's focus-return half is FE-203-T4 and reduced-motion is FE-203-T5;
     // nothing in this file measures either (grep: 0 hits for reducedMotion and
     // for any focus-restore assertion).
     name: 'FE-203-T3 trip picker',
@@ -78,6 +89,7 @@ for (const sheet of SHEETS) {
   test.describe(`${sheet.name} at 360px, the narrowest designed width`, () => {
     test(`${sheet.name} fits`, async ({ page }) => {
       await openWithSession(page, sheet.path);
+      await openCompactItemMenu(page, sheet.path);
 
       const trigger = page.getByRole('button', { name: sheet.open }).first();
       await expect(trigger, `${sheet.name} needs a trigger to open it`).toBeVisible();
@@ -120,6 +132,7 @@ for (const sheet of SHEETS) {
 
     test(`${sheet.name} still fits`, async ({ page }) => {
       await openWithSession(page, sheet.path);
+      await openCompactItemMenu(page, sheet.path);
 
       const trigger = page.getByRole('button', { name: sheet.open }).first();
       await expect(trigger).toBeVisible();
