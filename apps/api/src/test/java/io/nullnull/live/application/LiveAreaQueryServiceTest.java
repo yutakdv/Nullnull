@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
+import io.nullnull.crowd.application.ReplayManifestReader;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -30,8 +33,17 @@ class LiveAreaQueryServiceTest {
         // An empty store: this file is about validation order and the capability, and an empty page
         // is what an enabled server with nothing collected answers. The stored-reading path is
         // LiveAreaReadIT, which needs a database to hold a reading at all.
+        EmptyAreas areas = new EmptyAreas();
         return new LiveAreaQueryService(new LiveCapability(enabled), new LiveAreaProjection(),
-                new EmptyAreas(), (source, ids, now) -> List.of(), CLOCK);
+                areas, new LiveAreaReadingSelector((source, ids, now) -> List.of(),
+                        new ReplayManifestReader() {
+                            @Override
+                            public Optional<ReplayBatch> read(UUID id, Instant now) { return Optional.empty(); }
+                            @Override
+                            public Optional<ReplayBatch> latestFor(String source, Instant now) {
+                                return Optional.empty();
+                            }
+                        }, areas, false), CLOCK);
     }
 
     private static final class EmptyAreas implements io.nullnull.live.application.LiveAreaStore {

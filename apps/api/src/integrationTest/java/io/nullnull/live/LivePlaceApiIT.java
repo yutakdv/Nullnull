@@ -16,6 +16,8 @@ import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.sql.Timestamp;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -139,6 +141,19 @@ class LivePlaceApiIT {
         // emit stay the two BA-024-T7 pins, and Live does not invent a third.
         assertThat(detail.get("related").get("state").asString()).isEqualTo("UNKNOWN");
         assertThat(detail.get("related").get("reason").asString()).isEqualTo("SOURCE_DISABLED");
+
+        JsonNode example = JSON.readTree(Files.readString(Path.of("..", "..", "packages", "contracts",
+                "fixtures", "live", "place-detail-live.json")));
+        assertThat(example.get("dataState")).isEqualTo(detail.get("dataState"));
+        assertThat(example.get("related").get("state")).isEqualTo(detail.get("related").get("state"));
+        assertThat(example.get("related").get("reason")).isEqualTo(detail.get("related").get("reason"));
+        assertThat(example.get("crowd").get("ordinalLevel")).isEqualTo(crowd.get("ordinalLevel"));
+        for (String field : List.of("sourceRegistryVersion", "normalizationVersion", "confidence",
+                "attributionShort", "observedAtSkewSeconds", "scopeLabel", "mappingType",
+                "comparisonReasonCode")) {
+            assertThat(example.get("crowd").get("provenance").get(field)).as("Live place example %s", field)
+                    .isEqualTo(crowd.get("provenance").get(field));
+        }
 
         // The other half, and it is what makes the above non-vacuous: a route that attached the
         // newest reading to whatever place it was asked about would pass every line so far.

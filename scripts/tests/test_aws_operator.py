@@ -483,6 +483,40 @@ class OpsTaskRegressions(unittest.TestCase):
             with self.assertRaisesRegex(ops.OpsError,'nullnull-kto-smoke-approved-not-set-by-caller'):
                 ops.ops_task(self.args(task='kto-demo-detail',places='126508:12,126509:12'))
             aws.assert_not_called()
+    def test_seoul_area_name_is_validated_before_any_call(self):
+        base={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
+        with patch.dict(os.environ,base),patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+            for bad in ('', '../citydata', '광화문/덕수궁', 'x\nsecret'):
+                with self.subTest(area_name=bad),self.assertRaisesRegex(ops.OpsError,'invalid-area-name'):
+                    ops.ops_task(self.args(task='seoul-live-collect',area_name=bad))
+            aws.assert_not_called()
+    def test_live_mapping_plan_needs_owner_approved_bytes_before_any_aws_call(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'live-mappings.json'
+            path.write_text(json.dumps({'mappings':[{'placeId':'00000000-0000-4000-8000-000000000001',
+                'areaName':'서울숲','mappingType':'AREA_FALLBACK','confidence':0.75,'fallbackUsed':True,
+                'verifiedAt':'2026-09-20T06:00:00Z','evidenceUrl':'https://data.seoul.go.kr/example'}]}))
+            args=SimpleNamespace(task='curate-live-maps',plan_file=str(path),approved_plan_sha256=None,
+                                 owner_approval='owner approved in session')
+            with patch.dict(os.environ,{'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}),\
+                 patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+                with self.assertRaisesRegex(ops.OpsError,'plan-sha256-not-approved'):
+                    ops.ops_task(args)
+                aws.assert_not_called()
+    def test_replay_capture_plan_needs_owner_approved_snapshot_ids(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'replay.json'
+            snapshot_id='00000000-0000-4000-8000-000000000001'
+            path.write_text(json.dumps({'name':'seoul-pilot','capturedFrom':'2026-09-20T05:00:00Z',
+                'capturedTo':'2026-09-20T05:10:00Z','snapshotIds':[snapshot_id]}))
+            args=SimpleNamespace(task='capture-live-replay',plan_file=str(path),
+                                 approved_plan_sha256=None,owner_approval='owner approved in session')
+            with self.assertRaisesRegex(ops.OpsError,'plan-sha256-not-approved'):
+                ops.curation_plan(args)
+            args.approved_plan_sha256=ops.digest(path)
+            assert ops.curation_plan(args)['ids']==[snapshot_id]
     def test_only_redacted_evidence_lines_are_echoed(self):
         allowed=['KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 payloadHash=abc',
                  'KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- process env',
@@ -507,7 +541,7 @@ class OperationsTargetRegressions(unittest.TestCase):
         def __enter__(self): return self
         def __exit__(self,*a): return False
         def mutating(self): pass
-    def run_ingest(self, stated, log=()):
+    def run_ingest(self, stated, log=(), task='kto-ingest', area_name=None):
         import contextlib, io
         from types import SimpleNamespace
         calls=[]
@@ -524,12 +558,14 @@ class OperationsTargetRegressions(unittest.TestCase):
         out=io.StringIO()
         with patch.dict(os.environ,env),patch.object(ops,'identity'),patch.object(ops,'aws',side_effect=fake),\
              patch.object(ops,'output',side_effect=lambda stack,key,**kw:'s-a,s-b' if key=='AppSubnetIds' else key),\
-             patch.object(ops,'DeploymentLock',self.Lock),patch.object(ops,'wait_task'),contextlib.redirect_stdout(out):
+             patch.object(ops,'DeploymentLock',self.Lock),patch.object(ops,'wait_task'),\
+             patch.object(ops,'release_binding',return_value=({'releaseVersion':'v0.1.0-rc.12'},'synthetic')),\
+             contextlib.redirect_stdout(out):
             if stated is None: os.environ.pop(ops.OPERATIONS_TARGET,None)
             error=None
             try:
-                ops.ops_task(SimpleNamespace(task='kto-ingest',content_id='126508',content_type_id='12',place_id=None,
-                                             owner_approval=None,places=None))
+                ops.ops_task(SimpleNamespace(task=task,content_id='126508',content_type_id='12',place_id=None,
+                                             owner_approval=None,places=None,area_name=area_name,plan_file=None))
             except ops.OpsError as e:
                 error=str(e)
         return error,calls,out.getvalue()
@@ -552,6 +588,19 @@ class OperationsTargetRegressions(unittest.TestCase):
         self.assertEqual(self.TARGET,environment[ops.OPERATIONS_TARGET])
         self.assertIn('ops_log '+line,out);self.assertNotIn('jdbc:',out)
         self.assertIn('ops_task=kto-ingest result=succeeded',out)
+    def test_seoul_task_requires_a_live_reading_and_receives_only_proxy_coordinates(self):
+        missing,calls,_=self.run_ingest(self.TARGET,task='seoul-live-collect',area_name='서울숲공원')
+        self.assertIn('seoul-collect-not-live',missing)
+        accepted,calls,out=self.run_ingest(self.TARGET,log=['seoul_live_collect live=true'],
+                                            task='seoul-live-collect',area_name='서울숲공원')
+        self.assertIsNone(accepted)
+        run=[kw for service,operation,kw in calls if (service,operation)==('ecs','run-task')]
+        environment={entry['name']:entry['value'] for entry in run[0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('서울숲공원',environment['NULLNULL_SEOUL_AREA_NAME'])
+        self.assertEqual('SeoulProxyUrl',environment['SEOUL_BASE_URL'])
+        self.assertEqual('SeoulProxyHost',environment['SEOUL_ALLOWED_HOST'])
+        self.assertNotIn('SEOUL_PROXY_TOKEN',environment)
+        self.assertIn('ops_log seoul_live_collect live=true',out)
 
 class SecretProvisioningRegressions(unittest.TestCase):
     def test_secret_value_never_reaches_stdout_or_argv(self):

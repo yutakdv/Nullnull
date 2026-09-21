@@ -44,7 +44,7 @@ const FIXTURE_OF = {
   anonymous: 'session/owner-profile-anonymous.json',
   accepted: 'session/deletion-receipt.json',
   running: 'session/deletion-status.json',
-  noCapabilityHasASource: 'system/demo-readiness-not-ready.json',
+  allCapabilitiesDisabled: 'system/demo-readiness-not-ready.json',
   alive: 'system/health-live.json',
   everyCheckReady: 'system/readiness-ready.json',
   completed: 'session/deletion-status-completed.json',
@@ -88,6 +88,17 @@ const FIXTURE_OF = {
   matchNone: 'candidates/match-none.json',
   matchUnknown: 'candidates/match-unknown.json',
   matchChecking: 'candidates/match-checking.json',
+  liveAreaQuery: 'live/area-query.json',
+  liveAreasLive: 'live/area-result-live.json',
+  liveAreasReplay: 'live/area-result-replay.json',
+  liveAreasStale: 'live/area-result-stale.json',
+  liveAreasIncident: 'live/area-result-incident.json',
+  liveAreasUnavailable: 'live/area-result-unavailable.json',
+  liveAreaPlaces: 'live/area-places.json',
+  liveAreaPlacesUnavailable: 'live/area-places-unavailable.json',
+  livePlaceDetail: 'live/place-detail-live.json',
+  livePlaceRelatedNone: 'live/place-detail-related-none.json',
+  livePlaceRelatedChecking: 'live/place-detail-related-checking.json',
 };
 
 const ajv = new Ajv2020({ strict: false, allErrors: true, logger: false });

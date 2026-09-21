@@ -409,6 +409,36 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-posts --plan-file ops/curated-posts.json \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# 서울 Live 수동 관측(local 전용). 평시에는 API 작업이 V048의 원자적 claim으로
+# 서울숲공원을 5분마다 수집한다. 복제본 수만큼 호출하지 않으며 별도 주기 Fargate task도 없다.
+# 재시도 포함 최대 3회/작업이므로 정상 주기 최대 288작업·864 provider 요청/일이다.
+# 심사 종료 2026-10-25T14:59:59Z부터 API 스케줄러는 claim/호출을 중단한다.
+# 검증된 LIVE 관측 한 건이 저장될 때만 성공한다. provider의 PPLTN_TIME이 이미 낡았다면
+# 관측은 STALE로 저장되고 성공으로 세지 않는다. 300초 유효기간과 provider 갱신 간격이
+# 겹치므로 잠깐의 STALE 구간은 가능하며 화면과 경보를 그 사실대로 확인한다.
+# 서울 프록시의 토큰만 ops task에 있고 서울 API 키는 프록시에만 있다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task seoul-live-collect --area-name '서울숲공원'
+# 장소 연결(local 전용). 계획 파일의 mappings 배열은 placeId, areaName, mappingType,
+# confidence, fallbackUsed, verifiedAt, evidenceUrl을 각각 담는다. areaName은 위 작업이
+# 저장한 활성 서울 구역 이름과 정확히 같아야 한다. 공백/추측으로 채우지 않는다.
+# 먼저 --approved-plan-sha256 없이 실행해 해시를 받은 뒤, 계획과 근거를 검토한 소유자가
+# 그 해시와 승인 기록을 지정해 다시 실행한다. 승인된 원문은 release 증거로 보존된다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task curate-live-maps --plan-file <plan.json> \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# replay 후보 조회(local 전용, 외부 호출 없음). 출력된 정규화 snapshot UUID와 관측 시각을
+# 확인한 뒤에만 capture 계획을 만든다. 활성 구역의 표준 서울 혼잡도 관측만 목록에
+# 나오며 원본 provider 응답이나 위치 원문은 읽지 않는다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task list-live-replay-candidates
+# replay capture 계획은 name, capturedFrom, capturedTo, snapshotIds 배열을 담는다.
+# 공개 데이터의 정규화 snapshot만 대상이며, 계획을 검토한 오너가 출력된 SHA-256과 승인
+# 기록을 지정해야 한다. 최신 승인 manifest가 자동 fallback 대상이므로 테스트용 계획을
+# staging에 승인하지 않는다. 원 관측이 오래됐어도 화면은 REPLAY와 관측 시각을 표시한다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task capture-live-replay --plan-file <plan.json> \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
 # BA-006-T2 secret 스캔(local 전용). 기록된 모든 release의 assembly(web bundle 포함)·배포된 두 image·보존 중인 로그에서
 # KTO key와 verifier token을 찾는다(원문·URL 인코딩·JSON escape·base64). docker가 필요하다. 값은 출력·기록하지 않는다.
 python3 scripts/aws/staging_operator.py secret-scan

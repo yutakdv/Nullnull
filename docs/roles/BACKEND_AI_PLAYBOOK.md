@@ -185,7 +185,7 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 필수 검증:
 
 - `BA-003-T1`: DB/source 각각의 장애가 올바른 health 범위에만 영향을 준다 — `HealthScopeIT.aDatabaseFailureAffectsReadinessOnly`(필수 database probe가 UNAVAILABLE이면 `/health/ready`가 503 `SOURCE_UNAVAILABLE`+`Retry-After: 5`, `/health/live`는 그대로 200 `UP`), `HealthScopeIT.anOptionalSourceFailureOnlyDegrades`(닿지 않는 추천 서비스는 200 `DEGRADED`이고 NOT_READY가 아니다), `HealthScopeIT.aDatabaseFailureDoesNotChangeTheDemoCapabilities`(infrastructure 장애가 product capability 목록을 바꾸지 않는다), `SystemEndpointsIT.readinessIsDegradedWhileOnlyTheOptionalRecommendationProbeFails`. probe를 DataSource 대신 교체하는 이유는 test class 주석에 적었다(DataSource를 깨면 Flyway·JPA가 함께 죽어 context가 뜨지 않는다).
-- `BA-003-T2`: unknown 필드·초과 body·유효하지 않은 flag 조합을 거부한다 — `HttpPolicyIT.anUnknownBodyFieldIsRefused`(400 `INVALID_REQUEST`, 응답이 필드명도 값도 되풀이하지 않는다), `HttpPolicyIT.aDeclaredContentLengthOverTheBoundIsRefused`와 `RequestBodyLimitIT.aDeclaredContentLengthOverTheBoundIsRefused`(413), `RequestSizeLimitFilterTest.anOversizedDeclaredLengthNeverReachesTheChain`(선언 길이 초과는 chain을 아예 호출하지 않는다), `RequestBodyLimitIT.aChunkedBodyOverTheBoundIsRefused`(실제 Tomcat에 `Transfer-Encoding: chunked`로 보내 stream 중 413), `DemoCapabilityQueryTest.aFlagTurnedOnWithoutASourceIsRefused`(source 없는 `FEATURE_*`를 켜면 startup 실패), `AccessLogFilterTest.includingTheQueryInProductionIsRefused`(`APP_ACCESS_LOG_INCLUDE_QUERY=true`+production은 startup 실패)
+- `BA-003-T2`: unknown 필드·초과 body를 거부하고 flag만 켜진 빈 replay를 READY로 광고하지 않는다 — `HttpPolicyIT.anUnknownBodyFieldIsRefused`(400 `INVALID_REQUEST`, 응답이 필드명도 값도 되풀이하지 않는다), `HttpPolicyIT.aDeclaredContentLengthOverTheBoundIsRefused`와 `RequestBodyLimitIT.aDeclaredContentLengthOverTheBoundIsRefused`(413), `RequestSizeLimitFilterTest.anOversizedDeclaredLengthNeverReachesTheChain`(선언 길이 초과는 chain을 아예 호출하지 않는다), `RequestBodyLimitIT.aChunkedBodyOverTheBoundIsRefused`(실제 Tomcat에 `Transfer-Encoding: chunked`로 보내 stream 중 413), `DemoCapabilityQueryTest.replayReadinessRequiresAnApprovedManifest`(ON이더라도 승인 manifest 전에는 UNAVAILABLE), `AccessLogFilterTest.includingTheQueryInProductionIsRefused`(`APP_ACCESS_LOG_INCLUDE_QUERY=true`+production은 startup 실패)
 - `BA-003-T3`: 모든 응답 오류에 안전한 code/requestId가 있고 secret canary가 없다 — `HttpPolicyIT.everyErrorPathCarriesACodeAndARequestId`(404·405·415·body 상한·unknown field·cursor 2종·422 2종·header 누락·406·500 2종 열세 경로 전부 `code`·`requestId`·`X-Request-ID`를 갖고 exception class 이름이 새지 않는다), `HttpPolicyIT.noCanaryReachesALogLineOrAResponseBody`(header·cookie·query·body 네 경로에 같은 canary를 넣고 root logger의 `ListAppender`로 모든 log line을 확인한다)
 - `BA-003-T4`: DB에 닿지 못하면(이름 해석 실패·연결 거부·무응답) getReadiness는 500이 아니라 503이다 — `ReadinessOutageIT` 세 case. app의 DataSource를 감싸 context가 뜬 **뒤에** 장애 pool로 돌리므로, `T1`이 적은 *"DataSource를 깨면 context가 뜨지 않는다"* 를 피한다. 진짜 Hikari·PG driver가 각 모양의 예외(UnknownHost·ConnectException·SQLTransientConnection)를 내고, case마다 그 모양을 먼저 증명한다
 - `BA-003-T5`: probe가 던지는 예외는 그 probe의 UNAVAILABLE이 되고 readiness 밖으로 나가지 않는다 — `ReadinessQueryTest`의 던지는 필수·선택 probe 두 case(detail은 예외 메시지가 아니라 `probe failed`)
@@ -194,7 +194,7 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 - `BA-003-T8`: 계약의 모든 operation이 선언한 401·403은 그 operation의 security와 method가 도달 가능하게 만드는 것과 같다 — `ProblemResponseCoverageTest.securityRequirementsAndDeclaredStatusesAgree`(양방향이다: 빠지면 client가 실제로 올 답의 타입을 갖지 못하고, 남으면 아무것도 내지 않는 실패를 광고한다. 403의 생산자가 CSRF token 검사와 비안전 method의 origin 검사 둘인 이유는 test 주석에 있다, #170)
 - `BA-003-T9`: 503을 보내는 operation은 그 503을 오는 code를 명명한 응답으로 선언한다 — `ServiceUnavailableContractTest.everyProducedFiveOhThreeNamesItsCode`(생산 목록에는 live 응답의 `$.code`를 단언하는 test가 있는 operation만 넣는다)
 - `BA-003-T10`: 구현된 operation이 선언한 503은 모두 오는 code를 명명한다 — `ServiceUnavailableContractTest.everyImplementedFiveOhThreeIsNamed`(parser가 이름 붙은 두 component만 기록하던 동안에는 빨개질 수 없었다. 지금은 모든 503을 기록하고, `getTrip`의 503을 이름 없는 component로 바꾸면 이 case만 빨개진다)
-- `BA-003-T11`: source가 없는 capability는 준비 완료로 광고되지 않는다 — `DemoReadinessContractTest.nothingIsAdvertisedWithoutASource`(flag가 전부 꺼진 유일한 기동 구성에서 READY인 capability가 없고 overall은 `NOT_READY`)
+- `BA-003-T11`: 꺼진 capability는 준비 완료로 광고되지 않는다 — `DemoReadinessContractTest.disabledCapabilitiesAreNotReady`(flag가 전부 꺼지면 READY인 capability가 없고 overall은 `NOT_READY`)
 - `BA-003-T12`: demo readiness fixture는 `DemoCapabilityQuery`의 실제 출력과 같다 — `DemoReadinessContractTest.fixtureMatchesTheService`
 - 그 밖의 검증: `HttpPolicyIT.cursorFailuresKeepTheirOwnCodes`(`CURSOR_INVALID` 400 / `CURSOR_EXPIRED` 410), `HttpPolicyIT.aServiceConstraintViolationIsUnprocessable`(422 `VALIDATION_FAILED`, `fieldErrors[].field`가 내부 경로가 아닌 parameter 이름), `HttpPolicyIT.exhaustedOwnerCommandContentionIsInternalError`, `HttpPolicyIT.theAccessLogLineIsTheAllowedFieldsOnly`(허용 필드만·query 없음·MDC pattern이 console line에 requestId를 찍는다), `HttpPolicyIT.anUnmatchedRouteIsLoggedWithoutItsUri`, `HttpPolicyIT.aBodyUnderTheBoundIsAccepted`, `RequestBodyLimitIT.aChunkedBodyUnderTheBoundIsAccepted`, `OwnerCommandContentionIT`(흡수되는 경합과 소진되는 경합), `SystemEndpointsIT.demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes`, `SystemContractTest.demoReadinessMatchesDemoReadinessSchema`(`DemoReadiness` schema 검증과 capability 이름)
 - 단위 검증: `DemoCapabilityQueryTest`(vocabulary 고정, 두 namespace가 이름을 공유하지 않음, source 없는 capability는 UNAVAILABLE, overall 집계), `AccessLogFilterTest`, `RequestSizeLimitFilterTest`(설정 하한) — 모두 `test` suite
@@ -658,6 +658,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-022-T5`: 창이 0건인 관측도 근거로 저장된다
 - `BA-022-T6`: 종료가 시작보다 빠르거나 같은 영업 창을 거부한다
 - `BA-022-T7`: 관측이 붙은 place는 폐기할 수 없다
+- `BA-022-T8`: catalog 게이트가 닫히면 searchPlaces 가 503 SOURCE_UNAVAILABLE 로 거절한다
+- `BA-022-T9`: catalog 게이트가 닫히면 실재하는 place 의 getPlace 도 503 SOURCE_UNAVAILABLE 로 거절한다
 
 FE 인계·완료 증거: 검색 loading/empty/404/coverage 부족·KO/EN fallback fixtures, 장소 선택은 canonical ID만 확정. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2430,6 +2432,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. searchPlaces→canonical 선택→getLivePlace coverage 흐름을 연결한다
 3. relation NONE/CHECKING/UNKNOWN·비교 불가·후보 저장은 기존 공통 계약을 재사용한다
 4. 09-06 PM 검토 PM-010, PM-012, PM-013, PM-020의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+5. 서울 관측은 API 작업의 5분 주기 원자적 claim으로 적재하고 장소 연결은 소유자가 해시를 승인한 매핑 계획으로 적재한다
 
 진행 상태(대조): **`T5` 를 좁혔다.** 원래 문구는 *"다른 owner 의 cursor 는 거절된다"* 였는데 **Live 표면 전체에 cursor 가 없다** — `listLiveAreaPlaces` 는 page envelope 가 아니라 맨 배열을 내고 `getLivePlace` 는 단건이며 `queryLiveAreas` 의 요청에도 cursor 가 없다(계약 측정). **상류가 그 입력을 만들 수 없어 구조적으로 반증 불가인 절**이라 그대로 두면 증명할 방법이 없다. **그래서 지우지 않고 덫으로 바꿨다**: 지금 참인 사실(cursor 를 발급하지 않는다)을 응답 shape 로 고정하면, **Live 에 페이지네이션이 생기는 날 그 단언이 발화하고** 그때 owner 결속을 다시 세워야 한다는 것이 드러난다. **owner 별 cursor 거절 자체는 `BA-022-T2`·`BA-070-T1` 이 소유한 층**이고 이 카드가 그것을 다시 증명하지 않는다.
 
@@ -2452,6 +2455,17 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T13`: 같은 Live 장소를 다시 저장하면 duplicate 이고 일정은 그대로다
 - `BA-091-T14`: 같은 key 로 재시도해도 후보는 하나이고 일정은 그대로다
 - `BA-091-T15`: 두 매핑이 한 장소로 병합되면 직접 매핑이 fallback 을 이긴다
+- `BA-091-T16`: 거절된 서울 관측은 수집 작업의 성공으로 보고되지 않는다
+- `BA-091-T17`: 승인된 매핑은 계획이 지목한 활성 서울 구역에 연결된다
+- `BA-091-T18`: 동일 매핑 계획을 재실행해도 연결 행은 하나다
+- `BA-091-T19`: 오래된 승인 계획은 더 새로운 매핑 검토를 되돌리지 않는다
+- `BA-091-T20`: 새 승인 계획은 이전 구역 연결을 원자적으로 교체한다
+- `BA-091-T21`: 계획의 두 번째 매핑이 무효이면 첫 번째도 기록되지 않는다
+- `BA-091-T22`: 뒤늦게 수신한 과거 관측은 더 새로운 관측을 가리지 않는다
+- `BA-091-T23`: 이미 만료된 관측은 Live 수집 성공으로 보고되지 않는다
+- `BA-091-T24`: 복수 API 작업이 같은 서울 구역을 동시에 수집하지 않는다
+- `BA-091-T25`: 같은 승인 시각의 다른 매핑 판단은 기존 판단을 덮지 않는다
+- `BA-091-T26`: 심사 종료 시각부터 서울 수집을 시도하지 않는다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2469,7 +2483,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 구현 순서:
 
-1. 승인 출처·scrub·capture window·checksum·entry order가 고정된 replay manifest를 검증한다
+1. 승인된 정규화 관측의 출처·capture window·checksum·entry order가 고정된 replay manifest를 검증한다
 2. LIVE/REPLAY/STALE/UNAVAILABLE 전환과 persistent badge를 FE에 연결한다
 3. BA-073 핵심 검수를 Live 포함 전체 P0로 재실행하고 같은 release의 PDF/API/실제 KTO 증거를 갱신한다
 4. 09-06 PM 검토 PM-013, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
@@ -2484,6 +2498,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-092-T6`: 승인된 manifest 와 그 entry 는 수정되지 않는다
 - `BA-092-T7`: scrub 방식을 실은 manifest 는 만들 수 없다 — 그 column 이 아직 없다
 - `BA-092-T2`: live↔replay 전환에서 데이터 namespace·label·comparison이 섞이지 않는다
+- `BA-092-T8`: 최신 승인 manifest가 손상되면 과거 replay로 조용히 후퇴하지 않는다
+- `BA-092-T9`: 오너 승인 계획에 적힌 정규화 관측만 manifest로 캡처한다
+- `BA-092-T10`: 현재 승인이 철회된 출처의 replay는 제공하지 않는다
+- `BA-092-T11`: replay flag가 켜져도 승인 manifest 전에는 READY를 광고하지 않는다
+- `BA-092-T12`: 비활성 구역의 관측은 capture 또는 replay할 수 없다
+- `BA-092-T13`: 서울 표준 metric 또는 normalization과 다른 관측은 capture 또는 replay할 수 없다
+- `BA-092-T14`: 구역 목록과 장소 상세는 전체 활성 구역의 현재 LIVE 여부를 같은 기준으로 판정한다
 - `BA-092-T3`: 전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다
 
 FE 인계·완료 증거: 최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.

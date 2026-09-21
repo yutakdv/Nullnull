@@ -2,6 +2,8 @@ package io.nullnull.contract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.nullnull.crowd.application.ReplayManifestReader;
+import io.nullnull.crowd.application.ReplayManifestReader.ReplayBatch;
 import io.nullnull.operations.application.DemoCapabilityQuery;
 import io.nullnull.operations.application.DemoCapabilityQuery.DemoReadinessReport;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -32,6 +36,17 @@ class DemoReadinessContractTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final Instant CHECKED = Instant.parse("2026-09-10T00:00:00Z");
+    private static final ReplayManifestReader UNUSED_REPLAY = new ReplayManifestReader() {
+        @Override
+        public Optional<ReplayBatch> read(UUID manifestId, Instant now) {
+            throw new AssertionError("replay is disabled");
+        }
+
+        @Override
+        public Optional<ReplayBatch> latestFor(String sourceCode, Instant now) {
+            throw new AssertionError("replay is disabled");
+        }
+    };
 
     private static Path fixture() {
         String property = System.getProperty("nullnull.fixtures.path");
@@ -63,10 +78,9 @@ class DemoReadinessContractTest {
     @Test
     @DisplayName("BA-003-T12 the demo readiness fixture is what DemoCapabilityQuery actually answers")
     void fixtureMatchesTheService() throws Exception {
-        // Every flag OFF is the only configuration that starts: the constructor refuses an ON flag
-        // with no source behind it, which is the safety line this endpoint exists to hold.
+        // Disabled capabilities never read their sources or claim readiness.
         DemoCapabilityQuery query = new DemoCapabilityQuery(false, false, false,
-                Clock.fixed(CHECKED, ZoneOffset.UTC));
+                UNUSED_REPLAY, Clock.fixed(CHECKED, ZoneOffset.UTC));
 
         JsonNode produced = JSON.valueToTree(project(query.readiness()));
         JsonNode onDisk = JSON.readTree(Files.readString(fixture(), StandardCharsets.UTF_8));
@@ -75,10 +89,10 @@ class DemoReadinessContractTest {
     }
 
     @Test
-    @DisplayName("BA-003-T11 a capability with no source is never advertised as ready")
-    void nothingIsAdvertisedWithoutASource() {
+    @DisplayName("BA-003-T11 disabled capabilities are never advertised as ready")
+    void disabledCapabilitiesAreNotReady() {
         DemoReadinessReport report = new DemoCapabilityQuery(false, false, false,
-                Clock.fixed(CHECKED, ZoneOffset.UTC)).readiness();
+                UNUSED_REPLAY, Clock.fixed(CHECKED, ZoneOffset.UTC)).readiness();
         assertThat(report.capabilities()).isNotEmpty();
         assertThat(report.capabilities())
                 .as("no capability may report READY while nothing answers it")

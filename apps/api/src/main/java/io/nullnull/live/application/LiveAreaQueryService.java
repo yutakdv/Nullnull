@@ -1,7 +1,6 @@
 package io.nullnull.live.application;
 
 import io.nullnull.crowd.application.CrowdProvenanceProjection.CrowdMetric;
-import io.nullnull.crowd.application.LiveAreaCrowdQuery;
 import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.live.domain.CoarseViewport;
 import io.nullnull.live.domain.LiveQueryMode;
@@ -42,11 +41,11 @@ public class LiveAreaQueryService {
     private final LiveCapability capability;
     private final LiveAreaProjection projection;
     private final LiveAreaStore areas;
-    private final LiveAreaCrowdQuery readings;
+    private final LiveAreaReadingSelector readings;
     private final Clock clock;
 
     public LiveAreaQueryService(LiveCapability capability, LiveAreaProjection projection,
-            LiveAreaStore areas, LiveAreaCrowdQuery readings, Clock clock) {
+            LiveAreaStore areas, LiveAreaReadingSelector readings, Clock clock) {
         this.capability = Objects.requireNonNull(capability, "capability");
         this.projection = Objects.requireNonNull(projection, "projection");
         this.areas = Objects.requireNonNull(areas, "areas");
@@ -70,7 +69,7 @@ public class LiveAreaQueryService {
         Instant now = clock.instant();
         List<LiveAreaStore.StoredArea> stored = areas.activeAreas(SeoulLiveAreaObservation.SOURCE_CODE);
         Map<UUID, CrowdMetric> byArea = new HashMap<>();
-        readings.latestFor(SeoulLiveAreaObservation.SOURCE_CODE,
+        readings.select(LiveQueryMode.valueOf(mode), SeoulLiveAreaObservation.SOURCE_CODE,
                         stored.stream().map(LiveAreaStore.StoredArea::id).toList(), now)
                 .forEach(reading -> byArea.put(reading.liveAreaId(), reading.crowd()));
         List<LiveAreaProjection.AreaRow> rows = new ArrayList<>(stored.size());

@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  * "nothing to report" is the honest answer. Collapsing the two would make an operator unable to tell
  * a disabled tab from a broken provider by looking at a response.
  *
- * <p>The flag defaults OFF everywhere and this build has no path that turns it on.
+ * <p>The flag defaults OFF locally; staging opts in after wiring the Seoul collector.
  */
 @Component
 public class LiveCapability {

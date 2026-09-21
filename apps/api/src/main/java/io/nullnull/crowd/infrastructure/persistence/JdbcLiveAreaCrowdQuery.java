@@ -42,7 +42,7 @@ public class JdbcLiveAreaCrowdQuery implements LiveAreaCrowdQuery {
                   FROM crowd_snapshots point
                  WHERE point.source_code = ?
                    AND point.live_area_id = ANY (?)
-                 ORDER BY point.live_area_id, point.fetched_at DESC, point.id DESC
+                 ORDER BY point.live_area_id, point.observed_at DESC, point.fetched_at DESC, point.id DESC
                 """, result -> {
             UUID snapshotId = result.getObject("id", UUID.class);
             areaBySnapshot.put(snapshotId, result.getObject("live_area_id", UUID.class));

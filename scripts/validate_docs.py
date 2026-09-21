@@ -28,6 +28,8 @@ FIGMA_PATH = ROOT / "docs/design/FIGMA_HANDOFF.md"
 COMPONENT_PATH = ROOT / "docs/design/COMPONENT_CATALOG.md"
 FIGMA_CHANGE_PATH = ROOT / "docs/design/FIGMA_CHANGE_REQUESTS.md"
 PM_AUDIT_PATH = ROOT / "docs/project/DECISIONS_AND_RISKS.md"
+ARCHITECTURE_PATH = ROOT / "docs/architecture/SYSTEM_ARCHITECTURE.md"
+ARCHITECTURE_RULES_PATH = ROOT / "apps/api/src/test/java/io/nullnull/ArchitectureRulesTest.java"
 EVENT_SCHEMA_PATH = ROOT / "docs/contracts/events.schema.json"
 EVENT_EXAMPLE_PATH = ROOT / "docs/contracts/events.example.json"
 INTEGRATION_WORKFLOW_PATH = ROOT / ".github/workflows/integration.yml"
@@ -673,6 +675,56 @@ def validate_delivery_contract(problems: list[str]) -> None:
     )
 
 
+def validate_module_ownership(problems: list[str]) -> None:
+    """SYSTEM_ARCHITECTURE section 4 and ArchitectureRulesTest.MODULES name the same modules.
+
+    `apps/api/CLAUDE.md` tells every backend session that section 4 is the 정본 and that
+    `ArchitectureRulesTest.MODULES` "강제한다 같은 목록" - but nothing checked it, and the claim
+    was false: section 4 had ten rows while MODULES had eleven, missing `recommendation`, the
+    module ADR-0006 created. It reached the code and the ArchUnit array and never the table.
+    A countable proposition that no one counted, which is the shape this repository keeps hitting.
+
+    Both sides must parse to a non-empty set. An empty match is a failure, not a pass: a regex
+    that silently stops matching would otherwise turn this into a check that agrees with anything.
+
+    What this does NOT check: the third column. It compares the module *list*, not table
+    ownership, so a module that later starts persisting - a JPA `@Entity` in `recommendation`,
+    say - keeps its empty 소유 table cell without anything objecting. That cell is empty today
+    because the package has zero persistence, verified two ways: no raw SQL, and no
+    `@Entity`/`@Table`/`@Repository`/`JpaRepository`/`EntityManager` anywhere in its 46 files.
+    The second method matters because the first alone cannot see JPA-based ownership at all.
+    """
+    for path in (ARCHITECTURE_PATH, ARCHITECTURE_RULES_PATH):
+        if not path.exists():
+            problems.append(f"module ownership: {path.relative_to(ROOT)} is missing")
+            return
+
+    section = re.search(
+        r"^## 4\..*?(?=^## 5\.)", ARCHITECTURE_PATH.read_text(encoding="utf-8"),
+        re.MULTILINE | re.DOTALL)
+    if section is None:
+        problems.append("module ownership: SYSTEM_ARCHITECTURE has no section 4 to read")
+        return
+    documented = {m.group(1) for m in re.finditer(r"^\| `([a-z]+)`", section.group(0), re.MULTILINE)}
+
+    array = re.search(r"MODULES\s*=\s*\{(.*?)\}",
+                      ARCHITECTURE_RULES_PATH.read_text(encoding="utf-8"), re.DOTALL)
+    if array is None:
+        problems.append("module ownership: ArchitectureRulesTest.MODULES could not be read")
+        return
+    enforced = set(re.findall(r'"([a-z]+)"', array.group(1)))
+
+    if not documented or not enforced:
+        problems.append(
+            f"module ownership: a side parsed empty (documented={len(documented)}, "
+            f"enforced={len(enforced)}) - the check cannot agree with an empty set")
+        return
+    for missing in sorted(enforced - documented):
+        problems.append(f"module ownership: ArchUnit enforces `{missing}` but section 4 has no row")
+    for extra in sorted(documented - enforced):
+        problems.append(f"module ownership: section 4 lists `{extra}` but ArchUnit does not enforce it")
+
+
 def main() -> int:
     problems: list[str] = []
     validate_local_links(problems)
@@ -683,6 +735,7 @@ def main() -> int:
     problem_mapping_ran = validate_problem_code_mapping(problems)
     validate_json_files(problems)
     validate_delivery_contract(problems)
+    validate_module_ownership(problems)
     validate_backend_plan(ROOT, problems)
     validate_frontend_plan(ROOT, problems)
 
@@ -705,6 +758,7 @@ def main() -> int:
     checks += [
         "JSON syntax",
         "delivery policy",
+        "module ownership (section 4 = ArchUnit MODULES)",
         "contest evidence",
         "backend plan coverage/DAG and Obsidian links/Canvas",
         "frontend plan features/nodes/DAG",
