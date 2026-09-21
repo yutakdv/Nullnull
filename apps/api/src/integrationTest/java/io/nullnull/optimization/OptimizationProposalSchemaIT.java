@@ -1,5 +1,6 @@
 package io.nullnull.optimization;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -7,6 +8,7 @@ import io.nullnull.crowd.domain.ComparisonReasonCode;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +59,51 @@ class OptimizationProposalSchemaIT {
         if (ownerId != null) {
             jdbc.update("DELETE FROM owners WHERE id = ?", ownerId);
         }
+    }
+
+    /**
+     * A-055 forbids storing the Kakao route response; A-063 permits the comparison value derived
+     * from it, and permits it because that value is unauditable by construction - it ships with no
+     * provenance and has no operand to expand back into. That reasoning holds only while no operand
+     * column joins the delta, which is what this case is for: the guard is the condition under which
+     * the permission is true. So {@code travel_minutes_delta} stays and an operand column may
+     * never join it - {@code baseline_travel_minutes}, per-leg durations, distances, geometry, or any
+     * combination the operands could be recovered from.
+     *
+     * <p>Nothing mechanical can tell a route operand from any other new column, so this pins the SET.
+     * Adding a column fails here, and whoever adds it has to answer the rule in this message before
+     * they can make it pass. A denylist of names would catch {@code baseline_travel_minutes} and miss
+     * {@code leg_durations}, and would say nothing at all about a combination no single name describes;
+     * the set is the only form that cannot be satisfied by picking a different name.
+     *
+     * <p>Why the boundary is held on this table rather than at the route gateway: {@code crowd_delta}
+     * is stored beside {@code before_snapshot_id}/{@code after_snapshot_id}, which point at immutable
+     * operands, and {@link io.nullnull.optimization.application.OptimizationProposalReader} refuses to
+     * serve a proposal whose points are gone. A route delta has no such pair and cannot acquire one, so
+     * the column set is the only place the rule can live.
+     *
+     * <p>Reading {@code information_schema} is a global read on purpose and is not the shared-database
+     * hazard the row-ownership rule is about: a column set is schema, no concurrent test can change it,
+     * and there are no rows of anyone's to count.
+     */
+    @Test
+    @DisplayName("BA-083-T41 optimization_proposals holds exactly the declared columns, so no route operand can join the delta")
+    void theProposalTableHoldsNoRouteOperandColumn() {
+        List<String> declared = List.of("id", "run_id", "rank", "summary", "comparison_eligible",
+                "comparison_reason_code", "crowd_delta", "travel_minutes_delta", "before_snapshot_id",
+                "after_snapshot_id", "validation_summary", "created_at");
+
+        List<String> actual = jdbc.queryForList("SELECT column_name FROM information_schema.columns"
+                + " WHERE table_schema = current_schema() AND table_name = 'optimization_proposals'",
+                String.class);
+
+        assertThat(actual)
+                .as("A-055: optimization_proposals may hold a comparison value derived from a route"
+                        + " response, never an operand of it. A new column here needs that answer first:"
+                        + " if it stores a baseline travel total, a per-leg duration or distance, route"
+                        + " geometry, or anything the response could be rebuilt from, it may not exist."
+                        + " If it is unrelated to routes, add it to this list in the same commit.")
+                .containsExactlyInAnyOrderElementsOf(declared);
     }
 
     @Test
