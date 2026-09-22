@@ -394,6 +394,12 @@ export function FeedScreen() {
           <IconSearch />
         </button>
 
+        {trips.isSuccess && tripItems.length > 0 ? (
+          <Link className={styles.authorLink} to="/posts/new">
+            {t('author.entry')}
+          </Link>
+        ) : null}
+
         {showSearchNotice ? (
           <div className={styles.searchNotice}>
             <Toast message={t('feed.searchComingSoon')} />
