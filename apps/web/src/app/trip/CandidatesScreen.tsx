@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRef, useState, type RefObject } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import {
   isProblem,
+  tripQueryKey,
   useAddTripItem,
   useCandidateMatches,
   useRemoveTripCandidate,
@@ -31,7 +33,7 @@ import { ScheduleCandidateSheet } from './ScheduleCandidateSheet.js';
 // (invariant 5). The client never adds the item and then patches the candidate,
 // which could leave a scheduled item beside an ACTIVE candidate.
 //
-// The five match states are rendered as five different things. CHECKING is not
+// Match states are rendered distinctly. CHECKING is not
 // "no dates", UNKNOWN is not "no dates", and NONE is the only one that says so.
 //
 // MOCK DATA: listTripCandidates, getCandidateTripMatches and addTripItem have
@@ -62,6 +64,7 @@ export function CandidatesScreen() {
   const trip = useTrip(tripId ?? null);
   const candidates = useTripCandidates(tripId ?? null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   const items = visibleCandidates(candidates.data?.items ?? []);
 
@@ -96,7 +99,12 @@ export function CandidatesScreen() {
 
             `trip` is already fetched above for the title, so this costs no
             extra request. */}
-        <h1 className={styles.srOnly} id="candidates-heading">
+        <h1
+          className={styles.srOnly}
+          id="candidates-heading"
+          ref={headingRef}
+          tabIndex={-1}
+        >
           {trip.isSuccess
             ? t('candidates.open', { count: trip.data.trip.candidateCount })
             : t('candidates.title')}
@@ -138,6 +146,7 @@ export function CandidatesScreen() {
             <li key={candidate.id}>
               <CandidateCardRow
                 candidate={candidate}
+                afterRefreshRef={headingRef}
                 etag={trip.data?.etag ?? null}
                 onToggle={() => {
                   setOpenId((current) =>
@@ -156,6 +165,7 @@ export function CandidatesScreen() {
 }
 
 interface RowProps {
+  afterRefreshRef: RefObject<HTMLHeadingElement | null>;
   candidate: TripCandidate;
   tripId: string | null;
   etag: string | null;
@@ -163,9 +173,19 @@ interface RowProps {
   onToggle: () => void;
 }
 
-function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps) {
+function CandidateCardRow({
+  afterRefreshRef,
+  candidate,
+  tripId,
+  etag,
+  open,
+  onToggle,
+}: RowProps) {
   const { locale, t } = useI18n();
   const scheduled = isScheduled(candidate);
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshButtonRef = useRef<HTMLButtonElement>(null);
   // Only fetched once the user opens this card: asking the server for slots on
   // every candidate at once would be a burst of requests for answers nobody
   // has looked at yet.
@@ -200,6 +220,22 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join(' · ');
   const match = matches.data;
+  const notActive = match?.state === 'NOT_ACTIVE';
+
+  function refresh() {
+    if (!tripId || refreshing) return;
+    setRefreshing(true);
+    // Refresh the trip, list and matches together: a previous ACTIVE row may
+    // now be scheduled, dismissed, or saved again. No state is guessed locally.
+    void queryClient.invalidateQueries({ queryKey: tripQueryKey(tripId) }).finally(() => {
+      setRefreshing(false);
+      setTimeout(() => {
+        restoreFocusTo(
+          refreshButtonRef.current ?? afterScheduleRef.current ?? afterRefreshRef.current,
+        );
+      }, 0);
+    });
+  }
   const tripDates = (trip.data?.trip.days ?? []).map((day) => day.date).sort();
 
   /**
@@ -308,6 +344,7 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
               "현재 일정과 겹치지 않아요" there rather than leaving it blank. */}
           {match ? (
             <p
+              role={notActive ? 'status' : undefined}
               className={
                 match.state === 'SIMILAR'
                   ? `${styles.badge} ${styles.badgeRelated}`
@@ -364,12 +401,18 @@ function CandidateCardRow({ candidate, tripId, etag, open, onToggle }: RowProps)
       <div className={styles.rowActions}>
         {scheduled ? null : (
           <button
-            aria-expanded={open}
+            aria-expanded={notActive ? undefined : open}
             className={styles.primary}
-            onClick={onToggle}
+            disabled={refreshing}
+            onClick={notActive ? refresh : onToggle}
+            ref={refreshButtonRef}
             type="button"
           >
-            {open ? t('candidates.cancel') : t('candidates.add')}
+            {notActive
+              ? t('candidates.refresh')
+              : open
+                ? t('candidates.cancel')
+                : t('candidates.add')}
           </button>
         )}
         <button

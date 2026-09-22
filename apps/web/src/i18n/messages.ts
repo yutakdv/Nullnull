@@ -976,6 +976,9 @@ export const messages = {
     'candidates.match.UNKNOWN': '판단할 근거가 부족해요. 날짜를 직접 골라주세요',
     'candidates.match.SIMILAR': '비슷한 장소예요',
     'candidates.match.EXACT': '현재 일정과 겹치지 않아요',
+    'candidates.match.NOT_ACTIVE':
+      '이미 일정에 담겼거나 후보에서 제거된 장소예요. 목록을 새로고침해 현재 상태를 확인해 주세요.',
+    'candidates.refresh': '목록 새로고침',
     'candidates.match.error': '가능한 날짜를 확인하지 못했어요',
     // S07-10 후보 일정화 sheet `527:4732`. 문구는 Figma 그대로다.
     'candidates.sheet.title': '어느 날에 추가할까요?',
@@ -1856,6 +1859,9 @@ export const messages = {
     'candidates.match.UNKNOWN': "We can't tell — choose a date yourself",
     'candidates.match.SIMILAR': 'A similar place',
     'candidates.match.EXACT': "Doesn't clash with your itinerary",
+    'candidates.match.NOT_ACTIVE':
+      'This place has already been scheduled or removed. Refresh the list to see its current status.',
+    'candidates.refresh': 'Refresh saved places',
     'candidates.match.error': "We couldn't check which days would work",
     'candidates.sheet.title': 'Which day should it go on?',
     'candidates.sheet.cancel': 'Cancel',

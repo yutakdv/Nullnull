@@ -121,6 +121,7 @@ const COVERAGE: readonly Coverage[] = [
       'NONE',
       'CHECKING',
       'UNKNOWN',
+      'NOT_ACTIVE',
     ] satisfies readonly Schemas['CandidateMatchResult']['state'][],
   },
   {

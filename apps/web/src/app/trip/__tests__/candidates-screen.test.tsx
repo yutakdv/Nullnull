@@ -272,6 +272,155 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
   });
 });
 
+describe('FE-303-T2 NOT_ACTIVE after the candidate list was read', () => {
+  afterEach(() => localStorage.removeItem('nullnull.locale'));
+
+  it.each([
+    [
+      'en-US',
+      'SCHEDULED',
+      'This place has already been scheduled or removed. Refresh the list to see its current status.',
+      'Refresh saved places',
+    ],
+    [
+      'ko-KR',
+      'DISMISSED',
+      '이미 일정에 담겼거나 후보에서 제거된 장소예요. 목록을 새로고침해 현재 상태를 확인해 주세요.',
+      '목록 새로고침',
+    ],
+  ] as const)(
+    'explains the race in %s and refreshes to %s without scheduling again',
+    async (locale, status, message, refreshLabel) => {
+      if (!active) throw new Error('active fixture missing');
+      localStorage.setItem('nullnull.locale', locale);
+      const localeCopy = messages[locale];
+      let releaseMatch: (() => void) | undefined;
+      let releaseList: (() => void) | undefined;
+      let listRequests = 0;
+      let matchRequests = 0;
+      server.use(
+        http.get(`${API_BASE}/trips/:tripId/candidates`, async () => {
+          listRequests += 1;
+          if (listRequests > 1) {
+            await new Promise<void>((resolve) => {
+              releaseList = resolve;
+            });
+          }
+          return HttpResponse.json({
+            ...page,
+            items: [{ ...active, status: listRequests === 1 ? 'ACTIVE' : status }],
+          });
+        }),
+        http.get(
+          `${API_BASE}/trips/:tripId/candidates/:candidateId/matches`,
+          async () => {
+            matchRequests += 1;
+            if (matchRequests === 1) {
+              await new Promise<void>((resolve) => {
+                releaseMatch = resolve;
+              });
+            }
+            return HttpResponse.json({
+              candidateId: active.id,
+              state: 'NOT_ACTIVE',
+              slots: [],
+            });
+          },
+        ),
+      );
+      const user = userEvent.setup();
+      renderPanel();
+      const heading = await loaded();
+      const card = heading.closest('article');
+      if (!card) throw new Error('card missing');
+      await user.click(
+        within(card).getByRole('button', { name: localeCopy['candidates.add'] }),
+      );
+      const sheet = await screen.findByRole('dialog', {
+        name: localeCopy['candidates.sheet.title'],
+      });
+      await waitFor(() => expect(releaseMatch).toBeDefined());
+      releaseMatch?.();
+
+      expect(await within(sheet).findByText(message)).toBeVisible();
+      expect(
+        within(sheet).queryByText(localeCopy['candidates.sheet.noDates']),
+      ).toBeNull();
+      expect(
+        within(sheet).queryByRole('list', { name: localeCopy['candidates.pickDate'] }),
+      ).toBeNull();
+      await user.click(
+        within(sheet).getByRole('button', {
+          name: localeCopy['candidates.sheet.cancel'],
+        }),
+      );
+      expect(
+        within(card).queryByRole('button', { name: localeCopy['candidates.add'] }),
+      ).toBeNull();
+      const refresh = within(card).getByRole('button', { name: refreshLabel });
+      refresh.focus();
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(releaseList).toBeDefined());
+      expect(refresh).toBeDisabled();
+      await user.click(refresh);
+      expect(listRequests).toBe(2);
+      releaseList?.();
+
+      if (status === 'SCHEDULED') {
+        expect(
+          await within(card).findByText(localeCopy['candidates.scheduled']),
+        ).toBeVisible();
+        await waitFor(() =>
+          expect(
+            within(card).getByRole('button', { name: /Remove .* from saved/ }),
+          ).toHaveFocus(),
+        );
+      } else {
+        await waitFor(() =>
+          expect(
+            screen.queryByRole('heading', { level: 2, name: active.place.name }),
+          ).toBeNull(),
+        );
+        await waitFor(() =>
+          expect(screen.getByRole('heading', { level: 1 })).toHaveFocus(),
+        );
+      }
+      expect(sent).toHaveLength(0);
+      expect(listRequests).toBe(2);
+      expect(matchRequests).toBe(2);
+    },
+  );
+
+  it('keeps NOT_ACTIVE unschedulable after a refresh fails and allows an explicit retry', async () => {
+    if (!active) throw new Error('active fixture missing');
+    let listRequests = 0;
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates`, () => {
+        listRequests += 1;
+        return listRequests === 1
+          ? HttpResponse.json({ ...page, items: [active] })
+          : HttpResponse.error();
+      }),
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({ candidateId: active.id, state: 'NOT_ACTIVE', slots: [] }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+    await loaded();
+    const refresh = await screen.findByRole('button', { name: 'Refresh saved places' });
+    await user.click(refresh);
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy['candidates.error']);
+    expect(refresh).toBeEnabled();
+    expect(screen.queryByRole('button', { name: copy['candidates.add'] })).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /This place has already been scheduled or removed/,
+    );
+    expect(sent).toHaveLength(0);
+    expect(listRequests).toBe(2);
+  });
+});
+
 describe('FE-303-T1 scheduling is one atomic request', () => {
   it('sends candidateId with the item so the server does both together', async () => {
     const { user } = await openDates(page.items[1]?.place.name ?? '');
