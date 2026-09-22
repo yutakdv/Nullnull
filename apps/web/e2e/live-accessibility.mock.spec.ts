@@ -112,3 +112,36 @@ test.describe('FE-403-T3 Live reduced motion', () => {
     expect(motion.transitionDuration).toMatch(/^(?:0s|1e-05s|0\.00001s)$/);
   });
 });
+
+for (const locale of ['ko-KR', 'en-US'] as const) {
+  test(`FE-402 FE-403 Seoul scale and offline recovery in ${locale}`, async ({
+    page,
+    context,
+  }) => {
+    const ko = locale === 'ko-KR';
+    await useLocale(page, locale);
+    await page.goto(LIVE_PLACE_PATH);
+    const bar = page.getByRole('img', {
+      name: ko ? /서울 혼잡도 4단계/ : /Seoul crowd level .* of 4/,
+    });
+    await expect(bar).toBeVisible();
+    await expect(bar.locator(':scope > span')).toHaveCount(4);
+    await page
+      .getByRole('button', { name: ko ? '라이브로 돌아가기' : 'Back to Live' })
+      .click();
+    const list = page.getByRole('list', {
+      name: ko ? '지금 권역 혼잡' : 'Crowding by area now',
+    });
+    await expect(list).toBeVisible();
+    await context.setOffline(true);
+    const offline = page.getByText(
+      ko
+        ? '인터넷 연결이 끊겼어요. 이전에 불러온 정보는 현재와 다를 수 있어요.'
+        : 'You are offline. Previously loaded readings may be out of date.',
+    );
+    await expect(offline).toBeVisible();
+    await expect(list).toBeVisible();
+    await context.setOffline(false);
+    await expect(offline).not.toBeVisible();
+  });
+}
