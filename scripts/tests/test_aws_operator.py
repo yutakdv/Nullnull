@@ -603,6 +603,100 @@ class OperationsTargetRegressions(unittest.TestCase):
         self.assertIn('ops_log seoul_live_collect live=true',out)
 
 class SecretProvisioningRegressions(unittest.TestCase):
+    def run_seoul(self, current, key='SYNTHETIC_SEOUL_KEY', *, ambient=False, denied=False, action='secrets'):
+        import contextlib, io
+        calls=[];out=io.StringIO();err=io.StringIO()
+        def fake(service,operation,**kw):
+            calls.append((service,operation,kw))
+            if denied:raise ops.OpsError('aws-failed-secretsmanager-get-secret-value')
+            if operation=='get-secret-value':return {'SecretString':current}
+            return {}
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'apps/api').mkdir(parents=True)
+            (root/'apps/api/.env.local').write_text('SEOUL_API_KEY='+key+'\n')
+            env=AuthModeRegressions.AMBIENT if ambient else OperatorRegressions.PROFILE
+            with patch.object(ops,'ROOT',root),patch.dict(os.environ,env),patch.object(ops,'identity'),\
+                    patch.object(ops,'aws',side_effect=fake),\
+                    patch.object(ops.sys,'argv',['staging_operator.py',action,'--seoul']),\
+                    contextlib.redirect_stdout(out),contextlib.redirect_stderr(err):
+                try:code=ops.main()
+                except SystemExit as failure:code=failure.code
+        return code,calls,out.getvalue()+err.getvalue()
+
+    def test_seoul_changes_only_key_and_keeps_proxy_token_and_other_fields(self):
+        code,calls,out=self.run_seoul(json.dumps({'apiKey':'','proxyToken':'KEEP_THIS_TOKEN','extra':{'retain':True}}))
+        self.assertEqual(0,code,out)
+        self.assertEqual(['get-secret-value','put-secret-value'],[c[1] for c in calls])
+        self.assertTrue(all(c[2]['SecretId']=='nullnull-stg/seoul-proxy' for c in calls))
+        self.assertEqual({'apiKey':'SYNTHETIC_SEOUL_KEY','proxyToken':'KEEP_THIS_TOKEN','extra':{'retain':True}},
+                         json.loads(calls[1][2]['SecretString']))
+        self.assertIn('seoul_secret=provisioned changed=true',out)
+        for value in ('SYNTHETIC_SEOUL_KEY','KEEP_THIS_TOKEN'):self.assertNotIn(value,out)
+
+    def test_seoul_identical_key_does_not_create_another_secret_version(self):
+        code,calls,out=self.run_seoul('{"apiKey":"SYNTHETIC_SEOUL_KEY","proxyToken":"KEEP_THIS_TOKEN"}')
+        self.assertEqual(0,code,out)
+        self.assertEqual(['get-secret-value'],[c[1] for c in calls])
+        self.assertIn('changed=false',out)
+
+    def test_seoul_refuses_broken_json_or_token_without_replacing_it(self):
+        for current in (None,'','SENSITIVE_INVALID_JSON','null','[]','{}',
+                        '{"apiKey":""}', '{"apiKey":"","proxyToken":""}',
+                        '{"apiKey":"","proxyToken":"   "}', '{"apiKey":"","proxyToken":42}',
+                        '{"apiKey":null,"proxyToken":"KEEP_THIS_TOKEN"}'):
+            with self.subTest(current=current):
+                code,calls,out=self.run_seoul(current)
+                self.assertEqual(1,code,out)
+                self.assertEqual(['get-secret-value'],[c[1] for c in calls])
+                self.assertIn('seoul-secret-invalid',out)
+                self.assertNotIn('SENSITIVE_INVALID_JSON',out)
+                self.assertNotIn('KEEP_THIS_TOKEN',out)
+
+    def test_seoul_invalid_local_key_does_not_read_or_write_remote_secret(self):
+        for key in ('','short','bad key with spaces','x'*513):
+            with self.subTest(length=len(key)):
+                code,calls,out=self.run_seoul('{}',key)
+                self.assertEqual(1,code,out);self.assertEqual([],calls)
+                self.assertIn('local-seoul-key-missing-or-malformed',out)
+
+    def test_seoul_refuses_ambient_credentials_and_reports_denied_read_without_a_write(self):
+        code,calls,out=self.run_seoul('{}',ambient=True)
+        self.assertEqual(1,code,out);self.assertEqual([],calls)
+        self.assertIn('secret-provisioning-is-local-only',out)
+        code,calls,out=self.run_seoul('{}',denied=True)
+        self.assertEqual(1,code,out)
+        self.assertEqual(['get-secret-value'],[c[1] for c in calls])
+        self.assertNotIn('SYNTHETIC_SEOUL_KEY',out)
+
+    def test_seoul_option_cannot_start_a_different_action(self):
+        code,calls,out=self.run_seoul('{}',action='deploy')
+        self.assertEqual(1,code,out);self.assertEqual([],calls)
+        self.assertIn('seoul-option-requires-secrets',out)
+
+    def test_seoul_secret_payload_uses_private_temporary_file_not_argv(self):
+        import argparse, contextlib, io, stat
+        requests=[];files=[];out=io.StringIO()
+        def subprocess_boundary(argv, **kwargs):
+            self.assertNotIn('SYNTHETIC_SEOUL_KEY',' '.join(argv))
+            self.assertNotIn('KEEP_THIS_TOKEN',' '.join(argv))
+            path=Path(argv[argv.index('--cli-input-json')+1].removeprefix('file://'))
+            self.assertEqual(0o600,stat.S_IMODE(path.stat().st_mode))
+            request=json.loads(path.read_text());requests.append(request);files.append(path)
+            response={'SecretString':'{"apiKey":"","proxyToken":"KEEP_THIS_TOKEN"}'} if len(requests)==1 else {}
+            return subprocess.CompletedProcess(argv,0,json.dumps(response),'')
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'apps/api').mkdir(parents=True)
+            (root/'apps/api/.env.local').write_text('SEOUL_API_KEY=SYNTHETIC_SEOUL_KEY\n')
+            with patch.object(ops,'ROOT',root),patch.dict(os.environ,OperatorRegressions.PROFILE),\
+                    patch.object(ops,'identity'),patch.object(ops.subprocess,'run',side_effect=subprocess_boundary),\
+                    contextlib.redirect_stdout(out):
+                ops.provision_secrets(argparse.Namespace(seoul=True))
+        self.assertEqual(2,len(requests))
+        self.assertEqual({'apiKey':'SYNTHETIC_SEOUL_KEY','proxyToken':'KEEP_THIS_TOKEN'},
+                         json.loads(requests[1]['SecretString']))
+        self.assertTrue(all(not path.exists() for path in files))
+        for value in ('SYNTHETIC_SEOUL_KEY','KEEP_THIS_TOKEN'):self.assertNotIn(value,out.getvalue())
+
     def test_secret_value_never_reaches_stdout_or_argv(self):
         import contextlib, io
         key='SYNTHETICKEY/abc+def=='

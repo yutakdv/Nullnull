@@ -56,14 +56,15 @@ function renderLive(initialEntry = '/live') {
 }
 
 describe('FE-401 Live area list', () => {
-  it('FE-401-T1 FE-403-T2 renders the default list-first state without map capability', async () => {
+  it('FE-401-T1 FE-403-T2 keeps the area list available when the map key is unavailable', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)));
 
     renderLive();
 
     expect(await screen.findByRole('heading', { name: 'Live' })).toBeVisible();
-    expect(screen.queryByRole('region', { name: /Live map/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Live map/i })).toBeVisible();
+    expect(screen.getByText('Could not load the map')).toBeVisible();
     expect(await screen.findByTestId('live-persistent-state')).toHaveTextContent(
       /Observed live/i,
     );
@@ -90,7 +91,7 @@ describe('FE-401 Live area list', () => {
     );
 
     const view = renderLive();
-    expect(await screen.findByRole('status')).toHaveTextContent(/Loading live areas/i);
+    expect(await screen.findByText('Loading live areas')).toBeVisible();
     release?.();
     view.unmount();
   });
@@ -218,6 +219,96 @@ describe('FE-401 Live area list', () => {
       screen.getByRole('link', { name: /View Live information for 경복궁/i }),
     ).toHaveAttribute('href', `/live/places/${places[0]?.place.id}`);
     expect(areaPlaceRequests).toBe(1);
+  });
+
+  it('shows a selected place at its detail coordinates without inventing area centroids', async () => {
+    vi.stubEnv('VITE_KAKAO_MAP_APP_KEY', 'test-key');
+    const centers: unknown[] = [];
+    window.kakao = {
+      maps: {
+        CustomOverlay: class {
+          constructor(private options: { content: HTMLElement; position: unknown }) {}
+          setMap(map: { container: HTMLElement } | null) {
+            if (map) map.container.append(this.options.content);
+            else this.options.content.remove();
+          }
+        },
+        LatLng: class {
+          constructor(
+            public latitude: number,
+            public longitude: number,
+          ) {}
+        },
+        Map: class {
+          constructor(
+            public container: HTMLElement,
+            options: { center: unknown },
+          ) {
+            centers.push(options.center);
+          }
+        },
+        load: (callback) => callback(),
+      },
+    };
+    const user = userEvent.setup();
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    let detailRequests = 0;
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)),
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+      http.get(`${API_BASE}/places/:placeId`, ({ params }) => {
+        expect(params.placeId).toBe(detail.place.id);
+        detailRequests += 1;
+        return HttpResponse.json(detail.place);
+      }),
+    );
+
+    renderLive();
+    const map = await screen.findByRole('region', { name: 'Live map' });
+    expect(within(map).queryByRole('button')).not.toBeInTheDocument();
+    expect(detailRequests).toBe(0);
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    const showOnMap = await screen.findByRole('button', {
+      name: 'Show 경복궁 on the map',
+    });
+    await user.click(showOnMap);
+
+    const marker = await within(map).findByRole('button', { name: '경복궁' });
+    expect(marker).toBeVisible();
+    expect(showOnMap).toHaveAttribute('aria-pressed', 'true');
+    expect(detailRequests).toBe(1);
+    expect(centers.at(-1)).toEqual(detail.place.location);
+    expect(within(map).queryByRole('button', { name: /광화문/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /View Live information for 경복궁/i }),
+    ).toBeVisible();
+    expect(screen.getByRole('link', { name: /한국관광공사/ })).toBeVisible();
+    await user.click(marker);
+    expect(await screen.findByRole('heading', { name: '경복궁' })).toBeVisible();
+  });
+
+  it('keeps the detail link usable when the selected place cannot be loaded for the map', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+      http.get(`${API_BASE}/places/:placeId`, () => HttpResponse.error()),
+    );
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    await user.click(
+      await screen.findByRole('button', { name: 'Show 경복궁 on the map' }),
+    );
+    expect(
+      await screen.findByText('We couldn’t load this place on the map'),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: /View Live information for 경복궁/i }),
+    ).toBeVisible();
   });
 
   it('searches canonically and offers each result as a direct detail link', async () => {

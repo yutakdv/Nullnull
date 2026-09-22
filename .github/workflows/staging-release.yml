@@ -99,6 +99,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - name: Build the web bundle
         id: bundle
+        env:
+          # Public JavaScript SDK key, restricted to registered web origins by Kakao.
+          # Never use the server-side REST API key in a Vite build.
+          VITE_KAKAO_MAP_APP_KEY: ${{ vars.VITE_KAKAO_MAP_APP_KEY }}
         run: |
           set -euo pipefail
           npm ci --no-audit --no-fund

@@ -264,7 +264,7 @@ LLM은 사용자의 자연어 선호를 구조화하거나, 서버가 검증한 
 | 화면·라우팅 | Figma 구조, component/state, i18n, accessibility, PWA | response capability·deep-link 데이터 | 360px KO/EN E2E·상태 fixture |
 | 여행·후보·일정 | edit draft, form validation, mutation UX, generated client | owner/version/idempotency, transaction, constraint | OpenAPI 예시·contract·happy/failure E2E |
 | 최적화·AI | preview/decision/error UI, polling/backoff | deterministic optimizer, data validation, LLM 경계, audit | 승인 전 변경 0·apply 원자성 |
-| Live·데이터 | list-first, provenance/state/fallback, 승인 시 map | connector, mapping, freshness, comparison eligibility | map OFF와 소스 장애·replay·stale rehearsal |
+| Live·데이터 | list-first, provenance/state/fallback, 기존 지도 복구(`FCR-012`) | connector, mapping, freshness, comparison eligibility | map OFF와 소스 장애·replay·stale rehearsal |
 | 프로필·알림 | guest/login-준비 중, 목록/편집/deep-link UI | owner query, history projection, interests, read mutation | 추가 API contract 먼저 merge |
 | 품질·운영 | component/unit/Playwright/a11y/RUM | unit/integration/contract/data quality/metrics | 수직 slice별 양쪽 required check |
 

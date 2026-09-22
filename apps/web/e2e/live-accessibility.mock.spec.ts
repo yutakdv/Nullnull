@@ -85,16 +85,18 @@ test.describe('FE-402-T3 Live detail accessibility', () => {
 });
 
 test.describe('FE-403-T3 Live reduced motion', () => {
-  test('keeps the map-off destination list motionless when reduce is requested', async ({
+  test('keeps the map fallback and destination list usable when reduce is requested', async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await useLocale(page, 'en-US');
+    await page.route('https://dapi.kakao.com/**', (route) => route.abort());
     await page.goto('/live');
 
     const list = page.getByRole('region', { name: 'Live destination list' });
     await expect(list).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Live map' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Live map' })).toBeVisible();
+    await expect(page.getByText('Could not load the map')).toBeVisible();
     await expect(
       page.getByText('Check the latest observation and its source state'),
     ).toBeVisible();

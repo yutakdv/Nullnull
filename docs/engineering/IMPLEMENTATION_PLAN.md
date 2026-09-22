@@ -228,6 +228,11 @@ Frontend 실행 ID: `FE-308`, `FE-P1-101`, `FE-P1-103`, `FE-P1-104`, `FE-P1-105`
 
 Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 
+기존 지도 복구: `FE-401`은 카카오 지도와 권역 목록을 함께 제공한다.
+좌표 없는 권역은 목록에 남기며 임의 지도 위치를 만들지 않는다. 선택 장소의 지도
+표시는 `getPlace`의 실제 좌표를 사용한다. 공개 JavaScript 앱 키는 web build에
+주입하고, geolocation·viewport 요청 없이 목록·검색과 장애 fallback을 유지한다.
+
 완료 증거: 서울/Live/list·대안·replay·전체 P0 검수.
 
 ## Frontend 인계 순서

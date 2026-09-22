@@ -251,3 +251,37 @@
     grid-row: 1;
   }
 }
+
+.mapPanel {
+  max-width: var(--layout-content-max);
+  margin: 0 auto;
+}
+
+.mapViewport {
+  position: relative;
+  height: clamp(240px, 40vh, 400px);
+}
+
+.mapPanel > p,
+.mapPanel > span {
+  display: block;
+  padding: var(--space-2) var(--layout-page-gutter);
+  margin: 0;
+}
+
+.showOnMap {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  color: var(--color-action-primary);
+  background: var(--color-bg-default);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.showOnMap[aria-pressed='true'] {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-subtle);
+}
