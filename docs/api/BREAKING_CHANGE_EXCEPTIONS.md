@@ -52,13 +52,19 @@ tags:
 
 ## 승인된 예외
 
-**표가 비어 있는 것이 정상 상태다.** 지금 한 줄이 있고, 그 줄은 `main` 이 새 enum 값을 담으면 사라진다.
+**표가 비어 있는 것이 정상 상태다.** 현재 활성 예외는 없다.
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| in API GET /trips/{tripId}/candidates/{candidateId}/matches added the new `NOT_ACTIVE` enum value to the `state` response property for the response status `200` | `getCandidateTripMatches` 가 예약된 후보에 422 `VALIDATION_FAILED` 로 답하고 있었다. 그 code 의 client 계약은 `fieldErrors 연결`(`docs/api/README.md`)인데 이 route 에는 연결할 입력이 없고 유일한 field 지목이 서버가 건넨 path 변수였다. 게다가 도달 경로가 **성공**이다 — 슬롯을 받아들이면 후보가 SCHEDULED 가 되고 재조회가 거기 닿는다. 그래서 4xx 를 선언하는 대신 없애고 200 의 상태로 옮겼다. `x-extensible-enum` 이면 이 예외가 0건이지만 생성 client 가 union 과 exhaustiveness 를 잃으므로 Frontend 가 그 대가를 보고 enum 쪽을 골랐다. **base 가 이 값을 담는 순간 이 줄은 매칭되지 않으므로 두 곳에서 함께 지운다.** | Frontend (#328 결정) | [#328](https://github.com/yutakdv/Nullnull/issues/328) |
 
 ## 만료된 예외 (기록)
+
+- **`getCandidateTripMatches` 응답의 `NOT_ACTIVE` enum 추가**
+  (승인: Frontend의 [#328](https://github.com/yutakdv/Nullnull/issues/328) 결정).
+  일정화된 후보에 입력 오류 422를 반환하던 경로를 200 상태로 정정했고,
+  생성 client의 union을 보존하기 위해 닫힌 enum을 유지했다.
+  `main`의 `6b68569d`에 이미 반영되어 이번 [#341](https://github.com/yutakdv/Nullnull/pull/341)
+  비교에서는 finding이 없다. CI가 stale 예외를 탐지하여 ignore 줄을 제거하고 이력으로 옮겼다.
 
 - **`LiveArea.centroid` 가 nullable 이 됐다, 한 줄**
   (승인: **오너 2026-09-20 — [#314](https://github.com/yutakdv/Nullnull/pull/314) 머지가 그 승인이다**, 추적:
