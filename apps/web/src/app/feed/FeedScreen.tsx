@@ -444,9 +444,6 @@ export function FeedScreen() {
             >
               {t('feed.chooseRepresentative')}
             </button>
-            <Link className={styles.authorLink} to="/posts/new">
-              {t('author.entry')}
-            </Link>
           </div>
         </aside>
       ) : selectedTrip ? (
