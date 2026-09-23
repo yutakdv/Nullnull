@@ -16,9 +16,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { createQueryClient } from '../../../shared/api/index.js';
-import { API_BASE } from '../../../shared/testing/msw/handlers.js';
+import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
 import { routes } from '../../routes.js';
+import { formatReferenceTime } from '../../../shared/crowd/reference-time.js';
 
 type LiveAreaResult = components['schemas']['LiveAreaResult'];
 type LivePlace = components['schemas']['LivePlace'];
@@ -215,8 +216,13 @@ describe('FE-401 Live area list', () => {
     const state = await screen.findByTestId('live-persistent-state');
     expect(state).toHaveTextContent(/replay/i);
     expect(state).toHaveTextContent(/not live/i);
-    expect(state).toHaveTextContent(observedAt);
-    expect(state).not.toHaveTextContent(replay.generatedAt);
+    // The badge names the observation in Seoul time, not the raw UTC instant,
+    // and never the response's generation time.
+    expect(state).toHaveTextContent(
+      `Observed ${formatReferenceTime(observedAt, 'en-US')}`,
+    );
+    expect(state).not.toHaveTextContent(observedAt);
+    expect(state).not.toHaveTextContent(formatReferenceTime(replay.generatedAt, 'en-US'));
   });
 
   it('uses the reviewed Seoul four-stage wording instead of the generic five-stage copy', async () => {
@@ -384,6 +390,54 @@ describe('FE-401 Live area list', () => {
     expect(result).not.toHaveTextContent('›');
   });
 
+  it('FE-401-T2 shows searching, then no results, as two different states', async () => {
+    const user = userEvent.setup();
+    let release: (() => void) | undefined;
+    server.use(
+      http.post(`${API_BASE}/places/search`, async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json({ ...placeFixtures.searchPage, items: [] });
+      }),
+    );
+
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '없는곳');
+    expect(await screen.findByText('Searching places')).toBeVisible();
+    expect(screen.queryByText('No matching places')).not.toBeInTheDocument();
+    release?.();
+    expect(await screen.findByText('No matching places')).toBeVisible();
+    expect(screen.queryByText('Searching places')).not.toBeInTheDocument();
+  });
+
+  it('FE-401-T2 offers a retry on a failed search that keeps the typed words', async () => {
+    const user = userEvent.setup();
+    // Every keystroke searches, so only the full query fails: twice, which
+    // covers the contract's one automatic retry and leaves the error on screen.
+    let failures = 2;
+    server.use(
+      http.post(`${API_BASE}/places/search`, async ({ request }) => {
+        const body = (await request.json()) as { query: string };
+        if (body.query === '경복궁' && failures > 0) {
+          failures -= 1;
+          return problemResponse('INTERNAL_ERROR');
+        }
+        return HttpResponse.json(placeFixtures.searchPage);
+      }),
+    );
+
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    const alert = await screen.findByRole('alert', {}, { timeout: 4000 });
+    expect(alert).toHaveTextContent("We couldn't search places");
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(
+      await screen.findByRole('link', { name: /View Live information for 경복궁/i }),
+    ).toBeVisible();
+    expect(screen.getByRole('searchbox')).toHaveValue('경복궁');
+  });
+
   it('FE-401-T3 opens a named search result link with the keyboard', async () => {
     const user = userEvent.setup();
     const areas = liveFixture<LiveAreaResult>('area-result-live');
@@ -518,6 +572,32 @@ describe('FE-402 Live place detail', () => {
     );
     release?.();
     view.unmount();
+  });
+
+  it('FE-402-T2 says the detail may be out of date while offline, and not afterwards', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+    await screen.findByRole('heading', { name: detail.place.name });
+    act(() => onlineManager.setOnline(false));
+    expect(
+      await screen.findByText(
+        'You are offline. Previously loaded readings may be out of date.',
+      ),
+    ).toBeVisible();
+    // The cached reading stays on screen; it is labelled, not removed.
+    expect(screen.getByRole('heading', { name: detail.place.name })).toBeVisible();
+    act(() => onlineManager.setOnline(true));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          'You are offline. Previously loaded readings may be out of date.',
+        ),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it('FE-402-T2 labels stale detail data without presenting it as live', async () => {

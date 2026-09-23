@@ -21,6 +21,7 @@ import {
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
 import type { AppShellOutletContext } from '../AppShell.js';
+import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
 
 const EMPTY_AREAS: components['schemas']['LiveArea'][] = [];
 
@@ -36,7 +37,7 @@ const STATES: SourceState[] = [
 type CrowdMetric = components['schemas']['CrowdMetric'];
 
 export function LiveScreen() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const { sessionReady } = useOutletContext<AppShellOutletContext>();
   const areas = useLiveAreas(sessionReady);
@@ -90,7 +91,13 @@ export function LiveScreen() {
             <div className={styles.persistentState} data-testid="live-persistent-state">
               <StateLabel
                 labels={stateLabels}
-                observedAt={observedAt ?? null}
+                observedAt={
+                  observedAt
+                    ? t('crowd.observedAt', {
+                        date: formatReferenceTime(observedAt, locale),
+                      })
+                    : null
+                }
                 state={areas.data.mode}
               />
             </div>
@@ -107,7 +114,20 @@ export function LiveScreen() {
         {query.trim().length > 0 ? (
           <div className={styles.searchPanel}>
             {search.isPending ? <p role="status">{t('live.searching')}</p> : null}
-            {search.isError ? <p role="alert">{t('live.searchError')}</p> : null}
+            {search.isError ? (
+              // Figma 684:4402 pairs the failure with a retry: the query is the
+              // traveller's own words, so they should not have to retype it.
+              <p role="alert">
+                {t('live.searchError')}{' '}
+                <button
+                  disabled={search.isFetching}
+                  onClick={() => void search.refetch()}
+                  type="button"
+                >
+                  {t('live.retry')}
+                </button>
+              </p>
+            ) : null}
             {search.isSuccess && search.data.items.length === 0 ? (
               <p>{t('live.searchEmpty')}</p>
             ) : null}
