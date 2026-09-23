@@ -150,6 +150,17 @@ class CeilingTest(unittest.TestCase):
         subscribe = [s for s in sns if 'sns:Subscribe' in actions(s)]
         self.assertEqual([{'StringEquals': {'sns:Protocol': 'email'}}], [s.get('Condition') for s in subscribe])
 
+    def test_operator_seoul_secret_access_is_scoped_to_the_existing_proxy_secret(self):
+        operator = self.statements('NullnullStgOperator')
+        secrets = next(s for s in operator if s['Sid'] == 'OperatorSecrets')
+        self.assertEqual({'secretsmanager:GetSecretValue', 'secretsmanager:PutSecretValue',
+                          'secretsmanager:DescribeSecret'}, set(secrets['Action']))
+        self.assertEqual({
+            f'arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT}:secret:nullnull-stg/kto-service-key-*',
+            f'arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT}:secret:nullnull-stg/verifier-token-*',
+            f'arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT}:secret:nullnull-stg/seoul-proxy-*',
+        }, set(secrets['Resource']))
+
 
 class ExecuteGateTest(unittest.TestCase):
     def plan_file(self, directory, created=None, bundle=None):

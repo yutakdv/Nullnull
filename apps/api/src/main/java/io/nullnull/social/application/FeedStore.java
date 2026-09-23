@@ -24,6 +24,12 @@ public interface FeedStore {
     /** A PUBLISHED post. DRAFT and HIDDEN are absent, not forbidden: readers have no claim on them. */
     Optional<Post> publishedPost(UUID postId);
 
+    /**
+     * Locks a published source until its caller's transaction finishes. FOR SHARE, not KEY SHARE:
+     * withdrawal changes status without changing the primary key and must conflict with this lock.
+     */
+    boolean lockPublishedPost(UUID postId);
+
     /** Which of these posts this owner has saved. */
     Set<UUID> savedPostIds(UUID ownerId, List<UUID> postIds);
 
@@ -94,6 +100,9 @@ public interface FeedStore {
 
     /** The post's status, or empty when no post has that id. */
     Optional<io.nullnull.social.domain.PostStatus> postStatus(UUID postId);
+
+    /** The user-upload cover of a hidden post, retained for an approved cleanup retry. */
+    Optional<String> hiddenUserCoverUrl(UUID postId);
 
     /**
      * Records one feed interaction, or converges on the one already recorded for that minute.

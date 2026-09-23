@@ -73,6 +73,12 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
+    public boolean lockPublishedPost(UUID postId) {
+        return jdbc.sql("SELECT id FROM posts WHERE id = ? AND status = 'PUBLISHED' FOR SHARE")
+                .param(postId).query(UUID.class).optional().isPresent();
+    }
+
+    @Override
     public Set<UUID> savedPostIds(UUID ownerId, List<UUID> postIds) {
         if (postIds.isEmpty()) {
             return Set.of();
@@ -298,6 +304,19 @@ public class JdbcFeedStore implements FeedStore {
                 .query(String.class)
                 .optional()
                 .map(PostStatus::of);
+    }
+
+    @Override
+    public Optional<String> hiddenUserCoverUrl(UUID postId) {
+        return jdbc.sql("""
+                SELECT p.cover_url FROM posts p
+                  JOIN media_assets m ON m.id = p.cover_asset_id
+                  JOIN asset_licenses l ON l.id = m.asset_license_id
+                 WHERE p.id = ? AND p.status = 'HIDDEN' AND l.source_code = 'USER_UPLOAD'
+                """)
+                .param(postId)
+                .query(String.class)
+                .optional();
     }
 
     @Override
