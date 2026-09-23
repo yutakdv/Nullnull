@@ -245,7 +245,7 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
           --source-code KTO_KOR_SERVICE_2 --owner-approval '<누가·어디서 승인했는지>'
         ```
 
-     3. 거절된 장소를 뺀 목록으로 같은 배치를 다시 돌린다. 이미 snapshot을 받은 장소는 다시 호출하지 않는다. 호출 대상은 지금부터 P2D 뒤에도 신선한 snapshot이 없는 장소뿐이다.
+     3. 거절된 장소를 뺀 목록으로 같은 배치를 다시 돌린다. 이미 snapshot을 받은 장소는 다시 호출하지 않는다. 호출 대상은 지금부터 `KtoDemoRefresh.DETAIL_RENEW_BEFORE` 뒤에도 신선한 snapshot이 없는 장소뿐이다. 그 창은 지금 2일이고, [#363](https://github.com/yutakdv/Nullnull/pull/363)이 들어가면 6일이다.
 3. **`UNEXPECTED_FAILURE (IllegalArgumentException)`(적재만 거절)**:
    - 새 코드 가운데 하나 이상은 있지만 분류(`lclsSystm1`)나 지역(`lDongRegnCd`)이 비었거나, snapshot의 revision이 현재와 다를 때다.
    - source는 격리되지 않는다. 그 장소는 snapshot만 남고 catalog 행이 생기지 않는다.
@@ -321,13 +321,15 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 - **목록 하나가 두 스케줄을 움직인다**: `infra/src/staging.ts`의 `FORECAST_DEMO_PLACES`가 detail(5일)과 예보(12시간) 스케줄의 입력이다.
   - 두 스케줄은 같은 설정으로 만들어진다. 종료는 2026-10-25T14:59:59Z(`FORECAST_SCHEDULE_END`)이고, scheduler 재시도는 `retryAttempts: 3`이다.
   - 스케줄은 `Migration` stack에 있다. 목록을 바꾸면 `infra/` 코드를 고치지만 app release로 나간다.
-- **현재 detail 갱신의 결함**([#361](https://github.com/yutakdv/Nullnull/issues/361), `[읽음]` 코드 분석, 측정 안 함):
+- **현재 detail 갱신의 결함**([#361](https://github.com/yutakdv/Nullnull/issues/361)):
+  - 등급: `[읽음]` 코드 분석이다. #361의 staging 로그 측정에서는 예보가 한 번 갱신하고 한 번 건너뛰기를 되풀이했다.
+  - 수정안은 [#363](https://github.com/yutakdv/Nullnull/pull/363)이다(갱신 창 detail 6일·예보 18시간).
   - `rate 5일 + DETAIL_RENEW_BEFORE 2일 = 수명 7일`이라 갱신 여부가 기동 지연 차이로 갈린다.
   - 건너뛴 주기에는 detail snapshot이 약 3일 비고, 그동안 예보 갱신이 `NO_VERIFIED_KTO_MAPPING`으로 실패한다.
   - 목록을 넓히면 같은 공백이 새 장소에도 생긴다. 목록 확대 전에 이것을 먼저 정한다.
 - **호출량(목록에 N곳일 때, `[읽음]` 코드를 읽어 낸 추정)**:
   - detail은 5일마다 최대 N건이다(위 결함으로 건너뛰는 주기에는 더 적다).
-  - 예보는 하루 N~2N건이다. set 수명이 PT24H이고 만료 12시간 전부터 갱신하므로, 12시간 주기의 실행이 장소마다 하루 1~2번 부른다. coverage가 없는 장소는 set을 저장하지 않으므로(`KtoCrowdForecastGateway`) 매 실행, 곧 하루 2번 부른다. 예보 호출은 예보 source의 하루 한도 1,000건에 따로 잡힌다.
+  - 예보는 하루 N~2N건이다. set 수명이 PT24H이고 만료 12시간 전부터 갱신하므로, 12시간 주기의 실행이 장소마다 하루 1~2번 부른다. #363이 들어가면 매 실행이 갱신하므로 장소당 하루 2건이다. coverage가 없는 장소는 set을 저장하지 않으므로(`KtoCrowdForecastGateway`) 매 실행, 곧 하루 2번 부른다. 예보 호출은 예보 source의 하루 한도 1,000건에 따로 잡힌다.
   - N=20이면 detail은 하루 최대 약 4건, 예보는 하루 최대 약 40건이다.
 - **관측 가능성**: KTO는 모든 관광지를 예보하지 않는다.
   - coverage가 없는 장소의 예보 갱신은 실패가 아니라 `coverage=0`인 `REFRESHED`로 끝난다.
