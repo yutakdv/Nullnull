@@ -71,6 +71,17 @@ class KtoEngCommandsTest {
         assertThat(out).doesNotContain("264329");
     }
 
+    @Test
+    @DisplayName("the refresh makes real provider calls, so it needs its own explicit approval before anything starts")
+    void refreshNeedsItsOwnApproval() {
+        assertThatThrownBy(() -> KtoEngTextRefreshMain.requireApproved(java.util.Map.of()))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("NULLNULL_KTO_ENG_REFRESH_APPROVED");
+        assertThatThrownBy(() -> KtoEngTextRefreshMain.requireApproved(
+                java.util.Map.of("NULLNULL_KTO_SMOKE_APPROVED", "true")))
+                .isInstanceOf(IllegalStateException.class);
+        KtoEngTextRefreshMain.requireApproved(java.util.Map.of("NULLNULL_KTO_ENG_REFRESH_APPROVED", "true"));
+    }
+
     private static EngTextStore.Link link(UUID place) {
         return new EngTextStore.Link(place, "264329", "76", Instant.parse("2026-09-24T01:00:00Z"));
     }

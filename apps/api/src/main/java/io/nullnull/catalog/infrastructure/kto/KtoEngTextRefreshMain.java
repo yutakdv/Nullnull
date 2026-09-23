@@ -17,6 +17,9 @@ import org.springframework.context.ConfigurableApplicationContext;
  */
 public final class KtoEngTextRefreshMain {
 
+    /** Its own flag: this command calls KTO and writes the catalog, and no other command's approval covers it. */
+    static final String APPROVAL = "NULLNULL_KTO_ENG_REFRESH_APPROVED";
+
     private KtoEngTextRefreshMain() {
     }
 
@@ -26,6 +29,7 @@ public final class KtoEngTextRefreshMain {
         KtoSmokeEnvironment.sources(System.getenv(), Path.of(".env.local"))
                 .forEach(line -> System.out.println("KTO_ENG_TEXT_REFRESH_SETTINGS " + line));
         requirePermittedEnvironment(requestedEnvironment);
+        requireApproved(System.getenv());
         int failed;
         try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE,
                 KtoSmokeEnvironment.applying(settings))) {
@@ -63,6 +67,12 @@ public final class KtoEngTextRefreshMain {
         }
         out.println("KTO_ENG_TEXT_REFRESH_DONE links=" + links.size() + " attempted=" + attempted + " failed=" + failed);
         return failed;
+    }
+
+    static void requireApproved(Map<String, String> environment) {
+        if (!"true".equals(environment.get(APPROVAL))) {
+            throw new IllegalStateException("the English text refresh calls KTO; set " + APPROVAL + "=true to run it");
+        }
     }
 
     static void requirePermittedEnvironment(String environment) {
