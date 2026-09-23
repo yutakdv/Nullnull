@@ -6,7 +6,7 @@ import { createAccessLogsStack } from "../src/access-logs";
 
 test("CloudFront v2 logs are private, retained 30 days and omit request secrets", () => {
   const app = new cdk.App();
-  const stack = createAccessLogsStack(app, "111111111111");
+  const stack = createAccessLogsStack(app, "1".repeat(12));
   const template = Template.fromStack(stack);
   template.resourceCountIs("AWS::CloudFront::Distribution", 0);
   template.resourceCountIs("AWS::Logs::LogGroup", 1);
