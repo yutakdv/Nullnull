@@ -18,6 +18,7 @@ import io.nullnull.optimization.domain.OptimizationRun;
 import io.nullnull.optimization.domain.OptimizationScope;
 import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.optimization.domain.RevertAvailability;
+import io.nullnull.recommendation.application.RecommendationCallBounds;
 import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.recommendation.application.RecommendationUnavailableException;
 import io.nullnull.recommendation.domain.PolicyDescriptor;
@@ -103,6 +104,8 @@ public class OptimizationService {
     private final OptimizationProposalReader proposalReader;
     /** For BA-052-T7: the policy a decision is judged against is today's, not the run's. */
     private final RecommendationGateway recommendations;
+    /** How long that lookup can take, which is how long a decision holds its key for it (#340). */
+    private final RecommendationCallBounds callBounds;
     /** For BA-052-T5: the set this run froze, re-read by id rather than looked up again. */
     private final CrowdForecastQuery forecasts;
     private final CatalogHoursQuery hours;
@@ -120,7 +123,8 @@ public class OptimizationService {
             OptimizationCursorProperties historyCursors, RecommendationGateway recommendations,
             CrowdForecastQuery forecasts, OptimizationCapability capability, TripService trips,
             JobQueue jobs, IdempotencyGuard idempotency, ObjectMapper json, Clock clock,
-            CatalogHoursQuery hours, OptimizationProposalReader proposalReader) {
+            CatalogHoursQuery hours, OptimizationProposalReader proposalReader,
+            RecommendationCallBounds callBounds) {
         this.runs = Objects.requireNonNull(runs, "runs");
         this.proposals = Objects.requireNonNull(proposals, "proposals");
         this.decisions = Objects.requireNonNull(decisions, "decisions");
@@ -128,6 +132,7 @@ public class OptimizationService {
         this.history = Objects.requireNonNull(history, "history");
         this.historyCursors = Objects.requireNonNull(historyCursors, "historyCursors");
         this.recommendations = Objects.requireNonNull(recommendations, "recommendations");
+        this.callBounds = Objects.requireNonNull(callBounds, "callBounds");
         this.forecasts = Objects.requireNonNull(forecasts, "forecasts");
         this.hours = Objects.requireNonNull(hours, "hours");
         this.capability = Objects.requireNonNull(capability, "capability");
@@ -222,10 +227,11 @@ public class OptimizationService {
      * owner-scoped, so a foreign id is indistinguishable from one that never existed (invariant 11).
      *
      * <p><strong>Every failure throws.</strong> {@code IdempotencyGuard} reserves the key before the
-     * command and completes it only on a normal return, so a thrown failure rolls the reservation
-     * back and the same key may be retried - which is exactly what the contract promises: "A failed
-     * APPLY records no decision and changes no trip row, so the same idempotency key can replay it."
-     * Handing a failure back as a value would complete the record and pin the key to it.
+     * policy lookup and completes it only on a normal return of the command, so a thrown failure - the
+     * lookup's or the command's - releases the reservation and the same key may be retried at once, which
+     * is exactly what the contract promises: "A failed APPLY records no decision and changes no trip row,
+     * so the same idempotency key can replay it." Handing a failure back as a value would complete the
+     * record and pin the key to it.
      *
      * <p>BA-052-T7 is the policy check below. V032 froze the three fingerprint inputs that were
      * previously kept nowhere - {@code policyVersion}, {@code policyHash} and {@code catalogVersion}
@@ -254,18 +260,21 @@ public class OptimizationService {
                         Map.of("runId", runId.toString()), canonicalDecision(command),
                         Long.toString(expected))
                 .sha256Hex();
-        // #271: the one call out of the process is made here, before the guard and outside any
-        // transaction. Inside the guard it held the owner's row lock for as long as apps/ai took, and every
-        // request that owner made meanwhile - reads too, since resolving a session locks the owner - failed
-        // on the lock timeout. It is skipped when the command will refuse the run anyway, as it was refused
-        // before without apps/ai. That includes every replay: a stored decision was written in the same
-        // transaction that moved its run to APPLIED or KEPT, so a replay finds the run no longer READY.
-        Optional<PolicyDescriptor> current = policyNeeded(run)
-                ? Optional.of(currentPolicy())
-                : Optional.empty();
+        // The one call out of the process is the guard's prelude (#340). #271 took it out of the guard's
+        // transaction, where it held the owner's row lock for as long as apps/ai took and every request that
+        // owner made meanwhile - reads too, since resolving a session locks the owner - failed on the lock
+        // timeout. Made before the guard instead, it ran once per REQUEST: two sent with one key each asked,
+        // and one could be told 503 "the trip was not changed" while the other applied it. As a prelude it
+        // runs once per KEY - only for the caller holding the key's reservation, with no transaction open -
+        // and a caller that finds the key held waits and replays the answer. A replay never reaches it.
+        // It is still skipped when the command will refuse the run anyway, as it was refused before
+        // without apps/ai.
         IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), DECIDE_ROUTE,
                 idempotencyKey, fingerprint,
-                () -> new IdempotencyGuard.CommandOutcome<>(200,
+                new IdempotencyGuard.Prelude<>(callBounds.policy(), () -> policyNeeded(run)
+                        ? Optional.of(currentPolicy())
+                        : Optional.<PolicyDescriptor>empty()),
+                current -> new IdempotencyGuard.CommandOutcome<>(200,
                         new DecisionProjection(record(context, run, expected, command, current).id())),
                 value -> value);
         DecisionProjection projection = readDecision(guarded.body());
@@ -343,8 +352,8 @@ public class OptimizationService {
      * <p>A run that never reached READY has no stored policy, and the status check above has already
      * refused it; this asserts that rather than treating null as agreement.
      *
-     * <p>What the service reports now is read by {@link #currentPolicy} before the guard (#271); this only
-     * compares. KEEP passes through here too.
+     * <p>What the service reports now is read by {@link #currentPolicy}, the guard's prelude (#271, #340);
+     * this only compares. KEEP passes through here too.
      */
     private void requirePolicyStillInForce(OptimizationRun run, PolicyDescriptor current) {
         if (run.policyVersion() == null || run.policyHash() == null) {
@@ -370,13 +379,15 @@ public class OptimizationService {
 
     /**
      * The policy the service reports now, asked outside any transaction (#271) - the check refuses to run
-     * inside one, which is where it used to hold the owner's lock for as long as apps/ai took.
+     * inside one, which is where it used to hold the owner's lock for as long as apps/ai took. It runs as
+     * the guard's prelude (#340), so only the caller holding the key's reservation asks.
      *
      * <p>A service that cannot answer is not a withdrawn policy, and it is not a server bug either
-     * (#252). Nothing has been written - the guard has not been entered - so the trip is exactly as it
-     * was and no idempotency record is made, which is the contract's APPLY_FAILED 503: retryable, the
-     * same key. A service that answered outside its contract or refused the request gets the same answer
-     * the next time, so that is a 500 and not retryable; the gateway has already logged which one it was.
+     * (#252). Nothing has been written - the command has not run, and the guard releases the key's
+     * reservation before this failure reaches the caller - so the trip is exactly as it was and no
+     * idempotency record remains, which is the contract's APPLY_FAILED 503: retryable, the same key. A
+     * service that answered outside its contract or refused the request gets the same answer the next
+     * time, so that is a 500 and not retryable; the gateway has already logged which one it was.
      */
     private PolicyDescriptor currentPolicy() {
         if (org.springframework.transaction.support.TransactionSynchronizationManager

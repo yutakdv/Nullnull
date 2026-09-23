@@ -28,6 +28,17 @@ public interface TripStore {
      */
     Optional<Trip> findForUpdate(UUID ownerId, UUID tripId);
 
+    /**
+     * The trip's version with its row locked FOR SHARE until the caller's transaction ends, or empty
+     * when this owner holds no such trip.
+     *
+     * <p>SHARE rather than UPDATE because the caller only needs the trip to hold still while it acts on
+     * what it read: every mutation takes the row FOR UPDATE and so waits, while a foreign key check
+     * (FOR KEY SHARE, a candidate or item being inserted) and another holder of SHARE do not. It is a
+     * lock, so it needs a read-write transaction: PostgreSQL refuses row locks in a read-only one.
+     */
+    java.util.OptionalLong versionForShare(UUID ownerId, UUID tripId);
+
     /** The trip's scheduled items, with their constraints. */
     List<TripItem> items(UUID tripId);
 

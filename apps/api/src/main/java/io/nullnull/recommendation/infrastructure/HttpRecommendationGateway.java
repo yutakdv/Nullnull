@@ -27,6 +27,7 @@ import io.nullnull.recommendation.domain.slot.SlotEvaluateRequest;
 import io.nullnull.recommendation.domain.slot.SlotEvaluateResponse;
 import io.nullnull.recommendation.domain.slot.SlotOut;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -79,6 +80,15 @@ public class HttpRecommendationGateway implements RecommendationGateway {
     public HttpRecommendationGateway(RestClient client, Supplier<String> requestId) {
         this.client = client;
         this.requestId = requestId;
+    }
+
+    /**
+     * The longest {@link #policy()} can take: each of its attempts is bounded by the client's connect and
+     * read timeouts, and there is no pause between them. Here rather than beside the configuration so the
+     * attempt count stays one constant.
+     */
+    static Duration longestPolicyRead(Duration connectTimeout, Duration readTimeout) {
+        return connectTimeout.plus(readTimeout).multipliedBy(POLICY_ATTEMPTS);
     }
 
     @Override

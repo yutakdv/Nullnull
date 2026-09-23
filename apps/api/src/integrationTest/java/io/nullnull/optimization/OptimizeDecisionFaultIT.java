@@ -310,21 +310,24 @@ class OptimizeDecisionFaultIT {
         // a stubbing call made through it meets the interceptor first - which refuses it for having
         // no transaction, before Mockito ever sees the call. The first run died exactly there, and the
         // argument matchers it had registered leaked into the next case's first spy call as a 500.
+        //
+        // The four-argument write: an APPLY's policy lookup is the guard's prelude (#340), and a command
+        // with a prelude stores its response together with the retention that replaces its lease.
         org.mockito.Mockito.doThrow(new TransientDataAccessResourceException(
                         "injected fault at the response write"))
-                .when(recordSpy()).complete(any(), anyInt(), any());
+                .when(recordSpy()).complete(any(), anyInt(), any(), any());
 
         forgetSetupCalls();
         String key = "decide-" + UUID.randomUUID();
         apply(fixture, runId, proposalId, key).andExpect(status().is5xxServerError());
-        org.mockito.Mockito.verify(recordSpy()).complete(any(), anyInt(), any());
+        org.mockito.Mockito.verify(recordSpy()).complete(any(), anyInt(), any(), any());
         org.mockito.Mockito.verify(runs).transition(eq(runId), eq(OptimizationStatus.READY),
                 eq(OptimizationStatus.APPLIED), any());
         assertNothingApplied(fixture, runId, versionBefore, revisionsBefore);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records"
                 + " WHERE owner_id = ? AND idempotency_key = ?", Integer.class,
                 fixture.owner().owner.id(), key))
-                .as("the reservation, the first write of all, went back with the last")
+                .as("the reservation, the first write of all, released when the last one failed")
                 .isZero();
 
         // The negative control, and the contract's sentence: the same key can replay a failed APPLY.

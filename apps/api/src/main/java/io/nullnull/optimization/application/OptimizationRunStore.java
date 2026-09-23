@@ -35,7 +35,8 @@ public interface OptimizationRunStore {
      * being offerable.
      *
      * <p>Only while the run is still RUNNING - a worker whose lease lapsed must not overwrite the
-     * evidence of the worker that took over.
+     * evidence of the worker that took over. A retry can re-freeze the sets but never moves the
+     * deadline: the first one recorded is the run's (#340).
      *
      * <p>Neither {@code data_fingerprint} nor {@code algorithm_version} is written here. Both are
      * §8 values derived from the recommendation service's answer, and this slice never asks for one.
@@ -51,15 +52,22 @@ public interface OptimizationRunStore {
      * has nothing for APPLY to check, and one with no expiry never stops being offerable - so the
      * status and the evidence are written together or not at all.
      *
-     * <p>A run whose evidence was never frozen is refused here rather than by the constraint, so the
-     * caller gets a decision it can act on instead of an exception it has to interpret.
+     * <p>A run whose evidence was never frozen, or whose deadline is not after {@code at}, is refused
+     * here rather than by the constraint or by the reader's 410, so the caller gets a decision it can
+     * act on instead of a preview that is gone the moment it is stored (#340).
      *
      * @return true when this caller published the preview
      */
     boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion,
             String policyVersion, String policyHash, String catalogVersion, Instant at);
 
-    /** Ends a run with a code and the sentence that goes with it. */
+    /**
+     * Ends a run with a code and the sentence that goes with it - or, when the run's deadline had
+     * already passed at {@code at}, as EXPIRED without either (#340): readers have been shown EXPIRED
+     * since that deadline, and a terminal status a reader saw is not replaced by another.
+     *
+     * @return true when this call ended the run, whichever of the two it recorded
+     */
     boolean fail(UUID runId, OptimizationStatus from, OptimizationFailureCode code, String message,
             Instant at);
 }

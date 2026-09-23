@@ -54,6 +54,29 @@ public class JdbcIdempotencyRecordStore implements IdempotencyRecordStore {
              WHERE id = :id
             """;
 
+    private static final String COMPLETE_WITH_RETENTION = """
+            UPDATE idempotency_records
+               SET response_status = :responseStatus,
+                   response_body = CAST(:responseBody AS jsonb),
+                   expires_at = :expiresAt
+             WHERE id = :id
+            """;
+
+    private static final String FIND = """
+            SELECT id, owner_id, route_key, idempotency_key, request_hash, response_status,
+                   response_body, created_at, expires_at
+              FROM idempotency_records
+             WHERE owner_id = :ownerId
+               AND route_key = :routeKey
+               AND idempotency_key = :idempotencyKey
+            """;
+
+    private static final String RELEASE = """
+            DELETE FROM idempotency_records
+             WHERE id = :id
+               AND response_status IS NULL
+            """;
+
     private static final String DELETE = """
             DELETE FROM idempotency_records
              WHERE id = :id
@@ -100,13 +123,26 @@ public class JdbcIdempotencyRecordStore implements IdempotencyRecordStore {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void complete(UUID recordId, int responseStatus, String responseBodyJson) {
+        store(jdbc.sql(COMPLETE)
+                .param("id", recordId)
+                .param("responseStatus", responseStatus)
+                .param("responseBody", responseBodyJson));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void complete(UUID recordId, int responseStatus, String responseBodyJson, Instant expiresAt) {
+        store(jdbc.sql(COMPLETE_WITH_RETENTION)
+                .param("id", recordId)
+                .param("responseStatus", responseStatus)
+                .param("responseBody", responseBodyJson)
+                .param("expiresAt", utc(expiresAt)));
+    }
+
+    private static void store(JdbcClient.StatementSpec completion) {
         int updated;
         try {
-            updated = jdbc.sql(COMPLETE)
-                    .param("id", recordId)
-                    .param("responseStatus", responseStatus)
-                    .param("responseBody", responseBodyJson)
-                    .update();
+            updated = completion.update();
         } catch (DataIntegrityViolationException violation) {
             if (isResponseBodyTooLarge(violation)) {
                 throw new ApiException(ProblemCode.INTERNAL_ERROR,
@@ -117,6 +153,27 @@ public class JdbcIdempotencyRecordStore implements IdempotencyRecordStore {
         if (updated != 1) {
             throw new IllegalStateException("idempotency record disappeared before its response was stored");
         }
+    }
+
+    /**
+     * No transaction required and no lock taken, on purpose: it answers a waiter polling for someone
+     * else's command to finish, and that command holds the row while it finishes.
+     */
+    @Override
+    public Optional<IdempotencyRecord> find(UUID ownerId, String routeKey, String idempotencyKey) {
+        return jdbc.sql(FIND)
+                .param("ownerId", ownerId)
+                .param("routeKey", routeKey)
+                .param("idempotencyKey", idempotencyKey)
+                .query(JdbcIdempotencyRecordStore::map)
+                .optional();
+    }
+
+    /** Waits like every locking statement here: the row may still be held by a waiter's claim. */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void release(UUID recordId) {
+        BoundedLockWait.on(() -> jdbc.sql(RELEASE).param("id", recordId).update());
     }
 
     @Override
