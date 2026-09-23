@@ -20,7 +20,7 @@
 옵션 없는 `secrets`는 기존처럼 KTO 키만 갱신한다.
 
 로컬 operator role과 해당 secret의 `secretsmanager:GetSecretValue`·`PutSecretValue` 권한이 필요하다.
-이 명령은 IAM 권한을 추가하지 않는다. `AccessDenied` 상태에서는 운영자가 적절한 권한을 준비해야 한다.
+`infra/iam/operator.json`은 서울 프록시 secret 한 건의 ARN으로 권한을 제한한다. 이 명령 자체는 IAM 권한을 추가하지 않는다.
 프록시의 기존 secret 캐시 갱신은 최대 5분 걸린다. API를 재시작하거나 공개 트래픽을 닫을 필요는 없다.
 키 입력 자체는 수집 성공 증거가 아니다. 정상 응답을 확인한 뒤, 이미 격리된 source는
 `release-source-quarantine --source-code SEOUL_CITYDATA` 작업으로 검토 기록을 남겨 해제하고

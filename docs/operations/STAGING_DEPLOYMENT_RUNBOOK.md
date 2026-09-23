@@ -185,7 +185,7 @@ main에 들어간 코드는 `staging` environment로 deploy role을 쓸 수 있�
 
 Secrets Manager에는 최소 DB credential, `KTO_SERVICE_KEY`, `NULLNULL_CURSOR_SECRET`, `NULLNULL_DELETION_TOKEN_SECRET`, 서울 proxy secret(`nullnull-stg/seoul-proxy`)을 둔다. secret 값은 CDK context, task environment, frontend `VITE_*`, release manifest, image layer, log와 GitHub artifact에 들어가지 않는다.
 
-**서울 proxy secret은 `secrets --seoul` 또는 콘솔에서 갱신한다**([#334](https://github.com/yutakdv/Nullnull/issues/334)). 이 secret은 한 hop에 속한 두 값을 JSON 한 벌로 든다. `apiKey`는 오너가 넣는 서울 열린데이터 인증키이고, `proxyToken`은 CDK가 생성해 API task가 proxy에 제시하는 값이다. `infra/src/staging.ts`가 `apiKey: ""`로 만들고 기존 operator의 `secrets` 명령은 KTO 키만 다뤘다. 이제 명시적 `--seoul` 옵션은 ignored `apps/api/.env.local`의 `SEOUL_API_KEY`를 읽고 JSON의 `apiKey`만 갱신한다. 기존 `proxyToken`과 다른 필드는 보존하고 동일 키는 재기록하지 않는다. 이 secret의 Get/Put 권한이 필요하며 현재 operator IAM 템플릿에는 그 권한이 없다. 인증 성공만으로 실행 권한이 생기지 않는다.
+**서울 proxy secret은 `secrets --seoul` 또는 콘솔에서 갱신한다**([#334](https://github.com/yutakdv/Nullnull/issues/334)). 이 secret은 한 hop에 속한 두 값을 JSON 한 벌로 든다. `apiKey`는 오너가 넣는 서울 열린데이터 인증키이고, `proxyToken`은 CDK가 생성해 API task가 proxy에 제시하는 값이다. `infra/src/staging.ts`가 `apiKey: ""`로 만들고 기존 operator의 `secrets` 명령은 KTO 키만 다뤘다. 이제 명시적 `--seoul` 옵션은 ignored `apps/api/.env.local`의 `SEOUL_API_KEY`를 읽고 JSON의 `apiKey`만 갱신한다. 기존 `proxyToken`과 다른 필드는 보존하고 동일 키는 재기록하지 않는다. operator IAM은 `nullnull-stg/seoul-proxy-*` 한 secret ARN에 Get/Put/Describe 권한을 제한한다. 2026-09-23 실제 secret의 `apiKey`가 로컬 키와 같음을 확인해 재기록하지 않았다.
 
 1. Secrets Manager 콘솔(서울 region)에서 `nullnull-stg/seoul-proxy`를 연다 → **Retrieve secret value** → **Edit**.
 2. Key/value 보기에서 **`apiKey`의 값만** 바꾸고 `proxyToken`은 그대로 둔 채 저장한다.
