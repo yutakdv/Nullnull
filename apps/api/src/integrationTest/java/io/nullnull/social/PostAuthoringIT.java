@@ -174,6 +174,25 @@ class PostAuthoringIT {
         assertThat(postsAuthoredBy(author)).as("one post row").isOne();
     }
 
+    @Test
+    @DisplayName("BA-082 a lost publish response replays the same post for the same key")
+    void sameKeyReplaysPublishedPost() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        UUID placeId = place();
+        UUID uploadId = issueTicket(author);
+        recorder.put(quarantineKeyOf(uploadId), jpeg(32, 32));
+        String key = "post-" + UUID.randomUUID();
+
+        String first = createPost(author, uploadId, placeId, key)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String replay = createPost(author, uploadId, placeId, key)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(recorder.published).hasSize(1);
+        assertThat(postsAuthoredBy(author)).isOne();
+    }
+
     /**
      * Removes what this class wrote, naming its own rows.
      *
@@ -228,11 +247,16 @@ class PostAuthoringIT {
 
     private org.springframework.test.web.servlet.ResultActions createPost(
             SessionService.Bootstrap owner, UUID uploadId, UUID placeId) throws Exception {
+        return createPost(owner, uploadId, placeId, "post-" + UUID.randomUUID());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createPost(
+            SessionService.Bootstrap owner, UUID uploadId, UUID placeId, String key) throws Exception {
         return mvc.perform(post("/api/v1/posts")
                 .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
                 .header("Origin", "http://localhost:5173")
                 .header("X-CSRF-Token", owner.csrf.token)
-                .header("Idempotency-Key", "post-" + UUID.randomUUID())
+                .header("Idempotency-Key", key)
                 .contentType("application/json")
                 .content("{\"uploadId\":\"" + uploadId + "\",\"title\":\"가을 산책\",\"body\":\"좋았다\","
                         + "\"altText\":\"단풍\",\"placeIds\":[\"" + placeId + "\"]}"));
