@@ -123,33 +123,61 @@ class ScheduleConstants(unittest.TestCase):
                 assert call, f"no schedule is built from {const}"
                 self.assertEqual(call.group(1), approval)
 
-    def test_the_detail_cadence_renews_before_the_registry_stales_the_snapshot(self):
+    def assert_each_run_renews_what_lapses_before_the_next(self, name, rate, renew, life):
+        """Seconds, all three. A run renews what lapses within `renew` of its own start (KtoDemoRefresh).
+
+        Whatever the run finds must still be fresh when the NEXT run fetches, or the evidence has a gap
+        (a detail gap leaves the forecast NO_VERIFIED_KTO_MAPPING; a forecast gap leaves optimization
+        without evidence). The next run fetches `rate` after this one's tick, plus however late that
+        run starts after its own tick and reaches this place on its list, so `renew` has to exceed
+        `rate` by more than any lateness. The scheduler alone may start a run up to maxEventAge after
+        its tick (it retries within that age); startup and the places ahead on the list add minutes.
+
+        The rule this replaces was `rate + renew <= life` for detail (5 + 2 = 7) and `rate == renew`
+        for the forecast (12 = 12), and both are the boundary itself: the snapshot the last run fetched
+        lapses exactly `renew` after the next run's tick, so whether that run renewed it came down to
+        which of the two runs started faster after its tick (#361). Staging showed the forecast side
+        doing exactly that - refreshed, then current, every other run.
+        """
+        max_event_age = re.search(r"maxEventAge: cdk\.Duration\.hours\((\d+)\)", STAGING_TS.read_text())
+        assert max_event_age, "the schedule's maxEventAge is no longer a literal hour count"
+        lateness = int(max_event_age.group(1)) * 3600
+        self.assertGreater(
+            renew - rate, lateness,
+            f"{name}: a run must renew what would lapse before the next run starts, however late that is",
+        )
+        # And a rerun right after a fetch leaves it alone, so a repeated schedule costs no calls.
+        self.assertLess(renew, life, f"{name}: a just-fetched snapshot would be renewed again at once")
+
+    def test_every_detail_run_renews_what_would_lapse_before_the_next(self):
         # KTO_KOR_SERVICE_2's stale_after_seconds, the life a forecast request's mapping has.
         life = re.search(r"'pending-c2', 1, (\d+),", SOURCES_MIGRATION.read_text())
         assert life, "the KorService2 registry row no longer reads this way"
         renew = re.search(
             r"DETAIL_RENEW_BEFORE = Duration\.ofDays\((\d+)\)", DEMO_REFRESH.read_text()
         )
-        assert renew
+        assert renew, "DETAIL_RENEW_BEFORE is no longer a literal day count"
         rate = re.search(r"DETAIL_SCHEDULE_RATE_DAYS = (\d+)", STAGING_TS.read_text())
         assert rate
-        # A run renews what lapses within DETAIL_RENEW_BEFORE, so the next run has to come while the
-        # current snapshot still has that much life left.
-        self.assertLessEqual(
-            (int(rate.group(1)) + int(renew.group(1))) * 86400, int(life.group(1))
+        self.assert_each_run_renews_what_lapses_before_the_next(
+            "detail", int(rate.group(1)) * 86400, int(renew.group(1)) * 86400, int(life.group(1))
         )
 
-    def test_the_cadence_is_the_window_the_refresh_renews_in(self):
-        # KtoDemoRefresh renews the sets that lapse within FORECAST_RENEW_BEFORE. A schedule slower than
-        # that leaves a set stale before the next run; a faster one spends KTO quota on sets that are
-        # not near lapsing. Neither file can see the other, and only this compares them.
+    def test_every_forecast_run_renews_what_would_lapse_before_the_next(self):
+        # KTO_CONCENTRATION_FORECAST's stale_after_seconds, the life of a forecast set.
+        life = re.search(
+            r"\('KTO_CONCENTRATION_FORECAST',.*?'pending-c2', 1, (\d+),", SOURCES_MIGRATION.read_text(), re.S
+        )
+        assert life, "the forecast registry row no longer reads this way"
         renew = re.search(
             r"FORECAST_RENEW_BEFORE = Duration\.ofHours\((\d+)\)", DEMO_REFRESH.read_text()
         )
         assert renew, "FORECAST_RENEW_BEFORE is no longer a literal hour count"
         rate = re.search(r"FORECAST_SCHEDULE_RATE_HOURS = (\d+)", STAGING_TS.read_text())
         assert rate
-        self.assertEqual(int(rate.group(1)), int(renew.group(1)))
+        self.assert_each_run_renews_what_lapses_before_the_next(
+            "forecast", int(rate.group(1)) * 3600, int(renew.group(1)) * 3600, int(life.group(1))
+        )
 
     def test_the_demo_places_are_a_shape_the_operator_would_accept(self):
         places = re.search(r"'places': r'([^']+)'", OPERATOR.read_text())

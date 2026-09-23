@@ -47,11 +47,20 @@ public final class KtoDemoRefresh {
 
     public enum Mode { FORECAST, DETAIL }
 
-    /** A detail snapshot that lapses within this is renewed. Two days of margin over a weekly run. */
-    static final Duration DETAIL_RENEW_BEFORE = Duration.ofDays(2);
+    /**
+     * A detail snapshot that lapses within this of a run's start is renewed. A day longer than the
+     * 5-day schedule (infra DETAIL_SCHEDULE_RATE_DAYS), so each run renews the snapshot the run before it
+     * fetched however late either of them started; shorter than the P7D life, so a rerun right after a
+     * fetch costs no call. Two days put that snapshot exactly on the next run's boundary (#361).
+     */
+    static final Duration DETAIL_RENEW_BEFORE = Duration.ofDays(6);
 
-    /** A forecast set that lapses within this is renewed. Half the PT24H life, for a daily run. */
-    static final Duration FORECAST_RENEW_BEFORE = Duration.ofHours(12);
+    /**
+     * A forecast set that lapses within this of a run's start is renewed. Six hours longer than the
+     * 12-hour schedule, for the same reason; shorter than the PT24H life. Twelve hours, the schedule
+     * itself, was the same boundary (#361).
+     */
+    static final Duration FORECAST_RENEW_BEFORE = Duration.ofHours(18);
 
     /** The provider forecasts the 30 days after the query date (SOURCE_CATALOG.md); one day of margin. */
     private static final Duration FORECAST_HORIZON = Duration.ofDays(31);
