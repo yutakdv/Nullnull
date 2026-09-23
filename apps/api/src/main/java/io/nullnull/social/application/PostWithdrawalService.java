@@ -20,16 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
  * before it resumes on a keyset that excludes the row (BA-082-T3). A response already assembled
  * from a read that ran before the commit is not recalled; nothing can recall bytes already sent.
  *
- * <p>WHAT IT DOES NOT CLOSE, NAMED. The cover of a user-authored post is an object at a public URL
- * ({@code covers/user/...}) that this cannot delete: the object store port has no delete for
- * published objects, no task role holds that permission, the bucket is versioned, and the object
- * previously used a one-year immutable cache header. New uploads use no-store, which does not
- * purge old browser or service-worker copies. The web app's in-memory query cache keeps a page it
+ * <p>WHAT IT DOES NOT CLOSE, NAMED. This transaction only hides the post. The approved ops command
+ * reads its user-upload cover reference after the commit and removes that exact object's S3 versions;
+ * a failed cleanup remains pending for the same command to retry. New uploads use no-store, which
+ * cannot purge old browser or device copies. The web app's in-memory query cache keeps a page it
  * already has until it refetches. A trip candidate saved before withdrawal keeps the post's id as
  * its source; new POST-source saves lock and require PUBLISHED in their write transaction.
- * An already committed idempotency key can replay without creating another source. A withdrawal takes the post off
- * every page the API answers from now on; it does not make the image unreachable to someone who
- * already has its URL.
+ * An already committed idempotency key can replay without creating another source. A withdrawal
+ * takes the post off every page the API answers from now on; already delivered image bytes cannot
+ * be recalled.
  *
  * <p>There is no way back to PUBLISHED. {@link FeedStore#publishPost} only moves a DRAFT, and a
  * curated import leaves any existing id alone, so a withdrawn post stays withdrawn.

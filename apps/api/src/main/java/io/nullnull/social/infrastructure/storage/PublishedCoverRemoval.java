@@ -89,6 +89,7 @@ public final class PublishedCoverRemoval {
 
     private List<ObjectIdentifier> listExactVersions(String key) {
         List<ObjectIdentifier> versions = new ArrayList<>();
+        List<ObjectIdentifier> markers = new ArrayList<>();
         String keyMarker = null;
         String versionMarker = null;
         while (true) {
@@ -102,8 +103,11 @@ public final class PublishedCoverRemoval {
             response.deleteMarkers().stream().filter(marker -> key.equals(marker.key()))
                     .map(marker -> ObjectIdentifier.builder()
                             .key(key).versionId(marker.versionId()).build())
-                    .forEach(versions::add);
+                    .forEach(markers::add);
             if (!Boolean.TRUE.equals(response.isTruncated())) {
+                // Keep delete markers until all data versions have been removed. A marker may be
+                // the only thing preventing an older version from becoming publicly visible.
+                versions.addAll(markers);
                 return versions;
             }
             if (response.nextKeyMarker() == null || response.nextVersionIdMarker() == null

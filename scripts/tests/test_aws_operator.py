@@ -1649,11 +1649,13 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
     DIGEST='sha256:'+'a'*64
     RECORD={'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':'sha256:'+'a'*64}}
     # What PostWithdrawMainTest makes PostWithdrawMain print, verbatim.
-    JAVA_LINES=['post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN',
-                'post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=ALREADY_HIDDEN',
+    JAVA_LINES=['post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN cover=DELETED versions=2',
+                'post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=ALREADY_HIDDEN cover=ALREADY_ABSENT versions=0',
+                'post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN cover=NOT_USER_UPLOAD versions=0',
                 'post_withdraw_failed reason=NOT_FOUND','post_withdraw_failed reason=NOT_PUBLISHED',
                 'post_withdraw_failed reason=APPROVAL_NOT_SET','post_withdraw_failed reason=POST_ID_INVALID',
-                'post_withdraw_failed reason=IllegalStateException']
+                'post_withdraw_failed reason=IllegalStateException',
+                'post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending']
     BASE={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
     def args(self, **overrides):
         from types import SimpleNamespace
@@ -1708,8 +1710,9 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
                 with self.subTest(post_id=bad),self.assertRaisesRegex(ops.OpsError,'invalid-post-id'):
                     ops.ops_task(self.args(post_id=bad))
             aws.assert_not_called()
-    def test_the_post_and_the_approval_travel_to_the_deployed_release_and_the_residual_is_said(self):
-        error,calls,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'])
+    def test_the_post_and_the_approval_travel_to_the_deployed_release(self):
+        success='post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2'
+        error,calls,out=self.run_withdraw([success])
         self.assertIsNone(error)
         run=[kw for s,o,kw in calls if (s,o)==('ecs','run-task')]
         self.assertEqual(1,len(run))
@@ -1719,38 +1722,47 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
         self.assertEqual('true',environment['NULLNULL_POST_WITHDRAW_APPROVED'])
         self.assertEqual(OperationsTargetRegressions.TARGET,environment[ops.OPERATIONS_TARGET])
         self.assertIn('owner_approval=owner approved in session',out)
-        self.assertIn('ops_log post_withdrawn post='+self.POST+' outcome=WITHDRAWN',out)
-        # Said on every success: the post is off every page, and the image is still at its URL.
-        self.assertIn('post_withdraw_residual=cover-object-not-deleted',out)
+        self.assertIn('ops_log '+success,out)
+        self.assertNotIn('post_withdraw_residual=cover-object-not-deleted',out)
         self.assertIn('ops_task=withdraw-post result=succeeded',out)
         # The task that ran is checked against the deployed release's image, not only the definition that was named.
         self.assertEqual(self.DIGEST,self.wait.call_args.args[5])
     def test_a_rerun_that_finds_the_post_already_hidden_succeeds(self):
-        error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=ALREADY_HIDDEN'])
+        error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=ALREADY_HIDDEN cover=ALREADY_ABSENT versions=0'])
+        self.assertIsNone(error)
+        self.assertIn('ops_task=withdraw-post result=succeeded',out)
+        error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=NOT_USER_UPLOAD versions=0'])
         self.assertIsNone(error)
         self.assertIn('ops_task=withdraw-post result=succeeded',out)
     def test_only_one_line_naming_the_requested_post_counts_as_a_withdrawal(self):
-        named='post_withdrawn post='+self.POST+' outcome=WITHDRAWN'
+        named='post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2'
         for log in ([],['post_withdraw_failed reason=NOT_FOUND'],['post_withdraw_failed reason=NOT_PUBLISHED'],
-                    ['post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN'],[named,named],
+                    ['post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending'],
+                    ['post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN cover=DELETED versions=2'],[named,named],
                     [named,'post_withdraw_failed reason=IllegalStateException'],
-                    [named,'post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN']):
+                    [named,'post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN cover=DELETED versions=2'],
+                    [named,named+' cover_url=https://private.example/x'],
+                    ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'],
+                    ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=ALREADY_ABSENT versions=2']):
             with self.subTest(log=log):
                 error,_,out=self.run_withdraw(log)
                 self.assertIn('post-not-withdrawn',error or '')
                 self.assertNotIn('result=succeeded',out)
                 self.assertNotIn('post_withdraw_residual',out)
+                self.assertNotIn('private.example',out)
     def test_it_runs_only_on_the_deployed_release(self):
-        error,calls,_=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'],
+        error,calls,_=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2'],
                                         ops_image='1.dkr.ecr/nullnull-api@sha256:'+'b'*64)
         self.assertIn('ops-image-not-the-deployed-release',error or '')
         self.assertNotIn(('ecs','run-task'),[(s,o) for s,o,_ in calls])
     def test_its_lines_pass_the_log_allowlist_and_nothing_richer_does(self):
         for line in self.JAVA_LINES:
             self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
-        for line in ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN title=광화문 산책',
+        for line in ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2 title=광화문 산책',
                      'post_withdrawn post='+self.POST+' outcome=DELETED',
                      'post_withdrawn post='+self.POST,
+                     'post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2 cover_url=https://nullnull.test/x',
+                     'post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=-1',
                      'post_withdraw_failed reason=NOT_FOUND jdbc:postgresql://db:5432/nullnull',
                      'post_withdraw_failed reason=could not find post 0192f3a4']:
             self.assertFalse(ops.OPS_LOG_LINE.match(line),line)

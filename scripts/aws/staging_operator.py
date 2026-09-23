@@ -180,7 +180,8 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|replay_candidates_failed reason=[A-Za-z_]{1,80}'
                           # The withdrawal (PostWithdrawMain): the post id and a fixed outcome, or a failure code.
                           # Never the post's title, body or cover URL.
-                          r'|post_withdrawn post=[0-9a-f-]{36} outcome=(WITHDRAWN|ALREADY_HIDDEN)'
+                          r'|post_withdrawn post=[0-9a-f-]{36} outcome=(WITHDRAWN|ALREADY_HIDDEN) cover=(DELETED|ALREADY_ABSENT|NOT_USER_UPLOAD) versions=[0-9]{1,9}'
+                          r'|post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending'
                           r'|post_withdraw_failed reason=[A-Za-z_]{1,80}'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
@@ -1142,6 +1143,10 @@ def ops_task(args):
         withdrawn = []
         for event in events:
             line = event.get('message', '').strip()
+            # Count terminal-looking lines even when they fail the safe echo allowlist: a malformed
+            # second line must invalidate a success, without printing its possibly sensitive text.
+            if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
+                withdrawn.append(line)
             if OPS_LOG_LINE.match(line):
                 print('ops_log ' + line)
                 if line.startswith('KTO_SMOKE_OK '):
@@ -1154,10 +1159,6 @@ def ops_task(args):
                     seoul.append(line)
                 if args.task == 'release-source-quarantine' and line.startswith('source_quarantine_released '):
                     released.append(line)
-                # Every terminal line, the failure as well as the success: a stream holding both must not
-                # read as a withdrawal because one of its lines says so.
-                if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
-                    withdrawn.append(line)
         if failure:
             raise failure
         if args.task == 'seoul-live-collect':
@@ -1169,12 +1170,10 @@ def ops_task(args):
         # Exactly one terminal line, a success, naming the post the owner approved: a count alone would accept a
         # withdrawal of some other post. ALREADY_HIDDEN is a success - a rerun finds the post where the first run left it.
         if args.task == 'withdraw-post':
-            require(withdrawn in ([f'post_withdrawn post={args.post_id} outcome=WITHDRAWN'],
-                                  [f'post_withdrawn post={args.post_id} outcome=ALREADY_HIDDEN']), 'post-not-withdrawn')
-            # Said on every success, because the natural reading of "withdrawn" is wrong about the image: the post is
-            # off every page the API answers, and the uploaded cover is still served at its URL (no delete path, no
-            # delete permission, a versioned bucket, a one-year immutable cache header).
-            print('post_withdraw_residual=cover-object-not-deleted')
+            success = (r'post_withdrawn post=' + re.escape(args.post_id)
+                       + r' outcome=(WITHDRAWN|ALREADY_HIDDEN)'
+                       + r' cover=(DELETED versions=[1-9][0-9]{0,8}|ALREADY_ABSENT versions=0|NOT_USER_UPLOAD versions=0)')
+            require(len(withdrawn) == 1 and re.fullmatch(success, withdrawn[0]), 'post-not-withdrawn')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:

@@ -71,6 +71,8 @@ class PublishedCoverRemovalTest {
                 .flatMap(request -> request.delete().objects().stream())
                 .map(object -> object.versionId()).toList())
                 .contains("marker", "v-0", "v-1000").doesNotContain("keep");
+        assertThat(deletes.getAllValues().getFirst().delete().objects())
+                .extracting(object -> object.versionId()).doesNotContain("marker");
         var listings = ArgumentCaptor.forClass(ListObjectVersionsRequest.class);
         verify(s3, org.mockito.Mockito.times(3)).listObjectVersions(listings.capture());
         assertThat(listings.getAllValues()).allSatisfy(request ->
