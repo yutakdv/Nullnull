@@ -146,7 +146,7 @@ public final class KtoEngDetailResponseValidator {
                 return new Rejected(Outcome.SCHEMA_DRIFT, 1);
             }
             return new Found(KtoEngRecord.of(expected.contentId(), expected.contentTypeId(), servableTitle(item),
-                    optional(item, "addr1"), latitude, longitude, optional(item, "lclsSystm1"),
+                    servableAddress(item), latitude, longitude, optional(item, "lclsSystm1"),
                     optional(item, "lDongRegnCd"), optional(item, "lDongSignguCd")));
         } catch (CoordinateOutOfRangeException failure) {
             return new Rejected(Outcome.RANGE, 1);
@@ -156,13 +156,30 @@ public final class KtoEngDetailResponseValidator {
     }
 
     /**
-     * The title when it can become a localized name: present and within the column the name is stored in.
-     * Blank or longer is a data gap of this one record - the refresh withdraws its text - not a change in
-     * the provider's shape that should quarantine the source.
+     * The title when it can become an English localized name: present, English, and within the column the
+     * name is stored in. Blank, not English or longer is a data gap of this one record - the refresh
+     * withdraws its text - not a change in the provider's shape that should quarantine the source.
      */
     private static String servableTitle(JsonNode item) {
         String title = optional(item, "title");
-        return title == null || title.length() > KtoEngRecord.TITLE_LIMIT ? null : title;
+        return title == null || title.length() > KtoEngRecord.TITLE_LIMIT || !english(title) ? null : title;
+    }
+
+    /** The address when it is English; otherwise the Korean address stays in front, with its own credit. */
+    private static String servableAddress(JsonNode item) {
+        String address = optional(item, "addr1");
+        return address == null || !english(address) ? null : address;
+    }
+
+    /**
+     * Text is served under {@code en} only when it has at least one Latin letter. It is deliberately not
+     * "has no Hangul": EngService titles carry the Korean name beside the English one ("Gyeongbokgung Palace
+     * (경복궁)", #60, 2026-09-21), and that is an English name. What must not go out as English is text with
+     * no English in it at all - a Hangul-only value is Korean, whatever dataset it came from (#360 review).
+     * The probe's asciiLetterPercent above zero is the same test (KtoEngServiceProbeMain, BA-086-T11).
+     */
+    private static boolean english(String text) {
+        return text.codePoints().anyMatch(point -> point >= 'A' && point <= 'Z' || point >= 'a' && point <= 'z');
     }
 
     /** Exactly the provider's count, as a number or a numeric string; anything else is unknown. */

@@ -136,7 +136,7 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 
 ### 응답에서 읽는 키
 
-`title`·`addr1`·`mapx`·`mapy`·`lclsSystm1`·`lDongRegnCd`·`lDongSignguCd`(와 대조용 `contentid`·`contenttypeid`). 근거는 오너 probe의 관측(#60, 2026-09-21: 영문 상세 응답은 28개 필드로 국문 `detailCommon2`와 모양이 같다)이다. 필드 이름을 하나씩 적은 관측 기록은 이 문서가 처음이다. 그래서 `KtoEngDetailResponseValidator`는 이 키 가운데 하나라도 **없으면** `SCHEMA_DRIFT`로 격리한다. 가정이 틀렸다면 영문 텍스트가 조용히 전부 빠지는 것이 아니라 source 격리로 드러난다. 키는 있고 값이 빈 문자열이면 그 record 하나의 데이터 공백이다 — 좌표·코드가 비면 아래 연결 규칙이 거절하고, 이름(`title`)이 비었거나 저장 한도(200자)를 넘으면 낼 이름이 없으므로 그 record의 영문 텍스트를 내린다. 어느 쪽도 source를 격리하지 않는다.
+`title`·`addr1`·`mapx`·`mapy`·`lclsSystm1`·`lDongRegnCd`·`lDongSignguCd`(와 대조용 `contentid`·`contenttypeid`). 근거는 오너 probe의 관측(#60, 2026-09-21: 영문 상세 응답은 28개 필드로 국문 `detailCommon2`와 모양이 같다)이다. 필드 이름을 하나씩 적은 관측 기록은 이 문서가 처음이다. 그래서 `KtoEngDetailResponseValidator`는 이 키 가운데 하나라도 **없으면** `SCHEMA_DRIFT`로 격리한다. 가정이 틀렸다면 영문 텍스트가 조용히 전부 빠지는 것이 아니라 source 격리로 드러난다. 키는 있고 값이 빈 문자열이면 그 record 하나의 데이터 공백이다 — 좌표·코드가 비면 아래 연결 규칙이 거절하고, 이름(`title`)이 비었거나 저장 한도(200자)를 넘으면 낼 이름이 없으므로 그 record의 영문 텍스트를 내린다. 라틴 문자가 하나도 없는 값은 영문이 아니다. 이름이면 그 record의 영문 텍스트를 내리고, 주소면 주소만 국문으로 돌아간다(#360 검토). 한글이 섞였다는 이유로 내리지는 않는다 — 영문 제목은 국문 이름을 괄호로 함께 싣는다(예: `Gyeongbokgung Palace (경복궁)`). 어느 쪽도 source를 격리하지 않는다.
 
 ### 연결 규칙 (오너 결정, #60 2026-09-21)
 

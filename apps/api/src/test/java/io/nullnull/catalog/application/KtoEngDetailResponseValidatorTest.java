@@ -115,6 +115,29 @@ class KtoEngDetailResponseValidatorTest {
     }
 
     @Test
+    @DisplayName("a title with no Latin letter is not an English name: the record is found without one, not drift")
+    void titleWithoutALatinLetterIsNotServedAsEnglish() {
+        Result result = validate(item("264329", "76", "경복궁", "161, Sajik-ro", "37.5", "126.9"));
+
+        assertThat(result).isInstanceOf(Found.class);
+        assertThat(((Found) result).record().title()).isNull();
+        assertThat(((Found) result).record().address()).isEqualTo("161, Sajik-ro");
+        assertThat(result.verdict().outcome()).isEqualTo(Outcome.OK);
+    }
+
+    @Test
+    @DisplayName("an address with no Latin letter is not an English address: the name stays and the address is left to the Korean text")
+    void addressWithoutALatinLetterIsNotServedAsEnglish() {
+        Result result = validate(item("264329", "76", "Gyeongbokgung Palace (경복궁)", "서울특별시 종로구 사직로 161",
+                "37.5", "126.9"));
+
+        assertThat(result).isInstanceOf(Found.class);
+        assertThat(((Found) result).record().title()).isEqualTo("Gyeongbokgung Palace (경복궁)");
+        assertThat(((Found) result).record().address()).isNull();
+        assertThat(result.verdict().outcome()).isEqualTo(Outcome.OK);
+    }
+
+    @Test
     @DisplayName("a key the link rule reads that is absent from the item is drift, not an empty value")
     void absentRequiredKeyIsDrift() {
         for (String key : java.util.List.of("title", "addr1", "mapx", "mapy", "lclsSystm1", "lDongRegnCd",
