@@ -1286,9 +1286,9 @@ export interface components {
             occurredAt: string;
         };
         /**
-         * @description Where this place record came from and the credit text approved for it. The server projects
-         *     the reviewed source registry revision that the place was collected under, so the client never
-         *     decides which provider to credit and never hardcodes a provider name.
+         * @description The approved credit for a place record or a localization text. The server projects the
+         *     reviewed source registry revision of the item being credited, so the client never chooses
+         *     a provider from another field or hardcodes a provider name.
          */
         SourceAttribution: {
             /** @description Source registry code, e.g. the KTO tourism service. Machine identifier, not display copy. */
@@ -1307,6 +1307,23 @@ export interface components {
             /** Format: uri */
             licenseUrl: string | null;
             license: string | null;
+        };
+        TextFieldProvenance: {
+            /** @description Locale of the localization row that supplied this field, not the requested locale. */
+            locale: string;
+            /**
+             * @description Credit from that same localization row's reviewed source revision. Null when an older
+             *     row has no text source provenance; never copy the place record's credit into this field.
+             */
+            sourceAttribution: components["schemas"]["SourceAttribution"] | null;
+        };
+        PlaceTextProvenance: {
+            /** @description Null when the canonical name is used without a localization row. */
+            name: components["schemas"]["TextFieldProvenance"] | null;
+            /** @description Null when address is absent. */
+            address: components["schemas"]["TextFieldProvenance"] | null;
+            /** @description Null for summaries and when description is absent. */
+            description: components["schemas"]["TextFieldProvenance"] | null;
         };
         PlaceSummary: {
             /** Format: uuid */
@@ -1331,6 +1348,8 @@ export interface components {
             regionName?: string | null;
             /** @description Null only for records with no external source, such as a user-created place. */
             sourceAttribution?: components["schemas"]["SourceAttribution"] | null;
+            /** @description Field-specific locale and text credit. It accompanies, rather than replaces, the place credit. */
+            textProvenance?: components["schemas"]["PlaceTextProvenance"];
             /**
              * Format: uri
              * @description A thumbnail whose reviewed licence allows redistribution, or null. Never render it
@@ -1357,6 +1376,7 @@ export interface components {
             categoryName?: string | null;
             regionName?: string | null;
             sourceAttribution?: components["schemas"]["SourceAttribution"] | null;
+            textProvenance?: components["schemas"]["PlaceTextProvenance"];
             /** Format: uri */
             thumbnailUrl?: string | null;
             thumbnailAsset?: components["schemas"]["MediaAsset"] | null;
