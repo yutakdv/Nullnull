@@ -193,6 +193,27 @@ class OptimizeGatewayFailureIT {
     }
 
     @Test
+    @DisplayName("BA-052-T25 an APPLY whose policy lookup fails leaves no reservation of its key behind")
+    void aFailedLookupFreesItsKey() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        String key = "decide-" + UUID.randomUUID();
+
+        // The key is reserved BEFORE the lookup now (#340), so a lookup that fails has a reservation to give
+        // back. Left to its lease instead, the same key sent again would wait out the lease - seconds of an
+        // APPLY the contract calls retryable - before it could run.
+        MODE.set(Mode.DROP_CONNECTION);
+        decide(fixture, runId, proposalId, key)
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("APPLY_FAILED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE idempotency_key = ?",
+                Integer.class, key)).as("no reservation left for the key").isZero();
+        assertNothingWritten(fixture, runId, Mode.DROP_CONNECTION);
+        assertNoUnhandledFailure();
+    }
+
+    @Test
     @DisplayName("BA-052-T16 an apps/ai that stalls during APPLY is 503 APPLY_FAILED once the read timeout passes")
     void aStalledPolicyCheckIsARetryableApplyFailure() throws Exception {
         Fixture fixture = fixture();

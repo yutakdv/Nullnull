@@ -198,26 +198,32 @@ public class TripService {
 
     /**
      * The current version of a trip, for background work deciding whether its frozen input still
-     * holds.
+     * holds - read under a lock that keeps it that version until the caller's transaction ends.
      *
      * <p>It takes the owner rather than trusting the caller to have checked one, even though the
      * caller is a worker rather than a request: the worker holds a run row that recorded the owner at
      * preflight, so it has the id, and a method that did not ask for it would be the one place in
      * this service where a trip can be read without naming whose it is. Empty means the trip is gone,
      * which is the answer the worker needs, not an error.
+     *
+     * <p>Locked, and MANDATORY, because the answer is only worth something to a caller that goes on
+     * acting in the same transaction (#340). A worker that read the version, let the transaction end
+     * and then read the trip's items or stored a preview would be acting on whatever committed in
+     * between - an unlocked read narrows that window, it does not close it. With the row held FOR
+     * SHARE, a mutation of this trip waits for the caller to commit, so everything the caller reads or
+     * writes afterwards describes the version it checked. Outside a caller's transaction the lock
+     * would be released on return and the name would promise a guarantee the method never gave.
      */
-    @Transactional(readOnly = true)
-    public java.util.OptionalLong versionFor(UUID ownerId, UUID tripId) {
-        return findForOwner(ownerId, tripId)
-                .map(trip -> java.util.OptionalLong.of(trip.version()))
-                .orElseGet(java.util.OptionalLong::empty);
+    @Transactional(propagation = Propagation.MANDATORY)
+    public java.util.OptionalLong lockedVersionFor(UUID ownerId, UUID tripId) {
+        return trips.versionForShare(ownerId, tripId);
     }
 
     /**
      * The revision a trip was at when it reached this version, for work that has to name what it
      * froze rather than what the trip is now.
      *
-     * <p>Owner-scoped for the same reason {@link #versionFor} is: a caller holding a run row already
+     * <p>Owner-scoped for the same reason {@link #lockedVersionFor} is: a caller holding a run row already
      * recorded whose trip it is, and a read that did not ask would be the one here that does not.
      */
     @Transactional(readOnly = true)

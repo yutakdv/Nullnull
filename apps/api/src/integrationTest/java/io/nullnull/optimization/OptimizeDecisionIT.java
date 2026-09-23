@@ -280,6 +280,117 @@ class OptimizeDecisionIT {
     }
 
     @Test
+    @DisplayName("BA-052-T23 two APPLYs sent at once with one Idempotency-Key ask apps/ai once, and both answer with the one decision it made")
+    void oneKeySentTwiceAsksAndAppliesOnce() throws Exception {
+        Fixture fixture = fixture();
+        UUID runId = readyRun(fixture);
+        UUID proposalId = proposalOf(runId);
+        String key = "decide-" + UUID.randomUUID();
+
+        PolicyDescriptor policy = new PolicyDescriptor(PolicyPins.V1.policyVersion(),
+                PolicyPins.V1.policyHash(), PolicyPins.V1.pipelineVersion(), "test-service");
+        java.util.concurrent.atomic.AtomicInteger lookups = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.CountDownLatch firstAsking = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch firstMayAnswer = new java.util.concurrent.CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(call -> {
+            if (lookups.incrementAndGet() == 1) {
+                firstAsking.countDown();
+                if (!firstMayAnswer.await(30, TimeUnit.SECONDS)) {
+                    throw new AssertionError("the test never let the first lookup answer");
+                }
+            }
+            return policy;
+        }).when(recommendations).policy();
+
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try (java.sql.Connection holder = dataSource.getConnection()) {
+            holder.setAutoCommit(false);
+            Future<MvcResult> first = callers.submit(() ->
+                    decide(fixture, runId, proposalId, "APPLY", "\"1\"", key).andReturn());
+            assertThat(firstAsking.await(30, TimeUnit.SECONDS)).isTrue();
+
+            // While the first request is still asking apps/ai, its key is already reserved - committed, so
+            // this connection can see and hold it. That reservation is the whole of the change (#340).
+            UUID reservation = jdbc.queryForObject("SELECT id FROM idempotency_records"
+                    + " WHERE idempotency_key = ? AND response_status IS NULL", UUID.class, key);
+            int holderPid;
+            try (java.sql.Statement statement = holder.createStatement()) {
+                java.sql.ResultSet pid = statement.executeQuery("SELECT pg_backend_pid()");
+                pid.next();
+                holderPid = pid.getInt(1);
+            }
+            try (java.sql.PreparedStatement lock = holder.prepareStatement(
+                    "SELECT id FROM idempotency_records WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, reservation);
+                lock.executeQuery().close();
+            }
+            Future<MvcResult> second = callers.submit(() ->
+                    decide(fixture, runId, proposalId, "APPLY", "\"1\"", key).andReturn());
+            // The second request is claiming the key and has reached the reservation. It holds the owner's
+            // row while it reads it, so the first cannot finish in between: what it reads is a key in use.
+            org.awaitility.Awaitility.await().atMost(15, TimeUnit.SECONDS)
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .until(() -> jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity"
+                            + " WHERE ? = ANY(pg_blocking_pids(pid)) AND query ILIKE '%idempotency_records%'",
+                            Integer.class, holderPid) > 0);
+            holder.rollback();
+            firstMayAnswer.countDown();
+
+            MvcResult answered = first.get(60, TimeUnit.SECONDS);
+            MvcResult replayed = second.get(60, TimeUnit.SECONDS);
+            assertThat(answered.getResponse().getStatus()).isEqualTo(200);
+            assertThat(replayed.getResponse().getStatus())
+                    .as("the second is told what the first did, not that its own lookup failed or raced")
+                    .isEqualTo(200);
+            assertThat(replayed.getResponse().getContentAsString())
+                    .isEqualTo(answered.getResponse().getContentAsString());
+            assertThat(lookups).as("apps/ai asked once for the key").hasValue(1);
+            assertThat(decisionCount(runId)).isOne();
+            assertThat(tripVersion(fixture.tripId())).as("applied once").isEqualTo(2L);
+        } finally {
+            firstMayAnswer.countDown();
+            callers.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("BA-052-T24 APPLYs under different keys do not wait for each other's policy lookup")
+    void differentKeysAskTogether() throws Exception {
+        // One owner, two trips: the owner's row is what a key-independent serialization would queue on.
+        SessionService.Bootstrap owner = sessions.bootstrap(null, null, null);
+        Fixture one = fixtureFor(owner);
+        Fixture two = fixtureFor(owner);
+        UUID runOne = readyRun(one);
+        UUID runTwo = awaitReady(queue(two));
+        UUID proposalOne = proposalOf(runOne);
+        UUID proposalTwo = proposalOf(runTwo);
+
+        PolicyDescriptor policy = new PolicyDescriptor(PolicyPins.V1.policyVersion(),
+                PolicyPins.V1.policyHash(), PolicyPins.V1.pipelineVersion(), "test-service");
+        // Each lookup waits for the other. If one key's lookup waited behind the other's reservation or
+        // behind the owner's row, the two would never meet here and both would fail.
+        java.util.concurrent.CyclicBarrier bothAsking = new java.util.concurrent.CyclicBarrier(2);
+        org.mockito.Mockito.doAnswer(call -> {
+            bothAsking.await(30, TimeUnit.SECONDS);
+            return policy;
+        }).when(recommendations).policy();
+
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try {
+            Future<MvcResult> first = callers.submit(() -> decide(one, runOne, proposalOne, "APPLY", "\"1\"",
+                    "decide-" + UUID.randomUUID()).andReturn());
+            Future<MvcResult> second = callers.submit(() -> decide(two, runTwo, proposalTwo, "APPLY", "\"1\"",
+                    "decide-" + UUID.randomUUID()).andReturn());
+            assertThat(first.get(60, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(200);
+            assertThat(second.get(60, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(200);
+        } finally {
+            callers.shutdownNow();
+        }
+        assertThat(tripVersion(one.tripId())).isEqualTo(2L);
+        assertThat(tripVersion(two.tripId())).isEqualTo(2L);
+    }
+
+    @Test
     @DisplayName("BA-052-T1 a second APPLY on a run already applied is refused")
     void aSecondApplyIsRefused() throws Exception {
         Fixture fixture = fixture();
@@ -616,7 +727,11 @@ class OptimizeDecisionIT {
     }
 
     private Fixture fixture() throws Exception {
-        SessionService.Bootstrap owner = sessions.bootstrap(null, null, null);
+        return fixtureFor(sessions.bootstrap(null, null, null));
+    }
+
+    /** A trip of an owner the caller already has, for cases that need two trips under one owner. */
+    private Fixture fixtureFor(SessionService.Bootstrap owner) throws Exception {
         UUID tripId = createTrip(owner);
         UUID placeId = insertPlace();
         UUID itemId = insertItem(tripId, placeId);
@@ -627,7 +742,15 @@ class OptimizeDecisionIT {
     /** Drives the BA-051 pipeline until the run really is READY with a stored proposal. */
     private UUID readyRun(Fixture fixture) throws Exception {
         answerFromTheRequest();
-        UUID runId = queue(fixture);
+        return awaitReady(queue(fixture));
+    }
+
+    /**
+     * A queued run, once the pipeline has made it READY. Separate from {@link #readyRun} for a case that
+     * needs a second run under the stubs already in place: stubbing again with {@code when(...)} calls the
+     * previous answer with a null request.
+     */
+    private UUID awaitReady(UUID runId) {
         org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS)
                 .pollInterval(50, TimeUnit.MILLISECONDS)
                 .until(() -> List.of("READY", "FAILED", "APPLIED", "REVERTED")
@@ -645,12 +768,17 @@ class OptimizeDecisionIT {
 
     private ResultActions decide(Fixture fixture, UUID runId, UUID proposalId, String kind,
             String ifMatch) throws Exception {
+        return decide(fixture, runId, proposalId, kind, ifMatch, "decide-" + UUID.randomUUID());
+    }
+
+    private ResultActions decide(Fixture fixture, UUID runId, UUID proposalId, String kind,
+            String ifMatch, String idempotencyKey) throws Exception {
         return mvc.perform(post("/api/v1/optimizations/" + runId + "/decisions")
                 .cookie(cookie(fixture.owner()))
                 .header("Origin", "http://localhost:5173")
                 .header("X-CSRF-Token", fixture.owner().csrf.token)
                 .header("If-Match", ifMatch)
-                .header("Idempotency-Key", "decide-" + UUID.randomUUID())
+                .header("Idempotency-Key", idempotencyKey)
                 .contentType("application/json")
                 .content("{\"proposalId\":\"" + proposalId + "\",\"decision\":\"" + kind + "\"}"));
     }

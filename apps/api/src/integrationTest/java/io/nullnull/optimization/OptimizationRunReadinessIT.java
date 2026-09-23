@@ -3,9 +3,12 @@ package io.nullnull.optimization;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.nullnull.optimization.application.OptimizationRunStore;
+import io.nullnull.optimization.domain.OptimizationFailureCode;
+import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -112,6 +115,59 @@ class OptimizationRunReadinessIT {
                 .containsEntry("policy_version", "policy-v1")
                 .containsEntry("policy_hash", POLICY_HASH)
                 .containsEntry("catalog_version", CATALOG_VERSION);
+    }
+
+    @Test
+    @DisplayName("BA-051-T32 the store refuses to publish a run at its deadline and publishes it a second before")
+    void aRunPastItsDeadlineCannotPublish() {
+        seedRunning();
+        // Truncated to microseconds, the precision timestamptz keeps, so the instant the run stores and
+        // the instant it is compared with are the same value - the boundary itself, not a neighbour of it.
+        Instant deadline = Instant.now().plusSeconds(600).truncatedTo(ChronoUnit.MICROS);
+        runs.recordFrozenEvidence(runId, deadline, List.of());
+
+        // At the deadline the preview is already gone (previewExpired is "not before"), so publishing it
+        // would store a READY that reads 410 the moment it exists.
+        assertThat(runs.markReady(runId, FINGERPRINT, "pipeline-v1", "policy-v1", POLICY_HASH,
+                CATALOG_VERSION, deadline)).isFalse();
+        assertThat(status()).isEqualTo("RUNNING");
+
+        // The negative control: the same call a second earlier publishes, so the refusal above is the
+        // deadline's and not something else about this run.
+        assertThat(runs.markReady(runId, FINGERPRINT, "pipeline-v1", "policy-v1", POLICY_HASH,
+                CATALOG_VERSION, deadline.minusSeconds(1))).isTrue();
+        assertThat(status()).isEqualTo("READY");
+    }
+
+    @Test
+    @DisplayName("BA-051-T30 re-freezing a run keeps the deadline it first recorded")
+    void reFreezingKeepsTheFirstDeadline() {
+        seedRunning();
+        Instant first = Instant.now().plusSeconds(600).truncatedTo(ChronoUnit.MICROS);
+        assertThat(runs.recordFrozenEvidence(runId, first, List.of())).isTrue();
+
+        // A retry freezes again, later. It still answers true - the sets are replaced - but the deadline
+        // is the one the run already had.
+        assertThat(runs.recordFrozenEvidence(runId, first.plusSeconds(60), List.of())).isTrue();
+        assertThat(jdbc.queryForObject("SELECT expires_at FROM optimization_runs WHERE id = ?",
+                java.sql.Timestamp.class, runId).toInstant()).isEqualTo(first);
+    }
+
+    @Test
+    @DisplayName("BA-051-T31 a failure the store is asked to record at or after the run's deadline is stored as EXPIRED without a code")
+    void aFailureAfterTheDeadlineIsStoredAsExpiry() {
+        seedRunning();
+        Instant deadline = Instant.now().plusSeconds(600).truncatedTo(ChronoUnit.MICROS);
+        runs.recordFrozenEvidence(runId, deadline, List.of());
+
+        assertThat(runs.fail(runId, OptimizationStatus.RUNNING, OptimizationFailureCode.NO_IMPROVEMENT,
+                "Nothing offered was better.", deadline)).isTrue();
+        assertThat(jdbc.queryForMap("SELECT status, failure_code, failure_message, completed_at"
+                + " FROM optimization_runs WHERE id = ?", runId))
+                .containsEntry("status", "EXPIRED")
+                .containsEntry("failure_code", null)
+                .containsEntry("failure_message", null)
+                .containsEntry("completed_at", java.sql.Timestamp.from(deadline));
     }
 
     private String status() {
