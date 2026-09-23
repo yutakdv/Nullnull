@@ -60,7 +60,7 @@ function liveRead(request: Request) {
  * request to the default handler, so once the cookie exists every endpoint
  * answers exactly as the rest of the suite expects.
  */
-function firstVisitServer() {
+function firstVisitServer(bootstrapDelayMs = 30) {
   server.use(
     http.post(`${API_BASE}/session/csrf`, () =>
       cookieIssued ? undefined : firstVisit401(),
@@ -68,13 +68,14 @@ function firstVisitServer() {
     http.post(`${API_BASE}/demo/sessions`, async () => {
       // The real bootstrap takes a round trip; the screen's own read must not
       // be able to overtake it and stay failed.
-      await delay(30);
+      await delay(bootstrapDelayMs);
       cookieIssued = true;
       return undefined;
     }),
     http.post(`${API_BASE}/live/areas`, ({ request }) => liveRead(request)),
     http.get(`${API_BASE}/live/places/:placeId`, ({ request }) => liveRead(request)),
     http.get(`${API_BASE}/live/areas/:areaId/places`, ({ request }) => liveRead(request)),
+    http.get(`${API_BASE}/trips`, () => (cookieIssued ? undefined : firstVisit401())),
   );
 }
 
@@ -136,6 +137,45 @@ describe('a cookie-less deep link onto Live reads after the session exists', () 
       http.post(`${API_BASE}/live/areas`, () => problemResponse('UNAUTHORIZED')),
     );
     renderAt('/live');
+
+    await screen.findByText(messages['en-US']['session.expired']);
+    expect(paths).not.toContain('POST /api/v1/demo/sessions');
+  });
+});
+
+describe('a read refused only for want of a cookie is asked again once the session exists', () => {
+  // The class behind the Live defect. Most mount-time reads are GETs, which the
+  // contract retries once after 1s on UNAUTHORIZED; that recovers only when the
+  // first-visit bootstrap is quicker than the retry. On a slow network it is
+  // not, and the screen kept its error after the session existed.
+  it('FE-001-T3 recovers the trips chooser when the bootstrap outlasts the GET retry', async () => {
+    firstVisitServer(1_500);
+    renderAt('/trips/select');
+
+    await waitFor(
+      () => {
+        expect(cookieIssued).toBe(true);
+      },
+      { timeout: 4000 },
+    );
+    await waitFor(
+      () => {
+        expect(screen.queryByText(messages['en-US']['tripSelect.error'])).toBeNull();
+        expect(screen.queryByText(messages['en-US']['tripSelect.loading'])).toBeNull();
+      },
+      { timeout: 4000 },
+    );
+    expect(paths.filter((p) => p === 'POST /api/v1/demo/sessions')).toHaveLength(1);
+  }, 10_000);
+
+  it('does not ask again when the refusal was for a cookie that was sent', async () => {
+    // An ended session answers 401 WITHOUT missingCredential; repeating that
+    // read cannot help and the shell shows the ended-session screen instead.
+    server.use(
+      http.post(`${API_BASE}/session/csrf`, () => problemResponse('UNAUTHORIZED')),
+      http.get(`${API_BASE}/trips`, () => problemResponse('UNAUTHORIZED')),
+    );
+    renderAt('/trips/select');
 
     await screen.findByText(messages['en-US']['session.expired']);
     expect(paths).not.toContain('POST /api/v1/demo/sessions');
