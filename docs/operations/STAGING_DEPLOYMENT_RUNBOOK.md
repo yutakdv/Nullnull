@@ -103,6 +103,7 @@ CDK v2 TypeScript 구현은 stateful replacement와 배포 순서를 분리하�
 | `NullnullStgServices` | api/ai task definition과 service | `ApiServiceName`, `AiServiceName`, `InternalAlbArn` |
 | `NullnullStgWebEdge` | private S3, OAC, CloudFront VPC origin(HTTP:80), WAF, API gate | `PublicUrl`, `DistributionId`, `WebBucketName` |
 | `NullnullStgObservability` | alarms, `ops.alarm`·예보 metric filter, SNS(Budget 없음 — 조직 SCP가 `budgets:*`를 거부) | `AlarmTopicArn` |
+| `NullnullStgCloudFrontAccessLogs` (us-east-1, 별도 stack) | CloudFront standard logging v2 delivery와 전용 CloudWatch Logs group | `LogGroupName`, `DeliveryId` |
 
 release digest를 담는 것은 `Migration`·`WebEdge`·`Services`뿐이다. 보호 stack(`Foundation`·`Network`·`Data`·`Platform`·`GlobalWaf`·`Observability`)의 template이 바뀌거나 migration 목록이 바뀌면 infra 변경으로 분류되어 `staging-infra` 승인 경로를 탄다.
 
@@ -140,6 +141,14 @@ WAF는 CloudFront에 연결한다.
 - KTO 탐색/붙여넣기/optimizer 정상 요청이 차단되지 않는 항목만 BLOCK으로 승격한다.
 - edge 429가 OpenAPI의 `Problem` shape가 아니면 client 재시도 계약과 맞지 않으므로 BA-073 제출 동선에서는 오탐 방지 한도를 우선한다.
 
+### CloudFront 접근 로그
+
+`infra/src/access-logs.ts`는 별도 us-east-1 stack으로 기존 distribution에 standard logging v2를 연결한다. `WebEdge`의 origin·behavior·API gate를 업데이트하지 않는다. `DistributionId`에는 `WebEdge` output의 실제 값을 넘긴다. `infra`에서 `npm run synth:access-logs -- -c account=<AWS 계정 ID>`로 전용 template을 만든 뒤 `NullnullStgCloudFrontAccessLogs`에 대한 CloudFormation change set이 로그 그룹·delivery source·destination·delivery **추가 네 건만** 포함하는지 확인하고 실행한다. 앱 release 배포 절차와 별개다.
+
+전용 log group `NullnullStgCloudFrontAccessLogs`는 30일 보존한다. JSON 필드는 UTC 시각, edge, viewer IP, 국가/ASN, method, host, URI 경로, status, bytes, user-agent, cache 결과, request ID와 latency로 제한한다. `cs-uri-query`, `cs(Cookie)`, `cs(Referer)`, `x-forwarded-for`는 수집하지 않는다. 로그의 IP를 실제 사람·로그인 사용자와 동일시하지 않는다. 공개 issue/PR에는 원문 IP·user-agent·경로 식별자를 넣지 않고 `python3 scripts/aws/cloudfront_access_report.py --profile <읽기 가능한 profile> --hours 24`의 집계만 사용한다. 이 집계에서 운영 시험 경로는 별도로 센다.
+
+적용 확인은 `aws logs describe-deliveries --region us-east-1`, `describe-log-groups`, 공개 URL의 200 응답, 실제 log stream/event 순서다. 기존 legacy logging이 꺼져 있었던 기간의 개별 요청은 복원할 수 없다. CloudFront의 과거 `Requests` metric은 요청 총량만 알려 준다. 표준 로그는 best effort이고 새 설정의 안정적 전달까지 약 4시간, 일부 항목은 최대 24시간 지연될 수 있으므로 로그 수를 방문자 총계로 사용하지 않는다. 운영 종료 때 delivery → source/destination → log group 순서로 정리하되, 필요한 감사 보존 기간과 #307 종료 절차를 먼저 대조한다.
+
 ## 6. IAM, OIDC와 secret
 
 계정은 하나지만 역할은 책임별로 나눈다.
@@ -176,7 +185,7 @@ main에 들어간 코드는 `staging` environment로 deploy role을 쓸 수 있�
 
 Secrets Manager에는 최소 DB credential, `KTO_SERVICE_KEY`, `NULLNULL_CURSOR_SECRET`, `NULLNULL_DELETION_TOKEN_SECRET`, 서울 proxy secret(`nullnull-stg/seoul-proxy`)을 둔다. secret 값은 CDK context, task environment, frontend `VITE_*`, release manifest, image layer, log와 GitHub artifact에 들어가지 않는다.
 
-**서울 proxy secret은 `secrets --seoul` 또는 콘솔에서 갱신한다**([#334](https://github.com/yutakdv/Nullnull/issues/334)). 이 secret은 한 hop에 속한 두 값을 JSON 한 벌로 든다. `apiKey`는 오너가 넣는 서울 열린데이터 인증키이고, `proxyToken`은 CDK가 생성해 API task가 proxy에 제시하는 값이다. `infra/src/staging.ts`가 `apiKey: ""`로 만들고 기존 operator의 `secrets` 명령은 KTO 키만 다뤘다. 이제 명시적 `--seoul` 옵션은 ignored `apps/api/.env.local`의 `SEOUL_API_KEY`를 읽고 JSON의 `apiKey`만 갱신한다. 기존 `proxyToken`과 다른 필드는 보존하고 동일 키는 재기록하지 않는다. 이 secret의 Get/Put 권한이 필요하며 현재 operator IAM 템플릿에는 그 권한이 없다. 인증 성공만으로 실행 권한이 생기지 않는다.
+**서울 proxy secret은 `secrets --seoul` 또는 콘솔에서 갱신한다**([#334](https://github.com/yutakdv/Nullnull/issues/334)). 이 secret은 한 hop에 속한 두 값을 JSON 한 벌로 든다. `apiKey`는 오너가 넣는 서울 열린데이터 인증키이고, `proxyToken`은 CDK가 생성해 API task가 proxy에 제시하는 값이다. `infra/src/staging.ts`가 `apiKey: ""`로 만들고 기존 operator의 `secrets` 명령은 KTO 키만 다뤘다. 이제 명시적 `--seoul` 옵션은 ignored `apps/api/.env.local`의 `SEOUL_API_KEY`를 읽고 JSON의 `apiKey`만 갱신한다. 기존 `proxyToken`과 다른 필드는 보존하고 동일 키는 재기록하지 않는다. operator IAM은 `nullnull-stg/seoul-proxy-*` 한 secret ARN에 Get/Put/Describe 권한을 제한한다. 2026-09-23 실제 secret의 `apiKey`가 로컬 키와 같음을 확인해 재기록하지 않았다.
 
 1. Secrets Manager 콘솔(서울 region)에서 `nullnull-stg/seoul-proxy`를 연다 → **Retrieve secret value** → **Edit**.
 2. Key/value 보기에서 **`apiKey`의 값만** 바꾸고 `proxyToken`은 그대로 둔 채 저장한다.
@@ -397,6 +406,10 @@ python3 scripts/aws/staging_operator.py deploy --manifest .artifacts/releases/re
   --estimated-total 80 --cost-basis infra/cost-basis.md
 python3 scripts/aws/staging_operator.py classify --plan <plan.json> --approved-plan-sha256 <sha>   # kind·diff
 python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-plan-sha256 <sha> --execute --kind infra
+# 공개 중인 #338처럼 schema·WebEdge/Services 구조가 그대로인 검토된 release에만 사용한다.
+# 실행 전후 공개 health=200을 확인하고, WebEdge를 먼저 배포하면서 TrafficEnabled=true를 유지한다.
+python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-plan-sha256 <sha> \
+  --execute --kind infra --preserve-open-edge
 bash scripts/aws/staging-smoke.sh                                      # NULLNULL_VERIFIER_TOKEN 이 있으면 API 경로도 본다
 python3 scripts/aws/staging_operator.py rollback --previous-plan <plan.json> --previous-plan-sha256 <sha>
 python3 scripts/aws/staging_operator.py classify --plan <rollback-plan.json> --approved-plan-sha256 <sha>
@@ -454,11 +467,16 @@ python3 scripts/aws/staging_operator.py secret-scan
 # --inventory가 읽는 파일로 남긴다. KTO를 부르지 않으므로 승인 변수가 없다. release는 입력이 아니라 배포된 release다.
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task kto-call-inventory
-# 게시물 회수(local 전용, BA-082-T16). 공개된 게시물 하나를 HIDDEN으로 내리고 published_at을 비운다. 표지 이미지는
-# 지우지 않는다(아래 bullet). 다시 돌리면 ALREADY_HIDDEN으로 성공하고 게시물 행은 건드리지 않는다.
+# 게시물 회수(local 전용, BA-082-T16·#338). DB에서 하나를 HIDDEN으로 내린 뒤 그 user-upload 표지의
+# 정확한 S3 객체 모든 버전과 삭제 마커를 없앤다. 부분 실패면 같은 승인 post id로 다시 실행한다.
 NULLNULL_POST_WITHDRAW_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task withdraw-post --post-id <postId> \
   --owner-approval '<누가·어디서 승인했는지>'
+# 가상 사례: 승인된 게시물 ID가 0192f3a4-5b6c-7d8e-9f01-23456789abcd라면 위 <postId>에
+# 그 값을 그대로 넣고, 실패 시 같은 ID·승인 기록으로 다시 실행한다(실제 사건 ID로 치환 필수).
+# 첫 성공 로그 예: post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN cover=DELETED versions=2
+# 재시도 성공 예: post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=ALREADY_HIDDEN cover=ALREADY_ABSENT versions=0
+# 실패 로그: post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending
 # verifier token(Secrets Manager nullnull-stg/verifier-token)은 history에 남지 않게 읽는다. 아래 flows와 edge open이 쓴다.
 read -rs NULLNULL_VERIFIER_TOKEN && export NULLNULL_VERIFIER_TOKEN
 # INT-04 확인(verifier 경로). 먼저 날짜 쌍을 찾고, 예보 적재 뒤 24시간 안에 돌린다. edge를 연 뒤에는 --expect-edge open.
@@ -485,8 +503,12 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - `secret-scan`은 BA-006-T2(*"frontend bundle·image layer·log에 operator가 읽을 수 있는 secret(KTO key·verifier token)이 없다"*, A-045)를 실제 값으로 잰다. **bundle**: release bucket에 기록된 **모든** release의 assembly를 받아 기록된 hash로 확인하고, 각각에서 그 release의 `webArtifactSha256`과 같은 asset 디렉터리를 찾는다 — web 배포가 `prune: false`라 옛 release의 파일도 여전히 서빙되기 때문이다. 현재 release가 기록에 없거나 bundle을 못 찾으면 판정 없이 멈춘다. **image**: ECR에서 digest로 받아, 파일 이름이 아니라 바이트(magic)로 zip·gzip·bzip2·xz·zstd를 알아보고 재귀로 푼다(containerd store는 layer를 압축된 채 저장하고, jar 항목은 deflate라 풀지 않으면 아무것도 못 찾는다). 깊이·크기 한도를 넘거나 열 수 없는 blob은 세어서 판정을 부분으로 만든다. ECR 로그인은 스캔 전용 임시 `DOCKER_CONFIG`에만 남고 끝나면 logout한다. **로그**: 그룹 이름은 task definition의 `awslogs-group`에서 읽는다(`logs:DescribeLogGroups`는 operator에 없다). ops·migration은 `Migration` stack output의 배포 ARN으로, api·ai는 family의 최신 ACTIVE revision으로 읽는다(`ecs:DescribeServices`가 없다. 로그 그룹은 Platform 것이라 revision과 무관하다). 기본은 **보존 기간 전체**다 — `deployedAt`은 task가 떠서 기동 로그를 찍은 뒤에 기록되므로 거기서부터 읽으면 기동·migration 로그가 빠진다(`--since`로 좁히면 evidence에 적힌다). **값**: KTO key는 원문과 함께 `URLEncoder` 형태(대·소문자 hex), JSON escape, base64로도 찾는다 — 앱이 `serviceKey=`에 인코딩해 보내므로 로그에 URL이 새면 원문이 아니다. 결과는 release bucket `evidence/secret-exposure/<release>/<시각>.json`에 값 없이 남고 `secret_exposure=clean|clean-partial|leaked`를 찍는다. 누출이면 non-zero다.
 - **판정이 `clean-partial`인 이유는 evidence의 `partialBecause`에 적힌다.** task definition이 주입하는 secret 중 스캔하지 않은 것(`taskSecretsNotScanned` — 실제 staging에서는 DB 비밀번호·cursor·deletion secret이라 **판정은 늘 `clean-partial`이다**), image를 건너뛴 경우(`--without-images`), 열지 못한 blob이다. operator가 그 secret을 읽을 수 없고, 노트북으로 읽어 오는 것 자체가 노출이다(`infra/iam/operator.json`은 크기 한도에 닿아 있다). A-045가 스캔하지 않는 secret을 T2 밖으로 뺐으므로 `clean-partial`이 T2의 판정이다 — 그 secret들이 새지 않았다는 증명은 **아니다**. `logs:FilterLogEvents`가 실제 계정에서 되는지는 아직 재지 않았다(정책에는 있다).
 - `kto-call-inventory`는 `KtoCallInventoryMain`을 배포된 release의 ops 정의로 돌린다(`kto-smoke`처럼 `deployed/current.json`의 release와 image·`APP_RELEASE_VERSION`이 같아야 뜬다). `NULLNULL_INVENTORY_RELEASE`는 배포 잠금 안에서 그 release로 정해진다 — 다른 release의 목록은 그 release를 적은 ledger와 대조해도 통과하므로 입력으로 받지 않는다. task의 `kto_inventory`·`kto_operation` 줄을 **접두어 없이 그대로** `.artifacts/aws/evidence/kto-inventory-<release>-<시각>.txt`에 쓰고 release bucket `evidence/kto-inventory/<release>/`에도 남긴다(`kto_inventory_file=<경로> … counts_as_evidence=…`). 그 파일이 `check_submission_inventory.py --inventory`의 입력이다. header가 없거나 다른 release이거나(`inventory-not-for-the-deployed-release`), 마지막 `operations=N`이 읽어 온 `kto_operation` 줄 수와 다르면(`inventory-incomplete`) 아무것도 남기지 않는다. `counts_as_evidence`는 판정하지 않고 그대로 옮긴다 — 그 판정은 검사기가 한다. call-audit은 release **이름**으로 묶이는데 그 이름은 유일하지 않을 수 있다(CI 이름은 workflow run 번호라 재실행하면 같은 이름으로 다시 빌드하고, 손으로 만든 manifest는 아무 이름이나 쓴다). 그래서 task를 띄우기 전에 release bucket의 배포 기록을 모두 읽어, 같은 이름이 다른 git sha·image로 기록돼 있으면 거절한다(`release-version-reused-by-another-artifact`). 같은 manifest를 새 plan으로 다시 기록하는 rollback은 같은 산출물이라 통과한다. **목록은 뽑은 시각까지의 호출이다**: 같은 release가 그 뒤에 새 종류의 KTO API를 부르면 옛 파일은 그것을 모른다. 그래서 기능설명서를 동결하기 직전에 다시 뽑고, 접수 뒤에 한 번 더 뽑아 operation 집합이 같은지 본다.
-- `withdraw-post`는 `PostWithdrawMain`을 배포된 release의 ops 정의로 돌린다(release 결합은 `kto-smoke`와 같다). 공개된 게시물 하나를 `HIDDEN`으로 바꾸고 `published_at`을 비운다. listFeed·getPost·savePost·recordFeedFeedback은 그 commit부터 이 게시물을 내지 않고, 이미 발급된 feed cursor도 이 게시물을 건네지 않는다. 성공 조건은 **요청한 id를 담은** `post_withdrawn post=<id> outcome=WITHDRAWN|ALREADY_HIDDEN` 줄이 정확히 하나인 것이다(아니면 `post-not-withdrawn`). 없는 id(`NOT_FOUND`)와 공개된 적 없는 초안(`NOT_PUBLISHED`)은 게시물 행을 건드리지 않고 실패한다. 다른 transaction이 그 행을 3초 넘게 잡고 있으면 기다리지 않고 잠금 실패로 끝난다(배포 잠금을 붙든 채 멈추지 않는다). 동시에 두 번 돌면 하나만 `WITHDRAWN`이고 다른 하나는 `ALREADY_HIDDEN`이다. 되돌리는 도구는 없다. 내린 게시물을 다시 공개하는 경로가 코드에 없다. 누가 승인했는지는 operator 출력의 `owner_approval=` 한 줄에만 남는다. CloudTrail의 RunTask 기록에는 호출한 AWS 주체와 overrides(post id, 승인 변수 `true`)가 남지만 승인 기록 문자열은 들어가지 않고, DB에도 남지 않는다. 승인은 post id에 묶이지 않는다. 승인 변수와 10자 이상의 기록 문자열이 있으면 어느 id든 받는다.
-- **`withdraw-post`는 표지 이미지를 지우지 않는다.** 성공할 때마다 `post_withdraw_residual=cover-object-not-deleted`를 찍는 이유가 이것이다. 사용자가 올린 표지(`covers/user/…`)는 원래 URL에서 계속 서빙된다. 세 가지가 겹친다: API·ops task role과 operator role 어디에도 그 prefix의 객체 삭제 권한이 없다. web bucket이 versioned라서 지워도 이전 버전이 남는다. 객체가 `Cache-Control: public, max-age=31536000, immutable`로 나갔으므로 이미 받아 간 브라우저 캐시는 회수할 수 없다. 권리 철회처럼 이미지 자체가 사라져야 하는 경우는 이 명령만으로 끝나지 않는다. 게시물 id도 완전히 사라지지 않는다. 그 게시물에서 저장한 여행 후보는 출처로 그 id를 계속 들고 있고, `addTripCandidate`가 게시물 상태를 확인하지 않으므로 회수 뒤에도 새 후보가 그 id를 출처로 인용할 수 있다. 나가는 것은 id뿐이고 게시물 내용은 나가지 않는다.
+- `withdraw-post`는 승인한 게시물 ID 하나를 배포된 release의 ops 정의로 실행한다. DB transaction에서 공개 게시물을 `HIDDEN`으로 바꾸고 commit한 뒤, `USER_UPLOAD` 표지 URL이 정확한 공개 origin과 `covers/user/<uuid>.jpg|png` 형식인지 확인해 그 S3 key의 현재·이전 객체 버전과 삭제 마커만 삭제한다. `post_withdrawn post=<id> outcome=WITHDRAWN|ALREADY_HIDDEN cover=DELETED|ALREADY_ABSENT|NOT_USER_UPLOAD versions=<n>` 형태의 **요청 ID와 일치하는 결과 한 줄**만 성공이다. `NOT_FOUND`·`NOT_PUBLISHED`는 S3를 건드리지 않고 실패한다. 이미 HIDDEN이면 같은 승인 명령으로 안전하게 재시도한다. 승인 기록은 operator 출력에 남으며 ID와 승인 기록을 사건 원장에 함께 보존한다.
+- **부분 완료는 사건 완료가 아니다.** DB가 HIDDEN인 뒤 S3가 일부 버전만 삭제하거나 실패하면 `post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending`으로 종료한다. 같은 승인 ID로 다시 실행하면 남은 버전만 지운다. `OpsTask`에만 `covers/user/*`의 버전 조회·삭제 권한을 주고 온라인 API에는 주지 않는다. 회수 전 저장된 여행 후보의 출처 ID와 이미 commit된 idempotency replay는 남지만, 회수 뒤 새 POST 출처 저장은 PUBLISHED 검사에서 거절된다.
+- S3 실패 뒤 operator는 배포 잠금을 유지한다. 출력된 `lockOwner`를 기록하고 ECS task가 멈췄으며 CloudFormation 작업이 진행 중이 아님을 확인한 다음에만 `python3 scripts/aws/staging_operator.py unlock --owner <lockOwner>`를 실행한다. 그 뒤 **같은 승인 post ID**로 `withdraw-post`를 재시도한다. 잠금을 무시하고 두 회수 task를 겹쳐 띄우지 않는다.
+- **#338 캐시 정책:** 새로 발행하는 `covers/user/…` 객체는 `Cache-Control: no-store`이고 service worker도 그 경로를 Cache Storage에 넣지 않는다. CloudFront 기본 S3 behavior의 `CACHING_DISABLED`는 유지한다. 기존 객체의 metadata와 이미 브라우저·기기·제3자가 받아 간 사본은 서버에서 강제로 회수할 수 없다.
+- **사건 검증:** (1) 요청한 post ID의 성공 결과와 `cover` 상태·`versions` 수를 남긴다. (2) 새 요청의 getPost 404·feed 제외·새 POST 출처 후보 404를 확인한다. (3) 승인된 조사자가 그 게시물의 정확한 S3 key에 대해 `ListObjectVersions`를 끝까지 조회해 객체 버전과 삭제 마커가 모두 0임을 확인하고, 인접 key는 남아 있음을 확인한다. (4) 공개 URL에서 새 요청이 더 이상 이미지를 받지 않는지 확인한다. CloudFront 404만으로 S3 이전 버전 삭제를 증명할 수 없고, DB의 HIDDEN만으로도 표지 회수를 증명할 수 없다. 사건 기록에는 이미 전달된 사본을 회수할 수 없다는 한계를 적는다. 이 문단은 운영 적용의 증거가 아니며 실제 삭제·검증 결과는 사건별로 남긴다.
+
 - ops task의 로그는 이제 `get-log-events`를 끝까지 넘겨 읽는다. 한 페이지(500건)만 읽으면 기동 로그가 긴 task에서 맨 끝에 찍히는 결과 줄이 잘린다. 끝은 CloudWatch가 같은 token을 돌려줄 때이고, 200페이지 안에 그러지 않으면 다 읽었다고 치지 않고 `task-log-not-fully-read`로 멈춘다.
 - `Staging OIDC negative` workflow(`staging-oidc-negative.yml`, 손으로 dispatch)는 BA-006-T3을 잰다. `staging-build` job은 publish role을, `staging` job은 deploy role을 먼저 받아들여진 대조군으로 확인한 뒤 **다른** environment의 role을 요청해 `AccessDenied`를 받아야 통과한다(`oidc_negative=rejected role=… subject_environment=…`). 대조군이 거절되거나 다른 오류면 `oidc_probe=no-verdict`로 실패한다. 아무것도 배포하지 않고 자격 증명을 출력하지 않는다.
 - 상태 저장 리소스(RDS·Secrets Manager·S3 bucket·VPC·subnet·DynamoDB)의 속성이 배포된 template과 다르면 stack을 배포하기 전에 `stateful-change-requires-separate-review`로 멈춘다. **예외는 CDK가 BucketDeployment마다 대상 bucket에 붙이는 `aws-cdk:cr-owned:` 태그 하나뿐이다** — 표지 배포(#300)가 web bucket에 그 태그를 더해 run 35461072422가 여기서 멈췄다. 다른 태그·속성 변경은 그대로 멈춘다.
@@ -494,7 +516,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - `edge`는 A-039의 전제를 운영자가 지킬 때만 쓴다. 전제는 둘이다. 배포된 release에 FE 로그인 흉내 화면이 들어 있어야 하고, 열려 있는 동안에는 DB 복원을 하지 않는다(복원 전에 닫는다). 명령은 이 전제를 검사하지 않는다.
 - `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. release 확인은 배포 잠금 안에서 한다. plan이 `deployed/current.json`의 `planSha256`이 아니거나 WebEdge stack이 진행 중이면 거부한다. hash 검사는 모두 하지만 시간 검사는 하지 않는다. 24시간 신선도와 plan의 `expiresAt` 가동 창을 보지 않고(심사 기간에 다시 열 수 있어야 한다) staging 종료 한계만 본다. 비용 plan도 다시 평가하지 않는다. `infra/package-lock.json`이 release의 것과 같은 checkout에서, `npm --prefix infra ci`를 한 뒤 돌린다(`toolchain-changed`).
 - 열기 전에는 CD가 배포 뒤 돌리는 `staging-smoke.sh`와 verifier 경로 `staging-flows.mjs`가 통과해야 한다. 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 `200 application/json`(열림) 또는 `503 application/problem+json`(닫힘)이 될 때까지 확인한다. ALB의 `503 text/html`은 닫힘이 아니다. 이미 그 상태면 다시 배포하지 않고 확인만 한다.
-- **모든 deploy·rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 이 명령은 AWS에서 아직 한 번도 돌지 않았다. 첫 사용은 `--execute` 없이 계획부터 본다.
+- **기본 deploy·모든 rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 검토된 `--preserve-open-edge` deploy만 열린 상태를 유지하며, 스키마·보호 스택·WebEdge/Services 구조 불변과 공개 health 검사를 통과해야 한다. 공개 edge 변경은 먼저 계획으로 검토한다.
 - edge를 연 뒤 `staging-flows.mjs`는 `--expect-edge open`으로 돌린다. 기본값(closed)은 CD가 새 release에 기대하는 상태다.
 - `staging-flows.mjs`의 `--survey`와 `--optimize-item`은 opt-in이라 CD(`--url`만 넘김)의 요청과 verdict는 그대로다. 전제가 없으면 `NOT-RUN`과 `staging_flows=incomplete`(exit 3, pass 아님)이고, 전제를 갖춘 한 곳짜리 여행이 낼 수 없는 결과만 `FAIL`이다.
 

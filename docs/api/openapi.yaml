@@ -3462,7 +3462,11 @@ paths:
       tags: [Candidates]
       operationId: addTripCandidate
       summary: Add an unscheduled place candidate to a trip
-      description: Does not create a TripItem or increment the trip schedule version.
+      description: |
+        Does not create a TripItem or increment the trip schedule version.
+        A new POST-source save requires a currently PUBLISHED source post. DRAFT, HIDDEN
+        and unknown post IDs all return NOT_FOUND without creating a candidate or source.
+        A replay of an already committed idempotency key remains a replay, not a new save.
       security:
         - sessionCookie: []
           csrfToken: []

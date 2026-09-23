@@ -8,8 +8,8 @@ import {
   sessionFixtures,
   tripFixtures,
 } from '@nullnull/contracts';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientProvider, onlineManager } from '@tanstack/react-query';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +25,7 @@ type LivePlace = components['schemas']['LivePlace'];
 type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
 
 afterEach(() => {
+  act(() => onlineManager.setOnline(true));
   vi.unstubAllEnvs();
   delete window.kakao;
 });
@@ -44,10 +45,10 @@ function liveFixture<T>(name: keyof typeof LIVE_FIXTURES): T {
   return structuredClone(LIVE_FIXTURES[name]) as T;
 }
 
-function renderLive(initialEntry = '/live') {
+function renderLive(initialEntry = '/live', client = createQueryClient()) {
   const router = createMemoryRouter(routes, { initialEntries: [initialEntry] });
   return render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <I18nProvider>
         <RouterProvider router={router} />
       </I18nProvider>
@@ -56,6 +57,54 @@ function renderLive(initialEntry = '/live') {
 }
 
 describe('FE-401 Live area list', () => {
+  it('keeps cached areas visible and distinguishes offline from missing data', async () => {
+    renderLive();
+    await screen.findByTestId('live-persistent-state');
+    act(() => onlineManager.setOnline(false));
+    expect(
+      await screen.findByText(
+        'You are offline. Previously loaded readings may be out of date.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('list', { name: 'Crowding by area now' })).toBeVisible();
+    act(() => onlineManager.setOnline(true));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          'You are offline. Previously loaded readings may be out of date.',
+        ),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it('reports background refresh and retains readings when it fails', async () => {
+    const client = createQueryClient();
+    renderLive('/live', client);
+    await screen.findByTestId('live-persistent-state');
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post(`${API_BASE}/live/areas`, async () => {
+        await gate;
+        return HttpResponse.error();
+      }),
+    );
+    act(() => {
+      void client.invalidateQueries({ queryKey: ['live', 'areas'] });
+    });
+    expect(await screen.findByText('Refreshing crowd readings.')).toBeVisible();
+    await act(async () => {
+      release?.();
+    });
+    expect(
+      await screen.findByText('Could not refresh. Showing previously loaded readings.'),
+    ).toBeVisible();
+    expect(screen.getByRole('list', { name: 'Crowding by area now' })).toBeVisible();
+    expect(screen.queryByText('Refreshing crowd readings.')).not.toBeInTheDocument();
+  });
+
   it('FE-401-T1 FE-403-T2 keeps the area list available when the map key is unavailable', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)));
@@ -438,6 +487,19 @@ describe('FE-401 Live area list', () => {
 });
 
 describe('FE-402 Live place detail', () => {
+  it('renders the Seoul four-stage reading in English on place detail', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    if (!detail.crowd) throw new Error('Missing crowd fixture');
+    detail.crowd.ordinalLevel = '3';
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+    renderLive(`/live/places/${detail.place.id}`);
+    const bar = await screen.findByRole('img', { name: 'Seoul crowd level 3 of 4' });
+    expect(bar.children).toHaveLength(4);
+    expect(screen.getByText('3 · Slightly crowded')).toBeVisible();
+  });
+
   it('FE-402-T2 renders loading before detail data arrives', async () => {
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     let release: (() => void) | undefined;

@@ -9,6 +9,7 @@ import io.nullnull.shared.cursor.CursorException;
 import io.nullnull.shared.cursor.CursorSortKey;
 import io.nullnull.shared.problem.ApiException;
 import io.nullnull.shared.problem.ProblemCode;
+import io.nullnull.social.application.PostSourceService;
 import io.nullnull.trip.domain.CandidateSourceType;
 import io.nullnull.trip.domain.CandidateStatus;
 import io.nullnull.trip.domain.TripCandidate;
@@ -37,14 +38,17 @@ public class CandidateService {
     private static final String ADD_ROUTE = "POST /trips/{tripId}/candidates";
 
     private final CandidateStore candidates;
+    private final PostSourceService postSources;
     private final TripCursorProperties cursors;
     private final IdempotencyGuard idempotency;
     private final Clock clock;
     private final ObjectMapper json;
 
     public CandidateService(CandidateStore candidates, TripCursorProperties cursors,
-            IdempotencyGuard idempotency, Clock clock, ObjectMapper json) {
+            IdempotencyGuard idempotency, Clock clock, ObjectMapper json,
+            PostSourceService postSources) {
         this.candidates = candidates;
+        this.postSources = postSources;
         this.cursors = cursors;
         this.idempotency = idempotency;
         this.clock = clock;
@@ -104,6 +108,11 @@ public class CandidateService {
                 .sha256Hex();
         IdempotencyGuard.GuardedResponse guarded = idempotency.execute(context.ownerId(), ADD_ROUTE,
                 idempotencyKey, fingerprint, () -> {
+                    // New writes only: an already committed key still replays after withdrawal.
+                    // The source lock lives through the candidate write, closing the status race.
+                    if (sourceType == CandidateSourceType.POST) {
+                        postSources.requirePublished(postId);
+                    }
                     CandidateStore.Saved saved = candidates.saveActive(tripId, placeId, note,
                             mustVisit, source, clock.instant());
                     return new CommandOutcome<>(saved.duplicate() ? 200 : 201,

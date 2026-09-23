@@ -197,7 +197,8 @@
       ],
       "Resource": [
         "arn:aws:secretsmanager:ap-northeast-2:${Account}:secret:nullnull-stg/kto-service-key-*",
-        "arn:aws:secretsmanager:ap-northeast-2:${Account}:secret:nullnull-stg/verifier-token-*"
+        "arn:aws:secretsmanager:ap-northeast-2:${Account}:secret:nullnull-stg/verifier-token-*",
+        "arn:aws:secretsmanager:ap-northeast-2:${Account}:secret:nullnull-stg/seoul-proxy-*"
       ]
     },
     {

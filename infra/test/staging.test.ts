@@ -796,6 +796,40 @@ test("BA-082 the API task may write covers/user and quarantine, and nothing else
   assert.deepEqual(([] as string[]).concat(published.Action), ["s3:PutObject"]);
 });
 
+test("BA-082 only the ops task can list and delete versions of user covers", () => {
+  const policies = Object.values(templates.migration.findResources("AWS::IAM::Policy")) as any[];
+  const statements = policies.flatMap((p) => p.Properties.PolicyDocument.Statement as any[]);
+  const withAction = (action: string) => statements.filter((st) =>
+    ([] as string[]).concat(st.Action ?? []).includes(action));
+  const list = withAction("s3:ListBucketVersions");
+  const remove = withAction("s3:DeleteObjectVersion");
+  assert.equal(list.length, 1);
+  assert.equal(remove.length, 1);
+  assert.deepEqual(list[0].Condition, { StringLike: { "s3:prefix": ["covers/user/*"] } });
+  assert.match(JSON.stringify(list[0].Resource), /WebBucket/);
+  assert.doesNotMatch(JSON.stringify(list[0].Resource), /covers\/user\/\*/);
+  assert.match(JSON.stringify(remove[0].Resource), /covers\/user\/\*/);
+  for (const st of statements) {
+    const actions = ([] as string[]).concat(st.Action ?? []);
+    if (actions.some((a) => a.startsWith("s3:DeleteObject"))) {
+      assert.deepEqual(actions, ["s3:DeleteObjectVersion"]);
+      assert.match(JSON.stringify(st.Resource), /covers\/user\/\*/);
+    }
+  }
+  const apiPolicies = Object.values(templates.services.findResources("AWS::IAM::Policy")) as any[];
+  assert.doesNotMatch(JSON.stringify(apiPolicies), /s3:DeleteObjectVersion/);
+  templates.migration.hasResourceProperties("AWS::ECS::TaskDefinition", {
+    ContainerDefinitions: Match.arrayWith([Match.objectLike({
+      Name: "ops",
+      Environment: Match.arrayWith([
+        Match.objectLike({ Name: "NULLNULL_UPLOAD_S3_BUCKET" }),
+        Match.objectLike({ Name: "NULLNULL_UPLOAD_S3_REGION" }),
+        Match.objectLike({ Name: "NULLNULL_UPLOAD_S3_PUBLIC_BASE_URL" }),
+      ]),
+    })]),
+  });
+});
+
 test("BA-082 the edge refuses the quarantine prefix outright", () => {
   // Uploads live in the same bucket the distribution serves, so "not linked to" is not the same as
   // "not reachable". The SPA rewrite hides extension-less keys by accident (they become

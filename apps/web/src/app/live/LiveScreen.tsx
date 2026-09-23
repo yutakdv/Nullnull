@@ -1,5 +1,6 @@
 import type { components } from '@nullnull/api-client';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import { onlineManager } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -37,6 +38,10 @@ export function LiveScreen() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const areas = useLiveAreas();
+  const online = useSyncExternalStore(
+    (notify) => onlineManager.subscribe(notify),
+    () => onlineManager.isOnline(),
+  );
   const [query, setQuery] = useState('');
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -200,7 +205,17 @@ export function LiveScreen() {
             <Chip label={t('live.filters.all')} selected size="sm" />
           </div>
 
-          {areas.isPending ? (
+          {!online ? (
+            <p role="status" className={styles.stateCard}>
+              {t('live.offline')}
+            </p>
+          ) : null}
+          {online && areas.isRefetching ? (
+            <p role="status" className={styles.stateCard}>
+              {t('live.refreshing')}
+            </p>
+          ) : null}
+          {online && areas.isPending ? (
             <div className={styles.stateCard} role="status">
               <strong>{t('live.loading')}</strong>
               <span>{t('live.loadingNote')}</span>
@@ -209,8 +224,12 @@ export function LiveScreen() {
 
           {areas.isError ? (
             <div className={styles.stateCard} role="alert">
-              <strong>{t('live.error')}</strong>
-              <button onClick={() => void areas.refetch()} type="button">
+              <strong>{t(areas.data ? 'live.refreshError' : 'live.error')}</strong>
+              <button
+                disabled={!online || areas.isFetching}
+                onClick={() => void areas.refetch()}
+                type="button"
+              >
                 {t('live.retry')}
               </button>
             </div>
