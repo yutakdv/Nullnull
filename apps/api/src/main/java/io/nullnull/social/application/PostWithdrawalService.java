@@ -22,11 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>WHAT IT DOES NOT CLOSE, NAMED. The cover of a user-authored post is an object at a public URL
  * ({@code covers/user/...}) that this cannot delete: the object store port has no delete for
  * published objects, no task role holds that permission, the bucket is versioned, and the object
- * was served with a one-year immutable cache header - so browsers, and the web app's service
- * worker, keep what they already fetched. The web app's in-memory query cache keeps a page it
- * already has until it refetches. A trip candidate saved from the post keeps the post's id as its
- * source, and addTripCandidate does not check the post's status, so a new candidate can still cite
- * the id after the withdrawal - an id, never the post's content. A withdrawal takes the post off
+ * previously used a one-year immutable cache header. New uploads use no-store, which does not
+ * purge old browser or service-worker copies. The web app's in-memory query cache keeps a page it
+ * already has until it refetches. A trip candidate saved before withdrawal keeps the post's id as
+ * its source; new POST-source saves lock and require PUBLISHED in their write transaction.
+ * An already committed idempotency key can replay without creating another source. A withdrawal takes the post off
  * every page the API answers from now on; it does not make the image unreachable to someone who
  * already has its URL.
  *

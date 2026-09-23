@@ -40,6 +40,8 @@ class CandidateIT {
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired io.nullnull.social.application.PostWithdrawalService withdrawals;
+    @Autowired org.springframework.transaction.support.TransactionTemplate transactions;
 
     private SessionService.Bootstrap owner() {
         return sessions.bootstrap(null, null, null);
@@ -94,6 +96,100 @@ class CandidateIT {
                 .header("Idempotency-Key", key)
                 .contentType("application/json")
                 .content("{\"placeId\":\"" + placeId + "\",\"source\":" + source + "}"));
+    }
+
+    @Test
+    @DisplayName("#338 a save racing a committed withdrawal cannot use its stale published snapshot")
+    void candidateSaveWaitsForTheWithdrawalThenRechecksVisibility() throws Exception {
+        var owner = owner();
+        String tripId = trip(owner);
+        UUID placeId = place("동시 회수 출처 장소");
+        UUID postId = curatedPost("동시 회수 글", placeId);
+        var locked = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var holderPid = new java.util.concurrent.atomic.AtomicInteger();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> withdrawal = pool.submit(() -> transactions.execute(status -> {
+                holderPid.set(jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class));
+                withdrawals.withdraw(postId);
+                locked.countDown();
+                try {
+                    if (!release.await(15, java.util.concurrent.TimeUnit.SECONDS)) {
+                        throw new AssertionError("withdrawal was never released");
+                    }
+                } catch (InterruptedException failure) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(failure);
+                }
+                return null;
+            }));
+            assertThat(locked.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            Future<Integer> save = pool.submit(() -> add(owner, tripId, placeId, postId,
+                    "racing-withdrawal-" + UUID.randomUUID()).andReturn().getResponse().getStatus());
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+            boolean waiting = false;
+            while (!save.isDone() && System.nanoTime() < deadline) {
+                waiting = Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1"
+                        + " FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid)))",
+                        Boolean.class, holderPid.get()));
+                if (waiting) break;
+                Thread.sleep(20);
+            }
+            release.countDown();
+            withdrawal.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(save.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(404);
+            assertThat(waiting).as("save serialized with the withdrawal, rather than reading stale status").isTrue();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_candidates WHERE trip_id = ?",
+                    Integer.class, UUID.fromString(tripId))).isZero();
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("#338 unpublished post sources cannot create or extend a candidate")
+    void unpublishedPostSourcesAreNotNewCandidateSources() throws Exception {
+        var owner = owner();
+        String tripId = trip(owner);
+        UUID placeId = place("회수 출처 장소");
+        UUID hidden = curatedPost("회수 글", placeId);
+        UUID draft = curatedPost("초안 글", placeId);
+        withdrawals.withdraw(hidden);
+        jdbc.update("UPDATE posts SET status = 'DRAFT', published_at = NULL WHERE id = ?", draft);
+        for (UUID postId : List.of(hidden, draft, UUID.randomUUID())) {
+            add(owner, tripId, placeId, postId, "hidden-" + UUID.randomUUID())
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_candidates WHERE trip_id = ?",
+                Integer.class, UUID.fromString(tripId))).isZero();
+        add(owner, tripId, placeId, null, "search-" + UUID.randomUUID())
+                .andExpect(status().isCreated());
+        add(owner, tripId, placeId, hidden, "stale-" + UUID.randomUUID())
+                .andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM candidate_sources s JOIN trip_candidates c"
+                + " ON c.id = s.candidate_id WHERE c.trip_id = ? AND s.post_id IS NOT NULL",
+                Integer.class, UUID.fromString(tripId))).isZero();
+    }
+
+    @Test
+    @DisplayName("#338 a committed save still replays after its source post is withdrawn")
+    void committedSaveReplaysAfterWithdrawalWithoutAddingASource() throws Exception {
+        var owner = owner();
+        String tripId = trip(owner);
+        UUID placeId = place("회수 전 저장 장소");
+        UUID postId = curatedPost("회수 전 글", placeId);
+        String key = "before-withdrawal-" + UUID.randomUUID();
+        String first = add(owner, tripId, placeId, postId, key)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        withdrawals.withdraw(postId);
+        String replay = add(owner, tripId, placeId, postId, key)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        assertThat(replay).isEqualTo(first);
+        add(owner, tripId, placeId, postId, "after-withdrawal-" + UUID.randomUUID())
+                .andExpect(status().isNotFound());
     }
 
     @Test

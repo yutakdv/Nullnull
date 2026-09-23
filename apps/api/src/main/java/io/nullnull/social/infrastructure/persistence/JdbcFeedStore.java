@@ -73,6 +73,12 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
+    public boolean lockPublishedPost(UUID postId) {
+        return jdbc.sql("SELECT id FROM posts WHERE id = ? AND status = 'PUBLISHED' FOR SHARE")
+                .param(postId).query(UUID.class).optional().isPresent();
+    }
+
+    @Override
     public Set<UUID> savedPostIds(UUID ownerId, List<UUID> postIds) {
         if (postIds.isEmpty()) {
             return Set.of();
