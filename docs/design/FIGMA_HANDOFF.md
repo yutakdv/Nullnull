@@ -265,7 +265,7 @@ Figma 오류 계약:
 
 | Figma node | 화면 | Pri/state | 동작 | API |
 | --- | --- | --- | --- | --- |
-| `716:4377` | S11-1L Live 목록 (P0 기본) | P0 | map OFF 기본, `LiveArea[]` 목록 → 권역 선택 → sheet 장소 목록 (`FCR-012` 2026-09-08 추가) | `queryLiveAreas`, `listLiveAreaPlaces` |
+| `716:4377` | S11-1L Live 목록 (P0 기본) | P0 | 지도와 목록 병행, SDK 실패 시 목록 유지. `LiveArea[]` 목록 → 권역 선택 → sheet 장소 목록 (`FCR-012` 지도 복구 적용 참조) | `queryLiveAreas`, `listLiveAreaPlaces` |
 | `718:4521` | S11-1L 목록 loading | P0 loading | 권역 조회 진행 중 | `queryLiveAreas` pending |
 | `718:4584` | S11-1L 목록 empty | P0 empty | `areas=[]`, 검색 유도 | `queryLiveAreas` |
 | `718:4647` | S11-1L 목록 error | P0 error | 요청 실패, 재시도 | `queryLiveAreas` Problem |

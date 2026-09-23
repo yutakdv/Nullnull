@@ -1,20 +1,22 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('FE-401 Live list-first screen', () => {
+test.describe('FE-401 Live map and list', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('nullnull.locale', 'ko-KR');
     });
+    await page.route('https://dapi.kakao.com/**', (route) => route.abort());
     await page.goto('/live');
   });
 
-  test('FE-401-T1 keeps source state visible in the map-off list view', async ({
+  test('FE-401-T1 keeps source state and the list usable when the map SDK fails', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 400 });
     const sourceState = page.getByTestId('live-persistent-state');
     await expect(sourceState).toBeVisible();
-    await expect(page.getByRole('region', { name: '카카오 지도' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: '카카오 지도' })).toBeVisible();
+    await expect(page.getByText('지도를 불러오지 못했어요')).toBeVisible();
     await expect(page.getByRole('region', { name: '라이브 여행지 목록' })).toBeVisible();
     await expect(page.getByTestId('live-sheet-drag-handle')).toHaveCount(0);
     const main = page.getByRole('main');
@@ -109,6 +111,60 @@ test.describe('FE-401 Live list-first screen', () => {
     await expect(page.getByRole('link', { name: /경복궁 Live 정보 보기/ })).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(area).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('FE-401-T3 selects actual place coordinates and opens its map marker with the keyboard', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      // The SDK is the external boundary; our component still creates the map and markers.
+      Object.assign(window, {
+        kakao: {
+          maps: {
+            LatLng: class {
+              constructor(
+                public latitude: number,
+                public longitude: number,
+              ) {}
+            },
+            Map: class {
+              constructor(
+                public container: HTMLElement,
+                options: { center: unknown },
+              ) {
+                container.dataset.center = JSON.stringify(options.center);
+              }
+            },
+            CustomOverlay: class {
+              constructor(private options: { content: HTMLElement; position: unknown }) {}
+              setMap(map: { container: HTMLElement } | null) {
+                if (map) map.container.append(this.options.content);
+                else this.options.content.remove();
+              }
+            },
+            load: (callback: () => void) => callback(),
+          },
+        },
+      });
+    });
+    await page.goto('/live');
+    const map = page.getByRole('region', { name: '카카오 지도' });
+    await expect(map.getByRole('button')).toHaveCount(0);
+    await page.getByRole('searchbox', { name: 'Live 장소 검색' }).fill('경복궁');
+    const select = page.getByRole('button', { name: '경복궁 지도에서 보기' });
+    await select.focus();
+    await page.keyboard.press('Enter');
+    await expect(select).toHaveAttribute('aria-pressed', 'true');
+    const marker = map.getByRole('button', { name: '경복궁', exact: true });
+    await expect(marker).toBeVisible();
+    await expect(map.locator('[data-center]')).toHaveAttribute(
+      'data-center',
+      JSON.stringify({ latitude: 37.579617, longitude: 126.977041 }),
+    );
+    await marker.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/live\/places\/018f4b20-1a44-7e11-9c02-5d7e3f1a2b01$/);
+    await expect(page.getByRole('heading', { level: 1, name: '경복궁' })).toBeVisible();
   });
 
   test('FE-401-T3 opens a named search result link with the keyboard', async ({

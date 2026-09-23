@@ -1741,6 +1741,7 @@
         "queryLiveAreas",
         "listLiveAreaPlaces",
         "searchPlaces",
+        "getPlace",
         "getLivePlace"
       ],
       "featureIds": [
@@ -1763,7 +1764,7 @@
       "steps": [
         "승인된 BA-091 fixture와 generated client로 list-first 권역 조회를 연결한다",
         "권역 선택 뒤에만 장소 목록을 조회하고 canonical 검색 결과를 Live 상세 route로 연결한다",
-        "default/loading/empty/error/unavailable/stale을 구분하고 지도·geolocation·viewport 요청은 만들지 않는다"
+        "default/loading/empty/error/unavailable/stale을 구분하고 지도와 목록을 함께 제공한다. 선택 장소는 getPlace 좌표를 사용하며 geolocation·viewport 요청은 만들지 않는다"
       ],
       "safety": "map을 쓰면 같은 정보·필터의 list 대안을 함께 제공한다. 정밀 위치를 서버로 보내지 않는다.",
       "tests": [

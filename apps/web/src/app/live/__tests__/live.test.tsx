@@ -8,8 +8,8 @@ import {
   sessionFixtures,
   tripFixtures,
 } from '@nullnull/contracts';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientProvider, onlineManager } from '@tanstack/react-query';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +25,7 @@ type LivePlace = components['schemas']['LivePlace'];
 type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
 
 afterEach(() => {
+  act(() => onlineManager.setOnline(true));
   vi.unstubAllEnvs();
   delete window.kakao;
 });
@@ -44,10 +45,10 @@ function liveFixture<T>(name: keyof typeof LIVE_FIXTURES): T {
   return structuredClone(LIVE_FIXTURES[name]) as T;
 }
 
-function renderLive(initialEntry = '/live') {
+function renderLive(initialEntry = '/live', client = createQueryClient()) {
   const router = createMemoryRouter(routes, { initialEntries: [initialEntry] });
   return render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <I18nProvider>
         <RouterProvider router={router} />
       </I18nProvider>
@@ -56,14 +57,63 @@ function renderLive(initialEntry = '/live') {
 }
 
 describe('FE-401 Live area list', () => {
-  it('FE-401-T1 FE-403-T2 renders the default list-first state without map capability', async () => {
+  it('keeps cached areas visible and distinguishes offline from missing data', async () => {
+    renderLive();
+    await screen.findByTestId('live-persistent-state');
+    act(() => onlineManager.setOnline(false));
+    expect(
+      await screen.findByText(
+        'You are offline. Previously loaded readings may be out of date.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('list', { name: 'Crowding by area now' })).toBeVisible();
+    act(() => onlineManager.setOnline(true));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          'You are offline. Previously loaded readings may be out of date.',
+        ),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it('reports background refresh and retains readings when it fails', async () => {
+    const client = createQueryClient();
+    renderLive('/live', client);
+    await screen.findByTestId('live-persistent-state');
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post(`${API_BASE}/live/areas`, async () => {
+        await gate;
+        return HttpResponse.error();
+      }),
+    );
+    act(() => {
+      void client.invalidateQueries({ queryKey: ['live', 'areas'] });
+    });
+    expect(await screen.findByText('Refreshing crowd readings.')).toBeVisible();
+    await act(async () => {
+      release?.();
+    });
+    expect(
+      await screen.findByText('Could not refresh. Showing previously loaded readings.'),
+    ).toBeVisible();
+    expect(screen.getByRole('list', { name: 'Crowding by area now' })).toBeVisible();
+    expect(screen.queryByText('Refreshing crowd readings.')).not.toBeInTheDocument();
+  });
+
+  it('FE-401-T1 FE-403-T2 keeps the area list available when the map key is unavailable', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)));
 
     renderLive();
 
     expect(await screen.findByRole('heading', { name: 'Live' })).toBeVisible();
-    expect(screen.queryByRole('region', { name: /Live map/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Live map/i })).toBeVisible();
+    expect(screen.getByText('Could not load the map')).toBeVisible();
     expect(await screen.findByTestId('live-persistent-state')).toHaveTextContent(
       /Observed live/i,
     );
@@ -90,7 +140,7 @@ describe('FE-401 Live area list', () => {
     );
 
     const view = renderLive();
-    expect(await screen.findByRole('status')).toHaveTextContent(/Loading live areas/i);
+    expect(await screen.findByText('Loading live areas')).toBeVisible();
     release?.();
     view.unmount();
   });
@@ -220,6 +270,96 @@ describe('FE-401 Live area list', () => {
     expect(areaPlaceRequests).toBe(1);
   });
 
+  it('shows a selected place at its detail coordinates without inventing area centroids', async () => {
+    vi.stubEnv('VITE_KAKAO_MAP_APP_KEY', 'test-key');
+    const centers: unknown[] = [];
+    window.kakao = {
+      maps: {
+        CustomOverlay: class {
+          constructor(private options: { content: HTMLElement; position: unknown }) {}
+          setMap(map: { container: HTMLElement } | null) {
+            if (map) map.container.append(this.options.content);
+            else this.options.content.remove();
+          }
+        },
+        LatLng: class {
+          constructor(
+            public latitude: number,
+            public longitude: number,
+          ) {}
+        },
+        Map: class {
+          constructor(
+            public container: HTMLElement,
+            options: { center: unknown },
+          ) {
+            centers.push(options.center);
+          }
+        },
+        load: (callback) => callback(),
+      },
+    };
+    const user = userEvent.setup();
+    const result = liveFixture<LiveAreaResult>('area-result-live');
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    let detailRequests = 0;
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(result)),
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+      http.get(`${API_BASE}/places/:placeId`, ({ params }) => {
+        expect(params.placeId).toBe(detail.place.id);
+        detailRequests += 1;
+        return HttpResponse.json(detail.place);
+      }),
+    );
+
+    renderLive();
+    const map = await screen.findByRole('region', { name: 'Live map' });
+    expect(within(map).queryByRole('button')).not.toBeInTheDocument();
+    expect(detailRequests).toBe(0);
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    const showOnMap = await screen.findByRole('button', {
+      name: 'Show 경복궁 on the map',
+    });
+    await user.click(showOnMap);
+
+    const marker = await within(map).findByRole('button', { name: '경복궁' });
+    expect(marker).toBeVisible();
+    expect(showOnMap).toHaveAttribute('aria-pressed', 'true');
+    expect(detailRequests).toBe(1);
+    expect(centers.at(-1)).toEqual(detail.place.location);
+    expect(within(map).queryByRole('button', { name: /광화문/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /View Live information for 경복궁/i }),
+    ).toBeVisible();
+    expect(screen.getByRole('link', { name: /한국관광공사/ })).toBeVisible();
+    await user.click(marker);
+    expect(await screen.findByRole('heading', { name: '경복궁' })).toBeVisible();
+  });
+
+  it('keeps the detail link usable when the selected place cannot be loaded for the map', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+      http.get(`${API_BASE}/places/:placeId`, () => HttpResponse.error()),
+    );
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    await user.click(
+      await screen.findByRole('button', { name: 'Show 경복궁 on the map' }),
+    );
+    expect(
+      await screen.findByText('We couldn’t load this place on the map'),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: /View Live information for 경복궁/i }),
+    ).toBeVisible();
+  });
+
   it('searches canonically and offers each result as a direct detail link', async () => {
     const user = userEvent.setup();
     const areas = liveFixture<LiveAreaResult>('area-result-live');
@@ -347,6 +487,19 @@ describe('FE-401 Live area list', () => {
 });
 
 describe('FE-402 Live place detail', () => {
+  it('renders the Seoul four-stage reading in English on place detail', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    if (!detail.crowd) throw new Error('Missing crowd fixture');
+    detail.crowd.ordinalLevel = '3';
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+    renderLive(`/live/places/${detail.place.id}`);
+    const bar = await screen.findByRole('img', { name: 'Seoul crowd level 3 of 4' });
+    expect(bar.children).toHaveLength(4);
+    expect(screen.getByText('3 · Slightly crowded')).toBeVisible();
+  });
+
   it('FE-402-T2 renders loading before detail data arrives', async () => {
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     let release: (() => void) | undefined;

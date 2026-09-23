@@ -27,10 +27,15 @@ npm run dev:mock                                      # MSW fixture
 
 ## 라이브 화면
 
-P0의 `/live` 기본 화면은 map OFF·list-first다. `queryLiveAreas`의 권역 목록과 검색만
-렌더링하며 Kakao SDK를 로드하지 않는다. 저장소에 남아 있는 지도 컴포넌트와
-`VITE_KAKAO_MAP_APP_KEY` 타입은 provider·license·attribution 승인이 끝난 뒤 사용할
-capability 후보일 뿐이다. 환경 변수에 키를 설정하는 것만으로 지도를 활성화하면 안 된다.
+`/live`는 카카오 지도와 `queryLiveAreas`의 권역 목록·검색을 함께 제공한다.
+키가 없거나 SDK를 불러오지 못해도 목록과 상세 링크는 계속 이용할 수 있다.
+권역 좌표가 없는 응답은 지도 위치를 추정하지 않는다. 장소의 `지도에서 보기`를 선택하면
+`getPlace`의 실제 장소 좌표로 표시하며, 권역 혼잡은 개별 장소의 측정값으로 바꾸지 않는다.
+
+로컬 개발은 `VITE_KAKAO_MAP_APP_KEY`에 공개 JavaScript SDK 키를 설정한다. 배포는
+같은 이름의 GitHub repository variable을 web build에 전달한다. Vite는 build 시 값을
+포함하므로 runtime 환경변수만 바꾸어서는 적용되지 않는다. 카카오 개발자 콘솔에 실제
+웹 origin을 등록하고, 서버용 REST API 키를 이 값에 넣지 않는다.
 
 mock worker는 `public/`이 아니라 `mocks/mockServiceWorker.js`에 있고 Vite dev 미들웨어가
 서빙한다(`vite.config.ts`). `public/`에 두면 `dist/`로 복사돼 production 이미지가 mock을
