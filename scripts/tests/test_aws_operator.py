@@ -264,6 +264,34 @@ class OperatorRegressions(unittest.TestCase):
                 with self.assertRaisesRegex(ops.OpsError,'stateful-change'):
                     ops.guard_stateful('Data',Path(d))
 
+    def test_stateful_guard_allows_only_the_approved_web_bucket_cors_addition(self):
+        cors={'CorsRules':[{'AllowedOrigins':['https://d54awmnmi4c3z.cloudfront.net'],
+                            'AllowedMethods':['PUT'],'AllowedHeaders':['content-type'],'MaxAge':300}]}
+        old={'Resources':{'WebBucket':{'Type':'AWS::S3::Bucket','Properties':{'VersioningConfiguration':{'Status':'Enabled'}}}}}
+        planned=json.loads(json.dumps(old))
+        planned['Resources']['WebBucket']['Properties']['CorsConfiguration']=cors
+        with tempfile.TemporaryDirectory() as d, patch.object(ops,'aws',return_value={'TemplateBody':old}):
+            path=Path(d)/'NullnullStgWebEdge.template.json'
+            path.write_text(json.dumps(planned))
+            ops.guard_stateful('WebEdge',Path(d))
+            for changed in ('origin','versioning','existing-cors'):
+                with self.subTest(changed=changed):
+                    variant=json.loads(json.dumps(planned))
+                    previous=json.loads(json.dumps(old))
+                    if changed=='origin':
+                        variant['Resources']['WebBucket']['Properties']['CorsConfiguration']['CorsRules'][0]['AllowedOrigins']=['https://example.invalid']
+                    elif changed=='versioning':
+                        variant['Resources']['WebBucket']['Properties']['VersioningConfiguration']['Status']='Suspended'
+                    else:
+                        previous['Resources']['WebBucket']['Properties']['CorsConfiguration']={'CorsRules':[]}
+                    path.write_text(json.dumps(variant))
+                    with patch.object(ops,'aws',return_value={'TemplateBody':previous}):
+                        with self.assertRaisesRegex(ops.OpsError,'stateful-change'):
+                            ops.guard_stateful('WebEdge',Path(d))
+            (Path(d)/'NullnullStgData.template.json').write_text(json.dumps(planned))
+            with self.assertRaisesRegex(ops.OpsError,'stateful-change'):
+                ops.guard_stateful('Data',Path(d))
+
     def guard(self, old_tags, new_tags, stack='WebEdge'):
         def bucket(tags): return {'Resources':{'WebBucket':{'Type':'AWS::S3::Bucket','Properties':{'Tags':tags}}}}
         with tempfile.TemporaryDirectory() as d:
