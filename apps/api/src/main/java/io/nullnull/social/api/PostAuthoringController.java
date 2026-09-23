@@ -57,8 +57,8 @@ public class PostAuthoringController {
             @Valid @RequestBody CreateUploadRequest request) {
         IssuedUpload issued;
         try {
-            issued = uploads.issue(owner.ownerId(), request.contentType(), request.contentLength(),
-                    request.checksumSha256());
+            issued = uploads.issue(owner.ownerId(), idempotencyKey, request.contentType(),
+                    request.contentLength(), request.checksumSha256());
         } catch (UploadRejectedException e) {
             throw switch (e.rejection()) {
                 case UNSUPPORTED_CONTENT_TYPE -> new ApiException(ProblemCode.VALIDATION_FAILED,
@@ -84,7 +84,7 @@ public class PostAuthoringController {
             @Valid @RequestBody CreatePostRequest request) {
         UUID postId;
         try {
-            postId = posts.publish(owner.ownerId(), request.uploadId(), request.title(),
+            postId = posts.publish(owner.ownerId(), idempotencyKey, request.uploadId(), request.title(),
                     request.body(), request.altText(), request.placeIds());
         } catch (AuthoringRejectedException e) {
             throw switch (e.rejection()) {
