@@ -1,5 +1,6 @@
 package io.nullnull.catalog.infrastructure.kto;
 
+import io.nullnull.catalog.application.GeoDistance;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -85,7 +86,6 @@ public final class KtoEngServiceMatchProbeMain {
     static final int MAX_PLACES = 5;
     private static final Pattern IDENTIFIER = Pattern.compile("[1-9][0-9]{0,29}");
     private static final Pattern CODE = Pattern.compile("[A-Za-z0-9]{1,20}");
-    private static final double EARTH_RADIUS_METERS = 6_371_008.8;
     private static final Pattern PARENTHESISED = Pattern.compile("[(（]([^()（）]*)[)）]");
     private static final Pattern HANGUL_RUN = Pattern.compile("[\\p{IsHangul}0-9][\\p{IsHangul}0-9 ]*");
 
@@ -278,13 +278,10 @@ public final class KtoEngServiceMatchProbeMain {
         } catch (IllegalStateException unusable) {
             return "unknown";
         }
-        double phi1 = Math.toRadians(place.latitude().doubleValue());
-        double phi2 = Math.toRadians(latitude.doubleValue());
-        double deltaPhi = phi2 - phi1;
-        double deltaLambda = Math.toRadians(longitude.doubleValue() - place.longitude().doubleValue());
-        double a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2)
-                + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-        return Long.toString(Math.round(2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(a)))));
+        // The same measure EngLinkRule enforces the owner's 100 m with, so a reviewed distance and the
+        // enforced one cannot drift apart.
+        return Long.toString(Math.round(GeoDistance.haversineMeters(place.latitude(), place.longitude(),
+                latitude, longitude)));
     }
 
     /**
