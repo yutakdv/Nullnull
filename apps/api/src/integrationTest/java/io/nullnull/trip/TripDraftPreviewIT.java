@@ -279,7 +279,7 @@ class TripDraftPreviewIT {
         List<CatalogPlaceSummary> many = new ArrayList<>();
         for (int n = 0; n < DraftComposeRequest.MAX_POOL + 1; n++) {
             many.add(new CatalogPlaceSummary(new UUID(0L, n + 1L), "장소 " + n, "HS", "11", null, null, null,
-                    null, null, null));
+                    null, null, null, null));
         }
         doAnswer(invocation -> many.subList(0, Math.min(many.size(), invocation.getArgument(0))))
                 .when(catalog).activePool(anyInt(), any(), any());

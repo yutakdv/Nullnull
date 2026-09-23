@@ -75,8 +75,8 @@ public class JdbcCatalogPlaceQuery implements CatalogPlaceQuery {
      * here in brackets keeps this paragraph out of its own result. Self-checked before being
      * written: the pattern returns 1 on the first lateral's line and 0 on this one.
      *
-     * <p>It deliberately falls back rather than erroring. Making the fallback VISIBLE - telling the
-     * client which locale it actually got - is BA-086-T4 and needs a contract field (#310).
+     * <p>It deliberately falls back rather than erroring. BA-086-T4 reports the locale of each
+     * selected field through the approved textProvenance contract (#310).
      *
      * <p>PlaceLocalizationProvenanceIT holds every clause here. It measures three entry points
      * separately - the detail read, the embedded summary and the search match - because removing
@@ -100,7 +100,43 @@ public class JdbcCatalogPlaceQuery implements CatalogPlaceQuery {
             + " WHERE gate.code = loc.source_code AND gate.enabled"
             + " AND gate.current_revision = loc.source_registry_version))";
 
-    private static final String SUMMARY_PROJECTION = """
+    private static String textCreditColumns(String alias) {
+        return """
+                       %1$s.locale AS %1$s_locale,
+                       %1$s.source_code AS %1$s_credit_source_code,
+                       %1$s.source_registry_version AS %1$s_credit_source_version,
+                       %1$s_revision.canonical_contract->>'displayName' AS %1$s_credit_display_name,
+                       %1$s_revision.canonical_contract->>'attributionTemplate' AS %1$s_credit_attribution,
+                       %1$s_revision.canonical_contract->>'officialUrl' AS %1$s_credit_official_url,
+                       %1$s_revision.canonical_contract->'license'->>'url' AS %1$s_credit_license_url,
+                       %1$s_revision.canonical_contract->'license'->>'name' AS %1$s_credit_license_name,
+                """.formatted(alias);
+    }
+
+    /** Choose provenance from the row that supplied this field, not from the place's external ref. */
+    private static String textChoiceJoin(String column, String alias) {
+        return """
+                  LEFT JOIN LATERAL (
+                    SELECT choice.locale, choice.source_code, choice.source_registry_version
+                      FROM (VALUES
+                        (0, exact_locale.%1$s, exact_locale.locale, exact_locale.source_code,
+                            exact_locale.source_registry_version),
+                        (1, language_locale.%1$s, language_locale.locale, language_locale.source_code,
+                            language_locale.source_registry_version),
+                        (2, ko_locale.%1$s, ko_locale.locale, ko_locale.source_code,
+                            ko_locale.source_registry_version)
+                      ) choice(priority, value, locale, source_code, source_registry_version)
+                     WHERE choice.value IS NOT NULL
+                     ORDER BY choice.priority
+                     LIMIT 1
+                  ) %2$s ON TRUE
+                  LEFT JOIN source_registry_revisions %2$s_revision
+                    ON %2$s_revision.source_code = %2$s.source_code
+                   AND %2$s_revision.version = %2$s.source_registry_version
+                """.formatted(column, alias);
+    }
+
+    private static final String SUMMARY_PROJECTION = ("""
 SELECT p.id,
                        COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name) AS name,
                        lower(COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name)) AS sort_name,
@@ -113,11 +149,12 @@ SELECT p.id,
                        source_credit.official_url AS credit_official_url,
                        source_credit.license_url AS credit_license_url,
                        source_credit.license_name AS credit_license_name,
+                """ + textCreditColumns("name_text") + textCreditColumns("address_text") + """
                        thumbnail.served_url AS thumbnail_url,
                        thumbnail.attribution_template AS thumbnail_attribution
                   FROM places p
                   LEFT JOIN LATERAL (
-                    SELECT loc.name, loc.address
+                    SELECT loc.name, loc.address, loc.locale, loc.source_code, loc.source_registry_version
                       FROM place_localizations loc
                      WHERE loc.place_id = p.id AND lower(loc.locale) = ?
                        %1$s
@@ -125,7 +162,7 @@ SELECT p.id,
                      LIMIT 1
                   ) exact_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT loc.name, loc.address
+                    SELECT loc.name, loc.address, loc.locale, loc.source_code, loc.source_registry_version
                       FROM place_localizations loc
                      WHERE loc.place_id = p.id AND split_part(lower(loc.locale), '-', 1) = ?
                        %1$s
@@ -133,7 +170,7 @@ SELECT p.id,
                      LIMIT 1
                   ) language_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT loc.name, loc.address
+                    SELECT loc.name, loc.address, loc.locale, loc.source_code, loc.source_registry_version
                       FROM place_localizations loc
                      WHERE loc.place_id = p.id AND lower(loc.locale) = 'ko-kr'
                        %1$s
@@ -168,7 +205,8 @@ SELECT p.id,
                      ORDER BY assignment.position, asset.id
                      LIMIT 1
                   ) thumbnail ON TRUE
-                """.formatted(SERVABLE_LOCALIZATION);
+                """ + textChoiceJoin("name", "name_text") + textChoiceJoin("address", "address_text"))
+            .formatted(SERVABLE_LOCALIZATION);
 
     @Override
     public List<CatalogPlaceSearchHit> search(CatalogPlaceSearchRequest request, PageKey after, int fetchLimit,
@@ -263,7 +301,7 @@ SELECT p.id,
         String normalizedLocale = CatalogPlaceSearchRequest.of("x", locale, null, null, 1).locale();
         String language = normalizedLocale.substring(0, normalizedLocale.indexOf('-') < 0
                 ? normalizedLocale.length() : normalizedLocale.indexOf('-'));
-        List<DetailFields> fields = jdbc.query("""
+        List<DetailFields> fields = jdbc.query(("""
                 SELECT p.id,
                        COALESCE(exact_locale.name, language_locale.name, ko_locale.name, p.canonical_name) AS name,
                        p.category_code, p.region_code,
@@ -278,11 +316,14 @@ SELECT p.id,
                        source_credit.official_url AS credit_official_url,
                        source_credit.license_url AS credit_license_url,
                        source_credit.license_name AS credit_license_name,
+                """ + textCreditColumns("name_text") + textCreditColumns("address_text")
+                + textCreditColumns("description_text") + """
                        thumbnail.served_url AS thumbnail_url
                   FROM places requested
                   JOIN places p ON p.id = COALESCE(requested.canonical_place_id, requested.id)
                   LEFT JOIN LATERAL (
-                    SELECT loc.name, loc.address, loc.short_description
+                    SELECT loc.name, loc.address, loc.short_description, loc.locale,
+                           loc.source_code, loc.source_registry_version
                       FROM place_localizations loc
                      WHERE loc.place_id = p.id AND lower(loc.locale) = ?
                        %1$s
@@ -290,7 +331,8 @@ SELECT p.id,
                      LIMIT 1
                   ) exact_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT loc.name, loc.address, loc.short_description
+                    SELECT loc.name, loc.address, loc.short_description, loc.locale,
+                           loc.source_code, loc.source_registry_version
                       FROM place_localizations loc
                      WHERE loc.place_id = p.id AND split_part(lower(loc.locale), '-', 1) = ?
                        %1$s
@@ -298,7 +340,8 @@ SELECT p.id,
                      LIMIT 1
                   ) language_locale ON TRUE
                   LEFT JOIN LATERAL (
-                    SELECT loc.name, loc.address, loc.short_description
+                    SELECT loc.name, loc.address, loc.short_description, loc.locale,
+                           loc.source_code, loc.source_registry_version
                       FROM place_localizations loc
                      WHERE loc.place_id = p.id AND lower(loc.locale) = 'ko-kr'
                        %1$s
@@ -333,17 +376,19 @@ SELECT p.id,
                      ORDER BY assignment.position, asset.id
                      LIMIT 1
                   ) thumbnail ON TRUE
+                """ + textChoiceJoin("name", "name_text") + textChoiceJoin("address", "address_text")
+                + textChoiceJoin("short_description", "description_text") + """
                  WHERE requested.id = ?
                    AND p.status = 'ACTIVE'
                    AND p.latitude IS NOT NULL
                    AND p.longitude IS NOT NULL
-                """.formatted(SERVABLE_LOCALIZATION), JdbcCatalogPlaceQuery::detailFields, normalizedLocale,
+                """).formatted(SERVABLE_LOCALIZATION), JdbcCatalogPlaceQuery::detailFields, normalizedLocale,
                 language, Timestamp.from(observedAt),
                 requestedPlaceId);
         return fields.stream().findFirst().map(detail -> new CatalogPlaceDetail(detail.id, detail.name,
                 detail.categoryCode, detail.regionCode, detail.categoryName, detail.regionName, detail.thumbnailUrl,
                 detail.address, detail.description, detail.latitude, detail.longitude, externalReferences(detail.id),
-                media(detail.id, observedAt).orElse(null), detail.sourceAttribution));
+                media(detail.id, observedAt).orElse(null), detail.sourceAttribution, detail.textProvenance));
     }
 
     @Override
@@ -429,7 +474,7 @@ SELECT p.id,
                 result.getString("category_code"), result.getString("region_code"), categoryName(result),
                 regionName(result), result.getString("thumbnail_url"),
                 result.getString("thumbnail_attribution"), result.getString("address"),
-                sourceAttribution(result));
+                sourceAttribution(result), textProvenance(result, false));
     }
 
     /**
@@ -447,16 +492,34 @@ SELECT p.id,
 
     /** A partial credit is worse than none: both the source and its approved text must be present. */
     private static CatalogPlaceQuery.CatalogSourceAttribution sourceAttribution(ResultSet result) throws SQLException {
-        String source = result.getString("credit_source_code");
-        String attribution = result.getString("credit_attribution");
-        String displayName = result.getString("credit_display_name");
-        long version = result.getLong("credit_source_version");
+        return sourceAttribution(result, "");
+    }
+
+    private static CatalogPlaceQuery.CatalogSourceAttribution sourceAttribution(ResultSet result, String prefix)
+            throws SQLException {
+        String source = result.getString(prefix + "credit_source_code");
+        String attribution = result.getString(prefix + "credit_attribution");
+        String displayName = result.getString(prefix + "credit_display_name");
+        long version = result.getLong(prefix + "credit_source_version");
         if (source == null || attribution == null || displayName == null || version < 1) {
             return null;
         }
         return new CatalogPlaceQuery.CatalogSourceAttribution(source, displayName, version, attribution,
-                result.getString("credit_official_url"), result.getString("credit_license_url"),
-                result.getString("credit_license_name"));
+                result.getString(prefix + "credit_official_url"), result.getString(prefix + "credit_license_url"),
+                result.getString(prefix + "credit_license_name"));
+    }
+
+    private static CatalogPlaceQuery.CatalogPlaceTextProvenance textProvenance(ResultSet result, boolean detail)
+            throws SQLException {
+        return new CatalogPlaceQuery.CatalogPlaceTextProvenance(textField(result, "name_text"),
+                textField(result, "address_text"), detail ? textField(result, "description_text") : null);
+    }
+
+    private static CatalogPlaceQuery.CatalogTextFieldProvenance textField(ResultSet result, String prefix)
+            throws SQLException {
+        String locale = result.getString(prefix + "_locale");
+        return locale == null ? null : new CatalogPlaceQuery.CatalogTextFieldProvenance(locale,
+                sourceAttribution(result, prefix + "_"));
     }
 
     private static DetailFields detailFields(ResultSet result, int row) throws SQLException {
@@ -464,7 +527,7 @@ SELECT p.id,
                 result.getString("category_code"), result.getString("region_code"), categoryName(result),
                 regionName(result), result.getString("thumbnail_url"), result.getString("address"),
                 result.getString("description"), result.getBigDecimal("latitude"), result.getBigDecimal("longitude"),
-                sourceAttribution(result));
+                sourceAttribution(result), textProvenance(result, true));
     }
 
     private static Instant timestamp(ResultSet result, String column) throws SQLException {
@@ -478,6 +541,7 @@ SELECT p.id,
 
     private record DetailFields(UUID id, String name, String categoryCode, String regionCode, String categoryName,
             String regionName, String thumbnailUrl, String address, String description, BigDecimal latitude,
-            BigDecimal longitude, CatalogPlaceQuery.CatalogSourceAttribution sourceAttribution) {
+            BigDecimal longitude, CatalogPlaceQuery.CatalogSourceAttribution sourceAttribution,
+            CatalogPlaceQuery.CatalogPlaceTextProvenance textProvenance) {
     }
 }

@@ -216,6 +216,68 @@ class CatalogPlaceApiIT {
                 .contains("\"categoryName\":null", "\"regionName\":null");
     }
 
+    @Test
+    @DisplayName("BA-086-T4 each fallback field reports the locale of the text actually selected")
+    void mixedLocaleFieldsReportTheirOwnLocales() throws Exception {
+        SessionService.Bootstrap englishOwner = owner("en-US");
+        UUID place = mixedLocalePlace();
+
+        mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("English " + RUN))
+                .andExpect(jsonPath("$.address").value("서울시 주소"))
+                .andExpect(jsonPath("$.description").value("한국어 설명"))
+                .andExpect(jsonPath("$.textProvenance.name.locale").value("en-US"))
+                .andExpect(jsonPath("$.textProvenance.address.locale").value("ko-KR"))
+                .andExpect(jsonPath("$.textProvenance.description.locale").value("ko-KR"));
+
+        search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(place.toString()))
+                .andExpect(jsonPath("$.items[0].textProvenance.name.locale").value("en-US"))
+                .andExpect(jsonPath("$.items[0].textProvenance.address.locale").value("ko-KR"))
+                .andExpect(jsonPath("$.items[0].textProvenance.description").isEmpty());
+    }
+
+    @Test
+    @DisplayName("BA-086-T5 fallback text retains its own approved credit without borrowing place credit")
+    void fallbackTextKeepsItsOwnCredit() throws Exception {
+        SessionService.Bootstrap englishOwner = owner("en-US");
+        UUID place = mixedLocalePlace();
+        long revision = jdbc.queryForObject(
+                "SELECT current_revision FROM source_registry WHERE code = ?", Long.class, SOURCE);
+
+        mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceAttribution").isEmpty())
+                .andExpect(jsonPath("$.textProvenance.name.sourceAttribution").isEmpty())
+                .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.source").value(SOURCE))
+                .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.sourceRegistryVersion")
+                        .value(revision))
+                .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.attribution")
+                        .value("출처: ⓒ한국관광공사"))
+                .andExpect(jsonPath("$.textProvenance.description.sourceAttribution.source").value(SOURCE));
+
+        search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].textProvenance.address.sourceAttribution.source")
+                        .value(SOURCE));
+    }
+
+    private UUID mixedLocalePlace() {
+        UUID place = activePlace("정본 " + RUN, true);
+        localization(place, "en-US", "English " + RUN, null, null);
+        long revision = jdbc.queryForObject(
+                "SELECT current_revision FROM source_registry WHERE code = ?", Long.class, SOURCE);
+        jdbc.update("""
+                INSERT INTO place_localizations
+                    (id, place_id, locale, name, short_description, address, source_code,
+                     source_registry_version, source_locale, observed_at, updated_at)
+                VALUES (?, ?, 'ko-KR', ?, '한국어 설명', '서울시 주소', ?, ?, 'ko-KR', ?, ?)
+                """, UUID.randomUUID(), place, "한국어 " + RUN, SOURCE, revision, timestamp(), timestamp());
+        return place;
+    }
+
     /**
      * CMP-ATT-001 needs a credit on every KTO-sourced screen and CMP-ATT-003 forbids implying one that
      * was not given. A place with no reviewed external reference therefore projects no attribution at
