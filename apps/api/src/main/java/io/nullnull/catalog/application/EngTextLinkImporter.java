@@ -3,6 +3,7 @@ package io.nullnull.catalog.application;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -59,12 +60,15 @@ public class EngTextLinkImporter {
         }
     }
 
-    /** One transaction: a plan with one refused entry leaves nothing behind. */
+    /**
+     * One transaction: a plan with one refused entry leaves nothing behind. Places are locked in id order,
+     * not the plan's, so two imports naming the same places in opposite orders queue instead of deadlocking.
+     */
     @Transactional
     public List<UUID> importPlan(Plan plan) {
         Objects.requireNonNull(plan, "plan");
         Instant now = clock.instant();
-        for (Link link : plan.links()) {
+        for (Link link : plan.links().stream().sorted(Comparator.comparing(Link::placeId)).toList()) {
             if (link.reviewedAt().isAfter(now)) {
                 throw new IllegalArgumentException("a future review cannot be imported");
             }
