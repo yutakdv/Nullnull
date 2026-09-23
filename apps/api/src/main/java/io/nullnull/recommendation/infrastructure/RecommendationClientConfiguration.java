@@ -1,6 +1,7 @@
 package io.nullnull.recommendation.infrastructure;
 
 import io.nullnull.operations.application.ReadinessProbe;
+import io.nullnull.recommendation.application.RecommendationCallBounds;
 import io.nullnull.recommendation.application.RecommendationGateway;
 import io.nullnull.shared.http.RequestIdFilter;
 import java.net.http.HttpClient;
@@ -31,6 +32,13 @@ public class RecommendationClientConfiguration {
         RestClient client = client(builder, properties.baseUrl(), properties.connectTimeout(), properties.readTimeout(),
                 json);
         return new HttpRecommendationGateway(client, RecommendationClientConfiguration::currentRequestId);
+    }
+
+    /** How long a call through the gateway above can take, for callers that hold something while it runs (#340). */
+    @Bean
+    RecommendationCallBounds recommendationCallBounds(RecommendationClientProperties properties) {
+        return new RecommendationCallBounds(HttpRecommendationGateway.longestPolicyRead(
+                properties.connectTimeout(), properties.readTimeout()));
     }
 
     @Bean
