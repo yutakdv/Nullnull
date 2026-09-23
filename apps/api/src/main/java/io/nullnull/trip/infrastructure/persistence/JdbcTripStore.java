@@ -186,6 +186,16 @@ public class JdbcTripStore implements TripStore {
     }
 
     @Override
+    public java.util.OptionalLong versionForShare(UUID ownerId, UUID tripId) {
+        return jdbc.sql("SELECT version FROM trips WHERE id = ? AND owner_id = ? FOR SHARE")
+                .params(tripId, ownerId)
+                .query(Long.class)
+                .optional()
+                .map(java.util.OptionalLong::of)
+                .orElseGet(java.util.OptionalLong::empty);
+    }
+
+    @Override
     public List<TripItem> items(UUID tripId) {
         Map<UUID, List<TripConstraint>> byItem = constraints(tripId);
         return jdbc.sql("""

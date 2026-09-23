@@ -28,6 +28,26 @@ public interface IdempotencyRecordStore {
     void complete(UUID recordId, int responseStatus, String responseBodyJson);
 
     /**
+     * Stores the response and moves the record's expiry to {@code expiresAt}. For a reservation that was
+     * committed before its command ran (#340): its expiry until now was a lease on the key, and from the
+     * moment a response exists it is the response's retention instead.
+     */
+    void complete(UUID recordId, int responseStatus, String responseBodyJson, Instant expiresAt);
+
+    /**
+     * The record as committed, read without a lock. For a caller waiting on someone else's reservation:
+     * it asks whether that one has finished, and a locking read would queue behind the very command that
+     * is finishing it.
+     */
+    Optional<IdempotencyRecord> find(UUID ownerId, String routeKey, String idempotencyKey);
+
+    /**
+     * Removes a reservation whose command did not complete, and only such a one: a failed command frees
+     * its key, but a record that already holds a response is never taken back by this.
+     */
+    void release(UUID recordId);
+
+    /**
      * Removes one record by identifier. The guard uses it for a row whose retention has expired: the
      * slot counts as absent, so it is deleted under the lock already held and reserved again in the
      * same transaction.

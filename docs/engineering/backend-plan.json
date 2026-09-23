@@ -180,6 +180,38 @@
         {
           "id": "BA-002-T4",
           "assertion": "직전 schema 모양의 write가 최신 schema에서도 그대로 받아들여진다"
+        },
+        {
+          "id": "BA-002-T5",
+          "assertion": "앞선 호출이 prelude를 도는 동안 같은 key로 온 호출은 prelude도 command도 돌리지 않고 앞선 호출의 응답을 replay한다"
+        },
+        {
+          "id": "BA-002-T6",
+          "assertion": "prelude가 있는 command의 완료 기록은 lease가 아니라 idempotency 보존기간 동안 남는다"
+        },
+        {
+          "id": "BA-002-T7",
+          "assertion": "실패한 prelude는 예약을 풀어 같은 key가 곧바로 다시 실행된다"
+        },
+        {
+          "id": "BA-002-T8",
+          "assertion": "prelude 뒤 실패한 command는 예약을 풀어 같은 key가 곧바로 다시 실행된다"
+        },
+        {
+          "id": "BA-002-T9",
+          "assertion": "prelude 중인 보유자의 lease가 끝나면 그 예약을 기다리던 호출이 key를 넘겨받는다"
+        },
+        {
+          "id": "BA-002-T10",
+          "assertion": "prelude 없는 command는 살아 있는 예약이 쥔 key에서 실행되지 않고 거절된다"
+        },
+        {
+          "id": "BA-002-T11",
+          "assertion": "prelude 중에 owner가 삭제되면 command를 실행하지 않는다"
+        },
+        {
+          "id": "BA-002-T12",
+          "assertion": "prelude 중에 예약을 넘겨받힌 호출은 새 보유자의 예약 위에서 command를 실행하지 않고, key가 풀린 뒤에 실행한다"
         }
       ],
       "handoff": "ERD diff, migration 적용 순서, rollback 호환 범위, local seed/reset 명령. 숫자 migration version은 실제 구현 때 충돌 없이 부여한다.",
@@ -267,6 +299,18 @@
         {
           "id": "BA-003-T12",
           "assertion": "demo readiness fixture는 `DemoCapabilityQuery`의 실제 출력과 같다"
+        },
+        {
+          "id": "BA-003-T13",
+          "assertion": "prelude가 있는 command의 claim이 owner 행을 얻지 못하면 자기 bound 안에서 포기하고 아무것도 예약하지 않는다"
+        },
+        {
+          "id": "BA-003-T14",
+          "assertion": "prelude가 있는 command의 claim이 owner 행에서 lock timeout을 기다려도 행이 풀리면 command를 실행한다"
+        },
+        {
+          "id": "BA-003-T15",
+          "assertion": "prelude가 있는 command를 기다리는 호출은 key가 다른 예약으로 넘어가도 살아 있는 예약이 있는 동안 포기하지 않는다"
         }
       ],
       "handoff": "bootstrap default/degraded examples, Problem→CTA 표, 환경별 capability fixture. Live OFF shell과 실제 Live 완료를 구분한다. capability 이름 집합(live·replay·optimization)은 계약에 enum이 없어 server가 정했으므로 FE_DRI 승인이 필요하고, /health/ready의 infrastructure check 이름과 섞지 않는다.",
@@ -2002,15 +2046,43 @@
         },
         {
           "id": "BA-051-T23",
-          "assertion": "계약 밖 답으로 job이 끝난 run은 FAILED INTERNAL_ERROR(retryable 아님)로 끝난다"
+          "assertion": "기한 전에 계약 밖 답으로 job이 끝난 run은 FAILED INTERNAL_ERROR(retryable 아님)로 끝난다"
         },
         {
           "id": "BA-051-T24",
-          "assertion": "모든 시도에서 apps/ai가 답하지 못한 run은 FAILED RECOMMENDATION_UNAVAILABLE(retryable)로 끝난다"
+          "assertion": "기한 전에 모든 시도에서 apps/ai가 답하지 못한 run은 FAILED RECOMMENDATION_UNAVAILABLE(retryable)로 끝난다"
         },
         {
           "id": "BA-051-T25",
-          "assertion": "시도가 남지 않은 채 버려진 job의 run은 FAILED INTERNAL_ERROR로 끝난다"
+          "assertion": "기한 전에 시도가 남지 않은 채 버려진 job의 run은 FAILED INTERNAL_ERROR로 끝난다"
+        },
+        {
+          "id": "BA-051-T26",
+          "assertion": "apps/ai가 preview를 계산하는 동안 여행이 바뀐 run은 preview를 저장하지 않고 TRIP_CHANGED로 끝난다"
+        },
+        {
+          "id": "BA-051-T27",
+          "assertion": "준비 단계가 여행을 기다리는 동안 커밋된 여행 편집은 apps/ai에 묻기 전에 run을 TRIP_CHANGED로 끝낸다"
+        },
+        {
+          "id": "BA-051-T28",
+          "assertion": "apps/ai가 계산하는 동안 기한이 지난 run은 READY가 아니라 EXPIRED로 끝난다"
+        },
+        {
+          "id": "BA-051-T29",
+          "assertion": "READY run의 fingerprint는 run이 저장한 기한으로 계산된다"
+        },
+        {
+          "id": "BA-051-T30",
+          "assertion": "재시도는 첫 시도가 동결한 기한을 유지한다"
+        },
+        {
+          "id": "BA-051-T31",
+          "assertion": "기한이 지난 뒤 끝나는 run은 failure code가 아니라 EXPIRED로 기록된다"
+        },
+        {
+          "id": "BA-051-T32",
+          "assertion": "store는 기한 시각 이후의 run을 READY로 쓰지 않는다"
         }
       ],
       "handoff": "FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후.",
@@ -2135,6 +2207,18 @@
         {
           "id": "BA-052-T21",
           "assertion": "더는 결정할 수 없는 run의 결정은 apps/ai에 묻지 않고 거절된다"
+        },
+        {
+          "id": "BA-052-T23",
+          "assertion": "같은 Idempotency-Key로 동시에 온 두 APPLY는 apps/ai에 한 번 묻고 둘 다 그 한 결정으로 답한다"
+        },
+        {
+          "id": "BA-052-T24",
+          "assertion": "다른 key의 APPLY는 서로의 policy 조회를 기다리지 않는다"
+        },
+        {
+          "id": "BA-052-T25",
+          "assertion": "policy 조회가 실패한 APPLY는 그 key의 예약을 남기지 않는다"
         }
       ],
       "handoff": "APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures.",

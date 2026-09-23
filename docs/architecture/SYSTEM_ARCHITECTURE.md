@@ -505,6 +505,8 @@ DB constraint와 보존 기간은 [ERD](ERD.md)가 정본이다. recommendation 
 
 잠금 순서를 `owner lifecycle → idempotency reservation → trip → run/decision → child rows`로 통일하는 방안을 DB integration test로 검증한다. owner 삭제와 새 추천 snapshot/job 생성을 경합시켜 삭제 뒤 데이터가 되살아나지 않아야 한다.
 
+외부 호출을 command 앞에 둬야 하는 command(지금은 `decideOptimization`의 policy 조회)는 idempotency 예약을 먼저 짧은 transaction으로 커밋하고, 예약을 쥔 요청만 transaction과 connection 없이 외부 호출을 한 뒤 같은 잠금 순서로 command transaction을 연다(#340). 예약의 `expires_at`이 lease이고 lease가 끝난 예약은 다음 요청이 넘겨받는다. command transaction은 예약이 아직 자기 것인지 owner 잠금 아래에서 다시 확인하므로 command는 key마다 한 번이다. 실패한 외부 호출·command는 예약을 즉시 푼다.
+
 ### 7.2 persistent job
 
 - payload에는 job type과 domain ID만 넣는다. 원문 일정·정밀 위치·provider secret을 넣지 않는다.

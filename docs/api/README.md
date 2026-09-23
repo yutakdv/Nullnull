@@ -145,6 +145,7 @@ OpenAPI에서 `Idempotency-Key`가 required인 요청은 다음 규칙을 따른
 - network retry는 같은 key와 byte-equivalent semantic body를 사용한다.
 - 새로운 사용자 action은 새 key를 사용한다.
 - 같은 key/같은 body는 원래 status/body를 반환한다.
+- 같은 key/같은 body 요청이 앞선 요청의 처리 중에 오면 그것이 끝나기를 기다렸다가 그 status/body를 받는다. 앞선 요청이 실패해 아무것도 기록하지 않았으면 기다리던 요청이 새로 실행된다. 기다림의 상한은 [ENVIRONMENT](../operations/ENVIRONMENT.md)의 `APP_IDEMPOTENCY_LOCK_TIMEOUT` 설명에 있다. `decideOptimization`은 policy 조회를 key 하나에 한 번만 하므로 뒤의 요청은 그 조회가 끝나기를 기다린다.
 - 같은 key/다른 body 또는 다른 path 자원은 409 `IDEMPOTENCY_KEY_REUSED`다. canonical request hash는 operation·실제 path parameter·semantic body·명령 precondition을 포함한다.
 - server 보존은 기본 24시간이다.
 - scope는 Owner 생성 뒤 `(ownerId, routeTemplate, key)`다. 최초 `/demo/sessions`는 owner-scoped idempotency 대상이 아니며 valid cookie retry로 수렴한다.

@@ -90,25 +90,30 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
     @Override
     public boolean markReady(UUID runId, String dataFingerprint, String algorithmVersion,
             String policyVersion, String policyHash, String catalogVersion, Instant at) {
-        // expires_at IS NOT NULL is part of the condition, not an assumption: recordFrozenEvidence
-        // sets it, and a run that skipped that step would otherwise reach the CHECK and throw. Asking
-        // here turns "this run is not ready to be READY" into a false the handler can read.
+        // expires_at > at is part of the condition, not an assumption (#340). It refuses what the
+        // CHECK would (a run that never froze has no deadline, and NULL > at is not true) and also a
+        // preview whose deadline has already passed: a READY row past its deadline is gone the moment
+        // it is written (410), so storing one would publish nothing a traveller could use. Asking here
+        // turns "this run is not ready to be READY" into a false the caller can read.
         return jdbc.sql("""
                 UPDATE optimization_runs
                    SET status = 'READY', completed_at = ?, data_fingerprint = ?, algorithm_version = ?,
                        policy_version = ?, policy_hash = ?, catalog_version = ?
-                 WHERE id = ? AND status = 'RUNNING' AND expires_at IS NOT NULL
+                 WHERE id = ? AND status = 'RUNNING' AND expires_at > ?
                 """)
                 .params(Timestamp.from(at), dataFingerprint, algorithmVersion, policyVersion,
-                        policyHash, catalogVersion, runId)
+                        policyHash, catalogVersion, runId, Timestamp.from(at))
                 .update() == 1;
     }
 
     @Override
     public boolean recordFrozenEvidence(UUID runId, Instant expiresAt, List<UUID> snapshotSetIds) {
+        // COALESCE: the first attempt's deadline is the run's (#340). A retry re-freezes the sets below
+        // but must not move the deadline - a run that kept extending it could turn READY later than the
+        // preview it promised, and a reader already shown EXPIRED would see it come back.
         boolean updated = jdbc.sql("""
                 UPDATE optimization_runs
-                   SET expires_at = ?
+                   SET expires_at = COALESCE(expires_at, ?)
                  WHERE id = ? AND status = 'RUNNING'
                 """)
                 .params(Timestamp.from(expiresAt), runId)
@@ -136,12 +141,20 @@ public class JdbcOptimizationRunStore implements OptimizationRunStore {
         if (!from.canMoveTo(OptimizationStatus.FAILED)) {
             throw new IllegalArgumentException("a run cannot move from " + from + " to FAILED");
         }
+        // A run whose deadline had passed by `at` is recorded EXPIRED, without the code (#340). Every
+        // reader has been shown EXPIRED since that deadline (OptimizationService.asReadNow), and a
+        // terminal status a reader saw is not replaced by another. SET reads the row as it was, so all
+        // three CASEs ask the same question of the same expires_at.
+        Timestamp when = Timestamp.from(at);
         return jdbc.sql("""
                 UPDATE optimization_runs
-                   SET status = 'FAILED', failure_code = ?, failure_message = ?, completed_at = ?
+                   SET status = CASE WHEN expires_at <= ? THEN 'EXPIRED' ELSE 'FAILED' END,
+                       failure_code = CASE WHEN expires_at <= ? THEN NULL ELSE ? END,
+                       failure_message = CASE WHEN expires_at <= ? THEN NULL ELSE ? END,
+                       completed_at = ?
                  WHERE id = ? AND status = ?
                 """)
-                .params(code.name(), message, Timestamp.from(at), runId, from.name())
+                .params(when, when, code.name(), when, message, when, runId, from.name())
                 .update() == 1;
     }
 
