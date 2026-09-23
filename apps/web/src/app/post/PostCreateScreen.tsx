@@ -161,7 +161,8 @@ export function PostCreateScreen() {
       uploading ||
       !ticket ||
       !title.trim() ||
-      !body.trim()
+      !body.trim() ||
+      places.length === 0
     )
       return;
     sending.current = true;
@@ -397,7 +398,12 @@ export function PostCreateScreen() {
               className={styles.primary}
               type="submit"
               disabled={
-                uploading || publish.isPending || !ticket || !title.trim() || !body.trim()
+                uploading ||
+                publish.isPending ||
+                !ticket ||
+                !title.trim() ||
+                !body.trim() ||
+                places.length === 0
               }
             >
               {uncertain ? t('author.retryPublish') : t('author.publish')}

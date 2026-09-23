@@ -53,6 +53,18 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
         window.fetch = async (...args) => {
           const request = new Request(...args);
           const path = new URL(request.url).pathname;
+          if (path === '/api/v1/places/search' && request.method === 'POST') {
+            return Response.json({
+              items: [
+                {
+                  id: '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01',
+                  name: '경복궁',
+                  sourceAttribution: null,
+                },
+              ],
+              page: { nextCursor: null, hasMore: false },
+            });
+          }
           if (path === '/api/v1/posts/images/uploads') {
             const body = (await request.json()) as {
               checksumSha256: string;
@@ -114,6 +126,8 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     await page
       .getByLabel(ko ? '캡션' : 'Caption', { exact: true })
       .fill('A walk in Seoul.');
+    await page.getByLabel(ko ? '장소 검색' : 'Search places').fill('경복궁');
+    await page.getByRole('checkbox', { name: '경복궁' }).check();
     const back = page.getByRole('button', {
       name: ko ? '피드로 돌아가기' : 'Back to feed',
     });

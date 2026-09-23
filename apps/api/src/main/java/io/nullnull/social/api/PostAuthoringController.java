@@ -134,7 +134,7 @@ public class PostAuthoringController {
             @NotBlank @Size(max = 200) String title,
             @NotBlank @Size(max = 20_000) String body,
             @Size(max = 500) String altText,
-            @NotNull @Size(max = 50) List<UUID> placeIds) {}
+            @NotNull @Size(min = 1, max = 50) List<UUID> placeIds) {}
 
     /** Where the finished post lives. */
     public record CreatedPostResponse(UUID postId) {}

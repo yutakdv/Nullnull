@@ -127,6 +127,29 @@ class PostAuthoringIT {
     }
 
     @Test
+    @DisplayName("BA-082 an empty place list is refused before an upload ticket is spent")
+    void emptyPlaceListIsRejectedBeforeUploadIsSpent() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        UUID placeId = place();
+        UUID uploadId = issueTicket(author);
+        recorder.put(quarantineKeyOf(uploadId), jpeg(64, 48));
+
+        mvc.perform(post("/api/v1/posts")
+                        .cookie(new Cookie("__Host-nullnull_session", author.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", author.csrf.token)
+                        .header("Idempotency-Key", "post-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"uploadId\":\"" + uploadId + "\",\"title\":\"가을 산책\","
+                                + "\"body\":\"좋았다\",\"placeIds\":[]}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        assertThat(recorder.published).isEmpty();
+        assertThat(recorder.deleted).isEmpty();
+        createPost(author, uploadId, placeId).andExpect(status().isCreated());
+    }
+
+    @Test
     // This carried BA-082-T3 for a while and should not have: that clause was then
     // "삭제/권리 철회가 기존 cursor·cache에서도 반영된다", which this does not touch. The borrowed id
     // was wrong in both directions - T3 looked covered while nothing tested it, and this property

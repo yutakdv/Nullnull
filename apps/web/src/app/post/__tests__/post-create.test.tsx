@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { tripFixtures, postFixtures } from '@nullnull/contracts';
+import { tripFixtures, postFixtures, placeFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -107,6 +107,9 @@ describe('#312 authoring and trip prerequisite', () => {
     await screen.findByText(copy['author.uploaded']);
     await user.type(screen.getByLabelText(copy['author.title']), 'A calm walk');
     await user.type(screen.getByLabelText(copy['author.caption']), 'A quiet afternoon');
+    expect(screen.getByRole('button', { name: copy['author.publish'] })).toBeDisabled();
+    await user.type(screen.getByLabelText(copy['author.search']), '경복궁');
+    await user.click(await screen.findByRole('checkbox', { name: '경복궁' }));
     await user.click(screen.getByRole('button', { name: copy['author.publish'] }));
     await screen.findByText(copy['author.publishFailed']);
     expect(screen.getByLabelText(copy['author.title'])).toBeDisabled();
@@ -119,7 +122,7 @@ describe('#312 authoring and trip prerequisite', () => {
     expect(requests[0]?.body).toMatchObject({
       title: 'A calm walk',
       body: 'A quiet afternoon',
-      placeIds: [],
+      placeIds: [placeFixtures.searchPage.items[0]!.id],
       uploadId: ticket.uploadId,
     });
     expect(uploadPostImage).toHaveBeenCalledTimes(1);
