@@ -52,13 +52,14 @@ tags:
 
 ## 승인된 예외
 
-**표가 비어 있는 것이 정상 상태다.** 현재 활성 예외는 #312 계약 정정 1건이다. `main`에 반영된 직후 절차 5에 따라 이 행과 ignore 줄을 함께 만료 처리한다.
+**표가 비어 있는 것이 정상 상태다.** 현재 활성 예외는 없다.
 
 | oasdiff 메시지 | 이유 | 승인자 | 추적 |
 | --- | --- | --- | --- |
-| POST /posts the `placeIds` request property's minItems was set to `1` | 기존 DB 게시 트리거가 대표 장소를 요구해 빈 배열은 게시에 성공할 수 없고 500이었다. #312에서 FE가 장소 선택을 요구하고 API가 422로 거절하도록 맞춘 계약 정정이다. | 오너(2026-09-23 #312 직접 구현·반영 지시) | #312 |
 
 ## 만료된 예외 (기록)
+
+- **`POST /posts placeIds` 최소 1곳 계약 정정** (승인: 오너의 #312 직접 구현·반영 지시, 추적: [#312](https://github.com/yutakdv/Nullnull/issues/312)). 기존 DB 게시 트리거가 대표 장소를 요구해 빈 배열로는 게시에 성공할 수 없었다. [PR #353](https://github.com/yutakdv/Nullnull/pull/353)으로 `main`의 OpenAPI 기준도 최소 1곳이 되어 finding이 사라졌으므로 ignore 줄과 활성 등록 행을 함께 제거했다.
 
 - **`getCandidateTripMatches` 응답의 `NOT_ACTIVE` enum 추가**
   (승인: Frontend의 [#328](https://github.com/yutakdv/Nullnull/issues/328) 결정).
