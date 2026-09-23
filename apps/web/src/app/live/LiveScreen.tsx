@@ -1,7 +1,7 @@
 import type { components } from '@nullnull/api-client';
 import { useCallback, useState, useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useOutletContext } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import {
@@ -20,6 +20,7 @@ import {
 } from '../../shared/ui/index.js';
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
+import type { AppShellOutletContext } from '../AppShell.js';
 
 const EMPTY_AREAS: components['schemas']['LiveArea'][] = [];
 
@@ -37,7 +38,8 @@ type CrowdMetric = components['schemas']['CrowdMetric'];
 export function LiveScreen() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const areas = useLiveAreas();
+  const { sessionReady } = useOutletContext<AppShellOutletContext>();
+  const areas = useLiveAreas(sessionReady);
   const online = useSyncExternalStore(
     (notify) => onlineManager.subscribe(notify),
     () => onlineManager.isOnline(),

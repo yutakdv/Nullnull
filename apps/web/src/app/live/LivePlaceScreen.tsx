@@ -59,8 +59,9 @@ export function LivePlaceScreen() {
   const { placeId } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { activeTripId, activeTripReady } = useOutletContext<AppShellOutletContext>();
-  const detail = useLivePlace(placeId ?? null);
+  const { activeTripId, activeTripReady, sessionReady } =
+    useOutletContext<AppShellOutletContext>();
+  const detail = useLivePlace(placeId ?? null, sessionReady);
   const addCandidate = useAddTripCandidate(activeTripId);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'duplicate' | 'error' | null>(
     null,

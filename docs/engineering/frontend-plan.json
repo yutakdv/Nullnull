@@ -1779,6 +1779,10 @@
         {
           "id": "FE-401-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-401-T4",
+          "assertion": "쿠키 없는 첫 방문으로 /live에 바로 들어와도 권역 조회는 세션이 생긴 뒤에 나가고 오류 상태를 남기지 않는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1831,6 +1835,10 @@
         {
           "id": "FE-402-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-402-T4",
+          "assertion": "쿠키 없는 첫 방문으로 /live/places/:placeId에 바로 들어와도 장소 조회는 세션이 생긴 뒤에 나간다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

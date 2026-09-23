@@ -20,6 +20,14 @@ import styles from './AppShell.module.css';
 export interface AppShellOutletContext {
   activeTripId: string | null;
   activeTripReady: boolean;
+  /**
+   * The tab knows whether it has a session: a token is held or was reissued, a
+   * first-visit bootstrap finished, or the question ended in an error the
+   * screen should show. A screen whose first read goes out on mount waits on
+   * this, because on a first visit that read would otherwise leave with no
+   * cookie and get the same 401 the reissue got.
+   */
+  sessionReady: boolean;
   setActiveTripId: (activeTripId: string | null) => void;
 }
 
@@ -190,6 +198,25 @@ export function AppShell({ tabs = false }: AppShellProps) {
     retry: false,
   });
   const bootstrapped = session.isSuccess;
+  // Whether a read sent now would carry a session cookie, or has nothing left
+  // to wait for. The first-visit 401 above is the one state that is neither:
+  // the bootstrap is minting the cookie, and a read that leaves before it lands
+  // gets that 401 too. The feed never met this because it waits for the owner;
+  // Live reads on mount, and its list POST is not retried, so a deep link onto
+  // /live kept "couldn't check live areas" after the session existed (observed
+  // on the public edge, 2026-09-23).
+  //
+  // Any other outcome settles it: a held or reissued token, a finished
+  // bootstrap, a failed bootstrap (the screen shows its own error and retry),
+  // and a reissue failure that is not the first-visit 401 (a network error is
+  // the screen's to show; an ended session never reaches the Outlet). Waiting
+  // never starts a session of its own, so nothing here can mint an owner.
+  const sessionReady =
+    csrf.isSuccess ||
+    bootstrapped ||
+    currentCsrfToken() !== null ||
+    session.isError ||
+    (csrf.isError && !noCookieSent);
   // An ended session, now that the two are distinguishable: a 401 whose request
   // DID carry a cookie, and no bootstrap has succeeded in this tab.
   const sessionGone =
@@ -342,6 +369,7 @@ export function AppShell({ tabs = false }: AppShellProps) {
             {
               activeTripId,
               activeTripReady,
+              sessionReady,
               setActiveTripId,
             } satisfies AppShellOutletContext
           }
