@@ -5,7 +5,8 @@
   "scripts": {
     "build": "tsc",
     "check": "npm run build && node --test dist/test/*.test.js",
-    "synth": "cdk synth --no-lookups"
+    "synth": "cdk synth --no-lookups",
+    "synth:access-logs": "npm run build && cdk synth --app 'node dist/src/access-logs-app.js' --no-lookups"
   },
   "dependencies": {
     "aws-cdk-lib": "2.270.0",

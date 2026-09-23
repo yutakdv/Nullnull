@@ -103,6 +103,7 @@ CDK v2 TypeScript 구현은 stateful replacement와 배포 순서를 분리하�
 | `NullnullStgServices` | api/ai task definition과 service | `ApiServiceName`, `AiServiceName`, `InternalAlbArn` |
 | `NullnullStgWebEdge` | private S3, OAC, CloudFront VPC origin(HTTP:80), WAF, API gate | `PublicUrl`, `DistributionId`, `WebBucketName` |
 | `NullnullStgObservability` | alarms, `ops.alarm`·예보 metric filter, SNS(Budget 없음 — 조직 SCP가 `budgets:*`를 거부) | `AlarmTopicArn` |
+| `NullnullStgCloudFrontAccessLogs` (us-east-1, 별도 stack) | CloudFront standard logging v2 delivery와 전용 CloudWatch Logs group | `LogGroupName`, `DeliveryId` |
 
 release digest를 담는 것은 `Migration`·`WebEdge`·`Services`뿐이다. 보호 stack(`Foundation`·`Network`·`Data`·`Platform`·`GlobalWaf`·`Observability`)의 template이 바뀌거나 migration 목록이 바뀌면 infra 변경으로 분류되어 `staging-infra` 승인 경로를 탄다.
 
@@ -139,6 +140,14 @@ WAF는 CloudFront에 연결한다.
 - AWS managed common rule set은 처음 24시간 COUNT로 관찰한다.
 - KTO 탐색/붙여넣기/optimizer 정상 요청이 차단되지 않는 항목만 BLOCK으로 승격한다.
 - edge 429가 OpenAPI의 `Problem` shape가 아니면 client 재시도 계약과 맞지 않으므로 BA-073 제출 동선에서는 오탐 방지 한도를 우선한다.
+
+### CloudFront 접근 로그
+
+`infra/src/access-logs.ts`는 별도 us-east-1 stack으로 기존 distribution에 standard logging v2를 연결한다. `WebEdge`의 origin·behavior·API gate를 업데이트하지 않는다. `DistributionId`에는 `WebEdge` output의 실제 값을 넘긴다. `infra`에서 `npm run synth:access-logs -- -c account=<AWS 계정 ID>`로 전용 template을 만든 뒤 `NullnullStgCloudFrontAccessLogs`에 대한 CloudFormation change set이 로그 그룹·delivery source·destination·delivery **추가 네 건만** 포함하는지 확인하고 실행한다. 앱 release 배포 절차와 별개다.
+
+전용 log group `NullnullStgCloudFrontAccessLogs`는 30일 보존한다. JSON 필드는 UTC 시각, edge, viewer IP, 국가/ASN, method, host, URI 경로, status, bytes, user-agent, cache 결과, request ID와 latency로 제한한다. `cs-uri-query`, `cs(Cookie)`, `cs(Referer)`, `x-forwarded-for`는 수집하지 않는다. 로그의 IP를 실제 사람·로그인 사용자와 동일시하지 않는다. 공개 issue/PR에는 원문 IP·user-agent·경로 식별자를 넣지 않고 `python3 scripts/aws/cloudfront_access_report.py --profile <읽기 가능한 profile> --hours 24`의 집계만 사용한다. 이 집계에서 운영 시험 경로는 별도로 센다.
+
+적용 확인은 `aws logs describe-deliveries --region us-east-1`, `describe-log-groups`, 공개 URL의 200 응답, 실제 log stream/event 순서다. 기존 legacy logging이 꺼져 있었던 기간의 개별 요청은 복원할 수 없다. CloudFront의 과거 `Requests` metric은 요청 총량만 알려 준다. 표준 로그는 best effort이고 새 설정의 안정적 전달까지 약 4시간, 일부 항목은 최대 24시간 지연될 수 있으므로 로그 수를 방문자 총계로 사용하지 않는다. 운영 종료 때 delivery → source/destination → log group 순서로 정리하되, 필요한 감사 보존 기간과 #307 종료 절차를 먼저 대조한다.
 
 ## 6. IAM, OIDC와 secret
 
