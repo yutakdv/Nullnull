@@ -936,6 +936,21 @@ export function createStacks(
       },
     },
   });
+  // The approved withdraw-post command runs in OpsTask, not the online API task. Give that task
+  // only the user-cover version operations needed to remove one exact key after the DB commit.
+  opsContainer.addEnvironment("NULLNULL_UPLOAD_S3_BUCKET", webBucket.bucketName);
+  opsContainer.addEnvironment("NULLNULL_UPLOAD_S3_REGION", cdk.Stack.of(migrationStack).region);
+  opsContainer.addEnvironment("NULLNULL_UPLOAD_S3_PUBLIC_BASE_URL",
+    `https://${dist.distributionDomainName}`);
+  ops.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({
+    actions: ["s3:ListBucketVersions"],
+    resources: [webBucket.bucketArn],
+    conditions: { StringLike: { "s3:prefix": ["covers/user/*"] } },
+  }));
+  ops.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({
+    actions: ["s3:DeleteObjectVersion"],
+    resources: [webBucket.arnForObjects("covers/user/*")],
+  }));
   new deploy.BucketDeployment(web, "WebRelease", {
     destinationBucket: webBucket,
     sources: [deploy.Source.asset(config.webDirectory)],

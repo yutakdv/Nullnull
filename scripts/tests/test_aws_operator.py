@@ -60,7 +60,8 @@ class OperatorRegressions(unittest.TestCase):
             self.assertIn('ConditionExpression',aws.call_args.kwargs)
     PROFILE={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p'}
     def run_execute(self, action, kind, live_change=None, deployed=None, target=None, accept=False, classification=True,
-                    stale_baseline=False, env=None, source_state='clean', fail_on=None, cli_writes=False):
+                    stale_baseline=False, env=None, source_state='clean', fail_on=None, cli_writes=False,
+                    preserve_open_edge=False, live_edge='true', health_statuses=(200,200), missing_webedge=False):
         """execute() with AWS replaced at its edges only: manifest validation (the real node validator), the live
         classification and the lock logic run for real. Returns (cdk mock, migration mock); self.aws_ops lists
         the lock's AWS operations."""
@@ -71,6 +72,7 @@ class OperatorRegressions(unittest.TestCase):
             for s,t in templates.items():(assembly/f'NullnullStg{s}.template.json').write_text(json.dumps(t))
             live=json.loads(json.dumps(templates))
             if live_change:live[live_change]['Resources']['R']['Properties']['TopicName']='changed'
+            if missing_webedge:live['WebEdge']=None
             manifest={**fixtures.ReleaseManifestValidatorTest().valid_manifest(),'flywayChecksums':target or ['V001:'+'a'*64],'sourceState':source_state}
             if source_state=='overlay':manifest.update(sourceOverlaySha256='sha256:'+'e'*64,sourceOverlayPaths=['apps/api/x.java'])
             (directory/'release.json').write_text(json.dumps(manifest))
@@ -79,6 +81,7 @@ class OperatorRegressions(unittest.TestCase):
                 (directory/'classification.json').write_text(json.dumps({'baselineSha256':ops.baseline_sha256(templates if stale_baseline else live)}))
             record={'releaseManifest':{'flywayChecksums':deployed or ['V001:'+'a'*64]}}
             self.aws_ops=[]
+            health=iter(health_statuses)
             def fake_aws(service, operation, **kw):
                 self.aws_ops.append(operation);return {}
             def fake_cdk(command, log=None):
@@ -87,8 +90,10 @@ class OperatorRegressions(unittest.TestCase):
                     # What the real CLI did on 2026-09-19: zip directory assets into <app>/.cache/.
                     app=Path(command[command.index('--app')+1]);(app/'.cache').mkdir(exist_ok=True)
                     (app/'.cache'/(command[1]+'.zip')).write_text('zip')
-            with patch.dict(os.environ,env or self.PROFILE),patch.object(ops,'verify_plan',return_value=data),patch.object(ops,'identity'),patch.object(ops,'verify_images'),patch.object(ops,'require_kto_secret_provisioned'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'live_bodies',return_value=live),patch.object(ops,'protected_templates',return_value={}),patch.object(ops,'guard_stateful'),patch.object(ops,'output',return_value='synthetic'),patch.object(ops,'aws',side_effect=fake_aws),patch.object(ops.DeploymentLock,'check'),patch.object(ops,'record_release'),patch.object(ops,'migration') as migration,patch.object(ops,'cdk',side_effect=fake_cdk) as cdk:
-                ops.execute(argparse.Namespace(plan=str(plan),approved_plan_sha256='synthetic',action=action,kind=kind))
+            with patch.dict(os.environ,env or self.PROFILE),patch.object(ops,'verify_plan',return_value=data),patch.object(ops,'identity'),patch.object(ops,'verify_images'),patch.object(ops,'require_kto_secret_provisioned'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'live_bodies',return_value=live),patch.object(ops,'protected_templates',return_value={}),patch.object(ops,'guard_stateful'),patch.object(ops,'output',return_value='synthetic'),patch.object(ops,'aws',side_effect=fake_aws),patch.object(ops.DeploymentLock,'check'),patch.object(ops,'record_release') as release_record,patch.object(ops,'migration') as migration,patch.object(ops,'cdk',side_effect=fake_cdk) as cdk,patch.object(ops,'edge_traffic_enabled',return_value=live_edge),patch.object(ops,'public_health_answers',side_effect=lambda *a,**kw: iter([(next(health),'application/json',None)])):
+                self.release_record=release_record
+                ops.execute(argparse.Namespace(plan=str(plan),approved_plan_sha256='synthetic',action=action,kind=kind,
+                                                    preserve_open_edge=preserve_open_edge))
                 self.approved_assembly_untouched=ops.tree_digest(assembly)==data['assemblySha256']
                 return cdk, migration
     def deployed(self, cdk):
@@ -123,6 +128,35 @@ class OperatorRegressions(unittest.TestCase):
         self.assertIn('NullnullStgWebEdge:TrafficEnabled=false', web)
         self.assertIn('NullnullStgWebEdge:VerifierTokenSha256='+'f'*64, web)
         self.assertTrue(all('--toolkit-stack-name' in c.args[0] for c in cdk.call_args_list))
+    def test_reviewed_migration_only_release_can_preserve_an_already_open_edge(self):
+        cdk,migration=self.run_execute('deploy','infra',live_change='Migration',preserve_open_edge=True)
+        migration.assert_called_once()
+        web=[c.args[0] for c in cdk.call_args_list if c.args[0][1]=='NullnullStgWebEdge'][0]
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=true',web)
+        self.assertLess(self.deployed(cdk).index('NullnullStgWebEdge'),self.deployed(cdk).index('NullnullStgMigration'))
+        self.release_record.assert_called_once()
+        self.assertTrue(self.approved_assembly_untouched)
+    def test_open_edge_release_refuses_closed_edge_or_other_template_drift_before_any_write(self):
+        for kwargs,reason in [({'live_edge':'false'},'preserve-open-requires-open-edge'),
+                              ({'live_change':'WebEdge'},'preserve-open-template-change'),
+                              ({'live_change':'Services'},'preserve-open-template-change')]:
+            with self.subTest(kwargs=kwargs),self.assertRaisesRegex(ops.OpsError,reason):
+                self.run_execute('deploy','infra',preserve_open_edge=True,**kwargs)
+            self.assertEqual(['put-item','delete-item'],self.aws_ops)
+    def test_open_edge_mode_is_for_deploy_not_rollback(self):
+        with self.assertRaisesRegex(ops.OpsError,'preserve-open-deploy-only'):
+            self.run_execute('rollback','infra',preserve_open_edge=True)
+    def test_open_edge_mode_requires_unchanged_schema_and_healthy_public_endpoint(self):
+        with self.assertRaisesRegex(ops.OpsError,'preserve-open-schema-change'):
+            self.run_execute('deploy','infra',preserve_open_edge=True,target=['V002:'+'b'*64])
+        self.assertEqual(['put-item','delete-item'],self.aws_ops)
+        with self.assertRaisesRegex(ops.OpsError,'public-edge-unhealthy-before-deploy'):
+            self.run_execute('deploy','infra',preserve_open_edge=True,health_statuses=(503,))
+        self.assertEqual(['put-item','delete-item'],self.aws_ops)
+        with self.assertRaisesRegex(ops.OpsError,'public-edge-unhealthy-after-deploy'):
+            self.run_execute('deploy','infra',preserve_open_edge=True,health_statuses=(200,503))
+        self.release_record.assert_not_called()
+        self.assertEqual(['put-item'],self.aws_ops)
     def test_app_release_with_infra_drift_is_refused_before_any_deploy(self):
         with self.assertRaisesRegex(ops.OpsError,'infra-change-requires-infra-approval'):
             self.run_execute('deploy', 'app', live_change='Data')
@@ -138,6 +172,12 @@ class OperatorRegressions(unittest.TestCase):
         self.assertEqual(['NullnullStg'+n for n in ['Foundation','Network','GlobalWaf','Data','Platform','Observability','Migration','WebEdge','Services']],
                          self.deployed(cdk))
         migration.assert_called_once()
+    def test_first_infra_deploy_creates_webedge_exports_before_migration_imports_them(self):
+        cdk,migration=self.run_execute('deploy','infra',missing_webedge=True)
+        deployed=self.deployed(cdk)
+        self.assertLess(deployed.index('NullnullStgWebEdge'),deployed.index('NullnullStgMigration'))
+        web=[c.args[0] for c in cdk.call_args_list if c.args[0][1]=='NullnullStgWebEdge'][0]
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=false',web)
     def test_the_cli_deploys_a_copy_so_its_writes_never_touch_the_approved_assembly(self):
         cdk,_=self.run_execute('deploy','infra',cli_writes=True)
         self.assertEqual(9,cdk.call_count)
@@ -1539,7 +1579,7 @@ class EdgeRegressions(unittest.TestCase):
         self.assertEqual(['lock-enter','read-current','read-traffic','run:staging-smoke.sh','run:staging-flows.mjs','lock-exit'],events)
         deploy.assert_not_called()
         self.assertIn('edge_action=plan aws_writes=0',out)
-        self.assertIn('every deploy and rollback sets TrafficEnabled=false again',out)
+        self.assertIn('default deploy and rollback set TrafficEnabled=false; preserve-open deploy retains it',out)
     def test_opening_redeploys_webedge_alone_under_the_lock_and_waits_for_the_apis_answer(self):
         error,run,deploy,out,events=self.run_edge('open',True,answers=(self.CLOSED,(503,'text/html',None),self.OPEN))
         self.assertIsNone(error,out)
@@ -1649,11 +1689,13 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
     DIGEST='sha256:'+'a'*64
     RECORD={'releaseVersion':'v0.1.0-rc.2','gitSha':'a'*40,'releaseManifest':{'apiImageDigest':'sha256:'+'a'*64}}
     # What PostWithdrawMainTest makes PostWithdrawMain print, verbatim.
-    JAVA_LINES=['post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN',
-                'post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=ALREADY_HIDDEN',
+    JAVA_LINES=['post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN cover=DELETED versions=2',
+                'post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=ALREADY_HIDDEN cover=ALREADY_ABSENT versions=0',
+                'post_withdrawn post=0192f3a4-5b6c-7d8e-9f01-23456789abcd outcome=WITHDRAWN cover=NOT_USER_UPLOAD versions=0',
                 'post_withdraw_failed reason=NOT_FOUND','post_withdraw_failed reason=NOT_PUBLISHED',
                 'post_withdraw_failed reason=APPROVAL_NOT_SET','post_withdraw_failed reason=POST_ID_INVALID',
-                'post_withdraw_failed reason=IllegalStateException']
+                'post_withdraw_failed reason=IllegalStateException',
+                'post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending']
     BASE={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
     def args(self, **overrides):
         from types import SimpleNamespace
@@ -1708,8 +1750,9 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
                 with self.subTest(post_id=bad),self.assertRaisesRegex(ops.OpsError,'invalid-post-id'):
                     ops.ops_task(self.args(post_id=bad))
             aws.assert_not_called()
-    def test_the_post_and_the_approval_travel_to_the_deployed_release_and_the_residual_is_said(self):
-        error,calls,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'])
+    def test_the_post_and_the_approval_travel_to_the_deployed_release(self):
+        success='post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2'
+        error,calls,out=self.run_withdraw([success])
         self.assertIsNone(error)
         run=[kw for s,o,kw in calls if (s,o)==('ecs','run-task')]
         self.assertEqual(1,len(run))
@@ -1719,38 +1762,47 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
         self.assertEqual('true',environment['NULLNULL_POST_WITHDRAW_APPROVED'])
         self.assertEqual(OperationsTargetRegressions.TARGET,environment[ops.OPERATIONS_TARGET])
         self.assertIn('owner_approval=owner approved in session',out)
-        self.assertIn('ops_log post_withdrawn post='+self.POST+' outcome=WITHDRAWN',out)
-        # Said on every success: the post is off every page, and the image is still at its URL.
-        self.assertIn('post_withdraw_residual=cover-object-not-deleted',out)
+        self.assertIn('ops_log '+success,out)
+        self.assertNotIn('post_withdraw_residual=cover-object-not-deleted',out)
         self.assertIn('ops_task=withdraw-post result=succeeded',out)
         # The task that ran is checked against the deployed release's image, not only the definition that was named.
         self.assertEqual(self.DIGEST,self.wait.call_args.args[5])
     def test_a_rerun_that_finds_the_post_already_hidden_succeeds(self):
-        error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=ALREADY_HIDDEN'])
+        error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=ALREADY_HIDDEN cover=ALREADY_ABSENT versions=0'])
+        self.assertIsNone(error)
+        self.assertIn('ops_task=withdraw-post result=succeeded',out)
+        error,_,out=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=NOT_USER_UPLOAD versions=0'])
         self.assertIsNone(error)
         self.assertIn('ops_task=withdraw-post result=succeeded',out)
     def test_only_one_line_naming_the_requested_post_counts_as_a_withdrawal(self):
-        named='post_withdrawn post='+self.POST+' outcome=WITHDRAWN'
+        named='post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2'
         for log in ([],['post_withdraw_failed reason=NOT_FOUND'],['post_withdraw_failed reason=NOT_PUBLISHED'],
-                    ['post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN'],[named,named],
+                    ['post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending'],
+                    ['post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN cover=DELETED versions=2'],[named,named],
                     [named,'post_withdraw_failed reason=IllegalStateException'],
-                    [named,'post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN']):
+                    [named,'post_withdrawn post='+self.OTHER+' outcome=WITHDRAWN cover=DELETED versions=2'],
+                    [named,named+' cover_url=https://private.example/x'],
+                    ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'],
+                    ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=ALREADY_ABSENT versions=2']):
             with self.subTest(log=log):
                 error,_,out=self.run_withdraw(log)
                 self.assertIn('post-not-withdrawn',error or '')
                 self.assertNotIn('result=succeeded',out)
                 self.assertNotIn('post_withdraw_residual',out)
+                self.assertNotIn('private.example',out)
     def test_it_runs_only_on_the_deployed_release(self):
-        error,calls,_=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN'],
+        error,calls,_=self.run_withdraw(['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2'],
                                         ops_image='1.dkr.ecr/nullnull-api@sha256:'+'b'*64)
         self.assertIn('ops-image-not-the-deployed-release',error or '')
         self.assertNotIn(('ecs','run-task'),[(s,o) for s,o,_ in calls])
     def test_its_lines_pass_the_log_allowlist_and_nothing_richer_does(self):
         for line in self.JAVA_LINES:
             self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
-        for line in ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN title=광화문 산책',
+        for line in ['post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2 title=광화문 산책',
                      'post_withdrawn post='+self.POST+' outcome=DELETED',
                      'post_withdrawn post='+self.POST,
+                     'post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=2 cover_url=https://nullnull.test/x',
+                     'post_withdrawn post='+self.POST+' outcome=WITHDRAWN cover=DELETED versions=-1',
                      'post_withdraw_failed reason=NOT_FOUND jdbc:postgresql://db:5432/nullnull',
                      'post_withdraw_failed reason=could not find post 0192f3a4']:
             self.assertFalse(ops.OPS_LOG_LINE.match(line),line)

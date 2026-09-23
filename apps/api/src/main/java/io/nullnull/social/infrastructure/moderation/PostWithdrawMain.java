@@ -4,6 +4,9 @@ import io.nullnull.OperationsContext;
 import io.nullnull.OperationsPlan;
 import io.nullnull.social.application.PostWithdrawalService;
 import io.nullnull.social.application.PostWithdrawalService.Withdrawal;
+import io.nullnull.social.application.PostWithdrawalService.WithdrawalResult;
+import io.nullnull.social.infrastructure.storage.PublishedCoverRemoval;
+import io.nullnull.social.infrastructure.storage.PublishedCoverRemoval.CoverCleanup;
 import java.io.PrintStream;
 import java.util.Map;
 import java.util.UUID;
@@ -26,15 +29,9 @@ import org.springframework.context.ConfigurableApplicationContext;
  * post id must be a canonical UUID, before any database is opened. The operator records who approved
  * ({@code --owner-approval}); this main only refuses to run without the approval being stated.
  *
- * <p>It prints one withdrawal line, after the target line {@link OperationsContext} prints.
- * {@code post_withdrawn post=<id> outcome=WITHDRAWN} or
- * {@code outcome=ALREADY_HIDDEN} ends with exit 0 - a rerun of an approved withdrawal finds the post
- * already where it should be. Anything else prints {@code post_withdraw_failed reason=<CODE>} and
- * exits non-zero, including an id that names no post (a typo must not read as a withdrawal) and a
- * draft (never shown, so nothing to take back).
- *
- * <p>The cover image is not deleted - see {@link PostWithdrawalService}. The operator says so on
- * every success.
+ * <p>It prints one withdrawal line only after the database transaction commits and the exact user
+ * cover's S3 versions are absent. A failed cover cleanup leaves the post hidden and returns a fixed
+ * pending failure, so the same approved command can safely resume the deletion.
  */
 public final class PostWithdrawMain {
 
@@ -57,7 +54,7 @@ public final class PostWithdrawMain {
      * then rethrown, so the process exits non-zero: a refusal that returned normally would read as a
      * withdrawal to anything that looks only at the exit code.
      */
-    static void run(Map<String, String> environment, PrintStream out, Function<UUID, Withdrawal> withdraw) {
+    static void run(Map<String, String> environment, PrintStream out, Function<UUID, Completed> withdraw) {
         try {
             UUID postId = request(environment);
             out.println(report(postId, withdraw.apply(postId)));
@@ -71,11 +68,33 @@ public final class PostWithdrawMain {
      * The withdrawal itself, in the application started as a WRITING tool: in staging that is what
      * makes {@link OperationsContext} require {@code NULLNULL_OPERATIONS_TARGET} to name this database.
      */
-    static Withdrawal throughOperationsContext(UUID postId) {
+    static Completed throughOperationsContext(UUID postId) {
         try (ConfigurableApplicationContext context = OperationsContext.start(OperationsContext.Access.WRITE)) {
-            return context.getBean(PostWithdrawalService.class).withdraw(postId);
+            WithdrawalResult withdrawal = context.getBean(PostWithdrawalService.class)
+                    .withdrawForCleanup(postId);
+            return finish(withdrawal, url ->
+                    context.getBean(PublishedCoverRemoval.class).remove(url));
         }
     }
+
+    /** The service transaction has returned before this method touches S3. */
+    static Completed finish(WithdrawalResult withdrawal, Function<String, CoverCleanup> removeCover) {
+        Withdrawal outcome = withdrawal.outcome();
+        if (outcome == Withdrawal.NOT_FOUND || outcome == Withdrawal.NOT_PUBLISHED) {
+            throw new Refused(outcome.name(), "the post was not withdrawn");
+        }
+        CoverCleanup cover = withdrawal.coverUrl().map(url -> {
+                    CoverCleanup removed = removeCover.apply(url);
+                    if (removed.status() == PublishedCoverRemoval.Status.NOT_USER_UPLOAD) {
+                        throw new PublishedCoverRemoval.InvalidCoverUrl();
+                    }
+                    return removed;
+                })
+                .orElseGet(() -> new CoverCleanup(PublishedCoverRemoval.Status.NOT_USER_UPLOAD, 0));
+        return new Completed(outcome, cover);
+    }
+
+    record Completed(Withdrawal outcome, CoverCleanup cover) {}
 
     /** The post to withdraw, read only once the approval is stated. */
     static UUID request(Map<String, String> environment) {
@@ -90,14 +109,17 @@ public final class PostWithdrawMain {
     }
 
     /** The success line, or the refusal a withdrawal that changed nothing it was asked to is. */
-    static String report(UUID postId, Withdrawal outcome) {
-        return switch (outcome) {
-            case WITHDRAWN, ALREADY_HIDDEN -> "post_withdrawn post=" + postId + " outcome=" + outcome.name();
-            case NOT_FOUND, NOT_PUBLISHED -> throw new Refused(outcome.name(), "the post was not withdrawn");
-        };
+    static String report(UUID postId, Completed completed) {
+        return "post_withdrawn post=" + postId + " outcome=" + completed.outcome().name()
+                + " cover=" + completed.cover().status().name()
+                + " versions=" + completed.cover().deletedVersionCount();
     }
 
     static String failureLine(Throwable failure) {
+        if (failure instanceof PublishedCoverRemoval.CleanupFailed
+                || failure instanceof PublishedCoverRemoval.InvalidCoverUrl) {
+            return "post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending";
+        }
         String reason = failure instanceof Refused refused ? refused.reason() : OperationsPlan.failureReason(failure);
         return "post_withdraw_failed reason=" + reason;
     }

@@ -90,9 +90,10 @@ public class S3ObjectStorage implements ObjectStorage {
                         .bucket(properties.bucket())
                         .key(key)
                         .contentType(contentType)
-                        // The object is immutable: its key carries the upload id, so a new image is
-                        // a new key and nothing ever has to be invalidated at the edge.
-                        .cacheControl("public, max-age=31536000, immutable")
+                        // Upload ids prevent overwrites, not rights withdrawal. Do not promise
+                        // permanent HTTP-cache copies of content that may need to be taken down.
+                        // This does not purge previously cached bytes or service-worker storage.
+                        .cacheControl("no-store")
                         .build(),
                 RequestBody.fromBytes(bytes));
         return properties.publicBaseUrl() + "/" + key;

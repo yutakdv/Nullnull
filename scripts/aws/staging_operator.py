@@ -180,7 +180,8 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|replay_candidates_failed reason=[A-Za-z_]{1,80}'
                           # The withdrawal (PostWithdrawMain): the post id and a fixed outcome, or a failure code.
                           # Never the post's title, body or cover URL.
-                          r'|post_withdrawn post=[0-9a-f-]{36} outcome=(WITHDRAWN|ALREADY_HIDDEN)'
+                          r'|post_withdrawn post=[0-9a-f-]{36} outcome=(WITHDRAWN|ALREADY_HIDDEN) cover=(DELETED|ALREADY_ABSENT|NOT_USER_UPLOAD) versions=[0-9]{1,9}'
+                          r'|post_withdraw_failed reason=COVER_CLEANUP_FAILED cover_cleanup=pending'
                           r'|post_withdraw_failed reason=[A-Za-z_]{1,80}'
                           r'|operations target=(postgresql://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9_]+|unknown)'
                           r' environment=[a-z]+ access=(read|write) schema=(migrate|validate|unchecked))$')
@@ -737,12 +738,14 @@ def execute(args):
         return
     kind = args.kind
     require(kind in ['app', 'infra'], 'execute-requires-kind-app-or-infra')
+    preserve_open = getattr(args, 'preserve_open_edge', False)
+    require(not preserve_open or args.action == 'deploy', 'preserve-open-deploy-only')
     verify_images(manifest)
     require_kto_secret_provisioned()
     with DeploymentLock() as lock:
         write_private(directory/'execution.json',{'status':'running','lockOwner':lock.owner,'kind':kind})
         # A rollback never touches the protected stacks, whichever path approved it.
-        before=protected_templates() if kind=='app' or args.action=='rollback' else None
+        before=protected_templates() if kind=='app' or args.action=='rollback' or preserve_open else None
         if kind=='infra':
             # Approved against what the reviewer saw (classify); anything deployed since voids that approval.
             classified = directory/'classification.json'
@@ -754,9 +757,38 @@ def execute(args):
             require(not classify_findings(directory, manifest), 'infra-change-requires-infra-approval')
         else:
             require(not rollback_findings(directory, manifest, data), 'rollback-requires-infra-approval')
+        if preserve_open:
+            current = read_current_release(release_bucket()) or {}
+            require((current.get('releaseManifest') or {}).get('flywayChecksums') == manifest.get('flywayChecksums'),
+                    'preserve-open-schema-change')
+            require(edge_traffic_enabled() == 'true', 'preserve-open-requires-open-edge')
+            # The web bundle asset may change, but its edge behavior, the online services shape and
+            # every protected stack must be structurally unchanged while public traffic is open.
+            require(not template_findings(directory, live_bodies(), PROTECTED+['WebEdge','Services']),
+                    'preserve-open-template-change')
+            url = output('WebEdge', 'PublicUrl')
+            require(any(answer[:2] == (200,'application/json') for answer in
+                        public_health_answers(url, attempts=3, pause=2)),
+                    'public-edge-unhealthy-before-deploy')
+            waf_arn = output('GlobalWaf','WebAclArn','us-east-1')
+            open_parameters = ['NullnullStgWebEdge:GlobalWebAclArn='+waf_arn,
+                               'NullnullStgWebEdge:TrafficEnabled=true',
+                               'NullnullStgWebEdge:VerifierTokenSha256='+data.get('verifierTokenSha256','')]
+        # A new Migration task definition imports the WebEdge bucket/domain. On a fresh stack,
+        # create those exports before Migration; on an existing release they already exist.
+        webedge_first = preserve_open or (args.action == 'deploy' and live_bodies().get('WebEdge') is None)
         if args.action=='deploy':
             if kind=='infra':
                 for name in INFRA_ORDER:deploy_stack(name,lock)
+            if webedge_first:
+                if preserve_open:
+                    edge_parameters = open_parameters
+                else:
+                    waf_arn = output('GlobalWaf','WebAclArn','us-east-1')
+                    edge_parameters = ['NullnullStgWebEdge:GlobalWebAclArn='+waf_arn,
+                                       'NullnullStgWebEdge:TrafficEnabled=false',
+                                       'NullnullStgWebEdge:VerifierTokenSha256='+data.get('verifierTokenSha256','')]
+                deploy_stack('WebEdge',lock,edge_parameters)
             deploy_stack('Migration',lock)
             migration(manifest,lock)
         else:
@@ -770,15 +802,22 @@ def execute(args):
             require(len(deployed) == len(target) or data.get('acceptNewerSchema') is True,
                     'rollback-to-older-schema-requires-accept-newer-schema')
             deploy_stack('Migration',lock)
-        waf_arn=output('GlobalWaf','WebAclArn','us-east-1')
-        # Preserve the closed edge on every new release/rollback. Opening needs independent live verification.
-        deploy_stack('WebEdge',lock,['NullnullStgWebEdge:GlobalWebAclArn='+waf_arn,'NullnullStgWebEdge:TrafficEnabled=false',
-                                     'NullnullStgWebEdge:VerifierTokenSha256='+data.get('verifierTokenSha256','')])
+        if not webedge_first:
+            waf_arn=output('GlobalWaf','WebAclArn','us-east-1')
+            # Default deploy and rollback close the edge; preserving open traffic is explicit.
+            deploy_stack('WebEdge',lock,['NullnullStgWebEdge:GlobalWebAclArn='+waf_arn,'NullnullStgWebEdge:TrafficEnabled=false',
+                                         'NullnullStgWebEdge:VerifierTokenSha256='+data.get('verifierTokenSha256','')])
         deploy_stack('Services',lock)
         if before is not None:require(before==protected_templates(),'protected-stack-changed')
+        if preserve_open:
+            require(any(answer[:2] == (200,'application/json') for answer in
+                        public_health_answers(url, attempts=12, pause=5)),
+                    'public-edge-unhealthy-after-deploy')
         record_release(directory, data, manifest, plan_sha)
-        write_private(directory/'execution.json',{'status':'deployed-edge-closed','lockOwner':lock.owner,'kind':kind})
-    print('deployment_action=executed state=DEPLOYED_EDGE_CLOSED release_ready=false kind='+kind)
+        state = 'deployed-edge-open' if preserve_open else 'deployed-edge-closed'
+        write_private(directory/'execution.json',{'status':state,'lockOwner':lock.owner,'kind':kind})
+    state = 'DEPLOYED_EDGE_OPEN' if preserve_open else 'DEPLOYED_EDGE_CLOSED'
+    print('deployment_action=executed state='+state+' release_ready=false kind='+kind)
 
 def deploy_approved_stack(directory, data, name, lock=None, parameters=None):
     """Deploy one stack from the approved assembly beside the plan (execute, and edge for WebEdge alone)."""
@@ -857,8 +896,8 @@ def edge(args):
     """Open or close the public API edge of the deployed release, and nothing else (owner decision A-039).
 
     A-039: open only once the release carries the FE login-imitation screen; open without the deletion ledger, so no
-    DB snapshot is restored while it is open - close it first. Every deploy and rollback sets TrafficEnabled=false
-    again (execute), so this runs after each release that should be public.
+    DB snapshot is restored while it is open - close it first. Default deploy and rollback set
+    TrafficEnabled=false again; an explicitly reviewed preserve-open deploy retains the open edge.
 
     It redeploys WebEdge alone, from the deployed release's own approved plan and assembly, with TrafficEnabled
     changed; the owner approves that plan's sha256, which current.json records. Everything that decides whether to
@@ -881,7 +920,7 @@ def edge(args):
         live = edge_traffic_enabled()
         print(f'edge_action={"execute" if args.execute else "plan"} state={args.state} release={release} '
               f'stack=WebEdge TrafficEnabled={live}->{enabled}')
-        print('edge_note=every deploy and rollback sets TrafficEnabled=false again; open the edge again after each release')
+        print('edge_note=default deploy and rollback set TrafficEnabled=false; preserve-open deploy retains it')
         if live == enabled:
             print(f'edge_action=none reason=already-{args.state}')
         else:
@@ -1142,6 +1181,10 @@ def ops_task(args):
         withdrawn = []
         for event in events:
             line = event.get('message', '').strip()
+            # Count terminal-looking lines even when they fail the safe echo allowlist: a malformed
+            # second line must invalidate a success, without printing its possibly sensitive text.
+            if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
+                withdrawn.append(line)
             if OPS_LOG_LINE.match(line):
                 print('ops_log ' + line)
                 if line.startswith('KTO_SMOKE_OK '):
@@ -1154,10 +1197,6 @@ def ops_task(args):
                     seoul.append(line)
                 if args.task == 'release-source-quarantine' and line.startswith('source_quarantine_released '):
                     released.append(line)
-                # Every terminal line, the failure as well as the success: a stream holding both must not
-                # read as a withdrawal because one of its lines says so.
-                if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
-                    withdrawn.append(line)
         if failure:
             raise failure
         if args.task == 'seoul-live-collect':
@@ -1169,12 +1208,10 @@ def ops_task(args):
         # Exactly one terminal line, a success, naming the post the owner approved: a count alone would accept a
         # withdrawal of some other post. ALREADY_HIDDEN is a success - a rerun finds the post where the first run left it.
         if args.task == 'withdraw-post':
-            require(withdrawn in ([f'post_withdrawn post={args.post_id} outcome=WITHDRAWN'],
-                                  [f'post_withdrawn post={args.post_id} outcome=ALREADY_HIDDEN']), 'post-not-withdrawn')
-            # Said on every success, because the natural reading of "withdrawn" is wrong about the image: the post is
-            # off every page the API answers, and the uploaded cover is still served at its URL (no delete path, no
-            # delete permission, a versioned bucket, a one-year immutable cache header).
-            print('post_withdraw_residual=cover-object-not-deleted')
+            success = (r'post_withdrawn post=' + re.escape(args.post_id)
+                       + r' outcome=(WITHDRAWN|ALREADY_HIDDEN)'
+                       + r' cover=(DELETED versions=[1-9][0-9]{0,8}|ALREADY_ABSENT versions=0|NOT_USER_UPLOAD versions=0)')
+            require(len(withdrawn) == 1 and re.fullmatch(success, withdrawn[0]), 'post-not-withdrawn')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:
@@ -1642,6 +1679,7 @@ def main():
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--approved-plan-sha256','--approved-diff-sha256',dest='approved_plan_sha256')
     parser.add_argument('--kind',choices=['app','infra'])
+    parser.add_argument('--preserve-open-edge',action='store_true',help='deploy only: retain an already-open edge with unchanged schema and edge/service templates')
     parser.add_argument('--days',type=int,default=14);parser.add_argument('--estimated-total',type=float)
     parser.add_argument('--cost-basis')
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')
