@@ -13,7 +13,6 @@ import io.nullnull.operations.application.JobHandler;
 import io.nullnull.operations.domain.JobPayload;
 import io.nullnull.optimization.domain.OptimizationFailureCode;
 import io.nullnull.optimization.domain.OptimizationRun;
-import io.nullnull.optimization.domain.OptimizationProposal;
 import io.nullnull.optimization.domain.OptimizationStatus;
 import io.nullnull.recommendation.application.ProposalRevalidator;
 import io.nullnull.recommendation.application.RecommendationGateway;
@@ -146,16 +145,29 @@ public class OptimizeItemHandler implements JobHandler {
             return sets;
         });
 
-        if (!requireInputStillHolds(context, run)) {
+        // The gate and everything the question is built from, in ONE unit of work, and the trip locked
+        // first (#340). They were two: the gate read the version and let go, and a trip edited before
+        // the second transaction read the items was prepared at a version nobody had checked - or, with
+        // the target gone, threw from prepare and spent the job's attempts on it. Holding the row
+        // until this commits means every read below describes the version the gate just accepted.
+        // Assembling the request is not another chance to read: a value fetched afterwards would
+        // describe a later moment than the evidence this run froze. The candidates come from the sets
+        // frozen above, by id (#259) - not from a fresh choice of "newest", which a set stored in
+        // between would change.
+        Prepared prepared = context.transactional(() -> {
+            if (!stillAt(run)) {
+                // One message for "moved" and "gone": a deleted trip or target cascades the run away
+                // (V024), so this write then matches no row and the job ends quietly instead of
+                // failing a run that no longer exists.
+                runs.fail(run.id(), OptimizationStatus.RUNNING, OptimizationFailureCode.TRIP_CHANGED,
+                        TRIP_CHANGED_MESSAGE, clock.instant());
+                return null;
+            }
+            return prepare(run, frozen);
+        });
+        if (prepared == null) {
             return;
         }
-
-        // Everything the question is built from, read in one unit of work. Assembling the request is
-        // not another chance to read: a value fetched afterwards would describe a later moment than
-        // the evidence this run froze.
-        // The candidates come from the sets frozen above, by id (#259) - not from a fresh choice of
-        // "newest", which a set stored in between would change.
-        Prepared prepared = context.transactional(() -> prepare(run, frozen));
         if (prepared.candidates().isEmpty()) {
             // Not NO_IMPROVEMENT. Nothing was judged and found wanting - there was nothing to judge,
             // because no forecast covers this trip or none covers the day the item is on. The card
@@ -213,35 +225,25 @@ public class OptimizeItemHandler implements JobHandler {
     }
 
     /**
-     * The gate a preview has to pass, and the only thing in this slice that can end a run.
+     * The gate a preview has to pass: is the trip still at the version this run froze?
      *
      * <p>The run froze a trip version. If the trip has since moved or been deleted, everything after
      * this point would describe an itinerary the owner does not have, so the run ends with the reason
-     * rather than producing a preview nobody could apply. This runs BEFORE any preview is stored,
-     * which is where the card's "READY 저장 전에 재검증" lives.
+     * rather than producing a preview nobody could apply. It is asked twice - before the question is
+     * prepared and again when the answer is stored, because the call to {@code apps/ai} in between
+     * takes real time (BA-051-T26, BA-051-T27).
+     *
+     * <p>Only meaningful inside the caller's unit of work, which is why it reads through
+     * {@link TripService#lockedVersionFor}: the row stays locked until that unit of work commits, so the
+     * caller acts on the version it read rather than on one that was true a moment ago. Asking and
+     * acting in separate transactions is what let the trip move in between.
      */
-    private boolean requireInputStillHolds(JobContext context, OptimizationRun run) {
-        Instant failedAt = clock.instant();
-        // The version read and the failure are one transaction. Split in two, the trip could move
-        // between them - so a run could be failed for a version it no longer has, or worse, pass a
-        // check that stopped being true before anything acted on it. The gate is only a gate if
-        // reading it and acting on it cannot be separated.
-        // true from the transaction means "this call failed the run", so the gate answers the
-        // opposite: the input still holds when nothing was failed.
-        return !context.transactional(() -> {
-            OptionalLong current = trips.versionFor(run.ownerId(), run.tripId());
-            if (current.isPresent() && current.getAsLong() == run.inputTripVersion()) {
-                return false;
-            }
-            // Deliberately one message for both shapes of the answer. "The trip is gone" is not a
-            // state this can observe - the run's foreign key cascades, so a deleted trip takes the
-            // run with it and handle() has already returned - so a second sentence for it would be
-            // one no run can ever carry.
-            return runs.fail(run.id(), OptimizationStatus.RUNNING,
-                    OptimizationFailureCode.TRIP_CHANGED,
-                    "The trip changed while this run was in flight.", failedAt);
-        });
+    private boolean stillAt(OptimizationRun run) {
+        OptionalLong current = trips.lockedVersionFor(run.ownerId(), run.tripId());
+        return current.isPresent() && current.getAsLong() == run.inputTripVersion();
     }
+
+    private static final String TRIP_CHANGED_MESSAGE = "The trip changed while this run was in flight.";
 
     /**
      * The question, and the facts that will be needed after the answer comes back.
@@ -298,26 +300,53 @@ public class OptimizeItemHandler implements JobHandler {
             throw jobFailure(unavailable);
         }
 
-        Instant at = clock.instant();
-        List<OptimizationProposal> stored = mapper.toProposals(run, prepared.target(),
-                answer.proposals(), byDate, at, summaries);
-        String fingerprint = RunFingerprint.of(new RunFingerprint.Inputs(
-                Objects.requireNonNull(run.inputRevisionId(), "every trip has a first revision"),
-                run.inputTripVersion(), prepared.candidates().snapshotIds(),
-                prepared.candidates().sourceRegistryVersions(),
-                prepared.candidates().normalizationVersion(), policy.policyVersion(),
-                policy.policyHash(), policy.pipelineVersion(), prepared.catalogVersion(),
-                at.plus(OptimizationService.PREVIEW_TTL)));
-
         // One unit of work: a preview that is stored but not published would be offered by nothing,
-        // and one published without its proposals would be offered with nothing in it.
+        // and one published without its proposals would be offered with nothing in it. It asks again,
+        // under the trip's lock, the two things the time spent asking apps/ai can have made untrue
+        // (#340): whether the preview is still due, and whether the trip is still the one it was
+        // computed for. The trip is locked before the run row is written, the order APPLY takes them in.
         context.transactional(() -> {
-            proposals.insertAll(stored);
+            boolean tripHolds = stillAt(run);
+            Instant at = clock.instant();
+            OptimizationRun current = runs.find(run.id()).orElse(null);
+            if (current == null || current.status() != OptimizationStatus.RUNNING) {
+                // Gone with its trip or its target (V024 cascades), or ended by another attempt whose
+                // lease this one outlived. Either way there is nothing left for this attempt to publish.
+                return;
+            }
+            if (current.previewExpired(at)) {
+                // The deadline is asked first. From the moment it passed every reader was shown EXPIRED
+                // (OptimizationService.asReadNow), so that is the status the run keeps - not READY, and
+                // not a failure code replacing what a reader already saw (BA-051-T28).
+                runs.transition(run.id(), OptimizationStatus.RUNNING, OptimizationStatus.EXPIRED, at);
+                return;
+            }
+            if (!tripHolds) {
+                runs.fail(run.id(), OptimizationStatus.RUNNING, OptimizationFailureCode.TRIP_CHANGED,
+                        TRIP_CHANGED_MESSAGE, at);
+                return;
+            }
+            // The validity the fingerprint claims is the deadline the run stores (BA-051-T29), frozen
+            // once by the first attempt, not the moment this attempt happened to finish.
+            String fingerprint = RunFingerprint.of(new RunFingerprint.Inputs(
+                    Objects.requireNonNull(run.inputRevisionId(), "every trip has a first revision"),
+                    run.inputTripVersion(), prepared.candidates().snapshotIds(),
+                    prepared.candidates().sourceRegistryVersions(),
+                    prepared.candidates().normalizationVersion(), policy.policyVersion(),
+                    policy.policyHash(), policy.pipelineVersion(), prepared.catalogVersion(),
+                    current.expiresAt()));
+            proposals.insertAll(mapper.toProposals(run, prepared.target(), answer.proposals(), byDate, at,
+                    summaries));
             // The inputs beside the digest (V032). Stored together so a later revalidation reads
             // what this run was judged against rather than what the server believes today - a
             // fingerprint whose inputs are not frozen can only be recomputed against "now".
-            return runs.markReady(run.id(), fingerprint, policy.pipelineVersion(),
-                    policy.policyVersion(), policy.policyHash(), prepared.catalogVersion(), at);
+            if (!runs.markReady(run.id(), fingerprint, policy.pipelineVersion(), policy.policyVersion(),
+                    policy.policyHash(), prepared.catalogVersion(), at)) {
+                // Every condition markReady asks was just checked under the trip's lock, so this is a
+                // broken invariant. Thrown rather than returned: returning would commit the proposals
+                // above onto a run that is not READY.
+                throw new IllegalStateException("run " + run.id() + " passed its checks and still was not published");
+            }
         });
     }
 

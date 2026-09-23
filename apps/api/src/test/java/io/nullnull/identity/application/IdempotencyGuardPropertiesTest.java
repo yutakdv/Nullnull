@@ -133,6 +133,22 @@ class IdempotencyGuardPropertiesTest {
         }
 
         @Override
+        public void complete(UUID recordId, int responseStatus, String responseBodyJson,
+                Instant expiresAt) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<IdempotencyRecord> find(UUID ownerId, String routeKey, String idempotencyKey) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void release(UUID recordId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void delete(UUID recordId) {
             throw new UnsupportedOperationException();
         }

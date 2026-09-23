@@ -29,8 +29,10 @@ import tools.jackson.databind.ObjectMapper;
  * Runs a retryable command at most once per {@code (owner, route template, Idempotency-Key)}
  * (docs/api/README.md §5, docs/architecture/SYSTEM_ARCHITECTURE.md §19.1).
  *
- * <p>Everything happens in one transaction, in the documented lock order: the owner-lifecycle lock
- * first, then the idempotency reservation, then whatever the command locks. Every lock wait in that
+ * <p>For a command without a prelude, everything happens in one transaction, in the documented lock
+ * order: the owner-lifecycle lock first, then the idempotency reservation, then whatever the command
+ * locks. A command with a {@link Prelude} commits its reservation first and runs the command in a second
+ * transaction, in the same order; its overload of {@code execute} says why (#340). Every lock wait in that
  * transaction is bounded by {@code nullnull.idempotency.lock-timeout}, and an expired bound is
  * absorbed by a bounded retry of the whole transaction (see {@link #LOCK_CONTENTION_ATTEMPTS}) rather
  * than published as its own error code. The reservation is a
@@ -76,6 +78,23 @@ public class IdempotencyGuard {
      * normalised replay is the honest consequence.
      */
     public record GuardedResponse(int status, String body, boolean replayed) {
+    }
+
+    /**
+     * Work a command needs done before it runs and outside every transaction: a call out of the process
+     * whose answer the command is judged against (#340). See the {@code execute} overload that takes one.
+     *
+     * @param bound the longest {@code call} can take. It sizes how long the key is held for the caller
+     *              running it - a liveness bound, not a promise (see {@link #RESERVATION_MARGIN})
+     */
+    public record Prelude<P>(Duration bound, Supplier<P> call) {
+        public Prelude {
+            Objects.requireNonNull(bound, "bound");
+            Objects.requireNonNull(call, "call");
+            if (bound.isNegative() || bound.isZero()) {
+                throw new IllegalArgumentException("a prelude's bound must be positive");
+            }
+        }
     }
 
     /**
@@ -126,6 +145,25 @@ public class IdempotencyGuard {
      * {@code nullnull.idempotency.lock-timeout}, which is longer than any command is allowed to be.
      */
     private static final int LOCK_CONTENTION_ATTEMPTS = 2;
+
+    /**
+     * How many lock timeouts, beyond its prelude's own bound, a two-phase reservation holds the key for: each
+     * command attempt can wait out two locks (the owner's row, then the reservation), there are
+     * {@link #LOCK_CONTENTION_ATTEMPTS} attempts, and one more stands for what neither counts - the command
+     * itself, DNS resolution, scheduling, clock skew between tasks. It is a liveness bound. A lease that runs
+     * out early costs a second prelude call, never a second command: the command transaction re-checks,
+     * under the owner's lock, that the reservation is still the caller's (#340).
+     */
+    private static final int RESERVATION_MARGIN = 2 * LOCK_CONTENTION_ATTEMPTS + 1;
+
+    /**
+     * How often a caller waiting on another's reservation looks again: first soon, since the prelude it
+     * waits on is usually one quick call, then less often, since a slow one is slow for a while. Engineering
+     * values, not contract figures; each look is one unlocked read.
+     */
+    private static final Duration FIRST_PAUSE = Duration.ofMillis(20);
+
+    private static final Duration LAST_PAUSE = Duration.ofMillis(200);
 
     private static final Logger log = LoggerFactory.getLogger(IdempotencyGuard.class);
 
@@ -213,6 +251,239 @@ public class IdempotencyGuard {
     }
 
     /**
+     * A command with a {@link Prelude}: at most once per key, and its prelude once per key too (#340).
+     *
+     * <p>{@link #execute(UUID, String, String, String, Supplier, Function)} cannot hold a key across a
+     * call out of the process. Its reservation lives in the transaction that runs the command, and that
+     * transaction holds the owner's row - so a prelude run inside it would hold every request of that
+     * owner for as long as the call took (#271), and a prelude run before it runs once per REQUEST. Two
+     * requests carrying one key then each made the call and could each be answered differently: one told
+     * the command failed and changed nothing, the other that it succeeded.
+     *
+     * <p>So the reservation is committed first, and only the caller that made it runs the prelude and the
+     * command:
+     * <ol>
+     * <li><b>Claim</b>, one short transaction: the owner's row, then the reservation. A completed record
+     *     replays and another request's hash is {@code IDEMPOTENCY_KEY_REUSED}, exactly as in the other
+     *     overload. A free slot - absent, or held by a reservation whose lease has run out - is taken for
+     *     {@code prelude.bound} plus {@link #RESERVATION_MARGIN} lock waits.</li>
+     * <li><b>Prelude</b>, with no transaction open and no connection held.</li>
+     * <li><b>Command</b>, in the documented lock order - owner, reservation, then whatever the command
+     *     locks - and only after checking the reservation is still this caller's: a caller that outlived
+     *     its lease may find the key taken over, and then it runs nothing and waits like any other.</li>
+     * </ol>
+     * A prelude or command that fails releases the reservation before the failure propagates, so a failed
+     * command still records nothing and the same key can be sent again at once.
+     *
+     * <p>A caller that finds the key held waits without locking anything: it re-reads the committed record
+     * and claims again only once that record is completed, released or out of lease. Its wait is bounded by
+     * the lease of the reservation it is waiting on, and starts over when a different reservation holds the
+     * key - a holder that took the key over when the first one's lease ran out - so a caller never gives up
+     * while a live reservation is still answering for the key. What it does give up on is a claim that
+     * cannot even reach the key: the owner's row held past that bound, which ends like all contention in
+     * this guard, as {@link CommandLockTimeoutException}.
+     */
+    public <P, T, S> GuardedResponse execute(UUID ownerId, String routeKey, String idempotencyKey,
+            String requestHash, Prelude<P> prelude, Function<P, CommandOutcome<T>> command,
+            Function<T, S> responseProjection) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(prelude, "prelude");
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(responseProjection, "responseProjection");
+        if (!REQUEST_HASH.matcher(Objects.requireNonNull(requestHash, "requestHash")).matches()) {
+            throw new IllegalArgumentException("requestHash must be 64 lowercase hex characters");
+        }
+        requireLength(routeKey, 1, IdempotencyRecord.ROUTE_KEY_MAX_LENGTH,
+                "The request route is not valid for a retryable command.");
+        requireLength(idempotencyKey, IdempotencyRecord.IDEMPOTENCY_KEY_MIN_LENGTH,
+                IdempotencyRecord.IDEMPOTENCY_KEY_MAX_LENGTH,
+                "The Idempotency-Key header is missing or malformed.");
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            // The prelude would run inside the caller's transaction - the one thing this overload is for
+            // avoiding - and a claim committed by a nested transaction could outlive the caller's rollback.
+            throw new IllegalStateException("a command with a prelude is the outermost boundary; its"
+                    + " prelude runs outside any transaction");
+        }
+        Duration lease = prelude.bound().plus(lockTimeout.multipliedBy(RESERVATION_MARGIN));
+        long waitUntil = 0;
+        boolean waiting = false;
+        UUID waitingOn = null;
+        while (true) {
+            Claim claim = claim(ownerId, routeKey, idempotencyKey, requestHash, lease);
+            if (claim.replay() != null) {
+                return claim.replay();
+            }
+            if (claim.reservation() == null) {
+                if (claim.heldBy() != null && !claim.heldBy().equals(waitingOn)) {
+                    // A reservation this caller has not waited on yet: its own lease bounds the wait.
+                    waiting = true;
+                    waitingOn = claim.heldBy();
+                    waitUntil = System.nanoTime() + untilNanos(claim.heldUntil()) + LAST_PAUSE.toNanos();
+                } else if (!waiting) {
+                    // The claim could not reach the key at all. Its own lease is the bound it waits.
+                    waiting = true;
+                    waitUntil = System.nanoTime() + lease.toNanos() + LAST_PAUSE.toNanos();
+                } else if (System.nanoTime() - waitUntil >= 0) {
+                    // Route template only: never the owner, never the key.
+                    throw new CommandLockTimeoutException("A command with this key is still in flight; route "
+                            + routeKey, null);
+                }
+                awaitRelease(ownerId, routeKey, idempotencyKey, waitUntil);
+                continue;
+            }
+            UUID reservation = claim.reservation();
+            // This caller holds the key now. Whatever it waited on before is behind it: if it loses the key
+            // again, that wait is judged against whoever holds the key then, not a deadline it already passed.
+            waiting = false;
+            waitingOn = null;
+            P prepared;
+            try {
+                prepared = prelude.call().get();
+            } catch (RuntimeException | Error failure) {
+                release(reservation, routeKey, failure);
+                throw failure;
+            }
+            Optional<GuardedResponse> done;
+            try {
+                done = runReserved(ownerId, routeKey, idempotencyKey, reservation, prepared, command,
+                        responseProjection);
+            } catch (RuntimeException | Error failure) {
+                release(reservation, routeKey, failure);
+                throw failure;
+            }
+            if (done.isPresent()) {
+                return done.get();
+            }
+            // Out of lease and taken over by another caller: wait for that one like anyone else would.
+        }
+    }
+
+    /**
+     * What a claim found: a response to replay, a reservation of this caller's, or a key held by another
+     * caller's reservation ({@code heldBy}, live until {@code heldUntil}). All three empty: the claim could
+     * not reach the key.
+     */
+    private record Claim(GuardedResponse replay, UUID reservation, UUID heldBy, Instant heldUntil) {
+    }
+
+    /**
+     * One claim, in its own transaction. A lock wait that expires here is read as "held": the owner's row is
+     * taken by the command finishing this key, or by another of the owner's commands, and in both cases
+     * nothing was reserved and waiting is the answer.
+     */
+    private Claim claim(UUID ownerId, String routeKey, String idempotencyKey, String requestHash,
+            Duration lease) {
+        try {
+            return transactions.execute(status -> {
+                lockWaitLimit.applyToCurrentTransaction(lockTimeout);
+                Owner owner = owners.lockAlive(ownerId).orElseThrow(SessionService::unauthorized);
+                Instant now = clock.instant();
+                IdempotencyRecord candidate = IdempotencyRecord.reservation(UuidV7.create(clock), owner.id(),
+                        routeKey, idempotencyKey, requestHash, now, now.plus(lease));
+                IdempotencyRecord reserved = reserve(candidate, now);
+                if (!reserved.requestHash().equals(requestHash)) {
+                    throw new ApiException(ProblemCode.IDEMPOTENCY_KEY_REUSED,
+                            "This Idempotency-Key was already used for a different request.");
+                }
+                if (reserved.completed()) {
+                    return new Claim(new GuardedResponse(reserved.responseStatus(), reserved.responseBody(),
+                            true), null, null, null);
+                }
+                if (reserved.id().equals(candidate.id())) {
+                    return new Claim(null, candidate.id(), null, null);
+                }
+                return new Claim(null, null, reserved.id(), reserved.expiresAt());
+            });
+        } catch (CommandLockTimeoutException contention) {
+            log.warn("owner command lock contention while claiming route={}; waiting", routeKey);
+            return new Claim(null, null, null, null);
+        }
+    }
+
+    /**
+     * Re-reads the key, unlocked, until the record it finds is completed, released or out of lease, or the
+     * wait is over. It only decides when to claim again; the claim decides what the caller gets.
+     */
+    private void awaitRelease(UUID ownerId, String routeKey, String idempotencyKey, long waitUntil) {
+        Duration pause = FIRST_PAUSE;
+        while (System.nanoTime() - waitUntil < 0) {
+            try {
+                Thread.sleep(pause);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new CommandLockTimeoutException("Interrupted while waiting for a command with this key;"
+                        + " route " + routeKey, interrupted);
+            }
+            pause = pause.multipliedBy(2).compareTo(LAST_PAUSE) > 0 ? LAST_PAUSE : pause.multipliedBy(2);
+            Optional<IdempotencyRecord> seen = records.find(ownerId, routeKey, idempotencyKey);
+            if (seen.isEmpty() || seen.get().completed() || !seen.get().expiresAt().isAfter(clock.instant())) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * The command, in its own transaction, if the reservation is still this caller's; empty when it is not.
+     *
+     * <p>That check is what makes a lease safe to run out. It is made under the owner's lock and the
+     * reservation's, in the documented order, so no other caller can take the key over between the check
+     * and the write that completes it.
+     */
+    private <P, T, S> Optional<GuardedResponse> runReserved(UUID ownerId, String routeKey,
+            String idempotencyKey, UUID reservation, P prepared, Function<P, CommandOutcome<T>> command,
+            Function<T, S> responseProjection) {
+        AtomicBoolean commandStarted = new AtomicBoolean();
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return transactions.execute(status -> {
+                    lockWaitLimit.applyToCurrentTransaction(lockTimeout);
+                    owners.lockAlive(ownerId).orElseThrow(SessionService::unauthorized);
+                    Optional<IdempotencyRecord> held = records.lockExisting(ownerId, routeKey, idempotencyKey);
+                    if (held.isEmpty() || !held.get().id().equals(reservation) || held.get().completed()) {
+                        return Optional.<GuardedResponse>empty();
+                    }
+                    commandStarted.set(true);
+                    CommandOutcome<T> outcome = command.apply(prepared);
+                    String response = json.writeValueAsString(outcome.body());
+                    String stored = json.writeValueAsString(responseProjection.apply(outcome.body()));
+                    // The expiry was the reservation's lease; from here it is the response's retention.
+                    records.complete(reservation, outcome.status(), requireStorable(stored),
+                            clock.instant().plus(ttl));
+                    return Optional.of(new GuardedResponse(outcome.status(), response, false));
+                });
+            } catch (CommandLockTimeoutException contention) {
+                if (attempt >= LOCK_CONTENTION_ATTEMPTS || commandStarted.get()) {
+                    throw contention;
+                }
+                log.warn("owner command lock contention absorbed route={} attempt={} of {}", routeKey,
+                        attempt, LOCK_CONTENTION_ATTEMPTS);
+            }
+        }
+    }
+
+    /**
+     * Frees a reservation whose prelude or command failed, so the key can be sent again at once. A release
+     * that itself fails is attached to the original failure and logged, and the reservation then ends with
+     * its lease instead - later, never not at all.
+     */
+    private void release(UUID reservation, String routeKey, Throwable failure) {
+        try {
+            transactions.executeWithoutResult(status -> {
+                lockWaitLimit.applyToCurrentTransaction(lockTimeout);
+                records.release(reservation);
+            });
+        } catch (RuntimeException releaseFailure) {
+            failure.addSuppressed(releaseFailure);
+            log.warn("idempotency reservation not released route={}; it ends with its lease", routeKey);
+        }
+    }
+
+    private long untilNanos(Instant heldUntil) {
+        Duration left = Duration.between(clock.instant(), heldUntil);
+        return left.isNegative() ? 0 : left.toNanos();
+    }
+
+    /**
      * Replays an already completed command for a soft-deleted owner. It never reserves a slot and
      * never invokes an effect, so a revoked deletion cookie cannot start a second command.
      *
@@ -256,8 +527,9 @@ public class IdempotencyGuard {
         Owner owner = owners.lockAlive(ownerId).orElseThrow(SessionService::unauthorized);
 
         Instant now = clock.instant();
-        IdempotencyRecord reserved = reserve(IdempotencyRecord.reservation(UuidV7.create(clock),
-                owner.id(), routeKey, idempotencyKey, requestHash, now, now.plus(ttl)), now);
+        IdempotencyRecord candidate = IdempotencyRecord.reservation(UuidV7.create(clock), owner.id(), routeKey,
+                idempotencyKey, requestHash, now, now.plus(ttl));
+        IdempotencyRecord reserved = reserve(candidate, now);
 
         if (!reserved.requestHash().equals(requestHash)) {
             throw new ApiException(ProblemCode.IDEMPOTENCY_KEY_REUSED,
@@ -265,6 +537,13 @@ public class IdempotencyGuard {
         }
         if (reserved.completed()) {
             return new GuardedResponse(reserved.responseStatus(), reserved.responseBody(), true);
+        }
+        if (!reserved.id().equals(candidate.id())) {
+            // A committed reservation with no response, and not this transaction's: only a command with a
+            // prelude leaves one (#340), and it is running the key's command right now. Running this one
+            // over it would run the key's command twice, so a route must use one overload or the other.
+            throw new IllegalStateException("route " + routeKey + " is held by a command with a prelude and"
+                    + " cannot also run without one");
         }
 
         commandStarted.set(true);
