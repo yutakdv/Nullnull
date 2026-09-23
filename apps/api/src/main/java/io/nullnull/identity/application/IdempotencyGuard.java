@@ -29,8 +29,10 @@ import tools.jackson.databind.ObjectMapper;
  * Runs a retryable command at most once per {@code (owner, route template, Idempotency-Key)}
  * (docs/api/README.md §5, docs/architecture/SYSTEM_ARCHITECTURE.md §19.1).
  *
- * <p>Everything happens in one transaction, in the documented lock order: the owner-lifecycle lock
- * first, then the idempotency reservation, then whatever the command locks. Every lock wait in that
+ * <p>For a command without a prelude, everything happens in one transaction, in the documented lock
+ * order: the owner-lifecycle lock first, then the idempotency reservation, then whatever the command
+ * locks. A command with a {@link Prelude} commits its reservation first and runs the command in a second
+ * transaction, in the same order; its overload of {@code execute} says why (#340). Every lock wait in that
  * transaction is bounded by {@code nullnull.idempotency.lock-timeout}, and an expired bound is
  * absorbed by a bounded retry of the whole transaction (see {@link #LOCK_CONTENTION_ATTEMPTS}) rather
  * than published as its own error code. The reservation is a
@@ -330,6 +332,10 @@ public class IdempotencyGuard {
                 continue;
             }
             UUID reservation = claim.reservation();
+            // This caller holds the key now. Whatever it waited on before is behind it: if it loses the key
+            // again, that wait is judged against whoever holds the key then, not a deadline it already passed.
+            waiting = false;
+            waitingOn = null;
             P prepared;
             try {
                 prepared = prelude.call().get();

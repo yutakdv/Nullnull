@@ -207,7 +207,7 @@
         },
         {
           "id": "BA-002-T11",
-          "assertion": "prelude 중에 owner가 삭제되면 command를 실행하지 않고 예약을 남기지 않는다"
+          "assertion": "prelude 중에 owner가 삭제되면 command를 실행하지 않는다"
         },
         {
           "id": "BA-002-T12",
@@ -2046,15 +2046,15 @@
         },
         {
           "id": "BA-051-T23",
-          "assertion": "계약 밖 답으로 job이 끝난 run은 FAILED INTERNAL_ERROR(retryable 아님)로 끝난다"
+          "assertion": "기한 전에 계약 밖 답으로 job이 끝난 run은 FAILED INTERNAL_ERROR(retryable 아님)로 끝난다"
         },
         {
           "id": "BA-051-T24",
-          "assertion": "모든 시도에서 apps/ai가 답하지 못한 run은 FAILED RECOMMENDATION_UNAVAILABLE(retryable)로 끝난다"
+          "assertion": "기한 전에 모든 시도에서 apps/ai가 답하지 못한 run은 FAILED RECOMMENDATION_UNAVAILABLE(retryable)로 끝난다"
         },
         {
           "id": "BA-051-T25",
-          "assertion": "시도가 남지 않은 채 버려진 job의 run은 FAILED INTERNAL_ERROR로 끝난다"
+          "assertion": "기한 전에 시도가 남지 않은 채 버려진 job의 run은 FAILED INTERNAL_ERROR로 끝난다"
         },
         {
           "id": "BA-051-T26",

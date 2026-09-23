@@ -155,9 +155,10 @@ class OptimizeItemInFlightIT {
         Fixture fixture = fixture();
         answer(fixture, () -> { }, () -> { });
 
-        // FOR NO KEY UPDATE, the lock a trip edit itself takes. Not FOR UPDATE: that one also refuses the
-        // FOR KEY SHARE the run's own insert takes on its trip_id foreign key, so createOptimization would
-        // queue behind this holder and the run would never be created.
+        // FOR NO KEY UPDATE: like a trip edit's lock, it refuses the worker's FOR SHARE. Not FOR UPDATE, which
+        // is what an edit actually takes (findForUpdate): that one also refuses the FOR KEY SHARE the run's own
+        // insert takes on its trip_id foreign key, so createOptimization would queue behind this holder and
+        // the run would never be created.
         try (Connection holder = dataSource.getConnection()) {
             holder.setAutoCommit(false);
             int holderPid = backendPid(holder);

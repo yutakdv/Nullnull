@@ -811,6 +811,7 @@ erDiagram
 - owner FK에는 DB cascade action을 두지 않는다. owner 삭제는 상태를 추적하는 background job이 순서대로 지우며 조용한 cascade로 receipt를 없애지 않는다.
 - TTL sweep `DELETE ... WHERE expires_at <= now()`를 위해 `(expires_at)` index를 둔다. 모든 row가 만료되므로 partial index가 아니다.
 - 보존은 sweep job에만 의존하지 않는다. `expires_at`이 지난 row는 guard가 같은 transaction에서 삭제하고 다시 예약하므로, sweep 전에도 만료 key는 응답을 재생하지 않고 새 요청을 막지도 않는다.
+- 외부 호출을 앞세우는 command(`decideOptimization`, #340)는 예약을 먼저 커밋하므로 미완료 row가 다른 transaction에 보인다. 그 row의 `expires_at`은 보존기간이 아니라 **lease**(외부 호출 상한 + lock timeout 다섯, 기본 29초)이고, 완료할 때 응답 보존기간(24시간)으로 바뀐다. lease가 지난 미완료 row는 위의 규칙대로 빈 slot이라 다음 요청이 넘겨받고 sweep도 지운다. 실패한 외부 호출·command는 lease를 기다리지 않고 그 row를 지운다.
 - `response_body`에는 byte 상한을 둔다. 계약 문서의 수치가 아니라 engineering 제안값이고, 근거는 문서화된 가장 큰 응답 형태가 [API README](../api/README.md) 14절의 item 100개 여행이라는 점이다. 첫 대형 APPLY 응답이 나오면 실제 크기로 다시 정한다. 사용자에게 약속하는 application 상한은 compact JSON text 65536 byte이고, 초과는 저장 전에 named error로 거부한다.
 - column check `octet_length(response_body::text) <= 131072`는 같은 byte를 재지 않는다. `response_body::text`는 PostgreSQL이 jsonb에서 다시 직렬화한 문자열이라 `:`과 `,` 뒤에 공백이 붙는다. 따라서 column 상한은 application 상한보다 느슨해야 하며, 그렇지 않으면 application이 통과시킨 값이 named error 대신 constraint 위반으로 터진다. 느슨한 정도는 추측이 아니라 유도한다. 삽입되는 공백은 모두 `:` 또는 `,` 뒤에 오고, jsonb는 member/element를 늘리지 않으며(중복 key는 제거만 한다), compact text에서 그 구분자는 각각 자기 자신과 바로 뒤 byte(key 따옴표 또는 값 시작이라 구분자가 아니다) 두 byte를 독점한다. 그래서 구조 팽창의 상한은 1.5배이고, 2배(131072)는 여기에 여유를 둔 값이다. 다만 이 유도는 구조에만 해당한다. jsonb는 숫자도 십진 표기로 다시 쓰므로 어떤 고정 배수도 성립하지 않는다. 예외적인 지수만의 문제가 아니라 평범한 finite double이면 충분하다(Jackson은 `1.0E18`을 6자로 쓰지만 PostgreSQL은 19자리로 돌려준다). 따라서 application 상한 안에 있는 응답도 column 상한을 넘을 수 있고, 이 경우 store가 해당 constraint 위반을 pre-check와 같은 named error로 번역해 호출자가 driver 오류를 만나지 않게 한다.
 - 구조가 아닌 부분은 덮이지 않는다. jsonb는 숫자를 평문 10진수로 다시 쓰므로 극단적인 지수는 어떤 고정 배수도 넘는다(pin된 image에서 측정: 8 byte `1E-16383` → 16385 byte). 문서화된 응답 형태에는 그런 값이 없다. 그러므로 column 상한은 여유를 둔 backstop이지 두 번째 계약 수치가 아니다.
@@ -859,7 +860,7 @@ DB native enum 대신 check constraint 또는 lookup/value converter를 사용�
 | revoked session | 30일 | scheduled hard delete |
 | CSRF token | session/개별 token 만료 중 이른 시점 | hash hard delete |
 | import draft | 최대 24시간 | TTL hard delete; raw text column 자체를 만들지 않음 |
-| idempotency record | 24시간 | scheduled hard delete |
+| idempotency record | 24시간(미완료 2단계 예약은 lease, 기본 29초) | scheduled hard delete |
 | analytics raw event | 90일 | 집계 후 hard delete |
 | feed feedback | 90일 | 개인 raw action 삭제/집계; owner 삭제 시 즉시 대상 |
 | notification | 90일 또는 read 후 30일 중 이른 시점 | hard delete; owner 삭제 cascade |

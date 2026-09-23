@@ -152,7 +152,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-002-T8`: prelude 뒤 실패한 command는 예약을 풀어 같은 key가 곧바로 다시 실행된다 — `IdempotencyGuardPreludeIT.aFailedCommandFreesTheKey`, `OptimizeDecisionFaultIT`의 P5(응답 쓰기 fault 뒤 예약 0건)
 - `BA-002-T9`: prelude 중인 보유자의 lease가 끝나면 그 예약을 기다리던 호출이 key를 넘겨받는다 — `IdempotencyGuardLeaseIT.aLapsedLeaseIsTakenOver`(예약도 lease도 guard가 만든 것이다 — test가 만료 시각을 쓰지 않으므로 보존기간으로 예약하는 guard는 두 번째 호출을 끝내지 못한다)
 - `BA-002-T10`: prelude 없는 command는 살아 있는 예약이 쥔 key에서 실행되지 않고 거절된다 — `IdempotencyGuardPreludeIT.aSinglePhaseCommandDoesNotRunOverAHeldKey`
-- `BA-002-T11`: prelude 중에 owner가 삭제되면 command를 실행하지 않고 예약을 남기지 않는다 — `IdempotencyGuardPreludeIT.anOwnerDeletedDuringThePreludeRunsNothing`
+- `BA-002-T11`: prelude 중에 owner가 삭제되면 command를 실행하지 않는다 — `IdempotencyGuardPreludeIT.anOwnerDeletedDuringThePreludeRunsNothing`
 - `BA-002-T12`: prelude 중에 예약을 넘겨받힌 호출은 새 보유자의 예약 위에서 command를 실행하지 않고, key가 풀린 뒤에 실행한다 — `IdempotencyGuardPreludeIT.aTakenOverReservationRunsNothingOnTheNewHolder`
 - 단위 검증: canonical request hash `io.nullnull.identity.domain.RequestFingerprintTest`(golden vector로 parameter 정렬을 고정), duration property floor `io.nullnull.identity.application.IdempotencyGuardPropertiesTest` (둘 다 `test` suite)
 
@@ -208,7 +208,7 @@ FE 인계·완료 증거: ERD diff, migration 적용 순서, rollback 호환 범
 - `BA-003-T12`: demo readiness fixture는 `DemoCapabilityQuery`의 실제 출력과 같다 — `DemoReadinessContractTest.fixtureMatchesTheService`
 - `BA-003-T13`: prelude가 있는 command의 claim이 owner 행을 얻지 못하면 자기 bound 안에서 포기하고 아무것도 예약하지 않는다 — `IdempotencyGuardLeaseIT.aClaimThatNeverGetsTheOwnerGivesUp`
 - `BA-003-T14`: prelude가 있는 command의 claim이 owner 행에서 lock timeout을 기다려도 행이 풀리면 command를 실행한다 — `IdempotencyGuardLeaseIT.claimContentionThatClearsIsAbsorbed`
-- `BA-003-T15`: prelude가 있는 command를 기다리는 호출은 key가 다른 예약으로 넘어가도 살아 있는 예약이 있는 동안 포기하지 않는다 — `IdempotencyGuardLeaseIT.aWaiterFollowsTheKeyToItsNextHolder`(넘겨받은 쪽을 처음 보유자의 lease가 끝난 뒤까지 prelude에 세워 둔다 — 첫 보유자의 lease로만 기다리는 호출은 그 사이에 포기한다)
+- `BA-003-T15`: prelude가 있는 command를 기다리는 호출은 key가 다른 예약으로 넘어가도 살아 있는 예약이 있는 동안 포기하지 않는다 — `IdempotencyGuardLeaseIT.aWaiterFollowsTheKeyToItsNextHolder`(넘겨받은 쪽을 처음 보유자의 lease가 끝난 뒤까지 prelude에 세워 둔다 — 첫 보유자의 lease로만 기다리는 호출은 그 사이에 포기한다), `IdempotencyGuardWaitTest.aWaitDoesNotEndOnADeadlineFromBeforeTheCallerHeldTheKey`(자기 예약을 넘겨준 뒤의 claim이 owner 행 lock timeout을 만나도, 예약을 잡기 전 기다림의 기한으로 포기하지 않는다 — DB로는 이 순서를 결정적으로 만들 수 없어 협력자를 script했다)
 - 그 밖의 검증: `HttpPolicyIT.cursorFailuresKeepTheirOwnCodes`(`CURSOR_INVALID` 400 / `CURSOR_EXPIRED` 410), `HttpPolicyIT.aServiceConstraintViolationIsUnprocessable`(422 `VALIDATION_FAILED`, `fieldErrors[].field`가 내부 경로가 아닌 parameter 이름), `HttpPolicyIT.exhaustedOwnerCommandContentionIsInternalError`, `HttpPolicyIT.theAccessLogLineIsTheAllowedFieldsOnly`(허용 필드만·query 없음·MDC pattern이 console line에 requestId를 찍는다), `HttpPolicyIT.anUnmatchedRouteIsLoggedWithoutItsUri`, `HttpPolicyIT.aBodyUnderTheBoundIsAccepted`, `RequestBodyLimitIT.aChunkedBodyUnderTheBoundIsAccepted`, `OwnerCommandContentionIT`(흡수되는 경합과 소진되는 경합), `SystemEndpointsIT.demoReadinessPublishesProductCapabilitiesAndNotInfrastructureProbes`, `SystemContractTest.demoReadinessMatchesDemoReadinessSchema`(`DemoReadiness` schema 검증과 capability 이름)
 - 단위 검증: `DemoCapabilityQueryTest`(vocabulary 고정, 두 namespace가 이름을 공유하지 않음, source 없는 capability는 UNAVAILABLE, overall 집계), `AccessLogFilterTest`, `RequestSizeLimitFilterTest`(설정 하한) — 모두 `test` suite
 
@@ -1658,9 +1658,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-051-T20`: catalog가 닫힌 동안 제안을 가진 run에 대한 createOptimization replay는 503 SOURCE_UNAVAILABLE이다
 - `BA-051-T21`: 후보는 run이 동결한 set에서만 온다
 - `BA-051-T22`: 동결 window는 item의 날만 덮는다
-- `BA-051-T23`: 계약 밖 답으로 job이 끝난 run은 FAILED INTERNAL_ERROR(retryable 아님)로 끝난다
-- `BA-051-T24`: 모든 시도에서 apps/ai가 답하지 못한 run은 FAILED RECOMMENDATION_UNAVAILABLE(retryable)로 끝난다
-- `BA-051-T25`: 시도가 남지 않은 채 버려진 job의 run은 FAILED INTERNAL_ERROR로 끝난다
+- `BA-051-T23`: 기한 전에 계약 밖 답으로 job이 끝난 run은 FAILED INTERNAL_ERROR(retryable 아님)로 끝난다
+- `BA-051-T24`: 기한 전에 모든 시도에서 apps/ai가 답하지 못한 run은 FAILED RECOMMENDATION_UNAVAILABLE(retryable)로 끝난다
+- `BA-051-T25`: 기한 전에 시도가 남지 않은 채 버려진 job의 run은 FAILED INTERNAL_ERROR로 끝난다
 - `BA-051-T26`: apps/ai가 preview를 계산하는 동안 여행이 바뀐 run은 preview를 저장하지 않고 TRIP_CHANGED로 끝난다
 - `BA-051-T27`: 준비 단계가 여행을 기다리는 동안 커밋된 여행 편집은 apps/ai에 묻기 전에 run을 TRIP_CHANGED로 끝낸다
 - `BA-051-T28`: apps/ai가 계산하는 동안 기한이 지난 run은 READY가 아니라 EXPIRED로 끝난다
@@ -1671,7 +1671,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 **`T12`~`T20`은 getOptimization이 저장된 제안을 내는 절이다**(#16 R3·#242). `T14`~`T16`은 처음에 한 문장(*"lockChecks를 계약의 checks로 바꾼다"*)이었는데, 정렬 제거·파생 상수화·모르는 key 버리기 세 변이가 각각 다른 case 하나씩만 빨갛게 해서 셋으로 나눴다. `T13`은 V034가 비교한 쌍의 id를 저장하는 이유다 — 날짜로 쌍을 다시 찾던 설계로 되돌리면 이 case만 빨개진다. `T17`이 있어야 `T15`의 파생이 apps/ai의 주장이 아니라 이 API의 판정이 된다. `T18`은 #252의 worker 절이다. `T19`·`T20`은 getTrip과 같은 catalog 게이트 규칙이고, 검사가 `OptimizationProposalReader` 한 곳에 있어 create replay도 같이 따른다. 증거 위치: `OptimizeItemIT`(T12·T13), `ItemProposalMapperTest`(T14~T16), `ProposalRevalidatorTest`(T17), `OptimizationFailsClosedIT`(T19·T20). **`T21`·`T22`는 #259다** — handler가 동결한 set과 다른 set에서 후보를 고를 수 있었다. `T21`은 후보를 동결 set에서만 읽게 하고, `T22`는 동결이 다음 날 자정 point 하나만 가진 set을 "당일을 덮는 set"으로 고르던 경계를 막는다. 더 새 set이 item의 날을 빠뜨린 경우로 둘을 결정적으로 갈라 잰다: assembler를 되돌리면 `TemporalCandidateAssemblerTest`와 `OptimizeItemIT`가, window 끝을 되돌리면 `OptimizeItemIT`만 빨개진다. 경합 타이밍 자체는 재현하지 않았다.
 
-**`T26`~`T32`는 #340이다.** 계산 중인 run이 두 가지를 놓쳤다. gate와 준비 사이, 또는 apps/ai에 묻는 동안 여행이 바뀌어도 preview가 READY로 저장됐고, 기한이 지난 뒤에도 READY가 됐다. 준비는 gate와 한 unit of work로 합치고 trip 행을 `FOR SHARE`로 잡은 뒤 읽는다(`TripService.lockedVersionFor`). publish는 같은 잠금 아래 run을 다시 읽고 기한 → version 순으로 확인한다. 기한을 먼저 보는 것은 읽기 투영(`OptimizationService.asReadNow`)이 기한이 지난 순간부터 EXPIRED를 보여 왔기 때문이고, 저장도 그 어휘를 따라 failure code 없는 EXPIRED다(`T28`·`T31`) — `FAILED`+`DATA_CHANGED`면 느린 계산이 "데이터가 바뀜"으로 안내된다. 재시도가 첫 기한을 유지하는 것(`T30`)은 이슈 보충 코멘트가 결정을 요구한 항목이고 #340 작업 지시로 정했다: 기한은 첫 동결이 정한 run의 것이다. `T32`를 `T28`과 나눈 것은 측정이다 — handler가 `markReady` 앞에서 EXPIRED로 끝내므로 `T28`은 store의 `expires_at > ?`를 한 번도 태우지 않는다. 변이 여덟 개가 각자 자기 절만 빨갛게 했다: publish 여행 검사 제거 `T26`, `FOR SHARE` 제거와 준비 gate 제거 각각 `T27`, publish 기한 검사 제거 `T28`, store 기한 조건 제거 `T32`, `COALESCE` 제거 `T30` 둘, fingerprint를 publish 시각으로 `T29`, `fail`의 기한 분기 제거 `T31` 둘. 증거 위치: `OptimizeItemInFlightIT`(`T26`~`T31`), `OptimizationRunReadinessIT`(`T30`·`T31`·`T32`).
+**`T26`~`T32`는 #340이다.** 계산 중인 run이 두 가지를 놓쳤다. gate와 준비 사이, 또는 apps/ai에 묻는 동안 여행이 바뀌어도 preview가 READY로 저장됐고, 기한이 지난 뒤에도 READY가 됐다. 준비는 gate와 한 unit of work로 합치고 trip 행을 `FOR SHARE`로 잡은 뒤 읽는다(`TripService.lockedVersionFor`). publish는 같은 잠금 아래 run을 다시 읽고 기한 → version 순으로 확인한다. 기한을 먼저 보는 것은 읽기 투영(`OptimizationService.asReadNow`)이 기한이 지난 순간부터 EXPIRED를 보여 왔기 때문이고, 저장도 그 어휘를 따라 failure code 없는 EXPIRED다(`T28`·`T31`, 그래서 `T23`~`T25`는 기한 전의 절이다) — `FAILED`+`DATA_CHANGED`면 느린 계산이 "데이터가 바뀜"으로 안내된다. 재시도가 첫 기한을 유지하는 것(`T30`)은 이슈 보충 코멘트가 결정을 요구한 항목이고 #340 작업 지시로 정했다: 기한은 첫 동결이 정한 run의 것이다. `T32`를 `T28`과 나눈 것은 측정이다 — handler가 `markReady` 앞에서 EXPIRED로 끝내므로 `T28`은 store의 `expires_at > ?`를 한 번도 태우지 않는다. 변이 여덟 개가 각자 자기 절만 빨갛게 했다: publish 여행 검사 제거 `T26`, `FOR SHARE` 제거와 준비 gate 제거 각각 `T27`, publish 기한 검사 제거 `T28`, store 기한 조건 제거 `T32`, `COALESCE` 제거 `T30` 둘, fingerprint를 publish 시각으로 `T29`, `fail`의 기한 분기 제거 `T31` 둘. 증거 위치: `OptimizeItemInFlightIT`(`T26`~`T31`), `OptimizationRunReadinessIT`(`T30`·`T31`·`T32`).
 
 FE 인계·완료 증거: FCR-004 ITEM READY fixture·eligible delta·이유·validation·APPLY/KEEP UI; 실제 node 반영은 FE 검토 후. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -1763,7 +1763,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-052-T24`: 다른 key의 APPLY는 서로의 policy 조회를 기다리지 않는다
 - `BA-052-T25`: policy 조회가 실패한 APPLY는 그 key의 예약을 남기지 않는다
 
-**`T23`~`T25`는 #340이다.** #271이 policy 조회를 guard 밖으로 꺼낸 뒤 조회는 key가 아니라 요청마다 한 번이었다. 같은 key로 동시에 온 두 APPLY가 각자 물어, 한쪽은 503("the trip was not changed"), 다른 쪽은 그 key로 적용한 200을 받을 수 있었다. 지금 조회는 guard의 prelude다([BA-002](#ba-002)의 `T5`~`T12`): 예약을 먼저 커밋하고 그 예약을 쥔 호출만 transaction 밖에서 묻고 적용한다. 같은 key의 나머지는 잠그지 않고 기다렸다가 replay한다. `T23`은 두 번째 요청을 예약 행에서 멈춰 세운 뒤 첫 요청을 풀어, 두 번째가 in-flight 예약을 실제로 만났음을 보장한다. `T24`는 `T12`·`T13`의 `CyclicBarrier(2)`와 같은 성질(다른 key는 서로를 기다리지 않는다)을 한 owner의 두 여행으로 따로 잰다. `T25`는 실패한 조회가 예약을 lease에 맡기지 않고 곧바로 푸는지다 — 그렇지 않아도 `T16`·`T18`의 재시도는 lease만큼 늦어질 뿐 초록으로 남는다. 증거 위치: `OptimizeDecisionIT`(`T23`·`T24`), `OptimizeGatewayFailureIT`(`T25`).
+**`T23`~`T25`는 #340이다.** #271이 policy 조회를 guard 밖으로 꺼낸 뒤 조회는 key가 아니라 요청마다 한 번이었다. 같은 key로 동시에 온 두 APPLY가 각자 물어, 한쪽은 503("the trip was not changed"), 다른 쪽은 그 key로 적용한 200을 받을 수 있었다. 지금 조회는 guard의 prelude다([BA-002](#ba-002)의 `T5`~`T12`): 예약을 먼저 커밋하고 그 예약을 쥔 호출만 transaction 밖에서 묻고 적용한다. 같은 key의 나머지는 잠그지 않고 기다렸다가 replay한다. `T23`은 두 번째 요청을 예약 행에서 멈춰 세운 뒤 첫 요청을 풀어, 두 번째가 in-flight 예약을 실제로 만났음을 보장한다. `T24`는 `T12`·`T13`의 `CyclicBarrier(2)`와 같은 성질(다른 key는 서로를 기다리지 않는다)을 한 owner의 두 여행으로 따로 잰다. `T22`는 비워 둔다 — 미병합 `work/b09-ba083`이 그 ID를 다른 절에 쓰고 있다. `T25`는 실패한 조회가 예약을 lease에 맡기지 않고 곧바로 푸는지다 — 그렇지 않아도 `T16`·`T18`의 재시도는 lease만큼 늦어질 뿐 초록으로 남는다. 증거 위치: `OptimizeDecisionIT`(`T23`·`T24`), `OptimizeGatewayFailureIT`(`T25`).
 
 FE 인계·완료 증거: APPLY 필수 revision/revertUntil와 KEEP 필드 부재의 판별 union, 충돌 재계산·동일 요청 재시도 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

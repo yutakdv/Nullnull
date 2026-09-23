@@ -249,7 +249,7 @@ class IdempotencyGuardPreludeIT {
     }
 
     @Test
-    @DisplayName("BA-002-T11 an owner deleted while its command's prelude runs gets no command and leaves no reservation")
+    @DisplayName("BA-002-T11 an owner deleted while its command's prelude runs gets no command")
     void anOwnerDeletedDuringThePreludeRunsNothing() {
         Owner owner = owner();
         String key = key();
