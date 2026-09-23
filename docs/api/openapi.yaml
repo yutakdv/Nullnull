@@ -1342,7 +1342,10 @@ paths:
                     because the collector requests `overviewYN=N` and `firstImageYN=N`, so overview text and
                     images are never stored. `categoryName` and `regionName` stay null until a reviewed
                     code-to-label mapping exists; render those, never the opaque `categoryCode`/`regionCode`.
-                    `sourceAttribution.attribution` is displayed verbatim.
+                    `sourceAttribution.attribution` is displayed verbatim. `textProvenance` separately credits
+                    the localization row for each non-null field; this synthetic example has Korean name
+                    and address from the same reviewed KTO source. A mixed-locale fallback is tested by
+                    CatalogPlaceApiIT rather than invented as a captured provider response.
                   value:
                     id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
                     name: "경복궁"
@@ -1369,6 +1372,28 @@ paths:
                       officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                       licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                       license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                    textProvenance:
+                      name:
+                        locale: "ko-KR"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      address:
+                        locale: "ko-KR"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      description: null
         "503":
           $ref: "#/components/responses/SourceUnavailable"
         "404":
