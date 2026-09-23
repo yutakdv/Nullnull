@@ -189,6 +189,7 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | `KTO_SERVICE_KEY` | 예 | 공공데이터포털 KTO **decoding key**; runtime에만 주입 |
 | `KTO_BASE_URL` | 아니오 | C2 exact `https://apis.data.go.kr/B551011/KorService2`; contest profile에서는 다른 path/host 거부 |
 | `KTO_FORECAST_BASE_URL` | 아니오 | C4 exact `https://apis.data.go.kr/B551011/TatsCnctrRateService`; KorService2의 하위 경로가 아닌 별도 승인 endpoint이며 contest profile에서는 다른 path/host 거부 |
+| `KTO_ENG_BASE_URL` | 아니오 | BA-086 exact `https://apis.data.go.kr/B551011/EngService2`. 영문 텍스트 refresh 만 읽고, 비어 있으면 그 명령이 `KTO_NOT_CONFIGURED` 로 멈춘다. host 는 `KTO_ALLOWED_HOST` 를 국문과 함께 쓴다 |
 | `KTO_MOBILE_APP`, `KTO_MOBILE_OS` | 아니오 | C2 `detailCommon2` request metadata; 기본 `Nullnull`/`ETC` |
 | `APP_RELEASE_VERSION` | 아니오 | safe `api_ingest_logs.release_version`; credential나 URL이 아님 |
 | `APP_CONTEST_PROFILE` | 아니오 | `2026_KTO_WEBAPP`이면 KTO key와 exact base가 startup invariant |
@@ -372,6 +373,40 @@ NULLNULL_KTO_ENG_MATCH_PROBE_PLACES='<위 SELECT 의 places>' \
 NULLNULL_KTO_ENG_MATCH_PROBE_NAMES='<위 SELECT 의 names>' \
   ./gradlew ktoEngServiceMatchProbe --console=plain
 ```
+
+  **셋째와 넷째가 영문 텍스트를 실제로 붙인다.** 둘 다 `BA-086` 명령이다.
+
+  **셋째 `ktoEngLinkImport` 는 오너가 검토한 결정만 들인다.** plan 을 만드는 것은 probe 출력을 읽은 오너다. plan 은 장소마다 다음을 적는다:
+
+- `placeId`
+- 영문 `contentId`·`contentTypeId`
+- 검토 시각 `reviewedAt`
+- 검토한 HTTPS 페이지 `evidenceUrl`
+
+  이 명령은 provider 를 부르지 않고 plan 을 한 transaction 으로 들인다. 근거 URL 은 검증만 하고 저장·출력하지 않는다. 다음 경우는 plan 전체를 거절한다:
+
+- 더 오래된 검토가 더 최신 연결을 덮으려 할 때
+- 이미 다른 장소에 연결된 영문 record 를 지목할 때
+- 국문 KTO record 가 없는 장소를 지목할 때
+
+  다른 record 로 다시 연결하면 이전 record 의 영문 텍스트를 같은 transaction 에서 지운다.
+
+  **넷째 `ktoEngTextRefresh` 는 연결마다 `detailCommon2` 를 한 번 부른다.** 국문 실호출 명령처럼 자기 승인 변수가 필요하다. 출력은 장소 id 와 결과 값(`UPDATED`·`WITHDRAWN_GONE`·`WITHDRAWN_RULE`·`DISCARDED_LINK_CHANGED`·`DISCARDED_REVISION_CHANGED`·`KEPT_OTHER_SOURCE_TEXT`)과 실패 코드뿐이다. 영문 텍스트·record id·키는 찍지 않는다. 결과별 처리는 이렇다:
+
+- 오너 규칙(100 m·분류·법정동)을 만족하면 영문 이름·주소를 쓴다.
+- record 가 사라졌거나 규칙을 어기면 그 텍스트를 내린다.
+- 격리·비활성 source 를 만나면 그 자리에서 멈춘다.
+
+```bash
+NULLNULL_ENG_LINK_PLAN=<검토된 plan.json 경로> \
+  ./gradlew ktoEngLinkImport --console=plain
+
+NULLNULL_KTO_ENG_REFRESH_APPROVED=true \
+KTO_ENG_BASE_URL=https://apis.data.go.kr/B551011/EngService2 \
+  ./gradlew ktoEngTextRefresh --console=plain
+```
+
+  **staging 에서는 아직 돌릴 수 없다.** 두 가지가 먼저 필요하다: 두 명령의 운영 task 등록(plan 은 `NULLNULL_ENG_LINK_PLAN_GZIP_BASE64` + `_SHA256` inline 형태)과 task definition 의 `KTO_ENG_BASE_URL`. 이 둘은 `infra/`·`scripts/aws/` 소관이라 `BA-086` 코드 PR 에 넣지 않았다.
 
   **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패했다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있었고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 그때까지 `Created` 상태로 **한 번도 뜬 적이 없었다.** 오너 결정으로 host port를 **5434**로 옮겼다.
 

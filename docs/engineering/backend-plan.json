@@ -3619,7 +3619,7 @@
       "phase": "B09",
       "priority": "P1",
       "title": "영문 POI coverage·번역 품질",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-022"
       ],
@@ -3639,15 +3639,15 @@
       "tests": [
         {
           "id": "BA-086-T1",
-          "assertion": "동일 POI 언어별 ID/날짜/수치 parity를 검증한다"
+          "assertion": "영문 텍스트가 나가도 같은 장소의 한·영 응답은 ID·좌표·외부 ref 와 그 검증 시각이 같다"
         },
         {
           "id": "BA-086-T2",
-          "assertion": "누락 번역 fallback·출처·권리 표기가 유지된다"
+          "assertion": "영문 record 가 비운 필드의 원문 fallback 은 그 원문 source 의 credit 과 licence 를 싣는다"
         },
         {
           "id": "BA-086-T3",
-          "assertion": "source 변경/삭제 때 오래된 번역 노출을 차단한다"
+          "assertion": "연결된 영문 record 가 사라지면 그 영문 텍스트는 더 이상 나가지 않는다"
         },
         {
           "id": "BA-086-T4",
@@ -3688,6 +3688,58 @@
         {
           "id": "BA-086-T13",
           "assertion": "ingest 된 place 의 국문 텍스트는 읽기 게이트가 읽는 provenance 를 들고 있다"
+        },
+        {
+          "id": "BA-086-T14",
+          "assertion": "이미 매핑된 장소를 지나간 revision 의 snapshot 으로 다시 ingest 하면 거절이 아니라 no-op 이다"
+        },
+        {
+          "id": "BA-086-T15",
+          "assertion": "영문 매칭 probe 는 후보마다 계산한 거리와 코드와 필드 이름을 보고한다"
+        },
+        {
+          "id": "BA-086-T16",
+          "assertion": "영문 매칭 probe 는 제목·주소·이름 값을 출력하지 않는다"
+        },
+        {
+          "id": "BA-086-T17",
+          "assertion": "영문 매칭 probe 는 장소를 다섯 곳까지만 받는다"
+        },
+        {
+          "id": "BA-086-T18",
+          "assertion": "영문 매칭 probe 는 제목의 한글 부분이 우리 이름과 정확히 같은지를 NFC 로 비교해 증거로만 낸다"
+        },
+        {
+          "id": "BA-086-T19",
+          "assertion": "읽기 게이트가 막은 행의 텍스트 출처는 textProvenance 로 새지 않는다"
+        },
+        {
+          "id": "BA-086-T20",
+          "assertion": "자기 출처가 없는 텍스트 필드는 장소 기록의 credit 을 빌리지 않는다"
+        },
+        {
+          "id": "BA-086-T21",
+          "assertion": "영문 source 는 검토된 revision 아래 수집 가능한 source 로 등록돼 있다"
+        },
+        {
+          "id": "BA-086-T22",
+          "assertion": "오래된 검토는 더 최신의 영문 연결을 덮지 못한다"
+        },
+        {
+          "id": "BA-086-T23",
+          "assertion": "다른 영문 record 로 다시 연결하면 이전 record 의 영문 텍스트는 같은 transaction 에서 사라진다"
+        },
+        {
+          "id": "BA-086-T24",
+          "assertion": "영문 record 가 사라졌다는 응답은 영문 source 를 격리하지 않는다"
+        },
+        {
+          "id": "BA-086-T25",
+          "assertion": "오너 연결 규칙을 더 이상 만족하지 않는 영문 record 의 텍스트는 나가지 않는다"
+        },
+        {
+          "id": "BA-086-T26",
+          "assertion": "현재가 아닌 revision 아래 가져온 영문 record 는 쓰이지 않는다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
