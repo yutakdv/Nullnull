@@ -5,6 +5,7 @@ import io.nullnull.shared.provider.ProviderResponseValidator.Outcome;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -18,8 +19,23 @@ import tools.jackson.databind.json.JsonMapper;
  * to stop being shown. Reading that answer as drift would quarantine the whole English source and leave
  * the stale text in place, because the read gate does not look at quarantine. An answer that does not
  * say how many items it has is not a deletion and stays drift.
+ *
+ * <p>The Korean reader treats a zero count as drift and is right to: a Korean content id is one this
+ * system found and ingested, so its absence is unexplained. An English id here is an owner's link to
+ * another dataset, and that dataset dropping it is an ordinary answer - the same reading
+ * KtoForecastResponseValidator gives an empty forecast (accepted, no coverage).
  */
 public final class KtoEngDetailResponseValidator {
+
+    /**
+     * Keys this reader and the link rule depend on. KTO sends every key and leaves unknown values as
+     * empty strings, so an empty value is a data gap the rule refuses on its own; an ABSENT key means the
+     * shape is not the one this contract was written against, and that has to be loud - a run that
+     * quarantines - rather than every English text quietly failing the rule. The names come from the
+     * shape the owner's probe observed on 2026-09-21 (issue #60) and are listed in SOURCE_CATALOG.
+     */
+    static final List<String> REQUIRED_KEYS = List.of("title", "addr1", "mapx", "mapy", "lclsSystm1",
+            "lDongRegnCd", "lDongSignguCd");
 
     private final JsonMapper json;
 
@@ -115,6 +131,9 @@ public final class KtoEngDetailResponseValidator {
         }
         if (!expected.contentId().equals(item.path("contentid").asString())
                 || !expected.contentTypeId().equals(item.path("contenttypeid").asString())) {
+            return new Rejected(Outcome.SCHEMA_DRIFT, 1);
+        }
+        if (!REQUIRED_KEYS.stream().allMatch(item::has)) {
             return new Rejected(Outcome.SCHEMA_DRIFT, 1);
         }
         try {

@@ -113,6 +113,21 @@ class KtoEngDetailResponseValidatorTest {
     }
 
     @Test
+    @DisplayName("a key the link rule reads that is absent from the item is drift, not an empty value")
+    void absentRequiredKeyIsDrift() {
+        for (String key : java.util.List.of("title", "addr1", "mapx", "mapy", "lclsSystm1", "lDongRegnCd",
+                "lDongSignguCd")) {
+            String withoutKey = item("264329", "76", "Gyeongbokgung Palace", "161, Sajik-ro", "37.579617",
+                    "126.977041").replaceFirst("\"" + key + "\":(\"[^\"]*\")?,?", "");
+            assertThat(withoutKey).as("fixture drops %s", key).doesNotContain("\"" + key + "\"");
+
+            Result result = validate(withoutKey);
+
+            assertThat(result.verdict().outcome()).as(key).isEqualTo(Outcome.SCHEMA_DRIFT);
+        }
+    }
+
+    @Test
     @DisplayName("a missing coordinate or code is kept as missing, so the link rule can refuse it")
     void missingFactsStayMissing() {
         Result result = validate("""

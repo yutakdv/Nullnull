@@ -21,6 +21,9 @@ public record KtoEngRecord(String contentId, String contentTypeId, String title,
         BigDecimal latitude, BigDecimal longitude, String classification, String regionCode,
         String sigunguCode, String payloadHash) {
 
+    /** The registry code of the English dataset (V050). */
+    public static final String SOURCE_CODE = "KTO_ENG_SERVICE";
+
     /** place_localizations.name is varchar(200); a longer title is rejected, not cut. */
     public static final int TITLE_LIMIT = 200;
     /** place_localizations.address is varchar(500). */

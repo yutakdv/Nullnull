@@ -18,10 +18,13 @@ public class KtoKorServiceProperties {
     private static final String OFFICIAL_HOST = "apis.data.go.kr";
     private static final String DETAIL_OFFICIAL_PATH = "/B551011/KorService2";
     private static final String FORECAST_OFFICIAL_PATH = "/B551011/TatsCnctrRateService";
+    /** BA-086: the English dataset (portal 15101753) is its own service path on the same host. */
+    private static final String ENG_OFFICIAL_PATH = "/B551011/EngService2";
 
     private String serviceKey = "";
     private String baseUrl = "";
     private String forecastBaseUrl = "";
+    private String engBaseUrl = "";
     private String mobileApp = "Nullnull";
     private String mobileOs = "ETC";
     private String releaseVersion = "local-unreleased";
@@ -38,6 +41,10 @@ public class KtoKorServiceProperties {
     /** Separate approved endpoint: KTO's concentration service is not a KorService2 sub-route. */
     public void setForecastBaseUrl(String forecastBaseUrl) {
         this.forecastBaseUrl = stripTrailingSlash(normalized(forecastBaseUrl));
+    }
+
+    public void setEngBaseUrl(String engBaseUrl) {
+        this.engBaseUrl = stripTrailingSlash(normalized(engBaseUrl));
     }
 
     public void setMobileApp(String mobileApp) {
@@ -77,10 +84,37 @@ public class KtoKorServiceProperties {
         safeValue(releaseVersion, 100);
     }
 
+    public void requireEngConfigured(boolean testEndpointAllowed) {
+        if (serviceKey.isBlank()) {
+            throw new KtoGatewayException(KtoGatewayException.Code.KTO_NOT_CONFIGURED);
+        }
+        engBaseUri(testEndpointAllowed);
+        safeValue(mobileApp, 50);
+        safeValue(mobileOs, 20);
+        safeValue(releaseVersion, 100);
+    }
+
     public URI detailCommonUri(KtoPlaceRequest request, boolean testEndpointAllowed) {
         Objects.requireNonNull(request, "request");
         requireConfigured(testEndpointAllowed);
         URI base = detailBaseUri(testEndpointAllowed);
+        String query = "serviceKey=" + encode(serviceKey)
+                + "&MobileOS=" + encode(mobileOs)
+                + "&MobileApp=" + encode(mobileApp)
+                + "&contentId=" + encode(request.contentId())
+                + "&_type=json";
+        return URI.create(base + "/detailCommon2?" + query);
+    }
+
+    /**
+     * The same detailCommon2 query as {@link #detailCommonUri}, against EngService2. contentId is the
+     * English dataset's own id: Korean ids are not carried there (probe, #60), so the caller passes the
+     * owner-reviewed English record, never the canonical place's Korean id.
+     */
+    public URI engDetailCommonUri(KtoPlaceRequest request, boolean testEndpointAllowed) {
+        Objects.requireNonNull(request, "request");
+        requireEngConfigured(testEndpointAllowed);
+        URI base = engBaseUri(testEndpointAllowed);
         String query = "serviceKey=" + encode(serviceKey)
                 + "&MobileOS=" + encode(mobileOs)
                 + "&MobileApp=" + encode(mobileApp)
@@ -140,6 +174,10 @@ public class KtoKorServiceProperties {
 
     private URI forecastBaseUri(boolean testEndpointAllowed) {
         return approvedBaseUri(forecastBaseUrl, FORECAST_OFFICIAL_PATH, testEndpointAllowed);
+    }
+
+    private URI engBaseUri(boolean testEndpointAllowed) {
+        return approvedBaseUri(engBaseUrl, ENG_OFFICIAL_PATH, testEndpointAllowed);
     }
 
     private static URI approvedBaseUri(String rawBaseUrl, String officialPath, boolean testEndpointAllowed) {
