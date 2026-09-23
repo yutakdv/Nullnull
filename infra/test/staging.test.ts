@@ -89,6 +89,18 @@ test("migration uses distinct task and no web/jobs", () => {
     ]),
   });
 });
+test("presigned uploads allow only the submitted browser origin and PUT content type", () => {
+  const buckets = Object.values(templates.web.findResources("AWS::S3::Bucket")) as any[];
+  assert.equal(buckets.length, 1);
+  assert.deepEqual(buckets[0].Properties.CorsConfiguration, {
+    CorsRules: [{
+      AllowedOrigins: ["https://d54awmnmi4c3z.cloudfront.net"],
+      AllowedMethods: ["PUT"],
+      AllowedHeaders: ["content-type"],
+      MaxAge: 300,
+    }],
+  });
+});
 test("private edge with API cache disabled and closed default gate", () => {
   templates.platform.hasResourceProperties(
     "AWS::ElasticLoadBalancingV2::LoadBalancer",

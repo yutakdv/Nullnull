@@ -61,7 +61,8 @@ class OperatorRegressions(unittest.TestCase):
     PROFILE={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p'}
     def run_execute(self, action, kind, live_change=None, deployed=None, target=None, accept=False, classification=True,
                     stale_baseline=False, env=None, source_state='clean', fail_on=None, cli_writes=False,
-                    preserve_open_edge=False, live_edge='true', health_statuses=(200,200), missing_webedge=False):
+                    preserve_open_edge=False, live_edge='true', health_statuses=(200,200), missing_webedge=False,
+                    planned_web_cors=None):
         """execute() with AWS replaced at its edges only: manifest validation (the real node validator), the live
         classification and the lock logic run for real. Returns (cdk mock, migration mock); self.aws_ops lists
         the lock's AWS operations."""
@@ -73,6 +74,11 @@ class OperatorRegressions(unittest.TestCase):
             live=json.loads(json.dumps(templates))
             if live_change:live[live_change]['Resources']['R']['Properties']['TopicName']='changed'
             if missing_webedge:live['WebEdge']=None
+            if planned_web_cors is not None:
+                templates['WebEdge']['Resources']['WebBucket']={
+                    'Type':'AWS::S3::Bucket','Properties':{'CorsConfiguration':planned_web_cors}}
+                live['WebEdge']['Resources']['WebBucket']={'Type':'AWS::S3::Bucket','Properties':{}}
+                (assembly/'NullnullStgWebEdge.template.json').write_text(json.dumps(templates['WebEdge']))
             manifest={**fixtures.ReleaseManifestValidatorTest().valid_manifest(),'flywayChecksums':target or ['V001:'+'a'*64],'sourceState':source_state}
             if source_state=='overlay':manifest.update(sourceOverlaySha256='sha256:'+'e'*64,sourceOverlayPaths=['apps/api/x.java'])
             (directory/'release.json').write_text(json.dumps(manifest))
@@ -136,6 +142,21 @@ class OperatorRegressions(unittest.TestCase):
         self.assertLess(self.deployed(cdk).index('NullnullStgWebEdge'),self.deployed(cdk).index('NullnullStgMigration'))
         self.release_record.assert_called_once()
         self.assertTrue(self.approved_assembly_untouched)
+    def test_reviewed_exact_upload_cors_can_preserve_an_already_open_edge(self):
+        cors={'CorsRules':[{'AllowedOrigins':['https://d54awmnmi4c3z.cloudfront.net'],
+                            'AllowedMethods':['PUT'],'AllowedHeaders':['content-type'],'MaxAge':300}]}
+        cdk,_=self.run_execute('deploy','infra',planned_web_cors=cors,preserve_open_edge=True)
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=true',
+                      [c.args[0] for c in cdk.call_args_list if c.args[0][1]=='NullnullStgWebEdge'][0])
+        self.assertTrue(self.approved_assembly_untouched)
+        for bad in [{**cors,'CorsRules':[{**cors['CorsRules'][0],'AllowedOrigins':['*']}]},
+                    {**cors,'CorsRules':[{**cors['CorsRules'][0],'AllowedMethods':['GET','PUT']}]}]:
+            with self.subTest(bad=bad),self.assertRaisesRegex(ops.OpsError,'preserve-open-template-change'):
+                self.run_execute('deploy','infra',planned_web_cors=bad,preserve_open_edge=True)
+            self.assertEqual(['put-item','delete-item'],self.aws_ops)
+        with self.assertRaisesRegex(ops.OpsError,'preserve-open-template-change'):
+            self.run_execute('deploy','infra',planned_web_cors=cors,live_change='WebEdge',preserve_open_edge=True)
+        self.assertEqual(['put-item','delete-item'],self.aws_ops)
     def test_open_edge_release_refuses_closed_edge_or_other_template_drift_before_any_write(self):
         for kwargs,reason in [({'live_edge':'false'},'preserve-open-requires-open-edge'),
                               ({'live_change':'WebEdge'},'preserve-open-template-change'),
