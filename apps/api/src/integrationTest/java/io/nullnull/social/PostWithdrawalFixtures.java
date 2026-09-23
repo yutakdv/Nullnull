@@ -89,6 +89,23 @@ final class PostWithdrawalFixtures {
         return id;
     }
 
+    UUID publishedUserCover(String title, String coverUrl) {
+        UUID id = published(title);
+        UUID assetId = UUID.randomUUID();
+        UUID licenceId = jdbc.queryForObject(
+                "SELECT id FROM asset_licenses WHERE source_code = 'USER_UPLOAD'", UUID.class);
+        String hex = assetId.toString().replace("-", "");
+        jdbc.update("INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url,"
+                        + " served_url, checksum, media_type, alt_text, license_checked_at)"
+                        + " VALUES (?, ?, ?, ?, ?, ?, 'IMAGE', ?, ?)",
+                assetId, licenceId, "upload-" + assetId, coverUrl, coverUrl, hex + hex,
+                "사용자 표지", Timestamp.from(Instant.now()));
+        createdAssets.add(assetId);
+        jdbc.update("UPDATE posts SET cover_url = ?, cover_asset_id = ? WHERE id = ?",
+                coverUrl, assetId, id);
+        return id;
+    }
+
     /**
      * Holds the post's row in another transaction until {@code release}, returning once it is held.
      * The hold ends on the release, not on a timer; the timer only stops a broken test from hanging.

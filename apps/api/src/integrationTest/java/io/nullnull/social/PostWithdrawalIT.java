@@ -8,6 +8,7 @@ import io.nullnull.social.application.PostWithdrawalService;
 import io.nullnull.social.application.PostWithdrawalService.Withdrawal;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -71,6 +72,37 @@ class PostWithdrawalIT {
         // it is relaxed - a screen that wants to say when a post was published is a plausible reason -
         // this is what notices a withdrawal that keeps the date the feed orders by.
         assertThat(row.get("published_at")).as("published_at is cleared").isNull();
+    }
+
+    @Test
+    @DisplayName("#338 a user-upload cover remains available for cleanup after the hide transaction")
+    void withdrawnUserCoverReferenceIsReturned() {
+        String coverUrl = "https://nullnull.test/covers/user/" + UUID.randomUUID() + ".jpg";
+        UUID post = posts.publishedUserCover("회수 표지 글", coverUrl);
+
+        var first = withdrawals.withdrawForCleanup(post);
+
+        assertThat(first.outcome()).isEqualTo(Withdrawal.WITHDRAWN);
+        assertThat(first.coverUrl()).contains(coverUrl);
+        assertThat(posts.row(post).get("status")).isEqualTo("HIDDEN");
+
+        var again = withdrawals.withdrawForCleanup(post);
+        assertThat(again.outcome()).isEqualTo(Withdrawal.ALREADY_HIDDEN);
+        assertThat(again.coverUrl()).contains(coverUrl);
+    }
+
+    @Test
+    @DisplayName("#338 curated, draft and unknown posts yield no user-cover cleanup reference")
+    void onlyHiddenUserUploadsCanYieldCleanupReferences() {
+        UUID curated = posts.published("기존 큐레이션 글");
+        jdbc.update("UPDATE posts SET cover_url = ? WHERE id = ?",
+                "https://nullnull.test/covers/user/" + UUID.randomUUID() + ".jpg", curated);
+        UUID draft = posts.draft("아직 작성 중", posts.place("초안 장소"));
+
+        assertThat(withdrawals.withdrawForCleanup(curated).coverUrl()).isEmpty();
+        assertThat(withdrawals.withdrawForCleanup(draft).coverUrl()).isEqualTo(Optional.empty());
+        assertThat(withdrawals.withdrawForCleanup(UUID.randomUUID()).coverUrl()).isEmpty();
+        assertThat(posts.row(draft).get("status")).isEqualTo("DRAFT");
     }
 
     @Test

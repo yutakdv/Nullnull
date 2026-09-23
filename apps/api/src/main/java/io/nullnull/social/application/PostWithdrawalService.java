@@ -3,6 +3,7 @@ package io.nullnull.social.application;
 import io.nullnull.identity.application.LockWaitLimit;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -66,18 +67,24 @@ public class PostWithdrawalService {
      */
     @Transactional
     public Withdrawal withdraw(UUID postId) {
+        return withdrawForCleanup(postId).outcome();
+    }
+
+    /** Withdraws one post and returns only its user-upload cover reference for the ops cleanup. */
+    @Transactional
+    public WithdrawalResult withdrawForCleanup(UUID postId) {
         lockWaits.applyToCurrentTransaction(lockWait);
         if (feed.withdrawIfPublished(postId, clock.instant()) == 1) {
-            return Withdrawal.WITHDRAWN;
+            return completed(Withdrawal.WITHDRAWN, postId);
         }
         return switch (feed.postStatus(postId).orElse(null)) {
-            case null -> Withdrawal.NOT_FOUND;
+            case null -> new WithdrawalResult(Withdrawal.NOT_FOUND, Optional.empty());
             // Already where a withdrawal leaves it, so a rerun of an approved task succeeds and
             // changes nothing.
-            case HIDDEN -> Withdrawal.ALREADY_HIDDEN;
+            case HIDDEN -> completed(Withdrawal.ALREADY_HIDDEN, postId);
             // Never shown to anyone, so there is nothing to take back, and hiding it would stop a
             // publication nobody asked to stop.
-            case DRAFT -> Withdrawal.NOT_PUBLISHED;
+            case DRAFT -> new WithdrawalResult(Withdrawal.NOT_PUBLISHED, Optional.empty());
             // Not PUBLISHED when the UPDATE looked and PUBLISHED now: a draft was published in
             // between. The owner approved withdrawing a published post, so this says so rather
             // than guessing; running the task again withdraws it. No test reaches this branch -
@@ -86,6 +93,12 @@ public class PostWithdrawalService {
                     "the post was published while it was being withdrawn; run the withdrawal again");
         };
     }
+
+    private WithdrawalResult completed(Withdrawal outcome, UUID postId) {
+        return new WithdrawalResult(outcome, feed.hiddenUserCoverUrl(postId));
+    }
+
+    public record WithdrawalResult(Withdrawal outcome, Optional<String> coverUrl) { }
 
     /** What a withdrawal did. The first two leave the post withdrawn; the last two refuse. */
     public enum Withdrawal {

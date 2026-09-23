@@ -307,6 +307,19 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
+    public Optional<String> hiddenUserCoverUrl(UUID postId) {
+        return jdbc.sql("""
+                SELECT p.cover_url FROM posts p
+                  JOIN media_assets m ON m.id = p.cover_asset_id
+                  JOIN asset_licenses l ON l.id = m.asset_license_id
+                 WHERE p.id = ? AND p.status = 'HIDDEN' AND l.source_code = 'USER_UPLOAD'
+                """)
+                .param(postId)
+                .query(String.class)
+                .optional();
+    }
+
+    @Override
     public boolean recordFeedback(UUID id, UUID ownerId, UUID postId, FeedFeedbackAction action,
             Instant occurredAt, long occurredMinute, Instant receivedAt) {
         // ON CONFLICT DO NOTHING on the minute key, so a repeat inside the same minute is one row

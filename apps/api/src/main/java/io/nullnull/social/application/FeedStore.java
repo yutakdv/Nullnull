@@ -101,6 +101,9 @@ public interface FeedStore {
     /** The post's status, or empty when no post has that id. */
     Optional<io.nullnull.social.domain.PostStatus> postStatus(UUID postId);
 
+    /** The user-upload cover of a hidden post, retained for an approved cleanup retry. */
+    Optional<String> hiddenUserCoverUrl(UUID postId);
+
     /**
      * Records one feed interaction, or converges on the one already recorded for that minute.
      *
