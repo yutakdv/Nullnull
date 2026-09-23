@@ -36,6 +36,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +52,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -222,13 +228,13 @@ class EngTextRefreshIT {
         UUID place = koreanPlace();
         String record = link(place);
         try (StubProviderServer stub = new StubProviderServer().enqueue(found(record, EN_TITLE, EN_ADDRESS, 50))) {
-            KtoEngDetailFetcher bumpingDuringTheCall = new BumpDuringCall(client(stub));
+            KtoEngDetailFetcher bumpingDuringTheCall = new BumpDuringCall(client(stub), revisionBeforeBump());
             KtoEngTextRefresh refresh = new KtoEngTextRefresh(store, registry, registryStore, collector(),
                     bumpingDuringTheCall, Clock.systemUTC(), transactions);
 
             assertThat(refresh.refresh(linkOf(place))).isEqualTo(KtoEngTextRefresh.Outcome.DISCARDED_REVISION_CHANGED);
         } finally {
-            restoreRevision();
+            restoreRevision(revisionBeforeBump);
         }
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM place_localizations WHERE place_id = ? AND locale = 'en'",
@@ -236,7 +242,96 @@ class EngTextRefreshIT {
     }
 
     @Test
-    @DisplayName("a link the owner replaced while the call was out is not overwritten by the old record's text")
+    @DisplayName("a record that comes back without a usable name loses its English text and leaves the source collectable")
+    void recordWithoutAUsableNameWithdrawsItsText() throws Exception {
+        UUID place = koreanPlace();
+        String record = link(place);
+        try (StubProviderServer stub = new StubProviderServer().enqueue(found(record, EN_TITLE, EN_ADDRESS, 50))
+                .enqueue(found(record, "", EN_ADDRESS, 50)).enqueue(found(record, EN_TITLE, EN_ADDRESS, 50))) {
+            KtoEngTextRefresh refresh = refresh(stub);
+            assertThat(refresh.refresh(linkOf(place))).isEqualTo(KtoEngTextRefresh.Outcome.UPDATED);
+            assertThat(getPlace(place, "en-US").path("name").asString()).isEqualTo(EN_TITLE);
+
+            assertThat(refresh.refresh(linkOf(place))).isEqualTo(KtoEngTextRefresh.Outcome.WITHDRAWN_RULE);
+            assertThat(getPlace(place, "en-US").path("name").asString()).isEqualTo(KO_NAME);
+
+            // Not quarantined: the next answer for the same record is applied.
+            assertThat(refresh.refresh(linkOf(place))).isEqualTo(KtoEngTextRefresh.Outcome.UPDATED);
+        }
+    }
+
+    @Test
+    @DisplayName("a refresh holds the place before it waits for the link, the order the import takes them in")
+    void refreshLocksThePlaceBeforeTheLink() throws Exception {
+        UUID place = koreanPlace();
+        String record = link(place);
+        EngTextStore.Link link = linkOf(place);
+        ExecutorService threads = Executors.newFixedThreadPool(2);
+        CountDownLatch linkHeld = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try (StubProviderServer stub = new StubProviderServer().enqueue(found(record, EN_TITLE, EN_ADDRESS, 50))) {
+            KtoEngTextRefresh refresh = refresh(stub);
+            Future<?> holder = threads.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                jdbc.queryForList("SELECT id FROM place_localization_sources WHERE place_id = ? FOR UPDATE", place);
+                linkHeld.countDown();
+                try {
+                    release.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+            assertThat(linkHeld.await(30, TimeUnit.SECONDS)).isTrue();
+            Future<KtoEngTextRefresh.Outcome> refreshing = threads.submit(() -> refresh.refresh(link));
+
+            awaitSomeoneWaitingOnTheLink();
+            boolean placeHeldByTheRefresh = placeIsLocked(place);
+            release.countDown();
+            holder.get(30, TimeUnit.SECONDS);
+
+            assertThat(refreshing.get(30, TimeUnit.SECONDS)).isEqualTo(KtoEngTextRefresh.Outcome.UPDATED);
+            assertThat(placeHeldByTheRefresh).as("the refresh held the place while it waited for the link").isTrue();
+        } finally {
+            release.countDown();
+            threads.shutdownNow();
+        }
+    }
+
+    /** Polls PostgreSQL until a backend is blocked on the link row, which is where the refresh parks. */
+    private void awaitSomeoneWaitingOnTheLink() throws InterruptedException {
+        for (int attempt = 0; attempt < 600; attempt++) {
+            Long waiting = jdbc.queryForObject("""
+                    SELECT count(*) FROM pg_stat_activity
+                     WHERE wait_event_type = 'Lock'
+                       AND query ILIKE '%FROM place_localization_sources%FOR UPDATE%'
+                    """, Long.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("the refresh never waited for the link lock");
+    }
+
+    /**
+     * Whether another transaction holds the place row. A short lock_timeout rather than NOWAIT: the row-ownership
+     * check reads "UPDATE NOWAIT" as an UPDATE of a table called NOWAIT. When the refresh holds the row this
+     * times out deterministically - the holder is parked until this test releases it.
+     */
+    private boolean placeIsLocked(UUID place) {
+        return Boolean.TRUE.equals(new TransactionTemplate(transactions).execute(status -> {
+            jdbc.execute("SET LOCAL lock_timeout = '300ms'");
+            try {
+                jdbc.queryForList("SELECT id FROM places WHERE id = ? FOR UPDATE", place);
+                return false;
+            } catch (org.springframework.dao.DataAccessException locked) {
+                status.setRollbackOnly();
+                return true;
+            }
+        }));
+    }
+
+    @Test
+    @DisplayName("BA-086-T27 a link the owner replaced while the call was out is not written from the old record")
     void replacedLinkIsNotWrittenFromTheOldRecord() {
         UUID place = koreanPlace();
         String record = link(place);
@@ -272,13 +367,24 @@ class EngTextRefreshIT {
                 Long.class, place)).isZero();
     }
 
-    /** Moves the English source to a second reviewed revision while the provider call is out. */
+    /** The English source's revision a T26 bump starts from; read, never assumed, so a later migration is safe. */
+    private long revisionBeforeBump;
+
+    private long revisionBeforeBump() {
+        revisionBeforeBump = jdbc.queryForObject(
+                "SELECT current_revision FROM source_registry WHERE code = 'KTO_ENG_SERVICE'", Long.class);
+        return revisionBeforeBump;
+    }
+
+    /** Moves the English source to a new reviewed revision while the provider call is out. */
     private final class BumpDuringCall implements KtoEngDetailFetcher {
 
         private final KtoEngDetailFetcher delegate;
+        private final long from;
 
-        BumpDuringCall(KtoEngDetailFetcher delegate) {
+        BumpDuringCall(KtoEngDetailFetcher delegate, long from) {
             this.delegate = delegate;
+            this.from = from;
         }
 
         @Override
@@ -291,10 +397,10 @@ class EngTextRefreshIT {
             jdbc.update("""
                     INSERT INTO source_registry_revisions
                         (source_code, version, canonical_contract, contract_hash, reviewed_at, created_at)
-                    SELECT source_code, 2, canonical_contract, contract_hash, reviewed_at, now()
-                      FROM source_registry_revisions WHERE source_code = 'KTO_ENG_SERVICE' AND version = 1
-                    """);
-            jdbc.update("UPDATE source_registry SET current_revision = 2 WHERE code = 'KTO_ENG_SERVICE'");
+                    SELECT source_code, version + 1, canonical_contract, contract_hash, reviewed_at, now()
+                      FROM source_registry_revisions WHERE source_code = 'KTO_ENG_SERVICE' AND version = ?
+                    """, from);
+            jdbc.update("UPDATE source_registry SET current_revision = ? WHERE code = 'KTO_ENG_SERVICE'", from + 1);
             return delegate.fetch(request);
         }
 
@@ -304,10 +410,11 @@ class EngTextRefreshIT {
         }
     }
 
-    /** Puts the English source back on revision 1: the gate database is shared with every other class. */
-    private void restoreRevision() {
-        jdbc.update("UPDATE source_registry SET current_revision = 1 WHERE code = 'KTO_ENG_SERVICE'");
-        jdbc.update("DELETE FROM source_registry_revisions WHERE source_code = 'KTO_ENG_SERVICE' AND version = 2");
+    /** Puts the English source back where it was: the gate database is shared with every other class. */
+    private void restoreRevision(long from) {
+        jdbc.update("UPDATE source_registry SET current_revision = ? WHERE code = 'KTO_ENG_SERVICE'", from);
+        jdbc.update("DELETE FROM source_registry_revisions WHERE source_code = 'KTO_ENG_SERVICE' AND version = ?",
+                from + 1);
     }
 
     private KtoEngTextRefresh refresh(StubProviderServer stub) {

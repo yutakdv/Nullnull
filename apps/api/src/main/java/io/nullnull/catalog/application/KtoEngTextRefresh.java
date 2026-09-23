@@ -34,9 +34,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <ul>
  * <li>the record is gone (a well-formed zero-item answer) - the text is removed, and the source is not
  *     quarantined, because a dropped record is an answer, not drift (T3, T24);</li>
- * <li>the record no longer satisfies the owner's link rule - the text is removed (T25);</li>
- * <li>the owner replaced the link, or the source moved to another reviewed revision, while the call was
- *     out - nothing from this answer is written (T26);</li>
+ * <li>the record no longer satisfies the owner's link rule, or no longer carries a name we can serve - the
+ *     text is removed (T25);</li>
+ * <li>the owner replaced the link while the call was out - nothing from this answer is written (T27);</li>
+ * <li>the source moved to another reviewed revision while the call was out - nothing is written (T26);</li>
  * <li>the source revision the text was written under is superseded or disabled - the existing read gate
  *     withholds it (T7, T8).</li>
  * </ul>
@@ -149,6 +150,9 @@ public class KtoEngTextRefresh {
     }
 
     private Outcome apply(EngTextStore.Link fetched, Result result, long fetchedUnderRevision, Instant observedAt) {
+        // The place first, then its link: the import takes them in this order, and the opposite order lets an
+        // import and a refresh of the same place deadlock, which PostgreSQL resolves by aborting one of them.
+        Optional<EngTextStore.PlaceSide> place = store.lockActivePlace(fetched.placeId());
         Optional<EngTextStore.Link> current = store.lockLink(fetched.placeId());
         if (current.isEmpty() || !sameDecision(current.get(), fetched)) {
             // The import already removed the text of the record it replaced (BA-086-T23).
@@ -161,8 +165,7 @@ public class KtoEngTextRefresh {
             // revision is withheld by the read gate (BA-086-T7).
             return Outcome.DISCARDED_REVISION_CHANGED;
         }
-        Optional<EngTextStore.PlaceSide> place = store.lockActivePlace(fetched.placeId());
-        if (result instanceof Found found && place.isPresent()
+        if (result instanceof Found found && found.record().title() != null && place.isPresent()
                 && EngLinkRule.holds(found.record(), place.get().facts())) {
             return store.writeText(fetched.placeId(), found.record(), revision, observedAt, clock.instant())
                     ? Outcome.UPDATED : Outcome.KEPT_OTHER_SOURCE_TEXT;

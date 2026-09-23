@@ -24,7 +24,7 @@ public record KtoEngRecord(String contentId, String contentTypeId, String title,
     /** The registry code of the English dataset (V050). */
     public static final String SOURCE_CODE = "KTO_ENG_SERVICE";
 
-    /** place_localizations.name is varchar(200); a longer title is rejected, not cut. */
+    /** place_localizations.name is varchar(200); a longer title is not served, and never cut. */
     public static final int TITLE_LIMIT = 200;
     /** place_localizations.address is varchar(500). */
     public static final int ADDRESS_LIMIT = 500;
@@ -37,7 +37,9 @@ public record KtoEngRecord(String contentId, String contentTypeId, String title,
     public KtoEngRecord {
         contentId = identifier(contentId, "contentId");
         contentTypeId = identifier(contentTypeId, "contentTypeId");
-        title = text(title, "title", TITLE_LIMIT, true);
+        // A record without a name we can serve is still a record: the refresh withdraws its text instead
+        // of quarantining the source (KtoEngDetailResponseValidator).
+        title = text(title, "title", TITLE_LIMIT, false);
         address = text(address, "address", ADDRESS_LIMIT, false);
         classification = code(classification, "classification", CODE);
         regionCode = code(regionCode, "regionCode", AREA_CODE);

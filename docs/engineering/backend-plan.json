@@ -3740,6 +3740,10 @@
         {
           "id": "BA-086-T26",
           "assertion": "현재가 아닌 revision 아래 가져온 영문 record 는 쓰이지 않는다"
+        },
+        {
+          "id": "BA-086-T27",
+          "assertion": "호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",

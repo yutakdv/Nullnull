@@ -111,7 +111,7 @@ public class JdbcEngTextStore implements EngTextStore {
     public boolean writeText(UUID placeId, KtoEngRecord record, long sourceRegistryVersion, Instant observedAt,
             Instant now) {
         // short_description is never written: the Korean side carries none, and an English-only
-        // description would be facts the canonical record does not have (BA-086-T1).
+        // description would be facts the canonical record does not have. BA-086-T2 asserts it stays null.
         return jdbc.update("""
                 INSERT INTO place_localizations
                     (id, place_id, locale, name, short_description, address, search_tokens, updated_at,

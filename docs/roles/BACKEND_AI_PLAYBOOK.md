@@ -2363,7 +2363,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. 누락 시 원문 fallback과 번역 출처를 명시한다
 3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
 
-진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **남은 것은 데이터다**: 세 후보의 오너 직접 검토, staging 에서 import·refresh 실행(운영 task 등록과 task definition 의 `KTO_ENG_BASE_URL`), 영문 coverage 보고서. 그 전에는 이 카드를 닫지 않는다.
+진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **남은 것은 데이터다**: 세 후보의 오너 직접 검토, staging 에서 import·refresh 실행(운영 task 등록과 task definition 의 `KTO_ENG_BASE_URL`), 영문 coverage 보고서. 그 전에는 이 카드를 닫지 않는다.
 
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
@@ -2395,6 +2395,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T24`: 영문 record 가 사라졌다는 응답은 영문 source 를 격리하지 않는다
 - `BA-086-T25`: 오너 연결 규칙을 더 이상 만족하지 않는 영문 record 의 텍스트는 나가지 않는다
 - `BA-086-T26`: 현재가 아닌 revision 아래 가져온 영문 record 는 쓰이지 않는다
+- `BA-086-T27`: 호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

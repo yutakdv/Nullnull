@@ -50,7 +50,8 @@ public class EngTextLinkImporter {
             try {
                 evidence = URI.create(evidenceUrl);
             } catch (RuntimeException invalid) {
-                throw new IllegalArgumentException("an HTTPS evidence URL is required", invalid);
+                // No cause: URI.create quotes its input, and the evidence URL is not printed anywhere.
+                throw new IllegalArgumentException("an HTTPS evidence URL is required");
             }
             if (!"https".equals(evidence.getScheme()) || evidence.getHost() == null || evidence.getUserInfo() != null) {
                 throw new IllegalArgumentException("an HTTPS evidence URL is required");

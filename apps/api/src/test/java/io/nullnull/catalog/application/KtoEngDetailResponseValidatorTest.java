@@ -105,11 +105,13 @@ class KtoEngDetailResponseValidatorTest {
     }
 
     @Test
-    @DisplayName("a title longer than a localized name can hold is rejected rather than cut")
-    void rejectsTitleTheLocalizationCannotHold() {
+    @DisplayName("a title longer than a localized name can hold leaves the record without a name, uncut and not drift")
+    void titleTheLocalizationCannotHoldIsNotServed() {
         Result result = validate(item("264329", "76", "x".repeat(201), null, "37.5", "126.9"));
 
-        assertThat(result.verdict().outcome()).isEqualTo(Outcome.SCHEMA_DRIFT);
+        assertThat(result).isInstanceOf(Found.class);
+        assertThat(((Found) result).record().title()).isNull();
+        assertThat(result.verdict().outcome()).isEqualTo(Outcome.OK);
     }
 
     @Test
@@ -132,12 +134,13 @@ class KtoEngDetailResponseValidatorTest {
     void missingFactsStayMissing() {
         Result result = validate("""
                 {"response":{"header":{"resultCode":"0000"},"body":{"totalCount":1,"items":{"item":
-                  {"contentid":"264329","contenttypeid":"76","title":"Gyeongbokgung Palace","addr1":"",
+                  {"contentid":"264329","contenttypeid":"76","title":"","addr1":"",
                    "mapx":"","mapy":"","lclsSystm1":"","lDongRegnCd":"","lDongSignguCd":""}}}}}
                 """);
 
         assertThat(result).isInstanceOf(Found.class);
         KtoEngRecord record = ((Found) result).record();
+        assertThat(record.title()).isNull();
         assertThat(record.address()).isNull();
         assertThat(record.latitude()).isNull();
         assertThat(record.longitude()).isNull();

@@ -48,6 +48,18 @@ class KtoEngCommandsTest {
     }
 
     @Test
+    @DisplayName("a refused evidence URL is not repeated in the error that refuses it")
+    void refusedEvidenceUrlIsNotEchoed() {
+        assertThatThrownBy(() -> KtoEngLinkImportMain.parse("""
+                {"links":[{"placeId":"00000000-0000-4000-8000-000000000001","contentId":"264329",
+                  "contentTypeId":"76","reviewedAt":"2026-09-24T01:00:00Z",
+                  "evidenceUrl":"https://exa mple.test/review-canary"}]}
+                """)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("HTTPS evidence URL")
+                .satisfies(refused -> assertThat(stackOf(refused)).doesNotContain("review-canary"));
+    }
+
+    @Test
     @DisplayName("the refresh prints ids, outcomes and failure codes only, and stops when the source is quarantined")
     void refreshReportsOutcomesAndStopsOnQuarantine() {
         List<EngTextStore.Link> links = List.of(link(FIRST), link(SECOND), link(THIRD));
@@ -80,6 +92,12 @@ class KtoEngCommandsTest {
                 java.util.Map.of("NULLNULL_KTO_SMOKE_APPROVED", "true")))
                 .isInstanceOf(IllegalStateException.class);
         KtoEngTextRefreshMain.requireApproved(java.util.Map.of("NULLNULL_KTO_ENG_REFRESH_APPROVED", "true"));
+    }
+
+    private static String stackOf(Throwable failure) {
+        java.io.StringWriter trace = new java.io.StringWriter();
+        failure.printStackTrace(new java.io.PrintWriter(trace));
+        return trace.toString();
     }
 
     private static EngTextStore.Link link(UUID place) {

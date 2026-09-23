@@ -145,7 +145,7 @@ public final class KtoEngDetailResponseValidator {
             if (legacyCodesOnly(item)) {
                 return new Rejected(Outcome.SCHEMA_DRIFT, 1);
             }
-            return new Found(KtoEngRecord.of(expected.contentId(), expected.contentTypeId(), optional(item, "title"),
+            return new Found(KtoEngRecord.of(expected.contentId(), expected.contentTypeId(), servableTitle(item),
                     optional(item, "addr1"), latitude, longitude, optional(item, "lclsSystm1"),
                     optional(item, "lDongRegnCd"), optional(item, "lDongSignguCd")));
         } catch (CoordinateOutOfRangeException failure) {
@@ -153,6 +153,16 @@ public final class KtoEngDetailResponseValidator {
         } catch (IllegalArgumentException | NullPointerException failure) {
             return new Rejected(Outcome.SCHEMA_DRIFT, 1);
         }
+    }
+
+    /**
+     * The title when it can become a localized name: present and within the column the name is stored in.
+     * Blank or longer is a data gap of this one record - the refresh withdraws its text - not a change in
+     * the provider's shape that should quarantine the source.
+     */
+    private static String servableTitle(JsonNode item) {
+        String title = optional(item, "title");
+        return title == null || title.length() > KtoEngRecord.TITLE_LIMIT ? null : title;
     }
 
     /** Exactly the provider's count, as a number or a numeric string; anything else is unknown. */

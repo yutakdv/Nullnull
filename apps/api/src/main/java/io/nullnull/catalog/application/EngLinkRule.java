@@ -21,8 +21,9 @@ public final class EngLinkRule {
     }
 
     /**
-     * The canonical side. The sigungu code is not on {@code places}; it comes from the place's Korean
-     * snapshot collected under the Korean source's current revision, and is null when there is none.
+     * The canonical side. The sigungu code is not on {@code places}; it comes from the latest Korean snapshot
+     * the place's Korean reference points at, collected under revision 4 or later (from V012 the code is
+     * lDongSignguCd), and is null when there is none.
      */
     public record PlaceFacts(BigDecimal latitude, BigDecimal longitude, String categoryCode, String regionCode,
             String sigunguCode) {

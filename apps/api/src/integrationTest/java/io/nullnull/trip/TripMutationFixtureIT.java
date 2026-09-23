@@ -430,7 +430,7 @@ class TripMutationFixtureIT {
         // textProvenance (BA-086) is left out of this shape comparison because only
         // places/place-detail.json carries it among the fixtures with a sourceAttribution. Remove
         // this exclusion once the representative fixtures carry textProvenance - until then the
-        // FE's mocks for this response never see the field.
+        // FE's mocks for this response never see the field. Tracked in #60 (BA-086 FE handoff).
         assertThat(JsonShape.withoutField(body, "textProvenance")).isEqualTo(expected);
         assertEveryPlaceCredited(body);
         // Order is not shape, and the fixture follows the server's: interests by code, each item's locks
@@ -456,7 +456,7 @@ class TripMutationFixtureIT {
         // textProvenance (BA-086) is left out of this shape comparison because only
         // places/place-detail.json carries it among the fixtures with a sourceAttribution. Remove
         // this exclusion once the representative fixtures carry textProvenance - until then the
-        // FE's mocks for this response never see the field.
+        // FE's mocks for this response never see the field. Tracked in #60 (BA-086 FE handoff).
         assertThat(JsonShape.withoutField(body, "textProvenance"))
                 .isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
         assertEveryPlaceCredited(body);

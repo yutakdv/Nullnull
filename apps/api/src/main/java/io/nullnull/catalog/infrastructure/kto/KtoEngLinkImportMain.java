@@ -42,11 +42,27 @@ public final class KtoEngLinkImportMain {
         }
     }
 
+    /**
+     * A malformed plan is reported by where it broke, not by what it said: a parser message quotes the text
+     * around the error, and that text can be an evidence URL.
+     */
     static EngTextLinkImporter.Plan parse(String json) {
         try {
             return JsonMapper.builder().findAndAddModules().build().readValue(json, EngTextLinkImporter.Plan.class);
         } catch (tools.jackson.core.JacksonException invalid) {
-            throw new IllegalArgumentException("English link plan is invalid", invalid);
+            var location = invalid.getLocation();
+            throw new IllegalArgumentException("English link plan is invalid"
+                    + (location == null ? "" : " at line " + location.getLineNr() + " column " + location.getColumnNr())
+                    + reason(invalid));
         }
+    }
+
+    /** The plan records' own refusal, whose messages name a field and never carry its value. */
+    private static String reason(Throwable failure) {
+        Throwable root = failure;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return root instanceof IllegalArgumentException && root != failure ? ": " + root.getMessage() : "";
     }
 }
