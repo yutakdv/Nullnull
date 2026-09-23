@@ -83,7 +83,13 @@ public final class PostWithdrawMain {
         if (outcome == Withdrawal.NOT_FOUND || outcome == Withdrawal.NOT_PUBLISHED) {
             throw new Refused(outcome.name(), "the post was not withdrawn");
         }
-        CoverCleanup cover = withdrawal.coverUrl().map(removeCover)
+        CoverCleanup cover = withdrawal.coverUrl().map(url -> {
+                    CoverCleanup removed = removeCover.apply(url);
+                    if (removed.status() == PublishedCoverRemoval.Status.NOT_USER_UPLOAD) {
+                        throw new PublishedCoverRemoval.InvalidCoverUrl();
+                    }
+                    return removed;
+                })
                 .orElseGet(() -> new CoverCleanup(PublishedCoverRemoval.Status.NOT_USER_UPLOAD, 0));
         return new Completed(outcome, cover);
     }

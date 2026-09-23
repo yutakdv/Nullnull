@@ -78,6 +78,14 @@ class PostWithdrawMainTest {
                 });
         assertThat(PostWithdrawMain.report(UUID.fromString(POST), curated))
                 .endsWith("outcome=WITHDRAWN cover=NOT_USER_UPLOAD versions=0");
+        // A USER_UPLOAD row with an unfamiliar URL is not the same as a curated post with no
+        // user-upload cover. Reporting NOT_USER_UPLOAD here would hide an incomplete cleanup.
+        assertThatThrownBy(() -> PostWithdrawMain.finish(
+                new WithdrawalResult(Withdrawal.WITHDRAWN,
+                        Optional.of("https://nullnull.test/covers/first-party.jpg")), url ->
+                        new PublishedCoverRemoval.CoverCleanup(
+                                PublishedCoverRemoval.Status.NOT_USER_UPLOAD, 0)))
+                .isInstanceOf(PublishedCoverRemoval.InvalidCoverUrl.class);
         for (Withdrawal refused : List.of(Withdrawal.NOT_FOUND, Withdrawal.NOT_PUBLISHED)) {
             assertThatThrownBy(() -> PostWithdrawMain.finish(
                     new WithdrawalResult(refused, Optional.of(COVER)), url -> {
