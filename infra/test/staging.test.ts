@@ -257,6 +257,23 @@ test("AI task carries the catalog version apps/ai requires in staging", () => {
     { Name: "NULLNULL_CATALOG_VERSION", Value: "KTO_KOR_SERVICE_2:4" },
   );
 });
+test("the AI task names no external model provider and holds no provider credential (A-064, #337)", () => {
+  // Neither this template nor the image sets AI_PROVIDER, so apps/ai runs on its default, NONE
+  // (apps/ai/src/nullnull_ai/settings.py). The ai security group allows 443 out to anywhere, so this env
+  // and the absent secrets are the only thing between staging and an external model call. A-064 keeps
+  // the provider off until the AI-use label ships (#337): turning it on has to be a reviewed change here.
+  const ai = (Object.values(templates.services.findResources("AWS::ECS::TaskDefinition")) as any[])
+    .map((t) => t.Properties.ContainerDefinitions[0])
+    .find((c) => c.Name === "ai");
+  const env = (ai.Environment ?? []) as any[];
+  const secrets = (ai.Secrets ?? []) as any[];
+  for (const e of env.filter((e) => e.Name === "AI_PROVIDER")) assert.equal(e.Value, "NONE", "AI_PROVIDER");
+  for (const name of ["AI_API_KEY", "AI_MODEL_ID"]) {
+    assert(!env.some((e) => e.Name === name), `${name} in the ai environment`);
+    assert(!secrets.some((s) => s.Name === name), `${name} in the ai secrets`);
+  }
+  assert(!secrets.some((s) => s.Name === "AI_PROVIDER"), "AI_PROVIDER in the ai secrets");
+});
 test("only the API runs ITEM optimization, and no service turns on a capability that has no source", () => {
   // Owner decision 2026-09-19: the submission build runs ITEM optimization. The value is a literal here so
   // that re-reading staging.ts cannot make this test agree with whatever the file says.
