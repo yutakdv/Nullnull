@@ -148,6 +148,8 @@ duration은 ISO-8601 형식을 사용한다. 단위 없는 숫자는 Spring이 �
 
 `APP_IDEMPOTENCY_LOCK_TIMEOUT=PT3S`도 BA-003의 engineering 제안값이며, 확인 가능한 근거는 측정이 아니라 구조 하나다. guard는 만료된 lock wait을 transaction 전체 재시도로 흡수하고 시도 횟수는 둘이므로(`IdempotencyGuard.LOCK_CONTENTION_ATTEMPTS`), caller가 겪는 최악은 `2 x PT3S = 6초`이고 그 뒤가 `INTERNAL_ERROR`다. 값을 올리면 그 6초가 같이 늘어난다. 바닥 `PT0.1S`는 PostgreSQL이 `lock_timeout = 0`을 "무한 대기"로 읽어 bound 자체가 사라지기 때문이다(`IdempotencyGuard.MINIMUM_LOCK_TIMEOUT`).
 
+외부 호출을 앞세우는 command(`decideOptimization`의 policy 조회, #340)는 idempotency 예약을 먼저 커밋하고 그 예약을 쥔 요청만 외부 호출을 한다. 같은 key로 뒤이어 온 요청은 그 예약의 lease만큼 기다릴 수 있다. lease는 외부 호출 상한에 command transaction의 lock 대기를 더한 값이다: policy 시도 2회 × (`NULLNULL_AI_CONNECT_TIMEOUT` + `NULLNULL_AI_READ_TIMEOUT`) + 5 × `APP_IDEMPOTENCY_LOCK_TIMEOUT`, 기본값으로 `2 x (PT2S + PT5S) + 5 x PT3S = 29초`다. 다섯은 command 시도 둘이 각각 owner 행과 예약 행을 기다릴 수 있고, 하나를 더 둔 것이다(`IdempotencyGuard.RESERVATION_MARGIN`). liveness 상한일 뿐이다: 넘어도 command는 한 번이고, 외부 호출이 한 번 더 날 수 있을 뿐이다. 기다리는 요청은 잠그지 않는 읽기로 20ms에서 200ms까지 간격을 늘려 확인한다. 이 간격은 engineering 제안값이다.
+
 이 값은 **측정으로 뒷받침되지 않았다**. `IdempotencyGuard.execute`를 호출하는 production code가 아직 없어서(B01은 command endpoint를 내보내지 않는다) "가장 느린 command"라고 부를 대상이 없다. 첫 실제 command endpoint를 만드는 slice가 그 command의 최악 소요를 suite에 남는 test로 재고 `PT3S`가 그것을 덮는지 확인하면, 그때 확정값이 된다.
 
 type별 동시 실행은 `nullnull.jobs.concurrency.<type>` property로 덮는다(예: `nullnull.jobs.concurrency.deletion=1`). map key라서 환경변수보다 설정 파일/실행 인자로 지정한다.

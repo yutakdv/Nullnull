@@ -118,7 +118,7 @@ class OptimizationRunReadinessIT {
     }
 
     @Test
-    @DisplayName("BA-051-T28 the store refuses READY at the run's deadline and accepts it a second before")
+    @DisplayName("BA-051-T32 the store refuses to publish a run at its deadline and publishes it a second before")
     void aRunPastItsDeadlineCannotPublish() {
         seedRunning();
         // Truncated to microseconds, the precision timestamptz keeps, so the instant the run stores and

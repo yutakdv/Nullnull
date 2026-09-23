@@ -19,8 +19,10 @@ import io.nullnull.testsupport.OwnerFixtures;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +44,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * The parts of a command with a prelude that are measured in time: a reservation's lease running out, and a
@@ -69,6 +72,7 @@ class IdempotencyGuardLeaseIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired DataSource dataSource;
     @Autowired Clock clock;
+    @Autowired ObjectMapper json;
 
     private final List<UUID> ownerIds = new ArrayList<>();
     private ListAppender<ILoggingEvent> guardLog;
@@ -212,6 +216,61 @@ class IdempotencyGuardLeaseIT {
             caller.shutdownNow();
         }
         assertThat(commands).as("the claims that gave up reserved nothing, so the command ran once").hasValue(1);
+    }
+
+    @Test
+    @DisplayName("BA-003-T15 a caller waiting on a key does not give up while a live reservation holds it, even after the key changes hands")
+    void aWaiterFollowsTheKeyToItsNextHolder() throws Exception {
+        Owner owner = owner();
+        String key = key();
+        String hash = hashOf("{\"n\":1}");
+        // A holder that will never finish: its reservation lapses in half a second.
+        Instant seeded = clock.instant();
+        Instant lapses = seeded.plusMillis(500);
+        jdbc.update("INSERT INTO idempotency_records (id, owner_id, route_key, idempotency_key, request_hash,"
+                + " created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)", UUID.randomUUID(), owner.id(), ROUTE, key,
+                hash, Timestamp.from(seeded), Timestamp.from(lapses));
+
+        AtomicInteger preludes = new AtomicInteger();
+        AtomicInteger commands = new AtomicInteger();
+        CountDownLatch nextHolderAsking = new CountDownLatch(1);
+        CountDownLatch nextHolderMayAnswer = new CountDownLatch(1);
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<GuardedResponse>> waiting = new ArrayList<>();
+            for (int caller = 0; caller < 2; caller++) {
+                waiting.add(callers.submit(() -> guard.execute(owner.id(), ROUTE, key, hash,
+                        new Prelude<>(QUICK, () -> {
+                            preludes.incrementAndGet();
+                            nextHolderAsking.countDown();
+                            await(nextHolderMayAnswer);
+                            return "next";
+                        }),
+                        asked -> {
+                            commands.incrementAndGet();
+                            return new CommandOutcome<>(200, new Receipt(asked, "r-1"));
+                        },
+                        Function.identity())));
+            }
+            // One of the two has taken the key over and is asking. The other waited on the first holder with a
+            // bound of that holder's lease; it is now past that bound, still waiting on the next holder.
+            assertThat(nextHolderAsking.await(30, TimeUnit.SECONDS)).isTrue();
+            org.awaitility.Awaitility.await().atMost(30, TimeUnit.SECONDS)
+                    .pollInterval(20, TimeUnit.MILLISECONDS)
+                    .until(() -> clock.instant().isAfter(lapses.plusMillis(700)));
+            nextHolderMayAnswer.countDown();
+
+            GuardedResponse one = waiting.get(0).get(30, TimeUnit.SECONDS);
+            GuardedResponse two = waiting.get(1).get(30, TimeUnit.SECONDS);
+            assertThat(List.of(one.replayed(), two.replayed())).containsExactlyInAnyOrder(true, false);
+            // Semantically equal: a replayed body is the stored jsonb, normalised (GuardedResponse says so).
+            assertThat(json.readTree(one.body())).isEqualTo(json.readTree(two.body()));
+            assertThat(commands).hasValue(1);
+            assertThat(preludes).as("only the caller that took the key over asked").hasValue(1);
+        } finally {
+            nextHolderMayAnswer.countDown();
+            callers.shutdownNow();
+        }
     }
 
     private Owner owner() {

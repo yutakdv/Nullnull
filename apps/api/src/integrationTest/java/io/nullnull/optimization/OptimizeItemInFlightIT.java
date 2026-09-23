@@ -200,7 +200,7 @@ class OptimizeItemInFlightIT {
     }
 
     @Test
-    @DisplayName("BA-051-T28 a run whose deadline passes while apps/ai computes ends EXPIRED with no failure code and no preview")
+    @DisplayName("BA-051-T28 a run whose deadline passes while apps/ai computes ends EXPIRED, not READY")
     void aDeadlinePassedWhileComputingEndsExpired() throws Exception {
         Fixture fixture = fixture();
         answer(fixture, () -> { }, () -> jdbc.update("UPDATE optimization_runs"

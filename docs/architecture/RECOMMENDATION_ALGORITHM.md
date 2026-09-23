@@ -301,12 +301,14 @@ worker:
   generate supported temporal candidates
   filter constraints and comparability
   score -> select -> validate full resulting trip
-  transaction: verify owner/run lease/trip version, save immutable proposal
-  transition to READY; never mutate trip items
+  transaction: lock trip, verify owner/run lease/trip version and the run's deadline, save immutable proposal
+  transition to READY (or EXPIRED past the deadline); never mutate trip items
 
 decide APPLY:
-  authenticate -> replay completed idempotency result when applicable
-  transaction: lock trip/run, verify version, expiry, policy and data validity
+  authenticate -> reserve the idempotency key (short transaction, committed)
+    replay a completed result, or wait for the reservation that holds the key
+  outside any transaction: ask the current policy (only the key's holder)
+  transaction: re-check the reservation, lock trip/run, verify version, expiry, policy and data validity
   apply through TripCommand, save new revision + decision + response
   commit once
 ```
