@@ -543,7 +543,9 @@ def without_approved_web_bucket_cors(old, planned):
         return [(key, resource) for key, resource in template.get('Resources', {}).items()
                 if resource.get('Type') == 'AWS::S3::Bucket']
     existing, proposed = buckets(old), buckets(planned)
-    if len(existing) != 1 or len(proposed) != 1 or existing[0][0] != proposed[0][0]:
+    # Pin the synthesized WebBucket ID so a replacement requires a new review.
+    if (len(existing) != 1 or len(proposed) != 1 or
+            existing[0][0] != 'WebBucket12880F5B' or proposed[0][0] != existing[0][0]):
         return planned
     key, resource = proposed[0]
     old_props = existing[0][1].get('Properties', {})
