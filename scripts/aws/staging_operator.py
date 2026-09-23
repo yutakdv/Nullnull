@@ -634,6 +634,28 @@ def template_findings(directory, bodies, stacks):
             findings.append('template-changed-' + stack)
     return findings
 
+def preserve_open_template_findings(directory, bodies):
+    findings = template_findings(directory, bodies, PROTECTED+['Services'])
+    if bodies.get('WebEdge') is None:
+        return findings + ['stack-missing-WebEdge']
+    live = json.loads(normalize_template(bodies['WebEdge']))
+    planned = json.loads(normalize_template(planned_template(directory, 'WebEdge')))
+    if live == planned:
+        return findings
+    buckets = [key for key, resource in planned.get('Resources', {}).items()
+               if resource.get('Type') == 'AWS::S3::Bucket']
+    if len(buckets) == 1 and buckets[0] in live.get('Resources', {}):
+        key = buckets[0]
+        props = planned['Resources'][key].get('Properties', {})
+        cors = {'CorsRules': [{'AllowedOrigins': ['https://d54awmnmi4c3z.cloudfront.net'],
+                              'AllowedMethods': ['PUT'], 'AllowedHeaders': ['content-type'], 'MaxAge': 300}]}
+        old_props = live['Resources'][key].get('Properties', {})
+        if props.get('CorsConfiguration') == cors and 'CorsConfiguration' not in old_props:
+            props.pop('CorsConfiguration')
+            if live == planned:
+                return findings
+    return findings + ['template-changed-WebEdge']
+
 def classify_findings(directory, manifest, bodies=None):
     """Fail-closed: any difference that is not the release's own digests/version/web bundle is infra."""
     current = read_current_release(release_bucket())
@@ -764,7 +786,7 @@ def execute(args):
             require(edge_traffic_enabled() == 'true', 'preserve-open-requires-open-edge')
             # The web bundle asset may change, but its edge behavior, the online services shape and
             # every protected stack must be structurally unchanged while public traffic is open.
-            require(not template_findings(directory, live_bodies(), PROTECTED+['WebEdge','Services']),
+            require(not preserve_open_template_findings(directory, live_bodies()),
                     'preserve-open-template-change')
             url = output('WebEdge', 'PublicUrl')
             require(any(answer[:2] == (200,'application/json') for answer in

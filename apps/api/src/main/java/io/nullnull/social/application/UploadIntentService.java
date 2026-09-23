@@ -1,14 +1,18 @@
 package io.nullnull.social.application;
 
+import io.nullnull.identity.application.IdempotencyGuard;
+import io.nullnull.identity.domain.RequestFingerprint;
 import io.nullnull.social.application.ObjectStorage.PresignedUpload;
 import io.nullnull.social.domain.UploadIntent;
 import io.nullnull.social.domain.UploadIntentStatus;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Signs one upload at a time and remembers that it did.
@@ -22,25 +26,32 @@ import org.springframework.transaction.annotation.Transactional;
 public class UploadIntentService {
 
     private static final Pattern SHA256_HEX = Pattern.compile("^[0-9a-f]{64}$");
+    private static final String CREATE_ROUTE = "POST /posts/images/uploads";
+    private static final Duration PRESIGN_BOUND = Duration.ofSeconds(30);
 
     private final UploadIntentStore store;
     private final ObjectStorage storage;
     private final UploadProperties properties;
     private final Clock clock;
+    private final IdempotencyGuard idempotency;
+    private final ObjectMapper json;
 
     public UploadIntentService(UploadIntentStore store, ObjectStorage storage,
-            UploadProperties properties, Clock clock) {
+            UploadProperties properties, Clock clock, IdempotencyGuard idempotency,
+            ObjectMapper json) {
         this.store = store;
         this.storage = storage;
         this.properties = properties;
         this.clock = clock;
+        this.idempotency = idempotency;
+        this.json = json;
     }
 
     /**
      * @throws UploadRejectedException for every refusal, with the reason the API layer maps
      */
-    @Transactional
-    public IssuedUpload issue(UUID ownerId, String contentType, long contentLength,
+    public IssuedUpload issue(UUID ownerId, String idempotencyKey, String contentType,
+            long contentLength,
             String checksumSha256) {
         if (!properties.accepts(contentType)) {
             throw new UploadRejectedException(UploadRejection.UNSUPPORTED_CONTENT_TYPE);
@@ -59,6 +70,24 @@ public class UploadIntentService {
             throw new UploadRejectedException(UploadRejection.MALFORMED_CHECKSUM);
         }
 
+        String fingerprint = RequestFingerprint.of("createPostImageUpload", Map.of(),
+                json.writeValueAsString(new UploadPayload(contentType, contentLength, checksumSha256)))
+                .sha256Hex();
+        IdempotencyGuard.GuardedResponse guarded = idempotency.execute(ownerId, CREATE_ROUTE,
+                idempotencyKey, fingerprint,
+                new IdempotencyGuard.Prelude<>(PRESIGN_BOUND,
+                        () -> prepare(ownerId, contentType, contentLength, checksumSha256)),
+                prepared -> {
+                    store.insert(prepared.intent());
+                    return new IdempotencyGuard.CommandOutcome<>(201,
+                            new IssuedUpload(prepared.intent().id(), prepared.presigned()));
+                },
+                value -> value);
+        return json.readValue(guarded.body(), IssuedUpload.class);
+    }
+
+    private PreparedUpload prepare(UUID ownerId, String contentType, long contentLength,
+            String checksumSha256) {
         Instant now = clock.instant();
         UUID id = UUID.randomUUID();
         // The owner is in the key so that an object can be attributed without reading the database,
@@ -73,10 +102,14 @@ public class UploadIntentService {
         PresignedUpload presigned =
                 storage.presignQuarantinePut(key, contentType, contentLength, properties.presignTtl());
 
-        store.insert(new UploadIntent(id, ownerId, UploadIntentStatus.PENDING, contentType,
-                contentLength, checksumSha256, key, now, expiresAt, null));
-        return new IssuedUpload(id, presigned);
+        UploadIntent intent = new UploadIntent(id, ownerId, UploadIntentStatus.PENDING, contentType,
+                contentLength, checksumSha256, key, now, expiresAt, null);
+        return new PreparedUpload(intent, presigned);
     }
+
+    private record UploadPayload(String contentType, long contentLength, String checksumSha256) {}
+
+    private record PreparedUpload(UploadIntent intent, PresignedUpload presigned) {}
 
     /** What the caller needs to perform the upload, and the id it hands back afterwards. */
     public record IssuedUpload(UUID uploadId, PresignedUpload upload) {}

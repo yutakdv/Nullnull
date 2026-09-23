@@ -2,6 +2,7 @@ import { type RouteObject } from 'react-router';
 import { AppShell } from './AppShell.js';
 import { NotFoundScreen } from './NotFoundScreen.js';
 import { FeedScreen } from './feed/FeedScreen.js';
+import { PostCreateScreen } from './post/PostCreateScreen.js';
 import { PostScreen } from './post/PostScreen.js';
 import { OptimizeSetupScreen } from './optimize/OptimizeSetupScreen.js';
 import { OptimizationRunScreen } from './optimize/OptimizationRunScreen.js';
@@ -64,6 +65,7 @@ export const routes: RouteObject[] = [
       // URL — MOSTLY_PLANNED routes here, and the CTA offers it directly.
       { path: 'start/import', element: <ImportPasteScreen /> },
       // Sub-pages reached by a back control, so they carry a NavBar instead.
+      { path: 'posts/new', element: <PostCreateScreen /> },
       { path: 'posts/:postId', element: <PostScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
       { path: 'trip/:tripId/add-place', element: <AddPlaceScreen /> },

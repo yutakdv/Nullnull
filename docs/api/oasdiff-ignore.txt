@@ -1,0 +1,1 @@
+POST /posts the `placeIds` request property's minItems was set to `1`

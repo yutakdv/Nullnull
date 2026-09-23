@@ -1,5 +1,6 @@
 package io.nullnull.social.infrastructure.storage;
 
+import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -27,10 +28,18 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 @ConditionalOnProperty("nullnull.upload.s3.bucket")
 public class S3StorageConfiguration {
 
+    // PostAuthoringService has a two-minute prelude lease. Its three S3 operations must each
+    // terminate within this bound so a same-key retry cannot take over while one is still running.
+    static final Duration S3_CALL_TIMEOUT = Duration.ofSeconds(30);
+    static final Duration S3_ATTEMPT_TIMEOUT = Duration.ofSeconds(10);
+
     @Bean
     @ConditionalOnMissingBean
     public S3Client s3Client(S3StorageProperties properties) {
-        return S3Client.builder().region(Region.of(properties.region())).build();
+        return S3Client.builder().region(Region.of(properties.region()))
+                .overrideConfiguration(config -> config.apiCallTimeout(S3_CALL_TIMEOUT)
+                        .apiCallAttemptTimeout(S3_ATTEMPT_TIMEOUT))
+                .build();
     }
 
     @Bean
