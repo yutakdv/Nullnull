@@ -872,6 +872,14 @@ export function createStacks(
     allowedPattern: "^([a-f0-9]{64})?$",
   });
   const webBucket = bucket(web, "WebBucket");
+  // Presigned quarantine uploads come directly from this browser origin to S3.
+  // A literal avoids a bucket -> distribution -> bucket dependency cycle.
+  webBucket.addCorsRule({
+    allowedOrigins: ["https://d54awmnmi4c3z.cloudfront.net"],
+    allowedMethods: [s3.HttpMethods.PUT],
+    allowedHeaders: ["content-type"],
+    maxAge: 300,
+  });
   const spa = new cf.Function(web, "SpaRewrite", {
     functionName: "nullnull-stg-spa-rewrite",
     code: cf.FunctionCode.fromInline(
