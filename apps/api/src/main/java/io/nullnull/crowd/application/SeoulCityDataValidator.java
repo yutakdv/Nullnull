@@ -50,7 +50,14 @@ public final class SeoulCityDataValidator {
             return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
         }
         JsonNode result = root.path("RESULT");
-        if (!"INFO-000".equals(text(result, "CODE"))) {
+        // Citydata success responses use the literal key "RESULT.CODE" inside RESULT.
+        // Keep the plain CODE error/legacy envelope, but never let one alias hide an error
+        // or a malformed value in the other.
+        boolean hasCode = result.has("CODE");
+        boolean hasDottedCode = result.has("RESULT.CODE");
+        if ((!hasCode && !hasDottedCode)
+                || (hasCode && !"INFO-000".equals(text(result, "CODE")))
+                || (hasDottedCode && !"INFO-000".equals(text(result, "RESULT.CODE")))) {
             return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
         }
         JsonNode city = root.path("CITYDATA");

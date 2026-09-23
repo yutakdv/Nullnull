@@ -916,9 +916,30 @@ def read_dotenv(path):
     return values
 
 def provision_secrets(args):
-    """Put the KTO key from the owner's ignored apps/api/.env.local. The value never reaches argv or stdout."""
+    """Put the selected key from ignored apps/api/.env.local without printing it or changing proxy tokens."""
     require(auth_mode() == 'profile', 'secret-provisioning-is-local-only')
     identity(os.environ.get('NULLNULL_AWS_ACCOUNT_ID', ''))
+    if getattr(args, 'seoul', False):
+        key = read_dotenv(ROOT/'apps/api/.env.local').get('SEOUL_API_KEY', '')
+        require(8 <= len(key) <= 512 and not re.search(r'\s', key), 'local-seoul-key-missing-or-malformed')
+        secret_id = 'nullnull-stg/seoul-proxy'
+        raw = aws('secretsmanager', 'get-secret-value', SecretId=secret_id).get('SecretString')
+        require(isinstance(raw, str), 'seoul-secret-invalid')
+        try:
+            current = json.loads(raw)
+        except ValueError:
+            raise OpsError('seoul-secret-invalid') from None
+        require(isinstance(current, dict) and isinstance(current.get('apiKey'), str)
+                and isinstance(current.get('proxyToken'), str) and bool(current['proxyToken'])
+                and not re.search(r'\s', current['proxyToken']), 'seoul-secret-invalid')
+        changed = current['apiKey'] != key
+        if changed:
+            # ECS reads proxyToken only at task startup. Replacing it here would break the running API.
+            current['apiKey'] = key
+            aws('secretsmanager', 'put-secret-value', SecretId=secret_id, SecretString=json.dumps(current),
+                ClientRequestToken=str(uuid.uuid4()))
+        print(f'seoul_secret=provisioned changed={str(changed).lower()} value_printed=false')
+        return
     key = read_dotenv(ROOT/'apps/api/.env.local').get('KTO_SERVICE_KEY', '')
     require(8 <= len(key) <= 512 and not re.search(r'\s', key), 'local-kto-key-missing-or-malformed')
     current = aws('secretsmanager', 'get-secret-value', SecretId=KTO_SECRET).get('SecretString')
@@ -1616,6 +1637,7 @@ def main():
     parser.add_argument('action',choices=['deploy','rollback','bootstrap','classify','secrets','task','unlock','edge',
                                           'secret-scan'])
     parser.add_argument('--state',choices=sorted(EDGE_STATES))
+    parser.add_argument('--seoul',action='store_true',help='secrets only: update Seoul apiKey, preserving proxyToken')
     parser.add_argument('--manifest');parser.add_argument('--web-dir');parser.add_argument('--plan')
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--approved-plan-sha256','--approved-diff-sha256',dest='approved_plan_sha256')
@@ -1632,6 +1654,7 @@ def main():
     args=parser.parse_args()
     os.umask(0o077)
     try:
+        require(not args.seoul or args.action == 'secrets', 'seoul-option-requires-secrets')
         if args.action=='classify': classify(args)
         elif args.action=='secrets': provision_secrets(args)
         elif args.action=='task': ops_task(args)

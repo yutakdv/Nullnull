@@ -66,6 +66,38 @@ describe('FE-201-T2 FE-202-T2 DataAttribution (FCR-011 trace)', () => {
 });
 
 describe('CrowdLevel', () => {
+  it('uses four bars and Seoul wording for a Seoul observation', () => {
+    render(
+      <CrowdLevel
+        crowd={{
+          state: 'LIVE',
+          label: 'diagnostic',
+          ordinalLevel: '3',
+          value: null,
+          unit: null,
+          provenance: { source: 'SEOUL_CITYDATA' } as never,
+        }}
+      />,
+    );
+    expect(screen.getByRole('img', { name: '4단계 중 3번째' }).children).toHaveLength(4);
+    expect(screen.getByText('3 · 약간 붐빔')).toBeInTheDocument();
+  });
+  it('does not render a nonexistent fifth Seoul stage', () => {
+    render(
+      <CrowdLevel
+        crowd={{
+          state: 'LIVE',
+          label: 'diagnostic',
+          ordinalLevel: '5',
+          value: null,
+          unit: null,
+          provenance: { source: 'SEOUL_CITYDATA' } as never,
+        }}
+      />,
+    );
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
   it('takes its wording from the caller when given', () => {
     // How the app localizes it: the Korean defaults stay for Storybook, and
     // the screen passes the selected locale's words in.

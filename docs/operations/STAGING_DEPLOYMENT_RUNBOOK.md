@@ -103,6 +103,7 @@ CDK v2 TypeScript 구현은 stateful replacement와 배포 순서를 분리하�
 | `NullnullStgServices` | api/ai task definition과 service | `ApiServiceName`, `AiServiceName`, `InternalAlbArn` |
 | `NullnullStgWebEdge` | private S3, OAC, CloudFront VPC origin(HTTP:80), WAF, API gate | `PublicUrl`, `DistributionId`, `WebBucketName` |
 | `NullnullStgObservability` | alarms, `ops.alarm`·예보 metric filter, SNS(Budget 없음 — 조직 SCP가 `budgets:*`를 거부) | `AlarmTopicArn` |
+| `NullnullStgCloudFrontAccessLogs` (us-east-1, 별도 stack) | CloudFront standard logging v2 delivery와 전용 CloudWatch Logs group | `LogGroupName`, `DeliveryId` |
 
 release digest를 담는 것은 `Migration`·`WebEdge`·`Services`뿐이다. 보호 stack(`Foundation`·`Network`·`Data`·`Platform`·`GlobalWaf`·`Observability`)의 template이 바뀌거나 migration 목록이 바뀌면 infra 변경으로 분류되어 `staging-infra` 승인 경로를 탄다.
 
@@ -140,6 +141,14 @@ WAF는 CloudFront에 연결한다.
 - KTO 탐색/붙여넣기/optimizer 정상 요청이 차단되지 않는 항목만 BLOCK으로 승격한다.
 - edge 429가 OpenAPI의 `Problem` shape가 아니면 client 재시도 계약과 맞지 않으므로 BA-073 제출 동선에서는 오탐 방지 한도를 우선한다.
 
+### CloudFront 접근 로그
+
+`infra/src/access-logs.ts`는 별도 us-east-1 stack으로 기존 distribution에 standard logging v2를 연결한다. `WebEdge`의 origin·behavior·API gate를 업데이트하지 않는다. `DistributionId`에는 `WebEdge` output의 실제 값을 넘긴다. `infra`에서 `npm run synth:access-logs -- -c account=<AWS 계정 ID>`로 전용 template을 만든 뒤 `NullnullStgCloudFrontAccessLogs`에 대한 CloudFormation change set이 로그 그룹·delivery source·destination·delivery **추가 네 건만** 포함하는지 확인하고 실행한다. 앱 release 배포 절차와 별개다.
+
+전용 log group `NullnullStgCloudFrontAccessLogs`는 30일 보존한다. JSON 필드는 UTC 시각, edge, viewer IP, 국가/ASN, method, host, URI 경로, status, bytes, user-agent, cache 결과, request ID와 latency로 제한한다. `cs-uri-query`, `cs(Cookie)`, `cs(Referer)`, `x-forwarded-for`는 수집하지 않는다. 로그의 IP를 실제 사람·로그인 사용자와 동일시하지 않는다. 공개 issue/PR에는 원문 IP·user-agent·경로 식별자를 넣지 않고 `python3 scripts/aws/cloudfront_access_report.py --profile <읽기 가능한 profile> --hours 24`의 집계만 사용한다. 이 집계에서 운영 시험 경로는 별도로 센다.
+
+적용 확인은 `aws logs describe-deliveries --region us-east-1`, `describe-log-groups`, 공개 URL의 200 응답, 실제 log stream/event 순서다. 기존 legacy logging이 꺼져 있었던 기간의 개별 요청은 복원할 수 없다. CloudFront의 과거 `Requests` metric은 요청 총량만 알려 준다. 표준 로그는 best effort이고 새 설정의 안정적 전달까지 약 4시간, 일부 항목은 최대 24시간 지연될 수 있으므로 로그 수를 방문자 총계로 사용하지 않는다. 운영 종료 때 delivery → source/destination → log group 순서로 정리하되, 필요한 감사 보존 기간과 #307 종료 절차를 먼저 대조한다.
+
 ## 6. IAM, OIDC와 secret
 
 계정은 하나지만 역할은 책임별로 나눈다.
@@ -176,13 +185,13 @@ main에 들어간 코드는 `staging` environment로 deploy role을 쓸 수 있�
 
 Secrets Manager에는 최소 DB credential, `KTO_SERVICE_KEY`, `NULLNULL_CURSOR_SECRET`, `NULLNULL_DELETION_TOKEN_SECRET`, 서울 proxy secret(`nullnull-stg/seoul-proxy`)을 둔다. secret 값은 CDK context, task environment, frontend `VITE_*`, release manifest, image layer, log와 GitHub artifact에 들어가지 않는다.
 
-**서울 proxy secret에 키를 넣는 경로는 콘솔 하나다**([#334](https://github.com/yutakdv/Nullnull/issues/334)). 이 secret은 한 hop에 속한 두 값을 JSON 한 벌로 든다. `apiKey`는 오너가 넣는 서울 열린데이터 인증키이고, `proxyToken`은 CDK가 생성해 API task가 proxy에 제시하는 값이다. `infra/src/staging.ts`가 `apiKey: ""`로 만들고 operator의 `secrets` 명령(`provision_secrets()`)은 KTO 키만 다루므로, 채우는 경로가 따로 없었다.
+**서울 proxy secret은 `secrets --seoul` 또는 콘솔에서 갱신한다**([#334](https://github.com/yutakdv/Nullnull/issues/334)). 이 secret은 한 hop에 속한 두 값을 JSON 한 벌로 든다. `apiKey`는 오너가 넣는 서울 열린데이터 인증키이고, `proxyToken`은 CDK가 생성해 API task가 proxy에 제시하는 값이다. `infra/src/staging.ts`가 `apiKey: ""`로 만들고 기존 operator의 `secrets` 명령은 KTO 키만 다뤘다. 이제 명시적 `--seoul` 옵션은 ignored `apps/api/.env.local`의 `SEOUL_API_KEY`를 읽고 JSON의 `apiKey`만 갱신한다. 기존 `proxyToken`과 다른 필드는 보존하고 동일 키는 재기록하지 않는다. 이 secret의 Get/Put 권한이 필요하며 현재 operator IAM 템플릿에는 그 권한이 없다. 인증 성공만으로 실행 권한이 생기지 않는다.
 
 1. Secrets Manager 콘솔(서울 region)에서 `nullnull-stg/seoul-proxy`를 연다 → **Retrieve secret value** → **Edit**.
 2. Key/value 보기에서 **`apiKey`의 값만** 바꾸고 `proxyToken`은 그대로 둔 채 저장한다.
-3. 반영은 최대 5분 뒤다. proxy Lambda가 secret을 5분(`TTL_MS = 300000`) 캐시한다. 다음 5분 수집의 API 로그에서 `seoul_live_collect_failed`가 멈추는지 본다. 이전 수집이 이미 source를 격리했다면 키를 넣어도 수집이 시작되지 않으므로, ops task `release-source-quarantine`으로 먼저 푼다.
+3. 반영은 최대 5분 뒤다. proxy Lambda가 secret을 5분(`TTL_MS = 300000`) 캐시한다. 다음 5분 수집의 API 로그에서 `seoul_live_collect_failed`가 멈추는지 본다. 이전 수집이 이미 source를 격리했다면 키를 넣어도 수집이 시작되지 않으므로, 정상 제공자 응답과 validator 수정을 검증한 뒤 ops task `release-source-quarantine`으로 푼다. 해제 후 수동 수집과 다음 자동 수집을 확인한다.
 
-**KTO 키처럼 문자열 통째로 넣지 않는다.** `put-secret-value --secret-string <키>` 모양은 JSON을 덮어 `proxyToken`을 지운다. 그러면 proxy가 `seoul_proxy_secret_incomplete`로 모든 요청을 거절하고, 고치려던 hop을 고치는 명령이 부순다. CLI 절차를 적지 않은 것은 이 때문이고, 키 값이 셸 history를 지나가지 않게 하려는 이유도 있다. **`proxyToken`은 바꾸지 않는다.** API task는 task 시작 시 ECS secret 주입으로 그 값을 읽으므로, 바꾸면 API를 다시 배포할 때까지 proxy가 API를 거절한다.
+**KTO 키처럼 문자열 통째로 넣지 않는다.** `put-secret-value --secret-string <키>` 모양은 JSON을 덮어 `proxyToken`을 지운다. 그러면 proxy가 `seoul_proxy_secret_incomplete`로 모든 요청을 거절하고, 고치려던 hop을 고치는 명령이 부순다. `secrets --seoul`은 키를 명령 인자로 받지 않고 로컬 파일에서 읽어 이 문제를 피한다. **`proxyToken`은 바꾸지 않는다.** API task는 task 시작 시 ECS secret 주입으로 그 값을 읽으므로, 바꾸면 API를 다시 배포할 때까지 proxy가 API를 거절한다.
 
 ## 7. Immutable release와 migration
 

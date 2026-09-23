@@ -261,11 +261,14 @@ export function ScheduleCandidateSheet({
             time inside the sheet puts the same sentence on screen twice — a
             screen reader reads both, and a test asking "does it say NONE?"
             matches two nodes and cannot tell which one it measured.
-            What the sheet owes this state is the absence of dates, which is
-            what it shows: no list, and the footnote still explains the rule. */}
+            What the sheet owes these states is the absence of dates. NOT_ACTIVE
+            instead explains that the candidate changed: the card badge is
+            outside the modal and cannot be read while it is open. */}
         {undecided && !loading && !failed ? (
           <p className={styles.state} role="status">
-            {t('candidates.sheet.noDates')}
+            {match?.state === 'NOT_ACTIVE'
+              ? t('candidates.match.NOT_ACTIVE')
+              : t('candidates.sheet.noDates')}
           </p>
         ) : null}
 

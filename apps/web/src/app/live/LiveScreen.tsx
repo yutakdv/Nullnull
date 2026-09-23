@@ -1,12 +1,14 @@
 import type { components } from '@nullnull/api-client';
-import { useCallback, useState } from 'react';
-import { Link } from 'react-router';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import { onlineManager } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import {
   useLiveAreaPlaces,
   useLiveAreas,
   usePlaceSearch,
+  usePlaceDetail,
 } from '../../shared/api/index.js';
 import {
   Chip,
@@ -17,6 +19,9 @@ import {
   type SourceState,
 } from '../../shared/ui/index.js';
 import styles from './LiveScreen.module.css';
+import { KakaoLiveMap } from './KakaoLiveMap.js';
+
+const EMPTY_AREAS: components['schemas']['LiveArea'][] = [];
 
 const STATES: SourceState[] = [
   'LIVE',
@@ -31,9 +36,16 @@ type CrowdMetric = components['schemas']['CrowdMetric'];
 
 export function LiveScreen() {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const areas = useLiveAreas();
+  const online = useSyncExternalStore(
+    (notify) => onlineManager.subscribe(notify),
+    () => onlineManager.isOnline(),
+  );
   const [query, setQuery] = useState('');
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const selectedPlace = usePlaceDetail(selectedPlaceId);
   const places = useLiveAreaPlaces(selectedAreaId);
   const search = usePlaceSearch(query);
   const stateLabels = Object.fromEntries(
@@ -57,6 +69,12 @@ export function LiveScreen() {
   const selectArea = useCallback((areaId: string) => {
     setSelectedAreaId((current) => (current === areaId ? null : areaId));
   }, []);
+  const openPlace = useCallback(
+    (placeId: string) => {
+      void navigate(`/live/places/${placeId}`);
+    },
+    [navigate],
+  );
   const selectedArea = areas.data?.areas.find((area) => area.id === selectedAreaId);
   const observedAt = areas.data?.areas.find((area) => area.crowd)?.crowd?.provenance
     .observedAt;
@@ -103,6 +121,14 @@ export function LiveScreen() {
                       <span>{place.name}</span>
                       <span>{place.regionName ?? place.address ?? ''}</span>
                     </Link>
+                    <button
+                      aria-pressed={selectedPlaceId === place.id}
+                      className={styles.showOnMap}
+                      onClick={() => setSelectedPlaceId(place.id)}
+                      type="button"
+                    >
+                      {t('live.searchShowOnMap', { name: place.name })}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -110,6 +136,27 @@ export function LiveScreen() {
           </div>
         ) : null}
       </header>
+
+      <div className={styles.mapPanel}>
+        <div className={styles.mapViewport}>
+          <KakaoLiveMap
+            areas={areas.data?.areas ?? EMPTY_AREAS}
+            label={t('live.map.label')}
+            onOpenPlace={openPlace}
+            onSelectArea={selectArea}
+            selectedPlace={selectedPlace.data ?? null}
+            unavailableDetail={t('live.map.unavailableDetail')}
+            unavailableTitle={t('live.map.unavailableTitle')}
+          />
+        </div>
+        {selectedPlaceId && selectedPlace.isPending ? (
+          <p role="status">{t('live.detail.loading')}</p>
+        ) : null}
+        {selectedPlace.isError ? <p role="alert">{t('live.map.placeError')}</p> : null}
+        {selectedPlace.data?.sourceAttribution ? (
+          <DataAttribution compact provenance={selectedPlace.data.sourceAttribution} />
+        ) : null}
+      </div>
 
       <section aria-label={t('live.sheet.title')} className={styles.listPanel}>
         <div className={styles.sheetBody}>
@@ -158,7 +205,17 @@ export function LiveScreen() {
             <Chip label={t('live.filters.all')} selected size="sm" />
           </div>
 
-          {areas.isPending ? (
+          {!online ? (
+            <p role="status" className={styles.stateCard}>
+              {t('live.offline')}
+            </p>
+          ) : null}
+          {online && areas.isRefetching ? (
+            <p role="status" className={styles.stateCard}>
+              {t('live.refreshing')}
+            </p>
+          ) : null}
+          {online && areas.isPending ? (
             <div className={styles.stateCard} role="status">
               <strong>{t('live.loading')}</strong>
               <span>{t('live.loadingNote')}</span>
@@ -167,8 +224,12 @@ export function LiveScreen() {
 
           {areas.isError ? (
             <div className={styles.stateCard} role="alert">
-              <strong>{t('live.error')}</strong>
-              <button onClick={() => void areas.refetch()} type="button">
+              <strong>{t(areas.data ? 'live.refreshError' : 'live.error')}</strong>
+              <button
+                disabled={!online || areas.isFetching}
+                onClick={() => void areas.refetch()}
+                type="button"
+              >
                 {t('live.retry')}
               </button>
             </div>
@@ -194,6 +255,9 @@ export function LiveScreen() {
                     />
                     <span aria-hidden="true">›</span>
                   </button>
+                  {area.crowd ? (
+                    <DataAttribution compact provenance={area.crowd.provenance} />
+                  ) : null}
 
                   {selectedAreaId === area.id ? (
                     <div className={styles.placePanel}>
@@ -229,6 +293,20 @@ export function LiveScreen() {
                                 />
                                 <span aria-hidden="true">›</span>
                               </Link>
+                              <button
+                                aria-pressed={selectedPlaceId === item.place.id}
+                                className={styles.showOnMap}
+                                onClick={() => setSelectedPlaceId(item.place.id)}
+                                type="button"
+                              >
+                                {t('live.searchShowOnMap', { name: item.place.name })}
+                              </button>
+                              {item.place.sourceAttribution ? (
+                                <DataAttribution
+                                  compact
+                                  provenance={item.place.sourceAttribution}
+                                />
+                              ) : null}
                               {item.crowd ? (
                                 <DataAttribution
                                   compact

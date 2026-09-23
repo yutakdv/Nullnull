@@ -62,6 +62,8 @@ export default defineConfig({
           // fail loudly, but any probe that only measures layout would "pass"
           // while measuring nothing.
           command: 'npm run dev:mock -- --host 127.0.0.1',
+          // The mock suite replaces/blocks the SDK; never inherit a real local key.
+          env: { VITE_KAKAO_MAP_APP_KEY: 'e2e-test-key' },
           url: 'http://127.0.0.1:5173',
           reuseExistingServer: !process.env.CI,
         },

@@ -17,6 +17,13 @@ const LEVEL_LABELS: Record<CrowdOrdinal, string> = {
   5: '매우 혼잡',
 };
 
+const SEOUL_LEVEL_LABELS: Partial<Record<CrowdOrdinal, string>> = {
+  1: '여유',
+  2: '보통',
+  3: '약간 붐빔',
+  4: '붐빔',
+};
+
 export interface CrowdLevelProps {
   crowd: CrowdMetric | null;
   /** Unavailable data must say so rather than rendering an empty bar. */
@@ -52,9 +59,12 @@ export function CrowdLevel({
     );
   }
 
-  // The contract uses a 1..5 ordinal scale. Values outside it draw no bar
-  // rather than being clamped into a different crowd level.
-  const level = /^[1-5]$/.test(crowd.ordinalLevel ?? '')
+  // Seoul reports four stages; the generic contract also serves five-stage
+  // forecasts. Never invent a fifth Seoul stage or clamp malformed readings.
+  const seoul = crowd.provenance.source === 'SEOUL_CITYDATA';
+  const steps = seoul ? 4 : CROWD_LEVEL_STEPS;
+  const validLevel = seoul ? /^[1-4]$/ : /^[1-5]$/;
+  const level = validLevel.test(crowd.ordinalLevel ?? '')
     ? (Number(crowd.ordinalLevel) as CrowdOrdinal)
     : null;
 
@@ -63,11 +73,11 @@ export function CrowdLevel({
       {level === null ? null : (
         <>
           <span
-            aria-label={levelLabel ?? `${CROWD_LEVEL_STEPS}단계 중 ${level}번째`}
+            aria-label={levelLabel ?? `${steps}단계 중 ${level}번째`}
             className={styles.bar}
             role="img"
           >
-            {Array.from({ length: CROWD_LEVEL_STEPS }, (_, i) => (
+            {Array.from({ length: steps }, (_, i) => (
               <span
                 key={i}
                 className={styles.step}
@@ -76,7 +86,9 @@ export function CrowdLevel({
             ))}
           </span>
           <span className={styles.levelText}>
-            {level} · {levelLabels?.[level] ?? LEVEL_LABELS[level]}
+            {level} ·{' '}
+            {levelLabels?.[level] ??
+              (seoul ? SEOUL_LEVEL_LABELS[level] : LEVEL_LABELS[level])}
           </span>
         </>
       )}

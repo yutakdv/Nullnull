@@ -55,6 +55,30 @@ class SeoulCityDataValidatorTest {
     }
 
     @Test
+    @DisplayName("서울 실제 citydata 응답의 RESULT.CODE 성공 필드를 읽는다")
+    void dottedResultCodeIsAccepted() {
+        // Field names observed from the provider on 2026-09-22. Keep only our synthetic
+        // population fixture, without retaining the provider's news or other content.
+        String body = normal().replace("\"CODE\":", "\"RESULT.CODE\":")
+                .replace("\"MESSAGE\":", "\"RESULT.MESSAGE\":");
+        assertThat(validate(body).accepted()).isTrue();
+        assertThat(validate(body).observation()).isEqualTo(validate(normal()).observation());
+    }
+
+    @Test
+    @DisplayName("서울 성공 코드 별칭이 오류와 충돌하면 관측을 만들지 않는다")
+    void conflictingResultCodesAreRefused() {
+        for (String fields : List.of(
+                "\"CODE\":\"INFO-000\",\"RESULT.CODE\":\"ERROR-500\"",
+                "\"CODE\":\"ERROR-500\",\"RESULT.CODE\":\"INFO-000\"",
+                "\"RESULT.CODE\":\"ERROR-500\"")) {
+            var validation = validate(normal().replace("\"CODE\":\"INFO-000\"", fields));
+            assertThat(validation.accepted()).isFalse();
+            assertThat(validation.observation()).isNull();
+        }
+    }
+
+    @Test
     @DisplayName("BA-090-T6 관측 시각은 제공자의 offset 없는 시각을 KST 로 읽은 것이다")
     void wallClockIsReadAsSeoulTime() {
         SeoulLiveAreaObservation observation = validate(normal()).observation();
