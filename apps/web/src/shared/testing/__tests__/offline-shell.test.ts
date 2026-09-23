@@ -32,7 +32,9 @@ describe('FE-004-T1 the offline shell never caches API data', () => {
     respondWith: (response: unknown) => void;
   }
 
-  function runFetchHandler(request: FetchEvent['request']): { responded: boolean } {
+  function runFetchHandler(request: FetchEvent['request']) {
+    let fetchOptions: RequestInit | undefined;
+    let cacheReads = 0;
     const listeners: Record<string, (event: unknown) => void> = {};
     const scope = {
       addEventListener: (type: string, handler: (event: unknown) => void) => {
@@ -45,10 +47,16 @@ describe('FE-004-T1 the offline shell never caches API data', () => {
         open: () =>
           Promise.resolve({ add: () => Promise.resolve(), put: () => undefined }),
         keys: () => Promise.resolve([]),
-        match: () => Promise.resolve(undefined),
+        match: () => {
+          cacheReads += 1;
+          return Promise.resolve(undefined);
+        },
         delete: () => Promise.resolve(true),
       },
-      fetch: () => Promise.resolve(new Response('')),
+      fetch: (_request: unknown, options?: RequestInit) => {
+        fetchOptions = options;
+        return Promise.resolve(new Response(''));
+      },
       Response,
       URL,
       Promise,
@@ -68,7 +76,7 @@ describe('FE-004-T1 the offline shell never caches API data', () => {
         responded = true;
       },
     });
-    return { responded };
+    return { responded, fetchOptions, cacheReads };
   }
 
   it('does not answer API requests, so a cached body can never be served', () => {
@@ -78,6 +86,17 @@ describe('FE-004-T1 the offline shell never caches API data', () => {
       mode: 'cors',
     });
     expect(responded).toBe(false);
+  });
+
+  it('bypasses both worker and browser caches for user covers', () => {
+    const result = runFetchHandler({
+      method: 'GET',
+      url: 'https://nullnull.test/covers/user/old.jpg',
+      mode: 'cors',
+    });
+    expect(result.responded).toBe(true);
+    expect(result.cacheReads).toBe(0);
+    expect(result.fetchOptions?.cache).toBe('no-store');
   });
 
   it('does answer same-origin asset requests', () => {
@@ -105,6 +124,36 @@ describe('FE-004-T1 the offline shell never caches API data', () => {
       mode: 'cors',
     });
     expect(responded).toBe(false);
+  });
+
+  it('removes the old shell cache containing user covers on activation', async () => {
+    const deleted: string[] = [];
+    const listeners: Record<
+      string,
+      (event: { waitUntil: (work: Promise<unknown>) => void }) => void
+    > = {};
+    const scope = {
+      addEventListener: (name: string, listener: (typeof listeners)[string]) => {
+        listeners[name] = listener;
+      },
+      clients: { claim: () => undefined },
+    };
+    const cacheStore = {
+      keys: async () => ['nullnull-shell-v1', 'nullnull-shell-v2'],
+      delete: async (name: string) => {
+        deleted.push(name);
+        return true;
+      },
+    };
+    new Function('self', 'caches', worker)(scope, cacheStore);
+    let work: Promise<unknown> | undefined;
+    listeners.activate?.({
+      waitUntil: (promise) => {
+        work = promise;
+      },
+    });
+    await work;
+    expect(deleted).toEqual(['nullnull-shell-v1']);
   });
 
   it('precaches no API path', () => {

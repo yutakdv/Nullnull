@@ -13,7 +13,8 @@
 // the app from showing the browser's error page. The screen then renders its own
 // offline state from a failed query, which is the state the app can explain.
 
-const VERSION = 'v1';
+// v2 drops old cache-first copies of user covers when this worker activates.
+const VERSION = 'v2';
 const SHELL_CACHE = `nullnull-shell-${VERSION}`;
 
 // Only the entry document is precached. Hashed assets are added as they are
@@ -58,6 +59,13 @@ self.addEventListener('fetch', (event) => {
 
   // API traffic is never cached and never served from cache. See the note above.
   if (isApiRequest(url)) return;
+
+  // Uploaded covers can be withdrawn. Neither this worker nor the browser's
+  // HTTP cache may keep serving an old copy after the server removes it.
+  if (url.pathname.startsWith('/covers/user/')) {
+    event.respondWith(fetch(request, { cache: 'no-store' }));
+    return;
+  }
 
   if (request.mode === 'navigate') {
     event.respondWith(
