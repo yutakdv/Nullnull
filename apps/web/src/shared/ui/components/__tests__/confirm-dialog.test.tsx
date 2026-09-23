@@ -295,9 +295,16 @@ describe('ConfirmDialog restores focus when its own container unmounts', () => {
       expect(document.activeElement?.tagName).toBe('MAIN');
     });
 
-    // The landmark is focusable only for the moment it is needed: a tabindex
-    // left behind would put a stop in every screen's tab order.
-    expect(document.querySelector('main')?.hasAttribute('tabindex')).toBe(false);
+    // Chromium drops focus back to <body> if tabindex is removed while <main>
+    // is still focused. Keep it programmatically focusable until focus leaves,
+    // then restore the page's original markup.
+    const main = document.querySelector('main');
+    expect(main?.hasAttribute('tabindex')).toBe(true);
+    const next = document.createElement('button');
+    document.body.append(next);
+    next.focus();
+    expect(main?.hasAttribute('tabindex')).toBe(false);
+    next.remove();
   });
 
   it('leaves focus on a node that is still in the page', async () => {

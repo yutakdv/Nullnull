@@ -40,10 +40,9 @@ export function canTakeFocus(element: HTMLElement): boolean {
  *
  * <main> keeps the traveller inside the page's content region rather than
  * dropping them on <body>, where the next Tab restarts at the top of the
- * document. It is made programmatically focusable only for the moment it is
- * needed: a permanent tabIndex on a container changes tab traversal for every
- * screen that mounts a dialog (profile.test.tsx and trip-screen.test.tsx both
- * went red when that was tried — measured).
+ * document. Its temporary tabindex must stay until focus leaves: Chromium
+ * blurs a focused <main> when tabindex is removed immediately after focus().
+ * Removing it on blur preserves the page's original tab order.
  */
 export function restoreFocusTo(target: HTMLElement | null): void {
   if (target !== null && canTakeFocus(target)) {
@@ -57,5 +56,10 @@ export function restoreFocusTo(target: HTMLElement | null): void {
   const hadTabIndex = main.hasAttribute('tabindex');
   if (!hadTabIndex) main.setAttribute('tabindex', '-1');
   main.focus();
-  if (!hadTabIndex) main.removeAttribute('tabindex');
+  if (hadTabIndex) return;
+  if (document.activeElement !== main) {
+    main.removeAttribute('tabindex');
+    return;
+  }
+  main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
 }
