@@ -18,7 +18,10 @@ import { overflow } from './overflow.js';
 test.use({ serviceWorkers: 'block' });
 
 const fixture = (path: string) =>
-  readFileSync(new URL(`../../../packages/contracts/fixtures/${path}`, import.meta.url), 'utf8');
+  readFileSync(
+    new URL(`../../../packages/contracts/fixtures/${path}`, import.meta.url),
+    'utf8',
+  );
 
 const AREA_RESULT = {
   LIVE: fixture('live/area-result-live.json'),
@@ -48,11 +51,15 @@ async function serve(page: Page, mode: keyof typeof AREA_RESULT): Promise<void> 
     const { pathname } = new URL(request.url());
     const json = (body: string) =>
       route.fulfill({ status: 200, contentType: 'application/json', body });
-    if (request.method() === 'POST' && pathname === '/api/v1/session/csrf') return json(CSRF);
+    if (request.method() === 'POST' && pathname === '/api/v1/session/csrf')
+      return json(CSRF);
     if (request.method() === 'POST' && pathname === '/api/v1/live/areas') {
       return json(AREA_RESULT[mode]);
     }
-    if (request.method() === 'GET' && /^\/api\/v1\/live\/areas\/[^/]+\/places$/.test(pathname)) {
+    if (
+      request.method() === 'GET' &&
+      /^\/api\/v1\/live\/areas\/[^/]+\/places$/.test(pathname)
+    ) {
       return json(AREA_PLACES);
     }
     return route.abort();
@@ -90,9 +97,9 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
 
         // The state stays in view at the end of a list that scrolls.
         const main = page.getByRole('main');
-        expect(await main.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
-          true,
-        );
+        expect(
+          await main.evaluate((element) => element.scrollHeight > element.clientHeight),
+        ).toBe(true);
         await main.evaluate((element) => {
           element.scrollTop = element.scrollHeight;
         });
