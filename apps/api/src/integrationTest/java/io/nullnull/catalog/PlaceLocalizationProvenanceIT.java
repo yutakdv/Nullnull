@@ -140,6 +140,44 @@ class PlaceLocalizationProvenanceIT {
     }
 
     @Test
+    @DisplayName("BA-086-T19 a localization withdrawn by the read gate does not surface through textProvenance "
+            + "either")
+    void withdrawnLocalizationLeavesNoTextProvenance() {
+        long disabledCurrent = currentRevision(DISABLED_SOURCE);
+        assertThat(isEnabled(DISABLED_SOURCE)).isFalse();
+
+        UUID place = activePlace();
+        // The Korean row is the only row carrying an address and a description, and the gate withdraws
+        // it. So address and description have no servable source at all: the values are null, and the
+        // provenance must be null with them. A provenance chosen from the withdrawn row would publish
+        // the locale and the credit of a source the gate had just refused - the credit of a disabled
+        // source, beside a field that is empty.
+        insertTextRow(place, "ko-KR", KOREAN_NAME, "널널 BA086 주소", "널널 BA086 설명",
+                new Provenance(DISABLED_SOURCE, disabledCurrent, "ko-KR"));
+        insertLocalization(place, "en-US", ENGLISH_NAME,
+                new Provenance(ENABLED_SOURCE, currentRevision(ENABLED_SOURCE), "en-US"));
+
+        CatalogPlaceQuery.CatalogPlaceDetail detail = places.find(place, "en-US", NOW).orElseThrow();
+        assertThat(detail.address()).isNull();
+        assertThat(detail.description()).isNull();
+        assertThat(detail.textProvenance().name().locale()).isEqualTo("en-US");
+        assertThat(detail.textProvenance().address()).isNull();
+        assertThat(detail.textProvenance().description()).isNull();
+
+        CatalogPlaceQuery.CatalogPlaceSummary summary =
+                places.summaries(List.of(place), "en-US", NOW).getFirst();
+        assertThat(summary.address()).isNull();
+        assertThat(summary.textProvenance().address()).isNull();
+
+        CatalogPlaceQuery.CatalogPlaceSummary hit = places
+                .search(CatalogPlaceSearchRequest.of(ENGLISH_NAME, "en-US", null, null, 50), null, 50, NOW)
+                .stream().map(CatalogPlaceQuery.CatalogPlaceSearchHit::summary)
+                .filter(found -> found.id().equals(place)).findFirst().orElseThrow();
+        assertThat(hit.address()).isNull();
+        assertThat(hit.textProvenance().address()).isNull();
+    }
+
+    @Test
     @DisplayName("BA-086-T9 localization provenance is all four columns or none")
     void provenanceIsAllFourColumnsOrNone() {
         UUID place = activePlace();
@@ -218,6 +256,18 @@ class PlaceLocalizationProvenanceIT {
                 provenance == null ? null : provenance.sourceLocale(),
                 provenance == null ? null : NOW);
         return id;
+    }
+
+    private void insertTextRow(UUID placeId, String locale, String name, String address, String description,
+            Provenance provenance) {
+        jdbc.update("""
+                INSERT INTO place_localizations
+                    (id, place_id, locale, name, address, short_description, updated_at,
+                     source_code, source_registry_version, source_locale, observed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, UUID.randomUUID(), placeId, locale, name, address, description, timestamp(NOW),
+                provenance.sourceCode(), provenance.sourceRegistryVersion(), provenance.sourceLocale(),
+                timestamp(NOW));
     }
 
     private void insertPartial(UUID placeId, String locale, String sourceCode, Long version,

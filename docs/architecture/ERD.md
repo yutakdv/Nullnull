@@ -37,6 +37,7 @@ erDiagram
 
     PLACES ||--o{ PLACE_LOCALIZATIONS : localized_as
     PLACES ||--o{ PLACE_EXTERNAL_REFS : identified_by
+    PLACES ||--o{ PLACE_LOCALIZATION_SOURCES : text_sourced_by
 
     TRIPS ||--o{ TRIP_INTERESTS : has
     TRIPS ||--o{ TRIP_CANDIDATES : considers
@@ -115,6 +116,18 @@ erDiagram
       string external_id
       string external_type
       timestamptz verified_at
+    }
+
+    PLACE_LOCALIZATION_SOURCES {
+      uuid id PK
+      uuid place_id FK
+      string locale
+      string source_code FK
+      string external_id
+      string external_type
+      timestamptz reviewed_at
+      timestamptz created_at
+      timestamptz updated_at
     }
 
     POSTS {
@@ -708,6 +721,12 @@ erDiagram
   `NOT NULL`로 두는 것은 그 행들이 전부 출처를 손에 쥔 채 쓰였기 때문이므로, 이 비대칭을 결함으로 읽고
   좁히지 않는다.
 - `place_external_refs`: unique `(source_code, external_id, external_type)`.
+- `place_localization_sources`(`V050`, `BA-086`): 오너가 검토한 **텍스트 source 연결**이다 — "이 장소의 영문 텍스트는
+  EngService의 이 record에서 온다". unique `(place_id, locale)`, unique `(source_code, external_id, external_type)`.
+  `place_external_refs`에 두지 않은 것은 그 표가 장소 기록 **자신의** 신원이고 source 조건 없이 읽히기 때문이다(장소
+  credit, 공개 `externalRefs`). 행은 operator plan import만 만들고, 검토 근거 URL은 plan에만 있고 여기 저장하지 않는다.
+  연결이 다른 record로 바뀌면 이전 record의 `en` localization을 같은 transaction에서 지운다. 연결이 있다고 텍스트가
+  나가는 것은 아니다 — 수집이 오너 규칙을 다시 대 보고 통과한 record만 `en` 행으로 쓴다.
 - `place_external_refs`와 `asset_licenses`는 수집/검토 당시의 `(source_code, source_registry_version)`을
   참조한다. 현재 registry row만 보고 과거 canonical mapping 또는 asset 권리의 source policy를 재해석하지 않는다.
 - **`place_localizations`는 그 규칙의 예외이고 방향이 반대다.** 읽기 경로는 pin된 revision이 아직 그 source의

@@ -2350,7 +2350,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-086
 
-**영문 POI coverage·번역 품질** — P1 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**영문 POI coverage·번역 품질** — P1 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022)
 - 기능 ID: `FR-LOC-01`
@@ -2364,15 +2364,15 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. 누락 시 원문 fallback과 번역 출처를 명시한다
 3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
 
-진행 상태(대조): **`V047` 은 provenance 열만 만들고 `KTO_ENG_SERVICE` registry 행은 `V048` 로 미룬다.** 그 행은 `stale_after_seconds`·공공누리 유형·`provider_schema_version`·`quota_policy.perDay` **넷**을 값으로 요구하는데 **넷 다 실호출 전이라 미측정**이고 — 앞의 문장은 **넷이라 적고 셋만 열거하고 있었다**. 빠진 것이 `perDay` 인 것은 `V007` 의 `source_registry_quota_check` 가 `perDay > 0` 을 요구하기 때문이고(열거가 아니라 CHECK 에서 나온 것이라 `[읽고추론]`), **하필 D-003 이 단위를 확정하며 의미를 갖게 만든 바로 그 값**이다. `official_url` 은 여기 없다 — 영문 dataset 은 `15101753` 으로 원장에 있고(`DECISIONS_AND_RISKS` D-003) KOR 패턴으로 유도된다. **그리고 `perDay: 1000` 을 KOR 행에서 베끼지 마라.** 그 값은 placeholder 가 아니라 **국문 활용신청의 실제 개발계정 한도**이고(`SOURCE_CATALOG` C2, 포털 상세가 *"개발 계정 신청 가능 트래픽 1,000"* 을 적는다), 영문 항목의 한도는 **아무도 보지 않았다**. 베끼면 그럴듯해 보이는 숫자가 아무 근거 없이 들어간다 — 지어낸 임계값이 **남의 실측값 옷을 입은** 모양이다., migration 은 적용되면 checksum 이 고정돼 **정정할 수 없다**. **`T4`·`T5` 는 계약 변경(`PlaceSummary` 의 locale provenance)을 요구해 [#310](https://github.com/yutakdv/Nullnull/issues/310) FE 승인 대기**다. **`T7`·`T8` 의 게이트가 발화하려면 생산자가 있어야 한다** — 유일한 production writer 는 `JdbcCanonicalCatalogStore` 이고 그 경로는 국문 ingest 다(test fixture writer 20개는 NULL provenance 라 게이트 밖이다). 그래서 **국문 ingest 가 provenance 를 쓴다**. 귀결: **`KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 수집된 국문 텍스트가 같이 막히고 `canonical_name` 으로 떨어진다.** 의도된 fail-closed 이고 P0 에 걸리는 반경이라 적어 둔다 — 대안(국문에 provenance 를 안 쓴다)은 **생산자 없는 가드**이고 이 저장소가 `place_hours`·`place_relations` 에서 두 번 겪은 모양이다. **`place_external_refs` 와 다르게 두는 이유**: ref 는 *신원*(이 place 가 KTO content 12345다)이라 약관이 바뀐다고 만료되지 않고, localization 은 *우리가 재배포하는 provider 산문*이라 재배포가 정확히 라이선스가 다루는 것이다.
+진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **남은 것은 데이터다**: 세 후보의 오너 직접 검토, staging 에서 import·refresh 실행(운영 task 등록과 task definition 의 `KTO_ENG_BASE_URL`), 영문 coverage 보고서. 그 전에는 이 카드를 닫지 않는다.
 
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
 필수 검증:
 
-- `BA-086-T1`: 동일 POI 언어별 ID/날짜/수치 parity를 검증한다
-- `BA-086-T2`: 누락 번역 fallback·출처·권리 표기가 유지된다
-- `BA-086-T3`: source 변경/삭제 때 오래된 번역 노출을 차단한다
+- `BA-086-T1`: 영문 텍스트가 나가도 같은 장소의 한·영 응답은 ID·좌표·외부 ref 와 그 검증 시각이 같다
+- `BA-086-T2`: 영문 record 가 비운 필드의 원문 fallback 은 그 원문 source 의 credit 과 licence 를 싣는다
+- `BA-086-T3`: 연결된 영문 record 가 사라지면 그 영문 텍스트는 더 이상 나가지 않는다
 - `BA-086-T4`: 요청 locale 의 행이 없으면 fallback 이 일어나고 응답이 그 텍스트가 어느 locale 에서 왔는지 말한다
 - `BA-086-T5`: fallback 으로 답할 때도 그 텍스트를 만든 source 의 attribution 이 유지된다
 - `BA-086-T6`: provenance 없는 localization 은 그 place 의 external ref 가 지나간 revision 을 가리켜도 계속 나간다
@@ -2383,6 +2383,20 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T11`: 영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다
 - `BA-086-T12`: 캐시된 snapshot 이 현재가 아닌 source revision 을 들고 있으면 ingest 가 그것을 pin 하지 않고 거절한다
 - `BA-086-T13`: ingest 된 place 의 국문 텍스트는 읽기 게이트가 읽는 provenance 를 들고 있다
+- `BA-086-T14`: 이미 매핑된 장소를 지나간 revision 의 snapshot 으로 다시 ingest 하면 거절이 아니라 no-op 이다
+- `BA-086-T15`: 영문 매칭 probe 는 후보마다 계산한 거리와 코드와 필드 이름을 보고한다
+- `BA-086-T16`: 영문 매칭 probe 는 제목·주소·이름 값을 출력하지 않는다
+- `BA-086-T17`: 영문 매칭 probe 는 장소를 다섯 곳까지만 받는다
+- `BA-086-T18`: 영문 매칭 probe 는 제목의 한글 부분이 우리 이름과 정확히 같은지를 NFC 로 비교해 증거로만 낸다
+- `BA-086-T19`: 읽기 게이트가 막은 행의 텍스트 출처는 textProvenance 로 새지 않는다
+- `BA-086-T20`: 자기 출처가 없는 텍스트 필드는 장소 기록의 credit 을 빌리지 않는다
+- `BA-086-T21`: 영문 source 는 검토된 revision 아래 수집 가능한 source 로 등록돼 있다
+- `BA-086-T22`: 오래된 검토는 더 최신의 영문 연결을 덮지 못한다
+- `BA-086-T23`: 다른 영문 record 로 다시 연결하면 이전 record 의 영문 텍스트는 같은 transaction 에서 사라진다
+- `BA-086-T24`: 영문 record 가 사라졌다는 응답은 영문 source 를 격리하지 않는다
+- `BA-086-T25`: 오너 연결 규칙을 더 이상 만족하지 않는 영문 record 의 텍스트는 나가지 않는다
+- `BA-086-T26`: 현재가 아닌 revision 아래 가져온 영문 record 는 쓰이지 않는다
+- `BA-086-T27`: 호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

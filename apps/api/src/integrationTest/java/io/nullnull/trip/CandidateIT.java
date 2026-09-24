@@ -526,7 +526,12 @@ class CandidateIT {
                 .as("%s source", fixtureName)
                 .containsExactlyInAnyOrderElementsOf(fieldNames(fixture.get("candidate")
                         .get("sources").get(0)));
-        assertThat(fieldNames(actual.get("candidate").get("place"))).as("%s place", fixtureName)
+        // textProvenance (BA-086) is filtered out because the candidate fixtures do not carry it yet
+        // (tracked in #60, BA-086 FE handoff).
+        // Remove this filter once they do. Note that this class has no contract validation, so with
+        // the filter in place nothing here looks at the field at all.
+        assertThat(fieldNames(actual.get("candidate").get("place")).stream()
+                .filter(field -> !field.equals("textProvenance")).toList()).as("%s place", fixtureName)
                 .containsExactlyInAnyOrderElementsOf(fieldNames(fixture.get("candidate").get("place")));
 
         assertThat(actual.get("duplicate").asBoolean()).isEqualTo(expectedDuplicate);

@@ -62,7 +62,7 @@ class OperatorRegressions(unittest.TestCase):
     def run_execute(self, action, kind, live_change=None, deployed=None, target=None, accept=False, classification=True,
                     stale_baseline=False, env=None, source_state='clean', fail_on=None, cli_writes=False,
                     preserve_open_edge=False, live_edge='true', health_statuses=(200,200), missing_webedge=False,
-                    planned_web_cors=None):
+                    planned_web_cors=None, accept_additive_schema=None, planned_additive=None, current_record='default'):
         """execute() with AWS replaced at its edges only: manifest validation (the real node validator), the live
         classification and the lock logic run for real. Returns (cdk mock, migration mock); self.aws_ops lists
         the lock's AWS operations."""
@@ -83,14 +83,17 @@ class OperatorRegressions(unittest.TestCase):
             if source_state=='overlay':manifest.update(sourceOverlaySha256='sha256:'+'e'*64,sourceOverlayPaths=['apps/api/x.java'])
             (directory/'release.json').write_text(json.dumps(manifest))
             data={'action':action,'account':'1'*12,'assemblySha256':ops.tree_digest(assembly),'verifierTokenSha256':'f'*64,'acceptNewerSchema':accept}
+            if planned_additive is not None:data['acceptAdditiveSchema']=planned_additive
             if classification:
                 (directory/'classification.json').write_text(json.dumps({'baselineSha256':ops.baseline_sha256(templates if stale_baseline else live)}))
-            record={'releaseManifest':{'flywayChecksums':deployed or ['V001:'+'a'*64]}}
+            record={'releaseManifest':{'flywayChecksums':deployed or ['V001:'+'a'*64]}} if current_record=='default' else current_record
             self.aws_ops=[]
             health=iter(health_statuses)
             def fake_aws(service, operation, **kw):
                 self.aws_ops.append(operation);return {}
+            order=self.order=[]
             def fake_cdk(command, log=None):
+                order.append(command[1])
                 if command[1]==fail_on:raise ops.OpsError('command-failed-cdk')
                 if cli_writes:
                     # What the real CLI did on 2026-09-19: zip directory assets into <app>/.cache/.
@@ -98,8 +101,11 @@ class OperatorRegressions(unittest.TestCase):
                     (app/'.cache'/(command[1]+'.zip')).write_text('zip')
             with patch.dict(os.environ,env or self.PROFILE),patch.object(ops,'verify_plan',return_value=data),patch.object(ops,'identity'),patch.object(ops,'verify_images'),patch.object(ops,'require_kto_secret_provisioned'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'live_bodies',return_value=live),patch.object(ops,'protected_templates',return_value={}),patch.object(ops,'guard_stateful'),patch.object(ops,'output',return_value='synthetic'),patch.object(ops,'aws',side_effect=fake_aws),patch.object(ops.DeploymentLock,'check'),patch.object(ops,'record_release') as release_record,patch.object(ops,'migration') as migration,patch.object(ops,'cdk',side_effect=fake_cdk) as cdk,patch.object(ops,'edge_traffic_enabled',return_value=live_edge),patch.object(ops,'public_health_answers',side_effect=lambda *a,**kw: iter([(next(health),'application/json',None)])):
                 self.release_record=release_record
+                self.cdk,self.migration=cdk,migration
+                migration.side_effect=lambda *a,**kw:order.append('migration-task')
                 ops.execute(argparse.Namespace(plan=str(plan),approved_plan_sha256='synthetic',action=action,kind=kind,
-                                                    preserve_open_edge=preserve_open_edge))
+                                                    preserve_open_edge=preserve_open_edge,
+                                                    accept_additive_schema=accept_additive_schema))
                 self.approved_assembly_untouched=ops.tree_digest(assembly)==data['assemblySha256']
                 return cdk, migration
     def deployed(self, cdk):
@@ -178,6 +184,64 @@ class OperatorRegressions(unittest.TestCase):
             self.run_execute('deploy','infra',preserve_open_edge=True,health_statuses=(200,503))
         self.release_record.assert_not_called()
         self.assertEqual(['put-item'],self.aws_ops)
+    # A-067: V050 goes out with the edge open. The old API serves between the migration task and the Services update,
+    # so only a schema that grows by exactly the migrations the approved plan names may ride a preserve-open deploy.
+    V001='V001__init.sql:'+'a'*64
+    V002='V002__places.sql:'+'b'*64
+    V050='V050__kto_eng_service_text_source.sql:'+'c'*64
+    NAMED='V050__kto_eng_service_text_source.sql'
+    def test_an_open_edge_release_may_append_exactly_the_migrations_its_plan_names(self):
+        cdk,migration=self.run_execute('deploy','infra',preserve_open_edge=True,deployed=[self.V001,self.V002],
+                                       target=[self.V001,self.V002,self.V050],planned_additive=[self.NAMED])
+        migration.assert_called_once()
+        web=[c.args[0] for c in cdk.call_args_list if c.args[0][1]=='NullnullStgWebEdge'][0]
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=true',web)
+        # The old API reads the new schema from the migration task to the Services update; that window is this order.
+        steps=[s for s in self.order if s in ('NullnullStgWebEdge','NullnullStgMigration','migration-task','NullnullStgServices')]
+        self.assertEqual(['NullnullStgWebEdge','NullnullStgMigration','migration-task','NullnullStgServices'],steps)
+        self.release_record.assert_called_once()
+    def assertNothingDeployed(self):
+        self.assertEqual([],self.cdk.call_args_list)
+        self.migration.assert_not_called()
+    def test_an_open_edge_release_refuses_any_other_schema_change_before_any_stack_deploy_or_migration(self):
+        for label,deployed,target,planned in [
+                ('an existing migration reordered',[self.V001,self.V002],[self.V002,self.V001,self.V050],[self.NAMED]),
+                ('an existing migration changed',[self.V001,self.V002],[self.V001,'V002__places.sql:'+'d'*64,self.V050],[self.NAMED]),
+                ('an existing migration dropped',[self.V001,self.V002],[self.V001,self.V050],[self.NAMED]),
+                ('an extra migration nobody named',[self.V001],[self.V001,self.V050,'V051__more.sql:'+'e'*64],[self.NAMED]),
+                ('a named migration that is not appended',[self.V001],[self.V001,'V051__more.sql:'+'e'*64],[self.NAMED]),
+                ('a name for an unchanged schema',[self.V001],[self.V001],[self.NAMED]),
+                ('a name given twice',[self.V001],[self.V001,self.V050],[self.NAMED,self.NAMED]),
+                ('no name, a grown schema',[self.V001],[self.V001,self.V050],None)]:
+            with self.subTest(label),self.assertRaisesRegex(ops.OpsError,'preserve-open-schema-change'):
+                self.run_execute('deploy','infra',preserve_open_edge=True,deployed=deployed,target=target,
+                                 planned_additive=planned)
+            self.assertNothingDeployed()
+            self.assertEqual(['put-item','delete-item'],self.aws_ops)
+    def test_an_execute_time_name_cannot_widen_the_approved_plan(self):
+        grown=dict(deployed=[self.V001],target=[self.V001,self.V050],preserve_open_edge=True)
+        for planned,flag in [(None,self.NAMED),([self.NAMED],'V051__more.sql'),([self.NAMED],self.NAMED+',V051__more.sql')]:
+            with self.subTest(planned=planned,flag=flag),\
+                 self.assertRaisesRegex(ops.OpsError,'accept-additive-schema-not-in-approved-plan'):
+                self.run_execute('deploy','infra',planned_additive=planned,accept_additive_schema=flag,**grown)
+            self.assertNothingDeployed()
+        # Repeating the plan's own names at execute is allowed; it changes nothing.
+        _,migration=self.run_execute('deploy','infra',planned_additive=[self.NAMED],accept_additive_schema=self.NAMED,**grown)
+        migration.assert_called_once()
+    def test_an_accepted_additive_schema_needs_the_deployed_release_it_grows(self):
+        # With no record the deployed list reads as empty, every migration counts as appended, and a plan that names
+        # them all would pass the prefix rule against nothing.
+        every=['V001__init.sql',self.NAMED]
+        for record in (None,{},{'releaseManifest':{}},{'releaseManifest':{'flywayChecksums':[]}}):
+            with self.subTest(record=record),\
+                 self.assertRaisesRegex(ops.OpsError,'accept-additive-schema-requires-deployed-release'):
+                self.run_execute('deploy','infra',preserve_open_edge=True,target=[self.V001,self.V050],
+                                 planned_additive=every,current_record=record)
+            self.assertNothingDeployed()
+    def test_an_accepted_additive_schema_needs_the_open_edge_mode(self):
+        with self.assertRaisesRegex(ops.OpsError,'accept-additive-schema-requires-preserve-open-edge'):
+            self.run_execute('deploy','infra',deployed=[self.V001],target=[self.V001,self.V050],planned_additive=[self.NAMED])
+        self.assertNotIn('put-item',self.aws_ops)
     def test_app_release_with_infra_drift_is_refused_before_any_deploy(self):
         with self.assertRaisesRegex(ops.OpsError,'infra-change-requires-infra-approval'):
             self.run_execute('deploy', 'app', live_change='Data')
@@ -482,7 +546,7 @@ class AwsParameterNameRegressions(unittest.TestCase):
 
 class ClassifyCommandRegressions(unittest.TestCase):
     """The workflow routes the reviewer on classify()'s printed kind, so its deploy/rollback branch matters."""
-    def run_classify(self, action, drift=None, source_state='clean'):
+    def run_classify(self, action, drift=None, source_state='clean', plan=None):
         import argparse, contextlib, io
         with tempfile.TemporaryDirectory() as d:
             directory=Path(d);(directory/'assembly').mkdir();(directory/'plan.json').write_text('{}')
@@ -494,7 +558,7 @@ class ClassifyCommandRegressions(unittest.TestCase):
             (directory/'release.json').write_text(json.dumps(manifest))
             record={'releaseManifest':{**manifest,'gitSha':'c'*40,'flywayChecksums':['V001:'+'a'*64]}}
             out=io.StringIO()
-            with patch.dict(os.environ,OperatorRegressions.PROFILE),patch.object(ops,'verify_plan',return_value={'action':action,'account':'1'*12}),patch.object(ops,'identity'),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'live_bodies',return_value=live),contextlib.redirect_stdout(out):
+            with patch.dict(os.environ,OperatorRegressions.PROFILE),patch.object(ops,'verify_plan',return_value={'action':action,'account':'1'*12,**(plan or {})}),patch.object(ops,'identity'),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'live_bodies',return_value=live),contextlib.redirect_stdout(out):
                 ops.classify(argparse.Namespace(plan=str(directory/'plan.json'),approved_plan_sha256='x'))
             return out.getvalue(), json.loads((directory/'classification.json').read_text())
     def test_a_rollback_is_judged_on_the_stacks_it_deploys(self):
@@ -506,6 +570,12 @@ class ClassifyCommandRegressions(unittest.TestCase):
     def test_a_rollback_to_an_overlay_release_is_routed_to_the_reviewer(self):
         text,recorded=self.run_classify('rollback',source_state='overlay')
         self.assertIn('release_kind=infra',text);self.assertIn('rollback-target-is-not-a-clean-build',recorded['findings'])
+    def test_the_reviewer_sees_the_migrations_the_plan_lets_an_open_edge_deploy_append(self):
+        # A-067: the names ride the approved hash; the workflow copies this line into the plan job summary beside the diff.
+        text,_=self.run_classify('deploy',plan={'acceptAdditiveSchema':['V050__a.sql','V051__b.sql']})
+        self.assertIn('accept_additive_schema=V050__a.sql,V051__b.sql',text.splitlines())
+        text,_=self.run_classify('deploy')
+        self.assertNotIn('accept_additive_schema',text)
 
 class VerifierTokenRegressions(unittest.TestCase):
     def test_a_release_plan_without_the_token_is_refused(self):
@@ -1426,7 +1496,7 @@ class CoverClassificationRegressions(unittest.TestCase):
 
 class PlanStagesCoversRegressions(unittest.TestCase):
     """#183: a release plan carries the cover photos into its assembly - only them, and never none."""
-    def run_plan(self, covers):
+    def run_plan(self, covers, manifest=None, **overrides):
         import contextlib, io
         from types import SimpleNamespace
         calls=[]
@@ -1437,11 +1507,11 @@ class PlanStagesCoversRegressions(unittest.TestCase):
             web=root/'web';web.mkdir();(web/'index.html').write_text('synthetic')
             cost=root/'cost.txt';cost.write_text('estimate')
             (root/'infra').mkdir();(root/'infra/package-lock.json').write_text('{}')
-            args=SimpleNamespace(action='deploy',manifest='m.json',web_dir=str(web),days=7,estimated_total=150,
-                                 cost_basis=str(cost))
+            args=SimpleNamespace(**{'action':'deploy','manifest':'m.json','web_dir':str(web),'days':7,'estimated_total':150,
+                                    'cost_basis':str(cost),**overrides})
             out=io.StringIO()
             with patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}),patch.object(ops,'ROOT',root),\
-                 patch.object(ops,'validate_manifest',return_value={'kind':'release'}),patch.object(ops,'check_artifacts'),\
+                 patch.object(ops,'validate_manifest',return_value=manifest or {'kind':'release'}),patch.object(ops,'check_artifacts'),\
                  patch.object(ops,'run'),patch.object(ops,'cdk',side_effect=lambda command,**kw:calls.append(command)),\
                  patch.object(ops,'verifier_hash',return_value='c'*64),patch.object(ops,'tree_digest',return_value='t'),\
                  contextlib.redirect_stdout(out):
@@ -1451,7 +1521,8 @@ class PlanStagesCoversRegressions(unittest.TestCase):
                 except ops.OpsError as e:
                     error=str(e)
             staged={p.name:p.read_bytes() for p in (root/'.artifacts/aws/plans').glob('*/covers/*')}
-        return {'error':error,'cdk':calls,'staged':staged,'out':out.getvalue()}
+            plans=[json.loads(p.read_text()) for p in (root/'.artifacts/aws/plans').glob('*/plan.json')]
+        return {'error':error,'cdk':calls,'staged':staged,'out':out.getvalue(),'plan':plans[0] if plans else None}
     def test_the_jpgs_and_nothing_else_reach_the_assembly_the_owner_approves(self):
         r=self.run_plan({'01-a.jpg':b'first','02-b.jpg':b'second','README.md':b'not content'})
         self.assertIsNone(r['error'],r['out'])
@@ -1465,6 +1536,61 @@ class PlanStagesCoversRegressions(unittest.TestCase):
         r=self.run_plan({'README.md':b'not content'})
         self.assertIn('cover-photos-missing',r['error'] or '')
         self.assertEqual([],r['cdk'])
+
+class AdditiveSchemaPlanRegressions(unittest.TestCase):
+    """A-067: the migrations a preserve-open deploy may append are named when the plan is made, so they sit inside
+    the hash the reviewer approves. At execute a name can only repeat the plan's (OperatorRegressions)."""
+    NAMED='V050__kto_eng_service_text_source.sql'
+    MANIFEST={'kind':'release','flywayChecksums':['V001__init.sql:'+'a'*64,NAMED+':'+'c'*64]}
+    def run_plan(self, **overrides):
+        return PlanStagesCoversRegressions.run_plan(self,{'01-a.jpg':b'first'},manifest=self.MANIFEST,**overrides)
+    def test_the_plan_records_exactly_the_named_migrations(self):
+        r=self.run_plan(accept_additive_schema=' '+self.NAMED+' ')
+        self.assertIsNone(r['error'],r['out'])
+        self.assertEqual([self.NAMED],r['plan']['acceptAdditiveSchema'])
+        self.assertIn('accept_additive_schema='+self.NAMED,r['out'].splitlines())
+    def test_a_plan_without_names_records_none(self):
+        for given in (None,'',' , '):
+            with self.subTest(given=given):
+                r=self.run_plan(accept_additive_schema=given)
+                self.assertIsNone(r['error'],r['out'])
+                self.assertNotIn('acceptAdditiveSchema',r['plan'])
+                self.assertNotIn('accept_additive_schema',r['out'])
+    def test_a_plan_refuses_a_name_that_is_not_a_migration_of_this_release(self):
+        for given in ('V051__more.sql',self.NAMED+',V051__more.sql','V050'):
+            with self.subTest(given=given):
+                r=self.run_plan(accept_additive_schema=given)
+                self.assertEqual('accept-additive-schema-not-in-release',r['error'])
+                self.assertEqual([],r['cdk'])
+                self.assertIsNone(r['plan'])
+    def test_a_rollback_plan_does_not_inherit_the_names_of_the_release_it_returns_to(self):
+        # A rollback copies the plan it returns to. It runs no migration and closes the edge, so names carried over
+        # would refuse it at execute (accept-additive-schema-requires-preserve-open-edge).
+        import contextlib, io
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);previous=root/'previous';(previous/'assembly').mkdir(parents=True)
+            (previous/'release.json').write_text('{}');(previous/'cost-basis.txt').write_text('estimate')
+            (previous/'plan.json').write_text(json.dumps({
+                'action':'deploy','account':'1'*12,'assemblySha256':ops.tree_digest(previous/'assembly'),
+                'releaseSha256':ops.digest(previous/'release.json'),'costBasisSha256':ops.digest(previous/'cost-basis.txt'),
+                'acceptAdditiveSchema':[self.NAMED]}))
+            args=SimpleNamespace(action='rollback',previous_plan=str(previous/'plan.json'),
+                                 previous_plan_sha256=ops.digest(previous/'plan.json'),accept_newer_schema=True)
+            with patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}),patch.object(ops,'ROOT',root),\
+                 patch.object(ops,'verifier_hash',return_value='c'*64),contextlib.redirect_stdout(io.StringIO()):
+                ops.plan(args)
+            [made]=[json.loads(p.read_text()) for p in (root/'.artifacts/aws/plans').glob('*/plan.json')]
+        self.assertEqual('rollback',made['action'])
+        self.assertNotIn('acceptAdditiveSchema',made)
+        self.assertTrue(made['acceptNewerSchema'])
+    def test_only_a_deploy_plan_takes_names(self):
+        # A rollback or bootstrap plan would drop them without a word.
+        for action in ('rollback','bootstrap'):
+            with self.subTest(action=action):
+                r=self.run_plan(action=action,accept_additive_schema=self.NAMED)
+                self.assertEqual('accept-additive-schema-deploy-only',r['error'])
+                self.assertEqual([],r['cdk'])
 
 class KtoCallInventoryRegressions(unittest.TestCase):
     """kto-call-inventory: the deployed release's KTO operation list, as the file check_submission_inventory reads."""

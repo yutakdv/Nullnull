@@ -236,6 +236,9 @@ nullnull:
       allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
     KTO_RELATED_PLACES:
       allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
+    # BA-086: the English dataset (portal 15101753) is served from the same host as KorService2.
+    KTO_ENG_SERVICE:
+      allowed-hosts: ["${KTO_ALLOWED_HOST:apis.data.go.kr}"]
     # A-051 fixed the provider and a live call on 2026-09-20 confirmed this host answers.
     # Naming the product and the operation, not just "Kakao": Kakao Map is a different
     # product on a different host with its own terms and quota, and route optimization is
@@ -273,6 +276,7 @@ nullnull:
     service-key: ${KTO_SERVICE_KEY:}
     base-url: ${KTO_BASE_URL:}
     forecast-base-url: ${KTO_FORECAST_BASE_URL:}
+    eng-base-url: ${KTO_ENG_BASE_URL:}
     mobile-app: ${KTO_MOBILE_APP:Nullnull}
     mobile-os: ${KTO_MOBILE_OS:ETC}
     release-version: ${APP_RELEASE_VERSION:local-unreleased}

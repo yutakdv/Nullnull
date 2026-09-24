@@ -13,6 +13,12 @@ public class SourceHealthConfiguration {
         return new SourceHealth("KTO_KOR_SERVICE_2", store);
     }
 
+    /** BA-086: without this bean a quarantined English source never shows in readiness. */
+    @Bean
+    ReadinessProbe ktoEngServiceHealth(SourceRegistryStore store) {
+        return new SourceHealth("KTO_ENG_SERVICE", store);
+    }
+
     @Bean
     ReadinessProbe ktoForecastHealth(SourceRegistryStore store) {
         return new SourceHealth("KTO_CONCENTRATION_FORECAST", store);

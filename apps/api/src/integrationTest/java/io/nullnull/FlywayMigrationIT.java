@@ -71,8 +71,8 @@ class FlywayMigrationIT {
     // list plus the count below is the recalculation. V046 creates no table of its own, so
     // nothing new waits behind upload_intents.
     //
-    // V049 (BA-092) is the head. V048's Seoul refresh claim is part of the previous schema.
-    // V049's replay tables join this list when a later migration becomes the head.
+    // V049 (BA-092) was the head and said its replay tables would join this list when a later
+    // migration became the head. V050 (BA-086) is that migration, so they are here now.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -87,7 +87,8 @@ class FlywayMigrationIT {
             "place_relations", "itinerary_import_drafts",
             "optimization_proposals", "optimization_changes",
             "optimization_decisions", "notifications",
-            "live_areas", "seoul_live_area_maps", "upload_intents", "seoul_live_refresh_claims");
+            "live_areas", "seoul_live_area_maps", "upload_intents", "seoul_live_refresh_claims",
+            "replay_manifests", "replay_manifest_entries");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -184,9 +185,11 @@ class FlywayMigrationIT {
             // plants data - so it is edited with a reason, never deleted. It moved 0 -> 3 -> 1 in
             // one day because two branches each had a different last migration.
             //
-            // V049 (BA-092) is last and seeds nothing. V048's claim table and all earlier seeded
-            // rows are already in rowsBefore; this count belongs to the last migration alone.
-            long seededAfterPreviousSchema = 0;
+            // V049 (BA-092) seeded nothing and is now the previous schema, so its replay tables are
+            // populated above. V050 (BA-086) is last and seeds TWO rows: the KTO_ENG_SERVICE
+            // source_registry row and its first source_registry_revisions row. Its own table,
+            // place_localization_sources, is created empty - links come only from the owner's plan.
+            long seededAfterPreviousSchema = 2;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -453,6 +456,11 @@ class FlywayMigrationIT {
                     v_candidate uuid := gen_random_uuid();
                     v_run uuid := gen_random_uuid();
                     v_observation uuid := gen_random_uuid();
+                    v_replay_area uuid := gen_random_uuid();
+                    v_replay_run uuid := gen_random_uuid();
+                    v_replay_set uuid := gen_random_uuid();
+                    v_replay_point uuid := gen_random_uuid();
+                    v_manifest uuid := gen_random_uuid();
                     v_at timestamptz := now();
                 BEGIN
                     SET LOCAL search_path TO %s;
@@ -643,6 +651,44 @@ class FlywayMigrationIT {
                                                         reverted_decision_id, revert_until, decided_at)
                     VALUES (gen_random_uuid(), v_run, v_proposal, (SELECT id FROM owners LIMIT 1),
                             'KEEP', 1, NULL, NULL, NULL, NULL, NULL, v_at);
+                    -- V049's replay manifest and its one entry, which V050 turns into part of the
+                    -- previous schema. The entry trigger (replay_require_entry_contract) admits only a
+                    -- SEOUL_CITYDATA LIVE_AREA point in LIVE or STALE state, observed inside the
+                    -- manifest's capture window and under the manifest's registry revision (V046's 2),
+                    -- so that point is written first with its own area, run and set - the shapes
+                    -- ReplayManifestMigrationIT uses - and the trigger resolves both parents through
+                    -- the search_path this block sets.
+                    INSERT INTO live_areas (id, source_code, external_id, name, status, updated_at)
+                    VALUES (v_replay_area, 'SEOUL_CITYDATA', 'upgrade-replay-' || v_replay_area::text,
+                            'upgrade replay area', 'ACTIVE', v_at);
+                    INSERT INTO collector_runs
+                        (id, source_code, status, trigger_type, records_received, records_accepted,
+                         records_rejected, schema_version, started_at, finished_at)
+                    VALUES (v_replay_run, 'SEOUL_CITYDATA', 'COMPLETED', 'SCHEDULED', 1, 1, 0,
+                            'upgrade-seoul-v1', v_at, v_at);
+                    INSERT INTO snapshot_sets
+                        (id, source_code, source_registry_version, collector_run_id, source_state,
+                         observed_at, fetched_at, stale_at, normalization_version, created_at)
+                    VALUES (v_replay_set, 'SEOUL_CITYDATA', 2, v_replay_run, 'LIVE',
+                            v_at - interval '1 minute', v_at, v_at + interval '5 minutes',
+                            'upgrade-norm-v1', v_at);
+                    INSERT INTO crowd_snapshots
+                        (id, snapshot_set_id, source_code, source_registry_version, live_area_id,
+                         source_state, observed_at, fetched_at, stale_at, metric_code, ordinal_level,
+                         normalization_version, scope, scope_label, mapping_type, created_at)
+                    VALUES (v_replay_point, v_replay_set, 'SEOUL_CITYDATA', 2, v_replay_area, 'LIVE',
+                            v_at - interval '1 minute', v_at, v_at + interval '5 minutes',
+                            'UPGRADE_METRIC', '2', 'upgrade-norm-v1', 'LIVE_AREA', 'upgrade replay',
+                            'DIRECT', v_at);
+                    INSERT INTO replay_manifests
+                        (id, name, schema_version, source_code, source_registry_version, checksum,
+                         source_license_snapshot, captured_from, captured_to, approved_at, created_at)
+                    VALUES (v_manifest, 'upgrade-' || v_manifest::text, 'replay-manifest-v1',
+                            'SEOUL_CITYDATA', 2, repeat('d', 64), 'upgrade license snapshot',
+                            v_at - interval '10 minutes', v_at, v_at + interval '1 minute',
+                            v_at - interval '10 minutes');
+                    INSERT INTO replay_manifest_entries (manifest_id, crowd_snapshot_id, sequence)
+                    VALUES (v_manifest, v_replay_point, 0);
                 END
                 $upgrade$;
                 """.formatted(schema));

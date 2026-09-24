@@ -6,7 +6,9 @@ import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogExternalReferenc
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogMediaAsset;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceDetail;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
+import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceTextProvenance;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogSourceAttribution;
+import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogTextFieldProvenance;
 import io.nullnull.catalog.application.CatalogPlaceSearchRequest;
 import io.nullnull.catalog.application.CatalogRelationProjectionService;
 import io.nullnull.catalog.application.CatalogRelationProjectionService.CatalogRelatedPlace;
@@ -89,7 +91,8 @@ public class PlaceController {
 
     public record PlaceSummaryResponse(UUID id, String name, String categoryCode, String regionCode,
             String categoryName, String regionName, String thumbnailUrl, String thumbnailAttribution,
-            String address, SourceAttributionResponse sourceAttribution) {
+            String address, SourceAttributionResponse sourceAttribution,
+            PlaceTextProvenanceResponse textProvenance) {
         /**
          * Public because PlaceSummary is ONE contract schema that several resources embed - a feed
          * card's primaryPlace and a post's places are the same shape as a search result. A second
@@ -100,14 +103,16 @@ public class PlaceController {
             return new PlaceSummaryResponse(source.id(), source.name(), source.categoryCode(), source.regionCode(),
                     source.categoryName(), source.regionName(), source.thumbnailUrl(),
                     source.thumbnailAttribution(), source.address(),
-                    SourceAttributionResponse.from(source.sourceAttribution()));
+                    SourceAttributionResponse.from(source.sourceAttribution()),
+                    PlaceTextProvenanceResponse.from(source.textProvenance()));
         }
     }
 
     public record PlaceDetailResponse(UUID id, String name, String categoryCode, String regionCode,
             String categoryName, String regionName, String thumbnailUrl, MediaAssetResponse thumbnailAsset,
             String address, String description, GeoPointResponse location,
-            List<ExternalReferenceResponse> externalRefs, SourceAttributionResponse sourceAttribution) {
+            List<ExternalReferenceResponse> externalRefs, SourceAttributionResponse sourceAttribution,
+            PlaceTextProvenanceResponse textProvenance) {
         /**
          * Public for the same reason {@link PlaceSummaryResponse#from} is, and the second embedder
          * has now arrived: {@code LivePlaceDetail.place} is this same {@code PlaceDetail} schema, so
@@ -120,6 +125,26 @@ public class PlaceController {
                     MediaAssetResponse.from(source.thumbnailAsset()), source.address(), source.description(),
                     new GeoPointResponse(source.latitude(), source.longitude()),
                     source.externalReferences().stream().map(ExternalReferenceResponse::from).toList(),
+                    SourceAttributionResponse.from(source.sourceAttribution()),
+                    PlaceTextProvenanceResponse.from(source.textProvenance()));
+        }
+    }
+
+    public record PlaceTextProvenanceResponse(TextFieldProvenanceResponse name,
+            TextFieldProvenanceResponse address, TextFieldProvenanceResponse description) {
+        static PlaceTextProvenanceResponse from(CatalogPlaceTextProvenance source) {
+            if (source == null) {
+                return new PlaceTextProvenanceResponse(null, null, null);
+            }
+            return new PlaceTextProvenanceResponse(TextFieldProvenanceResponse.from(source.name()),
+                    TextFieldProvenanceResponse.from(source.address()),
+                    TextFieldProvenanceResponse.from(source.description()));
+        }
+    }
+
+    public record TextFieldProvenanceResponse(String locale, SourceAttributionResponse sourceAttribution) {
+        static TextFieldProvenanceResponse from(CatalogTextFieldProvenance source) {
+            return source == null ? null : new TextFieldProvenanceResponse(source.locale(),
                     SourceAttributionResponse.from(source.sourceAttribution()));
         }
     }

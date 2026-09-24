@@ -67,7 +67,8 @@ class KtoSmokeEnvironmentTest {
     void reportsEveryAllowedSettingSoAnAbsentOneIsVisibleToo() {
         List<String> report = KtoSmokeEnvironment.sources(Map.of(), directory.resolve("missing.env"));
 
-        assertThat(report).hasSize(12).allSatisfy(line -> assertThat(line).endsWith("<- absent"));
+        // 13 since BA-086 added KTO_ENG_BASE_URL for the English commands.
+        assertThat(report).hasSize(13).allSatisfy(line -> assertThat(line).endsWith("<- absent"));
         assertThat(report).isSorted();
     }
 

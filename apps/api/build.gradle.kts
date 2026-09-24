@@ -310,6 +310,42 @@ tasks.register<JavaExec>("ktoIntroProbe") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("ktoEngLinkImport") {
+    group = "verification"
+    description = "Imports an owner-reviewed English link plan and prints the plan hash and place ids only (BA-086)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoEngLinkImportMain")
+    workingDir = projectDir
+}
+
+tasks.register<JavaExec>("ktoEngTextRefresh") {
+    group = "verification"
+    description = "Refreshes the English text of every linked place once and prints outcomes only (BA-086)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoEngTextRefreshMain")
+    workingDir = projectDir
+}
+
+tasks.register<JavaExec>("ktoEngServiceProbe") {
+    group = "verification"
+    description = "Looks once at KTO EngService2 detailCommon2 for one Korean content id and prints a field-shape report only (BA-086)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoEngServiceProbeMain")
+    workingDir = projectDir
+}
+
+tasks.register<JavaExec>("ktoEngServiceMatchProbe") {
+    group = "verification"
+    description = "Looks once per place (max 5) at KTO EngService2 locationBasedList2 and prints candidate distances and codes only (BA-086)"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoEngServiceMatchProbeMain")
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("ktoCanonicalIngest") {
     group = "verification"
     description = "Maps one already-stored KTO snapshot into the canonical catalog and prints the place ID"

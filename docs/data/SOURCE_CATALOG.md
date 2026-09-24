@@ -23,6 +23,7 @@ tags:
 | --- | --- | --- | --- | --- |
 | `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | C2 registry v2 `DEV_APPROVED`, `P7D`; `detailCommon2`만 | 운영 승인·이미지별 이용 조건 |
 | `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | C4 registry v2 `DEV_APPROVED`, operation `tatsCnctrRatedList`, schema `kto-tats-cnctr-rate-v4.1`, `PT24H` | 방문자 수가 아닌 상대 집중률 예측. 가장 붐비는 시기를 100으로 둔 날짜 단위 상대값이며 인원·수용률·시간대 예측이 아니다 |
+| `KTO_ENG_SERVICE` | 한국관광공사 영문 관광정보(포털 15101753) | 오너가 검토해 연결한 장소의 영문 이름·주소(BA-086) | registry v1 `DEV_APPROVED`, `P7D`; `detailCommon2`만; `V050` | 번역이 아니라 provider 영문이다. 연결은 오너 검토로만 생기고, 개요·이미지·좌표·코드는 보존하지 않는다 |
 | `KTO_RELATED_PLACES` | 관광지별 연관 관광지 | 대체/연관 장소 근거 | `DISABLED` (미신청) | 차량 내비 데이터·과거 기간/의미 한계 |
 | `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | `DISABLED` (B10 전) | area scope, 장소 목록/field 변경, 품질 사고 |
 | `DEMO_REPLAY` | 검증된 내부 fixture | 시연/외부 장애 fallback | `DISABLED` (B10 전) | 현재 실시간처럼 표시 금지 |
@@ -117,6 +118,49 @@ attributionTemplate: "출처: ⓒ한국관광공사"
 
 - response는 `resultCode=0000`, 하나의 matching item, bounded title/category/area/address, 함께 존재하는 지리 좌표와 지구 범위를 통과해야 한다. 정상 projection은 source registry revision·collector run·hash·fetched/stale 시각만 포함한 immutable snapshot이다.
 - `nullnull.env=test`의 loopback fixture만 official base 검사를 예외로 할 수 있다. 실제 staging success → collector audit → C3 public provenance projection은 BA-021-T3의 별도 release gate이며, 현재 fixture 결과로 대체할 수 없다.
+
+## 2.5 KTO 영문 관광정보 서비스 (BA-086)
+
+영문 dataset은 국문과 **다른 활용신청**(포털 15101753, base path `apis.data.go.kr/B551011/EngService2`)이고 contentId를 공유하지 않는다. 오너 실호출(#60, 2026-09-21)에서 국문 126508은 영문 dataset에 없었다. 그래서 영문 텍스트는 **오너가 검토한 연결**을 거쳐서만 canonical 장소에 붙는다.
+
+### Registry 값과 근거
+
+| 값 | 등록값 (`V050`) | 근거와 등급 |
+| --- | --- | --- |
+| license | `이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)` | 포털 15101753 원문 HTML의 `이용허락범위 제한 없음`(2026-09-23 조회, 페이지 수정일 2026-02-26). 괄호는 국문 행과 같은 팀 사용 정책이다 |
+| quota `perDay` | 1000 | 같은 페이지의 `개발계정 : 1,000`. **dataset 단위로 적힌 수치**이고, operation별 한도가 적힌 마이페이지 활용신청 상세는 보지 않았다(D-003). 국문 행 값을 옮긴 것이 아니다 |
+| approval | `DEV_APPROVED` | 같은 페이지 `심의유형 개발단계 : 자동승인`, 오너 실호출에서 키·활용신청 정상(#60, 2026-09-21) |
+| attribution | `출처: ⓒ한국관광공사` | 오너 결정(#60, 2026-09-21) |
+| stale | 604800초(7일) | 오너 결정(#60, 2026-09-21). 갱신 목표 주기이고 노출을 막는 신선도 게이트가 아니다 — 국문 텍스트와 같다 |
+| schema | `kto-eng-service2-detailcommon2-v1` | 아래 필수 키가 이 이름이 가리키는 모양이다 |
+
+### 응답에서 읽는 키
+
+`title`·`addr1`·`mapx`·`mapy`·`lclsSystm1`·`lDongRegnCd`·`lDongSignguCd`(와 대조용 `contentid`·`contenttypeid`). 근거는 오너 probe의 관측(#60, 2026-09-21: 영문 상세 응답은 28개 필드로 국문 `detailCommon2`와 모양이 같다)이다. 필드 이름을 하나씩 적은 관측 기록은 이 문서가 처음이다. 그래서 `KtoEngDetailResponseValidator`는 이 키 가운데 하나라도 **없으면** `SCHEMA_DRIFT`로 격리한다. 가정이 틀렸다면 영문 텍스트가 조용히 전부 빠지는 것이 아니라 source 격리로 드러난다. 키는 있고 값이 빈 문자열이면 그 record 하나의 데이터 공백이다 — 좌표·코드가 비면 아래 연결 규칙이 거절하고, 이름(`title`)이 비었거나 저장 한도(200자)를 넘으면 낼 이름이 없으므로 그 record의 영문 텍스트를 내린다. 라틴 문자가 하나도 없는 값은 영문이 아니다. 이름이면 그 record의 영문 텍스트를 내리고, 주소면 주소만 국문으로 돌아간다(#360 검토). 한글이 섞였다는 이유로 내리지는 않는다 — 영문 제목은 국문 이름을 괄호로 함께 싣는다(예: `Gyeongbokgung Palace (경복궁)`). 어느 쪽도 source를 격리하지 않는다.
+
+### 연결 규칙 (오너 결정, #60 2026-09-21)
+
+- 영문 좌표와 canonical 좌표의 거리가 100 m 이하여야 한다. 거리는 haversine(반지름 6,371,008.8 m)으로, 매칭 probe가 오너에게 보여 준 값과 같은 구현(`GeoDistance`)으로 잰다.
+- 영문 `lclsSystm1`이 `places.category_code`와 같아야 한다.
+- 영문 `lDongRegnCd`가 `places.region_code`와 같고, `lDongSignguCd`가 그 장소 국문 ref가 가리키는 snapshot(revision 4 이상)의 `sigungu_code`와 같아야 한다. "같은 법정동"은 **시도+시군구(2+3자리)** 층위다(§16).
+- 두 후보 이상일 때의 한글 제목 정확 일치 규칙은 오너 검토 단계의 것이다. 수집은 검토된 한 record를 다시 규칙에 대 볼 뿐이다.
+
+### 수집·철회
+
+- **import**(`ktoEngLinkImport`): 연결 plan만 저장한다. 검토 시각과 HTTPS 근거 URL은 검증하되 URL은 저장·출력하지 않는다. provider 호출은 없다.
+- **refresh**(`ktoEngTextRefresh`): 연결된 record마다 `detailCommon2`를 한 번 부른다. collector run·quota·ingest log는 국문과 같고, 외부 호출은 transaction 밖에서 한다.
+- **판정별 처리**:
+  - 규칙을 만족하면 `en` localization(`source_locale` `en`, 이름·주소만)을 쓴다.
+  - 규칙을 어기거나 record가 사라졌으면(정상 envelope에 `totalCount` 0) 그 텍스트를 지운다.
+  - 0건은 drift가 아니다. run은 0건 `COMPLETED`이고 source를 격리하지 않는다. 집중률 예측의 *coverage 없음*과 같은 읽기다.
+  - 호출 중 연결이 바뀌었거나 revision이 넘어갔으면 아무것도 쓰지 않는다.
+- **읽기**: 기존 게이트(revision·enabled)와 필드별 `textProvenance`가 그대로 적용된다. `locale`은 `en`이므로 클라이언트는 `en-US`와 문자열 비교가 아니라 언어 subtag로 비교해야 한다.
+
+### 아직 하지 않은 것
+
+- 세 후보(경복궁→264329, 덕수궁→1942577, 북촌한옥마을→561382)의 오너 직접 검토
+- staging에서 import·refresh 실행: 운영 task 등록과 task definition의 `KTO_ENG_BASE_URL`이 먼저 필요하다
+- 영문 coverage 보고서
 
 ## 3. KTO 관광지 집중률 예측
 
