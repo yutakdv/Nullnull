@@ -158,8 +158,17 @@ Fallback은 internet-facing ALB inbound를 CloudFront managed prefix list로 제
 [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006)의 `apps/ai`는 같은 cluster의 별도 Fargate service다. 배포 경로 결정은 [D-031](../project/DECISIONS_AND_RISKS.md#2-열린-결정)이다.
 
 - ALB target이 아니다. Service Connect/Cloud Map 내부 DNS(예: `ai.nullnull.internal:8090`)로만 api service가 호출한다.
-- security group inbound 8090은 api service SG만 허용하고 외부 ingress·NAT egress가 필요 없다. DB subnet 접근 권한도 없다.
-- task 환경: `NULLNULL_ENV`, `NULLNULL_AI_BIND_HOST=0.0.0.0`, `NULLNULL_AI_PORT=8090`, `NULLNULL_CATALOG_VERSION`(release manifest 값), `AI_PROVIDER=NONE`. secret은 P1 `OPENAI` 승인 전까지 없다.
+- security group inbound 8090은 api service SG만 허용하고 외부 ingress가 없다. DB subnet 접근 권한도 없다.
+- 송신: NAT 없이 public IP로 나가고, 다른 service처럼 443 송신이 열려 있다(`staging.ts`의 공통 egress 규칙). 그래서 외부 모델 호출을 막는 것은 아래 env와 secret 부재뿐이다.
+- task 환경:
+  - task definition이 넣는 것: `NULLNULL_ENV`, `NULLNULL_CATALOG_VERSION`(release manifest 값)
+  - image가 넣는 것: `NULLNULL_AI_BIND_HOST=0.0.0.0`, `NULLNULL_AI_PORT=8090`(`apps/ai/Dockerfile`)
+  - `AI_PROVIDER`는 어디서도 설정하지 않으므로 기본값 `NONE`으로 돈다(`settings.py`).
+  - secret은 없다.
+  - 이 상태는 두 test가 고정한다.
+    - `infra/test/staging.test.ts`: AiService가 돌리는 task의 모든 컨테이너. 환경변수·secret에 provider·key·model이 없고, env 파일·command·entrypoint도 없다.
+    - `scripts/tests/test_ai_image_provider_off.py`: image의 ENV·ARG. infra 게이트는 `infra/`만 받으므로 image는 여기서 읽는다.
+  - `OPENAI`를 켜는 것은 둘 중 하나를 바꾸는 검토된 변경이어야 한다(A-064, #337).
 - staging desired count 1, 시작 크기 0.25 vCPU/0.5GB(측정 후 조정). readiness는 `/internal/v1/health/ready`.
 - api task는 `NULLNULL_AI_BASE_URL`로 이 DNS를 받고, ai 장애 시 api readiness는 `DEGRADED`이며 ALB health check는 실패하지 않는다.
 - rollback: ai 이전 image digest로 되돌려도 내부 계약 v1이 유지돼야 한다(계약 변경은 api·ai 동시 승격).

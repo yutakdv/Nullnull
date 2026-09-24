@@ -233,6 +233,8 @@ release manifest는 한 번 build한 산출물을 식별한다.
 
 reviewer를 기다리는 `deploy-infra`는 concurrency group을 잡고 있으므로, 승인하거나 거절하기 전까지 뒤의 release는 대기한다(GitHub는 미응답 승인을 30일 뒤 만료한다). 실패한 job만 다시 돌려도 된다: plan과 artifact 이름은 job output으로 전달돼 그것을 만든 attempt의 것을 쓴다.
 
+**공개 edge를 연 채 배포할 때는 `plan_only=true`로 dispatch한다.** `app`으로 분류된 plan은 `deploy-app`이 검토자 없이 바로 실행하고(`staging` environment에는 reviewer가 없다), 그 job은 기본 deploy라 공개 API edge를 닫는다. `plan_only=true`면 verify·web·build·plan만 돌고 두 deploy job은 건너뛴다. 그 plan을 release bucket `pending/<run_id>-<attempt>/plan.tgz`에서 받아 plan job log의 `approved_plan_sha256`과 해시를 대조한 뒤 exact-main worktree에서 `deploy --plan … --execute --kind <app|infra> --preserve-open-edge`로 적용한다. 기본값은 `false`라 reconciler 동작은 바뀌지 않는다.
+
 ## 8. Rollback
 
 - API/AI: 직전 manifest의 image digest/task definition으로 되돌린다.
