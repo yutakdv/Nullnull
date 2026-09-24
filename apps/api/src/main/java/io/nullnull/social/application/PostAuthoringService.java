@@ -1,18 +1,22 @@
 package io.nullnull.social.application;
 
+import io.nullnull.identity.application.IdempotencyGuard;
+import io.nullnull.identity.domain.RequestFingerprint;
 import io.nullnull.social.application.ImageSanitiser.ImageRejectedException;
 import io.nullnull.social.application.ImageSanitiser.SanitisedImage;
 import io.nullnull.social.domain.UploadIntent;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Turns a claimed upload and some text into a published post, in one call.
@@ -38,21 +42,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class PostAuthoringService {
 
+    private static final String CREATE_ROUTE = "POST /posts";
+    // Lease for the bounded-size image's S3 read, publish and delete outside the command transaction.
+    private static final Duration PUBLISH_BOUND = Duration.ofMinutes(2);
+
     private final UploadIntentStore intents;
     private final ObjectStorage storage;
     private final ImageSanitiser sanitiser;
     private final FeedStore feed;
-    private final TransactionTemplate transactions;
+    private final IdempotencyGuard idempotency;
+    private final ObjectMapper json;
     private final Clock clock;
 
     public PostAuthoringService(UploadIntentStore intents, ObjectStorage storage,
-            ImageSanitiser sanitiser, FeedStore feed, TransactionTemplate transactions,
+            ImageSanitiser sanitiser, FeedStore feed, IdempotencyGuard idempotency,
+            ObjectMapper json,
             Clock clock) {
         this.intents = intents;
         this.storage = storage;
         this.sanitiser = sanitiser;
         this.feed = feed;
-        this.transactions = transactions;
+        this.idempotency = idempotency;
+        this.json = json;
         this.clock = clock;
     }
 
@@ -60,8 +71,22 @@ public class PostAuthoringService {
      * @param ownerId derived from the session, never from the request (invariant 11)
      * @throws AuthoringRejectedException for every refusal, with the reason the API layer maps
      */
-    public UUID publish(UUID ownerId, UUID uploadId, String title, String body, String altText,
-            List<UUID> placeIds) {
+    public UUID publish(UUID ownerId, String idempotencyKey, UUID uploadId, String title,
+            String body, String altText, List<UUID> placeIds) {
+        String fingerprint = RequestFingerprint.of("createPost", Map.of(),
+                json.writeValueAsString(new PublishPayload(uploadId, title, body, altText, placeIds)))
+                .sha256Hex();
+        IdempotencyGuard.GuardedResponse guarded = idempotency.execute(ownerId, CREATE_ROUTE,
+                idempotencyKey, fingerprint,
+                new IdempotencyGuard.Prelude<>(PUBLISH_BOUND, () -> prepare(ownerId, uploadId)),
+                prepared -> new IdempotencyGuard.CommandOutcome<>(201,
+                        new PublishedPost(writeRows(ownerId, uploadId, title, body, altText,
+                                placeIds, prepared.servedUrl(), prepared.checksum(), prepared.now()))),
+                value -> value);
+        return json.readValue(guarded.body(), PublishedPost.class).postId();
+    }
+
+    private PreparedPost prepare(UUID ownerId, UUID uploadId) {
         Instant now = clock.instant();
         Optional<UploadIntent> found = intents.find(uploadId);
 
@@ -88,10 +113,15 @@ public class PostAuthoringService {
             intents.reject(uploadId, now);
             throw new AuthoringRejectedException(AuthoringRejection.UPLOAD_MISSING);
         }
-        if (original.length > intent.contentLength()) {
-            // The signature bound a length and the store enforces it, so this is a second line
-            // rather than the only one - but an object store whose enforcement we assumed rather
-            // than measured is exactly what this check is for.
+        if (original.length != intent.contentLength()) {
+            // The signed PUT declares an exact length. Check it again on the received bytes so a
+            // shorter object cannot be published if storage accepts a mismatched declaration.
+            cleanUp(intent, uploadId, now);
+            throw new AuthoringRejectedException(AuthoringRejection.IMAGE_REJECTED);
+        }
+        if (!sha256(original).equals(intent.checksumSha256())) {
+            // The presigned PUT binds type and length, but S3 does not compare the checksum in
+            // this signature. Refuse changed bytes before decoding or publishing them.
             cleanUp(intent, uploadId, now);
             throw new AuthoringRejectedException(AuthoringRejection.IMAGE_REJECTED);
         }
@@ -109,20 +139,15 @@ public class PostAuthoringService {
         // 10), and no part of this flow reads it again.
         storage.deleteQuarantined(intent.quarantineKey());
 
-        String checksum = sha256(sanitised.bytes());
-        return transactions.execute(status ->
-                writeRows(ownerId, uploadId, title, body, altText, placeIds, servedUrl, checksum, now));
+        return new PreparedPost(servedUrl, sha256(sanitised.bytes()), now);
     }
 
     /**
      * The three rows, in one transaction: a post whose cover asset is missing is a broken card, and
      * an asset no post points at is a row nothing can reach.
      *
-     * <p>WRAPPED BY A TEMPLATE RATHER THAN ANNOTATED, and the difference is not style. {@code
-     * @Transactional} is applied by a proxy around the bean, and a call from another method of the
-     * SAME bean does not go through that proxy - so an annotation here would have compiled, read
-     * correctly, and opened no transaction at all. The failure would only have shown up as a
-     * partially written post after an error nobody was injecting.
+     * <p>The idempotency guard owns this transaction and records the response with these rows.
+     * A replay never claims the ticket or calls the object store again.
      */
     private UUID writeRows(UUID ownerId, UUID uploadId, String title, String body, String altText,
             List<UUID> placeIds, String servedUrl, String checksum, Instant now) {
@@ -159,6 +184,13 @@ public class PostAuthoringService {
             throw new IllegalStateException("SHA-256 is required of every JVM", e);
         }
     }
+
+    private record PublishPayload(UUID uploadId, String title, String body, String altText,
+            List<UUID> placeIds) {}
+
+    private record PreparedPost(String servedUrl, String checksum, Instant now) {}
+
+    public record PublishedPost(UUID postId) {}
 
     /**
      * Every way authoring refuses.

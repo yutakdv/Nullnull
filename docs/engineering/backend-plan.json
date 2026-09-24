@@ -717,6 +717,10 @@
         {
           "id": "BA-020-T8",
           "assertion": "operator 해제 도구는 격리되지 않은 source 를 거절하고 아무것도 쓰지 않는다"
+        },
+        {
+          "id": "BA-020-T9",
+          "assertion": "공통 기록기의 기본 경로는 제공자가 선언한 오류도 QUARANTINED 로 닫는다"
         }
       ],
       "handoff": "V007 source registry와 apps/api build/test-results/{test,integrationTest}의 C1 JUnit 증거. C2에서만 실제 KTO gateway·key·provenance/snapshot을 추가하며 서울 전용 adapter는 구현하지 않는다.",
@@ -2759,7 +2763,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-071",
-      "reason": "T1은 staging smoke(alb_internal·s3_private·rds_private_multi_az)가 증명했다. T2는 실제 DynamoDB 잠금의 이중 획득 거부(나)와 로컬 Flyway 동시 실행의 대기(다)로 증명했다. T3는 A-047로 승격 절을 빼고 manifest에 묶인 산출물 전체의 대조 test와 staging release run들이 증명했다. T4(rollback 뒤 smoke)는 #305의 마지막 배포 전 연습으로 남았다. staging 절은 JUnit으로 집계되지 않으므로 in-progress를 유지한다."
+      "reason": "T1은 staging smoke(alb_internal·s3_private·rds_private_multi_az)가 증명했다. T2는 실제 DynamoDB 잠금의 이중 획득 거부(나)와 로컬 Flyway 동시 실행의 대기(다)로 증명했다. T3는 A-047로 승격 절을 빼고 manifest에 묶인 산출물 전체의 대조 test와 staging release run들이 증명했다. T4(rollback 뒤 smoke)는 오너 결정(2026-09-21, #305 본문)으로 연습하지 않는다 — 증거 수집 뒤의 재배포가 release 이름에 묶인 actual_call·inventory·readiness를 무효로 만들기 때문이다. 그래서 T4는 미증명으로 남는다. staging 절은 JUnit으로 집계되지 않으므로 in-progress를 유지한다."
     },
     {
       "id": "BA-072",
@@ -3936,6 +3940,22 @@
         {
           "id": "BA-090-T18",
           "assertion": "source 장애 중 optimizer 의 답이 장애 밖에서와 같다"
+        },
+        {
+          "id": "BA-090-T19",
+          "assertion": "서울 제공자가 스스로 선언한 오류는 run 을 FAILED 로 닫는다"
+        },
+        {
+          "id": "BA-090-T20",
+          "assertion": "서울 제공자 오류로 닫힌 run 은 다음 수집을 막지 않는다"
+        },
+        {
+          "id": "BA-090-T21",
+          "assertion": "RESULT 코드가 없는 서울 응답은 제공자 오류가 아니라 schema drift 다"
+        },
+        {
+          "id": "BA-090-T22",
+          "assertion": "대체 표시가 있는 서울 응답도 나머지 drift 는 격리된다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",
@@ -3992,7 +4012,12 @@
         },
         {
           "id": "BA-091-T2",
-          "assertion": "map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다"
+          "assertion": "map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 BA-091-T2 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "issue": "#97"
+          }
         },
         {
           "id": "BA-091-T3",

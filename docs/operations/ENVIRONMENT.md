@@ -69,6 +69,7 @@ Vite의 `VITE_` 변수는 build output에 공개된다. secret을 넣을 수 없
 | `nullnull.session.touch-interval` | 아니오 | `PT1M` | 반복 요청 DB touch 제한; 첫 비-bootstrap 요청은 항상 기록. **확정(2026-09-13 오너 승인, PM-017)** |
 | `APP_IMPORT_DRAFT_TTL` | 아니오 | `PT24H` | structured draft only |
 | `APP_IDEMPOTENCY_TTL` | 아니오 | `PT24H` | replay record 보존, 최소 `PT1M`. **거절 message는 property 이름 `nullnull.idempotency.ttl`로 말한다** — 설정하는 이름과 보고되는 이름이 다르므로 둘을 함께 적는다. 이 줄이 없으면 운영자가 자기가 설정한 이름을 이 문서에서 grep해도 그 message를 찾지 못한다 |
+| `NULLNULL_UPLOAD_PRESIGN_TTL` | 아니오 | `PT15M` | 게시물 이미지 업로드 URL 유효 시간. 반드시 `APP_IDEMPOTENCY_TTL`보다 짧아야 하며, 위반하면 API가 시작되지 않는다. 만료 후 업로드 재시도는 새 key로 새 티켓을 발급받는다 |
 | `APP_IDEMPOTENCY_LOCK_TIMEOUT` | 아니오 | `PT3S` 제안값 | guarded transaction의 `lock_timeout`, 최소 `PT0.1S`. 만료는 BA-003의 bounded retry가 흡수한다. **거절 message는 property 이름 `nullnull.idempotency.lock-timeout`으로 말한다.** 근거와 확정 조건은 아래 |
 | `APP_REVERT_WINDOW` | 아니오 | `PT24H` | optimization undo |
 | `APP_DELETION_RETRY_LIMIT` | 아니오 | `5` 제안값 | 삭제 job의 `max_attempts`; BA-012가 enqueue 시 읽고 1~20을 강제한다 |

@@ -396,7 +396,7 @@ tasks.register<JavaExec>("ktoCallInventory") {
 
 tasks.register<JavaExec>("ktoDemoDetailRefresh") {
     group = "verification"
-    description = "Renews the approved KTO detail snapshots of the demo places (NULLNULL_DEMO_PLACES) that lapse within two days"
+    description = "Renews the approved KTO detail snapshots of the demo places (NULLNULL_DEMO_PLACES) that lapse within six days (KtoDemoRefresh.DETAIL_RENEW_BEFORE)"
     dependsOn(tasks.named("classes"))
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoDemoDetailRefreshMain")
@@ -405,7 +405,7 @@ tasks.register<JavaExec>("ktoDemoDetailRefresh") {
 
 tasks.register<JavaExec>("ktoDemoForecastRefresh") {
     group = "verification"
-    description = "Renews the approved KTO forecasts of the demo places (NULLNULL_DEMO_PLACES) that lapse within twelve hours"
+    description = "Renews the approved KTO forecasts of the demo places (NULLNULL_DEMO_PLACES) that lapse within eighteen hours (KtoDemoRefresh.FORECAST_RENEW_BEFORE)"
     dependsOn(tasks.named("classes"))
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("io.nullnull.catalog.infrastructure.kto.KtoDemoForecastRefreshMain")

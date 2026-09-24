@@ -59,10 +59,14 @@ export const METRIC_NAMESPACE = "Nullnull/Staging";
 // The forecast refresh schedule (A-044). The end instant is staging_operator.py's EXPIRY, not a second
 // date: judging closes 2026-10-25 23:59:59 KST and nothing here may outlive it.
 export const FORECAST_SCHEDULE_END = new Date("2026-10-25T14:59:59Z");
-// Every 12 h because that is KtoDemoRefresh.FORECAST_RENEW_BEFORE: a run renews the sets that lapse
-// within 12 h, so a cadence longer than that leaves a set stale before the next run arrives, and a
-// shorter one spends KTO quota renewing what is not near lapsing. The pairing, not the number, is the
-// rule; scripts/tests/test_ops_alarm_metric_filters.py keeps the two files saying the same hours.
+// Every 12 h. A run renews the sets that lapse within KtoDemoRefresh.FORECAST_RENEW_BEFORE of its start,
+// six hours longer than this cadence, so the set one run fetched is renewed by the next as long as a
+// run's call comes less than six hours later after its tick than the previous run's did. Lateness is
+// the scheduler's delivery, which maxEventAge below bounds (an older invocation is dropped, not
+// delivered late), then the Fargate start and the places ahead - minutes, bounded by nothing here. Equal numbers
+// were the defect (#361): that set lapsed exactly one window after the next run's tick, and whichever
+// run started faster after its tick decided whether it was renewed. The relation, not the numbers, is
+// the rule; scripts/tests/test_ops_alarm_metric_filters.py holds the two files to it.
 export const FORECAST_SCHEDULE_RATE_HOURS = 12;
 // The missing-refresh alarm's window: 18 periods of 1 h. The reasoning is at the alarm; these are
 // constants so the infra test can state the bounds without restating the arithmetic.
@@ -79,8 +83,12 @@ export const DETAIL_MAIN =
 // A forecast request is built from a detailCommon2 snapshot, and the registry stales that snapshot after
 // 604800 s (V007__sources.sql). Once it lapses the forecast refresh has nothing to ask with and ends
 // NO_VERIFIED_KTO_MAPPING (KtoDemoRefresh.refreshForecast), so a forecast-only schedule would fail from
-// the seventh day of a thirty-six day judging period onward. Every 5 days renews with the two days of
-// margin KtoDemoRefresh.DETAIL_RENEW_BEFORE was written for: 5 + 2 = the 7 the registry allows.
+// the seventh day of a thirty-six day judging period onward. Every 5 days, with
+// KtoDemoRefresh.DETAIL_RENEW_BEFORE longer than that by a day, so each run renews the snapshot the run
+// before it fetched as long as its call is not a day later after its tick than that run's (the same
+// lateness as above). "5 + 2 = the 7 the registry allows" was the defect (#361): it put that snapshot
+// exactly on the next run's renewal boundary, where a skipped renewal left about three days without a
+// mapping. The same test file holds this relation.
 export const DETAIL_SCHEDULE_RATE_DAYS = 5;
 // What KtoDemoRefresh prints when a forecast run touched every place without one failing. The mode token
 // is lower case (KtoDemoRefresh.name(Mode)); a filter quoting "mode=FORECAST" would never match a line.
@@ -872,6 +880,14 @@ export function createStacks(
     allowedPattern: "^([a-f0-9]{64})?$",
   });
   const webBucket = bucket(web, "WebBucket");
+  // Presigned quarantine uploads come directly from this browser origin to S3.
+  // A literal avoids a bucket -> distribution -> bucket dependency cycle.
+  webBucket.addCorsRule({
+    allowedOrigins: ["https://d54awmnmi4c3z.cloudfront.net"],
+    allowedMethods: [s3.HttpMethods.PUT],
+    allowedHeaders: ["content-type"],
+    maxAge: 300,
+  });
   const spa = new cf.Function(web, "SpaRewrite", {
     functionName: "nullnull-stg-spa-rewrite",
     code: cf.FunctionCode.fromInline(

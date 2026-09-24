@@ -77,7 +77,12 @@ test.describe('FE-401 Live map and list', () => {
     const sourceState = page.getByTestId('live-persistent-state');
     await expect(sourceState).toContainText(/replay/i);
     await expect(sourceState).toContainText(/not live/i);
-    await expect(sourceState).toContainText('2026-09-20T05:00:00Z');
+    // The observation in Seoul time (05:00Z is 14:00 KST), never the raw instant.
+    // Observed and generated fall in the same minute here, so which of the two
+    // the badge names is pinned by FE-403-T1 in live.test.tsx, whose approved
+    // replay fixture keeps them minutes apart.
+    await expect(sourceState).toContainText('Observed 9/20, 2:00 PM');
+    await expect(sourceState).not.toContainText('2026-09-20T05:00:00Z');
     await expect(sourceState).not.toContainText('2026-09-20T05:00:07Z');
     const area = page.getByRole('button', { name: /광화문·덕수궁/ });
     await area.focus();

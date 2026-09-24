@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useI18n } from '../i18n/I18nProvider.js';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type Query } from '@tanstack/react-query';
 import type { components } from '@nullnull/api-client';
 import {
   bootstrapSession,
@@ -20,6 +20,14 @@ import styles from './AppShell.module.css';
 export interface AppShellOutletContext {
   activeTripId: string | null;
   activeTripReady: boolean;
+  /**
+   * The tab knows whether it has a session: a token is held or was reissued, a
+   * first-visit bootstrap finished, or the question ended in an error the
+   * screen should show. A screen whose first read goes out on mount waits on
+   * this, because on a first visit that read would otherwise leave with no
+   * cookie and get the same 401 the reissue got.
+   */
+  sessionReady: boolean;
   setActiveTripId: (activeTripId: string | null) => void;
 }
 
@@ -190,6 +198,60 @@ export function AppShell({ tabs = false }: AppShellProps) {
     retry: false,
   });
   const bootstrapped = session.isSuccess;
+  // Whether a read sent now would carry a session cookie, or has nothing left
+  // to wait for. The first-visit 401 above is the one state that is neither:
+  // the bootstrap is minting the cookie, and a read that leaves before it lands
+  // gets that 401 too. The feed never met this because it waits for the owner;
+  // Live reads on mount, and its list POST is not retried, so a deep link onto
+  // /live kept "couldn't check live areas" after the session existed (observed
+  // on the public edge, 2026-09-23).
+  //
+  // Any other outcome settles it: a held or reissued token, a finished
+  // bootstrap, a failed bootstrap (the screen shows its own error and retry),
+  // and a reissue failure that is not the first-visit 401 (a network error is
+  // the screen's to show; an ended session never reaches the Outlet). Waiting
+  // never starts a session of its own, so nothing here can mint an owner.
+  const sessionReady =
+    csrf.isSuccess ||
+    bootstrapped ||
+    currentCsrfToken() !== null ||
+    session.isError ||
+    (csrf.isError && !noCookieSent);
+
+  // The same race for every other screen. Most mount-time reads are GETs, and
+  // the contract retries one UNAUTHORIZED GET after 1s, which recovers only
+  // when the bootstrap is quicker than that; on a slow network it is not, and
+  // the screen kept its error after the session existed. So once this tab's
+  // first-visit bootstrap has succeeded, a read that failed ONLY because it
+  // left without a cookie (missingCredential, never an ended session) is asked
+  // again - once per query, so a browser that refuses the cookie cannot loop,
+  // and never the session queries themselves, whose answers this shell reads.
+  const askedAgain = useRef(new WeakSet<Query>());
+  useEffect(() => {
+    if (!bootstrapped) return;
+    const cache = queryClient.getQueryCache();
+    const askAgain = (query: Query) => {
+      const error = query.state.error;
+      if (
+        query.state.status !== 'error' ||
+        query.queryKey[0] === 'session' ||
+        !query.isActive() ||
+        !isProblem(error) ||
+        error.code !== 'UNAUTHORIZED' ||
+        error.missingCredential !== 'SESSION_COOKIE' ||
+        askedAgain.current.has(query)
+      ) {
+        return;
+      }
+      askedAgain.current.add(query);
+      void queryClient.refetchQueries({ queryKey: query.queryKey, exact: true });
+    };
+    cache.getAll().forEach(askAgain);
+    return cache.subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'error')
+        askAgain(event.query);
+    });
+  }, [bootstrapped, queryClient]);
   // An ended session, now that the two are distinguishable: a 401 whose request
   // DID carry a cookie, and no bootstrap has succeeded in this tab.
   const sessionGone =
@@ -342,6 +404,7 @@ export function AppShell({ tabs = false }: AppShellProps) {
             {
               activeTripId,
               activeTripReady,
+              sessionReady,
               setActiveTripId,
             } satisfies AppShellOutletContext
           }
