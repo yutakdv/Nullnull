@@ -38,6 +38,12 @@ on:
         description: rollback only - the older release will run against the newer schema; accept that
         type: boolean
         default: false
+      accept_additive_schema:
+        description: >-
+          deploy only - migration files (comma-separated) this release appends to the deployed schema, recorded in
+          the plan (A-067). Only a local --preserve-open-edge execute runs such a plan; the deploy jobs here refuse it
+        type: string
+        required: false
 
 permissions: {}
 
@@ -268,13 +274,17 @@ jobs:
           ACTION: ${{ inputs.action }}
           ROLLBACK_PLAN_SHA256: ${{ inputs.rollback_plan_sha256 }}
           ACCEPT_NEWER_SCHEMA: ${{ inputs.accept_newer_schema }}
+          ACCEPT_ADDITIVE_SCHEMA: ${{ inputs.accept_additive_schema }}
           NULLNULL_VERIFIER_TOKEN: ${{ secrets.STAGING_VERIFIER_TOKEN }}
         run: |
           set -euo pipefail
+          # Passed on either action: a rollback plan refuses it (accept-additive-schema-deploy-only) instead of dropping it.
+          flags=()
+          [[ -n "$ACCEPT_ADDITIVE_SCHEMA" ]] && flags+=(--accept-additive-schema "$ACCEPT_ADDITIVE_SCHEMA")
           if [[ "$ACTION" == deploy ]]; then
             python3 scripts/aws/staging_operator.py deploy --manifest "$RUNNER_TEMP/release/release.json" \
               --web-dir "$RUNNER_TEMP/release/web" --estimated-total "$ESTIMATED_TOTAL_USD" \
-              --cost-basis infra/cost-basis.md --days 14 | tee "$RUNNER_TEMP/plan.out"
+              --cost-basis infra/cost-basis.md --days 14 "${flags[@]}" | tee "$RUNNER_TEMP/plan.out"
           else
             bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
               --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
@@ -286,7 +296,6 @@ jobs:
             mkdir -p "$RUNNER_TEMP/previous"
             aws s3 cp "s3://${bucket}/releases/${ROLLBACK_PLAN_SHA256}/plan.tgz" "$RUNNER_TEMP/previous.tgz" --only-show-errors
             tar -xzf "$RUNNER_TEMP/previous.tgz" -C "$RUNNER_TEMP/previous"
-            flags=()
             [[ "$ACCEPT_NEWER_SCHEMA" == true ]] && flags+=(--accept-newer-schema)
             python3 scripts/aws/staging_operator.py rollback --previous-plan "$RUNNER_TEMP/previous/plan.json" \
               --previous-plan-sha256 "$ROLLBACK_PLAN_SHA256" "${flags[@]}" | tee "$RUNNER_TEMP/plan.out"
@@ -331,6 +340,7 @@ jobs:
             echo "- commit: \`${GITHUB_SHA}\`"
             echo "- approved plan sha256: \`${PLAN_SHA256}\`"
             sed -n 's/^infra_reason=/- infra reason: /p' "$RUNNER_TEMP/classify.out"
+            sed -n 's/^accept_additive_schema=/- migrations an open-edge execute may append (A-067): /p' "$RUNNER_TEMP/classify.out"
             if [[ "$lines" -gt 0 ]]; then
               # Approving deploy-infra approves exactly this: normalized templates and the migration set,
               # account ids redacted by the operator (this summary is public).

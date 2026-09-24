@@ -358,6 +358,8 @@ def rollback_plan(args):
     previous.update(action='rollback',createdAt=now.isoformat(),rolledBackFromPlanSha256=args.previous_plan_sha256,
                     expiresAt=min(now+dt.timedelta(days=14),EXPIRY).isoformat(),verifierTokenSha256=verifier_hash(),
                     acceptNewerSchema=bool(args.accept_newer_schema))
+    # A rollback runs no migration and closes the edge: the migrations the returned-to release appended are not its own.
+    previous.pop('acceptAdditiveSchema',None)
     write_private(directory/'plan.json',previous)
     print('rollback_action=plan aws_writes=0 database_down_migration=false')
     print('plan_path='+str(directory/'plan.json'))
@@ -378,7 +380,14 @@ def stage_covers(target):
         shutil.copyfile(source, target/source.name)
     return [p.name for p in files]
 
+def named_migrations(value):
+    """--accept-additive-schema: comma-separated migration file names."""
+    return [name.strip() for name in (value or '').split(',') if name.strip()]
+
 def plan(args):
+    # A-067: the migrations a preserve-open deploy may append are named here, so the reviewer approves them by hash.
+    additive = named_migrations(getattr(args, 'accept_additive_schema', None))
+    require(not additive or args.action == 'deploy', 'accept-additive-schema-deploy-only')
     if args.action=='rollback':
         return rollback_plan(args)
     bootstrap = args.action == 'bootstrap'
@@ -387,6 +396,8 @@ def plan(args):
     require(len(account)==12 and account.isdigit(), 'invalid-account-id')
     manifest = {'kind':'foundation-bootstrap'} if bootstrap else validate_manifest(args.manifest)
     if not bootstrap: check_artifacts(manifest, args.web_dir)
+    require(set(additive) <= {entry.split(':')[0] for entry in manifest.get('flywayChecksums') or []},
+            'accept-additive-schema-not-in-release')
     require(1 <= args.days <= 14, 'invalid-operating-days')
     now = dt.datetime.now(dt.timezone.utc)
     ends = min(now + dt.timedelta(days=args.days), EXPIRY)
@@ -416,8 +427,12 @@ def plan(args):
             'costBasisSha256':digest(directory/'cost-basis.txt'),
             'toolchainSha256':digest(ROOT/'infra/package-lock.json'),
             'verifierTokenSha256':'' if bootstrap else verifier_hash()}
+    if additive:
+        data['acceptAdditiveSchema'] = additive
     write_private(directory/'plan.json', data)
     print('deployment_action=plan aws_writes=0 traffic_enabled=false')
+    if additive:
+        print('accept_additive_schema=' + ','.join(additive))
     print('plan_path='+str(directory/'plan.json'))
     print('approved_plan_sha256='+digest(directory/'plan.json'))
 
@@ -672,11 +687,11 @@ def preserve_open_schema_allowed(deployed, target, additive):
     """Whether a --preserve-open-edge deploy may move the schema from `deployed` to `target` (flywayChecksums lists).
 
     The edge stays open for the whole deploy, and the old API keeps serving between the migration task and the
-    Services update, so it reads the new schema. Without --accept-additive-schema the schema must not move at all.
-    With it (A-067), the deployed list must be an exact prefix of the release's - every entry the same name and
-    checksum, in the same order - and what the release appends must be exactly the named files, each named once.
-    Whether the old code tolerates those files is the reviewer's question, not this function's: the name is the
-    operator saying it was asked and answered."""
+    Services update, so it reads the new schema. Without names in the plan (--accept-additive-schema when the plan
+    was made) the schema must not move at all. With them (A-067), the deployed list must be an exact prefix of the
+    release's - every entry the same name and checksum, in the same order - and what the release appends must be
+    exactly the named files, each named once. Whether the old code tolerates those files is the reviewer's question,
+    not this function's: the name is the operator saying it was asked and answered."""
     if not additive:
         return deployed == target
     appended = [entry.split(':')[0] for entry in target[len(deployed):]]
@@ -750,6 +765,8 @@ def classify(args):
     print('release_kind=' + ('infra' if findings else 'app'))
     for finding in findings:
         print('infra_reason=' + finding)
+    if data.get('acceptAdditiveSchema'):
+        print('accept_additive_schema=' + ','.join(data['acceptAdditiveSchema']))
     print('template_diff=' + str(directory/'template-diff.txt') + ' lines=' + str(diff.count('\n')))
 
 def record_release(directory, data, manifest, plan_sha):
@@ -790,7 +807,10 @@ def execute(args):
     require(kind in ['app', 'infra'], 'execute-requires-kind-app-or-infra')
     preserve_open = getattr(args, 'preserve_open_edge', False)
     require(not preserve_open or args.action == 'deploy', 'preserve-open-deploy-only')
-    additive = [name.strip() for name in (getattr(args, 'accept_additive_schema', None) or '').split(',') if name.strip()]
+    # A-067: the approved plan names what the schema may grow by. An execute-time name may repeat it, never widen it.
+    additive = data.get('acceptAdditiveSchema') or []
+    given = named_migrations(getattr(args, 'accept_additive_schema', None))
+    require(not given or sorted(given) == sorted(additive), 'accept-additive-schema-not-in-approved-plan')
     require(not additive or preserve_open, 'accept-additive-schema-requires-preserve-open-edge')
     verify_images(manifest)
     require_kto_secret_provisioned()
@@ -810,9 +830,12 @@ def execute(args):
         else:
             require(not rollback_findings(directory, manifest, data), 'rollback-requires-infra-approval')
         if preserve_open:
-            current = read_current_release(release_bucket()) or {}
-            require(preserve_open_schema_allowed((current.get('releaseManifest') or {}).get('flywayChecksums') or [],
-                                                 manifest.get('flywayChecksums') or [], additive),
+            current = read_current_release(release_bucket())
+            deployed = ((current or {}).get('releaseManifest') or {}).get('flywayChecksums')
+            # Named migrations are checked against what is deployed. Without that record every migration would read as
+            # appended, and a plan naming them all would pass.
+            require(deployed or not additive, 'accept-additive-schema-requires-deployed-release')
+            require(preserve_open_schema_allowed(deployed or [], manifest.get('flywayChecksums') or [], additive),
                     'preserve-open-schema-change')
             require(edge_traffic_enabled() == 'true', 'preserve-open-requires-open-edge')
             # The web bundle asset may change, but its edge behavior, the online services shape and
@@ -1733,8 +1756,9 @@ def main():
     parser.add_argument('--approved-plan-sha256','--approved-diff-sha256',dest='approved_plan_sha256')
     parser.add_argument('--kind',choices=['app','infra'])
     parser.add_argument('--preserve-open-edge',action='store_true',help='deploy only: retain an already-open edge with unchanged schema and edge/service templates')
-    parser.add_argument('--accept-additive-schema',help='with --preserve-open-edge only: the migration files, comma-separated, '
-                        'this release appends to the deployed schema; nothing else about the schema may change')
+    parser.add_argument('--accept-additive-schema',help='deploy plan only: the migration files, comma-separated, this release '
+                        'appends to the deployed schema; recorded in the plan for a --preserve-open-edge execute, where '
+                        'nothing else about the schema may change. At execute it may only repeat the plan\'s names')
     parser.add_argument('--days',type=int,default=14);parser.add_argument('--estimated-total',type=float)
     parser.add_argument('--cost-basis')
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')
