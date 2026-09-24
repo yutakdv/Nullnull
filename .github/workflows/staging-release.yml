@@ -38,6 +38,10 @@ on:
         description: rollback only - the older release will run against the newer schema; accept that
         type: boolean
         default: false
+      plan_only:
+        description: deploy only - build and plan, then stop; no deploy job runs (an operator executes the reviewed plan, e.g. with --preserve-open-edge)
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -348,7 +352,8 @@ jobs:
   deploy-app:
     name: deploy-app
     needs: plan
-    if: needs.plan.outputs.kind == 'app' && needs.plan.outputs.skip != 'true'
+    # plan_only stops here: an app plan would otherwise deploy at once, with the public edge closed.
+    if: needs.plan.outputs.kind == 'app' && needs.plan.outputs.skip != 'true' && !inputs.plan_only
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment:
@@ -440,7 +445,7 @@ jobs:
   deploy-infra:
     name: deploy-infra
     needs: plan
-    if: needs.plan.outputs.kind == 'infra' && needs.plan.outputs.skip != 'true'
+    if: needs.plan.outputs.kind == 'infra' && needs.plan.outputs.skip != 'true' && !inputs.plan_only
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment:
