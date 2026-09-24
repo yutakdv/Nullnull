@@ -269,6 +269,57 @@ test("AI task carries the catalog version apps/ai requires in staging", () => {
     { Name: "NULLNULL_CATALOG_VERSION", Value: "KTO_KOR_SERVICE_2:4" },
   );
 });
+test("the AI task names no external model provider and holds no provider credential (A-064, #337)", () => {
+  // Neither this template nor the image sets AI_PROVIDER, so apps/ai runs on its default, NONE
+  // (apps/ai/src/nullnull_ai/settings.py). The ai security group allows 443 out to anywhere, so this env
+  // and the absent secrets are the only thing between staging and an external model call. A-064 keeps
+  // the provider off until the AI-use label ships (#337): turning it on has to be a reviewed change here.
+  // The image half is scripts/tests/test_ai_image_provider_off.py: the container's environment also comes from
+  // the image, and the infra gate builds with infra/ alone (infra/Dockerfile), so it cannot read apps/ai.
+  //
+  // Every container of the task AiService runs, not the first one named ai: a sidecar shares the task's
+  // network and could make the call as well. And the two other ways a task definition hands a process an
+  // environment - a file from S3, and a command line that exports one - are refused outright.
+  const resources = templates.services.toJSON().Resources as Record<string, any>;
+  const services = Object.entries(resources).filter(
+    ([id, r]) => r.Type === "AWS::ECS::Service" && id.startsWith("AiService"),
+  );
+  assert.equal(services.length, 1, "exactly one AiService");
+  const containers = resources[services[0][1].Properties.TaskDefinition.Ref].Properties
+    .ContainerDefinitions as any[];
+  assert(containers.some((c) => c.Name === "ai"), "the ai container is in the task AiService runs");
+  for (const c of containers) {
+    const env = (c.Environment ?? []) as any[];
+    const secrets = (c.Secrets ?? []) as any[];
+    for (const e of env.filter((e) => e.Name === "AI_PROVIDER"))
+      assert.equal(e.Value, "NONE", `${c.Name} AI_PROVIDER`);
+    for (const name of ["AI_API_KEY", "AI_MODEL_ID"]) {
+      assert(!env.some((e) => e.Name === name), `${name} in the ${c.Name} environment`);
+      assert(!secrets.some((s) => s.Name === name), `${name} in the ${c.Name} secrets`);
+    }
+    assert(!secrets.some((s) => s.Name === "AI_PROVIDER"), `AI_PROVIDER in the ${c.Name} secrets`);
+    for (const key of ["EnvironmentFiles", "Command", "EntryPoint"])
+      assert.equal(c[key], undefined, `${c.Name} ${key}`);
+  }
+});
+test("only the ops task knows the English KTO service, at its exact base (BA-086, #60)", () => {
+  // The English text arrives only through the ops refresh (KtoEngTextRefreshMain), which stops with
+  // KTO_NOT_CONFIGURED without this value. The API reads the stored text and never calls EngService, so it is not
+  // given the address. A literal on purpose: re-reading staging.ts here would agree with any edit.
+  const containers = [templates.services, templates.migration].flatMap((t) =>
+    (Object.values(t.findResources("AWS::ECS::TaskDefinition")) as any[]).flatMap(
+      (d) => d.Properties.ContainerDefinitions as any[],
+    ),
+  );
+  const env = (name: string) =>
+    containers.find((c) => c.Name === name)?.Environment ?? assert.fail(`no ${name} container`);
+  assert.deepEqual(
+    env("ops").filter((e: any) => e.Name === "KTO_ENG_BASE_URL"),
+    [{ Name: "KTO_ENG_BASE_URL", Value: "https://apis.data.go.kr/B551011/EngService2" }],
+  );
+  for (const name of ["api", "ai", "migration"])
+    assert(!env(name).some((e: any) => e.Name === "KTO_ENG_BASE_URL"), `${name} KTO_ENG_BASE_URL`);
+});
 test("only the API runs ITEM optimization, and no service turns on a capability that has no source", () => {
   // Owner decision 2026-09-19: the submission build runs ITEM optimization. The value is a literal here so
   // that re-reading staging.ts cannot make this test agree with whatever the file says.

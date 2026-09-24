@@ -235,6 +235,8 @@ release manifest는 한 번 build한 산출물을 식별한다.
 
 reviewer를 기다리는 `deploy-infra`는 concurrency group을 잡고 있으므로, 승인하거나 거절하기 전까지 뒤의 release는 대기한다(GitHub는 미응답 승인을 30일 뒤 만료한다). 실패한 job만 다시 돌려도 된다: plan과 artifact 이름은 job output으로 전달돼 그것을 만든 attempt의 것을 쓴다.
 
+**공개 edge를 연 채 배포할 때는 `plan_only=true`로 dispatch한다.** `app`으로 분류된 plan은 `deploy-app`이 검토자 없이 바로 실행하고(`staging` environment에는 reviewer가 없다), 그 job은 기본 deploy라 공개 API edge를 닫는다. `plan_only=true`면 verify·web·build·plan만 돌고 두 deploy job은 건너뛴다. 그 plan을 release bucket `pending/<run_id>-<attempt>/plan.tgz`에서 받아 plan job log의 `approved_plan_sha256`과 해시를 대조한 뒤 exact-main worktree에서 `deploy --plan … --execute --kind <app|infra> --preserve-open-edge`로 적용한다. 기본값은 `false`라 reconciler 동작은 바뀌지 않는다.
+
 ## 8. Rollback
 
 - API/AI: 직전 manifest의 image digest/task definition으로 되돌린다.
@@ -628,6 +630,18 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-live-maps --plan-file <plan.json> \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# 영문 장소 연결(local 전용, BA-086·#60). 오너가 검토한 "이 EngService record가 그 장소다" 결정만 들인다.
+# plan의 links 배열은 placeId, contentId, contentTypeId, reviewedAt(UTC ISO 시각, 예: 2026-09-21T06:00:00Z),
+# evidenceUrl(host가 있는 https, user:password@ 없음)을 각각 담는다. 어긋나면 AWS 호출 전에 멈춘다.
+# provider를 부르지 않으므로 KTO 승인 변수 대신 plan 바이트를 승인한다. 승인값 없이 먼저 돌리면 해시만 찍고 멈춘다.
+NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task kto-eng-link-import --plan-file <plan.json> \
+  --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
+# 영문 텍스트 갱신(local 전용). 연결마다 EngService2 detailCommon2를 한 번 부른다. 국문 호출의 승인 변수는
+# 이것을 대신하지 않는다. 두 영문 명령 모두 #360이 들어간 release의 image에서만 main이 있다.
+NULLNULL_KTO_ENG_REFRESH_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
+  python3 scripts/aws/staging_operator.py task --task kto-eng-text-refresh \
+  --owner-approval '<누가·어디서 승인했는지>'
 # replay 후보 조회(local 전용, 외부 호출 없음). 출력된 정규화 snapshot UUID와 관측 시각을
 # 확인한 뒤에만 capture 계획을 만든다. 활성 구역의 표준 서울 혼잡도 관측만 목록에
 # 나오며 원본 provider 응답이나 위치 원문은 읽지 않는다.
@@ -677,6 +691,15 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - restore drill은 plan이 기본이며 `--execute` 뒤에도 restore DB를 자동 삭제하거나 공개 연결하지 않는다.
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
 - `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
+- `kto-eng-link-import`는 `curate-live-maps`와 같은 승인 plan 경로다.
+  - 성공 조건: sha 줄, 장소마다 `eng_link <placeId> PROCESSED` 한 줄, `eng_links_processed=<n>`, 그리고 실패 줄이 없어야 한다.
+  - 근거 URL은 plan 파일에만 남고 출력되지 않는다.
+  - 영문 텍스트는 이 명령이 아니라 `kto-eng-text-refresh`가 쓴다.
+- `kto-eng-text-refresh`는 연결마다 `KTO_ENG_TEXT_REFRESH placeId=… outcome=…`를 찍는다.
+  - 연결 하나라도 실패하면 task가 실패하고 배포 잠금이 남는다.
+  - 성공은 `KTO_ENG_TEXT_REFRESH_DONE links=N attempted=N failed=0`(N≥1) 한 줄일 때뿐이다(`eng-text-not-refreshed`). 연결이 0개이거나 DONE 줄이 없으면 exit 0이어도 실패다.
+  - 로그에서 되찍는 줄은 설정 출처, 연결별 place id와 결과 단어, 합계의 세 모양뿐이다.
+  - 두 영문 명령은 배포된 release의 ops 정의로만 돈다. ops task definition은 `KTO_ENG_BASE_URL`을 싣는다.
 - `curate-hours`는 승인한 plan 바이트를 gzip+base64로 task override에 싣는다. override는 `describe-tasks`와 CloudTrail에 남으므로 plan에 민감한 값을 넣지 않는다. task가 출력한 sha가 승인값과 같을 때만 성공이고, 그 바이트는 release bucket `evidence/curation/<release>/<sha>.json`에 남는다.
 - `curate-posts`도 같은 경로다. task를 띄우기 **전에** plan의 표지마다 배포된 `PublicUrl/covers/` 아래 주소인지 보고(`cover-not-on-the-deployed-edge`), 그 주소를 실제로 받아 바이트의 sha256이 `cover.checksum`과 같은지 본다(`cover-not-served-as-approved`, 성공이면 `covers_verified=<n>`). 성공은 sha 줄, 실패 줄 없음, **plan의 게시물 id마다 결과 줄이 정확히 하나**, 그리고 `curated_posts_published=<PUBLISHED 줄 수> of <게시물 수>`다 — 합계만으로는 `9999 of 5`도 통과했다. 다시 돌려 이미 있는 게시물은 `ALREADY_PRESENT`이고 그래도 성공이다(`0 of 5`). **두 전제가 있다**: 표지를 서빙하는 release(WebEdge의 `CuratedCovers` 배포)가 먼저 배포돼 있어야 게시물의 표지가 404가 되지 않고, `CuratedPostImportMain`이 inline plan을 읽는 release의 image에서만 task가 돈다 — 그 전 release에서는 main이 파일 경로만 알아서 task 안에서 실패한다. 이미 게시된 게시물은 다시 import해도 바뀌지 않으므로(`ALREADY_PRESENT`) 표지 URL을 고치려면 그 게시물을 먼저 지워야 한다.
 - 표지 사진이 바뀐 release는 **infra 분류**다. web bundle과 달리 표지 배포의 `SourceObjectKeys`는 분류에서 가리지 않는다: 게시된 글이 표지의 URL과 checksum을 들고 있어서, 같은 이름으로 사진을 바꾸면 이미 게시된 글이 깨지고 그 변경은 검토 diff에 보여야 한다. 사진을 바꿀 때는 새 파일 이름으로 둔다.
