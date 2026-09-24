@@ -1386,8 +1386,9 @@ def ops_task(args):
             raise OpsError('task-log-not-fully-read')
         evidence, echoed, inventory, seoul, released = [], [], [], [], []
         withdrawn, refreshed = [], []
-        # KTO lines the allowlist held back. Counted, never printed: a main that changes a line's shape would otherwise
-        # lose that line from this output without a sound (#375).
+        # KTO lines the allowlist held back, the mains' own and their uncaught failures (a code missing from
+        # KTO_FAILURE_CODES). Counted, never printed: a main that changes a line's shape would otherwise lose that line
+        # from this output without a sound (#375).
         withheld = 0
         for event in events:
             line = event.get('message', '').strip()
@@ -1398,7 +1399,7 @@ def ops_task(args):
             if args.task == 'kto-eng-text-refresh' and line.startswith('KTO_ENG_TEXT_REFRESH_DONE'):
                 refreshed.append(line)
             if not OPS_LOG_LINE.match(line):
-                withheld += line.startswith('KTO_')
+                withheld += line.startswith('KTO_') or 'IllegalStateException: KTO ' in line
                 continue
             print('ops_log ' + line)
             if line.startswith('KTO_SMOKE_OK '):
