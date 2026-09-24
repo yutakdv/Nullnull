@@ -69,7 +69,7 @@ SAMPLES = {
         f"KTO_DEMO_REFRESH_PLACE mode=forecast contentId=126508 contentTypeId=12 status=FAILED placeId={PLACE} "
         "failure=NO_VERIFIED_KTO_MAPPING",
         "KTO_DEMO_REFRESH_PLACE mode=detail contentId=126508 contentTypeId=12 status=FAILED "
-        "failure=PROVIDER_ERROR (HttpTimeoutException)",
+        "failure=KTO_TRANSPORT_FAILED (HttpTimeoutException)",
         "KTO_DEMO_REFRESH_PLACE mode=detail contentId=126508 contentTypeId=12 status=FAILED "
         "failure=UNEXPECTED_FAILURE (CompletionException)"],
     "KTO_DEMO_REFRESH_EVIDENCE": [
@@ -103,6 +103,33 @@ def printed_tags():
     return tags - NOT_TAGS
 
 
+JAVA = ROOT / "apps/api/src/main/java/io/nullnull"
+
+
+def enum_constants(path, name):
+    """An enum's constant names, comments removed first: a javadoc between constants holds commas too."""
+    source = re.sub(r"/\*.*?\*/|//[^\n]*", "", path.read_text(encoding="utf-8"), flags=re.S)
+    declared = re.search(r"enum " + name + r"\s*\{([^;}]*)", source)
+    return [constant.strip().split("(")[0].strip() for constant in declared.group(1).split(",")
+            if constant.strip()] if declared else []
+
+
+def written_failure_codes():
+    """The codes the KTO mains write out rather than take from an enum, found by the four ways they write one."""
+    codes = set()
+    for path in KTO.glob("*.java"):
+        if "Probe" in path.name:
+            continue
+        source = re.sub(r"/\*.*?\*/|//[^\n]*", "", path.read_text(encoding="utf-8"), flags=re.S)
+        codes |= set(re.findall(r'failure\("([A-Z_]+)"\)', source))
+        codes |= set(re.findall(r'failed: ([A-Z_]+)"', source))
+        codes |= set(re.findall(r'Outcome\.failed\([a-z]+, "([A-Z_]+)"', source))
+        codes |= set(re.findall(r', "([A-Z_]+)", (?:true|false)\)', source))
+        codes |= set(re.findall(r'(?:return |\? )"([A-Z_]+)"', source)) - {"KTO_SMOKE_OK", "KTO_SMOKE_CACHED"}
+        codes |= set(re.findall(r'"([A-Z_]+) \("', source))
+    return codes
+
+
 class KtoLogShapeTests(unittest.TestCase):
 
     def test_every_line_a_kto_ops_main_prints_is_echoed(self):
@@ -121,12 +148,43 @@ class KtoLogShapeTests(unittest.TestCase):
         self.assertFalse([main for main in mains if "Probe" in main], mains)
 
     def test_each_reason_the_demo_place_list_refuses_with_is_echoed(self):
+        # KtoDemoRefresh.places catches IllegalArgumentException around its own checks and KtoPlaceRequest's, whose
+        # message names the field ("contentId must be a positive KTO identifier").
         source = (KTO / "KtoDemoRefresh.java").read_text(encoding="utf-8")
-        reasons = re.findall(r'new IllegalArgumentException\("([^"]+)"\)', source)
-        self.assertEqual(4, len(reasons), reasons)
-        for reason in reasons:
-            line = "KTO_DEMO_REFRESH_REFUSED reason=" + reason.replace(" ", "_")
+        reasons = set(re.findall(r'new IllegalArgumentException\("([^"]+)"\)', source))
+        self.assertEqual(3, len(reasons), reasons)
+        request = next(JAVA.rglob("KtoPlaceRequest.java")).read_text(encoding="utf-8")
+        fields = re.findall(r'normalized\([a-zA-Z]+, "([a-zA-Z]+)"\)', request)
+        self.assertEqual(["contentId", "contentTypeId"], fields)
+        self.assertIn('field + " must be a positive KTO identifier"', request)
+        reasons |= {field + " must be a positive KTO identifier" for field in fields}
+        self.assertEqual({reason.replace(" ", "_") for reason in reasons}, set(ops.KTO_DEMO_REFUSED_REASONS))
+        for reason in ops.KTO_DEMO_REFUSED_REASONS:
+            line = "KTO_DEMO_REFRESH_REFUSED reason=" + reason
             self.assertTrue(ops.OPS_LOG_LINE.match(line), line)
+
+    def test_the_operator_names_exactly_the_failure_codes_the_mains_print(self):
+        # Equal both ways: a code Java prints and the list lacks is held back from the output, and a list word
+        # Java never prints is one the allowlist takes from any line of that shape.
+        gateway = enum_constants(next(JAVA.rglob("KtoGatewayException.java")), "Code")
+        refused = enum_constants(next(JAVA.rglob("OperationsContext.java")), "Code")
+        written = written_failure_codes()
+        self.assertEqual(9, len(gateway), gateway)
+        self.assertEqual(5, len(refused), refused)
+        self.assertEqual(9, len(written), sorted(written))
+        self.assertEqual(set(gateway) | set(refused) | written, set(ops.KTO_FAILURE_CODES))
+
+    def test_an_uncaught_failure_is_echoed_in_both_forms_the_jvm_writes(self):
+        # PropertiesLauncher invokes the main by reflection, so staging writes "Caused by: " under an
+        # InvocationTargetException; a main run directly writes the first form.
+        for prefix in ['Exception in thread "main" ', "Caused by: "]:
+            for main, code in [("smoke", "CACHED_SNAPSHOT"), ("canonical ingest", "OPERATIONS_TARGET_NOT_CONFIRMED"),
+                               ("forecast smoke", "NO_VERIFIED_KTO_MAPPING"), ("demo refresh", "PLACE_FAILED"),
+                               ("smoke", "KTO_INTERNAL_FAILURE (NullPointerException)"),
+                               ("demo refresh", "UNEXPECTED_FAILURE (CompletionException)")]:
+                line = f"{prefix}java.lang.IllegalStateException: KTO {main} failed: {code}"
+                with self.subTest(line=line):
+                    self.assertTrue(ops.OPS_LOG_LINE.match(line), line)
 
     def test_a_kto_line_carrying_anything_else_is_dropped(self):
         smoke = SAMPLES["KTO_SMOKE_OK"][0]
@@ -143,6 +201,16 @@ class KtoLogShapeTests(unittest.TestCase):
                      'KTO_DEMO_REFRESH_REFUSED reason=For_input_string:_"12a"',
                      "KTO_DEMO_REFRESH_EVIDENCE contentId=126508 title=Gyeongbokgung",
                      "KTO_ENG_PROBE_FIELD title=Gyeongbokgung Palace",
+                     # Each passed before (Codex review of #381): a free prefix before the failure, an invented
+                     # code, a refusal reason that is not one of the parser's messages.
+                     "serviceKey=abc123 Exception: KTO smoke failed: KTO_TRANSPORT_FAILED",
+                     smoke + " title=Gyeongbokgung Palace Exception: KTO smoke failed: KTO_TRANSPORT_FAILED",
+                     "Caused by: java.lang.IllegalStateException: KTO smoke failed: PALACE_NAME",
+                     "Caused by: java.lang.IllegalStateException: KTO smoke failed: KTO_TRANSPORT_FAILED (a b)",
+                     "at io.nullnull.Main Caused by: java.lang.IllegalStateException: KTO smoke failed: PLACE_FAILED",
+                     "KTO_DEMO_REFRESH_PLACE mode=detail contentId=126508 contentTypeId=12 status=FAILED "
+                     "failure=PALACE_NAME",
+                     "KTO_DEMO_REFRESH_REFUSED reason=key:ABCDEFGHIJKLMNOPQRSTUVWXYZ",
                      "KTO_INTRO_PROBE_RESULT verdict=OBSERVED fields=title,addr1"]:
             with self.subTest(line=line[:60]):
                 self.assertFalse(ops.OPS_LOG_LINE.match(line), line)

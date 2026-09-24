@@ -699,7 +699,8 @@ class OpsTaskRegressions(unittest.TestCase):
                  'snapshotId=0199a1f0-0000-7000-8000-000000000002 collectorRunId=0199a1f0-0000-7000-8000-000000000003 '
                  'sourceRegistryVersion=4 payloadHash='+'a'*64+' fetchedAt=2026-09-18T13:00:00Z called=true',
                  'KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- process env',
-                 'Exception in thread "main" java.lang.IllegalStateException: KTO smoke failed: PROVIDER_ERROR (AUTH)',
+                 'Exception in thread "main" java.lang.IllegalStateException: KTO smoke failed: KTO_TRANSPORT_FAILED (HttpTimeoutException)',
+                 'Caused by: java.lang.IllegalStateException: KTO smoke failed: KTO_TRANSPORT_FAILED (HttpTimeoutException)',
                  'operations target=postgresql://db.example.rds.amazonaws.com:5432/nullnull environment=staging access=write schema=unchecked',
                  'operations target=unknown environment=staging access=write schema=unchecked',
                  'Exception in thread "main" java.lang.IllegalStateException: KTO smoke failed: OPERATIONS_TARGET_NOT_CONFIRMED']
@@ -2142,6 +2143,19 @@ class EnglishTextTaskRegressions(unittest.TestCase):
                 self.assertIn('eng-text-not-refreshed',error or '')
                 self.assertNotIn('result=succeeded',out)
                 self.assertNotIn('korean.visitkorea.or.kr',out)
+    def test_a_kto_line_the_allowlist_holds_back_is_counted_not_printed(self):
+        """#375: a main whose line no longer fits its shape loses that line from the operator's output. The line stays
+        unprinted - it may carry what the shape kept out - but its absence is said, so it is not silent."""
+        line=f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED'
+        done='KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1 failed=0'
+        error,_,out=self.run_refresh([line,line+' title=Gyeongbokgung Palace','KTO_OTHER key=canary-7f3e',done])
+        self.assertIsNone(error)
+        self.assertIn('ops_log_withheld kto_lines=2',out)
+        self.assertNotIn('Gyeongbokgung',out)
+        self.assertNotIn('canary-7f3e',out)
+        error,_,out=self.run_refresh([line,done])
+        self.assertIsNone(error)
+        self.assertNotIn('ops_log_withheld',out)
     def test_only_the_english_tasks_redacted_lines_are_echoed(self):
         allowed=['eng_link_plan sha256='+'a'*64+' bytes=321',f'eng_link {self.PLACE} PROCESSED','eng_links_processed=3',
                  'eng_links_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED','eng_links_failed reason=IllegalArgumentException',

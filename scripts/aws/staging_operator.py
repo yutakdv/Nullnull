@@ -162,6 +162,27 @@ OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
 # (test_kto_log_shapes feeds each back and checks every tag those files print has one). The probe mains are not ops
 # tasks. A tag a main adds later is dropped until it is added here, and the smoke's success gate, which reads
 # KTO_SMOKE_OK, then fails rather than passing on a looser pattern.
+# The codes a KTO ops main prints after "failed: " and in failure=, by name (#375): KtoGatewayException.Code and
+# OperationsContext.Refused's Code, which KtoSmokeEnvironment.failureCode and KtoForecastSmokeMain.safeFailureCode
+# return, and the words the mains write out. A gateway failure may add the failing class's simple name in brackets.
+# test_kto_log_shapes holds this list to the Java source both ways.
+KTO_FAILURE_CODES = ('SOURCE_DISABLED', 'SOURCE_QUARANTINED', 'KTO_NOT_CONFIGURED', 'KTO_BASE_URL_NOT_APPROVED',
+                     'KTO_QUOTA_EXHAUSTED', 'KTO_TRANSPORT_FAILED', 'KTO_RESPONSE_REJECTED', 'KTO_PERSISTENCE_FAILED',
+                     'KTO_INTERNAL_FAILURE', 'ENVIRONMENT_UNKNOWN', 'OPERATIONS_TARGET_NOT_CONFIRMED',
+                     'OPERATIONS_TARGET_UNREADABLE', 'SCHEMA_NOT_THIS_CHECKOUT', 'SCHEMA_UNCHECKABLE',
+                     'UNEXPECTED_FAILURE', 'CACHED_SNAPSHOT', 'NO_CANONICAL_PLACE', 'NO_VERIFIED_KTO_MAPPING',
+                     'APPROVAL_NOT_SET', 'CONTEST_PROFILE_REQUIRED', 'ENVIRONMENT_NOT_PERMITTED', 'INVALID_PLACE_LIST',
+                     'PLACE_FAILED')
+_KTO_FAILURE = r'(' + '|'.join(KTO_FAILURE_CODES) + r')( \([A-Z][A-Za-z0-9_]{0,79}\))?'
+# Why KtoDemoRefresh.places refused the place list: its messages and KtoPlaceRequest's, spaces as underscores.
+KTO_DEMO_REFUSED_REASONS = ('the_place_list_is_empty', 'a_place_entry_is_not_contentId:contentTypeId',
+                            'a_contentId_appears_more_than_once', 'contentId_must_be_a_positive_KTO_identifier',
+                            'contentTypeId_must_be_a_positive_KTO_identifier')
+# The uncaught failure, as the JVM writes it. The ops task starts a main through PropertiesLauncher, which invokes
+# it by reflection, so staging shows "Caused by: " under an InvocationTargetException (seen 2026-09-21); a main run
+# directly shows the first form. Nothing may come before either.
+KTO_FAILURE_LINE = (r'(Exception in thread "main" |Caused by: )java\.lang\.IllegalStateException: '
+                    r'KTO (smoke|canonical ingest|forecast smoke|demo refresh) failed: ' + _KTO_FAILURE)
 _KTO_ID = r'[1-9][0-9]{0,29}'
 _UUID = r'[0-9a-f-]{36}'
 _INSTANT = r'[0-9T:.-]{10,40}Z'
@@ -187,22 +208,22 @@ KTO_LOG_LINE = (
     + r' planned_ratio=[0-9]{1,7}\.[0-9]{4} renew_before=PT[0-9]{1,5}H'
     + r'|KTO_DEMO_REFRESH_PLACE mode=(detail|forecast) contentId=' + _KTO_ID + r' contentTypeId=' + _KTO_ID
     + r' status=(REFRESHED|CURRENT|FAILED)( placeId=' + _UUID + r')?'
-    + r'( failure=[A-Z][A-Z_]{0,63}( \([A-Za-z0-9_]{1,80}\))?)?'
+    + r'( failure=' + _KTO_FAILURE + r')?'
     + r'|KTO_DEMO_REFRESH_EVIDENCE contentId=' + _KTO_ID
     + r' (snapshotId=' + _UUID + r' collectorRunId=' + _UUID + r' payloadHash=[0-9a-f]{64} fetchedAt=' + _INSTANT
     + r' staleAt=' + _INSTANT + r'|snapshotSetId=' + _UUID + r'|coverage=0'
     + r'|coverage=[1-9][0-9]{0,5} ' + _KTO_FORECAST_SET + _KTO_FORECAST_ISSUE + r' staleAt=' + _INSTANT + r')'
     + r'|KTO_DEMO_REFRESH_DONE' + _KTO_DEMO + r' refreshed=' + _COUNT + r' current=' + _COUNT + r' failed=' + _COUNT
     + r' calls=' + _COUNT + r' per_day=' + _COUNT + r' calls_ratio=[0-9]{1,7}\.[0-9]{4}'
-    # The place-list parser's refusal, its message with spaces as underscores: words and a colon, no value.
-    + r'|KTO_DEMO_REFRESH_REFUSED reason=[a-z][A-Za-z:_]{0,79}')
+    # The place-list parser's refusal, one of its fixed messages.
+    + r'|KTO_DEMO_REFRESH_REFUSED reason=(' + '|'.join(KTO_DEMO_REFUSED_REASONS) + r')')
 # Log lines an ops task may echo: the mains' own redacted evidence and settings-origin lines, OperationsContext's
 # target line (no user, password or query), and the failure code they throw. Anything else stays in CloudWatch.
-OPS_LOG_LINE = re.compile(r'^(' + KTO_LOG_LINE + r'|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
+OPS_LOG_LINE = re.compile(r'^(' + KTO_LOG_LINE + r'|' + KTO_FAILURE_LINE
                           # The hours import (CuratedHoursImportMain): the sha it imported, ids and counts, a failure's
                           # code. Never the evidence URL, which stays in the plan file (CuratedHoursImportMainTest mirrors
                           # these four and prints the lines the tests below feed back).
-                          r'|curated_hours_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
+                          + r'|curated_hours_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_hours [0-9a-f-]{36} (RECORDED|REPLACED) \(windows=[0-9]{1,4}\)'
                           r'|curated_hours_recorded=[0-9]{1,4}|curated_hours_failed reason=[A-Za-z_]{1,80}'
                           # The posts import (CuratedPostImportMain), the same four shapes: ids, outcomes and counts, never
@@ -1365,6 +1386,9 @@ def ops_task(args):
             raise OpsError('task-log-not-fully-read')
         evidence, echoed, inventory, seoul, released = [], [], [], [], []
         withdrawn, refreshed = [], []
+        # KTO lines the allowlist held back. Counted, never printed: a main that changes a line's shape would otherwise
+        # lose that line from this output without a sound (#375).
+        withheld = 0
         for event in events:
             line = event.get('message', '').strip()
             # Count terminal-looking lines even when they fail the safe echo allowlist: a malformed
@@ -1373,18 +1397,22 @@ def ops_task(args):
                 withdrawn.append(line)
             if args.task == 'kto-eng-text-refresh' and line.startswith('KTO_ENG_TEXT_REFRESH_DONE'):
                 refreshed.append(line)
-            if OPS_LOG_LINE.match(line):
-                print('ops_log ' + line)
-                if line.startswith('KTO_SMOKE_OK '):
-                    evidence.append(line)
-                if plan and line.startswith(CURATION_PLANS[args.task]['lines']):
-                    echoed.append(line)
-                if args.task == 'kto-call-inventory' and line.startswith(('kto_inventory', 'kto_operation ')):
-                    inventory.append(line)
-                if args.task == 'seoul-live-collect' and line == 'seoul_live_collect live=true':
-                    seoul.append(line)
-                if args.task == 'release-source-quarantine' and line.startswith('source_quarantine_released '):
-                    released.append(line)
+            if not OPS_LOG_LINE.match(line):
+                withheld += line.startswith('KTO_')
+                continue
+            print('ops_log ' + line)
+            if line.startswith('KTO_SMOKE_OK '):
+                evidence.append(line)
+            if plan and line.startswith(CURATION_PLANS[args.task]['lines']):
+                echoed.append(line)
+            if args.task == 'kto-call-inventory' and line.startswith(('kto_inventory', 'kto_operation ')):
+                inventory.append(line)
+            if args.task == 'seoul-live-collect' and line == 'seoul_live_collect live=true':
+                seoul.append(line)
+            if args.task == 'release-source-quarantine' and line.startswith('source_quarantine_released '):
+                released.append(line)
+        if withheld:
+            print(f'ops_log_withheld kto_lines={withheld}')
         if failure:
             raise failure
         if args.task == 'seoul-live-collect':
