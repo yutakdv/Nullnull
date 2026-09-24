@@ -158,7 +158,7 @@ OPS_INPUT['post_id'] = PLACE_ID.pattern
 OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
 # Log lines an ops task may echo: the mains' own redacted evidence and settings-origin lines, OperationsContext's
 # target line (no user, password or query), and the failure code they throw. Anything else stays in CloudWatch.
-OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
+OPS_LOG_LINE = re.compile(r'^(KTO_(?!ENG_TEXT_REFRESH)[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
                           # The hours import (CuratedHoursImportMain): the sha it imported, ids and counts, a failure's
                           # code. Never the evidence URL, which stays in the plan file (CuratedHoursImportMainTest mirrors
                           # these four and prints the lines the tests below feed back).
@@ -193,6 +193,14 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|eng_link_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|eng_link [0-9a-f-]{36} PROCESSED'
                           r'|eng_links_processed=[0-9]{1,4}|eng_links_failed reason=[A-Za-z_]{1,80}'
+                          # The English text refresh (KtoEngTextRefreshMain, BA-086): where each setting came from, one
+                          # line per link with its place id and an enum word, and the totals. Never a value, a title, an
+                          # address or a URL. The generic KTO_ shape above leaves this prefix out, so nothing looser
+                          # passes for it (EnglishTextTaskRegressions feeds these back).
+                          r'|KTO_ENG_TEXT_REFRESH_SETTINGS [A-Z][A-Z0-9_]{0,63} <- '
+                          r'(process env \(overrides \.env\.local\)|process env|\.env\.local|absent)'
+                          r'|KTO_ENG_TEXT_REFRESH placeId=[0-9a-f-]{36} (outcome|failure)=[A-Z][A-Z_]{0,63}'
+                          r'|KTO_ENG_TEXT_REFRESH_DONE links=[0-9]{1,4} attempted=[0-9]{1,4} failed=[0-9]{1,4}'
                           r'|replay_capture_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|replay_snapshot [0-9a-f-]{36} CAPTURED'
                           r'|replay_snapshots_captured=[0-9]{1,3}|replay_capture_failed reason=[A-Za-z_]{1,80}'
@@ -1009,6 +1017,32 @@ def provision_secrets(args):
     require_kto_secret_provisioned()
     print(f'kto_secret=provisioned changed={str(changed).lower()} value_printed=false')
 
+UTC_INSTANT = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z')
+
+def utc_instant(value):
+    """An ISO instant in UTC, the way plans write one (2026-09-21T06:00:00Z), with a real calendar date. A date alone,
+    a local time or words are not an instant, and Jackson would refuse them only after the task had started."""
+    if not isinstance(value, str) or not UTC_INSTANT.fullmatch(value):
+        return False
+    try:
+        dt.datetime.fromisoformat(value[:19])
+    except ValueError:
+        return False
+    return True
+
+def https_evidence_url(value):
+    """What EngTextLinkImporter.Link accepts: https, a host and no userinfo, and nothing URI.create cannot read. A
+    prefix check let an empty host, a user:password@ and a space through."""
+    import urllib.parse
+    if not isinstance(value, str) or not value or any(c.isspace() or ord(c) < 32 for c in value):
+        return False
+    try:
+        parts = urllib.parse.urlsplit(value)
+        parts.port
+    except ValueError:
+        return False
+    return parts.scheme == 'https' and bool(parts.hostname) and parts.username is None and parts.password is None
+
 def curation_plan(args):
     """The local plan file a curate task imports, checked and approved before any AWS call.
 
@@ -1061,8 +1095,7 @@ def curation_plan(args):
         identifier = re.compile(r'[1-9][0-9]{0,29}')
         require(all(isinstance(i.get('contentId'), str) and identifier.fullmatch(i['contentId'])
                     and isinstance(i.get('contentTypeId'), str) and identifier.fullmatch(i['contentTypeId'])
-                    and isinstance(i.get('reviewedAt'), str) and i['reviewedAt'].strip()
-                    and isinstance(i.get('evidenceUrl'), str) and i['evidenceUrl'].startswith('https://')
+                    and utc_instant(i.get('reviewedAt')) and https_evidence_url(i.get('evidenceUrl'))
                     for i in items) and len({str(i.get('placeId')) for i in items}) == len(items),
                 'plan-file-eng-link-invalid')
         places = items
@@ -1213,13 +1246,15 @@ def ops_task(args):
             # The bound is a safety stop, not an end: CloudWatch says the stream is read when the token stops moving.
             raise OpsError('task-log-not-fully-read')
         evidence, echoed, inventory, seoul, released = [], [], [], [], []
-        withdrawn = []
+        withdrawn, refreshed = [], []
         for event in events:
             line = event.get('message', '').strip()
             # Count terminal-looking lines even when they fail the safe echo allowlist: a malformed
             # second line must invalidate a success, without printing its possibly sensitive text.
             if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
                 withdrawn.append(line)
+            if args.task == 'kto-eng-text-refresh' and line.startswith('KTO_ENG_TEXT_REFRESH_DONE'):
+                refreshed.append(line)
             if OPS_LOG_LINE.match(line):
                 print('ops_log ' + line)
                 if line.startswith('KTO_SMOKE_OK '):
@@ -1247,6 +1282,12 @@ def ops_task(args):
                        + r' outcome=(WITHDRAWN|ALREADY_HIDDEN)'
                        + r' cover=(DELETED versions=[1-9][0-9]{0,8}|ALREADY_ABSENT versions=0|NOT_USER_UPLOAD versions=0)')
             require(len(withdrawn) == 1 and re.fullmatch(success, withdrawn[0]), 'post-not-withdrawn')
+        # Exactly one DONE line that tried every link and failed none. The main exits zero with no links at all, and a
+        # task can end before it prints DONE; neither is a refresh, for the reason withdraw-post counts its line.
+        if args.task == 'kto-eng-text-refresh':
+            done = re.fullmatch(r'KTO_ENG_TEXT_REFRESH_DONE links=([1-9][0-9]{0,3}) attempted=([1-9][0-9]{0,3}) failed=0',
+                                refreshed[0]) if len(refreshed) == 1 else None
+            require(done is not None and done.group(1) == done.group(2), 'eng-text-not-refreshed')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:

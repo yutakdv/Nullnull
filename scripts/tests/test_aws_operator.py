@@ -1853,6 +1853,19 @@ class EnglishTextTaskRegressions(unittest.TestCase):
         self.assertEqual('plan-sha256-not-approved',r['error'])
         self.assertEqual([],r['calls'])
         for field,bad,reason in [('evidenceUrl','http://korean.visitkorea.or.kr/x','plan-file-eng-link-invalid'),
+                                 # What EngTextLinkImporter.Link refuses: no host, userinfo, and what URI.create cannot
+                                 # read. A prefix check passed all three.
+                                 ('evidenceUrl','https://','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https:///detail','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://owner:pw@korean.visitkorea.or.kr/x','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr:port/x','plan-file-eng-link-invalid'),
+                                 # An instant, as Jackson reads it into Instant: a date alone, a local time, or words
+                                 # are not one. A non-blank check passed all three.
+                                 ('reviewedAt','yesterday','plan-file-eng-link-invalid'),
+                                 ('reviewedAt','2026-09-21','plan-file-eng-link-invalid'),
+                                 ('reviewedAt','2026-09-21T06:00:00','plan-file-eng-link-invalid'),
+                                 ('reviewedAt','2026-13-21T06:00:00Z','plan-file-eng-link-invalid'),
                                  ('contentId','264329; DROP','plan-file-eng-link-invalid'),
                                  ('contentTypeId','076','plan-file-eng-link-invalid'),
                                  ('reviewedAt','','plan-file-eng-link-invalid'),
@@ -1903,13 +1916,46 @@ class EnglishTextTaskRegressions(unittest.TestCase):
         self.assertIn('ops_task=kto-eng-text-refresh result=succeeded',out)
         # Checked against the deployed release's image, as withdraw-post is.
         self.assertEqual(self.DIGEST,self.wait.call_args.args[5])
+    def test_the_refresh_succeeds_only_on_one_done_line_that_refreshed_every_link(self):
+        """The main exits zero when there was nothing to refresh, and a task can end before its DONE line; neither
+        is a refresh. So the task succeeds on exactly one DONE line naming at least one link, every one attempted and
+        none failed - not on a zero exit code, as withdraw-post does not."""
+        line=f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED'
+        done='KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1 failed=0'
+        for log in ([],[line],
+                    ['KTO_ENG_TEXT_REFRESH_DONE links=0 attempted=0 failed=0'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1 failed=1'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=2 attempted=1 failed=1'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=2 attempted=1 failed=0'],
+                    [line,done,done],
+                    [line,done+' url=https://korean.visitkorea.or.kr/x'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1']):
+            with self.subTest(log=log):
+                error,_,out=self.run_refresh(log)
+                self.assertIn('eng-text-not-refreshed',error or '')
+                self.assertNotIn('result=succeeded',out)
+                self.assertNotIn('korean.visitkorea.or.kr',out)
     def test_only_the_english_tasks_redacted_lines_are_echoed(self):
         allowed=['eng_link_plan sha256='+'a'*64+' bytes=321',f'eng_link {self.PLACE} PROCESSED','eng_links_processed=3',
                  'eng_links_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED','eng_links_failed reason=IllegalArgumentException',
                  f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED',
                  f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} failure=KTO_RESPONSE_REJECTED',
-                 'KTO_ENG_TEXT_REFRESH_DONE links=3 attempted=3 failed=0']
+                 'KTO_ENG_TEXT_REFRESH_DONE links=3 attempted=3 failed=0',
+                 # KtoSmokeEnvironment.sources: a setting's name and where it came from, never its value.
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY <- process env',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY <- process env (overrides .env.local)',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS NULLNULL_ENV <- .env.local',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS SPRING_DATASOURCE_PASSWORD <- absent']
         refused=[f'eng_link {self.PLACE} PROCESSED https://korean.visitkorea.or.kr/x',
+                 # The generic KTO_ shape let all of these through: a value, provider text, a URL, a place that is
+                 # not an id. The refresh prints three exact shapes and nothing else passes for it.
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY=abc123',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY <- abc123',
+                 f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED title=Gyeongbokgung Palace',
+                 f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=Updated to Gyeongbokgung',
+                 'KTO_ENG_TEXT_REFRESH placeId=gyeongbokgung outcome=UPDATED',
+                 'KTO_ENG_TEXT_REFRESH_DONE links=3 attempted=3 failed=0 url=https://korean.visitkorea.or.kr/x',
+                 'KTO_ENG_TEXT_REFRESH_DONE Gyeongbokgung',
                  'eng_link_plan evidenceUrl=https://korean.visitkorea.or.kr/x',
                  'eng_links_failed reason=English link plan is invalid at line 3 column 7']
         for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
