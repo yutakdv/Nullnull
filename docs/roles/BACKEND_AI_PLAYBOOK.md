@@ -590,6 +590,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-020-T6`: 그 run 이전에 검토된 기록은 격리를 풀지 않는다
 - `BA-020-T7`: operator 해제 도구가 쓴 검토를 conditionAt 이 인정한다
 - `BA-020-T8`: operator 해제 도구는 격리되지 않은 source 를 거절하고 아무것도 쓰지 않는다
+- `BA-020-T9`: 공통 기록기의 기본 경로는 제공자가 선언한 오류도 QUARANTINED 로 닫는다
 
 구현·검증 증거:
 
@@ -2486,6 +2487,10 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T16`: 목록에서 빠진 구역은 RETIRED 가 되지 삭제되지 않는다
 - `BA-090-T17`: 검토된 provider 사건 window 안의 관측은 격리된다
 - `BA-090-T18`: source 장애 중 optimizer 의 답이 장애 밖에서와 같다
+- `BA-090-T19`: 서울 제공자가 스스로 선언한 오류는 run 을 FAILED 로 닫는다
+- `BA-090-T20`: 서울 제공자 오류로 닫힌 run 은 다음 수집을 막지 않는다
+- `BA-090-T21`: RESULT 코드가 없는 서울 응답은 제공자 오류가 아니라 schema drift 다
+- `BA-090-T22`: 대체 표시가 있는 서울 응답도 나머지 drift 는 격리된다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
