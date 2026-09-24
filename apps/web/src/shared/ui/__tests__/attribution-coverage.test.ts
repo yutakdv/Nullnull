@@ -171,10 +171,28 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
 };
 
 /**
- * Elements a credit link may not sit inside. A button, a link, or anything
- * whose role makes it one control: its children are presentational to a screen
- * reader, so the credit is no link there, and the control takes the click.
+ * Elements a credit link may not sit inside: a control's children are
+ * presentational to a screen reader, so the credit is no link there, and the
+ * control takes the click (FE-603-T11).
+ *
+ * How the list is drawn, so it can be redrawn:
+ *   - the elements themselves: `button` and `a`;
+ *   - react-router's `Link`, which renders an `a` — the only link-like
+ *     component `src` imports from react-router (`NavLink` and `Form` are not
+ *     imported; checked with grep over `import { … } from 'react-router'`);
+ *   - any element whose `role` makes it one control;
+ *   - any component in `src` that renders its `children`, or spreads props
+ *     that can carry children, inside one of the above — found by the scan
+ *     itself (`wrappers`), not listed, so a wrapper written tomorrow is a
+ *     control without an edit here. None exists today: the three components
+ *     that render `children` (ItemMoveControls, LiveBottomSheet, I18nProvider)
+ *     render them outside any control, and the three that spread props onto a
+ *     button (Chip, LockControl, TripAddButton) type them without `children`.
+ *     A grep for spread props missed those three at first — it read each tag
+ *     on one line and their attributes span several — which is why the scan
+ *     finds wrappers rather than a list naming them.
  */
+const CONTROL_TAGS = new Set(['button', 'a', 'Link']);
 const CONTROL_ROLE = /radio|button|option|checkbox|link|tab|menuitem|switch/;
 
 /** `item.place?.name` and `item.place!.name` are the same site as `item.place.name`. */
@@ -197,6 +215,8 @@ interface Scan {
   creditElements: number;
   /** Credit elements drawn inside a control, as `file:line Tag in control`. */
   nested: string[];
+  /** Components found to render their children or props inside a control. */
+  wrappers: string[];
 }
 
 function key(file: string, expr: string): string {
@@ -218,25 +238,24 @@ function scan(): Scan {
   const program = ts.createProgram(parsed.fileNames, parsed.options);
   const checker = program.getTypeChecker();
 
-  const found: Scan = { sites: [], groups: new Map(), creditElements: 0, nested: [] };
-  const group = (file: string, expr: string) => {
-    const entry = found.groups.get(key(file, expr)) ?? { sites: 0, credits: 0 };
-    found.groups.set(key(file, expr), entry);
-    return entry;
+  const found: Scan = {
+    sites: [],
+    groups: new Map(),
+    creditElements: 0,
+    nested: [],
+    wrappers: [],
   };
+  const sources = program.getSourceFiles().filter((source) => shipped(source.fileName));
+  const wrappers = new Set<string>();
 
-  for (const source of program.getSourceFiles()) {
-    if (!shipped(source.fileName)) continue;
-    const file = relative(SRC, source.fileName);
-    const lineOf = (node: ts.Node) =>
-      source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
-
-    /** A button, a link, or an element whose role makes it one control. */
-    const isControl = (element: ts.JsxOpeningLikeElement): boolean => {
+  /** A control: see CONTROL_TAGS for how the set is drawn. */
+  const isControlIn =
+    (source: ts.SourceFile) =>
+    (element: ts.JsxOpeningLikeElement): boolean => {
       const tag = element.tagName.getText(source);
       return (
-        tag === 'button' ||
-        tag === 'a' ||
+        CONTROL_TAGS.has(tag) ||
+        wrappers.has(tag) ||
         element.attributes.properties.some(
           (attribute) =>
             ts.isJsxAttribute(attribute) &&
@@ -246,6 +265,76 @@ function scan(): Scan {
         )
       );
     };
+
+  /** The component a node is written in: its function or variable name. */
+  const componentOf = (node: ts.Node): string | null => {
+    for (let at: ts.Node | undefined = node.parent; at; at = at.parent) {
+      if (ts.isFunctionDeclaration(at) && at.name) return at.name.text;
+      if (ts.isVariableDeclaration(at) && ts.isIdentifier(at.name)) return at.name.text;
+    }
+    return null;
+  };
+
+  // Wrappers first, until no new one appears: a component that renders its
+  // children inside another wrapper is found on the next round.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const source of sources) {
+      const isControl = isControlIn(source);
+      const mark = (node: ts.Node) => {
+        const name = componentOf(node);
+        if (name && !wrappers.has(name)) {
+          wrappers.add(name);
+          grew = true;
+        }
+      };
+      const walk = (node: ts.Node, inside: boolean): void => {
+        if (
+          inside &&
+          ts.isJsxExpression(node) &&
+          node.expression &&
+          /^(props\.)?children$/.test(normal(node.expression.getText(source)))
+        ) {
+          mark(node);
+        }
+        if (ts.isJsxElement(node)) {
+          const opening = node.openingElement;
+          const control = isControl(opening);
+          // A spread carries children only when its type has them: Chip,
+          // LockControl and TripAddButton spread their props onto a button
+          // but take them as Omit<…, 'children'>, so no credit can reach it.
+          const spreadsChildren = opening.attributes.properties.some(
+            (attribute) =>
+              ts.isJsxSpreadAttribute(attribute) &&
+              checker
+                .getNonNullableType(checker.getTypeAtLocation(attribute.expression))
+                .getProperty('children') !== undefined,
+          );
+          if (control && spreadsChildren) mark(node);
+          walk(opening, inside);
+          for (const child of node.children) walk(child, inside || control);
+          return;
+        }
+        ts.forEachChild(node, (child) => {
+          walk(child, inside);
+        });
+      };
+      walk(source, false);
+    }
+  }
+  found.wrappers = [...wrappers].sort();
+  const group = (file: string, expr: string) => {
+    const entry = found.groups.get(key(file, expr)) ?? { sites: 0, credits: 0 };
+    found.groups.set(key(file, expr), entry);
+    return entry;
+  };
+
+  for (const source of sources) {
+    const file = relative(SRC, source.fileName);
+    const lineOf = (node: ts.Node) =>
+      source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+
+    const isControl = isControlIn(source);
 
     /** `controls` is the stack of control elements this node sits inside. */
     const visit = (
@@ -396,5 +485,8 @@ describe('FE-603-T11 CMP-ATT-001 a credit link is never inside a control', () =>
     // guard is only as good as the number of credits it looked at.
     expect(found.creditElements, 'no credit element was found at all').toBeGreaterThan(0);
     expect(found.nested).toEqual([]);
+    // Today no component wraps its children in a control; if one appears, it
+    // is a control above and shows up here, where someone reads it.
+    expect(found.wrappers).toEqual([]);
   });
 });

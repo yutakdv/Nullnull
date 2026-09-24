@@ -8,7 +8,7 @@
 // with which headers, and when. Invariants 3 and 4 are claims about requests,
 // not about pixels, so the assertions are made of the request log.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -414,6 +414,86 @@ describe('FE-503 choosing between proposals', () => {
     const checked = options.filter((o) => o.getAttribute('aria-checked') === 'true');
     expect(checked).toHaveLength(1);
     expect(checked[0]?.textContent).toContain(READY.proposals[0]?.summary);
+  });
+
+  // The standard radiogroup pattern. Every card used to be its own Tab stop
+  // and only Space and Enter chose; the credit links now sit between the
+  // cards, so without a roving tab stop choosing by keyboard meant tabbing
+  // through every card's credits.
+  it('FE-503-T3 puts only the chosen proposal in the Tab order', async () => {
+    renderTwo();
+    const options = await screen.findAllByRole('radio');
+    expect(
+      options.map((o) => [o.getAttribute('aria-checked'), o.getAttribute('tabindex')]),
+    ).toEqual([
+      ['false', '-1'],
+      ['true', '0'],
+    ]);
+  });
+
+  it('FE-503-T3 moves focus and choice together with the arrow keys, wrapping', async () => {
+    const user = userEvent.setup();
+    renderTwo();
+    const options = await screen.findAllByRole('radio');
+    const [first, last] = options;
+    if (!first || !last) throw new Error('two proposals expected');
+    last.focus();
+
+    // The chosen card is the last, so the next one wraps to the first.
+    await user.keyboard('{ArrowDown}');
+    expect(first).toHaveFocus();
+    expect(first).toHaveAttribute('aria-checked', 'true');
+    expect(first).toHaveAttribute('tabindex', '0');
+    expect(last).toHaveAttribute('aria-checked', 'false');
+
+    await user.keyboard('{ArrowUp}');
+    expect(last).toHaveFocus();
+    expect(last).toHaveAttribute('aria-checked', 'true');
+
+    await user.keyboard('{ArrowRight}');
+    expect(first).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    expect(last).toHaveFocus();
+
+    await user.keyboard('{Home}');
+    expect(first).toHaveFocus();
+    expect(first).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{End}');
+    expect(last).toHaveFocus();
+    expect(last).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('FE-503-T3 tabs from the chosen card to credits, never onto another card', async () => {
+    // The chosen card is made the FIRST one, so every other card's radio lies
+    // between it and the end of the group: tabbing through, a second tab stop
+    // on a radio would show up. The first stop after the radio is its own
+    // credit link.
+    const user = userEvent.setup();
+    renderTwo();
+    const options = await screen.findAllByRole('radio');
+    const [first] = options;
+    if (!first) throw new Error('two proposals expected');
+    await user.click(first);
+    expect(first).toHaveAttribute('aria-checked', 'true');
+    const group = screen.getByRole('radiogroup');
+    await waitFor(() => {
+      expect(within(group).getAllByRole('link').length).toBeGreaterThan(0);
+    });
+    first.focus();
+
+    const visited: Element[] = [];
+    for (let step = 0; step < 12; step += 1) {
+      await user.tab();
+      const at = document.activeElement;
+      if (!at || !group.contains(at)) break;
+      visited.push(at);
+    }
+
+    expect(visited.length).toBeGreaterThan(0);
+    expect(visited[0]?.tagName).toBe('A');
+    expect(visited.filter((element) => element.getAttribute('role') === 'radio')).toEqual(
+      [],
+    );
   });
 
   it('moves the choice with the keyboard, not the pointer alone', async () => {

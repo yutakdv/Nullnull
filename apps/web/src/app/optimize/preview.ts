@@ -355,16 +355,27 @@ export function proposalPlaces(
 }
 
 /**
- * The same places with their text credits taken off, for a stale run.
+ * Where a key moves the choice in a radiogroup of `count` options, from `at`,
+ * or null when the key is not one the group answers.
  *
- * The summary was written against the trip the run started from. Once the trip
- * has moved on, today's `textProvenance` may credit words the summary never
- * used — an English name added since, say — so only the place record's credit,
- * which the summary's place does carry, is kept (FE-603-T10).
+ * The standard radiogroup pattern: the arrows step to the next or previous
+ * option and wrap at the ends, Home and End go to the first and last. Moving
+ * is choosing — a radio has no separate "focused but not selected" state.
  */
-export function recordCreditsOnly(result: ProposalPlaces): ProposalPlaces {
-  return {
-    ...result,
-    places: result.places.map((place) => ({ ...place, textProvenance: undefined })),
-  };
+export function radioStep(key: string, at: number, count: number): number | null {
+  if (count === 0) return null;
+  switch (key) {
+    case 'ArrowDown':
+    case 'ArrowRight':
+      return (at + 1) % count;
+    case 'ArrowUp':
+    case 'ArrowLeft':
+      return (at - 1 + count) % count;
+    case 'Home':
+      return 0;
+    case 'End':
+      return count - 1;
+    default:
+      return null;
+  }
 }

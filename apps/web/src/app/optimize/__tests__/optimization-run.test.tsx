@@ -732,22 +732,26 @@ describe('the run screen credits the places a proposal names (CMP-ATT-001)', () 
   });
 });
 
-describe('FE-603-T10 a stale run credits the place record, not today’s text', () => {
-  // The summary was written against the trip the run started from. When the
-  // trip has moved on (inputTripVersion behind), today's text credits may name
-  // a dataset whose words the summary never used, so only the place record's
-  // credit is drawn. The English credit is the V050 registry row, put on 인사동
-  // here because no fixture carries one.
+describe('FE-603-T10 a stale run keeps every credit today’s trip has', () => {
+  // The trip moved on after the run (inputTripVersion behind), often for a
+  // reason unrelated to the named place. The summary may name that place in
+  // another dataset's words — here its English name — so dropping today's
+  // text credit would show those words with only the record's credit. A
+  // missing credit is worse than one the summary did not need, so a stale run
+  // is credited exactly like a current one. The English credit is the V050
+  // registry row, put on 인사동 here because no fixture carries one.
   const READY = optimizationFixtures.runReady;
   const ENG_URL = 'https://www.data.go.kr/data/15101753/openapi.do';
+  const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
   const days = trip.days.map((day) => ({
     ...day,
     items: day.items.map((item) =>
-      item.place.id === '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03'
+      item.place.id === INSADONG
         ? {
             ...item,
             place: {
               ...item.place,
+              name: 'Insadong',
               textProvenance: {
                 name: {
                   locale: 'en',
@@ -770,41 +774,40 @@ describe('FE-603-T10 a stale run credits the place record, not today’s text', 
     ),
   }));
 
-  function serve(tripVersion: number) {
+  it('credits the English name an English summary uses, though the run is stale', async () => {
+    const proposal = READY.proposals[0];
+    if (!proposal) throw new Error('run-ready.json has no proposal');
     server.use(
       http.get(`${API_BASE}/optimizations/:runId`, () =>
-        HttpResponse.json({ ...READY, inputTripVersion: trip.version }),
+        HttpResponse.json({
+          ...READY,
+          inputTripVersion: trip.version,
+          proposals: [
+            {
+              ...proposal,
+              summary:
+                'Moving Insadong from 4 Oct 13:00 to 7 Oct 13:00 lowers its relative concentration.',
+            },
+          ],
+        }),
       ),
       http.get(`${API_BASE}/trips/:tripId`, () =>
         HttpResponse.json(
-          { ...trip, version: tripVersion, days },
-          { headers: { ETag: `"${String(tripVersion)}"` } },
+          { ...trip, version: trip.version + 1, days },
+          { headers: { ETag: `"${String(trip.version + 1)}"` } },
         ),
       ),
     );
-  }
+    renderRun(READY.id);
 
-  async function creditHrefs(): Promise<(string | null)[]> {
     const card = await screen.findByRole('article');
     await waitFor(() => {
       expect(within(card).getAllByRole('link').length).toBeGreaterThan(0);
     });
-    return within(card)
+    const hrefs = within(card)
       .getAllByRole('link')
       .map((link) => link.getAttribute('href'));
-  }
-
-  it('draws the text credit when the run is current', async () => {
-    serve(trip.version);
-    renderRun(READY.id);
-    expect(await creditHrefs()).toContain(ENG_URL);
-  });
-
-  it('leaves the text credit off when the trip has moved on', async () => {
-    serve(trip.version + 1);
-    renderRun(READY.id);
-    const hrefs = await creditHrefs();
     expect(hrefs).toContain('https://www.data.go.kr/data/15101578/openapi.do');
-    expect(hrefs).not.toContain(ENG_URL);
+    expect(hrefs).toContain(ENG_URL);
   });
 });

@@ -43,6 +43,11 @@ export interface ProposalCardProps {
   /** Present only when selecting is possible. See `selected`. */
   onSelect?: (proposalId: string) => void;
   /**
+   * Whether this card is the group's one Tab stop (roving tabindex). The
+   * screen moves focus between cards with the arrow keys (FE-503-T3).
+   */
+  tabbable?: boolean;
+  /**
    * The places the changes name, from the trip the screen holds
    * (`proposalPlaces`). Null while that trip is still loading.
    */
@@ -156,6 +161,7 @@ export function ProposalCard({
   onSelect,
   labels,
   places = null,
+  tabbable = false,
 }: ProposalCardProps) {
   const rows = changeRows(proposal.changes);
   const comparison = crowdComparison(proposal);
@@ -203,7 +209,7 @@ export function ProposalCard({
             : undefined
         }
         role={selectable ? 'radio' : undefined}
-        tabIndex={selectable ? 0 : undefined}
+        tabIndex={selectable ? (tabbable ? 0 : -1) : undefined}
       >
         {/* The server's sentence, verbatim. It is generated from the change
             set it describes, so rewriting or truncating it here would state
