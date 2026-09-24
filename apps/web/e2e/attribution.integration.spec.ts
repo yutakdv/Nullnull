@@ -21,7 +21,7 @@ const GYEONGBOKGUNG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01';
 interface TripPlace {
   id: string;
   name: string;
-  sourceAttribution: { attribution: string } | null;
+  sourceAttribution: { attribution: string; officialUrl?: string | null } | null;
 }
 
 interface TripDetail {
@@ -102,13 +102,21 @@ test('BA-073-T4 every place the trip response credits shows that credit on scree
   expect(credited.map((place) => place.id)).toContain(MYEONGDONG);
 
   for (const place of credited) {
-    // An empty credit would make the containment below true of any card.
+    // An empty credit would match anything below.
     const credit = place.sourceAttribution?.attribution ?? '';
+    const officialUrl = place.sourceAttribution?.officialUrl ?? null;
     expect(credit, place.name).not.toBe('');
     const card = page
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: place.name, exact: true }) });
     await expect(card, place.name).toHaveCount(1);
-    await expect(card, place.name).toContainText(credit);
+    // The server's wording exactly and visibly, as the link to its officialUrl when the
+    // response carries one (DataAttribution). A containment check on the card's text also
+    // passed a hidden credit and one with anything appended.
+    const shown = officialUrl
+      ? card.getByRole('link', { name: credit, exact: true })
+      : card.getByText(credit, { exact: true });
+    await expect(shown, place.name).toBeVisible();
+    if (officialUrl) await expect(shown, place.name).toHaveAttribute('href', officialUrl);
   }
 });
