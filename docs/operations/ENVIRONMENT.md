@@ -406,7 +406,7 @@ KTO_ENG_BASE_URL=https://apis.data.go.kr/B551011/EngService2 \
   ./gradlew ktoEngTextRefresh --console=plain
 ```
 
-  **staging 에서는 아직 돌릴 수 없다.** 두 가지가 먼저 필요하다: 두 명령의 운영 task 등록(plan 은 `NULLNULL_ENG_LINK_PLAN_GZIP_BASE64` + `_SHA256` inline 형태)과 task definition 의 `KTO_ENG_BASE_URL`. 이 둘은 `infra/`·`scripts/aws/` 소관이라 `BA-086` 코드 PR 에 넣지 않았다.
+  **staging 에서는 운영 task 로 돌린다.** 두 명령의 등록(`kto-eng-link-import`: plan 은 `NULLNULL_ENG_LINK_PLAN_GZIP_BASE64` + `_SHA256` inline 형태, `kto-eng-text-refresh`: 자기 승인 변수)과 ops task definition 의 `KTO_ENG_BASE_URL` 은 #367 이 싣는다. 명령과 성공 조건은 [staging runbook](STAGING_DEPLOYMENT_RUNBOOK.md) §11 에 있다. #367 이 들어가기 전에는 staging 에서 돌릴 수 없다.
 
   **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패했다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있었고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 그때까지 `Created` 상태로 **한 번도 뜬 적이 없었다.** 오너 결정으로 host port를 **5434**로 옮겼다.
 
