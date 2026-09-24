@@ -188,6 +188,39 @@ class SeoulLiveAreaGatewayTest {
         }
     }
 
+    /**
+     * BA-090-T20 at the gateway: after a provider-declared error the next collection reaches the provider again; after
+     * drift it is stopped before the call. The drift case is the control - without it a gateway that never stopped
+     * would pass the first half.
+     */
+    @Test
+    @DisplayName("BA-090-T20 제공자 오류로 닫힌 run 뒤의 다음 수집은 제공자까지 간다")
+    void theNextCollectionAfterAProviderErrorReachesTheProvider() throws Exception {
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(200, payload("ERROR-300", "보통")))
+                .enqueue(new StubProviderServer.Response(200, payload("INFO-000", "보통")))) {
+            RecordingAudit audit = new RecordingAudit();
+            SeoulLiveAreaGateway gateway = gateway(stub, audit, new FixedQuota(false),
+                    new LedgerRegistry(registration(), audit), new RecordingAreas(), new RecordingSnapshots());
+
+            assertThat(gateway.collect(AREA).join().accepted()).as("the provider's own error").isFalse();
+            assertThat(gateway.collect(AREA).join().accepted()).as("the next tick asked again and got a reading").isTrue();
+            assertThat(stub.calls()).isEqualTo(2);
+        }
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(200, payload("INFO-000", "매우 붐빔")))
+                .enqueue(new StubProviderServer.Response(200, payload("INFO-000", "보통")))) {
+            RecordingAudit audit = new RecordingAudit();
+            SeoulLiveAreaGateway gateway = gateway(stub, audit, new FixedQuota(false),
+                    new LedgerRegistry(registration(), audit), new RecordingAreas(), new RecordingSnapshots());
+
+            assertThat(gateway.collect(AREA).join().accepted()).as("drift").isFalse();
+            assertThatThrownBy(() -> gateway.collect(AREA))
+                    .isInstanceOf(SeoulGatewayException.class).hasMessage("SEOUL_SOURCE_QUARANTINED");
+            assertThat(stub.calls()).as("the quarantine stopped the second call before it went out").isEqualTo(1);
+        }
+    }
+
     @Test
     @DisplayName("BA-090 관측은 run 이 닫힌 뒤에 저장된다")
     void theReadingIsWrittenAfterTheRunIsFinalized() throws Exception {
@@ -321,12 +354,17 @@ class SeoulLiveAreaGatewayTest {
     private static SeoulLiveAreaGateway gateway(StubProviderServer stub, RecordingAudit audit,
             SourceQuotaStore quota, SourceRegistryStore.SourceCondition condition,
             RecordingAreas areas, RecordingSnapshots snapshots) {
+        return gateway(stub, audit, quota, new FixedRegistry(registration(), condition), areas, snapshots);
+    }
+
+    private static SeoulLiveAreaGateway gateway(StubProviderServer stub, RecordingAudit audit,
+            SourceQuotaStore quota, SourceRegistryStore registryStore,
+            RecordingAreas areas, RecordingSnapshots snapshots) {
         SeoulCityDataProperties properties = new SeoulCityDataProperties();
         // The stub's context is "/provider" and HttpServer matches contexts by prefix, so the
         // adapter's "/citydata/<area>" lands inside it.
         properties.setBaseUrl(stub.uri("").toString().replace("?", ""));
         properties.setProxyToken(TOKEN);
-        SourceRegistryStore registryStore = new FixedRegistry(registration(), condition);
         return new SeoulLiveAreaGateway(new SourceRegistryQuery(registryStore), registryStore,
                 new CollectorRunRecorder(audit, new SourceQuotaGuard(quota, CLOCK)),
                 new SeoulCityDataClient(providerClient(), properties, "test"), areas, snapshots, CLOCK);
@@ -409,6 +447,36 @@ class SeoulLiveAreaGatewayTest {
         @Override
         public String toString() {
             return starts + " " + calls + " " + finishes;
+        }
+    }
+
+    /**
+     * Answers {@code conditionAt} the way JdbcSourceRegistryStore does - is the latest run QUARANTINED - from the runs
+     * the gateway under test closed itself, so two collections in a row see what the first one left. That the SQL
+     * answers the same way is SeoulProviderErrorRetryIT's measurement, not this fake's claim.
+     */
+    private record LedgerRegistry(SourceRegistration registration, RecordingAudit audit) implements SourceRegistryStore {
+
+        @Override
+        public List<SourceRegistration> findAll() {
+            return List.of(registration);
+        }
+
+        @Override
+        public Optional<SourceRegistration> findByCode(String code) {
+            return SOURCE.equals(code) ? Optional.of(registration) : Optional.empty();
+        }
+
+        @Override
+        public SourceCondition conditionAt(String code, Instant at) {
+            boolean quarantined = !audit.finishes.isEmpty()
+                    && audit.finishes.get(audit.finishes.size() - 1).status() == IngestAudit.RunStatus.QUARANTINED;
+            return new SourceCondition(false, quarantined);
+        }
+
+        @Override
+        public Optional<ReleasedRun> releaseLatestQuarantine(String code, String incidentCode, Instant reviewedAt) {
+            throw new UnsupportedOperationException("the collection path must never release a quarantine");
         }
     }
 

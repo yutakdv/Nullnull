@@ -199,6 +199,32 @@ class SeoulCityDataValidatorTest {
                 .isEqualTo(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
     }
 
+    /**
+     * The substitution flag is the provider speaking, so a well-formed substitute is PROVIDER_ERROR and retried
+     * (A-065). The rest of the response still has to be a shape we understand, though: a substitute whose level is
+     * a fifth word or whose time or forecast is broken is drift, and drift is quarantined, flag or no flag. Answering
+     * the flag first made every one of these a retry. The well-formed substitute is the control.
+     */
+    @Test
+    @DisplayName("BA-090-T22 대체 표시가 있는 서울 응답도 나머지 drift 는 격리된다")
+    void aSubstitutedResponseIsStillCheckedForDrift() {
+        record Case(String label, String body, ProviderResponseValidator.Outcome outcome) {
+        }
+        for (Case example : List.of(
+                new Case("a fifth congestion step", payload("Y", "매우 붐빔", "2026-09-20 15:15", "POI009"),
+                        ProviderResponseValidator.Outcome.ENUM_DRIFT),
+                new Case("a time in another format", payload("Y", "보통", "15:15 2026-09-20", "POI009"),
+                        ProviderResponseValidator.Outcome.SCHEMA_DRIFT),
+                new Case("an unknown forecast flag", payload("Y", "보통", "2026-09-20 15:15", "POI009", "MAYBE", ""),
+                        ProviderResponseValidator.Outcome.ENUM_DRIFT),
+                new Case("a well-formed substitute", payload("Y", "보통", "2026-09-20 15:15", "POI009"),
+                        ProviderResponseValidator.Outcome.PROVIDER_ERROR))) {
+            SeoulCityDataValidator.Validation validation = validate(example.body());
+            assertThat(validation.verdict().outcome()).as(example.label()).isEqualTo(example.outcome());
+            assertThat(validation.observation()).as("%s: nothing to store", example.label()).isNull();
+        }
+    }
+
     @Test
     @DisplayName("BA-090-T1 서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다")
     void driftIsRefusedAndProducesNoObservation() {

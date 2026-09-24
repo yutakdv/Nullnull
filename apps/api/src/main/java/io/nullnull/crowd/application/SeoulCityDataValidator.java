@@ -100,14 +100,10 @@ public final class SeoulCityDataValidator {
         if (replaced == null || !("Y".equals(replaced) || "N".equals(replaced))) {
             return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
         }
-        if ("Y".equals(replaced)) {
-            // The provider itself says this reading is a substitute, so it is PROVIDER_ERROR: refused,
-            // never stored, and - because the provider said so rather than changing shape - retried on
-            // the next tick instead of quarantined (A-065, owner decision 2026-09-24). No eighth outcome:
-            // that would move ProviderResponseValidator.Outcome, IngestAudit.ValidationResult and the
-            // api_ingest_validation_check CHECK together, and PROVIDER_ERROR already says what happened.
-            return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
-        }
+        // REMEMBERED, NOT ANSWERED YET. A substitute is the provider's own word and is retried rather than
+        // quarantined (A-065), so it may only be the verdict once everything below has passed: a substitute whose
+        // level, time or forecast drifted is drift, and answering the flag here made it a retry (BA-090-T22).
+        boolean substituted = "Y".equals(replaced);
 
         String level = text(population, "AREA_CONGEST_LVL");
         if (level == null || !CONGESTION_LEVELS.contains(level)) {
@@ -146,6 +142,14 @@ public final class SeoulCityDataValidator {
                     return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
                 }
             }
+        }
+        if (substituted) {
+            // The provider itself says this reading is a substitute, so it is PROVIDER_ERROR: refused,
+            // never stored, and - because the provider said so rather than changing shape - retried on
+            // the next tick instead of quarantined (A-065, owner decision 2026-09-24). No eighth outcome:
+            // that would move ProviderResponseValidator.Outcome, IngestAudit.ValidationResult and the
+            // api_ingest_validation_check CHECK together, and PROVIDER_ERROR already says what happened.
+            return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
         }
         return new Validation(new ProviderResponseValidator.Verdict(ProviderResponseValidator.Outcome.OK, 0),
                 new SeoulLiveAreaObservation(areaCode, areaName, level, observedAt,
