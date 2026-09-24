@@ -625,7 +625,9 @@ paths:
                     savedPost and candidateState are independent: a post can be saved without being a candidate and
                     the reverse, because SavedPost and TripCandidate are different resources. categoryName and
                     regionName are null until a reviewed code-to-label mapping exists - render nothing rather than
-                    falling back to the opaque categoryCode.
+                    falling back to the opaque categoryCode. `crowd` is null on every card: FeedCardResponse sends
+                    no CrowdMetric, since one needs a full DataProvenance (invariant 8). FeedIT holds this page
+                    against a real response.
                   value:
                     items:
                       -
@@ -2120,7 +2122,10 @@ paths:
                     rules read it, so a synthesised one would be exactly the fabricated evidence invariant 8
                     exists to prevent. This value is schema-shaped, not a captured server response: it is pinned to the fixture
                     Frontend mocks against so the two cannot drift, and packages/contracts/fixtures/manifest.json
-                    records which sets are server-verified.
+                    records which sets are server-verified. The SIMILAR item is the relation our own catalog rule
+                    derives (NULLNULL_CATALOG_RULE), and CatalogRelatedPlacesApiIT holds it against a real response.
+                    The EXACT item has no producer - its one possible source, KTO_RELATED_PLACES, is not approved -
+                    and stays as the mock of that Figma state, credited to that source's registered values.
                   value:
                     sourcePlaceId: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
                     state: "SIMILAR"
