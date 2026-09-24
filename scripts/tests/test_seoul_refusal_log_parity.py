@@ -39,8 +39,19 @@ class SeoulRefusalLogParityTests(unittest.TestCase):
                 line = f"seoul_live_validation outcome={outcome} rule={rule}"
                 self.assertTrue(ops.OPS_LOG_LINE.match(line), line)
 
+    def test_the_operator_names_exactly_the_words_the_collection_prints(self):
+        # Equal both ways: a Java word the list lacks vanishes from the output, and a list word Java does not print
+        # is one the allowlist takes from any line of that shape.
+        rules = [name.lower().replace("_", "-") for name in enum_constants(VALIDATOR, "Rule")]
+        outcomes = [name for name in enum_constants(OUTCOMES, "Outcome") if name != "OK"]
+        self.assertEqual(sorted(rules), sorted(ops.SEOUL_VALIDATION_RULES))
+        self.assertEqual(sorted(outcomes), sorted(ops.SEOUL_VALIDATION_OUTCOMES))
+
     def test_a_refusal_line_carrying_anything_else_is_not_echoed(self):
-        for line in ["seoul_live_validation outcome=SCHEMA_DRIFT rule=area-mismatch area=서울숲공원",
+        for line in ["seoul_live_validation outcome=PRIVATE_KEY rule=api-secret",
+                     "seoul_live_validation outcome=OK rule=area-mismatch",
+                     "seoul_live_validation outcome=SCHEMA_DRIFT rule=area-mismatches",
+                     "seoul_live_validation outcome=SCHEMA_DRIFT rule=area-mismatch area=서울숲공원",
                      "seoul_live_validation outcome=SCHEMA_DRIFT rule=서울숲공원",
                      "seoul_live_validation outcome=ERROR-500 rule=result-code",
                      "seoul_live_validation outcome=SCHEMA_DRIFT rule=area mismatch",
