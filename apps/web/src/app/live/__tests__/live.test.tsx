@@ -669,6 +669,80 @@ describe('FE-402 Live place detail', () => {
     expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
   });
 
+  it('FE-402-T2 says there is no current reading for an unsupported place, without a number', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    const unavailable: LivePlaceDetail = {
+      ...detail,
+      dataState: 'UNAVAILABLE',
+      crowd: null,
+    };
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(unavailable)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    await screen.findByRole('heading', { level: 1, name: detail.place.name });
+    expect(screen.getAllByText('No data right now')).not.toHaveLength(0);
+    // A missing reading is not drawn as a level or a zero.
+    expect(screen.queryByRole('img', { name: /crowd level/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
+  it('FE-403-T1 marks a replayed detail as not live and names when it was observed', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    if (!detail.crowd) throw new Error('Live detail fixture must include crowd data');
+    const observedAt = '2026-09-18T01:30:00Z';
+    const replay: LivePlaceDetail = {
+      ...detail,
+      dataState: 'REPLAY',
+      crowd: {
+        ...detail.crowd,
+        state: 'REPLAY',
+        provenance: {
+          ...detail.crowd.provenance,
+          sourceState: 'REPLAY',
+          observedAt,
+          comparisonEligible: false,
+        },
+      },
+    };
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(replay)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    expect(
+      await screen.findAllByText('Replaying past observations · not live'),
+    ).not.toHaveLength(0);
+    expect(
+      screen.getByText(`Observed ${formatReferenceTime(observedAt, 'en-US')}`),
+    ).toBeVisible();
+    expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
+  it('FE-402-T2 keeps an unverified relation apart from a verified absence', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    expect(detail.related.state).toBe('UNKNOWN');
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    expect(
+      await screen.findByText("We haven't verified an alternative yet"),
+    ).toBeVisible();
+    // Only a verified absence (NONE) sends the traveller to browse other areas.
+    expect(
+      screen.queryByRole('link', { name: 'Browse other areas' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('No valid alternative is available right now'),
+    ).not.toBeInTheDocument();
+  });
+
   it('FCR-011 trace keeps KTO place credit separate from Seoul crowd credit', async () => {
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     server.use(
