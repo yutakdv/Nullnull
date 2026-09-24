@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.shared.provider.ProviderResponseValidator;
+import io.nullnull.testsupport.SeoulCityDataResponses;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
@@ -270,4 +271,25 @@ class SeoulCityDataValidatorTest {
         assertThat(accepted.observation()).isNotNull();
     }
 
+    /**
+     * Which check refused a response, not only which outcome: SCHEMA_DRIFT alone cannot tell a page that is not JSON
+     * from an answer about another area, and both quarantine the source. One response per rule, and the table must
+     * hold every rule - a new check with no case in it fails the first assertion.
+     */
+    @Test
+    @DisplayName("BA-090-T23 서울 응답을 거부한 검사는 자기 규칙 이름으로 답한다")
+    void everyRefusalNamesTheCheckThatRefusedIt() {
+        List<SeoulCityDataResponses.Refused> cases = SeoulCityDataResponses.refusedByEachRule(AREA, "marker-7f3e9a");
+        assertThat(cases).extracting(SeoulCityDataResponses.Refused::rule)
+                .containsExactlyInAnyOrder(SeoulCityDataValidator.Rule.values());
+        for (SeoulCityDataResponses.Refused example : cases) {
+            SeoulCityDataValidator.Validation validation = validate(example.body());
+            assertThat(validation.rule()).as(example.rule().token()).isEqualTo(example.rule());
+            assertThat(validation.verdict().outcome()).as(example.rule().token()).isEqualTo(example.outcome());
+            assertThat(validation.accepted()).as(example.rule().token()).isFalse();
+        }
+        SeoulCityDataValidator.Validation accepted = validate(SeoulCityDataResponses.accepted(AREA));
+        assertThat(accepted.accepted()).isTrue();
+        assertThat(accepted.rule()).isNull();
+    }
 }

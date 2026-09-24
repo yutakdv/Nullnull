@@ -14,6 +14,7 @@ import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.crowd.domain.SourceRegistration;
 import io.nullnull.crowd.domain.SourceState;
 import io.nullnull.operations.application.IngestAudit;
+import io.nullnull.shared.provider.ProviderResponseValidator;
 import io.nullnull.shared.provider.ProviderHttpClient.ProviderResponse;
 import java.time.Clock;
 import java.time.Instant;
@@ -84,14 +85,35 @@ public class SeoulLiveAreaGateway {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
-    /** What one collection attempt produced: an observation, or nothing with the run already closed. */
-    public record Collection(UUID runId, Optional<SeoulLiveAreaObservation> observation, SourceState storedState) {
+    /**
+     * Why a response was refused: the validator's outcome and the check that fired. Both are fixed vocabularies, and
+     * the refusal log line (SeoulLiveCollectMain) is built from these two alone - never from the response.
+     */
+    public record Refusal(ProviderResponseValidator.Outcome outcome, SeoulCityDataValidator.Rule rule) {
+        public Refusal {
+            Objects.requireNonNull(outcome, "outcome");
+            Objects.requireNonNull(rule, "rule");
+        }
+    }
+
+    /** What one collection attempt produced: an observation, or the refusal with the run already closed. */
+    public record Collection(UUID runId, Optional<SeoulLiveAreaObservation> observation, SourceState storedState,
+            Optional<Refusal> refusal) {
         public Collection {
             Objects.requireNonNull(runId, "runId");
             Objects.requireNonNull(observation, "observation");
+            Objects.requireNonNull(refusal, "refusal");
             if (observation.isPresent() != (storedState != null)) {
                 throw new IllegalArgumentException("stored state must accompany an accepted observation");
             }
+        }
+
+        public static Collection observed(UUID runId, SeoulLiveAreaObservation observation, SourceState storedState) {
+            return new Collection(runId, Optional.of(observation), storedState, Optional.empty());
+        }
+
+        public static Collection refused(UUID runId, Refusal refusal) {
+            return new Collection(runId, Optional.empty(), null, Optional.of(refusal));
         }
 
         public boolean accepted() {
@@ -147,10 +169,10 @@ public class SeoulLiveAreaGateway {
         boolean accepted = collector.finalizeSingleCallRetryingProviderErrors(runId, reservation.ingestLogId(),
                 response.status(), duration, 1, null, validation.verdict(), clock.instant());
         if (!accepted) {
-            return new Collection(runId, Optional.empty(), null);
+            return Collection.refused(runId, new Refusal(validation.verdict().outcome(), validation.rule()));
         }
         SeoulLiveSnapshotStore.Reading reading = store(runId, source, validation.observation());
-        return new Collection(runId, Optional.of(validation.observation()), reading.sourceState());
+        return Collection.observed(runId, validation.observation(), reading.sourceState());
     }
 
     /**

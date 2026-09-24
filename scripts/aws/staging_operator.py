@@ -180,6 +180,10 @@ OPS_LOG_LINE = re.compile(r'^(KTO_(?!ENG_TEXT_REFRESH)[A-Z_]+ [A-Za-z0-9_ =:.,()
                           r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
                           r'|seoul_live_collect live=true'
                           r'|seoul_live_collect_failed reason=[A-Za-z_]{1,80}'
+                          # Why a Seoul collection was refused (SeoulLiveCollectMain): the validator's outcome and the
+                          # check that fired, two fixed vocabularies. Never the provider's code, area or message
+                          # (test_seoul_refusal_log_parity reads both vocabularies from the Java source).
+                          r'|seoul_live_validation outcome=[A-Z][A-Z_]{1,39} rule=[a-z]+(-[a-z]+){0,4}'
                           # The quarantine release (SourceQuarantineReleaseMain): the source, the run it released and
                           # when that run started, or why it released nothing. Source codes and ids only.
                           r'|source_quarantine_released source=[A-Z][A-Z0-9_]{1,63} run=[0-9a-f-]{36} run_started=[0-9T:.-]{10,40}Z'
