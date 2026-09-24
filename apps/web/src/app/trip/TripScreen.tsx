@@ -691,13 +691,19 @@ function TripItemRow({
           carried sourceAttribution: null at the time; BA-030 maps places
           through the shared catalog projection, so the real response populates
           it, and #281 filled the fixtures in to match. */}
-      {item.crowd ? (
+      {/* The place's credit and the forecast's are two datasets (KorService2
+          and the concentration forecast), so each renders on its own and
+          neither stands in for the other (SOURCE_CATALOG, provenance
+          primitives). This was a ternary that dropped the place credit
+          whenever the stop had a forecast. */}
+      {item.place.sourceAttribution || item.crowd ? (
         <div className={styles.itemAttribution}>
-          <DataAttribution compact provenance={item.crowd.provenance} />
-        </div>
-      ) : item.place.sourceAttribution ? (
-        <div className={styles.itemAttribution}>
-          <DataAttribution compact provenance={item.place.sourceAttribution} />
+          {item.place.sourceAttribution ? (
+            <DataAttribution compact provenance={item.place.sourceAttribution} />
+          ) : null}
+          {item.crowd ? (
+            <DataAttribution compact provenance={item.crowd.provenance} />
+          ) : null}
         </div>
       ) : null}
 
