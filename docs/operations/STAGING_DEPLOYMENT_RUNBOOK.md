@@ -227,6 +227,8 @@ release manifest는 한 번 build한 산출물을 식별한다.
 
 두 workflow가 동시에 시작해도 진행 중 migration/deploy는 취소하지 않는다. GitHub environment concurrency는 1, `cancel-in-progress=false`다.
 
+**공개 중 schema를 늘리는 배포(A-067).** `--preserve-open-edge` deploy는 edge를 연 채로 migration을 돈다. 그래서 migration task가 끝난 뒤 Services가 바뀌기 전까지 **옛 API가 새 schema를 읽는다.** 이 모드는 schema 불변만 받았고, 이제 `--accept-additive-schema <파일>[,<파일>]`로 이름을 댄 migration이 배포된 목록 뒤에 그것만 덧붙은 경우도 받는다. 배포된 항목의 순서·checksum이 바뀌었거나, 이름 없는 migration이 더 있거나, 이름 댄 파일이 덧붙지 않았으면 거부한다(`preserve-open-schema-change`). **operator는 옛 코드가 그 파일을 견디는지 판정하지 않는다** — 이름을 대는 것은 그 질문이 plan 검토에서 답해졌다는 표시다.
+
 승인 경로는 `classify`가 정한다. live template과 새 template을 release 자신의 표지(task definition image의 `@sha256:` 꼬리와 `APP_RELEASE_VERSION`, web bundle key)만 가려서 비교하고, 그 밖의 차이나 migration 집합 변경이 하나라도 있으면 `infra`다. `infra`의 reviewer가 승인하는 것은 plan job summary에 찍힌 diff(정규화한 template과 migration 목록, 12자리 숫자는 가림)이고, 분류 시점의 **원본** live template hash가 실행 직전과 다르면 실행을 거부한다. 분류 뒤 app release가 하나라도 배포됐다면 digest만 바뀌어도 그 승인은 무효다.
 
 잠금은 첫 AWS 쓰기 전에 실패하면 풀고, 쓰기가 시작된 뒤 실패하면 남긴다. 남은 잠금은 CloudFormation·ECS 종료를 확인한 뒤 local operator가 `unlock`으로만 푼다(§11). 그동안 auto deploy는 잠금 획득에서 시끄럽게 멈춘다.
@@ -238,6 +240,7 @@ reviewer를 기다리는 `deploy-infra`는 concurrency group을 잡고 있으므
 - API/AI: 직전 manifest의 image digest/task definition으로 되돌린다.
 - web: 직전 manifest의 web artifact checksum과 versioned S3 object를 다시 활성화한다.
 - DB: destructive down migration을 자동 실행하지 않는다. 직전 binary가 확장된 schema와 호환되지 않으면 forward fix 또는 격리 restore를 incident lead가 선택한다.
+- schema를 덧붙인 release(예: V050, A-067) 뒤에 직전 release로 되돌리면 옛 binary가 새 schema를 만난다. rollback plan을 만들 때 `--accept-newer-schema`를 준다. 없으면 실행이 `rollback-to-older-schema-requires-accept-newer-schema`로 멈춘다.
 - source: KTO 이상이면 catalog/source capability를 닫고 `STALE`/`UNAVAILABLE`을 사실대로 표시한다.
 
 rollback도 manifest validator, 승인 hash와 smoke를 통과해야 한다. DB/Data stack은 rollback 스크립트의 대상이 아니다. rollback은 기록된 release의 assembly를 그대로 쓰고 `Migration`·`WebEdge`·`Services`만 배포한다. 그 세 template이 live와 release 표지만 다를 때만 app 경로(`staging`)로 가고, overlay release로 돌아가거나 더 새로운 schema를 수용하거나(`accept_newer_schema`) 리뷰된 template 변경을 되돌리는 rollback은 `staging-infra` reviewer를 거친다.
@@ -554,6 +557,10 @@ python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-pla
 # 실행 전후 공개 health=200을 확인하고, WebEdge를 먼저 배포하면서 TrafficEnabled=true를 유지한다.
 python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-plan-sha256 <sha> \
   --execute --kind infra --preserve-open-edge
+# schema를 덧붙이는 release는 덧붙는 migration 파일을 이름으로 댄다(A-067, §7). 배포된 목록이 새 목록의 정확한 앞부분이고
+# 덧붙은 파일이 이름과 정확히 같을 때만 통과한다. 이 배포 뒤 rollback plan에는 --accept-newer-schema가 필요하다(§8).
+python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-plan-sha256 <sha> \
+  --execute --kind infra --preserve-open-edge --accept-additive-schema V050__kto_eng_service_text_source.sql
 bash scripts/aws/staging-smoke.sh                                      # NULLNULL_VERIFIER_TOKEN 이 있으면 API 경로도 본다
 python3 scripts/aws/staging_operator.py rollback --previous-plan <plan.json> --previous-plan-sha256 <sha>
 python3 scripts/aws/staging_operator.py classify --plan <rollback-plan.json> --approved-plan-sha256 <sha>
@@ -660,7 +667,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - `edge`는 A-039의 전제를 운영자가 지킬 때만 쓴다. 전제는 둘이다. 배포된 release에 FE 로그인 흉내 화면이 들어 있어야 하고, 열려 있는 동안에는 DB 복원을 하지 않는다(복원 전에 닫는다). 명령은 이 전제를 검사하지 않는다.
 - `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. release 확인은 배포 잠금 안에서 한다. plan이 `deployed/current.json`의 `planSha256`이 아니거나 WebEdge stack이 진행 중이면 거부한다. hash 검사는 모두 하지만 시간 검사는 하지 않는다. 24시간 신선도와 plan의 `expiresAt` 가동 창을 보지 않고(심사 기간에 다시 열 수 있어야 한다) staging 종료 한계만 본다. 비용 plan도 다시 평가하지 않는다. `infra/package-lock.json`이 release의 것과 같은 checkout에서, `npm --prefix infra ci`를 한 뒤 돌린다(`toolchain-changed`).
 - 열기 전에는 CD가 배포 뒤 돌리는 `staging-smoke.sh`와 verifier 경로 `staging-flows.mjs`가 통과해야 한다. 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 `200 application/json`(열림) 또는 `503 application/problem+json`(닫힘)이 될 때까지 확인한다. ALB의 `503 text/html`은 닫힘이 아니다. 이미 그 상태면 다시 배포하지 않고 확인만 한다.
-- **기본 deploy·모든 rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 검토된 `--preserve-open-edge` deploy만 열린 상태를 유지하며, 스키마·보호 스택·Services 구조 불변과 공개 health 검사를 통과해야 한다. WebEdge는 구조 불변이 원칙이나, #312의 WebBucket에 정확히 `PUT`·`content-type`·서비스 HTTPS origin·300초 CORS 규칙 하나를 추가하는 변경만 허용한다. 다른 WebEdge 변경은 그대로 거부하며 공개 edge 변경은 먼저 계획으로 검토한다.
+- **기본 deploy·모든 rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 검토된 `--preserve-open-edge` deploy만 열린 상태를 유지하며, 스키마·보호 스택·Services 구조 불변과 공개 health 검사를 통과해야 한다. 스키마는 불변이거나, `--accept-additive-schema`로 이름을 댄 migration만 뒤에 덧붙어야 한다(A-067, §7). WebEdge는 구조 불변이 원칙이나, #312의 WebBucket에 정확히 `PUT`·`content-type`·서비스 HTTPS origin·300초 CORS 규칙 하나를 추가하는 변경만 허용한다. 다른 WebEdge 변경은 그대로 거부하며 공개 edge 변경은 먼저 계획으로 검토한다.
 - edge를 연 뒤 `staging-flows.mjs`는 `--expect-edge open`으로 돌린다. 기본값(closed)은 CD가 새 release에 기대하는 상태다.
 - `staging-flows.mjs`의 `--survey`와 `--optimize-item`은 opt-in이라 CD(`--url`만 넘김)의 요청과 verdict는 그대로다. 전제가 없으면 `NOT-RUN`과 `staging_flows=incomplete`(exit 3, pass 아님)이고, 전제를 갖춘 한 곳짜리 여행이 낼 수 없는 결과만 `FAIL`이다.
 
