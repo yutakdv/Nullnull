@@ -59,6 +59,8 @@ tags:
 
 ## 만료된 예외 (기록)
 
+- **`POST /posts placeIds` 최소 1곳 계약 정정** (승인: 오너의 #312 직접 구현·반영 지시, 추적: [#312](https://github.com/yutakdv/Nullnull/issues/312)). 기존 DB 게시 트리거가 대표 장소를 요구해 빈 배열로는 게시에 성공할 수 없었다. [PR #353](https://github.com/yutakdv/Nullnull/pull/353)으로 `main`의 OpenAPI 기준도 최소 1곳이 되어 finding이 사라졌으므로 ignore 줄과 활성 등록 행을 함께 제거했다.
+
 - **`getCandidateTripMatches` 응답의 `NOT_ACTIVE` enum 추가**
   (승인: Frontend의 [#328](https://github.com/yutakdv/Nullnull/issues/328) 결정).
   일정화된 후보에 입력 오류 422를 반환하던 경로를 200 상태로 정정했고,

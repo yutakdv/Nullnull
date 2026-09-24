@@ -30,7 +30,8 @@ public final class UploadProperties {
             @Value("${nullnull.upload.max-bytes}") long maxBytes,
             @Value("${nullnull.upload.max-long-edge-pixels}") int maxLongEdgePixels,
             @Value("${nullnull.upload.content-types}") Set<String> contentTypes,
-            @Value("${nullnull.upload.presign-ttl}") Duration presignTtl) {
+            @Value("${nullnull.upload.presign-ttl}") Duration presignTtl,
+            @Value("${nullnull.idempotency.ttl}") Duration idempotencyTtl) {
         if (maxBytes < 1) {
             throw new IllegalStateException("nullnull.upload.max-bytes must be positive");
         }
@@ -52,11 +53,11 @@ public final class UploadProperties {
         if (presignTtl.isNegative() || presignTtl.isZero()) {
             throw new IllegalStateException("nullnull.upload.presign-ttl must be positive");
         }
-        // Bounded above by how long an idempotency record is kept (24h): an intent that outlived the
-        // record making its consumption replay-safe would be a signed URL with nothing behind it.
-        if (presignTtl.compareTo(Duration.ofHours(24)) >= 0) {
+        // A ticket must expire before its retry record does. The retention is configurable, so
+        // comparing to the default 24h would allow the same key to issue another live ticket.
+        if (presignTtl.compareTo(idempotencyTtl) >= 0) {
             throw new IllegalStateException(
-                    "nullnull.upload.presign-ttl must stay under the 24h idempotency retention");
+                    "nullnull.upload.presign-ttl must stay under nullnull.idempotency.ttl");
         }
         this.maxBytes = maxBytes;
         this.maxLongEdgePixels = maxLongEdgePixels;
