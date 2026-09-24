@@ -24,6 +24,7 @@ final class KtoSmokeEnvironment {
             "KTO_SERVICE_KEY",
             "KTO_BASE_URL",
             "KTO_FORECAST_BASE_URL",
+            "KTO_ENG_BASE_URL",
             "KTO_MOBILE_APP",
             "KTO_MOBILE_OS",
             "KTO_ALLOWED_HOST",
@@ -82,11 +83,15 @@ final class KtoSmokeEnvironment {
         put(properties, values, "KTO_SERVICE_KEY", "nullnull.kto.service-key");
         put(properties, values, "KTO_BASE_URL", "nullnull.kto.base-url");
         put(properties, values, "KTO_FORECAST_BASE_URL", "nullnull.kto.forecast-base-url");
+        put(properties, values, "KTO_ENG_BASE_URL", "nullnull.kto.eng-base-url");
         put(properties, values, "KTO_MOBILE_APP", "nullnull.kto.mobile-app");
         put(properties, values, "KTO_MOBILE_OS", "nullnull.kto.mobile-os");
         put(properties, values, "APP_RELEASE_VERSION", "nullnull.kto.release-version");
         put(properties, values, "APP_CONTEST_PROFILE", "nullnull.kto.contest-profile");
         put(properties, values, "KTO_ALLOWED_HOST", "nullnull.sources.KTO_KOR_SERVICE_2.allowed-hosts[0]");
+        // application.yaml gives every KTO source the same ${KTO_ALLOWED_HOST}; a dotenv value has to reach
+        // the English source too, or a local English command refuses the host the Korean one accepts.
+        put(properties, values, "KTO_ALLOWED_HOST", "nullnull.sources.KTO_ENG_SERVICE.allowed-hosts[0]");
         return Map.copyOf(properties);
     }
 

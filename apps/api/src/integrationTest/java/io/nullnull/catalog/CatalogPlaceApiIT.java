@@ -11,11 +11,13 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.MutableClock;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -214,6 +216,96 @@ class CatalogPlaceApiIT {
         assertThat(result.getResponse().getContentAsString())
                 .doesNotContain(originOnly.toString(), "origin-only.jpg", "https://origin.example.test")
                 .contains("\"categoryName\":null", "\"regionName\":null");
+    }
+
+    @Test
+    @DisplayName("BA-086-T4 each fallback field reports the locale of the text actually selected")
+    void mixedLocaleFieldsReportTheirOwnLocales() throws Exception {
+        SessionService.Bootstrap englishOwner = owner("en-US");
+        UUID place = mixedLocalePlace();
+
+        String detail = mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("English " + RUN))
+                .andExpect(jsonPath("$.address").value("서울시 주소"))
+                .andExpect(jsonPath("$.description").value("한국어 설명"))
+                .andExpect(jsonPath("$.textProvenance.name.locale").value("en-US"))
+                .andExpect(jsonPath("$.textProvenance.address.locale").value("ko-KR"))
+                .andExpect(jsonPath("$.textProvenance.description.locale").value("ko-KR"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        // The shape the FE approved is the contract's, not this test's jsonPaths: validate the whole
+        // body so a property the contract does not declare fails here too.
+        ContractResponse.assertValid("getPlace", 200, detail);
+
+        String found = search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(place.toString()))
+                .andExpect(jsonPath("$.items[0].textProvenance.name.locale").value("en-US"))
+                .andExpect(jsonPath("$.items[0].textProvenance.address.locale").value("ko-KR"))
+                .andExpect(jsonPath("$.items[0].textProvenance.description").isEmpty())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        ContractResponse.assertValid("searchPlaces", 200, found);
+    }
+
+    @Test
+    @DisplayName("BA-086-T5 fallback text retains its own approved credit")
+    void fallbackTextKeepsItsOwnCredit() throws Exception {
+        SessionService.Bootstrap englishOwner = owner("en-US");
+        UUID place = mixedLocalePlace();
+        long revision = jdbc.queryForObject(
+                "SELECT current_revision FROM source_registry WHERE code = ?", Long.class, SOURCE);
+
+        // The place record has no credit here, so the address credit can only have come from the
+        // localization row that supplied the address.
+        mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceAttribution").isEmpty())
+                .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.source").value(SOURCE))
+                .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.sourceRegistryVersion")
+                        .value(revision))
+                .andExpect(jsonPath("$.textProvenance.address.sourceAttribution.attribution")
+                        .value("출처: ⓒ한국관광공사"))
+                .andExpect(jsonPath("$.textProvenance.description.sourceAttribution.source").value(SOURCE));
+
+        search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].textProvenance.address.sourceAttribution.source")
+                        .value(SOURCE));
+    }
+
+    @Test
+    @DisplayName("BA-086-T20 a text field with no provenance of its own does not borrow the place record's credit")
+    void textWithoutProvenanceDoesNotBorrowPlaceCredit() throws Exception {
+        SessionService.Bootstrap englishOwner = owner("en-US");
+        UUID place = mixedLocalePlace();
+        // The place must HAVE a credit to lend. Without one, a field that fell back to it would read
+        // null anyway and this test would pass whether or not anything was borrowed - which is how
+        // it went unmeasured while it lived inside T5.
+        reference(place);
+
+        mvc.perform(get("/api/v1/places/{placeId}", place).cookie(cookie(englishOwner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceAttribution.source").value(SOURCE))
+                .andExpect(jsonPath("$.textProvenance.name.locale").value("en-US"))
+                .andExpect(jsonPath("$.textProvenance.name.sourceAttribution").isEmpty());
+        search(englishOwner, "{\"query\":\"English " + RUN + "\",\"locale\":\"en-US\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].sourceAttribution.source").value(SOURCE))
+                .andExpect(jsonPath("$.items[0].textProvenance.name.sourceAttribution").isEmpty());
+    }
+
+    private UUID mixedLocalePlace() {
+        UUID place = activePlace("정본 " + RUN, true);
+        localization(place, "en-US", "English " + RUN, null, null);
+        long revision = jdbc.queryForObject(
+                "SELECT current_revision FROM source_registry WHERE code = ?", Long.class, SOURCE);
+        jdbc.update("""
+                INSERT INTO place_localizations
+                    (id, place_id, locale, name, short_description, address, source_code,
+                     source_registry_version, source_locale, observed_at, updated_at)
+                VALUES (?, ?, 'ko-KR', ?, '한국어 설명', '서울시 주소', ?, ?, 'ko-KR', ?, ?)
+                """, UUID.randomUUID(), place, "한국어 " + RUN, SOURCE, revision, timestamp(), timestamp());
+        return place;
     }
 
     /**
