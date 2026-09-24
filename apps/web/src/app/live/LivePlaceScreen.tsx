@@ -1,6 +1,13 @@
 import type { components } from '@nullnull/api-client';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { onlineManager } from '@tanstack/react-query';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useAddTripCandidate, useLivePlace } from '../../shared/api/index.js';
@@ -15,6 +22,8 @@ import {
 import styles from './LivePlaceScreen.module.css';
 import type { AppShellOutletContext } from '../AppShell.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
+import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
+import { readLiveReturn } from './live-return.js';
 
 const STATES: SourceState[] = [
   'LIVE',
@@ -58,9 +67,17 @@ function canCompareCrowd(
 export function LivePlaceScreen() {
   const { placeId } = useParams();
   const navigate = useNavigate();
-  const { t } = useI18n();
-  const { activeTripId, activeTripReady } = useOutletContext<AppShellOutletContext>();
-  const detail = useLivePlace(placeId ?? null);
+  const liveReturn = readLiveReturn(useLocation().state);
+  const { locale, t } = useI18n();
+  const { activeTripId, activeTripReady, sessionReady } =
+    useOutletContext<AppShellOutletContext>();
+  const detail = useLivePlace(placeId ?? null, sessionReady);
+  // Same signal the area list uses, so a cached detail is not read as current
+  // while the device has no connection.
+  const online = useSyncExternalStore(
+    (notify) => onlineManager.subscribe(notify),
+    () => onlineManager.isOnline(),
+  );
   const addCandidate = useAddTripCandidate(activeTripId);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'duplicate' | 'error' | null>(
     null,
@@ -107,15 +124,44 @@ export function LivePlaceScreen() {
     );
   }
 
+  // Which time the badge names depends on which the server sent: an
+  // observation, a forecast target, or only the fetch. Each keeps its own words
+  // so a forecast is never read as a measurement.
+  const referenceLabel = (provenance: CrowdMetric['provenance'] | null) => {
+    if (provenance?.observedAt) {
+      return t('crowd.observedAt', {
+        date: formatReferenceTime(provenance.observedAt, locale),
+      });
+    }
+    if (provenance?.targetAt) {
+      return t('crowd.targetAt', {
+        date: formatReferenceTime(provenance.targetAt, locale),
+      });
+    }
+    if (provenance?.fetchedAt) {
+      return t('crowd.fetchedAt', {
+        date: formatReferenceTime(provenance.fetchedAt, locale),
+      });
+    }
+    return null;
+  };
+
   return (
     <section aria-labelledby="live-place-heading" className={styles.screen}>
       <NavBar
         backLabel={t('live.detail.back')}
-        onBack={() => void navigate('/live')}
+        onBack={() =>
+          void navigate('/live', liveReturn ? { state: { liveReturn } } : undefined)
+        }
         title={t('live.detail.title')}
         titleSize="large"
       />
 
+      {!online ? (
+        <p className={styles.state} role="status">
+          {t('live.offline')}
+        </p>
+      ) : null}
       {detail.isPending ? (
         <p className={styles.state} role="status">
           {t('live.detail.loading')}
@@ -136,12 +182,7 @@ export function LivePlaceScreen() {
             <h1 id="live-place-heading">{detail.data.place.name}</h1>
             <StateLabel
               labels={stateLabels}
-              observedAt={
-                detail.data.crowd?.provenance.observedAt ??
-                detail.data.crowd?.provenance.targetAt ??
-                detail.data.crowd?.provenance.fetchedAt ??
-                null
-              }
+              observedAt={referenceLabel(detail.data.crowd?.provenance ?? null)}
               state={detail.data.dataState}
             />
           </div>
