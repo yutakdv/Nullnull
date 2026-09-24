@@ -1873,3 +1873,167 @@ class WithdrawPostTaskRegressions(unittest.TestCase):
                      'post_withdraw_failed reason=NOT_FOUND jdbc:postgresql://db:5432/nullnull',
                      'post_withdraw_failed reason=could not find post 0192f3a4']:
             self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
+
+class EnglishTextTaskRegressions(unittest.TestCase):
+    """BA-086 (#60): the English link import and the English text refresh as operator tasks.
+
+    The link import is an owner-reviewed plan, so it rides the curated-plan path: the owner approves the exact bytes,
+    the task echoes their sha and one line per place, and the bytes are kept as evidence. The refresh calls KTO, so it
+    takes its own approval variable, like the Korean calls, and it runs only as the deployed release: an older image
+    has no refresh main and would fail after the deployment lock was taken. The harnesses are borrowed, not inherited,
+    as CuratedPostsTaskRegressions does."""
+    PLACE='00000000-0000-4000-8000-000000000001'
+    DIGEST='sha256:'+'a'*64
+    BASE={'NULLNULL_AWS_AUTH':'profile','AWS_PROFILE':'p','NULLNULL_AWS_ACCOUNT_ID':'1'*12}
+    def plan(self, **overrides):
+        link={'placeId':self.PLACE,'contentId':'264329','contentTypeId':'76','reviewedAt':'2026-09-21T06:00:00Z',
+              'evidenceUrl':'https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=example'}
+        link.update(overrides)
+        return json.dumps({'links':[link]},indent=2).encode()
+    def run_import(self, data, **kw):
+        runner=CurationTaskRegressions('run_curate')
+        runner.TASK='kto-eng-link-import'
+        runner.default_log=lambda d,sha:[f'eng_link_plan sha256={sha} bytes={len(d)}',
+                                         f'eng_link {self.PLACE} PROCESSED','eng_links_processed=1']
+        return runner.run_curate(data, **kw)
+    def run_refresh(self, log):
+        runner=WithdrawPostTaskRegressions('run_withdraw')
+        runner.args=lambda **overrides:__import__('types').SimpleNamespace(
+            task='kto-eng-text-refresh',owner_approval='owner approved in session',plan_file=None)
+        with patch.dict(os.environ,{'NULLNULL_KTO_ENG_REFRESH_APPROVED':'true'}):
+            error,calls,out=runner.run_withdraw(log)
+        self.wait=runner.wait
+        return error,calls,out
+    def test_the_approved_link_plan_travels_to_the_task_and_is_kept_as_evidence(self):
+        import gzip as gz, base64 as b64
+        data=self.plan()
+        r=self.run_import(data)
+        self.assertIsNone(r['error'],r['out'])
+        env={e['name']:e['value'] for e in r['run'][0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('io.nullnull.catalog.infrastructure.kto.KtoEngLinkImportMain',env['LOADER_MAIN'])
+        self.assertEqual(data,gz.decompress(b64.b64decode(env['NULLNULL_ENG_LINK_PLAN_GZIP_BASE64'])))
+        self.assertEqual(r['sha'],env['NULLNULL_ENG_LINK_PLAN_SHA256'])
+        self.assertEqual(data,r['kept'])
+        self.assertIn('ops_task=kto-eng-link-import result=succeeded',r['out'])
+    def test_an_unapproved_or_malformed_link_plan_stops_before_any_aws_call(self):
+        r=self.run_import(self.plan(),approved='0'*64)
+        self.assertEqual('plan-sha256-not-approved',r['error'])
+        self.assertEqual([],r['calls'])
+        for field,bad,reason in [('evidenceUrl','http://korean.visitkorea.or.kr/x','plan-file-eng-link-invalid'),
+                                 # What EngTextLinkImporter.Link refuses: no host, userinfo, and what URI.create cannot
+                                 # read. A prefix check passed all three.
+                                 ('evidenceUrl','https://','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https:///detail','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://owner:pw@korean.visitkorea.or.kr/x','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr:port/x','plan-file-eng-link-invalid'),
+                                 # Characters RFC 3986 does not allow, which URI.create refuses once the task has started.
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a|b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a\\b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a^b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/{x}','plan-file-eng-link-invalid'),
+                                 # An instant, as Jackson reads it into Instant: a date alone, a local time, or words
+                                 # are not one. A non-blank check passed all three.
+                                 ('reviewedAt','yesterday','plan-file-eng-link-invalid'),
+                                 ('reviewedAt','2026-09-21','plan-file-eng-link-invalid'),
+                                 ('reviewedAt','2026-09-21T06:00:00','plan-file-eng-link-invalid'),
+                                 ('reviewedAt','2026-13-21T06:00:00Z','plan-file-eng-link-invalid'),
+                                 ('contentId','264329; DROP','plan-file-eng-link-invalid'),
+                                 ('contentTypeId','076','plan-file-eng-link-invalid'),
+                                 ('reviewedAt','','plan-file-eng-link-invalid'),
+                                 ('placeId','not-a-place','plan-file-place-id-not-a-uuid')]:
+            with self.subTest(field=field):
+                r=self.run_import(self.plan(**{field:bad}))
+                self.assertEqual(reason,r['error'])
+                self.assertEqual([],r['calls'])
+    def test_an_evidence_url_with_every_rfc_3986_delimiter_still_passes(self):
+        # The control for the character check: query, fragment, percent-encoding and sub-delimiters are all URI.create's.
+        url="https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=a1-b2_c.3~&x=%EA%B0%80;y=(1)*+,!$'#top"
+        r=self.run_import(self.plan(evidenceUrl=url))
+        self.assertIsNone(r['error'],r['out'])
+    def test_a_task_that_did_not_process_the_place_is_not_a_success(self):
+        import hashlib
+        data=self.plan()
+        echo=f'eng_link_plan sha256={hashlib.sha256(data).hexdigest()} bytes={len(data)}'
+        processed=f'eng_link {self.PLACE} PROCESSED'
+        for log,reason in [([echo,'eng_links_processed=1'],'eng-links-not-all-processed'),
+                           ([echo,processed],'eng-links-not-all-processed'),
+                           ([echo,processed,'eng_links_processed=1','eng_links_failed reason=IllegalStateException'],
+                            'curation-import-failed'),
+                           ([processed,'eng_links_processed=1'],'curation-plan-echo-mismatch')]:
+            with self.subTest(log=log):
+                r=self.run_import(data,log=log)
+                self.assertEqual(reason,r['error'])
+                self.assertNotIn('result=succeeded',r['out'])
+    def test_the_refresh_needs_its_own_approval_and_a_record_before_any_aws_call(self):
+        from types import SimpleNamespace
+        args=lambda record:SimpleNamespace(task='kto-eng-text-refresh',owner_approval=record,plan_file=None)
+        with patch.dict(os.environ,self.BASE),patch.object(ops,'identity'),patch.object(ops,'aws') as aws:
+            os.environ.pop('NULLNULL_KTO_ENG_REFRESH_APPROVED',None)
+            # The Korean calls' approval is not this one.
+            with patch.dict(os.environ,{'NULLNULL_KTO_SMOKE_APPROVED':'true'}):
+                with self.assertRaisesRegex(ops.OpsError,'nullnull-kto-eng-refresh-approved-not-set-by-caller'):
+                    ops.ops_task(args('owner approved in session'))
+            with patch.dict(os.environ,{'NULLNULL_KTO_ENG_REFRESH_APPROVED':'true'}):
+                for record in (None,'too short'):
+                    with self.subTest(record=record),self.assertRaisesRegex(ops.OpsError,'owner-approval-record-required'):
+                        ops.ops_task(args(record))
+            aws.assert_not_called()
+    def test_the_refresh_runs_as_the_deployed_release_with_its_approval(self):
+        done='KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1 failed=0'
+        error,calls,out=self.run_refresh([f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED',done])
+        self.assertIsNone(error,out)
+        run=[kw for s,o,kw in calls if (s,o)==('ecs','run-task')]
+        self.assertEqual(1,len(run))
+        env={e['name']:e['value'] for e in run[0]['overrides']['containerOverrides'][0]['environment']}
+        self.assertEqual('io.nullnull.catalog.infrastructure.kto.KtoEngTextRefreshMain',env['LOADER_MAIN'])
+        self.assertEqual('true',env['NULLNULL_KTO_ENG_REFRESH_APPROVED'])
+        self.assertEqual('2026_KTO_WEBAPP',env['APP_CONTEST_PROFILE'])
+        self.assertIn('ops_log '+done,out)
+        self.assertIn('ops_task=kto-eng-text-refresh result=succeeded',out)
+        # Checked against the deployed release's image, as withdraw-post is.
+        self.assertEqual(self.DIGEST,self.wait.call_args.args[5])
+    def test_the_refresh_succeeds_only_on_one_done_line_that_refreshed_every_link(self):
+        """The main exits zero when there was nothing to refresh, and a task can end before its DONE line; neither
+        is a refresh. So the task succeeds on exactly one DONE line naming at least one link, every one attempted and
+        none failed - not on a zero exit code, as withdraw-post does not."""
+        line=f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED'
+        done='KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1 failed=0'
+        for log in ([],[line],
+                    ['KTO_ENG_TEXT_REFRESH_DONE links=0 attempted=0 failed=0'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1 failed=1'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=2 attempted=1 failed=1'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=2 attempted=1 failed=0'],
+                    [line,done,done],
+                    [line,done+' url=https://korean.visitkorea.or.kr/x'],
+                    [line,'KTO_ENG_TEXT_REFRESH_DONE links=1 attempted=1']):
+            with self.subTest(log=log):
+                error,_,out=self.run_refresh(log)
+                self.assertIn('eng-text-not-refreshed',error or '')
+                self.assertNotIn('result=succeeded',out)
+                self.assertNotIn('korean.visitkorea.or.kr',out)
+    def test_only_the_english_tasks_redacted_lines_are_echoed(self):
+        allowed=['eng_link_plan sha256='+'a'*64+' bytes=321',f'eng_link {self.PLACE} PROCESSED','eng_links_processed=3',
+                 'eng_links_failed reason=OPERATIONS_TARGET_NOT_CONFIRMED','eng_links_failed reason=IllegalArgumentException',
+                 f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED',
+                 f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} failure=KTO_RESPONSE_REJECTED',
+                 'KTO_ENG_TEXT_REFRESH_DONE links=3 attempted=3 failed=0',
+                 # KtoSmokeEnvironment.sources: a setting's name and where it came from, never its value.
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY <- process env',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY <- process env (overrides .env.local)',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS NULLNULL_ENV <- .env.local',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS SPRING_DATASOURCE_PASSWORD <- absent']
+        refused=[f'eng_link {self.PLACE} PROCESSED https://korean.visitkorea.or.kr/x',
+                 # The generic KTO_ shape let all of these through: a value, provider text, a URL, a place that is
+                 # not an id. The refresh prints three exact shapes and nothing else passes for it.
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY=abc123',
+                 'KTO_ENG_TEXT_REFRESH_SETTINGS KTO_SERVICE_KEY <- abc123',
+                 f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=UPDATED title=Gyeongbokgung Palace',
+                 f'KTO_ENG_TEXT_REFRESH placeId={self.PLACE} outcome=Updated to Gyeongbokgung',
+                 'KTO_ENG_TEXT_REFRESH placeId=gyeongbokgung outcome=UPDATED',
+                 'KTO_ENG_TEXT_REFRESH_DONE links=3 attempted=3 failed=0 url=https://korean.visitkorea.or.kr/x',
+                 'KTO_ENG_TEXT_REFRESH_DONE Gyeongbokgung',
+                 'eng_link_plan evidenceUrl=https://korean.visitkorea.or.kr/x',
+                 'eng_links_failed reason=English link plan is invalid at line 3 column 7']
+        for line in allowed: self.assertTrue(ops.OPS_LOG_LINE.match(line),line)
+        for line in refused: self.assertFalse(ops.OPS_LOG_LINE.match(line),line)
