@@ -235,7 +235,7 @@ release manifest는 한 번 build한 산출물을 식별한다.
 
 reviewer를 기다리는 `deploy-infra`는 concurrency group을 잡고 있으므로, 승인하거나 거절하기 전까지 뒤의 release는 대기한다(GitHub는 미응답 승인을 30일 뒤 만료한다). 실패한 job만 다시 돌려도 된다: plan과 artifact 이름은 job output으로 전달돼 그것을 만든 attempt의 것을 쓴다.
 
-**공개 edge를 연 채 배포할 때는 `plan_only=true`로 dispatch한다.** `app`으로 분류된 plan은 `deploy-app`이 검토자 없이 바로 실행하고(`staging` environment에는 reviewer가 없다), 그 job은 기본 deploy라 공개 API edge를 닫는다. `plan_only=true`면 verify·web·build·plan만 돌고 두 deploy job은 건너뛴다. 그 plan을 release bucket `pending/<run_id>-<attempt>/plan.tgz`에서 받아 plan job log의 `approved_plan_sha256`과 해시를 대조한 뒤 exact-main worktree에서 `deploy --plan … --execute --kind <app|infra> --preserve-open-edge`로 적용한다. 기본값은 `false`라 reconciler 동작은 바뀌지 않는다.
+**공개 edge를 연 채 배포할 때는 `plan_only=true`로 dispatch한다.** `app`으로 분류된 plan은 `deploy-app`이 검토자 없이 바로 실행하고(`staging` environment에는 reviewer가 없다), 그 job은 기본 deploy라 공개 API edge를 닫는다. `plan_only=true`면 verify·web·build·plan만 돌고 두 deploy job은 건너뛴다. 그 plan을 release bucket `pending/<run_id>-<attempt>/plan.tgz`에서 받아 plan job log의 `approved_plan_sha256`과 해시를 대조한 뒤 exact-main worktree에서 `deploy --plan … --execute --kind <app|infra> --preserve-open-edge`로 적용한다. 기본값은 `false`라 reconciler 동작은 바뀌지 않는다. 다만 `plan_only=true` run은 deploy job을 건너뛸 뿐 취소되지 않아 conclusion이 `success`다(run 21). reconciler(`scripts/aws/ci_reconcile.py`의 `reconcile_decision`)는 `cancelled`가 아닌 완료 run을 `release-already-ran`으로 보므로, 그 commit은 plan을 적용하지 않았어도 이미 배포된 것으로 셈된다. `STAGING_AUTO_DEPLOY`가 `true`가 아니면 reconciler는 아무것도 하지 않으므로 그동안은 영향이 없다.
 
 ## 8. Rollback
 
@@ -562,31 +562,28 @@ python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-pla
 # schema를 덧붙이는 release는 덧붙는 migration 파일을 plan을 만들 때 이름으로 댄다(A-067, §7). 승인 hash가 그 이름을 덮고
 # execute는 plan의 이름만 따른다. 배포된 목록이 새 목록의 정확한 앞부분이고 덧붙은 파일이 이름과 정확히 같을 때만 통과한다.
 # 이 배포 뒤 rollback plan에는 --accept-newer-schema가 필요하다(§8).
-# CI plan 경로(R2): plan은 staging-release.yml이 만들고, 실행은 local operator가 edge를 연 채로 한다. CI deploy job은
-# --preserve-open-edge를 주지 않으므로 이름이 든 plan을 거부한다(accept-additive-schema-requires-preserve-open-edge).
-# 의도된 동작이다 — open-edge로 검토된 plan이 edge를 닫는 기본 배포로 실행되지 않는다. 이 경로는 plan이 infra로 분류될
-# 때만 쓴다: staging environment에는 reviewer가 없어 app plan이면 deploy-app이 기다리지 않고 바로 돈다.
-# rc.20(run 20)이 이 경로로 나갔다. run 기록은 plan 성공·deploy-infra 취소이고, (d)~(g)는 run 기록에 남지 않는다.
-# (a) main HEAD를 dispatch한다.
-gh workflow run staging-release.yml --ref main -f action=deploy -f expected_sha=<main HEAD> \
+# CI plan 경로(R2): `plan_only=true`로 dispatch해 plan만 만들고(§7), 실행은 local operator가 edge를 연 채로 한다.
+# plan_only 없이 dispatch하면 CI deploy job이 이름 든 plan을 거부한다(accept-additive-schema-requires-preserve-open-edge,
+# --preserve-open-edge를 주지 않으므로). 의도된 동작이다 — open-edge로 검토된 plan이 edge를 닫는 기본 배포로 실행되지 않는다.
+# (a) main HEAD를 plan_only로 dispatch한다.
+gh workflow run staging-release.yml --ref main -f action=deploy -f expected_sha=<main HEAD> -f plan_only=true \
   -f accept_additive_schema=V050__kto_eng_service_text_source.sql
-# (b) plan job이 끝나고 deploy-infra가 reviewer를 기다리는지 본다. plan job 요약에서 approved plan sha256, infra reason,
-#     "migrations an open-edge execute may append" 줄을 읽는다.
-# (c) 승인하지 않고 취소한다. 기본 deploy가 edge를 닫는 경로가 돌지 않는다.
-gh run cancel <run_id>
-# (d)(e) operator 자격증명(위 AWS_PROFILE)으로 plan job이 올린 plan을 받는다. key의 attempt는 plan job을 다시 돌리지
+# (b) plan job이 끝나면 run이 끝난다(deploy job 둘은 건너뛴다). plan job 요약에서 approved plan sha256, kind,
+#     infra reason, "migrations an open-edge execute may append" 줄을 읽는다.
+# (c) operator 자격증명(위 AWS_PROFILE)으로 plan job이 올린 plan을 받는다. key의 attempt는 plan job을 다시 돌리지
 #     않았으면 1이다.
 bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
   --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
 aws s3 cp "s3://${bucket}/pending/<run_id>-<attempt>/plan.tgz" plan.tgz --only-show-errors
 mkdir plan && tar -xzf plan.tgz -C plan
-# (f) 받은 plan.json이 plan job이 승인 대상으로 찍은 그 plan인지 먼저 본다. 기대값은 plan job 요약이나 plan 단계 log의
+# (d) 받은 plan.json이 plan job이 승인 대상으로 찍은 그 plan인지 먼저 본다. 기대값은 plan job 요약이나 plan 단계 log의
 #     approved_plan_sha256이다. 받은 파일에서 다시 계산한 값을 쓰면 이 비교도 execute의 hash 검사도 아무것도 재지 않는다.
 #     MISMATCH면 멈춘다. match일 때만 plan/template-diff.txt(검토 diff)와 plan/classification.json(kind·findings)을 읽는다.
 [ "$(shasum -a 256 plan/plan.json | cut -d' ' -f1)" = "<approved_plan_sha256>" ] && echo plan_sha256=match || echo plan_sha256=MISMATCH
-# (g) dispatch한 commit과 정확히 같은 commit의 worktree에서 실행한다. verify_plan이 infra/package-lock.json hash를 plan의
-#     toolchainSha256과 대조한다. operator 코드가 같은 commit인지는 대조하는 장치가 없다. plan은 만든 지 24시간 안에
-#     실행한다(plan-older-than-24-hours). classify 뒤 live stack이 바뀌었으면 실행이 멈춘다.
+# (e) dispatch한 commit과 정확히 같은 commit의 worktree에서 실행한다. --kind는 plan job 요약의 kind다(migration 집합이
+#     바뀌면 infra). verify_plan이 infra/package-lock.json hash를 plan의 toolchainSha256과 대조한다. operator 코드가
+#     같은 commit인지는 대조하는 장치가 없다. plan은 만든 지 24시간 안에 실행한다(plan-older-than-24-hours). classify 뒤
+#     live stack이 바뀌었으면 실행이 멈춘다.
 npm --prefix infra ci --ignore-scripts --no-audit --no-fund
 python3 scripts/aws/staging_operator.py deploy --plan plan/plan.json --approved-plan-sha256 <approved_plan_sha256> \
   --execute --kind infra --preserve-open-edge
