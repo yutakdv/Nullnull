@@ -3896,6 +3896,10 @@
         {
           "id": "BA-090-T21",
           "assertion": "RESULT 코드가 없는 서울 응답은 제공자 오류가 아니라 schema drift 다"
+        },
+        {
+          "id": "BA-090-T22",
+          "assertion": "대체 표시가 있는 서울 응답도 나머지 drift 는 격리된다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",

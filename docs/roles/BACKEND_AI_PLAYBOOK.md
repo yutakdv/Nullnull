@@ -2490,6 +2490,7 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T19`: 서울 제공자가 스스로 선언한 오류는 run 을 FAILED 로 닫는다
 - `BA-090-T20`: 서울 제공자 오류로 닫힌 run 은 다음 수집을 막지 않는다
 - `BA-090-T21`: RESULT 코드가 없는 서울 응답은 제공자 오류가 아니라 schema drift 다
+- `BA-090-T22`: 대체 표시가 있는 서울 응답도 나머지 drift 는 격리된다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
